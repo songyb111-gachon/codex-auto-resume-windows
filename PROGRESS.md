@@ -67,6 +67,53 @@ continuation/notLoaded 안전 대기/중복 방지/persistent state/restart reco
 enable·disable·status·pending·cancel·logs/single-instance/optional startup/clean uninstall/자동 테스트/
 disposable read-only 통합/README/PROGRESS/보안 검토)을 모두 충족했다.
 
+## Phase 4 — 최종 감사 (2026-09-06 23:xx KST, Claude Code)
+
+9개 차원 적대적 감사 + 발견마다 3인 반증 투표. raw 11건 → **확인 8건 / 반증 3건**. 확인 8건 전부 수정.
+추가로 저자가 직접 뮤테이션 테스트, crash-window 매트릭스, 교차 프로세스 경쟁 시험을 수행했다.
+
+### 수정한 확인 항목 8건
+
+1. **[High] `install --startup`이 `CODEX_AUTO_RESUME_HOME`을 누락** → 등록 명령에 `--home`이 빠져 로그인
+   시 watcher가 **다른 state DB와 다른 단일 인스턴스 뮤텍스**를 사용(중복 watcher 가능, 재개 무동작).
+   `cli.cmd_install`이 항상 `app.paths.home`을 전달하도록 수정.
+2. **[Medium] `writer_lock_state`가 앱의 배타적 writer lock을 획득할 수 있었음** → byte-range가 순간적으로
+   비어 있으면 `LockFileEx`가 성공해 앱의 `try_lock`을 실패시킬 수 있었다. **함수와 `_Overlapped`를 완전히
+   삭제**하고 loaded 판별을 Restart Manager 단독으로 수행. 상류 구현상 "서버가 파일을 열고 있음"과
+   "writer lock 보유"는 동치이므로 판별력 손실은 없다.
+3. **[Medium] uninstall이 자기가 만들지 않은 동일 이름 파일을 삭제** → `.owned-by-codex-auto-resume`
+   provenance marker 도입. 마커가 있는 디렉터리 안에서만 삭제하고, 없으면 건너뛴 사실을 출력.
+4. **[Medium] 일시적 `codex --version` 실패가 watcher를 세션 내내 종료** → 엔진 생성을 루프 안으로 옮겨
+   지연 생성/재시도. 일시 실패는 tick만 건너뛴다.
+5. **[Medium/Low] uninstall의 watcher 확인이 tri-state에서 fail-open** → `None`(확인 불가)을 "미실행"으로
+   간주했다. `is not False`로 fail-closed 전환.
+6. **[Low] WOW64에서 `ProgramFiles`가 (x86)** → 32비트 Python이 앱과 페어링 불가. `ProgramW6432` 우선,
+   아키텍처 세그먼트를 `(x64|arm64)`로 완화.
+7. **[Low] 자동시작 명령의 역슬래시 종료 경로 인용 오류** (`--home D:\` → `run` 삼킴) →
+   `subprocess.list2cmdline` 사용.
+8. **[Low] `collect()`의 register+update 2트랜잭션** → 두 커밋 사이에 죽으면 잘못된 스케줄이 남았다.
+   `Store.register(..., state=, next_retry_at=)`로 **단일 트랜잭션** 생성.
+
+### 반증된 3건 (수정하지 않음)
+
+- 오래된 실패가 armed_at 기준으로만 제한된다 → `valid_interruption`이 "그 실패가 아직 최신 턴"임을
+  요구하므로 의미상 정당하고, 큐잉 직전 실시간 사용량 재확인이 있다. 3인 전원 반증.
+- `status`가 오래된 autostart 값을 그대로 '등록됨'으로 표시 → cosmetic. 3인 전원 반증.
+- uninstall tri-state 중복 제기 1건 → 동일 사안(위 5번)으로 통합 처리.
+
+### 저자 직접 검증
+
+- **뮤테이션 테스트**: 핵심 가드 20종을 제거해 테스트가 잡는지 확인. 최초 3종이 살아남아(테스트 공백)
+  회귀 테스트를 추가했고, 재실행에서 8/9 제거. 남은 1건(uninstall 파일 단위 confinement)은 symlink 거부와
+  디렉터리 confinement로 이미 도달 불가능한 중복 방어라 의도적으로 유지.
+- **crash-window 매트릭스**: reserve 직후 / CLI 실행 직전 / 전달 후 기록 전 / 큐 등록 후 기록 전 4지점에서
+  강제 종료 후 재시작 → 전송 최대 1회, 이중 전송 0.
+- **교차 프로세스 경쟁**: 4프로세스 × 8회 동시 예약 → 매번 정확히 1개만 성공.
+
+### 테스트
+
+**136개 통과**(회귀 9개 추가) + 실환경 read-only 통합 6개 통과. 실제 대화에는 전송하지 않았다.
+
 ---
 
 ## (Phase 2 시점) 현재 판정

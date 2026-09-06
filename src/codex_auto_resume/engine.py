@@ -131,10 +131,11 @@ class Engine:
                 "uncertain": bool(hint["uncertain"]),
             }
             now = self.clock()
-            if self.store.register(detection, now):
-                reset = detection["reset_at"]
-                when = max(now + 30, reset + self.options["reset_grace_seconds"]) if reset else now + self.options["conservative_poll_seconds"]
-                self.store.update(detection["interruption_id"], state="waiting_reset" if reset else "waiting_poll", next_retry_at=when)
+            reset = detection["reset_at"]
+            when = max(now + 30, reset + self.options["reset_grace_seconds"]) if reset else now + self.options["conservative_poll_seconds"]
+            # One transaction: the record can never exist without its real schedule.
+            if self.store.register(detection, now, state="waiting_reset" if reset else "waiting_poll",
+                                   next_retry_at=when):
                 self.log(detection["thread_id"], "usageLimitExceeded_detected", detection["interruption_id"])
                 if reset:
                     self.log(detection["thread_id"], "reset_expected", str(int(reset)))

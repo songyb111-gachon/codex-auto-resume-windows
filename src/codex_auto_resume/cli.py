@@ -288,7 +288,10 @@ def cmd_install(args) -> int:
     _print("owned state directory : %s" % app.paths.state_dir)
     _print("owned log directory   : %s" % app.paths.logs_dir)
     if args.startup:
-        command = startup.command_line(app.paths.entry_script, None if args.home is None else app.paths.home)
+        # Always register the home actually in effect. Passing it only when it came from
+        # --home would let CODEX_AUTO_RESUME_HOME silently drop out at login, pointing the
+        # autostarted watcher at a different state DB *and* a different single-instance mutex.
+        command = startup.command_line(app.paths.entry_script, app.paths.home)
         changed = startup.install(command)
         app.logger.info("login autostart %s", "registered" if changed else "already registered")
         _print("login autostart       : %s" % ("registered" if changed else "already registered (unchanged)"))
@@ -313,8 +316,11 @@ def cmd_uninstall(args) -> int:
             if app.watcher_running() is False:
                 break
             time.sleep(0.25)
-    if app.watcher_running():
-        _print("a watcher is still running; stop it first (uninstall aborted before deleting state)")
+    # Tri-state probe: only a definite False permits deletion. 'unknown' fails CLOSED.
+    running = app.watcher_running()
+    if running is not False:
+        _print("a watcher is still running" if running else "watcher state could not be verified")
+        _print("uninstall aborted before deleting any state; stop the watcher and retry")
         return EXIT_ERROR
     # Any file handlers from an earlier command in this process must be closed first.
     import logging
@@ -322,6 +328,9 @@ def cmd_uninstall(args) -> int:
         for handler in list(logging.getLogger(logger_name).handlers):
             logging.getLogger(logger_name).removeHandler(handler)
             handler.close()
+    considered = ([] if args.keep_logs else [paths.logs_dir]) + [paths.state_dir]
+    owned_dirs = [d for d in considered if paths.owns(d)]
+    skipped = [d for d in considered if d.is_dir() and not paths.owns(d)]
     targets = list(paths.owned_state_files()) + ([] if args.keep_logs else list(paths.owned_log_files()))
     for path in targets:
         try:
@@ -331,13 +340,15 @@ def cmd_uninstall(args) -> int:
                 removed.append(str(path))
         except OSError:
             _print("warning: could not delete %s" % path)
-    for directory in ([] if args.keep_logs else [paths.logs_dir]) + [paths.state_dir]:
+    for directory in owned_dirs:
         try:
             if directory.is_dir() and not any(directory.iterdir()):
                 directory.rmdir()
         except OSError:
             pass
     _print("removed: %s" % (", ".join(removed) if removed else "nothing (already clean)"))
+    for directory in skipped:
+        _print("skipped %s (no provenance marker; not created by this tool, nothing deleted there)" % directory)
     _print("ChatGPT/Codex files and repositories were not touched")
     return EXIT_OK
 

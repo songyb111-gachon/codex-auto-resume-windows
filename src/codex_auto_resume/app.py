@@ -125,25 +125,27 @@ class App:
         except Exception:
             self._record_failure("opening state")
             return EXIT_ERROR
-        try:
-            engine = self.engine(store)
-        except Exception:
-            self._record_failure("initialising Codex adapter")
-            store.close()
-            return EXIT_ERROR
+        engine = None
         last_enabled = None
         exit_code = EXIT_OK
         try:
             while True:
                 try:
+                    # Built lazily and retried: a transient codex.exe probe failure (an
+                    # antivirus scan or an in-progress Codex update at logon) must defer
+                    # this tick, never end the watcher for the whole session.
+                    if engine is None:
+                        engine = self.engine(store)
                     enabled = store.settings()["enabled"]
                     if enabled != last_enabled:
                         self.logger.info("auto-resume is %s", "enabled" if enabled else "disabled (kill switch active; no submissions)")
                         last_enabled = enabled
                     engine.tick()
                 except Exception:
-                    self._record_failure("tick")
+                    self._record_failure("initialising Codex adapter" if engine is None else "tick")
                 if once:
+                    if engine is None:
+                        exit_code = EXIT_ERROR
                     break
                 interval = self._poll_interval(store, poll)
                 if stop.wait(interval):

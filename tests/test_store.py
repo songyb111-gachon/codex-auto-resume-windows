@@ -146,6 +146,28 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(self.store.get("b" * 64)["state"], "submitting")
         self.assertTrue(self.store.get("b" * 64)["cancel_requested"])
 
+    def test_submitted_at_alone_blocks_a_second_reservation(self):
+        # Defense in depth: even if a record is forced back into a WAITING state while
+        # submitted_at survives, it must never be reserved again (that is a double send).
+        key = "a" * 64
+        self.store.register(failure(), 111)
+        self.store.set_enabled(True, 100)
+        self.assertTrue(self.store.reserve(key, 151))
+        self.store.update(key, state="waiting_retry")      # submitted_at deliberately kept
+        row = self.store.get(key)
+        self.assertIsNotNone(row["submitted_at"], "precondition: the send may have happened")
+        self.assertIn(row["state"], {"waiting_retry"})
+        self.assertFalse(self.store.reserve(key, 200), "a possible prior send must never be repeated")
+
+    def test_register_persists_its_schedule_in_one_transaction(self):
+        event = failure()
+        self.assertTrue(self.store.register(event, 111, state="waiting_poll", next_retry_at=999))
+        row = self.store.get(event["interruption_id"])
+        self.assertEqual(row["state"], "waiting_poll")
+        self.assertEqual(row["next_retry_at"], 999)
+        with self.assertRaises(StoreError):
+            self.store.register(failure("b" * 64), 111, state="queued")
+
     def test_terminal_never_reactivated(self):
         self.store.register(failure(), 111)
         self.store.update("a" * 64, state="resumed", resumed_at=160)

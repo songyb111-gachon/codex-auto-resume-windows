@@ -72,16 +72,12 @@ class BackendTests(unittest.TestCase):
         self.compatible.start()
         self.addCleanup(self.compatible.stop)
 
-    def loaded(self, lock="held", users=None, identities=None):
+    def loaded(self, users=None, identities=None):
         if users is None:
             users = [{"pid": 20, "created": 200}]
-        lock_probe = MagicMock(return_value=lock)
         with patch.object(self.backend, "app_identity", side_effect=identities or [APP, APP]), \
-             patch.object(w, "writer_lock_state", lock_probe), \
              patch.object(w, "resource_users", return_value=users):
-            result = self.backend.loaded(THREAD, APP)
-        self.last_lock_probe = lock_probe
-        return result
+            return self.backend.loaded(THREAD, APP)
 
     def test_loaded_requires_exact_app_owned_writer(self):
         self.assertEqual(self.loaded(), "loaded")
@@ -98,23 +94,34 @@ class BackendTests(unittest.TestCase):
     def test_ambiguous_resource_users_fail_closed(self):
         self.assertEqual(self.loaded(users=[{"pid": 20, "created": 200}, {"pid": 30, "created": 300}]), "unknown")
 
-    def test_no_holder_is_not_loaded_without_ever_locking(self):
-        # A stale or absent lock file has no Restart Manager holder; we must never
-        # acquire a byte lock on the app's own file to decide this.
+    def test_no_holder_is_not_loaded(self):
+        # A stale or absent lock file has no Restart Manager holder.
         self.assertEqual(self.loaded(users=[]), "notLoaded")
-        self.last_lock_probe.assert_not_called()
 
-    def test_free_or_absent_lock_after_holder_is_unknown(self):
-        # Server holds the file open per RM, but the lock reads free/absent: a race -> unknown.
-        self.assertEqual(self.loaded(lock="free"), "unknown")
-        self.assertEqual(self.loaded(lock="absent"), "unknown")
-
-    def test_resource_api_unavailable_does_not_use_lock_only(self):
+    def test_resource_api_unavailable_fails_closed(self):
         with patch.object(self.backend, "app_identity", return_value=APP), \
-             patch.object(w, "writer_lock_state") as lock_probe, \
              patch.object(w, "resource_users", side_effect=w.AdapterError("resource_inventory_failed")):
             self.assertEqual(self.backend.loaded(THREAD, APP), "unknown")
-            lock_probe.assert_not_called()
+
+    def test_tool_never_acquires_the_apps_writer_lock(self):
+        # Hard invariant: no byte-lock API may exist anywhere in the adapter, because
+        # acquiring a momentarily free range would break the app's own try_lock.
+        source = Path(w.__file__).read_text(encoding="utf-8")
+        for forbidden in ("LockFileEx", "UnlockFileEx", "writer_lock_state"):
+            self.assertNotIn(forbidden + "(", source)
+        self.assertFalse(hasattr(w, "writer_lock_state"))
+
+    def test_app_path_uses_native_program_files_under_wow64(self):
+        # 32-bit Python sees ProgramFiles=(x86); ProgramW6432 holds the native path.
+        native = r"C:\Program Files"
+        rows = [{"pid": 10, "parent": 1, "path": native + r"\WindowsApps\OpenAI.Codex_26.901.5280.0_x64__2p2nqsd0c76g0\app\ChatGPT.exe"},
+                {"pid": 20, "parent": 10, "path": "codex.exe"}]
+        with patch.dict(w.os.environ, {"ProgramFiles": r"C:\Program Files (x86)", "ProgramW6432": native}), \
+             patch.object(w, "process_identity", side_effect=[{"pid": 10, "created": 100, "path": rows[0]["path"].lower()},
+                                                              {"pid": 20, "created": 200, "path": "codex.exe"}]):
+            pair = w.desktop_pair(rows, Path("codex.exe"))
+        self.assertEqual(pair["pid"], 10)
+        self.assertEqual(pair["server"]["pid"], 20)
 
     def test_invalid_thread_id_never_launches(self):
         with patch.object(w.S, "Popen") as popen:

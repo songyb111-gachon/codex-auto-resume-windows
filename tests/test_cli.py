@@ -19,6 +19,27 @@ from codex_auto_resume.store import Store, StoreError
 THREAD = "0a1b2c3d-0101-7000-8000-000000000101"
 
 
+def _split_command(command: str) -> list[str]:
+    """Parse a Windows command line exactly as CreateProcess/CommandLineToArgvW would."""
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+        shell32 = ctypes.WinDLL("shell32", use_last_error=True)
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        shell32.CommandLineToArgvW.restype = ctypes.POINTER(wintypes.LPWSTR)
+        shell32.CommandLineToArgvW.argtypes = [wintypes.LPCWSTR, ctypes.POINTER(ctypes.c_int)]
+        count = ctypes.c_int()
+        pointer = shell32.CommandLineToArgvW(command, ctypes.byref(count))
+        if not pointer:
+            raise OSError("CommandLineToArgvW failed")
+        try:
+            return [pointer[i] for i in range(count.value)]
+        finally:
+            kernel32.LocalFree(pointer)
+    import shlex
+    return shlex.split(command)
+
+
 def _reset_logging():
     logger = logging.getLogger(logbook.LOGGER_NAME)
     for handler in list(logger.handlers):
@@ -245,7 +266,100 @@ class ConfinementTests(unittest.TestCase):
         self.assertEqual(list(paths.state_dir.glob("settings.*.tmp")), [], "temp cleaned up on failure")
 
 
+class UninstallSafetyTests(unittest.TestCase):
+    """Uninstall must delete ONLY files this tool created, and never while a watcher runs."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.home = Path(self.temp.name) / "home"
+        self.addCleanup(self.temp.cleanup)
+        self.addCleanup(_reset_logging)
+        self.env = patch.dict(os.environ, {"LOCALAPPDATA": str(Path(self.temp.name) / "no-codex"),
+                                           config.ENV_HOME: str(self.home)})
+        self.env.start()
+        self.addCleanup(self.env.stop)
+
+    def cli(self, *argv):
+        return run_cli("--quiet", *argv)
+
+    def test_uninstall_refuses_directories_it_did_not_create(self):
+        # A pre-existing config/ and logs/ that this tool never made: user files with
+        # matching names must survive untouched.
+        (self.home / "config").mkdir(parents=True)
+        (self.home / "logs").mkdir(parents=True)
+        victim_state = self.home / "config" / "state.sqlite"
+        victim_log = self.home / "logs" / "errors.log"
+        victim_state.write_text("someone else's database", encoding="utf-8")
+        victim_log.write_text("someone else's log", encoding="utf-8")
+        paths = config.Paths(self.home)
+        self.assertFalse(paths.owns(paths.state_dir))
+        self.assertEqual(paths.owned_state_files(), [])
+        self.assertEqual(paths.owned_log_files(), [])
+        with patch.object(startup, "_winreg", return_value=FakeWinreg()):
+            code, out, _ = self.cli("uninstall")
+        self.assertEqual(code, 0)
+        self.assertTrue(victim_state.exists(), "a file we never created must never be deleted")
+        self.assertTrue(victim_log.exists())
+        self.assertIn("no provenance marker", out)
+
+    def test_uninstall_removes_only_marked_directories_contents(self):
+        self.cli("install")
+        paths = config.Paths(self.home)
+        self.assertTrue(paths.owns(paths.state_dir), "install must leave a provenance marker")
+        stranger = self.home / "logs" / "not-ours.txt"
+        stranger.write_text("keep me", encoding="utf-8")
+        with patch.object(startup, "_winreg", return_value=FakeWinreg()):
+            code, _, _ = self.cli("uninstall")
+        self.assertEqual(code, 0)
+        self.assertFalse((self.home / "config" / "state.sqlite").exists())
+        self.assertTrue(stranger.exists(), "unmatched names in our own dir are still left alone")
+
+    def test_uninstall_aborts_when_watcher_state_is_unknown(self):
+        self.cli("install")
+        app = App(config.Paths(self.home), console=False, enable_logging=False)
+        for probe, label in ((None, "unknown"), (True, "running")):
+            with patch.object(App, "watcher_running", return_value=probe), \
+                 patch.object(startup, "_winreg", return_value=FakeWinreg()):
+                code, out, _ = self.cli("uninstall")
+            self.assertEqual(code, 1, label)
+            self.assertIn("uninstall aborted", out)
+            self.assertTrue((self.home / "config" / "state.sqlite").exists(),
+                            "state must survive an aborted uninstall (%s)" % label)
+        del app
+
+
 class WatcherLoopTests(unittest.TestCase):
+    def test_transient_adapter_failure_does_not_end_the_watcher(self):
+        # A codex.exe probe failure at logon (antivirus scan, in-progress update) must
+        # defer the tick and retry, not terminate the watcher for the whole session.
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.addCleanup(_reset_logging)
+        home = Path(temp.name)
+        with patch.dict(os.environ, {"LOCALAPPDATA": str(home / "none")}):
+            app = App(config.Paths(home), console=False)
+        ticks = []
+        attempts = {"n": 0}
+
+        class OneTickEngine:
+            def tick(self_inner):
+                ticks.append(1)
+
+        def flaky_engine(store, **kwargs):
+            attempts["n"] += 1
+            if attempts["n"] < 3:
+                raise config.ConfigError("codex binary temporarily unavailable")
+            return OneTickEngine()
+
+        stops = iter([False, False, False, True])
+        with patch.object(App, "engine", side_effect=flaky_engine), \
+             patch.object(App, "mutex"), patch.object(App, "stop_event") as stop_event:
+            stop_event.return_value.__enter__.return_value.wait.side_effect = lambda s: next(stops)
+            code = app.run(once=False, poll=5)
+        self.assertEqual(code, 0, "the watcher survived the transient failures")
+        self.assertGreaterEqual(attempts["n"], 3, "engine construction was retried")
+        self.assertTrue(ticks, "it eventually ticked once the adapter recovered")
+
     def test_poll_interval_survives_store_read_failure(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)       # runs AFTER _reset_logging (LIFO): file handle freed first
@@ -269,7 +383,9 @@ class StartupTests(unittest.TestCase):
         fake = FakeWinreg()
         with patch.object(startup, "_winreg", return_value=fake):
             command = startup.command_line(Path("C:/x/src/auto_resume.py"), Path("C:/x"), Path("C:/py/pythonw.exe"))
-            self.assertEqual(command, '"C:\\py\\pythonw.exe" "C:\\x\\src\\auto_resume.py" --home "C:\\x" run')
+            # Assert the parsed argv, not the exact quoting: quotes are added only where needed.
+            self.assertEqual(_split_command(command),
+                             ["C:\\py\\pythonw.exe", "C:\\x\\src\\auto_resume.py", "--home", "C:\\x", "run"])
             self.assertTrue(startup.install(command))
             self.assertFalse(startup.install(command))
             self.assertEqual(len(fake.values), 1)
@@ -277,6 +393,31 @@ class StartupTests(unittest.TestCase):
             self.assertTrue(startup.uninstall())
             self.assertFalse(startup.uninstall())
             self.assertIsNone(startup.current_value())
+
+    def test_registered_command_always_pins_the_effective_home(self):
+        # With CODEX_AUTO_RESUME_HOME set and no --home, the Run value must still carry
+        # the home; otherwise the login watcher uses a different state DB and mutex.
+        fake = FakeWinreg()
+        with tempfile.TemporaryDirectory() as temp:
+            home = Path(temp) / "envhome"
+            with patch.dict(os.environ, {"LOCALAPPDATA": str(Path(temp) / "none"),
+                                         config.ENV_HOME: str(home)}), \
+                    patch.object(startup, "_winreg", return_value=fake):
+                code, out, _ = run_cli("--quiet", "install", "--startup")
+                self.assertEqual(code, 0)
+                registered = fake.values[startup.VALUE_NAME][0]
+            self.assertIn("--home", registered)
+            self.assertIn(str(home.resolve()), registered)
+            _reset_logging()
+
+    def test_command_line_survives_a_trailing_backslash_home(self):
+        # A drive-root home must not let the closing quote be escaped, which would
+        # swallow the `run` subcommand.
+        command = startup.command_line(Path("C:/x/src/auto_resume.py"), Path("D:/"), Path("C:/py/pythonw.exe"))
+        parsed = _split_command(command)
+        self.assertEqual(parsed[-1], "run")
+        self.assertIn("--home", parsed)
+        self.assertEqual(parsed[parsed.index("--home") + 1].rstrip("\\"), "D:")
 
     def test_cli_install_startup_registers_once(self):
         fake = FakeWinreg()
