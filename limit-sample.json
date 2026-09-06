@@ -1,0 +1,77 @@
+{
+  "observed_at": "2026-09-06T07:17:36.798679+09:00",
+  "access": "SQLite URI mode=ro, exact thread only; exact rollout read only through failed turn end",
+  "thread_id": "0a1b2c3d-0101-7000-8000-000000000101",
+  "database_failure": {
+    "thread_id": "0a1b2c3d-0101-7000-8000-000000000101",
+    "turn_id": "0a1b2c3d-0102-7000-8000-000000000102",
+    "status": "failed",
+    "started_at": 1788627820,
+    "completed_at": 1788628349,
+    "rollout_ordinal": 1,
+    "rollout_end_ordinal": 210,
+    "codexErrorInfo": "usageLimitExceeded",
+    "usage_message_time_phrase": "try again at 7:03 AM",
+    "started_at_kst": "2026-09-06T02:03:40+09:00",
+    "completed_at_kst": "2026-09-06T02:12:29+09:00"
+  },
+  "rollout_failure": {
+    "ordinal": 210,
+    "timestamp": "2026-09-05T17:12:29.817Z",
+    "type": "event_msg",
+    "payload_type": "task_complete",
+    "turn_id": "0a1b2c3d-0102-7000-8000-000000000102",
+    "error": {
+      "codex_error_info": "usage_limit_exceeded",
+      "usage_message_time_phrase": "try again at 7:03 AM"
+    },
+    "contains_machine_readable_reset_in_error": false
+  },
+  "last_rate_limit_snapshot_per_bucket_before_failure": {
+    "codex": {
+      "ordinal": 202,
+      "timestamp": "2026-09-05T17:12:28.964Z",
+      "rate_limits": {
+        "limit_id": "codex",
+        "primary": {
+          "used_percent": 98.0,
+          "window_minutes": 300,
+          "resets_at": 1788645827
+        },
+        "secondary": {
+          "used_percent": 34.0,
+          "window_minutes": 10080,
+          "resets_at": 1789108889
+        },
+        "individual_limit": null,
+        "rate_limit_reached_type": null
+      }
+    },
+    "premium": {
+      "ordinal": 209,
+      "timestamp": "2026-09-05T17:12:29.802Z",
+      "rate_limits": {
+        "limit_id": "premium",
+        "primary": null,
+        "secondary": null,
+        "individual_limit": null,
+        "rate_limit_reached_type": null
+      }
+    }
+  },
+  "reset_check": {
+    "numeric_snapshot_reset_unix": 1788645827,
+    "utc": "2026-09-05T22:03:47+00:00",
+    "kst": "2026-09-06T07:03:47+09:00",
+    "displayed_minute_kst": "2026-09-06T07:03:00+09:00",
+    "displayed_minute_unix": 1788645780,
+    "matches_displayed_minute": true,
+    "not_exact_second_match": true
+  },
+  "limitations": [
+    "Failure error has usage-limit enum and display time phrase but no numeric reset timestamp or explicit bucket ID.",
+    "Nearest preceding codex primary snapshot was 98 percent; immediate pre-failure premium snapshot had no windows. The codex primary reset is a corroborating snapshot, not proof of blocking bucket identity.",
+    "task_complete event includes error and must not be treated as successful completion solely by event type.",
+    "No prompt, tool output, credential, or full error text is included."
+  ]
+}

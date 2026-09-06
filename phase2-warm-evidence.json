@@ -1,0 +1,18 @@
+{
+  "verdict": "PASS",
+  "scope": "delivery to the exact already-loaded desktop-app conversation",
+  "thread_id": "0a1b2c3d-0103-7000-8000-000000000103",
+  "queue_item_id": "0a1b2c3d-0105-7000-8000-000000000105",
+  "continuation_turn_id": "0a1b2c3d-0107-7000-8000-000000000107",
+  "turn_status": "completed",
+  "marker": "AUTO_RESUME_POC_QUEUE_ACK",
+  "same_thread_user_message_confirmed": true,
+  "same_thread_agent_message_confirmed": true,
+  "desktop_app_wait_threads_confirmed": true,
+  "pending_test_items_after_delivery": 0,
+  "reverified_date_kst": "2026-09-06",
+  "warm_writer_lock_calibration": "held",
+  "replayed_after_usage_reset": false,
+  "proves_external_attach_to_desktop_stdio": false,
+  "proves_unloaded_thread_delivery": false
+}
