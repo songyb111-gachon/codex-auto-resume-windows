@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.2.0 — Install and control it from inside Codex
 
 ### Install and control it from inside Codex
 
