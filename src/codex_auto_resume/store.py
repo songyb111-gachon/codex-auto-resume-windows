@@ -292,15 +292,24 @@ class Store:
                 (thread_id, int(enabled)),
             )
 
-    def register(self, record: dict[str, Any], now: float) -> bool:
+    def register(self, record: dict[str, Any], now: float, *,
+                 state: str = "waiting_reset", next_retry_at: float | None = None) -> bool:
+        """Create the record WITH its real schedule in one transaction.
+
+        Writing the state/next_retry_at in a second transaction would leave a
+        mis-scheduled record behind if the process died between the two commits.
+        """
         _timestamp(now, "now")
         fields = {"thread_id", "turn_id", "completed_at", "started_at", "ordinal", "interruption_id",
                   "reset_at", "limit_type", "uncertain"}
         if not isinstance(record, dict) or set(record) != fields:
             raise StoreError("Invalid detection record")
+        if state not in WAITING:
+            raise StoreError("A new interruption must start in a waiting state")
         row = _validated_record({
-            **record, "detected_at": now, "state": "waiting_reset", "retry_count": 0,
-            "next_retry_at": now, "resumed_at": None, "last_error": None,
+            **record, "detected_at": now, "state": state, "retry_count": 0,
+            "next_retry_at": now if next_retry_at is None else next_retry_at,
+            "resumed_at": None, "last_error": None,
             "marker": f"[codex-auto-resume:{record['interruption_id']}]", "queue_id": None,
             "submitted_at": None, "attempt_count": 0, "cancel_requested": False,
         })

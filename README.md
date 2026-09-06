@@ -66,6 +66,8 @@ python src/auto_resume.py install --startup
 ```
 
 기본 설치는 자동 시작을 강제하지 않습니다. 자동 시작을 켜도 `pythonw.exe`로 콘솔 창 없이 watcher를 실행합니다.
+등록되는 명령에는 **현재 적용 중인 home 경로가 항상 포함**됩니다(`--home` 또는 `CODEX_AUTO_RESUME_HOME`).
+그래야 로그인 시에도 같은 상태 DB와 같은 단일 인스턴스 뮤텍스를 사용합니다.
 
 ## 사용
 
@@ -126,8 +128,11 @@ python src/auto_resume.py uninstall --keep-logs # 로그는 남김
 ```
 
 - 제거 대상: 로그인 자동 시작 등록, 이 도구가 만든 상태(`config/state.sqlite*`, `settings.json`)와 로그.
-- **ChatGPT/Codex 자체 파일, 사용자 저장소, 임의의 다른 파일은 절대 삭제하지 않습니다.** 소유 파일 이름
-  패턴에 맞는 것만 지웁니다.
+- **ChatGPT/Codex 자체 파일, 사용자 저장소, 임의의 다른 파일은 절대 삭제하지 않습니다.**
+  삭제는 **provenance marker**(`config/.owned-by-codex-auto-resume`, `logs/…`)가 있는 디렉터리 안에서만,
+  그리고 소유 파일 이름 패턴에 맞는 것만 수행합니다. 마커가 없는 디렉터리(=이 도구가 만들지 않은
+  디렉터리)에서는 **아무것도 지우지 않고** 건너뛴 사실을 출력합니다.
+- watcher가 실행 중이거나 실행 여부를 **확인할 수 없으면** 아무것도 지우지 않고 중단합니다(fail-closed).
 
 ## 상태 파일과 로그
 

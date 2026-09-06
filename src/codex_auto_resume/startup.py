@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import subprocess
 import sys
 
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
@@ -33,11 +34,13 @@ def python_launcher() -> Path:
 
 def command_line(entry_script: Path, home: Path | None = None, launcher: Path | None = None) -> str:
     launcher = launcher or python_launcher()
-    parts = [f'"{launcher}"', f'"{Path(entry_script).resolve()}"']
+    argv = [str(launcher), str(Path(entry_script).resolve())]
     if home is not None:
-        parts.append(f'--home "{Path(home).resolve()}"')
-    parts.append("run")
-    return " ".join(parts)
+        # list2cmdline escapes a trailing backslash (e.g. --home D:\), which naive
+        # quoting would turn into an escaped quote, swallowing the `run` subcommand.
+        argv += ["--home", str(Path(home).resolve())]
+    argv.append("run")
+    return subprocess.list2cmdline(argv)
 
 
 def current_value() -> str | None:

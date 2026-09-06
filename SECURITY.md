@@ -8,6 +8,11 @@
 ## 검토 방식
 
 1. 정적 검토: 저자(Claude Code)가 모든 모듈을 직접 검토.
+3. **최종 감사(3차, 2026-09-06 23:xx KST)**: 9개 차원 적대적 감사 + 발견마다 3인 반증 투표.
+   raw 11건 중 **확인 8건 / 반증 3건**. 확인된 8건은 모두 수정했습니다. 추가로 저자가 직접 수행한
+   **뮤테이션 테스트**(핵심 가드 제거 후 테스트가 잡는지 확인), **crash-window 매트릭스**(4개 종료
+   지점), **교차 프로세스 경쟁 시험**(32개 프로세스)으로 검증했습니다. 자세한 목록은 `PROGRESS.md`.
+
 2. 적대적 다중 에이전트 검토 2회(각 5개 차원 리뷰 + 각 발견에 대해 3인 독립 반증 투표):
    - 1차: 핵심 4개 모듈(`source`, `store`, `windows`, `engine`) — 확인된 결함 12건, 모두 수정.
    - 2차: 신규/변경 모듈(`cli`, `app`, `config`, `logbook`, `startup`, 변경된 `windows/engine/source`) —
@@ -55,9 +60,16 @@
 - **악성 저장소 입력**: rollout/queue/스레드 제목 등 저장소가 통제하는 입력은 데이터로만 취급합니다.
   큐 payload는 버전 고정 serde 형태만 인정하고, 사용량/오류 필드는 allowlist 파싱하며, 알 수 없는 값은
   fail-closed 처리합니다.
-- **uninstall 안전성**: 소유 파일 이름 패턴(`state.sqlite*`, `settings.json`, `auto-resume.log[.N]`,
-  `errors.log[.N]`)에 맞는 것만 삭제하고, 빈 소유 디렉터리만 제거합니다. ChatGPT/Codex 파일이나 사용자
-  저장소는 삭제하지 않습니다. 관리자 권한을 요구하지 않으며 autostart는 `HKCU\...\Run`만 사용합니다.
+- **uninstall 안전성**: 삭제는 **provenance marker**(`.owned-by-codex-auto-resume`)가 존재하는 디렉터리
+  안에서만 수행하며, 그 안에서도 소유 파일 이름 패턴(`state.sqlite*`, `settings.json`,
+  `auto-resume.log[.N]`, `errors.log[.N]`, `settings.*.tmp`)에 맞는 것만 지웁니다. 마커가 없는
+  디렉터리에서는 **아무것도 지우지 않습니다**(사용자가 `--home`을 임의 디렉터리로 지정해도 안전).
+  watcher 실행 여부가 **불확실하면 삭제하지 않고 중단**합니다(tri-state fail-closed). 빈 소유 디렉터리만
+  제거합니다. ChatGPT/Codex 파일이나 사용자 저장소는 삭제하지 않습니다. 관리자 권한을 요구하지 않으며
+  autostart는 `HKCU\...\Run`만 사용합니다.
+- **앱 writer lock 비침습**: 이 도구에는 `LockFileEx`/byte-lock 획득 코드가 **아예 존재하지 않습니다**.
+  loaded 판별은 Restart Manager 소유자 조회로만 수행합니다. (이전 구현은 잠금이 순간적으로 비어 있을 때
+  앱의 배타적 writer lock을 획득할 수 있었고, 3차 감사에서 확인되어 제거했습니다.)
 
 ## 알려진 잔여 위험
 

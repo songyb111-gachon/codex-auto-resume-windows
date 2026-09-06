@@ -13,6 +13,10 @@ ENV_CODEX_EXE = "CODEX_AUTO_RESUME_CODEX_EXE"
 MAX_SETTINGS_BYTES = 64 * 1024
 LOOKBACK_HOURS_DEFAULT = 6.0
 LOOKBACK_HOURS_MAX = 24 * 7
+# Provenance marker: uninstall deletes ONLY inside a directory this tool created.
+# Without it, a name match alone could remove a user file that merely shares the name.
+OWNER_MARKER = ".owned-by-codex-auto-resume"
+OWNER_TEXT = "Created by codex-auto-resume. Deleting this file makes `uninstall` skip this directory.\n"
 
 
 class ConfigError(RuntimeError):
@@ -48,26 +52,44 @@ class Paths:
             directory.mkdir(parents=True, exist_ok=True)
             if not self.confined(directory):
                 raise ConfigError("Owned directory escapes the configured home; refusing")
+            marker = directory / OWNER_MARKER
+            try:
+                if not marker.exists():
+                    marker.write_text(OWNER_TEXT, encoding="utf-8")
+            except OSError:
+                pass    # A missing marker only makes uninstall MORE conservative.
 
-    # Owned files that uninstall may remove. Nothing outside these names, and nothing
-    # whose resolved path escapes the owned home, is ever deleted.
+    def owns(self, directory: Path) -> bool:
+        """Uninstall may only delete inside a directory carrying our provenance marker."""
+        marker = directory / OWNER_MARKER
+        try:
+            return (directory.is_dir() and self.confined(directory)
+                    and marker.is_file() and not marker.is_symlink() and self.confined(marker))
+        except OSError:
+            return False
+
+    # Owned files that uninstall may remove. A file is removable only if it is inside a
+    # directory WE created (provenance marker), matches an owned name, is not a link, and
+    # resolves inside the home. Anything else is never deleted.
     def owned_state_files(self) -> list[Path]:
+        if not self.owns(self.state_dir):
+            return []
         names = ["state.sqlite", "state.sqlite-journal", "state.sqlite-wal", "state.sqlite-shm", "settings.json"]
         files = [self.state_dir / name for name in names]
-        if self.state_dir.is_dir() and self.confined(self.state_dir):
-            files += [p for p in sorted(self.state_dir.glob("settings.*.tmp"))
-                      if not p.is_symlink() and self.confined(p)]
-        return files
+        files += [p for p in sorted(self.state_dir.glob("settings.*.tmp"))
+                  if not p.is_symlink() and self.confined(p)]
+        return files + [self.state_dir / OWNER_MARKER]
 
     def owned_log_files(self) -> list[Path]:
+        if not self.owns(self.logs_dir):
+            return []
         result = []
-        if self.logs_dir.is_dir() and self.confined(self.logs_dir):
-            for path in sorted(self.logs_dir.iterdir()):
-                name = path.name
-                if (re.fullmatch(r"(auto-resume|errors)\.log(\.\d+)?", name)
-                        and not path.is_symlink() and self.confined(path)):
-                    result.append(path)
-        return result
+        for path in sorted(self.logs_dir.iterdir()):
+            name = path.name
+            if (re.fullmatch(r"(auto-resume|errors)\.log(\.\d+)?", name)
+                    and not path.is_symlink() and self.confined(path)):
+                result.append(path)
+        return result + [self.logs_dir / OWNER_MARKER]
 
 
 def codex_home() -> Path:

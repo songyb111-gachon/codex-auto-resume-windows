@@ -70,34 +70,10 @@ def process_identity(pid):
         k.CloseHandle(handle)
 
 
-class _Overlapped(C.Structure):
-    _fields_ = [("Internal", C.c_size_t), ("InternalHigh", C.c_size_t),
-                ("Offset", W.DWORD), ("OffsetHigh", W.DWORD), ("hEvent", W.HANDLE)]
-
-
-def writer_lock_state(path):
-    """Probe one existing byte lock, without reading/writing/creating file data."""
-    k = _kernel()
-    k.CreateFileW.argtypes = [W.LPCWSTR, W.DWORD, W.DWORD, C.c_void_p, W.DWORD, W.DWORD, W.HANDLE]
-    k.CreateFileW.restype = W.HANDLE
-    k.LockFileEx.argtypes = [W.HANDLE, W.DWORD, W.DWORD, W.DWORD, W.DWORD, C.POINTER(_Overlapped)]
-    k.LockFileEx.restype = W.BOOL
-    k.UnlockFileEx.argtypes = [W.HANDLE, W.DWORD, W.DWORD, W.DWORD, C.POINTER(_Overlapped)]
-    k.UnlockFileEx.restype = W.BOOL
-    handle = k.CreateFileW(str(path), 0x80000000, 7, None, 3, 0x80, None)
-    if handle == C.c_void_p(-1).value:
-        return "absent" if C.get_last_error() in (2, 3) else "unknown"
-    overlap = _Overlapped()
-    acquired = False
-    try:
-        acquired = bool(k.LockFileEx(handle, 3, 0, 1, 0, C.byref(overlap)))
-        if acquired:
-            return "free"
-        return "held" if C.get_last_error() == 33 else "unknown"
-    finally:
-        if acquired:
-            k.UnlockFileEx(handle, 0, 1, 0, C.byref(overlap))
-        k.CloseHandle(handle)
+# NOTE: no LockFileEx/byte-lock probe exists anywhere in this tool by design.
+# Acquiring the thread writer lock -- even for microseconds on a momentarily free
+# range -- could make the ChatGPT app's own try_lock fail. Loaded-state ownership is
+# determined solely by the Restart Manager inventory in Backend.loaded().
 
 
 class _UniqueProcess(C.Structure):
@@ -181,9 +157,11 @@ def inventory():
 
 def desktop_pair(rows, codex_exe):
     """Bind the configured official engine to exactly one Windows Store app main."""
-    program_files = os.environ.get("ProgramFiles", r"C:\Program Files")
+    # Under WOW64 (32-bit Python on 64-bit Windows) ProgramFiles is the (x86) directory;
+    # ProgramW6432 always holds the native one, where WindowsApps actually lives.
+    program_files = os.environ.get("ProgramW6432") or os.environ.get("ProgramFiles", r"C:\Program Files")
     app_pattern = re.compile(re.escape(str(Path(program_files) / "WindowsApps")) +
-                             r"\\OpenAI\.Codex_[0-9.]+_x64__2p2nqsd0c76g0\\app\\ChatGPT\.exe", re.I)
+                             r"\\OpenAI\.Codex_[0-9.]+_(x64|arm64)__2p2nqsd0c76g0\\app\\ChatGPT\.exe", re.I)
     apps = [row for row in rows if isinstance(row, dict) and isinstance(row.get("path"), str)
             and app_pattern.fullmatch(row["path"])]
     app_ids = {row["pid"] for row in apps}
@@ -521,11 +499,16 @@ class Backend:
             expected = {key: app_identity["server"][key] for key in ("pid", "created")}
             # Exactly the app's own Codex server holds it, and app identity is stable.
             # A CLI-owned writer, missing identity or ambiguity fails closed.
+            #
+            # Ownership is decided PURELY by Restart Manager: the upstream writer lock
+            # guard holds the file open for exactly as long as it holds the byte lock
+            # (it closes and deletes the file on drop), so "the app server has this file
+            # open" already means "the app server holds the writer lock". We deliberately
+            # do NOT probe with LockFileEx: on a momentarily free range that call would
+            # ACQUIRE the app's own exclusive lock and could make the app's try_lock fail.
             if users != [expected] or self.app_identity() != app_identity:
                 return "unknown"
-            # The server already holds the file open, so this probe can only ever observe
-            # the lock as held; it never acquires it. Absent/free here means a race -> unknown.
-            return "loaded" if writer_lock_state(path) == "held" else "unknown"
+            return "loaded"
         except (AdapterError, ValueError, OSError, KeyError, TypeError):
             return "unknown"
 
