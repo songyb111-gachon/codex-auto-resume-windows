@@ -33,10 +33,12 @@ function Get-CodexCli {
     # newest one that actually contains codex.exe.
     $root = Join-Path $env:LOCALAPPDATA 'OpenAI\Codex\bin'
     if (-not (Test-Path $root)) { return $null }
-    $found = Get-ChildItem -Path $root -Directory -ErrorAction SilentlyContinue |
+    # @() matters: a single result would otherwise be a bare string, and indexing a
+    # string returns its first character rather than the path.
+    $found = @(Get-ChildItem -Path $root -Directory -ErrorAction SilentlyContinue |
         ForEach-Object { Join-Path $_.FullName 'codex.exe' } |
         Where-Object { Test-Path $_ } |
-        Sort-Object { (Get-Item $_).LastWriteTime } -Descending
+        Sort-Object { (Get-Item $_).LastWriteTime } -Descending)
     if ($found.Count -eq 0) { return $null }
     return $found[0]
 }
@@ -52,12 +54,12 @@ function Get-Python {
     foreach ($candidate in $candidates) {
         $command = Get-Command $candidate.File -ErrorAction SilentlyContinue
         if ($null -eq $command) { continue }
-        $probe = @($candidate.Args) + @('-c', 'import sys; print("%d.%d" % sys.version_info[:2])')
-        $version = & $candidate.File @probe 2>$null
+        $probe = @($candidate.Args) + @('-c', 'import sys;print(sys.version_info[0]*100+sys.version_info[1])')
+        $version = (& $candidate.File @probe) 2>$null
         if ($LASTEXITCODE -ne 0 -or -not $version) { continue }
-        $parts = ("$version".Trim()) -split '\.'
-        if ($parts.Count -lt 2) { continue }
-        $major = [int]$parts[0]; $minor = [int]$parts[1]
+        $encoded = 0
+        if (-not [int]::TryParse(("$version".Trim()), [ref]$encoded)) { continue }
+        $major = [math]::Floor($encoded / 100); $minor = $encoded % 100
         if ($major -gt 3 -or ($major -eq 3 -and $minor -ge 10)) {
             return @{ File = $candidate.File; Args = $candidate.Args; Version = "$major.$minor" }
         }
@@ -69,12 +71,12 @@ function Get-PluginRoot {
     param([string]$CodexHome)
     $cache = Join-Path $CodexHome 'plugins\cache'
     if (-not (Test-Path $cache)) { return $null }
-    $found = Get-ChildItem -Path $cache -Directory -ErrorAction SilentlyContinue |
+    $found = @(Get-ChildItem -Path $cache -Directory -ErrorAction SilentlyContinue |
         ForEach-Object { Join-Path $_.FullName $PluginName } |
         Where-Object { Test-Path $_ } |
         ForEach-Object { Get-ChildItem -Path $_ -Directory -ErrorAction SilentlyContinue } |
         Where-Object { Test-Path (Join-Path $_.FullName 'scripts\plugin_setup.py') } |
-        Sort-Object LastWriteTime -Descending
+        Sort-Object LastWriteTime -Descending)
     if ($found.Count -eq 0) { return $null }
     return $found[0].FullName
 }
@@ -135,6 +137,10 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 Ok 'Marketplace registered'
+
+Step 'Refreshing the marketplace'
+& $codex plugin marketplace upgrade 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 0) { Warn 'Could not refresh the marketplace; an already-cached version will be used.' }
 
 # 6. Install or update the plugin.
 $marketplaceName = Split-Path $Marketplace -Leaf
