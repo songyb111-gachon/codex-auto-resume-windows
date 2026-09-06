@@ -48,7 +48,17 @@ class App:
             def compatible(path):
                 Backend(self.codex_home, path)._compatible()
             exe = config.discover_codex_exe(self._codex_exe_override, compatible)
-            self._backend = Backend(self.codex_home, exe)
+            backend = Backend(self.codex_home, exe)
+            # Discovery probed a throwaway instance; run the check on the one we keep so
+            # engine_version/engine_verified are populated for status, doctor and logs.
+            backend._compatible()
+            if not backend.engine_verified:
+                self.logger.info(
+                    "engine %s is not a version this tool was verified against; accepted "
+                    "because `codex queue` still offers --thread/--message. Delivery is "
+                    "still proven per interruption before anything is marked resumed.",
+                    backend.engine_version)
+            self._backend = backend
         return self._backend
 
     def source(self) -> LocalSource:

@@ -62,8 +62,10 @@ ownership information. It never acquires a lock on the app's file.
 - Python 3.12+. Standard library only, no third-party packages.
 - The official Windows ChatGPT/Codex desktop app, running, with its engine at
   `%LOCALAPPDATA%\OpenAI\Codex\bin\<hash>\codex.exe`.
-- The engine version is pinned to the version this tool was verified against. A different version is
-  refused rather than guessed at.
+- The engine is located automatically. A version this tool has been verified against is trusted
+  outright; after a Codex update an unrecognised version is accepted only if `codex queue` still
+  offers `--thread` and `--message`, and `status`/`doctor` label it as unverified. Anything that
+  cannot prove that interface is refused rather than guessed at.
 
 ## Installation
 
@@ -214,8 +216,10 @@ Design rules enforced in code:
 - Only threads already loaded in the app can be auto-resumed. Unloaded threads wait for you to open them.
 - The blocking usage bucket cannot always be identified with certainty, so live availability is
   re-checked immediately before sending rather than trusted from history.
-- The tool is pinned to a verified Codex engine version and local schema. Other versions are refused
-  rather than handled speculatively.
+- Codex app updates are survivable but not guaranteed. Database files are found by schema generation
+  (`state_5` -> `state_6`) and validated by the columns actually read, and an updated engine is accepted
+  when the `codex queue` interface is unchanged. A change that removes a column this tool reads, or that
+  alters the queue interface, still stops it: it refuses rather than guessing.
 - If the watcher process dies in the narrow window after reserving but before the send result is known,
   that interruption is deliberately left unresumed rather than risking a duplicate.
 - The full end-to-end path (real usage limit, real reset, unattended resume) has had limited real-world

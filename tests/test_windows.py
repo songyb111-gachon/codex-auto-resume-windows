@@ -123,6 +123,57 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(pair["pid"], 10)
         self.assertEqual(pair["server"]["pid"], 20)
 
+    LOCAL_APPDATA = "C:\\FakeLocalAppData"
+
+    def compat(self, version, queue_help_ok=True, queue_rc=0):
+        """Drive Backend._compatible() with a fake `--version` / `queue --help`.
+
+        Uses a path that really satisfies the location check, so that guard stays live.
+        """
+        exe = Path(self.LOCAL_APPDATA) / "OpenAI" / "Codex" / "bin" / "abcdef0123456789" / "codex.exe"
+        with patch.dict(w.os.environ, {"LOCALAPPDATA": self.LOCAL_APPDATA}):
+            backend = w.Backend(Path("state"), exe)
+            results = {
+                ("--version",): MagicMock(returncode=0, stdout=version + "\n"),
+                ("queue", "--help"): MagicMock(
+                    returncode=queue_rc,
+                    stdout=("Usage: codex queue [OPTIONS] --thread <THREAD> --message <TEXT>"
+                            if queue_help_ok else "Usage: codex queue [OPTIONS] --session <S>")),
+            }
+
+            def fake_run(argv, **kwargs):
+                return results[tuple(argv[1:])]
+
+            with patch.object(backend, "_environment", return_value={}), \
+                 patch.object(w.Path, "stat", return_value=MagicMock(st_size=1, st_mtime_ns=1)), \
+                 patch.object(w.S, "run", side_effect=fake_run):
+                backend._compatible()
+        return backend
+
+    def test_engine_outside_the_official_location_is_refused(self):
+        backend = w.Backend(Path("state"), Path("C:\\elsewhere\\codex.exe"))
+        with patch.dict(w.os.environ, {"LOCALAPPDATA": self.LOCAL_APPDATA}), \
+             patch.object(w.S, "run") as run:
+            with self.assertRaises(w.AdapterError):
+                backend._compatible()
+            run.assert_not_called()
+
+    def test_verified_engine_version_is_trusted(self):
+        backend = self.compat(w.VERIFIED_VERSIONS[0])
+        self.assertEqual(backend.engine_version, w.VERIFIED_VERSIONS[0])
+        self.assertTrue(backend.engine_verified)
+
+    def test_updated_engine_is_accepted_when_the_queue_interface_survives(self):
+        # An app update must not silently disable auto-resume, but it is flagged.
+        backend = self.compat("codex-cli 0.199.0")
+        self.assertEqual(backend.engine_version, "codex-cli 0.199.0")
+        self.assertFalse(backend.engine_verified)
+
+    def test_updated_engine_is_refused_when_the_queue_interface_changed(self):
+        for kwargs in ({"queue_help_ok": False}, {"queue_rc": 2}):
+            with self.subTest(**kwargs), self.assertRaises(w.AdapterError):
+                self.compat("codex-cli 0.199.0", **kwargs)
+
     def test_invalid_thread_id_never_launches(self):
         with patch.object(w.S, "Popen") as popen:
             for invalid in ("--last", THREAD + " & echo PWNED", "../state", "", None):

@@ -211,6 +211,8 @@ def cmd_status(args) -> int:
     try:
         backend = app.backend()
         _print("codex engine     : %s" % backend.codex_exe)
+        _print("engine version   : %s%s" % (backend.engine_version,
+               "" if backend.engine_verified else "  (unverified build; interface probe passed)"))
         identity = backend.app_identity()
         _print("ChatGPT app      : %s" % ("running (pid %d, codex server pid %d)" % (identity["pid"], identity["server"]["pid"]) if identity else "not running / not paired"))
     except (config.ConfigError, AdapterError) as exc:
@@ -229,7 +231,11 @@ def cmd_doctor(args) -> int:
     ok = True
     try:
         backend = app.backend()
-        _print("codex.exe        : %s (version pin ok)" % backend.codex_exe)
+        _print("codex.exe        : %s" % backend.codex_exe)
+        _print("engine version   : %s" % (
+            "%s (verified)" % backend.engine_version if backend.engine_verified
+            else "%s (NOT a verified version; accepted because `codex queue` still "
+                 "offers --thread/--message)" % backend.engine_version))
     except (config.ConfigError, AdapterError) as exc:
         _print("codex.exe        : FAIL (%s)" % exc)
         return EXIT_ERROR

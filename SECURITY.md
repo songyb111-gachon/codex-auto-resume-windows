@@ -98,8 +98,11 @@ Empirical verification beyond review:
 
 - The blocking usage bucket cannot always be identified from history with certainty, so live availability
   is re-checked immediately before sending. This reduces but does not eliminate the uncertainty.
-- The tool depends on a pinned Codex engine version and the local schema verified against it. Other
-  versions are refused rather than handled speculatively.
+- The tool no longer requires an exact engine version. An unrecognised build is accepted when the
+  `codex queue` interface probe passes, which means a Codex update can change *semantics* without the
+  probe noticing. This is mitigated rather than eliminated: every send is still proven afterwards by
+  the per-interruption marker in that exact thread, an unproven send never becomes `resumed`, and
+  `status`/`doctor`/the log state clearly when the engine is unverified.
 - Unloaded threads are not resumed at all; this is a documented product limitation, not a security control.
 - The repository's early Git history contains development-time environment metadata (a Windows user name
   in absolute paths, ephemeral process ids, and opaque Codex thread identifiers). It contains no
