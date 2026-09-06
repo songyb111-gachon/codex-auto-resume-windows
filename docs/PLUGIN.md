@@ -125,6 +125,31 @@ What was checked, against `codex-cli 0.153.4` and ChatGPT desktop `26.901.5280.0
    `SubagentStop` and `Notification`. None fires on a usage limit — and plugin validation rejects
    `hooks` anyway.
 
+### The one official GUI mechanism, and why it still does not help
+
+Codex does support plugin-driven UI, so "no GUI is possible" would be too strong a claim. Two
+mechanisms exist:
+
+- **MCP elicitation.** An MCP server can call `elicitation/create` with a JSON schema, and the app
+  renders a real form; a boolean property becomes a real checkbox. The response comes back as
+  `accept` / `decline` / `cancel`.
+- **MCP App widgets.** A tool result can carry a `ui://` resource in `_meta`
+  (`openai/outputTemplate` or `ui.resourceUri`) which renders in a sandboxed iframe.
+
+Neither solves this problem, for three reasons:
+
+1. **Both require a live turn.** They are driven by a tool call. When a usage limit hits, the turn has
+   already failed, so nothing of ours is running and nothing can be rendered at that moment — which is
+   exactly the moment the checkbox was for.
+2. **Both render in the conversation, not in the banner.** They cannot be attached to app chrome.
+3. **Elicitation is behind a remote feature flag** (`tool_call_mcp_elicitation`, Statsig-gated). On the
+   development machine `electron-openai-mcp-form-elicitations-enabled` reads `false`, so the form would
+   not render there at all.
+
+A widget reachable only by asking for it would add an MCP server process and a second UI surface to
+replace something the user can already do by asking in words. That trade is not worth it here, so it
+was not built.
+
 The only ways to put a control in that banner would be DOM or renderer injection, an Electron or
 binary patch, a CDP/DevTools bridge, accessibility-control injection, or GUI automation. Every one
 of those is out of scope for this project by design, so the checkbox is not implemented.
