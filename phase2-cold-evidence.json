@@ -1,0 +1,97 @@
+{
+  "thread_id": "0a1b2c3d-0103-7000-8000-000000000103",
+  "marker": "AUTO_RESUME_POC_COLD_ACK_20260906",
+  "started": "2026-09-06T07:39:56+09:00",
+  "verdict": "INCONCLUSIVE",
+  "reason": "process_path_query_failed",
+  "samples": [],
+  "independence": {
+    "independent": true,
+    "in_job": true,
+    "job": {
+      "limit_flags": 6144,
+      "kill_on_job_close": false,
+      "parent_pid": 9460,
+      "parent": {
+        "name": "WmiPrvSE.exe",
+        "parent": 2040,
+        "path": null
+      }
+    }
+  },
+  "before": {
+    "at": "2026-09-06T07:40:27+09:00",
+    "version": "codex-cli 0.153.4",
+    "pair": {
+      "main": {
+        "id": 30492,
+        "parent": 10788,
+        "name": "ChatGPT.exe",
+        "path": "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.901.5280.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe",
+        "created": "2026-09-05T11:37:07.8126600Z",
+        "kernel_identity": {
+          "path": "c:\\program files\\windowsapps\\openai.codex_26.901.5280.0_x64__2p2nqsd0c76g0\\app\\chatgpt.exe",
+          "creation_filetime": 134330818278126603
+        }
+      },
+      "server": {
+        "id": 22280,
+        "parent": 30492,
+        "name": "codex.exe",
+        "path": "C:\\Users\\songy\\AppData\\Local\\OpenAI\\Codex\\bin\\27d6a192e9c98618\\codex.exe",
+        "created": "2026-09-05T11:37:21.2454480Z",
+        "kernel_identity": {
+          "path": "c:\\users\\songy\\appdata\\local\\openai\\codex\\bin\\27d6a192e9c98618\\codex.exe",
+          "creation_filetime": 134330818412454483
+        }
+      }
+    },
+    "snapshot": {
+      "at": "2026-09-06T07:40:27+09:00",
+      "writer": "held",
+      "turns": [
+        {
+          "turn_id": "0a1b2c3d-0104-7000-8000-000000000104",
+          "status": "completed",
+          "started_at": 1788628249,
+          "completed_at": 1788628254
+        },
+        {
+          "turn_id": "0a1b2c3d-0107-7000-8000-000000000107",
+          "status": "completed",
+          "started_at": 1788628311,
+          "completed_at": 1788628314
+        }
+      ],
+      "marker_items": [],
+      "owned_pending_ids": [],
+      "total_pending": 0
+    },
+    "launcher_in_job": true
+  },
+  "error_type": "RuntimeError",
+  "recovery_launch_attempted": true,
+  "cleanup": "no_owned_pending_item",
+  "final_snapshot": {
+    "at": "2026-09-06T07:40:31+09:00",
+    "writer": "free",
+    "turns": [
+      {
+        "turn_id": "0a1b2c3d-0104-7000-8000-000000000104",
+        "status": "completed",
+        "started_at": 1788628249,
+        "completed_at": 1788628254
+      },
+      {
+        "turn_id": "0a1b2c3d-0107-7000-8000-000000000107",
+        "status": "completed",
+        "started_at": 1788628311,
+        "completed_at": 1788628314
+      }
+    ],
+    "marker_items": [],
+    "owned_pending_ids": [],
+    "total_pending": 0
+  },
+  "finished": "2026-09-06T07:40:31+09:00"
+}

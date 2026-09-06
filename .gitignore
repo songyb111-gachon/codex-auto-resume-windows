@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+config/*.sqlite*
+config/settings.json
+logs/*
+!logs/.gitkeep
