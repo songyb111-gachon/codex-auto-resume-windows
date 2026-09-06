@@ -121,7 +121,9 @@ class LocalSource:
             if connection is not None:
                 connection.close()
 
-    def _metadata(self, thread_id: str) -> Path | None:
+    def _metadata(self, thread_id: str, strict: bool = False) -> Path | None:
+        # strict=True (used by latest()) re-raises transient I/O as SourceError so the
+        # engine defers instead of treating an unreadable rollout as "latest turn changed".
         if not valid_uuid(thread_id):
             return None
         with self._db("state_5.sqlite") as connection:
@@ -152,11 +154,16 @@ class LocalSource:
                     or payload.get("thread_source") != "user"):
                 return None
             return path
-        except (OSError, ValueError, UnicodeError):
+        except OSError:
+            # Transient (AV scanner, sharing violation) vs a genuinely ineligible thread.
+            if strict:
+                raise SourceError("Codex local state unavailable or unsupported") from None
+            return None
+        except (ValueError, UnicodeError):
             return None
 
     def latest(self, thread_id: str) -> dict | None:
-        if not valid_uuid(thread_id) or self._metadata(thread_id) is None:
+        if not valid_uuid(thread_id) or self._metadata(thread_id, strict=True) is None:
             return None
         with self._db("thread_history_1.sqlite") as connection:
             row = connection.execute(
@@ -314,10 +321,14 @@ def _choose_reset(buckets, completed_at):
         reset, limit = max(blocked)
         return {"reset_at": reset, "limit_type": limit, "uncertain": ambiguity or len(blocked) > 1}
     # Actual sample is codex primary=98%, immediately followed by premium=null.
-    # Preserve its corroborating reset while explicitly declining to name a
-    # proven blocking bucket. A fresh availability check is still required.
+    # Preserve its corroborating reset ONLY when its own usage is high enough to
+    # plausibly be the block; a low-usage window's far-future reset must not delay
+    # the first eligibility check. A fresh live availability check is still required.
     primary = buckets.get("codex", {}).get("primary")
-    reset = primary.get("resets_at") if isinstance(primary, dict) else None
-    if epoch(reset) and reset >= completed_at:
-        return {"reset_at": reset, "limit_type": "codex:primary_hint", "uncertain": True}
+    if isinstance(primary, dict):
+        used = primary.get("used_percent")
+        reset = primary.get("resets_at")
+        if (type(used) in (int, float) and math.isfinite(used) and used >= 90
+                and epoch(reset) and reset >= completed_at):
+            return {"reset_at": reset, "limit_type": "codex:primary_hint", "uncertain": True}
     return {"reset_at": None, "limit_type": "unknown", "uncertain": True}

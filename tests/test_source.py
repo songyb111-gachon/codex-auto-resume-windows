@@ -71,6 +71,15 @@ class DetectionTests(unittest.TestCase):
         self.assertIsNone(_choose_reset({}, 1788628349)["reset_at"])
         self.assertIsNone(_choose_reset({"premium": {"primary": {"used_percent": 100}}}, 1788628349)["reset_at"])
 
+    def test_low_usage_hint_is_not_adopted_as_reset(self):
+        # A fresh low-usage window's far-future reset must not delay the first check.
+        low = {"codex": {"primary": {"used_percent": 12, "resets_at": 1788645827}}}
+        self.assertIsNone(_choose_reset(low, 1788628349)["reset_at"])
+        high = {"codex": {"primary": {"used_percent": 95, "resets_at": 1788645827}}}
+        hint = _choose_reset(high, 1788628349)
+        self.assertEqual(hint["reset_at"], 1788645827)
+        self.assertEqual(hint["limit_type"], "codex:primary_hint")
+
 
 class LocalSourceTests(unittest.TestCase):
     def setUp(self):
@@ -160,6 +169,19 @@ class LocalSourceTests(unittest.TestCase):
         with self.rollout.open("ab") as stream:
             stream.write(json.dumps({"type": "event_msg", "payload": {"type": "token_count", "rate_limits": {"limit_id": "codex", "primary": {"used_percent": 100, "resets_at": 1789108889}}}}).encode() + b"\n")
         self.assertEqual(self.source.reset_hint(TID, TURN)["reset_at"], FIXTURE["expected_reset_unix"])
+
+    def test_transient_rollout_read_error_defers_not_supersedes(self):
+        # A rollout that cannot be read (here: replaced by a directory) is transient.
+        # latest() (strict) raises so the engine defers; latest_failures skips the thread.
+        self.rollout.unlink()
+        self.rollout.mkdir()
+        try:
+            with self.assertRaises(SourceError):
+                self.source.latest(TID)
+            self.assertEqual(self.source.latest_failures(1788620000), [])
+        finally:
+            self.rollout.rmdir()
+            self.write_rollout()
 
     def test_missing_failure_event_no_guessed_reset(self):
         self.rollout.write_bytes(self.rollout.read_bytes().splitlines(keepends=True)[0])

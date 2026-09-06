@@ -75,10 +75,13 @@ class BackendTests(unittest.TestCase):
     def loaded(self, lock="held", users=None, identities=None):
         if users is None:
             users = [{"pid": 20, "created": 200}]
+        lock_probe = MagicMock(return_value=lock)
         with patch.object(self.backend, "app_identity", side_effect=identities or [APP, APP]), \
-             patch.object(w, "writer_lock_state", return_value=lock), \
+             patch.object(w, "writer_lock_state", lock_probe), \
              patch.object(w, "resource_users", return_value=users):
-            return self.backend.loaded(THREAD, APP)
+            result = self.backend.loaded(THREAD, APP)
+        self.last_lock_probe = lock_probe
+        return result
 
     def test_loaded_requires_exact_app_owned_writer(self):
         self.assertEqual(self.loaded(), "loaded")
@@ -95,15 +98,23 @@ class BackendTests(unittest.TestCase):
     def test_ambiguous_resource_users_fail_closed(self):
         self.assertEqual(self.loaded(users=[{"pid": 20, "created": 200}, {"pid": 30, "created": 300}]), "unknown")
 
-    def test_free_or_absent_not_loaded(self):
-        self.assertEqual(self.loaded(lock="free"), "notLoaded")
-        self.assertEqual(self.loaded(lock="absent"), "notLoaded")
+    def test_no_holder_is_not_loaded_without_ever_locking(self):
+        # A stale or absent lock file has no Restart Manager holder; we must never
+        # acquire a byte lock on the app's own file to decide this.
+        self.assertEqual(self.loaded(users=[]), "notLoaded")
+        self.last_lock_probe.assert_not_called()
+
+    def test_free_or_absent_lock_after_holder_is_unknown(self):
+        # Server holds the file open per RM, but the lock reads free/absent: a race -> unknown.
+        self.assertEqual(self.loaded(lock="free"), "unknown")
+        self.assertEqual(self.loaded(lock="absent"), "unknown")
 
     def test_resource_api_unavailable_does_not_use_lock_only(self):
         with patch.object(self.backend, "app_identity", return_value=APP), \
-             patch.object(w, "writer_lock_state", return_value="held"), \
+             patch.object(w, "writer_lock_state") as lock_probe, \
              patch.object(w, "resource_users", side_effect=w.AdapterError("resource_inventory_failed")):
             self.assertEqual(self.backend.loaded(THREAD, APP), "unknown")
+            lock_probe.assert_not_called()
 
     def test_invalid_thread_id_never_launches(self):
         with patch.object(w.S, "Popen") as popen:

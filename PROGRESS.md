@@ -2,33 +2,53 @@
 
 작성일: 2026-09-06 (Asia/Seoul)
 
-## 현재 판정 (2026-09-06 21:30 KST, Claude Code 인수인계)
+## 현재 판정 (2026-09-06 22:05 KST, Claude Code — Phase 3 구현 완료)
 
-**Phase 3 구현 진행 중.** 이전 Codex 세션은 19:24 이후 PROGRESS.md를 갱신하지 못한 채 `src/codex_auto_resume/{source,store,windows,engine}.py`와 테스트 65개를 작성하고 사용량 제한으로 중단됐다. 아래 "Phase 3" 절이 최신 상태이며, 그 아래의 Phase 1/2 기록은 검증된 사실로서 그대로 유지한다. Phase 2의 "watcher를 만들지 않는다"는 판단은 사용자 지시(2026-09-06 21:20)로 갱신됐다: **로드된 스레드만 자동 재개하고, 미로드 스레드는 안전하게 대기**하는 범위로 구현한다.
+**Phase 3 구현 완료.** 로드된 스레드 자동 재개 + 미로드 스레드 안전 대기 범위를 모두 구현하고 테스트했다.
+전체 단위 테스트 **123개 통과**(실환경 opt-in 6개 제외 117개 + 실환경 read-only 6개), 실환경에서 watcher
+수명주기(단일 인스턴스 BUSY 종료코드 3, stop, uninstall)까지 검증했다. 어떤 실제 대화에도 메시지를
+보내지 않았다. 아래 Phase 1/2 기록은 검증된 사실로 유지한다.
 
-## Phase 3 — 자동 재개 구현 (진행 중)
+### 구현 상태
 
-### 인수인계 시점 평가 (21:30 KST)
+- **완성한 모듈**: `source.py`(읽기 전용 감지), `store.py`(durable 상태), `windows.py`(어댑터 + 단일
+  인스턴스 mutex + StopEvent), `engine.py`(스케줄러), `config.py`(경로/바이너리 탐색), `logbook.py`(회전
+  로그, 기밀 미기록), `startup.py`(HKCU 자동시작), `app.py`(watcher 루프), `cli.py`(enable/disable/status/
+  pending/cancel/logs/run/stop/install/uninstall/doctor), `src/auto_resume.py`(진입점).
+- **테스트**: `test_source`(24), `test_store`(19), `test_windows`(28), `test_engine`(필수 시나리오 18 +
+  crash/uncertainty), `test_cli`(CLI/config/logging/startup), `test_integration_live`(실환경 read-only, opt-in).
+- **문서**: `README.md`(맨 위 미로드 제한 명시), `SECURITY.md`(보안 검토).
 
-- 기존 테스트 실행: `PYTHONPATH=src python -m unittest discover -s tests` → **65개 통과**.
-- 실제 환경 read-only 프로브(21:2x KST): 앱 main PID 4322 / 서버 codex.exe PID 4321, `codex-cli 0.153.4`, Restart Manager와 named mutex 모두 현재 셸에서 정상 동작. writer lock 8개 모두 서버 PID 4321 소유 → `loaded`. Phase 2 disposable 스레드 `0a1b2c3d-0103-7000-8000-000000000103`는 lock 없음 → `notLoaded`.
-- 로드된 스레드 중 사용자 스레드는 실제 조사 스레드 `01a07286-…` 하나뿐이고 나머지는 subagent/guardian 스레드다. **어떤 실제 스레드에도 메시지를 보내지 않는다.**
-- disposable 스레드의 `thread_source`는 `agent_created_thread`이므로 현재 detector의 `thread_source == "user"` 필터에는 걸리지 않는다. 통합 테스트는 detector가 아니라 backend/receipt 경로를 직접 검증한다.
-- 미구현: `src/codex_auto_resume/cli.py`(`auto_resume.py`가 import), watcher 루프, 로깅/rotation, enable/disable/status/pending/cancel/logs, 단일 인스턴스 보호를 루프에 연결, Windows 시작 등록/제거, README, 엔진 시나리오 테스트 18개, disposable 통합 테스트, 보안 검토.
-- 이 디렉터리는 git 저장소가 아니었다. 이후 변경 추적을 위해 `git init` 후 인수인계 시점 baseline을 커밋한다.
+### 이전 코드 대비 변경 및 이유
 
-### 기존 코드 재사용 판단
+1. **`collect()` 치명 버그 수정**(1·2차 리뷰 최상위 확인): `detect()` 출력을 그대로 `store.register()`에
+   넘겨 `status/error_info` 여분 키 때문에 항상 StoreError → 어떤 중단도 등록/재개되지 않았다. 등록에
+   필요한 9개 필드만 투영하도록 수정. 실환경에서도 "detection skipped" 로그로 재현됨.
+2. **진입점 종료코드 버그 수정**: `auto_resume.py`가 `main()`을 호출만 하고 `sys.exit`하지 않아 단일
+   인스턴스 BUSY(3) 등 종료코드가 항상 0이 됐다. `sys.exit(main())`로 수정, 실환경에서 3 확인.
+3. **backoff 고정**: 30s→1m→2m→5m→이후 5m (`BACKOFF_LADDER`).
+4. **enable 이전 실패 lookback**: 기본 6시간, `--lookback-hours`/`settings.json`으로 조정.
+5. **reconcile 안전화**(리뷰 #5): 큐 항목 삭제는 확정 `notLoaded`/만료/무효/비허용에서만. 앱 인벤토리
+   일시 부재는 `notLoaded`가 아니라 `unknown`으로 취급 → 일시적 문제로 큐 항목을 삭제하지 않음.
+6. **submission_unknown/cleanup에 backoff delay**(리뷰 #2): 무delay 재조정으로 매 틱 app-server를
+   spawn하던 문제 제거(300/900s).
+7. **일일 제출 상한 완화**(리뷰 #6): 영구 `failed` 대신 24h 창이 지나면 재시도하는 `waiting_retry`.
+8. **writer lock 간섭 제거**(리뷰 #7/#10): `loaded()`가 Restart Manager로 소유자를 먼저 확인하고,
+   서버가 파일을 이미 연 경우에만 byte-lock을 관찰(획득하지 않음). 빈 인벤토리는 `notLoaded`.
+9. **PowerShell OEM 인코딩 수정**(리뷰 #9): 인벤토리 스크립트에 UTF-8 콘솔 출력 강제(비ASCII 프로필 경로).
+10. **transient 파일 오류 대응**(리뷰 #3/#11): `_metadata(strict=True)`로 `latest()`의 일시적 rollout I/O
+    오류를 SourceError로 올려 엔진이 supersede하지 않고 대기하게 함. detection 경로는 스킵.
+11. **reset hint 임계값**(리뷰 #12): fallback codex primary 힌트는 used_percent≥90일 때만 채택.
 
-- `source.py`, `store.py`, `windows.py`: 설계와 테스트가 건전하여 그대로 재사용. 필요한 경우 최소 수정만 한다.
-- `engine.py`: 재사용하되 (1) backoff를 30s/1m/2m/5m/5m 사다리로 고정, (2) `enable` 시점 이전 실패를 포함하는 bounded lookback(기본 6시간) 도입, (3) 사람이 읽을 수 있는 로그 메시지 매핑, (4) `submission_unknown` 재조정 횟수 제한을 검토한다. 변경 이유는 이 절에 계속 기록한다.
+### 리뷰
 
-### 다음 단계 (정확히)
+- 1차(핵심 4모듈): 확인 12건 → 전부 수정. 6건은 반증(무효).
+- 2차(신규/변경 모듈): 백그라운드 실행 중. 결과 확인 후 이 절과 SECURITY.md에 반영한다.
 
-1. `cli.py` + 로깅 + watcher 루프 작성.
-2. 엔진 시나리오 테스트 18개 작성/실행.
-3. 다중 에이전트 코드/보안 검토 후 확인된 결함 수정.
-4. 실제 환경 read-only 통합 검증 + disposable 스레드 notLoaded 검증. 로드된 disposable 스레드 warm 전송은 사용자가 앱에서 해당 스레드를 열어야 가능.
-5. README, 설치/제거 스크립트, 최종 PROGRESS.md 갱신.
+### 남은 작업
+
+- 2차 리뷰 결과 반영(있으면).
+- 최종 커밋.
 
 ---
 

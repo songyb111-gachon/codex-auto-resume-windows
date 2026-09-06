@@ -157,6 +157,9 @@ def resource_users(path):
 
 _INVENTORY_PS = r"""
 $ErrorActionPreference='Stop'
+# Windows PowerShell 5.1 emits the console OEM code page by default; force UTF-8 so
+# non-ASCII executable paths (e.g. a non-ASCII user profile) survive the round-trip.
+[Console]::OutputEncoding=[System.Text.Encoding]::UTF8
 @(Get-CimInstance Win32_Process -Filter "Name = 'ChatGPT.exe' OR Name = 'codex.exe'" |
  ForEach-Object { [pscustomobject]@{
  pid=[int]$_.ProcessId; parent=[int]$_.ParentProcessId; path=$_.ExecutablePath
@@ -236,6 +239,58 @@ class Mutex:
             k.ReleaseMutex(self.handle)
             k.CloseHandle(self.handle)
             self.handle = None
+
+
+class StopEvent:
+    """Manual-reset named event so `stop` can wake the watcher without killing it."""
+
+    def __init__(self, name: str):
+        identity = os.path.normcase(str(Path.home().resolve())) + "::stop::" + str(name)
+        self.name = "Local\\codex-auto-resume-stop-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()
+        self.handle = None
+
+    @staticmethod
+    def _api():
+        k = _kernel()
+        k.CreateEventW.argtypes = [C.c_void_p, W.BOOL, W.BOOL, W.LPCWSTR]
+        k.CreateEventW.restype = W.HANDLE
+        k.OpenEventW.argtypes = [W.DWORD, W.BOOL, W.LPCWSTR]
+        k.OpenEventW.restype = W.HANDLE
+        k.SetEvent.argtypes = [W.HANDLE]
+        k.SetEvent.restype = W.BOOL
+        k.ResetEvent.argtypes = [W.HANDLE]
+        k.ResetEvent.restype = W.BOOL
+        return k
+
+    def __enter__(self):
+        k = self._api()
+        self.handle = k.CreateEventW(None, True, False, self.name)
+        if not self.handle:
+            raise AdapterError("stop_event_creation_failed")
+        k.ResetEvent(self.handle)  # a stale signal must not stop a fresh watcher
+        return self
+
+    def wait(self, seconds: float) -> bool:
+        """True when a stop was requested; False after the timeout elapsed."""
+        k = self._api()
+        millis = int(max(0.0, min(float(seconds), 3600.0)) * 1000)
+        return k.WaitForSingleObject(self.handle, millis) == 0
+
+    def __exit__(self, *unused):
+        if self.handle is not None:
+            _kernel().CloseHandle(self.handle)
+            self.handle = None
+
+    def signal(self) -> bool:
+        """Signal a running watcher. False when no watcher currently holds the event."""
+        k = self._api()
+        handle = k.OpenEventW(0x0002, False, self.name)  # EVENT_MODIFY_STATE
+        if not handle:
+            return False
+        try:
+            return bool(k.SetEvent(handle))
+        finally:
+            k.CloseHandle(handle)
 
 
 def _epoch(value):
@@ -457,17 +512,19 @@ class Backend:
             if not app_identity or self.app_identity() != app_identity:
                 return "unknown"
             path = self.codex_home / "thread-writer-locks" / (thread_id + ".lock")
-            state = writer_lock_state(path)
-            if state in ("absent", "free"):
-                return "notLoaded"
-            if state != "held":
-                return "unknown"
+            # Identify who holds the lock file OPEN via Restart Manager first. This never
+            # acquires a byte lock, so it cannot race the app's own exclusive writer lock.
+            # An empty inventory (absent file, or a stale file no process holds) is notLoaded.
             users = resource_users(path)
+            if not users:
+                return "notLoaded"
             expected = {key: app_identity["server"][key] for key in ("pid", "created")}
-            # Exactly one resource user + overlapping lock + stable app ownership.
+            # Exactly the app's own Codex server holds it, and app identity is stable.
             # A CLI-owned writer, missing identity or ambiguity fails closed.
             if users != [expected] or self.app_identity() != app_identity:
                 return "unknown"
+            # The server already holds the file open, so this probe can only ever observe
+            # the lock as held; it never acquires it. Absent/free here means a race -> unknown.
             return "loaded" if writer_lock_state(path) == "held" else "unknown"
         except (AdapterError, ValueError, OSError, KeyError, TypeError):
             return "unknown"
