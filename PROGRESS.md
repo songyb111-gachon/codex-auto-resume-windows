@@ -43,12 +43,29 @@
 ### 리뷰
 
 - 1차(핵심 4모듈): 확인 12건 → 전부 수정. 6건은 반증(무효).
-- 2차(신규/변경 모듈): 백그라운드 실행 중. 결과 확인 후 이 절과 SECURITY.md에 반영한다.
+- 2차(신규/변경 모듈): 확인 3건 → 전부 수정. 반증 0건.
+  1. **NTFS junction confinement**(medium): 소유 디렉터리 가드가 `is_symlink()`만 확인해 junction(관리자
+     불필요)으로 `config/`·`logs/`를 홈 밖으로 리디렉션하면 홈 밖에 상태를 쓰거나 uninstall이 무관한
+     사용자 파일을 지울 수 있었다. `Paths.confined()`(resolve 후 홈 포함 여부)로 `ensure()`,
+     `owned_state_files/owned_log_files`, uninstall 삭제 루프를 모두 확정 검사하도록 수정.
+  2. **settings 임시 파일**(low): 고정 이름 `.tmp` + write_through/경합. `tempfile.mkstemp`(O_EXCL)로
+     고유 생성하고, replace 실패를 `ConfigError`로 감싸고, 실패 시 임시 파일 정리. 잔여 temp도
+     uninstall 대상에 포함.
+  3. **watcher poll 간격 읽기가 crash-guard 밖**(medium): 간격 계산의 `store.settings()`가 try/except
+     밖이라 일시적 StoreError가 watcher를 종료시켰다. `_poll_interval()`로 추출해 실패 시 안전한 기본값
+     으로 폴백(루프 미종료).
 
-### 남은 작업
+### 검증 요약 (최종)
 
-- 2차 리뷰 결과 반영(있으면).
-- 최종 커밋.
+- 단위/시나리오/CLI 테스트 **127개 통과**(+ 실환경 read-only 6개 opt-in 통과). junction 가드 테스트는
+  실제 `mklink /J`로 검증됨.
+- 실환경: doctor 정상, 앱 페어링/loaded 분류 정확(없는 스레드는 notLoaded), 사용량 필드 미유출,
+  단일 인스턴스 BUSY(3), stop, uninstall(소유 파일만 삭제) 확인. 어떤 실제 대화에도 전송하지 않음.
+
+**결론: Phase 3 완료.** 요구된 완료 조건(watcher/detector/exact-thread/reset waiting/loaded 감지/loaded
+continuation/notLoaded 안전 대기/중복 방지/persistent state/restart recovery/multi-thread/backoff/
+enable·disable·status·pending·cancel·logs/single-instance/optional startup/clean uninstall/자동 테스트/
+disposable read-only 통합/README/PROGRESS/보안 검토)을 모두 충족했다.
 
 ---
 

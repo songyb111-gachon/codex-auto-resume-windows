@@ -20,6 +20,7 @@ EXIT_ERROR = 1
 EXIT_BUSY = 3
 MIN_POLL = 5
 MAX_POLL = 3600
+DEFAULT_POLL = 30
 
 
 class App:
@@ -106,6 +107,15 @@ class App:
         finally:
             mutex.__exit__(None, None, None)
 
+    def _poll_interval(self, store: Store, poll: int | None) -> int:
+        # A transient store read here must NOT end the watcher; fall back to a safe poll.
+        try:
+            interval = poll if poll else store.settings()["poll_seconds"]
+        except Exception:
+            self._record_failure("poll interval read")
+            interval = poll or DEFAULT_POLL
+        return max(MIN_POLL, min(int(interval), MAX_POLL))
+
     def _loop(self, mutex: Mutex, stop: StopEvent, *, once: bool, poll: int | None) -> int:
         self.logger.info("watcher started (pid %d, state %s)", os.getpid(), self.paths.state_dir)
         if mutex.abandoned:
@@ -135,8 +145,7 @@ class App:
                     self._record_failure("tick")
                 if once:
                     break
-                interval = poll if poll else store.settings()["poll_seconds"]
-                interval = max(MIN_POLL, min(int(interval), MAX_POLL))
+                interval = self._poll_interval(store, poll)
                 if stop.wait(interval):
                     self.logger.info("stop requested; watcher exiting")
                     break

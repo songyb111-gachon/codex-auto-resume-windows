@@ -325,7 +325,8 @@ def cmd_uninstall(args) -> int:
     targets = list(paths.owned_state_files()) + ([] if args.keep_logs else list(paths.owned_log_files()))
     for path in targets:
         try:
-            if path.is_file() and not path.is_symlink():
+            # Never follow a link/junction out of the owned home when deleting.
+            if path.is_file() and not path.is_symlink() and paths.confined(path):
                 path.unlink()
                 removed.append(str(path))
         except OSError:
