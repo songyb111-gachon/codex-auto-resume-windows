@@ -245,9 +245,8 @@ single cancel button.
 
 ```
 Payment retry refactor
-example-project
-Thread: 0a1b2c3d-0109-7000-8000-000000000109
 Codex usage limit reached. This task will resume at 05:56.
+example-project  ·  Thread: 0a1b2c3d-0109-7000-8000-000000000109
                                              [Don't resume]
 ```
 
@@ -255,6 +254,9 @@ The first line is the conversation title, or the project, or the working directo
 "Codex task". The **exact thread UUID is always shown**: titles repeat, identity must not. A
 temporary failure says "Codex was temporarily interrupted. Retrying automatically." instead, with a
 **Don't retry** button.
+
+Three lines, not four: Windows renders at most three and drops the rest, so the reason comes
+before the identifiers rather than after them.
 
 Those names are for display only. Recovery never resolves a thread by title, project or recency.
 
