@@ -1,0 +1,40 @@
+{
+  "name": "codex-auto-resume",
+  "version": "0.2.0",
+  "description": "Resume the exact Codex task that a usage limit interrupted, once the limit resets. Local-only, read-only against Codex state, and conservative by design.",
+  "author": {
+    "name": "Youngbin Song",
+    "url": "https://github.com/songyb111-gachon"
+  },
+  "homepage": "https://github.com/songyb111-gachon/codex-auto-resume-windows",
+  "repository": "https://github.com/songyb111-gachon/codex-auto-resume-windows",
+  "license": "MIT",
+  "keywords": [
+    "usage limit",
+    "rate limit",
+    "auto resume",
+    "watcher",
+    "windows"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Codex Auto Resume",
+    "shortDescription": "Resume a usage-limited task after the reset",
+    "longDescription": "When a Codex task stops because you ran out of usage, this remembers the exact conversation and resumes it after the limit resets. A small local watcher does the waiting, so it keeps working after you close the app. It only acts on usage-limit interruptions, only on the exact interrupted conversation, and does nothing when the state is uncertain.",
+    "developerName": "Youngbin Song",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/songyb111-gachon/codex-auto-resume-windows",
+    "defaultPrompt": [
+      "Set up auto resume",
+      "Show auto resume status",
+      "Show pending auto resumes"
+    ],
+    "brandColor": "#2F6F4E",
+    "screenshots": []
+  }
+}

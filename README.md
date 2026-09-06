@@ -23,6 +23,15 @@ automation, will not force the conversation open, and will not queue a message o
 
 This is not fully unattended auto-resume across app restarts, and this README will not pretend otherwise.
 
+## Project direction
+
+> Keep the recovery engine small, local, conservative, and fail-closed. Use Codex itself as the
+> primary installation and control interface instead of building a second complex management
+> application.
+
+Growth goes into making it easier to install and control, not into making the runtime do more. There
+is no tray icon, no settings window, no management web UI, no supervisor, and no service.
+
 ## Features
 
 - Detects only genuine usage-limit interruptions (`status=failed` **and** `codexErrorInfo=usageLimitExceeded`).
@@ -68,6 +77,41 @@ ownership information. It never acquires a lock on the app's file.
   cannot prove that interface is refused rather than guessed at.
 
 ## Installation
+
+### Recommended — install as a Codex plugin
+
+Add this repository as a Codex marketplace, then install the plugin:
+
+```bash
+codex plugin marketplace add songyb111-gachon/codex-auto-resume-windows
+```
+
+```bash
+codex plugin add codex-auto-resume@codex-auto-resume-windows
+```
+
+Then just ask Codex, in the app:
+
+> Set up auto resume
+
+You can manage it the same way afterwards — "show auto resume status", "show pending auto resumes",
+"turn auto resume off", "cancel auto resume for this task", "uninstall auto resume".
+
+The plugin is a thin front end over the same command-line tool described below. It adds no second
+engine and no background service. It keeps its state in `%LOCALAPPDATA%\codex-auto-resume\`, outside
+the plugin directory, so updating or removing the plugin never loses a pending resume. The watcher
+keeps running when the Codex app is closed, and starts again at Windows sign-in.
+
+See [docs/PLUGIN.md](docs/PLUGIN.md) for the layout, the update and removal lifecycle, and why the
+usage-limit notice does **not** get a checkbox.
+
+> Install only one way. A manual checkout and a plugin installation keep separate state, so two
+> watchers could resume the same task twice. Setup detects this and refuses rather than creating the
+> second one.
+
+### Advanced — manual installation
+
+For development, or if you would rather run it yourself:
 
 ```bash
 git clone https://github.com/songyb111-gachon/codex-auto-resume-windows.git
@@ -181,6 +225,8 @@ python src\auto_resume.py uninstall --keep-logs
 Uninstall is deliberately conservative:
 
 - It removes the autostart value, stops the watcher, and deletes this tool's own state and logs.
+- It only unregisters an autostart value that belongs to **this** installation. A value that starts a
+  different copy of the tool is reported and kept, never silently removed.
 - It only deletes inside a directory that carries this tool's provenance marker
   (`.owned-by-codex-auto-resume`), so a directory it did not create is skipped and reported, never touched.
 - Inside its own directories it still only deletes its own file names, so unrelated files survive.
