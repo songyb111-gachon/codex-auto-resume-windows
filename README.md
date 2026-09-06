@@ -98,7 +98,7 @@ You can manage it the same way afterwards — "show auto resume status", "show p
 "turn auto resume off", "cancel auto resume for this task", "uninstall auto resume".
 
 The plugin is a thin front end over the same command-line tool described below. It adds no second
-engine and no background service. It keeps its state in `%LOCALAPPDATA%\codex-auto-resume\`, outside
+engine and no background service. It keeps its state in `%USERPROFILE%\.codex-auto-resume\`, outside
 the plugin directory, so updating or removing the plugin never loses a pending resume. The watcher
 keeps running when the Codex app is closed, and starts again at Windows sign-in.
 

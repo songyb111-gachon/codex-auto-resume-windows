@@ -45,7 +45,7 @@ The plugin cache path contains the version, so it changes on every update. Two c
 designed around:
 
 - **State must not live in the plugin.** Pending interruptions, settings and logs live in
-  `%LOCALAPPDATA%\codex-auto-resume\`. Updating or removing the plugin never destroys them.
+  `%USERPROFILE%\.codex-auto-resume\`. Updating or removing the plugin never destroys them.
 - **Autostart must not point into the plugin.** Setup copies `watcher_launcher.py` to that same
   stable directory and registers *that*. At each launch it re-resolves the newest installed
   plugin version, so an update needs no re-registration.
