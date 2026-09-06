@@ -14,3 +14,7 @@ env/
 config/
 logs/*
 !logs/.gitkeep
+
+# Scratch work from other local sessions; never part of the published tool.
+comparison/
+COMPARISON_PROGRESS.md
