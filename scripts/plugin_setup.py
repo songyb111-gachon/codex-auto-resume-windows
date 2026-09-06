@@ -143,7 +143,9 @@ def conflicting_autostart(home: Path) -> str | None:
         current = startup.current_value()
     except startup.StartupError:
         return None
-    if not current or current == watcher_command(home):
+    # Ownership, not string equality: the same installation registers a different
+    # command after a Python upgrade, and that must not look like a second install.
+    if not current or startup.belongs_to(current, home):
         return None
     return current
 

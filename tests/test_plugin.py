@@ -294,6 +294,15 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(payload["home"], str(self.home))
         self.assertTrue((self.home / self.bridge.LAUNCHER_NAME).is_file())
 
+    def test_a_different_interpreter_is_the_same_installation_not_a_conflict(self):
+        """Regression: upgrading Python changed the registered command, and setup then
+        refused forever, believing a second installation existed."""
+        from pathlib import Path as _Path
+        other = startup.command_line(self.home / self.bridge.LAUNCHER_NAME, None,
+                                     launcher=_Path(r"C:\Python313\pythonw.exe"))
+        with patch.object(self.bridge, "runtime_home", return_value=self.home),              patch.object(startup, "current_value", return_value=other):
+            self.assertIsNone(self.bridge.conflicting_autostart(self.home))
+
     def test_setup_refuses_when_another_installation_owns_autostart(self):
         foreign = startup.command_line(Path(r"C:\other\src\auto_resume.py"), Path(r"C:\other"),
                                        launcher=Path(r"C:\Py\pythonw.exe"))
