@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.3.1 — Keep the state out of somebody else's sandbox
+
+- **Runtime state moved from `%LOCALAPPDATA%` to `%USERPROFILE%\.codex-auto-resume\`.**
+  Setup may be run from a packaged (MSIX) host, and Windows silently redirects such a host's
+  AppData writes into its own private `LocalCache`: the environment variable still reads as the
+  normal path while the files land inside an unrelated application. Installing this way put the
+  state, the logs and the autostart launcher inside another app's sandbox, where uninstalling
+  that app would have taken them with it. The user profile root is not redirected, which is why
+  Codex keeps its own state in `~/.codex`.
+  Found by installing the plugin for real and reading back where the files actually went.
+
 ## v0.3.0 — A control at the moment it matters
 
 - **Windows notification when an interruption is detected.** The watcher is running at that
@@ -34,7 +45,7 @@
 - The plugin is a thin front end over the existing command-line interface. It adds no MCP server, no
   second engine, no recovery logic of its own, and never queues a message to a thread.
 - **Runtime state moved out of the plugin directory** for plugin installs, to
-  `%LOCALAPPDATA%\codex-auto-resume\`. Plugin updates and removals no longer risk pending resumes.
+  `%USERPROFILE%\.codex-auto-resume\`. Plugin updates and removals no longer risk pending resumes.
   Autostart points at a small stable launcher that re-resolves the current plugin version at every
   launch, so an update needs no re-registration. Manual installations are unchanged.
 - **Two installations are refused rather than merged.** A manual checkout and a plugin install keep

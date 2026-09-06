@@ -22,6 +22,7 @@ PLUGIN_NAME = "codex-auto-resume"
 LAUNCHER_NAME = "watcher-launcher.py"
 RUNTIME_CONFIG = "runtime.json"
 ENV_RUNTIME_HOME = "CODEX_AUTO_RESUME_PLUGIN_HOME"
+RUNTIME_DIR_NAME = ".codex-auto-resume"
 MIN_PYTHON = (3, 10)
 CHECK = "✓"
 EXIT_OK = 0
@@ -51,16 +52,22 @@ def bullet() -> str:
 
 
 def runtime_home() -> Path:
-    """A fixed location *outside* the versioned plugin cache.
+    """A fixed location *outside* the versioned plugin cache, next to Codex's own state.
 
     Pending interruptions, settings and logs live here, so updating or removing the
     plugin never destroys state the watcher still needs.
+
+    Deliberately NOT under %LOCALAPPDATA%. Setup may be run from a packaged (MSIX) host,
+    and Windows silently redirects that host's AppData writes into its own private
+    LocalCache: the environment variable still reads as the normal path while the files
+    land inside another application's sandbox. The user profile root is not redirected,
+    which is why Codex keeps its own state in ~/.codex.
     """
     override = os.environ.get(ENV_RUNTIME_HOME)
     if override:
         return Path(override).expanduser().resolve()
-    base = os.environ.get("LOCALAPPDATA") or os.environ.get("USERPROFILE") or str(Path.home())
-    return (Path(base) / "codex-auto-resume").resolve()
+    profile = os.environ.get("USERPROFILE") or str(Path.home())
+    return (Path(profile) / RUNTIME_DIR_NAME).resolve()
 
 
 def python_for_watcher() -> Path:

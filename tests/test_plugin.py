@@ -241,12 +241,26 @@ class BridgeTests(unittest.TestCase):
 
     def test_runtime_home_is_outside_the_plugin_directory(self):
         # State must not live in the versioned plugin cache, or every update loses it.
-        with patch.dict(self.bridge.os.environ, {"LOCALAPPDATA": r"C:\Users\someone\AppData\Local"}, clear=False):
-            with patch.dict(self.bridge.os.environ, {}, clear=False):
-                self.bridge.os.environ.pop(self.bridge.ENV_RUNTIME_HOME, None)
-                home = self.bridge.runtime_home()
+        with patch.dict(self.bridge.os.environ, {"USERPROFILE": r"C:\Users\someone"}, clear=False):
+            self.bridge.os.environ.pop(self.bridge.ENV_RUNTIME_HOME, None)
+            home = self.bridge.runtime_home()
         self.assertFalse(str(home).startswith(str(self.bridge.PLUGIN_ROOT)))
-        self.assertEqual(home.name, "codex-auto-resume")
+        self.assertEqual(home.name, self.bridge.RUNTIME_DIR_NAME)
+
+    def test_runtime_home_avoids_appdata_entirely(self):
+        """Regression: state once landed inside a packaged host's private LocalCache.
+
+        Windows redirects a packaged (MSIX) process's AppData writes into its own
+        sandbox while %LOCALAPPDATA% still reads as the normal path, so an installation
+        run from such a host silently put its state inside an unrelated application.
+        """
+        with patch.dict(self.bridge.os.environ,
+                        {"USERPROFILE": r"C:\Users\someone",
+                         "LOCALAPPDATA": r"C:\Users\someone\AppData\Local"}, clear=False):
+            self.bridge.os.environ.pop(self.bridge.ENV_RUNTIME_HOME, None)
+            home = self.bridge.runtime_home()
+        self.assertNotIn("AppData", home.parts)
+        self.assertEqual(home.parent.name, "someone")
 
     def test_install_launcher_records_how_to_find_the_engine(self):
         self.bridge.install_launcher(self.home, "plugin")
