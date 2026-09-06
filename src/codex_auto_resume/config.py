@@ -143,7 +143,11 @@ def discover_codex_exe(explicit: str | os.PathLike | None, compatible) -> Path:
             continue
         usable.append(candidate)
     if len(usable) != 1:
-        raise ConfigError("No single compatible codex.exe (version pin 0.153.4); pass --codex-exe explicitly")
+        # Late import: report the pin that is actually in force, so bumping the pin
+        # cannot leave this message quoting a stale version.
+        from .windows import VERSION
+        raise ConfigError("No codex.exe matching the verified engine pin (%s); "
+                          "re-verify against the new version, then pass --codex-exe explicitly" % VERSION)
     return usable[0]
 
 
