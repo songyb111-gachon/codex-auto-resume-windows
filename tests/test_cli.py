@@ -6,12 +6,15 @@ import io
 import logging
 import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 
 from codex_auto_resume import cli, config, logbook, startup
-from codex_auto_resume.store import Store
+from codex_auto_resume.app import DEFAULT_POLL, App
+from codex_auto_resume.store import Store, StoreError
 
 THREAD = "0a1b2c3d-0101-7000-8000-000000000101"
 
@@ -187,6 +190,78 @@ class CliTests(unittest.TestCase):
         code, out, _ = self.cli("stop")
         self.assertEqual(code, 0)
         self.assertIn("no running watcher", out)
+
+
+class ConfinementTests(unittest.TestCase):
+    """Owned directories/files must never escape the home via a link or NTFS junction."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        self.home = self.root / "home"
+        self.outside = self.root / "outside"
+        self.outside.mkdir()
+        self.home.mkdir()
+        self.addCleanup(self.temp.cleanup)
+
+    def _make_junction(self, link: Path, target: Path) -> bool:
+        # mklink /J needs no administrator rights; skip if it is unavailable.
+        if sys.platform != "win32":
+            return False
+        result = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)],
+                                capture_output=True, text=True)
+        return result.returncode == 0 and link.exists()
+
+    def test_confined_detects_junction_escape(self):
+        paths = config.Paths(self.home)
+        self.assertTrue(paths.confined(self.home / "config"))
+        junction = self.home / "config"
+        if not self._make_junction(junction, self.outside):
+            self.skipTest("could not create a junction on this platform")
+        self.assertFalse(paths.confined(junction))
+        with self.assertRaises(config.ConfigError):
+            paths.ensure()
+
+    def test_owned_log_files_ignores_junctioned_logs_dir(self):
+        # A logs dir that is a junction to an outside folder must yield NO deletable files,
+        # so uninstall can never remove an unrelated user file that happens to match.
+        (self.outside / "errors.log").write_text("someone else's file", encoding="utf-8")
+        logs = self.home / "logs"
+        if not self._make_junction(logs, self.outside):
+            self.skipTest("could not create a junction on this platform")
+        paths = config.Paths(self.home)
+        self.assertEqual(paths.owned_log_files(), [])
+
+    def test_settings_temp_is_unique_and_errors_are_wrapped(self):
+        paths = config.Paths(self.home)
+        paths.ensure()
+        config.save_settings(paths, {"detection_lookback_hours": 3.0})
+        self.assertEqual(config.load_settings(paths)["detection_lookback_hours"], 3.0)
+        # No fixed-name temp is left behind, and an atomic-replace failure raises ConfigError.
+        self.assertEqual(list(paths.state_dir.glob("settings.*.tmp")), [])
+        with patch.object(config.os, "replace", side_effect=OSError("boom")):
+            with self.assertRaises(config.ConfigError):
+                config.save_settings(paths, {"detection_lookback_hours": 4.0})
+        self.assertEqual(list(paths.state_dir.glob("settings.*.tmp")), [], "temp cleaned up on failure")
+
+
+class WatcherLoopTests(unittest.TestCase):
+    def test_poll_interval_survives_store_read_failure(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)       # runs AFTER _reset_logging (LIFO): file handle freed first
+        self.addCleanup(_reset_logging)
+        with patch.dict(os.environ, {"LOCALAPPDATA": str(Path(temp.name) / "none")}):
+            app = App(config.Paths(temp.name), console=False)
+
+        class BadStore:
+            def settings(self):
+                raise StoreError("database is locked")
+
+        # A transient store failure must fall back to a safe default, never propagate.
+        self.assertEqual(app._poll_interval(BadStore(), None), DEFAULT_POLL)
+        # An explicit --poll bypasses the store entirely and is clamped.
+        self.assertEqual(app._poll_interval(BadStore(), 7), 7)
+        self.assertEqual(app._poll_interval(BadStore(), 999999), 3600)
 
 
 class StartupTests(unittest.TestCase):

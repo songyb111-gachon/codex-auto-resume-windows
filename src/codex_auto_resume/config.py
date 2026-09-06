@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import tempfile
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ENV_HOME = "CODEX_AUTO_RESUME_HOME"
@@ -31,23 +32,40 @@ class Paths:
         self.error_log = self.logs_dir / "errors.log"
         self.entry_script = PROJECT_ROOT / "src" / "auto_resume.py"
 
+    def confined(self, path: Path) -> bool:
+        """True only if, after resolving ALL reparse points (NTFS junctions
+        included, which is_symlink() misses on Windows), the path stays in home."""
+        try:
+            resolved = path.resolve()
+        except OSError:
+            return False
+        return resolved == self.home or resolved.is_relative_to(self.home)
+
     def ensure(self) -> None:
         for directory in (self.state_dir, self.logs_dir):
-            if directory.is_symlink():
-                raise ConfigError("Owned directories must not be symbolic links")
+            if directory.is_symlink() or (directory.exists() and not self.confined(directory)):
+                raise ConfigError("Owned directory is a link/junction escaping the home; refusing")
             directory.mkdir(parents=True, exist_ok=True)
+            if not self.confined(directory):
+                raise ConfigError("Owned directory escapes the configured home; refusing")
 
-    # Owned files that uninstall may remove. Nothing outside these names is ever deleted.
+    # Owned files that uninstall may remove. Nothing outside these names, and nothing
+    # whose resolved path escapes the owned home, is ever deleted.
     def owned_state_files(self) -> list[Path]:
         names = ["state.sqlite", "state.sqlite-journal", "state.sqlite-wal", "state.sqlite-shm", "settings.json"]
-        return [self.state_dir / name for name in names]
+        files = [self.state_dir / name for name in names]
+        if self.state_dir.is_dir() and self.confined(self.state_dir):
+            files += [p for p in sorted(self.state_dir.glob("settings.*.tmp"))
+                      if not p.is_symlink() and self.confined(p)]
+        return files
 
     def owned_log_files(self) -> list[Path]:
         result = []
-        if self.logs_dir.is_dir():
+        if self.logs_dir.is_dir() and self.confined(self.logs_dir):
             for path in sorted(self.logs_dir.iterdir()):
                 name = path.name
-                if re.fullmatch(r"(auto-resume|errors)\.log(\.\d+)?", name) and not path.is_symlink():
+                if (re.fullmatch(r"(auto-resume|errors)\.log(\.\d+)?", name)
+                        and not path.is_symlink() and self.confined(path)):
                     result.append(path)
         return result
 
@@ -137,6 +155,17 @@ def save_settings(paths: Paths, settings: dict) -> None:
     if exe is not None and (not isinstance(exe, str) or not exe):
         raise ConfigError("codex_exe must be a non-empty path or null")
     payload = {"detection_lookback_hours": float(hours), "codex_exe": exe}
-    temporary = paths.settings_file.with_suffix(".json.tmp")
-    temporary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    temporary.replace(paths.settings_file)
+    # mkstemp creates a uniquely named file with O_EXCL, so a pre-planted symlink at a
+    # predictable temp path cannot be followed, and concurrent writers never collide.
+    descriptor, temporary_name = tempfile.mkstemp(dir=str(paths.state_dir), prefix="settings.", suffix=".json.tmp")
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            json.dump(payload, stream, indent=2)
+        os.replace(temporary, paths.settings_file)
+    except OSError as exc:
+        try:
+            temporary.unlink()
+        except OSError:
+            pass
+        raise ConfigError("Cannot save settings") from exc
