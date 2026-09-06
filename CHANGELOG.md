@@ -55,6 +55,11 @@
 - Checked first and not available: this Codex build has no plugin install deep-link, and
   `codex plugin add` requires a registered marketplace, so the two commands cannot be reduced
   to one officially.
+- Fixed while testing the installer for real: a single-result PowerShell pipeline is a scalar,
+  so indexing it took the first character of the engine path; an already-registered marketplace
+  kept a stale snapshot, so updates never arrived; the Python version probe's quoting did not
+  survive argument passing; and setup compared the registered autostart by exact string, so
+  upgrading Python made one installation look like two and setup refused forever.
 
 ## v0.3.2 — Make the login autostart actually start
 

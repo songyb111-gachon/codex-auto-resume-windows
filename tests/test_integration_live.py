@@ -19,6 +19,7 @@ from pathlib import Path
 import unittest
 
 from codex_auto_resume import config
+from codex_auto_resume import failures as failure_kinds
 from codex_auto_resume.windows import Backend, Mutex, StopEvent
 
 LIVE = os.environ.get("CODEX_AR_LIVE") == "1"
@@ -83,7 +84,7 @@ class LiveReadOnlyTests(unittest.TestCase):
         self.assertIsInstance(failures, list)
         for record in failures:
             self.assertEqual(len(record["thread_id"]), 36)
-            self.assertEqual(record["error_info"], "usageLimitExceeded")
+            self.assertTrue(failure_kinds.is_recoverable(record["category"]))
 
     def test_single_instance_mutex_and_stop_event_roundtrip(self):
         # Named-mutex acquisition works live; cross-PROCESS single-instance refusal is
