@@ -153,7 +153,7 @@ def discover_codex_exe(explicit: str | os.PathLike | None, compatible) -> Path:
 
 def load_settings(paths: Paths) -> dict:
     """Optional user settings; malformed files are ignored, never rewritten."""
-    defaults = {"detection_lookback_hours": LOOKBACK_HOURS_DEFAULT, "codex_exe": None}
+    defaults = {"detection_lookback_hours": LOOKBACK_HOURS_DEFAULT, "codex_exe": None, "notifications": True}
     path = paths.settings_file
     try:
         if not path.is_file() or path.is_symlink() or path.stat().st_size > MAX_SETTINGS_BYTES:
@@ -169,7 +169,10 @@ def load_settings(paths: Paths) -> dict:
     exe = raw.get("codex_exe")
     if not isinstance(exe, str) or not exe:
         exe = None
-    return {"detection_lookback_hours": float(hours), "codex_exe": exe}
+    notifications = raw.get("notifications", defaults["notifications"])
+    if not isinstance(notifications, bool):
+        notifications = defaults["notifications"]
+    return {"detection_lookback_hours": float(hours), "codex_exe": exe, "notifications": notifications}
 
 
 def save_settings(paths: Paths, settings: dict) -> None:
@@ -180,7 +183,10 @@ def save_settings(paths: Paths, settings: dict) -> None:
     exe = settings.get("codex_exe")
     if exe is not None and (not isinstance(exe, str) or not exe):
         raise ConfigError("codex_exe must be a non-empty path or null")
-    payload = {"detection_lookback_hours": float(hours), "codex_exe": exe}
+    notifications = settings.get("notifications", True)
+    if not isinstance(notifications, bool):
+        raise ConfigError("notifications must be true or false")
+    payload = {"detection_lookback_hours": float(hours), "codex_exe": exe, "notifications": notifications}
     # mkstemp creates a uniquely named file with O_EXCL, so a pre-planted symlink at a
     # predictable temp path cannot be followed, and concurrent writers never collide.
     descriptor, temporary_name = tempfile.mkstemp(dir=str(paths.state_dir), prefix="settings.", suffix=".json.tmp")

@@ -50,16 +50,25 @@ def _reset_logging():
 
 
 class FakeWinreg:
+    """A small key tree, not a single flat namespace.
+
+    The tool now writes under two different roots (the Run key and the user's class
+    registration for the notification button), so a fake that models only one of them
+    would hide a mistake in the other.
+    """
+
     HKEY_CURRENT_USER = object()
     KEY_READ = 1
     KEY_SET_VALUE = 2
     REG_SZ = 1
 
     def __init__(self):
-        self.values: dict[str, tuple[str, int]] = {}
-        outer = self
+        self.keys: dict[str, dict[str, tuple[str, int]]] = {}
 
         class Key:
+            def __init__(self_inner, path):
+                self_inner.path = path
+
             def __enter__(self_inner):
                 return self_inner
 
@@ -68,25 +77,41 @@ class FakeWinreg:
 
         self.Key = Key
 
+    # Convenience for tests that only care about the Run key.
+    @property
+    def values(self) -> dict[str, tuple[str, int]]:
+        return self.keys.get(startup.RUN_KEY, {})
+
     def OpenKey(self, root, path, reserved, access):
-        assert path == startup.RUN_KEY
-        return self.Key()
+        if path not in self.keys:
+            raise FileNotFoundError(path)
+        return self.Key(path)
 
     def CreateKeyEx(self, root, path, reserved, access):
-        return self.OpenKey(root, path, reserved, access)
+        self.keys.setdefault(path, {})
+        return self.Key(path)
 
     def QueryValueEx(self, key, name):
-        if name not in self.values:
+        values = self.keys.get(key.path, {})
+        if name not in values:
             raise FileNotFoundError(name)
-        return self.values[name]
+        return values[name]
 
     def SetValueEx(self, key, name, reserved, kind, value):
-        self.values[name] = (value, kind)
+        self.keys.setdefault(key.path, {})[name] = (value, kind)
 
     def DeleteValue(self, key, name):
-        if name not in self.values:
+        values = self.keys.get(key.path, {})
+        if name not in values:
             raise FileNotFoundError(name)
-        del self.values[name]
+        del values[name]
+
+    def DeleteKey(self, root, path):
+        if path not in self.keys:
+            raise FileNotFoundError(path)
+        if any(other.startswith(path + "\\") for other in self.keys):
+            raise OSError("key has subkeys")    # real winreg refuses this too
+        del self.keys[path]
 
 
 def run_cli(*argv):

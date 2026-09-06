@@ -45,6 +45,12 @@ MESSAGES = {
                            "Two watchers could resume the same task twice; keep only one."),
         "waiting_loaded": "Waiting for this conversation to be loaded",
         "waiting_reset": "Task will resume after the usage reset",
+        "toast_title": "Auto resume scheduled",
+        "toast_body_at": "This conversation will continue at {time}. (conversation {short})",
+        "toast_body_soon": "This conversation will continue once usage is available. (conversation {short})",
+        "toast_button_cancel": "Don't resume",
+        "toast_cancelled_title": "Auto resume cancelled",
+        "toast_cancelled_body": "Conversation {short} will not be resumed automatically.",
     },
     "ko": {
         "ready_title": "자동 재개를 설정할 수 있습니다.",
@@ -73,6 +79,12 @@ MESSAGES = {
                            "워처가 두 개면 같은 작업을 두 번 재개할 수 있으니 하나만 남기세요."),
         "waiting_loaded": "이 대화가 열리기를 기다리는 중",
         "waiting_reset": "사용량 초기화 후 작업이 재개됩니다",
+        "toast_title": "자동 재개 예정",
+        "toast_body_at": "{time}에 이 대화를 이어서 진행합니다. (대화 {short})",
+        "toast_body_soon": "사용량이 열리면 이 대화를 이어서 진행합니다. (대화 {short})",
+        "toast_button_cancel": "재개 안 함",
+        "toast_cancelled_title": "자동 재개를 취소했습니다",
+        "toast_cancelled_body": "대화 {short}은 자동으로 재개되지 않습니다.",
     },
 }
 
