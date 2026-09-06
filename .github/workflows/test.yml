@@ -27,7 +27,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Compile all sources
-        run: python -m compileall -q src tests
+        run: python -m compileall -q src tests scripts
 
       - name: Run the automated test suite
         # These tests use fakes and temp dirs. They never contact the ChatGPT app
