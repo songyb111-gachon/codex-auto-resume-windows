@@ -2,6 +2,43 @@
 
 ## Unreleased
 
+### Install and control it from inside Codex
+
+- **Codex plugin.** The repository root is now also a Codex plugin root, with a marketplace index
+  (`.agents/plugins/marketplace.json`), a manifest (`.codex-plugin/plugin.json`) and one skill.
+  Install with `codex plugin marketplace add songyb111-gachon/codex-auto-resume-windows` followed by
+  `codex plugin add codex-auto-resume@codex-auto-resume-windows`, then ask Codex to set it up.
+  There is exactly one copy of `src/`; the engine ships with the plugin rather than being duplicated.
+- The plugin is a thin front end over the existing command-line interface. It adds no MCP server, no
+  second engine, no recovery logic of its own, and never queues a message to a thread.
+- **Runtime state moved out of the plugin directory** for plugin installs, to
+  `%LOCALAPPDATA%\codex-auto-resume\`. Plugin updates and removals no longer risk pending resumes.
+  Autostart points at a small stable launcher that re-resolves the current plugin version at every
+  launch, so an update needs no re-registration. Manual installations are unchanged.
+- **Two installations are refused rather than merged.** A manual checkout and a plugin install keep
+  separate state and separate single-instance locks, so both watchers would run and could each resume
+  the same interruption. Setup stops when a different installation already owns the sign-in autostart.
+- English by default; Korean only when Korean is the most preferred UI language, read from the same
+  source the ChatGPT desktop app uses for its own display language. No language is inferred from an IP
+  address, time zone, user name, country or keyboard layout.
+
+### Fixed
+
+- **`uninstall` deleted the Windows sign-in autostart value even when it belonged to a different
+  installation**, silently disabling a watcher it did not own. It now unregisters only a value that
+  starts the installation being uninstalled, and reports anything else as kept. Found by running the
+  plugin's uninstall against an isolated home while a manual installation was registered.
+- Setup no longer crashes on a legacy-code-page console: the check mark falls back to ASCII when the
+  console cannot encode it.
+
+### Not implemented, on purpose
+
+- A checkbox inside the Codex usage-limit notice. There is no official plugin API that can place a
+  control there, and the alternatives are all forms of injection or GUI automation this project does
+  not use. No substitute GUI was built. See [docs/PLUGIN.md](docs/PLUGIN.md) for the evidence.
+
+### Also
+
 - Survive Codex app updates instead of stopping at the first version change.
   - Local databases are discovered by schema generation (`state_5`, `thread_history_1`, ...) and
     validated by the columns actually read, so a generation bump no longer breaks detection. Extra

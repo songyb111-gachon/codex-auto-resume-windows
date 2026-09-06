@@ -43,6 +43,63 @@ def command_line(entry_script: Path, home: Path | None = None, launcher: Path | 
     return subprocess.list2cmdline(argv)
 
 
+def parse_command(command: str) -> list[str]:
+    """Split a registered Run value the way Windows itself would.
+
+    Naive splitting would mis-handle the quoted paths ``list2cmdline`` writes, and a
+    wrong split here decides whether uninstall deletes someone else's registration.
+    """
+    if os.name != "nt":
+        raise StartupError("Windows registry autostart is only available on Windows")
+    import ctypes
+    from ctypes import wintypes
+
+    shell32 = ctypes.windll.shell32
+    shell32.CommandLineToArgvW.restype = ctypes.POINTER(ctypes.c_wchar_p)
+    shell32.CommandLineToArgvW.argtypes = [ctypes.c_wchar_p, ctypes.POINTER(ctypes.c_int)]
+    count = ctypes.c_int(0)
+    pointer = shell32.CommandLineToArgvW(command, ctypes.byref(count))
+    if not pointer:
+        return []
+    try:
+        return [pointer[index] for index in range(count.value)]
+    finally:
+        ctypes.windll.kernel32.LocalFree(pointer)
+
+
+def _same_path(left: str, right: Path) -> bool:
+    try:
+        return os.path.normcase(os.path.abspath(left)) == os.path.normcase(os.path.abspath(str(right)))
+    except (OSError, ValueError):
+        return False
+
+
+def belongs_to(command: str, home: Path) -> bool:
+    """True when this Run value starts the installation rooted at ``home``.
+
+    Uninstall must never remove an autostart entry belonging to a *different* copy of
+    this tool: the two installations have separate state, and silently unregistering
+    the other one leaves that watcher dead with no notice at the next sign-in.
+    """
+    try:
+        argv = parse_command(command)
+    except StartupError:
+        return False
+    for index, argument in enumerate(argv):
+        if argument == "--home" and index + 1 < len(argv) and _same_path(argv[index + 1], home):
+            return True
+    if len(argv) >= 2:
+        # A launcher living inside the home identifies the installation on its own.
+        try:
+            script = Path(os.path.abspath(argv[1]))
+            resolved_home = Path(os.path.abspath(str(home)))
+            if script == resolved_home or script.is_relative_to(resolved_home):
+                return True
+        except (OSError, ValueError):
+            return False
+    return False
+
+
 def current_value() -> str | None:
     winreg = _winreg()
     try:

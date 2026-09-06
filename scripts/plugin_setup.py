@@ -1,0 +1,276 @@
+"""Thin control layer used by the Codex plugin skill.
+
+This is a front end, not a second engine. It picks a runtime home that survives
+plugin updates, then calls the ordinary command-line interface. Detection,
+scheduling, duplicate protection and submission all stay in the existing core;
+nothing here talks to a Codex thread.
+"""
+from __future__ import annotations
+
+import argparse
+import contextlib
+import io
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+
+PLUGIN_ROOT = Path(__file__).resolve().parents[1]
+PLUGIN_NAME = "codex-auto-resume"
+LAUNCHER_NAME = "watcher-launcher.py"
+RUNTIME_CONFIG = "runtime.json"
+ENV_RUNTIME_HOME = "CODEX_AUTO_RESUME_PLUGIN_HOME"
+MIN_PYTHON = (3, 10)
+CHECK = "✓"
+EXIT_OK = 0
+EXIT_ERROR = 1
+
+sys.path.insert(0, str(PLUGIN_ROOT / "src"))
+from codex_auto_resume import config, messages, startup      # noqa: E402
+from codex_auto_resume.app import App                        # noqa: E402
+
+
+def say(key: str) -> None:
+    print(messages.text(key))
+
+
+def bullet() -> str:
+    """A check mark, unless this console cannot encode one.
+
+    Windows consoles often default to a legacy code page. Crashing setup over a
+    decorative glyph would be absurd, so fall back to plain ASCII.
+    """
+    encoding = getattr(sys.stdout, "encoding", None) or "ascii"
+    try:
+        CHECK.encode(encoding)
+    except (LookupError, UnicodeError):
+        return "-"
+    return CHECK
+
+
+def runtime_home() -> Path:
+    """A fixed location *outside* the versioned plugin cache.
+
+    Pending interruptions, settings and logs live here, so updating or removing the
+    plugin never destroys state the watcher still needs.
+    """
+    override = os.environ.get(ENV_RUNTIME_HOME)
+    if override:
+        return Path(override).expanduser().resolve()
+    base = os.environ.get("LOCALAPPDATA") or os.environ.get("USERPROFILE") or str(Path.home())
+    return (Path(base) / "codex-auto-resume").resolve()
+
+
+def python_for_watcher() -> Path:
+    return startup.python_launcher()
+
+
+def _cli(home: Path, argv: list[str]) -> int:
+    from codex_auto_resume.cli import main as cli_main
+    return cli_main(["--home", str(home)] + argv)
+
+
+def _cli_silent(home: Path, argv: list[str]) -> int:
+    """Run a core command for its effect only.
+
+    Setup composes several core commands; their individual progress lines would
+    contradict each other ("no watcher is running" before one is started) and would
+    mix untranslated text into a localized summary.
+    """
+    with contextlib.redirect_stdout(io.StringIO()):
+        return _cli(home, argv)
+
+
+def install_launcher(home: Path, mode: str) -> Path:
+    """Copy the stable launcher and record how to find the engine again later."""
+    home.mkdir(parents=True, exist_ok=True)
+    launcher = home / LAUNCHER_NAME
+    shutil.copyfile(PLUGIN_ROOT / "scripts" / "watcher_launcher.py", launcher)
+    payload = {"mode": mode, "plugin_name": PLUGIN_NAME, "plugin_root": str(PLUGIN_ROOT), "home": str(home)}
+    (home / RUNTIME_CONFIG).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return launcher
+
+
+def installed_as_plugin() -> bool:
+    # `codex plugin add` copies the plugin under <CODEX_HOME>/plugins/cache/...
+    return "plugins" in PLUGIN_ROOT.parts and "cache" in PLUGIN_ROOT.parts
+
+
+def watcher_command(home: Path) -> str:
+    return startup.command_line(home / LAUNCHER_NAME, None, launcher=python_for_watcher())
+
+
+def start_watcher(home: Path) -> bool:
+    """Launch the watcher detached, so it outlives this command and the Codex UI."""
+    app = App(config.Paths(home), console=False, enable_logging=False)
+    if app.watcher_running() is not False:
+        return False
+    flags = 0
+    if os.name == "nt":
+        flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    subprocess.Popen([str(python_for_watcher()), str(home / LAUNCHER_NAME)],
+                     cwd=str(home), close_fds=True, creationflags=flags,
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return True
+
+
+def conflicting_autostart(home: Path) -> str | None:
+    """A different installation registered for autostart, if any.
+
+    Two watchers with separate state could each resume the same interruption, so
+    setup refuses rather than creating the second one.
+    """
+    try:
+        current = startup.current_value()
+    except startup.StartupError:
+        return None
+    if not current or current == watcher_command(home):
+        return None
+    return current
+
+
+def cmd_setup(args) -> int:
+    if sys.version_info < MIN_PYTHON:
+        say("python_missing")
+        return EXIT_ERROR
+    home = runtime_home()
+    conflict = conflicting_autostart(home)
+    if conflict and not args.replace_existing:
+        say("conflict")
+        print("  %s" % conflict)
+        return EXIT_ERROR
+    install_launcher(home, "plugin" if installed_as_plugin() else "local")
+    _cli_silent(home, ["--quiet", "install"])
+    _cli_silent(home, ["--quiet", "enable"])
+    if not args.no_startup:
+        startup.install(watcher_command(home))
+    start_watcher(home)
+    say("ready_title")
+    print()
+    say("ready_defaults")
+    for key in ("ready_b1", "ready_b2", "ready_b3", "ready_b4"):
+        print("  " + bullet() + " " + messages.text(key))
+    print()
+    say("setup_done")
+    if not args.no_startup:
+        say("setup_autostart")
+    print()
+    print("state: %s" % home)
+    return EXIT_OK
+
+
+def cmd_enable(args) -> int:
+    home = runtime_home()
+    code = _cli_silent(home, ["--quiet", "enable"])
+    start_watcher(home)
+    say("enabled")
+    return code
+
+
+def cmd_disable(args) -> int:
+    code = _cli_silent(runtime_home(), ["--quiet", "disable"])
+    say("disabled")
+    return code
+
+
+def cmd_cancel(args) -> int:
+    code = _cli(runtime_home(), ["--quiet", "cancel", args.thread_id])
+    if code == EXIT_OK:
+        say("cancelled")
+    return code
+
+
+def cmd_status(args) -> int:
+    home = runtime_home()
+    app = App(config.Paths(home), console=False, enable_logging=False)
+    running = app.watcher_running()
+    say({True: "watcher_running", False: "watcher_stopped", None: "watcher_unknown"}[running])
+    conflict = conflicting_autostart(home)
+    if conflict:
+        say("conflict_other")
+        print("  %s" % conflict)
+    print()
+    return _cli(home, ["--quiet", "status"])
+
+
+def cmd_pending(args) -> int:
+    home = runtime_home()
+    app = App(config.Paths(home), console=False, enable_logging=False)
+    with app.open_store() as store:
+        rows = store.pending()
+    if not rows:
+        say("no_pending")
+        return EXIT_OK
+    return _cli(home, ["--quiet", "pending"])
+
+
+def cmd_uninstall(args) -> int:
+    home = runtime_home()
+    code = _cli(home, ["--quiet", "uninstall"])
+    if code != EXIT_OK:
+        return code
+    paths = config.Paths(home)
+    for name in (LAUNCHER_NAME, RUNTIME_CONFIG):
+        path = home / name
+        try:
+            if path.is_file() and not path.is_symlink() and paths.confined(path):
+                path.unlink()
+        except OSError:
+            pass
+    try:
+        if home.is_dir() and not any(home.iterdir()):
+            home.rmdir()
+    except OSError:
+        pass
+    say("uninstalled")
+    return EXIT_OK
+
+
+def passthrough(name: str):
+    def run(args) -> int:
+        extra = ["-n", str(args.lines)] if name == "logs" else []
+        return _cli(runtime_home(), ["--quiet", name] + extra)
+    return run
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="plugin_setup", description="Codex plugin control layer for codex-auto-resume.")
+    sub = parser.add_subparsers(dest="command", required=True)
+    p = sub.add_parser("setup", help="prepare the runtime, enable auto resume and start the watcher")
+    p.add_argument("--no-startup", action="store_true", help="do not register Windows sign-in autostart")
+    p.add_argument("--replace-existing", action="store_true", help="take over an autostart registered by another installation")
+    sub.add_parser("status")
+    sub.add_parser("pending")
+    sub.add_parser("enable")
+    sub.add_parser("disable")
+    p = sub.add_parser("cancel")
+    p.add_argument("thread_id")
+    sub.add_parser("stop")
+    sub.add_parser("doctor")
+    sub.add_parser("uninstall")
+    p = sub.add_parser("logs")
+    p.add_argument("-n", "--lines", type=int, default=30)
+    return parser
+
+
+COMMANDS = {
+    "setup": cmd_setup, "status": cmd_status, "pending": cmd_pending, "enable": cmd_enable,
+    "disable": cmd_disable, "cancel": cmd_cancel, "uninstall": cmd_uninstall,
+    "stop": passthrough("stop"), "doctor": passthrough("doctor"), "logs": passthrough("logs"),
+}
+
+
+def main(argv=None) -> int:
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")     # Korean output must survive a cp949 console.
+        except (AttributeError, OSError):
+            pass
+    args = build_parser().parse_args(argv)
+    return COMMANDS[args.command](args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

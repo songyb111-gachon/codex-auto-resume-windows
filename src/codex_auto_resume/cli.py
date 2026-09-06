@@ -311,9 +311,19 @@ def cmd_install(args) -> int:
 def cmd_uninstall(args) -> int:
     paths = config.Paths(args.home)
     removed = []
+    foreign_autostart = None
     try:
-        if startup.uninstall():
-            removed.append("login autostart value")
+        # Only ever unregister OUR OWN autostart. A second installation (a different
+        # checkout, or the Codex plugin) registers a different command, and deleting
+        # that one would silently stop a watcher this uninstall does not own.
+        value = startup.current_value()
+        if value is None:
+            pass
+        elif startup.belongs_to(value, paths.home):
+            if startup.uninstall():
+                removed.append("login autostart value")
+        else:
+            foreign_autostart = value
     except startup.StartupError as exc:
         _print("warning: %s" % exc)
     app = App(paths, console=False, enable_logging=False)
@@ -355,6 +365,9 @@ def cmd_uninstall(args) -> int:
     _print("removed: %s" % (", ".join(removed) if removed else "nothing (already clean)"))
     for directory in skipped:
         _print("skipped %s (no provenance marker; not created by this tool, nothing deleted there)" % directory)
+    if foreign_autostart:
+        _print("kept the login autostart value: it starts a different installation, not this one")
+        _print("  %s" % foreign_autostart)
     _print("ChatGPT/Codex files and repositories were not touched")
     return EXIT_OK
 
