@@ -1,0 +1,5 @@
+# Windows launchers must keep CRLF wherever they are unpacked, including a
+# release ZIP downloaded on another platform.
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.txt text eol=crlf
