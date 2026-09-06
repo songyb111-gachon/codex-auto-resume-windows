@@ -37,18 +37,35 @@ class FakeSource:
         self.hints: dict[tuple, dict] = {}
         self.delivered: set[tuple] = set()
         self.queued: dict[tuple, list[str]] = {}
+        self.identities: dict[str, dict] = {}
         self.raise_on_read = False
 
-    def add_turn(self, thread_id, turn_id, status, ordinal, *, completed=None, error_json=None, started=None):
+    def add_turn(self, thread_id, turn_id, status, ordinal, *, completed=None, error_json=None,
+                 started=None, final_agent_item_id=None):
         row = {"thread_id": thread_id, "turn_id": turn_id, "status": status, "rollout_ordinal": ordinal,
                "started_at": BASE - 100 if started is None else started,
-               "completed_at": completed, "error_json": error_json}
+               "completed_at": completed, "error_json": error_json,
+               "final_agent_item_id": final_agent_item_id}
         self.turns.setdefault(thread_id, []).append(row)
         return row
 
     def fail_usage(self, thread_id, turn_id=TURN_A, ordinal=5, *, completed=BASE, reset=RESET, limit="codex:primary_hint"):
         self.add_turn(thread_id, turn_id, "failed", ordinal, completed=completed, error_json=USAGE_ERROR)
         self.hints[(thread_id, turn_id)] = {"reset_at": reset, "limit_type": limit, "uncertain": reset is None}
+
+    def fail_transient(self, thread_id, turn_id=TURN_A, ordinal=5, *, completed=BASE, code="serverOverloaded"):
+        self.add_turn(thread_id, turn_id, "failed", ordinal, completed=completed,
+                      error_json=json.dumps({"codexErrorInfo": code}))
+
+    def progress(self, thread_id, after_ordinal):
+        """Lifecycle booleans only, mirroring the real content-free reader."""
+        later = [row for row in self.turns.get(thread_id, []) if row["rollout_ordinal"] > after_ordinal]
+        done = [row for row in later if row["status"] == "completed"]
+        return {"later_turn": bool(later), "later_completed": bool(done),
+                "assistant_reply": any(row.get("final_agent_item_id") for row in done)}
+
+    def identity(self, thread_id):
+        return self.identities.get(thread_id, {"name": None, "project": None, "cwd_basename": None})
 
     def latest(self, thread_id):
         if self.raise_on_read:
@@ -197,7 +214,8 @@ class EngineScenarioTests(unittest.TestCase):
         self.assert_no_send()
 
     def test_03_ordinary_failed_thread_no_action(self):
-        for error in (json.dumps({"codexErrorInfo": "other"}), json.dumps({"codexErrorInfo": {"httpConnectionFailed": {"status": 500}}}),
+        for error in (json.dumps({"codexErrorInfo": "other"}), json.dumps({"codexErrorInfo": "badRequest"}),
+                      json.dumps({"codexErrorInfo": "unauthorized"}),
                       json.dumps({"message": "tool error"}), None):
             with self.subTest(error=error):
                 self.h.source.turns.clear()
@@ -488,7 +506,8 @@ class EngineScenarioTests(unittest.TestCase):
         # T1's retries never touch T2, and a superseded T1 never sends anywhere.
         self.h.source.add_turn(T1, TURN_C, "completed", 9, completed=self.h.now)
         self.h.tick(advance=30)
-        self.assertEqual(self.h.record(T1)["state"], "superseded")
+        # A later turn on that exact thread names the reason precisely.
+        self.assertEqual(self.h.record(T1)["state"], "superseded_by_user")
         self.assertEqual([call[0] for call in calls[2:]], [])
 
     # -- extra crash / uncertainty scenarios ---------------------------------
@@ -581,7 +600,7 @@ class EngineScenarioTests(unittest.TestCase):
         self.h.now = RESET + 61
         self.h.tick()
         self.assert_no_send()
-        self.assertEqual(self.h.record()["state"], "superseded")
+        self.assertEqual(self.h.record()["state"], "superseded_by_user")
 
     def test_thread_cooldown_and_daily_cap(self):
         self.h.engine.options.update({"thread_cooldown_seconds": 900, "max_submissions_per_thread_per_day": 2})

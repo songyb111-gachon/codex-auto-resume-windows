@@ -122,10 +122,13 @@ class ToastPayloadTests(unittest.TestCase):
     def test_no_conversation_content_is_disclosed(self):
         captured = {}
         with patch.object(notify, "show", side_effect=lambda t, b, **k: captured.update(title=t, body=b, **k) or True):
-            notify.scheduled(THREAD, INTERRUPTION, 1788645827.0)
-        # A shortened id only; never the full thread, prompt text or error text.
-        self.assertIn(THREAD[:8], captured["body"])
-        self.assertNotIn(THREAD, captured["body"])
+            notify.scheduled(THREAD, INTERRUPTION, 1788645827.0, "usage_limit",
+                             {"name": "Retry path work", "project": "example-project", "cwd_basename": "repo"})
+        rendered = repr(captured)
+        # Labels and the exact UUID, and nothing else about the conversation.
+        self.assertEqual(captured["title"], "Retry path work")
+        self.assertIn("example-project", rendered)
+        self.assertIn(THREAD, rendered)
         self.assertEqual(captured["uri"], notify.cancel_uri(INTERRUPTION))
 
     def test_missing_reset_time_still_produces_a_message(self):
@@ -251,14 +254,16 @@ class EngineNotificationTests(unittest.TestCase):
         harness, thread = self.harness()
         record = harness.record(thread)
         self.assertEqual(len(harness.notifications), 1)
-        thread_id, interruption_id, _reset = harness.notifications[0]
+        thread_id, interruption_id, _reset, category = harness.notifications[0]
         self.assertEqual(thread_id, record["thread_id"])
         self.assertEqual(interruption_id, record["interruption_id"])
+        self.assertEqual(category, "usage_limit")
 
 
 class NotificationSettingTests(unittest.TestCase):
     def test_messages_exist_in_every_language(self):
-        for key in ("toast_title", "toast_body_at", "toast_body_soon", "toast_button_cancel",
+        for key in ("toast_unnamed", "toast_thread", "toast_usage_at", "toast_usage_soon",
+                    "toast_transient", "toast_button_cancel", "toast_button_no_retry",
                     "toast_cancelled_title", "toast_cancelled_body"):
             for code in messages.SUPPORTED:
                 self.assertTrue(messages.MESSAGES[code][key], (code, key))

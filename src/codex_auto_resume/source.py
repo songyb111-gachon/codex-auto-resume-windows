@@ -9,10 +9,12 @@ from contextlib import contextmanager
 import hashlib
 import json
 import math
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import re
 import sqlite3
 import uuid
+
+from . import failures
 
 
 MAX_SCAN_BYTES = 8 * 1024 * 1024
@@ -65,22 +67,35 @@ def normalize(row) -> dict | None:
         return None
     if completed is not None and completed < started:
         return None
-    if "error_json" in row:
-        err = _json(row["error_json"])
-        info = err.get("codexErrorInfo") if isinstance(err, dict) else None
+    if "category" in row:
+        # Already normalized once: keep the decision rather than reclassifying from
+        # fields that no longer exist, so normalize() stays idempotent.
+        category = row["category"] if row["category"] in failures.CATEGORIES else None
     else:
-        info = row.get("error_info", row.get("codexErrorInfo"))
-    # All other error variants are deliberately opaque, even object variants.
-    info = "usageLimitExceeded" if info == "usageLimitExceeded" else None
+        if "error_json" in row:
+            err = _json(row["error_json"])
+            info = err.get("codexErrorInfo") if isinstance(err, dict) else None
+            text = err.get("message") if isinstance(err, dict) else None
+        else:
+            info = row.get("error_info", row.get("codexErrorInfo"))
+            text = row.get("message")
+        # The raw error is classified here and then dropped: only the category name
+        # continues past this point, so no error text can reach state, logs or a toast.
+        category = failures.classify(info, text) if status == "failed" else None
     return {"thread_id": tid, "turn_id": turn, "status": status,
             "started_at": started, "completed_at": completed,
-            "ordinal": ordinal, "error_info": info}
+            "ordinal": ordinal, "category": category}
 
 
 def detect(row) -> dict | None:
+    """A failed turn this tool is willing to recover, or None.
+
+    `unknown` and every terminal category stop here: they are never registered, so
+    they can never be retried by a later change somewhere else in the pipeline.
+    """
     normalized = normalize(row)
     if (normalized is None or normalized["status"] != "failed"
-            or normalized["error_info"] != "usageLimitExceeded"
+            or not failures.is_recoverable(normalized["category"] or "")
             or normalized["completed_at"] is None):
         return None
     identity = [normalized[k] for k in ("thread_id", "turn_id", "completed_at", "ordinal")]
@@ -89,6 +104,26 @@ def detect(row) -> dict | None:
     normalized["interruption_id"] = hashlib.sha256(
         json.dumps(identity, separators=(",", ":")).encode("ascii")).hexdigest()
     return normalized
+
+
+MAX_LABEL_CHARS = 72
+
+
+def _label(value):
+    """A display label, or None. Never a paragraph, never multi-line.
+
+    A defensive cap: if a future schema starts putting prompt-like text in the field
+    this reads, a long or multi-line value is dropped rather than shown. Control
+    characters are stripped so a label can never rearrange a notification.
+    """
+    if not isinstance(value, str):
+        return None
+    cleaned = "".join(character for character in value if character.isprintable()).strip()
+    if not cleaned or any(ch in value for ch in ("\n", "\r", "\t")):
+        return None
+    if len(cleaned) > MAX_LABEL_CHARS:
+        cleaned = cleaned[:MAX_LABEL_CHARS - 1].rstrip() + "…"
+    return cleaned
 
 
 def _safe_path(path: Path) -> Path:
@@ -252,6 +287,79 @@ class LocalSource:
                 result.append(eligible)
         return result
 
+    def identity(self, thread_id: str) -> dict:
+        """Human-facing labels for one thread. Never used to *find* a thread.
+
+        Only `threads.name` is read as a title. `threads.title`, `preview` and
+        `first_user_message` all hold the raw first prompt on this schema (observed up
+        to 67 KB, multi-line), so they are never touched. `name` is the short display
+        name Codex itself shows, and it is length-capped and single-line-checked here
+        anyway. Missing columns are not an error: display is optional, detection is not.
+        """
+        blank = {"name": None, "project": None, "cwd_basename": None}
+        if not valid_uuid(thread_id):
+            return blank
+        try:
+            with self._db("state") as connection:
+                columns = {row[1] for row in connection.execute("PRAGMA table_info(threads)")}
+                wanted = [name for name in ("name", "cwd", "project_id") if name in columns]
+                if not wanted:
+                    return blank
+                row = connection.execute(
+                    "SELECT %s FROM threads WHERE id=?" % ",".join(wanted), (thread_id,)).fetchone()
+                if row is None:
+                    return blank
+                keys = row.keys()
+                project = None
+                project_id = row["project_id"] if "project_id" in keys else None
+                if project_id is not None:
+                    has_projects = connection.execute(
+                        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='projects'").fetchone()
+                    if has_projects:
+                        found = connection.execute(
+                            "SELECT name FROM projects WHERE id=?", (project_id,)).fetchone()
+                        if found is not None:
+                            project = _label(found["name"])
+                cwd = row["cwd"] if "cwd" in keys else None
+                base = None
+                if isinstance(cwd, str) and cwd.strip():
+                    # SQLite stores Windows extended paths; the prefix is not part of a name.
+                    plain = cwd[4:] if cwd.startswith("\\\\?\\") else cwd
+                    base = _label(PureWindowsPath(plain).name)
+                return {"name": _label(row["name"] if "name" in keys else None),
+                        "project": project, "cwd_basename": base}
+        except (SourceError, sqlite3.Error, OSError, ValueError):
+            return blank
+
+    def progress(self, thread_id: str, after_ordinal: int) -> dict:
+        """Content-free evidence that something happened after a given turn.
+
+        Reads lifecycle columns only: whether a later turn exists, whether one of them
+        completed, and whether a completed turn recorded a final agent item. No message
+        text, tool input or tool output is read.
+        """
+        empty = {"later_turn": False, "later_completed": False, "assistant_reply": False}
+        if not valid_uuid(thread_id) or type(after_ordinal) is not int:
+            return empty
+        try:
+            with self._db("history") as connection:
+                columns = {row[1] for row in connection.execute("PRAGMA table_info(thread_turns)")}
+                final = "final_agent_item_id" in columns
+                rows = connection.execute(
+                    "SELECT status, completed_at%s FROM thread_turns "
+                    "WHERE thread_id=? AND rollout_ordinal>?"
+                    % (", final_agent_item_id" if final else ""),
+                    (thread_id, after_ordinal)).fetchall()
+        except (SourceError, sqlite3.Error, OSError, ValueError):
+            return empty
+        result = dict(empty, later_turn=bool(rows))
+        for row in rows:
+            if row["status"] == "completed" and row["completed_at"] is not None:
+                result["later_completed"] = True
+                if final and row["final_agent_item_id"]:
+                    result["assistant_reply"] = True
+        return result
+
     def reset_hint(self, thread_id: str, turn_id: str) -> dict:
         unknown = {"reset_at": None, "limit_type": "unknown", "uncertain": True}
         if not valid_uuid(thread_id) or not valid_uuid(turn_id):
@@ -265,7 +373,9 @@ class LocalSource:
                 "rollout_ordinal,error_json,rollout_end_byte_offset "
                 "FROM thread_turns WHERE thread_id=? AND turn_id=?",
                 (thread_id, turn_id)).fetchone()
-        if row is None or detect(dict(row)) is None:
+        eligible = detect(dict(row)) if row is not None else None
+        # A reset timestamp only means anything for a usage limit.
+        if eligible is None or eligible["category"] != failures.USAGE_LIMIT:
             return unknown
         end = row["rollout_end_byte_offset"]
         if type(end) is not int or end <= 0:

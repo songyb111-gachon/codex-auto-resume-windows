@@ -16,25 +16,40 @@ import sqlite3
 from typing import Any, Iterator
 from uuid import UUID
 
+from . import failures
 
-SCHEMA_VERSION = 1
-TERMINAL = frozenset({"resumed", "cancelled", "superseded", "failed", "submission_unknown"})
+
+SCHEMA_VERSION = 2
+TERMINAL = frozenset({
+    "resumed", "cancelled", "superseded", "failed", "submission_unknown",
+    # Added with general transient recovery. Each one is a deliberate stop.
+    "superseded_by_user", "retry_budget_exhausted", "no_progress_exhausted", "terminal_failure",
+})
 WAITING = frozenset({
     "waiting_reset", "waiting_poll", "waiting_for_app", "waiting_for_loaded_thread",
     "waiting_for_usage", "waiting_retry",
+    # Transient failures wait on a bounded backoff, never on a usage reset.
+    "waiting_backoff",
 })
 STATES = TERMINAL | WAITING | {"submitting", "queued"}
 _KEY = re.compile(r"[A-Za-z0-9_-]{1,128}\Z")
 _MUTABLE = frozenset({
     "reset_at", "limit_type", "uncertain", "state", "retry_count", "next_retry_at",
     "resumed_at", "last_error", "queue_id", "submitted_at", "attempt_count",
-    "cancel_requested",
+    "cancel_requested", "recovery_attempts", "no_progress_count",
 })
 _RECORD_COLUMNS = (
     "interruption_id", "thread_id", "turn_id", "completed_at", "started_at", "ordinal",
     "detected_at", "reset_at", "limit_type", "uncertain", "state", "retry_count",
     "next_retry_at", "resumed_at", "last_error", "marker", "queue_id", "submitted_at",
-    "attempt_count", "cancel_requested",
+    "attempt_count", "cancel_requested", "category", "recovery_attempts", "no_progress_count",
+)
+# Columns added in schema 2. Existing rows are usage-limit records by definition,
+# because that was the only thing schema 1 could ever record.
+_SCHEMA_2_COLUMNS = (
+    ("category", "TEXT NOT NULL DEFAULT 'usage_limit'"),
+    ("recovery_attempts", "INTEGER NOT NULL DEFAULT 0"),
+    ("no_progress_count", "INTEGER NOT NULL DEFAULT 0"),
 )
 
 
@@ -96,8 +111,10 @@ def _validated_record(row: dict[str, Any]) -> dict[str, Any]:
         _timestamp(row[field], field)
     for field in ("started_at", "reset_at", "resumed_at", "submitted_at"):
         _timestamp(row[field], field, nullable=True)
-    for field in ("ordinal", "retry_count", "attempt_count"):
+    for field in ("ordinal", "retry_count", "attempt_count", "recovery_attempts", "no_progress_count"):
         _integer(row[field], field)
+    if row["category"] not in failures.CATEGORIES:
+        raise StoreError("Invalid failure category")
     for field in ("uncertain", "cancel_requested"):
         row[field] = _flag(row[field], field)
     _short_text(row["limit_type"], "limit_type", 160, nullable=True)
@@ -139,7 +156,13 @@ class Store:
                     if was_present:
                         raise StoreError("Existing state is empty or uninitialized; refusing to reset")
                     self._create_schema(connection)
-                elif version != SCHEMA_VERSION or tables != {"settings", "threads", "interruptions"}:
+                elif tables != {"settings", "threads", "interruptions"}:
+                    raise StoreError("Unsupported or malformed state schema")
+                elif version == 1:
+                    # In-place upgrade. Pending interruptions must survive an update of
+                    # this tool, so the rows are kept and only new columns are added.
+                    self._migrate_1_to_2(connection)
+                elif version != SCHEMA_VERSION:
                     raise StoreError("Unsupported or malformed state schema")
                 self._validate_schema(connection)
                 if connection.execute("PRAGMA quick_check").fetchone()[0] != "ok":
@@ -189,9 +212,25 @@ class Store:
             queue_id TEXT,
             submitted_at REAL,
             attempt_count INTEGER NOT NULL,
-            cancel_requested INTEGER NOT NULL CHECK (cancel_requested IN (0, 1))
+            cancel_requested INTEGER NOT NULL CHECK (cancel_requested IN (0, 1)),
+            category TEXT NOT NULL DEFAULT 'usage_limit',
+            recovery_attempts INTEGER NOT NULL DEFAULT 0,
+            no_progress_count INTEGER NOT NULL DEFAULT 0
         )""")
         connection.execute("CREATE INDEX interruptions_thread ON interruptions(thread_id)")
+        connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+
+    @staticmethod
+    def _migrate_1_to_2(connection: sqlite3.Connection) -> None:
+        """Add the general-recovery columns to an existing schema-1 database.
+
+        Runs inside the caller's transaction, so a crash mid-upgrade leaves the old
+        schema intact rather than a half-migrated one.
+        """
+        found = {row[1] for row in connection.execute("PRAGMA table_info(interruptions)")}
+        for name, definition in _SCHEMA_2_COLUMNS:
+            if name not in found:
+                connection.execute(f"ALTER TABLE interruptions ADD COLUMN {name} {definition}")
         connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
 
     @staticmethod
@@ -300,10 +339,13 @@ class Store:
         mis-scheduled record behind if the process died between the two commits.
         """
         _timestamp(now, "now")
-        fields = {"thread_id", "turn_id", "completed_at", "started_at", "ordinal", "interruption_id",
-                  "reset_at", "limit_type", "uncertain"}
-        if not isinstance(record, dict) or set(record) != fields:
+        required = {"thread_id", "turn_id", "completed_at", "started_at", "ordinal",
+                    "interruption_id", "reset_at", "limit_type", "uncertain"}
+        if not isinstance(record, dict) or not required <= set(record) <= required | {"category"}:
             raise StoreError("Invalid detection record")
+        # Schema 1 could only ever record a usage limit, so that is the safe default
+        # for a caller that predates categories.
+        record = {"category": failures.USAGE_LIMIT, **record}
         if state not in WAITING:
             raise StoreError("A new interruption must start in a waiting state")
         row = _validated_record({
@@ -312,6 +354,7 @@ class Store:
             "resumed_at": None, "last_error": None,
             "marker": f"[codex-auto-resume:{record['interruption_id']}]", "queue_id": None,
             "submitted_at": None, "attempt_count": 0, "cancel_requested": False,
+            "recovery_attempts": 0, "no_progress_count": 0,
         })
         with self._transaction() as connection:
             existing = connection.execute(

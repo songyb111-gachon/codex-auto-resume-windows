@@ -1,7 +1,7 @@
 {
   "name": "codex-auto-resume",
-  "version": "0.3.2",
-  "description": "Resume the exact Codex task that a usage limit interrupted, once the limit resets. Local-only, read-only against Codex state, and conservative by design.",
+  "version": "0.4.0",
+  "description": "Safely recover the exact Codex task that a usage limit or a clearly temporary failure interrupted. Local-only, read-only against Codex state, and conservative by design.",
   "author": {
     "name": "Youngbin Song",
     "url": "https://github.com/songyb111-gachon"
@@ -19,8 +19,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Codex Auto Resume",
-    "shortDescription": "Resume a usage-limited task after the reset",
-    "longDescription": "When a Codex task stops because you ran out of usage, this remembers the exact conversation and resumes it after the limit resets. A small local watcher does the waiting, so it keeps working after you close the app. It only acts on usage-limit interruptions, only on the exact interrupted conversation, and does nothing when the state is uncertain.",
+    "shortDescription": "Recover an interrupted Codex task",
+    "longDescription": "When a Codex task stops because you ran out of usage, or because of a clearly temporary failure such as a dropped connection or a server error, this remembers the exact conversation and picks it up again. A small local watcher does the waiting, so it keeps working after you close the app. It acts only on failures it can classify, only on the exact interrupted conversation, and does nothing when the state is uncertain. It is not a general retry tool.",
     "developerName": "Youngbin Song",
     "category": "Developer Tools",
     "capabilities": [

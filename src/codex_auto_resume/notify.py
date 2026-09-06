@@ -90,22 +90,24 @@ def _ps_literal(value: str) -> str:
     return "'" + str(value).replace("'", "''") + "'"
 
 
-def _toast_xml(title: str, body: str, button: str | None, uri: str | None) -> str:
+def _toast_xml(title, body, button=None, uri=None, extra=()) -> str:
     actions = ""
     if button and uri:
         actions = '<actions><action content=%s activationType="protocol" arguments=%s/></actions>' % (
             quoteattr(button), quoteattr(uri))
+    lines = [title] + [line for line in extra if line] + [body]
+    text = "".join("<text>%s</text>" % escape(line) for line in lines if line)
     return ('<toast duration="long"><visual><binding template="ToastGeneric">'
-            '<text>%s</text><text>%s</text></binding></visual>%s</toast>'
-            % (escape(title), escape(body), actions))
+            '%s</binding></visual>%s</toast>' % (text, actions))
 
 
-def show(title: str, body: str, *, button: str | None = None, uri: str | None = None) -> bool:
+def show(title: str, body: str, *, button: str | None = None, uri: str | None = None,
+         extra=()) -> bool:
     """Best effort. Returns True only when PowerShell reported success."""
     shell = _powershell()
     if shell is None:
         return False
-    script = _SCRIPT % {"xml": _ps_literal(_toast_xml(title, body, button, uri)),
+    script = _SCRIPT % {"xml": _ps_literal(_toast_xml(title, body, button, uri, extra)),
                         "aumid": _ps_literal(AUMID)}
     # -EncodedCommand takes UTF-16LE base64: no quoting rules apply to the payload at all,
     # so no string built here can be reinterpreted as PowerShell syntax.
@@ -125,17 +127,51 @@ def _local_time(when: float) -> str:
     return time.strftime("%H:%M", time.localtime(when))
 
 
-def scheduled(thread_id: str, interruption_id: str, reset_at: float | None) -> bool:
-    """Announce that this conversation will be resumed, and offer to opt out."""
-    short = str(thread_id)[:8]
-    if reset_at:
-        body = messages.text("toast_body_at").format(time=_local_time(reset_at), short=short)
+def headline(identity) -> str:
+    """The first line: what a person would call this task.
+
+    Priority is title, then project, then the working directory's name. These are
+    display labels only. Recovery never looks a thread up by any of them; the exact
+    UUID stays the sole identity, and it is shown on its own line as well.
+    """
+    identity = identity if isinstance(identity, dict) else {}
+    for key in ("name", "project", "cwd_basename"):
+        value = identity.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return messages.text("toast_unnamed")
+
+
+def _second_line(identity, used: str):
+    identity = identity if isinstance(identity, dict) else {}
+    for key in ("project", "cwd_basename"):
+        value = identity.get(key)
+        if isinstance(value, str) and value.strip() and value.strip() != used:
+            return value.strip()
+    return None
+
+
+def scheduled(thread_id: str, interruption_id: str, reset_at: float | None,
+              category: str = "usage_limit", identity=None) -> bool:
+    """Announce that this conversation will be recovered, and offer to opt out.
+
+    Wording follows the failure category: a usage limit waits for a reset, everything
+    else is simply retried. Both carry the same single cancel button.
+    """
+    usage = category == "usage_limit"
+    title = headline(identity)
+    extra = [_second_line(identity, title), messages.text("toast_thread").format(uuid=thread_id)]
+    if usage:
+        body = (messages.text("toast_usage_at").format(time=_local_time(reset_at)) if reset_at
+                else messages.text("toast_usage_soon"))
+        button = messages.text("toast_button_cancel")
     else:
-        body = messages.text("toast_body_soon").format(short=short)
-    return show(messages.text("toast_title"), body,
-                button=messages.text("toast_button_cancel"), uri=cancel_uri(interruption_id))
+        body = messages.text("toast_transient")
+        button = messages.text("toast_button_no_retry")
+    return show(title, body, button=button, uri=cancel_uri(interruption_id), extra=extra)
 
 
 def cancelled(thread_id: str) -> bool:
     return show(messages.text("toast_cancelled_title"),
-                messages.text("toast_cancelled_body").format(short=str(thread_id)[:8]))
+                messages.text("toast_cancelled_body"),
+                extra=[messages.text("toast_thread").format(uuid=thread_id)])

@@ -1,5 +1,61 @@
 # Changelog
 
+## v0.4.0 — Recover more, guess less, install in one step
+
+### Recovery beyond usage limits
+
+- **Clearly temporary failures are now recovered too**, on a policy of their own. The two
+  are deliberately not merged: a usage limit waits for its real reset timestamp, a dropped
+  connection waits on a bounded ladder (5s, 15s, 30s, 60s, 120s) and never longer.
+- Classification is **structural, not textual**. It reads the `codexErrorInfo` variant Codex
+  itself writes, then an HTTP status carried by that variant. A message is consulted only
+  when there is no structured code at all, and only for transport failures that have no code
+  (timeouts, DNS, TLS, broken pipe). A structured code is never overridden by message text.
+- **Recovered:** usage limit, connection failure, timeout (408/425), transient rate limit
+  (429), server errors (500-599, `serverOverloaded`, `internalServerError`), stream
+  disconnection.
+- **Not recovered:** user cancellation, permission, approval, policy, invalid request,
+  context length, permanent authentication (401/403/`unauthorized`), `badRequest`,
+  `sandboxError`, `responseTooManyFailedAttempts` (Codex already retried and gave up),
+  and anything unrecognised.
+- **Unknown is never retried.** An error this tool cannot place is never registered at all,
+  so no later stage can act on it. This is the opposite of retrying by default, and it is
+  the point: a missed recovery is cheaper than a wrong one.
+- **Bounded budgets.** A transient chain stops after 4 recovery attempts
+  (`retry_budget_exhausted`), and after 3 consecutive recoveries that produced nothing
+  (`no_progress_exhausted`). Progress is judged from lifecycle metadata only: whether a
+  later turn completed, and whether it recorded a final agent item. No message text is read.
+- **The user always wins.** If a later turn exists on that exact thread - because the user
+  carried on, or because Codex did - the old interruption becomes `superseded_by_user` and
+  is never resumed on top of the newer work.
+- Existing state upgrades in place. Pending recoveries survive the update.
+
+### Notifications that say which task
+
+- The notification now leads with a name a person recognises: the conversation title, else
+  the project, else the working directory's name, else "Codex task". The **exact thread UUID
+  is always shown** on its own line, because titles repeat and identity must not.
+- Wording follows the failure: a usage limit says when it will resume; a temporary failure
+  says it is retrying. One cancel button either way.
+- Display names are read from `threads.name` only. On this schema `title`, `preview` and
+  `first_user_message` all hold the raw first prompt (observed at 67 KB, multi-line), so they
+  are never read. Labels are capped and must be single-line, so a schema change cannot turn a
+  prompt into a notification.
+- **Names are for display only.** Recovery still resolves nothing by title, project or
+  recency; the exact UUID remains the sole identity.
+
+### One-click installation
+
+- `install/Install.cmd` registers the marketplace, installs or updates the plugin, checks for
+  Python, and hands over to the plugin's own setup. It is a bootstrapper, not a runtime: no
+  administrator rights, no service, no scheduled task, HKCU only, and it never deletes state.
+  Re-running it upgrades in place. `Uninstall.cmd` reverses it, watcher first.
+- Python is never downloaded or installed automatically; a missing interpreter is reported
+  with a link and the installer stops without leaving anything running.
+- Checked first and not available: this Codex build has no plugin install deep-link, and
+  `codex plugin add` requires a registered marketplace, so the two commands cannot be reduced
+  to one officially.
+
 ## v0.3.2 — Make the login autostart actually start
 
 - **Fixed: the registered sign-in autostart could never run.** The Run value ended in `run`, and

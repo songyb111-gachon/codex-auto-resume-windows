@@ -20,7 +20,7 @@ MARKER = "[codex-auto-resume:" + "a" * 64 + "]"
 class DetectionTests(unittest.TestCase):
     def test_real_usage_sample(self):
         found = detect(FIXTURE["database_failure"])
-        self.assertEqual(found["error_info"], "usageLimitExceeded")
+        self.assertEqual(found["category"], "usage_limit")
         self.assertEqual(found["thread_id"], TID)
         self.assertEqual(len(found["interruption_id"]), 64)
         self.assertNotIn("error_json", found)
@@ -31,9 +31,24 @@ class DetectionTests(unittest.TestCase):
                 self.assertIsNone(detect(dict(FIXTURE["database_failure"], status=status)))
 
     def test_ordinary_failed(self):
-        for error in ('{"codexErrorInfo":"other"}', '{"codexErrorInfo":{"httpConnectionFailed":{"status":429}}}', None):
+        # Unknown and terminal categories are never registered, so they can never be
+        # retried by any later stage.
+        for error in ('{"codexErrorInfo":"other"}', '{"codexErrorInfo":"badRequest"}',
+                      '{"codexErrorInfo":"unauthorized"}', '{"codexErrorInfo":"contextWindowExceeded"}',
+                      '{"codexErrorInfo":{"httpStatusCode":404}}', None):
             with self.subTest(error=error):
                 self.assertIsNone(detect(dict(FIXTURE["database_failure"], error_json=error)))
+
+    def test_transient_failures_are_now_recoverable(self):
+        for error, category in (
+                ('{"codexErrorInfo":"httpConnectionFailed"}', "network_transient"),
+                ('{"codexErrorInfo":"serverOverloaded"}', "server_5xx"),
+                ('{"codexErrorInfo":"responseStreamDisconnected"}', "stream_interrupted"),
+                ('{"codexErrorInfo":{"httpStatusCode":503}}', "server_5xx")):
+            with self.subTest(error=error):
+                found = detect(dict(FIXTURE["database_failure"], error_json=error))
+                self.assertIsNotNone(found)
+                self.assertEqual(found["category"], category)
 
     def test_malformed(self):
         for patch in ({"error_json": "broken"}, {"error_json": "[]"}, {"thread_id": "--last"},

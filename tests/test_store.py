@@ -204,12 +204,12 @@ class StoreTests(unittest.TestCase):
         self.store.register(failure(), 111)
         self.store.close()
         with closing(sqlite3.connect(self.root / "state.sqlite")) as db:
-            db.execute("PRAGMA user_version=2")
+            db.execute("PRAGMA user_version=3")     # a schema from a future version
             db.commit()
         with self.assertRaises(StoreError):
             Store(self.root)
         with closing(sqlite3.connect(self.root / "state.sqlite")) as db:
-            db.execute("PRAGMA user_version=1")
+            db.execute("PRAGMA user_version=2")
             db.execute("UPDATE interruptions SET state='unexpected'")
             db.commit()
         with self.assertRaises(StoreError):

@@ -1,6 +1,6 @@
 ---
 name: codex-auto-resume
-description: Set up, inspect and control automatic resume of Codex tasks that were interrupted by a usage limit on Windows. Use for requests like enable/disable auto resume, show auto resume status, show pending auto resumes, cancel auto resume for a task, start it at Windows sign-in, or uninstall it.
+description: Set up, inspect and control automatic recovery of Codex tasks interrupted by a usage limit or a temporary failure on Windows. Use for requests like enable/disable auto resume, show auto resume status, show pending auto resumes, cancel auto resume for a task, start it at Windows sign-in, or uninstall it.
 ---
 
 # Codex Auto Resume
@@ -69,11 +69,17 @@ Report what the command actually printed. Useful fields from `status` and `pendi
   will be resumed; offer to run `enable`, which also starts it.
 - `state` on a pending entry:
   - `waiting_reset` / `waiting_poll` — waiting for the usage limit to reset.
+  - `waiting_backoff` — a temporary failure; waiting out a short bounded delay.
   - `waiting_for_loaded_thread` — the limit has reset, but that conversation is not open in
     the app. Tell the user to open it; the watcher will then resume it.
   - `resumed` — the continuation was delivered and confirmed.
   - `submission_unknown` — the result could not be confirmed, so it will never be resent.
     Tell the user to check that conversation themselves.
+  - `superseded_by_user` — a later turn exists in that conversation, so the old failure was
+    dropped rather than replayed on top of newer work. This is correct, not a fault.
+  - `retry_budget_exhausted` / `no_progress_exhausted` — recovery gave up on purpose, either
+    after too many attempts or after repeated attempts that produced nothing. Do not suggest
+    forcing another attempt; tell the user to look at that conversation.
 
 Do not restate the reset time the Codex usage-limit notice already shows.
 
@@ -89,8 +95,12 @@ notice and none can be added; see the project's docs/PLUGIN.md if asked why.
 
 ## What it does and does not do
 
-- Resumes only tasks that stopped because of a **usage limit**. It is not a general retry
-  tool: network errors, timeouts, server errors and failed turns are left alone.
+- Recovers a **usage limit**, and failures it can positively classify as temporary: connection
+  failures, timeouts, transient 429s, server 5xx, and stream disconnections.
+- It is **not** a general retry tool. User cancellation, permission, approval, policy, invalid
+  requests, context-length errors and permanent authentication failures are never retried — and
+  neither is any failure it cannot classify. If asked to "retry everything", explain that
+  unknown failures are deliberately left alone, and do not try to work around it.
 - Resumes only the **exact** interrupted conversation.
 - Does nothing while any part of the situation is uncertain. It prefers missing a resume
   over resuming twice.
