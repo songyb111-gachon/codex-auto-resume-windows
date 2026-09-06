@@ -68,10 +68,25 @@ class App:
         options = {"detection_lookback_seconds": float(self.settings["detection_lookback_hours"]) * 3600.0}
         kwargs = {"log": EngineLog(self.logger), "options": options}
         if self.settings.get("notifications", True):
-            kwargs["notify"] = notify.scheduled
+            kwargs["notify"] = self._notifier(self.source())
         if dispatch_lock is not None:
             kwargs["dispatch_lock"] = dispatch_lock
         return Engine(store, self.source(), self.backend(), **kwargs)
+
+    @staticmethod
+    def _notifier(source):
+        """Bind display labels to the toast without giving the engine a UI dependency.
+
+        The labels are looked up here, at notification time, and are used only for
+        display; the engine keeps working purely from the exact thread UUID.
+        """
+        def announce(thread_id, interruption_id, reset_at, category="usage_limit"):
+            try:
+                identity = source.identity(thread_id)
+            except Exception:
+                identity = None     # an unnamed task is still worth announcing
+            return notify.scheduled(thread_id, interruption_id, reset_at, category, identity)
+        return announce
 
     def mutex(self, timeout: float = 0.0) -> Mutex:
         return Mutex(str(self.paths.state_dir), timeout=timeout)

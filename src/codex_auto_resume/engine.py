@@ -8,6 +8,7 @@ uncertainty ends in ``submission_unknown`` and is never resent automatically.
 from contextlib import nullcontext
 import time
 
+from . import failures
 from .source import detect
 
 CONTINUATION = (
@@ -16,7 +17,11 @@ CONTINUATION = (
     "계속 수행해. 기존 Goal이 있다면 그 상태와 목표를 유지해."
 )
 UNSENT = {"waiting_reset", "waiting_poll", "waiting_for_app", "waiting_for_loaded_thread",
-          "waiting_for_usage", "waiting_retry"}
+          "waiting_for_usage", "waiting_retry", "waiting_backoff"}
+# A transient failure waits on a bounded ladder, never on a usage reset. The two
+# policies stay separate on purpose: a usage limit has a real reset timestamp to
+# wait for, a dropped connection has nothing but elapsed time.
+TRANSIENT_BACKOFF = (5, 15, 30, 60, 120)
 IN_FLIGHT = {"submitting", "queued", "submission_unknown"}
 # Bounded exponential backoff for proven "queue process never started" failures.
 BACKOFF_LADDER = (30, 60, 120, 300)
@@ -26,6 +31,12 @@ def backoff_delay(retry: int) -> int:
     """retry is 1-based: 30s, 1m, 2m, 5m, then 5m forever (bounded by retry cap)."""
     index = max(0, min(int(retry) - 1, len(BACKOFF_LADDER) - 1))
     return BACKOFF_LADDER[index]
+
+
+def transient_delay(attempt: int) -> int:
+    """attempt is 1-based; the ladder is bounded and never grows without limit."""
+    index = max(0, min(int(attempt) - 1, len(TRANSIENT_BACKOFF) - 1))
+    return TRANSIENT_BACKOFF[index]
 
 
 class Engine:
@@ -44,6 +55,10 @@ class Engine:
                         "detection_lookback_seconds": 6 * 3600,
                         # Stop re-reconciling an unresolved unknown submission after this.
                         "unknown_reconcile_window_seconds": 24 * 3600,
+                        # General transient recovery is strictly bounded: a chain that
+                        # keeps failing, or keeps producing nothing, is abandoned.
+                        "max_recovery_attempts": 4,
+                        "max_no_progress": 3,
                         **(options or {})}
         self._usage_cache = None
 
@@ -60,6 +75,20 @@ class Engine:
         latest = self.source.latest(row["thread_id"])
         found = detect(latest) if latest else None
         return found is not None and found["interruption_id"] == row["interruption_id"]
+
+    def supersede_reason(self, row):
+        """Why this interruption is no longer the one to recover.
+
+        A later turn on the exact thread means work continued without us - by the user,
+        or by Codex itself - so the old failure must not be resumed on top of it.
+        """
+        try:
+            progress = self.source.progress(row["thread_id"], row["ordinal"])
+        except Exception:
+            progress = {}
+        if progress.get("later_turn"):
+            return "superseded_by_user", "later_turn_exists"
+        return "superseded", "latest_turn_changed"
 
     def allowed(self, row):
         return (self.store.settings()["enabled"] and self.store.thread_enabled(row["thread_id"])
@@ -109,6 +138,34 @@ class Engine:
         else:
             self.transition(row, "submission_unknown", "no_receipt_do_not_resend", delay=900)
 
+    def carry_no_progress(self, detection):
+        """Continue a no-progress chain across interruptions on the same thread.
+
+        A recovery that delivers a message but produces nothing is worse than useless
+        if it repeats. When the previous recovered interruption on this thread produced
+        no completed turn and no assistant reply, the count carries forward; visible
+        progress resets it. Only lifecycle booleans are consulted - no message text.
+        """
+        previous = [row for row in self.store.all_records()
+                    if row["thread_id"] == detection["thread_id"]
+                    and row["interruption_id"] != detection["interruption_id"]
+                    and row["state"] == "resumed"]
+        if not previous:
+            return
+        last = max(previous, key=lambda row: row["ordinal"])
+        try:
+            progress = self.source.progress(detection["thread_id"], last["ordinal"])
+        except Exception:
+            return                      # unreadable progress is not evidence of failure
+        if progress.get("assistant_reply") or progress.get("later_completed"):
+            return                      # something happened; the chain starts over
+        count = last["no_progress_count"] + 1
+        self.store.update(detection["interruption_id"], no_progress_count=count)
+        if count >= self.options["max_no_progress"]:
+            self.store.update(detection["interruption_id"],
+                              state="no_progress_exhausted", last_error="no_progress_budget")
+            self.log(detection["thread_id"], "no_progress_exhausted", str(count))
+
     # --------------------------------------------------------------- collect
     def collect(self):
         settings = self.store.settings()
@@ -121,34 +178,47 @@ class Engine:
                 continue
             if self.store.get(record["interruption_id"]) is not None:
                 continue
-            hint = self.source.reset_hint(record["thread_id"], record["turn_id"])
+            category = record["category"]
+            usage = category == failures.USAGE_LIMIT
+            # A reset timestamp only exists for a usage limit; a transient failure has
+            # nothing to wait for but time, so the two schedules are computed separately.
+            hint = (self.source.reset_hint(record["thread_id"], record["turn_id"]) if usage
+                    else {"reset_at": None, "limit_type": category, "uncertain": False})
             # store.register accepts only these exact detection fields; detect() also
-            # returns status/error_info which must not be forwarded.
+            # returns status/category which must not be forwarded as-is.
             detection = {
                 "thread_id": record["thread_id"], "turn_id": record["turn_id"],
                 "completed_at": record["completed_at"], "started_at": record["started_at"],
                 "ordinal": record["ordinal"], "interruption_id": record["interruption_id"],
                 "reset_at": hint["reset_at"], "limit_type": hint["limit_type"],
-                "uncertain": bool(hint["uncertain"]),
+                "uncertain": bool(hint["uncertain"]), "category": category,
             }
             now = self.clock()
             reset = detection["reset_at"]
-            when = max(now + 30, reset + self.options["reset_grace_seconds"]) if reset else now + self.options["conservative_poll_seconds"]
+            if usage:
+                state = "waiting_reset" if reset else "waiting_poll"
+                when = (max(now + 30, reset + self.options["reset_grace_seconds"]) if reset
+                        else now + self.options["conservative_poll_seconds"])
+            else:
+                state = "waiting_backoff"
+                when = now + transient_delay(1)
             # One transaction: the record can never exist without its real schedule.
-            if self.store.register(detection, now, state="waiting_reset" if reset else "waiting_poll",
-                                   next_retry_at=when):
-                self.log(detection["thread_id"], "usageLimitExceeded_detected", detection["interruption_id"])
-                if reset:
+            if self.store.register(detection, now, state=state, next_retry_at=when):
+                self.log(detection["thread_id"],
+                         "usageLimitExceeded_detected" if usage else "transient_failure_detected",
+                         detection["interruption_id"] if usage else category)
+                if usage and reset:
                     self.log(detection["thread_id"], "reset_expected", str(int(reset)))
-                else:
+                elif usage:
                     self.log(detection["thread_id"], "reset_unknown_conservative_poll", str(int(self.options["conservative_poll_seconds"])))
                 if detection["uncertain"]:
                     self.log(detection["thread_id"], "blocking_limit_uncertain", None)
+                self.carry_no_progress(detection)
                 try:
                     # Purely informational, and the only moment a control can be offered
                     # at the time it matters. A notification that fails must never change
                     # whether this interruption is resumed.
-                    self.notify(detection["thread_id"], detection["interruption_id"], reset)
+                    self.notify(detection["thread_id"], detection["interruption_id"], reset, category)
                 except Exception:
                     self.log(detection["thread_id"], "notification_failed", None)
 
@@ -162,7 +232,7 @@ class Engine:
         if row["state"] in ("waiting_reset", "waiting_poll"):
             self.log(row["thread_id"], "checking_eligibility", None)
         if not self.valid_interruption(row):
-            self.transition(row, "superseded", "latest_turn_changed")
+            self.transition(row, *self.supersede_reason(row))
             return
         app = self.backend.app_identity()
         if not app:
@@ -197,7 +267,7 @@ class Engine:
             if not current or current["state"] not in UNSENT or not self.allowed(current):
                 return
             if not self.valid_interruption(current):
-                self.transition(current, "superseded", "latest_turn_changed")
+                self.transition(current, *self.supersede_reason(current))
                 return
             # A fresh process identity prevents a prior app's status authorizing a new app.
             if self.backend.app_identity() != app or self.backend.loaded(row["thread_id"], app) != "loaded":
@@ -206,8 +276,18 @@ class Engine:
             if self.usage().get("available") is not True:
                 self.transition(current, "waiting_for_usage", "usage_recheck_failed", delay=900)
                 return
+            attempts = current["recovery_attempts"] + 1
+            # The recovery budget belongs to general transient recovery. A usage limit
+            # keeps the policy it already had: it is bounded by the daily submission
+            # cap and the per-thread cooldown, not by an attempt ladder.
+            if (current["category"] != failures.USAGE_LIMIT
+                    and attempts > self.options["max_recovery_attempts"]):
+                self.transition(current, "retry_budget_exhausted", "recovery_budget",
+                                recovery_attempts=current["recovery_attempts"])
+                return
             if not self.store.reserve(row["interruption_id"], self.clock()):
                 return
+            self.store.update(row["interruption_id"], recovery_attempts=attempts)
             self.log(row["thread_id"], "queue_submission_started", None)
             # Reservation is durable before any external process can accept the message.
             try:
@@ -225,8 +305,10 @@ class Engine:
                 if retry >= self.options["max_queue_retries"]:
                     self.transition(reserved, "failed", "queue_launch_retry_limit", retry_count=retry, submitted_at=None)
                 else:
+                    delay = (transient_delay(attempts) if row["category"] != failures.USAGE_LIMIT
+                             else backoff_delay(retry))
                     self.transition(reserved, "waiting_retry", "queue_process_not_started", retry_count=retry,
-                                    submitted_at=None, delay=backoff_delay(retry))
+                                    submitted_at=None, delay=delay)
             else:
                 self.transition(reserved, "submission_unknown", "queue_result_unknown_do_not_resend", delay=900)
 

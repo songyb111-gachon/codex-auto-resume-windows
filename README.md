@@ -1,11 +1,15 @@
 # codex-auto-resume-windows
 
-**codex-auto-resume-windows** is a local-only Windows watcher that detects Codex tasks interrupted by a
-usage limit and safely resumes the exact loaded Codex thread once usage becomes available again.
+**Safe automatic recovery for interrupted Codex tasks on Windows.**
 
-It watches Codex's own local state read-only. When a turn fails with `usageLimitExceeded`, it records
-the exact thread, waits for the reset, re-checks that everything is still safe, and then sends one
+A small local watcher notices when a Codex task stops because of a usage limit or a clearly temporary
+failure, then picks that exact conversation up again once it is safe to do so.
+
+It watches Codex's own local state read-only. When a turn fails, it classifies the failure, records the
+exact thread, waits for the right moment, re-checks that everything is still safe, and then sends one
 continuation message to that same conversation through the official `codex queue` command.
+
+**This project intentionally does not retry every failure.** A failure it cannot classify is left alone.
 
 ## Please read this limitation first
 
@@ -34,7 +38,8 @@ is no tray icon, no settings window, no management web UI, no supervisor, and no
 
 ## Features
 
-- Detects only genuine usage-limit interruptions (`status=failed` **and** `codexErrorInfo=usageLimitExceeded`).
+- Recovers usage limits and clearly classified temporary failures, on separate policies. Never
+  retries a failure it cannot classify.
 - Tracks the exact thread UUID. Never `--last`, never a guessed thread.
 - Waits for the real reset timestamp when one is available, instead of sleeping a fixed number of hours.
 - Verifies the desktop app is running and the thread is genuinely loaded before sending anything.
@@ -76,9 +81,48 @@ ownership information. It never acquires a lock on the app's file.
   offers `--thread` and `--message`, and `status`/`doctor` label it as unverified. Anything that
   cannot prove that interface is refused rather than guessed at.
 
+## What is recovered, and what is not
+
+Automatically recovered:
+
+| Failure | Policy |
+| --- | --- |
+| Usage limit (`usageLimitExceeded`) | Waits for the real reset timestamp, then re-checks live usage |
+| Connection failure (`httpConnectionFailed`) | Bounded backoff |
+| Timeout (HTTP 408/425) | Bounded backoff |
+| Transient rate limit (HTTP 429, `rateLimitExceeded`) | Bounded backoff |
+| Server error (HTTP 5xx, `serverOverloaded`, `internalServerError`) | Bounded backoff |
+| Stream disconnection (`responseStreamDisconnected`, `responseStreamConnectionFailed`) | Bounded backoff |
+
+Never recovered — these need a person, and retrying only wastes attempts:
+
+user cancellation · permission · approval required · content policy · invalid request ·
+context length exceeded · permanent authentication (401/403, `unauthorized`) · `badRequest` ·
+`sandboxError` · `responseTooManyFailedAttempts` · **anything unrecognised**.
+
+Classification is structural: it reads the `codexErrorInfo` variant Codex writes, then an HTTP status
+carried by that variant. Message text is consulted only when there is no structured code at all, and
+only for transport failures that have none. A structured code is never overridden by message text.
+
+Recovery is bounded twice over: at most 4 attempts per interruption, and it stops after 3 consecutive
+recoveries that produced no visible progress. If you carry on in that conversation yourself, the old
+interruption is dropped rather than replayed on top of your work.
+
 ## Installation
 
-### Recommended — install as a Codex plugin
+### Recommended — one-click install
+
+Download the release ZIP, unpack it, and double-click **`Install.cmd`**.
+
+It registers the marketplace, installs the plugin, checks for Python, sets the watcher up and runs a
+health check. It needs no administrator rights, creates no service and no scheduled task, and only
+writes under your own user account. Re-running it upgrades in place and keeps anything already waiting
+to resume. `Uninstall.cmd` reverses it.
+
+Python 3.10+ must already be on your PATH. The installer tells you if it is missing and stops; it never
+downloads or installs Python for you.
+
+### Also supported — install as a Codex plugin
 
 Add this repository as a Codex marketplace, then install the plugin:
 
@@ -109,7 +153,7 @@ usage-limit notice does **not** get a checkbox.
 > watchers could resume the same task twice. Setup detects this and refuses rather than creating the
 > second one.
 
-### Advanced — manual installation
+### Advanced — manual installation from source
 
 For development, or if you would rather run it yourself:
 
@@ -196,8 +240,23 @@ By default, failures up to 6 hours old at the moment you run `enable` are still 
 
 ## The notification
 
-When the watcher records an interruption, Windows shows one notification saying when that
-conversation will continue, with a single **Don't resume** button.
+When the watcher records an interruption, Windows shows one notification naming the task, with a
+single cancel button.
+
+```
+Payment retry refactor
+example-project
+Thread: 0a1b2c3d-0109-7000-8000-000000000109
+Codex usage limit reached. This task will resume at 05:56.
+                                             [Don't resume]
+```
+
+The first line is the conversation title, or the project, or the working directory's name, or
+"Codex task". The **exact thread UUID is always shown**: titles repeat, identity must not. A
+temporary failure says "Codex was temporarily interrupted. Retrying automatically." instead, with a
+**Don't retry** button.
+
+Those names are for display only. Recovery never resolves a thread by title, project or recency.
 
 Doing nothing resumes — that is the default. Pressing the button cancels the auto-resume for that
 one conversation and nothing else.
@@ -214,8 +273,9 @@ Details worth knowing:
   installation.
 - That protocol accepts exactly one action, cancelling. A hostile or mistyped URI can only ever
   *stop* a resume, never cause one, and the interruption id must match a real record.
-- The notification shows only a shortened conversation id and a local time — never prompt text,
-  error text, or account data.
+- The notification shows labels, a local time and the thread UUID — never prompt text, error text,
+  or account data. Display names come from `threads.name` only; `title`, `preview` and
+  `first_user_message` hold the raw first prompt on this schema and are never read.
 - It is best effort. If it cannot be shown, the resume still happens exactly as it would have.
 - Notifications appear attributed to Windows PowerShell, which is how a tool without its own
   installed app identity is allowed to raise them.
