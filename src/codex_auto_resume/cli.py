@@ -333,6 +333,14 @@ def cmd_install(args) -> int:
     else:
         _print("login autostart       : not requested (use install --startup to opt in)")
     if app.settings.get("notifications", True):
+        try:
+            icon = app.paths.icon_file if app.paths.icon_file.is_file() else None
+            changed = startup.register_aumid(icon)
+            _print("notification sender   : %s%s" % (
+                startup.AUMID_DISPLAY_NAME,
+                "" if icon else "  (no icon installed yet)"))
+        except startup.StartupError as exc:
+            _print("notification sender   : unavailable (%s)" % exc)
         # Without this the notification's "Don't resume" button has no handler. It is a
         # per-user class registration only, and uninstall removes it again.
         try:
@@ -363,6 +371,11 @@ def cmd_uninstall(args) -> int:
                 removed.append("login autostart value")
         else:
             foreign_autostart = value
+    except startup.StartupError as exc:
+        _print("warning: %s" % exc)
+    try:
+        if startup.unregister_aumid():
+            removed.append("notification sender identity")
     except startup.StartupError as exc:
         _print("warning: %s" % exc)
     try:
