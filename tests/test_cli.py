@@ -16,7 +16,7 @@ from codex_auto_resume import cli, config, logbook, startup
 from codex_auto_resume.app import DEFAULT_POLL, App
 from codex_auto_resume.store import Store, StoreError
 
-THREAD = "0a1b2c3d-0101-7000-8000-000000000101"
+THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
 
 
 def _split_command(command: str) -> list[str]:
@@ -152,7 +152,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("no pending", out)
         with Store(self.home / "config") as store:
-            store.register({"thread_id": THREAD, "turn_id": "0a1b2c3d-0102-7000-8000-000000000102",
+            store.register({"thread_id": THREAD, "turn_id": "0a1b2c3d-0002-7000-8000-000000000002",
                             "completed_at": 1788628349.0, "started_at": 1788627820.0, "ordinal": 1,
                             "interruption_id": "a" * 64, "reset_at": 1788645827.0,
                             "limit_type": "codex:primary_hint", "uncertain": True}, 1788628400.0)

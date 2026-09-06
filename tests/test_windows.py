@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 
 from codex_auto_resume import windows as w
 
-THREAD = "0a1b2c3d-0101-7000-8000-000000000101"
-QUEUE = "0a1b2c3d-0103-7000-8000-000000000103"
+THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
+QUEUE = "0a1b2c3d-0003-7000-8000-000000000003"
 APP = {"pid": 10, "created": 100, "path": "app", "server": {"pid": 20, "created": 200, "path": "codex"}}
 
 

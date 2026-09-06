@@ -1,0 +1,152 @@
+{
+  "started": "2026-09-06T07:58:39+09:00",
+  "thread_id": "0a1b2c3d-0003-7000-8000-000000000003",
+  "marker": "AUTO_RESUME_POC_COLD_ACK_20260906",
+  "verdict": "FAIL",
+  "reason": "No conversation delivery within 90 seconds while unloaded; fixed message remained only in queue.",
+  "samples": [
+    {
+      "at": "2026-09-06T07:58:40+09:00",
+      "writer": "absent",
+      "turns": [
+        {
+          "turn_id": "0a1b2c3d-0004-7000-8000-000000000004",
+          "status": "completed",
+          "started_at": 1788628249,
+          "completed_at": 1788628254
+        },
+        {
+          "turn_id": "0a1b2c3d-0005-7000-8000-000000000005",
+          "status": "completed",
+          "started_at": 1788628311,
+          "completed_at": 1788628314
+        }
+      ],
+      "marker_items": [],
+      "owned_pending_ids": [
+        "0a1b2c3d-0008-7000-8000-000000000008"
+      ],
+      "total_pending": 1
+    },
+    {
+      "at": "2026-09-06T08:00:07+09:00",
+      "writer": "absent",
+      "turns": [
+        {
+          "turn_id": "0a1b2c3d-0004-7000-8000-000000000004",
+          "status": "completed",
+          "started_at": 1788628249,
+          "completed_at": 1788628254
+        },
+        {
+          "turn_id": "0a1b2c3d-0005-7000-8000-000000000005",
+          "status": "completed",
+          "started_at": 1788628311,
+          "completed_at": 1788628314
+        }
+      ],
+      "marker_items": [],
+      "owned_pending_ids": [
+        "0a1b2c3d-0008-7000-8000-000000000008"
+      ],
+      "total_pending": 1
+    }
+  ],
+  "app_status_before": "notLoaded (official app list_threads, 07:57 KST)",
+  "restarted_app": {
+    "main": {
+      "id": "<pid>",
+      "parent": "<pid>",
+      "name": "ChatGPT.exe",
+      "path": "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.901.5280.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe",
+      "created": "2026-09-05T22:40:31.4999280Z",
+      "kernel_identity": {
+        "path": "c:\\program files\\windowsapps\\openai.codex_26.901.5280.0_x64__2p2nqsd0c76g0\\app\\chatgpt.exe",
+        "creation_filetime": "<process-creation-time>"
+      }
+    },
+    "server": {
+      "id": "<pid>",
+      "parent": "<pid>",
+      "name": "codex.exe",
+      "path": "%LOCALAPPDATA%\\OpenAI\\Codex\\bin\\27d6a192e9c98618\\codex.exe",
+      "created": "2026-09-05T22:40:35.2995030Z",
+      "kernel_identity": {
+        "path": "%LOCALAPPDATA%\\openai\\codex\\bin\\27d6a192e9c98618\\codex.exe",
+        "creation_filetime": "<process-creation-time>"
+      }
+    }
+  },
+  "before": {
+    "at": "2026-09-06T07:58:39+09:00",
+    "writer": "absent",
+    "turns": [
+      {
+        "turn_id": "0a1b2c3d-0004-7000-8000-000000000004",
+        "status": "completed",
+        "started_at": 1788628249,
+        "completed_at": 1788628254
+      },
+      {
+        "turn_id": "0a1b2c3d-0005-7000-8000-000000000005",
+        "status": "completed",
+        "started_at": 1788628311,
+        "completed_at": 1788628314
+      }
+    ],
+    "marker_items": [],
+    "owned_pending_ids": [],
+    "total_pending": 0
+  },
+  "queued_item_id": "0a1b2c3d-0008-7000-8000-000000000008",
+  "accepted_at": "2026-09-06T07:58:40+09:00",
+  "before_cleanup": {
+    "at": "2026-09-06T08:00:10+09:00",
+    "writer": "absent",
+    "turns": [
+      {
+        "turn_id": "0a1b2c3d-0004-7000-8000-000000000004",
+        "status": "completed",
+        "started_at": 1788628249,
+        "completed_at": 1788628254
+      },
+      {
+        "turn_id": "0a1b2c3d-0005-7000-8000-000000000005",
+        "status": "completed",
+        "started_at": 1788628311,
+        "completed_at": 1788628314
+      }
+    ],
+    "marker_items": [],
+    "owned_pending_ids": [
+      "0a1b2c3d-0008-7000-8000-000000000008"
+    ],
+    "total_pending": 1
+  },
+  "cleanup": "owned_test_item_deleted",
+  "final_snapshot": {
+    "at": "2026-09-06T08:00:10+09:00",
+    "writer": "absent",
+    "turns": [
+      {
+        "turn_id": "0a1b2c3d-0004-7000-8000-000000000004",
+        "status": "completed",
+        "started_at": 1788628249,
+        "completed_at": 1788628254
+      },
+      {
+        "turn_id": "0a1b2c3d-0005-7000-8000-000000000005",
+        "status": "completed",
+        "started_at": 1788628311,
+        "completed_at": 1788628314
+      }
+    ],
+    "marker_items": [],
+    "owned_pending_ids": [],
+    "total_pending": 0
+  },
+  "finished": "2026-09-06T08:00:10+09:00",
+  "samples_observed": 30,
+  "samples_note": "Condensed for publication: 30 polling snapshots over 90 seconds were identical in every field that matters (no writer lock, no marker item in the conversation, the queued item still pending). The first and last are kept.",
+  "note": "Identifiers are pseudonymised and absolute paths/process ids are generalised. Only the verification structure is published, never conversation content."
+}

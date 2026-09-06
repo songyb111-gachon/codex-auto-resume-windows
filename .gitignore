@@ -1,6 +1,16 @@
+# Python
 __pycache__/
-*.pyc
-# Generated, per-machine state and logs are never source.
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Generated, per-machine runtime state and logs are never source.
 config/
 logs/*
 !logs/.gitkeep

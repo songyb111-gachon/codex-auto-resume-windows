@@ -1,0 +1,33 @@
+{
+  "thread_id": "0a1b2c3d-0003-7000-8000-000000000003",
+  "title": "Auto-resume disposable protocol test",
+  "before_queue": {
+    "tool": "list_threads",
+    "status": "notLoaded",
+    "time_kst": "2026-09-06 07:57"
+  },
+  "during_observation": {
+    "tool": "list_threads",
+    "status": "notLoaded",
+    "time_kst": "2026-09-06 07:59"
+  },
+  "after_cleanup": {
+    "tool": "read_thread",
+    "status": "notLoaded",
+    "time_kst": "2026-09-06 08:00",
+    "turn_count": 2,
+    "has_more": false,
+    "turn_ids": [
+      "0a1b2c3d-0005-7000-8000-000000000005",
+      "0a1b2c3d-0004-7000-8000-000000000004"
+    ],
+    "warm_marker_user_message_present": true,
+    "warm_marker_agent_response_present": true,
+    "cold_marker_user_message_present": false,
+    "cold_marker_agent_response_present": false,
+    "pending_test_queue_items": 0
+  },
+  "visual_ui_scraping_used": false,
+  "verification_method": "Official desktop app task read plus exact-thread local history and queue evidence",
+  "note": "Identifiers are pseudonymised and absolute paths/process ids are generalised. Only the verification structure is published, never conversation content."
+}
