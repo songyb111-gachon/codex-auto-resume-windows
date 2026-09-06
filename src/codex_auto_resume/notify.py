@@ -80,6 +80,16 @@ def _powershell() -> str | None:
     return path if os.path.isfile(path) else None
 
 
+def _ps_literal(value: str) -> str:
+    """A PowerShell single-quoted string.
+
+    Single quotes suppress every form of interpolation, and doubling an embedded quote is
+    the only escape that exists inside them. XML escaping must NOT be used here: it would
+    turn the document's own angle brackets into entities and break LoadXml.
+    """
+    return "'" + str(value).replace("'", "''") + "'"
+
+
 def _toast_xml(title: str, body: str, button: str | None, uri: str | None) -> str:
     actions = ""
     if button and uri:
@@ -95,8 +105,8 @@ def show(title: str, body: str, *, button: str | None = None, uri: str | None = 
     shell = _powershell()
     if shell is None:
         return False
-    script = _SCRIPT % {"xml": quoteattr(_toast_xml(title, body, button, uri)),
-                        "aumid": quoteattr(AUMID)}
+    script = _SCRIPT % {"xml": _ps_literal(_toast_xml(title, body, button, uri)),
+                        "aumid": _ps_literal(AUMID)}
     # -EncodedCommand takes UTF-16LE base64: no quoting rules apply to the payload at all,
     # so no string built here can be reinterpreted as PowerShell syntax.
     encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")

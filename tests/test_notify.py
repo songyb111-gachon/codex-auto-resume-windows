@@ -73,6 +73,42 @@ class ToastPayloadTests(unittest.TestCase):
         # Nothing user-influenced may appear literally on the command line.
         self.assertFalse(any("Remove-Item" in part for part in argv))
 
+    @staticmethod
+    def _embedded_xml(argv):
+        """Recover the toast document from the script that was actually sent."""
+        import base64
+        script = base64.b64decode(argv[argv.index("-EncodedCommand") + 1]).decode("utf-16-le")
+        line = next(l for l in script.splitlines() if "LoadXml(" in l)
+        literal = line[line.index("(") + 1:line.rindex(")")]
+        assert literal.startswith("'") and literal.endswith("'"), literal
+        return literal[1:-1].replace("''", "'")
+
+    def test_the_embedded_document_is_still_valid_xml(self):
+        # Regression: the XML was once escaped as if it were an XML *attribute*, which
+        # turned its own angle brackets into entities and made every toast fail.
+        from xml.etree import ElementTree
+
+        with patch.object(notify, "_powershell", return_value="powershell.exe"),              patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
+            notify.show("title", "body", button="press", uri=notify.cancel_uri(INTERRUPTION))
+        root = ElementTree.fromstring(self._embedded_xml(run.call_args.args[0]))
+        self.assertEqual(root.tag, "toast")
+        action = root.find("./actions/action")
+        self.assertEqual(action.get("activationType"), "protocol")
+        self.assertEqual(action.get("arguments"), notify.cancel_uri(INTERRUPTION))
+
+    def test_a_quote_in_the_text_cannot_break_out_of_the_script(self):
+        from xml.etree import ElementTree
+
+        nasty = "it's ' '' fine'"
+        with patch.object(notify, "_powershell", return_value="powershell.exe"),              patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
+            notify.show("t", nasty)
+        root = ElementTree.fromstring(self._embedded_xml(run.call_args.args[0]))
+        self.assertEqual(root.findall("./visual/binding/text")[1].text, nasty)
+
+    def test_powershell_literal_doubles_embedded_quotes(self):
+        self.assertEqual(notify._ps_literal("a'b"), "'a''b'")
+        self.assertEqual(notify._ps_literal("<x>"), "'<x>'")
+
     def test_a_failing_or_missing_powershell_is_not_an_error(self):
         with patch.object(notify, "_powershell", return_value=None):
             self.assertFalse(notify.show("t", "b"))
