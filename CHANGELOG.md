@@ -17,6 +17,10 @@
 - Delivery is best effort. A notification that cannot be shown, times out, or raises is logged
   and ignored; it never changes whether a resume happens.
 - Turn it off with `"notifications": false` in `config/settings.json`.
+- Fixed before release: the toast document was escaped as if it were an XML *attribute*, which
+  turned its own angle brackets into entities and made every notification fail silently. The
+  document is now embedded as a PowerShell string literal, and a test parses the document out of
+  the command that is actually sent.
 
 ## v0.2.0 — Install and control it from inside Codex
 
