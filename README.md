@@ -358,8 +358,10 @@ Design rules enforced in code:
   alters the queue interface, still stops it: it refuses rather than guessing.
 - If the watcher process dies in the narrow window after reserving but before the send result is known,
   that interruption is deliberately left unresumed rather than risking a duplicate.
-- The full end-to-end path (real usage limit, real reset, unattended resume) has had limited real-world
-  exercise so far. The individual stages are tested and verified; the complete unattended run is new.
+- The full end-to-end path has now been observed once in ordinary use: a real usage limit was detected,
+  the thread was confirmed loaded, the interruption was reserved, one continuation was submitted through
+  `codex queue`, and delivery was independently confirmed 30 seconds later. That is one run, not a
+  track record. Transient-failure recovery has been exercised by tests, not yet by a real outage.
 
 ## Testing
 
