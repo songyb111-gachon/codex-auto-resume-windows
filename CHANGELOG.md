@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.3.2 — Make the login autostart actually start
+
+- **Fixed: the registered sign-in autostart could never run.** The Run value ended in `run`, and
+  the launcher appended `run` again, so the command died with an argument error at every login.
+  It went unnoticed because starting the watcher from setup passes no arguments and worked fine.
+  The launcher now treats its arguments as the command to run, defaulting to the watcher.
+- **Fixed: the notification button broke on the next plugin update.** It was registered against
+  the plugin's own directory, which is named after its version. It now goes through the same
+  stable launcher as the autostart, so neither registration can be orphaned by an update.
+- Both registrations are now checked by tests that parse the exact command that gets registered
+  and feed it to the real argument parser.
+
 ## v0.3.1 — Keep the state out of somebody else's sandbox
 
 - **Runtime state moved from `%LOCALAPPDATA%` to `%USERPROFILE%\.codex-auto-resume\`.**
