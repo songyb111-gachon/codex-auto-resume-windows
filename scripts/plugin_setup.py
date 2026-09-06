@@ -109,6 +109,16 @@ def watcher_command(home: Path) -> str:
     return startup.command_line(home / LAUNCHER_NAME, None, launcher=python_for_watcher())
 
 
+def notification_command(home: Path) -> str:
+    """The notification button also goes through the stable launcher.
+
+    Registering the plugin's own path here would break on the next update, because the
+    plugin lives in a directory named after its version.
+    """
+    argv = [str(python_for_watcher()), str(home / LAUNCHER_NAME), "activate"]
+    return subprocess.list2cmdline(argv) + ' "%1"' 
+
+
 def start_watcher(home: Path) -> bool:
     """Launch the watcher detached, so it outlives this command and the Codex UI."""
     app = App(config.Paths(home), console=False, enable_logging=False)
@@ -117,7 +127,7 @@ def start_watcher(home: Path) -> bool:
     flags = 0
     if os.name == "nt":
         flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-    subprocess.Popen([str(python_for_watcher()), str(home / LAUNCHER_NAME)],
+    subprocess.Popen([str(python_for_watcher()), str(home / LAUNCHER_NAME), "run"],
                      cwd=str(home), close_fds=True, creationflags=flags,
                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return True
@@ -153,6 +163,12 @@ def cmd_setup(args) -> int:
     _cli_silent(home, ["--quiet", "enable"])
     if not args.no_startup:
         startup.install(watcher_command(home))
+    # `install` above registered the protocol against the plugin's own versioned path;
+    # replace it with the stable launcher so an update cannot orphan the button.
+    try:
+        startup.install_protocol(notification_command(home))
+    except startup.StartupError:
+        pass
     start_watcher(home)
     say("ready_title")
     print()

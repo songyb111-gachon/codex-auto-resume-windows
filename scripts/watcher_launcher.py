@@ -93,7 +93,11 @@ def main(argv=None) -> int:
         return EXIT_ERROR
     sys.path.insert(0, str(root / "src"))
     from codex_auto_resume.cli import main as cli_main
-    return cli_main(["--home", str(home), "--quiet", "run"] + list(argv or []))
+    # Arguments select the command, defaulting to the watcher. The notification button
+    # registers `activate` through this same stable path, so a plugin update cannot leave
+    # the button pointing at a version directory that no longer exists.
+    command = [str(argument) for argument in (argv or [])] or ["run"]
+    return cli_main(["--home", str(home), "--quiet"] + command)
 
 
 if __name__ == "__main__":

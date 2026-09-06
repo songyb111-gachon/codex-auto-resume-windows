@@ -262,6 +262,30 @@ class BridgeTests(unittest.TestCase):
         self.assertNotIn("AppData", home.parts)
         self.assertEqual(home.parent.name, "someone")
 
+    def _through_launcher(self, command: str) -> list[str]:
+        """What the launcher would hand to the command-line interface for this command."""
+        sample = "codex-auto-resume:cancel?i=" + "ab" * 32
+        argv = startup.parse_command(command)
+        # Windows substitutes the real URI for %1 before launching.
+        extra = [sample if a == "%1" else a for a in argv[2:]] or ["run"]
+        return ["--home", str(self.home), "--quiet"] + extra
+
+    def test_the_registered_commands_are_ones_the_cli_actually_accepts(self):
+        """Regression: autostart registered `... watcher-launcher.py run`, and the launcher
+        appended `run` again, so the login watcher died with an argparse error every time."""
+        from codex_auto_resume import cli
+
+        for command in (self.bridge.watcher_command(self.home), self.bridge.notification_command(self.home)):
+            with self.subTest(command=command):
+                cli.build_parser().parse_args(self._through_launcher(command))
+
+    def test_both_registrations_go_through_the_stable_launcher(self):
+        # Neither may name the versioned plugin directory, or an update orphans it.
+        for command in (self.bridge.watcher_command(self.home), self.bridge.notification_command(self.home)):
+            script = startup.parse_command(command)[1]
+            self.assertEqual(Path(script).parent, self.home)
+            self.assertNotIn(str(self.bridge.PLUGIN_ROOT), command)
+
     def test_install_launcher_records_how_to_find_the_engine(self):
         self.bridge.install_launcher(self.home, "plugin")
         payload = json.loads((self.home / self.bridge.RUNTIME_CONFIG).read_text(encoding="utf-8"))
