@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.4.1 — Put the reason back in the notification
+
+- **Fixed: the notification never said why it appeared.** Windows renders at most three
+  `<text>` elements in a toast and silently drops a fourth, so the four-line layout lost its
+  body line: the toast showed the task name, the project and the thread id, but not
+  "Codex usage limit reached" or "Codex was temporarily interrupted".
+  It now fits three lines - name, reason, then project and the exact thread id together -
+  with the reason ordered before the identifiers, because a line that does not fit is lost
+  and losing the reason makes the notification pointless. The thread id is still always shown.
+  Found by looking at the actual notification, not the generated markup.
+
 ## v0.4.0 — Recover more, guess less, install in one step
 
 ### Recovery beyond usage limits

@@ -83,6 +83,39 @@ class ToastPayloadTests(unittest.TestCase):
         assert literal.startswith("'") and literal.endswith("'"), literal
         return literal[1:-1].replace("''", "'")
 
+    def test_never_more_than_three_lines(self):
+        """Regression: Windows renders three <text> elements and silently drops a fourth.
+
+        A four-line toast lost its body line, so the notification showed the task name
+        and the thread id but never said why it had appeared.
+        """
+        from xml.etree import ElementTree
+
+        with patch.object(notify, "_powershell", return_value="powershell.exe"),              patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
+            notify.scheduled(THREAD, INTERRUPTION, 1788645827.0, "usage_limit",
+                             {"name": "A task", "project": "A project", "cwd_basename": "a-repo"})
+        root = ElementTree.fromstring(self._embedded_xml(run.call_args.args[0]))
+        lines = [node.text for node in root.findall("./visual/binding/text")]
+        self.assertLessEqual(len(lines), notify.MAX_TOAST_LINES)
+        self.assertEqual(lines[0], "A task")
+        self.assertIn("한도", lines[1] + lines[2] if len(lines) > 2 else lines[1])
+
+    def test_the_reason_and_the_uuid_both_survive_the_line_limit(self):
+        from xml.etree import ElementTree
+
+        for category, identity in (
+                ("usage_limit", {"name": "A task", "project": "A project", "cwd_basename": "a-repo"}),
+                ("server_5xx", {"name": None, "project": None, "cwd_basename": None})):
+            with self.subTest(category=category),                  patch.object(notify, "_powershell", return_value="powershell.exe"),                  patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
+                notify.scheduled(THREAD, INTERRUPTION, None, category, identity)
+                root = ElementTree.fromstring(self._embedded_xml(run.call_args.args[0]))
+                lines = [node.text for node in root.findall("./visual/binding/text")]
+                rendered = " | ".join(lines)
+                self.assertLessEqual(len(lines), notify.MAX_TOAST_LINES)
+                self.assertIn(THREAD, rendered)                       # identity always shown
+                expected = "toast_usage_soon" if category == "usage_limit" else "toast_transient"
+                self.assertIn(messages.text(expected), rendered)      # and always the reason
+
     def test_the_embedded_document_is_still_valid_xml(self):
         # Regression: the XML was once escaped as if it were an XML *attribute*, which
         # turned its own angle brackets into entities and made every toast fail.

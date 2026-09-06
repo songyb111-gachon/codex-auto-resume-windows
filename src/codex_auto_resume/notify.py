@@ -95,8 +95,10 @@ def _toast_xml(title, body, button=None, uri=None, extra=()) -> str:
     if button and uri:
         actions = '<actions><action content=%s activationType="protocol" arguments=%s/></actions>' % (
             quoteattr(button), quoteattr(uri))
-    lines = [title] + [line for line in extra if line] + [body]
-    text = "".join("<text>%s</text>" % escape(line) for line in lines if line)
+    # Trimmed here rather than at the call sites, so no future caller can silently
+    # lose a line to the platform limit.
+    lines = [line for line in ([title] + list(extra) + [body]) if line][:MAX_TOAST_LINES]
+    text = "".join("<text>%s</text>" % escape(line) for line in lines)
     return ('<toast duration="long"><visual><binding template="ToastGeneric">'
             '%s</binding></visual>%s</toast>' % (text, actions))
 
@@ -142,6 +144,13 @@ def headline(identity) -> str:
     return messages.text("toast_unnamed")
 
 
+# Windows renders at most three <text> elements in a ToastGeneric binding; a fourth is
+# silently dropped. Measured on Windows 11 with a four-line toast, where the body line
+# - the whole reason for the notification - never appeared. Everything therefore has to
+# fit in exactly three: name, reason, then origin and the exact thread id.
+MAX_TOAST_LINES = 3
+
+
 def _second_line(identity, used: str):
     identity = identity if isinstance(identity, dict) else {}
     for key in ("project", "cwd_basename"):
@@ -149,6 +158,17 @@ def _second_line(identity, used: str):
         if isinstance(value, str) and value.strip() and value.strip() != used:
             return value.strip()
     return None
+
+
+def _origin_line(identity, used: str, thread_id: str) -> str:
+    """The last line: where this task lives, and which conversation it is exactly.
+
+    The thread id shares a line with the project because a separate line for it would
+    be a fourth, and Windows would drop one. It is never omitted.
+    """
+    thread = messages.text("toast_thread").format(uuid=thread_id)
+    secondary = _second_line(identity, used)
+    return (secondary + "  ·  " + thread) if secondary else thread
 
 
 def scheduled(thread_id: str, interruption_id: str, reset_at: float | None,
@@ -160,7 +180,6 @@ def scheduled(thread_id: str, interruption_id: str, reset_at: float | None,
     """
     usage = category == "usage_limit"
     title = headline(identity)
-    extra = [_second_line(identity, title), messages.text("toast_thread").format(uuid=thread_id)]
     if usage:
         body = (messages.text("toast_usage_at").format(time=_local_time(reset_at)) if reset_at
                 else messages.text("toast_usage_soon"))
@@ -168,10 +187,13 @@ def scheduled(thread_id: str, interruption_id: str, reset_at: float | None,
     else:
         body = messages.text("toast_transient")
         button = messages.text("toast_button_no_retry")
-    return show(title, body, button=button, uri=cancel_uri(interruption_id), extra=extra)
+    # Order matters: the reason must come before the identifiers, because a line that
+    # does not fit is lost and losing the reason makes the notification pointless.
+    return show(title, _origin_line(identity, title, thread_id),
+                button=button, uri=cancel_uri(interruption_id), extra=[body])
 
 
 def cancelled(thread_id: str) -> bool:
     return show(messages.text("toast_cancelled_title"),
-                messages.text("toast_cancelled_body"),
-                extra=[messages.text("toast_thread").format(uuid=thread_id)])
+                messages.text("toast_thread").format(uuid=thread_id),
+                extra=[messages.text("toast_cancelled_body")])
