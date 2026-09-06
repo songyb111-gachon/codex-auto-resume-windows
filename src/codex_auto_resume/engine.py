@@ -1,4 +1,10 @@
-"""Fail-closed scheduler. Codex history stays read-only; transport is injected."""
+"""Fail-closed scheduler. Codex history stays read-only; transport is injected.
+
+Every decision that can lead to ``backend.send`` is re-checked inside the
+dispatch lock *after* the store has durably reserved the interruption. The
+only retryable send failure is a proven "process never started"; any other
+uncertainty ends in ``submission_unknown`` and is never resent automatically.
+"""
 from contextlib import nullcontext
 import time
 
@@ -12,6 +18,14 @@ CONTINUATION = (
 UNSENT = {"waiting_reset", "waiting_poll", "waiting_for_app", "waiting_for_loaded_thread",
           "waiting_for_usage", "waiting_retry"}
 IN_FLIGHT = {"submitting", "queued", "submission_unknown"}
+# Bounded exponential backoff for proven "queue process never started" failures.
+BACKOFF_LADDER = (30, 60, 120, 300)
+
+
+def backoff_delay(retry: int) -> int:
+    """retry is 1-based: 30s, 1m, 2m, 5m, then 5m forever (bounded by retry cap)."""
+    index = max(0, min(int(retry) - 1, len(BACKOFF_LADDER) - 1))
+    return BACKOFF_LADDER[index]
 
 
 class Engine:
@@ -21,11 +35,18 @@ class Engine:
         self.dispatch_lock, self.clock = dispatch_lock, clock
         self.log = log or (lambda *args: None)
         self.options = {"reset_grace_seconds": 60, "conservative_poll_seconds": 900,
-                        "state_poll_seconds": 60, "delivery_timeout_seconds": 120,
+                        "state_poll_seconds": 60, "delivery_timeout_seconds": 180,
                         "max_queue_retries": 5, "max_submissions_per_thread_per_day": 5,
+                        "thread_cooldown_seconds": 900,
+                        # Failures that completed up to this long before `enable` are
+                        # still eligible, as long as they remain the thread's latest turn.
+                        "detection_lookback_seconds": 6 * 3600,
+                        # Stop re-reconciling an unresolved unknown submission after this.
+                        "unknown_reconcile_window_seconds": 24 * 3600,
                         **(options or {})}
         self._usage_cache = None
 
+    # ----------------------------------------------------------------- helpers
     def transition(self, row, state, reason=None, delay=None, **extra):
         values = {"state": state, "last_error": reason, **extra}
         if delay is not None:
@@ -49,30 +70,35 @@ class Engine:
             self._usage_cache = (now, self.backend.usage())
         return self._usage_cache[1]
 
+    # ------------------------------------------------------------- reconcile
     def reconcile(self, row):
         """Resolve previous submissions without resending an uncertain attempt."""
         receipt = self.source.delivery(row["thread_id"], row["marker"])
         if receipt["delivered"]:
-            self.transition(row, "resumed", None, resumed_at=self.clock(), next_retry_at=None)
+            self.transition(row, "resumed", None, resumed_at=self.clock())
+            self.log(row["thread_id"], "resume_confirmed", None)
             return
         queued = receipt.get("queued_ids", [])
         if len(queued) > 1:
-            self.transition(row, "submission_unknown", "multiple_matching_queue_items")
+            self.transition(row, "submission_unknown", "multiple_matching_queue_items", delay=900)
             return
         if queued:
             queue_id = queued[0]
             app = self.backend.app_identity()
-            loaded = self.backend.loaded(row["thread_id"], app) if app else "notLoaded"
+            # A missing app inventory (e.g. a transient probe timeout) is 'unknown', never
+            # 'notLoaded'; only a definitive notLoaded or true expiry removes a queued item.
+            loaded = self.backend.loaded(row["thread_id"], app) if app else "unknown"
             expired = self.clock() - (row.get("submitted_at") or self.clock()) >= self.options["delivery_timeout_seconds"]
             invalid = not self.valid_interruption(row)
-            if not self.allowed(row) or invalid or loaded != "loaded" or expired:
+            if not self.allowed(row) or invalid or loaded == "notLoaded" or expired:
                 # Delete only an item found using this record's unique marker in this exact thread.
                 if self.backend.delete_queue(row["thread_id"], queue_id):
                     target = "cancelled" if not self.allowed(row) else ("superseded" if invalid else "failed")
                     self.transition(row, target, "owned_queue_removed", queue_id=queue_id)
                 else:
-                    self.transition(row, "submission_unknown", "queue_cleanup_unconfirmed", queue_id=queue_id)
+                    self.transition(row, "submission_unknown", "queue_cleanup_unconfirmed", queue_id=queue_id, delay=300)
                 return
+            # Still loaded (or only transiently unknown) and valid: keep waiting for the receipt.
             self.transition(row, "queued", None, delay=5, queue_id=queue_id)
             return
         # Submission may be in the brief dequeue-to-history persistence gap.
@@ -82,35 +108,50 @@ class Engine:
         else:
             self.transition(row, "submission_unknown", "no_receipt_do_not_resend", delay=900)
 
+    # --------------------------------------------------------------- collect
     def collect(self):
         settings = self.store.settings()
         if not settings["enabled"]:
             return
-        for raw in self.source.latest_failures(settings["armed_at"]):
+        since = max(0.0, settings["armed_at"] - self.options["detection_lookback_seconds"])
+        for raw in self.source.latest_failures(since):
             record = detect(raw)
             if record is None or not self.store.thread_enabled(record["thread_id"]):
                 continue
             if self.store.get(record["interruption_id"]) is not None:
                 continue
             hint = self.source.reset_hint(record["thread_id"], record["turn_id"])
-            record.update(hint)
+            # store.register accepts only these exact detection fields; detect() also
+            # returns status/error_info which must not be forwarded.
+            detection = {
+                "thread_id": record["thread_id"], "turn_id": record["turn_id"],
+                "completed_at": record["completed_at"], "started_at": record["started_at"],
+                "ordinal": record["ordinal"], "interruption_id": record["interruption_id"],
+                "reset_at": hint["reset_at"], "limit_type": hint["limit_type"],
+                "uncertain": bool(hint["uncertain"]),
+            }
             now = self.clock()
-            if self.store.register(record, now):
-                reset = record.get("reset_at")
+            if self.store.register(detection, now):
+                reset = detection["reset_at"]
                 when = max(now + 30, reset + self.options["reset_grace_seconds"]) if reset else now + self.options["conservative_poll_seconds"]
-                self.store.update(record["interruption_id"], state="waiting_reset" if reset else "waiting_poll", next_retry_at=when)
-                self.log(record["thread_id"], "usageLimitExceeded_detected", record["interruption_id"])
+                self.store.update(detection["interruption_id"], state="waiting_reset" if reset else "waiting_poll", next_retry_at=when)
+                self.log(detection["thread_id"], "usageLimitExceeded_detected", detection["interruption_id"])
                 if reset:
-                    self.log(record["thread_id"], "reset_expected", str(int(reset)))
-                if record.get("uncertain"):
-                    self.log(record["thread_id"], "blocking_limit_uncertain", None)
+                    self.log(detection["thread_id"], "reset_expected", str(int(reset)))
+                else:
+                    self.log(detection["thread_id"], "reset_unknown_conservative_poll", str(int(self.options["conservative_poll_seconds"])))
+                if detection["uncertain"]:
+                    self.log(detection["thread_id"], "blocking_limit_uncertain", None)
 
+    # --------------------------------------------------------------- attempt
     def attempt(self, row):
         if not self.allowed(row):
             return
         now = self.clock()
         if row.get("next_retry_at") and now < row["next_retry_at"]:
             return
+        if row["state"] in ("waiting_reset", "waiting_poll"):
+            self.log(row["thread_id"], "checking_eligibility", None)
         if not self.valid_interruption(row):
             self.transition(row, "superseded", "latest_turn_changed")
             return
@@ -122,6 +163,8 @@ class Engine:
         if loaded != "loaded":
             self.transition(row, "waiting_for_loaded_thread", "notLoaded" if loaded == "notLoaded" else "loaded_state_unknown", delay=self.options["state_poll_seconds"])
             return
+        if row["state"] != "waiting_for_usage":
+            self.log(row["thread_id"], "loaded", None)
         limits = self.usage()
         if limits.get("available") is not True:
             reset = limits.get("reset_at")
@@ -131,10 +174,14 @@ class Engine:
         recent = [x for x in self.store.all_records() if x["thread_id"] == row["thread_id"]
                   and x.get("submitted_at") and x["submitted_at"] > now - 86400]
         if len(recent) >= self.options["max_submissions_per_thread_per_day"]:
-            self.transition(row, "failed", "daily_submission_cap")
+            # Defer until the oldest submission rolls out of the 24h window rather than
+            # permanently abandoning a still-valid interruption. Bounded to N/day per thread.
+            oldest = min(x["submitted_at"] for x in recent)
+            self.transition(row, "waiting_retry", "daily_submission_cap", delay=max(60, oldest + 86400 - now + 5))
             return
-        if recent and now - max(x["submitted_at"] for x in recent) < 900:
-            self.transition(row, "waiting_retry", "thread_submission_cooldown", delay=900)
+        cooldown = self.options["thread_cooldown_seconds"]
+        if recent and now - max(x["submitted_at"] for x in recent) < cooldown:
+            self.transition(row, "waiting_retry", "thread_submission_cooldown", delay=cooldown)
             return
         with self.dispatch_lock():
             current = self.store.get(row["interruption_id"])
@@ -158,31 +205,40 @@ class Engine:
                 response = self.backend.send(row["thread_id"], CONTINUATION + "\n\n" + row["marker"])
             except Exception:
                 response = {"outcome": "unknown"}
+            if not isinstance(response, dict):
+                response = {"outcome": "unknown"}
             reserved = self.store.get(row["interruption_id"])
             if response.get("outcome") == "accepted":
                 self.transition(reserved, "queued", None, delay=5, queue_id=response.get("queue_id"))
-                self.log(row["thread_id"], "queue_accepted_waiting_for_receipt", None)
+                self.log(row["thread_id"], "continuation_submitted", None)
             elif response.get("outcome") == "not_started":
                 retry = row["retry_count"] + 1
                 if retry >= self.options["max_queue_retries"]:
                     self.transition(reserved, "failed", "queue_launch_retry_limit", retry_count=retry, submitted_at=None)
                 else:
                     self.transition(reserved, "waiting_retry", "queue_process_not_started", retry_count=retry,
-                                    submitted_at=None, delay=min(300, 30 * 2 ** (retry - 1)))
+                                    submitted_at=None, delay=backoff_delay(retry))
             else:
                 self.transition(reserved, "submission_unknown", "queue_result_unknown_do_not_resend", delay=900)
 
+    # ------------------------------------------------------------------ tick
     def tick(self):
         # Reconciliation/owned-queue cleanup continues when globally disabled.
+        now = self.clock()
         for row in self.store.all_records():
-            if row["state"] in IN_FLIGHT:
-                if row["state"] == "submission_unknown" and self.allowed(row) and (row.get("next_retry_at") or 0) > self.clock():
+            if row["state"] not in IN_FLIGHT:
+                continue
+            if row["state"] == "submission_unknown":
+                if (row.get("next_retry_at") or 0) > now:
                     continue
-                try:
-                    with self.dispatch_lock():
-                        self.reconcile(row)
-                except Exception:
-                    self.log(row["thread_id"], "reconciliation_unavailable", None)
+                submitted = row.get("submitted_at") or row.get("detected_at") or now
+                if now - submitted > self.options["unknown_reconcile_window_seconds"]:
+                    continue
+            try:
+                with self.dispatch_lock():
+                    self.reconcile(row)
+            except Exception:
+                self.log(row["thread_id"], "reconciliation_unavailable", None)
         if not self.store.settings()["enabled"]:
             return
         try:
@@ -197,4 +253,3 @@ class Engine:
                 self.attempt(row)
             except Exception:
                 self.log(row["thread_id"], "eligibility_check_failed_no_submission", None)
-

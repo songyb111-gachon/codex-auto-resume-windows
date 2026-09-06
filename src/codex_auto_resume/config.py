@@ -1,0 +1,142 @@
+"""Paths and official-binary discovery. No network, no auth files, no Codex writes."""
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+import re
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+ENV_HOME = "CODEX_AUTO_RESUME_HOME"
+ENV_CODEX_EXE = "CODEX_AUTO_RESUME_CODEX_EXE"
+MAX_SETTINGS_BYTES = 64 * 1024
+LOOKBACK_HOURS_DEFAULT = 6.0
+LOOKBACK_HOURS_MAX = 24 * 7
+
+
+class ConfigError(RuntimeError):
+    """Static reason only; never includes file contents."""
+
+
+class Paths:
+    """All files this tool owns live under one root (default: the project directory)."""
+
+    def __init__(self, home: str | os.PathLike | None = None):
+        root = home or os.environ.get(ENV_HOME) or PROJECT_ROOT
+        self.home = Path(root).expanduser().resolve()
+        self.state_dir = self.home / "config"
+        self.logs_dir = self.home / "logs"
+        self.settings_file = self.state_dir / "settings.json"
+        self.log_file = self.logs_dir / "auto-resume.log"
+        self.error_log = self.logs_dir / "errors.log"
+        self.entry_script = PROJECT_ROOT / "src" / "auto_resume.py"
+
+    def ensure(self) -> None:
+        for directory in (self.state_dir, self.logs_dir):
+            if directory.is_symlink():
+                raise ConfigError("Owned directories must not be symbolic links")
+            directory.mkdir(parents=True, exist_ok=True)
+
+    # Owned files that uninstall may remove. Nothing outside these names is ever deleted.
+    def owned_state_files(self) -> list[Path]:
+        names = ["state.sqlite", "state.sqlite-journal", "state.sqlite-wal", "state.sqlite-shm", "settings.json"]
+        return [self.state_dir / name for name in names]
+
+    def owned_log_files(self) -> list[Path]:
+        result = []
+        if self.logs_dir.is_dir():
+            for path in sorted(self.logs_dir.iterdir()):
+                name = path.name
+                if re.fullmatch(r"(auto-resume|errors)\.log(\.\d+)?", name) and not path.is_symlink():
+                    result.append(path)
+        return result
+
+
+def codex_home() -> Path:
+    value = os.environ.get("CODEX_HOME")
+    if value:
+        return Path(value).expanduser().resolve()
+    profile = os.environ.get("USERPROFILE") or str(Path.home())
+    return (Path(profile) / ".codex").resolve()
+
+
+def codex_bin_dir() -> Path:
+    local = os.environ.get("LOCALAPPDATA")
+    if not local:
+        raise ConfigError("LOCALAPPDATA is not set; cannot locate the official Codex binary")
+    return Path(local) / "OpenAI" / "Codex" / "bin"
+
+
+def candidate_codex_exes() -> list[Path]:
+    bin_dir = codex_bin_dir()
+    if not bin_dir.is_dir():
+        return []
+    found = []
+    for child in sorted(bin_dir.iterdir()):
+        if child.is_dir() and not child.is_symlink() and re.fullmatch(r"[0-9a-f]+", child.name):
+            exe = child / "codex.exe"
+            if exe.is_file() and not exe.is_symlink():
+                found.append(exe.resolve())
+    return found
+
+
+def discover_codex_exe(explicit: str | os.PathLike | None, compatible) -> Path:
+    """Return exactly one official codex.exe that passes ``compatible(path)``.
+
+    ``compatible`` must raise on an unsupported binary. Ambiguity fails closed.
+    """
+    chosen = explicit or os.environ.get(ENV_CODEX_EXE)
+    if chosen:
+        path = Path(chosen).expanduser().resolve()
+        if not path.is_file():
+            raise ConfigError("Configured codex.exe does not exist")
+        compatible(path)
+        return path
+    candidates = candidate_codex_exes()
+    if not candidates:
+        raise ConfigError("No official Codex desktop engine found under %LOCALAPPDATA%\\OpenAI\\Codex\\bin")
+    usable = []
+    for candidate in candidates:
+        try:
+            compatible(candidate)
+        except Exception:
+            continue
+        usable.append(candidate)
+    if len(usable) != 1:
+        raise ConfigError("No single compatible codex.exe (version pin 0.153.4); pass --codex-exe explicitly")
+    return usable[0]
+
+
+def load_settings(paths: Paths) -> dict:
+    """Optional user settings; malformed files are ignored, never rewritten."""
+    defaults = {"detection_lookback_hours": LOOKBACK_HOURS_DEFAULT, "codex_exe": None}
+    path = paths.settings_file
+    try:
+        if not path.is_file() or path.is_symlink() or path.stat().st_size > MAX_SETTINGS_BYTES:
+            return defaults
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, UnicodeError):
+        return defaults
+    if not isinstance(raw, dict):
+        return defaults
+    hours = raw.get("detection_lookback_hours", defaults["detection_lookback_hours"])
+    if isinstance(hours, bool) or not isinstance(hours, (int, float)) or not 0 <= hours <= LOOKBACK_HOURS_MAX:
+        hours = defaults["detection_lookback_hours"]
+    exe = raw.get("codex_exe")
+    if not isinstance(exe, str) or not exe:
+        exe = None
+    return {"detection_lookback_hours": float(hours), "codex_exe": exe}
+
+
+def save_settings(paths: Paths, settings: dict) -> None:
+    paths.ensure()
+    hours = settings.get("detection_lookback_hours", LOOKBACK_HOURS_DEFAULT)
+    if isinstance(hours, bool) or not isinstance(hours, (int, float)) or not 0 <= hours <= LOOKBACK_HOURS_MAX:
+        raise ConfigError("detection_lookback_hours must be between 0 and %d" % LOOKBACK_HOURS_MAX)
+    exe = settings.get("codex_exe")
+    if exe is not None and (not isinstance(exe, str) or not exe):
+        raise ConfigError("codex_exe must be a non-empty path or null")
+    payload = {"detection_lookback_hours": float(hours), "codex_exe": exe}
+    temporary = paths.settings_file.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    temporary.replace(paths.settings_file)
