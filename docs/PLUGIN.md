@@ -154,9 +154,11 @@ The only ways to put a control in that banner would be DOM or renderer injection
 binary patch, a CDP/DevTools bridge, accessibility-control injection, or GUI automation. Every one
 of those is out of scope for this project by design, so the checkbox is not implemented.
 
-What exists instead is natural-language control through the skill. Per-conversation cancellation
-is available today (`cancel <thread-uuid>`), which is the behaviour the checkbox would have
-provided; it just does not live in that box.
+What exists instead is a Windows notification raised by the watcher at the moment the interruption
+is recorded, carrying the one control the checkbox would have offered: a **Don't resume** button for
+that exact conversation, with resuming as the default. It is not inside the Codex notice, but it
+arrives at the same moment, which is the part that actually matters. Natural-language control
+through the skill covers everything else.
 
 If Codex later exposes an official inline control surface for this state, this is a small change:
 one checkbox, defaulting to on, mapped to the existing per-thread cancel. No panel, no card, no

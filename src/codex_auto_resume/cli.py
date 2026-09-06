@@ -9,7 +9,7 @@ import sys
 import time
 import uuid
 
-from . import config, startup
+from . import config, notify, startup
 from .app import EXIT_BUSY, EXIT_ERROR, EXIT_OK, App
 from .logbook import format_local, tail
 from .store import TERMINAL, StoreError
@@ -72,6 +72,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--keep-logs", action="store_true")
 
     sub.add_parser("doctor", help="verify official engine, desktop app pairing and adapters (read-only)")
+
+    p = sub.add_parser("activate", help="handle a codex-auto-resume: URI (used by the notification button)")
+    p.add_argument("uri")
     return parser
 
 
@@ -287,6 +290,31 @@ def cmd_stop(args) -> int:
     return EXIT_OK
 
 
+def cmd_activate(args) -> int:
+    """Handle the notification button. Reached from Windows, never from a terminal.
+
+    The only action a URI can request is *cancelling* a resume, so a hostile URI can at
+    worst stop something from happening. The interruption id is validated as opaque hex
+    and must match a real record; nothing is looked up by thread, name or recency.
+    """
+    app = _app(args)
+    interruption_id = notify.parse_cancel_uri(args.uri)
+    if interruption_id is None:
+        app.logger.info("activation ignored: malformed or unsupported URI")
+        return EXIT_ERROR
+    with app.open_store() as store:
+        record = store.get(interruption_id)
+        if record is None:
+            app.logger.info("activation ignored: no record for that interruption")
+            return EXIT_ERROR
+        thread_id = record["thread_id"]
+        store.cancel(thread_id, _now())
+    app.logger.info("thread %s: cancelled from the notification", thread_id)
+    notify.cancelled(thread_id)
+    _print("thread %s cancelled" % thread_id)
+    return EXIT_OK
+
+
 def cmd_install(args) -> int:
     app = _app(args)
     with app.open_store() as store:
@@ -304,6 +332,17 @@ def cmd_install(args) -> int:
         _print("  %s" % command)
     else:
         _print("login autostart       : not requested (use install --startup to opt in)")
+    if app.settings.get("notifications", True):
+        # Without this the notification's "Don't resume" button has no handler. It is a
+        # per-user class registration only, and uninstall removes it again.
+        try:
+            command = startup.protocol_command_line(app.paths.entry_script, app.paths.home)
+            changed = startup.install_protocol(command)
+            _print("notification action   : %s" % ("registered" if changed else "already registered (unchanged)"))
+        except startup.StartupError as exc:
+            _print("notification action   : unavailable (%s)" % exc)
+    else:
+        _print("notification action   : notifications are disabled in settings")
     _print("auto-resume is %s; use `enable` then `run`." % ("enabled" if enabled else "disabled"))
     return EXIT_OK
 
@@ -324,6 +363,15 @@ def cmd_uninstall(args) -> int:
                 removed.append("login autostart value")
         else:
             foreign_autostart = value
+    except startup.StartupError as exc:
+        _print("warning: %s" % exc)
+    try:
+        registered = startup.protocol_value()
+        if registered and startup.belongs_to(registered, paths.home):
+            if startup.uninstall_protocol():
+                removed.append("notification action registration")
+        elif registered:
+            _print("kept the codex-auto-resume: protocol: it points at a different installation")
     except startup.StartupError as exc:
         _print("warning: %s" % exc)
     app = App(paths, console=False, enable_logging=False)
@@ -376,6 +424,7 @@ COMMANDS = {
     "enable": cmd_enable, "disable": cmd_disable, "status": cmd_status, "pending": cmd_pending,
     "cancel": cmd_cancel, "logs": cmd_logs, "run": cmd_run, "stop": cmd_stop,
     "install": cmd_install, "uninstall": cmd_uninstall, "doctor": cmd_doctor,
+    "activate": cmd_activate,
 }
 
 

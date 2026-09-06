@@ -1,7 +1,9 @@
-"""Optional per-user Windows login autostart via HKCU Run. No administrator rights.
+"""Per-user Windows registration: login autostart, and the toast button's URL protocol.
 
-Only the single value ``CodexAutoResume`` under the current user's Run key is
-ever written or removed. Nothing system-wide, no services, no scheduled tasks.
+Both are optional, both are HKCU only, and both need no administrator rights. The only
+things ever written are the single ``CodexAutoResume`` value under the current user's Run
+key and the ``codex-auto-resume:`` protocol keys under the user's own class registrations.
+Nothing system-wide, no services, no scheduled tasks.
 """
 from __future__ import annotations
 
@@ -12,6 +14,7 @@ import sys
 
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 VALUE_NAME = "CodexAutoResume"
+PROTOCOL_SCHEME = "codex-auto-resume"
 
 
 class StartupError(RuntimeError):
@@ -41,6 +44,63 @@ def command_line(entry_script: Path, home: Path | None = None, launcher: Path | 
         argv += ["--home", str(Path(home).resolve())]
     argv.append("run")
     return subprocess.list2cmdline(argv)
+
+
+PROTOCOL_KEY = r"Software\Classes\%s" % PROTOCOL_SCHEME
+PROTOCOL_COMMAND_KEY = PROTOCOL_KEY + r"\shell\open\command"
+
+
+def protocol_command_line(entry_script: Path, home: Path, launcher: Path | None = None) -> str:
+    """Command Windows runs when a toast button activates our URI."""
+    launcher = launcher or python_launcher()
+    argv = [str(launcher), str(Path(entry_script).resolve()), "--home", str(Path(home).resolve()),
+            "--quiet", "activate"]
+    return subprocess.list2cmdline(argv) + ' "%1"'
+
+
+def protocol_value() -> str | None:
+    winreg = _winreg()
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, PROTOCOL_COMMAND_KEY, 0, winreg.KEY_READ) as key:
+            value, kind = winreg.QueryValueEx(key, "")
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise StartupError("Cannot read the current user's URL protocol registration") from exc
+    return value if kind == winreg.REG_SZ and isinstance(value, str) else None
+
+
+def install_protocol(command: str) -> bool:
+    """Register the per-user URL protocol. Idempotent; needs no administrator rights."""
+    winreg = _winreg()
+    if protocol_value() == command:
+        return False
+    try:
+        with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, PROTOCOL_KEY, 0, winreg.KEY_SET_VALUE) as key:
+            winreg.SetValueEx(key, "", 0, winreg.REG_SZ, "URL:Codex Auto Resume")
+            winreg.SetValueEx(key, "URL Protocol", 0, winreg.REG_SZ, "")
+        with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, PROTOCOL_COMMAND_KEY, 0, winreg.KEY_SET_VALUE) as key:
+            winreg.SetValueEx(key, "", 0, winreg.REG_SZ, command)
+    except OSError as exc:
+        raise StartupError("Cannot register the URL protocol for the current user") from exc
+    return True
+
+
+def uninstall_protocol() -> bool:
+    """Remove only the keys this tool creates, deepest first. Idempotent."""
+    winreg = _winreg()
+    removed = False
+    for key_path in (PROTOCOL_COMMAND_KEY, PROTOCOL_KEY + r"\shell\open",
+                     PROTOCOL_KEY + r"\shell", PROTOCOL_KEY):
+        try:
+            winreg.DeleteKey(winreg.HKEY_CURRENT_USER, key_path)
+            removed = True
+        except FileNotFoundError:
+            continue
+        except OSError:
+            # A subkey added by something else must not be force-deleted.
+            break
+    return removed
 
 
 def parse_command(command: str) -> list[str]:

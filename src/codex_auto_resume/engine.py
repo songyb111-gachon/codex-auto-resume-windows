@@ -30,10 +30,11 @@ def backoff_delay(retry: int) -> int:
 
 class Engine:
     def __init__(self, store, source, backend, *, dispatch_lock=nullcontext,
-                 clock=time.time, log=None, options=None):
+                 clock=time.time, log=None, options=None, notify=None):
         self.store, self.source, self.backend = store, source, backend
         self.dispatch_lock, self.clock = dispatch_lock, clock
         self.log = log or (lambda *args: None)
+        self.notify = notify or (lambda *args: None)
         self.options = {"reset_grace_seconds": 60, "conservative_poll_seconds": 900,
                         "state_poll_seconds": 60, "delivery_timeout_seconds": 180,
                         "max_queue_retries": 5, "max_submissions_per_thread_per_day": 5,
@@ -143,6 +144,13 @@ class Engine:
                     self.log(detection["thread_id"], "reset_unknown_conservative_poll", str(int(self.options["conservative_poll_seconds"])))
                 if detection["uncertain"]:
                     self.log(detection["thread_id"], "blocking_limit_uncertain", None)
+                try:
+                    # Purely informational, and the only moment a control can be offered
+                    # at the time it matters. A notification that fails must never change
+                    # whether this interruption is resumed.
+                    self.notify(detection["thread_id"], detection["interruption_id"], reset)
+                except Exception:
+                    self.log(detection["thread_id"], "notification_failed", None)
 
     # --------------------------------------------------------------- attempt
     def attempt(self, row):

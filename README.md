@@ -194,6 +194,34 @@ Global options: `--home` (where this tool keeps its own state), `--codex-exe`, `
 By default, failures up to 6 hours old at the moment you run `enable` are still eligible. Change it with
 `enable --lookback-hours N`.
 
+## The notification
+
+When the watcher records an interruption, Windows shows one notification saying when that
+conversation will continue, with a single **Don't resume** button.
+
+Doing nothing resumes — that is the default. Pressing the button cancels the auto-resume for that
+one conversation and nothing else.
+
+This is the only point where a control can be offered at the time it matters. By the time a usage
+limit appears in the Codex app, that turn has already failed, so nothing can be added to the app's
+own usage-limit notice; the watcher, however, is running. See [docs/PLUGIN.md](docs/PLUGIN.md) for
+why the notice itself cannot get a checkbox.
+
+Details worth knowing:
+
+- The button needs a handler, so `install` registers a per-user `codex-auto-resume:` URL protocol
+  under `HKCU\Software\Classes`. `uninstall` removes it again, and only when it points at this
+  installation.
+- That protocol accepts exactly one action, cancelling. A hostile or mistyped URI can only ever
+  *stop* a resume, never cause one, and the interruption id must match a real record.
+- The notification shows only a shortened conversation id and a local time — never prompt text,
+  error text, or account data.
+- It is best effort. If it cannot be shown, the resume still happens exactly as it would have.
+- Notifications appear attributed to Windows PowerShell, which is how a tool without its own
+  installed app identity is allowed to raise them.
+
+Turn them off by setting `"notifications": false` in `config/settings.json`.
+
 ## Windows startup
 
 Optional, per-user, and never required:

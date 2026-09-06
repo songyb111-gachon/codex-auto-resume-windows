@@ -130,7 +130,7 @@ class FakeBackend:
 
 
 class Harness:
-    def __init__(self, root: Path, *, options=None, source=None, backend=None):
+    def __init__(self, root: Path, *, options=None, source=None, backend=None, notify=None):
         self.root = root
         self.now = BASE + 10.0
         self.store = Store(root)
@@ -139,8 +139,10 @@ class Harness:
         self.logs: list[tuple] = []
         self.options = {"reset_grace_seconds": 60, "state_poll_seconds": 60, "conservative_poll_seconds": 900,
                         "delivery_timeout_seconds": 180, **(options or {})}
+        self.notifications: list[tuple] = []
         self.engine = Engine(self.store, self.source, self.backend, clock=lambda: self.now,
-                             log=lambda *args: self.logs.append(args), options=self.options)
+                             log=lambda *args: self.logs.append(args), options=self.options,
+                             notify=notify or (lambda *args: self.notifications.append(args)))
 
     def enable(self, at=None):
         self.store.set_enabled(True, self.now if at is None else at)

@@ -8,7 +8,7 @@ import sys
 import time
 import traceback
 
-from . import config
+from . import config, notify
 from .engine import Engine
 from .logbook import LOGGER_NAME, EngineLog, setup_logging
 from .source import LocalSource
@@ -67,6 +67,8 @@ class App:
     def engine(self, store: Store, *, dispatch_lock=None) -> Engine:
         options = {"detection_lookback_seconds": float(self.settings["detection_lookback_hours"]) * 3600.0}
         kwargs = {"log": EngineLog(self.logger), "options": options}
+        if self.settings.get("notifications", True):
+            kwargs["notify"] = notify.scheduled
         if dispatch_lock is not None:
             kwargs["dispatch_lock"] = dispatch_lock
         return Engine(store, self.source(), self.backend(), **kwargs)

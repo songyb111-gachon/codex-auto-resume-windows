@@ -77,6 +77,16 @@ Report what the command actually printed. Useful fields from `status` and `pendi
 
 Do not restate the reset time the Codex usage-limit notice already shows.
 
+## Notifications
+
+When an interruption is recorded, Windows shows one notification with a **Don't resume** button.
+Doing nothing resumes; the button cancels that one conversation. If the user asks to turn
+notifications off, set `"notifications": false` in `settings.json` inside the state directory that
+`status` prints, and tell them the resume behaviour itself is unchanged.
+
+Do not offer to build any other interface. There is no checkbox inside the Codex usage-limit
+notice and none can be added; see the project's docs/PLUGIN.md if asked why.
+
 ## What it does and does not do
 
 - Resumes only tasks that stopped because of a **usage limit**. It is not a general retry

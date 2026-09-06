@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.3.0 — A control at the moment it matters
+
+- **Windows notification when an interruption is detected.** The watcher is running at that
+  moment, so this is the one place a control can be offered in time; the Codex turn has already
+  failed by then, so nothing can be added to the app's own usage-limit notice.
+  The toast says when the conversation will continue and carries a single **Don't resume**
+  button. Doing nothing resumes, which is the default.
+- The button is handled through a per-user `codex-auto-resume:` URL protocol registered under
+  `HKCU\Software\Classes`. It accepts exactly one action — cancelling — so a hostile URI can
+  only ever stop a resume, never cause one. The interruption id is validated as opaque hex and
+  must match a real record; nothing is resolved by thread name or recency.
+- The toast shows only a shortened conversation id and a local time. Never prompt text, error
+  text or account data. PowerShell is invoked with `-EncodedCommand`, so no message text can be
+  reinterpreted as script.
+- Delivery is best effort. A notification that cannot be shown, times out, or raises is logged
+  and ignored; it never changes whether a resume happens.
+- Turn it off with `"notifications": false` in `config/settings.json`.
+
 ## v0.2.0 — Install and control it from inside Codex
 
 ### Install and control it from inside Codex
