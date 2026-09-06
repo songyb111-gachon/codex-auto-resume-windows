@@ -107,6 +107,11 @@ class CliTests(unittest.TestCase):
                                            config.ENV_HOME: str(self.home)})
         self.env.start()
         self.addCleanup(self.env.stop)
+        # Safety net: no CLI test may ever reach the real HKCU Run key. cmd_uninstall
+        # deletes that value, so an unpatched call would wipe the user's autostart.
+        self._winreg_guard = patch.object(startup, "_winreg", return_value=FakeWinreg())
+        self._winreg_guard.start()
+        self.addCleanup(self._winreg_guard.stop)
 
     def cli(self, *argv):
         return run_cli("--quiet", *argv)
@@ -197,13 +202,15 @@ class CliTests(unittest.TestCase):
         self.cli("enable")
         keep = self.home / "config" / "user-note.txt"
         keep.write_text("keep me", encoding="utf-8")
+        # Both calls must stay inside the registry patch: cmd_uninstall deletes the
+        # HKCU Run value, so an unpatched call would wipe the real user's autostart.
         with patch.object(startup, "_winreg", return_value=FakeWinreg()):
             code, out, _ = self.cli("uninstall")
-        self.assertEqual(code, 0)
-        self.assertFalse((self.home / "config" / "state.sqlite").exists())
-        self.assertFalse((self.home / "logs" / "auto-resume.log").exists())
-        self.assertTrue(keep.exists(), "unknown files are never deleted")
-        code, out, _ = self.cli("uninstall")
+            self.assertEqual(code, 0)
+            self.assertFalse((self.home / "config" / "state.sqlite").exists())
+            self.assertFalse((self.home / "logs" / "auto-resume.log").exists())
+            self.assertTrue(keep.exists(), "unknown files are never deleted")
+            code, out, _ = self.cli("uninstall")
         self.assertEqual(code, 0)
         self.assertIn("nothing", out)
 
@@ -278,6 +285,11 @@ class UninstallSafetyTests(unittest.TestCase):
                                            config.ENV_HOME: str(self.home)})
         self.env.start()
         self.addCleanup(self.env.stop)
+        # Safety net: no CLI test may ever reach the real HKCU Run key. cmd_uninstall
+        # deletes that value, so an unpatched call would wipe the user's autostart.
+        self._winreg_guard = patch.object(startup, "_winreg", return_value=FakeWinreg())
+        self._winreg_guard.start()
+        self.addCleanup(self._winreg_guard.stop)
 
     def cli(self, *argv):
         return run_cli("--quiet", *argv)
