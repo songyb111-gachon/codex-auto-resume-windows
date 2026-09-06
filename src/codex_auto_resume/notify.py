@@ -22,9 +22,20 @@ from xml.sax.saxutils import quoteattr, escape
 from . import messages
 
 SCHEME = "codex-auto-resume"
-# Toasts from a process without its own registered AppUserModelID are not shown. This is
-# Windows PowerShell's own, which always exists, so notifications appear attributed to it.
-AUMID = r"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe"
+# The toast is sent under our own AppUserModelID, so Windows attributes it to
+# "Codex Auto Resume" instead of to whatever process raised it. Measured on Windows 11:
+# an unpackaged application may claim an AUMID, and delivery succeeds even before the
+# identity is registered - registration supplies the display name and icon, not the
+# ability to notify. A missing registration therefore degrades to an unnamed sender,
+# never to a lost notification.
+LEGACY_POWERSHELL_AUMID = r"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe"
+
+
+def aumid() -> str:
+    # Imported lazily: startup.py owns every per-user registration, and importing it at
+    # module load would drag the registry into processes that only format a message.
+    from .startup import AUMID
+    return AUMID
 TIMEOUT_SECONDS = 20
 INTERRUPTION_ID_LENGTH = 64
 
@@ -110,7 +121,7 @@ def show(title: str, body: str, *, button: str | None = None, uri: str | None = 
     if shell is None:
         return False
     script = _SCRIPT % {"xml": _ps_literal(_toast_xml(title, body, button, uri, extra)),
-                        "aumid": _ps_literal(AUMID)}
+                        "aumid": _ps_literal(aumid())}
     # -EncodedCommand takes UTF-16LE base64: no quoting rules apply to the payload at all,
     # so no string built here can be reinterpreted as PowerShell syntax.
     encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")

@@ -171,6 +171,48 @@ class ToastPayloadTests(unittest.TestCase):
         self.assertNotIn("{", body)
 
 
+class NotificationIdentityTests(unittest.TestCase):
+    """Windows attributes a toast to the sender's AppUserModelID, so the product must
+    own one. Measured on Windows 11: delivery works even unregistered, which is why a
+    missing registration must never be treated as a reason not to notify."""
+
+    def setUp(self):
+        from test_cli import FakeWinreg
+        self.fake = FakeWinreg()
+        guard = patch.object(startup, "_winreg", return_value=self.fake)
+        guard.start()
+        self.addCleanup(guard.stop)
+
+    def test_the_transport_sends_under_our_own_identity(self):
+        self.assertEqual(notify.aumid(), startup.AUMID)
+        self.assertNotEqual(notify.aumid(), notify.LEGACY_POWERSHELL_AUMID)
+        self.assertNotIn("powershell", notify.aumid().lower())
+
+    def test_registration_is_idempotent_and_removable(self):
+        icon = Path(r"C:\app\icon.ico")
+        self.assertTrue(startup.register_aumid(icon))
+        self.assertFalse(startup.register_aumid(icon))
+        registered = startup.aumid_registration()
+        self.assertEqual(registered["DisplayName"], startup.AUMID_DISPLAY_NAME)
+        self.assertTrue(registered["IconUri"].endswith("icon.ico"))
+        self.assertTrue(startup.unregister_aumid())
+        self.assertFalse(startup.unregister_aumid())
+        self.assertIsNone(startup.aumid_registration())
+
+    def test_registration_is_confined_to_our_own_key(self):
+        startup.register_aumid(Path(r"C:\app\icon.ico"))
+        for path in self.fake.keys:
+            self.assertTrue(path.startswith(startup.AUMID_KEY.rsplit("\\", 1)[0]), path)
+        self.assertIn(startup.AUMID, "".join(self.fake.keys))
+
+    def test_an_unregistered_identity_still_sends(self):
+        # Delivery must not depend on the display name being registered.
+        self.assertIsNone(startup.aumid_registration())
+        with patch.object(notify, "_powershell", return_value="powershell.exe"),              patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
+            self.assertTrue(notify.show("t", "b"))
+        self.assertIn("-EncodedCommand", run.call_args.args[0])
+
+
 class ProtocolRegistrationTests(unittest.TestCase):
     def setUp(self):
         from test_cli import FakeWinreg    # the shared key-tree fake

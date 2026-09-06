@@ -49,6 +49,64 @@ def command_line(entry_script: Path, home: Path | None = None, launcher: Path | 
 PROTOCOL_KEY = r"Software\Classes\%s" % PROTOCOL_SCHEME
 PROTOCOL_COMMAND_KEY = PROTOCOL_KEY + r"\shell\open\command"
 
+# Windows shows a toast under the sender's AppUserModelID. Without one of our own, the
+# notification is attributed to whatever process raised it - PowerShell - which is not
+# something a finished product should show a user. An unpackaged application may claim
+# an AUMID by registering it per-user; measured on Windows 11, delivery works even
+# unregistered, and this registration is what supplies the display name and icon.
+AUMID = "CodexAutoResume.Watcher"
+AUMID_KEY = r"Software\Classes\AppUserModelId\%s" % AUMID
+AUMID_DISPLAY_NAME = "Codex Auto Resume"
+
+
+def aumid_registration() -> dict | None:
+    """The current display name and icon for our AUMID, or None if unregistered."""
+    winreg = _winreg()
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUMID_KEY, 0, winreg.KEY_READ) as key:
+            values = {}
+            for name in ("DisplayName", "IconUri"):
+                try:
+                    value, kind = winreg.QueryValueEx(key, name)
+                except FileNotFoundError:
+                    continue
+                if kind == winreg.REG_SZ and isinstance(value, str):
+                    values[name] = value
+            return values or None
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise StartupError("Cannot read the notification identity registration") from exc
+
+
+def register_aumid(icon_path=None) -> bool:
+    """Claim our AUMID for the current user. Idempotent; needs no administrator rights."""
+    winreg = _winreg()
+    icon = str(Path(icon_path).resolve()) if icon_path else None
+    current = aumid_registration() or {}
+    if current.get("DisplayName") == AUMID_DISPLAY_NAME and current.get("IconUri") == icon:
+        return False
+    try:
+        with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, AUMID_KEY, 0, winreg.KEY_SET_VALUE) as key:
+            winreg.SetValueEx(key, "DisplayName", 0, winreg.REG_SZ, AUMID_DISPLAY_NAME)
+            if icon:
+                winreg.SetValueEx(key, "IconUri", 0, winreg.REG_SZ, icon)
+    except OSError as exc:
+        raise StartupError("Cannot register the notification identity") from exc
+    return True
+
+
+def unregister_aumid() -> bool:
+    """Remove only our own AUMID key. Idempotent."""
+    winreg = _winreg()
+    try:
+        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, AUMID_KEY)
+        return True
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return False
+
 
 def protocol_command_line(entry_script: Path, home: Path, launcher: Path | None = None) -> str:
     """Command Windows runs when a toast button activates our URI."""

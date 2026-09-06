@@ -21,6 +21,7 @@ PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 PLUGIN_NAME = "codex-auto-resume"
 LAUNCHER_NAME = "watcher-launcher.py"
 RUNTIME_CONFIG = "runtime.json"
+ICON_NAME = "codex-auto-resume.ico"
 ENV_RUNTIME_HOME = "CODEX_AUTO_RESUME_PLUGIN_HOME"
 RUNTIME_DIR_NAME = ".codex-auto-resume"
 MIN_PYTHON = (3, 10)
@@ -95,6 +96,11 @@ def install_launcher(home: Path, mode: str) -> Path:
     home.mkdir(parents=True, exist_ok=True)
     launcher = home / LAUNCHER_NAME
     shutil.copyfile(PLUGIN_ROOT / "scripts" / "watcher_launcher.py", launcher)
+    # The icon must outlive the versioned plugin directory, because Windows resolves it
+    # when it draws a toast rather than when the notification is registered.
+    icon = PLUGIN_ROOT / "assets" / ICON_NAME
+    if icon.is_file():
+        shutil.copyfile(icon, home / ICON_NAME)
     payload = {"mode": mode, "plugin_name": PLUGIN_NAME, "plugin_root": str(PLUGIN_ROOT), "home": str(home)}
     (home / RUNTIME_CONFIG).write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return launcher

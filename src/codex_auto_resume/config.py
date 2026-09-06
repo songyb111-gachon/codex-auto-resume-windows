@@ -35,6 +35,9 @@ class Paths:
         self.log_file = self.logs_dir / "auto-resume.log"
         self.error_log = self.logs_dir / "errors.log"
         self.entry_script = PROJECT_ROOT / "src" / "auto_resume.py"
+        # Kept in the runtime home, not the versioned plugin cache: Windows reads the
+        # icon lazily when it draws a toast, long after an update may have moved us.
+        self.icon_file = self.home / "codex-auto-resume.ico"
 
     def confined(self, path: Path) -> bool:
         """True only if, after resolving ALL reparse points (NTFS junctions
