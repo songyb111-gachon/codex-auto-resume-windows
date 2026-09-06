@@ -1,6 +1,6 @@
 __pycache__/
 *.pyc
-config/*.sqlite*
-config/settings.json
+# Generated, per-machine state and logs are never source.
+config/
 logs/*
 !logs/.gitkeep
