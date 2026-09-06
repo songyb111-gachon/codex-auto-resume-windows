@@ -1,10 +1,10 @@
 {
   "observed_at": "2026-09-06T07:17:36.798679+09:00",
   "access": "SQLite URI mode=ro, exact thread only; exact rollout read only through failed turn end",
-  "thread_id": "0a1b2c3d-0101-7000-8000-000000000101",
+  "thread_id": "0a1b2c3d-0001-7000-8000-000000000001",
   "database_failure": {
-    "thread_id": "0a1b2c3d-0101-7000-8000-000000000101",
-    "turn_id": "0a1b2c3d-0102-7000-8000-000000000102",
+    "thread_id": "0a1b2c3d-0001-7000-8000-000000000001",
+    "turn_id": "0a1b2c3d-0002-7000-8000-000000000002",
     "status": "failed",
     "started_at": 1788627820,
     "completed_at": 1788628349,
@@ -20,7 +20,7 @@
     "timestamp": "2026-09-05T17:12:29.817Z",
     "type": "event_msg",
     "payload_type": "task_complete",
-    "turn_id": "0a1b2c3d-0102-7000-8000-000000000102",
+    "turn_id": "0a1b2c3d-0002-7000-8000-000000000002",
     "error": {
       "codex_error_info": "usage_limit_exceeded",
       "usage_message_time_phrase": "try again at 7:03 AM"
@@ -73,5 +73,6 @@
     "Nearest preceding codex primary snapshot was 98 percent; immediate pre-failure premium snapshot had no windows. The codex primary reset is a corroborating snapshot, not proof of blocking bucket identity.",
     "task_complete event includes error and must not be treated as successful completion solely by event type.",
     "No prompt, tool output, credential, or full error text is included."
-  ]
+  ],
+  "note": "Identifiers are pseudonymised and absolute paths/process ids are generalised. Only the verification structure is published, never conversation content."
 }

@@ -1,0 +1,48 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    # This tool targets Windows only, so CI runs on Windows only.
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Compile all sources
+        run: python -m compileall -q src tests
+
+      - name: Run the automated test suite
+        # These tests use fakes and temp dirs. They never contact the ChatGPT app
+        # and never send a message to any Codex conversation.
+        # CODEX_AR_LIVE is deliberately unset, so the live checks stay skipped.
+        env:
+          PYTHONPATH: src
+        run: python -m unittest discover -s tests -v
+
+      - name: CLI smoke test in an isolated home
+        env:
+          PYTHONPATH: src
+        run: |
+          python src\auto_resume.py --home "${{ runner.temp }}\ar-home" --quiet install
+          python src\auto_resume.py --home "${{ runner.temp }}\ar-home" --quiet status
+          python src\auto_resume.py --home "${{ runner.temp }}\ar-home" --quiet install
+          python src\auto_resume.py --home "${{ runner.temp }}\ar-home" --quiet uninstall
+          python src\auto_resume.py --home "${{ runner.temp }}\ar-home" --quiet uninstall
