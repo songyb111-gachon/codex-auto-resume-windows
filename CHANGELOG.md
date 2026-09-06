@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Survive Codex app updates instead of stopping at the first version change.
+  - Local databases are discovered by schema generation (`state_5`, `thread_history_1`, ...) and
+    validated by the columns actually read, so a generation bump no longer breaks detection. Extra
+    columns are fine; a missing required column still refuses.
+  - The exact engine-version equality check is replaced by a capability probe: a verified version is
+    trusted, and an unrecognised one is accepted only when `codex queue` still offers `--thread` and
+    `--message`. `status`, `doctor` and the watcher log say plainly when the engine is unverified.
+- Report the engine pin actually in force in error messages instead of a hardcoded version.
+
 ## v0.1.0 — first public release
 
 First public release of `codex-auto-resume-windows`, a local-only Windows watcher that resumes Codex

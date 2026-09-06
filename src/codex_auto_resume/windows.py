@@ -20,7 +20,13 @@ import time
 import uuid
 
 NO_WINDOW = 0x08000000 if os.name == "nt" else 0
-VERSION = "codex-cli 0.153.4"
+# Engine versions this tool was actually verified against end to end.
+VERIFIED_VERSIONS = ("codex-cli 0.153.4",)
+VERSION = VERIFIED_VERSIONS[0]
+# A Codex update bumps the version string, which alone must not disable auto-resume.
+# Instead of requiring equality, an unrecognised version has to prove it still offers
+# the exact interface this tool drives. Anything that cannot prove it is refused.
+REQUIRED_QUEUE_FLAGS = ("--thread", "--message")
 
 
 class AdapterError(RuntimeError):
@@ -443,6 +449,8 @@ class Backend:
         self.codex_home = Path(codex_home).resolve()
         self.codex_exe = Path(codex_exe).resolve()
         self._version_signature = None
+        self.engine_version = None
+        self.engine_verified = False
 
     def _environment(self):
         env = os.environ.copy()
@@ -457,6 +465,16 @@ class Backend:
                 "-c", 'otel.metrics_exporter="none"', "-c", "otel.log_user_prompt=false",
                 "-c", 'chatgpt_base_url="https://chatgpt.com/backend-api/"']
 
+    def _queue_interface_ok(self):
+        """Prove `codex queue` still takes the exact flags we drive it with."""
+        result = S.run([str(self.codex_exe), "queue", "--help"], stdout=S.PIPE, stderr=S.DEVNULL,
+                       text=True, encoding="utf-8", errors="replace", timeout=20,
+                       creationflags=NO_WINDOW, shell=False, env=self._environment())
+        if result.returncode != 0:
+            return False
+        text = result.stdout
+        return all(flag in text for flag in REQUIRED_QUEUE_FLAGS)
+
     def _compatible(self):
         local = Path(os.environ.get("LOCALAPPDATA", "")) / "OpenAI/Codex/bin"
         expected = re.compile(re.escape(str(local)) + r"\\[0-9a-f]+\\codex\.exe", re.I)
@@ -470,7 +488,17 @@ class Backend:
             result = S.run([str(self.codex_exe), "--version"], stdout=S.PIPE, stderr=S.DEVNULL,
                            text=True, encoding="utf-8", timeout=10, creationflags=NO_WINDOW,
                            shell=False, env=self._environment())
-            if result.returncode != 0 or result.stdout.strip() != VERSION:
+            if result.returncode != 0:
+                raise AdapterError("codex_binary_unavailable")
+            version = result.stdout.strip()
+            if version in VERIFIED_VERSIONS:
+                self.engine_version, self.engine_verified = version, True
+            elif self._queue_interface_ok():
+                # Structurally compatible but not a version we have exercised end to end.
+                # Allowed so an app update does not silently stop auto-resume, and every
+                # send is still proven afterwards by the per-interruption marker.
+                self.engine_version, self.engine_verified = version, False
+            else:
                 raise AdapterError("unsupported_codex_version")
             self._version_signature = signature
         except (OSError, S.SubprocessError):

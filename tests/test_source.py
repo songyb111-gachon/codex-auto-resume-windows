@@ -212,10 +212,45 @@ class LocalSourceTests(unittest.TestCase):
             db.execute("INSERT INTO thread_items VALUES(?,?,?,?)", (TID, TURN, "userMessage", payload))
         self.assertFalse(self.source.delivery(TID, MARKER)["delivered"])
 
+    def test_survives_a_schema_generation_bump(self):
+        # A Codex update that renames state_5 -> state_6 (and friends) must not break
+        # detection: the newest generation whose schema still fits is discovered.
+        renames = {"state_5.sqlite": "state_6.sqlite",
+                   "thread_history_1.sqlite": "thread_history_2.sqlite",
+                   "queue_1.sqlite": "queue_9.sqlite"}
+        for old, new in renames.items():
+            (self.home / old).rename(self.home / new)
+        fresh = LocalSource(self.home)
+        self.assertEqual(fresh.resolve("state"), "state_6.sqlite")
+        self.assertEqual(fresh.resolve("history"), "thread_history_2.sqlite")
+        self.assertEqual(fresh.resolve("queue"), "queue_9.sqlite")
+        self.assertEqual(len(fresh.latest_failures(1788620000)), 1)
+        self.assertEqual(fresh.latest(TID)["turn_id"], TURN)
+
+    def test_prefers_the_newest_usable_generation(self):
+        # An older generation left behind by a migration must not win over the new one.
+        import shutil
+        shutil.copy(self.home / "thread_history_1.sqlite", self.home / "thread_history_7.sqlite")
+        self.assertEqual(LocalSource(self.home).resolve("history"), "thread_history_7.sqlite")
+
+    def test_newer_generation_with_missing_column_falls_back_then_refuses(self):
+        # A newer file whose schema lost a column we read is skipped in favour of an
+        # older usable one; if none is usable at all, we refuse rather than guess.
+        with self.db("thread_history_5.sqlite") as db:
+            db.execute("CREATE TABLE thread_turns(thread_id TEXT, turn_id TEXT)")   # columns missing
+            db.execute("CREATE TABLE thread_items(thread_id TEXT, item_type TEXT, item_json TEXT)")
+        self.assertEqual(LocalSource(self.home).resolve("history"), "thread_history_1.sqlite")
+        (self.home / "thread_history_1.sqlite").unlink()
+        with self.assertRaises(SourceError):
+            LocalSource(self.home).resolve("history")
+
     def test_corrupt_database_safe_error(self):
         (self.home / "thread_history_1.sqlite").write_bytes(b"not sqlite sensitive-data")
-        with self.assertRaisesRegex(SourceError, "unavailable or unsupported"):
+        # A corrupt file is simply not a usable generation; the message stays static
+        # and must never quote file contents.
+        with self.assertRaises(SourceError) as caught:
             self.source.latest_failures(1788620000)
+        self.assertNotIn("sensitive-data", str(caught.exception))
 
     def test_missing_schema_safe_error(self):
         with self.db("thread_history_1.sqlite") as db:
@@ -224,7 +259,7 @@ class LocalSourceTests(unittest.TestCase):
             self.source.latest(TID)
 
     def test_read_only_connection(self):
-        with self.source._db("state_5.sqlite") as db:
+        with self.source._db("state") as db:
             with self.assertRaises(sqlite3.OperationalError):
                 db.execute("DELETE FROM threads")
 

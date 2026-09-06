@@ -99,21 +99,82 @@ def _safe_path(path: Path) -> Path:
     return Path(raw).resolve()
 
 
+# Codex names its databases with a schema generation suffix (state_5, queue_1, ...).
+# An app update can bump that number, so the file is discovered by pattern and then
+# validated by the columns this tool actually reads. Extra columns are fine (Codex
+# adds them over time); a MISSING required column means the schema moved and we refuse.
+DB_KINDS = {
+    "state": (re.compile(r"state_(\d+)\.sqlite\Z"), {
+        "threads": {"id", "rollout_path", "source", "thread_source", "archived", "history_mode"},
+    }),
+    "history": (re.compile(r"thread_history_(\d+)\.sqlite\Z"), {
+        "thread_turns": {"thread_id", "turn_id", "status", "error_json", "started_at",
+                         "completed_at", "rollout_ordinal", "rollout_end_byte_offset"},
+        "thread_items": {"thread_id", "item_type", "item_json"},
+    }),
+    "queue": (re.compile(r"queue_(\d+)\.sqlite\Z"), {
+        "queued_items": {"id", "thread_id", "payload_json"},
+    }),
+}
+
+
 class LocalSource:
     def __init__(self, codex_home: Path):
         self.home = _safe_path(Path(codex_home))
+        self._resolved: dict[str, str] = {}
+
+    def _connect(self, path):
+        connection = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=3)
+        connection.execute("PRAGMA query_only=ON")
+        connection.execute("PRAGMA trusted_schema=OFF")
+        connection.row_factory = sqlite3.Row
+        return connection
+
+    @staticmethod
+    def _schema_ok(connection, tables) -> bool:
+        for table, required in tables.items():
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table):
+                return False
+            found = {row[1] for row in connection.execute("PRAGMA table_info(%s)" % table)}
+            if not required <= found:
+                return False
+        return True
+
+    def resolve(self, kind: str) -> str:
+        """Newest generation of `kind` whose schema still has every column we read."""
+        if kind in self._resolved:
+            return self._resolved[kind]
+        pattern, tables = DB_KINDS[kind]
+        candidates = []
+        try:
+            for entry in self.home.iterdir():
+                match = pattern.fullmatch(entry.name)
+                if match and entry.is_file() and not entry.is_symlink():
+                    candidates.append((int(match.group(1)), entry))
+        except OSError:
+            raise SourceError("Codex local state unavailable or unsupported") from None
+        for _, path in sorted(candidates, key=lambda item: -item[0]):
+            connection = None
+            try:
+                connection = self._connect(_safe_path(path))
+                if self._schema_ok(connection, tables):
+                    self._resolved[kind] = path.name
+                    return path.name
+            except (sqlite3.Error, OSError, ValueError):
+                continue
+            finally:
+                if connection is not None:
+                    connection.close()
+        raise SourceError("No Codex %s database with the required schema" % kind)
 
     @contextmanager
-    def _db(self, name):
+    def _db(self, kind):
         connection = None
         try:
-            path = _safe_path(self.home / name)
+            path = _safe_path(self.home / self.resolve(kind))
             if path.parent != self.home:
                 raise SourceError("Codex database path is outside configured home")
-            connection = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=3)
-            connection.execute("PRAGMA query_only=ON")
-            connection.execute("PRAGMA trusted_schema=OFF")
-            connection.row_factory = sqlite3.Row
+            connection = self._connect(path)
             yield connection
         except (sqlite3.Error, OSError, ValueError):
             raise SourceError("Codex local state unavailable or unsupported") from None
@@ -126,7 +187,7 @@ class LocalSource:
         # engine defers instead of treating an unreadable rollout as "latest turn changed".
         if not valid_uuid(thread_id):
             return None
-        with self._db("state_5.sqlite") as connection:
+        with self._db("state") as connection:
             row = connection.execute(
                 "SELECT rollout_path,source,thread_source,archived,history_mode "
                 "FROM threads WHERE id=?", (thread_id,)).fetchone()
@@ -165,7 +226,7 @@ class LocalSource:
     def latest(self, thread_id: str) -> dict | None:
         if not valid_uuid(thread_id) or self._metadata(thread_id, strict=True) is None:
             return None
-        with self._db("thread_history_1.sqlite") as connection:
+        with self._db("history") as connection:
             row = connection.execute(
                 "SELECT thread_id,turn_id,status,started_at,completed_at,"
                 "rollout_ordinal,error_json FROM thread_turns WHERE thread_id=? "
@@ -176,7 +237,7 @@ class LocalSource:
         if not epoch(since):
             raise SourceError("Invalid detection start timestamp")
         # Read only failure metadata; no transcript scanning or folder traversal.
-        with self._db("thread_history_1.sqlite") as connection:
+        with self._db("history") as connection:
             rows = connection.execute(
                 "SELECT t.thread_id,t.turn_id,t.status,t.started_at,t.completed_at,"
                 "t.rollout_ordinal,t.error_json FROM thread_turns t "
@@ -198,7 +259,7 @@ class LocalSource:
         path = self._metadata(thread_id)
         if path is None:
             return unknown
-        with self._db("thread_history_1.sqlite") as connection:
+        with self._db("history") as connection:
             row = connection.execute(
                 "SELECT thread_id,turn_id,status,started_at,completed_at,"
                 "rollout_ordinal,error_json,rollout_end_byte_offset "
@@ -253,7 +314,7 @@ class LocalSource:
         if not valid_uuid(thread_id) or not isinstance(marker, str) or not MARKER_RE.fullmatch(marker):
             raise SourceError("Invalid delivery identity")
         delivered = False
-        with self._db("thread_history_1.sqlite") as connection:
+        with self._db("history") as connection:
             # instr bounds the returned content to this unique owned marker.
             rows = connection.execute(
                 "SELECT item_json FROM thread_items WHERE thread_id=? "
@@ -268,7 +329,7 @@ class LocalSource:
                 "ORDER BY rollout_ordinal DESC LIMIT 1", (thread_id,)).fetchone()
             latest_turn_id = row["turn_id"] if row and valid_uuid(row["turn_id"]) else None
         queued = []
-        with self._db("queue_1.sqlite") as connection:
+        with self._db("queue") as connection:
             rows = connection.execute(
                 "SELECT id,payload_json FROM queued_items WHERE thread_id=? "
                 "AND instr(payload_json,?)>0", (thread_id, marker))
