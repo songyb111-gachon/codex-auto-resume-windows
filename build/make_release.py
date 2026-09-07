@@ -148,6 +148,37 @@ def collect_gui(stage: Path) -> int:
     return 3
 
 
+def declare_mcp_server(stage: Path) -> None:
+    """Wire the MCP server into the payload's manifest, and only the payload's.
+
+    The server cannot run without the bundled interpreter, and only this installer puts
+    that on disk. If the repository's own manifest declared the server, adding this
+    repository as a Codex marketplace would register a command that is not there:
+    measured, and it does not fail loudly - `plugin add` succeeds and the user is left
+    with a permanently failing server in their list.
+
+    So the declaration is added here, to the copy that ships beside the runtime it
+    needs. `.mcp.json` itself stays in the repository, because a security-relevant
+    declaration should be reviewable as source rather than assembled out of a string in
+    a build script.
+    """
+    app = stage / "payload" / "app"
+    companion = app / ".mcp.json"
+    if not companion.is_file():
+        raise SystemExit("missing .mcp.json - it is the source of the MCP declaration")
+    manifest_path = app / ".codex-plugin" / "plugin.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if "mcpServers" in manifest:
+        raise SystemExit("the repository manifest must not declare mcpServers")
+    ordered = {}
+    for key, value in manifest.items():
+        ordered[key] = value
+        if key == "skills":
+            ordered["mcpServers"] = "./.mcp.json"
+    manifest_path.write_text(json.dumps(ordered, indent=2, ensure_ascii=False) + "\n",
+                             encoding="utf-8")
+
+
 def collect_launchers(stage: Path) -> int:
     count = 0
     for name in LAUNCHER_FILES:
@@ -189,6 +220,7 @@ def main(argv=None) -> int:
     app_files = collect_app(stage)
     gui_files = collect_gui(stage)
     launcher_files = collect_launchers(stage)
+    declare_mcp_server(stage)
 
     name = "CodexAutoResume-v%s-win-x64.zip" % release
     target = write_archive(stage, Path(args.output) / name)

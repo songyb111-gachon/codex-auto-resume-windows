@@ -35,11 +35,23 @@ different from the plugin name (a clone is named `codex-auto-resume-windows`, th
 
 ## The MCP server
 
-The manifest declares `skills` and `mcpServers`. `hooks` is **rejected** by Codex plugin
-validation, so it is not used. The server exists so the product can be managed from inside
-Codex - status, pending recoveries, settings, pause, cancel - and so those actions mean the
-same thing they mean everywhere else, because every one of them calls the same validated
-control layer the command line and the settings window call.
+The manifest in this repository declares only `skills`; the release build adds
+`mcpServers` to the copy it ships. That split is deliberate. The server runs on the
+interpreter that comes in the release archive, so a marketplace install straight from
+GitHub has no interpreter to run it with - and with the declaration in the repository
+manifest, `codex plugin add` from a clone succeeds and registers the server as *enabled*,
+pointing at an executable that is not there. The user gets a permanently failing entry
+rather than an error they can act on. Measured against `codex-cli 0.153.4`, in an
+isolated `CODEX_HOME`. `.mcp.json` itself stays in the repository, because a
+security-relevant declaration should be reviewable as source rather than assembled out of
+a string in a build script.
+
+`hooks` is **rejected** by Codex plugin validation, so it is not used.
+
+The server exists so the product can be managed from inside Codex - status, pending
+recoveries, settings, pause, cancel - and so those actions mean the same thing they mean
+everywhere else, because every one of them calls the same validated control layer the
+command line and the settings window call.
 
 It is a front end and nothing more. No tool detects a failure, schedules an attempt, reserves
 an interruption or sends a continuation; the watcher stays the only thing that recovers, and it
