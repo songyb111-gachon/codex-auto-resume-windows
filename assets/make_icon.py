@@ -61,26 +61,40 @@ def _triangle(px, py, a, b, c):
 
 
 RING_INNER, RING_OUTER = 0.34, 0.54
-ARC_START, ARC_END = math.radians(118), math.radians(62)
+ARC_START, ARC_END = math.radians(118), math.radians(20)
+
+# The head's proportions, which are the whole difference between an arrowhead and a
+# smudge. Three shapes were rendered and looked at before this one; two are worth
+# recording, because both look reasonable in the arithmetic and wrong on the screen:
+#
+#   * A short tip along the tangent with a wide base reads as a flag on a pole. The
+#     base is wider than the head is long, so nothing about it points anywhere.
+#   * A tip placed back on the ring's centre circle reads as a hook: the triangle's
+#     straight edges chord across the curve, so the head bends over the gap and its
+#     outer edge steps inside the ring's own outer radius.
+#
+# What works is a head clearly longer than it is wide, ending the arc early enough that
+# the head has room, and aimed along the tangent tilted back toward the ring so it
+# leaves the curve gradually instead of shooting off it.
+HEAD_HALF_BASE = 0.17
+HEAD_REACH = 0.42
+HEAD_TILT = math.radians(-24)
 
 
 def _arrow_triangle():
     """Head at the end of the sweep: base across the stroke, tip along the motion.
 
-    The base is a radial cut that overhangs the stroke on both sides, so it merges with
-    the arc's own radial terminus instead of leaving a notch. The tip continues counter-
-    clockwise into the ring's gap.
+    The base is a radial cut centred on the stroke that overhangs it on both sides, so
+    it merges with the arc's own radial end instead of leaving a notch.
     """
     radial = (math.cos(ARC_END), math.sin(ARC_END))
-    tangent = (-math.sin(ARC_END), math.cos(ARC_END))     # counter-clockwise motion
-    centre = ((RING_INNER + RING_OUTER) / 2.0 * radial[0],
-              (RING_INNER + RING_OUTER) / 2.0 * radial[1])
-    overhang, reach = 0.09, 0.19
-    inner = (RING_INNER - overhang, RING_OUTER + overhang)
+    aim = ARC_END + math.pi / 2 + HEAD_TILT          # counter-clockwise, tilted back
+    middle = (RING_INNER + RING_OUTER) / 2.0
+    centre = (middle * radial[0], middle * radial[1])
     return (
-        (inner[0] * radial[0], inner[0] * radial[1]),
-        (inner[1] * radial[0], inner[1] * radial[1]),
-        (centre[0] + tangent[0] * reach, centre[1] + tangent[1] * reach),
+        (centre[0] - radial[0] * HEAD_HALF_BASE, centre[1] - radial[1] * HEAD_HALF_BASE),
+        (centre[0] + radial[0] * HEAD_HALF_BASE, centre[1] + radial[1] * HEAD_HALF_BASE),
+        (centre[0] + math.cos(aim) * HEAD_REACH, centre[1] + math.sin(aim) * HEAD_REACH),
     )
 
 
