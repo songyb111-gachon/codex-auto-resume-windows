@@ -329,19 +329,36 @@ class EngineNotificationTests(unittest.TestCase):
         harness, thread = self.harness()
         record = harness.record(thread)
         self.assertEqual(len(harness.notifications), 1)
-        thread_id, interruption_id, _reset, category = harness.notifications[0]
-        self.assertEqual(thread_id, record["thread_id"])
-        self.assertEqual(interruption_id, record["interruption_id"])
-        self.assertEqual(category, "usage_limit")
+        event, detail = harness.notifications[0]
+        self.assertEqual(event, "interruption")
+        self.assertEqual(detail["thread_id"], record["thread_id"])
+        self.assertEqual(detail["interruption_id"], record["interruption_id"])
+        self.assertEqual(detail["category"], "usage_limit")
+
+    def test_an_interruption_is_announced_once_however_often_it_is_seen(self):
+        harness, thread = self.harness()
+        for _ in range(3):
+            harness.tick()
+        self.assertEqual([event for event, _detail in harness.notifications], ["interruption"])
+
+    def test_every_lifecycle_event_maps_to_a_notification_setting(self):
+        # An event the settings cannot govern is an event nobody can turn off.
+        from codex_auto_resume import engine, settings
+        for event in set(engine.NOTIFY_ON_STATE.values()) | {"interruption", "starting"}:
+            self.assertIn(event, settings.NOTIFICATION_EVENTS, event)
 
 
 class NotificationSettingTests(unittest.TestCase):
     def test_messages_exist_in_every_language(self):
-        for key in ("toast_unnamed", "toast_thread", "toast_usage_at", "toast_usage_soon",
-                    "toast_transient", "toast_button_cancel", "toast_button_no_retry",
-                    "toast_cancelled_title", "toast_cancelled_body"):
-            for code in messages.SUPPORTED:
-                self.assertTrue(messages.MESSAGES[code][key], (code, key))
+        # Compared as sets rather than a hand-kept list: a string added to one language
+        # and forgotten in the other is exactly the kind of omission nobody notices
+        # until a Korean user gets a KeyError instead of a notification.
+        catalogues = [set(messages.MESSAGES[code]) for code in messages.SUPPORTED]
+        for keys in catalogues[1:]:
+            self.assertEqual(keys, catalogues[0])
+        for code in messages.SUPPORTED:
+            for key, value in messages.MESSAGES[code].items():
+                self.assertTrue(value.strip(), (code, key))
 
 
 if __name__ == "__main__":

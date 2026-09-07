@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from codex_auto_resume import cli, config, logbook, shortcut, startup
+from codex_auto_resume import cli, config, logbook, settings, shortcut, startup
 from codex_auto_resume.app import DEFAULT_POLL, App
 from codex_auto_resume.store import Store, StoreError
 
@@ -227,7 +227,22 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertEqual(config.load_settings(config.Paths(self.home))["detection_lookback_hours"], 2.0)
         (self.home / "config" / "settings.json").write_text("{not json", encoding="utf-8")
-        self.assertEqual(config.load_settings(config.Paths(self.home))["detection_lookback_hours"], config.LOOKBACK_HOURS_DEFAULT)
+        self.assertEqual(config.load_settings(config.Paths(self.home))["detection_lookback_hours"],
+                         settings.DEFAULTS["detection_lookback_hours"])
+
+    def test_command_line_edit_leaves_the_other_settings_alone(self):
+        # The command line, the settings window and the Codex skill share one file. A
+        # front end that names one field and rewrites the rest silently discards
+        # whatever the others saved, which is invisible until recovery stops happening.
+        paths = config.Paths(self.home)
+        config.update_settings(paths, {"recover_timeout": False, "notify_starting": False,
+                                       "max_recovery_attempts": 9})
+        self.cli("enable", "--lookback-hours", "3")
+        stored = config.load_settings(paths)
+        self.assertEqual(stored["detection_lookback_hours"], 3.0)
+        self.assertIs(stored["recover_timeout"], False)
+        self.assertIs(stored["notify_starting"], False)
+        self.assertEqual(stored["max_recovery_attempts"], 9)
 
     def test_logs_command_and_rotation_setup(self):
         self.cli("enable")

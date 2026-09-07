@@ -8,7 +8,7 @@ uncertainty ends in ``submission_unknown`` and is never resent automatically.
 from contextlib import nullcontext
 import time
 
-from . import failures
+from . import failures, settings as policy
 from .source import detect
 
 CONTINUATION = (
@@ -23,6 +23,17 @@ UNSENT = {"waiting_reset", "waiting_poll", "waiting_for_app", "waiting_for_loade
 # wait for, a dropped connection has nothing but elapsed time.
 TRANSIENT_BACKOFF = (5, 15, 30, 60, 120)
 IN_FLIGHT = {"submitting", "queued", "submission_unknown"}
+# States worth telling a person about, and which notification setting governs each.
+# Only outcomes appear here: the waiting states change constantly and announcing them
+# would turn a useful signal into noise nobody reads.
+NOTIFY_ON_STATE = {
+    "resumed": "result",
+    "failed": "result",
+    "submission_unknown": "result",
+    "retry_budget_exhausted": "stopped",
+    "no_progress_exhausted": "stopped",
+    "terminal_failure": "stopped",
+}
 # Bounded exponential backoff for proven "queue process never started" failures.
 BACKOFF_LADDER = (30, 60, 120, 300)
 
@@ -59,8 +70,50 @@ class Engine:
                         # keeps failing, or keeps producing nothing, is abandoned.
                         "max_recovery_attempts": 4,
                         "max_no_progress": 3,
+                        # The ladder a transient failure waits on, and the categories the
+                        # user has left switched on. None means "every category the
+                        # classifier can produce" - the shipped behaviour.
+                        "retry_ladder": TRANSIENT_BACKOFF,
+                        "recoverable_categories": None,
                         **(options or {})}
         self._usage_cache = None
+        self._declined = set()
+        self._announced = set()
+
+    # ------------------------------------------------------------------ policy
+    def apply_policy(self, values) -> None:
+        """Adopt the user's configurable policy.
+
+        Policy only. Nothing here can widen what the classifier treats as recoverable,
+        shorten a revalidation, resend an uncertain submission or lift any other safety
+        gate - those are properties of the engine, not preferences. The worst a bad
+        settings file can do through this method is make recovery more conservative,
+        because every value it reads has already been coerced to a sane default.
+        """
+        values = policy.coerce(values)
+        self.options["max_recovery_attempts"] = values["max_recovery_attempts"]
+        self.options["max_no_progress"] = values["max_no_progress"]
+        self.options["retry_ladder"] = policy.timing_ladder(values)
+        self.options["detection_lookback_seconds"] = float(values["detection_lookback_hours"]) * 3600.0
+        self.options["recoverable_categories"] = frozenset(
+            category for category in policy.CONFIGURABLE_CATEGORIES
+            if policy.category_enabled(values, category))
+
+    def recovers(self, category) -> bool:
+        """Whether the user has left this category of failure switched on.
+
+        A category with no switch is recovered: the classifier already decided it is
+        safe, and the absence of a toggle is not an instruction to stop.
+        """
+        allowed = self.options.get("recoverable_categories")
+        if allowed is None or category not in policy.CONFIGURABLE_CATEGORIES:
+            return True
+        return category in allowed
+
+    def delay_for(self, attempt: int) -> int:
+        """The configured wait before the next attempt at a transient failure."""
+        ladder = self.options.get("retry_ladder") or TRANSIENT_BACKOFF
+        return ladder[max(0, min(int(attempt) - 1, len(ladder) - 1))]
 
     # ----------------------------------------------------------------- helpers
     def transition(self, row, state, reason=None, delay=None, **extra):
@@ -68,8 +121,36 @@ class Engine:
         if delay is not None:
             values["next_retry_at"] = self.clock() + delay
         self.store.update(row["interruption_id"], **values)
-        if row.get("state") != state or row.get("last_error") != reason:
+        changed = row.get("state") != state
+        if changed or row.get("last_error") != reason:
             self.log(row["thread_id"], state, reason)
+        # Announced from the transition itself, so the notification and the recorded
+        # state can never disagree, and only on a real change - a record that keeps
+        # re-entering the same state says nothing new.
+        if changed and state in NOTIFY_ON_STATE:
+            self.announce(NOTIFY_ON_STATE[state], row, state=state, reason=reason)
+
+    def announce(self, event, row, **detail):
+        """Tell the user something happened. Never affects what happens.
+
+        Deduplicated per interruption and event: an interruption is announced as
+        resumed once, not once per reconciliation pass. Any failure inside the
+        notifier is swallowed here, because a toast that cannot be drawn must never
+        decide whether a task is recovered.
+        """
+        key = (row.get("interruption_id"), event)
+        if key in self._announced:
+            return
+        if len(self._announced) > 4096:
+            self._announced.clear()
+        self._announced.add(key)
+        try:
+            self.notify(event, {"thread_id": row.get("thread_id"),
+                                "interruption_id": row.get("interruption_id"),
+                                "category": row.get("category"),
+                                "reset_at": row.get("reset_at"), **detail})
+        except Exception:
+            self.log(row.get("thread_id"), "notification_failed", event)
 
     def valid_interruption(self, row):
         latest = self.source.latest(row["thread_id"])
@@ -179,6 +260,15 @@ class Engine:
             if self.store.get(record["interruption_id"]) is not None:
                 continue
             category = record["category"]
+            if not self.recovers(category):
+                # Logged once per interruption: the user switched this off deliberately,
+                # so it is a fact worth being able to find, not a repeating complaint.
+                if record["interruption_id"] not in self._declined:
+                    if len(self._declined) > 512:
+                        self._declined.clear()
+                    self._declined.add(record["interruption_id"])
+                    self.log(record["thread_id"], "category_recovery_disabled", category)
+                continue
             usage = category == failures.USAGE_LIMIT
             # A reset timestamp only exists for a usage limit; a transient failure has
             # nothing to wait for but time, so the two schedules are computed separately.
@@ -201,7 +291,7 @@ class Engine:
                         else now + self.options["conservative_poll_seconds"])
             else:
                 state = "waiting_backoff"
-                when = now + transient_delay(1)
+                when = now + self.delay_for(1)
             # One transaction: the record can never exist without its real schedule.
             if self.store.register(detection, now, state=state, next_retry_at=when):
                 self.log(detection["thread_id"],
@@ -214,13 +304,10 @@ class Engine:
                 if detection["uncertain"]:
                     self.log(detection["thread_id"], "blocking_limit_uncertain", None)
                 self.carry_no_progress(detection)
-                try:
-                    # Purely informational, and the only moment a control can be offered
-                    # at the time it matters. A notification that fails must never change
-                    # whether this interruption is resumed.
-                    self.notify(detection["thread_id"], detection["interruption_id"], reset, category)
-                except Exception:
-                    self.log(detection["thread_id"], "notification_failed", None)
+                # The only moment a control can be offered at the time it matters: the
+                # Codex turn has already failed, so nothing can be added to the app's
+                # own notice, but the watcher is running right now.
+                self.announce("interruption", detection)
 
     # --------------------------------------------------------------- attempt
     def attempt(self, row):
@@ -289,6 +376,7 @@ class Engine:
                 return
             self.store.update(row["interruption_id"], recovery_attempts=attempts)
             self.log(row["thread_id"], "queue_submission_started", None)
+            self.announce("starting", row)
             # Reservation is durable before any external process can accept the message.
             try:
                 response = self.backend.send(row["thread_id"], CONTINUATION + "\n\n" + row["marker"])
@@ -305,7 +393,7 @@ class Engine:
                 if retry >= self.options["max_queue_retries"]:
                     self.transition(reserved, "failed", "queue_launch_retry_limit", retry_count=retry, submitted_at=None)
                 else:
-                    delay = (transient_delay(attempts) if row["category"] != failures.USAGE_LIMIT
+                    delay = (self.delay_for(attempts) if row["category"] != failures.USAGE_LIMIT
                              else backoff_delay(retry))
                     self.transition(reserved, "waiting_retry", "queue_process_not_started", retry_count=retry,
                                     submitted_at=None, delay=delay)

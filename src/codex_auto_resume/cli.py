@@ -10,7 +10,7 @@ import sys
 import time
 import uuid
 
-from . import config, notify, shortcut, startup
+from . import config, notify, settings, shortcut, startup
 from .app import EXIT_BUSY, EXIT_ERROR, EXIT_OK, App
 from .logbook import format_local, tail
 from .store import TERMINAL, StoreError
@@ -43,7 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("enable", help="enable automatic resume globally, or for one thread")
     p.add_argument("thread_id", nargs="?")
-    p.add_argument("--lookback-hours", type=float, help="failures up to this old at enable time stay eligible (default %.0f)" % config.LOOKBACK_HOURS_DEFAULT)
+    p.add_argument("--lookback-hours", type=float, help="failures up to this old at enable time stay eligible (default %.0f)" % settings.DEFAULTS["detection_lookback_hours"])
 
     p = sub.add_parser("disable", help="kill switch: stop all automatic resumes (or one thread)")
     p.add_argument("thread_id", nargs="?")
@@ -95,10 +95,8 @@ def _app(args) -> App:
 def cmd_enable(args) -> int:
     app = _app(args)
     if args.lookback_hours is not None:
-        settings = dict(app.settings)
-        settings["detection_lookback_hours"] = args.lookback_hours
-        config.save_settings(app.paths, settings)
-        app.settings = settings
+        # An update, not a save: naming one field must never rewrite the other fifteen.
+        app.settings = config.update_settings(app.paths, {"detection_lookback_hours": args.lookback_hours})
     with app.open_store() as store:
         if args.thread_id:
             thread_id = canonical_thread_id(args.thread_id)

@@ -10,9 +10,6 @@ import tempfile
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ENV_HOME = "CODEX_AUTO_RESUME_HOME"
 ENV_CODEX_EXE = "CODEX_AUTO_RESUME_CODEX_EXE"
-MAX_SETTINGS_BYTES = 64 * 1024
-LOOKBACK_HOURS_DEFAULT = 6.0
-LOOKBACK_HOURS_MAX = 24 * 7
 # Provenance marker: uninstall deletes ONLY inside a directory this tool created.
 # Without it, a name match alone could remove a user file that merely shares the name.
 OWNER_MARKER = ".owned-by-codex-auto-resume"
@@ -155,52 +152,34 @@ def discover_codex_exe(explicit: str | os.PathLike | None, compatible) -> Path:
 
 
 def load_settings(paths: Paths) -> dict:
-    """Optional user settings; malformed files are ignored, never rewritten."""
-    defaults = {"detection_lookback_hours": LOOKBACK_HOURS_DEFAULT, "codex_exe": None, "notifications": True}
-    path = paths.settings_file
-    try:
-        if not path.is_file() or path.is_symlink() or path.stat().st_size > MAX_SETTINGS_BYTES:
-            return defaults
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError, UnicodeError):
-        return defaults
-    if not isinstance(raw, dict):
-        return defaults
-    hours = raw.get("detection_lookback_hours", defaults["detection_lookback_hours"])
-    if isinstance(hours, bool) or not isinstance(hours, (int, float)) or not 0 <= hours <= LOOKBACK_HOURS_MAX:
-        hours = defaults["detection_lookback_hours"]
-    exe = raw.get("codex_exe")
-    if not isinstance(exe, str) or not exe:
-        exe = None
-    notifications = raw.get("notifications", defaults["notifications"])
-    if not isinstance(notifications, bool):
-        notifications = defaults["notifications"]
-    return {"detection_lookback_hours": float(hours), "codex_exe": exe, "notifications": notifications}
+    """Read the user's settings.
+
+    A thin adapter over the shared settings module, which owns the schema, the
+    defaults, the validation and the file format. This used to be a second reader that
+    understood three of the sixteen fields, and its matching writer persisted only
+    those three - so changing the lookback from the command line silently erased every
+    recovery category and notification preference set anywhere else. One reader and one
+    writer is the point: there is no version of "partly authoritative" that is safe.
+    """
+    from . import settings as _settings
+    return _settings.load(paths.settings_file)
 
 
-def save_settings(paths: Paths, settings: dict) -> None:
+def save_settings(paths: Paths, values: dict) -> dict:
+    """Persist a complete settings mapping through the shared validator."""
+    from . import settings as _settings
     paths.ensure()
-    hours = settings.get("detection_lookback_hours", LOOKBACK_HOURS_DEFAULT)
-    if isinstance(hours, bool) or not isinstance(hours, (int, float)) or not 0 <= hours <= LOOKBACK_HOURS_MAX:
-        raise ConfigError("detection_lookback_hours must be between 0 and %d" % LOOKBACK_HOURS_MAX)
-    exe = settings.get("codex_exe")
-    if exe is not None and (not isinstance(exe, str) or not exe):
-        raise ConfigError("codex_exe must be a non-empty path or null")
-    notifications = settings.get("notifications", True)
-    if not isinstance(notifications, bool):
-        raise ConfigError("notifications must be true or false")
-    payload = {"detection_lookback_hours": float(hours), "codex_exe": exe, "notifications": notifications}
-    # mkstemp creates a uniquely named file with O_EXCL, so a pre-planted symlink at a
-    # predictable temp path cannot be followed, and concurrent writers never collide.
-    descriptor, temporary_name = tempfile.mkstemp(dir=str(paths.state_dir), prefix="settings.", suffix=".json.tmp")
-    temporary = Path(temporary_name)
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            json.dump(payload, stream, indent=2)
-        os.replace(temporary, paths.settings_file)
-    except OSError as exc:
-        try:
-            temporary.unlink()
-        except OSError:
-            pass
-        raise ConfigError("Cannot save settings") from exc
+        return _settings.save(paths.settings_file, values)
+    except _settings.SettingsError as exc:
+        raise ConfigError(str(exc)) from None
+
+
+def update_settings(paths: Paths, changes: dict) -> dict:
+    """Merge an explicit edit, leaving every field the caller did not name alone."""
+    from . import settings as _settings
+    paths.ensure()
+    try:
+        return _settings.update(paths.settings_file, changes)
+    except _settings.SettingsError as exc:
+        raise ConfigError(str(exc)) from None
