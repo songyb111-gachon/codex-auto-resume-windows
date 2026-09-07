@@ -19,8 +19,10 @@ The repository root *is* the plugin root. There is exactly one copy of `src/`.
 | Path | Purpose |
 | --- | --- |
 | `.agents/plugins/marketplace.json` | Marketplace index; one entry whose `source.path` is `"."`. |
-| `.codex-plugin/plugin.json` | Plugin manifest. Declares `skills`, nothing else executable. |
+| `.codex-plugin/plugin.json` | Plugin manifest. Declares `skills` and the card's artwork; nothing else executable. |
 | `skills/codex-auto-resume/SKILL.md` | What Codex reads to answer "turn on auto resume". |
+| `scripts/bootstrap.ps1` | Turns the plugin into an installation (see below). |
+| `scripts/release.json` | The only location the bootstrap may fetch from, and the pinned digests. |
 | `scripts/plugin_setup.py` | The control layer the skill calls. |
 | `scripts/watcher_launcher.py` | Stable autostart entry point (see below). |
 
@@ -89,16 +91,62 @@ codex-auto-resume
 variable form is reported back as a literal path segment appended to the plugin root, so the
 plain form is the one that resolves the way it reads.
 
+## The plugin is not the product, so it installs the product
+
+A plugin is a source tree. The parts that do the work — a Python runtime, a settings
+window, an MCP launcher — are a runtime and two compiled binaries, and they have no
+business in a source repository. So they are not in the plugin, and cannot be.
+
+**Codex has no install hook to put them there either.** Measured against `codex-cli
+0.153.4`, on a machine with nineteen installed plugins: a manifest may declare `skills`,
+`mcpServers`, `apps` and `hooks`, and none of those runs a command when a plugin is
+installed. `apps` names *hosted connectors* by id, which is no use to a local Windows
+tool. `hooks` fires on conversation lifecycle events and routes to an MCP tool — and the
+CLI's own guidance is to omit it from an authored manifest, because validation rejects it.
+`codex plugin` offers `add`, `list`, `marketplace` and `remove`, and nothing else.
+
+So `scripts/bootstrap.ps1` fetches the matching release and runs its installer. It is
+PowerShell rather than Python because Python is one of the things it installs. What it is
+allowed to do is deliberately narrow:
+
+| | |
+| --- | --- |
+| **Where from** | One URL shape, built from `scripts/release.json` and the version in this plugin's own manifest. No "latest", no parameter that reaches a URL: a v0.5.2 plugin can fetch the v0.5.2 archive and nothing else. |
+| **Over what** | HTTPS, TLS 1.2 minimum, and the *final* response URI has to be `github.com` or `*.githubusercontent.com`, because a release download redirects to GitHub's object storage and nowhere else. |
+| **Checked how** | SHA-256 against the digest pinned in `release.json` when there is one, and otherwise against the `.sha256` published beside the archive. Then that the archive contains everything the release is defined to contain, that its manifest declares this product at this version, and that no entry escapes extraction. |
+| **Then** | Extract to a fresh temporary directory and run `install/install.ps1` from it. Nothing from the archive runs before all of the above passes. |
+| **Never** | Administrator rights, any change to a Windows security setting, any execution-policy change beyond its own process, and nothing downloaded is ever passed to a shell. Any failure deletes the download and stops. |
+
+**About the two digest cases**, because the difference is worth stating rather than
+blurring. A pinned digest is a commitment made in the repository: the file has to be
+exactly those bytes. The sidecar is served from the same origin as the archive, so
+checking one against the other is trust-on-first-use over TLS to GitHub — it proves the
+download is intact and is a coherent build of this exact version, not that GitHub served
+what the author intended. The script prints which of the two it used. A version's digest
+is null at the moment it is tagged and filled in after publication, because the archive is
+not reproducible: the in-box C# compiler stamps a fresh module version GUID into every
+build, so the digest can only come from the published file.
+
+Verified by feeding it a file that is not an archive, a genuine archive declaring a
+different version, and a correct archive against a deliberately wrong pinned digest. All
+three were refused with nothing installed.
+
 ## Runtime state lives outside the plugin
 
-The plugin cache path contains the version, so it changes on every update. Two consequences are
-designed around:
+The plugin cache path contains the version, so it changes on every update. Three
+consequences are designed around:
 
 - **State must not live in the plugin.** Pending interruptions, settings and logs live in
   `%USERPROFILE%\.codex-auto-resume\`. Updating or removing the plugin never destroys them.
 - **Autostart must not point into the plugin.** Setup copies `watcher_launcher.py` to that same
-  stable directory and registers *that*. At each launch it re-resolves the newest installed
-  plugin version, so an update needs no re-registration.
+  stable directory and registers *that*, so an update needs no re-registration.
+- **The installed application is the engine**, not the plugin cache copy. The launcher
+  resolves `%USERPROFILE%\.codex-auto-resume\app` first and only falls back to the cache
+  when there is no installation. It used to prefer the newest cache copy by modification
+  time, which meant installing a newer plugin from a marketplace silently swapped the
+  engine underneath an older installation while the settings window still talked to the
+  old one. Updating a plugin should update the skills and the manifest; replacing the
+  engine is what the installer is for.
 
 Tested: after replacing `0.2.0` with `0.2.1+codex.local-test` and deleting the old directory,
 the launcher resolved the new one and the state was untouched.
@@ -125,6 +173,21 @@ A manual checkout and a plugin installation keep separate state and separate sin
 locks, so both watchers would run and could each resume the same interruption. `setup` therefore
 checks the registered autostart value and stops if it belongs to a different installation.
 `status` reports the same conflict.
+
+Since v0.5.2 there is a second, earlier refusal, because the first one arrived too late.
+`setup` will not configure a watcher at all unless the bundled runtime and the application
+are both present in the state directory — it prints the bootstrap command instead. What it
+used to do was register a watcher against whatever interpreter was running it, which is how
+a marketplace install produced a lesser second product in the first place: a different
+Python, no settings window, no panel, and the same state directory as a real install. Every
+registration setup writes — the sign-in entry, the notification handler and the watcher
+itself — now names the interpreter the installer deployed, not the one that ran setup.
+
+The installer takes a named lock for the same reason, so a double-clicked `Install.cmd`
+and a plugin bootstrap cannot copy over each other's half-written payload. It is not
+released explicitly: the installer has many exit points, Windows releases a mutex when the
+process ends, and an *abandoned* lock means the previous holder died, so it is taken rather
+than treated as contention.
 
 Related: `uninstall` only unregisters an autostart value that belongs to the home being
 uninstalled. It reports and keeps anything else.

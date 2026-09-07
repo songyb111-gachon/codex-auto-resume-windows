@@ -47,6 +47,33 @@ the ZIP and its SHA-256 into `build/dist/`.
 
 Releases are published by the tagged GitHub Actions workflow, not from a developer machine.
 
+### After a release is published: pin its digest
+
+The Codex plugin installs the release by downloading it, so it needs to know what the
+archive should hash to. `scripts/release.json` maps a version to that digest, and the entry
+for a version being released is `null` until the archive exists — a chicken-and-egg the
+build cannot solve, because the archive is not reproducible. (The in-box C# compiler stamps
+a fresh module version GUID into every assembly, so two builds of identical source differ.
+`build/make_release.py` says so in full.)
+
+So, once the release is up:
+
+1. Download the published `CodexAutoResume-v<version>-win-x64.zip`.
+2. `Get-FileHash <zip> -Algorithm SHA256` — and check it against the published `.sha256`.
+3. Put that digest in `scripts/release.json` under the version, and commit.
+
+Until that commit exists, the plugin verifies against the published `.sha256` sidecar
+instead and says so when it runs. That is weaker — the sidecar comes from the same origin
+as the archive — so it is worth closing rather than leaving.
+
+### Changing anything visual
+
+Colours, the icon and the generated files that carry them are covered in
+[`docs/BRAND.md`](docs/BRAND.md). The short version: the palette lives in
+`src/codex_auto_resume/brand.py`, `gui/Brand.cs` and `assets/brand/icon.svg` are generated
+from it, and `tests/test_brand.py` regenerates both and compares. Do not write a colour
+literal into the settings window or the panel stylesheet; there is a test for that too.
+
 ## The MCP declaration is added at build time
 
 The repository manifest declares only `skills`. The release build adds `mcpServers` to the

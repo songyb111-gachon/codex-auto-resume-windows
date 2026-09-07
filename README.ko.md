@@ -36,14 +36,42 @@ Windows ChatGPT/Codex 데스크톱 앱을 위한 작은 로컬 watcher입니다.
 
 **Windows 10/11. Python 불필요. 관리자 권한 불필요.**
 
+### Codex에서 설치 (권장)
+
+플러그인을 추가한 뒤, Codex에게 **auto resume 설정해줘** 라고 말하면 됩니다.
+
+```
+codex plugin marketplace add songyb111-gachon/codex-auto-resume-windows
+codex plugin add codex-auto-resume@codex-auto-resume-windows
+```
+
+그러면 플러그인의 설치 스크립트가 실행됩니다. 이 저장소의 릴리스에서 해당 버전 압축 파일을
+HTTPS로 내려받아 SHA-256을 확인하고, 내용이 정말 이 제품의 이 버전인지 확인한 다음에야 설치합니다.
+설치 위치는 사용자 프로필 안이며 그 밖은 건드리지 않습니다. 실행하기 전에 무엇을 할지 먼저
+알려줍니다.
+
+플러그인 자체는 스킬과 패널일 뿐이고, 워처와 설정 창과 Windows 런타임은 그 릴리스에서 옵니다.
+그래서 다운로드가 필요하며, 스크립트가 무엇을 하고 무엇을 하지 않는지 미리 확인하고 싶다면
+[`docs/PLUGIN.md`](docs/PLUGIN.md)를 읽어 보세요.
+
+### 릴리스 압축 파일로 설치
+
+무언가가 대신 다운로드하는 것이 마음에 들지 않는다면:
+
 1. [최신 릴리스](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest)에서
    `CodexAutoResume-<버전>-win-x64.zip`을 받습니다.
-2. 아무 곳에나 압축을 풉니다.
-3. **`Install.cmd`**를 더블클릭합니다.
+2. 원한다면 옆에 함께 게시된 `.sha256`과 대조해 확인합니다.
+3. 아무 곳에나 압축을 풀고 **`Install.cmd`**를 더블클릭합니다.
 
-이게 전부입니다. 압축 파일이 자체 Python 런타임을 담고 있어서 미리 설치할 것이 없고, 끝나면 권장
-설정이 이미 켜져 있습니다. `Install.cmd`를 다시 실행하면 그 자리에서 업그레이드하면서 대기 중인
-재개를 그대로 유지하고, `Uninstall.cmd`가 되돌립니다.
+압축 파일이 자체 Python 런타임을 담고 있어서 미리 설치할 것이 없고, 끝나면 권장 설정이 이미 켜져
+있습니다. Codex 플러그인도 압축 파일 안에서 등록하므로, 이 경로는 네트워크 접근 없이도 패널까지
+함께 설치됩니다.
+
+### 어느 쪽이든
+
+두 경로 모두 `%USERPROFILE%\.codex-auto-resume` 한 곳에 설치됩니다. 워처 하나, 데이터베이스 하나,
+설정 파일 하나, 로그인 항목 하나입니다. 어느 쪽이든 다시 실행하면 업그레이드이자 복구 경로이며,
+대기 중인 재개를 그대로 유지합니다. `Uninstall.cmd` 또는 Codex에게 제거를 요청하면 되돌립니다.
 
 설치 후에는 **시작 메뉴 → Codex Auto Resume**에서, 또는 Codex에게 *auto resume 설정 열어줘* 라고
 말해서 설정을 바꿀 수 있습니다.
@@ -55,7 +83,12 @@ Windows ChatGPT/Codex 데스크톱 앱을 위한 작은 로컬 watcher입니다.
 
 <img src="docs/images/notification.png" alt="Codex Auto Resume가 보낸 Windows 알림. 사용량 한도에 도달했고 초기화 후 재개한다는 내용과 재개하지 않음 버튼" width="470">
 
-설정은 Codex를 꺼 둔 상태에서도 시작 메뉴에서 전부 바꿀 수 있습니다.
+Codex 안에서 *auto resume 설정 열어줘* 라고 하면, 무엇이 대기 중인지 보여주고 그 자리에서 바꿀 수
+있는 패널이 열립니다.
+
+<img src="docs/images/settings-panel.png" alt="Codex 안의 Codex Auto Resume 패널. 워처가 중단을 감시 중이며 세 건이 재개 대기 중이라는 상태 줄, 대기 목록 표, 복구할 장애 종류·시도 상한·알림 스위치 카드" width="680">
+
+같은 설정을 Codex를 꺼 둔 상태에서도 시작 메뉴의 독립 창에서 전부 바꿀 수 있습니다.
 
 <img src="docs/images/settings-window.png" alt="Codex Auto Resume 설정 창. 복구할 장애 종류, 시도 상한, 재시도 간격, 알림 스위치" width="680">
 

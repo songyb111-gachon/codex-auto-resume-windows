@@ -1,5 +1,84 @@
 # Changelog
 
+## v0.5.2 — Install it from Codex, and look like one product
+
+A patch release. Recovery is unchanged: the same failure categories, the same refusals, the
+same identity rules, the same database. What changed is how you install it and what it looks
+like once you have.
+
+### Installing it from Codex actually installs it
+
+Adding this plugin from a marketplace used to hand you a source tree and a skill whose first
+instruction was to find any Python that would run. That produced a **second, lesser
+installation**: a watcher registered against whatever interpreter answered, no settings
+window, no panel, an engine loaded from the plugin cache — and if the machine already had a
+real installation, both of them sharing one state directory.
+
+- **The plugin now installs the product.** Ask Codex to *set up auto resume* and it runs
+  `scripts/bootstrap.ps1`, which downloads the matching release, verifies it and installs it.
+  Nothing has to be installed first: no Python, no administrator rights, no manual download.
+- **What it is allowed to fetch is narrow on purpose.** One URL shape, built from constants
+  and this plugin's own version — no "latest", and no input that reaches a URL, so a v0.5.2
+  plugin can ask for the v0.5.2 archive and nothing else. HTTPS with TLS 1.2 minimum, and the
+  final response has to come from GitHub.
+- **It verifies before it runs anything.** SHA-256 against a digest pinned in the plugin when
+  there is one and the published `.sha256` otherwise — it prints which of the two it used
+  rather than implying the stronger one — then that the archive contains what a release is
+  defined to contain, that its manifest declares this product at this version, and that no
+  entry escapes extraction. Any failure deletes the download and stops. Checked against a
+  file that is not an archive, a genuine archive declaring the wrong version, and a correct
+  archive against a wrong pinned digest.
+- The README now leads with the Codex route and keeps the archive route for anyone who would
+  rather nothing downloaded on their behalf. Both end at the same installation.
+
+### One installation, whichever way you arrive
+
+- **Fixed: a plugin update could swap the engine underneath an installation.** The watcher
+  resolved its code from the newest copy in the Codex plugin cache, by modification time, so
+  installing a newer plugin from a marketplace silently replaced the running engine while the
+  settings window still talked to the installed one. The installed application now wins.
+- **Fixed: setup would configure a watcher with nothing to run it.** It now refuses unless the
+  bundled runtime and the application are both present, and prints the command that installs
+  them, instead of improvising a lesser installation.
+- **Fixed: the sign-in entry could name a different interpreter from the installed one.** Every
+  registration setup writes — autostart, the notification handler, the watcher itself — now
+  names the interpreter the installer deployed.
+- **Fixed: the installer ignored the state-directory override the Python side honours**, so
+  setting it deployed to one place and configured another.
+- **Two installers can no longer run at once.** A double-clicked `Install.cmd` and a plugin
+  bootstrap used to be able to copy over each other's half-written payload.
+
+### A new look
+
+- **The green is retired.** The identity is a deep-blue to cyan ramp that carries the product's
+  own behaviour: deep blue while it waits, cyan the moment it acts.
+- **A new mark.** Four concepts were built and compared at all nine icon sizes on light and
+  dark grounds — `build/icon_concepts.py` still renders the sheet — and the winner is an open
+  ring with a bright head at its leading end: the ring is the wait, the gap is the
+  interruption, the head is the resume. There is a vector master at `assets/brand/icon.svg`.
+- **The settings window and the Codex panel were redesigned together.** State leads on both
+  now: what the watcher is doing is the first thing and the largest type, where it used to be a
+  muted sentence along the bottom under sixteen checkboxes. What is waiting to resume comes
+  before what is configured, and the cards run in the order the argument does — what may be
+  recovered, how hard it will try, what it will tell you, when it starts.
+- **The plugin card has artwork.** Codex has always validated an icon, a light and dark logo
+  and screenshots; this project never supplied any of them.
+- **Fixed: white text on the panel's dark-theme accent measured 2.6:1.** Found by a contrast
+  assertion, not by looking at it. Text drawn on the accent is now its own colour, and it goes
+  dark exactly when the accent goes light.
+- **Fixed: the panel asked for a colour variable the generator never emitted.** That is not an
+  error in CSS — the declaration is dropped and the text quietly inherits.
+
+### One palette instead of four
+
+Four surfaces carried their own copies of the colours — the settings window in C# literals,
+the panel in a stylesheet, the icon renderer, the plugin manifest — and they had already
+drifted. The palette now lives in one module; `gui/Brand.cs` and the panel's stylesheet are
+generated from it, and tests regenerate both and compare, so a hand-edit fails the suite
+instead of shipping. A test also sweeps every tracked file for the retired colours, because
+that is how a colour survives a rebrand: in a document nobody reopened.
+[`docs/BRAND.md`](docs/BRAND.md) records the decisions.
+
 ## v0.5.1 — Say what the product actually is
 
 A patch release. No change to how recovery works, what it will retry, or what it refuses to

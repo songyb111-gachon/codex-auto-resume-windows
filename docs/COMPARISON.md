@@ -9,9 +9,13 @@ Reviewed again for v0.5.0 against its current state: `d25fda6`, release **v0.7.9
 change is this project: it now has an MCP server and a settings window, and two entries below
 moved from *rejected* to *adapted* because of it. Saying so is the point of keeping this file.
 
+Not re-reviewed for v0.5.2: that release changed how the product is installed and what it
+looks like, and nothing in it came from reading another project. Saying that is cheaper than
+implying a review that did not happen.
+
 ## Others in the same space
 
-Checked again for v0.5.1. None of these changed what this project builds; they are listed
+Checked for v0.5.1. None of these changed what this project builds; they are listed
 because a reader deciding between them deserves an accurate map, and because how they present
 themselves is worth learning from.
 
