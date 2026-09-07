@@ -14,8 +14,9 @@ Windows only.
 ## Prefer the tools when they are available
 
 This plugin also provides tools (`open_settings`, `get_status`, `list_pending`,
-`update_settings`, `set_auto_recovery`, `cancel_recovery`, `reset_recovery_budget`,
-`retry_now`). When they are available, use them instead of the commands below: they are
+`update_settings`, `restore_default_settings`, `set_auto_recovery`, `cancel_recovery`,
+`reset_recovery_budget`, `start_watcher`, `retry_now`). When they are available, use
+them instead of the commands below: they are
 typed, they refuse an invalid value instead of writing it, and `open_settings` shows the
 user a panel they can read and change directly.
 
