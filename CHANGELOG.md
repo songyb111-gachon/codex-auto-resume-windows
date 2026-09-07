@@ -1,5 +1,68 @@
 # Changelog
 
+## v0.5.3 — Say what the network does, and close the v0.5 line
+
+The last v0.5 release. **Nothing about recovery changes** — same failure categories, same
+refusals, same identity rules, same database, same bounded retries. What changes is that the
+documentation now matches the product v0.5.2 turned it into.
+
+### The privacy wording was left behind by plugin-first install
+
+Until v0.5.2 this project made no outbound request at all, and said so in the strongest terms
+available. Then the Codex plugin became the recommended way in, and the plugin installs the
+product by downloading its release. Those sentences became false on the same day, in five
+files and two languages.
+
+- **[PRIVACY.md](PRIVACY.md) is restructured** around the distinction that now matters: what
+  the running watcher does, and what installing it does. The watcher's promise is unchanged
+  and is still the strong one — nothing under `src/` imports a networking module, so it
+  cannot open a connection even by accident. Installing from the plugin fetches one archive
+  (and its checksum, when no digest is pinned) from github.com and nowhere else. It uploads
+  nothing, but GitHub sees the request and counts the download, and this release stops
+  implying otherwise. The release-archive route still touches no network at all.
+- **Fixed: "Third parties: none."** GitHub is one, at install time.
+- **Fixed: "the fact that you installed it at all" never leaves your computer.** On the
+  recommended route it does.
+- **Fixed: the tool launches more than `codex queue`.** It also runs `codex app-server
+  --stdio`, two short interface probes, and PowerShell for the Restart Manager and toasts.
+- **Fixed: it keeps state outside its own directory.** The sign-in value, the notification
+  sender identity, the notification button's URL handler and the Start Menu entry are all
+  per-user Windows registrations, and they are now listed where the storage is described.
+- **Fixed: [SUPPORT.md](SUPPORT.md) pointed at a private security channel** that
+  [SECURITY.md](SECURITY.md) says does not exist.
+- **Fixed: `docs/PLUGIN.md` claimed nothing downloaded is passed to a shell** — while the
+  bootstrap runs the installer out of the archive it has just unpacked. The claim that holds
+  is narrower: nothing from the network is *piped into* a shell.
+- **Fixed: the bootstrap's own header overstated what `-ArchivePath` checks.** A local file
+  has no sidecar to fetch, so without a pinned digest for that version only the contents
+  checks stand behind it. It now says which of the three cases it took.
+
+### One property was undocumented rather than overstated
+
+Every `codex` subprocess this tool starts already runs with analytics off, every
+OpenTelemetry exporter off, prompt logging off, and the ChatGPT base URL pinned so a stray
+local configuration cannot send a continuation somewhere else. That has been true for
+several releases and appeared in no document. It does now, and a test keeps it.
+
+### Tests that stop this happening again
+
+`tests/test_privacy_claims.py` asserts the code property the wording rests on — which files
+may reach the network, and that the watcher's cannot — and then that no absolute network
+claim stands without its qualifier nearby. The checks are shape-based rather than exact
+strings, so a rewrite that is still true keeps passing. It guards the other direction too:
+the changelog must keep a section for every released tag, so a future sweep for a retired
+phrase cannot take the history with it.
+
+### Smaller corrections
+
+- The README no longer implies a screenshot of the Codex panel was photographed inside
+  Codex; it is a render of the exact resource the plugin serves, and now says so.
+- `watcher_launcher.py` still described the engine-resolution order from before v0.5.2.
+- `make_release.py` called the archive byte-identical across builds, three lines from its own
+  docstring explaining why it is not.
+- The README claimed Python was needed to install the plugin from a marketplace. It is not —
+  the setup script is PowerShell — and a duplicated sentence left over from v0.5.2 is gone.
+
 ## v0.5.2 — Install it from Codex, and look like one product
 
 A patch release. Recovery is unchanged: the same failure categories, the same refusals, the

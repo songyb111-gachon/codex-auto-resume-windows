@@ -66,6 +66,24 @@ Until that commit exists, the plugin verifies against the published `.sha256` si
 instead and says so when it runs. That is weaker — the sidecar comes from the same origin
 as the archive — so it is worth closing rather than leaving.
 
+### Rebuilding an already-published release's assets
+
+A published archive is a snapshot of the source as it stood when the workflow ran. If the
+commit a tag points at is corrected afterwards, the archive does not follow — it keeps
+whatever it was built from, and nothing about the release page shows that.
+
+The release workflow can rebuild one:
+
+> Actions → **release** → Run workflow → set **tag** to the existing tag, e.g. `v0.5.0`.
+
+It checks out that tag, refuses if the tag and the manifest version disagree, runs that
+tag's own test suite, rebuilds, and replaces only the ZIP and its checksum with
+`--clobber`. The tag target and the release notes are untouched.
+
+Afterwards, download the replaced asset and confirm it is what you expected before
+considering it done. It needs repository write access; there is no way to trigger it from
+a clone.
+
 ### Changing anything visual
 
 Colours, the icon and the generated files that carry them are covered in
