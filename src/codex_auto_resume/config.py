@@ -92,6 +92,20 @@ class Paths:
         return result + [self.logs_dir / OWNER_MARKER]
 
 
+def version() -> str:
+    """The product version, read from the plugin manifest.
+
+    The manifest is the one place the version is written: the release archive is named
+    from it, the release workflow refuses a tag that disagrees with it, and everything
+    that displays a version reads it from here.
+    """
+    manifest = PROJECT_ROOT / ".codex-plugin" / "plugin.json"
+    try:
+        return str(json.loads(manifest.read_text(encoding="utf-8")).get("version") or "unknown")
+    except (OSError, ValueError):
+        return "unknown"
+
+
 def codex_home() -> Path:
     value = os.environ.get("CODEX_HOME")
     if value:
