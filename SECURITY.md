@@ -5,8 +5,11 @@ and what was actually found and fixed.
 
 ## Reporting
 
-If you find a security issue, please open an issue on this repository. There is no external service or
-endpoint involved in this project, so there is nothing to report to a third party.
+If you find a security issue, please open an issue on this repository.
+
+This project operates no service of its own - no server, no endpoint, no telemetry - so there is no
+vendor backend to notify. The one external service it reaches is github.com, and only to download a
+release; a finding in GitHub itself belongs to GitHub's own reporting process, not here.
 
 ## What it touches
 
@@ -17,19 +20,27 @@ endpoint involved in this project, so there is nothing to report to a third part
 - Its own state and settings.
 - Windows process and Restart Manager information needed to identify the desktop app and its engine.
 
-**Writes**, only ever:
+**Writes** while running, only ever:
 
 - Its own `config/` and `logs/` directories.
 - One continuation message to one exact thread, through the official `codex queue` CLI.
+
+**Writes** at install time, for the current user only and never system-wide: a Start Menu shortcut,
+the sign-in autostart value unless you decline it, the notification sender identity Windows requires
+before it will draw a toast at all, and the handler for the notification button's own URL scheme.
+Uninstalling removes them.
 
 **Never reads**: `auth.json`, tokens, cookies, authorization headers, or process memory.
 **Never writes**: anything inside Codex's own databases or directories.
 
 ## Enforced properties
 
-- **No network from this code.** The Python source imports no networking module. Model requests are made
-  by the official, already-authenticated Codex binary, exactly as they would be during normal use. The
-  distinction that matters: this tool never uploads anything anywhere.
+- **No network from the recovery runtime.** The Python source imports no networking module, so the
+  watcher cannot open a connection. Model requests are made by the official, already-authenticated
+  Codex binary, exactly as they would be during normal use. The one outbound request in the product is
+  installation: `scripts/bootstrap.ps1` fetches the release archive from github.com over HTTPS and
+  verifies it before anything in it runs. The distinction that matters either way: this tool never
+  uploads anything anywhere.
 - **No shell.** Every subprocess is an argv list with `shell=False`. There is no string composition, no
   `os.system`, no `eval`/`exec`.
 - **Exact thread only.** Thread ids must be canonical UUIDs. `--last` is never used.

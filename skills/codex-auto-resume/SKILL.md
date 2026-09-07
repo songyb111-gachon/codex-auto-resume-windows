@@ -172,7 +172,9 @@ notice and none can be added; see the project's docs/PLUGIN.md if asked why.
   waits at `waiting_for_loaded_thread` until the user opens it. This is a real limitation;
   state it plainly rather than promising fully unattended recovery.
 - Reads Codex's local state read-only. It never edits Codex files, never touches
-  credentials, and sends nothing off the machine.
+  credentials, and nothing it reads leaves the machine. There is no telemetry and no
+  update check; the only part that uses the network is the setup script above, which
+  downloads and verifies the release from GitHub.
 
 ## Setup notes
 

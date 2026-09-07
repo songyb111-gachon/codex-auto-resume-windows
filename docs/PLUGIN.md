@@ -111,11 +111,11 @@ allowed to do is deliberately narrow:
 
 | | |
 | --- | --- |
-| **Where from** | One URL shape, built from `scripts/release.json` and the version in this plugin's own manifest. No "latest", no parameter that reaches a URL: a v0.5.2 plugin can fetch the v0.5.2 archive and nothing else. |
-| **Over what** | HTTPS, TLS 1.2 minimum, and the *final* response URI has to be `github.com` or `*.githubusercontent.com`, because a release download redirects to GitHub's object storage and nowhere else. |
+| **Where from** | One URL shape, built from `scripts/release.json` and the version in this plugin's own manifest. No "latest", no parameter that reaches a URL: a plugin at a given version can fetch that version's archive and nothing else. |
+| **Over what** | HTTPS, TLS 1.2 minimum, and the *final* response URI has to be one of exactly three hosts - `github.com`, `objects.githubusercontent.com` or `release-assets.githubusercontent.com` - because a release download redirects to GitHub's object storage and nowhere else. |
 | **Checked how** | SHA-256 against the digest pinned in `release.json` when there is one, and otherwise against the `.sha256` published beside the archive. Then that the archive contains everything the release is defined to contain, that its manifest declares this product at this version, and that no entry escapes extraction. |
 | **Then** | Extract to a fresh temporary directory and run `install/install.ps1` from it. Nothing from the archive runs before all of the above passes. |
-| **Never** | Administrator rights, any change to a Windows security setting, any execution-policy change beyond its own process, and nothing downloaded is ever passed to a shell. Any failure deletes the download and stops. |
+| **Never** | Administrator rights, any change to a Windows security setting, any execution-policy change beyond its own process, and nothing from the network is ever piped into a shell. Any failure deletes the download and stops. |
 
 **About the two digest cases**, because the difference is worth stating rather than
 blurring. A pinned digest is a commitment made in the repository: the file has to be

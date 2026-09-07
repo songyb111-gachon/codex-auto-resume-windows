@@ -37,7 +37,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CACHE = ROOT / "build" / "cache"
 OUT = ROOT / "build" / "dist"
 
-# Pinned so a release is reproducible and the runtime is not whatever python.org serves
+# Pinned so the bundled runtime is a known build rather than whatever python.org serves
 # today. Verified against the published sigstore/spdx artefacts.
 PYTHON_VERSION = "3.13.15"
 PYTHON_ZIP = "python-%s-embed-amd64.zip" % PYTHON_VERSION
@@ -62,7 +62,8 @@ EXCLUDE_SUFFIXES = {".pyc", ".pyo", ".log", ".sqlite", ".sqlite-wal", ".sqlite-s
 EXCLUDE_NAMES = {".owned-by-codex-auto-resume", "runtime.json", "settings.json",
                  "state.sqlite", ".DS_Store", "Thumbs.db"}
 
-# A fixed timestamp keeps the archive byte-identical across builds.
+# A fixed timestamp removes one source of build-to-build variation. It does not make the
+# archive byte-identical - see the module docstring for what does not.
 ZIP_TIMESTAMP = (2026, 1, 1, 0, 0, 0)
 
 

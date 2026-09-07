@@ -239,8 +239,11 @@ if (-not (Test-Path $Python)) { Fail 'The bundled Python runtime is missing from
 $runtimeVersion = & $Python -c 'import sys;print(str(sys.version_info[0])+chr(46)+str(sys.version_info[1]))'
 Ok ('Bundled Python ' + $runtimeVersion + ' (no system Python needed)')
 
-# The payload is itself a valid local marketplace, so the plugin installs from the same
-# bytes that were just verified, with no network access.
+# The payload is itself a valid local marketplace, so the plugin installs from the bytes
+# already on disk rather than from GitHub, with no network access. Nothing *here*
+# verifies those bytes: on the plugin route the bootstrap checked the archive before
+# unpacking it, and a hand-extracted download carries only the assurance whoever
+# downloaded it obtained for themselves.
 Step 'Registering the Codex plugin'
 $added = Invoke-Codex $codex @('plugin', 'marketplace', 'add', $AppDir)
 if ($added.Code -ne 0) {
