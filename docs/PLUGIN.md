@@ -37,8 +37,8 @@ different from the plugin name (a clone is named `codex-auto-resume-windows`, th
 
 ## The MCP server
 
-The manifest in this repository declares only `skills`; the release build adds
-`mcpServers` to the copy it ships. That split is deliberate. The server runs on the
+The manifest in this repository does not declare `mcpServers`; the release build adds it
+to the copy it ships. That split is deliberate. The server runs on the
 interpreter that comes in the release archive, so a marketplace install straight from
 GitHub has no interpreter to run it with - and with the declaration in the repository
 manifest, `codex plugin add` from a clone succeeds and registers the server as *enabled*,
@@ -291,6 +291,12 @@ popup, no tray.
 Installing from a local path copies every file in the directory, including files Git ignores
 (`config/`, `logs/`, build scratch). Installing from GitHub clones the repository, so only
 tracked files ship. Prefer the GitHub source unless you are developing the plugin.
+
+This is not what the installer does, despite also registering a local marketplace. It points
+Codex at the installed application directory, which is a payload the build assembled from an
+explicit list — no ignored files, no scratch, and no working tree to leak from. Doing it that
+way means the plugin is installed from the same bytes the archive's checksum covers, with no
+network access at all.
 
 ## Long paths
 

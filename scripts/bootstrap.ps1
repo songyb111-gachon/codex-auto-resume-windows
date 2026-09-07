@@ -192,6 +192,7 @@ if ($installed -eq $version -and -not $Force) {
 # the install itself, takes the lock in install.ps1 where every route passes through
 # it. One owner, no recursive acquisition, and a second bootstrap is refused at the
 # moment it would actually collide rather than at the moment it starts.
+$started = $false
 $work = Join-Path ([IO.Path]::GetTempPath()) ('codex-auto-resume-' + [Guid]::NewGuid().ToString('N'))
 try {
     [Net.ServicePointManager]::SecurityProtocol =
@@ -245,6 +246,11 @@ try {
     $installer = Join-Path $unpacked 'install\install.ps1'
     $arguments = @()
     if ($NoStartup) { $arguments += '-SkipStartup' }
+    # From here on "nothing was installed" would be a lie: the installer moves the old
+    # payload aside before it copies, so a failure inside it leaves a machine that has
+    # been touched. It reports and rolls back its own work; this script must not claim
+    # otherwise on its way out.
+    $started = $true
     & $installer @arguments
     $code = $LASTEXITCODE
     if ($null -eq $code) { $code = 0 }
@@ -252,7 +258,8 @@ try {
 } catch {
     Write-Host ''
     Fail $_.Exception.Message
-    Step 'Nothing was installed.'
+    if ($started) { Step 'The installer had already started; read its messages above.' }
+    else { Step 'Nothing was installed.' }
     exit 1
 } finally {
     # The download is deleted whether it was used or not: a rejected archive should not
