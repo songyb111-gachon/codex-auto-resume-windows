@@ -169,12 +169,15 @@ namespace CodexAutoResume
         {
             var info = new ProcessStartInfo();
             info.FileName = python;
-            // -c keeps the module path explicit rather than depending on the working
-            // directory, which a Start Menu launch does not control.
-            string code = "import sys;sys.path.insert(0," + Json.Escape(appSrc) +
-                          ");from codex_auto_resume.controlcli import main;sys.exit(main(sys.argv[1:]))";
+            // The module path is passed as an argument, not embedded in the code: a
+            // Windows path inside a Python literal inside a quoted command line has to
+            // survive two different escaping rules, and getting either wrong is silent.
+            string code = "import sys;sys.path.insert(0,sys.argv[1]);" +
+                          "from codex_auto_resume.controlcli import main;" +
+                          "sys.exit(main(sys.argv[2:]))";
             var arguments = new StringBuilder();
-            arguments.Append("-c ").Append(Quote(code)).Append(' ').Append(command);
+            arguments.Append("-c ").Append(Quote(code)).Append(' ').Append(Quote(appSrc));
+            arguments.Append(' ').Append(command);
             if (!string.IsNullOrEmpty(argument)) arguments.Append(' ').Append(Quote(argument));
             info.Arguments = arguments.ToString();
             info.UseShellExecute = false;
@@ -194,9 +197,24 @@ namespace CodexAutoResume
             }
         }
 
+        // Windows command-line quoting, by the documented CommandLineToArgvW rules: a
+        // run of backslashes is only special immediately before a quote, where 2n means
+        // n literal backslashes and a delimiter, and 2n+1 means n and a literal quote.
+        // Doubling every backslash instead - the obvious-looking version - turns a path
+        // into one with doubled separators. Windows tolerates that, so it works right up
+        // until something compares two paths for equality.
         private static string Quote(string value)
         {
-            return "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+            var builder = new StringBuilder("\"");
+            int slashes = 0;
+            foreach (char c in value ?? string.Empty)
+            {
+                if (c == '\\') { slashes++; continue; }
+                if (c == '\"') builder.Append('\\', slashes * 2 + 1).Append('\"');
+                else builder.Append('\\', slashes).Append(c);
+                slashes = 0;
+            }
+            return builder.Append('\\', slashes * 2).Append('\"').ToString();
         }
     }
 
