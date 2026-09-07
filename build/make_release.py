@@ -14,7 +14,13 @@ Two decisions worth stating, both learned the hard way:
 * The payload doubles as a **local Codex marketplace**, so installing the plugin needs
   no network and installs the same bytes that were verified here.
 
-The build is deterministic: fixed file order, fixed timestamps, no build host paths.
+What is fixed here: file order, entry timestamps, compression level, and the absence of
+any build-host path. What is *not*, and the claim was previously overstated: the archive
+is not byte-reproducible, because the two C# executables in it are not. The in-box
+compiler stamps every assembly with a fresh module version GUID, so two builds of
+byte-identical source produce different binaries - measured, by building twice and
+comparing. The published checksum therefore identifies one build; it does not let anyone
+reproduce it. Saying otherwise would invite someone to verify something that cannot hold.
 """
 from __future__ import annotations
 
