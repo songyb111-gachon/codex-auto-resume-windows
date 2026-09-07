@@ -1,0 +1,11 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "codex-auto-resume": {
+      "type": "stdio",
+      "command": "./mcp/codex-auto-resume-mcp.exe",
+      "args": [],
+      "cwd": "."
+    }
+  }
+}

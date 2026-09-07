@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / ".codex-plugin" / "plugin.json"
 MARKETPLACE = ROOT / ".agents" / "plugins" / "marketplace.json"
 SKILL = ROOT / "skills" / "codex-auto-resume" / "SKILL.md"
+MCP_COMPANION = ROOT / ".mcp.json"
 PLUGIN_NAME = "codex-auto-resume"
 
 
@@ -47,10 +48,42 @@ class ManifestTests(unittest.TestCase):
         # Codex plugin validation rejects `hooks`; shipping it would fail installation.
         self.assertNotIn("hooks", self.manifest)
 
-    def test_manifest_declares_no_mcp_server(self):
-        # A skill is enough for this tool. An MCP server would add a process for no gain.
-        self.assertNotIn("mcpServers", self.manifest)
-        self.assertNotIn("apps", self.manifest)
+    def test_manifest_points_at_the_mcp_companion_file(self):
+        self.assertEqual(self.manifest["mcpServers"], "./.mcp.json")
+        self.assertTrue(MCP_COMPANION.is_file())
+
+    def test_the_companion_declares_only_our_own_stdio_server(self):
+        companion = json.loads(MCP_COMPANION.read_text(encoding="utf-8"))
+        self.assertEqual(set(companion) - {"$schema"}, {"mcpServers"})
+        self.assertEqual(list(companion["mcpServers"]), [PLUGIN_NAME])
+        server = companion["mcpServers"][PLUGIN_NAME]
+        self.assertEqual(server["type"], "stdio")
+
+    def test_the_mcp_command_is_a_path_codex_accepts(self):
+        # Codex requires a bare executable name or a path contained in the plugin. An
+        # absolute path to the bundled interpreter is neither, and a bare `python` would
+        # put back the system-Python requirement the product removed - hence a launcher
+        # inside the plugin that finds the interpreter itself.
+        server = json.loads(MCP_COMPANION.read_text(encoding="utf-8"))["mcpServers"][PLUGIN_NAME]
+        command = server["command"]
+        self.assertTrue(command.startswith("./"), command)
+        self.assertNotIn("..", command)
+        self.assertNotIn(":", command)
+        self.assertIn(command.rsplit("/", 1)[-1], {"codex-auto-resume-mcp.exe"})
+
+    def test_the_mcp_server_declares_no_environment_or_network(self):
+        server = json.loads(MCP_COMPANION.read_text(encoding="utf-8"))["mcpServers"][PLUGIN_NAME]
+        self.assertNotIn("url", server)
+        self.assertNotIn("headers", server)
+        self.assertEqual(server.get("env", {}), {})
+
+    def test_the_release_ships_the_launcher_the_companion_names(self):
+        # A companion file naming an executable the payload does not contain would fail
+        # only at plugin load, on a user's machine.
+        builder = _load("make_release", ROOT / "build" / "make_release.py")
+        server = json.loads(MCP_COMPANION.read_text(encoding="utf-8"))["mcpServers"][PLUGIN_NAME]
+        self.assertEqual(server["command"], "./mcp/" + builder.MCP_EXE)
+        self.assertIn(".mcp.json", builder.APP_FILES)
 
     def test_manifest_version_is_strict_semver(self):
         import re

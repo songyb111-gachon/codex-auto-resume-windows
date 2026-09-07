@@ -43,7 +43,11 @@ PYTHON_SHA256 = "d1f04d990aee1253d8569e8e5104e30fa9f5fa830899f14843448872d936a2c
 APP_TREES = ("src", "scripts", "skills", ".codex-plugin", ".agents", "assets")
 # Built, not copied from the working tree: see build/make_gui.ps1.
 GUI_EXE = "CodexAutoResumeSettings.exe"
-APP_FILES = ("LICENSE", "README.md", "SECURITY.md", "CHANGELOG.md")
+# Codex only accepts a plugin MCP command that is a bare executable name or a path
+# inside the plugin, so the launcher ships in the plugin payload and finds the bundled
+# interpreter itself. `.mcp.json` names it by that contained path.
+MCP_EXE = "codex-auto-resume-mcp.exe"
+APP_FILES = ("LICENSE", "README.md", "SECURITY.md", "CHANGELOG.md", ".mcp.json")
 LAUNCHER_FILES = ("Install.cmd", "Uninstall.cmd", "README.txt", "install.ps1")
 
 EXCLUDE_DIRS = {"__pycache__", ".git", ".github", "node_modules", ".pytest_cache",
@@ -115,7 +119,7 @@ def collect_runtime(stage: Path, archive: Path) -> int:
 
 
 def collect_gui(stage: Path) -> int:
-    """Place the settings window beside the runtime it drives.
+    r"""Place the settings window beside the runtime it drives.
 
     It resolves ``runtime\python.exe`` and ``app\src`` relative to its own directory,
     so it must sit at the root of the installed home - which is where the installer
@@ -128,7 +132,14 @@ def collect_gui(stage: Path) -> int:
     icon = ROOT / "assets" / "codex-auto-resume.ico"
     if icon.is_file():
         shutil.copyfile(icon, stage / "payload" / "codex-auto-resume.ico")
-    return 2
+
+    launcher = ROOT / "build" / MCP_EXE
+    if not launcher.is_file():
+        raise SystemExit("missing %s - run build/make_gui.ps1 first" % MCP_EXE)
+    destination = stage / "payload" / "app" / "mcp" / MCP_EXE
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(launcher, destination)
+    return 3
 
 
 def collect_launchers(stage: Path) -> int:
