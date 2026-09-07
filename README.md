@@ -48,6 +48,18 @@ upgrades in place and keeps anything already waiting to resume; `Uninstall.cmd` 
 Afterwards, change anything from **Start Menu → Codex Auto Resume**, or by asking Codex to
 *open auto resume settings*.
 
+## What it looks like
+
+When a task is interrupted, Windows tells you — as **Codex Auto Resume**, not as whatever
+process happened to raise it. Doing nothing resumes; the button is the only action, and it
+only ever cancels.
+
+<img src="docs/images/notification.png" alt="A Windows notification from Codex Auto Resume saying a usage limit was reached and the task will resume after the reset, with a Don't resume button" width="470">
+
+Everything is configurable from the Start Menu, with Codex closed if you like:
+
+<img src="docs/images/settings-window.png" alt="The Codex Auto Resume settings window, showing which failures are recovered, the attempt limits, the retry timing and the notification switches" width="680">
+
 ## Please read this limitation first
 
 This tool can only auto-resume a thread that the Windows ChatGPT/Codex desktop app **currently has

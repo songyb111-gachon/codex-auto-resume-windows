@@ -46,6 +46,13 @@ def main(argv=None) -> int:
     if args.output:
         Path(args.output).write_text(body + "\n", encoding="utf-8")
     else:
+        # The changelog contains em dashes and other punctuation a legacy console
+        # codepage cannot represent, and printing it should not depend on which
+        # locale the machine happens to use.
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        except AttributeError:
+            pass
         sys.stdout.write(body + "\n")
     return 0
 
