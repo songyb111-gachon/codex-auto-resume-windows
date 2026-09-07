@@ -1,6 +1,6 @@
 {
   "name": "codex-auto-resume",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Auto-resume and auto-retry for interrupted Codex tasks on Windows. Waits out a usage limit, a rate limit or a temporary failure, then continues the exact conversation. Setup downloads a checksum-verified release from GitHub; after that the watcher runs locally, read-only against Codex state, conservative by design.",
   "author": {
     "name": "Youngbin Song",
