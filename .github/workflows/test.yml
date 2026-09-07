@@ -46,10 +46,21 @@ jobs:
           $failed = $LASTEXITCODE -ne 0
           Write-Host $output
           if ($failed) {
-            $lines = $output -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -Last 60
-            # Annotations are single-line; %0A is how a newline survives the encoding.
-            $detail = ($lines -join '%0A') -replace '::', ':'
-            Write-Host "::error title=test suite failed::$detail"
+            # Only the failures, not the roll-call of passing tests. An annotation is
+            # capped at 4096 characters, and a verbose run fills that with "ok" lines
+            # long before it reaches the part that says what went wrong.
+            $lines = $output -split "`r?`n"
+            $first = ($lines | Select-String -Pattern '^(FAIL|ERROR):' | Select-Object -First 1)
+            $detail = if ($first) {
+              ($lines | Select-Object -Skip ($first.LineNumber - 1) | Where-Object { $_.Trim() })
+            } else {
+              # No failure header at all means the process died rather than failed a
+              # test; the tail is then the only evidence there is.
+              ($lines | Where-Object { $_.Trim() } | Select-Object -Last 25)
+            }
+            $text = ($detail -join '%0A') -replace '::', ':'
+            if ($text.Length -gt 3800) { $text = $text.Substring(0, 3800) }
+            Write-Host "::error title=test suite failed::$text"
             exit 1
           }
 
