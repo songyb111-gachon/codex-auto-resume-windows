@@ -204,46 +204,32 @@ Recovery is bounded twice over: at most 4 attempts per interruption, and it stop
 recoveries that produced no visible progress. If you carry on in that conversation yourself, the old
 interruption is dropped rather than replayed on top of your work.
 
-## Other ways to install
+## Managing it from Codex
 
-The release archive above is the supported route for normal use. The two below are for development
-and for people who would rather run from source.
-
-### Also supported — install as a Codex plugin
-
-This installs the Codex skill only. It **needs Python 3.12 or newer on your PATH**, and it does not
-give you the settings window or the settings panel inside Codex: both of those run on the interpreter
-that ships in the release archive. Use this path if you are working on the plugin.
-Add this repository as a Codex marketplace, then install the plugin:
-
-```bash
-codex plugin marketplace add songyb111-gachon/codex-auto-resume-windows
-```
-
-```bash
-codex plugin add codex-auto-resume@codex-auto-resume-windows
-```
-
-Then just ask Codex, in the app:
+Once it is installed, either route gives you the same skill. Just ask, in the app:
 
 > Set up auto resume
 
-You can manage it the same way afterwards — "show auto resume status", "show pending auto resumes",
-"turn auto resume off", "cancel auto resume for this task", "uninstall auto resume".
+and afterwards "show auto resume status", "show pending auto resumes", "open auto resume
+settings", "turn auto resume off", "cancel auto resume for this task", "uninstall auto resume".
 
 The plugin is a thin front end over the same command-line tool described below. It adds no second
 engine and no background service. It keeps its state in `%USERPROFILE%\.codex-auto-resume\`, outside
 the plugin directory, so updating or removing the plugin never loses a pending resume. The watcher
 keeps running when the Codex app is closed, and starts again at Windows sign-in.
 
-See [docs/PLUGIN.md](docs/PLUGIN.md) for the layout, the update and removal lifecycle, and why the
-usage-limit notice does **not** get a checkbox.
+See [docs/PLUGIN.md](docs/PLUGIN.md) for the layout, exactly what the setup script will and will
+not do, the update and removal lifecycle, and why the usage-limit notice does **not** get a checkbox.
 
-> Install only one way. A manual checkout and a plugin installation keep separate state, so two
-> watchers could resume the same task twice. Setup detects this and refuses rather than creating the
-> second one.
+> There is one installation, and both routes converge on it. If you also run a source checkout,
+> keep only one: separate state means two watchers, and two watchers could resume the same task
+> twice. Setup detects that and refuses rather than creating the second one.
 
-### Advanced — manual installation from source
+## Running it from source
+
+For development, or if you would rather run it yourself. This is not a third way to install the
+product — it is the engine on its own, with no settings window, no panel and no bundled runtime,
+and it needs **Python 3.12 or newer** on your PATH.
 
 For development, or if you would rather run it yourself:
 
@@ -516,6 +502,19 @@ The project went through three adversarial review rounds plus mutation testing, 
 and a cross-process race test. Confirmed issues were fixed and covered by regression tests.
 
 If you find a security issue, please open an issue on this repository.
+
+## Documentation
+
+| | |
+| --- | --- |
+| [docs/PLUGIN.md](docs/PLUGIN.md) | The Codex plugin layer: what the setup script may fetch and what it checks, the update and removal lifecycle, and why the usage-limit notice cannot get a checkbox. |
+| [docs/COMPARISON.md](docs/COMPARISON.md) | Other projects in this space, and every feature adopted, adapted, rejected or deferred — with the reason. |
+| [docs/BRAND.md](docs/BRAND.md) | The palette, the mark, and why each is what it is. |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | How it was built, including the measurements behind the loaded/notLoaded limitation. |
+| [PRIVACY.md](PRIVACY.md) | What is read, what is stored, and what is sent anywhere. |
+| [SECURITY.md](SECURITY.md) | The threat model and how to report a vulnerability. |
+| [SUPPORT.md](SUPPORT.md) | Where to report each kind of problem, and what not to paste into a public issue. |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Tests, the release build, fixture conventions, and the safety properties a change has to keep. |
 
 ## Development and credits
 
