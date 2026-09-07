@@ -225,8 +225,6 @@ the code. The watcher was not running, and the settings panel was the only thing
 
 ## v0.2.0 — Install and control it from inside Codex
 
-### Install and control it from inside Codex
-
 - **Codex plugin.** The repository root is now also a Codex plugin root, with a marketplace index
   (`.agents/plugins/marketplace.json`), a manifest (`.codex-plugin/plugin.json`) and one skill.
   Install with `codex plugin marketplace add songyb111-gachon/codex-auto-resume-windows` followed by
