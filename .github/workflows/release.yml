@@ -1,0 +1,116 @@
+name: release
+
+# Publishing runs here rather than on anyone's machine, so the artifact people download
+# is built from the tagged commit by a job whose whole input is public. Nothing is
+# uploaded from a developer's working tree, and no personal credential is involved: the
+# job authenticates with the repository's own short-lived GITHUB_TOKEN.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build, without the leading v (for a dry run)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # The product is Windows-only, and the release contains two Windows executables
+    # compiled with the in-box C# compiler, so it can only be built on Windows.
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Work out the version
+        id: version
+        shell: pwsh
+        run: |
+          $manifest = Get-Content .codex-plugin/plugin.json -Raw | ConvertFrom-Json
+          $declared = $manifest.version
+          if ($env:GITHUB_REF -like 'refs/tags/*') {
+            $tagged = $env:GITHUB_REF -replace '^refs/tags/v', ''
+            # A tag that disagrees with the manifest would publish an archive whose name,
+            # plugin version and release title do not match. Stop instead.
+            if ($tagged -ne $declared) {
+              throw "tag v$tagged does not match plugin.json version $declared"
+            }
+          } else {
+            $requested = '${{ github.event.inputs.version }}'
+            if ($requested -and $requested -ne $declared) {
+              throw "requested $requested does not match plugin.json version $declared"
+            }
+          }
+          "version=$declared" >> $env:GITHUB_OUTPUT
+          Write-Host "building v$declared"
+
+      - name: Run the automated test suite
+        # A tag is not a reason to skip the tests; it is the last moment they still help.
+        env:
+          PYTHONPATH: src
+        run: python -m unittest discover -s tests
+
+      - name: Build the settings window and the MCP launcher
+        shell: pwsh
+        run: ./build/make_gui.ps1
+
+      - name: Build the release archive
+        run: python build/make_release.py
+
+      - name: Extract the release notes
+        run: python build/release_notes.py "${{ steps.version.outputs.version }}" --output "${{ runner.temp }}/notes.md"
+
+      - name: Check the archive is what it claims to be
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $zip = "build/dist/CodexAutoResume-v$version-win-x64.zip"
+          if (-not (Test-Path $zip)) { throw "the build did not produce $zip" }
+          # The checksum published beside the archive has to be the checksum OF the
+          # archive; a stale one is worse than none, because people verify against it.
+          $recorded = (Get-Content "$zip.sha256" -Raw).Split(' ')[0].Trim()
+          $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          if ($recorded -ne $actual) { throw "checksum mismatch: recorded $recorded, actual $actual" }
+          # An archive with no interpreter would install and then do nothing at all.
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $names = [IO.Compression.ZipFile]::OpenRead((Resolve-Path $zip)).Entries.FullName
+          foreach ($required in @('payload/runtime/python.exe',
+                                  'payload/app/src/codex_auto_resume/mcpserver.py',
+                                  'payload/app/mcp/codex-auto-resume-mcp.exe',
+                                  'payload/app/.mcp.json',
+                                  'payload/CodexAutoResumeSettings.exe',
+                                  'install/install.ps1',
+                                  'Install.cmd')) {
+            if ($names -notcontains $required) { throw "the archive is missing $required" }
+          }
+          Write-Host "archive verified: $actual"
+
+      - name: Keep the archive even when nothing is published
+        uses: actions/upload-artifact@v4
+        with:
+          name: CodexAutoResume-v${{ steps.version.outputs.version }}-win-x64
+          path: |
+            build/dist/*.zip
+            build/dist/*.sha256
+
+      - name: Publish the GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          gh release create "v$version" `
+            "build/dist/CodexAutoResume-v$version-win-x64.zip" `
+            "build/dist/CodexAutoResume-v$version-win-x64.zip.sha256" `
+            --title "v$version" `
+            --notes-file "${{ runner.temp }}/notes.md"
