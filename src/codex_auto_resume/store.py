@@ -436,6 +436,38 @@ class Store:
             )
             return True
 
+    def restore_budget(self, interruption_id: str, now: float) -> bool:
+        """Return an exhausted interruption to the ordinary waiting state.
+
+        `update` refuses to reactivate a terminal record, and that guard is what stops a
+        finished, cancelled or uncertainly-submitted recovery from being restarted by a
+        stray write. Running out of attempts is the one stop a person is allowed to undo,
+        so it gets its own operation rather than a hole in the guard: the two exhausted
+        states are the only ones accepted here, and a record that was cancelled or may
+        already have been sent is refused even from those.
+
+        This clears the budget and nothing else. The record re-enters the queue as a
+        candidate; every gate the watcher applies still applies.
+        """
+        _timestamp(now, "now")
+        with self._transaction() as connection:
+            value = connection.execute(
+                "SELECT * FROM interruptions WHERE interruption_id=?", (interruption_id,)
+            ).fetchone()
+            if value is None:
+                return False
+            row = _validated_record(dict(value))
+            if (row["state"] not in {"retry_budget_exhausted", "no_progress_exhausted"}
+                    or row["cancel_requested"] or row["submitted_at"] is not None
+                    or row["queue_id"] is not None):
+                return False
+            connection.execute(
+                "UPDATE interruptions SET state='waiting_backoff', recovery_attempts=0, "
+                "no_progress_count=0, last_error=NULL, next_retry_at=? WHERE interruption_id=?",
+                (now, interruption_id),
+            )
+            return True
+
     def cancel(self, thread_id: str, now: float) -> None:
         _uuid(thread_id, "thread_id")
         _timestamp(now, "now")

@@ -4,7 +4,7 @@ import sqlite3
 import tempfile
 import unittest
 
-from codex_auto_resume.store import Store, StoreError
+from codex_auto_resume.store import TERMINAL, Store, StoreError
 
 
 THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
@@ -233,3 +233,84 @@ class StoreTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RestoreBudgetTests(unittest.TestCase):
+    """Running out of attempts is the one terminal stop a person may undo.
+
+    `update` refuses to reactivate any terminal record, which is what keeps a finished,
+    cancelled or uncertainly-submitted recovery from being restarted by a stray write.
+    These tests pin the exception down to exactly the two exhausted states and assert
+    that everything else stays refused, since a wider hole here would quietly re-open
+    the no-resend guarantee.
+    """
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.store = Store(Path(self.temp.name) / "owned-state")
+        self.addCleanup(self.temp.cleanup)
+        self.addCleanup(self.store.close)
+        self.key = failure()["interruption_id"]
+        self.store.register(failure(), 100)
+
+    def exhaust(self, state="retry_budget_exhausted"):
+        self.store.update(self.key, state=state, recovery_attempts=4, no_progress_count=3,
+                          last_error="ran out of attempts")
+
+    def test_restores_the_two_exhausted_states(self):
+        for state in ("retry_budget_exhausted", "no_progress_exhausted"):
+            with self.subTest(state=state):
+                if self.store.get(self.key)["state"] != "waiting_reset":
+                    self.store.update(self.key, state="waiting_backoff")
+                self.exhaust(state)
+                self.assertTrue(self.store.restore_budget(self.key, 500))
+                record = self.store.get(self.key)
+                self.assertEqual(record["state"], "waiting_backoff")
+                self.assertEqual(record["recovery_attempts"], 0)
+                self.assertEqual(record["no_progress_count"], 0)
+                self.assertIsNone(record["last_error"])
+                self.assertEqual(record["next_retry_at"], 500)
+
+    def test_refuses_every_other_terminal_state(self):
+        others = sorted(TERMINAL - {"retry_budget_exhausted", "no_progress_exhausted"})
+        for index, state in enumerate(others):
+            with self.subTest(state=state):
+                # A distinct id per state: reusing one would leave the record already
+                # terminal and the setup would fail before it proved anything.
+                key = "c" * 62 + "%02d" % index
+                self.store.register(failure(key=key), 100)
+                self.store.update(key, state="submitting", submitted_at=110.0)
+                self.store.update(key, state=state)
+                self.assertFalse(self.store.restore_budget(key, 500))
+                self.assertEqual(self.store.get(key)["state"], state)
+
+    def test_refuses_a_waiting_record(self):
+        self.assertFalse(self.store.restore_budget(self.key, 500))
+
+    def test_refuses_an_unknown_interruption(self):
+        self.assertFalse(self.store.restore_budget("f" * 64, 500))
+
+    def test_refuses_a_cancelled_record(self):
+        self.exhaust()
+        self.store.update(self.key, cancel_requested=True)
+        self.assertFalse(self.store.restore_budget(self.key, 500))
+
+    def test_never_reactivates_something_that_may_have_been_sent(self):
+        # An exhausted record should not carry a submission stamp, but if one ever did,
+        # restoring its budget would be a resend of an uncertain send.
+        self.store.update(self.key, state="submitting", submitted_at=110.0)
+        self.store.update(self.key, state="retry_budget_exhausted")
+        self.assertFalse(self.store.restore_budget(self.key, 500))
+
+    def test_does_not_submit(self):
+        self.exhaust()
+        self.store.restore_budget(self.key, 500)
+        record = self.store.get(self.key)
+        self.assertIsNone(record["submitted_at"])
+        self.assertIsNone(record["queue_id"])
+        self.assertEqual(record["attempt_count"], 0)
+
+    def test_restored_record_is_pending_again(self):
+        self.exhaust()
+        self.store.restore_budget(self.key, 500)
+        self.assertEqual([row["interruption_id"] for row in self.store.pending()], [self.key])

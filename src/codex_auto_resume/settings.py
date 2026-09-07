@@ -245,8 +245,9 @@ def describe() -> list:
         if name.startswith("recover_"):
             entry["group"] = "recovery"
             entry["category"] = name[len("recover_"):]
-        elif name.startswith("notify_"):
+        elif name.startswith("notify_") or name == "notifications":
             entry["group"] = "notifications"
+            entry["master"] = name == "notifications"
         elif name in ("max_recovery_attempts", "max_no_progress", "retry_timing"):
             entry["group"] = "limits"
         else:
