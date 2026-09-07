@@ -196,7 +196,9 @@ class Control:
         """Give an exhausted interruption its attempts back.
 
         Deliberately explicit, and deliberately not a send: the record re-enters the
-        normal waiting state and every gate runs again from the top.
+        normal waiting state and every gate runs again from the top. The store decides
+        whether the record is eligible, so this cannot restore a budget the state
+        machine considers finished for some other reason.
         """
         key = _identifier(interruption_id)
         with self._open() as store:
@@ -205,9 +207,10 @@ class Control:
                 raise ControlError("no such interruption")
             if record["state"] not in ("retry_budget_exhausted", "no_progress_exhausted"):
                 raise ControlError("that recovery has not been exhausted")
-            store.update(key, state="waiting_backoff", recovery_attempts=0,
-                         no_progress_count=0, last_error=None,
-                         next_retry_at=time.time() + 5)
+            if not store.restore_budget(key, time.time()):
+                raise ControlError("that recovery cannot be resumed")
+            # Exhausting a budget also parks the thread; without this the record would
+            # be eligible and the thread still switched off.
             store.set_thread_enabled(record["thread_id"], True)
             return {"interruption_id": key, "state": store.get(key)["state"]}
 
