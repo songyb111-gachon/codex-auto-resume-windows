@@ -17,9 +17,13 @@
 //     preferred width, so an AutoSize group collapses to the width of its content.
 //   * Two columns, because one column does not fit a laptop screen, and a settings
 //     window that has to be scrolled to reveal settings is a poor settings window.
-//   * The status line is separate labels in separate cells, not one string. A single
-//     label wraps or truncates as the window narrows, and the version - the part people
-//     are asked for when reporting a problem - is exactly the part that disappears.
+//   * Status leads. What the watcher is doing is the reason the window gets opened, so
+//     it sits at the top in the largest type here, and the settings follow it.
+//   * Every status fact is its own label in its own cell, never one concatenated string.
+//     A single label wraps or truncates as the window narrows, and what disappears first
+//     is the version - the part people are asked for when reporting a problem.
+//   * Colours come from gui/Brand.cs, which is generated from the palette in
+//     src/codex_auto_resume/brand.py. Do not write a literal colour in this file.
 //
 // Built with the in-box C# compiler against .NET Framework 4.8, which ships on every
 // supported Windows, so the release carries no extra runtime for the interface.
@@ -220,14 +224,18 @@ namespace CodexAutoResume
 
     internal sealed class SettingsForm : Form
     {
-        private static readonly Color Ink     = Color.FromArgb(0x1F, 0x24, 0x28);
-        private static readonly Color Muted   = Color.FromArgb(0x5E, 0x69, 0x6E);
-        private static readonly Color Line    = Color.FromArgb(0xE2, 0xE6, 0xE9);
-        private static readonly Color Surface = Color.White;
-        private static readonly Color Canvas  = Color.FromArgb(0xF5, 0xF6, 0xF7);
-        private static readonly Color Accent  = Color.FromArgb(0x2F, 0x6F, 0x4E);
-        private static readonly Color Good    = Color.FromArgb(0x2F, 0x8F, 0x5E);
-        private static readonly Color Idle    = Color.FromArgb(0x9A, 0xA3, 0xA8);
+        // The palette lives in src/codex_auto_resume/brand.py and is generated into
+        // gui/Brand.cs, so the window, the Codex panel, the icon and the plugin card
+        // cannot disagree about what colour this product is.
+        private static readonly Color Ink     = Brand.Ink;
+        private static readonly Color Muted   = Brand.Muted;
+        private static readonly Color Line    = Brand.Line;
+        private static readonly Color Surface = Brand.Surface;
+        private static readonly Color Canvas  = Brand.Canvas;
+        private static readonly Color Accent  = Brand.Accent;
+        private static readonly Color OnAccent = Brand.OnAccent;
+        private static readonly Color Active  = Brand.Active;
+        private static readonly Color Idle    = Brand.Idle;
 
         private readonly Bridge bridge;
         private readonly Dictionary<string, Control> editors = new Dictionary<string, Control>();
@@ -235,9 +243,10 @@ namespace CodexAutoResume
         private readonly TableLayoutPanel columns = new TableLayoutPanel();
         private readonly TableLayoutPanel leftStack = new TableLayoutPanel();
         private readonly TableLayoutPanel rightStack = new TableLayoutPanel();
-        private readonly Panel statusStrip = new Panel();
+        private readonly Panel header = new Panel();
         private readonly Panel footer = new Panel();
-        private readonly Label statusText = new Label();
+        private readonly Label headline = new Label();
+        private readonly Label detail = new Label();
         private readonly Label versionText = new Label();
         private Color dotColor = Idle;
         private Button startButton;
@@ -264,13 +273,15 @@ namespace CodexAutoResume
             catch (Exception) { /* an icon is decoration; never fail the window over it */ }
 
             BuildFooter();
-            BuildStatus();
+            BuildHeader();
             BuildColumns();
 
-            // The fill control is added first so the docked strips keep the bottom.
+            // The fill control is added first so the docked strips keep their edges:
+            // docking is resolved from the last-added control inward, so whatever is
+            // added first ends up with what is left.
             Controls.Add(columns);
-            Controls.Add(statusStrip);
             Controls.Add(footer);
+            Controls.Add(header);
 
             Load += delegate { Reload(); };
         }
@@ -304,59 +315,76 @@ namespace CodexAutoResume
             columns.Controls.Add(rightStack, 1, 0);
         }
 
-        private void BuildStatus()
+        private void BuildHeader()
         {
-            statusStrip.Dock = DockStyle.Bottom;
-            statusStrip.BackColor = Canvas;
-            statusStrip.Padding = new Padding(22, 9, 22, 9);
-            statusStrip.Height = TextRenderer.MeasureText("Ag", Font).Height + 20;
+            // What the watcher is doing belongs at the top, in the window's largest
+            // type. It used to be a muted sentence in a strip along the bottom, under
+            // sixteen checkboxes - which put the one thing a person opens this window to
+            // check below everything they did not come for.
+            header.Dock = DockStyle.Top;
+            header.BackColor = Surface;
+            header.Padding = new Padding(22, 14, 18, 14);
+            header.Height = TextRenderer.MeasureText("Ag", Font).Height * 2 + 44;
 
             var grid = new TableLayoutPanel();
             grid.Dock = DockStyle.Fill;
             grid.ColumnCount = 3;
-            grid.RowCount = 1;
-            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 16f));   // state dot
+            grid.RowCount = 2;
+            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 22f));   // state dot
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));   // what it is doing
-            grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));        // version
-            // Without an explicit row the implicit one is AutoSize, and a Dock=Fill
-            // child of an AutoSize row measures to nothing: the strip renders empty.
-            grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-            grid.BackColor = Canvas;
+            grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));        // the way out
+            grid.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
+            grid.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
+            grid.BackColor = Surface;
 
             // Drawn rather than a glyph so the dot stays round and vertically centred at
-            // any scaling, and it carries the same state as the words beside it.
+            // any scaling, and it carries the same state as the words beside it. It
+            // spans both rows because it describes the pair, not the first line.
             var dot = new Panel();
             dot.Dock = DockStyle.Fill;
-            dot.BackColor = Canvas;
+            dot.BackColor = Surface;
             dot.Paint += delegate(object sender, PaintEventArgs e)
             {
                 e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                int size = 9;
+                int size = 12;
                 using (var brush = new SolidBrush(dotColor))
                     e.Graphics.FillEllipse(brush, 0, (dot.Height - size) / 2, size, size);
             };
 
-            statusText.Dock = DockStyle.Fill;
-            statusText.TextAlign = ContentAlignment.MiddleLeft;
-            statusText.ForeColor = Muted;
-            statusText.AutoEllipsis = true;   // narrow gracefully instead of wrapping
-            statusText.Text = "Loading...";
+            headline.Dock = DockStyle.Fill;
+            headline.TextAlign = ContentAlignment.BottomLeft;
+            headline.ForeColor = Ink;
+            headline.Font = new Font(Font.FontFamily, Font.Size + 2.5f, FontStyle.Bold);
+            headline.AutoEllipsis = true;
+            headline.Text = "Loading...";
 
-            // Its own AutoSize column, so narrowing the window shortens the sentence on
-            // the left and never takes the version away.
-            versionText.AutoSize = true;
-            versionText.Anchor = AnchorStyles.Right;
-            versionText.TextAlign = ContentAlignment.MiddleRight;
-            versionText.ForeColor = Idle;
-            versionText.Margin = new Padding(14, 0, 0, 0);
+            detail.Dock = DockStyle.Fill;
+            detail.TextAlign = ContentAlignment.TopLeft;
+            detail.ForeColor = Muted;
+            detail.AutoEllipsis = true;   // narrow gracefully instead of wrapping
+            detail.Margin = new Padding(0, 2, 0, 0);
+
+            // Shown only while the watcher is stopped. Nothing is recovered then, so a
+            // window that reports the fact and offers no way out is a dead end - and the
+            // watcher is the part nobody should have to think about. It sits beside the
+            // sentence that explains why it is there rather than down among Save and
+            // Close, which are about settings and not about the watcher.
+            startButton = MakeButton("Start watcher", true, delegate { StartWatcher(); });
+            startButton.Visible = false;
+            startButton.Anchor = AnchorStyles.Right;
+            startButton.Margin = new Padding(16, 0, 0, 0);
 
             grid.Controls.Add(dot, 0, 0);
-            grid.Controls.Add(statusText, 1, 0);
-            grid.Controls.Add(versionText, 2, 0);
-            statusStrip.Controls.Add(grid);
-            statusStrip.Paint += delegate(object sender, PaintEventArgs e)
+            grid.SetRowSpan(dot, 2);
+            grid.Controls.Add(headline, 1, 0);
+            grid.Controls.Add(detail, 1, 1);
+            grid.Controls.Add(startButton, 2, 0);
+            grid.SetRowSpan(startButton, 2);
+            header.Controls.Add(grid);
+            header.Paint += delegate(object sender, PaintEventArgs e)
             {
-                using (var pen = new Pen(Line)) e.Graphics.DrawLine(pen, 0, 0, statusStrip.Width, 0);
+                using (var pen = new Pen(Line))
+                    e.Graphics.DrawLine(pen, 0, header.Height - 1, header.Width, header.Height - 1);
             };
         }
 
@@ -367,22 +395,38 @@ namespace CodexAutoResume
             footer.Padding = new Padding(18, 13, 18, 15);
             footer.Height = TextRenderer.MeasureText("Ag", Font).Height + 46;
 
+            var grid = new TableLayoutPanel();
+            grid.Dock = DockStyle.Fill;
+            grid.ColumnCount = 2;
+            grid.RowCount = 1;
+            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));   // version
+            grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));        // buttons
+            // A Dock=Fill child of an implicit AutoSize row measures to nothing, and the
+            // strip then renders empty. Say what the row is.
+            grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            grid.BackColor = Surface;
+
+            // In its own column, so narrowing the window shortens nothing that matters
+            // and never takes away the one field people are asked for in a bug report.
+            versionText.Dock = DockStyle.Fill;
+            versionText.TextAlign = ContentAlignment.MiddleLeft;
+            versionText.ForeColor = Idle;
+            versionText.AutoEllipsis = true;
+
             var row = new FlowLayoutPanel();
             row.Dock = DockStyle.Fill;
             row.FlowDirection = FlowDirection.RightToLeft;
             row.WrapContents = false;
+            row.AutoSize = true;
+            row.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             row.BackColor = Surface;
             row.Controls.Add(MakeButton("Close", false, delegate { Close(); }));
             row.Controls.Add(MakeButton("Save", true, delegate { Save(); }));
             row.Controls.Add(MakeButton("Restore defaults", false, delegate { RestoreDefaults(); }));
-            // Shown only while the watcher is stopped. Nothing is recovered then, so a
-            // window that reports the fact and offers no way out is a dead end - and
-            // the watcher is the part nobody should have to think about.
-            startButton = MakeButton("Start watcher", false, delegate { StartWatcher(); });
-            startButton.Visible = false;
-            row.Controls.Add(startButton);
 
-            footer.Controls.Add(row);
+            grid.Controls.Add(versionText, 0, 0);
+            grid.Controls.Add(row, 1, 0);
+            footer.Controls.Add(grid);
             footer.Paint += delegate(object sender, PaintEventArgs e)
             {
                 using (var pen = new Pen(Line)) e.Graphics.DrawLine(pen, 0, 0, footer.Width, 0);
@@ -402,7 +446,7 @@ namespace CodexAutoResume
             button.FlatAppearance.BorderSize = 1;
             button.FlatAppearance.BorderColor = primary ? Accent : Line;
             button.BackColor = primary ? Accent : Surface;
-            button.ForeColor = primary ? Color.White : Ink;
+            button.ForeColor = primary ? OnAccent : Ink;
             button.UseVisualStyleBackColor = false;
             button.Cursor = Cursors.Hand;
             button.Click += onClick;
@@ -535,7 +579,8 @@ namespace CodexAutoResume
             }
             catch (Exception error)
             {
-                statusText.Text = "Could not read the local settings: " + error.Message;
+                headline.Text = "Could not read the local settings";
+                detail.Text = error.Message;
                 return;
             }
 
@@ -547,12 +592,18 @@ namespace CodexAutoResume
             }
             editors.Clear();
 
-            // The long list goes on the left and the two short ones on the right, so the
-            // columns end up close in height instead of one towering over the other.
+            // Order is the argument the window makes: what may be recovered, then how
+            // hard it will try, then what it will tell you, then when it starts. Reading
+            // a two-column page means going down the left and then down the right, so
+            // that is the order the cards are added in.
+            //
+            // The split is two cards each rather than one and three. One and three was
+            // tried and looked unfinished: the left column ran out after six rows while
+            // the right ran to fifteen, leaving a third of the window blank.
             TableLayoutPanel recovery = NewGroup("Automatic recovery", leftStack);
-            TableLayoutPanel windows = NewGroup("Windows", leftStack);
-            TableLayoutPanel limits = NewGroup("Limits", rightStack);
+            TableLayoutPanel limits = NewGroup("Limits", leftStack);
             TableLayoutPanel notifications = NewGroup("Notifications", rightStack);
+            TableLayoutPanel windows = NewGroup("Windows", rightStack);
 
             foreach (object entry in schema)
             {
@@ -625,7 +676,7 @@ namespace CodexAutoResume
             // A settings window should show its settings. Grow to fit both columns, and
             // fall back to scrolling only when the screen genuinely cannot hold them.
             int tallest = Math.Max(leftStack.PreferredSize.Height, rightStack.PreferredSize.Height);
-            int wanted = tallest + columns.Padding.Vertical + statusStrip.Height + footer.Height;
+            int wanted = tallest + columns.Padding.Vertical + header.Height + footer.Height;
             Rectangle screen = Screen.FromControl(this).WorkingArea;
             int maximum = screen.Height - (Height - ClientSize.Height) - 80;
             ClientSize = new Size(ClientSize.Width, Math.Max(340, Math.Min(wanted, maximum)));
@@ -642,34 +693,40 @@ namespace CodexAutoResume
                 double pending = status.ContainsKey("pending") ? (double)status["pending"] : 0;
                 if (startup != null) startup.Checked = Equals(status["startup_enabled"], true);
 
-                dotColor = Equals(running, true) && enabled ? Good : Idle;
-                string headline = running == null ? "Watcher status unknown"
-                                : !Equals(running, true) ? "Watcher not running"
-                                : enabled ? "Watching for interruptions"
-                                : "Watching paused";
+                dotColor = Equals(running, true) && enabled ? Active : Idle;
+                headline.Text = running == null ? "Watcher status unknown"
+                              : !Equals(running, true) ? "Watcher not running"
+                              : enabled ? "Watching for interruptions"
+                              : "Watching paused";
                 int count = (int)pending;
-                string tail = count == 0 ? "nothing pending"
-                            : count == 1 ? "1 pending recovery"
-                            : count.ToString(CultureInfo.InvariantCulture) + " pending recoveries";
-                statusText.Text = headline + "   ·   " + tail;
+                string tail = count == 0 ? "Nothing pending"
+                            : count == 1 ? "1 recovery pending"
+                            : count.ToString(CultureInfo.InvariantCulture) + " recoveries pending";
+                // Two facts, most consequential first: whether recovery can happen at
+                // all, and then what is waiting on it.
+                string recovery = !Equals(running, true) ? "Nothing will be recovered until it is running"
+                                : enabled ? "Automatic recovery is on"
+                                : "Automatic recovery is paused";
+                detail.Text = recovery + "   ·   " + tail;
                 versionText.Text = "v" + status["version"];
                 if (startButton != null) startButton.Visible = Equals(running, false);
             }
             catch (Exception)
             {
                 dotColor = Idle;
-                statusText.Text = "Status unavailable - settings can still be changed";
+                headline.Text = "Status unavailable";
+                detail.Text = "Settings can still be changed and saved";
                 // The version is deliberately left as it was: a failed status read is no
                 // reason to drop the one field people are asked for when reporting a bug.
             }
-            statusStrip.Invalidate(true);
+            header.Invalidate(true);
         }
 
         // ------------------------------------------------------------------ actions
         private void StartWatcher()
         {
             startButton.Enabled = false;
-            statusText.Text = "Starting the watcher...";
+            headline.Text = "Starting the watcher...";
             try
             {
                 var response = bridge.Call("start-watcher", null);
@@ -717,7 +774,7 @@ namespace CodexAutoResume
                 var startup = editors["__startup"] as CheckBox;
                 bridge.Call("startup", "{\"enabled\":" + (startup.Checked ? "true" : "false") + "}");
                 RefreshStatus(startup);
-                statusText.Text = "Saved - the watcher uses these from its next check";
+                detail.Text = "Saved - the watcher uses these from its next check";
             }
             catch (Exception error)
             {

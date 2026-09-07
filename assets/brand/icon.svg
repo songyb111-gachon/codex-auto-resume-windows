@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Codex Auto Resume">
+  <title>Codex Auto Resume</title>
+  <defs>
+    <linearGradient id="badge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1B62C4"/>
+      <stop offset="1" stop-color="#0B2545"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="76.800" ry="76.800" fill="url(#badge)"/>
+  <path d="M 178.177 144.857 A 135.680 135.680 0 1 0 333.823 144.857 L 305.924 184.701 A 87.040 87.040 0 1 1 206.076 184.701 Z" fill="#F2F9FF"/>
+  <circle cx="319.873" cy="164.779" r="39.680" fill="#4FE0F5"/>
+</svg>
