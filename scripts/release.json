@@ -1,0 +1,23 @@
+{
+  "_comment": [
+    "What the plugin's bootstrap is allowed to fetch, and nothing else. The version is",
+    "not repeated here: it is read from .codex-plugin/plugin.json, so the plugin can only",
+    "ever fetch the release that matches itself.",
+    "",
+    "`sha256` maps a version to the digest of its published archive. A version listed here",
+    "is verified against that digest and the published .sha256 sidecar is not consulted at",
+    "all. A version that is absent, or null, falls back to the sidecar - which is weaker,",
+    "and the bootstrap says so out loud rather than implying a guarantee it does not have.",
+    "",
+    "The entry is null at the moment a version is tagged and filled in afterwards, because",
+    "the digest cannot be known before the archive exists. The archive is not reproducible",
+    "either - the in-box C# compiler stamps a fresh module version GUID into every build -",
+    "so the digest has to come from the published file rather than from a local rebuild.",
+    "docs/DEVELOPMENT.md carries that as a release step."
+  ],
+  "download": "https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/download/v{version}/",
+  "archive": "CodexAutoResume-v{version}-win-x64.zip",
+  "sha256": {
+    "0.5.2": null
+  }
+}

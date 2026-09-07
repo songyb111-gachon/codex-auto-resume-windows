@@ -41,7 +41,33 @@ def _usable(root: Path) -> bool:
 
 
 def resolve_plugin_root(config: dict) -> Path | None:
-    """Newest installed copy of the plugin, or the local checkout it was set up from."""
+    """Where the engine is, in the order that keeps one installation authoritative.
+
+    The installed application wins. It sits beside the runtime that this launcher was
+    started by and beside the state it is about to open, and it is the same copy the
+    settings window talks to - so the window and the watcher can never end up running
+    different versions of the code against the same database.
+
+    That ordering matters because there is usually a second copy: `codex plugin add`
+    keeps its own, in a versioned cache directory. Preferring the cache, as this used
+    to, meant that installing a *newer plugin* from a marketplace silently swapped the
+    engine underneath an older installation while everything else still pointed at the
+    old one. Updating the plugin should update the skills and the manifest; replacing
+    the engine is what the installer is for.
+
+    The cache is still searched, last, for an installation from before there was an
+    application directory to prefer.
+    """
+    home_app = None
+    try:
+        home = Path(config.get("home") or "")
+        candidate = home / "app"
+        if home.name and _usable(candidate):
+            home_app = candidate
+    except (OSError, TypeError, ValueError):
+        home_app = None
+    if home_app is not None:
+        return home_app
     if config.get("mode") == "plugin":
         name = config.get("plugin_name") or ""
         # Any marketplace: a user may reinstall the same plugin from a renamed source.

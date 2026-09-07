@@ -1,6 +1,6 @@
 {
   "name": "codex-auto-resume",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Auto-resume and auto-retry for interrupted Codex tasks on Windows. Waits out a usage limit, a rate limit or a temporary failure, then continues the exact conversation. Local-only, read-only against Codex state, conservative by design.",
   "author": {
     "name": "Youngbin Song",
@@ -47,6 +47,9 @@
     "composerIcon": "./assets/icon.png",
     "logo": "./assets/logo.png",
     "logoDark": "./assets/logo-dark.png",
-    "screenshots": []
+    "screenshots": [
+      "./assets/screenshot-panel.png",
+      "./assets/screenshot-settings.png"
+    ]
   }
 }

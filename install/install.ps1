@@ -26,7 +26,33 @@ function Ok   { param([string]$m) Write-Host ('  [ok] ' + $m) }
 function Warn { param([string]$m) Write-Host ('  [!]  ' + $m) -ForegroundColor Yellow }
 function Fail { param([string]$m) Write-Host ('  [x]  ' + $m) -ForegroundColor Red; $script:Failed = $true }
 
-$InstallHome = Join-Path $env:USERPROFILE '.codex-auto-resume'
+# One installation at a time. There are three routes in - a double-clicked Install.cmd,
+# an upgrade, and the Codex plugin's bootstrap - and two of them running together would
+# copy over each other's half-written payload and race on the same plugin cache.
+#
+# The mutex is not released explicitly. This script has many exit points, and Windows
+# releases a mutex when the owning process ends, which for an installer is moments after
+# the last of them. A previous run that was killed leaves it abandoned rather than held:
+# WaitOne then throws instead of returning, and an abandoned lock means the holder is
+# gone, so it is taken rather than treated as contention.
+$script:InstallLock = New-Object System.Threading.Mutex($false, 'Local\CodexAutoResume.Install')
+$held = $false
+try { $held = $script:InstallLock.WaitOne(0) }
+catch [System.Threading.AbandonedMutexException] { $held = $true }
+if (-not $held) {
+    Fail 'Another Codex Auto Resume installation is already running.'
+    Write-Host '       Wait for it to finish, then run this again.'
+    exit 1
+}
+
+# The same override the Python side honours. It exists for a machine whose profile is
+# not where the state should live, and the two have to agree about it: the installer
+# deploying to one home while setup configures another is exactly the split this
+# release removes.
+$InstallHome = $env:CODEX_AUTO_RESUME_PLUGIN_HOME
+if ([string]::IsNullOrWhiteSpace($InstallHome)) {
+    $InstallHome = Join-Path $env:USERPROFILE '.codex-auto-resume'
+}
 $AppDir      = Join-Path $InstallHome 'app'
 $RunDir      = Join-Path $InstallHome 'runtime'
 $Payload     = Join-Path (Split-Path -Parent $PSScriptRoot) 'payload'

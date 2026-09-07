@@ -71,8 +71,32 @@ def runtime_home() -> Path:
     return (Path(profile) / RUNTIME_DIR_NAME).resolve()
 
 
-def python_for_watcher() -> Path:
-    return startup.python_launcher()
+def bundled_python(home: Path, windowless: bool = True) -> Path | None:
+    """The interpreter the installer deploys, if this machine has one.
+
+    This is what makes every route end at the same product. Whichever front end runs
+    setup - the installer, the Codex skill, a command line - the watcher, the autostart
+    entry and the notification handler all end up pointing at this one interpreter,
+    rather than at whatever interpreter happened to be running the setup.
+    """
+    runtime = home / "runtime"
+    if windowless:
+        launcher = runtime / "pythonw.exe"
+        if launcher.is_file():
+            return launcher
+    executable = runtime / "python.exe"
+    return executable if executable.is_file() else None
+
+
+def installed(home: Path) -> bool:
+    """A complete installation: the bundled runtime and the application beside it."""
+    return (bundled_python(home, windowless=False) is not None
+            and (home / "app" / "src" / "codex_auto_resume").is_dir())
+
+
+def python_for_watcher(home: Path | None = None) -> Path:
+    launcher = bundled_python(home) if home is not None else None
+    return launcher if launcher is not None else startup.python_launcher()
 
 
 def _cli(home: Path, argv: list[str]) -> int:
@@ -112,7 +136,7 @@ def installed_as_plugin() -> bool:
 
 
 def watcher_command(home: Path) -> str:
-    return startup.command_line(home / LAUNCHER_NAME, None, launcher=python_for_watcher())
+    return startup.command_line(home / LAUNCHER_NAME, None, launcher=python_for_watcher(home))
 
 
 def notification_command(home: Path) -> str:
@@ -121,7 +145,7 @@ def notification_command(home: Path) -> str:
     Registering the plugin's own path here would break on the next update, because the
     plugin lives in a directory named after its version.
     """
-    argv = [str(python_for_watcher()), str(home / LAUNCHER_NAME), "activate"]
+    argv = [str(python_for_watcher(home)), str(home / LAUNCHER_NAME), "activate"]
     return " ".join(startup.quote_argument(argument) for argument in argv) + ' "%1"'
 
 
@@ -133,7 +157,7 @@ def start_watcher(home: Path) -> bool:
     flags = 0
     if os.name == "nt":
         flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-    subprocess.Popen([str(python_for_watcher()), str(home / LAUNCHER_NAME), "run"],
+    subprocess.Popen([str(python_for_watcher(home)), str(home / LAUNCHER_NAME), "run"],
                      cwd=str(home), close_fds=True, creationflags=flags,
                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return True
@@ -156,11 +180,31 @@ def conflicting_autostart(home: Path) -> str | None:
     return current
 
 
+def bootstrap_command() -> str:
+    """How to turn this plugin into an installation, as a runnable command line."""
+    script = PLUGIN_ROOT / "scripts" / "bootstrap.ps1"
+    return 'powershell -NoProfile -ExecutionPolicy Bypass -File "%s"' % script
+
+
 def cmd_setup(args) -> int:
+    home = runtime_home()
+    # A plugin on its own is a source tree. It has no Python runtime, no settings window
+    # and no MCP launcher, because those are a runtime and two compiled binaries that do
+    # not belong in a source repository - and Codex has no install hook that could put
+    # them there. Setting up a watcher anyway would produce a second, lesser installation
+    # pointing at whatever interpreter happened to run this: a different Python, no
+    # settings window, no panel. One product, one installation, so this stops and says
+    # what to run instead.
+    if not installed(home):
+        say("not_installed")
+        print()
+        print("  " + bootstrap_command())
+        print()
+        say("not_installed_hint")
+        return EXIT_ERROR
     if sys.version_info < MIN_PYTHON:
         say("python_missing")
         return EXIT_ERROR
-    home = runtime_home()
     conflict = conflicting_autostart(home)
     if conflict and not args.replace_existing:
         say("conflict")
