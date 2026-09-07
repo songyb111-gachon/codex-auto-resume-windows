@@ -10,9 +10,9 @@ on:
     tags: ["v*"]
   workflow_dispatch:
     inputs:
-      version:
-        description: "Version to build, without the leading v (for a dry run)"
-        required: true
+      tag:
+        description: "Existing tag to rebuild and re-upload, e.g. v0.5.0. Leave blank for a dry run of the current branch."
+        required: false
 
 permissions:
   contents: write
@@ -24,7 +24,11 @@ jobs:
     runs-on: windows-latest
 
     steps:
+      # A dispatch may name an existing tag, which is how a published archive gets
+      # rebuilt from the source that tag now points at.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -45,7 +49,7 @@ jobs:
               throw "tag v$tagged does not match plugin.json version $declared"
             }
           } else {
-            $requested = '${{ github.event.inputs.version }}'
+            $requested = '${{ github.event.inputs.tag }}' -replace '^v', ''
             if ($requested -and $requested -ne $declared) {
               throw "requested $requested does not match plugin.json version $declared"
             }
@@ -114,3 +118,18 @@ jobs:
             "build/dist/CodexAutoResume-v$version-win-x64.zip.sha256" `
             --title "v$version" `
             --notes-file "${{ runner.temp }}/notes.md"
+
+      # Re-uploading an existing release's assets, for the case where the source a tag
+      # points at has changed and the published archive should be rebuilt from it. The
+      # release notes and the tag are left exactly as they are; only the files change.
+      - name: Replace the assets on an existing release
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.tag != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          gh release upload "${{ github.event.inputs.tag }}" `
+            "build/dist/CodexAutoResume-v$version-win-x64.zip" `
+            "build/dist/CodexAutoResume-v$version-win-x64.zip.sha256" `
+            --clobber
