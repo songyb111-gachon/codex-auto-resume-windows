@@ -173,6 +173,17 @@ TOOLS = [
                         "idempotentHint": False, "openWorldHint": False},
     },
     {
+        "name": "start_watcher",
+        "title": "Start the background watcher",
+        "description": "Start the watcher if it is not running. Nothing is recovered "
+                       "while it is stopped, so this is the fix when the status says "
+                       "it is not running. It starts the same process the installer "
+                       "starts and decides nothing about any interruption.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+        "annotations": {"readOnlyHint": False, "destructiveHint": False,
+                        "idempotentHint": True, "openWorldHint": False},
+    },
+    {
         "name": "retry_now",
         "title": "Try a waiting recovery now",
         "description": "Bring a waiting recovery's next attempt forward. This is not a "
@@ -398,6 +409,12 @@ class Server:
     def _tool_reset_recovery_budget(self, arguments) -> dict:
         result = self.control.reset_recovery_budget(arguments.get("interruption_id"))
         return self._reply("Attempts restored; it is waiting again. Nothing was sent.", result)
+
+    def _tool_start_watcher(self, _arguments) -> dict:
+        result = self.control.start_watcher()
+        return self._reply(
+            "The watcher is running." if result["started"]
+            else "It was already running; nothing to do.", result)
 
     def _tool_retry_now(self, arguments) -> dict:
         result = self.control.request_retry_now(arguments.get("interruption_id"))

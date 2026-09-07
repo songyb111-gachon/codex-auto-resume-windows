@@ -349,9 +349,9 @@ def cmd_install(args) -> int:
             else:
                 launcher = app.paths.home / "watcher-launcher.py"
                 target = launcher if launcher.is_file() else app.paths.entry_script
-                shortcut.install(target=startup.python_launcher(),
-                                 arguments=subprocess.list2cmdline(
-                                     [str(target), "--home", str(app.paths.home), "status"]),
+                arguments = " ".join(startup.quote_argument(argument) for argument in
+                                     (str(target), "--home", str(app.paths.home), "status"))
+                shortcut.install(target=startup.python_launcher(), arguments=arguments,
                                  icon=icon, description="Codex Auto Resume")
             _print("notification sender   : %s" % startup.AUMID_DISPLAY_NAME)
             _print("start menu entry      : %s" % shortcut.shortcut_path().name)

@@ -79,8 +79,39 @@ def _complain(home: Path, reason: str) -> None:
         pass
 
 
+LAUNCH_LOG = "launcher.log"
+LAUNCH_LOG_LINES = 50
+
+
+def _note(home: Path, text: str) -> None:
+    """Record that this process ran, before anything else can fail.
+
+    Under `pythonw.exe` there is no console and no stderr, so a failure before logging
+    is configured leaves nothing at all behind - and the one question that then cannot
+    be answered is the important one: did Windows start us at sign-in and we died, or
+    did Windows never start us? A watcher that silently never runs looks exactly like a
+    watcher that runs and finds nothing to do.
+
+    Deliberately not the main log: this is one line per launch, written before the real
+    logging exists, and it is trimmed rather than rotated because only the last few
+    launches are ever interesting.
+    """
+    try:
+        logs = home / "logs"
+        logs.mkdir(parents=True, exist_ok=True)
+        path = logs / LAUNCH_LOG
+        lines = []
+        if path.is_file():
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()[-LAUNCH_LOG_LINES:]
+        lines.append(time.strftime("[%Y-%m-%d %H:%M:%S] ") + text)
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except (OSError, ValueError):
+        pass
+
+
 def main(argv=None) -> int:
     here = Path(__file__).resolve().parent
+    _note(here, "launcher started (pid %d)" % os.getpid())
     try:
         config = json.loads((here / CONFIG_NAME).read_text(encoding="utf-8"))
         home = Path(config["home"])
@@ -100,5 +131,30 @@ def main(argv=None) -> int:
     return cli_main(["--home", str(home), "--quiet"] + command)
 
 
+def _guarded(argv=None) -> int:
+    """Run, and make sure a crash says so somewhere.
+
+    Any exception escaping `main` under `pythonw.exe` is written to a stderr that does
+    not exist, so the process vanishes with no message, no log line and no event. That
+    is how an autostart failure becomes unexplainable, so it is caught here and put on
+    disk instead.
+    """
+    here = Path(__file__).resolve().parent
+    try:
+        return main(argv)
+    except SystemExit:
+        raise
+    except BaseException as exc:                    # noqa: BLE001 - last resort on purpose
+        import traceback
+        _note(here, "launcher failed: %s: %s" % (type(exc).__name__, exc))
+        _complain(here, "unhandled %s: %s" % (type(exc).__name__, exc))
+        try:
+            with (here / "logs" / "errors.log").open("a", encoding="utf-8") as stream:
+                traceback.print_exc(file=stream)
+        except OSError:
+            pass
+        return EXIT_ERROR
+
+
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    sys.exit(_guarded(sys.argv[1:]))

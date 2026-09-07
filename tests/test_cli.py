@@ -595,3 +595,79 @@ class EntryPointTests(unittest.TestCase):
         # would otherwise decide which engine runs.
         text = self.ENTRY.read_text(encoding="utf-8")
         self.assertIn("sys.path.insert(0,", text)
+
+
+class CommandQuotingTests(unittest.TestCase):
+    r"""Every command written to the registry, checked against the real parser.
+
+    These exist because the previous tests only round-tripped: they parsed a command
+    back and compared the arguments, which passes whether or not anything is quoted.
+    The defect they missed is that `subprocess.list2cmdline` quotes only tokens that
+    contain a space, so an installation under a path without one produced a completely
+    unquoted Run value - and the same command under `C:\Users\John Smith\...` is read
+    as the program `C:\Users\John`, so the watcher never starts at sign-in.
+
+    `_split_command` is CommandLineToArgvW itself on Windows, which is what actually
+    parses these, so agreement with it is the property worth asserting.
+    """
+
+    AWKWARD = [
+        r"C:\Users\John Smith\.codex-auto-resume\runtime\pythonw.exe",
+        r"D:\ ",
+        "D:\\",
+        r"C:\a\b",
+        'has"quote',
+        r"trailing\\",
+        "plain",
+        "",
+    ]
+
+    def test_quoting_agrees_with_the_windows_parser(self):
+        # Never in first position: CommandLineToArgvW parses argv[0] by different rules
+        # - it is the program name, so backslashes there are not escape characters and a
+        # round trip through that slot proves nothing about the quoting of the rest.
+        for value in self.AWKWARD:
+            with self.subTest(value=value):
+                command = " ".join([startup.quote_argument("prog.exe"),
+                                    startup.quote_argument(value),
+                                    startup.quote_argument("run")])
+                self.assertEqual(_split_command(command), ["prog.exe", value, "run"])
+
+    def test_every_argument_is_quoted(self):
+        command = startup.command_line(Path(r"C:\home\watcher-launcher.py"), Path(r"C:\home"),
+                                       launcher=Path(r"C:\py\pythonw.exe"))
+        for token in command.split(" "):
+            self.assertTrue(token.startswith('"') and token.endswith('"'), command)
+
+    def test_a_home_with_a_space_still_names_the_right_program(self):
+        # The failure this whole class exists for.
+        launcher = Path(r"C:\Users\John Smith\.codex-auto-resume\runtime\pythonw.exe")
+        script = Path(r"C:\Users\John Smith\.codex-auto-resume\watcher-launcher.py")
+        argv = _split_command(startup.command_line(script, None, launcher=launcher))
+        self.assertEqual(argv[0], str(launcher))
+        self.assertEqual(argv[1], str(script))
+        self.assertEqual(argv[-1], "run")
+
+    def test_a_trailing_backslash_does_not_swallow_the_next_argument(self):
+        # The original reason list2cmdline was used; the replacement must keep it.
+        argv = _split_command(startup.command_line(Path(r"C:\a\entry.py"), Path("D:\\"),
+                                                   launcher=Path(r"C:\py\pythonw.exe")))
+        self.assertIn("--home", argv)
+        self.assertEqual(argv[argv.index("--home") + 1], "D:\\")
+        self.assertEqual(argv[-1], "run")
+
+    def test_the_protocol_handler_is_quoted_and_keeps_its_placeholder(self):
+        command = startup.protocol_command_line(Path(r"C:\Users\John Smith\a\entry.py"),
+                                                Path(r"C:\Users\John Smith\a"),
+                                                launcher=Path(r"C:\py\pythonw.exe"))
+        self.assertTrue(command.endswith(' "%1"'))
+        argv = _split_command(command)
+        self.assertEqual(argv[0], r"C:\py\pythonw.exe")
+        self.assertEqual(argv[-1], "%1")
+        self.assertIn("activate", argv)
+
+    def test_ownership_still_recognises_a_quoted_command(self):
+        home = Path(r"C:\Users\John Smith\.codex-auto-resume")
+        command = startup.command_line(home / "watcher-launcher.py", None,
+                                       launcher=home / "runtime" / "pythonw.exe")
+        self.assertTrue(startup.belongs_to(command, home))

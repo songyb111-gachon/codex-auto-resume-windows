@@ -134,19 +134,72 @@ if ((Invoke-Codex $codex @('plugin', '--help')).Code -ne 0) {
 
 $upgrade = Test-Path $AppDir
 if ($upgrade) { Step 'Updating program files' } else { Step 'Installing program files' }
+
+# Sweep up copies moved aside by an earlier upgrade. They are only removable once
+# whatever was using them has exited, which is normally by now.
+foreach ($stale in (Get-ChildItem -Path $InstallHome -Directory -Filter '*.old-*' -ErrorAction SilentlyContinue)) {
+    Remove-Item -Recurse -Force $stale.FullName -ErrorAction SilentlyContinue
+}
+
 # Replace only the program directories. Settings, state and logs sit beside them and are
 # deliberately not in this list, so an upgrade cannot lose a pending recovery.
-foreach ($pair in @(@{ src = 'app'; dst = $AppDir }, @{ src = 'runtime'; dst = $RunDir })) {
-    $source = Join-Path $Payload $pair.src
-    if (-not (Test-Path $source)) { Fail ('Payload is incomplete: ' + $pair.src); exit 1 }
-    if (Test-Path $pair.dst) { Remove-Item -Recurse -Force $pair.dst }
-    New-Item -ItemType Directory -Force -Path $pair.dst | Out-Null
-    Copy-Item -Path (Join-Path $source '*') -Destination $pair.dst -Recurse -Force
+#
+# Moved aside, never deleted in place. Codex keeps this plugin's MCP server running, and
+# that holds the bundled interpreter's DLLs open; a loaded DLL cannot be deleted, so
+# `Remove-Item` failed part-way through and left the installation half-replaced. Windows
+# does allow renaming the directory that contains an open file - the running process
+# keeps working - so the old copy is moved out of the way and swept up next time.
+$pairs = @(@{ src = 'app'; dst = $AppDir }, @{ src = 'runtime'; dst = $RunDir })
+foreach ($pair in $pairs) {
+    if (-not (Test-Path (Join-Path $Payload $pair.src))) { Fail ('Payload is incomplete: ' + $pair.src); exit 1 }
 }
+
+# Move everything aside first, copy second, and undo the whole thing on any failure -
+# including a failure during the copy. An upgrade that stops half way is worse than one
+# that does not happen: the first attempt at this rolled back a failed move but not a
+# failed copy, and left the application present and the interpreter missing.
+$moved = @()
+try {
+    foreach ($pair in $pairs) {
+        if (-not (Test-Path $pair.dst)) { continue }
+        $aside = $pair.dst + '.old-' + (Get-Date -Format 'yyyyMMddHHmmss')
+        Move-Item -Path $pair.dst -Destination $aside -ErrorAction Stop
+        $moved += @{ from = $aside; to = $pair.dst }
+    }
+    foreach ($pair in $pairs) {
+        New-Item -ItemType Directory -Force -Path $pair.dst | Out-Null
+        # Join-Path takes two paths in Windows PowerShell; a third argument is a
+        # parameter-binding error, not a longer path.
+        Copy-Item -Path (Join-Path (Join-Path $Payload $pair.src) '*') `
+                  -Destination $pair.dst -Recurse -Force -ErrorAction Stop
+    }
+} catch {
+    Warn ('Could not replace the installation: ' + $_.Exception.Message)
+    foreach ($undo in $moved) {
+        if (Test-Path $undo.to) { Remove-Item -Recurse -Force $undo.to -ErrorAction SilentlyContinue }
+        Move-Item -Path $undo.from -Destination $undo.to -Force -ErrorAction SilentlyContinue
+    }
+    Fail 'The existing installation was put back; nothing was changed.'
+    Write-Host '       Close the ChatGPT/Codex app and run this installer again.'
+    exit 1
+}
+foreach ($old in $moved) { Remove-Item -Recurse -Force $old.from -ErrorAction SilentlyContinue }
+
 # The settings window and the icon live at the payload root because the window
-# resolves runtime\python.exe and app\src relative to its own directory.
+# resolves runtime\python.exe and app\src relative to its own directory. The window may
+# be open right now, so the same move-aside rule applies to it.
 foreach ($file in (Get-ChildItem -Path $Payload -File -ErrorAction SilentlyContinue)) {
-    Copy-Item -Path $file.FullName -Destination (Join-Path $InstallHome $file.Name) -Force
+    $target = Join-Path $InstallHome $file.Name
+    try {
+        Copy-Item -Path $file.FullName -Destination $target -Force -ErrorAction Stop
+    } catch {
+        $aside = $target + '.old-' + (Get-Date -Format 'yyyyMMddHHmmss')
+        Move-Item -Path $target -Destination $aside -Force -ErrorAction SilentlyContinue
+        Copy-Item -Path $file.FullName -Destination $target -Force
+    }
+}
+foreach ($stale in (Get-ChildItem -Path $InstallHome -File -Filter '*.old-*' -ErrorAction SilentlyContinue)) {
+    Remove-Item -Force $stale.FullName -ErrorAction SilentlyContinue
 }
 if (-not (Test-Path $Python)) { Fail 'The bundled Python runtime is missing from the payload.'; exit 1 }
 $runtimeVersion = & $Python -c 'import sys;print(str(sys.version_info[0])+chr(46)+str(sys.version_info[1]))'
@@ -168,8 +221,26 @@ if ($added.Code -ne 0) {
 if ($added.Code -ne 0) { Warn 'Could not register the local marketplace; the Codex skill may be unavailable.' }
 $null = Invoke-Codex $codex @('plugin', 'marketplace', 'upgrade')
 $installed = Invoke-Codex $codex @('plugin', 'add', ($PluginName + '@' + $MarketplaceName))
-if ($installed.Code -ne 0) { Warn 'Could not install the Codex plugin; the watcher will still run.' }
-else { Ok 'Codex plugin installed' }
+if ($installed.Code -ne 0 -and (($installed.Err + $installed.Out) -match 'os error 5|back up plugin cache')) {
+    # Codex replaces the plugin by backing up its cache directory, and it cannot while
+    # a file inside that directory is open. The open file is ours: Codex starts this
+    # plugin's MCP launcher, which lives in the plugin, so the plugin cannot be updated
+    # while Codex is using it. Stopping only our own launchers is enough - Codex starts
+    # a fresh one the next time it needs the server.
+    $ours = @(Get-CimInstance Win32_Process -Filter "Name='codex-auto-resume-mcp.exe'" -ErrorAction SilentlyContinue)
+    if ($ours.Count -gt 0) {
+        Step 'Releasing the plugin files this installation is holding open'
+        foreach ($process in $ours) {
+            Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
+        }
+        Start-Sleep -Milliseconds 800
+        $installed = Invoke-Codex $codex @('plugin', 'add', ($PluginName + '@' + $MarketplaceName))
+    }
+}
+if ($installed.Code -ne 0) {
+    Warn 'Could not update the Codex plugin; the watcher and its settings still work.'
+    Write-Host '       Close the ChatGPT/Codex app and run this installer again to finish it.'
+} else { Ok 'Codex plugin installed' }
 
 Step 'Setting up the watcher'
 $setupArgs = @('setup')

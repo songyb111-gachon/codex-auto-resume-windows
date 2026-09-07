@@ -353,8 +353,71 @@ class BridgeTests(ControlTestCase):
         names = sorted(actions[0].choices)
         self.assertEqual(names, sorted([
             "cancel", "defaults", "describe", "enabled", "pending", "pending-all",
-            "reset-budget", "retry-now", "settings", "startup", "status", "update"]))
+            "reset-budget", "retry-now", "settings", "start-watcher", "startup",
+            "status", "update"]))
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StartWatcherTests(ControlTestCase):
+    """Starting the watcher is control, not recovery.
+
+    It launches the same process the installer launches and then has nothing more to do
+    with it. The tests below pin that down: it decides nothing about any interruption,
+    and it never runs a second watcher alongside a live one.
+    """
+
+    def test_it_launches_the_stable_launcher_when_one_is_installed(self):
+        (self.home / "watcher-launcher.py").write_text("# launcher" + chr(10), encoding="utf-8")
+        with patch("subprocess.Popen") as popen:
+            result = self.control.start_watcher()
+        self.assertIs(result["started"], True)
+        argv = popen.call_args.args[0]
+        self.assertEqual(Path(argv[1]).name, "watcher-launcher.py")
+        self.assertEqual(argv[-1], "run")
+
+    def test_it_refuses_to_start_a_second_watcher(self):
+        # Two watchers with the same state could each resume the same interruption.
+        with patch.object(control.Control, "watcher_running", return_value=True),              patch("subprocess.Popen") as popen:
+            result = self.control.start_watcher()
+        self.assertIs(result["started"], False)
+        popen.assert_not_called()
+
+    def test_an_unknown_probe_result_still_allows_a_start(self):
+        # None means the probe failed, not that a watcher is running; the single-instance
+        # mutex is what actually prevents a second one, and it is checked by the watcher.
+        (self.home / "watcher-launcher.py").write_text("# launcher" + chr(10), encoding="utf-8")
+        with patch.object(control.Control, "watcher_running", return_value=None),              patch("subprocess.Popen") as popen:
+            self.assertIs(self.control.start_watcher()["started"], True)
+        popen.assert_called_once()
+
+    def test_it_reports_a_missing_installation_rather_than_failing_silently(self):
+        self.paths.entry_script = self.home / "nowhere.py"
+        with patch.object(control.Control, "watcher_running", return_value=False):
+            with self.assertRaises(control.ControlError):
+                self.control.start_watcher()
+
+    def test_starting_touches_no_interruption(self):
+        self.register()
+        (self.home / "watcher-launcher.py").write_text("# launcher" + chr(10), encoding="utf-8")
+        with Store(self.paths.state_dir) as store:
+            before = store.get(KEY)
+        with patch("subprocess.Popen"):
+            self.control.start_watcher()
+        with Store(self.paths.state_dir) as store:
+            self.assertEqual(store.get(KEY), before)
+
+    def run_bridge(self, *argv):
+        stream = io.StringIO()
+        with patch("sys.stdout", stream):
+            code = controlcli.main(["--home", str(self.home), *argv])
+        return code, json.loads(stream.getvalue())
+
+    def test_the_bridge_exposes_it(self):
+        (self.home / "watcher-launcher.py").write_text("# launcher" + chr(10), encoding="utf-8")
+        with patch("subprocess.Popen"):
+            code, payload = self.run_bridge("start-watcher")
+        self.assertEqual(code, 0)
+        self.assertIs(payload["result"]["started"], True)

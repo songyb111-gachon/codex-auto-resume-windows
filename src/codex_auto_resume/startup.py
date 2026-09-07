@@ -35,15 +35,47 @@ def python_launcher() -> Path:
     return windowless if windowless.is_file() else executable
 
 
+def quote_argument(value) -> str:
+    """Quote one argument for a Windows command line, always.
+
+    `subprocess.list2cmdline` quotes only what it must - a token with a space - so an
+    installation under a path without spaces produced an entirely unquoted Run value.
+    That is a real defect and not a cosmetic one: the same command under
+    `C:\\Users\\John Smith\\...` is parsed as the program `C:\\Users\\John` with
+    arguments, and the watcher never starts at sign-in. Nothing about whether it works
+    should depend on what the user is called.
+
+    The backslash rule is the documented CommandLineToArgvW one: a run of backslashes
+    matters only immediately before a quote, where it must be doubled. Wrapping in
+    quotes without that - the obvious version - turns `--home D:\\` into `"D:\\"`, whose
+    trailing backslash escapes the closing quote and swallows the next argument.
+    """
+    text = str(value)
+    quoted = ['"']
+    slashes = 0
+    for character in text:
+        if character == "\\":
+            slashes += 1
+            continue
+        if character == '"':
+            quoted.append("\\" * (slashes * 2 + 1))
+            quoted.append('"')
+        else:
+            quoted.append("\\" * slashes)
+            quoted.append(character)
+        slashes = 0
+    quoted.append("\\" * (slashes * 2))
+    quoted.append('"')
+    return "".join(quoted)
+
+
 def command_line(entry_script: Path, home: Path | None = None, launcher: Path | None = None) -> str:
     launcher = launcher or python_launcher()
     argv = [str(launcher), str(Path(entry_script).resolve())]
     if home is not None:
-        # list2cmdline escapes a trailing backslash (e.g. --home D:\), which naive
-        # quoting would turn into an escaped quote, swallowing the `run` subcommand.
         argv += ["--home", str(Path(home).resolve())]
     argv.append("run")
-    return subprocess.list2cmdline(argv)
+    return " ".join(quote_argument(argument) for argument in argv)
 
 
 PROTOCOL_KEY = r"Software\Classes\%s" % PROTOCOL_SCHEME
@@ -113,7 +145,9 @@ def protocol_command_line(entry_script: Path, home: Path, launcher: Path | None 
     launcher = launcher or python_launcher()
     argv = [str(launcher), str(Path(entry_script).resolve()), "--home", str(Path(home).resolve()),
             "--quiet", "activate"]
-    return subprocess.list2cmdline(argv) + ' "%1"'
+    # Quoted the same way as the autostart value, and for the same reason: under a path
+    # with a space, an unquoted handler makes the notification's button do nothing.
+    return " ".join(quote_argument(argument) for argument in argv) + ' "%1"'
 
 
 def protocol_value() -> str | None:
