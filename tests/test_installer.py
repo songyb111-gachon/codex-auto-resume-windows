@@ -40,10 +40,11 @@ class PackagingTests(unittest.TestCase):
             self.assertIn(b"\r\n", data, name)
             self.assertNotIn(b"\r\r", data, name)
 
-    def test_the_launcher_only_calls_the_script_next_to_it(self):
+    def test_the_launcher_only_calls_the_script_shipped_beside_it(self):
         for name in ("Install.cmd", "Uninstall.cmd"):
             text = (INSTALL_DIR / name).read_text(encoding="utf-8")
-            self.assertIn('"%~dp0install.ps1"', text)
+            # Relative to the launcher, never an absolute or PATH-resolved script.
+            self.assertIn('"%~dp0install', text)
             self.assertIn("-ExecutionPolicy Bypass", text)
 
     def test_no_engine_is_duplicated_into_the_installer(self):
@@ -68,16 +69,34 @@ class SafetyTests(unittest.TestCase):
         self.assertNotIn("HKLM", self.text)
         self.assertNotIn("HKEY_LOCAL_MACHINE", self.text)
 
-    def test_it_never_deletes_runtime_state(self):
-        # Only the plugin's own `uninstall` may remove state, and only when asked.
-        for forbidden in ("Remove-Item", "rmdir", "del ", "Clear-Content"):
+    def test_it_replaces_program_files_but_never_state(self):
+        """An upgrade may replace the program; it must not touch the recovery history."""
+        install_section = self.text[self.text.index("# ---"):]
+        # The replace list is exactly the two program directories.
+        self.assertIn("src = 'app'", install_section)
+        self.assertIn("src = 'runtime'", install_section)
+        # Settings, state and logs are only ever removed under an explicit -Purge.
+        purge = self.text.index("if ($Purge)")
+        for state in ("'config'", "'logs'"):
+            first = self.text.index(state)
+            self.assertGreater(first, purge, "%s must only be removed under -Purge" % state)
+
+    def test_purge_is_opt_in(self):
+        self.assertIn("[switch]$Purge", self.text)
+        # The default uninstall says so, rather than silently keeping or silently deleting.
+        self.assertIn("Settings and pending recoveries were kept", self.text)
+
+    def test_it_downloads_nothing_at_install_time(self):
+        """The runtime ships in the archive; an installer must not fetch code."""
+        for forbidden in ("Invoke-WebRequest", "Start-BitsTransfer", "winget install",
+                          "choco install", "DownloadFile", "Invoke-RestMethod"):
             self.assertNotIn(forbidden, self.text)
 
-    def test_it_does_not_install_python(self):
-        for forbidden in ("Invoke-WebRequest", "Start-BitsTransfer", "winget install", "choco install",
-                          "python-3", "DownloadFile"):
-            self.assertNotIn(forbidden, self.text)
-        self.assertIn("python.org/downloads", self.text)
+    def test_it_uses_the_bundled_runtime_not_a_system_python(self):
+        self.assertIn("Join-Path $RunDir 'python.exe'", self.text)
+        self.assertIn("no system Python needed", self.text)
+        # No PATH lookup for an interpreter anywhere.
+        self.assertNotIn("Get-Command python", self.text)
 
     def test_it_delegates_setup_rather_than_reimplementing_it(self):
         self.assertIn("plugin_setup.py", self.text)
@@ -87,13 +106,29 @@ class SafetyTests(unittest.TestCase):
         self.assertNotIn("CurrentVersion\\Run", self.text)
         self.assertNotIn("URL Protocol", self.text)
 
-    def test_it_requires_a_recent_python(self):
-        self.assertRegex(self.text, r"minor\s*-ge\s*10")
+    def test_it_reports_the_bundled_runtime_version(self):
+        # There is no version floor to enforce any more - we ship the interpreter - but
+        # the installer must still prove which one it deployed.
+        self.assertIn("sys.version_info", self.text)
+        self.assertIn("Bundled Python", self.text)
 
     def test_uninstall_removes_the_watcher_before_the_plugin(self):
+        # The watcher must be torn down while its runtime still exists.
         watcher = self.text.index("Removing the watcher")
-        plugin = self.text.index("Removing the plugin")
+        plugin = self.text.index("Removing the Codex plugin")
+        files = self.text.index("Removing program files")
         self.assertLess(watcher, plugin)
+        self.assertLess(plugin, files)
+
+    def test_native_calls_do_not_redirect_stderr_into_powershell(self):
+        """PowerShell 5.1 turns native stderr into a terminating error, and codex
+        writes ordinary progress there."""
+        code = [line for line in self.text.splitlines() if not line.strip().startswith("#")]
+        self.assertNotIn("2>&1", "\n".join(code))
+        self.assertIn("Invoke-Codex", self.text)
+
+    def test_an_existing_marketplace_is_repointed_not_fatal(self):
+        self.assertIn("already added from a different source", self.text)
 
 
 @unittest.skipUnless(shutil.which("powershell") or shutil.which("powershell.exe"),
