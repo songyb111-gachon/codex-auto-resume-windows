@@ -236,6 +236,14 @@ function render() {
   pause.disabled = !HOST;
   footer.appendChild(save);
   footer.appendChild(pause);
+  // Offered only when it is the thing that is wrong. Nothing is recovered while the
+  // watcher is stopped, so a panel that reports it and offers no way out is a dead end.
+  var start = null;
+  if (status.watcher_running === false) {
+    start = element('button', null, 'Start watcher');
+    start.disabled = !HOST;
+    footer.appendChild(start);
+  }
   footer.appendChild(message);
   root.appendChild(footer);
 
@@ -265,6 +273,20 @@ function render() {
       render();
     }, function () { pause.disabled = false; });
   };
+
+  if (start) {
+    start.onclick = function () {
+      start.disabled = true;
+      message.textContent = 'Starting...';
+      HOST.callTool('start_watcher', {}).then(function () {
+        status.watcher_running = true;
+        render();
+      }, function (error) {
+        message.textContent = 'Could not start it: ' + (error && error.message ? error.message : 'refused');
+        start.disabled = false;
+      });
+    };
+  }
 }
 
 render();

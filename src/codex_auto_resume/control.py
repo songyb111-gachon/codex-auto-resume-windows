@@ -16,6 +16,7 @@ Two properties matter more than the API shape:
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import time
 import uuid
@@ -109,6 +110,45 @@ class Control:
         except startup.StartupError as exc:
             raise ControlError(str(exc)) from None
         return self.startup_enabled()
+
+    def start_watcher(self) -> dict:
+        """Start the watcher if it is not already running.
+
+        Still not a recovery engine: this launches the same process the installer
+        launches, with the same arguments, and then has nothing more to do with it. It
+        decides nothing about any interruption.
+
+        It exists because the alternative was a dead end. A settings window that
+        reports "watcher not running" and offers no way to start one leaves the user
+        with a product that has quietly stopped working and no route back except
+        re-running the installer - and the whole point of the watcher is that it is the
+        part nobody should have to think about.
+        """
+        import subprocess
+
+        running = self.watcher_running()
+        if running is True:
+            return {"started": False, "reason": "already running"}
+        launcher = self.paths.home / "watcher-launcher.py"
+        entry = launcher if launcher.is_file() else self.paths.entry_script
+        if not Path(entry).is_file():
+            raise ControlError("the watcher is not installed here")
+        flags = 0
+        if os.name == "nt":
+            flags = (getattr(subprocess, "DETACHED_PROCESS", 0)
+                     | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+        arguments = [str(startup.python_launcher()), str(entry)]
+        if entry != launcher:
+            # The stable launcher already knows its home; the raw entry point does not.
+            arguments += ["--home", str(self.paths.home), "--quiet"]
+        arguments.append("run")
+        try:
+            subprocess.Popen(arguments, cwd=str(self.paths.home), close_fds=True,
+                             creationflags=flags, stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError as exc:
+            raise ControlError("could not start the watcher: %s" % exc) from None
+        return {"started": True, "reason": None}
 
     def get_status(self) -> dict:
         values = self.get_settings()

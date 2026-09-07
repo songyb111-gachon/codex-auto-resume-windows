@@ -47,7 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="codex-auto-resume-control", add_help=True)
     parser.add_argument("--home", help="runtime home (default: the installed location)")
     sub = parser.add_subparsers(dest="command", required=True)
-    for name in ("status", "settings", "describe", "defaults", "pending"):
+    for name in ("status", "settings", "describe", "defaults", "pending", "start-watcher"):
         sub.add_parser(name)
     for name in ("update", "enabled", "startup", "cancel", "reset-budget", "retry-now"):
         p = sub.add_parser(name)
@@ -77,6 +77,8 @@ def main(argv=None) -> int:
             return _emit({"ok": True, "pending": control.list_pending()})
         if args.command == "pending-all":
             return _emit({"ok": True, "pending": control.list_pending(include_terminal=True)})
+        if args.command == "start-watcher":
+            return _emit({"ok": True, "result": control.start_watcher()})
 
         payload = _payload(args.json)
         if args.command == "update":

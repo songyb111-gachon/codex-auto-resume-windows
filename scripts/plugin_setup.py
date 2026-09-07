@@ -122,7 +122,7 @@ def notification_command(home: Path) -> str:
     plugin lives in a directory named after its version.
     """
     argv = [str(python_for_watcher()), str(home / LAUNCHER_NAME), "activate"]
-    return subprocess.list2cmdline(argv) + ' "%1"' 
+    return " ".join(startup.quote_argument(argument) for argument in argv) + ' "%1"'
 
 
 def start_watcher(home: Path) -> bool:

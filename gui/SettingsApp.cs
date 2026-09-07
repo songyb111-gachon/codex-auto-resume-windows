@@ -240,6 +240,7 @@ namespace CodexAutoResume
         private readonly Label statusText = new Label();
         private readonly Label versionText = new Label();
         private Color dotColor = Idle;
+        private Button startButton;
 
         internal SettingsForm(Bridge bridge)
         {
@@ -374,6 +375,12 @@ namespace CodexAutoResume
             row.Controls.Add(MakeButton("Close", false, delegate { Close(); }));
             row.Controls.Add(MakeButton("Save", true, delegate { Save(); }));
             row.Controls.Add(MakeButton("Restore defaults", false, delegate { RestoreDefaults(); }));
+            // Shown only while the watcher is stopped. Nothing is recovered then, so a
+            // window that reports the fact and offers no way out is a dead end - and
+            // the watcher is the part nobody should have to think about.
+            startButton = MakeButton("Start watcher", false, delegate { StartWatcher(); });
+            startButton.Visible = false;
+            row.Controls.Add(startButton);
 
             footer.Controls.Add(row);
             footer.Paint += delegate(object sender, PaintEventArgs e)
@@ -646,6 +653,7 @@ namespace CodexAutoResume
                             : count.ToString(CultureInfo.InvariantCulture) + " pending recoveries";
                 statusText.Text = headline + "   ·   " + tail;
                 versionText.Text = "v" + status["version"];
+                if (startButton != null) startButton.Visible = Equals(running, false);
             }
             catch (Exception)
             {
@@ -658,6 +666,30 @@ namespace CodexAutoResume
         }
 
         // ------------------------------------------------------------------ actions
+        private void StartWatcher()
+        {
+            startButton.Enabled = false;
+            statusText.Text = "Starting the watcher...";
+            try
+            {
+                var response = bridge.Call("start-watcher", null);
+                if (!Equals(response["ok"], true))
+                    throw new InvalidOperationException((string)response["error"]);
+                // The probe reads a single-instance mutex the new process has to take,
+                // so an immediate re-read can still say "not running". One short wait is
+                // the difference between showing the truth and showing a stale failure.
+                System.Threading.Thread.Sleep(1200);
+                RefreshStatus(editors.ContainsKey("__startup") ? editors["__startup"] as CheckBox : null);
+            }
+            catch (Exception error)
+            {
+                MessageBox.Show(this, "Could not start the watcher." + Environment.NewLine +
+                                Environment.NewLine + error.Message,
+                                "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            startButton.Enabled = true;
+        }
+
         private void Save()
         {
             var changes = new StringBuilder("{");

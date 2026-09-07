@@ -208,3 +208,111 @@ class StateUpgradeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class InPlaceUpgradeTests(unittest.TestCase):
+    """An upgrade must survive the product's own processes being alive.
+
+    Codex keeps this plugin's MCP server running, which holds the bundled interpreter's
+    DLLs open. A loaded DLL cannot be deleted, so removing the runtime directory failed
+    part-way through and left the installation half-replaced: the application updated,
+    the interpreter gone. Windows does allow renaming the directory that contains an
+    open file, so the installer moves the old copy aside instead.
+    """
+
+    def setUp(self):
+        self.text = PS1.read_text(encoding="utf-8")
+
+    def test_program_directories_are_moved_aside_not_deleted(self):
+        self.assertIn("Move-Item -Path $pair.dst -Destination $aside", self.text)
+        self.assertNotIn("if (Test-Path $pair.dst) { Remove-Item -Recurse -Force $pair.dst }", self.text)
+
+    def test_a_failure_at_either_step_puts_the_installation_back(self):
+        # The first version of this rolled back a failed move but not a failed copy, and
+        # left the application present with the interpreter missing - which is how the
+        # bug it fixes was reproduced in the first place.
+        move = self.text.index("Move-Item -Path $pair.dst -Destination $aside")
+        copy = self.text.index("Copy-Item -Path (Join-Path (Join-Path $Payload $pair.src)")
+        rollback = self.text.index("foreach ($undo in $moved)")
+        self.assertLess(move, copy, "moves must all happen before any copy")
+        self.assertLess(copy, rollback, "the rollback must cover the copy as well")
+        self.assertIn("nothing was changed", self.text)
+
+    def test_the_rollback_clears_a_partly_copied_directory_first(self):
+        # Moving the original back over a half-written directory would merge the two.
+        rollback = self.text[self.text.index("foreach ($undo in $moved)"):]
+        self.assertLess(rollback.index("Remove-Item -Recurse -Force $undo.to"),
+                        rollback.index("Move-Item -Path $undo.from"))
+
+    @unittest.skipUnless(shutil.which("powershell") or shutil.which("powershell.exe"),
+                         "PowerShell is unavailable")
+    def test_join_path_is_never_given_three_path_segments(self):
+        """Windows PowerShell's Join-Path takes two paths.
+
+        A third is bound as a parameter and fails the whole script - which is how an
+        upgrade got as far as moving the old installation aside and then stopped. Text
+        matching cannot see this (the first argument is often a parenthesised
+        expression containing spaces), so the check runs PowerShell's own parser and
+        counts the positional arguments of every Join-Path command.
+        """
+        script = (
+            "$ast=[System.Management.Automation.Language.Parser]::ParseFile('%s',[ref]$null,[ref]$null);"
+            "$bad=$ast.FindAll({param($n) $n -is "
+            "[System.Management.Automation.Language.CommandAst] -and "
+            "$n.GetCommandName() -eq 'Join-Path'}, $true) | Where-Object {"
+            "  ($_.CommandElements | Select-Object -Skip 1 | Where-Object {"
+            "     $_ -isnot [System.Management.Automation.Language.CommandParameterAst] }).Count -gt 2 };"
+            "if ($bad) { $bad[0].Extent.Text; exit 1 } else { 'OK' }"
+        ) % str(PS1).replace("'", "''")
+        completed = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+            capture_output=True, text=True, timeout=120)
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+
+    def test_it_tells_the_user_what_to_do_when_it_cannot_replace(self):
+        self.assertIn("Close the ChatGPT/Codex app and run this installer again", self.text)
+
+    def test_leftovers_are_swept_up_on_a_later_run(self):
+        # The moved-aside copy is only removable once the process using it has exited.
+        self.assertIn("-Filter '*.old-*'", self.text)
+
+    def test_state_directories_are_never_replaced(self):
+        # config/ and logs/ hold pending recoveries and must survive every upgrade.
+        for name in ("'config'", "'logs'"):
+            replaced = ("$pairs = @(@{ src = 'app'" in self.text) and (name in self.text.split("$pairs =")[1][:400])
+            self.assertFalse(replaced, name)
+
+
+class PluginUpgradeUnderUseTests(unittest.TestCase):
+    """Codex cannot replace the plugin while it is running the plugin.
+
+    Codex starts this plugin's MCP launcher, and the launcher lives inside the plugin -
+    it has to, because Codex accepts a plugin command only as a path contained in the
+    plugin. So `codex plugin add` fails to back up the cache directory with an access
+    error whenever Codex is open, which for most people is always.
+    """
+
+    def setUp(self):
+        self.text = PS1.read_text(encoding="utf-8")
+
+    def test_the_access_error_is_recognised(self):
+        self.assertIn("os error 5", self.text)
+        self.assertIn("back up plugin cache", self.text)
+
+    def test_only_our_own_launchers_are_stopped(self):
+        # Never Codex, never the app-server, never anything else holding a file.
+        self.assertIn("Name='codex-auto-resume-mcp.exe'", self.text)
+        for forbidden in ("Stop-Process -Name 'codex'", "Stop-Process -Name 'ChatGPT'",
+                          "Name='codex.exe'", "Name='ChatGPT.exe'"):
+            self.assertNotIn(forbidden, self.text)
+
+    def test_it_retries_once_after_releasing_the_files(self):
+        release = self.text.index("Releasing the plugin files")
+        retry = self.text.index("plugin", release)
+        self.assertGreater(retry, release)
+        self.assertEqual(self.text.count("Step 'Releasing the plugin files"), 1)
+
+    def test_a_still_failing_upgrade_says_what_to_do_and_does_not_stop_the_install(self):
+        self.assertIn("Close the ChatGPT/Codex app and run this installer again to finish it", self.text)
+        # The watcher is the product; a stale plugin skill must not fail the install.
+        self.assertIn("the watcher and its settings still work", self.text)
