@@ -67,6 +67,36 @@ than a technical one - it would push a form into whatever conversation happens t
 a different one that failed, only when Codex is running, and only where a remote feature gate is
 on. Nothing was faked in its place. See [docs/PLUGIN.md](docs/PLUGIN.md).
 
+### Three ways an install could quietly stop working
+
+All three were found by using the product on a real machine after a reboot, not by reading
+the code. The watcher was not running, and the settings panel was the only thing that said so.
+
+- **Fixed: the autostart command was never quoted.** `subprocess.list2cmdline` quotes only a
+  token that contains a space, so an installation under a path without one produced a completely
+  unquoted Run value. Under `C:\Users\John Smith\...` Windows reads that as the program
+  `C:\Users\John`, and the watcher never starts at sign-in - whether the product works at all
+  depended on what the user is called. Every command written to the registry is now quoted by the
+  documented CommandLineToArgvW rules, including the notification button's protocol handler and
+  the Start Menu entry.
+- **Fixed: an upgrade could not replace an installation that was in use.** Codex keeps this
+  plugin's MCP server running, which holds the bundled interpreter's DLLs open, and a loaded DLL
+  cannot be deleted - so removing the runtime directory failed part-way and left the application
+  updated with the interpreter gone. Windows does allow renaming a directory that contains an
+  open file, so the old copy is moved aside and swept up later. Everything is moved before
+  anything is copied, and a failure at either step puts the installation back exactly as it was.
+- **Fixed: Codex could not update the plugin while it was running the plugin.** `plugin add`
+  backs up the cache directory and failed with an access error, because the open file is our own
+  MCP launcher, which lives inside the plugin - it has to, since Codex accepts only a contained
+  command path. The installer now stops just its own launchers and retries once; Codex starts a
+  fresh one when it next needs the server.
+- The watcher launcher records that it ran before anything can fail, and catches everything on
+  the way out. Under `pythonw.exe` there is no stderr, so an early failure left no log line, no
+  event and no trace - which is why "did Windows start it and it died, or did Windows never start
+  it" could not be answered at all.
+- The settings window and the Codex panel offer to **start the watcher** when it is stopped,
+  rather than reporting a dead end. It starts the same process the installer starts.
+
 ### Packaging
 
 - The plugin now ships a small launcher so its MCP server can start from the bundled interpreter:
