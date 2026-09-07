@@ -341,11 +341,20 @@ def cmd_install(args) -> int:
             # Start Menu shortcut carries the same AppUserModelID - without it the
             # platform accepts and logs the toast and then draws nothing. Measured, not
             # assumed. The same entry is how a user opens settings from Windows.
-            launcher = app.paths.home / "watcher-launcher.py"
-            target = launcher if launcher.is_file() else app.paths.entry_script
-            shortcut.install(target=startup.python_launcher(),
-                             arguments=subprocess.list2cmdline([str(target), "--home", str(app.paths.home), "settings"]),
-                             icon=icon, description="Codex Auto Resume Settings")
+            # Prefer the settings window: the Start Menu entry should open something a
+            # person can use, not a headless command. It also carries the AUMID that
+            # makes Windows display our notifications at all.
+            window = app.paths.home / "CodexAutoResumeSettings.exe"
+            if window.is_file():
+                shortcut.install(target=window, icon=icon,
+                                 description="Codex Auto Resume Settings")
+            else:
+                launcher = app.paths.home / "watcher-launcher.py"
+                target = launcher if launcher.is_file() else app.paths.entry_script
+                shortcut.install(target=startup.python_launcher(),
+                                 arguments=subprocess.list2cmdline(
+                                     [str(target), "--home", str(app.paths.home), "status"]),
+                                 icon=icon, description="Codex Auto Resume")
             _print("notification sender   : %s" % startup.AUMID_DISPLAY_NAME)
             _print("start menu entry      : %s" % shortcut.shortcut_path().name)
         except (startup.StartupError, shortcut.ShortcutError) as exc:

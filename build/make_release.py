@@ -41,6 +41,8 @@ PYTHON_SHA256 = "d1f04d990aee1253d8569e8e5104e30fa9f5fa830899f14843448872d936a2c
 # Everything the installed product needs, and nothing else. Listed explicitly rather
 # than filtered, so a stray file in the working tree cannot reach a release.
 APP_TREES = ("src", "scripts", "skills", ".codex-plugin", ".agents", "assets")
+# Built, not copied from the working tree: see build/make_gui.ps1.
+GUI_EXE = "CodexAutoResumeSettings.exe"
 APP_FILES = ("LICENSE", "README.md", "SECURITY.md", "CHANGELOG.md")
 LAUNCHER_FILES = ("Install.cmd", "Uninstall.cmd", "README.txt", "install.ps1")
 
@@ -112,6 +114,23 @@ def collect_runtime(stage: Path, archive: Path) -> int:
     return sum(1 for _ in runtime.rglob("*") if _.is_file())
 
 
+def collect_gui(stage: Path) -> int:
+    """Place the settings window beside the runtime it drives.
+
+    It resolves ``runtime\python.exe`` and ``app\src`` relative to its own directory,
+    so it must sit at the root of the installed home - which is where the installer
+    copies the whole payload folder.
+    """
+    source = ROOT / "build" / GUI_EXE
+    if not source.is_file():
+        raise SystemExit("missing %s - run build/make_gui.ps1 first" % GUI_EXE)
+    shutil.copyfile(source, stage / "payload" / GUI_EXE)
+    icon = ROOT / "assets" / "codex-auto-resume.ico"
+    if icon.is_file():
+        shutil.copyfile(icon, stage / "payload" / "codex-auto-resume.ico")
+    return 2
+
+
 def collect_launchers(stage: Path) -> int:
     count = 0
     for name in LAUNCHER_FILES:
@@ -151,6 +170,7 @@ def main(argv=None) -> int:
     archive = fetch_runtime()
     runtime_files = collect_runtime(stage, archive)
     app_files = collect_app(stage)
+    gui_files = collect_gui(stage)
     launcher_files = collect_launchers(stage)
 
     name = "CodexAutoResume-v%s-win-x64.zip" % release
@@ -162,6 +182,7 @@ def main(argv=None) -> int:
     print("version        : %s" % release)
     print("runtime files  : %d" % runtime_files)
     print("app files      : %d" % app_files)
+    print("gui files      : %d" % gui_files)
     print("launcher files : %d" % launcher_files)
     print("archive        : %s" % target)
     print("size           : %.2f MB" % (target.stat().st_size / 1024 / 1024))
