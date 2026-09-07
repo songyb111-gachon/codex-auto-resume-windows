@@ -43,7 +43,10 @@
       "Show auto resume status",
       "Show pending auto resumes"
     ],
-    "brandColor": "#2F6F4E",
+    "brandColor": "#1257B8",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png",
+    "logoDark": "./assets/logo-dark.png",
     "screenshots": []
   }
 }
