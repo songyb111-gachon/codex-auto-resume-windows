@@ -323,7 +323,12 @@ class BridgeTests(unittest.TestCase):
         # Neither may name the versioned plugin directory, or an update orphans it.
         for command in (self.bridge.watcher_command(self.home), self.bridge.notification_command(self.home)):
             script = startup.parse_command(command)[1]
-            self.assertEqual(Path(script).parent, self.home)
+            # Compared the way the product compares them. Windows can spell one
+            # directory several ways - an 8.3 short name, a different case - and a
+            # literal comparison passes or fails depending on which spelling the
+            # machine's TEMP happens to use.
+            self.assertTrue(startup._same_path(Path(script).parent, self.home),
+                            "%s is not %s" % (Path(script).parent, self.home))
             self.assertNotIn(str(self.bridge.PLUGIN_ROOT), command)
 
     def test_install_launcher_records_how_to_find_the_engine(self):
@@ -456,3 +461,72 @@ class ReleaseWorkflowTests(unittest.TestCase):
         for required in ("payload/runtime/python.exe", "payload/app/mcp/codex-auto-resume-mcp.exe",
                          "payload/CodexAutoResumeSettings.exe"):
             self.assertIn(required, self.text)
+
+
+class ShortPathOwnershipTests(unittest.TestCase):
+    """One directory, several spellings, one answer.
+
+    Windows hands out the same location under an 8.3 short name, a different case, or
+    through a junction. An autostart value written when TEMP or USERPROFILE was in
+    short form used to compare unequal to the same home resolved to its long form, so
+    setup reported the installation's own entry as a conflicting second installation
+    and refused to run - with nothing on screen explaining why. Found on CI, where the
+    runner's temporary directory is handed out as RUNNER~1.
+    """
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.home = Path(self.temporary.name).resolve()
+        self.addCleanup(self.temporary.cleanup)
+
+    def spellings(self):
+        """The long form, plus the 8.3 short form when Windows offers one."""
+        found = [str(self.home)]
+        if sys.platform == "win32":
+            import ctypes
+            from ctypes import wintypes
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.GetShortPathNameW.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
+            buffer = ctypes.create_unicode_buffer(1024)
+            if kernel32.GetShortPathNameW(str(self.home), buffer, 1024):
+                if buffer.value and buffer.value != str(self.home):
+                    found.append(buffer.value)
+        return found
+
+    def test_every_spelling_of_the_home_canonicalises_the_same(self):
+        canonical = {startup._canonical(spelling) for spelling in self.spellings()}
+        self.assertEqual(len(canonical), 1, canonical)
+
+    def test_case_does_not_change_ownership(self):
+        self.assertTrue(startup._same_path(str(self.home).upper(), self.home))
+
+    def test_a_short_form_launcher_still_belongs_to_this_installation(self):
+        for spelling in self.spellings():
+            with self.subTest(spelling=spelling):
+                command = startup.command_line(Path(spelling) / "watcher-launcher.py", None,
+                                               launcher=Path(r"C:\Py\pythonw.exe"))
+                self.assertTrue(startup.belongs_to(command, self.home))
+
+    def test_a_short_form_home_argument_still_belongs(self):
+        for spelling in self.spellings():
+            with self.subTest(spelling=spelling):
+                command = startup.command_line(Path(r"C:\elsewhere\auto_resume.py"), Path(spelling),
+                                               launcher=Path(r"C:\Py\pythonw.exe"))
+                self.assertTrue(startup.belongs_to(command, self.home))
+
+    def test_a_different_installation_is_still_not_ours(self):
+        # The fix must not make everything look like ours; that would let uninstall
+        # remove another copy's autostart entry.
+        command = startup.command_line(Path(r"C:\other\src\auto_resume.py"), Path(r"C:\other"),
+                                       launcher=Path(r"C:\Py\pythonw.exe"))
+        self.assertFalse(startup.belongs_to(command, self.home))
+
+    def test_a_sibling_with_a_shared_prefix_is_not_inside(self):
+        # "...\home-2" must not count as living inside "...\home".
+        sibling = Path(str(self.home) + "-2")
+        self.assertFalse(startup._inside(sibling / "watcher-launcher.py", self.home))
+
+    def test_a_path_that_does_not_exist_still_compares_stably(self):
+        missing = self.home / "gone" / "watcher-launcher.py"
+        self.assertEqual(startup._canonical(missing), startup._canonical(str(missing)))
+        self.assertTrue(startup._inside(missing, self.home))

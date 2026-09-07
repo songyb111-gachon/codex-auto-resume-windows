@@ -98,7 +98,26 @@ class ToastPayloadTests(unittest.TestCase):
         lines = [node.text for node in root.findall("./visual/binding/text")]
         self.assertLessEqual(len(lines), notify.MAX_TOAST_LINES)
         self.assertEqual(lines[0], "A task")
-        self.assertIn("한도", lines[1] + lines[2] if len(lines) > 2 else lines[1])
+        # Asserted against the catalogue, not against a Korean word. The original
+        # version of this test passed only on a machine whose Windows display language
+        # is Korean, and failed everywhere else - including on CI, where it said the
+        # three-line layout had regressed when nothing had.
+        expected = messages.text("toast_usage_at").format(
+            time=notify._local_time(1788645827.0))
+        self.assertEqual(lines[1], expected)
+
+    def test_the_toast_speaks_whatever_language_is_in_force(self):
+        from xml.etree import ElementTree
+
+        for language in messages.SUPPORTED:
+            with self.subTest(language=language):
+                with patch.object(messages, "preferred_languages", return_value=[language]),                      patch.object(notify, "_powershell", return_value="powershell.exe"),                      patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
+                    notify.scheduled(THREAD, INTERRUPTION, None, "usage_limit", {"name": "A task"})
+                lines = [node.text for node in
+                         ElementTree.fromstring(self._embedded_xml(run.call_args.args[0]))
+                         .findall("./visual/binding/text")]
+                self.assertEqual(lines[1], messages.MESSAGES[language]["toast_usage_soon"])
+                self.assertLessEqual(len(lines), notify.MAX_TOAST_LINES)
 
     def test_the_reason_and_the_uuid_both_survive_the_line_limit(self):
         from xml.etree import ElementTree

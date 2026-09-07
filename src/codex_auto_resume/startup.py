@@ -185,11 +185,43 @@ def parse_command(command: str) -> list[str]:
         ctypes.windll.kernel32.LocalFree(pointer)
 
 
-def _same_path(left: str, right: Path) -> bool:
+def _canonical(value) -> str:
+    """One spelling for one location, so two of them can be compared.
+
+    Windows can hand out the same directory under more than one name: an 8.3 short
+    name (``RUNNER~1`` for ``runneradmin``), a different case, a junction. A registry
+    value written when ``%TEMP%`` or ``%USERPROFILE%`` was in short form would then
+    never match a home resolved to its long form, and setup would report the
+    installation's own autostart entry as a conflicting second installation - refusing
+    to set itself up, with no way for the user to see why.
+
+    ``resolve()`` expands all of that, but only for a path that exists; for one that
+    does not, an absolute normalised path is the best available answer and is still
+    stable for comparison against another of the same kind.
+    """
     try:
-        return os.path.normcase(os.path.abspath(left)) == os.path.normcase(os.path.abspath(str(right)))
-    except (OSError, ValueError):
-        return False
+        text = os.fspath(value)
+    except TypeError:
+        text = str(value)
+    try:
+        return os.path.normcase(str(Path(text).resolve()))
+    except (OSError, ValueError, RuntimeError):
+        try:
+            return os.path.normcase(os.path.abspath(text))
+        except (OSError, ValueError):
+            return os.path.normcase(text)
+
+
+def _same_path(left, right) -> bool:
+    return _canonical(left) == _canonical(right)
+
+
+def _inside(child, parent) -> bool:
+    """True when ``child`` is ``parent`` or lives under it, both canonicalised."""
+    child_text, parent_text = _canonical(child), _canonical(parent)
+    if child_text == parent_text:
+        return True
+    return child_text.startswith(parent_text.rstrip("\\/") + os.sep)
 
 
 def belongs_to(command: str, home: Path) -> bool:
@@ -208,13 +240,7 @@ def belongs_to(command: str, home: Path) -> bool:
             return True
     if len(argv) >= 2:
         # A launcher living inside the home identifies the installation on its own.
-        try:
-            script = Path(os.path.abspath(argv[1]))
-            resolved_home = Path(os.path.abspath(str(home)))
-            if script == resolved_home or script.is_relative_to(resolved_home):
-                return True
-        except (OSError, ValueError):
-            return False
+        return _inside(argv[1], home)
     return False
 
 
