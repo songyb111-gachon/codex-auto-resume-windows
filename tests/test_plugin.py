@@ -191,7 +191,7 @@ class AutostartOwnershipTests(unittest.TestCase):
         self.assertFalse(startup.belongs_to(command, mine))
 
     def test_quoted_paths_with_spaces_are_split_correctly(self):
-        home = Path(r"C:\Users\some one\My Project")
+        home = Path(r"C:\Users\Example User\My Project")
         command = startup.command_line(home / "src" / "auto_resume.py", home, launcher=Path(r"C:\Program Files\Py\pythonw.exe"))
         self.assertIn('"', command)
         self.assertTrue(startup.belongs_to(command, home))
@@ -549,3 +549,42 @@ class ShortPathOwnershipTests(unittest.TestCase):
         missing = self.home / "gone" / "watcher-launcher.py"
         self.assertEqual(startup._canonical(missing), startup._canonical(str(missing)))
         self.assertTrue(startup._inside(missing, self.home))
+
+
+class PythonFloorTests(unittest.TestCase):
+    """The version the plugin path enforces must be a version CI actually runs.
+
+    They had drifted: setup refused anything below 3.10 while the test matrix only ever
+    ran 3.12 and 3.13, so two whole releases of Python were accepted by the installer
+    and never tested. The message shown to the user has to agree with both.
+    """
+
+    def setUp(self):
+        self.bridge = _load("plugin_setup", ROOT / "scripts" / "plugin_setup.py")
+        self.workflow = (ROOT / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8")
+
+    def lowest_tested(self):
+        import re
+        line = re.search(r"python-version:\s*\[([^\]]+)\]", self.workflow).group(1)
+        versions = [tuple(int(p) for p in v.strip().strip('"\'').split("."))
+                    for v in line.split(",")]
+        return min(versions)
+
+    def test_the_enforced_floor_is_the_lowest_tested_version(self):
+        self.assertEqual(self.bridge.MIN_PYTHON, self.lowest_tested())
+
+    def test_the_message_names_the_same_version(self):
+        from codex_auto_resume import messages
+        wanted = "%d.%d" % self.bridge.MIN_PYTHON
+        for code in messages.SUPPORTED:
+            self.assertIn(wanted, messages.MESSAGES[code]["python_missing"], code)
+
+    def test_the_skill_names_the_same_version(self):
+        text = SKILL.read_text(encoding="utf-8")
+        wanted = "Python %d.%d" % self.bridge.MIN_PYTHON
+        self.assertIn(wanted, text)
+
+    def test_the_bundled_runtime_is_at_least_the_floor(self):
+        builder = _load("make_release", ROOT / "build" / "make_release.py")
+        shipped = tuple(int(p) for p in builder.PYTHON_VERSION.split(".")[:2])
+        self.assertGreaterEqual(shipped, self.bridge.MIN_PYTHON)

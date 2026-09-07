@@ -41,7 +41,7 @@ def quote_argument(value) -> str:
     `subprocess.list2cmdline` quotes only what it must - a token with a space - so an
     installation under a path without spaces produced an entirely unquoted Run value.
     That is a real defect and not a cosmetic one: the same command under
-    `C:\\Users\\John Smith\\...` is parsed as the program `C:\\Users\\John` with
+    `C:\\Users\\Example User\\...` is parsed as the program `C:\\Users\\Example` with
     arguments, and the watcher never starts at sign-in. Nothing about whether it works
     should depend on what the user is called.
 

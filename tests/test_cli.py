@@ -604,15 +604,15 @@ class CommandQuotingTests(unittest.TestCase):
     back and compared the arguments, which passes whether or not anything is quoted.
     The defect they missed is that `subprocess.list2cmdline` quotes only tokens that
     contain a space, so an installation under a path without one produced a completely
-    unquoted Run value - and the same command under `C:\Users\John Smith\...` is read
-    as the program `C:\Users\John`, so the watcher never starts at sign-in.
+    unquoted Run value - and the same command under `C:\Users\Example User\...` is read
+    as the program `C:\Users\Example`, so the watcher never starts at sign-in.
 
     `_split_command` is CommandLineToArgvW itself on Windows, which is what actually
     parses these, so agreement with it is the property worth asserting.
     """
 
     AWKWARD = [
-        r"C:\Users\John Smith\.codex-auto-resume\runtime\pythonw.exe",
+        r"C:\Users\Example User\.codex-auto-resume\runtime\pythonw.exe",
         r"D:\ ",
         "D:\\",
         r"C:\a\b",
@@ -641,8 +641,8 @@ class CommandQuotingTests(unittest.TestCase):
 
     def test_a_home_with_a_space_still_names_the_right_program(self):
         # The failure this whole class exists for.
-        launcher = Path(r"C:\Users\John Smith\.codex-auto-resume\runtime\pythonw.exe")
-        script = Path(r"C:\Users\John Smith\.codex-auto-resume\watcher-launcher.py")
+        launcher = Path(r"C:\Users\Example User\.codex-auto-resume\runtime\pythonw.exe")
+        script = Path(r"C:\Users\Example User\.codex-auto-resume\watcher-launcher.py")
         argv = _split_command(startup.command_line(script, None, launcher=launcher))
         self.assertEqual(argv[0], str(launcher))
         self.assertEqual(argv[1], str(script))
@@ -657,8 +657,8 @@ class CommandQuotingTests(unittest.TestCase):
         self.assertEqual(argv[-1], "run")
 
     def test_the_protocol_handler_is_quoted_and_keeps_its_placeholder(self):
-        command = startup.protocol_command_line(Path(r"C:\Users\John Smith\a\entry.py"),
-                                                Path(r"C:\Users\John Smith\a"),
+        command = startup.protocol_command_line(Path(r"C:\Users\Example User\a\entry.py"),
+                                                Path(r"C:\Users\Example User\a"),
                                                 launcher=Path(r"C:\py\pythonw.exe"))
         self.assertTrue(command.endswith(' "%1"'))
         argv = _split_command(command)
@@ -667,7 +667,7 @@ class CommandQuotingTests(unittest.TestCase):
         self.assertIn("activate", argv)
 
     def test_ownership_still_recognises_a_quoted_command(self):
-        home = Path(r"C:\Users\John Smith\.codex-auto-resume")
+        home = Path(r"C:\Users\Example User\.codex-auto-resume")
         command = startup.command_line(home / "watcher-launcher.py", None,
                                        launcher=home / "runtime" / "pythonw.exe")
         self.assertTrue(startup.belongs_to(command, home))

@@ -1,15 +1,52 @@
-# codex-auto-resume-windows
+# Codex Auto Resume
 
-**Safe automatic recovery for interrupted Codex tasks on Windows.**
+**Safe auto-resume and auto-retry for interrupted Codex tasks on Windows.**
 
-A small local watcher notices when a Codex task stops because of a usage limit or a clearly temporary
-failure, then picks that exact conversation up again once it is safe to do so.
+[![tests](https://github.com/songyb111-gachon/codex-auto-resume-windows/actions/workflows/test.yml/badge.svg)](https://github.com/songyb111-gachon/codex-auto-resume-windows/actions/workflows/test.yml)
+[![latest release](https://img.shields.io/github/v/release/songyb111-gachon/codex-auto-resume-windows?label=release)](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest)
+[![platform: Windows 10/11](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4)](#install)
+[![license: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-It watches Codex's own local state read-only. When a turn fails, it classifies the failure, records the
-exact thread, waits for the right moment, re-checks that everything is still safe, and then sends one
-continuation message to that same conversation through the official `codex queue` command.
+<sub>🇰🇷 <a href="README.ko.md">한국어 README</a></sub>
 
-**This project intentionally does not retry every failure.** A failure it cannot classify is left alone.
+Hit a Codex usage limit, a rate limit, or a dropped connection in the middle of a long task?
+Codex Auto Resume waits, checks that it is genuinely safe, and then continues **that exact
+conversation** — so you come back to finished work instead of a stopped task.
+
+It is a small local watcher for the Windows ChatGPT/Codex desktop app. It reads Codex's own state
+read-only, classifies what actually went wrong, and sends one continuation message through the
+official `codex queue` command. Nothing leaves your machine.
+
+**It deliberately does not retry everything.** A failure it cannot name is left alone.
+
+|  |  |
+| --- | --- |
+| **Recovers** | Codex usage limits · rate limits (HTTP 429) · network failures · timeouts · temporary server errors (5xx) · dropped response streams |
+| **Never touches** | user cancellation · permission · approval · content policy · invalid requests · context length · permanent authentication failures · anything unclassified |
+| **Identity** | the exact conversation UUID only — never `--last`, never "the most recent one", never a title or a folder name |
+| **Configure it** | a Windows settings app, a settings panel inside Codex, or the command line |
+| **Tells you** | Windows notifications when a task is interrupted, when recovery starts, how it went, and when it gives up |
+| **Sends nowhere** | local only: no telemetry, no account access, no network calls of its own |
+
+> **One honest limitation, up front.** Codex has to currently have that conversation open for a
+> recovery to be delivered. If the app restarted since, open the conversation once and recovery
+> continues on its own. [Why this is unavoidable today](#please-read-this-limitation-first).
+
+## Install
+
+**Windows 10/11. No Python needed. No administrator rights.**
+
+1. Download `CodexAutoResume-<version>-win-x64.zip` from the
+   [latest release](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest).
+2. Extract it anywhere.
+3. Double-click **`Install.cmd`**.
+
+That is the whole setup. The archive carries its own Python runtime, so there is nothing to install
+first, and the recommended settings are already on when it finishes. Running `Install.cmd` again
+upgrades in place and keeps anything already waiting to resume; `Uninstall.cmd` reverses it.
+
+Afterwards, change anything from **Start Menu → Codex Auto Resume**, or by asking Codex to
+*open auto resume settings*.
 
 ## Please read this limitation first
 
@@ -29,12 +66,16 @@ This is not fully unattended auto-resume across app restarts, and this README wi
 
 ## Project direction
 
-> Keep the recovery engine small, local, conservative, and fail-closed. Use Codex itself as the
-> primary installation and control interface instead of building a second complex management
-> application.
+> Keep the recovery engine small, local, conservative, and fail-closed. Spend complexity on making it
+> easy to install and control, not on making the runtime do more.
 
-Growth goes into making it easier to install and control, not into making the runtime do more. There
-is no tray icon, no settings window, no management web UI, no supervisor, and no service.
+The recovery engine is deliberately one small watcher. Everything else exists to see and control it:
+a standalone Windows settings window, a settings panel inside Codex over MCP, the command line, and
+Windows notifications. None of those can recover anything by itself, and the watcher keeps running
+whether or not any of them is open.
+
+What the project still avoids: a tray controller, a management web UI, a supervisor process, a
+Windows service, a second recovery engine, and a second state database.
 
 ## Features
 
@@ -77,13 +118,16 @@ ownership information. It never acquires a lock on the app's file.
 ## Requirements
 
 - Windows 10/11.
-- Python 3.12+. Standard library only, no third-party packages.
 - The official Windows ChatGPT/Codex desktop app, running, with its engine at
   `%LOCALAPPDATA%\OpenAI\Codex\bin\<hash>\codex.exe`.
 - The engine is located automatically. A version this tool has been verified against is trusted
   outright; after a Codex update an unrecognised version is accepted only if `codex queue` still
   offers `--thread` and `--message`, and `status`/`doctor` label it as unverified. Anything that
   cannot prove that interface is refused rather than guessed at.
+
+**Python is not required for the release install** — the archive brings its own runtime. Python
+3.12+ is needed only if you run from a source checkout or install the plugin straight from the
+marketplace.
 
 ## What is recovered, and what is not
 
@@ -112,27 +156,16 @@ Recovery is bounded twice over: at most 4 attempts per interruption, and it stop
 recoveries that produced no visible progress. If you carry on in that conversation yourself, the old
 interruption is dropped rather than replayed on top of your work.
 
-## Installation
+## Other ways to install
 
-### Recommended — one-click install
-
-Download the release ZIP, unpack it, and double-click **`Install.cmd`**.
-
-It registers the marketplace, installs the plugin, checks for Python, sets the watcher up and runs a
-health check. It needs no administrator rights, creates no service and no scheduled task, and only
-writes under your own user account. Re-running it upgrades in place and keeps anything already waiting
-to resume. `Uninstall.cmd` reverses it.
-
-Python 3.10+ must already be on your PATH. The installer tells you if it is missing and stops; it never
-downloads or installs Python for you.
+The release archive above is the supported route for normal use. The two below are for development
+and for people who would rather run from source.
 
 ### Also supported — install as a Codex plugin
 
-This installs the Codex skill only. It **needs Python 3.10 or newer on your PATH**, and it
-does not give you the settings window or the settings panel inside Codex: both of those run
-on the interpreter that ships in the release archive, so they come with the one-click install
-above. Use this path if you are working on the plugin.
-
+This installs the Codex skill only. It **needs Python 3.12 or newer on your PATH**, and it does not
+give you the settings window or the settings panel inside Codex: both of those run on the interpreter
+that ships in the release archive. Use this path if you are working on the plugin.
 Add this repository as a Codex marketplace, then install the plugin:
 
 ```bash

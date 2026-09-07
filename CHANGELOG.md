@@ -74,8 +74,8 @@ the code. The watcher was not running, and the settings panel was the only thing
 
 - **Fixed: the autostart command was never quoted.** `subprocess.list2cmdline` quotes only a
   token that contains a space, so an installation under a path without one produced a completely
-  unquoted Run value. Under `C:\Users\John Smith\...` Windows reads that as the program
-  `C:\Users\John`, and the watcher never starts at sign-in - whether the product works at all
+  unquoted Run value. Under `C:\Users\Example User\...` Windows reads that as the program
+  `C:\Users\Example`, and the watcher never starts at sign-in - whether the product works at all
   depended on what the user is called. Every command written to the registry is now quoted by the
   documented CommandLineToArgvW rules, including the notification button's protocol handler and
   the Start Menu entry.
