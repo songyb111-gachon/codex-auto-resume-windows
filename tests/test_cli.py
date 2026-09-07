@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from codex_auto_resume import cli, config, logbook, startup
+from codex_auto_resume import cli, config, logbook, shortcut, startup
 from codex_auto_resume.app import DEFAULT_POLL, App
 from codex_auto_resume.store import Store, StoreError
 
@@ -114,6 +114,24 @@ class FakeWinreg:
         del self.keys[path]
 
 
+# Module-wide, not per class: `install` writes a real Start Menu entry and `uninstall`
+# deletes one, so a single unguarded test class would edit the user's actual Start Menu.
+# A per-class guard was missed once already; this cannot be missed.
+_SHORTCUT_GUARDS = []
+
+
+def setUpModule():
+    for name, result in (("install", True), ("uninstall", False)):
+        guard = patch.object(shortcut, name, return_value=result)
+        guard.start()
+        _SHORTCUT_GUARDS.append(guard)
+
+
+def tearDownModule():
+    while _SHORTCUT_GUARDS:
+        _SHORTCUT_GUARDS.pop().stop()
+
+
 def run_cli(*argv):
     out, err = io.StringIO(), io.StringIO()
     with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
@@ -137,6 +155,13 @@ class CliTests(unittest.TestCase):
         self._winreg_guard = patch.object(startup, "_winreg", return_value=FakeWinreg())
         self._winreg_guard.start()
         self.addCleanup(self._winreg_guard.stop)
+        # Same reason as the registry guard: `install` writes a real Start Menu entry
+        # and `uninstall` deletes one, so an unguarded CLI test would edit the user's
+        # actual Start Menu - and would shell out to PowerShell on every run.
+        for name, result in (("install", True), ("uninstall", False)):
+            guard = patch.object(shortcut, name, return_value=result)
+            guard.start()
+            self.addCleanup(guard.stop)
 
     def cli(self, *argv):
         return run_cli("--quiet", *argv)
@@ -315,6 +340,13 @@ class UninstallSafetyTests(unittest.TestCase):
         self._winreg_guard = patch.object(startup, "_winreg", return_value=FakeWinreg())
         self._winreg_guard.start()
         self.addCleanup(self._winreg_guard.stop)
+        # Same reason as the registry guard: `install` writes a real Start Menu entry
+        # and `uninstall` deletes one, so an unguarded CLI test would edit the user's
+        # actual Start Menu - and would shell out to PowerShell on every run.
+        for name, result in (("install", True), ("uninstall", False)):
+            guard = patch.object(shortcut, name, return_value=result)
+            guard.start()
+            self.addCleanup(guard.stop)
 
     def cli(self, *argv):
         return run_cli("--quiet", *argv)

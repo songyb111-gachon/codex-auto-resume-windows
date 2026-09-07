@@ -5,11 +5,12 @@ import argparse
 import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 import time
 import uuid
 
-from . import config, notify, startup
+from . import config, notify, shortcut, startup
 from .app import EXIT_BUSY, EXIT_ERROR, EXIT_OK, App
 from .logbook import format_local, tail
 from .store import TERMINAL, StoreError
@@ -335,11 +336,19 @@ def cmd_install(args) -> int:
     if app.settings.get("notifications", True):
         try:
             icon = app.paths.icon_file if app.paths.icon_file.is_file() else None
-            changed = startup.register_aumid(icon)
-            _print("notification sender   : %s%s" % (
-                startup.AUMID_DISPLAY_NAME,
-                "" if icon else "  (no icon installed yet)"))
-        except startup.StartupError as exc:
+            startup.register_aumid(icon)
+            # Windows will not DISPLAY a toast from an unpackaged application until a
+            # Start Menu shortcut carries the same AppUserModelID - without it the
+            # platform accepts and logs the toast and then draws nothing. Measured, not
+            # assumed. The same entry is how a user opens settings from Windows.
+            launcher = app.paths.home / "watcher-launcher.py"
+            target = launcher if launcher.is_file() else app.paths.entry_script
+            shortcut.install(target=startup.python_launcher(),
+                             arguments=subprocess.list2cmdline([str(target), "--home", str(app.paths.home), "settings"]),
+                             icon=icon, description="Codex Auto Resume Settings")
+            _print("notification sender   : %s" % startup.AUMID_DISPLAY_NAME)
+            _print("start menu entry      : %s" % shortcut.shortcut_path().name)
+        except (startup.StartupError, shortcut.ShortcutError) as exc:
             _print("notification sender   : unavailable (%s)" % exc)
         # Without this the notification's "Don't resume" button has no handler. It is a
         # per-user class registration only, and uninstall removes it again.
@@ -378,6 +387,8 @@ def cmd_uninstall(args) -> int:
             removed.append("notification sender identity")
     except startup.StartupError as exc:
         _print("warning: %s" % exc)
+    if shortcut.uninstall():
+        removed.append("start menu entry")
     try:
         registered = startup.protocol_value()
         if registered and startup.belongs_to(registered, paths.home):
