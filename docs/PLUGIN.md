@@ -131,6 +131,23 @@ Verified by feeding it a file that is not an archive, a genuine archive declarin
 different version, and a correct archive against a deliberately wrong pinned digest. All
 three were refused with nothing installed.
 
+## Where each route ends up
+
+Every way in converges on one installation in `%USERPROFILE%\.codex-auto-resume`: one
+bundled interpreter, one watcher, one SQLite database, one `settings.json`, one sign-in
+entry, one notification handler and one Start Menu entry. `tests/test_convergence.py`
+pins the rules that make that true.
+
+| You do this | What happens |
+| --- | --- |
+| Download the archive, run `Install.cmd` | Deploys the runtime and the application, registers the plugin from the payload itself — no network — then runs setup. |
+| `codex plugin add`, then *set up auto resume* | The skill runs `bootstrap.ps1`, which downloads and verifies the matching release and runs the same installer. Identical result. |
+| Either of the above with something already installed | The installer moves the old payload aside, copies, and rolls back on failure. Settings, pending recoveries, retry budgets and logs are never touched. The bootstrap skips the download entirely when the installed version already matches, and re-runs setup to repair any registration. |
+| Ask for anything else with nothing installed | `setup` refuses and prints the command that installs it. Nothing is registered, so there is no half-installation for a later run to mistake for a real one. |
+| `codex plugin remove` | Removes the skill, the tools and the panel. The watcher keeps running, from the installed application rather than from the cache copy that just disappeared. `uninstall` is what removes it. |
+| Two installers at once | The second is refused by a named lock. |
+| A source checkout beside an installation | Refused, as before: `setup` stops when the registered sign-in entry belongs to a different home, because two watchers could each resume the same interruption. |
+
 ## Runtime state lives outside the plugin
 
 The plugin cache path contains the version, so it changes on every update. Three
