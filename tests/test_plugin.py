@@ -384,3 +384,75 @@ class BridgeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReleaseNotesTests(unittest.TestCase):
+    """The published release notes come from the changelog, so they cannot drift.
+
+    The version guard matters more than the extraction: a tag whose version has no
+    changelog section, or a manifest bumped without a changelog entry, would publish a
+    release describing the wrong thing. Both fail here instead.
+    """
+
+    def setUp(self):
+        self.notes = _load("release_notes", ROOT / "build" / "release_notes.py")
+        self.changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.version = json.loads(MANIFEST.read_text(encoding="utf-8"))["version"]
+
+    def test_the_current_version_has_a_changelog_section(self):
+        body = self.notes.section(self.changelog, self.version)
+        self.assertTrue(body.strip())
+
+    def test_a_leading_v_is_accepted(self):
+        self.assertEqual(self.notes.section(self.changelog, "v" + self.version),
+                         self.notes.section(self.changelog, self.version))
+
+    def test_the_section_stops_at_the_next_release(self):
+        body = self.notes.section(self.changelog, self.version)
+        self.assertNotIn("\n## v", body)
+
+    def test_an_unknown_version_is_refused_not_invented(self):
+        with self.assertRaises(SystemExit):
+            self.notes.section(self.changelog, "9.9.9")
+
+    def test_a_prefix_version_does_not_match_a_longer_one(self):
+        # Without a word boundary, "0.5" would match the "0.5.0" heading and publish
+        # the wrong notes under the right name.
+        with self.assertRaises(SystemExit):
+            self.notes.section("## v0.50.0 - other\n\nbody\n", "0.5")
+
+    def test_the_newest_changelog_entry_is_the_current_version(self):
+        import re
+        first = re.search(r"^##\s+v(\S+)", self.changelog, re.MULTILINE)
+        self.assertEqual(first.group(1), self.version)
+
+
+class ReleaseWorkflowTests(unittest.TestCase):
+    """The release job is the only thing that publishes, so its guards are asserted."""
+
+    def setUp(self):
+        self.text = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+
+    def test_it_runs_the_tests_before_publishing(self):
+        self.assertIn("unittest discover", self.text)
+
+    def test_it_publishes_only_from_a_tag(self):
+        self.assertIn("if: startsWith(github.ref, 'refs/tags/v')", self.text)
+
+    def test_it_refuses_a_tag_that_disagrees_with_the_manifest(self):
+        self.assertIn("does not match plugin.json version", self.text)
+
+    def test_it_uses_only_the_repository_token(self):
+        # No personal credential is ever involved in publishing: the job's only secret
+        # is the short-lived token GitHub mints for the repository itself.
+        import re
+        referenced = set(re.findall(r"secrets\.([A-Za-z0-9_]+)", self.text))
+        self.assertEqual(referenced, {"GITHUB_TOKEN"})
+
+    def test_it_verifies_the_published_checksum(self):
+        self.assertIn("checksum mismatch", self.text)
+
+    def test_it_checks_the_archive_carries_the_runtime_and_the_plugin(self):
+        for required in ("payload/runtime/python.exe", "payload/app/mcp/codex-auto-resume-mcp.exe",
+                         "payload/CodexAutoResumeSettings.exe"):
+            self.assertIn(required, self.text)
