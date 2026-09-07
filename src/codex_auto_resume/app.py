@@ -8,7 +8,7 @@ import sys
 import time
 import traceback
 
-from . import config, notify
+from . import config, notify, settings as policy
 from .engine import Engine
 from .logbook import LOGGER_NAME, EngineLog, setup_logging
 from .source import LocalSource
@@ -38,6 +38,7 @@ class App:
         self._codex_exe_override = codex_exe or self.settings.get("codex_exe")
         self.codex_home = Path(codex_home).resolve() if codex_home else config.codex_home()
         self._backend = None
+        self._settings_stamp_seen = self._settings_stamp()
 
     # ------------------------------------------------------------ components
     def open_store(self) -> Store:
@@ -65,27 +66,78 @@ class App:
         return LocalSource(self.codex_home)
 
     def engine(self, store: Store, *, dispatch_lock=None) -> Engine:
-        options = {"detection_lookback_seconds": float(self.settings["detection_lookback_hours"]) * 3600.0}
-        kwargs = {"log": EngineLog(self.logger), "options": options}
-        if self.settings.get("notifications", True):
-            kwargs["notify"] = self._notifier(self.source())
+        kwargs = {"log": EngineLog(self.logger), "notify": self._notifier(self.source())}
         if dispatch_lock is not None:
             kwargs["dispatch_lock"] = dispatch_lock
-        return Engine(store, self.source(), self.backend(), **kwargs)
+        engine = Engine(store, self.source(), self.backend(), **kwargs)
+        engine.apply_policy(self.settings)
+        return engine
 
-    @staticmethod
-    def _notifier(source):
-        """Bind display labels to the toast without giving the engine a UI dependency.
+    def _settings_stamp(self):
+        """A cheap identity for the settings file, used to notice edits while running."""
+        try:
+            status = self.paths.settings_file.stat()
+        except OSError:
+            return None
+        return (status.st_mtime_ns, status.st_size)
 
-        The labels are looked up here, at notification time, and are used only for
-        display; the engine keeps working purely from the exact thread UUID.
+    def refresh_settings(self, engine: Engine) -> bool:
+        """Adopt settings edited while the watcher is running.
+
+        Someone changing a preference expects it to take effect, not to have to restart
+        a background process they never started by hand. Only policy is re-read, and it
+        goes through the same validator as every other path, so an edit made with a text
+        editor cannot do anything an edit made in the window could not.
         """
-        def announce(thread_id, interruption_id, reset_at, category="usage_limit"):
+        stamp = self._settings_stamp()
+        if stamp == self._settings_stamp_seen:
+            return False
+        self._settings_stamp_seen = stamp
+        values = config.load_settings(self.paths)
+        if values == self.settings:
+            return False
+        self.settings = values
+        engine.apply_policy(values)
+        self.logger.info("settings reloaded")
+        return True
+
+    def _notifier(self, source):
+        """Turn an engine lifecycle event into a Windows notification.
+
+        Two things are deliberately decided here rather than in the engine. The labels
+        - a task's title, its project - are looked up at notification time, so the
+        engine never acquires a display dependency and keeps working purely from the
+        exact thread UUID. And whether an event is shown at all is read from the
+        settings on every event, so turning notifications off takes effect at once
+        instead of at the next restart.
+        """
+        def announce(event, detail):
+            if not policy.notification_enabled(self.settings, event):
+                return False
+            thread_id = detail.get("thread_id")
             try:
                 identity = source.identity(thread_id)
             except Exception:
                 identity = None     # an unnamed task is still worth announcing
-            return notify.scheduled(thread_id, interruption_id, reset_at, category, identity)
+            state = detail.get("state")
+            if event == "interruption":
+                return notify.scheduled(thread_id, detail.get("interruption_id"),
+                                        detail.get("reset_at"),
+                                        detail.get("category") or "usage_limit", identity)
+            if event == "starting":
+                return notify.starting(thread_id, identity)
+            if event == "result":
+                if state == "resumed":
+                    return notify.resumed(thread_id, identity)
+                # An uncertain submission is never resent, so it must not be reported
+                # as a failure that will be retried.
+                return notify.attempt_failed(thread_id, identity,
+                                             certain=state != "submission_unknown")
+            if event == "stopped":
+                reason = ("no_progress" if state == "no_progress_exhausted"
+                          else "attempts" if state == "retry_budget_exhausted" else None)
+                return notify.stopped(thread_id, identity, reason=reason)
+            return False
         return announce
 
     def mutex(self, timeout: float = 0.0) -> Mutex:
@@ -163,6 +215,8 @@ class App:
                     # this tick, never end the watcher for the whole session.
                     if engine is None:
                         engine = self.engine(store)
+                    else:
+                        self.refresh_settings(engine)
                     enabled = store.settings()["enabled"]
                     if enabled != last_enabled:
                         self.logger.info("auto-resume is %s", "enabled" if enabled else "disabled (kill switch active; no submissions)")

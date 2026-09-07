@@ -208,3 +208,44 @@ def cancelled(thread_id: str) -> bool:
     return show(messages.text("toast_cancelled_title"),
                 messages.text("toast_thread").format(uuid=thread_id),
                 extra=[messages.text("toast_cancelled_body")])
+
+
+# --------------------------------------------------------------- lifecycle toasts
+# Everything below announces something the watcher has already decided. A toast is
+# never a prompt for permission and never gates recovery: `show` returning False costs
+# a message, never an attempt. Only the detection toast carries a button, because
+# cancelling is the one action that fails in the safe direction.
+
+def starting(thread_id: str, identity=None) -> bool:
+    """The moment a continuation is actually being sent."""
+    return show(headline(identity),
+                _origin_line(identity, headline(identity), thread_id),
+                extra=[messages.text("toast_starting_body")])
+
+
+def resumed(thread_id: str, identity=None) -> bool:
+    """Delivery was proven, not assumed: the engine only reaches this after a receipt."""
+    return show(messages.text("toast_resumed_title"),
+                _origin_line(identity, messages.text("toast_resumed_title"), thread_id),
+                extra=[messages.text("toast_resumed_body")])
+
+
+def attempt_failed(thread_id: str, identity=None, *, certain: bool = True) -> bool:
+    """A failed attempt, told apart from an uncertain one.
+
+    The distinction is the whole point: a failure that is *proven* not to have arrived
+    will be retried, while an uncertain one never will be, and telling a person the
+    wrong one of those is worse than saying nothing.
+    """
+    title = messages.text("toast_failed_title") if certain else messages.text("toast_unknown_title")
+    body = messages.text("toast_failed_body") if certain else messages.text("toast_unknown_body")
+    return show(title, _origin_line(identity, title, thread_id), extra=[body])
+
+
+def stopped(thread_id: str, identity=None, *, reason: str | None = None) -> bool:
+    """Recovery has stopped for good, and why in one line."""
+    title = messages.text("toast_exhausted_title")
+    body = (messages.text("toast_no_progress_body") if reason == "no_progress"
+            else messages.text("toast_exhausted_body") if reason == "attempts"
+            else messages.text("toast_stopped_body"))
+    return show(title, _origin_line(identity, title, thread_id), extra=[body])

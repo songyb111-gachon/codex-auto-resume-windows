@@ -15,6 +15,7 @@ import threading
 import unittest
 
 from codex_auto_resume.engine import BACKOFF_LADDER, CONTINUATION, Engine, backoff_delay
+from codex_auto_resume import settings
 from codex_auto_resume.store import Store
 
 SRC = str(Path(__file__).resolve().parents[1] / "src")
@@ -723,3 +724,113 @@ class SingleInstanceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PolicyTests(unittest.TestCase):
+    """User-configurable policy, and the line it must not cross.
+
+    Everything here is a preference: which categories to recover, how long to wait, how
+    many attempts to allow. None of it may reach a safety property, so the last tests
+    assert what policy *cannot* do as firmly as the first assert what it can.
+    """
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name) / "state"
+        self.addCleanup(self.temp.cleanup)
+
+    def harness(self, **kwargs):
+        harness = Harness(self.root, **kwargs)
+        self.addCleanup(harness.close)
+        return harness
+
+    def test_a_switched_off_category_is_never_recorded(self):
+        harness = self.harness()
+        harness.engine.apply_policy(dict(settings.defaults(), recover_server_5xx=False))
+        harness.source.fail_transient(T1, code="serverOverloaded")
+        harness.enable()
+        harness.tick()
+        self.assertIsNone(harness.record(T1))
+        self.assertIn("category_recovery_disabled", harness.codes(T1))
+
+    def test_a_switched_off_category_is_logged_once_not_every_poll(self):
+        harness = self.harness()
+        harness.engine.apply_policy(dict(settings.defaults(), recover_server_5xx=False))
+        harness.source.fail_transient(T1, code="serverOverloaded")
+        harness.enable()
+        for _ in range(4):
+            harness.tick()
+        self.assertEqual(harness.codes(T1).count("category_recovery_disabled"), 1)
+
+    def test_a_switched_off_category_raises_no_notification(self):
+        harness = self.harness()
+        harness.engine.apply_policy(dict(settings.defaults(), recover_server_5xx=False))
+        harness.source.fail_transient(T1, code="serverOverloaded")
+        harness.enable()
+        harness.tick()
+        self.assertEqual(harness.notifications, [])
+
+    def test_other_categories_are_unaffected(self):
+        harness = self.harness()
+        harness.engine.apply_policy(dict(settings.defaults(), recover_server_5xx=False))
+        harness.source.fail_usage(T1)
+        harness.enable()
+        harness.tick()
+        self.assertIsNotNone(harness.record(T1))
+
+    def test_a_category_with_no_switch_is_still_recovered(self):
+        # Absence of a toggle is not an instruction to stop.
+        harness = self.harness()
+        harness.engine.apply_policy(settings.defaults())
+        self.assertTrue(harness.engine.recovers("some_future_category"))
+
+    def test_the_timing_preset_sets_the_first_transient_wait(self):
+        for preset, ladder in settings.RETRY_TIMING.items():
+            with self.subTest(preset=preset):
+                temp = tempfile.TemporaryDirectory()
+                self.addCleanup(temp.cleanup)
+                harness = Harness(Path(temp.name) / "state")
+                self.addCleanup(harness.close)
+                harness.engine.apply_policy(dict(settings.defaults(), retry_timing=preset))
+                harness.source.fail_transient(T1, code="serverOverloaded")
+                harness.enable()
+                harness.tick()
+                record = harness.record(T1)
+                self.assertAlmostEqual(record["next_retry_at"] - harness.now, ladder[0], places=3)
+
+    def test_the_attempt_budget_comes_from_the_settings(self):
+        harness = self.harness()
+        harness.engine.apply_policy(dict(settings.defaults(), max_recovery_attempts=1))
+        self.assertEqual(harness.engine.options["max_recovery_attempts"], 1)
+        harness.engine.apply_policy(dict(settings.defaults(), max_no_progress=1))
+        self.assertEqual(harness.engine.options["max_no_progress"], 1)
+
+    def test_a_corrupt_settings_mapping_yields_the_conservative_defaults(self):
+        harness = self.harness()
+        harness.engine.apply_policy({"max_recovery_attempts": 10 ** 9, "retry_timing": "instant",
+                                     "recover_timeout": "yes please"})
+        self.assertEqual(harness.engine.options["max_recovery_attempts"],
+                         settings.DEFAULTS["max_recovery_attempts"])
+        self.assertEqual(harness.engine.options["retry_ladder"],
+                         settings.RETRY_TIMING[settings.DEFAULT_TIMING])
+        self.assertTrue(harness.engine.recovers("timeout"))
+
+    def test_policy_cannot_reach_a_safety_gate(self):
+        # The engine's safety options are not in the settings schema, so no settings
+        # file - hand-edited, migrated or hostile - can move them.
+        harness = self.harness()
+        before = {key: harness.engine.options[key] for key in
+                  ("delivery_timeout_seconds", "max_queue_retries",
+                   "max_submissions_per_thread_per_day", "thread_cooldown_seconds",
+                   "unknown_reconcile_window_seconds", "reset_grace_seconds")}
+        harness.engine.apply_policy(dict(settings.defaults(),
+                                         **{key: 0 for key in settings.FIELDS if key in before}))
+        for key, value in before.items():
+            self.assertEqual(harness.engine.options[key], value, key)
+
+    def test_no_setting_names_an_engine_safety_option(self):
+        reserved = {"delivery_timeout_seconds", "max_queue_retries",
+                    "max_submissions_per_thread_per_day", "thread_cooldown_seconds",
+                    "unknown_reconcile_window_seconds", "reset_grace_seconds",
+                    "conservative_poll_seconds", "state_poll_seconds"}
+        self.assertEqual(set(settings.FIELDS) & reserved, set())
