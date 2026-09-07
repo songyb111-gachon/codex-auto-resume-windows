@@ -104,7 +104,3 @@ Empirical verification beyond review:
   the per-interruption marker in that exact thread, an unproven send never becomes `resumed`, and
   `status`/`doctor`/the log state clearly when the engine is unverified.
 - Unloaded threads are not resumed at all; this is a documented product limitation, not a security control.
-- The repository's early Git history contains development-time environment metadata (a Windows user name
-  in absolute paths, ephemeral process ids, and opaque Codex thread identifiers). It contains no
-  credentials, no tokens, and no conversation content. Files published at and after the first public
-  release are generalised.

@@ -41,7 +41,7 @@ python scripts/plugin_setup.py <command>
 python3 scripts/plugin_setup.py <command>
 ```
 
-If none of them run, tell the user that Python 3.10 or newer is required and stop. Do not
+If none of them run, tell the user that Python 3.12 or newer is required and stop. Do not
 try to install Python for them.
 
 Commands:
