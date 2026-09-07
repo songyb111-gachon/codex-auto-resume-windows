@@ -48,6 +48,17 @@ Windows ChatGPT/Codex 데스크톱 앱을 위한 작은 로컬 watcher입니다.
 설치 후에는 **시작 메뉴 → Codex Auto Resume**에서, 또는 Codex에게 *auto resume 설정 열어줘* 라고
 말해서 설정을 바꿀 수 있습니다.
 
+## 화면
+
+작업이 중단되면 Windows가 알려줍니다. 보내는 주체는 알림을 띄운 프로세스가 아니라
+**Codex Auto Resume**로 표시됩니다. 아무것도 하지 않으면 재개되고, 버튼은 취소만 합니다.
+
+<img src="docs/images/notification.png" alt="Codex Auto Resume가 보낸 Windows 알림. 사용량 한도에 도달했고 초기화 후 재개한다는 내용과 재개하지 않음 버튼" width="470">
+
+설정은 Codex를 꺼 둔 상태에서도 시작 메뉴에서 전부 바꿀 수 있습니다.
+
+<img src="docs/images/settings-window.png" alt="Codex Auto Resume 설정 창. 복구할 장애 종류, 시도 상한, 재시도 간격, 알림 스위치" width="680">
+
 ## 먼저 읽어야 할 제한 사항
 
 이 도구는 Windows ChatGPT/Codex 데스크톱 앱이 **현재 로드하고 있는 스레드만** 자동 재개할 수 있습니다.
