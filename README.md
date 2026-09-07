@@ -48,6 +48,10 @@ is no tray icon, no settings window, no management web UI, no supervisor, and no
 - Handles several interrupted threads independently.
 - Bounded retry backoff, a global kill switch, and per-thread control.
 - Single-instance protection, optional per-user Windows autostart, and a conservative uninstall.
+- Three ways to change a setting — a Start Menu window, a panel inside Codex, and the command
+  line — all writing the same file through the same validator, so they cannot disagree.
+- Windows notifications across the lifecycle: interruption detected, recovery starting, how it
+  turned out, and when it stops for good. Each one has its own switch.
 
 ## How it works
 
@@ -279,10 +283,43 @@ Details worth knowing:
   or account data. Display names come from `threads.name` only; `title`, `preview` and
   `first_user_message` hold the raw first prompt on this schema and are never read.
 - It is best effort. If it cannot be shown, the resume still happens exactly as it would have.
-- Notifications appear attributed to Windows PowerShell, which is how a tool without its own
-  installed app identity is allowed to raise them.
+- They are attributed to **Codex Auto Resume**, with this project's own icon. That takes two
+  registrations, not one: an AppUserModelID under `HKCU\Software\Classes\AppUserModelId` supplies
+  the name and icon, and a Start Menu shortcut carrying the same id is what makes Windows draw
+  the toast at all. Without the shortcut the platform accepts the notification, logs it, and
+  files it in the notification centre without ever showing it. That was measured, not assumed.
 
-Turn them off by setting `"notifications": false` in `config/settings.json`.
+Three more notifications follow the first: recovery starting, how it turned out, and recovery
+stopping for good. Each is raised once, from the state change itself, so what the notification
+says and what the record holds can never disagree. An uncertain submission is reported as
+uncertain rather than as a failure that will be retried, because it is the one outcome that is
+deliberately never resent.
+
+Turn any of them off in the settings window, or from Codex, or with `update_settings`. Doing so
+changes nothing about whether a task is recovered.
+
+## Settings
+
+Everything configurable lives in one place and is reachable three ways:
+
+- **Start Menu → Codex Auto Resume** — a standalone window. It works with Codex closed, the
+  plugin disabled, no network, no sign-in and no system Python, because configuration matters
+  most exactly when the thing it configures is unavailable.
+- **Inside Codex** — ask to open auto resume settings and a panel appears in the conversation.
+- **The command line** — for scripting and for repair.
+
+All three write the same file through the same validator, so a value set in one is the value the
+others show. Nothing needs to be memorised and nothing needs hand-editing: a hand-written
+settings file is validated on read, so a bad value is quietly replaced by the safe default and
+you are left believing you changed something.
+
+You can choose which classified failure categories are recovered, how many attempts each
+interruption gets, when to give up after recoveries that produce nothing, how long to wait
+between attempts, and which notifications appear.
+
+You cannot switch off a safety property, because none of them is a setting. There is no option
+that retries an unclassified failure, resolves a conversation by title, resends an uncertain
+submission or forces a send — by design, not by omission.
 
 ## Windows startup
 

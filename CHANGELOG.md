@@ -1,5 +1,81 @@
 # Changelog
 
+## v0.5.0 — Settings you can find, and a notification that says who it is from
+
+### Settings, in three places, meaning one thing
+
+- **A standalone Windows settings window**, on the Start Menu. It works with Codex closed, the
+  plugin unloaded, the MCP server unavailable, no network, no sign-in and no system Python -
+  because configuration matters most exactly when the thing it configures is unavailable.
+- **A settings panel inside Codex**, over a plugin-declared MCP server. Ask to open auto resume
+  settings and it renders in the conversation.
+- **The command line**, unchanged.
+
+All three read and write through one validated layer, so a value set in any of them is the value
+the others show. That layer is also the fix for a real bug: the watcher used to have its own
+settings reader that understood three of the sixteen fields, and a matching writer that persisted
+only those three - so `enable --lookback-hours 8` silently erased every recovery category and
+notification preference. There is now one reader and one writer.
+
+### The settings finally govern the watcher
+
+The schema described policy that nothing read. Now the engine adopts it: categories switched off
+are never recorded, so nothing is scheduled, attempted or announced for them; the transient
+backoff follows the chosen timing preset; and the attempt and no-progress budgets come from the
+settings. Changes are picked up on the next poll, without restarting anything.
+
+Policy stays policy. Everything a settings file can touch runs through the same coercion, so the
+worst a hand-edited or hostile one can do is make recovery *more* conservative - and the engine's
+safety limits are not in the schema at all. There is still no setting that retries an unclassified
+failure, resolves a conversation by title, resends an uncertain submission or forces a send.
+
+### Notifications that say who they are from, across the whole lifecycle
+
+- **Fixed: Windows attributed our notifications to PowerShell.** They now show **Codex Auto
+  Resume** with this project's own icon. That needs two registrations, not one: an
+  AppUserModelID supplies the name and icon, and a Start Menu shortcut carrying the same id is
+  what makes Windows *draw* the toast. Without the shortcut the platform accepts it, logs it, and
+  files it in the notification centre without ever showing it. Found by looking at the screen
+  rather than at the event log, which had said "delivered".
+- Three more notifications join the first: recovery starting, how it turned out, and recovery
+  stopping for good. Each is raised once, from the state change itself, so the notification and
+  the record cannot disagree. An uncertain submission is reported as uncertain, never as a
+  failure that will be retried.
+- Each event has its own switch, plus a master switch, read at the moment of the event.
+
+### Recovery
+
+- **Fixed: an exhausted recovery could not be given its attempts back.** Running out of attempts
+  leaves a record in a terminal state, and terminal records may not be reactivated - the guard
+  that stops a finished, cancelled or uncertainly-submitted recovery from being restarted by a
+  stray write. Resetting the budget therefore raised instead of resetting. Rather than widen that
+  guard, the one stop a person may undo now has its own operation: it accepts only the two
+  exhausted states, refuses anything cancelled or carrying any sign of a submission, and clears
+  the budget and nothing else. The record re-enters the queue as a candidate and every gate runs
+  again.
+- **Retry now** brings a waiting recovery's next attempt forward. It is not a send: the watcher
+  still revalidates, still needs the conversation open, still waits for usage, and still refuses
+  anything uncertain.
+
+### The usage-limit checkbox, re-investigated from scratch
+
+Re-checked against `codex-cli 0.153.4` and ChatGPT desktop `26.901.5280.0`. The answer has not
+changed: the notice is assembled from compiled message ids inside the Electron bundle, and no
+manifest field, MCP surface or hook can address it. A Codex-native form at the moment of the
+interruption is now technically possible and is still not shipped, for a stated reason rather
+than a technical one - it would push a form into whatever conversation happens to be open, about
+a different one that failed, only when Codex is running, and only where a remote feature gate is
+on. Nothing was faked in its place. See [docs/PLUGIN.md](docs/PLUGIN.md).
+
+### Packaging
+
+- The plugin now ships a small launcher so its MCP server can start from the bundled interpreter:
+  Codex accepts a plugin command only as a bare name or a contained path, and a bare `python`
+  would put back the system-Python requirement this product removed.
+- That launcher relays the standard streams rather than letting the child inherit them. A child
+  started with `CREATE_NO_WINDOW` and no explicit handles gets no usable standard handles, so the
+  server waits for input that never arrives and the host waits for a handshake that never comes.
+
 ## v0.4.1 — Put the reason back in the notification
 
 - **Fixed: the notification never said why it appeared.** Windows renders at most three
