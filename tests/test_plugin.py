@@ -15,7 +15,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from codex_auto_resume import messages, startup
+from codex_auto_resume import messages, shortcut, startup
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / ".codex-plugin" / "plugin.json"
@@ -219,8 +219,15 @@ class BridgeTests(unittest.TestCase):
         module = sys.modules.get("plugin_setup_under_test")
         self.bridge = module or _load("plugin_setup_under_test", ROOT / "scripts" / "plugin_setup.py")
         # Never let a bridge test reach the real HKCU Run key or spawn a real watcher.
-        for target, replacement in (("install", None), ("uninstall", False), ("current_value", None)):
+        for target, replacement in (("install", None), ("uninstall", False), ("current_value", None),
+                                    ("register_aumid", True), ("unregister_aumid", False)):
             guard = patch.object(startup, target, return_value=replacement)
+            guard.start()
+            self.addCleanup(guard.stop)
+        # setup() runs the real `install`, which writes a Start Menu entry for the
+        # actual user. Tests must never touch it.
+        for target, replacement in (("install", True), ("uninstall", False)):
+            guard = patch.object(shortcut, target, return_value=replacement)
             guard.start()
             self.addCleanup(guard.stop)
         spawn = patch.object(self.bridge, "start_watcher", return_value=True)
