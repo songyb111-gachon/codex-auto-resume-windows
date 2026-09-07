@@ -1,46 +1,25 @@
 Codex Auto Resume for Windows
-
 =============================
-
-
 
 Double-click Install.cmd.
 
-
-
-It installs the Codex plugin and a small background watcher that resumes a Codex
-
-task after a usage limit resets, and retries one after a clearly temporary failure.
-
-
+That is the whole installation. It brings its own Python, so nothing else needs to
+be installed, and it asks no questions - safe recommended settings are already on.
 
 Requirements
-
   - Windows 10 or 11
-
   - The ChatGPT/Codex desktop app, run at least once
 
-  - Python 3.10 or newer on PATH (the installer tells you if it is missing;
+No administrator rights. No Windows service, no scheduled task. Everything it
+registers belongs to your user account only.
 
-    it never downloads or installs Python for you)
+Re-run Install.cmd to update or repair; your settings and anything waiting to be
+recovered are kept.
 
+Uninstall.cmd removes the program but keeps your settings. To remove those too,
+run it with -Purge.
 
+After installing, ask Codex: open auto resume settings
+Or use Start Menu > Codex Auto Resume.
 
-No administrator rights. No Windows service and no scheduled task. Everything it
-
-registers lives under your own user account, and Uninstall.cmd removes it again.
-
-
-
-Re-running Install.cmd upgrades in place and keeps anything already waiting to resume.
-
-
-
-After installing, ask Codex in a new conversation:  show auto resume status
-
-
-
-Source and documentation:
-
-  https://github.com/songyb111-gachon/codex-auto-resume-windows
-
+https://github.com/songyb111-gachon/codex-auto-resume-windows
