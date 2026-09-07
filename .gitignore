@@ -18,3 +18,8 @@ logs/*
 # Scratch work from other local sessions; never part of the published tool.
 comparison/
 COMPARISON_PROGRESS.md
+
+# Release build products: the runtime download, staging and dist are all regenerable.
+build/cache/
+build/stage/
+build/dist/
