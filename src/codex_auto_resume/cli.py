@@ -71,6 +71,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("uninstall", help="remove autostart, stop watcher, delete owned state and logs")
     p.add_argument("--keep-logs", action="store_true")
+    p.add_argument("--keep-state", action="store_true",
+                   help="keep settings and pending recoveries, so re-installing picks them up")
 
     sub.add_parser("doctor", help="verify official engine, desktop app pairing and adapters (read-only)")
 
@@ -268,6 +270,24 @@ def cmd_doctor(args) -> int:
     except Exception as exc:
         ok = False
         _print("local history    : FAIL (%s)" % type(exc).__name__)
+    # The notification's button goes through a registered URL protocol. If its target has
+    # gone - an installation moved, or a temporary home that no longer exists - the button
+    # silently does nothing, and nothing else in the product would ever mention it.
+    try:
+        registered = startup.protocol_value()
+        if not registered:
+            _print("notification action: not registered (the button would do nothing)")
+        else:
+            argv = startup.parse_command(registered)
+            target = Path(argv[1]) if len(argv) >= 2 else None
+            if target is not None and not target.exists():
+                ok = False
+                _print("notification action: registered, but its target is missing")
+                _print("                     re-run install to point it at this installation")
+            else:
+                _print("notification action: registered")
+    except startup.StartupError as exc:
+        _print("notification action: unavailable (%s)" % exc)
     return EXIT_OK if ok else EXIT_ERROR
 
 
@@ -423,10 +443,17 @@ def cmd_uninstall(args) -> int:
         for handler in list(logging.getLogger(logger_name).handlers):
             logging.getLogger(logger_name).removeHandler(handler)
             handler.close()
-    considered = ([] if args.keep_logs else [paths.logs_dir]) + [paths.state_dir]
+    # `--keep-state` is what the installer's ordinary uninstall uses. Settings and pending
+    # recoveries are the user's, not the program's: removing them by default made a plain
+    # uninstall/reinstall silently lose everything that was waiting to resume, while the
+    # installer said in the same breath that they had been kept.
+    keep_state = getattr(args, "keep_state", False)
+    considered = ([] if args.keep_logs else [paths.logs_dir]) + ([] if keep_state else [paths.state_dir])
     owned_dirs = [d for d in considered if paths.owns(d)]
     skipped = [d for d in considered if d.is_dir() and not paths.owns(d)]
-    targets = list(paths.owned_state_files()) + ([] if args.keep_logs else list(paths.owned_log_files()))
+    targets = ([] if keep_state else list(paths.owned_state_files()))
+    if not args.keep_logs:
+        targets += list(paths.owned_log_files())
     for path in targets:
         try:
             # Never follow a link/junction out of the owned home when deleting.
@@ -442,6 +469,8 @@ def cmd_uninstall(args) -> int:
         except OSError:
             pass
     _print("removed: %s" % (", ".join(removed) if removed else "nothing (already clean)"))
+    if keep_state:
+        _print("kept your settings and pending recoveries in %s" % paths.state_dir)
     for directory in skipped:
         _print("skipped %s (no provenance marker; not created by this tool, nothing deleted there)" % directory)
     if foreign_autostart:

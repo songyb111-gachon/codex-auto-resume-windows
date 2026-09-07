@@ -83,7 +83,12 @@ if ($env:OS -ne 'Windows_NT') { Fail 'This tool targets Windows only.'; exit 1 }
 if ($Uninstall) {
     if (Test-Path $Python) {
         Step 'Removing the watcher, autostart, notification identity and Start Menu entry'
-        $null = Invoke-Setup @('uninstall')
+        # Without -Purge this keeps settings and pending recoveries, which is what the
+        # message at the end of this branch promises. It used to call plain `uninstall`,
+        # which deletes them - so a reinstall silently lost everything that was waiting.
+        $setupArgs = @('uninstall')
+        if ($Purge) { $setupArgs += '--purge' }
+        $null = Invoke-Setup $setupArgs
     } else {
         Warn 'No installed runtime found; skipping watcher removal.'
     }
@@ -94,6 +99,9 @@ if ($Uninstall) {
         $null = Invoke-Codex $codex @('plugin', 'marketplace', 'remove', $MarketplaceName)
     }
     Step 'Removing program files'
+    foreach ($stale in (Get-ChildItem -Path $InstallHome -Filter '*.old-*' -ErrorAction SilentlyContinue)) {
+        Remove-Item -Recurse -Force $stale.FullName -ErrorAction SilentlyContinue
+    }
     foreach ($dir in @($AppDir, $RunDir)) {
         if (Test-Path $dir) { Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue }
     }
