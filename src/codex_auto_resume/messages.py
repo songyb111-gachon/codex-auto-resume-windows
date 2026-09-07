@@ -43,6 +43,11 @@ MESSAGES = {
                      "Remove the other installation first, then run setup again."),
         "conflict_other": ("Another auto-resume installation is also registered to start at sign-in. "
                            "Two watchers could resume the same task twice; keep only one."),
+        "not_installed": ("The Windows runtime is not installed yet, so there is nothing for the "
+                          "watcher to run. The plugin carries a setup script that downloads the "
+                          "matching release, checks it and installs it:"),
+        "not_installed_hint": ("Nothing else is needed first: no Python, no administrator rights and "
+                               "no manual download."),
         "waiting_loaded": "Waiting for this conversation to be loaded",
         "waiting_reset": "Task will resume after the usage reset",
         "toast_unnamed": "Codex task",
@@ -92,6 +97,11 @@ MESSAGES = {
                      "기존 설치를 먼저 제거한 뒤 다시 설정하세요."),
         "conflict_other": ("다른 자동 재개 설치도 로그인 시 시작되도록 등록되어 있습니다. "
                            "워처가 두 개면 같은 작업을 두 번 재개할 수 있으니 하나만 남기세요."),
+        "not_installed": ("Windows 런타임이 아직 설치되지 않아 워처가 실행할 대상이 없습니다. "
+                          "플러그인에 포함된 설치 스크립트가 해당 릴리스를 내려받아 검증한 뒤 "
+                          "설치합니다:"),
+        "not_installed_hint": ("먼저 준비할 것은 없습니다. Python도, 관리자 권한도, 수동 "
+                               "다운로드도 필요하지 않습니다."),
         "waiting_loaded": "이 대화가 열리기를 기다리는 중",
         "waiting_reset": "사용량 초기화 후 작업이 재개됩니다",
         "toast_unnamed": "Codex 작업",

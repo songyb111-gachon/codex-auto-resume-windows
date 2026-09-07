@@ -1,0 +1,312 @@
+"""One installation, whichever way you arrive at it.
+
+There are three ways in - a downloaded archive, the Codex plugin, and a repair of an
+existing install - and before v0.5.2 the second one produced a different, lesser product:
+a watcher pointing at whatever system Python happened to run setup, no settings window,
+no panel, and an engine resolved from the plugin cache rather than from the installation.
+Two of those could be true at once on the same machine, sharing one database.
+
+These tests pin the convergence rules that removed that:
+
+* the interpreter every registration names is the one the installer deploys;
+* the engine the watcher loads is the installed application, not a plugin cache copy;
+* setup refuses to build a half-installation and says what to run instead;
+* what the bootstrap is allowed to fetch, and what it must check before executing any
+  of it.
+
+The bootstrap is PowerShell, so it is checked by reading it. That is worth less than
+running it and is not nothing: the properties asserted here - no shell interpolation of
+downloaded text, no elevation, verification before execution, and a required-contents
+list that matches the one the release workflow enforces - are exactly the ones that go
+wrong silently when someone edits the script later.
+"""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+import re
+import sys
+import tempfile
+import unittest
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "scripts"))
+
+import plugin_setup                    # noqa: E402
+import watcher_launcher                # noqa: E402
+
+BOOTSTRAP = ROOT / "scripts" / "bootstrap.ps1"
+RELEASE = ROOT / "scripts" / "release.json"
+INSTALLER = ROOT / "install" / "install.ps1"
+WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
+
+
+def make_home(tmp: Path, runtime: bool = True, app: bool = True) -> Path:
+    """A directory shaped like an installation, with either half optionally missing."""
+    home = tmp / ".codex-auto-resume"
+    if runtime:
+        (home / "runtime").mkdir(parents=True, exist_ok=True)
+        (home / "runtime" / "python.exe").write_bytes(b"")
+        (home / "runtime" / "pythonw.exe").write_bytes(b"")
+    if app:
+        package = home / "app" / "src" / "codex_auto_resume"
+        package.mkdir(parents=True, exist_ok=True)
+        (package / "cli.py").write_text("", encoding="utf-8")
+        (home / "app" / "src" / "auto_resume.py").write_text("", encoding="utf-8")
+    home.mkdir(parents=True, exist_ok=True)
+    return home
+
+
+class InstalledStateTests(unittest.TestCase):
+    def test_both_halves_are_required(self):
+        with tempfile.TemporaryDirectory() as name:
+            tmp = Path(name)
+            self.assertTrue(plugin_setup.installed(make_home(tmp / "both")))
+            self.assertFalse(plugin_setup.installed(make_home(tmp / "no-runtime", runtime=False)))
+            self.assertFalse(plugin_setup.installed(make_home(tmp / "no-app", app=False)))
+
+    def test_an_empty_directory_is_not_an_installation(self):
+        with tempfile.TemporaryDirectory() as name:
+            self.assertFalse(plugin_setup.installed(Path(name)))
+
+
+class InterpreterTests(unittest.TestCase):
+    def test_the_bundled_windowless_interpreter_wins(self):
+        with tempfile.TemporaryDirectory() as name:
+            home = make_home(Path(name))
+            self.assertEqual(plugin_setup.python_for_watcher(home),
+                             home / "runtime" / "pythonw.exe")
+
+    def test_console_interpreter_is_used_when_there_is_no_windowless_one(self):
+        with tempfile.TemporaryDirectory() as name:
+            home = make_home(Path(name))
+            (home / "runtime" / "pythonw.exe").unlink()
+            self.assertEqual(plugin_setup.python_for_watcher(home),
+                             home / "runtime" / "python.exe")
+
+    def test_it_falls_back_only_when_nothing_is_installed(self):
+        with tempfile.TemporaryDirectory() as name:
+            home = make_home(Path(name), runtime=False)
+            # Whatever is running the tests: the point is that it is not under `home`.
+            self.assertNotEqual(plugin_setup.python_for_watcher(home).parent,
+                                home / "runtime")
+
+    def test_every_registration_names_the_installed_interpreter(self):
+        with tempfile.TemporaryDirectory() as name:
+            home = make_home(Path(name))
+            bundled = str(home / "runtime" / "pythonw.exe")
+            # The sign-in entry, the notification button and the watcher itself. All
+            # three used to be able to disagree.
+            self.assertIn(bundled, plugin_setup.watcher_command(home))
+            self.assertIn(bundled, plugin_setup.notification_command(home))
+
+
+class SetupRefusalTests(unittest.TestCase):
+    """`setup` on a plugin with nothing installed must stop, not improvise."""
+
+    def run_setup(self, home: Path):
+        import argparse
+        import contextlib
+        import io
+        args = argparse.Namespace(no_startup=True, replace_existing=False)
+        original = plugin_setup.runtime_home
+        plugin_setup.runtime_home = lambda: home
+        output = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(output):
+                code = plugin_setup.cmd_setup(args)
+        finally:
+            plugin_setup.runtime_home = original
+        return code, output.getvalue()
+
+    def test_it_refuses_and_names_the_setup_script(self):
+        with tempfile.TemporaryDirectory() as name:
+            home = make_home(Path(name), runtime=False)
+            code, text = self.run_setup(home)
+        self.assertEqual(code, plugin_setup.EXIT_ERROR)
+        self.assertIn("bootstrap.ps1", text)
+
+    def test_it_registers_nothing_when_it_refuses(self):
+        with tempfile.TemporaryDirectory() as name:
+            home = make_home(Path(name), runtime=False)
+            self.run_setup(home)
+            # No launcher, no runtime record: a refusal leaves no half-installation
+            # behind for a later run to mistake for a real one.
+            self.assertFalse((home / plugin_setup.LAUNCHER_NAME).exists())
+            self.assertFalse((home / plugin_setup.RUNTIME_CONFIG).exists())
+
+    def test_the_named_command_is_a_real_script(self):
+        command = plugin_setup.bootstrap_command()
+        self.assertIn("-ExecutionPolicy Bypass", command)
+        self.assertIn("-File", command)
+        self.assertTrue(BOOTSTRAP.is_file())
+        self.assertIn(BOOTSTRAP.name, command)
+
+
+class EngineResolutionTests(unittest.TestCase):
+    """Which copy of the code the watcher loads. There is usually more than one."""
+
+    def cache(self, tmp: Path, name: str = "codex-auto-resume") -> Path:
+        version = tmp / ".codex" / "plugins" / "cache" / "market" / name / "9.9.9"
+        (version / "src" / "codex_auto_resume").mkdir(parents=True)
+        (version / "src" / "codex_auto_resume" / "cli.py").write_text("", encoding="utf-8")
+        (version / "src" / "auto_resume.py").write_text("", encoding="utf-8")
+        return version
+
+    def setUp(self):
+        self._codex_home = watcher_launcher.codex_home
+
+    def tearDown(self):
+        watcher_launcher.codex_home = self._codex_home
+
+    def test_the_installed_application_beats_a_newer_plugin_cache_copy(self):
+        with tempfile.TemporaryDirectory() as name:
+            tmp = Path(name)
+            home = make_home(tmp)
+            cached = self.cache(tmp)
+            # The cache copy is deliberately the newer of the two: preferring it by
+            # modification time is exactly the bug this replaces.
+            import os
+            import time
+            os.utime(cached, (time.time() + 600, time.time() + 600))
+            watcher_launcher.codex_home = lambda: tmp / ".codex"
+            resolved = watcher_launcher.resolve_plugin_root(
+                {"mode": "plugin", "plugin_name": "codex-auto-resume", "home": str(home),
+                 "plugin_root": str(cached)})
+            self.assertEqual(resolved, home / "app")
+
+    def test_the_cache_is_still_used_when_there_is_no_installed_application(self):
+        with tempfile.TemporaryDirectory() as name:
+            tmp = Path(name)
+            home = make_home(tmp, app=False)
+            cached = self.cache(tmp)
+            watcher_launcher.codex_home = lambda: tmp / ".codex"
+            resolved = watcher_launcher.resolve_plugin_root(
+                {"mode": "plugin", "plugin_name": "codex-auto-resume", "home": str(home)})
+            self.assertEqual(resolved, cached)
+
+    def test_a_recorded_checkout_is_the_last_resort(self):
+        with tempfile.TemporaryDirectory() as name:
+            tmp = Path(name)
+            home = make_home(tmp, app=False)
+            checkout = self.cache(tmp, name="checkout")
+            watcher_launcher.codex_home = lambda: tmp / ".codex"
+            resolved = watcher_launcher.resolve_plugin_root(
+                {"mode": "local", "home": str(home), "plugin_root": str(checkout)})
+            self.assertEqual(resolved, checkout)
+
+    def test_nothing_installed_resolves_to_nothing(self):
+        with tempfile.TemporaryDirectory() as name:
+            tmp = Path(name)
+            watcher_launcher.codex_home = lambda: tmp / ".codex"
+            self.assertIsNone(watcher_launcher.resolve_plugin_root(
+                {"mode": "plugin", "plugin_name": "codex-auto-resume",
+                 "home": str(tmp / "nowhere")}))
+
+
+class ReleaseManifestTests(unittest.TestCase):
+    def setUp(self):
+        self.release = json.loads(RELEASE.read_text(encoding="utf-8"))
+
+    def test_the_download_location_is_pinned_and_https(self):
+        download = self.release["download"]
+        self.assertTrue(download.startswith(
+            "https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/download/"),
+            download)
+        # The version is substituted, never supplied: the plugin can only ask for the
+        # release that matches itself.
+        self.assertIn("{version}", download)
+        self.assertIn("{version}", self.release["archive"])
+        self.assertTrue(self.release["archive"].endswith(".zip"))
+
+    def test_no_other_substitution_is_possible(self):
+        for value in (self.release["download"], self.release["archive"]):
+            self.assertEqual(set(re.findall(r"\{(\w+)\}", value)), {"version"})
+
+    def test_digests_are_absent_or_real(self):
+        for version, digest in self.release["sha256"].items():
+            self.assertRegex(version, r"^\d+\.\d+\.\d+$")
+            if digest is not None:
+                self.assertRegex(digest, r"^[0-9a-f]{64}$")
+
+    def test_this_version_has_an_entry(self):
+        from codex_auto_resume import config
+        self.assertIn(config.version(), self.release["sha256"],
+                      "scripts/release.json has no entry for the current version")
+
+
+class BootstrapTests(unittest.TestCase):
+    def setUp(self):
+        self.text = BOOTSTRAP.read_text(encoding="utf-8")
+
+    def test_nothing_downloaded_reaches_a_shell(self):
+        for forbidden in ("Invoke-Expression", "iex ", "| iex", "DownloadString"):
+            self.assertNotIn(forbidden, self.text, forbidden)
+
+    def test_it_never_asks_for_administrator_rights(self):
+        for forbidden in ("RunAs", "Set-ExecutionPolicy", "Set-MpPreference",
+                          "Add-MpPreference", "netsh "):
+            self.assertNotIn(forbidden, self.text, forbidden)
+
+    def test_it_verifies_before_it_executes(self):
+        # Order matters more than presence: extraction and the installer call both have
+        # to come after the digest comparison and the contents check.
+        digest = self.text.index("Get-FileHash")
+        contents = self.text.index("Test-Archive -Zip")
+        extract = self.text.index("ExtractToDirectory")
+        run = self.text.index("& $installer")
+        self.assertLess(digest, contents)
+        self.assertLess(contents, extract)
+        self.assertLess(extract, run)
+
+    def test_a_failed_check_leaves_nothing_behind(self):
+        self.assertIn("Remove-Item -Recurse -Force $work", self.text)
+
+    def test_only_github_hosts_are_accepted(self):
+        allowed = re.search(r"\$AllowedHosts\s*=\s*@\(([^)]*)\)", self.text)
+        self.assertIsNotNone(allowed)
+        hosts = re.findall(r"'([^']+)'", allowed.group(1))
+        self.assertTrue(hosts)
+        for host in hosts:
+            self.assertTrue(host == "github.com" or host.endswith(".githubusercontent.com"), host)
+
+    def test_the_version_it_fetches_cannot_be_supplied(self):
+        # No parameter feeds the URL. -ArchivePath names a local file, which is checked
+        # the same way as a download, and -Force and -NoStartup are switches.
+        parameters = re.search(r"param\((.*?)\n\)", self.text, re.S).group(1)
+        self.assertEqual(set(re.findall(r"\$(\w+)", parameters)),
+                         {"Force", "NoStartup", "ArchivePath"})
+
+    def test_required_contents_match_the_release_workflow(self):
+        # Two lists of the same thing, in two languages, in two files. They drift.
+        def entries(text, marker):
+            block = text[text.index(marker):]
+            return set(re.findall(r"'((?:payload|install|Install)[^']*)'",
+                                  block[:block.index(")")]))
+        mine = entries(self.text, "$required = @(")
+        theirs = entries(WORKFLOW.read_text(encoding="utf-8"), "foreach ($required in @(")
+        self.assertTrue(theirs, "the release workflow's required list was not found")
+        self.assertTrue(theirs.issubset(mine),
+                        "the bootstrap accepts an archive the release would reject: "
+                        + str(sorted(theirs - mine)))
+
+
+class InstallerLockTests(unittest.TestCase):
+    def test_the_installer_takes_the_lock_before_it_touches_anything(self):
+        text = INSTALLER.read_text(encoding="utf-8")
+        self.assertIn("System.Threading.Mutex", text)
+        self.assertLess(text.index("System.Threading.Mutex"), text.index("$InstallHome ="))
+
+    def test_an_abandoned_lock_is_taken_rather_than_treated_as_contention(self):
+        text = INSTALLER.read_text(encoding="utf-8")
+        self.assertIn("AbandonedMutexException", text)
+
+    def test_the_bootstrap_does_not_take_the_same_lock(self):
+        # One owner. Two would have to agree about recursive acquisition, and the
+        # installer is the step every route passes through.
+        self.assertNotIn("Mutex", BOOTSTRAP.read_text(encoding="utf-8"))
+
+
+if __name__ == "__main__":
+    unittest.main()

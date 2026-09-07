@@ -381,7 +381,26 @@ class BridgeTests(unittest.TestCase):
         start.assert_not_called()
         self.assertFalse(self.home.exists())    # nothing written when it refuses
 
+    def pretend_installed(self):
+        """Lay down the shape of a real installation under `self.home`.
+
+        `setup` refuses to run against anything else, on purpose: without the bundled
+        runtime and the application beside it there is nothing for the watcher to run,
+        and configuring one anyway is how a second, lesser installation used to appear.
+        Tests of the post-install path therefore have to look installed.
+        tests/test_convergence.py covers the refusal itself.
+        """
+        for name in ("python.exe", "pythonw.exe"):
+            path = self.home / "runtime" / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"")
+        package = self.home / "app" / "src" / "codex_auto_resume"
+        package.mkdir(parents=True, exist_ok=True)
+        (package / "cli.py").write_text("", encoding="utf-8")
+        (self.home / "app" / "src" / "auto_resume.py").write_text("", encoding="utf-8")
+
     def test_setup_is_idempotent_and_keeps_existing_state(self):
+        self.pretend_installed()
         args = self.bridge.build_parser().parse_args(["setup", "--no-startup"])
         with patch.object(self.bridge, "runtime_home", return_value=self.home), \
              patch.object(startup, "current_value", return_value=None), \
@@ -579,10 +598,23 @@ class PythonFloorTests(unittest.TestCase):
         for code in messages.SUPPORTED:
             self.assertIn(wanted, messages.MESSAGES[code]["python_missing"], code)
 
-    def test_the_skill_names_the_same_version(self):
+    def test_the_skill_does_not_send_anyone_looking_for_a_python(self):
+        """It used to, and that is what produced a second installation.
+
+        The skill's first instruction was "use the first Python that works", which meant
+        the watcher, the sign-in entry and the notification handler were registered
+        against whatever interpreter answered - a different product from the one the
+        installer deploys, sharing its state directory. The floor above still applies to
+        the engine and is still reported by `python_missing`; it is no longer something
+        the skill asks anyone to satisfy, because the installer brings its own.
+        """
         text = SKILL.read_text(encoding="utf-8")
-        wanted = "Python %d.%d" % self.bridge.MIN_PYTHON
-        self.assertIn(wanted, text)
+        for gone in ("py -3 scripts/plugin_setup.py",
+                     "python scripts/plugin_setup.py",
+                     "python3 scripts/plugin_setup.py"):
+            self.assertNotIn(gone, text, gone)
+        self.assertIn("bootstrap.ps1", text)
+        self.assertIn(r".codex-auto-resume\runtime\python.exe", text)
 
     def test_the_bundled_runtime_is_at_least_the_floor(self):
         builder = _load("make_release", ROOT / "build" / "make_release.py")

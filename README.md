@@ -36,14 +36,44 @@ official `codex queue` command. Nothing leaves your machine.
 
 **Windows 10/11. No Python needed. No administrator rights.**
 
+### From Codex (recommended)
+
+Add the plugin, then ask Codex to **set up auto resume**.
+
+```
+codex plugin marketplace add songyb111-gachon/codex-auto-resume-windows
+codex plugin add codex-auto-resume@codex-auto-resume-windows
+```
+
+Codex will run the plugin's setup script, which downloads the matching release from this
+repository's releases over HTTPS, checks its SHA-256, checks the contents really are this
+product at this version, and only then installs — into your user profile, touching nothing
+outside it. It will tell you before it does any of that.
+
+The plugin on its own is only the skills and the panel; the watcher, the settings window
+and the Windows runtime come from that release. That is why there is a download, and why
+it is worth reading [`docs/PLUGIN.md`](docs/PLUGIN.md) if you would rather know exactly
+what the script will and will not do before running it.
+
+### From the release archive
+
+If you would rather not have anything download on your behalf:
+
 1. Download `CodexAutoResume-<version>-win-x64.zip` from the
    [latest release](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest).
-2. Extract it anywhere.
-3. Double-click **`Install.cmd`**.
+2. Check it against the `.sha256` published beside it, if you like.
+3. Extract it anywhere and double-click **`Install.cmd`**.
 
-That is the whole setup. The archive carries its own Python runtime, so there is nothing to install
-first, and the recommended settings are already on when it finishes. Running `Install.cmd` again
-upgrades in place and keeps anything already waiting to resume; `Uninstall.cmd` reverses it.
+The archive carries its own Python runtime, so there is nothing to install first, and the
+recommended settings are already on when it finishes. It registers the Codex plugin from
+inside the archive, so this route gets the panel too, with no network access at all.
+
+### Either way
+
+Both routes end at the same installation, in `%USERPROFILE%\.codex-auto-resume`: one
+watcher, one database, one settings file, one sign-in entry. Running either again is the
+upgrade and the repair path, and keeps anything already waiting to resume. `Uninstall.cmd`,
+or asking Codex to remove it, reverses it.
 
 Afterwards, change anything from **Start Menu → Codex Auto Resume**, or by asking Codex to
 *open auto resume settings*.
@@ -56,7 +86,13 @@ only ever cancels.
 
 <img src="docs/images/notification.png" alt="A Windows notification from Codex Auto Resume saying a usage limit was reached and the task will resume after the reset, with a Don't resume button" width="470">
 
-Everything is configurable from the Start Menu, with Codex closed if you like:
+Inside Codex, ask to *open auto resume settings* and the panel shows what is waiting and
+lets you change any of it:
+
+<img src="docs/images/settings-panel.png" alt="The Codex Auto Resume panel inside Codex: a status line saying the watcher is watching for interruptions with three recoveries pending, a table of what is waiting to resume, and cards for the recovered failure categories, the attempt limits and the notification switches" width="680">
+
+The same settings are in a standalone window from the Start Menu, which works with Codex
+closed:
 
 <img src="docs/images/settings-window.png" alt="The Codex Auto Resume settings window, showing which failures are recovered, the attempt limits, the retry timing and the notification switches" width="680">
 

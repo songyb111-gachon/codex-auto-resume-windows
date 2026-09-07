@@ -23,33 +23,54 @@ Use the commands below when the tools are not available - the plugin's server ha
 started, or the user is asking to install, repair or remove the product, which the tools
 deliberately cannot do.
 
+## Installing it
+
+**This plugin is not the product.** It carries the skills, the tools and this file; the
+parts that do the work are a Windows runtime, a settings window and a background watcher,
+which are not in the plugin and cannot be. So the first step is always the setup script,
+which downloads the matching release, verifies it and installs it.
+
+Run this, from the plugin root - the directory containing this plugin's `scripts/` folder:
+
+```bash
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/bootstrap.ps1
+```
+
+It needs nothing installed first: no Python, no administrator rights, no manual download.
+It is safe to run again - that is also the repair path and the upgrade path. Add
+`-NoStartup` if the user does not want it to run at Windows sign-in.
+
+Tell the user plainly what it is about to do before running it: it downloads this
+version's release archive from the project's GitHub releases over HTTPS, checks its
+SHA-256, checks the contents are this product at this version, and only then installs -
+into their user profile, touching nothing outside it. If they would rather do it
+themselves, the same archive is on the project's GitHub releases page and the ZIP
+contains `Install.cmd`.
+
+If it reports that it could not download, say so and stop. Do not look for another
+source for the archive, do not offer a different URL, and do not try to assemble an
+installation by hand.
+
 ## Running commands
 
-Run from the plugin root (the directory that contains this plugin's `scripts/` folder).
-
-Use the first Python that works, in this order:
-
-```bash
-py -3 scripts/plugin_setup.py <command>
-```
+Everything below needs the product to be installed, because it runs through the
+interpreter the installer deploys:
 
 ```bash
-python scripts/plugin_setup.py <command>
+%USERPROFILE%\.codex-auto-resume\runtime\python.exe %USERPROFILE%\.codex-auto-resume\app\scripts\plugin_setup.py <command>
 ```
 
-```bash
-python3 scripts/plugin_setup.py <command>
-```
-
-If none of them run, tell the user that Python 3.12 or newer is required and stop. Do not
-try to install Python for them.
+If that interpreter is not there, the product is not installed: run the setup script
+above instead of looking for another Python. A system Python can run these files, but it
+would configure a *second*, lesser installation - a different interpreter, no settings
+window, no panel - which is why `setup` refuses to do it.
 
 Commands:
 
 | Request | Command |
 | --- | --- |
-| Set up / turn on for the first time | `setup` |
-| Set up without Windows sign-in autostart | `setup --no-startup` |
+| Set up / turn on for the first time | the setup script above |
+| Set up without Windows sign-in autostart | the setup script above, with `-NoStartup` |
 | Turn auto resume on | `enable` |
 | Turn auto resume off | `disable` |
 | Show status | `status` |
@@ -154,8 +175,15 @@ notice and none can be added; see the project's docs/PLUGIN.md if asked why.
 
 ## Setup notes
 
-- `setup` is safe to run again; it does not reset existing settings or lose pending entries.
-- If `setup` reports that another auto-resume installation is already registered to start at
+- The setup script is safe to run again; it does not reset existing settings or lose
+  pending entries. Run again when the user asks to repair or update it: if the installed
+  version already matches this plugin it re-checks the registration rather than
+  downloading anything.
+- There is one installation, in `%USERPROFILE%\.codex-auto-resume`, and everything points
+  at it: the watcher, the sign-in entry, the notification buttons, the settings window,
+  this plugin's tools and the command line. If the user has two, that is a fault worth
+  reporting, not a configuration.
+- If setup reports that another auto-resume installation is already registered to start at
   sign-in, do not force it. Two watchers could resume the same task twice. Tell the user to
   remove the other installation first.
 - The watcher keeps running after the Codex app is closed, and starts again at Windows
@@ -166,4 +194,5 @@ notice and none can be added; see the project's docs/PLUGIN.md if asked why.
 ## Removing it
 
 `codex plugin remove` removes this skill but does not stop a watcher that is already
-running. To remove everything, run `uninstall` first, then remove the plugin.
+running, and it does not remove the installation the setup script made. To remove
+everything, run `uninstall` first, then remove the plugin.
