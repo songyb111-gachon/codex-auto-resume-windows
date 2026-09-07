@@ -566,3 +566,32 @@ class DiscoveryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EntryPointTests(unittest.TestCase):
+    """The documented command has to work with the interpreter that actually ships.
+
+    The embeddable Python in the release replaces sys.path from its own `._pth` file,
+    which turns off the usual "the script's directory is importable" rule. So the entry
+    point sets the path itself, and this runs it the way the README tells a person to -
+    from an unrelated working directory, with nothing on PYTHONPATH.
+    """
+
+    ENTRY = Path(__file__).resolve().parents[1] / "src" / "auto_resume.py"
+
+    def test_it_runs_with_no_pythonpath_from_an_unrelated_directory(self):
+        environment = dict(os.environ)
+        environment.pop("PYTHONPATH", None)
+        with tempfile.TemporaryDirectory() as elsewhere:
+            completed = subprocess.run(
+                [sys.executable, str(self.ENTRY), "--help"],
+                capture_output=True, text=True, timeout=120,
+                cwd=elsewhere, env=environment)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("usage", completed.stdout.lower())
+
+    def test_it_puts_its_own_package_first(self):
+        # Prepended, not appended: an unrelated `codex_auto_resume` earlier on the path
+        # would otherwise decide which engine runs.
+        text = self.ENTRY.read_text(encoding="utf-8")
+        self.assertIn("sys.path.insert(0,", text)
