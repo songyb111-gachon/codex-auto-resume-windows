@@ -1,7 +1,7 @@
 {
   "name": "codex-auto-resume",
-  "version": "0.5.0",
-  "description": "Safely recover the exact Codex task that a usage limit or a clearly temporary failure interrupted. Local-only, read-only against Codex state, and conservative by design.",
+  "version": "0.5.1",
+  "description": "Auto-resume and auto-retry for interrupted Codex tasks on Windows. Waits out a usage limit, a rate limit or a temporary failure, then continues the exact conversation. Local-only, read-only against Codex state, conservative by design.",
   "author": {
     "name": "Youngbin Song",
     "url": "https://github.com/songyb111-gachon"
@@ -10,17 +10,25 @@
   "repository": "https://github.com/songyb111-gachon/codex-auto-resume-windows",
   "license": "MIT",
   "keywords": [
+    "codex",
+    "codex auto resume",
+    "codex auto retry",
+    "auto resume",
+    "auto retry",
     "usage limit",
     "rate limit",
-    "auto resume",
+    "retry",
+    "automatic recovery",
+    "interrupted task",
     "watcher",
-    "windows"
+    "windows",
+    "developer tools"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Codex Auto Resume",
-    "shortDescription": "Recover an interrupted Codex task",
-    "longDescription": "When a Codex task stops because you ran out of usage, or because of a clearly temporary failure such as a dropped connection or a server error, this remembers the exact conversation and picks it up again. A small local watcher does the waiting, so it keeps working after you close the app. It acts only on failures it can classify, only on the exact interrupted conversation, and does nothing when the state is uncertain. It is not a general retry tool.",
+    "shortDescription": "Auto-resume an interrupted Codex task",
+    "longDescription": "When a Codex task stops because you hit a usage limit, a rate limit, a dropped connection or a temporary server error, this waits until it is safe again and continues that exact conversation. A small local watcher does the waiting, so it keeps working after you close the app, and Windows notifications tell you what it is doing. Settings are available here in Codex, from a Windows settings window, and from the command line. It acts only on failures it can classify, only on the exact interrupted conversation, and does nothing while anything is uncertain. It is not a general retry tool: an unclassified failure, a cancellation, a permission or policy failure and a permanent authentication failure are never retried.",
     "developerName": "Youngbin Song",
     "category": "Developer Tools",
     "capabilities": [
@@ -31,6 +39,7 @@
     "websiteURL": "https://github.com/songyb111-gachon/codex-auto-resume-windows",
     "defaultPrompt": [
       "Set up auto resume",
+      "Open auto resume settings",
       "Show auto resume status",
       "Show pending auto resumes"
     ],

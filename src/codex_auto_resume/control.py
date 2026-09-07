@@ -277,9 +277,4 @@ class Control:
 
 
 def _version() -> str:
-    import json
-    manifest = config.PROJECT_ROOT / ".codex-plugin" / "plugin.json"
-    try:
-        return str(json.loads(manifest.read_text(encoding="utf-8")).get("version") or "unknown")
-    except (OSError, ValueError):
-        return "unknown"
+    return config.version()

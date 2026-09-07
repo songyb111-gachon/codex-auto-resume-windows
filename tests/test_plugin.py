@@ -588,3 +588,38 @@ class PythonFloorTests(unittest.TestCase):
         builder = _load("make_release", ROOT / "build" / "make_release.py")
         shipped = tuple(int(p) for p in builder.PYTHON_VERSION.split(".")[:2])
         self.assertGreaterEqual(shipped, self.bridge.MIN_PYTHON)
+
+
+class VersionConsistencyTests(unittest.TestCase):
+    """One version, read everywhere it is shown.
+
+    `__version__` used to be a literal in `__init__.py`, and it stayed at the first
+    release's number through four more of them while the manifest, the settings window
+    and the release archive all moved on.
+    """
+
+    def setUp(self):
+        self.manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+
+    def test_the_package_version_is_the_manifest_version(self):
+        import codex_auto_resume
+        from codex_auto_resume import config
+        self.assertEqual(codex_auto_resume.__version__, self.manifest["version"])
+        self.assertEqual(config.version(), self.manifest["version"])
+
+    def test_the_control_layer_reports_the_same_version(self):
+        from codex_auto_resume import control
+        self.assertEqual(control._version(), self.manifest["version"])
+
+    def test_no_second_version_literal_is_hiding_in_the_package(self):
+        import re
+        for path in sorted((ROOT / "src" / "codex_auto_resume").glob("*.py")):
+            text = path.read_text(encoding="utf-8")
+            for match in re.findall(r'__version__\s*=\s*["\']([^"\']+)["\']', text):
+                self.fail("%s hardcodes a version: %s" % (path.name, match))
+
+    def test_the_changelog_leads_with_this_version(self):
+        import re
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        first = re.search(r"^##\s+v(\S+)", changelog, re.MULTILINE)
+        self.assertEqual(first.group(1), self.manifest["version"])

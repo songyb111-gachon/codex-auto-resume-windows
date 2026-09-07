@@ -1,5 +1,62 @@
 # Changelog
 
+## v0.5.1 — Say what the product actually is
+
+A patch release. No change to how recovery works, what it will retry, or what it refuses to
+retry. What changed is everything around that: the documentation was describing a version of
+this project that no longer exists, and the install instructions contradicted the installer.
+
+### Documentation that matches the product
+
+- **Fixed: the one-click install told you to put Python on your PATH.** That archive exists
+  precisely so you do not need Python — it carries its own runtime. The recommended install is
+  now three steps at the top of the README, with no prerequisites, and Python appears only where
+  it is genuinely needed: a source checkout, or installing the plugin straight from the
+  marketplace.
+- **Fixed: "there is no tray icon, no settings window, no management web UI".** Two of those
+  stopped being true in v0.5. The project direction now says what is deliberately built — a
+  Windows settings window, a panel inside Codex, the command line, notifications — and what is
+  still deliberately refused: a tray controller, a management web UI, a supervisor, a service, a
+  second recovery engine, a second database.
+- **Fixed: the supported Python version was never the tested one.** Setup refused anything below
+  3.10 while CI only ever ran 3.12 and 3.13, so two Python releases were accepted by the
+  installer and never tested. The floor is now the lowest version that is actually tested, and a
+  test ties the installer, the message the user sees, the skill and the bundled runtime together
+  so they cannot drift apart again.
+- The README opens with the problem and the download instead of the implementation, and states
+  the loaded-conversation limitation in the same breath rather than further down.
+
+### New public documentation
+
+- **[PRIVACY.md](PRIVACY.md)** — what is read, what is stored, and the short answer to what is
+  sent anywhere: nothing. No telemetry, no analytics, no update check, no outbound requests.
+- **[SUPPORT.md](SUPPORT.md)** — where to report each kind of problem, what to include, and what
+  not to paste into a public issue.
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — how to run the tests and build a release, the fixture
+  conventions, and the safety properties a change has to keep.
+- **[README.ko.md](README.ko.md)** — a Korean README, linked from the English one.
+
+### Repository hygiene
+
+- A new check keeps local development environment out of the repository: home directories in
+  examples must be placeholders, UUIDs in tracked files must be recognisably synthetic, and
+  runtime state is never tracked. The rules describe what a fixture may look like rather than
+  listing values, so the check cannot itself become a place where such values live.
+- Test and documentation fixtures use the documented placeholders throughout.
+
+### Packaging
+
+- Plugin metadata describes the product in the words people actually search for, and the
+  manifest, the skill and the release now agree on the version.
+
+### Unchanged on purpose
+
+Recovery is exactly as conservative as it was in v0.5.0. Same failure classification, same
+bounded attempts, same fail-closed behaviour on anything unrecognised, same exact-conversation
+identity, same refusal to resend a submission whose outcome is unknown. Codex still has to have
+the conversation open for a recovery to be delivered; that limitation is unchanged and still
+documented.
+
 ## v0.5.0 — Settings you can find, and a notification that says who it is from
 
 ### Settings, in three places, meaning one thing

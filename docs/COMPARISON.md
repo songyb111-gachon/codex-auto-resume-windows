@@ -9,6 +9,28 @@ Reviewed again for v0.5.0 against its current state: `d25fda6`, release **v0.7.9
 change is this project: it now has an MCP server and a settings window, and two entries below
 moved from *rejected* to *adapted* because of it. Saying so is the point of keeping this file.
 
+## Others in the same space
+
+Checked again for v0.5.1. None of these changed what this project builds; they are listed
+because a reader deciding between them deserves an accurate map, and because how they present
+themselves is worth learning from.
+
+| Project | What it is | How it differs from this one |
+| --- | --- | --- |
+| [`sybxxx/codex-auto-retry`](https://github.com/sybxxx/codex-auto-retry) | A Go watchdog for Codex with a tray controller and an embedded management panel | Much broader recovery, including unknown provider failures on their own budget, and a shared local app-server to wake unloaded threads. Compared feature by feature below |
+| [`Matrtex/codex-auto-retry-plugin`](https://github.com/Matrtex/codex-auto-retry-plugin) | A Python Codex plugin that retries high-demand, 429, 5xx and transient stream/network errors | Similar failure classes; a plugin rather than a background watcher, so it acts while Codex is running rather than waiting out a reset after you close the app |
+| [`ravhello/claude-codex-queue`](https://github.com/ravhello/claude-codex-queue) | A queue that continues Claude Code sessions and Codex App tasks after usage limits, preserving prompt order | Covers Claude Code as well, and is a queue rather than a failure classifier: it decides *when* to run queued work, where this decides *whether* a specific failure may be resumed at all |
+| [`FusionCube18712/claude-codex-auto-resume`](https://github.com/FusionCube18712/claude-codex-auto-resume) | A Go auto-resume utility | No public description at the time of writing; not enough stated behaviour to compare fairly |
+
+Different architecture is not worse architecture. Retrying an unknown provider failure, or
+owning a shared app-server so an unloaded thread can be woken, buys real capability that this
+project does not have; it is the wrong trade *here* because this project's promise is narrower.
+If what you want is maximum recovery, one of the others may suit you better.
+
+One thing they do better, and it is a fair criticism of this repository until v0.5.1: they are
+easier to find. `ravhello/claude-codex-queue` carries seventeen topics and a description that
+says what it does in one line, and this repository had neither.
+
 No code was copied, then or now. Everything here was written against this project's own
 architecture, from its own reading of Codex's local state.
 
