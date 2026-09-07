@@ -97,6 +97,10 @@ if ($Uninstall) {
     foreach ($dir in @($AppDir, $RunDir)) {
         if (Test-Path $dir) { Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue }
     }
+    foreach ($file in @('CodexAutoResumeSettings.exe', 'codex-auto-resume.ico', 'watcher-launcher.py', 'runtime.json')) {
+        $path = Join-Path $InstallHome $file
+        if (Test-Path $path) { Remove-Item -Force $path -ErrorAction SilentlyContinue }
+    }
     if ($Purge) {
         # Only on an explicit request: this is the user's recovery history.
         foreach ($dir in @((Join-Path $InstallHome 'config'), (Join-Path $InstallHome 'logs'))) {
@@ -138,6 +142,11 @@ foreach ($pair in @(@{ src = 'app'; dst = $AppDir }, @{ src = 'runtime'; dst = $
     if (Test-Path $pair.dst) { Remove-Item -Recurse -Force $pair.dst }
     New-Item -ItemType Directory -Force -Path $pair.dst | Out-Null
     Copy-Item -Path (Join-Path $source '*') -Destination $pair.dst -Recurse -Force
+}
+# The settings window and the icon live at the payload root because the window
+# resolves runtime\python.exe and app\src relative to its own directory.
+foreach ($file in (Get-ChildItem -Path $Payload -File -ErrorAction SilentlyContinue)) {
+    Copy-Item -Path $file.FullName -Destination (Join-Path $InstallHome $file.Name) -Force
 }
 if (-not (Test-Path $Python)) { Fail 'The bundled Python runtime is missing from the payload.'; exit 1 }
 $runtimeVersion = & $Python -c 'import sys;print(str(sys.version_info[0])+chr(46)+str(sys.version_info[1]))'

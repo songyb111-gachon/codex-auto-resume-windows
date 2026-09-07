@@ -23,3 +23,6 @@ COMPARISON_PROGRESS.md
 build/cache/
 build/stage/
 build/dist/
+
+# The settings window is compiled from gui/ by build/make_gui.ps1.
+build/CodexAutoResumeSettings.exe
