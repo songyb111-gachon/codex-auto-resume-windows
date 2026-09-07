@@ -65,4 +65,6 @@ You can give one interruption its attempts back from the settings panel.
 
 ## Security issues
 
-Please follow [SECURITY.md](SECURITY.md) rather than opening a public issue.
+Open an issue like any other - there is no private channel, and
+[SECURITY.md](SECURITY.md) says so plainly. Read it first anyway: it sets out what the tool is
+allowed to touch, which is usually enough to tell a finding from expected behaviour.

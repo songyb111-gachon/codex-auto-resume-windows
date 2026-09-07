@@ -15,7 +15,9 @@ conversation** — so you come back to finished work instead of a stopped task.
 
 It is a small local watcher for the Windows ChatGPT/Codex desktop app. It reads Codex's own state
 read-only, classifies what actually went wrong, and sends one continuation message through the
-official `codex queue` command. Nothing leaves your machine.
+official `codex queue` command. Your work never leaves your machine, and the watcher makes no
+outbound request of any kind — setting it up from Codex downloads the release from GitHub, and
+that is the only time this tool touches the network.
 
 **It deliberately does not retry everything.** A failure it cannot name is left alone.
 
@@ -26,7 +28,7 @@ official `codex queue` command. Nothing leaves your machine.
 | **Identity** | the exact conversation UUID only — never `--last`, never "the most recent one", never a title or a folder name |
 | **Configure it** | a Windows settings app, a settings panel inside Codex, or the command line |
 | **Tells you** | Windows notifications when a task is interrupted, when recovery starts, how it went, and when it gives up |
-| **Sends nowhere** | local only: no telemetry, no account access, no network calls of its own |
+| **Privacy** | no telemetry, no analytics, no update check, no account access. The watcher makes no outbound request; the only network access is setup fetching the release from GitHub |
 
 > **One honest limitation, up front.** Codex has to currently have that conversation open for a
 > recovery to be delivered. If the app restarted since, open the conversation once and recovery
@@ -50,10 +52,11 @@ repository's releases over HTTPS, checks its SHA-256, checks the contents really
 product at this version, and only then installs — into your user profile, touching nothing
 outside it. It will tell you before it does any of that.
 
-The plugin on its own is only the skills and the panel; the watcher, the settings window
-and the Windows runtime come from that release. That is why there is a download, and why
-it is worth reading [`docs/PLUGIN.md`](docs/PLUGIN.md) if you would rather know exactly
-what the script will and will not do before running it.
+The plugin on its own is only the skills, the MCP declaration and that setup script; the
+watcher, the settings window, the panel's own server and the Windows runtime all come from
+that release. That is why there is a download, and why it is worth reading
+[`docs/PLUGIN.md`](docs/PLUGIN.md) if you would rather know exactly what the script will
+and will not do before running it.
 
 ### From the release archive
 
@@ -87,9 +90,10 @@ only ever cancels.
 <img src="docs/images/notification.png" alt="A Windows notification from Codex Auto Resume saying a usage limit was reached and the task will resume after the reset, with a Don't resume button" width="470">
 
 Inside Codex, ask to *open auto resume settings* and the panel shows what is waiting and
-lets you change any of it:
+lets you change any of it. This is the panel's own page, rendered from the exact resource
+the plugin serves to Codex, rather than a photograph of the Codex window around it:
 
-<img src="docs/images/settings-panel.png" alt="The Codex Auto Resume panel inside Codex: a status line saying the watcher is watching for interruptions with three recoveries pending, a table of what is waiting to resume, and cards for the recovered failure categories, the attempt limits and the notification switches" width="680">
+<img src="docs/images/settings-panel.png" alt="The Codex Auto Resume settings panel: a status line saying the watcher is watching for interruptions with three recoveries pending, a table of what is waiting to resume, and cards for the recovered failure categories, the attempt limits and the notification switches" width="680">
 
 The same settings are in a standalone window from the Start Menu, which works with Codex
 closed:
@@ -173,9 +177,9 @@ ownership information. It never acquires a lock on the app's file.
   offers `--thread` and `--message`, and `status`/`doctor` label it as unverified. Anything that
   cannot prove that interface is refused rather than guessed at.
 
-**Python is not required for the release install** — the archive brings its own runtime. Python
-3.12+ is needed only if you run from a source checkout or install the plugin straight from the
-marketplace.
+**Python is not required by either install route** — the installation brings its own runtime, and
+the plugin's setup script is PowerShell. Python 3.12+ is needed only if you run the engine from a
+source checkout.
 
 ## What is recovered, and what is not
 
@@ -230,8 +234,6 @@ not do, the update and removal lifecycle, and why the usage-limit notice does **
 For development, or if you would rather run it yourself. This is not a third way to install the
 product — it is the engine on its own, with no settings window, no panel and no bundled runtime,
 and it needs **Python 3.12 or newer** on your PATH.
-
-For development, or if you would rather run it yourself:
 
 ```bash
 git clone https://github.com/songyb111-gachon/codex-auto-resume-windows.git
@@ -495,8 +497,10 @@ set CODEX_AR_LIVE=1 && python -m unittest tests.test_integration_live
 ## Security
 
 See [SECURITY.md](SECURITY.md) for the full model, the review process, and the issues that were found
-and fixed. In short: no network access from this code, no credential reads, read-only against Codex
-state, fail-closed behaviour, and a conservative uninstall.
+and fixed. In short: the recovery runtime makes no network calls at all, no credential reads, read-only
+against Codex state, fail-closed behaviour, and a conservative uninstall. The one place this
+project reaches the network is the plugin's setup script, which fetches the matching release
+from GitHub and checks it before installing.
 
 The project went through three adversarial review rounds plus mutation testing, a crash-window matrix,
 and a cross-process race test. Confirmed issues were fixed and covered by regression tests.

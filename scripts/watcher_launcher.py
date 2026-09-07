@@ -1,4 +1,4 @@
-"""Stable entry point for the autostarted watcher when installed as a Codex plugin.
+"""Stable entry point for the autostarted watcher, however the product was installed.
 
 `codex plugin add` copies a plugin into a *versioned* cache directory, so the plugin's
 own path changes on every update. Registering that path for autostart would silently
@@ -6,8 +6,11 @@ break the next time the plugin is updated. Setup therefore copies this one small
 to a fixed location and registers *it*; the plugin root is resolved again at every
 launch, so updates need no re-registration.
 
-It also means removing the plugin stops the autostart from finding an engine, instead
-of leaving a watcher running forever against code the user has uninstalled.
+Resolution has an order rather than a fixed path, and since v0.5.2 the installed
+application wins it: removing the *plugin* therefore leaves the installed copy running,
+which is correct, because the installer is what put it there. `uninstall` is what stops
+it. The versioned cache is only a fallback for an installation made before there was an
+application directory to prefer.
 
 This file only locates and starts the existing watcher. It contains no detection,
 no scheduling and no submission logic.

@@ -15,18 +15,21 @@
     What it will fetch
       * Exactly one URL shape, built from constants in scripts/release.json and the
         version in the plugin's own manifest. There is no "latest", no input that
-        becomes part of a URL, and no way to ask it for a different version: a v0.5.2
-        plugin can fetch the v0.5.2 archive and nothing else.
+        becomes part of a URL, and no way to ask it for a different version: a plugin
+        at a given version can fetch that version's archive and nothing else.
       * Over HTTPS, with TLS 1.2 at minimum, from github.com - and the final response
-        URI has to be github.com or githubusercontent.com, because a release download
-        redirects to GitHub's object storage and nowhere else.
+        URI has to be one of the three hosts in $AllowedHosts below, because a release
+        download redirects to GitHub's object storage and nowhere else.
 
     What it verifies, before anything is executed
       * SHA-256. Against the digest pinned in scripts/release.json when there is one,
         and otherwise against the .sha256 published beside the archive. The pinned case
-        is the strong one; the sidecar case is trust-on-first-use over TLS to GitHub,
-        and this script prints which of the two it used rather than letting a reader
-        assume the stronger one.
+        is the strong one; the sidecar case is trust-on-first-use over TLS to GitHub.
+        There is a third case, and it is the reason this paragraph is longer than it
+        looks like it should be: a file handed to -ArchivePath has no sidecar to fetch,
+        so with no pinned digest for that version nothing is compared at all and only
+        the contents checks below stand behind it. This script prints which of the
+        three it did rather than letting a reader assume the strongest one.
       * That the archive is a coherent build of this exact product and version: the
         files the release is defined to contain are all present, and the manifest
         inside it declares the same version as the plugin doing the fetching.
@@ -41,7 +44,9 @@
 
     Run: powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1
          Add -Force to reinstall a version that is already present.
-         Add -ArchivePath <zip> to install a file you already have, verified the same way.
+         Add -ArchivePath <zip> to install a file you already have. It is checked
+         against the pinned digest when this version has one; otherwise only the
+         contents checks apply, because there is no sidecar to fetch for a local file.
 #>
 [CmdletBinding()]
 param(
@@ -213,7 +218,8 @@ try {
         Copy-Item -Path $ArchivePath -Destination $zip -Force
     } else {
         $base = $release.download.Replace('{version}', $version)
-        Step ('Downloading v' + $version + ' from github.com')
+        Step ('Downloading v' + $version + ' from github.com over HTTPS.')
+        Step ('Nothing is uploaded, and nothing runs until the download is verified.')
         Get-Remote -Uri ($base + $name) -OutFile $zip -What 'The archive'
     }
 
