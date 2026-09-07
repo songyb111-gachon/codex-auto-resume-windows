@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 from pathlib import Path
 import tempfile
 import unittest
@@ -142,6 +143,20 @@ class ToolSurfaceTests(McpTestCase):
                 if name.endswith("_id"):
                     self.assertEqual(described.get("pattern"), "^[0-9a-fA-F]{64}$", tool["name"])
                 self.assertNotIn(name, ("title", "project", "latest", "last", "recent"))
+
+    def test_the_skill_lists_every_tool_and_no_others(self):
+        """The skill tells the model to prefer the tools, then names them.
+
+        A name missing from that list is a tool the model will not reach for, and a name
+        that is on it and not in the server is a tool call that fails. Both had happened:
+        `restore_default_settings` and `start_watcher` shipped and went unmentioned for
+        two releases, because nothing checked.
+        """
+        skill = (Path(__file__).resolve().parents[1] / "skills" / "codex-auto-resume"
+                 / "SKILL.md").read_text(encoding="utf-8")
+        preferred = skill.split("## Prefer the tools", 1)[1].split("##", 1)[0]
+        named = set(re.findall(r"`([a-z_]+)`", preferred))
+        self.assertEqual(named, {tool["name"] for tool in mcpserver.TOOLS})
 
     def test_read_only_tools_are_marked_read_only(self):
         by_name = {tool["name"]: tool for tool in mcpserver.TOOLS}
