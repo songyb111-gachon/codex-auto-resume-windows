@@ -239,7 +239,11 @@ def cmd_pending(args) -> int:
 
 def cmd_uninstall(args) -> int:
     home = runtime_home()
-    code = _cli(home, ["--quiet", "uninstall"])
+    # Keeping settings and pending recoveries is the default here: the installer offers a
+    # separate purge for the other case, and losing a queued recovery to an ordinary
+    # uninstall is not something a user would expect or forgive.
+    flags = [] if getattr(args, "purge", False) else ["--keep-state"]
+    code = _cli(home, ["--quiet", "uninstall"] + flags)
     if code != EXIT_OK:
         return code
     paths = config.Paths(home)
@@ -280,7 +284,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("thread_id")
     sub.add_parser("stop")
     sub.add_parser("doctor")
-    sub.add_parser("uninstall")
+    p = sub.add_parser("uninstall", help="remove the watcher, autostart and registrations")
+    p.add_argument("--purge", action="store_true",
+                   help="also delete settings, pending recoveries and logs")
     p = sub.add_parser("logs")
     p.add_argument("-n", "--lines", type=int, default=30)
     return parser

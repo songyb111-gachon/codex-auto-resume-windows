@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from codex_auto_resume import cli, config, logbook, settings, shortcut, startup
 from codex_auto_resume.app import DEFAULT_POLL, App
@@ -671,3 +671,57 @@ class CommandQuotingTests(unittest.TestCase):
         command = startup.command_line(home / "watcher-launcher.py", None,
                                        launcher=home / "runtime" / "pythonw.exe")
         self.assertTrue(startup.belongs_to(command, home))
+
+
+class DoctorProtocolCheckTests(unittest.TestCase):
+    """`doctor` notices when the notification button has nowhere to go.
+
+    The button is a registered URL protocol. If its target has moved or was a temporary
+    directory that no longer exists, pressing it silently does nothing, and until now
+    nothing in the product would have mentioned it.
+    """
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        # Registered after the directory, so it runs before it: doctor opens a log file,
+        # and Windows will not delete a directory while a handle is still open in it.
+        self.addCleanup(_reset_logging)
+        self.home = Path(self.temp.name)
+
+    def doctor(self, registered):
+        from codex_auto_resume import cli
+        args = cli.build_parser().parse_args(["--home", str(self.home), "--quiet", "doctor"])
+        out = io.StringIO()
+        backend = MagicMock()
+        backend.codex_exe = "codex.exe"
+        backend.engine_version = "0.0.0"
+        backend.engine_verified = True
+        backend.app_identity.return_value = None
+        with patch.object(cli.App, "backend", return_value=backend), \
+             patch.object(cli.App, "watcher_running", return_value=False), \
+             patch.object(cli.App, "source", return_value=MagicMock()), \
+             patch.object(cli.startup, "protocol_value", return_value=registered), \
+             contextlib.redirect_stdout(out):
+            cli.cmd_doctor(args)
+        return out.getvalue()
+
+    def test_a_missing_target_is_reported(self):
+        gone = self.home / "gone" / "watcher-launcher.py"
+        command = startup.protocol_command_line(gone, self.home,
+                                                launcher=Path(r"C:\py\pythonw.exe"))
+        report = self.doctor(command)
+        self.assertIn("its target is missing", report)
+        self.assertIn("re-run install", report)
+
+    def test_a_present_target_is_reported_as_registered(self):
+        script = self.home / "watcher-launcher.py"
+        script.write_text("# launcher" + chr(10), encoding="utf-8")
+        command = startup.protocol_command_line(script, self.home,
+                                                launcher=Path(r"C:\py\pythonw.exe"))
+        report = self.doctor(command)
+        self.assertIn("notification action: registered", report)
+        self.assertNotIn("target is missing", report)
+
+    def test_no_registration_is_reported_too(self):
+        self.assertIn("not registered", self.doctor(None))

@@ -6,6 +6,7 @@ commands. These tests assert that, and that upgrading keeps pending recoveries.
 from __future__ import annotations
 
 from contextlib import closing
+import io
 from pathlib import Path
 import re
 import shutil
@@ -316,3 +317,85 @@ class PluginUpgradeUnderUseTests(unittest.TestCase):
         self.assertIn("Close the ChatGPT/Codex app and run this installer again to finish it", self.text)
         # The watcher is the product; a stale plugin skill must not fail the install.
         self.assertIn("the watcher and its settings still work", self.text)
+
+
+class UninstallKeepsStateTests(unittest.TestCase):
+    """An ordinary uninstall keeps what the user would expect to keep.
+
+    The installer's own message said settings and pending recoveries were kept, while
+    the command it ran deleted both - so uninstalling and reinstalling silently lost
+    every queued recovery. Purging is still available, but it has to be asked for.
+    """
+
+    def setUp(self):
+        self.text = PS1.read_text(encoding="utf-8")
+        self.bridge = (ROOT / "scripts" / "plugin_setup.py").read_text(encoding="utf-8")
+        self.cli = (ROOT / "src" / "codex_auto_resume" / "cli.py").read_text(encoding="utf-8")
+
+    def test_the_cli_can_be_asked_to_keep_state(self):
+        self.assertIn('"--keep-state"', self.cli)
+
+    def test_the_plugin_bridge_keeps_state_unless_purging(self):
+        self.assertIn('flags = [] if getattr(args, "purge", False) else ["--keep-state"]', self.bridge)
+
+    def test_the_installer_only_purges_when_asked(self):
+        section = self.text[self.text.index("if ($Uninstall)"):self.text.index("# ---", self.text.index("if ($Uninstall)"))]
+        self.assertIn("if ($Purge) { $setupArgs += '--purge' }", section)
+
+    def test_the_promise_and_the_behaviour_agree(self):
+        # The message only appears on the non-purge path, which is now the keep path.
+        self.assertIn("Settings and pending recoveries were kept", self.text)
+
+    def test_uninstall_sweeps_its_own_leftovers(self):
+        section = self.text[self.text.index("Removing program files"):]
+        self.assertIn("'*.old-*'", section)
+
+
+class UninstallStatePreservationTests(unittest.TestCase):
+    """The same contract, exercised rather than read."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.home = Path(self.temp.name)
+
+    def build_state(self):
+        from codex_auto_resume import config, settings
+        paths = config.Paths(self.home)
+        paths.ensure()
+        settings.save(paths.settings_file, dict(settings.defaults(), max_no_progress=7))
+        store = Store(paths.state_dir)
+        store.register(failure(), 111.0, state="waiting_reset", next_retry_at=222.0)
+        store.close()
+        return paths
+
+    def run_uninstall(self, *flags):
+        from unittest.mock import patch
+        from codex_auto_resume import cli
+        args = cli.build_parser().parse_args(
+            ["--home", str(self.home), "--quiet", "uninstall", *flags])
+        with patch.object(cli.startup, "current_value", return_value=None), \
+             patch.object(cli.startup, "unregister_aumid", return_value=False), \
+             patch.object(cli.startup, "protocol_value", return_value=None), \
+             patch.object(cli.shortcut, "uninstall", return_value=False), \
+             patch.object(cli.App, "watcher_running", return_value=False), \
+             patch("sys.stdout", io.StringIO()):
+            return cli.cmd_uninstall(args)
+
+    def test_keep_state_leaves_settings_and_pending_recoveries(self):
+        paths = self.build_state()
+        self.run_uninstall("--keep-state")
+        self.assertTrue(paths.settings_file.is_file(), "settings were deleted")
+        self.assertTrue((paths.state_dir / "state.sqlite").is_file(), "pending state was deleted")
+
+    def test_a_kept_database_still_holds_the_pending_record(self):
+        paths = self.build_state()
+        self.run_uninstall("--keep-state")
+        with Store(paths.state_dir) as store:
+            self.assertEqual(len(store.pending()), 1)
+
+    def test_without_the_flag_state_is_removed_as_before(self):
+        paths = self.build_state()
+        self.run_uninstall()
+        self.assertFalse(paths.settings_file.exists())
+        self.assertFalse((paths.state_dir / "state.sqlite").exists())
