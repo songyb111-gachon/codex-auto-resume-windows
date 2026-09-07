@@ -24,10 +24,12 @@ build/cache/
 build/stage/
 build/dist/
 
-# The settings window is compiled from gui/ by build/make_gui.ps1.
-build/CodexAutoResumeSettings.exe
 
 # Local Codex configuration for this working copy. It names a server by a path that
 # only resolves inside the installed plugin, so committing it would make a clone try
 # to start something that is not there.
 .codex/
+
+# Both small executables are compiled from gui/ by build/make_gui.ps1. A compiled
+# binary is not source, and the release build makes them from scratch.
+build/*.exe

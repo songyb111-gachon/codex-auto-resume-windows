@@ -128,6 +128,11 @@ downloads or installs Python for you.
 
 ### Also supported — install as a Codex plugin
 
+This installs the Codex skill only. It **needs Python 3.10 or newer on your PATH**, and it
+does not give you the settings window or the settings panel inside Codex: both of those run
+on the interpreter that ships in the release archive, so they come with the one-click install
+above. Use this path if you are working on the plugin.
+
 Add this repository as a Codex marketplace, then install the plugin:
 
 ```bash

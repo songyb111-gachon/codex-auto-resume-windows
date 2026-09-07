@@ -48,9 +48,28 @@ class ManifestTests(unittest.TestCase):
         # Codex plugin validation rejects `hooks`; shipping it would fail installation.
         self.assertNotIn("hooks", self.manifest)
 
-    def test_manifest_points_at_the_mcp_companion_file(self):
-        self.assertEqual(self.manifest["mcpServers"], "./.mcp.json")
-        self.assertTrue(MCP_COMPANION.is_file())
+    def test_the_repository_manifest_declares_no_mcp_server(self):
+        """A marketplace install from GitHub must not register a missing command.
+
+        The MCP server needs the bundled interpreter, and only the release installer
+        puts that on disk. Measured: with the declaration in the repository manifest,
+        `codex plugin add` from a clone succeeds and registers the server as enabled,
+        pointing at an executable that is not there - so the user gets a permanently
+        failing server rather than an error they can act on. The declaration is added
+        to the payload at build time instead.
+        """
+        self.assertNotIn("mcpServers", self.manifest)
+        self.assertNotIn("apps", self.manifest)
+        self.assertTrue(MCP_COMPANION.is_file(),
+                        ".mcp.json stays in the repository as reviewable source")
+
+    def test_the_release_build_adds_the_declaration_to_the_payload(self):
+        builder = _load("make_release", ROOT / "build" / "make_release.py")
+        source = Path(builder.__file__).read_text(encoding="utf-8")
+        self.assertIn('ordered["mcpServers"] = "./.mcp.json"', source)
+        # And refuses to run if the repository ever starts declaring it as well, which
+        # would mean a GitHub install registers the broken command again.
+        self.assertIn("the repository manifest must not declare mcpServers", source)
 
     def test_the_companion_declares_only_our_own_stdio_server(self):
         companion = json.loads(MCP_COMPANION.read_text(encoding="utf-8"))
