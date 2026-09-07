@@ -33,11 +33,49 @@ Verified against `codex-cli 0.153.4`, including with the plugin folder name deli
 different from the plugin name (a clone is named `codex-auto-resume-windows`, the plugin is
 `codex-auto-resume`). Codex's own `validate_plugin.py` accepts this layout.
 
-## No MCP server
+## The MCP server
 
-The manifest declares only `skills`. Codex plugins may also declare `mcpServers` and `apps`,
-but a skill is enough here, and an MCP server would add a long-lived process that the watcher
-does not need. `hooks` is **rejected** by Codex plugin validation, so it is not used either.
+The manifest declares `skills` and `mcpServers`. `hooks` is **rejected** by Codex plugin
+validation, so it is not used. The server exists so the product can be managed from inside
+Codex - status, pending recoveries, settings, pause, cancel - and so those actions mean the
+same thing they mean everywhere else, because every one of them calls the same validated
+control layer the command line and the settings window call.
+
+It is a front end and nothing more. No tool detects a failure, schedules an attempt, reserves
+an interruption or sends a continuation; the watcher stays the only thing that recovers, and it
+keeps running when the server is not. That is a property of the surface, not a rule the model is
+asked to follow: there is no call that retries an unclassified failure, resolves a conversation
+by anything but its exact id, resends an uncertain submission or forces a send.
+
+### Two constraints that shaped it
+
+**The command must be contained in the plugin.** Codex accepts a plugin stdio `command` only as a
+bare executable name or a path inside the plugin, and `cwd` only as a contained `./`,
+`${PLUGIN_ROOT}` or `${PLUGIN_DATA}` path. An absolute path to the bundled interpreter is
+neither, and a bare `python` would put back the system-Python requirement the product removed.
+So the payload ships `mcp/codex-auto-resume-mcp.exe`, a small launcher that resolves the
+interpreter from the runtime home and starts the server.
+
+**The launcher relays the standard streams; it does not let the child inherit them.** A child
+process started with `CREATE_NO_WINDOW` and no explicit handle passing is given no usable
+standard handles at all. The server then waits forever for input, the host waits forever for a
+handshake, and nothing appears in any log. That was measured here, not guessed: the first
+version inherited, and both processes sat idle until they were killed.
+
+Registration was verified against `codex-cli 0.153.4`:
+
+```
+> codex mcp get codex-auto-resume
+codex-auto-resume
+  enabled: true
+  transport: stdio
+  command: ./mcp/codex-auto-resume-mcp.exe
+  cwd: ...\plugins\cache\codex-auto-resume-windows\codex-auto-resume\0.5.0\.
+```
+
+`"cwd": "."` rather than `"${PLUGIN_ROOT}"`: both are accepted by the validator, but the
+variable form is reported back as a literal path segment appended to the plugin root, so the
+plain form is the one that resolves the way it reads.
 
 ## Runtime state lives outside the plugin
 
@@ -98,8 +136,9 @@ The goal was to add exactly one line to the usage-limit notice Codex already sho
 
 > ☑ Automatically resume this task after the reset
 
-**This cannot be done through the official Codex plugin API.** It was not implemented, and no
-substitute GUI was built in its place.
+**This cannot be done through the official Codex plugin API.** It is not implemented, and nothing
+pretending to be it was built in its place. Re-checked from scratch for v0.5; the answer has not
+changed.
 
 What was checked, against `codex-cli 0.153.4` and ChatGPT desktop `26.901.5280.0`:
 
@@ -125,42 +164,50 @@ What was checked, against `codex-cli 0.153.4` and ChatGPT desktop `26.901.5280.0
    `SubagentStop` and `Notification`. None fires on a usage limit — and plugin validation rejects
    `hooks` anyway.
 
-### The one official GUI mechanism, and why it still does not help
+### The three options, ranked, and what each one is worth
 
-Codex does support plugin-driven UI, so "no GUI is possible" would be too strong a claim. Two
-mechanisms exist:
+The question was re-opened from scratch for v0.5 against the build above, on the chance that a
+newer Codex had added a surface. It has not. What follows is what each option is actually worth
+today, best first.
 
-- **MCP elicitation.** An MCP server can call `elicitation/create` with a JSON schema, and the app
-  renders a real form; a boolean property becomes a real checkbox. The response comes back as
-  `accept` / `decline` / `cancel`.
-- **MCP App widgets.** A tool result can carry a `ui://` resource in `_meta`
-  (`openai/outputTemplate` or `ui.resourceUri`) which renders in a sandboxed iframe.
+**A — a real control inside the notice. Still impossible.** Everything in the list above was
+re-checked against this build. The banner is still assembled from compiled `react-intl` message
+ids inside the Electron bundle (`codex.upsellBanner.*.headline`, `codex.upsellBanner.cta.*`);
+there is no id, slot, prop or plugin hook anywhere near it. Nothing in the plugin manifest, the
+MCP schema or the app's own bundled plugins can address app chrome.
 
-Neither solves this problem, for three reasons:
+**B — a Codex-native form at the moment of the interruption. Available in principle, not shipped.**
+An MCP server can call `elicitation/create`, and this build renders it: the wire types
+`ElicitRequestParamsWire::Form` and `::Url` are present, and the response is `accept` / `decline`
+/ `cancel`. A boolean property becomes a real checkbox. It carries no turn id, so it is not
+structurally bound to a live turn.
 
-1. **Both require a live turn.** They are driven by a tool call. When a usage limit hits, the turn has
-   already failed, so nothing of ours is running and nothing can be rendered at that moment — which is
-   exactly the moment the checkbox was for.
-2. **Both render in the conversation, not in the banner.** They cannot be attached to app chrome.
-3. **Elicitation is behind a remote feature flag** (`tool_call_mcp_elicitation`, Statsig-gated). On the
-   development machine `electron-openai-mcp-form-elicitations-enabled` reads `false`, so the form would
-   not render there at all.
+It is not shipped anyway, and the reason is honest rather than technical. To reach a person at
+the moment of the interruption, the server would have to push a form into whatever conversation
+happens to be open, about a different conversation that failed - unasked, while they are working
+on something else. It also only reaches them if Codex is open, which is exactly when it is least
+needed, and the feature sits behind `features.tool_call_mcp_elicitation` (Statsig layer
+`223073164`, param `enable_tool_call_mcp_elicitation`), so on a machine where the gate is off it
+would silently do nothing at all. Building an interruption whose delivery cannot be relied on,
+into a place the user did not ask for it, is worse than not building it.
 
-A widget reachable only by asking for it would add an MCP server process and a second UI surface to
-replace something the user can already do by asking in words. That trade is not worth it here, so it
-was not built.
+What *is* shipped is the same mechanism where it belongs: an MCP settings panel the user opens by
+asking. It renders in the conversation as a `ui://` resource on a read-only tool result, shows the
+current state and every option, and can pause recovery or change a setting - the whole control
+surface, at the moment the user wants it rather than at a moment we chose for them.
 
-The only ways to put a control in that banner would be DOM or renderer injection, an Electron or
-binary patch, a CDP/DevTools bridge, accessibility-control injection, or GUI automation. Every one
-of those is out of scope for this project by design, so the checkbox is not implemented.
+**C — a Windows notification. Shipped, and the one that actually arrives.** The watcher raises it
+the moment the interruption is recorded, whether or not Codex is open, carrying the one control
+the checkbox would have offered: a **Don't resume** button for that exact conversation, with
+resuming as the default. It is not inside the Codex notice, but it arrives at the same moment,
+which is the part that matters.
 
-What exists instead is a Windows notification raised by the watcher at the moment the interruption
-is recorded, carrying the one control the checkbox would have offered: a **Don't resume** button for
-that exact conversation, with resuming as the default. It is not inside the Codex notice, but it
-arrives at the same moment, which is the part that actually matters. Natural-language control
-through the skill covers everything else.
+None of this is worked around. The only ways to put a control in that banner would be DOM or
+renderer injection, an Electron or binary patch, a CDP/DevTools bridge, accessibility-control
+injection, or GUI automation - all of them out of scope by design, and all of them would make
+this tool something a person should not install.
 
-If Codex later exposes an official inline control surface for this state, this is a small change:
+If Codex later exposes an official inline control surface for this state, it is a small change:
 one checkbox, defaulting to on, mapped to the existing per-thread cancel. No panel, no card, no
 popup, no tray.
 

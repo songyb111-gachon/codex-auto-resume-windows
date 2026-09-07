@@ -11,6 +11,18 @@ the project's own command-line interface, which owns all detection and safety lo
 
 Windows only.
 
+## Prefer the tools when they are available
+
+This plugin also provides tools (`open_settings`, `get_status`, `list_pending`,
+`update_settings`, `set_auto_recovery`, `cancel_recovery`, `reset_recovery_budget`,
+`retry_now`). When they are available, use them instead of the commands below: they are
+typed, they refuse an invalid value instead of writing it, and `open_settings` shows the
+user a panel they can read and change directly.
+
+Use the commands below when the tools are not available - the plugin's server has not
+started, or the user is asking to install, repair or remove the product, which the tools
+deliberately cannot do.
+
 ## Running commands
 
 Run from the plugin root (the directory that contains this plugin's `scripts/` folder).
@@ -78,17 +90,47 @@ Report what the command actually printed. Useful fields from `status` and `pendi
   - `superseded_by_user` — a later turn exists in that conversation, so the old failure was
     dropped rather than replayed on top of newer work. This is correct, not a fault.
   - `retry_budget_exhausted` / `no_progress_exhausted` — recovery gave up on purpose, either
-    after too many attempts or after repeated attempts that produced nothing. Do not suggest
-    forcing another attempt; tell the user to look at that conversation.
+    after too many attempts or after repeated attempts that produced nothing. Tell the user to
+    look at that conversation first. If they want it to keep trying anyway, `reset_recovery_budget`
+    gives that one interruption its attempts back — it sends nothing, and every check runs again
+    from the top. Never offer it as a way to "force" a resume.
+
+`retry_now` brings a waiting recovery's next attempt forward. It is not a send: the watcher still
+revalidates the interruption, still needs the conversation open, still waits for usage, and still
+refuses anything uncertain. Do not describe it as making a resume happen.
 
 Do not restate the reset time the Codex usage-limit notice already shows.
 
+## Settings
+
+There are three ways to change a setting, and all three write the same file through the same
+validator, so a value set in one is the value the others show:
+
+- `open_settings` — the panel, in this conversation. Best when the user wants to look.
+- `update_settings` — one or more named settings. Only the named ones change.
+- **Start Menu → Codex Auto Resume** — a standalone window that works with Codex closed.
+
+Never edit `settings.json` by hand, and never tell the user to. A hand-written file is
+validated on read, so a bad value is silently replaced by the default and the user is left
+believing they changed something.
+
+What can be changed: which classified failure categories are recovered, how many attempts each
+interruption gets, when to stop after repeated no-progress recoveries, the retry timing preset,
+and which notifications appear.
+
+What cannot, and is not an oversight: there is no setting that retries an unclassified failure,
+resolves a conversation by title, resends an uncertain submission, or forces a send. If the user
+asks for one, say plainly that it does not exist by design and do not look for a way around it.
+
 ## Notifications
 
-When an interruption is recorded, Windows shows one notification with a **Don't resume** button.
-Doing nothing resumes; the button cancels that one conversation. If the user asks to turn
-notifications off, set `"notifications": false` in `settings.json` inside the state directory that
-`status` prints, and tell them the resume behaviour itself is unchanged.
+Windows notifications cover the lifecycle: an interruption is detected, recovery starts, how it
+turned out, and when recovery stops for good. The first one carries a **Don't resume** button;
+doing nothing resumes, which is the default. Each event has its own switch, and there is a master
+switch for all of them.
+
+Turning notifications off changes nothing about whether a task is recovered - say so, because
+people reasonably assume otherwise.
 
 Do not offer to build any other interface. There is no checkbox inside the Codex usage-limit
 notice and none can be added; see the project's docs/PLUGIN.md if asked why.
