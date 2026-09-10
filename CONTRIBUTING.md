@@ -104,6 +104,30 @@ make a marketplace install from GitHub register a command that is not there. Ple
 "fix" that by moving the declaration into the manifest — the build refuses to run if both
 declare it.
 
+## The Korean branch is generated
+
+`ko` is built from `main`, by `.github/workflows/sync-ko.yml`, every time main's tests
+pass — and it is force-updated. A pull request against `ko` cannot be merged and an edit
+made there is lost at the next sync, so please do not spend an evening on one.
+
+It was an independent fork until v0.5.5, with its own copy of the engine, the installer,
+the workflows and the tests. It ended up three releases behind while still telling Korean
+readers that the tool made no network request and that installing meant downloading a
+release archive. That is what a second copy of a codebase does when somebody has to
+remember to merge it.
+
+So the code on `ko` is main's code, and the only difference is the language of the
+documents. To change something there:
+
+- **code, installer, workflows, tests** — change them on `main`; they reach `ko` unchanged.
+- **Korean prose** — change the `.ko.md` file on `main`. `scripts/ko_branch.json` maps each
+  one to the English page it replaces, and its `not_yet_translated` list is the visible
+  to-do for pages that are still English on `ko`.
+
+`python scripts/ko_sync.py --check` shows what a sync would do without writing anything.
+Adding a Korean page means adding the file and its mapping entry in the same commit;
+`tests/test_korean.py` fails if a Korean page exists that nothing maps.
+
 ## Fixtures and privacy
 
 Everything committed here is public, including test fixtures and documentation examples. They

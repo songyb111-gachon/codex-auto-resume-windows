@@ -1,0 +1,106 @@
+name: sync ko
+
+# Rebuild the Korean branch from main, every time main's tests pass.
+#
+# `ko` was an independent fork for four releases. It carried its own engine, installer,
+# GUI, workflows and tests, and it fell three releases behind while still telling Korean
+# readers the tool made no network request. That is what a second copy of a codebase does
+# when a person has to remember to merge it, so the person has been taken out of the loop:
+# ko is now generated, and generated from a commit whose tests are green.
+#
+# Why `workflow_run` rather than `push`: a push-triggered sync would publish main's code
+# to a second branch before anything had tested it, which is worse than being behind.
+# The tests workflow is the gate, and this reads the SHA it actually tested rather than
+# whatever main's head happens to be by the time this starts - those differ whenever a
+# second push lands during a test run, and the difference is the whole guarantee.
+#
+# Why it cannot loop: `workflow_run` fires on the *tests* workflow, and the tests workflow
+# runs on pushes to main. This pushes to ko, never to main, so nothing it does can start
+# it again.
+
+on:
+  workflow_run:
+    workflows: ["tests"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit on main to build ko from. Defaults to main's head."
+        required: false
+
+permissions:
+  contents: write
+
+# One sync at a time, and never cancel one that is running: a cancelled force-push can
+# leave ko pointing at a tree that no run ever finished writing. Out-of-order completion
+# is handled by each run building from its own tested SHA rather than from a shared head.
+concurrency:
+  group: sync-ko
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    # Only a green tests run, only from this repository, and only from main. A fork's
+    # pull request cannot satisfy `head_repository.full_name == github.repository`, and
+    # a red main cannot satisfy the conclusion.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      # The tested commit, not main's current head. On a workflow_run event the default
+      # checkout ref is the *default branch's* head, which is a different commit whenever
+      # something was pushed while the tests were running.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.event.inputs.sha || 'main' }}
+          fetch-depth: 0
+
+      - name: Say which commit this is building from
+        shell: bash
+        run: |
+          echo "source commit: $(git rev-parse HEAD)"
+          echo "subject      : $(git log -1 --pretty=%s)"
+
+      - name: Replace the English documents with their Korean counterparts
+        shell: bash
+        run: python scripts/ko_sync.py --root .
+
+      # GITHUB_TOKEN may not push a change under .github/workflows. Nothing here should
+      # be producing one - the mapping only names documents - so this turns a server-side
+      # rejection nobody can read into a named failure, and stops a future maintainer
+      # adding a workflow path to the mapping without finding out why they should not.
+      - name: Refuse to sync a change to the workflows themselves
+        shell: bash
+        run: |
+          if ! git diff --quiet -- .github/workflows; then
+            echo "ko_sync.py changed .github/workflows, which GITHUB_TOKEN cannot push."
+            git --no-pager diff --stat -- .github/workflows
+            exit 1
+          fi
+
+      - name: Publish the branch
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.event.inputs.sha }}
+        run: |
+          set -euo pipefail
+          source_sha="${SOURCE_SHA:-$(git rev-parse HEAD)}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "the generated tree is already what ko contains; nothing to push"
+            exit 0
+          fi
+          git commit -m "Generate ko from main@${source_sha}" \
+                     -m "Built by .github/workflows/sync-ko.yml from a tested commit." \
+                     -m "Do not edit this branch: see .github/GENERATED-BRANCH.md."
+          # Force, because ko is generated rather than developed. Its history is a log of
+          # syncs, and a sync that could not fast-forward would otherwise stall the branch
+          # for ever - which is exactly how it came to be three releases behind.
+          git push --force origin HEAD:refs/heads/ko
