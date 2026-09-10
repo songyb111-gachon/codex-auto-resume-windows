@@ -23,8 +23,9 @@
     "src/codex_auto_resume/app.py": "5836ba33da68a401349cac8fc1bd14a0e1e8c32c142d95a879adcfd901f33350",
     "build/capture_window.ps1": "1a2cee54cf92a90fd99cd0966a17842d82ab7f2dbb6738bdc5a242ea38f5b43f",
     "build/make_gui.ps1": "ae1f75c3ee34bbf398833c290d65f807aadbc5cb0a8bdcd3742c9260984fe585",
-    "build/make_screenshots.py": "70d25ab092e54aa6440fc9772c142a2013e704b0311014db9f5e4b773d9eee15",
-    "<panel render>": "670f68425257c563529b5436d509b7fc3d185b7e67230a82455f0323db8cbd15"
+    "build/make_screenshots.py": "f32c9eb9cd002a83424145744d30e61ef944cb2bd41066a4a3082dd8c8e319ec",
+    "<panel render:en>": "91df2e92c682dd3571ec46d26278e8d6f673353a0daba3c4a2f90ad9d995ae95",
+    "<panel render:ko>": "8e82ddf437766b2a6fbe9c9d7a50e77cb71945520051285875f09cdb8dae3d54"
   },
   "images": {
     "assets/screenshot-panel.png": {
