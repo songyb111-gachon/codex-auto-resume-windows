@@ -14,12 +14,12 @@
   "system_dpi": 144,
   "inputs": {
     ".codex-plugin/plugin.json": "2215d84ca93c2d7446c0d77b1774bfd6bc748f9f92647920472fb7fac96b7041",
-    "gui/SettingsApp.cs": "097849547b20b32b526c9bc2a18ec8ff9becfeeacb6e53365aea2c62b2f95277",
+    "gui/SettingsApp.cs": "daddd2982d1c7c96331918851c9c8e278f8612bab138262e25fcc277d06de597",
     "gui/Brand.cs": "5016afc205d24c1113fd388478e00e2df6123b2b9f55d293d127c7977c0f1b30",
     "gui/app.manifest": "db5f16dcf2448fdd7e3812dfdaa6d2da893b92c27a982721d3f04cdc05559870",
     "assets/codex-auto-resume.ico": "45c3f3a0d02d78f9be0b80532eedc2f524cd7ebe1056007dacdb286ca743bd52",
     "src/codex_auto_resume/settings.py": "1353c0526c19f2f200fa74b5f899c76628ec276de6ddd96d4d43092567b801d5",
-    "src/codex_auto_resume/controlcli.py": "94e0847a216d1f5bb84b0a9e4b0ad0f4683e3557a796d9e10189460043969f94",
+    "src/codex_auto_resume/controlcli.py": "f1825cf7519df91168cf542ee0aee3711a3c908efdd8c9db3ee7e860fed33ecf",
     "src/codex_auto_resume/app.py": "5836ba33da68a401349cac8fc1bd14a0e1e8c32c142d95a879adcfd901f33350",
     "build/capture_window.ps1": "1a2cee54cf92a90fd99cd0966a17842d82ab7f2dbb6738bdc5a242ea38f5b43f",
     "build/make_gui.ps1": "ae1f75c3ee34bbf398833c290d65f807aadbc5cb0a8bdcd3742c9260984fe585",
@@ -33,7 +33,7 @@
       "size": "1800x1226"
     },
     "assets/screenshot-settings.png": {
-      "sha256": "309a4288d9264787f037a39c82b2f010027b03c6154a01d7b84eede81efc5ae0",
+      "sha256": "28757d21f54f30d53bfe41f37c7487378d759bb0eea464bf140ac92e52efe36d",
       "size": "1200x950"
     },
     "assets/screenshot-panel-ko.png": {
@@ -41,7 +41,7 @@
       "size": "1800x1226"
     },
     "assets/screenshot-settings-ko.png": {
-      "sha256": "367e6876e594b85cb11088e5caed11ef1f5f9b7b438e6714cf812f0b1b940a87",
+      "sha256": "e53ea0764eedb641584401c1a8714f29db92947866cc448ee70f514eaa89403b",
       "size": "1200x950"
     },
     "docs/images/settings-panel.png": {
@@ -49,7 +49,7 @@
       "size": "1800x1226"
     },
     "docs/images/settings-window.png": {
-      "sha256": "309a4288d9264787f037a39c82b2f010027b03c6154a01d7b84eede81efc5ae0",
+      "sha256": "28757d21f54f30d53bfe41f37c7487378d759bb0eea464bf140ac92e52efe36d",
       "size": "1200x950"
     },
     "docs/images/settings-panel-ko.png": {
@@ -57,7 +57,7 @@
       "size": "1800x1226"
     },
     "docs/images/settings-window-ko.png": {
-      "sha256": "367e6876e594b85cb11088e5caed11ef1f5f9b7b438e6714cf812f0b1b940a87",
+      "sha256": "e53ea0764eedb641584401c1a8714f29db92947866cc448ee70f514eaa89403b",
       "size": "1200x950"
     }
   }
