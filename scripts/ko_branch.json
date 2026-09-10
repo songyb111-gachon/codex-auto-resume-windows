@@ -35,5 +35,31 @@
     "LICENSE": "The authoritative licence text. A translation would be a second licence.",
     "skills/codex-auto-resume/SKILL.md": "Instructions Codex reads to operate the plugin, not prose a person reads. Translating it would make the two branches behave differently, which is exactly what generating ko from main exists to prevent.",
     ".github/GENERATED-BRANCH.md": "Written by the generator, for maintainers, and only exists on ko."
+  },
+  "_reviewed_comment": [
+    "The English source each Korean document was last translated from.",
+    "",
+    "A complete translation still goes stale: the English page gains a paragraph, the",
+    "Korean one does not, and nothing says so - which is how ko came to tell Korean",
+    "readers the tool made no network request for three releases after it started making",
+    "one. Screenshots have the same failure mode and the same answer: record what the",
+    "artefact was made from and fail when that moves.",
+    "",
+    "After updating a Korean document to match its English source, refresh its entry:",
+    "    python scripts/ko_sync.py --reviewed <english path>",
+    "CI does not translate anything. A person decides what the Korean should say."
+  ],
+  "reviewed": {
+    "CHANGELOG.md": "c5783391101706c50375310d88ce9712e7d8667711301fa1a5e6f2714ff0e5ed",
+    "CONTRIBUTING.md": "1a4c897f174c417ed4164998fa3ed2a59dab6dcd816aef5acab13aedd8940e00",
+    "CONTRIBUTORS.md": "698f3d4fb75b30354e1c6749d4702c0e5e36149c640d90dc18a8dfa6842d0c3b",
+    "PRIVACY.md": "1a775b80efe83b7947ac1341b95a93c1951707d0675e90bfa00b7f173580e752",
+    "README.md": "c988960e126b2cda8d44b168ec2e19b020a04076c98e724526970b9eda707056",
+    "SECURITY.md": "a9c097c0b2fc66cc368db1314206d1de3ffdc1b465ca6776804b15563375c339",
+    "SUPPORT.md": "892fc88fb861b3b7851be2b73a3b70709e12fda3ef2c39c659e7391dcb424f9c",
+    "docs/BRAND.md": "f09eb683eb15ae428dd49f60555ec3a0899c29980dd42797d0276b9988b5a863",
+    "docs/COMPARISON.md": "851fbd2c38dc8f1ee8c7bef16b247dfa7136d080209e99cb89bec2c99922dcc9",
+    "docs/DEVELOPMENT.md": "3fe6e19f166d0928a713c96bc688663ca1d2509523bd6a51204f96f51ec972ea",
+    "docs/PLUGIN.md": "a7c1757a0b492184a417f318a3119bb96985fd7dc24a1389c6f3943bda3f14e6"
   }
 }

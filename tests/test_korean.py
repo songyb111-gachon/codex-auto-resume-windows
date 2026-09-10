@@ -121,6 +121,23 @@ class MappingTests(unittest.TestCase):
                          "add these to `documents` with a Korean source, or to "
                          "`intentionally_english` with the reason they stay English")
 
+    def test_no_translation_is_stale(self):
+        """A complete translation can still go out of date, silently.
+
+        This is the documentation half of the screenshot freshness check: record what the
+        Korean was translated from, and fail when the English moves without it. CI does
+        not translate anything - a person decides what the Korean should say, then runs
+        `python scripts/ko_sync.py --reviewed <english path>`.
+
+        It is exactly how ko came to promise Korean readers that the tool made no network
+        request, for three releases after it started making one.
+        """
+        import ko_sync
+        stale = ko_sync.stale_translations(ROOT)
+        self.assertEqual(stale, [],
+                         "update the Korean document, then record it with "
+                         "`python scripts/ko_sync.py --reviewed <english path>`")
+
     def test_every_exemption_gives_a_reason(self):
         for name, reason in self.mapping["intentionally_english"].items():
             with self.subTest(name):
