@@ -56,8 +56,8 @@ MCP_EXE = "codex-auto-resume-mcp.exe"
 # Every top-level document the shipped README links to, so the installed copy does not
 # promise a privacy policy that is not beside it. Asserted by tests/test_plugin.py.
 APP_FILES = ("LICENSE", "README.md", "README.ko.md", "PRIVACY.md", "SECURITY.md",
-             "SUPPORT.md", "CONTRIBUTING.md", "CONTRIBUTORS.md", "CHANGELOG.md",
-             ".mcp.json")
+             "SECURITY.ko.md", "SUPPORT.md", "CONTRIBUTING.md", "CONTRIBUTORS.md",
+             "CONTRIBUTORS.ko.md", "CHANGELOG.md", ".mcp.json")
 LAUNCHER_FILES = ("Install.cmd", "Uninstall.cmd", "README.txt", "install.ps1")
 
 EXCLUDE_DIRS = {"__pycache__", ".git", ".github", "node_modules", ".pytest_cache",

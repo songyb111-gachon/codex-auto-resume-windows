@@ -57,8 +57,10 @@ QUALIFIERS = re.compile(
     r"워처|복구 런타임|설치|내려받",   # ko: watcher, recovery runtime, install, download
     re.I)
 
-DOCS = ("README.md", "README.ko.md", "PRIVACY.md", "SECURITY.md", "SUPPORT.md",
-        "CONTRIBUTING.md", "docs/PLUGIN.md", "docs/BRAND.md", "docs/COMPARISON.md",
+DOCS = ("README.md", "README.ko.md", "PRIVACY.md", "SECURITY.md", "SECURITY.ko.md",
+        "SUPPORT.md", "CONTRIBUTING.md", "CONTRIBUTORS.ko.md",
+        "docs/PLUGIN.md", "docs/BRAND.md", "docs/COMPARISON.md",
+        "docs/COMPARISON.ko.md", "docs/DEVELOPMENT.ko.md",
         "skills/codex-auto-resume/SKILL.md")
 
 # The changelog is a record of what past releases did and must not be rewritten to match

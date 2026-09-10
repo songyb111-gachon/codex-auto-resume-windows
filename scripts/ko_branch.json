@@ -1,0 +1,36 @@
+{
+  "_comment": [
+    "Which Korean document replaces which English one on the generated `ko` branch.",
+    "",
+    "`ko` is not a place to edit. It is built from `main` by scripts/ko_sync.py, so the",
+    "canonical Korean text lives here on main as `<name>.ko.md` beside its English",
+    "sibling, and the branch is regenerated whenever main's tests pass. Editing ko",
+    "directly loses the edit at the next sync.",
+    "",
+    "The branch existed as an independent fork until v0.5.5 and was three releases",
+    "behind: it still told Korean readers that the tool made no network request and that",
+    "installing meant downloading a release. Two languages of the same product cannot be",
+    "maintained by remembering to merge.",
+    "",
+    "`not_yet_translated` is the visible to-do. Anything listed there stays English on",
+    "ko, which is accurate but not translated - and that is the deliberate choice: a",
+    "stale translation that makes a false claim is worse than an English page."
+  ],
+  "documents": {
+    "README.ko.md": "README.md",
+    "SECURITY.ko.md": "SECURITY.md",
+    "CONTRIBUTORS.ko.md": "CONTRIBUTORS.md",
+    "docs/COMPARISON.ko.md": "docs/COMPARISON.md",
+    "docs/DEVELOPMENT.ko.md": "docs/DEVELOPMENT.md"
+  },
+  "not_yet_translated": [
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "PRIVACY.md",
+    "SUPPORT.md",
+    "docs/BRAND.md",
+    "docs/PLUGIN.md",
+    "skills/codex-auto-resume/SKILL.md"
+  ],
+  "english_on_main": "https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/"
+}
