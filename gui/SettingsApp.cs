@@ -580,12 +580,43 @@ namespace CodexAutoResume
             var label = new Label();
             label.Text = text;
             label.AutoSize = true;
-            label.Anchor = AnchorStyles.Left;
+            label.Anchor = AnchorStyles.Left | AnchorStyles.Top;
             label.TextAlign = ContentAlignment.MiddleLeft;
             label.AutoEllipsis = true;
-            label.Margin = Pad(0, 5, 12, 0);
+            // The label's margins are what reserve the editor's height.
+            //
+            // TableLayoutPanel measures this row from the label's cell, because a
+            // ComboBox under-reports its height until it has been shown - that is the
+            // whole reason the editor below is anchored to the top. So the row is as
+            // tall as the label plus its margins and nothing else, and if that is less
+            // than the editor really needs, the editor's bottom border is clipped away.
+            //
+            // Sizing the margins from both preferred heights does two jobs at once: the
+            // row ends up the editor's height plus a little, so nothing can be clipped,
+            // and the leftover is split above and below the label, so its text sits on
+            // the editor's centre line. Both hold at every scaling and in every font,
+            // including the Korean UI font, whose line height differs from the English
+            // one - which a fixed margin could not do.
+            int editorHeight = editor.PreferredSize.Height + Px(2);
+            int labelHeight = label.PreferredSize.Height;
+            int lift = Math.Max(0, (editorHeight - labelHeight) / 2);
+            label.Margin = new Padding(0, lift, Px(12), Math.Max(0, editorHeight - labelHeight - lift));
 
-            editor.Anchor = AnchorStyles.Right;
+            // Top, not just Right. A Right-only anchor centres the control vertically,
+            // and TableLayoutPanel computes that centre from the size the control
+            // reported *before* it was shown. A ComboBox then re-sizes itself to fit the
+            // font, keeps the offset it was given, and hangs one to nine pixels past the
+            // bottom of the row - where its own bottom border is clipped away. It looks
+            // like a drawing bug and is a measurement one. Measured at 100/125/150/175/
+            // 200/250%: correct only at 100%, and worse the higher the scaling.
+            //
+            // Anchoring to the top removes the dependence on that stale measurement
+            // entirely. The row is always taller than the editor, so pinning it to the
+            // top cannot clip at any scale, and both editor kinds then start on the same
+            // line as each other. A margin does not work here for the same reason the
+            // bug exists: the row's own AutoSize measures the stale height too, so the
+            // margin does not make it grow.
+            editor.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             editor.Margin = new Padding(0);
             row.Controls.Add(label, 0, 0);
             row.Controls.Add(editor, 1, 0);
