@@ -25,6 +25,11 @@ checking now check - and that the Korean branch stops being a second copy of the
   it, and a check must not be able to convince a starting watcher that it lost a race to
   itself. A real second watcher holds it for its whole life, so single-instance safety is
   unchanged.
+- The settings window makes that wait somewhere other than the UI thread. Removing the
+  fixed sleep had moved the wait into the bridge call rather than removing it, and a
+  six-second block on a click handler is a window Windows greys out and retitles. It now
+  dispatches to a worker and comes back through `BeginInvoke`; measured by forcing the
+  full window, 11 of 24 samples were unresponsive before and 0 of 48 after.
 
 ### Screenshots that cannot go stale quietly
 
@@ -40,6 +45,13 @@ checking now check - and that the Korean branch stops being a second copy of the
   committed, and a test now requires them to be byte-identical, which is the point.
   `assets/screenshots.json` records what they were rendered from, so the suite fails when
   the sources move and the images do not.
+- What "rendered from" means was itself wrong at first: a hand-written list of seven files
+  that missed five which visibly change the pictures, and that fired on edits which cannot
+  change a pixel. The panel is no longer hashed from a file list at all — it is hashed
+  from the markup it renders, so the version, the schema, the fields a row carries and the
+  palette all reach it wherever they live, and a comment cannot fire it. Text inputs are
+  hashed after newline normalisation, because `.gitattributes` gives `*.ps1` a different
+  byte sequence on checkout than the repository stores.
 
 ### The Retry timing control is drawn in full
 
@@ -70,6 +82,15 @@ checking now check - and that the Korean branch stops being a second copy of the
   reader is no longer sent to the English page for them. `docs/PLUGIN.md` and the
   changelog are listed as untranslated rather than shipped stale — an English page is
   accurate, and a stale translation is not.
+- The tests reach `ko` and now run there. They were carried unchanged, which was true of
+  the files and false of the outcome: the sync deletes the Korean sources twelve of them
+  read, so the suite errored on the branch it ships to and a pull request opened against
+  `ko` was answered with failures about the wrong thing. Those tests skip on a generated
+  checkout, and the workflow runs the suite against the tree before publishing it.
+- Links to a Korean document are rewritten in both halves, target and visible label, and
+  across every page rather than only the five that are translated — `CHANGELOG.md` had
+  been shipping to `ko` with a live link to a file the same sync had just deleted. The
+  generated tree is now checked for relative links to files it does not contain.
 
 ### Housekeeping
 
