@@ -66,28 +66,26 @@ Until that commit exists, the plugin verifies against the published `.sha256` si
 instead and says so when it runs. That is weaker — the sidecar comes from the same origin
 as the archive — so it is worth closing rather than leaving.
 
-### Rebuilding an already-published release's assets
+### A published version is immutable
 
-A published archive is a snapshot of the source as it stood when the workflow ran. If the
-commit a tag points at is corrected afterwards, the archive does not follow — it keeps
-whatever it was built from, and nothing about the release page shows that.
+`v0.5.4` names one archive, with one SHA-256, for as long as the release exists. There is
+no supported way to change the bytes behind a published version, and the release workflow
+refuses to try: publishing stops if the version already has assets.
 
-The release workflow can rebuild one:
+This is not tidiness. The plugin's bootstrap pins a version's digest and refuses anything
+else, so replacing a published archive either breaks every install of that version or -
+worse - succeeds with bytes the pinned digest does not describe. Two people installing
+"v0.5.4" a month apart have to get the same thing.
 
-> Actions → **release** → Run workflow → set **tag** to the existing tag, e.g. `v0.5.0`.
+So a correction gets a new version. If a published archive turns out to be wrong, bump the
+version, tag, and publish that; the mistaken release stays as a record of what was actually
+released, which is the point of a release.
 
-It checks out that tag, refuses if the tag and the manifest version disagree, runs that
-tag's own test suite, rebuilds, and replaces only the ZIP and its checksum with
-`--clobber`. The tag target and the release notes are untouched.
+The manual dispatch still exists and is now a dry run: point it at any ref and it builds,
+tests and verifies, then keeps the archive as a workflow artifact. It cannot create or
+change a release.
 
-Afterwards, download the replaced asset and confirm it is what you expected before
-considering it done. It needs repository write access; there is no way to trigger it from
-a clone.
-
-**If that version has a digest in `scripts/release.json`, the rebuild invalidates it.**
-The new archive is not the old one byte for byte, so the recorded digest no longer
-matches, and the plugin's bootstrap will refuse to install that version — correctly, but
-for everybody. Re-pin it from the replaced asset, the same way as after a release.
+> Actions → **release** → Run workflow → optionally set **ref**.
 
 ### Changing anything visual
 
