@@ -437,10 +437,6 @@ class BridgeTests(unittest.TestCase):
         remove.assert_not_called()
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class ReleaseNotesTests(unittest.TestCase):
     """The published release notes come from the changelog, so they cannot drift.
 
@@ -692,3 +688,7 @@ class VersionConsistencyTests(unittest.TestCase):
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
         first = re.search(r"^##\s+v(\S+)", changelog, re.MULTILINE)
         self.assertEqual(first.group(1), self.manifest["version"])
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -626,10 +626,6 @@ class DiscoveryTests(unittest.TestCase):
                     config.discover_codex_exe(str(bin_dir / "missing.exe"), lambda p: None)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class EntryPointTests(unittest.TestCase):
     """The documented command has to work with the interpreter that actually ships.
 
@@ -787,3 +783,7 @@ class DoctorProtocolCheckTests(unittest.TestCase):
 
     def test_no_registration_is_reported_too(self):
         self.assertIn("not registered", self.doctor(None))
+
+
+if __name__ == "__main__":
+    unittest.main()

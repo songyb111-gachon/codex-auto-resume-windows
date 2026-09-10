@@ -207,10 +207,6 @@ class StateUpgradeTests(unittest.TestCase):
             Store(self.root)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class InPlaceUpgradeTests(unittest.TestCase):
     """An upgrade must survive the product's own processes being alive.
 
@@ -399,3 +395,7 @@ class UninstallStatePreservationTests(unittest.TestCase):
         self.run_uninstall()
         self.assertFalse(paths.settings_file.exists())
         self.assertFalse((paths.state_dir / "state.sqlite").exists())
+
+
+if __name__ == "__main__":
+    unittest.main()

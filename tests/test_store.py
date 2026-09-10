@@ -231,10 +231,6 @@ class StoreTests(unittest.TestCase):
         self.assertEqual((self.root / "state.sqlite").read_bytes(), b"")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class RestoreBudgetTests(unittest.TestCase):
     """Running out of attempts is the one terminal stop a person may undo.
 
@@ -314,3 +310,7 @@ class RestoreBudgetTests(unittest.TestCase):
         self.exhaust()
         self.store.restore_budget(self.key, 500)
         self.assertEqual([row["interruption_id"] for row in self.store.pending()], [self.key])
+
+
+if __name__ == "__main__":
+    unittest.main()
