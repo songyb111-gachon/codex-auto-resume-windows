@@ -8,6 +8,18 @@ JSON object on stdout.
 The surface is deliberately narrow and typed. There is no command that runs a program,
 reads an arbitrary file, writes the registry directly or executes SQL, and every
 identifier is validated before it reaches the store.
+
+The wire is UTF-8, stated rather than inherited. Both callers redirect these streams, and
+a redirected stdout on Windows takes the machine's ANSI code page - so on a Korean install
+this wrote CP949 while the settings window decoded UTF-8, and every Korean label arrived
+as mojibake. It looked like a font problem and was an encoding one. The MCP server has
+always said UTF-8 out loud, which is why the Codex panel was correct throughout and the
+window was not.
+
+A developer machine can hide this: `PYTHONIOENCODING=utf-8` in the environment makes the
+old code work, so the bug reproduces for users and not for whoever is looking for it.
+Nothing here may depend on the active code page, the console, the locale or an inherited
+variable.
 """
 from __future__ import annotations
 
@@ -17,6 +29,21 @@ import sys
 
 from . import config
 from .control import Control, ControlError
+
+
+def _use_utf8() -> None:
+    """State the protocol's encoding, whatever the machine's code page is.
+
+    `reconfigure` wins over `PYTHONIOENCODING` because it happens at runtime, which is
+    the point: the contract belongs to the protocol, not to the environment that started
+    it. Guarded because a replaced stream - a test's StringIO, a pytest capture - has no
+    `reconfigure`, and the protocol is a string protocol at that level anyway.
+    """
+    for stream in (sys.stdout, sys.stdin):
+        try:
+            stream.reconfigure(encoding="utf-8", newline=chr(10))
+        except (AttributeError, ValueError, OSError):
+            pass
 
 
 def _emit(payload) -> int:
@@ -58,6 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv=None) -> int:
+    _use_utf8()
     args = build_parser().parse_args(argv)
     home = args.home
     if not home:

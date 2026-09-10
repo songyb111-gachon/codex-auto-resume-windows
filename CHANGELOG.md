@@ -22,6 +22,18 @@ were deliberately not used to mutate a released artefact; they ship here.
   its strings in the page it is already seeded with. Nothing consults
   `navigator.language`, because the four surfaces have to agree and only one of them can
   decide.
+- **Fixed: with the window translated, the Korean arrived as mojibake.** The translation
+  was correct and the bytes were not. Both front ends run the control bridge with its
+  output redirected, and Python encodes a redirected stdout on Windows with the machine's
+  ANSI code page — CP949 on a Korean install — while the window decoded UTF-8. The MCP
+  server had always reconfigured its streams, which is why the Codex panel was right
+  throughout and the window alone was wrong. The bridge now states UTF-8 rather than
+  inheriting an encoding, so the protocol's contract belongs to the protocol. What made
+  this worth tests rather than a one-line fix is that it hides: a machine with
+  `PYTHONIOENCODING=utf-8` set runs the broken code perfectly, so it reproduces for users
+  and not for whoever is looking for it — which is exactly what happened here. The round
+  trip is checked under a deliberately hostile code page, in six scripts, because the
+  contract is Unicode and not Korean.
 - The language rule is unchanged and now has tests for the case it exists for: Korean
   when, and only when, the *most preferred* Windows UI language is Korean. Somebody whose
   interface is English and who has also added Korean is a person who reads Korean, not a
