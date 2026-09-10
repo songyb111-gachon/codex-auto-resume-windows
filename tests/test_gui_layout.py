@@ -73,12 +73,32 @@ class WatcherStartReportingTests(unittest.TestCase):
     def setUp(self):
         self.source = SETTINGS.read_text(encoding="utf-8")
         start = self.source.index("private void StartWatcher()")
+        # Both halves: the click handler that dispatches, and the continuation that
+        # BeginInvoke brings back to the UI thread.
         self.method = self.source[start:self.source.index("private void Save()", start)]
 
     def test_it_does_not_wait_a_fixed_time_and_hope(self):
         self.assertNotIn("Thread.Sleep", self.method,
                          "a fixed wait is both slower than an ordinary start and shorter "
                          "than a slow one; the engine now waits for the real answer")
+
+    def test_the_wait_does_not_happen_on_the_ui_thread(self):
+        """A guard the first version of this needed and did not have.
+
+        Removing `Thread.Sleep` did not remove the wait: it moved into the bridge call,
+        which starts python.exe and blocks until it exits, and the engine behind it now
+        waits up to six seconds for the watcher to report in. On the click handler that
+        is six seconds without pumping messages, and Windows retitles a window that has
+        not pumped for five "Not Responding" and paints a grey ghost of it. The old test
+        passed throughout, because it only looked for the word `Sleep`.
+        """
+        self.assertIn("QueueUserWorkItem", self.method,
+                      "the blocking call must not run on the click handler")
+        self.assertIn("BeginInvoke", self.method,
+                      "the answer has to come back to the UI thread to touch a control")
+        call = self.method.index('bridge.Call("start-watcher"')
+        worker = self.method.index("QueueUserWorkItem")
+        self.assertLess(worker, call, "the call must be inside the worker, not before it")
 
     def test_it_reads_the_state_the_engine_reported(self):
         self.assertIn('"state"', self.method,

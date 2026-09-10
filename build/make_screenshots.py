@@ -65,14 +65,24 @@ COPIES = {PANEL: DOCS / "settings-panel.png", SETTINGS: DOCS / "settings-window.
 # What the images are a picture of. If one of these changes, the screenshots are stale -
 # that is the whole claim `tests/test_screenshots.py` makes, so the list is the test's
 # definition of "render input" as much as it is this script's.
-RENDER_INPUTS = (
-    ".codex-plugin/plugin.json",          # the version, and nothing else from here
+# What the *window* is rendered from. It is a compiled Windows application, so there is
+# no way to look at its output without running it, and its inputs have to be listed.
+#
+# Listing is how this went wrong the first time: the tuple named seven files and missed
+# five more that visibly change the pictures - the title-bar icon, the store fields behind
+# every pending row, the control layer that decides what a row carries, the DPI manifest
+# and the capture script itself. The panel no longer relies on a list at all (see below);
+# this one stays as short as it can be and is checked by tests/test_screenshots.py against
+# what the generator actually reads.
+WINDOW_INPUTS = (
+    ".codex-plugin/plugin.json",          # the version in the footer
     "gui/SettingsApp.cs",                 # the window's layout and wording
     "gui/Brand.cs",                       # its palette
-    "src/codex_auto_resume/mcpui.py",     # the panel's markup, style and script
-    "src/codex_auto_resume/brand.py",     # the palette both share
+    "gui/app.manifest",                   # its DPI awareness, and so its size
+    "assets/codex-auto-resume.ico",       # the mark in the title bar, which is captured
     "src/codex_auto_resume/settings.py",  # the schema that decides which rows exist
-    "build/make_screenshots.py",          # the sample data below
+    "build/capture_window.ps1",           # how much of the window is captured
+    "build/make_screenshots.py",          # the sample installation it is run against
 )
 
 # The panel is rendered at half size and captured at twice the device scale, so the
@@ -168,7 +178,7 @@ def render_panel(target: Path) -> None:
     rendering of the same document and not a picture of Codex. The README says so; do not
     let it start implying otherwise.
     """
-    html = mcpui.settings_page(sample_panel_data())
+    html = panel_html()
     with tempfile.TemporaryDirectory() as workspace:
         page = Path(workspace) / "panel.html"
         page.write_text(html, encoding="utf-8")
@@ -187,6 +197,11 @@ def render_panel(target: Path) -> None:
 
 
 # ---------------------------------------------------------------- settings window
+def panel_html() -> str:
+    """The exact markup the panel screenshot is a picture of."""
+    return mcpui.settings_page(sample_panel_data())
+
+
 def scratch_installation(workspace: Path) -> Path:
     """An installation made out of the working tree, so the picture is of this code."""
     import make_release
@@ -269,7 +284,47 @@ def render_settings_window(target: Path) -> str:
 
 # ---------------------------------------------------------------------- manifest
 def render_inputs() -> dict:
-    return {name: sha256((ROOT / name).read_bytes()) for name in RENDER_INPUTS}
+    """What each image is rendered from, hashed.
+
+    The panel's entry is the **rendered HTML itself**, not the files that produce it, and
+    that is stricter and looser in exactly the right directions. Stricter: it moves when
+    the version, the settings schema, the fields a pending row carries, the palette or the
+    markup move, wherever in the package those live, without anyone having to remember to
+    add a filename. The first version of this listed seven files and missed five that
+    visibly change the picture. Looser: editing a comment cannot change it, so a
+    contributor who fixes a typo is not handed a red suite and a regeneration that needs
+    Windows, Edge, a compiled settings window and a network fetch.
+
+    The window gets no such handle - it is a compiled application, and running it is the
+    only way to see its output - so its inputs are listed above, and a comment in
+    `SettingsApp.cs` will fire this check unnecessarily. That is a real cost and it is
+    the smaller one: the alternative is not noticing that the picture is wrong.
+    """
+    inputs = {name: input_digest(ROOT / name) for name in WINDOW_INPUTS}
+    inputs["<panel render>"] = sha256(panel_html().encode("utf-8"))
+    return inputs
+
+
+# Hashed as bytes, because that is what they are. Everything else is source text.
+BINARY_INPUTS = (".ico", ".png", ".zip")
+
+
+def input_digest(path: Path) -> str:
+    """Hash an input in a way a fresh checkout can reproduce.
+
+    Text is normalised to LF first. `.gitattributes` forces `*.ps1` to CRLF on checkout
+    while the repository stores LF, so a working copy that happens to hold LF hashes
+    differently from what every clone and every CI run receives - and the manifest then
+    records a digest nobody else can compute. That failed on the generated ko tree before
+    it could fail in CI, which is the only reason it was noticed.
+
+    A line ending cannot change what a screenshot looks like, so normalising loses nothing.
+    """
+    if path.suffix.lower() in BINARY_INPUTS:
+        return sha256(path.read_bytes())
+    # Python reads text in universal-newline mode, so CRLF and a lone CR both arrive
+    # as LF and the digest is the same whichever way the file was checked out.
+    return sha256(path.read_text(encoding="utf-8").encode("utf-8"))
 
 
 def system_dpi() -> int:
