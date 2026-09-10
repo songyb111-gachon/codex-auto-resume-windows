@@ -4,8 +4,8 @@
 
 The last corrective release before v0.6. **Recovery is untouched** again: the same failure
 categories, the same refusals, the same identity rules, the same bounded retries, the same
-database. What changes is that three things which had been quietly asserting rather than
-checking now check.
+database. What changes is that several things which had been quietly asserting rather than
+checking now check - and that the Korean branch stops being a second copy of the product.
 
 ### The watcher is reported as running only when it is
 
@@ -48,11 +48,35 @@ checking now check.
   its parent. The editor is now anchored to the top, and the row reserves the editor's
   measured height, which also puts the label back on its centre line.
 
+### The Korean branch is generated, not maintained
+
+- **Fixed: `ko` was three releases behind, and wrong in the ways that matter.** It was an
+  independent fork carrying its own engine, installer, workflows and tests, kept in step
+  by someone remembering to merge. It still told Korean readers the tool made no network
+  request, still led installation with "download the release archive", still said there
+  was no third party to report a security issue to, and still described an uninstall that
+  predated every ownership rule v0.5.4 added. Its README linked to itself for the English
+  version.
+- There is no second copy now. `ko` is main's tree at a commit whose tests passed, with
+  each Korean document put in place of its English sibling. `.github/workflows/sync-ko.yml`
+  does it automatically, from the SHA that was actually tested rather than whatever main's
+  head is by then, and it refuses a run from a fork or from a red main.
+- The Korean text moved to main where it can be reviewed. `SECURITY.ko.md` had its three
+  false claims corrected and its six-line uninstall section replaced with the current
+  ownership rules before it was carried; `README.ko.md` gained the requirements, the
+  two-watchers refusal, the safety model and the known limitations, so a Korean-only
+  reader is no longer sent to the English page for them. `docs/PLUGIN.md` and the
+  changelog are listed as untranslated rather than shipped stale — an English page is
+  accurate, and a stale translation is not.
+
 ### Housekeeping
 
 - **Fixed: 83 tests were skipped for anyone running a test file directly.** Six files kept
   their `unittest.main()` guard in the middle, so the classes below it never existed by
   the time it ran. `unittest discover` was never affected, which is why nothing said so.
+- Both workflows now declare a concurrency group. The release workflow's refusal to
+  republish a version reads the release's assets and then uploads, which two runs of the
+  same tag could both pass; serialising by tag closes that window.
 - Bumping the product version no longer turns the suite red for a reason that is not about
   the product: `scripts/release.json` no longer needs a placeholder entry added by hand.
   What it does check now is the direction that matters — that a version which was released
