@@ -379,7 +379,15 @@ if ($Uninstall) {
             Step 'The Codex plugin is not installed; nothing to remove'
         } elseif (Test-PathInside $pluginSource $AppDir) {
             Step 'Removing the Codex plugin'
-            $null = Invoke-Codex $codex @('plugin', 'remove', ($PluginName + '@' + $MarketplaceName))
+            # Not `$null =`. Codex refuses this while it holds the plugin cache open - the
+            # same os error 5 the install path handles by name - and throwing the code away
+            # printed "Removed." over the top of a plugin that is still registered and now
+            # points at a directory being deleted.
+            $gone = Invoke-Codex $codex @('plugin', 'remove', ($PluginName + '@' + $MarketplaceName))
+            if ($gone.Code -ne 0) {
+                Fail ("Codex could not remove the plugin '" + $PluginName + "'.")
+                Write-Host '       Close the ChatGPT/Codex app and run this again.'
+            }
         } else {
             Warn ("The installed plugin '" + $PluginName + "' now comes from a different source;")
             Write-Host ('       leaving it installed. Source: ' + $pluginSource)
@@ -390,7 +398,11 @@ if ($Uninstall) {
             Step ("Marketplace '" + $MarketplaceName + "' is not configured; nothing to remove")
         } elseif (Test-PathInside $marketplaceRoot $AppDir) {
             Step 'Removing the marketplace this installation registered'
-            $null = Invoke-Codex $codex @('plugin', 'marketplace', 'remove', $MarketplaceName)
+            $gone = Invoke-Codex $codex @('plugin', 'marketplace', 'remove', $MarketplaceName)
+            if ($gone.Code -ne 0) {
+                Fail ("Codex could not remove the marketplace '" + $MarketplaceName + "'.")
+                Write-Host '       Close the ChatGPT/Codex app and run this again.'
+            }
         } else {
             Warn ("Marketplace '" + $MarketplaceName + "' now points to a different source.")
             Write-Host '       Leaving it configured because this installation no longer owns it.'
@@ -421,11 +433,6 @@ if ($Uninstall) {
         # worse than an honest failure: nothing tells the user to try again.
         if (Test-Path $dir) { $stuck += $dir }
     }
-    foreach ($file in @('CodexAutoResumeSettings.exe', 'codex-auto-resume.ico', 'watcher-launcher.py',
-                        'runtime.json', '.owned-by-codex-auto-resume')) {
-        $path = Join-Path $OwnedHome $file
-        if (Test-Path $path) { $null = Remove-OwnedItem $path }
-    }
     if ($stuck.Count -gt 0) {
         Write-Host ''
         Fail 'Some program files are still in use and could not be removed:'
@@ -433,6 +440,19 @@ if ($Uninstall) {
         Write-Host '       Close the ChatGPT/Codex app and run this again. The watcher is'
         Write-Host '       already stopped and unregistered, so nothing is running now.'
         exit 1
+    }
+    # The last thing to go is the proof that any of this was ours.
+    #
+    # A purge has already taken the other two: the Python step deletes `config/`'s marker
+    # and always unlinks `runtime.json`, so the root marker is the only route left through
+    # `owns_home()`. Deleting it before the check below - which can still stop the run and
+    # ask the user to close Codex and try again - made that retry impossible: the second
+    # run finds no proof and refuses to remove the half-deleted installation, permanently.
+    # So the check comes first, and the proof only goes when there is nothing left to do.
+    foreach ($file in @('CodexAutoResumeSettings.exe', 'codex-auto-resume.ico', 'watcher-launcher.py',
+                        'runtime.json', '.owned-by-codex-auto-resume')) {
+        $path = Join-Path $OwnedHome $file
+        if (Test-Path $path) { $null = Remove-OwnedItem $path }
     }
     if ($Purge) {
         # Only on an explicit request: this is the user's recovery history.
@@ -447,6 +467,15 @@ if ($Uninstall) {
         Write-Host ('They are in ' + $InstallHome + ' - re-installing picks them up again.')
     }
     Write-Host 'Your Codex conversations were not touched.'
+    # `Fail` records rather than exits, so a step that could not finish - a plugin Codex
+    # would not let go of, a file it could not delete - has to be answered for here. The
+    # install path has read $script:Failed at the end since v0.1; this branch exited 0
+    # regardless, which is how a refused removal came to be reported as a removal.
+    if ($script:Failed) {
+        Write-Host ''
+        Write-Host 'Finished with problems. See the messages above.'
+        exit 1
+    }
     exit 0
 }
 

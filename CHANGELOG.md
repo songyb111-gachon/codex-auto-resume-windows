@@ -53,6 +53,24 @@ mistake, unreported, on the install path, where it was worse.
   Menu shortcut and the notification handler as of v0.5.3.
   [SECURITY.md](SECURITY.md) now states it once, for every kind of resource.
 
+### Removing says what actually happened
+
+- **Fixed: a removal Codex refused was reported as a removal.** The plugin and marketplace
+  removals threw their exit codes away, so when Codex declined — it holds the plugin cache
+  open while the app is running, the same refusal the install path handles by name — the
+  uninstaller deleted the program files anyway and printed "Removed." over the top, leaving
+  Codex pointing at a directory that no longer exists. Both are now checked, and the branch
+  no longer ends on an unqualified success.
+- **Fixed: a purge that could not finish could not be retried.** When files were still in
+  use, uninstall correctly stopped and asked you to close Codex and run it again — but it
+  had already deleted the proof of ownership the retry needs, so the second run refused the
+  half-removed installation and there was no way forward. The proof is now the last thing
+  to go, after the step that can still stop the run.
+- **Fixed: `powershell -File build/make_gui.ps1`, the command `CONTRIBUTING.md` gives, did
+  not work.** `$PSScriptRoot` is empty while parameter defaults are bound, so the two
+  defaults derived from it threw. Invoked the other way — which is how CI does it — it
+  happened to work, so only the documented route was broken.
+
 ### A published version is immutable
 
 - **Fixed: a published release asset could be replaced.**
