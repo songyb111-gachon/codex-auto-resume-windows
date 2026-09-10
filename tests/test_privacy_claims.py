@@ -57,6 +57,21 @@ QUALIFIERS = re.compile(
     r"워처|복구 런타임|설치|내려받",   # ko: watcher, recovery runtime, install, download
     re.I)
 
+def generated_ko_branch() -> bool:
+    """Whether this checkout is the generated `ko` branch.
+
+    There, every document below holds Korean under an English filename, so a test that
+    greps them for English prose is asking the wrong tree a question the right one
+    already answers - `tests/test_korean.py` makes the equivalent claims about the Korean
+    text. Keyed on the marker being *tracked*, because a stray local run of the generator
+    leaves an untracked copy behind and that must not excuse anything.
+    """
+    listed = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files", "--", ".github/GENERATED-BRANCH.md"],
+        capture_output=True, text=True, encoding="utf-8")
+    return bool(listed.returncode == 0 and listed.stdout.strip())
+
+
 def documents_here(names):
     """The subset of `names` this checkout actually has.
 
@@ -151,6 +166,11 @@ class CodePropertyTests(unittest.TestCase):
 
 
 class WordingTests(unittest.TestCase):
+    def setUp(self):
+        if generated_ko_branch():
+            raise unittest.SkipTest("the generated ko branch; the Korean claims are "
+                                    "asserted in tests/test_korean.py")
+
     def documents(self):
         for name in DOCS:
             path = ROOT / name

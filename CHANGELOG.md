@@ -1,41 +1,109 @@
 # Changelog
 
-## Unreleased
+## v0.5.6 — Finished, not just working
 
-Found by an adversarial pass run after v0.5.5 was already published. None of it is a
-safety or data problem, so v0.5.5 stands as released and these ship in v0.6.0 rather than
-in a v0.5.6.
+The last v0.5 release, and a quality pass rather than a feature one. **Recovery is
+untouched**: the same failure categories, the same refusals, the same exact-thread
+identity rule, the same bounded retries, the same database. What changed is everything
+around it — the two settings surfaces speak the user's language, the pictures show the
+product as it is, and the Korean branch is a Korean branch.
 
-- **Fixed: the installer still ended with "Installed and running." whatever the watcher
-  did.** v0.5.5 taught the engine to check before claiming and left the shell wrapper
-  saying it anyway - the same overclaim, one layer out, in the sentence most users
-  actually read. Setup now returns a third exit code for "everything was done, but the
-  watcher was not seen running", which is neither success nor failure: treating it as
-  failure would roll back a good installation, and treating it as success is how the line
-  survived. `enable` had the same shape - it waited up to six seconds for the answer and
-  then printed "Auto resume is on." regardless.
-- **Fixed: the screenshot freshness check missed the whole read path.** The settings
-  window renders no text of its own; every label and the entire status line arrive over
-  the bridge, so `controlcli.py` and `app.py` are render inputs, as is `make_gui.ps1`,
-  which decides whether the icon and the DPI manifest are compiled in at all.
-- **Fixed: the Korean sync rewrote inside code.** The label rewrite was a bare `[...]`
-  with no link syntax around it, so it edited fenced blocks and inline code that merely
-  *mentioned* a Korean filename - and the guard test built its fence out of a name none
-  of the patterns could match, so it passed either way.
-- **Fixed: a link could land on the right file at the wrong place.** The generated tree
-  was checked for dead paths but not dead anchors, which is the half this sync actually
-  invalidates: replacing an English page with a Korean one keeps every path valid and
-  kills every anchor into it. One live instance, in `SUPPORT.md`, is now sent to main's
-  English copy.
-- **Fixed: one stray local `ko_sync.py --root .` could silently disarm every Korean
-  invariant on main.** The marker it leaves behind was the sole switch for those tests
-  and survived `git restore`. It is ignored now, and the switch requires it to be
-  *tracked* - true on the generated branch, never in a local residue.
-- Two smaller ones: the generator listed Markdown by splitting git's output on
-  whitespace, which silently dropped any path containing a space or a non-ASCII
-  character; and the release-manifest test claimed to catch "released but never pinned"
-  while only being able to see a `null` placeholder that this release stopped writing. It
-  now reads the changelog's own headings, and a missing digest fails.
+It is also the first release to carry the fixes found after v0.5.5 was published. Those
+were deliberately not used to mutate a released artefact; they ship here.
+
+### The settings surfaces speak the language the rest of the product speaks
+
+- **Fixed: the settings window and the Codex panel were English on a Korean machine.**
+  The plugin layer resolved a language and used it for notifications and setup output,
+  while the window carried its own English literals in C# and the panel carried a third
+  set in JavaScript. Three copies of one vocabulary is how "Retry timing" becomes three
+  different words. There is one catalog now — 79 keys, both languages — and neither
+  surface chooses: the window asks the bridge it already uses, and the panel is handed
+  its strings in the page it is already seeded with. Nothing consults
+  `navigator.language`, because the four surfaces have to agree and only one of them can
+  decide.
+- The language rule is unchanged and now has tests for the case it exists for: Korean
+  when, and only when, the *most preferred* Windows UI language is Korean. Somebody whose
+  interface is English and who has also added Korean is a person who reads Korean, not a
+  person asking for a Korean interface.
+- Retry timing's options are translated where they are shown and stored untranslated. A
+  settings file whose meaning changed with the display language would be a bug the user
+  could not see until the watcher read it back.
+
+### The bottom row of buttons is drawn in full
+
+- **Fixed: Restore defaults, Save and Close lost their bottom borders.** Reported by a
+  user, reproduced, and it was not the buttons. The strip's height was a text measurement
+  plus a constant, and the row inside it carries WinForms' default 3px margin, which does
+  not scale with the display — so the arithmetic came out two pixels short and the last
+  thing living in those two rows was every button's own border. Measured from a layout
+  dump of the running window: strip 94 tall, 42 of padding, 52 given to a grid that
+  wanted 54. The strip is measured from its content now.
+- This is the same shape as the v0.5.5 Retry timing fix, one level up the tree. That fix
+  is intact and re-checked.
+
+### The Codex panel looks like the product
+
+- **Fixed: the panel screenshot was malformed, and the panel was why.** 550×494 collapsed
+  the card grid to a single narrow column and was shorter than the content, so the image
+  ended in the middle of a card with two cards and the entire footer missing. The height
+  is measured from the rendered page now, the three cards flow in one grid instead of two
+  hand-assigned columns that left one ending a third of the way up, and the pending table
+  no longer spreads three short rows across the full width.
+- The preview is given a host. Without one the panel correctly renders its read-only
+  fallback — every control greyed, and a notice telling the reader to go elsewhere —
+  which is a state nobody sees inside Codex. Nothing else about the render changed: it is
+  still the exact resource Codex is served, and it is still described that way rather
+  than as a photograph of Codex.
+
+### One screenshot set, in the reader's language
+
+- Screenshots are generated per locale and pinned to light. A gallery mixing a light
+  notification with a dark panel does not look like one product, and a build on a machine
+  in dark mode should not produce different bytes from a build on one in light mode. The
+  runtime still follows the user's Windows and Codex themes; only the pictures are fixed.
+- The Korean README shows the Korean interface. Korean prose over English screenshots was
+  the documentation version of the settings window that would not translate.
+- The panel gained the three theme states a themable page needs, so the capture can pin
+  one without changing how the served page behaves anywhere else.
+
+### The dark theme was rebalanced, and one part of it was declined
+
+- The canvas and the surface were four points of lightness apart, so a card did not read
+  as a card; the hairline was darker than what it enclosed, which is the wrong direction
+  on a dark ground; and the cyan sat at full saturation on an 11px dot that was the
+  brightest thing on screen. Same brand, less of the loudest part of it visible at once.
+- **The standalone window stays light, and that is a measurement.** A probe painted a
+  card, a NumericUpDown, a ComboBox, a CheckBox and a Button in the dark palette: the body
+  went dark and the parts Windows draws did not, leaving three white rectangles in an
+  otherwise dark window. Fixing that means owner-drawing every native control, and a
+  half-dark window is worse than an honestly light one.
+
+### The Korean branch is Korean
+
+- **Every human-facing document is translated.** `CHANGELOG`, `CONTRIBUTING`, `PRIVACY`,
+  `SUPPORT`, `docs/BRAND` and `docs/PLUGIN` join the six that were already there. The
+  `not_yet_translated` list is gone, because a list of documents nobody has got to is
+  indistinguishable from a list of documents nobody will. What stays English is named with
+  its reason: the licence, because a translated licence is a second licence, and the Codex
+  skill, because it instructs Codex rather than a person.
+- **A translation cannot go stale quietly.** The English source each Korean document was
+  translated from is recorded, and CI fails naming both files when the English moves.
+  Nothing is machine-translated — a person decides what the Korean says, then records it.
+  This is the documentation half of the screenshot freshness check, and it exists because
+  ko told Korean readers the tool made no network request for three releases after it
+  started making one.
+
+### Carried from after v0.5.5
+
+- The installer no longer ends with "Installed and running." whatever the watcher did.
+  Setup returns a third result for "everything was done, but the watcher was not seen
+  running", which is neither success nor failure.
+- The screenshot freshness check now covers the whole read path the window renders from,
+  and hashes text after newline normalisation so a clone can reproduce the digest.
+- The Korean sync no longer rewrites inside code fences, checks anchors as well as paths,
+  lists files in a way that survives spaces and non-ASCII names, and cannot be disarmed by
+  a stray local run.
 
 ## v0.5.5 — Say only what you checked
 
