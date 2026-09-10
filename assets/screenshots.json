@@ -1,0 +1,37 @@
+{
+  "_comment": [
+    "What the committed screenshots were rendered from. Written by",
+    "build/make_screenshots.py and checked by tests/test_screenshots.py, which",
+    "fails when these inputs no longer match the working tree - that is, when",
+    "the screenshots are stale. Regenerate them rather than editing this file."
+  ],
+  "version": "0.5.5",
+  "system_dpi": 144,
+  "inputs": {
+    ".codex-plugin/plugin.json": "d8496e9ceb50c10502f806409eacb032b095aae0e302de4e6beff45a5e2c1c5e",
+    "gui/SettingsApp.cs": "a94a86e448de287dbd2904a68a15df9da94777b639f8d3c25fd6625487292851",
+    "gui/Brand.cs": "6d733b95b337e72a18a7b93f83915d6d3e31c78f056319fecc9175d640d2f004",
+    "src/codex_auto_resume/mcpui.py": "2b7eb6a99f3523d496c7dd3d7902689291d55b9dc93a999c9e81205c00adae39",
+    "src/codex_auto_resume/brand.py": "d024837d008bd6f9a012ff5aed935a0b887849ba642967f988a033b13a1557ac",
+    "src/codex_auto_resume/settings.py": "3b6354bcb3a9ceb9834ffea0b092cc11e2a8c9e9b849d709532f11d5345399e9",
+    "build/make_screenshots.py": "4b0d6ee9b305c866a19fc259b14f2978a180420d55bd709e155aaaded304ea5a"
+  },
+  "images": {
+    "assets/screenshot-panel.png": {
+      "sha256": "3b0ae19baa4f32a66c2260bdcdb341ae815382cb49aa84e1bf8ca36164b3e45b",
+      "size": "1100x988"
+    },
+    "assets/screenshot-settings.png": {
+      "sha256": "06e78b83716d9d469e2da22c6645ab0d99bd46f1f3a19adbac85dd6429fc30df",
+      "size": "1200x949"
+    },
+    "docs/images/settings-panel.png": {
+      "sha256": "3b0ae19baa4f32a66c2260bdcdb341ae815382cb49aa84e1bf8ca36164b3e45b",
+      "size": "1100x988"
+    },
+    "docs/images/settings-window.png": {
+      "sha256": "06e78b83716d9d469e2da22c6645ab0d99bd46f1f3a19adbac85dd6429fc30df",
+      "size": "1200x949"
+    }
+  }
+}

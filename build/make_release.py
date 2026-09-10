@@ -72,7 +72,7 @@ ZIP_TIMESTAMP = (2026, 1, 1, 0, 0, 0)
 
 
 def version() -> str:
-    manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
+    manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8-sig"))
     return str(manifest["version"])
 
 

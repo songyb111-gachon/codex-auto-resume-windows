@@ -163,7 +163,11 @@ def version() -> str:
     """
     manifest = PROJECT_ROOT / ".codex-plugin" / "plugin.json"
     try:
-        return str(json.loads(manifest.read_text(encoding="utf-8")).get("version") or "unknown")
+        # utf-8-sig, not utf-8: a manifest saved by a Windows editor carries a BOM,
+        # `json.loads` rejects it, and every version-bearing surface in the product
+        # would then quietly say "unknown" together.
+        return str(json.loads(manifest.read_text(encoding="utf-8-sig")).get("version")
+                   or "unknown")
     except (OSError, ValueError):
         return "unknown"
 

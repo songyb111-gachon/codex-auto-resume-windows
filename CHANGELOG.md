@@ -1,5 +1,63 @@
 # Changelog
 
+## v0.5.5 — Say only what you checked
+
+The last corrective release before v0.6. **Recovery is untouched** again: the same failure
+categories, the same refusals, the same identity rules, the same bounded retries, the same
+database. What changes is that three things which had been quietly asserting rather than
+checking now check.
+
+### The watcher is reported as running only when it is
+
+- **Fixed: starting the watcher claimed success it had not verified.** `start_watcher`
+  returned as soon as Windows created a process, which proves nothing about whether the
+  watcher survived its imports, took the single-instance mutex or stayed alive. Four
+  surfaces turned that into a statement of fact, and the contradiction showed: the MCP
+  tool said "The watcher is running." and the very next status said it was not. It now
+  waits for the same probe the status line reads — on a monotonic deadline, in several
+  short looks — and reports which of four things actually happened: running, already
+  running, started but not confirmed, or started and exited. Only the first two are
+  allowed to mention a running watcher, and a test enforces it. Measured here, the
+  ordinary case now answers in about a third of a second, where the settings window used
+  to sleep a fixed 1.2 s and hope.
+- The watcher also now retries a momentarily busy mutex once before concluding another
+  watcher owns the machine. Every status read takes that mutex for microseconds to test
+  it, and a check must not be able to convince a starting watcher that it lost a race to
+  itself. A real second watcher holds it for its whole life, so single-instance safety is
+  unchanged.
+
+### Screenshots that cannot go stale quietly
+
+- **Fixed: every screenshot showed v0.5.2**, three releases behind, because there was no
+  script that made them — only a sequence somebody had to remember. `build/make_screenshots.py`
+  now renders both from the working tree: the settings window from a scratch installation
+  assembled out of `src/` and the manifest, and the Codex panel from the panel's own
+  source with sample data built by the real control surface. There is no version number
+  in the generator and no mock JSON on disk; change `.codex-plugin/plugin.json` and both
+  images say the new version.
+- The same picture is no longer committed twice under two names. There is one canonical
+  asset per screenshot and a copy step, and `assets/screenshots.json` records what they
+  were rendered from, so the test suite fails when the sources move and the images do not.
+
+### The Retry timing control is drawn in full
+
+- **Fixed: the Retry timing box lost its bottom border at every display scaling above
+  100%.** Not a drawing bug: a ComboBox under-reports its height until it is shown, then
+  resizes itself to fit the font while keeping the position it was given, so it hung past
+  the bottom of its own row — by 2 px at 125% and 9 px at 250% — and a child is clipped to
+  its parent. The editor is now anchored to the top, and the row reserves the editor's
+  measured height, which also puts the label back on its centre line.
+
+### Housekeeping
+
+- **Fixed: 83 tests were skipped for anyone running a test file directly.** Six files kept
+  their `unittest.main()` guard in the middle, so the classes below it never existed by
+  the time it ran. `unittest discover` was never affected, which is why nothing said so.
+- Bumping the product version no longer turns the suite red for a reason that is not about
+  the product: `scripts/release.json` no longer needs a placeholder entry added by hand.
+  What it does check now is the direction that matters — that a version which was released
+  did not stay unpinned.
+
 ## v0.5.4 — Prove it before you delete it
 
 The final v0.5 hardening release. **Recovery is untouched**: the same failure categories,
