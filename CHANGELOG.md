@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **Fixed: the settings window clipped its own labels at 200% display scaling.** Windows
+  Forms scales the font and leaves explicit pixel sizes exactly as written, so the window
+  kept its width while its text doubled: the second column's labels were cut off, the spin
+  boxes crowded the card edge and the last row fell off the bottom. Every fixed size now
+  scales with the display. It read correctly at 100% and 150%, which is why it survived
+  two releases — it was found by opening the window on a 192-DPI screen. Not a v0.5.3
+  regression; the layout is unchanged since v0.5.2.
+
 ## v0.5.3 — Say what the network does, and close the v0.5 line
 
 The last v0.5 release. **Nothing about recovery changes** — same failure categories, same

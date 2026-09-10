@@ -251,6 +251,54 @@ namespace CodexAutoResume
         private Color dotColor = Idle;
         private Button startButton;
 
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern int GetDpiForSystem();
+
+        private static readonly double DpiScale = MeasureDpiScale();
+
+        // Every fixed number in this file is written at 96 DPI and scaled here.
+        //
+        // Windows Forms scales the *font* with the display and leaves explicit pixel
+        // sizes exactly as written, so at 200% the text is twice the size inside a
+        // window that is still 780 units wide: the second column's labels clip, the
+        // spin boxes crowd the card edge and the last row falls off the bottom. It
+        // looked right at 100% and at 150% and was only found by opening it on a
+        // 192-DPI display.
+        //
+        // The DPI has to come from Windows, not from `DeviceDpi`. This assembly's
+        // manifest declares per-monitor awareness, but .NET Framework's WinForms only
+        // honours that with an app.config opt-in this product does not ship - so
+        // `DeviceDpi` answers 96 on a 192-DPI screen, which is exactly the value that
+        // makes the bug invisible to a fix written against it. Measured, twice: once
+        // when the window came out a third of its intended width, and again when
+        // scaling by DeviceDpi changed nothing at all.
+        private static double MeasureDpiScale()
+        {
+            try
+            {
+                int dpi = GetDpiForSystem();
+                if (dpi >= 96) return dpi / 96.0;
+            }
+            catch (Exception) { /* pre-1607 Windows: fall through */ }
+            try
+            {
+                using (var graphics = Graphics.FromHwnd(IntPtr.Zero))
+                    if (graphics.DpiX >= 96f) return graphics.DpiX / 96.0;
+            }
+            catch (Exception) { }
+            return 1.0;
+        }
+
+        private int Px(int atNinetySix)
+        {
+            return (int)Math.Round(atNinetySix * DpiScale);
+        }
+
+        private Padding Pad(int left, int top, int right, int bottom)
+        {
+            return new Padding(Px(left), Px(top), Px(right), Px(bottom));
+        }
+
         internal SettingsForm(Bridge bridge)
         {
             this.bridge = bridge;
@@ -260,11 +308,11 @@ namespace CodexAutoResume
             BackColor = Canvas;
             StartPosition = FormStartPosition.CenterScreen;
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(780, 560);
+            ClientSize = new Size(Px(780), Px(560));
             // Wide enough that the two columns always hold their content. Allowing a
             // narrower window buys nothing: the labels start truncating mid-word, which
             // looks broken rather than compact.
-            MinimumSize = new Size(800, 420);
+            MinimumSize = new Size(Px(800), Px(420));
             try
             {
                 string icon = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "codex-auto-resume.ico");
@@ -296,7 +344,7 @@ namespace CodexAutoResume
             columns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
             columns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
             columns.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-            columns.Padding = new Padding(18, 18, 18, 4);
+            columns.Padding = Pad(18, 18, 18, 4);
             columns.AutoScroll = true;
 
             foreach (TableLayoutPanel stack in new TableLayoutPanel[] { leftStack, rightStack })
@@ -309,8 +357,8 @@ namespace CodexAutoResume
                 stack.AutoSizeMode = AutoSizeMode.GrowAndShrink;
                 stack.BackColor = Canvas;
             }
-            leftStack.Margin = new Padding(0, 0, 9, 0);
-            rightStack.Margin = new Padding(9, 0, 0, 0);
+            leftStack.Margin = Pad(0, 0, 9, 0);
+            rightStack.Margin = Pad(9, 0, 0, 0);
             columns.Controls.Add(leftStack, 0, 0);
             columns.Controls.Add(rightStack, 1, 0);
         }
@@ -323,14 +371,16 @@ namespace CodexAutoResume
             // check below everything they did not come for.
             header.Dock = DockStyle.Top;
             header.BackColor = Surface;
-            header.Padding = new Padding(22, 14, 18, 14);
-            header.Height = TextRenderer.MeasureText("Ag", Font).Height * 2 + 44;
+            header.Padding = Pad(22, 14, 18, 14);
+            header.Height = TextRenderer.MeasureText("Ag", Font).Height * 2 + Px(44);
 
             var grid = new TableLayoutPanel();
             grid.Dock = DockStyle.Fill;
             grid.ColumnCount = 3;
             grid.RowCount = 2;
-            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 22f));   // state dot
+            // Wide enough for the dot at any scaling: an absolute 22 held a 24-pixel dot
+            // at 200% and sliced a third of it off.
+            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, Px(22)));   // state dot
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));   // what it is doing
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));        // the way out
             grid.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
@@ -346,7 +396,7 @@ namespace CodexAutoResume
             dot.Paint += delegate(object sender, PaintEventArgs e)
             {
                 e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                int size = 12;
+                int size = Px(12);
                 using (var brush = new SolidBrush(dotColor))
                     e.Graphics.FillEllipse(brush, 0, (dot.Height - size) / 2, size, size);
             };
@@ -362,7 +412,7 @@ namespace CodexAutoResume
             detail.TextAlign = ContentAlignment.TopLeft;
             detail.ForeColor = Muted;
             detail.AutoEllipsis = true;   // narrow gracefully instead of wrapping
-            detail.Margin = new Padding(0, 2, 0, 0);
+            detail.Margin = Pad(0, 2, 0, 0);
 
             // Shown only while the watcher is stopped. Nothing is recovered then, so a
             // window that reports the fact and offers no way out is a dead end - and the
@@ -372,7 +422,7 @@ namespace CodexAutoResume
             startButton = MakeButton("Start watcher", true, delegate { StartWatcher(); });
             startButton.Visible = false;
             startButton.Anchor = AnchorStyles.Right;
-            startButton.Margin = new Padding(16, 0, 0, 0);
+            startButton.Margin = Pad(16, 0, 0, 0);
 
             grid.Controls.Add(dot, 0, 0);
             grid.SetRowSpan(dot, 2);
@@ -392,8 +442,8 @@ namespace CodexAutoResume
         {
             footer.Dock = DockStyle.Bottom;
             footer.BackColor = Surface;
-            footer.Padding = new Padding(18, 13, 18, 15);
-            footer.Height = TextRenderer.MeasureText("Ag", Font).Height + 46;
+            footer.Padding = Pad(18, 13, 18, 15);
+            footer.Height = TextRenderer.MeasureText("Ag", Font).Height + Px(46);
 
             var grid = new TableLayoutPanel();
             grid.Dock = DockStyle.Fill;
@@ -433,15 +483,15 @@ namespace CodexAutoResume
             };
         }
 
-        private static Button MakeButton(string text, bool primary, EventHandler onClick)
+        private Button MakeButton(string text, bool primary, EventHandler onClick)
         {
             var button = new Button();
             button.Text = text;
             button.AutoSize = true;
             button.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            button.MinimumSize = new Size(112, 32);
-            button.Padding = new Padding(10, 0, 10, 0);
-            button.Margin = new Padding(9, 0, 0, 0);
+            button.MinimumSize = new Size(Px(112), Px(32));
+            button.Padding = Pad(10, 0, 10, 0);
+            button.Margin = Pad(9, 0, 0, 0);
             button.FlatStyle = FlatStyle.Flat;
             button.FlatAppearance.BorderSize = 1;
             button.FlatAppearance.BorderColor = primary ? Accent : Line;
@@ -480,8 +530,8 @@ namespace CodexAutoResume
             card.AutoSize = true;
             card.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             card.BackColor = Surface;
-            card.Margin = new Padding(0, 0, 0, 14);
-            card.Padding = new Padding(20, 15, 16, 16);
+            card.Margin = Pad(0, 0, 0, 14);
+            card.Padding = Pad(20, 15, 16, 16);
             card.Paint += delegate(object sender, PaintEventArgs e)
             {
                 using (var pen = new Pen(Line))
@@ -495,7 +545,7 @@ namespace CodexAutoResume
             heading.AutoSize = true;
             heading.ForeColor = Ink;
             heading.Font = new Font(Font.FontFamily, Font.Size + 0.5f, FontStyle.Bold);
-            heading.Margin = new Padding(0, 0, 0, 10);
+            heading.Margin = Pad(0, 0, 0, 10);
             card.Controls.Add(heading);
 
             stack.Controls.Add(card);
@@ -503,18 +553,18 @@ namespace CodexAutoResume
             return card;
         }
 
-        private static CheckBox NewCheck(string text, bool value)
+        private CheckBox NewCheck(string text, bool value)
         {
             var check = new CheckBox();
             check.Text = text;
             check.AutoSize = true;
-            check.Margin = new Padding(0, 5, 0, 5);
+            check.Margin = Pad(0, 5, 0, 5);
             check.Checked = value;
             check.Cursor = Cursors.Hand;
             return check;
         }
 
-        private static Control NewRow(string text, Control editor)
+        private Control NewRow(string text, Control editor)
         {
             var row = new TableLayoutPanel();
             row.ColumnCount = 2;
@@ -524,7 +574,7 @@ namespace CodexAutoResume
             row.AutoSize = true;
             row.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             row.Dock = DockStyle.Fill;
-            row.Margin = new Padding(0, 6, 0, 6);
+            row.Margin = Pad(0, 6, 0, 6);
             row.BackColor = Color.Transparent;
 
             var label = new Label();
@@ -533,7 +583,7 @@ namespace CodexAutoResume
             label.Anchor = AnchorStyles.Left;
             label.TextAlign = ContentAlignment.MiddleLeft;
             label.AutoEllipsis = true;
-            label.Margin = new Padding(0, 5, 12, 0);
+            label.Margin = Pad(0, 5, 12, 0);
 
             editor.Anchor = AnchorStyles.Right;
             editor.Margin = new Padding(0);
@@ -626,11 +676,11 @@ namespace CodexAutoResume
                         // that overload can land on a substituted face and the row then
                         // renders in a different typeface from the rest of the window.
                         check.Font = new Font(Font.FontFamily, Font.Size, FontStyle.Bold);
-                        check.Margin = new Padding(0, 4, 0, 10);
+                        check.Margin = Pad(0, 4, 0, 10);
                     }
                     else if (host == notifications)
                     {
-                        check.Margin = new Padding(16, 5, 0, 5);   // subordinate to the master
+                        check.Margin = Pad(16, 5, 0, 5);   // subordinate to the master
                     }
                     host.Controls.Add(check);
                     editors[name] = check;
@@ -638,7 +688,7 @@ namespace CodexAutoResume
                 else if (type == "integer")
                 {
                     var spin = new NumericUpDown();
-                    spin.Width = 74;
+                    spin.Width = Px(74);
                     spin.BorderStyle = BorderStyle.FixedSingle;
                     spin.Minimum = field.ContainsKey("min") ? (decimal)(double)field["min"] : 0;
                     spin.Maximum = field.ContainsKey("max") ? (decimal)(double)field["max"] : 100;
@@ -651,7 +701,7 @@ namespace CodexAutoResume
                 else if (type == "string" && field.ContainsKey("choices"))
                 {
                     var combo = new ComboBox();
-                    combo.Width = 132;
+                    combo.Width = Px(132);
                     combo.DropDownStyle = ComboBoxStyle.DropDownList;
                     foreach (object choice in (List<object>)field["choices"]) combo.Items.Add((string)choice);
                     string value = current.ContainsKey(name) ? current[name] as string : null;
@@ -679,7 +729,7 @@ namespace CodexAutoResume
             int wanted = tallest + columns.Padding.Vertical + header.Height + footer.Height;
             Rectangle screen = Screen.FromControl(this).WorkingArea;
             int maximum = screen.Height - (Height - ClientSize.Height) - 80;
-            ClientSize = new Size(ClientSize.Width, Math.Max(340, Math.Min(wanted, maximum)));
+            ClientSize = new Size(ClientSize.Width, Math.Max(Px(340), Math.Min(wanted, maximum)));
             Top = Math.Max(screen.Top, screen.Top + (screen.Height - Height) / 2);
         }
 
