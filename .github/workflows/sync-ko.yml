@@ -73,6 +73,24 @@ jobs:
         shell: bash
         run: python scripts/ko_sync.py --root .
 
+      # Staged before anything looks at the tree, not as part of committing it.
+      #
+      # The marker is what tells the test suite this is a generated branch, and the suite
+      # requires it to be *tracked* - a bare file on disk is what a stray local run of
+      # ko_sync leaves behind, and that must never disarm the Korean invariants on main.
+      # Staging it in the publish step meant it was still untracked while the tests ran,
+      # so they refused to skip and the run failed. It did exactly what it is for: it
+      # would not publish a tree whose tests do not pass.
+      - name: Stage the generated tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          # Force, because main gitignores it: the marker is legitimate only here.
+          git add -f .github/GENERATED-BRANCH.md
+
       # GITHUB_TOKEN may not push a change under .github/workflows. Nothing here should
       # be producing one - the mapping only names documents - so this turns a server-side
       # rejection nobody can read into a named failure, and stops a future maintainer
@@ -80,9 +98,9 @@ jobs:
       - name: Refuse to sync a change to the workflows themselves
         shell: bash
         run: |
-          if ! git diff --quiet -- .github/workflows; then
+          if ! git diff --cached --quiet -- .github/workflows; then
             echo "ko_sync.py changed .github/workflows, which GITHUB_TOKEN cannot push."
-            git --no-pager diff --stat -- .github/workflows
+            git --no-pager diff --cached --stat -- .github/workflows
             exit 1
           fi
 
@@ -109,12 +127,6 @@ jobs:
         run: |
           set -euo pipefail
           source_sha="${SOURCE_SHA:-$(git rev-parse HEAD)}"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          # Force, because main gitignores it: the marker is only legitimate on this
-          # branch, and an untracked copy left by a local run must never be committed.
-          git add -f .github/GENERATED-BRANCH.md
           # Against ko, not against HEAD. HEAD here is main's tested commit, so comparing
           # with it asked "did the sync change anything relative to main" - which it
           # always did, by construction, since it had just rewritten six documents. The
