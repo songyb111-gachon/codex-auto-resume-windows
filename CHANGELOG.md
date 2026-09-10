@@ -1,14 +1,75 @@
 # Changelog
 
-## Unreleased
+## v0.5.4 — Prove it before you delete it
 
-- **Fixed: the settings window clipped its own labels at 200% display scaling.** Windows
-  Forms scales the font and leaves explicit pixel sizes exactly as written, so the window
-  kept its width while its text doubled: the second column's labels were cut off, the spin
-  boxes crowded the card edge and the last row fell off the bottom. Every fixed size now
-  scales with the display. It read correctly at 100% and 150%, which is why it survived
-  two releases — it was found by opening the window on a 192-DPI screen. Not a v0.5.3
-  regression; the layout is unchanged since v0.5.2.
+The final v0.5 hardening release. **Recovery is untouched**: the same failure categories,
+the same refusals, the same identity rules, the same bounded retries, the same database.
+What changes is that installing, updating and removing this product now act only on things
+they can prove belong to them.
+
+Four of the five issues this closes were the same mistake in different places — a *name*
+being taken as evidence of ownership.
+
+### Nothing is destroyed without proof of ownership
+
+- **Fixed: the uninstaller could delete directories it never created.**
+  ([#1](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/1)) The
+  installation root comes from an environment variable, and the PowerShell uninstaller
+  removed `app`, `runtime`, every `*.old-*` and — with `-Purge` — `config` and `logs`
+  beneath it, with no check at all. Pointed at a directory that merely *contained* folders
+  with those names, it would have deleted them. Now the root has to be one we created, and
+  the answer comes from the engine's own provenance rule rather than a second
+  implementation in PowerShell that could drift from it. Every path is then re-checked
+  against the canonical root before deletion, resolving each component, so a junction
+  inside the installation cannot redirect a recursive delete out of it.
+- **Fixed: the installer force-stopped any process named `codex-auto-resume-mcp.exe`.**
+  ([#2](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/2)) A
+  filename is not ownership: another installation, a build, or a test fixture running under
+  that name was killed by an unrelated install. The executable's resolved path now has to
+  lie inside this installation or this plugin's own Codex cache, and a process whose path
+  cannot be read is skipped — not being able to tell is not permission to kill.
+- **Fixed: uninstall removed the Codex marketplace by name.**
+  ([#5](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/5)) If you had
+  repointed `codex-auto-resume-windows` at a fork of your own, removing this product took
+  your configuration with it. Both the marketplace and the installed plugin are now checked
+  against where they currently point, read from `codex plugin marketplace list --json` and
+  `codex plugin list --json`, and left alone with an explanation when they are no longer
+  ours.
+- The same rule already covered the sign-in entry, the notification identity, the Start
+  Menu shortcut and the notification handler as of v0.5.3.
+  [SECURITY.md](SECURITY.md) now states it once, for every kind of resource.
+
+### A published version is immutable
+
+- **Fixed: a published release asset could be replaced.**
+  ([#4](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/4)) The
+  workflow had a path that rebuilt an existing tag and re-uploaded over its assets. Since
+  the plugin's bootstrap pins that version's SHA-256, a replacement would make every
+  install of that version fail — or, worse, succeed with bytes the digest does not
+  describe. Publishing now refuses outright if the version already has assets; a
+  correction needs a new version. What remains of the manual dispatch is a dry run that
+  builds and verifies but cannot touch a release.
+- Published archives now carry **build provenance**, attested before publication, so a
+  download can be traced to the workflow run and commit that produced it.
+
+### Already fixed, now proven
+
+- **[#3](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/3) was fixed
+  in v0.5.3** by explicit Windows argument quoting. It now has regression evidence rather
+  than a claim: every case the issue lists — a home with a space, a folder like
+  `OneDrive - Company`, a trailing backslash, an embedded quote, a non-ASCII path — is
+  round-tripped through `CommandLineToArgvW`, the function Windows itself uses to split a
+  command line.
+
+### Settings at high DPI
+
+- **Fixed: the settings window clipped its own labels at 200% scaling.** Windows Forms
+  scales the font and leaves explicit pixel sizes exactly as written, so the window kept
+  its width while its text doubled. Every fixed size now scales with the display, and the
+  window is additionally clamped to the working area, because 780 units at 250% is wider
+  than a 1920-pixel screen. The DPI comes from Windows rather than from `DeviceDpi`, which
+  reports 96 on a 192-DPI screen unless a .NET Framework opt-in this product does not ship
+  is present — a fix written against it changes nothing, and there is a test saying so.
 
 ## v0.5.3 — Say what the network does, and close the v0.5 line
 
