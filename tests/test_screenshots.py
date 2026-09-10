@@ -8,10 +8,22 @@ head. The repository already guards every other generated artwork this way - `gu
 
 What is checked is the *render input*, not the picture. Comparing pixels would fail on a
 different display, a font update or a Windows theme, none of which mean the screenshot is
-wrong; comparing the sources means the check fires exactly when the image can no longer be
-a picture of the current product. Reading the version out of a PNG is the other tempting
-approach and is worse: OCR turns a hard question into a flaky one, and it would still miss
-a layout change that moved a control.
+wrong. Reading the version out of a PNG is the other tempting approach and is worse: OCR
+turns a hard question into a flaky one, and it would still miss a layout change that moved
+a control.
+
+Two kinds of input, and the difference matters:
+
+* The **panel** is hashed by the markup it renders. That cannot fall behind - the version,
+  the settings schema, the fields a pending row carries and the palette all reach the HTML
+  wherever in the package they live - and editing a comment cannot fire it.
+* The **window** is a compiled application, so its inputs are a list, and a list is exactly
+  what went wrong the first time: seven files named, five that change the picture missed.
+  It is as short as it can be, and a comment in `SettingsApp.cs` will fire this check
+  unnecessarily. That cost is real and it is the smaller one.
+
+So this fires whenever something the picture is drawn from changed - not, as an earlier
+version of this paragraph claimed, exactly when the picture stopped being true.
 """
 from __future__ import annotations
 
@@ -49,27 +61,47 @@ class ManifestTests(unittest.TestCase):
         from codex_auto_resume import config
         self.assertEqual(self.manifest["version"], config.version(), REGENERATE)
 
-    def test_every_render_input_is_unchanged_since_the_images_were_made(self):
-        stale = []
-        for name, recorded in self.manifest["inputs"].items():
-            path = ROOT / name
-            if not path.is_file():
-                stale.append("%s no longer exists" % name)
-            elif digest(path) != recorded:
-                stale.append(name)
-        self.assertEqual(stale, [], REGENERATE)
-
-    def test_the_generator_lists_the_same_inputs_the_manifest_records(self):
-        """A source added to the generator but absent here would go unguarded."""
+    def generator(self):
         import sys
         sys.path.insert(0, str(ROOT / "build"))
         try:
             import make_screenshots
+            return make_screenshots
         finally:
             sys.path.pop(0)
-        self.assertEqual(sorted(make_screenshots.RENDER_INPUTS),
-                         sorted(self.manifest["inputs"]),
-                         "regenerate the screenshots after changing RENDER_INPUTS")
+
+    def test_every_render_input_is_unchanged_since_the_images_were_made(self):
+        """Asked of the generator, so the two can never disagree about what an input is.
+
+        The panel's input is the markup it renders rather than the files that produce it,
+        so this recomputes it rather than hashing a path.
+        """
+        current = self.generator().render_inputs()
+        stale = []
+        for name, recorded in self.manifest["inputs"].items():
+            if name not in current:
+                stale.append("%s is no longer an input" % name)
+            elif current[name] != recorded:
+                stale.append(name)
+        stale.extend("%s is a new input" % name
+                     for name in current if name not in self.manifest["inputs"])
+        self.assertEqual(sorted(stale), [], REGENERATE)
+
+    def test_the_panel_input_is_the_rendered_markup_not_a_file_list(self):
+        """The property that stops the list going stale again.
+
+        Listing files missed five that visibly change the picture. Hashing what the panel
+        actually renders cannot: the version, the schema, the fields a row carries and the
+        palette all reach the markup, wherever in the package they live.
+        """
+        self.assertIn("<panel render>", self.manifest["inputs"])
+        html = self.generator().panel_html()
+        # The seed data the panel is rendered from. The visible strings are assembled by
+        # the panel's own script in the browser, so what the markup carries is the JSON.
+        for expected in ('"version": "%s"' % self.manifest["version"],
+                         '"state": "waiting_reset"',
+                         '"retry_timing"'):
+            self.assertTrue(expected in html, "the rendered panel does not carry " + expected)
 
     def test_the_committed_images_are_the_ones_the_manifest_describes(self):
         wrong = [name for name, recorded in self.manifest["images"].items()
@@ -95,7 +127,9 @@ class CopyTests(unittest.TestCase):
                          "the plugin card and this test disagree about which images ship")
 
     def test_both_readmes_point_at_the_documentation_copies(self):
-        for name in ("README.md", "README.ko.md"):
+        # On the generated `ko` branch README.ko.md *is* README.md, so only one of these
+        # names resolves there and opening the other would raise rather than fail.
+        for name in [n for n in ("README.md", "README.ko.md") if (ROOT / n).is_file()]:
             text = (ROOT / name).read_text(encoding="utf-8")
             for copy in COPIES.values():
                 with self.subTest(name + " -> " + copy):

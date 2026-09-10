@@ -817,19 +817,57 @@ namespace CodexAutoResume
         // ------------------------------------------------------------------ actions
         private void StartWatcher()
         {
+            // Off the UI thread, because the wait is now real.
+            //
+            // `bridge.Call` starts python.exe and blocks reading its output until it
+            // exits, and the engine behind it waits up to six seconds for the watcher to
+            // become visible. Run on the click handler, that is six seconds in which this
+            // window pumps no messages: Windows paints a grey ghost copy and retitles it
+            // "Not Responding" after five. The "Starting the watcher..." headline set
+            // just above would never even appear, because the WM_PAINT it queues is not
+            // dispatched until the call returns.
+            //
+            // So the call goes to a worker and the answer comes back through BeginInvoke,
+            // which is the only way to touch these controls from off the UI thread.
             startButton.Enabled = false;
             headline.Text = "Starting the watcher...";
+            detail.Text = "Waiting for it to report in";
+            header.Invalidate(true);
+
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            {
+                Dictionary<string, object> response = null;
+                Exception failure = null;
+                try { response = bridge.Call("start-watcher", null); }
+                catch (Exception error) { failure = error; }
+
+                MethodInvoker finish = delegate { StartWatcherFinished(response, failure); };
+                try
+                {
+                    if (IsHandleCreated) BeginInvoke(finish);
+                }
+                catch (Exception)
+                {
+                    // The window closed while the watcher was starting. The watcher is
+                    // unaffected - it is a detached process - and there is nothing left
+                    // to report to.
+                }
+            });
+        }
+
+        private void StartWatcherFinished(Dictionary<string, object> response, Exception failure)
+        {
             try
             {
-                var response = bridge.Call("start-watcher", null);
+                if (failure != null) throw failure;
                 if (!Equals(response["ok"], true))
                     throw new InvalidOperationException((string)response["error"]);
-                // No fixed wait any more. The engine now waits for the same
-                // single-instance mutex probe the status line reads and reports what it
-                // saw, so the answer is already known by the time this returns. The old
-                // 1200 ms sleep was both slower than an ordinary start - measured at
-                // 0.16-0.30 s - and shorter than a slow one, in which case the window
-                // showed "not running" for a watcher that was starting perfectly well.
+                // No fixed wait any more. The engine waits for the same single-instance
+                // mutex probe the status line reads and reports what it saw, so the
+                // answer is already known by the time this returns. The old 1200 ms sleep
+                // was both slower than an ordinary start - measured at 0.16-0.30 s - and
+                // shorter than a slow one, in which case the window showed "not running"
+                // for a watcher that was starting perfectly well.
                 var result = response.ContainsKey("result")
                            ? response["result"] as Dictionary<string, object> : null;
                 string state = result != null && result.ContainsKey("state")
@@ -842,13 +880,14 @@ namespace CodexAutoResume
                     // running, and the reason it is not is worth more than the reason a
                     // stopped watcher is normally not running.
                     detail.Text = state == "exited"
-                        ? "It started and stopped again - see the launcher log"
+                        ? "It started and stopped again - see logs in the installation folder"
                         : "Started, but not confirmed running yet";
                     header.Invalidate(true);
                 }
             }
             catch (Exception error)
             {
+                RefreshStatus(editors.ContainsKey("__startup") ? editors["__startup"] as CheckBox : null);
                 MessageBox.Show(this, "Could not start the watcher." + Environment.NewLine +
                                 Environment.NewLine + error.Message,
                                 "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Warning);
