@@ -38,10 +38,27 @@ MANIFEST = ROOT / "assets" / "screenshots.json"
 
 # The canonical asset on the left, the documentation copy on the right. One render, two
 # files, copied by the generator - not two captures kept in step by hand.
+# The canonical asset on the left, the documentation copy on the right, per locale. One
+# render, two files, copied by the generator - not two captures kept in step by hand.
+#
+# English keeps the plain names because the plugin card ships that pair: a catalogue entry
+# has one set of screenshots and the product's own interface language there is English.
 COPIES = {
-    "assets/screenshot-panel.png": "docs/images/settings-panel.png",
-    "assets/screenshot-settings.png": "docs/images/settings-window.png",
+    "en": {
+        "assets/screenshot-panel.png": "docs/images/settings-panel.png",
+        "assets/screenshot-settings.png": "docs/images/settings-window.png",
+    },
+    "ko": {
+        "assets/screenshot-panel-ko.png": "docs/images/settings-panel-ko.png",
+        "assets/screenshot-settings-ko.png": "docs/images/settings-window-ko.png",
+    },
 }
+ALL_COPIES = {canonical: copy
+              for pairs in COPIES.values() for canonical, copy in pairs.items()}
+
+# Which README shows which locale's pictures. A Korean page above English screenshots is
+# the documentation equivalent of the settings window that would not translate.
+READMES = {"README.md": "en", "README.ko.md": "ko"}
 
 REGENERATE = ("the screenshots no longer match the source they were rendered from; "
               "run `python build/make_screenshots.py`")
@@ -114,7 +131,7 @@ class CopyTests(unittest.TestCase):
     """Four files, two pictures. They are copies, so they are byte-identical."""
 
     def test_each_documentation_image_is_a_copy_of_its_canonical_asset(self):
-        for canonical, copy in COPIES.items():
+        for canonical, copy in ALL_COPIES.items():
             with self.subTest(copy):
                 self.assertEqual(digest(ROOT / canonical), digest(ROOT / copy),
                                  "%s is not a copy of %s; the generator makes both"
@@ -123,17 +140,29 @@ class CopyTests(unittest.TestCase):
     def test_the_plugin_card_ships_the_canonical_assets(self):
         manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
         declared = {name.lstrip("./") for name in manifest["interface"]["screenshots"]}
-        self.assertEqual(declared, set(COPIES),
+        self.assertEqual(declared, set(COPIES["en"]),
                          "the plugin card and this test disagree about which images ship")
 
-    def test_both_readmes_point_at_the_documentation_copies(self):
-        # On the generated `ko` branch README.ko.md *is* README.md, so only one of these
-        # names resolves there and opening the other would raise rather than fail.
-        for name in [n for n in ("README.md", "README.ko.md") if (ROOT / n).is_file()]:
-            text = (ROOT / name).read_text(encoding="utf-8")
-            for copy in COPIES.values():
+    def test_each_readme_shows_its_own_locale(self):
+        """Korean prose over English screenshots is the defect this release removed.
+
+        On the generated `ko` branch README.ko.md *is* README.md, so only one of these
+        names resolves there and opening the other would raise rather than fail.
+        """
+        for name, locale in READMES.items():
+            if not (ROOT / name).is_file():
+                continue
+            body = (ROOT / name).read_text(encoding="utf-8")
+            for copy in COPIES[locale].values():
                 with self.subTest(name + " -> " + copy):
-                    self.assertIn(copy, text, "%s does not show %s" % (name, copy))
+                    self.assertIn(copy, body, "%s does not show %s" % (name, copy))
+            for other, pairs in COPIES.items():
+                if other == locale:
+                    continue
+                for wrong in pairs.values():
+                    with self.subTest(name + " must not show " + wrong):
+                        self.assertNotIn(wrong, body,
+                                         "%s shows the %s screenshots" % (name, other))
 
 
 class ContentTests(unittest.TestCase):

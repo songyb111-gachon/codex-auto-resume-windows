@@ -146,6 +146,31 @@ def keep_english_anchor(text: str, targets, base: str) -> str:
     return text
 
 
+def review_digest(root: Path, english: str) -> str:
+    """What a Korean document was translated from, as a hash of the English text.
+
+    Read as text so a checkout's line endings cannot change the answer - the same reason
+    the screenshot manifest normalises before hashing.
+    """
+    import hashlib
+    body = (root / english).read_text(encoding="utf-8")
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()
+
+
+def stale_translations(root: Path) -> list[str]:
+    """English documents that moved since their Korean counterpart was last reviewed."""
+    mapping = load_mapping(root)
+    recorded = mapping.get("reviewed", {})
+    stale = []
+    for korean, english in sorted(mapping["documents"].items()):
+        was = recorded.get(english)
+        if was is None:
+            stale.append("%s has no recorded review point" % english)
+        elif was != review_digest(root, english):
+            stale.append("%s changed after %s was last reviewed" % (english, korean))
+    return stale
+
+
 def build(root: Path, *, check: bool = False) -> list[str]:
     """Rewrite a checkout of main into ko's tree. Returns what it changed.
 
@@ -265,8 +290,24 @@ def main(argv=None) -> int:
     parser.add_argument("--root", default=".", help="checkout to rewrite in place")
     parser.add_argument("--check", action="store_true",
                         help="report what would change and write nothing")
+    parser.add_argument("--reviewed", nargs="+", metavar="ENGLISH",
+                        help="record that these English documents' translations are current")
     args = parser.parse_args(argv)
     root = Path(args.root).resolve()
+    if args.reviewed:
+        import json as _json
+        mapping = load_mapping(root)
+        english = set(mapping["documents"].values())
+        unknown = [name for name in args.reviewed if name not in english]
+        if unknown:
+            raise SystemExit("not translated documents: " + ", ".join(unknown))
+        mapping.setdefault("reviewed", {})
+        for name in args.reviewed:
+            mapping["reviewed"][name] = review_digest(root, name)
+            print("reviewed " + name)
+        (root / MAPPING_NAME).write_text(
+            _json.dumps(mapping, indent=2, ensure_ascii=False) + chr(10), encoding="utf-8")
+        return 0
     changed = build(root, check=args.check)
     for name in changed:
         print(("would replace " if args.check else "replaced ") + name)

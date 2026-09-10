@@ -93,7 +93,7 @@ Inside Codex, ask to *open auto resume settings* and the panel shows what is wai
 lets you change any of it. This is the panel's own page, rendered from the exact resource
 the plugin serves to Codex, rather than a photograph of the Codex window around it:
 
-<img src="docs/images/settings-panel.png" alt="The Codex Auto Resume settings panel: a status line saying the watcher is watching for interruptions with three recoveries pending, a table of what is waiting to resume, and cards for the recovered failure categories, the attempt limits and the notification switches" width="680">
+<img src="docs/images/settings-panel.png" alt="The Codex Auto Resume settings panel: a status line saying the watcher is watching for interruptions with two recoveries pending, a table of what is waiting to resume, and cards for the recovered failure categories, the attempt limits and the notification switches" width="680">
 
 The same settings are in a standalone window from the Start Menu, which works with Codex
 closed:

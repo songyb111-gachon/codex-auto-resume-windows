@@ -89,11 +89,11 @@ Codex 안에서 *auto resume 설정 열어줘* 라고 하면, 무엇이 대기 �
 있는 패널이 열립니다. 아래 그림은 Codex 창을 찍은 사진이 아니라, 플러그인이 Codex에 제공하는
 바로 그 리소스를 그대로 렌더링한 것입니다.
 
-<img src="docs/images/settings-panel.png" alt="Codex Auto Resume 설정 패널. 워처가 중단을 감시 중이며 세 건이 재개 대기 중이라는 상태 줄, 대기 목록 표, 복구할 장애 종류·시도 상한·알림 스위치 카드" width="680">
+<img src="docs/images/settings-panel-ko.png" alt="Codex Auto Resume 설정 패널. 워처가 중단을 감시 중이며 두 건이 재개 대기 중이라는 상태 줄, 대기 목록 표, 복구할 장애 종류·시도 상한·알림 스위치 카드" width="680">
 
 같은 설정을 Codex를 꺼 둔 상태에서도 시작 메뉴의 독립 창에서 전부 바꿀 수 있습니다.
 
-<img src="docs/images/settings-window.png" alt="Codex Auto Resume 설정 창. 복구할 장애 종류, 시도 상한, 재시도 간격, 알림 스위치" width="680">
+<img src="docs/images/settings-window-ko.png" alt="Codex Auto Resume 설정 창. 복구할 장애 종류, 시도 상한, 재시도 간격, 알림 스위치" width="680">
 
 ## 먼저 읽어야 할 제한 사항
 

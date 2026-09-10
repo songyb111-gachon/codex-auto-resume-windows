@@ -15,7 +15,7 @@
   "inputs": {
     ".codex-plugin/plugin.json": "4ce2a4e30bbdede3752ff04fefb1fe7afb9f7c2daf766d5686eb22c8490af5cd",
     "gui/SettingsApp.cs": "097849547b20b32b526c9bc2a18ec8ff9becfeeacb6e53365aea2c62b2f95277",
-    "gui/Brand.cs": "8e2000ee15184830cdfdefb7ceada324c511dff60a0a144f85f78f2e2e1f2fba",
+    "gui/Brand.cs": "5016afc205d24c1113fd388478e00e2df6123b2b9f55d293d127c7977c0f1b30",
     "gui/app.manifest": "db5f16dcf2448fdd7e3812dfdaa6d2da893b92c27a982721d3f04cdc05559870",
     "assets/codex-auto-resume.ico": "45c3f3a0d02d78f9be0b80532eedc2f524cd7ebe1056007dacdb286ca743bd52",
     "src/codex_auto_resume/settings.py": "1353c0526c19f2f200fa74b5f899c76628ec276de6ddd96d4d43092567b801d5",
@@ -40,7 +40,7 @@
       "size": "1800x1226"
     },
     "assets/screenshot-settings-ko.png": {
-      "sha256": "fc2d5b49c65c7a3955b217e0149c1989d917b064498583b0ec103625e784131e",
+      "sha256": "21fc2b5e8e3bb60272604cb2d5c524486d11f8ebb96e7a3f06a918a8a3e594b0",
       "size": "1200x950"
     },
     "docs/images/settings-panel.png": {
@@ -56,7 +56,7 @@
       "size": "1800x1226"
     },
     "docs/images/settings-window-ko.png": {
-      "sha256": "fc2d5b49c65c7a3955b217e0149c1989d917b064498583b0ec103625e784131e",
+      "sha256": "21fc2b5e8e3bb60272604cb2d5c524486d11f8ebb96e7a3f06a918a8a3e594b0",
       "size": "1200x950"
     }
   }
