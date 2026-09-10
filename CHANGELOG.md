@@ -53,6 +53,13 @@ were deliberately not used to mutate a released artefact; they ship here.
   wanted 54. The strip is measured from its content now.
 - This is the same shape as the v0.5.5 Retry timing fix, one level up the tree. That fix
   is intact and re-checked.
+- The two numbers under Limits no longer sit against the left edge of their boxes. A
+  NumericUpDown paints its value hard against the frame, which reads as a number pushed
+  up against the box rather than placed in it. WinForms offers the control no inner
+  padding, so the space comes from the native edit underneath, through the message an
+  edit control has always had for this — the value, its alignment, its range and what
+  Save writes are all untouched, and the inset scales with the display like every other
+  size in the window.
 
 ### The Codex panel looks like the product
 
