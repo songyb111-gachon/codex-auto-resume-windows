@@ -123,12 +123,58 @@ documents. To change something there:
 
 - **code, installer, workflows, tests** — change them on `main`; they reach `ko` unchanged.
 - **Korean prose** — change the `.ko.md` file on `main`. `scripts/ko_branch.json` maps each
-  one to the English page it replaces, and its `not_yet_translated` list is the visible
-  to-do for pages that are still English on `ko`.
+  one to the English page it replaces. What stays English is listed there too, with the
+  reason: the licence, because a translated licence is a second licence, and the Codex
+  skill, because it instructs Codex rather than a person.
 
 `python scripts/ko_sync.py --check` shows what a sync would do without writing anything.
 Adding a Korean page means adding the file and its mapping entry in the same commit;
 `tests/test_korean.py` fails if a Korean page exists that nothing maps.
+
+The mapping also records which English revision each translation was made from. Change an
+English document and the suite fails naming both files, because a translation that goes
+stale quietly is how `ko` spent three releases describing a tool that no longer existed.
+Update the Korean, then record it:
+
+```bash
+python scripts/ko_sync.py --reviewed README.md
+```
+
+Nothing here is machine-translated. A person decides what the Korean says; the digest only
+records that somebody did.
+
+## Screenshots
+
+`python build/make_screenshots.py` renders the whole set from the working tree: the settings
+window and the Codex panel, in English and Korean, into `assets/` with copies in
+`docs/images/`. Nothing is captured by hand and nothing is edited afterwards.
+
+They are pinned to light. The product follows the reader's Windows and Codex themes at
+runtime; the pictures do not, so that a gallery looks like one product and a build on a
+machine in dark mode produces the same bytes as a build on one in light mode.
+
+`assets/screenshots.json` records a digest of every input each image was rendered from —
+the window's source, the manifest, the panel's markup, the launcher, the icon. Change one
+and `tests/test_screenshots.py` fails telling you to re-run the generator. It is the
+mechanism that stops a screenshot describing a version of the product that no longer
+exists.
+
+**One image is not generated: `docs/images/notification.png`.** It is a real Windows toast,
+raised by the product and drawn by the shell, so it takes the machine's theme and cannot be
+pinned — it is dark in a gallery that is otherwise light. Faking it in HTML would produce a
+picture that is not a screenshot, which is worse. To retake it on a machine already in light
+mode, raise one with example data and capture the banner:
+
+```bash
+python -c "import time; from codex_auto_resume import notify; notify.scheduled('00000000-0000-4000-8000-000000000000', 'example', time.time()+3600, 'usage_limit', {'name': 'example-project', 'project': 'example'})"
+```
+
+Use that nil-style UUID and those labels. Never photograph a real conversation: the toast
+shows a thread identifier, and a screenshot of a real one publishes it permanently.
+
+Note that Windows may add the notification without showing a banner — Do Not Disturb, or
+banners turned off for this app in Settings → Notifications. It then lands in the Action
+Center only, and there is nothing on screen to capture.
 
 ## Fixtures and privacy
 
