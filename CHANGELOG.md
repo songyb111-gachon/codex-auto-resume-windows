@@ -77,10 +77,16 @@ were deliberately not used to mutate a released artefact; they ship here.
 
 ### One screenshot set, in the reader's language
 
-- Screenshots are generated per locale and pinned to light. A gallery mixing a light
-  notification with a dark panel does not look like one product, and a build on a machine
-  in dark mode should not produce different bytes from a build on one in light mode. The
-  runtime still follows the user's Windows and Codex themes; only the pictures are fixed.
+- Screenshots are generated per locale and pinned to light. A light settings window above
+  a dark panel did not look like one product, and a build on a machine in dark mode should
+  not produce different bytes from a build on one in light mode. The runtime still follows
+  the user's Windows and Codex themes; only the pictures are fixed.
+- One picture is not pinned and cannot be: the notification is a real Windows toast, drawn
+  by the shell in the machine's theme, so it is dark in a gallery that is otherwise light.
+  The alternatives were to change somebody's Windows theme to take a photograph, or to
+  draw a convincing toast in HTML and present it as one — a screenshot that is not a
+  screenshot is worse than a mismatched one. `CONTRIBUTING.md` says how to retake it
+  on a machine already in light mode.
 - The Korean README shows the Korean interface. Korean prose over English screenshots was
   the documentation version of the settings window that would not translate.
 - The panel gained the three theme states a themable page needs, so the capture can pin
