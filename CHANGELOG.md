@@ -37,6 +37,52 @@ files and two languages.
   has no sidecar to fetch, so without a pinned digest for that version only the contents
   checks stand behind it. It now says which of the three cases it took.
 
+### Install and uninstall bugs an adversarial re-audit turned up
+
+None of these change recovery. All of them are cases where the product did something
+other than what it said.
+
+- **Fixed: the plugin was never registered for anyone whose user folder has a space in
+  it.** `Start-Process -ArgumentList` joins its arguments with spaces and quotes nothing,
+  so a marketplace path under `C:\Users\Example User\` arrived at `codex` as two
+  arguments. Registration failed, the failure was only a warning, and the installer still
+  ended with "Installed and running." The watcher and the settings window worked; the
+  skill and the panel the user had asked for were simply absent. The installer now quotes
+  the way `CommandLineToArgvW` reads back — the same rule the sign-in entry has used since
+  v0.5.0 — verified by round-tripping through that function.
+- **Fixed: "uninstall aborted before deleting any state" was true only of state.** The
+  fail-closed check for a running watcher ran *after* the autostart value, the
+  notification identity, the Start Menu entry and the toast handler had already been
+  removed. Refusing therefore left an installation that still ran and still had pending
+  recoveries, but no longer started at sign-in and could no longer show a notification.
+  The check is now the first thing the command does.
+- **Fixed: uninstalling one copy silenced another copy's notifications.** The Start Menu
+  shortcut and the notification identity are per-user singletons at fixed locations, so a
+  second installation overwrites them rather than adding its own — and they were removed
+  with no ownership check, unlike the autostart and the URL handler beside them. They now
+  get the same check, and say whose they were when they keep them.
+- **Fixed: `Uninstall.cmd` threw away the exit code of the step that refuses to remove a
+  running installation**, then deleted the engine and the interpreter anyway and reported
+  success.
+- **Fixed: uninstall reported "Removed." after a removal that half-failed.** With Codex
+  open, its MCP server holds the bundled interpreter's images open and they cannot be
+  deleted. The install path has stopped those launchers first since v0.5.1; the uninstall
+  path now does too, and checks afterwards rather than swallowing the error.
+- **Fixed: the plugin's setup script failed every download on PowerShell 7.** The check
+  on where a redirect finally landed read a property that only exists on Windows
+  PowerShell 5.1, and under `Set-StrictMode` reading the other one throws. It now reads
+  either, and refuses if it can read neither.
+- **Fixed: the repair path took no lock.** Re-running setup on an already-installed
+  version skips the installer, so it skipped the installer's lock as well and could run
+  beside one.
+- **Fixed: the MCP launcher was the one component that ignored the install-home
+  override**, so moving the installation left the panel unable to find it.
+- Smaller hardening in the same script: the file the install actually executes is now in
+  the required-contents list; an archive whose manifest differs only in letter case is
+  refused rather than crashing; a manifest with no version at all gets the intended
+  message; and the case where nothing could be compared no longer prints a tick and a
+  hash beside it.
+
 ### One property was undocumented rather than overstated
 
 Every `codex` subprocess this tool starts already runs with analytics off, every

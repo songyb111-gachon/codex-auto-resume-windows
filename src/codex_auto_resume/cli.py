@@ -395,6 +395,27 @@ def cmd_uninstall(args) -> int:
     paths = config.Paths(args.home)
     removed = []
     foreign_autostart = None
+
+    # Stop the watcher and refuse to go on unless it is *definitely* gone. This has to
+    # be the first thing, before a single registration is touched: it used to sit after
+    # the autostart value, the notification identity, the Start Menu entry and the toast
+    # handler had all been deleted, so the abort left an installation that still ran and
+    # still had pending recoveries but no longer started at sign-in and could no longer
+    # draw a notification - while printing "aborted before deleting any state", which
+    # was true only of *state*, and the README promised more than that.
+    app = App(paths, console=False, enable_logging=False)
+    if app.stop_event().signal():
+        for _ in range(60):
+            if app.watcher_running() is False:
+                break
+            time.sleep(0.25)
+    # Tri-state probe: only a definite False permits deletion. 'unknown' fails CLOSED.
+    running = app.watcher_running()
+    if running is not False:
+        _print("a watcher is still running" if running else "watcher state could not be verified")
+        _print("uninstall aborted before removing anything; stop the watcher and retry")
+        return EXIT_ERROR
+
     try:
         # Only ever unregister OUR OWN autostart. A second installation (a different
         # checkout, or the Codex plugin) registers a different command, and deleting
@@ -409,13 +430,27 @@ def cmd_uninstall(args) -> int:
             foreign_autostart = value
     except startup.StartupError as exc:
         _print("warning: %s" % exc)
+    # The notification identity and the Start Menu shortcut are one registration in two
+    # places, and both are per-user singletons at fixed locations - so a second copy of
+    # this tool overwrites them rather than adding its own. They get the same ownership
+    # check the autostart gets, for the same reason: removing them would leave the other
+    # installation running and silently unable to show a notification ever again.
     try:
-        if startup.unregister_aumid():
-            removed.append("notification sender identity")
+        owner = startup.notification_identity_owner(paths.home)
     except startup.StartupError as exc:
         _print("warning: %s" % exc)
-    if shortcut.uninstall():
-        removed.append("start menu entry")
+        owner = False
+    if owner is False:
+        _print("kept the notification identity and Start Menu entry: they belong to a "
+               "different installation")
+    else:
+        try:
+            if startup.unregister_aumid():
+                removed.append("notification sender identity")
+        except startup.StartupError as exc:
+            _print("warning: %s" % exc)
+        if shortcut.uninstall():
+            removed.append("start menu entry")
     try:
         registered = startup.protocol_value()
         if registered and startup.belongs_to(registered, paths.home):
@@ -425,18 +460,6 @@ def cmd_uninstall(args) -> int:
             _print("kept the codex-auto-resume: protocol: it points at a different installation")
     except startup.StartupError as exc:
         _print("warning: %s" % exc)
-    app = App(paths, console=False, enable_logging=False)
-    if app.stop_event().signal():
-        for _ in range(60):
-            if app.watcher_running() is False:
-                break
-            time.sleep(0.25)
-    # Tri-state probe: only a definite False permits deletion. 'unknown' fails CLOSED.
-    running = app.watcher_running()
-    if running is not False:
-        _print("a watcher is still running" if running else "watcher state could not be verified")
-        _print("uninstall aborted before deleting any state; stop the watcher and retry")
-        return EXIT_ERROR
     # Any file handlers from an earlier command in this process must be closed first.
     import logging
     for logger_name in ("codex_auto_resume",):

@@ -84,6 +84,11 @@ Afterwards, download the replaced asset and confirm it is what you expected befo
 considering it done. It needs repository write access; there is no way to trigger it from
 a clone.
 
+**If that version has a digest in `scripts/release.json`, the rebuild invalidates it.**
+The new archive is not the old one byte for byte, so the recorded digest no longer
+matches, and the plugin's bootstrap will refuse to install that version — correctly, but
+for everybody. Re-pin it from the replaced asset, the same way as after a release.
+
 ### Changing anything visual
 
 Colours, the icon and the generated files that carry them are covered in

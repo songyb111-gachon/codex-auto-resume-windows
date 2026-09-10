@@ -622,6 +622,31 @@ class PythonFloorTests(unittest.TestCase):
         self.assertGreaterEqual(shipped, self.bridge.MIN_PYTHON)
 
 
+class PayloadDocumentTests(unittest.TestCase):
+    """The installed copy must not link to documents it does not carry.
+
+    `app/` in the release payload is the plugin Codex installs from, and README.md ships
+    with it. It linked to PRIVACY.md, SUPPORT.md and CONTRIBUTING.md, none of which were
+    in the payload - so the installed README promised a privacy policy that was not
+    beside it. Cheap to get wrong again the next time a document is added.
+    """
+
+    def test_every_top_level_document_the_readme_links_to_is_shipped(self):
+        import re
+        builder = _load("make_release_payload", ROOT / "build" / "make_release.py")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        linked = {target for target in re.findall(r"\]\(([^)#:]+?\.md)\)", readme)
+                  if "/" not in target}
+        self.assertTrue(linked, "the README links to no top-level document at all")
+        missing = sorted(name for name in linked if name not in builder.APP_FILES)
+        self.assertEqual(missing, [], "the payload README links to documents it does not ship")
+
+    def test_the_shipped_documents_all_exist(self):
+        builder = _load("make_release_payload", ROOT / "build" / "make_release.py")
+        for name in builder.APP_FILES:
+            self.assertTrue((ROOT / name).is_file(), name)
+
+
 class VersionConsistencyTests(unittest.TestCase):
     """One version, read everywhere it is shown.
 

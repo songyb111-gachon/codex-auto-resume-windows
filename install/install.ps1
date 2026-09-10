@@ -58,6 +58,38 @@ $RunDir      = Join-Path $InstallHome 'runtime'
 $Payload     = Join-Path (Split-Path -Parent $PSScriptRoot) 'payload'
 $Python      = Join-Path $RunDir 'python.exe'
 
+function Quote-Argument {
+    <#
+        Quote one argument the way CommandLineToArgvW will read it back.
+
+        Start-Process joins -ArgumentList with single spaces and quotes nothing, so an
+        installation home containing a space - `C:\Users\Example User\...`, or a profile
+        under a folder like `OneDrive - Company` - arrives at codex as two arguments, so
+        the marketplace path is wrong and the plugin is never registered. The registry
+        side has had this exactly right since v0.5.0 (startup.quote_argument, with the
+        same backslash rule); this side had not, and warned rather than failing, so the
+        run still ended with "Installed and running."
+
+        The backslash rule is the documented one: a run of backslashes matters only
+        immediately before a quote, where it has to be doubled.
+    #>
+    param([string]$Value)
+    $quoted = New-Object System.Text.StringBuilder
+    [void]$quoted.Append('"')
+    $slashes = 0
+    foreach ($ch in $Value.ToCharArray()) {
+        if ($ch -eq '\') { $slashes++; continue }
+        if ($ch -eq '"') {
+            [void]$quoted.Append('\' * ($slashes * 2 + 1)).Append('"')
+        } else {
+            [void]$quoted.Append('\' * $slashes).Append($ch)
+        }
+        $slashes = 0
+    }
+    [void]$quoted.Append('\' * ($slashes * 2)).Append('"')
+    return $quoted.ToString()
+}
+
 function Invoke-Codex {
     # Native stderr must not become a terminating error: PowerShell 5.1 wraps it in an
     # ErrorRecord, and `codex` writes ordinary progress there. Capture to files instead
@@ -65,8 +97,9 @@ function Invoke-Codex {
     param([string]$Exe, [string[]]$Arguments)
     $out = [System.IO.Path]::GetTempFileName()
     $err = [System.IO.Path]::GetTempFileName()
+    $line = (($Arguments | ForEach-Object { Quote-Argument $_ }) -join ' ')
     try {
-        $p = Start-Process -FilePath $Exe -ArgumentList $Arguments -NoNewWindow -Wait -PassThru `
+        $p = Start-Process -FilePath $Exe -ArgumentList $line -NoNewWindow -Wait -PassThru `
              -RedirectStandardOutput $out -RedirectStandardError $err
         return @{ Code = $p.ExitCode
                   Out  = (Get-Content -Raw -ErrorAction SilentlyContinue $out)
@@ -114,7 +147,16 @@ if ($Uninstall) {
         # which deletes them - so a reinstall silently lost everything that was waiting.
         $setupArgs = @('uninstall')
         if ($Purge) { $setupArgs += '--purge' }
-        $null = Invoke-Setup $setupArgs
+        # The exit code matters. That step fails closed when the watcher is still
+        # running or its state cannot be verified, and throwing the code away meant
+        # deleting the engine and the interpreter out from under a live watcher and
+        # then printing "Removed." over the top of its refusal.
+        $code = Invoke-Setup $setupArgs
+        if ($code -ne 0) {
+            Fail 'The watcher could not be stopped, so nothing was removed.'
+            Write-Host '       Close the ChatGPT/Codex app, wait a moment, and run this again.'
+            exit 1
+        }
     } else {
         Warn 'No installed runtime found; skipping watcher removal.'
     }
@@ -125,15 +167,39 @@ if ($Uninstall) {
         $null = Invoke-Codex $codex @('plugin', 'marketplace', 'remove', $MarketplaceName)
     }
     Step 'Removing program files'
+    # Codex keeps this plugin's MCP server running, and that holds the bundled
+    # interpreter's DLLs open; a loaded image cannot be deleted. The install path has
+    # been hardened against exactly this since v0.5.1 and the uninstall path had not, so
+    # removal half-failed in silence and still reported success. Stopping only our own
+    # launchers is enough - nothing else has a reason to run them.
+    $ours = @(Get-CimInstance Win32_Process -Filter "Name='codex-auto-resume-mcp.exe'" -ErrorAction SilentlyContinue)
+    if ($ours.Count -gt 0) {
+        Step 'Releasing the files this installation is holding open'
+        foreach ($process in $ours) { Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue }
+        Start-Sleep -Milliseconds 800
+    }
     foreach ($stale in (Get-ChildItem -Path $InstallHome -Filter '*.old-*' -ErrorAction SilentlyContinue)) {
         Remove-Item -Recurse -Force $stale.FullName -ErrorAction SilentlyContinue
     }
+    $stuck = @()
     foreach ($dir in @($AppDir, $RunDir)) {
         if (Test-Path $dir) { Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue }
+        # -ErrorAction SilentlyContinue swallows a sharing violation, so ask afterwards
+        # rather than assuming. A half-deleted installation reported as "Removed." is
+        # worse than an honest failure: nothing tells the user to try again.
+        if (Test-Path $dir) { $stuck += $dir }
     }
     foreach ($file in @('CodexAutoResumeSettings.exe', 'codex-auto-resume.ico', 'watcher-launcher.py', 'runtime.json')) {
         $path = Join-Path $InstallHome $file
         if (Test-Path $path) { Remove-Item -Force $path -ErrorAction SilentlyContinue }
+    }
+    if ($stuck.Count -gt 0) {
+        Write-Host ''
+        Fail 'Some program files are still in use and could not be removed:'
+        foreach ($dir in $stuck) { Write-Host ('       ' + $dir) }
+        Write-Host '       Close the ChatGPT/Codex app and run this again. The watcher is'
+        Write-Host '       already stopped and unregistered, so nothing is running now.'
+        exit 1
     }
     if ($Purge) {
         # Only on an explicit request: this is the user's recovery history.

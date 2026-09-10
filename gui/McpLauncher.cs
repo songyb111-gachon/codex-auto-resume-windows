@@ -29,9 +29,19 @@ namespace CodexAutoResume
 {
     internal static class McpLauncher
     {
+        // Both overrides, in the order the rest of the product resolves them.
+        //
+        // CODEX_AUTO_RESUME_PLUGIN_HOME is the one that moves the *installation*: the
+        // installer deploys there and setup configures there. CODEX_AUTO_RESUME_HOME
+        // moves the core CLI's state directory and is the older, narrower knob. This
+        // launcher honoured only the second, so setting the first moved the runtime and
+        // left the MCP server looking for it in the profile - the panel would then be
+        // the one surface that could not find an installation everything else agreed on.
         private static string InstallHome()
         {
-            string configured = Environment.GetEnvironmentVariable("CODEX_AUTO_RESUME_HOME");
+            string configured = Environment.GetEnvironmentVariable("CODEX_AUTO_RESUME_PLUGIN_HOME");
+            if (string.IsNullOrEmpty(configured))
+                configured = Environment.GetEnvironmentVariable("CODEX_AUTO_RESUME_HOME");
             if (!string.IsNullOrEmpty(configured)) return configured;
             string profile = Environment.GetEnvironmentVariable("USERPROFILE");
             if (string.IsNullOrEmpty(profile))

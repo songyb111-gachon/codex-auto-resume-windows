@@ -292,6 +292,66 @@ class BootstrapTests(unittest.TestCase):
                         + str(sorted(theirs - mine)))
 
 
+class ArgumentQuotingTests(unittest.TestCase):
+    r"""A path with a space must survive the trip to `codex`.
+
+    `Start-Process -ArgumentList` joins its array with single spaces and quotes nothing,
+    so a home under `C:\Users\Example User\` reached codex as two arguments: the
+    marketplace was never registered, the failure was a warning rather than an error,
+    and the installer still finished with "Installed and running." The registry side has
+    had the equivalent right since v0.5.0, which is why the two are checked together.
+    """
+
+    def test_the_installer_quotes_every_argument_it_passes_to_codex(self):
+        text = INSTALLER.read_text(encoding="utf-8")
+        self.assertIn("function Quote-Argument", text)
+        # The array must not reach Start-Process unquoted.
+        self.assertNotIn("-ArgumentList $Arguments", text)
+        self.assertRegex(text, r"Quote-Argument \$_.*-join ' '")
+
+    def test_the_quoting_follows_the_same_backslash_rule_as_the_registry_side(self):
+        # Doubling a run of backslashes only before a quote is the CommandLineToArgvW
+        # rule; getting it wrong turns `D:\` into an unterminated quoted string that
+        # swallows the next argument.
+        text = INSTALLER.read_text(encoding="utf-8")
+        self.assertIn("$slashes * 2 + 1", text)
+        self.assertIn("$slashes * 2", text)
+        source = (ROOT / "src" / "codex_auto_resume" / "startup.py").read_text(encoding="utf-8")
+        self.assertIn("slashes * 2 + 1", source, "the two sides must agree")
+
+
+class HostPortabilityTests(unittest.TestCase):
+    def test_the_final_host_check_reads_both_powershell_shapes(self):
+        """Windows PowerShell and PowerShell 7 name it differently.
+
+        5.1 hands back an HttpWebResponse, which has ResponseUri. 7 hands back an
+        HttpResponseMessage, which does not have that property at all. Under
+        Set-StrictMode reading the missing one throws - so a check written for 5.1 only
+        does not weaken security on pwsh, it fails every download on pwsh.
+        """
+        text = BOOTSTRAP.read_text(encoding="utf-8")
+        self.assertIn("ResponseUri", text)
+        self.assertIn("RequestMessage", text)
+        # And neither present has to be a refusal, not a pass.
+        self.assertRegex(text, r"if \(\$null -eq \$final\)[\s\S]{0,200}?throw")
+
+    def test_an_unverified_archive_is_not_announced_as_verified(self):
+        text = BOOTSTRAP.read_text(encoding="utf-8")
+        unchecked = text.index("NOT checked against anything")
+        line_start = text.rindex(chr(10), 0, unchecked)
+        self.assertNotIn("Ok ", text[line_start:unchecked],
+                         "the case where nothing was compared must not print an [ok]")
+
+    def test_the_mcp_launcher_honours_the_same_home_override(self):
+        # Every other component resolves CODEX_AUTO_RESUME_PLUGIN_HOME first. The panel's
+        # launcher read only the older, narrower CODEX_AUTO_RESUME_HOME, so moving the
+        # installation left the MCP server looking for it in the profile.
+        text = (ROOT / "gui" / "McpLauncher.cs").read_text(encoding="utf-8")
+        first = text.index("CODEX_AUTO_RESUME_PLUGIN_HOME")
+        second = text.index('"CODEX_AUTO_RESUME_HOME"')
+        self.assertLess(first, second, "the plugin home must be consulted first")
+
+
 class InstallerLockTests(unittest.TestCase):
     def test_the_installer_takes_the_lock_before_it_touches_anything(self):
         text = INSTALLER.read_text(encoding="utf-8")
@@ -302,10 +362,24 @@ class InstallerLockTests(unittest.TestCase):
         text = INSTALLER.read_text(encoding="utf-8")
         self.assertIn("AbandonedMutexException", text)
 
-    def test_the_bootstrap_does_not_take_the_same_lock(self):
-        # One owner. Two would have to agree about recursive acquisition, and the
-        # installer is the step every route passes through.
-        self.assertNotIn("Mutex", BOOTSTRAP.read_text(encoding="utf-8"))
+    def test_the_bootstrap_locks_only_where_it_bypasses_the_installer(self):
+        """The download path must not lock; the repair path must.
+
+        Almost every route into the installation goes through install.ps1 and is
+        serialised by the lock there, so the bootstrap deliberately does not take one
+        around the download - that would only refuse a second bootstrap earlier than
+        the moment it could actually collide. The exception is the already-installed
+        branch, which skips install.ps1 entirely and runs setup itself: it writes the
+        same registrations, so it takes the same lock, and it used to take none.
+        """
+        text = BOOTSTRAP.read_text(encoding="utf-8")
+        self.assertEqual(text.count("System.Threading.Mutex"), 1,
+                         "exactly one lock, in the repair branch")
+        lock = text.index("System.Threading.Mutex")
+        # It has to sit in the already-installed branch, which ends before the download.
+        self.assertLess(lock, text.index("Downloading v"),
+                        "the lock belongs to the repair branch, not the download")
+        self.assertIn("AbandonedMutexException", text)
 
 
 if __name__ == "__main__":
