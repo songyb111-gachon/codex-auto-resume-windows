@@ -50,9 +50,11 @@ Releases are published by the tagged GitHub Actions workflow, not from a develop
 ### After a release is published: pin its digest
 
 The Codex plugin installs the release by downloading it, so it needs to know what the
-archive should hash to. `scripts/release.json` maps a version to that digest, and the entry
-for a version being released is `null` until the archive exists — a chicken-and-egg the
-build cannot solve, because the archive is not reproducible. (The in-box C# compiler stamps
+archive should hash to. `scripts/release.json` maps a version to that digest, and a version
+simply has no entry there until its archive exists — a chicken-and-egg the build cannot
+solve, because the archive is not reproducible. Absent and `null` mean the same thing to
+the bootstrap, so there is no placeholder to add before tagging and none to find afterwards:
+publishing adds the key. (The in-box C# compiler stamps
 a fresh module version GUID into every assembly, so two builds of identical source differ.
 `build/make_release.py` says so in full.)
 

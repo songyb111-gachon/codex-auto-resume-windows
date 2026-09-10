@@ -9,7 +9,7 @@
     "all. A version that is absent, or null, falls back to the sidecar - which is weaker,",
     "and the bootstrap says so out loud rather than implying a guarantee it does not have.",
     "",
-    "The entry is null at the moment a version is tagged and filled in afterwards, because",
+    "A version has no entry here until its archive exists, and the key is added afterwards,",
     "the digest cannot be known before the archive exists. The archive is not reproducible",
     "either - the in-box C# compiler stamps a fresh module version GUID into every build -",
     "so the digest has to come from the published file rather than from a local rebuild.",

@@ -326,8 +326,10 @@ def await_watcher(probe, process, *, timeout=None, interval=None) -> dict:
             return {"confirmed": True, "state": "running", "reason": None}
         if process is not None and process.poll() is not None:
             # It ran and stopped. Nearly always a second watcher already holding the
-            # mutex, or an installation the launcher could not resolve; either way
-            # `logs/launcher.log` says which, and claiming success would not.
+            # mutex, or an installation the launcher could not resolve; either way the
+            # logs say which, and claiming success would not. The wording surfaces name
+            # the directory rather than `launcher.log`, because the entry-script path
+            # this function also supports never writes that file.
             return {"confirmed": False, "state": "exited", "reason": "exited"}
         if time.monotonic() >= deadline:
             return {"confirmed": False, "state": "unconfirmed", "reason": "unconfirmed"}
