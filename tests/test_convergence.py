@@ -230,10 +230,24 @@ class ReleaseManifestTests(unittest.TestCase):
             if digest is not None:
                 self.assertRegex(digest, r"^[0-9a-f]{64}$")
 
-    def test_this_version_has_an_entry(self):
+    def test_every_released_version_is_pinned(self):
+        """Released versions carry a digest; the one being developed need not appear.
+
+        This used to demand an entry for the current version too, so bumping the manifest
+        turned the suite red until someone hand-added `"0.5.5": null` - a manual step
+        whose only purpose was to satisfy this test. The bootstrap already handles a
+        missing version exactly as it handles a null one: it verifies against the
+        published `.sha256` sidecar instead and says out loud that it did.
+
+        What is worth checking is the opposite direction, and was not checked at all:
+        that a version which has been released did not stay unpinned because someone
+        forgot the post-release commit.
+        """
         from codex_auto_resume import config
-        self.assertIn(config.version(), self.release["sha256"],
-                      "scripts/release.json has no entry for the current version")
+        unpinned = [version for version, digest in self.release["sha256"].items()
+                    if digest is None and version != config.version()]
+        self.assertEqual(unpinned, [],
+                         "these versions were released but never had their digest pinned")
 
 
 class BootstrapTests(unittest.TestCase):
