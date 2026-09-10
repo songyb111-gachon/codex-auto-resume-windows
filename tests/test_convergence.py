@@ -352,6 +352,51 @@ class HostPortabilityTests(unittest.TestCase):
         self.assertLess(first, second, "the plugin home must be consulted first")
 
 
+class ReleaseImmutabilityTests(unittest.TestCase):
+    """A published version names one archive, for as long as the release exists.
+
+    The plugin's bootstrap pins a version's SHA-256 and refuses anything else, so a
+    workflow that can replace a published asset can silently make every install of that
+    version fail - or, worse, succeed with different bytes than the digest describes.
+    The workflow used to have exactly that: a dispatch that rebuilt an existing tag and
+    re-uploaded over its assets with `--clobber`.
+    """
+
+    def setUp(self):
+        self.workflow = WORKFLOW.read_text(encoding="utf-8")
+
+    def test_nothing_can_overwrite_a_published_asset(self):
+        # The comment explaining why it is gone is allowed to say the word; a command
+        # is not. Look only at what would run.
+        commands = [line for line in self.workflow.splitlines()
+                    if "--clobber" in line and not line.lstrip().startswith("#")]
+        self.assertEqual(commands, [], "a published release asset must not be replaceable")
+
+    def test_publishing_is_refused_when_the_version_already_has_assets(self):
+        self.assertIn("Refuse to republish a version that already has assets", self.workflow)
+        self.assertIn("gh release view", self.workflow)
+        self.assertRegex(self.workflow, r"A published version is immutable")
+
+    def test_the_refusal_runs_before_the_publish(self):
+        self.assertLess(self.workflow.index("Refuse to republish"),
+                        self.workflow.index("Publish the GitHub release"))
+
+    def test_a_dispatch_cannot_publish(self):
+        """The dry run may build and verify; it may not create or change a release."""
+        # Every step that talks to the releases API is gated on a tag push.
+        for marker in ("gh release create", "gh release view"):
+            index = self.workflow.index(marker)
+            preceding = self.workflow[:index]
+            step = preceding.rindex("      - name:")
+            self.assertIn("startsWith(github.ref, 'refs/tags/v')", self.workflow[step:index],
+                          "%s must be reachable only from a tag push" % marker)
+
+    def test_the_dispatch_input_no_longer_names_a_release(self):
+        # It used to be `tag`, and it meant "rebuild this published release".
+        self.assertNotRegex(self.workflow, r"inputs:\s+tag:")
+        self.assertIn("Never publishes.", self.workflow)
+
+
 class InstallerLockTests(unittest.TestCase):
     def test_the_installer_takes_the_lock_before_it_touches_anything(self):
         text = INSTALLER.read_text(encoding="utf-8")

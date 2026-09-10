@@ -68,6 +68,68 @@ class Paths:
         except OSError:
             return False
 
+    def claim_home(self) -> bool:
+        """Mark the installation root as ours. Called when the program files are put there.
+
+        `ensure()` marks `config/` and `logs/` because those are the directories the
+        *engine* creates. Nothing marked the root, and so nothing could vouch for the
+        program directories beside it - which is why the PowerShell uninstaller had
+        nothing to check before deleting `app/` and `runtime/`.
+
+        Written at install time and never anywhere else. A marker created moments before
+        a deletion, to make the deletion's own check pass, would be theatre.
+        """
+        try:
+            if self.home.is_symlink() or not self.confined(self.home):
+                return False
+            self.home.mkdir(parents=True, exist_ok=True)
+            marker = self.home / OWNER_MARKER
+            if not marker.exists():
+                marker.write_text(OWNER_TEXT, encoding="utf-8")
+            return True
+        except OSError:
+            return False
+
+    def owns_home(self) -> bool:
+        """Whether this installation root is one we created.
+
+        The gate on every destructive operation the installer performs: deleting `app/`
+        and `runtime/`, sweeping `*.old-*`, and purging `config/` and `logs/`. The
+        installation root can be pointed anywhere by an environment variable, so "it is
+        named like ours" is not evidence and never was.
+
+        Three ways to prove it, in descending order of strength:
+
+        1. the root carries our marker - written by `claim_home()` at install time;
+        2. `config/` carries one - every installation has had that since v0.1, so an
+           installation made before the root marker existed still uninstalls;
+        3. `runtime.json` names this very home - written by setup, and the only file
+           here that says which installation it belongs to.
+
+        Any of the three is enough; none of them is true of a directory that merely
+        happens to contain folders called `app` and `runtime`.
+        """
+        try:
+            if self.home.is_symlink() or not self.home.is_dir() or not self.confined(self.home):
+                return False
+        except OSError:
+            return False
+        if self.owns(self.home) or self.owns(self.state_dir):
+            return True
+        record = self.home / "runtime.json"
+        try:
+            if not record.is_file() or record.is_symlink() or not self.confined(record):
+                return False
+            declared = json.loads(record.read_text(encoding="utf-8")).get("home")
+        except (OSError, ValueError, AttributeError):
+            return False
+        if not isinstance(declared, str) or not declared:
+            return False
+        try:
+            return Path(declared).expanduser().resolve() == self.home
+        except OSError:
+            return False
+
     # Owned files that uninstall may remove. A file is removable only if it is inside a
     # directory WE created (provenance marker), matches an owned name, is not a link, and
     # resolves inside the home. Anything else is never deleted.
