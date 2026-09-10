@@ -322,7 +322,18 @@ if ($Uninstall) {
         Write-Host ('       Looked in ' + $InstallHome)
         exit 1
     }
-    $verify = & $Python (Join-Path $AppDir 'scripts\plugin_setup.py') 'verify-home' 2>$null
+    # Ask the *payload's* copy of the engine, not the installed one.
+    #
+    # `verify-home` arrived in v0.5.4, and this uninstaller has to work against an
+    # installation made by an earlier version - where asking the installed copy gets an
+    # argparse error, a non-zero exit, and a refusal to uninstall a perfectly legitimate
+    # installation. The payload travels with this script and is always its own version,
+    # so it can always answer. Measured, by running exactly that against a v0.5.3 tree.
+    $verifier = Join-Path $Payload 'app\scripts\plugin_setup.py'
+    if (-not (Test-Path $verifier)) { $verifier = Join-Path $AppDir 'scripts\plugin_setup.py' }
+    $interpreter = $Python
+    if (-not (Test-Path $interpreter)) { $interpreter = Join-Path $Payload 'runtime\python.exe' }
+    $verify = & $interpreter $verifier 'verify-home' 2>$null
     if ($LASTEXITCODE -ne 0) {
         Fail 'This directory is not a Codex Auto Resume installation, so nothing was removed.'
         Write-Host ('       ' + $InstallHome)

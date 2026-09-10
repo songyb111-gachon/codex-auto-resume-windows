@@ -23,6 +23,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import textwrap
 import time
@@ -435,6 +436,87 @@ class ArgumentQuotingTests(unittest.TestCase):
 
     def test_the_ordinary_case_is_unchanged(self):
         self.round_trip(["plugin", "add", "codex-auto-resume@codex-auto-resume-windows"])
+
+
+class UninstallVerifierTests(unittest.TestCase):
+    """The uninstaller has to ask an engine that can answer the question.
+
+    `verify-home` arrived in v0.5.4, and v0.5.4's uninstaller deletes nothing until it
+    passes. Asking the *installed* engine therefore broke uninstalling a v0.5.3
+    installation outright: argparse rejects the unknown subcommand, the exit status is
+    not zero, and a perfectly legitimate installation is refused. Found by running the
+    real uninstaller against a real v0.5.3 tree, so it is pinned here.
+
+    The payload travels with the script and is always the script's own version, so it can
+    always answer; the installed copy is a fallback for a payload that is not there.
+    """
+
+    def uninstall_branch(self) -> str:
+        """The part of the installer that runs before anything can be deleted."""
+        text = INSTALLER.read_text(encoding="utf-8")
+        start = text.index("if ($Uninstall) {")
+        return text[start:text.index("$OwnedHome = Resolve-Canonical", start)]
+
+    def run_engine(self, script: Path, home: Path) -> subprocess.CompletedProcess:
+        environ = dict(os.environ)
+        environ["CODEX_AUTO_RESUME_PLUGIN_HOME"] = str(home)
+        environ["PYTHONPATH"] = str(ROOT / "src")
+        return subprocess.run([sys.executable, str(script), "verify-home"],
+                              capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", env=environ, timeout=120)
+
+    def test_the_verifier_is_taken_from_the_payload_first(self):
+        branch = self.uninstall_branch()
+        payload = branch.index("$verifier = Join-Path $Payload")
+        installed = branch.index("$verifier = Join-Path $AppDir")
+        self.assertLess(payload, installed,
+                        "the installed engine may be a fallback, never the first choice")
+        guard = branch[branch.rindex("\n", 0, installed):installed]
+        self.assertIn("-not (Test-Path $verifier)", guard,
+                      "the fallback must apply only when the payload carries no engine")
+
+    def test_the_check_runs_the_verifier_that_was_chosen(self):
+        branch = self.uninstall_branch()
+        self.assertIn("& $interpreter $verifier 'verify-home'", branch,
+                      "the chosen verifier is the one that must be asked")
+        self.assertIn("$LASTEXITCODE -ne 0", branch,
+                      "a failed check must still refuse")
+
+    def test_the_previous_release_engine_cannot_answer(self):
+        """Why the payload's copy is used, against the real v0.5.3 engine.
+
+        Skipped where the tag is absent - CI checks out without tags - because the
+        alternative is a stand-in that only proves what it was written to prove.
+        """
+        shown = subprocess.run(
+            ["git", "-C", str(ROOT), "show", "v0.5.3:scripts/plugin_setup.py"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if shown.returncode != 0:
+            self.skipTest("v0.5.3 is not in this checkout")
+        with tempfile.TemporaryDirectory() as name:
+            older = Path(name) / "plugin_setup.py"
+            older.write_text(shown.stdout, encoding="utf-8")
+            home = Path(name) / "installation"
+            from codex_auto_resume import config
+            config.Paths(home).ensure()
+            result = self.run_engine(older, home)
+        self.assertNotEqual(result.returncode, 0,
+                            "if v0.5.3 could answer, the payload fallback is untested")
+        self.assertIn("usage", (result.stderr + result.stdout).lower())
+
+    def test_this_engine_answers_for_an_installation_made_before_it(self):
+        """The same home, asked through the engine that ships with this uninstaller."""
+        from codex_auto_resume import config
+        with tempfile.TemporaryDirectory() as name:
+            home = Path(name) / "installation"
+            config.Paths(home).ensure()
+            self.assertFalse((home / config.OWNER_MARKER).exists(),
+                             "the fixture must have the shape v0.5.3 left behind")
+            result = self.run_engine(ROOT / "scripts" / "plugin_setup.py", home)
+            lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(lines[0], "owned")
+            self.assertEqual(Path(lines[-1]), home.resolve())
 
 
 if __name__ == "__main__":
