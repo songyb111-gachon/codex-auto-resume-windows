@@ -519,5 +519,130 @@ class UninstallVerifierTests(unittest.TestCase):
             self.assertEqual(Path(lines[-1]), home.resolve())
 
 
+class InstallHomeClaimTests(unittest.TestCase):
+    """The install path destroys things too, and had no gate at all.
+
+    `verify-home` cannot be that gate: the first install of all happens into a directory
+    that is not ours yet. `claim-home` asks the other half of the question - is anything
+    of ours here? - and claims a directory that holds nothing of ours *before* the run
+    writes to it, so what it may later delete is only ever what it created.
+    """
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+
+    def claim(self, home: Path) -> subprocess.CompletedProcess:
+        environ = dict(os.environ)
+        environ["CODEX_AUTO_RESUME_PLUGIN_HOME"] = str(home)
+        environ["PYTHONPATH"] = str(ROOT / "src")
+        return subprocess.run([sys.executable, str(ROOT / "scripts" / "plugin_setup.py"),
+                               "claim-home"],
+                              capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", env=environ, timeout=120)
+
+    def look_alike(self) -> Path:
+        home = self.root / "Development"
+        for name in ("app", "runtime", "config", "logs"):
+            (home / name).mkdir(parents=True)
+        (home / "config" / "important.txt").write_text("theirs", encoding="utf-8")
+        return home
+
+    def test_a_directory_that_does_not_exist_yet_is_claimed(self):
+        home = self.root / "brand-new"
+        result = self.claim(home)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.split()[0], "claimed")
+        from codex_auto_resume import config
+        self.assertTrue((home / config.OWNER_MARKER).is_file())
+
+    def test_an_empty_directory_the_user_chose_is_claimed(self):
+        home = self.root / "chosen"
+        home.mkdir()
+        (home / "notes.txt").write_text("mine", encoding="utf-8")   # theirs, but not ours
+        self.assertEqual(self.claim(home).returncode, 0)
+        self.assertTrue((home / "notes.txt").is_file(), "claiming must not disturb anything")
+
+    def test_a_look_alike_directory_is_refused_and_left_alone(self):
+        from codex_auto_resume import config
+        home = self.look_alike()
+        result = self.claim(home)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout.split()[0], "not-owned")
+        self.assertFalse((home / config.OWNER_MARKER).exists(),
+                         "a refusal must not leave a claim behind")
+        self.assertEqual((home / "config" / "important.txt").read_text(encoding="utf-8"),
+                         "theirs")
+
+    def test_the_refusal_names_what_is_in_the_way(self):
+        printed = self.claim(self.look_alike()).stdout.split()
+        for name in ("app", "runtime", "config", "logs"):
+            self.assertIn(name, printed)
+
+    def test_a_set_aside_copy_alone_is_enough_to_refuse(self):
+        home = self.root / "stale"
+        (home / "app.old-20200101000000").mkdir(parents=True)
+        self.assertEqual(self.claim(home).returncode, 1,
+                         "a `*.old-*` directory is swept by the install path, so it counts")
+
+    def test_a_real_installation_is_recognised_rather_than_re_claimed(self):
+        from codex_auto_resume import config
+        home = self.root / "installed"
+        config.Paths(home).ensure()                 # the shape v0.5.3 left behind
+        result = self.claim(home)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.split()[0], "owned")
+
+    def test_a_claim_survives_so_an_interrupted_install_can_be_retried(self):
+        home = self.root / "interrupted"
+        self.assertEqual(self.claim(home).returncode, 0)
+        (home / "app").mkdir()                      # as far as a killed run had got
+        (home / "runtime").mkdir()
+        again = self.claim(home)
+        self.assertEqual(again.returncode, 0, again.stderr)
+        self.assertEqual(again.stdout.split()[0], "owned")
+
+    def test_a_file_where_the_home_should_be_is_refused(self):
+        home = self.root / "afile"
+        home.write_text("not a directory", encoding="utf-8")
+        self.assertEqual(self.claim(home).returncode, 1)
+
+
+class InstallerDeletionRoutingTests(unittest.TestCase):
+    """Every deletion in the installer goes through the one gate, or it is not gated.
+
+    Asserting this shape rather than a list of line numbers is deliberate: the install
+    branch's three deletions were missed for a whole release *because* the review looked
+    at the branch that had been changed. A new `Remove-Item` anywhere in this file now
+    has to answer for itself.
+    """
+
+    def source(self) -> str:
+        return INSTALLER.read_text(encoding="utf-8")
+
+    def test_only_two_deletions_bypass_the_ownership_gate(self):
+        lines = [(number, line.strip())
+                 for number, line in enumerate(self.source().splitlines(), 1)
+                 if "Remove-Item" in line and not line.strip().startswith("#")]
+        # One is inside `Remove-OwnedItem` itself; one removes the two temporary files
+        # `Invoke-Codex` created moments earlier under $env:TEMP.
+        self.assertEqual([line for _, line in lines], [
+            "Remove-Item -Force -ErrorAction SilentlyContinue $out, $err",
+            "Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue",
+        ], "a deletion in install.ps1 does not go through Remove-OwnedItem")
+
+    def test_the_install_branch_claims_the_root_before_it_touches_anything(self):
+        text = self.source()
+        self.assertIn("'claim-home'", text, "the install branch has no ownership gate")
+        claimed = text.index("$OwnedHome = Resolve-Canonical (@($claim)[1])")
+        # Each of the three things the install path destroys, in the branch's own words.
+        for destructive in ("-Directory -Filter '*.old-*'",
+                            "$aside = $pair.dst + '.old-'",
+                            "foreach ($old in $moved)"):
+            self.assertLess(claimed, text.rindex(destructive),
+                            "%s runs before the root is claimed" % destructive)
+
+
 if __name__ == "__main__":
     unittest.main()

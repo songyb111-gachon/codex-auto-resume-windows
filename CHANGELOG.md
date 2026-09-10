@@ -8,10 +8,24 @@ What changes is that installing, updating and removing this product now act only
 they can prove belong to them.
 
 Four of the five issues this closes were the same mistake in different places — a *name*
-being taken as evidence of ownership.
+being taken as evidence of ownership. Reviewing the fix for one of them found the same
+mistake, unreported, on the install path, where it was worse.
 
 ### Nothing is destroyed without proof of ownership
 
+- **Fixed: installing had no ownership check at all.** Issue #1 was reported against the
+  uninstaller, and fixing only that left the more dangerous half in place: the install
+  path also sweeps `*.old-*`, moves `app` and `runtime` aside and then deletes what it
+  moved — under the same environment-variable root, with no check. The uninstaller would
+  refuse a stranger's directory while an install into that same directory deleted their
+  files and finished with "Installed and running." (Reproduced, on a directory holding
+  real files, before and after the fix.) The install path cannot ask the uninstaller's
+  question — the first install of all happens into a directory that is not ours yet — so
+  it asks the other half: a directory already holding `app`, `runtime`, `config`, `logs`
+  or a set-aside copy, with no proof any of it is ours, is refused and left untouched; a
+  directory holding none of them has nothing to destroy and is claimed *before* the first
+  file is written. Every deletion in the installer now goes through the one gate, and
+  there is a test that fails if a new one does not.
 - **Fixed: the uninstaller could delete directories it never created.**
   ([#1](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/1)) The
   installation root comes from an environment variable, and the PowerShell uninstaller

@@ -465,13 +465,44 @@ if ((Invoke-Codex $codex @('plugin', '--help')).Code -ne 0) {
     Fail 'This Codex build has no plugin support. Update Codex and try again.'; exit 1
 }
 
+# Nothing under this root is destroyed unless the installation can claim it.
+#
+# `$InstallHome` comes from an environment variable, and three deletions below act on
+# whatever is beneath it: the `*.old-*` sweep, the move-aside of `app` and `runtime`, and
+# the removal of the copies moved aside. The uninstall branch above already refuses a
+# directory no installation of ours has claimed - and an install into that same directory
+# used to delete inside it and finish with "Installed and running."
+#
+# `claim-home` answers the install-side half of the question, in the same engine and by
+# the same rule: ours already, or empty of anything of ours - in which case it is claimed
+# now, before a byte is written. That ordering is the whole point. A marker written after
+# the deletions would authorise them backwards, which is not authorisation.
+$claimer = Join-Path $Payload 'app\scripts\plugin_setup.py'
+$claimPython = Join-Path $Payload 'runtime\python.exe'
+if (-not (Test-Path $claimPython)) { $claimPython = $Python }
+$claim = & $claimPython $claimer 'claim-home' 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Fail 'This directory holds files no installation of ours has claimed; nothing was installed.'
+    Write-Host ('       ' + $InstallHome)
+    foreach ($line in @($claim | Select-Object -Skip 2)) { Write-Host ('         ' + $line) }
+    Write-Host '       Installing here would move those aside and then delete them. Point'
+    Write-Host '       CODEX_AUTO_RESUME_PLUGIN_HOME at an empty location, or remove them'
+    Write-Host '       yourself first if they really are a broken installation of ours.'
+    exit 1
+}
+$OwnedHome = Resolve-Canonical (@($claim)[1])
+if (-not $OwnedHome -or -not (Test-PathInside $AppDir $OwnedHome)) {
+    Fail 'The installation root could not be resolved; nothing was installed.'
+    exit 1
+}
+
 $upgrade = Test-Path $AppDir
 if ($upgrade) { Step 'Updating program files' } else { Step 'Installing program files' }
 
 # Sweep up copies moved aside by an earlier upgrade. They are only removable once
 # whatever was using them has exited, which is normally by now.
-foreach ($stale in (Get-ChildItem -Path $InstallHome -Directory -Filter '*.old-*' -ErrorAction SilentlyContinue)) {
-    Remove-Item -Recurse -Force $stale.FullName -ErrorAction SilentlyContinue
+foreach ($stale in (Get-ChildItem -Path $OwnedHome -Directory -Filter '*.old-*' -ErrorAction SilentlyContinue)) {
+    $null = Remove-OwnedItem $stale.FullName
 }
 
 # Replace only the program directories. Settings, state and logs sit beside them and are
@@ -509,14 +540,14 @@ try {
 } catch {
     Warn ('Could not replace the installation: ' + $_.Exception.Message)
     foreach ($undo in $moved) {
-        if (Test-Path $undo.to) { Remove-Item -Recurse -Force $undo.to -ErrorAction SilentlyContinue }
+        if (Test-Path $undo.to) { $null = Remove-OwnedItem $undo.to }
         Move-Item -Path $undo.from -Destination $undo.to -Force -ErrorAction SilentlyContinue
     }
     Fail 'The existing installation was put back; nothing was changed.'
     Write-Host '       Close the ChatGPT/Codex app and run this installer again.'
     exit 1
 }
-foreach ($old in $moved) { Remove-Item -Recurse -Force $old.from -ErrorAction SilentlyContinue }
+foreach ($old in $moved) { $null = Remove-OwnedItem $old.from }
 
 # The settings window and the icon live at the payload root because the window
 # resolves runtime\python.exe and app\src relative to its own directory. The window may
@@ -531,8 +562,8 @@ foreach ($file in (Get-ChildItem -Path $Payload -File -ErrorAction SilentlyConti
         Copy-Item -Path $file.FullName -Destination $target -Force
     }
 }
-foreach ($stale in (Get-ChildItem -Path $InstallHome -File -Filter '*.old-*' -ErrorAction SilentlyContinue)) {
-    Remove-Item -Force $stale.FullName -ErrorAction SilentlyContinue
+foreach ($stale in (Get-ChildItem -Path $OwnedHome -File -Filter '*.old-*' -ErrorAction SilentlyContinue)) {
+    $null = Remove-OwnedItem $stale.FullName
 }
 if (-not (Test-Path $Python)) { Fail 'The bundled Python runtime is missing from the payload.'; exit 1 }
 $runtimeVersion = & $Python -c 'import sys;print(str(sys.version_info[0])+chr(46)+str(sys.version_info[1]))'
