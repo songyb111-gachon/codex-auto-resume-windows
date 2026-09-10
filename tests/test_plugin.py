@@ -294,7 +294,7 @@ class BridgeTests(unittest.TestCase):
             guard = patch.object(shortcut, target, return_value=replacement)
             guard.start()
             self.addCleanup(guard.stop)
-        spawn = patch.object(self.bridge, "start_watcher", return_value=True)
+        spawn = patch.object(self.bridge, "start_watcher", return_value="running")
         spawn.start()
         self.addCleanup(spawn.stop)
         # Registered last so it runs FIRST (cleanups are LIFO): the core opens a
@@ -386,7 +386,7 @@ class BridgeTests(unittest.TestCase):
         with patch.object(self.bridge, "runtime_home", return_value=self.home), \
              patch.object(startup, "current_value", return_value=foreign), \
              patch.object(startup, "install") as install, \
-             patch.object(self.bridge, "start_watcher") as start:
+             patch.object(self.bridge, "start_watcher", return_value="running") as start:
             code = self.bridge.cmd_setup(args)
         self.assertEqual(code, self.bridge.EXIT_ERROR)
         install.assert_not_called()
@@ -411,13 +411,30 @@ class BridgeTests(unittest.TestCase):
         (package / "cli.py").write_text("", encoding="utf-8")
         (self.home / "app" / "src" / "auto_resume.py").write_text("", encoding="utf-8")
 
+    def test_setup_reports_a_watcher_it_could_not_confirm(self):
+        """Setup succeeding and the watcher running are two different facts.
+
+        Everything asked for was done, so failing would roll back a good installation -
+        but the installer's closing line used to be "Installed and running." whatever
+        happened here, which is the overclaim this release exists to remove. A third exit
+        code is what lets the shell wrapper tell the two apart.
+        """
+        self.pretend_installed()
+        args = self.bridge.build_parser().parse_args(["setup", "--no-startup"])
+        for state, expected in (("running", self.bridge.EXIT_OK),
+                                ("already-running", self.bridge.EXIT_OK),
+                                ("unconfirmed", self.bridge.EXIT_UNCONFIRMED),
+                                ("exited", self.bridge.EXIT_UNCONFIRMED)):
+            with self.subTest(state),                  patch.object(self.bridge, "runtime_home", return_value=self.home),                  patch.object(startup, "current_value", return_value=None),                  patch.object(startup, "install"),                  patch.object(self.bridge, "start_watcher", return_value=state):
+                self.assertEqual(self.bridge.cmd_setup(args), expected)
+
     def test_setup_is_idempotent_and_keeps_existing_state(self):
         self.pretend_installed()
         args = self.bridge.build_parser().parse_args(["setup", "--no-startup"])
         with patch.object(self.bridge, "runtime_home", return_value=self.home), \
              patch.object(startup, "current_value", return_value=None), \
              patch.object(startup, "install") as install, \
-             patch.object(self.bridge, "start_watcher"):
+             patch.object(self.bridge, "start_watcher", return_value="running"):
             self.assertEqual(self.bridge.cmd_setup(args), self.bridge.EXIT_OK)
             marker = self.home / "config" / "keep-me.txt"
             marker.write_text("preserved", encoding="utf-8")
@@ -431,7 +448,7 @@ class BridgeTests(unittest.TestCase):
              patch.object(startup, "current_value", return_value=None), \
              patch.object(startup, "install") as install, \
              patch.object(startup, "uninstall") as remove, \
-             patch.object(self.bridge, "start_watcher"):
+             patch.object(self.bridge, "start_watcher", return_value="running"):
             self.bridge.cmd_setup(args)
         install.assert_not_called()
         remove.assert_not_called()
@@ -659,7 +676,13 @@ class PayloadDocumentTests(unittest.TestCase):
         a name it cannot find, so the payload is correct either way.
         """
         builder = _load("make_release_payload", ROOT / "build" / "make_release.py")
-        generated = (ROOT / ".github" / "GENERATED-BRANCH.md").is_file()
+        # Tracked, not merely present: a stray local `ko_sync.py --root .` leaves the
+        # marker behind untracked, and that must not excuse a genuinely missing document.
+        import subprocess
+        listed = subprocess.run(
+            ["git", "-C", str(ROOT), "ls-files", "--", ".github/GENERATED-BRANCH.md"],
+            capture_output=True, text=True, encoding="utf-8")
+        generated = bool(listed.returncode == 0 and listed.stdout.strip())
         for name in builder.APP_FILES:
             if generated and name.endswith(".ko.md"):
                 continue

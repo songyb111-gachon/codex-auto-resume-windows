@@ -1,5 +1,42 @@
 # Changelog
 
+## Unreleased
+
+Found by an adversarial pass run after v0.5.5 was already published. None of it is a
+safety or data problem, so v0.5.5 stands as released and these ship in v0.6.0 rather than
+in a v0.5.6.
+
+- **Fixed: the installer still ended with "Installed and running." whatever the watcher
+  did.** v0.5.5 taught the engine to check before claiming and left the shell wrapper
+  saying it anyway - the same overclaim, one layer out, in the sentence most users
+  actually read. Setup now returns a third exit code for "everything was done, but the
+  watcher was not seen running", which is neither success nor failure: treating it as
+  failure would roll back a good installation, and treating it as success is how the line
+  survived. `enable` had the same shape - it waited up to six seconds for the answer and
+  then printed "Auto resume is on." regardless.
+- **Fixed: the screenshot freshness check missed the whole read path.** The settings
+  window renders no text of its own; every label and the entire status line arrive over
+  the bridge, so `controlcli.py` and `app.py` are render inputs, as is `make_gui.ps1`,
+  which decides whether the icon and the DPI manifest are compiled in at all.
+- **Fixed: the Korean sync rewrote inside code.** The label rewrite was a bare `[...]`
+  with no link syntax around it, so it edited fenced blocks and inline code that merely
+  *mentioned* a Korean filename - and the guard test built its fence out of a name none
+  of the patterns could match, so it passed either way.
+- **Fixed: a link could land on the right file at the wrong place.** The generated tree
+  was checked for dead paths but not dead anchors, which is the half this sync actually
+  invalidates: replacing an English page with a Korean one keeps every path valid and
+  kills every anchor into it. One live instance, in `SUPPORT.md`, is now sent to main's
+  English copy.
+- **Fixed: one stray local `ko_sync.py --root .` could silently disarm every Korean
+  invariant on main.** The marker it leaves behind was the sole switch for those tests
+  and survived `git restore`. It is ignored now, and the switch requires it to be
+  *tracked* - true on the generated branch, never in a local residue.
+- Two smaller ones: the generator listed Markdown by splitting git's output on
+  whitespace, which silently dropped any path containing a space or a non-ASCII
+  character; and the release-manifest test claimed to catch "released but never pinned"
+  while only being able to see a `null` placeholder that this release stopped writing. It
+  now reads the changelog's own headings, and a missing digest fails.
+
 ## v0.5.5 — Say only what you checked
 
 The last corrective release before v0.6. **Recovery is untouched** again: the same failure
