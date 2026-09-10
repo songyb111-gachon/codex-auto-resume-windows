@@ -77,6 +77,12 @@ other than what it said.
   beside one.
 - **Fixed: the MCP launcher was the one component that ignored the install-home
   override**, so moving the installation left the panel unable to find it.
+- **Fixed: running the test suite wrote a real registry entry.** One test class guarded
+  the registry function by function and had missed `install_protocol`, so every run left
+  a `codex-auto-resume:` handler in the user's own HKCU pointing at a temporary directory
+  that no longer existed. It was found by an uninstall correctly refusing to remove a
+  handler that belonged to "a different installation" — which it did. The class now fakes
+  the registry module itself, the way the other test modules already did.
 - Smaller hardening in the same script: the file the install actually executes is now in
   the required-contents list; an archive whose manifest differs only in letter case is
   refused rather than crashing; a manifest with no version at all gets the intended

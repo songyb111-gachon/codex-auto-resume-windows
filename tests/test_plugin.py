@@ -270,7 +270,19 @@ class BridgeTests(unittest.TestCase):
         self.home = Path(self.temp.name) / "runtime"
         module = sys.modules.get("plugin_setup_under_test")
         self.bridge = module or _load("plugin_setup_under_test", ROOT / "scripts" / "plugin_setup.py")
-        # Never let a bridge test reach the real HKCU Run key or spawn a real watcher.
+        # Never let a bridge test reach the real registry or spawn a real watcher.
+        #
+        # The named functions below were guarded one at a time, and `install_protocol`
+        # was not among them - so every run of this suite wrote a real
+        # `codex-auto-resume:` handler into the user's HKCU, pointing at a temp
+        # directory that no longer existed by the time the test finished. It was found
+        # by an uninstall correctly reporting that the handler belonged to a different
+        # installation. Faking the registry module itself covers every function at once,
+        # including any added later, which is why the other test modules do it that way.
+        from test_cli import FakeWinreg          # the shared key-tree fake
+        registry = patch.object(startup, "_winreg", return_value=FakeWinreg())
+        registry.start()
+        self.addCleanup(registry.stop)
         for target, replacement in (("install", None), ("uninstall", False), ("current_value", None),
                                     ("register_aumid", True), ("unregister_aumid", False)):
             guard = patch.object(startup, target, return_value=replacement)
