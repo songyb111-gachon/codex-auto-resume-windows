@@ -73,18 +73,37 @@ def relink(text: str, english: str, base: str) -> str:
 KO_TARGET = r'(?!\w+:)((?:\./)?[\w/-]+)\.ko\.md'
 
 
-def tracked_markdown(root: Path) -> list[Path]:
+def tracked_markdown(root: Path, expected_missing=()) -> list[Path]:
     """The Markdown files this branch actually ships, in a stable order.
 
     Tracked rather than globbed: `build/stage/` holds a staged copy of the payload after
     a release build, and sweeping that too made the generator report that it had rewritten
     code - which is precisely what `test_it_touches_no_code` exists to catch, and it did.
     """
-    listing = subprocess.run(["git", "-C", str(root), "ls-files", "*.md"],
+    listing = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "--", "*.md"],
                              capture_output=True, text=True, encoding="utf-8")
     if listing.returncode != 0:
         raise SystemExit("ko_sync needs a git checkout; `git ls-files` failed here")
-    return sorted((root / name) for name in listing.stdout.split() if (root / name).is_file())
+    # NUL-separated, because git prints a path containing a space raw and a non-ASCII
+    # path C-quoted. Splitting on whitespace turned `a b.md` into two names and a Korean
+    # filename into a quoted string, none of which is a file - and the `is_file()` filter
+    # below then dropped them in exactly the same silence as the files this really is
+    # meant to skip.
+    names = [name for name in listing.stdout.split(chr(0)) if name]
+    missing = [name for name in names if not (root / name).is_file()]
+    unexplained = [name for name in missing if name not in expected_missing]
+    if unexplained:
+        raise SystemExit("git lists Markdown this checkout does not have:"
+                         + "".join(chr(10) + "  " + entry for entry in unexplained))
+    return sorted((root / name) for name in names if (root / name).is_file())
+
+
+# Fenced blocks and inline code spans, captured so `re.split` keeps them: an odd index in
+# the result is code and is passed through untouched. The label rewrite below is a bare
+# `[...]` with no link syntax around it, so without this it edits documentation *about*
+# these filenames - and the guard test that was supposed to cover fences built its fence
+# out of a filename none of the patterns could match, so it passed either way.
+CODE = re.compile("(```.*?```|~~~.*?~~~|`[^`" + chr(10) + "]*`)", re.S)
 
 
 def drop_ko_suffix(text: str) -> str:
@@ -99,9 +118,31 @@ def drop_ko_suffix(text: str) -> str:
       file is the same defect one layer up. Rewriting only the target is how the old ko
       branch came to link to itself for four releases.
     """
-    text = re.sub(r'\]\(%s\)' % KO_TARGET, lambda found: "](%s.md)" % found.group(1), text)
-    text = re.sub(r'href="%s"' % KO_TARGET, lambda found: 'href="%s.md"' % found.group(1), text)
-    text = re.sub(r'\[%s\]' % KO_TARGET, lambda found: "[%s.md]" % found.group(1), text)
+    def rewrite(chunk: str) -> str:
+        chunk = re.sub(r'\]\(%s\)' % KO_TARGET, lambda f: "](%s.md)" % f.group(1), chunk)
+        chunk = re.sub(r'href="%s"' % KO_TARGET, lambda f: 'href="%s.md"' % f.group(1), chunk)
+        return re.sub(r'\[%s\]' % KO_TARGET, lambda f: "[%s.md]" % f.group(1), chunk)
+
+    return "".join(part if index % 2 else rewrite(part)
+                   for index, part in enumerate(CODE.split(text)))
+
+
+def keep_english_anchor(text: str, targets, base: str) -> str:
+    """Send an anchored link into a translated page to main's English copy instead.
+
+    A page that stays English on ko may link into a document that does not: SUPPORT.md
+    points at README.md's "please read this limitation first" heading. On ko that path is
+    still valid and the heading is Korean, so the link lands on the right file at the
+    wrong place - the one kind of breakage a path check cannot see, and the reason
+    `dead_links` now reads fragments.
+
+    Only anchored links are moved. Without a fragment the Korean page is the better
+    destination for a Korean reader, which is the whole point of the branch.
+    """
+    for target in targets:
+        pattern = r'\]\((?:\./)?%s#([\w%%-]+)\)' % re.escape(target)
+        text = re.sub(pattern,
+                      lambda found: "](%s%s#%s)" % (base, target, found.group(1)), text)
     return text
 
 
@@ -132,11 +173,13 @@ def build(root: Path, *, check: bool = False) -> list[str]:
     # `not_yet_translated` pages are English on ko, which is accurate - but an English
     # page with a dead link is not. CHANGELOG.md linked to README.ko.md, a file this
     # very function had just deleted from the branch.
-    for markdown in tracked_markdown(root):
+    unlinked = () if check else tuple(mapping["documents"])
+    for markdown in tracked_markdown(root, unlinked):
         if markdown.name == Path(NOTICE_PATH).name:
             continue
         before = markdown.read_text(encoding="utf-8")
-        after = drop_ko_suffix(before)
+        after = keep_english_anchor(before, mapping["documents"].values(), base)
+        after = drop_ko_suffix(after)
         if after == before:
             continue
         relative = markdown.relative_to(root).as_posix()
@@ -150,7 +193,7 @@ def build(root: Path, *, check: bool = False) -> list[str]:
         notice = root / NOTICE_PATH
         notice.parent.mkdir(parents=True, exist_ok=True)
         notice.write_text(NOTICE, encoding="utf-8")
-        broken = dead_links(root)
+        broken = dead_links(root, tuple(mapping["documents"]))
         if broken:
             raise SystemExit("the generated tree has links to files it does not contain:"
                              + "".join("\n  " + entry for entry in broken))
@@ -161,7 +204,30 @@ def build(root: Path, *, check: bool = False) -> list[str]:
 LINK = re.compile(r'\]\(\s*(?!\w+:|#)([^)\s]+)|href="(?!\w+:|#)([^"]+)"')
 
 
-def dead_links(root: Path) -> list[str]:
+def slug(heading: str) -> str:
+    """GitHub's heading anchor: lowercase, punctuation dropped, spaces to hyphens.
+
+    Korean survives unchanged, which is the case that matters here.
+    """
+    text = heading.strip().lower()
+    text = re.sub(r"[^\w\s-]", "", text, flags=re.UNICODE)
+    return re.sub(r"\s+", "-", text).strip("-")
+
+
+def anchor_exists(path: Path, fragment: str) -> bool:
+    try:
+        body = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return True                      # unreadable: not this check's business
+    wanted = fragment.strip().lower()
+    for line in body.splitlines():
+        found = re.match(r"#{1,6}\s+(.*)$", line)
+        if found and slug(found.group(1)) == wanted:
+            return True
+    return False
+
+
+def dead_links(root: Path, expected_missing=()) -> list[str]:
     """Relative links in the generated tree that point at nothing.
 
     The sync renames five documents and deletes their originals, so every link naming
@@ -170,18 +236,27 @@ def dead_links(root: Path) -> list[str]:
     the result is cheaper than remembering every page that might mention a Korean file.
     """
     missing = []
-    for markdown in tracked_markdown(root):
+    for markdown in tracked_markdown(root, expected_missing):
         here = markdown.parent
         for found in LINK.finditer(markdown.read_text(encoding="utf-8")):
-            target = (found.group(1) or found.group(2)).split("#")[0].strip()
+            raw = (found.group(1) or found.group(2)).strip()
+            target, _, fragment = raw.partition("#")
             if not target:
                 continue
+            destination = here / target
             try:
-                if (here / target).exists():
+                if not destination.exists():
+                    missing.append("%s -> %s" % (markdown.relative_to(root).as_posix(), target))
                     continue
             except OSError:
-                pass
-            missing.append("%s -> %s" % (markdown.relative_to(root).as_posix(), target))
+                missing.append("%s -> %s" % (markdown.relative_to(root).as_posix(), target))
+                continue
+            # The fragment is the half this sync invalidates. Replacing an English page
+            # with a Korean one keeps every path valid and kills every anchor into it,
+            # so checking only the path is checking the half that cannot break.
+            if fragment and destination.suffix == ".md" and not anchor_exists(destination, fragment):
+                missing.append("%s -> %s#%s"
+                               % (markdown.relative_to(root).as_posix(), target, fragment))
     return missing
 
 

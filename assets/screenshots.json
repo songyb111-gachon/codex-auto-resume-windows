@@ -6,7 +6,7 @@
     "the screenshots are stale. Regenerate them rather than editing this file."
   ],
   "version": "0.5.5",
-  "system_dpi": 192,
+  "system_dpi": 144,
   "inputs": {
     ".codex-plugin/plugin.json": "4ce2a4e30bbdede3752ff04fefb1fe7afb9f7c2daf766d5686eb22c8490af5cd",
     "gui/SettingsApp.cs": "8024970c2c511493a3119f207923797b2c3a8b2fa3667ee7063f549edffb971c",
@@ -14,8 +14,11 @@
     "gui/app.manifest": "db5f16dcf2448fdd7e3812dfdaa6d2da893b92c27a982721d3f04cdc05559870",
     "assets/codex-auto-resume.ico": "45c3f3a0d02d78f9be0b80532eedc2f524cd7ebe1056007dacdb286ca743bd52",
     "src/codex_auto_resume/settings.py": "1353c0526c19f2f200fa74b5f899c76628ec276de6ddd96d4d43092567b801d5",
+    "src/codex_auto_resume/controlcli.py": "11c82da76e4d665a9cfd4af13b5200cbf98981bce398a393ff9b5e7121c4fa82",
+    "src/codex_auto_resume/app.py": "5836ba33da68a401349cac8fc1bd14a0e1e8c32c142d95a879adcfd901f33350",
     "build/capture_window.ps1": "1a2cee54cf92a90fd99cd0966a17842d82ab7f2dbb6738bdc5a242ea38f5b43f",
-    "build/make_screenshots.py": "12e5ae982a1f30309f1bed2f71e06337b0e578188a7c5e2926bfc6f251609dcf",
+    "build/make_gui.ps1": "ae1f75c3ee34bbf398833c290d65f807aadbc5cb0a8bdcd3742c9260984fe585",
+    "build/make_screenshots.py": "56b0d8fb8b37029ab0442153bd2a5e1b7227d9bdfca5083ca61872badf99fc66",
     "<panel render>": "438d133fcbe917c9903769293105a0872e9acbe554729f3b070b8ae6b6c72598"
   },
   "images": {
@@ -24,16 +27,16 @@
       "size": "1100x988"
     },
     "assets/screenshot-settings.png": {
-      "sha256": "d13d650f8af63b62fc6db5f0a4da12d89a3e1af8a644ae421967fe76a09291c6",
-      "size": "1600x1229"
+      "sha256": "05a564adbcba567145c716f86f6f438a555c5b5b113b87dd622495b87bffaea2",
+      "size": "1200x951"
     },
     "docs/images/settings-panel.png": {
       "sha256": "3b0ae19baa4f32a66c2260bdcdb341ae815382cb49aa84e1bf8ca36164b3e45b",
       "size": "1100x988"
     },
     "docs/images/settings-window.png": {
-      "sha256": "d13d650f8af63b62fc6db5f0a4da12d89a3e1af8a644ae421967fe76a09291c6",
-      "size": "1600x1229"
+      "sha256": "05a564adbcba567145c716f86f6f438a555c5b5b113b87dd622495b87bffaea2",
+      "size": "1200x951"
     }
   }
 }

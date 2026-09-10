@@ -62,9 +62,6 @@ PANEL = ASSETS / "screenshot-panel.png"
 SETTINGS = ASSETS / "screenshot-settings.png"
 COPIES = {PANEL: DOCS / "settings-panel.png", SETTINGS: DOCS / "settings-window.png"}
 
-# What the images are a picture of. If one of these changes, the screenshots are stale -
-# that is the whole claim `tests/test_screenshots.py` makes, so the list is the test's
-# definition of "render input" as much as it is this script's.
 # What the *window* is rendered from. It is a compiled Windows application, so there is
 # no way to look at its output without running it, and its inputs have to be listed.
 #
@@ -81,7 +78,18 @@ WINDOW_INPUTS = (
     "gui/app.manifest",                   # its DPI awareness, and so its size
     "assets/codex-auto-resume.ico",       # the mark in the title bar, which is captured
     "src/codex_auto_resume/settings.py",  # the schema that decides which rows exist
+    # The window renders no text of its own. Every label, every value and the whole
+    # status line arrive over the bridge as JSON, so the read path is a render input as
+    # surely as the layout is: `controlcli` shapes the envelope the window unpacks, and
+    # `watcher_running` in `app.py` is what decides the headline, the dot and whether the
+    # Start button is in the picture at all.
+    "src/codex_auto_resume/controlcli.py",
+    "src/codex_auto_resume/app.py",
     "build/capture_window.ps1",           # how much of the window is captured
+    # Whether the icon and the DPI manifest are compiled into the binary at all, and
+    # which sources go into it. The two entries above it are only inputs because this
+    # file passes them to the compiler.
+    "build/make_gui.ps1",
     "build/make_screenshots.py",          # the sample installation it is run against
 )
 

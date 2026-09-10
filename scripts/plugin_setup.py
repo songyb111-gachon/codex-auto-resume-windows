@@ -31,6 +31,11 @@ MIN_PYTHON = (3, 12)
 CHECK = "✓"
 EXIT_OK = 0
 EXIT_ERROR = 1
+# Everything asked for was done, but the watcher could not be confirmed running.
+# Distinct from both, because the caller has to be able to tell the difference:
+# an installer that treats it as failure rolls back a good install, and one that
+# treats it as success says "Installed and running." about a watcher nobody saw.
+EXIT_UNCONFIRMED = 2
 
 sys.path.insert(0, str(PLUGIN_ROOT / "src"))
 from codex_auto_resume import config, control, messages, startup      # noqa: E402
@@ -248,19 +253,26 @@ def cmd_setup(args) -> int:
     for key in ("ready_b1", "ready_b2", "ready_b3", "ready_b4"):
         print("  " + bullet() + " " + messages.text(key))
     print()
-    say("setup_done" if started in ("running", "already-running") else "setup_unconfirmed")
+    confirmed = started in ("running", "already-running")
+    say("setup_done" if confirmed else "setup_unconfirmed")
     if not args.no_startup:
         say("setup_autostart")
     print()
     print("state: %s" % home)
-    return EXIT_OK
+    return EXIT_OK if confirmed else EXIT_UNCONFIRMED
 
 
 def cmd_enable(args) -> int:
     home = runtime_home()
     code = _cli_silent(home, ["--quiet", "enable"])
-    start_watcher(home)
+    # `start_watcher` blocks for up to six seconds to learn the answer; throwing it away
+    # and then printing "Auto resume is on." says the thing is on when nothing is
+    # watching. `_cli_silent` also swallows the engine's own warning about this.
+    started = start_watcher(home)
     say("enabled")
+    if started not in ("running", "already-running"):
+        say("setup_unconfirmed")
+        return code or EXIT_UNCONFIRMED
     return code
 
 

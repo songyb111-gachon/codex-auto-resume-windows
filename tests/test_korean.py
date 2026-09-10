@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import re
+import subprocess
 import sys
 import unittest
 
@@ -30,7 +31,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 
 # The notice the generator writes, and the only honest way to tell the two branches apart.
-GENERATED_NOTICE = ROOT / ".github" / "GENERATED-BRANCH.md"
+NOTICE_NAME = ".github/GENERATED-BRANCH.md"
+GENERATED_NOTICE = ROOT / NOTICE_NAME
 
 
 def skip_if_generated() -> None:
@@ -49,7 +51,18 @@ def skip_if_generated() -> None:
     are absent" is also true of a half-deleted working tree, and a test that quietly
     skips because somebody deleted a file guards nothing.
     """
-    if GENERATED_NOTICE.is_file():
+    if not GENERATED_NOTICE.is_file():
+        return
+    # Present is not enough: the marker must be *tracked*.
+    #
+    # `python scripts/ko_sync.py --root .` is a documented command, and running it in a
+    # checkout of main leaves this file behind as an untracked residue that `git restore .`
+    # does not remove. If mere presence were the switch, that one stray run would silently
+    # disarm every invariant below - on main, where they are the only thing checking the
+    # Korean text - and the suite would still report success.
+    listed = subprocess.run(["git", "-C", str(ROOT), "ls-files", "--", str(NOTICE_NAME)],
+                            capture_output=True, text=True, encoding="utf-8")
+    if listed.returncode == 0 and listed.stdout.strip():
         raise unittest.SkipTest("this is the generated ko branch; the sources live on main")
 
 

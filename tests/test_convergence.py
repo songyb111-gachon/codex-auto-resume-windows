@@ -38,6 +38,7 @@ import watcher_launcher                # noqa: E402
 
 BOOTSTRAP = ROOT / "scripts" / "bootstrap.ps1"
 RELEASE = ROOT / "scripts" / "release.json"
+CHANGELOG_TEXT = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 INSTALLER = ROOT / "install" / "install.ps1"
 WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
 
@@ -239,13 +240,29 @@ class ReleaseManifestTests(unittest.TestCase):
         missing version exactly as it handles a null one: it verifies against the
         published `.sha256` sidecar instead and says out loud that it did.
 
-        What is worth checking is the opposite direction, and was not checked at all:
-        that a version which has been released did not stay unpinned because someone
-        forgot the post-release commit.
+        What is worth checking is the opposite direction: that a version which has been
+        released did not stay unpinned because someone forgot the post-release commit.
+
+        Checking it means looking at the versions that shipped, not at the entries that
+        happen to be here. An earlier version of this test filtered `release.json` for a
+        `null` digest - which could only ever see a placeholder somebody had written, and
+        the practice of writing them was removed in the same release. The forgotten pin it
+        claimed to catch leaves no entry at all, so nothing was being checked.
+
+        The shipped list is the changelog's own headings, which is the one place a release
+        is recorded that cannot be forgotten separately.
         """
         from codex_auto_resume import config
-        unpinned = [version for version, digest in self.release["sha256"].items()
-                    if digest is None and version != config.version()]
+        current = config.version()
+        shipped = [found.group(1) for found in
+                   re.finditer(r"^##\s+v(\d+\.\d+\.\d+)", CHANGELOG_TEXT, re.M)]
+        self.assertTrue(shipped, "no released versions found in the changelog")
+        digests = self.release["sha256"]
+        # The bootstrap only pins from 0.5.2 onwards; earlier releases predate the plugin
+        # route entirely and are not fetchable by it.
+        pinnable = [version for version in shipped
+                    if version >= "0.5.2" and version != current]
+        unpinned = [version for version in pinnable if not digests.get(version)]
         self.assertEqual(unpinned, [],
                          "these versions were released but never had their digest pinned")
 

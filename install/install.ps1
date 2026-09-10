@@ -641,8 +641,14 @@ if ($installed.Code -ne 0) {
 Step 'Setting up the watcher'
 $setupArgs = @('setup')
 if ($SkipStartup) { $setupArgs += '--no-startup' }
+# 2 means everything was done but the watcher was not seen running - a real outcome that
+# is neither success nor failure. Treating it as failure would roll back a good install;
+# treating it as success is how this script came to end with "Installed and running."
+# about a watcher nobody had looked at.
+$SETUP_UNCONFIRMED = 2
 $code = Invoke-Setup $setupArgs
-if ($code -ne 0) {
+$watcherUnconfirmed = $code -eq $SETUP_UNCONFIRMED
+if ($code -ne 0 -and -not $watcherUnconfirmed) {
     Fail 'Setup did not complete. Nothing was removed; read the message above.'
     exit 1
 }
@@ -653,9 +659,16 @@ if ($LASTEXITCODE -ne 0) { Warn 'The health check reported a problem. Recovery i
 
 Write-Host ''
 if ($script:Failed) { Write-Host 'Finished with problems. See the messages above.'; exit 1 }
-if ($upgrade) { Write-Host 'Updated. Your settings and pending recoveries were kept.' }
-else { Write-Host 'Installed and running.' }
-Write-Host 'Recommended settings are already on. Nothing else to do.'
+if ($watcherUnconfirmed) {
+    if ($upgrade) { Write-Host 'Updated. Your settings and pending recoveries were kept.' }
+    else { Write-Host 'Installed.' }
+    Write-Host 'The watcher could not be confirmed running, so nothing is being watched yet.'
+    Write-Host 'Open Start Menu > Codex Auto Resume and use Start watcher, or run this again.'
+} else {
+    if ($upgrade) { Write-Host 'Updated. Your settings and pending recoveries were kept.' }
+    else { Write-Host 'Installed and running.' }
+    Write-Host 'Recommended settings are already on. Nothing else to do.'
+}
 Write-Host ''
 Write-Host 'To change anything: open Codex and ask "open auto resume settings",'
 Write-Host 'or use Start Menu > Codex Auto Resume.'
