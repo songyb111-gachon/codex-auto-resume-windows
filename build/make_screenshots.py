@@ -49,7 +49,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "build"))
 
-from codex_auto_resume import config, mcpui, settings as policy   # noqa: E402
+from codex_auto_resume import config, mcpui, messages               # noqa: E402
+from codex_auto_resume import settings as policy                    # noqa: E402
 
 ASSETS = ROOT / "assets"
 DOCS = ROOT / "docs" / "images"
@@ -93,11 +94,22 @@ WINDOW_INPUTS = (
     "build/make_screenshots.py",          # the sample installation it is run against
 )
 
-# The panel is rendered at half size and captured at twice the device scale, so the
-# committed image is 1100x988 whatever the display it was generated on. The window is
-# captured at whatever the machine's scaling is, because a window has no such control;
-# the manifest records which, so a surprising diff has an explanation.
-PANEL_CSS_SIZE = (550, 494)
+# Rendered at half size and captured at twice the device scale, so the committed image is
+# the same pixels whatever display it was generated on. The window is captured at whatever
+# the machine's scaling is, because a window has no such control; the manifest records
+# which, so a surprising diff has an explanation.
+#
+# 550x494 was inherited and was wrong twice over, which is what the picture showed: the
+# panel's grid collapses to one column below 260px per column, so the screenshot was a
+# tall narrow strip rather than the two-column layout Codex actually shows - and 494 was
+# shorter than the content, so the image ended in the middle of the recovery card with
+# both remaining cards and the whole footer cut off. A screenshot that stops mid-card
+# reads as a broken product.
+#
+# 900 is wide enough for two columns with the cards at a comfortable width, and near the
+# width a Codex side panel actually gets. The height is measured from the rendered page
+# rather than guessed, so it cannot go stale when a setting is added.
+PANEL_CSS_WIDTH = 900
 PANEL_SCALE = 2
 
 EDGE_CANDIDATES = (
@@ -143,9 +155,13 @@ def sample_panel_data() -> dict:
     # equally synthetic - `tests/test_repo_hygiene.py` accepts both - and tell the rows
     # apart in the picture.
     threads = ("11111111-1111-7111-8111-111111111111",
-               "22222222-2222-7222-8222-222222222222",
-               "33333333-3333-7333-8333-333333333333")
-    categories = ("usage_limit", "network_transient", "server_5xx")
+               "22222222-2222-7222-8222-222222222222")
+    categories = ("usage_limit", "network_transient")
+    # Named, because the panel falls back to the first segment of the thread id and a
+    # column of `11111111` reads as debug output rather than as work waiting to resume.
+    # Synthetic throughout - `tests/test_repo_hygiene.py` requires the placeholder family
+    # - but shaped like something a person would recognise as their own task.
+    names = ("example-project", "example-service")
     with tempfile.TemporaryDirectory() as name:
         paths = config.Paths(Path(name))
         paths.ensure()
@@ -161,6 +177,12 @@ def sample_panel_data() -> dict:
         surface = control_module.Control(paths)
         waiting = surface.list_pending()
         status = surface.get_status()
+    # A name is what a person recognises the work by. It reaches a real row from the
+    # identity the watcher recorded, which a scratch store has no way to have; without it
+    # the panel falls back to the first segment of the thread id and the picture shows a
+    # column of `11111111`, which reads as debug output rather than as work waiting.
+    for row, name in zip(waiting, names):
+        row["name"] = name
     # The two facts a picture of a working product should show, which a scratch store
     # cannot know: it is on, and something is watching.
     status["enabled"] = True
@@ -179,6 +201,44 @@ def find_edge() -> Path:
     raise SystemExit("Microsoft Edge was not found; it is the renderer for the panel.")
 
 
+def panel_height(page: Path, workspace: str) -> int:
+    """How tall the rendered panel actually is, asked of the renderer.
+
+    A constant here is a constant that goes stale the first time a setting is added, and
+    the way it goes stale is that the bottom of the picture disappears. Chromium prints
+    the DOM after layout, so the page can be asked instead: render it once at the target
+    width, read the height off the root element, and shoot at that.
+    """
+    marker = "CAR-PANEL-HEIGHT:"
+    probe = Path(workspace) / "probe.html"
+    probe.write_text(
+        page.read_text(encoding="utf-8").replace(
+            "</body>",
+            "<script>document.title='%s'+"
+            "Math.ceil(document.documentElement.getBoundingClientRect().height);"
+            "</script></body>" % marker),
+        encoding="utf-8")
+    dumped = subprocess.run(
+        [str(find_edge()), "--headless=new", "--disable-gpu", "--hide-scrollbars",
+         "--virtual-time-budget=2000",
+         "--window-size=%d,%d" % (PANEL_CSS_WIDTH, 2000),
+         "--dump-dom", probe.as_uri()],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=180, cwd=workspace)
+    for piece in dumped.stdout.split(marker)[1:]:
+        digits = ""
+        for character in piece:
+            if character.isdigit():
+                digits += character
+            else:
+                break
+        if digits:
+            # The page's own padding is already in the measurement; a little more keeps
+            # the bottom card from sitting flush against the edge of the image.
+            return int(digits) + 16
+    raise SystemExit("could not measure the panel; the renderer printed no height")
+
+
 def render_panel(target: Path) -> None:
     """The panel, rendered from `mcpui` rather than photographed inside Codex.
 
@@ -186,16 +246,16 @@ def render_panel(target: Path) -> None:
     rendering of the same document and not a picture of Codex. The README says so; do not
     let it start implying otherwise.
     """
-    html = panel_html()
+    html = panel_html(theme=THEME)
     with tempfile.TemporaryDirectory() as workspace:
         page = Path(workspace) / "panel.html"
         page.write_text(html, encoding="utf-8")
         shot = Path(workspace) / "panel.png"
-        width, height = PANEL_CSS_SIZE
+        height = panel_height(page, workspace)
         subprocess.run(
             [str(find_edge()), "--headless=new", "--disable-gpu", "--hide-scrollbars",
              "--force-device-scale-factor=%d" % PANEL_SCALE,
-             "--window-size=%d,%d" % (width, height),
+             "--window-size=%d,%d" % (PANEL_CSS_WIDTH, height),
              "--screenshot=%s" % shot, page.as_uri()],
             check=True, capture_output=True, timeout=180,
             cwd=workspace)
@@ -205,9 +265,27 @@ def render_panel(target: Path) -> None:
 
 
 # ---------------------------------------------------------------- settings window
-def panel_html() -> str:
+# A host that answers `callTool`, and nothing else.
+#
+# The panel feature-detects its host and falls back to read-only when it finds none -
+# every control disabled, and a line explaining why. That fallback is correct and is
+# worth having, but it is not what the panel looks like inside Codex, where a host is
+# always present. Rendering without one produced a screenshot of the degraded state:
+# greyed checkboxes, a greyed Save, and a notice telling the reader to go and use a
+# different window.
+#
+# So the preview is given the one thing Codex gives it. Nothing here is drawn by the
+# stub: the markup, the styles and every string are still the resource Codex is served.
+PREVIEW_HOST = ("<script>window.openai={callTool:function(){"
+                "return new Promise(function(){});}};</script>")
+
+
+def panel_html(theme=None) -> str:
     """The exact markup the panel screenshot is a picture of."""
-    return mcpui.settings_page(sample_panel_data())
+    page = mcpui.settings_page(sample_panel_data(), theme=theme)
+    # Before the panel's own script, which reads the host as it starts.
+    head, _, tail = page.rpartition("<script>")
+    return head + PREVIEW_HOST + "<script>" + tail
 
 
 def scratch_installation(workspace: Path) -> Path:
@@ -351,20 +429,49 @@ def system_dpi() -> int:
         return 0
 
 
+# The public screenshot set: one language per README, one theme for all of them.
+#
+# Light, because the dark theme is the one that follows the reader's machine and a
+# gallery mixing a light notification with a dark panel does not look like one product.
+# The runtime still follows the user's Windows and Codex themes; only the pictures are
+# pinned, and only so that a build on a machine in dark mode produces the same bytes as a
+# build on a machine in light mode.
+THEME = "light"
+LOCALES = ("en", "ko")
+
+
+def paths_for(locale: str):
+    """Where one locale's pair of images lives. English keeps the plain names."""
+    tag = "" if locale == "en" else "-" + locale
+    panel = ASSETS / ("screenshot-panel%s.png" % tag)
+    window = ASSETS / ("screenshot-settings%s.png" % tag)
+    return {panel: DOCS / ("settings-panel%s.png" % tag),
+            window: DOCS / ("settings-window%s.png" % tag)}
+
+
 def main(argv=None) -> int:
     ASSETS.mkdir(parents=True, exist_ok=True)
     DOCS.mkdir(parents=True, exist_ok=True)
 
     print("version        : %s" % config.version())
-    print("rendering panel...")
-    render_panel(PANEL)
-    print("  %s  %s" % (PANEL.relative_to(ROOT), dimensions(PANEL)))
+    print("theme          : %s" % THEME)
+    copies = {}
+    for locale in LOCALES:
+        print("locale         : %s" % locale)
+        # The engine resolves the language from the environment, so the environment is
+        # what the generator sets. Nothing here passes a language into a renderer: the
+        # screenshots go through exactly the path a user's machine goes through.
+        os.environ[messages.ENV_LANG] = locale
+        pair = paths_for(locale)
+        panel, window = list(pair)
+        render_panel(panel)
+        print("  %s  %s" % (panel.relative_to(ROOT), dimensions(panel)))
+        size = render_settings_window(window)
+        print("  %s  %s" % (window.relative_to(ROOT), size))
+        copies.update(pair)
+    os.environ.pop(messages.ENV_LANG, None)
 
-    print("rendering the settings window...")
-    size = render_settings_window(SETTINGS)
-    print("  %s  %s" % (SETTINGS.relative_to(ROOT), size))
-
-    for source, copy in COPIES.items():
+    for source, copy in copies.items():
         shutil.copyfile(source, copy)
         print("copied         : %s -> %s" % (source.relative_to(ROOT), copy.relative_to(ROOT)))
 
@@ -376,11 +483,13 @@ def main(argv=None) -> int:
             "the screenshots are stale. Regenerate them rather than editing this file.",
         ],
         "version": config.version(),
+        "theme": THEME,
+        "locales": list(LOCALES),
         "system_dpi": system_dpi(),
         "inputs": render_inputs(),
         "images": {str(path.relative_to(ROOT)).replace("\\", "/"):
                    {"sha256": sha256(path.read_bytes()), "size": dimensions(path)}
-                   for path in list(COPIES) + list(COPIES.values())},
+                   for path in list(copies) + list(copies.values())},
     }, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print("manifest       : %s" % MANIFEST.relative_to(ROOT))
     return 0

@@ -49,21 +49,35 @@ LIGHT = {
     "attention": "#B45309",  # fill only: needs a person
 }
 
+# Dark is not light inverted. Three things were wrong with the first attempt, and all
+# three were visible the moment the two themes were put side by side:
+#
+#   * the canvas and the surface were four points of lightness apart, so a card did not
+#     read as a card - the panel looked like one dark sheet with hairlines drawn on it;
+#   * the hairline was darker than the surface it sat on, which is the wrong direction.
+#     On a dark ground an edge is lighter than what it encloses, not darker;
+#   * the cyan was at full saturation. It is a fill for "the watcher is running", it
+#     appears as an 11px dot, and at #22D3EE that dot was the brightest thing on screen -
+#     the product read as fluorescent rather than technical.
+#
+# So the surface is lifted away from the canvas, the line is lifted above the surface,
+# and the cyan is brought down in chroma while staying unmistakably cyan. The blues keep
+# the brand; there is simply less of the loudest one visible at once.
 DARK = {
-    "ink":     "#E6EDF5",
-    "muted":   "#93A4B8",
-    "line":    "#24303F",
-    "surface": "#161D27",
-    "canvas":  "#0E141C",
-    "accent":  "#5AA5F5",
+    "ink":     "#E8EEF6",
+    "muted":   "#9AACBF",
+    "line":    "#2E3A4B",
+    "surface": "#191F29",
+    "canvas":  "#0C1118",
+    "accent":  "#5CA2EE",
     # Dark themes need a bright accent to stand off the surface, and a bright accent
     # cannot then carry white text: white on #5AA5F5 measures 2.6:1. So the text on the
     # accent is a token, not a literal, and it goes dark exactly when the accent goes
     # light. This was caught by the contrast test rather than by looking at it.
-    "on_accent": "#0B1220",
-    "active":  "#22D3EE",
-    "idle":    "#5C6B7C",
-    "attention": "#F0A45C",
+    "on_accent": "#08111C",
+    "active":  "#35B5CC",
+    "idle":    "#5F6E80",
+    "attention": "#E09B57",
 }
 
 # The icon's own colours, which are deliberately not theme tokens: a Windows icon is

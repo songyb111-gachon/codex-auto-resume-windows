@@ -354,7 +354,9 @@ class BridgeTests(ControlTestCase):
         self.assertEqual(names, sorted([
             "cancel", "defaults", "describe", "enabled", "pending", "pending-all",
             "reset-budget", "retry-now", "settings", "start-watcher", "startup",
-            "status", "update"]))
+            # `strings` is a read like `describe`: it returns the interface vocabulary
+            # for the resolved language and touches nothing.
+            "status", "strings", "update"]))
 
 
 class StartWatcherTests(ControlTestCase):

@@ -17,19 +17,25 @@ from __future__ import annotations
 
 import json
 
-from . import brand
+from . import brand, interface
 
 # The page is delivered as one resource, so the style lives in it. Every colour comes
 # from the shared palette, which is what keeps this panel, the settings window and the
 # icon the same product rather than three that happen to ship together.
 _STYLE = """
+/* Three states, not two. An explicit choice stamps `data-theme` on the root; the
+   ordinary case stamps nothing and only the media query separates light from dark. A
+   colour whose only definition lives inside the media block is the classic unreadable
+   panel, so every token is declared here first and only redefined below. */
 :root {
   color-scheme: light dark;
   %(light)s
 }
 @media (prefers-color-scheme: dark) {
-  :root { %(dark)s }
+  :root:not([data-theme="light"]) { color-scheme: dark; %(dark)s }
 }
+:root[data-theme="dark"] { color-scheme: dark; %(dark)s }
+:root[data-theme="light"] { color-scheme: light; %(light)s }
 * { box-sizing: border-box; }
 body { margin: 0; padding: 16px; background: var(--canvas); color: var(--ink);
        font: 14px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif; }
@@ -57,9 +63,8 @@ body { margin: 0; padding: 16px; background: var(--canvas); color: var(--ink);
    put the third card alone on a second row with a hole beside it; columns keep the
    reading order and fill the space. Below the breakpoint auto-fit collapses to one
    column and the cards stack in the same order. */
-.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
         align-items: start; margin-bottom: 14px; }
-.col { display: flex; flex-direction: column; gap: 12px; }
 label.row { display: flex; align-items: center; gap: 9px; padding: 4px 0; cursor: pointer; }
 label.row.sub { padding-left: 18px; }
 label.row.master { font-weight: 600; }
@@ -82,7 +87,7 @@ button[disabled] { opacity: .5; cursor: default; }
 /* Wide content scrolls inside its own box; the panel itself never scrolls sideways. */
 .pending { margin-bottom: 14px; }
 .scroll { overflow-x: auto; }
-.pending table { width: 100%%; border-collapse: collapse; }
+.pending table { width: 100%%; max-width: 560px; border-collapse: collapse; }
 .pending th, .pending td { text-align: left; padding: 5px 10px 5px 0;
                            border-bottom: 1px solid var(--line);
                            font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -123,21 +128,28 @@ var DATA = initialData();
 var NOTICE = '';
 var EDITORS = {};
 
-var LABELS = {
-  usage_limit: 'Usage limits', network_transient: 'Network failures', timeout: 'Timeouts',
-  rate_limit_transient: 'Temporary rate limits', server_5xx: 'Server errors',
-  stream_interrupted: 'Stream interruptions', interruption: 'Interruption detected',
-  starting: 'Recovery starting', result: 'Recovery result',
-  stopped: 'Stopped or out of attempts', notifications: 'Show notifications',
-  max_recovery_attempts: 'Attempts per interruption', max_no_progress: 'Stop after no progress',
-  retry_timing: 'Retry timing'
-};
+// Every word on this panel comes from Python, in the language Python resolved. The panel
+// does not consult navigator.language: the notifications, the setup output, the standalone
+// window and this page all have to agree, and only one of them can be the one that decides.
+var S = window.__CODEX_AUTO_RESUME_STRINGS__ || {};
+
+function t(key, fallback) {
+  var value = S[key];
+  return (value === undefined || value === null) ? (fallback || key) : value;
+}
+
+function fill(key, fallback, values) {
+  var text = t(key, fallback);
+  Object.keys(values || {}).forEach(function (name) {
+    text = text.split('{' + name + '}').join(String(values[name]));
+  });
+  return text;
+}
 
 function label(name) {
-  var key = name.replace(/^recover_/, '').replace(/^notify_/, '');
-  if (LABELS[name]) return LABELS[name];
-  if (LABELS[key]) return LABELS[key];
-  key = key.replace(/_/g, ' ');
+  var known = S['field.' + name];
+  if (known) return known;
+  var key = name.replace(/^recover_/, '').replace(/^notify_/, '').replace(/_/g, ' ');
   return key.charAt(0).toUpperCase() + key.slice(1);
 }
 
@@ -174,7 +186,9 @@ function field(entry, value) {
     input = document.createElement('select');
     entry.choices.forEach(function (choice) {
       var option = document.createElement('option');
-      option.value = choice; option.textContent = choice;
+      // Value stored untranslated, label shown translated - a settings file whose
+      // meaning changed with the display language would be a bug nobody could see.
+      option.value = choice; option.textContent = t('choice.' + choice, choice);
       if (choice === value) option.selected = true;
       input.appendChild(option);
     });
@@ -195,11 +209,12 @@ function field(entry, value) {
 function renderPending(rows) {
   if (!rows || !rows.length) return null;
   var box = element('section', 'card pending');
-  box.appendChild(element('h2', null, 'Waiting to resume'));
+  box.appendChild(element('h2', null, t('panel.pending_title', 'Waiting to resume')));
   var scroll = element('div', 'scroll');
   var table = document.createElement('table');
   var head = document.createElement('tr');
-  ['Conversation', 'State', 'Attempts'].forEach(function (name) {
+  [t('panel.col_conversation', 'Conversation'), t('panel.col_state', 'State'),
+   t('panel.col_attempts', 'Attempts')].forEach(function (name) {
     head.appendChild(element('th', null, name));
   });
   table.appendChild(head);
@@ -212,7 +227,8 @@ function renderPending(rows) {
     first.appendChild(name);
     line.appendChild(first);
     var state = element('td');
-    state.appendChild(element('span', 'state', row.state.replace(/_/g, ' ')));
+    state.appendChild(element('span', 'state',
+                              t('state.' + row.state, row.state.replace(/_/g, ' '))));
     line.appendChild(state);
     line.appendChild(element('td', null, String(row.recovery_attempts)));
     table.appendChild(line);
@@ -220,7 +236,8 @@ function renderPending(rows) {
   scroll.appendChild(table);
   box.appendChild(scroll);
   if (rows.length > 8) {
-    box.appendChild(element('p', 'note', 'and ' + (rows.length - 8) + ' more'));
+    box.appendChild(element('p', 'note',
+      fill('panel.more', 'and {n} more', {n: rows.length - 8})));
   }
   return box;
 }
@@ -229,7 +246,8 @@ function render() {
   var root = document.getElementById('root');
   root.textContent = '';
   if (!DATA) {
-    root.appendChild(element('p', 'note', 'Settings are not available in this view.'));
+    root.appendChild(element('p', 'note',
+      t('panel.unavailable', 'Settings are not available in this view.')));
     return;
   }
   var status = DATA.status || {};
@@ -243,23 +261,27 @@ function render() {
   hero.appendChild(element('div', 'eyebrow', 'Codex Auto Resume · v' + (status.version || '?')));
   var headline = element('h1', 'headline');
   headline.appendChild(element('span', 'dot' + (status.watcher_running && status.enabled ? ' on' : '')));
-  var watcher = status.watcher_running === true ? 'Watching for interruptions'
-              : status.watcher_running === false ? 'Watcher not running' : 'Watcher status unknown';
-  if (status.watcher_running === true && !status.enabled) watcher = 'Watching paused';
+  var watcher = status.watcher_running === true ? t('status.watching', 'Watching for interruptions')
+              : status.watcher_running === false ? t('status.not_running', 'Watcher not running')
+              : t('status.unknown', 'Watcher status unknown');
+  if (status.watcher_running === true && !status.enabled) watcher = t('status.paused', 'Watching paused');
   headline.appendChild(element('span', null, watcher));
   hero.appendChild(headline);
 
   // Two facts under it, most consequential first: whether recovery can happen at all,
   // and then what is waiting on it.
   var count = status.pending || 0;
-  var recovery = status.watcher_running !== true ? 'Nothing will be recovered until it is running'
-               : status.enabled ? 'Automatic recovery is on'
-               : 'Automatic recovery is paused';
+  var recovery = status.watcher_running !== true
+                 ? t('status.recovery_idle', 'Nothing will be recovered until it is running')
+               : status.enabled ? t('status.recovery_on', 'Automatic recovery is on')
+               : t('status.recovery_paused', 'Automatic recovery is paused');
   var facts = element('div', 'facts');
   facts.appendChild(element('span', null, recovery));
   facts.appendChild(element('span', null, '·'));
-  facts.appendChild(element('span', null, count === 0 ? 'Nothing pending'
-                    : count === 1 ? '1 recovery pending' : count + ' recoveries pending'));
+  facts.appendChild(element('span', null,
+    count === 0 ? t('status.pending_none', 'Nothing pending')
+    : count === 1 ? t('status.pending_one', '1 recovery pending')
+    : fill('status.pending_many', '{n} recoveries pending', {n: count})));
   hero.appendChild(facts);
   root.appendChild(hero);
 
@@ -268,8 +290,9 @@ function render() {
   if (pending) root.appendChild(pending);
 
   var grid = element('div', 'grid');
-  var groups = {recovery: card('Automatic recovery'), limits: card('Limits'),
-                notifications: card('Notifications')};
+  var groups = {recovery: card(t('group.recovery', 'Automatic recovery')),
+                limits: card(t('group.limits', 'Limits')),
+                notifications: card(t('group.notifications', 'Notifications'))};
   schema.forEach(function (entry) {
     var host = groups[entry.group];
     if (!host) return;
@@ -281,19 +304,18 @@ function render() {
       host.appendChild(field(entry, value));
     }
   });
-  // What may be recovered on the left; how hard it tries and what it says on the right.
-  var left = element('div', 'col');
-  left.appendChild(groups.recovery);
-  var right = element('div', 'col');
-  right.appendChild(groups.limits);
-  right.appendChild(groups.notifications);
-  grid.appendChild(left);
-  grid.appendChild(right);
+  // Placed by the grid, in reading order: what may be recovered, how hard it tries,
+  // what it says about it. Assigning them to two fixed columns left one column ending a
+  // third of the way up the panel with nothing under it.
+  grid.appendChild(groups.recovery);
+  grid.appendChild(groups.limits);
+  grid.appendChild(groups.notifications);
   root.appendChild(grid);
 
   var footer = element('footer');
-  var save = element('button', 'primary', 'Save');
-  var pause = element('button', null, status.enabled ? 'Pause recovery' : 'Resume recovery');
+  var save = element('button', 'primary', t('action.save', 'Save'));
+  var pause = element('button', null, status.enabled
+    ? t('action.pause', 'Pause recovery') : t('action.resume', 'Resume recovery'));
   var message = element('span', 'note');
   save.disabled = !HOST;
   pause.disabled = !HOST;
@@ -303,7 +325,7 @@ function render() {
   // watcher is stopped, so a panel that reports it and offers no way out is a dead end.
   var start = null;
   if (status.watcher_running === false) {
-    start = element('button', null, 'Start watcher');
+    start = element('button', null, t('action.start', 'Start watcher'));
     start.disabled = !HOST;
     footer.appendChild(start);
   }
@@ -318,7 +340,8 @@ function render() {
   }
 
   if (!HOST) {
-    message.textContent = 'Read-only here. Use the Codex Auto Resume settings window to change these.';
+    message.textContent = t('panel.readonly',
+      'Read-only here. Use the Codex Auto Resume settings window to change these.');
     return;
   }
 
@@ -326,12 +349,13 @@ function render() {
     var changes = {};
     Object.keys(EDITORS).forEach(function (name) { changes[name] = EDITORS[name](); });
     save.disabled = true;
-    message.textContent = 'Saving...';
+    message.textContent = t('panel.saving', 'Saving...');
     HOST.callTool('update_settings', changes).then(function () {
-      message.textContent = 'Saved.';
+      message.textContent = t('panel.saved', 'Saved.');
       save.disabled = false;
     }, function (error) {
-      message.textContent = 'Not saved: ' + (error && error.message ? error.message : 'refused');
+      message.textContent = fill('panel.not_saved', 'Not saved: {reason}',
+        {reason: (error && error.message) ? error.message : t('panel.refused', 'refused')});
       save.disabled = false;
     });
   };
@@ -347,7 +371,7 @@ function render() {
   if (start) {
     start.onclick = function () {
       start.disabled = true;
-      message.textContent = 'Starting...';
+      message.textContent = t('panel.starting', 'Starting...');
       HOST.callTool('start_watcher', {}).then(function (result) {
         // Do not assume it worked. The panel used to set watcher_running to true here
         // and render a running watcher on the strength of the call not throwing, which
@@ -360,9 +384,10 @@ function render() {
           status.watcher_running = true;
           NOTICE = '';
         } else if (state === 'exited') {
-          NOTICE = 'It started and stopped again; nothing is watching.';
+          NOTICE = t('panel.start_exited', 'It started and stopped again; nothing is watching.');
         } else {
-          NOTICE = 'Started, but not confirmed running yet. Ask for the status again.';
+          NOTICE = t('panel.start_unconfirmed',
+            'Started, but not confirmed running yet. Ask for the status again.');
         }
         // Through NOTICE rather than onto `message`, because render() empties the panel
         // and builds a fresh span: text written here first would be on a node that is
@@ -370,7 +395,8 @@ function render() {
         // happened - on exactly the two states that most need explaining.
         render();
       }, function (error) {
-        message.textContent = 'Could not start it: ' + (error && error.message ? error.message : 'refused');
+        message.textContent = fill('panel.start_failed', 'Could not start it: {reason}',
+          {reason: (error && error.message) ? error.message : t('panel.refused', 'refused')});
         start.disabled = false;
       });
     };
@@ -381,20 +407,32 @@ render();
 """
 
 
-def settings_page(data=None) -> str:
+def settings_page(data=None, theme=None) -> str:
     """The panel as one HTML document.
 
     ``data`` is only ever used for a preview: in Codex the values arrive from the tool
     result, so the served page carries no settings of its own and cannot go stale
     between being read and being shown.
     """
+    # The vocabulary always ships, seed data or not. In Codex the values arrive from the
+    # tool result, but the page still has to know what to call them - and the panel must
+    # not choose the language for itself. A product that speaks Korean in its
+    # notifications and English in its settings panel has picked the worst of both, so
+    # the language is resolved once, in Python, and handed here.
+    catalog = "<script>window.__CODEX_AUTO_RESUME_STRINGS__=%s;</script>" % json.dumps(
+        interface.catalog(), ensure_ascii=False).replace("<", "\\u003c")
     seed = ""
     if data is not None:
         seed = "<script>window.__CODEX_AUTO_RESUME__=%s;</script>" % json.dumps(
             data, ensure_ascii=False, default=str).replace("<", "\\u003c")
+    # `theme` pins the colour scheme instead of following the host. Codex never passes
+    # it - inside Codex the panel follows the host, which is the point - and the
+    # documentation capture does, because a screenshot whose theme depends on whichever
+    # machine ran the build is not a deterministic artefact.
+    root = "<html>" if theme not in ("light", "dark") else '<html data-theme="%s">' % theme
     return (
-        "<!doctype html><html><head><meta charset=\"utf-8\">"
+        "<!doctype html>" + root + "<head><meta charset=\"utf-8\">"
         "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
         "<title>Codex Auto Resume</title><style>%s</style></head>"
-        "<body><div id=\"root\"></div>%s<script>%s</script></body></html>"
-        % (_STYLE, seed, _SCRIPT))
+        "<body><div id=\"root\"></div>%s%s<script>%s</script></body></html>"
+        % (_STYLE, catalog, seed, _SCRIPT))

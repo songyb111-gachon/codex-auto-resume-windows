@@ -93,18 +93,45 @@ class MappingTests(unittest.TestCase):
                 self.assertTrue((ROOT / target).is_file(),
                                 "%s replaces %s, which does not exist" % (source, target))
 
-    def test_the_untranslated_list_is_accurate(self):
-        """It is the visible to-do; a stale to-do is worse than none."""
-        for name in self.mapping["not_yet_translated"]:
-            with self.subTest(name):
-                self.assertTrue((ROOT / name).is_file(), "%s does not exist" % name)
-                korean = ROOT / name.replace(".md", ".ko.md")
-                self.assertFalse(korean.is_file(),
-                                 "%s exists, so %s is no longer untranslated"
-                                 % (korean.name, name))
+    def test_every_human_facing_document_is_classified(self):
+        """Translated, or English for a stated reason. There is no third pile.
 
-    def test_nothing_is_both_mapped_and_listed_as_untranslated(self):
-        overlap = set(self.mapping["documents"].values()) & set(self.mapping["not_yet_translated"])
+        v0.5.5 shipped a `not_yet_translated` list, which was honest at the time and
+        would have stayed there indefinitely: a list of documents nobody has got to is
+        indistinguishable from a list of documents nobody will. So the rule is that every
+        tracked Markdown document a person reads is either mapped to a Korean source or
+        named in `intentionally_english` with the reason it is not.
+
+        `docs/evidence/` and the tests' own fixtures are not documents in this sense; they
+        are data a reader is pointed at, not prose.
+        """
+        translated = set(self.mapping["documents"].values())
+        exempt = set(self.mapping["intentionally_english"])
+        listing = subprocess.run(["git", "-C", str(ROOT), "ls-files", "-z", "--", "*.md", "LICENSE"],
+                                 capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(listing.returncode, 0, "git ls-files failed")
+        unclassified = []
+        for name in [n for n in listing.stdout.split(chr(0)) if n]:
+            if name.endswith(".ko.md") or name.startswith("docs/evidence/"):
+                continue
+            if name in translated or name in exempt:
+                continue
+            unclassified.append(name)
+        self.assertEqual(sorted(unclassified), [],
+                         "add these to `documents` with a Korean source, or to "
+                         "`intentionally_english` with the reason they stay English")
+
+    def test_every_exemption_gives_a_reason(self):
+        for name, reason in self.mapping["intentionally_english"].items():
+            with self.subTest(name):
+                self.assertTrue((ROOT / name).is_file() or name.startswith(".github/"),
+                                "%s does not exist" % name)
+                self.assertGreater(len(reason.strip()), 30,
+                                   "an exemption without a reason is a to-do wearing a hat")
+
+    def test_nothing_is_both_translated_and_exempt(self):
+        overlap = (set(self.mapping["documents"].values())
+                   & set(self.mapping["intentionally_english"]))
         self.assertEqual(overlap, set())
 
 
@@ -225,8 +252,16 @@ class ClaimTests(unittest.TestCase):
         from codex_auto_resume import config
         pattern = re.compile(r"v?\d+\.\d+\.\d+")
         current = config.version()
+        # A changelog names the release it is announcing, and a page that recounts what
+        # happened up to a version names it. Those are history, and history that must not
+        # mention the newest release is not history. The rule is about *current-facing*
+        # prose claiming a version that nothing will update - the same split the English
+        # side draws in tests/test_privacy_claims.py.
+        historical = {"CHANGELOG.ko.md", "CONTRIBUTING.ko.md", "DEVELOPMENT.ko.md"}
         offenders = []
         for path in korean_documents():
+            if path.name in historical:
+                continue
             for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
                 for found in pattern.findall(line):
                     # Past releases are history and may be named; the current one may not,
