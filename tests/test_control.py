@@ -357,10 +357,6 @@ class BridgeTests(ControlTestCase):
             "status", "update"]))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class StartWatcherTests(ControlTestCase):
     """Starting the watcher is control, not recovery.
 
@@ -421,3 +417,7 @@ class StartWatcherTests(ControlTestCase):
             code, payload = self.run_bridge("start-watcher")
         self.assertEqual(code, 0)
         self.assertIs(payload["result"]["started"], True)
+
+
+if __name__ == "__main__":
+    unittest.main()

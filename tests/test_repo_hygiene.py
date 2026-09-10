@@ -126,5 +126,34 @@ class RepositoryHygieneTests(unittest.TestCase):
         self.assertIn("0a1b2c3d", text)
 
 
+class TestFileShapeTests(unittest.TestCase):
+    """A test that never runs guards nothing.
+
+    Six files here kept their `unittest.main()` guard in the middle, where an append had
+    left it. `unittest discover` imports the module and runs everything regardless, but a
+    developer running one file directly got only the classes defined above the guard -
+    83 of 592 tests silently absent, including every version-consistency check and every
+    test of starting the watcher.
+    """
+
+    def test_the_main_guard_is_the_last_thing_in_every_test_file(self):
+        # Anchored to the start of a line: the same text appears inside this very test
+        # as data, and matching that instead would make the check report itself.
+        guard = re.compile(r'^if __name__ == .__main__.:', re.M)
+        offenders = []
+        for path in sorted(Path(__file__).resolve().parent.glob("test_*.py")):
+            text = path.read_text(encoding="utf-8")
+            found = guard.search(text)
+            if not found:
+                continue
+            after = text[found.end():].strip()
+            if after != "unittest.main()":
+                offenders.append("%s: %d more lines follow the guard"
+                                 % (path.name, len(after.splitlines()) - 1))
+        self.assertEqual(offenders, [],
+                         "tests defined below the guard are skipped when the file is run "
+                         "directly, and nothing says so")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -722,10 +722,6 @@ class SingleInstanceTests(unittest.TestCase):
         self.assertFalse(StopEvent("unit-test-stop").signal(), "no waiter -> nothing to signal")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class PolicyTests(unittest.TestCase):
     """User-configurable policy, and the line it must not cross.
 
@@ -834,3 +830,7 @@ class PolicyTests(unittest.TestCase):
                     "unknown_reconcile_window_seconds", "reset_grace_seconds",
                     "conservative_poll_seconds", "state_poll_seconds"}
         self.assertEqual(set(settings.FIELDS) & reserved, set())
+
+
+if __name__ == "__main__":
+    unittest.main()
