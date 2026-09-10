@@ -108,5 +108,44 @@ class WatcherStartReportingTests(unittest.TestCase):
             self.assertIn(state, self.method, state)
 
 
+class FooterTests(unittest.TestCase):
+    """The strip along the bottom is as tall as what it holds.
+
+    A user reported the three buttons losing their bottom borders. The cause was not the
+    buttons: the strip's height was `MeasureText("Ag") + Px(46)`, a text measurement plus
+    a constant, and the row of buttons needed six pixels more than that arithmetic left -
+    the FlowLayoutPanel's default margin is 3px on every side and does not scale with the
+    display. The strip came out two pixels short, the row was clipped to 46 of its 48
+    pixels, and the last thing inside those two rows was every button's own bottom border.
+
+    Measured from a layout dump of the running window at 150%: the strip was 94 tall with
+    42 of padding, giving 52 to a grid whose preferred height was 54.
+    """
+
+    def setUp(self):
+        self.source = SETTINGS.read_text(encoding="utf-8")
+        start = self.source.index("private void BuildFooter()")
+        self.method = self.source[start:self.source.index("private void ", start + 10)]
+
+    def test_the_height_is_measured_rather_than_derived_from_a_font(self):
+        self.assertNotIn('MeasureText("Ag", Font).Height + Px(46)', self.method,
+                         "a strip sized by a formula cannot know how tall an AutoSize "
+                         "button becomes once the font is applied")
+        self.assertIn("PreferredSize.Height", self.method,
+                      "the strip must be sized from what it contains")
+        self.assertIn("footer.Padding.Vertical", self.method,
+                      "and must add the padding it declares")
+
+    def test_the_button_row_declares_its_margin(self):
+        self.assertIn("row.Margin = new Padding(0)", self.method,
+                      "the default 3px margin does not scale and is what went missing")
+
+    def test_the_height_is_set_after_the_content_exists(self):
+        add = self.method.index("footer.Controls.Add(grid)")
+        height = self.method.index("footer.Height =")
+        self.assertLess(add, height,
+                        "measuring before the children are added measures nothing")
+
+
 if __name__ == "__main__":
     unittest.main()
