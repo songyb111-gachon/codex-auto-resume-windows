@@ -33,7 +33,7 @@ EXIT_OK = 0
 EXIT_ERROR = 1
 
 sys.path.insert(0, str(PLUGIN_ROOT / "src"))
-from codex_auto_resume import config, messages, startup      # noqa: E402
+from codex_auto_resume import config, control, messages, startup      # noqa: E402
 from codex_auto_resume.app import App                        # noqa: E402
 
 
@@ -155,18 +155,24 @@ def notification_command(home: Path) -> str:
     return " ".join(startup.quote_argument(argument) for argument in argv) + ' "%1"'
 
 
-def start_watcher(home: Path) -> bool:
-    """Launch the watcher detached, so it outlives this command and the Codex UI."""
+def start_watcher(home: Path) -> str:
+    """Launch the watcher detached, so it outlives this command and the Codex UI.
+
+    Returns the state the watcher is actually in - "running", "already-running",
+    "exited" or "unconfirmed" - rather than whether a process was created. Setup prints
+    a line about the watcher immediately afterwards, and it used to print the one that
+    says it is running no matter what happened next.
+    """
     app = App(config.Paths(home), console=False, enable_logging=False)
     if app.watcher_running() is not False:
-        return False
+        return "already-running"
     flags = 0
     if os.name == "nt":
         flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-    subprocess.Popen([str(python_for_watcher(home)), str(home / LAUNCHER_NAME), "run"],
-                     cwd=str(home), close_fds=True, creationflags=flags,
-                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return True
+    process = subprocess.Popen([str(python_for_watcher(home)), str(home / LAUNCHER_NAME), "run"],
+                               cwd=str(home), close_fds=True, creationflags=flags,
+                               stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return control.await_watcher(app.watcher_running, process)["state"]
 
 
 def conflicting_autostart(home: Path) -> str | None:
@@ -227,14 +233,14 @@ def cmd_setup(args) -> int:
         startup.install_protocol(notification_command(home))
     except startup.StartupError:
         pass
-    start_watcher(home)
+    started = start_watcher(home)
     say("ready_title")
     print()
     say("ready_defaults")
     for key in ("ready_b1", "ready_b2", "ready_b3", "ready_b4"):
         print("  " + bullet() + " " + messages.text(key))
     print()
-    say("setup_done")
+    say("setup_done" if started in ("running", "already-running") else "setup_unconfirmed")
     if not args.no_startup:
         say("setup_autostart")
     print()

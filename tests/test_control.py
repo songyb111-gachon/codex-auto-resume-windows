@@ -419,5 +419,145 @@ class StartWatcherTests(ControlTestCase):
         self.assertIs(payload["result"]["started"], True)
 
 
+class FakeProcess:
+    """A `Popen` stand-in whose exit is scheduled rather than raced.
+
+    `poll()` returns None until it has been asked `exits_after` times. Nothing here
+    sleeps or depends on wall-clock ordering, so these tests cannot flake.
+    """
+
+    def __init__(self, exits_after=None, code=0):
+        self.polls = 0
+        self.exits_after = exits_after
+        self.code = code
+
+    def poll(self):
+        self.polls += 1
+        if self.exits_after is None:
+            return None
+        return self.code if self.polls > self.exits_after else None
+
+
+def scripted(*answers):
+    """A `watcher_running` that gives each answer in turn, then repeats the last."""
+    remaining = list(answers)
+
+    def probe():
+        return remaining.pop(0) if len(remaining) > 1 else remaining[0]
+    return probe
+
+
+class WatcherConfirmationTests(unittest.TestCase):
+    """`await_watcher` is the whole difference between launching and running.
+
+    `Popen` returning proves Windows made a process. Every one of these cases is a way
+    for that process not to be a working watcher, and before v0.5.5 all of them were
+    reported to the user as "The watcher is running."
+    """
+
+    def wait(self, probe, process, timeout=0.05):
+        return control.await_watcher(probe, process, timeout=timeout, interval=0)
+
+    def test_a_watcher_that_comes_up_is_confirmed(self):
+        result = self.wait(scripted(True), FakeProcess())
+        self.assertEqual(result["state"], "running")
+        self.assertIs(result["confirmed"], True)
+
+    def test_a_watcher_that_takes_a_moment_is_still_confirmed(self):
+        # The ordinary case: the mutex is taken after an interpreter has started.
+        result = self.wait(scripted(False, False, False, True), FakeProcess())
+        self.assertEqual(result["state"], "running")
+
+    def test_a_watcher_that_never_appears_is_not_reported_as_running(self):
+        result = self.wait(scripted(False), FakeProcess())
+        self.assertEqual(result["state"], "unconfirmed")
+        self.assertIs(result["confirmed"], False)
+
+    def test_a_probe_that_stops_working_is_unknown_rather_than_success(self):
+        # None means the probe failed, which is not evidence either way - and must
+        # never be rounded up to running.
+        result = self.wait(scripted(None), FakeProcess())
+        self.assertEqual(result["state"], "unconfirmed")
+        self.assertIs(result["confirmed"], False)
+
+    def test_a_child_that_exits_is_reported_as_exited(self):
+        result = self.wait(scripted(False), FakeProcess(exits_after=1))
+        self.assertEqual(result["state"], "exited")
+        self.assertIs(result["confirmed"], False)
+
+    def test_a_watcher_seen_running_wins_over_a_child_that_exited(self):
+        # A second watcher may already hold the mutex, in which case ours exits and
+        # the correct answer is still "a watcher is running".
+        result = self.wait(scripted(True), FakeProcess(exits_after=0))
+        self.assertEqual(result["state"], "running")
+
+    def test_it_gives_up_rather_than_waiting_for_ever(self):
+        started = time.monotonic()
+        self.wait(scripted(False), FakeProcess(), timeout=0.05)
+        self.assertLess(time.monotonic() - started, 5.0)
+
+    def test_it_works_without_a_process_handle(self):
+        # `plugin_setup` has a handle; a future caller might not.
+        self.assertEqual(self.wait(scripted(True), None)["state"], "running")
+
+
+class StartWatcherReportingTests(ControlTestCase):
+    """What `start_watcher` tells its four front ends."""
+
+    def setUp(self):
+        super().setUp()
+        (self.home / "watcher-launcher.py").write_text("# launcher" + chr(10), encoding="utf-8")
+        patcher = patch.object(control, "WATCHER_START_TIMEOUT", 0.05)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        interval = patch.object(control, "WATCHER_START_INTERVAL", 0)
+        interval.start()
+        self.addCleanup(interval.stop)
+
+    def start(self, *answers, exits_after=None):
+        with patch.object(control.Control, "watcher_running", side_effect=scripted(*answers)),              patch("subprocess.Popen", return_value=FakeProcess(exits_after=exits_after)):
+            return self.control.start_watcher()
+
+    def test_a_confirmed_start_says_so(self):
+        result = self.start(False, True)
+        self.assertEqual(result["state"], "running")
+        self.assertIs(result["started"], True)
+        self.assertIs(result["confirmed"], True)
+
+    def test_an_unconfirmed_start_does_not_claim_running(self):
+        result = self.start(False)
+        self.assertEqual(result["state"], "unconfirmed")
+        self.assertIs(result["confirmed"], False)
+
+    def test_a_watcher_that_exits_is_not_a_started_watcher(self):
+        result = self.start(False, exits_after=0)
+        self.assertEqual(result["state"], "exited")
+        self.assertIs(result["confirmed"], False)
+
+    def test_an_already_running_watcher_is_confirmed_without_launching(self):
+        with patch.object(control.Control, "watcher_running", return_value=True),              patch("subprocess.Popen") as popen:
+            result = self.control.start_watcher()
+        popen.assert_not_called()
+        self.assertEqual(result["state"], "already-running")
+        self.assertIs(result["confirmed"], True)
+
+    def test_a_launch_that_cannot_happen_raises_rather_than_reporting_success(self):
+        with patch.object(control.Control, "watcher_running", return_value=False),              patch("subprocess.Popen", side_effect=OSError("no")):
+            with self.assertRaises(control.ControlError):
+                self.control.start_watcher()
+
+    def test_every_outcome_has_wording_that_does_not_overclaim(self):
+        """The MCP tool must have a sentence for each state, and only one may say running."""
+        from codex_auto_resume.mcpserver import Server
+        wording = Server.START_WORDING
+        for state in ("running", "already-running", "exited", "unconfirmed"):
+            self.assertIn(state, wording, state)
+        claims = [state for state, text in wording.items()
+                  if "is running" in text and state not in ("running", "already-running")]
+        self.assertEqual(claims, [], "a state that is not running must not say it is")
+        for state in ("exited", "unconfirmed"):
+            self.assertNotIn("is running", wording[state])
+
+
 if __name__ == "__main__":
     unittest.main()

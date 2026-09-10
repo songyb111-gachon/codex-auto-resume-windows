@@ -339,8 +339,24 @@ function render() {
     start.onclick = function () {
       start.disabled = true;
       message.textContent = 'Starting...';
-      HOST.callTool('start_watcher', {}).then(function () {
-        status.watcher_running = true;
+      HOST.callTool('start_watcher', {}).then(function (result) {
+        // Do not assume it worked. The panel used to set watcher_running to true here
+        // and render a running watcher on the strength of the call not throwing, which
+        // is a claim about a process nobody had looked at yet. Ask instead.
+        // Hosts differ on whether they hand back the tool result or just its
+        // structured half, so look in both rather than depending on one.
+        var payload = (result && result.structuredContent) || result || {};
+        var state = payload.state;
+        if (state === 'running' || state === 'already-running') {
+          status.watcher_running = true;
+          message.textContent = '';
+        } else if (state === 'exited') {
+          message.textContent = 'It started and stopped again; nothing is watching.';
+          start.disabled = false;
+        } else {
+          message.textContent = 'Started, but not confirmed running yet. Refresh in a moment.';
+          start.disabled = false;
+        }
         render();
       }, function (error) {
         message.textContent = 'Could not start it: ' + (error && error.message ? error.message : 'refused');

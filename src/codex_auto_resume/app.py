@@ -18,6 +18,9 @@ from .windows import AdapterError, Backend, Mutex, StopEvent
 EXIT_OK = 0
 EXIT_ERROR = 1
 EXIT_BUSY = 3
+# Long enough that a status probe, which holds the single-instance mutex for
+# microseconds, has certainly let go; short enough to be invisible at startup.
+MUTEX_RETRY_SECONDS = 0.25
 MIN_POLL = 5
 MAX_POLL = 3600
 DEFAULT_POLL = 30
@@ -172,14 +175,31 @@ class App:
             pass
 
     def run(self, *, once: bool = False, poll: int | None = None) -> int:
-        try:
-            mutex = self.mutex(timeout=0.0).__enter__()
-        except AdapterError as exc:
-            if str(exc) == "mutex_busy":
+        # Busy is checked twice, a moment apart, before it is believed.
+        #
+        # `watcher_running()` answers by taking this same mutex and letting it go again,
+        # so every status read - the settings window, the MCP panel, `doctor`, and the
+        # confirmation loop that now watches a start - holds it for a few microseconds.
+        # A single instantaneous test can therefore lose to a status probe and conclude
+        # that another watcher owns the machine, which is how a perfectly good watcher
+        # could exit at the exact moment someone asked whether it was up.
+        #
+        # Single-instance safety is unchanged: a real second watcher holds this for its
+        # whole life, so it fails both attempts. Only a microsecond-long probe passes.
+        mutex = None
+        for attempt in (0, 1):
+            try:
+                mutex = self.mutex(timeout=0.0).__enter__()
+                break
+            except AdapterError as exc:
+                if str(exc) != "mutex_busy":
+                    self.logger.info("single-instance mutex unavailable (%s); refusing to run", exc)
+                    return EXIT_ERROR
+                if attempt == 0:
+                    time.sleep(MUTEX_RETRY_SECONDS)
+                    continue
                 self.logger.info("another watcher already holds the single-instance mutex; exiting")
                 return EXIT_BUSY
-            self.logger.info("single-instance mutex unavailable (%s); refusing to run", exc)
-            return EXIT_ERROR
         try:
             with self.stop_event() as stop:
                 return self._loop(mutex, stop, once=once, poll=poll)
