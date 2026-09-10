@@ -287,11 +287,22 @@ class WidgetTests(McpTestCase):
             self.assertNotIn(forbidden, page, forbidden)
 
     def test_the_panel_carries_no_settings_of_its_own(self):
-        # Values come from the tool result, so the page cannot be stale or disagree
-        # with what the control layer holds.
+        """Vocabulary ships with the page; values do not.
+
+        The served page carries the interface catalog, because the panel has to know what
+        to call a setting in the user's language before any tool result arrives. It must
+        still carry no *values*: those come from the tool result, so the page cannot be
+        stale or disagree with what the control layer holds.
+
+        Checked by looking for the seed object rather than for a setting's name - the
+        catalog legitimately contains every setting name as a `field.` key, and an earlier
+        substring check could not tell the two apart.
+        """
         page = mcpui.settings_page()
-        self.assertNotIn("max_recovery_attempts\":", page)
         self.assertNotIn("__CODEX_AUTO_RESUME__=", page)
+        self.assertIn("__CODEX_AUTO_RESUME_STRINGS__=", page)
+        for value_only in ('"settings":', '"pending":', '"schema":', '"watcher_running"'):
+            self.assertNotIn(value_only, page, value_only)
 
     def test_a_preview_seed_is_escaped(self):
         page = mcpui.settings_page({"status": {"version": "</script><script>x"}})

@@ -33,7 +33,7 @@ class RowLayoutTests(unittest.TestCase):
     def setUp(self):
         self.source = SETTINGS.read_text(encoding="utf-8")
         start = self.source.index("private Control NewRow(")
-        self.row = self.source[start:self.source.index("private static string Humanise(", start)]
+        self.row = self.source[start:self.source.index("private string Humanise(", start)]
 
     def test_the_editor_is_anchored_to_the_top_and_not_only_to_the_right(self):
         anchors = re.findall(r"editor\.Anchor\s*=\s*([^;]+);", self.row)

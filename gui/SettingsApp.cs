@@ -156,6 +156,17 @@ namespace CodexAutoResume
         }
     }
 
+    /// A drop-down entry whose stored value and displayed label differ.
+    internal sealed class Choice
+    {
+        internal readonly string Value;
+        private readonly string label;
+
+        internal Choice(string value, string label) { Value = value; this.label = label; }
+
+        public override string ToString() { return label; }
+    }
+
     internal sealed class Bridge
     {
         private readonly string python;
@@ -251,6 +262,46 @@ namespace CodexAutoResume
         private Color dotColor = Idle;
         private Button startButton;
 
+        // The interface vocabulary, in the language the engine resolved. Fetched once,
+        // over the same bridge every other read goes through.
+        //
+        // The window does not decide the language and carries no Korean of its own. It
+        // used to carry English of its own, which is why a machine whose Windows is
+        // Korean, whose notifications were Korean and whose setup output was Korean still
+        // opened an English settings window. `S` falls back to the English literal at each
+        // call site, so a bridge that cannot answer degrades to what this file used to be
+        // rather than to blank labels.
+        private Dictionary<string, object> strings = new Dictionary<string, object>();
+
+        private string S(string key, string fallback)
+        {
+            object value;
+            if (strings.TryGetValue(key, out value) && value is string && ((string)value).Length > 0)
+                return (string)value;
+            return fallback;
+        }
+
+        private string S(string key, string fallback, string token, object replacement)
+        {
+            return S(key, fallback).Replace("{" + token + "}", Convert.ToString(replacement,
+                                                                               CultureInfo.InvariantCulture));
+        }
+
+        private void LoadStrings()
+        {
+            try
+            {
+                var reply = bridge.Call("strings", null);
+                if (Equals(reply["ok"], true) && reply.ContainsKey("strings"))
+                    strings = (Dictionary<string, object>)reply["strings"];
+            }
+            catch (Exception)
+            {
+                // English, then. A settings window that will not open because it could
+                // not fetch its own labels is worse than one in the wrong language.
+            }
+        }
+
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern int GetDpiForSystem();
 
@@ -302,6 +353,8 @@ namespace CodexAutoResume
         internal SettingsForm(Bridge bridge)
         {
             this.bridge = bridge;
+            // Before anything is built: every label below asks the catalog for its text.
+            LoadStrings();
             Text = "Codex Auto Resume";
             Font = SystemFonts.MessageBoxFont;
             ForeColor = Ink;
@@ -419,7 +472,7 @@ namespace CodexAutoResume
             // watcher is the part nobody should have to think about. It sits beside the
             // sentence that explains why it is there rather than down among Save and
             // Close, which are about settings and not about the watcher.
-            startButton = MakeButton("Start watcher", true, delegate { StartWatcher(); });
+            startButton = MakeButton(S("action.start", "Start watcher"), true, delegate { StartWatcher(); });
             startButton.Visible = false;
             startButton.Anchor = AnchorStyles.Right;
             startButton.Margin = Pad(16, 0, 0, 0);
@@ -474,9 +527,9 @@ namespace CodexAutoResume
             // measurement plus a constant, the row needed six more than the arithmetic
             // allowed for, and every button lost the last two rows of its own border.
             row.Margin = new Padding(0);
-            row.Controls.Add(MakeButton("Close", false, delegate { Close(); }));
-            row.Controls.Add(MakeButton("Save", true, delegate { Save(); }));
-            row.Controls.Add(MakeButton("Restore defaults", false, delegate { RestoreDefaults(); }));
+            row.Controls.Add(MakeButton(S("action.close", "Close"), false, delegate { Close(); }));
+            row.Controls.Add(MakeButton(S("action.save", "Save"), true, delegate { Save(); }));
+            row.Controls.Add(MakeButton(S("action.restore", "Restore defaults"), false, delegate { RestoreDefaults(); }));
 
             versionText.Margin = new Padding(0);
             grid.Controls.Add(versionText, 0, 0);
@@ -633,28 +686,18 @@ namespace CodexAutoResume
             return row;
         }
 
-        private static string Humanise(string name)
+        private string Humanise(string name)
         {
+            // The catalog is keyed by the setting's own schema name, so adding a setting
+            // needs one line in interface.py and nothing here. The English fallback below
+            // is what this whole method used to be: a second copy of the vocabulary, in a
+            // second language, which is exactly what stopped the window being translated.
+            string known = S("field." + name, null);
+            if (known != null) return known;
             string text = name;
             if (text.StartsWith("recover_")) text = text.Substring(8);
             else if (text.StartsWith("notify_")) text = text.Substring(7);
             text = text.Replace('_', ' ');
-            var map = new Dictionary<string, string>();
-            map["usage limit"] = "Usage limits";
-            map["network transient"] = "Network failures";
-            map["timeout"] = "Timeouts";
-            map["rate limit transient"] = "Temporary rate limits";
-            map["server 5xx"] = "Server errors";
-            map["stream interrupted"] = "Stream interruptions";
-            map["interruption"] = "Interruption detected";
-            map["starting"] = "Recovery starting";
-            map["result"] = "Recovery result";
-            map["stopped"] = "Stopped or out of attempts";
-            map["max recovery attempts"] = "Attempts per interruption";
-            map["max no progress"] = "Stop after no progress";
-            map["retry timing"] = "Retry timing";
-            map["notifications"] = "Show notifications";
-            if (map.ContainsKey(text)) return map[text];
             return char.ToUpper(text[0]) + text.Substring(1);
         }
 
@@ -691,10 +734,10 @@ namespace CodexAutoResume
             // The split is two cards each rather than one and three. One and three was
             // tried and looked unfinished: the left column ran out after six rows while
             // the right ran to fifteen, leaving a third of the window blank.
-            TableLayoutPanel recovery = NewGroup("Automatic recovery", leftStack);
-            TableLayoutPanel limits = NewGroup("Limits", leftStack);
-            TableLayoutPanel notifications = NewGroup("Notifications", rightStack);
-            TableLayoutPanel windows = NewGroup("Windows", rightStack);
+            TableLayoutPanel recovery = NewGroup(S("group.recovery", "Automatic recovery"), leftStack);
+            TableLayoutPanel limits = NewGroup(S("group.limits", "Limits"), leftStack);
+            TableLayoutPanel notifications = NewGroup(S("group.notifications", "Notifications"), rightStack);
+            TableLayoutPanel windows = NewGroup(S("group.windows", "Windows"), rightStack);
 
             foreach (object entry in schema)
             {
@@ -744,16 +787,26 @@ namespace CodexAutoResume
                     var combo = new ComboBox();
                     combo.Width = Px(132);
                     combo.DropDownStyle = ComboBoxStyle.DropDownList;
-                    foreach (object choice in (List<object>)field["choices"]) combo.Items.Add((string)choice);
+                    // Displayed translated, stored untranslated. `Choice` keeps the two
+                    // apart, so Save writes "normal" whatever the label says - a settings
+                    // file that changes meaning with the display language would be a bug
+                    // the user could not see until the watcher read it back.
+                    var values = new List<string>();
+                    foreach (object choice in (List<object>)field["choices"])
+                    {
+                        values.Add((string)choice);
+                        combo.Items.Add(new Choice((string)choice,
+                                                   S("choice." + (string)choice, (string)choice)));
+                    }
                     string value = current.ContainsKey(name) ? current[name] as string : null;
-                    combo.SelectedIndex = Math.Max(0, combo.Items.IndexOf(value));
+                    combo.SelectedIndex = Math.Max(0, values.IndexOf(value));
                     IgnoreWheel(combo);
                     host.Controls.Add(NewRow(Humanise(name), combo));
                     editors[name] = combo;
                 }
             }
 
-            CheckBox startup = NewCheck("Run at Windows sign-in", false);
+            CheckBox startup = NewCheck(S("field.startup", "Run at Windows sign-in"), false);
             windows.Controls.Add(startup);
             editors["__startup"] = startup;
 
@@ -822,19 +875,20 @@ namespace CodexAutoResume
                 if (startup != null) startup.Checked = Equals(status["startup_enabled"], true);
 
                 dotColor = Equals(running, true) && enabled ? Active : Idle;
-                headline.Text = running == null ? "Watcher status unknown"
-                              : !Equals(running, true) ? "Watcher not running"
-                              : enabled ? "Watching for interruptions"
-                              : "Watching paused";
+                headline.Text = running == null ? S("status.unknown", "Watcher status unknown")
+                              : !Equals(running, true) ? S("status.not_running", "Watcher not running")
+                              : enabled ? S("status.watching", "Watching for interruptions")
+                              : S("status.paused", "Watching paused");
                 int count = (int)pending;
-                string tail = count == 0 ? "Nothing pending"
-                            : count == 1 ? "1 recovery pending"
-                            : count.ToString(CultureInfo.InvariantCulture) + " recoveries pending";
+                string tail = count == 0 ? S("status.pending_none", "Nothing pending")
+                            : count == 1 ? S("status.pending_one", "1 recovery pending")
+                            : S("status.pending_many", "{n} recoveries pending", "n", (int)count);
                 // Two facts, most consequential first: whether recovery can happen at
                 // all, and then what is waiting on it.
-                string recovery = !Equals(running, true) ? "Nothing will be recovered until it is running"
-                                : enabled ? "Automatic recovery is on"
-                                : "Automatic recovery is paused";
+                string recovery = !Equals(running, true)
+                                  ? S("status.recovery_idle", "Nothing will be recovered until it is running")
+                                : enabled ? S("status.recovery_on", "Automatic recovery is on")
+                                : S("status.recovery_paused", "Automatic recovery is paused");
                 detail.Text = recovery + "   ·   " + tail;
                 versionText.Text = "v" + status["version"];
                 if (startButton != null) startButton.Visible = Equals(running, false);
@@ -842,8 +896,8 @@ namespace CodexAutoResume
             catch (Exception)
             {
                 dotColor = Idle;
-                headline.Text = "Status unavailable";
-                detail.Text = "Settings can still be changed and saved";
+                headline.Text = S("status.unavailable", "Status unavailable");
+                detail.Text = S("status.unavailable_detail", "Settings can still be changed and saved");
                 // The version is deliberately left as it was: a failed status read is no
                 // reason to drop the one field people are asked for when reporting a bug.
             }
@@ -866,8 +920,8 @@ namespace CodexAutoResume
             // So the call goes to a worker and the answer comes back through BeginInvoke,
             // which is the only way to touch these controls from off the UI thread.
             startButton.Enabled = false;
-            headline.Text = "Starting the watcher...";
-            detail.Text = "Waiting for it to report in";
+            headline.Text = S("start.working", "Starting the watcher...");
+            detail.Text = S("start.waiting", "Waiting for it to report in");
             header.Invalidate(true);
 
             System.Threading.ThreadPool.QueueUserWorkItem(delegate
@@ -916,15 +970,15 @@ namespace CodexAutoResume
                     // running, and the reason it is not is worth more than the reason a
                     // stopped watcher is normally not running.
                     detail.Text = state == "exited"
-                        ? "It started and stopped again - see logs in the installation folder"
-                        : "Started, but not confirmed running yet";
+                        ? S("start.exited", "It started and stopped again - see logs in the installation folder")
+                        : S("start.unconfirmed", "Started, but not confirmed running yet");
                     header.Invalidate(true);
                 }
             }
             catch (Exception error)
             {
                 RefreshStatus(editors.ContainsKey("__startup") ? editors["__startup"] as CheckBox : null);
-                MessageBox.Show(this, "Could not start the watcher." + Environment.NewLine +
+                MessageBox.Show(this, S("start.failed", "Could not start the watcher.") + Environment.NewLine +
                                 Environment.NewLine + error.Message,
                                 "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
@@ -946,7 +1000,11 @@ namespace CodexAutoResume
                 var combo = pair.Value as ComboBox;
                 if (check != null) changes.Append(check.Checked ? "true" : "false");
                 else if (spin != null) changes.Append(((int)spin.Value).ToString(CultureInfo.InvariantCulture));
-                else if (combo != null) changes.Append(Json.Escape(combo.SelectedItem as string));
+                else if (combo != null)
+                {
+                    var chosen = combo.SelectedItem as Choice;
+                    changes.Append(Json.Escape(chosen == null ? null : chosen.Value));
+                }
             }
             changes.Append('}');
 

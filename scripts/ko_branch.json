@@ -12,25 +12,28 @@
     "installing meant downloading a release. Two languages of the same product cannot be",
     "maintained by remembering to merge.",
     "",
-    "`not_yet_translated` is the visible to-do. Anything listed there stays English on",
-    "ko, which is accurate but not translated - and that is the deliberate choice: a",
-    "stale translation that makes a false claim is worse than an English page."
+    "v0.5.6 finished the job. There is no `not_yet_translated` pile any more, because a",
+    "list of documents nobody has got to is indistinguishable from a list of documents",
+    "nobody will. What stays English is in `intentionally_english`, each with the reason,",
+    "and the suite requires every human-facing document to be in one list or the other."
   ],
   "documents": {
     "README.ko.md": "README.md",
+    "CHANGELOG.ko.md": "CHANGELOG.md",
+    "CONTRIBUTING.ko.md": "CONTRIBUTING.md",
+    "PRIVACY.ko.md": "PRIVACY.md",
     "SECURITY.ko.md": "SECURITY.md",
+    "SUPPORT.ko.md": "SUPPORT.md",
     "CONTRIBUTORS.ko.md": "CONTRIBUTORS.md",
+    "docs/BRAND.ko.md": "docs/BRAND.md",
     "docs/COMPARISON.ko.md": "docs/COMPARISON.md",
-    "docs/DEVELOPMENT.ko.md": "docs/DEVELOPMENT.md"
+    "docs/DEVELOPMENT.ko.md": "docs/DEVELOPMENT.md",
+    "docs/PLUGIN.ko.md": "docs/PLUGIN.md"
   },
-  "not_yet_translated": [
-    "CHANGELOG.md",
-    "CONTRIBUTING.md",
-    "PRIVACY.md",
-    "SUPPORT.md",
-    "docs/BRAND.md",
-    "docs/PLUGIN.md",
-    "skills/codex-auto-resume/SKILL.md"
-  ],
-  "english_on_main": "https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/"
+  "english_on_main": "https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/",
+  "intentionally_english": {
+    "LICENSE": "The authoritative licence text. A translation would be a second licence.",
+    "skills/codex-auto-resume/SKILL.md": "Instructions Codex reads to operate the plugin, not prose a person reads. Translating it would make the two branches behave differently, which is exactly what generating ko from main exists to prevent.",
+    ".github/GENERATED-BRANCH.md": "Written by the generator, for maintainers, and only exists on ko."
+  }
 }

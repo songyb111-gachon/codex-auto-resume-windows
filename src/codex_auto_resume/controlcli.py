@@ -47,7 +47,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="codex-auto-resume-control", add_help=True)
     parser.add_argument("--home", help="runtime home (default: the installed location)")
     sub = parser.add_subparsers(dest="command", required=True)
-    for name in ("status", "settings", "describe", "defaults", "pending", "start-watcher"):
+    for name in ("status", "settings", "describe", "defaults", "pending", "start-watcher",
+                 "strings"):
         sub.add_parser(name)
     for name in ("update", "enabled", "startup", "cancel", "reset-budget", "retry-now"):
         p = sub.add_parser(name)
@@ -69,6 +70,12 @@ def main(argv=None) -> int:
             return _emit({"ok": True, "status": control.get_status()})
         if args.command == "settings":
             return _emit({"ok": True, "settings": control.get_settings()})
+        if args.command == "strings":
+            # The interface vocabulary for the resolved language, handed over whole. The
+            # window does not decide the language and does not carry its own English.
+            from . import interface
+            return _emit({"ok": True, "language": interface.language(),
+                          "strings": interface.catalog()})
         if args.command == "describe":
             return _emit({"ok": True, "schema": control.describe_settings()})
         if args.command == "defaults":
