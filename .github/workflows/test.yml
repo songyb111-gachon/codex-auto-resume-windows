@@ -9,6 +9,13 @@ on:
 permissions:
   contents: read
 
+# Supersede an in-flight run for the same ref: the newer commit is the one worth knowing
+# about, and the ko sync keys off whichever run reports success, so leaving a stale run
+# to finish would publish a branch nobody is waiting on.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     # This tool targets Windows only, so CI runs on Windows only.
