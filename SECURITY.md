@@ -63,10 +63,31 @@ Uninstalling removes them.
 
 ## Uninstall safety
 
-Uninstall only deletes inside a directory carrying this tool's provenance marker
-(`.owned-by-codex-auto-resume`), and inside such a directory only its own file names. A directory it did
-not create is skipped and reported. If a watcher is running, or if it cannot verify whether one is
-running, uninstall aborts before deleting anything. ChatGPT files, Codex files, user repositories, and
+**Nothing is destroyed that this installation cannot prove it owns.** That is one rule, and it
+covers every kind of resource, because "it has the right name" was never evidence for any of them.
+
+- **Directories.** The installation root has to be one we created: it carries our provenance
+  marker (`.owned-by-codex-auto-resume`), or its `config/` does, or its `runtime.json` names that
+  very directory. The root can be pointed anywhere by `CODEX_AUTO_RESUME_PLUGIN_HOME`, so a
+  directory that merely contains folders called `app`, `runtime`, `config` and `logs` is refused
+  and nothing in it is touched. Every path deleted is then re-checked against the *canonical*
+  root, with junctions and symlinks resolved, so a link inside the installation cannot redirect a
+  recursive delete out of it. Inside an owned directory, only our own file names are removed.
+- **Processes.** The MCP launcher is stopped only when its executable resolves inside this
+  installation or inside this plugin's own Codex cache directory. Another program running under
+  the same filename is left alone, and a process whose path cannot be read is skipped: not being
+  able to tell is not permission to kill.
+- **Codex configuration.** The plugin and its marketplace are removed only while they still point
+  at this installation, which is read from `codex plugin list --json` and
+  `codex plugin marketplace list --json`. If you have repointed that marketplace name at a fork of
+  your own, uninstalling this product leaves your configuration exactly where it is and says so.
+- **Registry and Start Menu.** The sign-in entry, the notification identity, the Start Menu
+  shortcut and the `codex-auto-resume:` handler are per-user singletons that a second installation
+  would overwrite, so each is removed only when it still belongs to the installation being
+  removed.
+
+If a watcher is running, or if it cannot verify whether one is running, uninstall aborts before
+removing anything at all — registrations included. ChatGPT files, Codex files, user repositories and
 parent directories are never deleted.
 
 ## Review process

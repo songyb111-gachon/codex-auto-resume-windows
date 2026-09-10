@@ -55,6 +55,11 @@ if ([string]::IsNullOrWhiteSpace($InstallHome)) {
 }
 $AppDir      = Join-Path $InstallHome 'app'
 $RunDir      = Join-Path $InstallHome 'runtime'
+# Where Codex keeps its copy of this plugin. The MCP launcher runs from there rather than
+# from the installation, so recognising our own process needs both roots.
+$codexHomeDir = $env:CODEX_HOME
+if ([string]::IsNullOrWhiteSpace($codexHomeDir)) { $codexHomeDir = Join-Path $env:USERPROFILE '.codex' }
+$PluginCacheRoot = Join-Path (Join-Path (Join-Path $codexHomeDir 'plugins') 'cache') $MarketplaceName
 $Payload     = Join-Path (Split-Path -Parent $PSScriptRoot) 'payload'
 $Python      = Join-Path $RunDir 'python.exe'
 
@@ -90,6 +95,97 @@ function Quote-Argument {
     return $quoted.ToString()
 }
 
+function Resolve-Canonical {
+    <#
+        One spelling for one location, with every reparse point followed.
+
+        Ownership is decided by comparing paths, so the comparison has to survive the
+        several names Windows will hand out for the same directory: an 8.3 short name, a
+        different case, a junction, a `\\?\` extended-length prefix (which `codex plugin
+        list --json` returns and `marketplace list --json` does not). `GetFullPath` alone
+        normalises separators and nothing else, so a junction pointing out of the
+        installation would still read as inside it.
+
+        Returns $null when the path cannot be resolved. Callers treat that as "not ours".
+    #>
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
+    $text = $Path
+    if ($text.StartsWith('\\?\UNC\')) { $text = '\\' + $text.Substring(8) }
+    elseif ($text.StartsWith('\\?\')) { $text = $text.Substring(4) }
+    try { $text = [IO.Path]::GetFullPath($text) } catch { return $null }
+
+    # Resolve component by component, from the root down. Resolving only the leaf is not
+    # enough: `<home>\escape\keep.txt` has no reparse point at `keep.txt`, so a leaf-only
+    # resolver reports it as living under `<home>` while it actually lives wherever
+    # `escape` points. A directory in the middle of the path is exactly where a junction
+    # is useful to whoever placed it.
+    $root = [IO.Path]::GetPathRoot($text)
+    $rest = $text.Substring($root.Length)
+    $current = $root.TrimEnd('\')
+    if ($current -eq '') { $current = $root }
+    foreach ($part in $rest.Split([char]'\', [StringSplitOptions]::RemoveEmptyEntries)) {
+        $current = Join-Path $current $part
+        try {
+            $item = Get-Item -LiteralPath $current -Force -ErrorAction Stop
+        } catch {
+            continue        # not on disk yet; the remaining components are literal
+        }
+        $guard = 0
+        while ($item.LinkType -and $item.Target -and $guard -lt 16) {
+            $target = @($item.Target)[0]
+            try { $item = Get-Item -LiteralPath $target -Force -ErrorAction Stop } catch { break }
+            $guard++
+        }
+        $current = $item.FullName
+    }
+    return $current.TrimEnd('\')
+}
+
+function Test-PathInside {
+    <#
+        True when Child is Parent, or lives under it, after both are canonicalised.
+
+        Used for every destructive decision in this file: which directories may be
+        deleted, which running processes may be stopped, which marketplace may be
+        removed. One implementation, so there is one thing to be right about.
+    #>
+    param([string]$Child, [string]$Parent)
+    $c = Resolve-Canonical $Child
+    $p = Resolve-Canonical $Parent
+    if (-not $c -or -not $p) { return $false }
+    if ($c -eq $p) { return $true }
+    return $c.StartsWith($p + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)
+}
+
+function Get-OwnedMcpProcess {
+    <#
+        Running MCP launchers that belong to an installation we are managing.
+
+        A process name is not ownership. This used to match `Name='codex-auto-resume-mcp.exe'`
+        and force-stop every hit, so a build, a test fixture or a second installation
+        running an executable with the same filename was killed by an unrelated install.
+
+        The launcher normally runs from the Codex plugin cache rather than from the
+        installation, so both roots count - and the cache path has to name *this* plugin,
+        not merely be somewhere under the cache.
+
+        A process whose ExecutablePath cannot be read is skipped: not being able to tell
+        is not permission to kill.
+    #>
+    param([string[]]$Roots)
+    $found = @()
+    $all = @(Get-CimInstance Win32_Process -Filter "Name='codex-auto-resume-mcp.exe'" -ErrorAction SilentlyContinue)
+    foreach ($process in $all) {
+        $exe = $process.ExecutablePath
+        if ([string]::IsNullOrWhiteSpace($exe)) { continue }
+        foreach ($root in $Roots) {
+            if ($root -and (Test-PathInside $exe $root)) { $found += $process; break }
+        }
+    }
+    return ,$found
+}
+
 function Invoke-Codex {
     # Native stderr must not become a terminating error: PowerShell 5.1 wraps it in an
     # ErrorRecord, and `codex` writes ordinary progress there. Capture to files instead
@@ -122,6 +218,75 @@ function Get-CodexCli {
     return $found[0]
 }
 
+function Get-MarketplaceRoot {
+    <#
+        Where a configured marketplace currently points, or $null if unknown.
+
+        `codex plugin marketplace list --json` is a supported interface and returns
+        `{"marketplaces":[{"name","root"}]}` - verified against codex-cli 0.153.4. No
+        text scraping, and if the shape is not what we expect we return $null and the
+        caller leaves the marketplace alone.
+    #>
+    param([string]$Exe, [string]$Name)
+    $result = Invoke-Codex $Exe @('plugin', 'marketplace', 'list', '--json')
+    if ($result.Code -ne 0 -or [string]::IsNullOrWhiteSpace($result.Out)) { return $null }
+    try { $parsed = $result.Out | ConvertFrom-Json } catch { return $null }
+    if (-not $parsed.PSObject.Properties.Match('marketplaces').Count) { return $null }
+    foreach ($entry in $parsed.marketplaces) {
+        if ($entry.name -eq $Name) { return $entry.root }
+    }
+    return $null            # not configured at all: nothing to remove
+}
+
+function Get-InstalledPluginSource {
+    <#
+        Where the installed plugin was installed from, or $null if it cannot be told.
+
+        `codex plugin list --json` returns installed entries carrying `source.path`.
+        Note that the sibling `marketplaceSource.source` arrives with a `\\?\` prefix;
+        Resolve-Canonical strips it, but `source.path` is the field this reads.
+    #>
+    param([string]$Exe, [string]$Plugin, [string]$Marketplace)
+    $result = Invoke-Codex $Exe @('plugin', 'list', '--json')
+    if ($result.Code -ne 0 -or [string]::IsNullOrWhiteSpace($result.Out)) { return $null }
+    try { $parsed = $result.Out | ConvertFrom-Json } catch { return $null }
+    if (-not $parsed.PSObject.Properties.Match('installed').Count) { return $null }
+    foreach ($entry in $parsed.installed) {
+        if ($entry.name -eq $Plugin -and $entry.marketplaceName -eq $Marketplace) {
+            if ($entry.PSObject.Properties.Match('source').Count -and $entry.source) {
+                return $entry.source.path
+            }
+            return $null
+        }
+    }
+    return ''               # configured marketplace, but this plugin is not installed
+}
+
+function Remove-OwnedItem {
+    <#
+        Delete one path, but only after re-proving it lies inside the verified root.
+
+        $OwnedHome is set once, from the engine's own provenance check, and is the
+        canonical path - so this is not a second ownership rule, it is the confinement
+        half of the same one. Re-checking each target rather than trusting the loop that
+        produced it is what stops a junction inside the installation from redirecting a
+        recursive delete somewhere else between the check and the deletion.
+
+        Returns $true when the path is gone afterwards.
+    #>
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($OwnedHome)) {
+        Warn ('Refusing to delete ' + $Path + ': the installation root was never verified.')
+        return $false
+    }
+    if (-not (Test-PathInside $Path $OwnedHome)) {
+        Warn ('Refusing to delete ' + $Path + ': it is outside the verified installation.')
+        return $false
+    }
+    Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
+    return (-not (Test-Path -LiteralPath $Path))
+}
+
 function Invoke-Setup {
     # The command's stdout must not leak into the return value: a bare call would make
     # the function return every printed line AND the exit code as an array, and any
@@ -140,6 +305,37 @@ if ($env:OS -ne 'Windows_NT') { Fail 'This tool targets Windows only.'; exit 1 }
 
 # ----------------------------------------------------------------------- uninstall
 if ($Uninstall) {
+    # Nothing is deleted until this installation can prove the root belongs to it.
+    #
+    # $InstallHome comes from an environment variable, so it can point anywhere, and
+    # this branch used to delete `app`, `runtime`, every `*.old-*`, and - with -Purge -
+    # `config` and `logs` beneath it, with no check at all. A directory that happened to
+    # contain folders with those names was indistinguishable from an installation.
+    #
+    # The question is answered by the engine rather than re-implemented here: `verify-home`
+    # applies the same provenance rule the Python uninstall has always applied, and prints
+    # the canonical root. Every deletion below is confined to that canonical path, not to
+    # the string this script started from - so a junction cannot widen the target after
+    # the check has passed.
+    if (-not (Test-Path $Python)) {
+        Warn 'No installed runtime found here, so nothing can be verified or removed.'
+        Write-Host ('       Looked in ' + $InstallHome)
+        exit 1
+    }
+    $verify = & $Python (Join-Path $AppDir 'scripts\plugin_setup.py') 'verify-home' 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Fail 'This directory is not a Codex Auto Resume installation, so nothing was removed.'
+        Write-Host ('       ' + $InstallHome)
+        Write-Host '       Refusing to delete anything here: no installation of ours has ever'
+        Write-Host '       claimed this directory. If you meant a different location, set'
+        Write-Host '       CODEX_AUTO_RESUME_PLUGIN_HOME to it and run this again.'
+        exit 1
+    }
+    $OwnedHome = Resolve-Canonical (@($verify)[-1])
+    if (-not $OwnedHome -or -not (Test-PathInside $AppDir $OwnedHome)) {
+        Fail 'The installation root could not be resolved; nothing was removed.'
+        exit 1
+    }
     if (Test-Path $Python) {
         Step 'Removing the watcher, autostart, notification identity and Start Menu entry'
         # Without -Purge this keeps settings and pending recoveries, which is what the
@@ -162,9 +358,33 @@ if ($Uninstall) {
     }
     $codex = Get-CodexCli
     if ($codex) {
-        Step 'Removing the Codex plugin'
-        $null = Invoke-Codex $codex @('plugin', 'remove', ($PluginName + '@' + $MarketplaceName))
-        $null = Invoke-Codex $codex @('plugin', 'marketplace', 'remove', $MarketplaceName)
+        # Remove the plugin and the marketplace only while they still point at this
+        # installation. A user may repoint the same marketplace name at a fork of their
+        # own; removing it by name would take their configuration with ours.
+        $pluginSource = Get-InstalledPluginSource $codex $PluginName $MarketplaceName
+        if ($null -eq $pluginSource) {
+            Warn 'Could not tell where the installed Codex plugin came from; leaving it alone.'
+        } elseif ($pluginSource -eq '') {
+            Step 'The Codex plugin is not installed; nothing to remove'
+        } elseif (Test-PathInside $pluginSource $AppDir) {
+            Step 'Removing the Codex plugin'
+            $null = Invoke-Codex $codex @('plugin', 'remove', ($PluginName + '@' + $MarketplaceName))
+        } else {
+            Warn ("The installed plugin '" + $PluginName + "' now comes from a different source;")
+            Write-Host ('       leaving it installed. Source: ' + $pluginSource)
+        }
+
+        $marketplaceRoot = Get-MarketplaceRoot $codex $MarketplaceName
+        if ($null -eq $marketplaceRoot) {
+            Step ("Marketplace '" + $MarketplaceName + "' is not configured; nothing to remove")
+        } elseif (Test-PathInside $marketplaceRoot $AppDir) {
+            Step 'Removing the marketplace this installation registered'
+            $null = Invoke-Codex $codex @('plugin', 'marketplace', 'remove', $MarketplaceName)
+        } else {
+            Warn ("Marketplace '" + $MarketplaceName + "' now points to a different source.")
+            Write-Host '       Leaving it configured because this installation no longer owns it.'
+            Write-Host ('       Source: ' + $marketplaceRoot)
+        }
     }
     Step 'Removing program files'
     # Codex keeps this plugin's MCP server running, and that holds the bundled
@@ -172,26 +392,28 @@ if ($Uninstall) {
     # been hardened against exactly this since v0.5.1 and the uninstall path had not, so
     # removal half-failed in silence and still reported success. Stopping only our own
     # launchers is enough - nothing else has a reason to run them.
-    $ours = @(Get-CimInstance Win32_Process -Filter "Name='codex-auto-resume-mcp.exe'" -ErrorAction SilentlyContinue)
+    $ours = Get-OwnedMcpProcess -Roots @($OwnedHome, $PluginCacheRoot)
     if ($ours.Count -gt 0) {
         Step 'Releasing the files this installation is holding open'
         foreach ($process in $ours) { Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue }
         Start-Sleep -Milliseconds 800
     }
-    foreach ($stale in (Get-ChildItem -Path $InstallHome -Filter '*.old-*' -ErrorAction SilentlyContinue)) {
-        Remove-Item -Recurse -Force $stale.FullName -ErrorAction SilentlyContinue
+    foreach ($stale in (Get-ChildItem -Path $OwnedHome -Filter '*.old-*' -ErrorAction SilentlyContinue)) {
+        Remove-OwnedItem $stale.FullName
     }
     $stuck = @()
     foreach ($dir in @($AppDir, $RunDir)) {
-        if (Test-Path $dir) { Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue }
+        if (-not (Test-Path $dir)) { continue }
+        if (-not (Remove-OwnedItem $dir)) { $stuck += $dir; continue }
         # -ErrorAction SilentlyContinue swallows a sharing violation, so ask afterwards
         # rather than assuming. A half-deleted installation reported as "Removed." is
         # worse than an honest failure: nothing tells the user to try again.
         if (Test-Path $dir) { $stuck += $dir }
     }
-    foreach ($file in @('CodexAutoResumeSettings.exe', 'codex-auto-resume.ico', 'watcher-launcher.py', 'runtime.json')) {
-        $path = Join-Path $InstallHome $file
-        if (Test-Path $path) { Remove-Item -Force $path -ErrorAction SilentlyContinue }
+    foreach ($file in @('CodexAutoResumeSettings.exe', 'codex-auto-resume.ico', 'watcher-launcher.py',
+                        'runtime.json', '.owned-by-codex-auto-resume')) {
+        $path = Join-Path $OwnedHome $file
+        if (Test-Path $path) { $null = Remove-OwnedItem $path }
     }
     if ($stuck.Count -gt 0) {
         Write-Host ''
@@ -203,8 +425,8 @@ if ($Uninstall) {
     }
     if ($Purge) {
         # Only on an explicit request: this is the user's recovery history.
-        foreach ($dir in @((Join-Path $InstallHome 'config'), (Join-Path $InstallHome 'logs'))) {
-            if (Test-Path $dir) { Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue }
+        foreach ($dir in @((Join-Path $OwnedHome 'config'), (Join-Path $OwnedHome 'logs'))) {
+            if (Test-Path $dir) { $null = Remove-OwnedItem $dir }
         }
         Write-Host ''
         Write-Host 'Removed, including settings and recovery history.'
@@ -330,7 +552,7 @@ if ($installed.Code -ne 0 -and (($installed.Err + $installed.Out) -match 'os err
     # plugin's MCP launcher, which lives in the plugin, so the plugin cannot be updated
     # while Codex is using it. Stopping only our own launchers is enough - Codex starts
     # a fresh one the next time it needs the server.
-    $ours = @(Get-CimInstance Win32_Process -Filter "Name='codex-auto-resume-mcp.exe'" -ErrorAction SilentlyContinue)
+    $ours = Get-OwnedMcpProcess -Roots @($InstallHome, $PluginCacheRoot)
     if ($ours.Count -gt 0) {
         Step 'Releasing the plugin files this installation is holding open'
         foreach ($process in $ours) {

@@ -5,17 +5,33 @@ name: release
 # uploaded from a developer's working tree, and no personal credential is involved: the
 # job authenticates with the repository's own short-lived GITHUB_TOKEN.
 
+# A published version is immutable. `v0.5.4` names one archive with one SHA-256, for as
+# long as the release exists - because the plugin's bootstrap pins that digest and refuses
+# anything else, and because a version whose bytes can change is not much of a version.
+#
+# This used to have a dispatch path that rebuilt an existing tag and re-uploaded over its
+# assets with `--clobber`. It existed for a good reason - a tag's source had been corrected
+# and the published archive had not followed - and it quietly broke the guarantee the
+# digest pin depends on. A correction now needs a new version, which is the honest way to
+# say "these are different bytes".
+#
+# What is left of the dispatch is a dry run: it builds and verifies whatever ref you point
+# it at and keeps the archive as a workflow artifact. It cannot publish.
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
     inputs:
-      tag:
-        description: "Existing tag to rebuild and re-upload, e.g. v0.5.0. Leave blank for a dry run of the current branch."
+      ref:
+        description: "Branch, tag or SHA to build and verify. Never publishes."
         required: false
 
 permissions:
   contents: write
+  # For build provenance on the published archive. `attestations: write` records it and
+  # `id-token: write` is how the runner proves to the attestation service who it is.
+  id-token: write
+  attestations: write
 
 jobs:
   release:
@@ -28,7 +44,7 @@ jobs:
       # rebuilt from the source that tag now points at.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ github.event.inputs.ref || github.ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -47,11 +63,6 @@ jobs:
             # plugin version and release title do not match. Stop instead.
             if ($tagged -ne $declared) {
               throw "tag v$tagged does not match plugin.json version $declared"
-            }
-          } else {
-            $requested = '${{ github.event.inputs.tag }}' -replace '^v', ''
-            if ($requested -and $requested -ne $declared) {
-              throw "requested $requested does not match plugin.json version $declared"
             }
           }
           "version=$declared" >> $env:GITHUB_OUTPUT
@@ -106,6 +117,38 @@ jobs:
             build/dist/*.zip
             build/dist/*.sha256
 
+      # The immutability gate. Publishing is refused outright if this version already
+      # has assets, rather than replacing them - so the archive a `v0.5.4` download
+      # returns today is the archive it returned the day it was published.
+      - name: Refuse to republish a version that already has assets
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $existing = gh release view "v$version" --json assets 2>$null
+          if ($LASTEXITCODE -ne 0 -or -not $existing) {
+            Write-Host "no release for v$version yet; publishing is allowed"
+            exit 0
+          }
+          $assets = ($existing | ConvertFrom-Json).assets
+          if ($assets -and @($assets).Count -gt 0) {
+            Write-Host "::error::Release v$version already has published assets:"
+            foreach ($a in @($assets)) { Write-Host ("::error::  " + $a.name) }
+            throw "A published version is immutable. Bump the version and tag again instead of replacing v$version."
+          }
+          Write-Host "release v$version exists but carries no assets; publishing is allowed"
+
+      # Build provenance, so a downloaded archive can be traced back to the workflow run
+      # and the commit that produced it. Runs before publication: an archive that cannot
+      # be attested should not become a release.
+      - name: Attest the archive
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: build/dist/CodexAutoResume-v${{ steps.version.outputs.version }}-win-x64.zip
+
       - name: Publish the GitHub release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
@@ -119,17 +162,10 @@ jobs:
             --title "v$version" `
             --notes-file "${{ runner.temp }}/notes.md"
 
-      # Re-uploading an existing release's assets, for the case where the source a tag
-      # points at has changed and the published archive should be rebuilt from it. The
-      # release notes and the tag are left exactly as they are; only the files change.
-      - name: Replace the assets on an existing release
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.tag != ''
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Say what a dry run did and did not do
+        if: github.event_name == 'workflow_dispatch'
         shell: pwsh
         run: |
-          $version = '${{ steps.version.outputs.version }}'
-          gh release upload "${{ github.event.inputs.tag }}" `
-            "build/dist/CodexAutoResume-v$version-win-x64.zip" `
-            "build/dist/CodexAutoResume-v$version-win-x64.zip.sha256" `
-            --clobber
+          Write-Host "Built and verified v${{ steps.version.outputs.version }}."
+          Write-Host "Nothing was published: a dispatch cannot create or change a release."
+          Write-Host "The archive is attached to this run as a workflow artifact." 

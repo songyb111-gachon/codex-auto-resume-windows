@@ -127,6 +127,9 @@ def install_launcher(home: Path, mode: str) -> Path:
         shutil.copyfile(icon, home / ICON_NAME)
     payload = {"mode": mode, "plugin_name": PLUGIN_NAME, "plugin_root": str(PLUGIN_ROOT), "home": str(home)}
     (home / RUNTIME_CONFIG).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    # Claim the root, so that later on something can prove this directory is ours before
+    # deleting the program files in it. The installer asks with `verify-home`.
+    config.Paths(home).claim_home()
     return launcher
 
 
@@ -281,6 +284,29 @@ def cmd_pending(args) -> int:
     return _cli(home, ["--quiet", "pending"])
 
 
+def cmd_verify_home(args) -> int:
+    """Prove the installation root belongs to us, for the PowerShell installer.
+
+    The installer can delete `app/`, `runtime/` and, on request, `config/` and `logs/` -
+    under a root an environment variable can point anywhere. It had no way to tell an
+    installation from a directory that merely contained folders with those names, so it
+    asks here rather than growing a second, subtly different ownership rule of its own.
+
+    Prints the canonical root on success, so the caller confines every target it deletes
+    to exactly the path this check passed on rather than to the string it started with.
+    Exit code is the answer; the text is for a human reading a transcript.
+    """
+    home = runtime_home()
+    paths = config.Paths(home)
+    if not paths.owns_home():
+        print("not-owned")
+        print(str(home))
+        return EXIT_ERROR
+    print("owned")
+    print(str(paths.home))
+    return EXIT_OK
+
+
 def cmd_uninstall(args) -> int:
     home = runtime_home()
     # Keeping settings and pending recoveries is the default here: the installer offers a
@@ -328,6 +354,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("thread_id")
     sub.add_parser("stop")
     sub.add_parser("doctor")
+    sub.add_parser("verify-home", help="exit 0 only if the install root is provably ours")
     p = sub.add_parser("uninstall", help="remove the watcher, autostart and registrations")
     p.add_argument("--purge", action="store_true",
                    help="also delete settings, pending recoveries and logs")
@@ -339,6 +366,7 @@ def build_parser() -> argparse.ArgumentParser:
 COMMANDS = {
     "setup": cmd_setup, "status": cmd_status, "pending": cmd_pending, "enable": cmd_enable,
     "disable": cmd_disable, "cancel": cmd_cancel, "uninstall": cmd_uninstall,
+    "verify-home": cmd_verify_home,
     "stop": passthrough("stop"), "doctor": passthrough("doctor"), "logs": passthrough("logs"),
 }
 
