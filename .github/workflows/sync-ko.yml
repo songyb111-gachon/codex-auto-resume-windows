@@ -48,8 +48,11 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_branch == 'main' &&
        github.event.workflow_run.head_repository.full_name == github.repository)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Windows, because that is where this product's tests run. The step below runs the
+    # suite against the tree about to be published, and a suite that ran somewhere the
+    # product does not support would prove nothing about the branch it is guarding.
+    runs-on: windows-latest
+    timeout-minutes: 20
 
     steps:
       # The tested commit, not main's current head. On a workflow_run event the default
@@ -83,6 +86,22 @@ jobs:
             exit 1
           fi
 
+      # The claim in CONTRIBUTING.md is that ko carries main's tests unchanged. That was
+      # true of the files and false of the outcome: the sync deletes the Korean sources
+      # those tests read, so twelve of them errored on the branch, and a pull request
+      # opened against ko was answered with failures about the wrong thing. Nothing
+      # noticed, because test.yml only runs on main and on pull requests. Now the tree
+      # is tested before it is published, on the platform the product supports.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Test the tree that is about to be published
+        shell: bash
+        env:
+          PYTHONPATH: src
+        run: python -m unittest discover -s tests
+
       - name: Publish the branch
         shell: bash
         env:
@@ -93,7 +112,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          if git diff --cached --quiet; then
+          # Against ko, not against HEAD. HEAD here is main's tested commit, so comparing
+          # with it asked "did the sync change anything relative to main" - which it
+          # always did, by construction, since it had just rewritten six documents. The
+          # guard could never fire and the message claimed a comparison it had not made.
+          if git fetch --no-tags origin ko 2>/dev/null &&              git diff --cached --quiet FETCH_HEAD; then
             echo "the generated tree is already what ko contains; nothing to push"
             exit 0
           fi

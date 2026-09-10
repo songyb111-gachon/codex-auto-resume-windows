@@ -29,6 +29,30 @@ MAPPING = ROOT / "scripts" / "ko_branch.json"
 sys.path.insert(0, str(ROOT / "scripts"))
 
 
+# The notice the generator writes, and the only honest way to tell the two branches apart.
+GENERATED_NOTICE = ROOT / ".github" / "GENERATED-BRANCH.md"
+
+
+def skip_if_generated() -> None:
+    """These tests run on main. On `ko` there is nothing for them to read.
+
+    `ko` carries main's tests unchanged - that is the point of generating it - but not
+    main's Korean *sources*: the sync writes each `<name>.ko.md` over its English sibling
+    and deletes the original. Opening them by name on ko raises FileNotFoundError, so a
+    suite that is supposed to travel with the branch instead errors twelve times on it,
+    and a pull request opened against ko is answered with failures about the wrong thing.
+
+    Skipping rather than dropping the file from the generated tree keeps "ko is main's
+    code exactly" true, which is the property the whole arrangement exists to have.
+
+    Keyed on the notice the generator writes, not on a missing file: "the Korean sources
+    are absent" is also true of a half-deleted working tree, and a test that quietly
+    skips because somebody deleted a file guards nothing.
+    """
+    if GENERATED_NOTICE.is_file():
+        raise unittest.SkipTest("this is the generated ko branch; the sources live on main")
+
+
 def mapping() -> dict:
     return json.loads(MAPPING.read_text(encoding="utf-8"))
 
@@ -39,6 +63,7 @@ def korean_documents() -> list[Path]:
 
 class MappingTests(unittest.TestCase):
     def setUp(self):
+        skip_if_generated()
         self.mapping = mapping()
 
     def test_every_korean_document_is_mapped(self):
@@ -72,6 +97,10 @@ class MappingTests(unittest.TestCase):
 
 class GeneratorTests(unittest.TestCase):
     """What the sync does, checked without pushing anything anywhere."""
+
+    def setUp(self):
+        # `build(check=True)` reads the Korean sources to decide what it would write.
+        skip_if_generated()
 
     def test_it_touches_no_code(self):
         import ko_sync
@@ -141,6 +170,7 @@ class ClaimTests(unittest.TestCase):
     """The claims where being out of date would mislead a Korean reader."""
 
     def setUp(self):
+        skip_if_generated()
         self.readme = (ROOT / "README.ko.md").read_text(encoding="utf-8")
         self.security = (ROOT / "SECURITY.ko.md").read_text(encoding="utf-8")
 

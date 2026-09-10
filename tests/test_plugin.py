@@ -650,8 +650,19 @@ class PayloadDocumentTests(unittest.TestCase):
         self.assertEqual(missing, [], "the payload README links to documents it does not ship")
 
     def test_the_shipped_documents_all_exist(self):
+        """Every document the payload names, except the Korean ones on the ko branch.
+
+        A release is always built from a tag on `main`, where all of them exist. The
+        generated `ko` branch has written each Korean document over its English sibling
+        and deleted the original, so asserting the `.ko.md` names there fails on a
+        checkout that is behaving exactly as designed - and `collect_app` already skips
+        a name it cannot find, so the payload is correct either way.
+        """
         builder = _load("make_release_payload", ROOT / "build" / "make_release.py")
+        generated = (ROOT / ".github" / "GENERATED-BRANCH.md").is_file()
         for name in builder.APP_FILES:
+            if generated and name.endswith(".ko.md"):
+                continue
             self.assertTrue((ROOT / name).is_file(), name)
 
 
