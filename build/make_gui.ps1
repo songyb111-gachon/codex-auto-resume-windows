@@ -12,11 +12,20 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Root = (Split-Path -Parent $PSScriptRoot),
-    [string]$Out  = (Join-Path (Split-Path -Parent $PSScriptRoot) 'build')
+    [string]$Root,
+    [string]$Out
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Resolved here rather than as parameter defaults. $PSScriptRoot is empty while defaults
+# are bound and only populated once the body starts, so `Split-Path -Parent $PSScriptRoot`
+# as a default throws under `powershell -File build/make_gui.ps1` - which is exactly how
+# CONTRIBUTING.md tells a contributor to run this. Invoked as a command it happened to
+# work, and the release workflow invokes it as a command, so the only broken route was
+# the documented one.
+if (-not $Root) { $Root = Split-Path -Parent $PSScriptRoot }
+if (-not $Out)  { $Out  = Join-Path $Root 'build' }
 
 $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 if (-not (Test-Path $csc)) { throw 'The in-box C# compiler was not found.' }
