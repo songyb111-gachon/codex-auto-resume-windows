@@ -187,7 +187,7 @@ class WordingTests(unittest.TestCase):
             self.assertRegex(row[0], r"(?i)github",
                              "%s's privacy row must admit the download" % name)
 
-    def test_every_shipped_version_still_has_its_changelog_section(self):
+    def test_no_released_version_has_lost_its_changelog_section(self):
         """A guard against over-correcting.
 
         The rule above is about current-facing prose. The changelog is the opposite: a
@@ -195,14 +195,37 @@ class WordingTests(unittest.TestCase):
         updated. The failure mode worth catching is someone sweeping the tree for a
         retired phrase and deleting history along with it, so this asserts the history
         is still there rather than asserting anything about its wording.
+
+        The floor below is spelled out rather than read from `git tag`, because CI checks
+        out without tags and a test that quietly passes on an empty list guards nothing.
+        Append to it when a version ships; the current version is checked separately, by
+        tests/test_plugin.py.
         """
+        shipped = ("v0.1.0", "v0.2.0", "v0.3.0", "v0.3.1", "v0.3.2",
+                   "v0.4.0", "v0.4.1", "v0.5.0", "v0.5.1", "v0.5.2")
         text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-        released = subprocess.run(["git", "-C", str(ROOT), "tag", "--list", "v*"],
-                                  capture_output=True, text=True, encoding="utf-8").stdout.split()
-        self.assertTrue(released, "no tags found; cannot check the changelog covers them")
-        missing = [tag for tag in released
+        missing = [tag for tag in shipped
                    if not re.search(r"^##\s+%s\b" % re.escape(tag), text, re.M)]
         self.assertEqual(missing, [], "the changelog has lost a released version's section")
+
+    def test_the_shipped_list_above_is_not_behind_the_tags(self):
+        """Only meaningful where the checkout has tags; skipped where it does not.
+
+        It exists so the hardcoded list cannot silently fall behind: a maintainer who
+        tags a release and forgets this file finds out on their own machine rather than
+        in a review.
+        """
+        tags = subprocess.run(["git", "-C", str(ROOT), "tag", "--list", "v*"],
+                              capture_output=True, text=True, encoding="utf-8").stdout.split()
+        if not tags:
+            self.skipTest("shallow checkout: no tags to compare against")
+        text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        missing = [tag for tag in tags
+                   if not re.search(r"^##\s+%s\b" % re.escape(tag), text, re.M)]
+        self.assertEqual(missing, [], "a tagged release has no changelog section")
+        source = Path(__file__).read_text(encoding="utf-8")
+        unlisted = [tag for tag in tags if '"%s"' % tag not in source]
+        self.assertEqual(unlisted, [], "add these to `shipped` in the test above")
 
 
 if __name__ == "__main__":
