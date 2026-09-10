@@ -729,7 +729,18 @@ namespace CodexAutoResume
             int wanted = tallest + columns.Padding.Vertical + header.Height + footer.Height;
             Rectangle screen = Screen.FromControl(this).WorkingArea;
             int maximum = screen.Height - (Height - ClientSize.Height) - 80;
-            ClientSize = new Size(ClientSize.Width, Math.Max(Px(340), Math.Min(wanted, maximum)));
+            // The width is scaled, so on a small screen at a large scaling factor the
+            // window can be asked to be wider than the display: 780 units at 250% is
+            // 1950 pixels, and a 1920-wide laptop cannot show that. Widths are clamped to
+            // the working area for the same reason heights are - a window whose controls
+            // sit past the edge of the screen cannot be reached at all, where a scrollable
+            // one can.
+            int widest = screen.Width - (Width - ClientSize.Width);
+            int across = Math.Min(ClientSize.Width, Math.Max(Px(340), widest));
+            if (MinimumSize.Width > screen.Width)
+                MinimumSize = new Size(Math.Max(Px(340), widest), MinimumSize.Height);
+            ClientSize = new Size(across, Math.Max(Px(340), Math.Min(wanted, maximum)));
+            Left = Math.Max(screen.Left, screen.Left + (screen.Width - Width) / 2);
             Top = Math.Max(screen.Top, screen.Top + (screen.Height - Height) / 2);
         }
 

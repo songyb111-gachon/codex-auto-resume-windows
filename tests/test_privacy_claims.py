@@ -202,7 +202,7 @@ class WordingTests(unittest.TestCase):
         tests/test_plugin.py.
         """
         shipped = ("v0.1.0", "v0.2.0", "v0.3.0", "v0.3.1", "v0.3.2",
-                   "v0.4.0", "v0.4.1", "v0.5.0", "v0.5.1", "v0.5.2")
+                   "v0.4.0", "v0.4.1", "v0.5.0", "v0.5.1", "v0.5.2", "v0.5.3")
         text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
         missing = [tag for tag in shipped
                    if not re.search(r"^##\s+%s\b" % re.escape(tag), text, re.M)]
