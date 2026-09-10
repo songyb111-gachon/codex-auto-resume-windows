@@ -111,7 +111,10 @@ class ManifestTests(unittest.TestCase):
         actually renders cannot: the version, the schema, the fields a row carries and the
         palette all reach the markup, wherever in the package they live.
         """
-        self.assertIn("<panel render>", self.manifest["inputs"])
+        for locale in ("en", "ko"):
+            self.assertIn("<panel render:%s>" % locale, self.manifest["inputs"],
+                          "each locale's render is its own input, pinned rather than "
+                          "observed - an unpinned one takes the machine's language")
         html = self.generator().panel_html()
         # The seed data the panel is rendered from. The visible strings are assembled by
         # the panel's own script in the browser, so what the markup carries is the JSON.

@@ -387,7 +387,24 @@ def render_inputs() -> dict:
     the smaller one: the alternative is not noticing that the picture is wrong.
     """
     inputs = {name: input_digest(ROOT / name) for name in WINDOW_INPUTS}
-    inputs["<panel render>"] = sha256(panel_html().encode("utf-8"))
+    # One entry per locale, each rendered with that locale pinned.
+    #
+    # A single unpinned entry made the digest depend on the machine: the catalog is
+    # resolved from the environment, so a Korean developer recorded the Korean render and
+    # an English CI runner recomputed the English one and called the screenshots stale.
+    # It is the same failure as hashing raw bytes for a file whose line endings the
+    # checkout decides - the input has to be pinned, not observed.
+    for locale in LOCALES:
+        previous = os.environ.get(messages.ENV_LANG)
+        os.environ[messages.ENV_LANG] = locale
+        try:
+            inputs["<panel render:%s>" % locale] = sha256(
+                panel_html(theme=THEME).encode("utf-8"))
+        finally:
+            if previous is None:
+                os.environ.pop(messages.ENV_LANG, None)
+            else:
+                os.environ[messages.ENV_LANG] = previous
     return inputs
 
 
