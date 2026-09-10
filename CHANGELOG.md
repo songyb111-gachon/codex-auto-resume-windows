@@ -35,9 +35,11 @@ checking now check - and that the Korean branch stops being a second copy of the
   source with sample data built by the real control surface. There is no version number
   in the generator and no mock JSON on disk; change `.codex-plugin/plugin.json` and both
   images say the new version.
-- The same picture is no longer committed twice under two names. There is one canonical
-  asset per screenshot and a copy step, and `assets/screenshots.json` records what they
-  were rendered from, so the test suite fails when the sources move and the images do not.
+- The same picture is no longer *captured* twice. There is one canonical asset per
+  screenshot and the documentation copy is generated from it — both files are still
+  committed, and a test now requires them to be byte-identical, which is the point.
+  `assets/screenshots.json` records what they were rendered from, so the suite fails when
+  the sources move and the images do not.
 
 ### The Retry timing control is drawn in full
 

@@ -418,8 +418,13 @@ class Server:
     START_WORDING = {
         "running": "The watcher is running.",
         "already-running": "It was already running; nothing to do.",
+        # Deliberately the directory, not `logs/launcher.log`. That file is written by
+        # the stable launcher, and `start_watcher` also has an entry-script path where
+        # nothing writes it - so naming it sent the reader to a file that was not there
+        # on exactly the route where the diagnosis mattered.
         "exited": "The watcher was started but stopped again straight away. "
-                  "Check logs/launcher.log; nothing is watching right now.",
+                  "The logs directory in the installation says why; nothing is "
+                  "watching right now.",
         "unconfirmed": "Watcher launch requested, but its running state could not be "
                        "confirmed. Ask for the status again in a moment.",
     }
