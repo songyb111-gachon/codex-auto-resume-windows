@@ -214,11 +214,20 @@ class WordingTests(unittest.TestCase):
         It exists so the hardcoded list cannot silently fall behind: a maintainer who
         tags a release and forgets this file finds out on their own machine rather than
         in a review.
+
+        The version being released is deliberately excluded. Publishing checks out the
+        tag, so at that moment the tag exists while the version is still the *current*
+        one rather than a past one - and requiring it in a list of history would fail
+        the release of every version, which is how this test first earned its keep.
         """
-        tags = subprocess.run(["git", "-C", str(ROOT), "tag", "--list", "v*"],
-                              capture_output=True, text=True, encoding="utf-8").stdout.split()
+        from codex_auto_resume import config
+        current = "v" + config.version()
+        tags = [tag for tag in
+                subprocess.run(["git", "-C", str(ROOT), "tag", "--list", "v*"],
+                               capture_output=True, text=True, encoding="utf-8").stdout.split()
+                if tag != current]
         if not tags:
-            self.skipTest("shallow checkout: no tags to compare against")
+            self.skipTest("no earlier tags visible in this checkout")
         text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
         missing = [tag for tag in tags
                    if not re.search(r"^##\s+%s\b" % re.escape(tag), text, re.M)]
