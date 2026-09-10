@@ -566,6 +566,56 @@ namespace CodexAutoResume
             return button;
         }
 
+        private const int EM_SETMARGINS = 0x00D3;
+        private const int EC_LEFTMARGIN = 0x0001;
+
+        // Logical pixels at 96 DPI, picked by looking at 0, 3, 4, 5, 6 and 8 side by side
+        // and then measuring the finished window: the edit already inches its text off the
+        // border by about a pixel, so four here puts the digit a little over five logical
+        // pixels in - between the ComboBox below it, which is tighter, and the point where
+        // the number starts to look indented rather than placed.
+        private const int INSET = 4;
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", CharSet =
+            System.Runtime.InteropServices.CharSet.Auto)]
+        private static extern IntPtr SendMessage(IntPtr handle, int message,
+                                                 IntPtr wParam, IntPtr lParam);
+
+        private void GiveTextRoom(NumericUpDown spin)
+        {
+            // A few pixels between the box's left edge and its digit.
+            //
+            // A NumericUpDown draws its number hard against the border, which reads as a
+            // value that has been pushed up against the frame rather than placed in it -
+            // and it is the one control here that looks unlike the rest of the window.
+            // WinForms exposes no inner padding for it, so the margin goes to the native
+            // Edit underneath, through the message the Edit control has always had for
+            // exactly this. The alternative - padding the text with spaces - would change
+            // the value the control parses and round-trips, which is not a cosmetic change
+            // at all.
+            //
+            // The box does not grow: the margin comes out of the text area inside the
+            // border it already has. Alignment, selection, typing and the spinner are
+            // untouched, and the inset scales with the display like every other size here.
+            foreach (Control child in spin.Controls)
+            {
+                var edit = child as TextBox;
+                if (edit == null) continue;
+                // The edit's own handle, not the spinner's: the spinner has one before
+                // its child does, and a message sent then goes nowhere quietly. Hooked
+                // rather than sent once, because a margin lives on the handle and a
+                // handle can be recreated underneath it.
+                EventHandler apply = delegate
+                {
+                    SendMessage(edit.Handle, EM_SETMARGINS, (IntPtr)EC_LEFTMARGIN,
+                                (IntPtr)Px(INSET));
+                    edit.Invalidate();
+                };
+                edit.HandleCreated += apply;
+                if (edit.IsHandleCreated) apply(edit, EventArgs.Empty);
+            }
+        }
+
         private static void IgnoreWheel(Control control)
         {
             // Scrolling the page with the pointer over a spin box or a drop-down would
@@ -774,6 +824,7 @@ namespace CodexAutoResume
                     var spin = new NumericUpDown();
                     spin.Width = Px(74);
                     spin.BorderStyle = BorderStyle.FixedSingle;
+                    GiveTextRoom(spin);
                     spin.Minimum = field.ContainsKey("min") ? (decimal)(double)field["min"] : 0;
                     spin.Maximum = field.ContainsKey("max") ? (decimal)(double)field["max"] : 100;
                     decimal value = current.ContainsKey(name) ? (decimal)(double)current[name] : spin.Minimum;
@@ -813,32 +864,6 @@ namespace CodexAutoResume
             columns.ResumeLayout(true);
             RefreshStatus(startup);
             FitToContent();
-        }
-
-        // TEMPORARY diagnostic - removed before commit.
-        protected override void OnShown(EventArgs e)
-        {
-            base.OnShown(e);
-            string path = Environment.GetEnvironmentVariable("CAR_LAYOUT_DUMP");
-            if (string.IsNullOrEmpty(path)) return;
-            var sb = new StringBuilder();
-            sb.AppendLine("dpi scale " + DpiScale + "  client " + ClientSize.Width + "x" + ClientSize.Height);
-            Walk(this, 0, sb);
-            System.IO.File.WriteAllText(path, sb.ToString());
-            Close();
-        }
-
-        private static void Walk(Control c, int depth, StringBuilder sb)
-        {
-            sb.AppendLine(new string(' ', depth * 2) + c.GetType().Name
-                          + " '" + (c.Text ?? "").Replace('\n', ' ') + "'"
-                          + " bounds=" + c.Bounds
-                          + " client=" + c.ClientSize
-                          + " pad=" + c.Padding + " margin=" + c.Margin
-                          + " preferred=" + c.PreferredSize
-                          + (c.Bottom > (c.Parent == null ? int.MaxValue : c.Parent.ClientSize.Height)
-                             ? "  <<< PAST PARENT BOTTOM" : ""));
-            foreach (Control child in c.Controls) Walk(child, depth + 1, sb);
         }
 
         private void FitToContent()

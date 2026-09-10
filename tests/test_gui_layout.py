@@ -147,5 +147,62 @@ class FooterTests(unittest.TestCase):
                         "measuring before the children are added measures nothing")
 
 
+class NumericInsetTests(unittest.TestCase):
+    """The number in a Limits field is set in from the border, and by the border's rules.
+
+    A NumericUpDown paints its value hard against its frame, which reads as a number
+    pushed up against the box rather than placed inside it. WinForms offers no inner
+    padding for the control, so the space comes from the native edit underneath, through
+    the message an edit control has always had for this. Measured on the finished window
+    at 150%: the digit sits 8-9 device pixels in, or 5.3-6.0 logical, against the
+    ComboBox below it at 4.0.
+
+    Two ways of getting this wrong are worth pinning, because both are silent. Hooking
+    the *spinner's* `HandleCreated` looks right and does nothing - the spinner has a
+    handle before its child does, and the message goes to a control that is not there
+    yet, with no error. And padding the text with spaces would move the digit just as
+    well while changing the string the control parses, which is a data change wearing a
+    cosmetic one's clothes.
+    """
+
+    def setUp(self):
+        self.source = SETTINGS.read_text(encoding="utf-8")
+        start = self.source.index("private void GiveTextRoom(")
+        self.method = self.source[start:self.source.index("private static void ", start)]
+
+    def test_the_margin_goes_to_the_edit_control_underneath(self):
+        self.assertIn("EM_SETMARGINS", self.method)
+        self.assertIn("EC_LEFTMARGIN", self.method,
+                      "only the left margin: the spinner buttons own the right edge")
+
+    def test_it_waits_for_the_edit_to_have_a_handle_not_the_spinner(self):
+        self.assertIn("edit.HandleCreated", self.method,
+                      "the spinner has a handle before its child does, so hooking the "
+                      "spinner sends the message into nothing and reports success")
+        self.assertNotIn("spin.HandleCreated", self.method)
+
+    def test_the_inset_scales_with_the_display(self):
+        self.assertIn("Px(INSET)", self.method,
+                      "a raw pixel count would shrink to nothing at 200%")
+        declared = re.search(r"private const int INSET = (\d+);", self.source)
+        self.assertIsNotNone(declared, "the inset should be named, not inlined")
+        self.assertLessEqual(int(declared.group(1)), 6,
+                             "past six logical pixels the number looks indented")
+
+    def test_the_value_itself_is_never_touched(self):
+        self.assertNotIn('" "', self.method,
+                         "leading spaces would move the digit and change what Save writes")
+        self.assertNotIn("TextAlign", self.method,
+                         "the number stays left aligned; only the margin changed")
+
+    def test_only_the_two_numeric_fields_ask_for_it(self):
+        """Retry timing is a ComboBox and is deliberately left alone."""
+        self.assertEqual(self.source.count("GiveTextRoom(spin)"), 1,
+                         "one call site, on the NumericUpDown the two Limits rows share")
+        combo = self.source.index("var combo = new ComboBox()")
+        self.assertNotIn("GiveTextRoom",
+                         self.source[combo:self.source.index("editors[name] = combo", combo)])
+
+
 if __name__ == "__main__":
     unittest.main()
