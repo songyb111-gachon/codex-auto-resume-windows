@@ -24,6 +24,9 @@ RUNTIME_CONFIG = "runtime.json"
 ICON_NAME = "codex-auto-resume.ico"
 ENV_RUNTIME_HOME = "CODEX_AUTO_RESUME_PLUGIN_HOME"
 RUNTIME_DIR_NAME = ".codex-auto-resume"
+# The directory names the installer creates under the root - and therefore the ones
+# it would destroy if it ever ran against a directory that merely contained them.
+OCCUPIED_NAMES = ("app", "runtime", "config", "logs")
 MIN_PYTHON = (3, 12)
 CHECK = "✓"
 EXIT_OK = 0
@@ -307,6 +310,58 @@ def cmd_verify_home(args) -> int:
     return EXIT_OK
 
 
+def cmd_claim_home(args) -> int:
+    """The same question as `verify-home`, asked before the first install rather than after.
+
+    The install path destroys three things under a root an environment variable can point
+    anywhere: it sweeps `*.old-*`, moves `app/` and `runtime/` aside, and deletes the
+    copies it moved. `verify-home` cannot gate that, because the first install of all
+    happens into a directory that is not ours yet - and never would be, if a check that
+    only recognises existing installations were allowed to refuse it.
+
+    So the install-side question is the other half: is there anything of ours here?
+
+    * Provably ours already - an upgrade. Nothing more to decide.
+    * Nothing of ours here at all - then there is nothing to destroy, and the directory is
+      claimed *now*, before a single file is written. A marker written afterwards would
+      authorise the deletions backwards, which is not authorisation.
+    * Anything else - a directory that already holds `app`, `runtime`, `config`, `logs` or
+      a set-aside copy, with no proof any of it is ours - is refused. That is exactly the
+      shape the uninstaller refuses, and installing into it would delete the same files
+      the uninstaller declines to touch.
+
+    Claiming first also survives an interrupted install: a run that dies between the claim
+    and the first copy leaves a marker in an otherwise untouched directory, so the retry
+    is an upgrade rather than a refusal.
+
+    Prints the canonical root, so the caller confines what it deletes to the path that
+    passed rather than to the string it started from.
+    """
+    home = runtime_home()
+    paths = config.Paths(home)
+    if paths.owns_home():
+        print("owned")
+        print(str(paths.home))
+        return EXIT_OK
+    try:
+        occupied = sorted(entry.name for entry in home.iterdir()
+                          if entry.name in OCCUPIED_NAMES or ".old-" in entry.name)
+    except OSError:
+        # No directory here yet, or not a directory at all. The first is the ordinary
+        # first install; the second is caught by the claim below, which will not create a
+        # directory over a file.
+        occupied = []
+    if occupied or not paths.claim_home():
+        print("not-owned")
+        print(str(home))
+        for name in occupied:
+            print(name)
+        return EXIT_ERROR
+    print("claimed")
+    print(str(paths.home))
+    return EXIT_OK
+
+
 def cmd_uninstall(args) -> int:
     home = runtime_home()
     # Keeping settings and pending recoveries is the default here: the installer offers a
@@ -355,6 +410,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("stop")
     sub.add_parser("doctor")
     sub.add_parser("verify-home", help="exit 0 only if the install root is provably ours")
+    sub.add_parser("claim-home",
+                   help="exit 0 only if the install root is ours or holds nothing of ours")
     p = sub.add_parser("uninstall", help="remove the watcher, autostart and registrations")
     p.add_argument("--purge", action="store_true",
                    help="also delete settings, pending recoveries and logs")
@@ -367,6 +424,7 @@ COMMANDS = {
     "setup": cmd_setup, "status": cmd_status, "pending": cmd_pending, "enable": cmd_enable,
     "disable": cmd_disable, "cancel": cmd_cancel, "uninstall": cmd_uninstall,
     "verify-home": cmd_verify_home,
+    "claim-home": cmd_claim_home,
     "stop": passthrough("stop"), "doctor": passthrough("doctor"), "logs": passthrough("logs"),
 }
 

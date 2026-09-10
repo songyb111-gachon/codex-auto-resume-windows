@@ -242,7 +242,7 @@ class InPlaceUpgradeTests(unittest.TestCase):
     def test_the_rollback_clears_a_partly_copied_directory_first(self):
         # Moving the original back over a half-written directory would merge the two.
         rollback = self.text[self.text.index("foreach ($undo in $moved)"):]
-        self.assertLess(rollback.index("Remove-Item -Recurse -Force $undo.to"),
+        self.assertLess(rollback.index("Remove-OwnedItem $undo.to"),
                         rollback.index("Move-Item -Path $undo.from"))
 
     @unittest.skipUnless(shutil.which("powershell") or shutil.which("powershell.exe"),
