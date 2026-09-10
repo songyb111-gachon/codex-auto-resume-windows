@@ -40,8 +40,9 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # A dispatch may name an existing tag, which is how a published archive gets
-      # rebuilt from the source that tag now points at.
+      # A dispatch builds and verifies whatever ref it names and publishes nothing, so
+      # naming an existing tag re-checks that tag's source rather than replacing what it
+      # released. Only a tag push reaches the three steps that touch a release.
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
