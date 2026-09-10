@@ -5,6 +5,12 @@
 무언가 제대로 동작하지 않나요?
 [이슈](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues)를 열어 주세요.
 
+버그인지 확신이 서지 않는다면 — 어떻게 동작하는지, 이 실패가 복구 대상이어야 하는지, 이 환경이
+지원되는지 같은 이야기라면 —
+[디스커션](https://github.com/songyb111-gachon/codex-auto-resume-windows/discussions)에
+올려 주세요. 어느 쪽이든 괜찮고, 잘못 찾아온 문은 없습니다. 다른 쪽에 올렸다고 닫히는 일은
+없습니다.
+
 자격 증명이나 토큰, 비공개 대화 전문, 비공개 저장소 내용, 가리지 않은 로그는 **넣지 말아 주세요**.
 이 도구를 진단하는 데 그중 어느 것도 필요하지 않으며, 이슈는 공개됩니다.
 
