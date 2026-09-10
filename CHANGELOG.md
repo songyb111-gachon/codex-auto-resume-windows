@@ -113,6 +113,13 @@ were deliberately not used to mutate a released artefact; they ship here.
   ko told Korean readers the tool made no network request for three releases after it
   started making one.
 
+### Around the repository
+
+- The five issues opened against earlier versions are closed, each re-verified against shipped
+  code rather than against the changelog. The repository has a description, topics and
+  Discussions; `SUPPORT.md` now names the second door, because a question that is not a bug was
+  previously only offered a bug tracker.
+
 ### Carried from after v0.5.5
 
 - The installer no longer ends with "Installed and running." whatever the watcher did.

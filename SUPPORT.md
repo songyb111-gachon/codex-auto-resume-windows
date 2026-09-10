@@ -3,6 +3,12 @@
 Something not working? Open an
 [issue](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues).
 
+Not sure it is a bug — how something works, whether a failure should be recoverable, whether
+your setup is supported? Start a
+[discussion](https://github.com/songyb111-gachon/codex-auto-resume-windows/discussions)
+instead. Either is fine, and neither is the wrong door; nothing gets closed for being asked in
+the other one.
+
 Please **do not** include credentials or tokens, whole private conversations, private repository
 contents, or unredacted logs. Nothing in this tool needs any of that to be diagnosed, and an
 issue is public.
