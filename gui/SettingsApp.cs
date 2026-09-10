@@ -442,8 +442,7 @@ namespace CodexAutoResume
         {
             footer.Dock = DockStyle.Bottom;
             footer.BackColor = Surface;
-            footer.Padding = Pad(18, 13, 18, 15);
-            footer.Height = TextRenderer.MeasureText("Ag", Font).Height + Px(46);
+            footer.Padding = Pad(18, 14, 18, 16);
 
             var grid = new TableLayoutPanel();
             grid.Dock = DockStyle.Fill;
@@ -470,13 +469,24 @@ namespace CodexAutoResume
             row.AutoSize = true;
             row.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             row.BackColor = Surface;
+            // Explicit, because the default is 3px on every side and does not scale. Those
+            // six pixels were the whole bug: the strip's height was computed from a text
+            // measurement plus a constant, the row needed six more than the arithmetic
+            // allowed for, and every button lost the last two rows of its own border.
+            row.Margin = new Padding(0);
             row.Controls.Add(MakeButton("Close", false, delegate { Close(); }));
             row.Controls.Add(MakeButton("Save", true, delegate { Save(); }));
             row.Controls.Add(MakeButton("Restore defaults", false, delegate { RestoreDefaults(); }));
 
+            versionText.Margin = new Padding(0);
             grid.Controls.Add(versionText, 0, 0);
             grid.Controls.Add(row, 1, 0);
             footer.Controls.Add(grid);
+            // Measured, not derived. A strip sized by a formula cannot know how tall an
+            // AutoSize button becomes once the font is applied, and being two pixels short
+            // looks exactly like a drawing bug.
+            footer.Height = Math.Max(grid.PreferredSize.Height, row.PreferredSize.Height)
+                          + footer.Padding.Vertical;
             footer.Paint += delegate(object sender, PaintEventArgs e)
             {
                 using (var pen = new Pen(Line)) e.Graphics.DrawLine(pen, 0, 0, footer.Width, 0);
@@ -750,6 +760,32 @@ namespace CodexAutoResume
             columns.ResumeLayout(true);
             RefreshStatus(startup);
             FitToContent();
+        }
+
+        // TEMPORARY diagnostic - removed before commit.
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            string path = Environment.GetEnvironmentVariable("CAR_LAYOUT_DUMP");
+            if (string.IsNullOrEmpty(path)) return;
+            var sb = new StringBuilder();
+            sb.AppendLine("dpi scale " + DpiScale + "  client " + ClientSize.Width + "x" + ClientSize.Height);
+            Walk(this, 0, sb);
+            System.IO.File.WriteAllText(path, sb.ToString());
+            Close();
+        }
+
+        private static void Walk(Control c, int depth, StringBuilder sb)
+        {
+            sb.AppendLine(new string(' ', depth * 2) + c.GetType().Name
+                          + " '" + (c.Text ?? "").Replace('\n', ' ') + "'"
+                          + " bounds=" + c.Bounds
+                          + " client=" + c.ClientSize
+                          + " pad=" + c.Padding + " margin=" + c.Margin
+                          + " preferred=" + c.PreferredSize
+                          + (c.Bottom > (c.Parent == null ? int.MaxValue : c.Parent.ClientSize.Height)
+                             ? "  <<< PAST PARENT BOTTOM" : ""));
+            foreach (Control child in c.Controls) Walk(child, depth + 1, sb);
         }
 
         private void FitToContent()
