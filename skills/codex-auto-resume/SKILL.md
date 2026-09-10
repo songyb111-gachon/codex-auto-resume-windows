@@ -80,7 +80,8 @@ Commands:
 | Stop the background watcher now | `stop` |
 | Check the installation | `doctor` |
 | Show recent activity | `logs` |
-| Remove it completely | `uninstall` |
+| Turn it off and unregister it (program files stay) | `uninstall` |
+| The same, and also delete settings and pending recoveries | `uninstall --purge` |
 
 ## Cancelling one task
 
@@ -197,5 +198,17 @@ notice and none can be added; see the project's docs/PLUGIN.md if asked why.
 ## Removing it
 
 `codex plugin remove` removes this skill but does not stop a watcher that is already
-running, and it does not remove the installation the setup script made. To remove
-everything, run `uninstall` first, then remove the plugin.
+running, and it does not remove the installation the setup script made.
+
+To remove everything, in this order:
+
+1. `uninstall` - stops the watcher and takes away every registration. Add `--purge` to
+   delete settings and pending recoveries too; without it they are kept so a later setup
+   picks them up.
+2. `codex plugin remove` - takes away this skill.
+3. Tell the user to delete `%USERPROFILE%\.codex-auto-resume`, which still holds the
+   application, the bundled Python and the settings window. Nothing is running by then, so
+   it is safe. Do not delete it for them without asking - if they skipped `--purge` it also
+   holds their pending recoveries.
+
+Say which of the three you did. "Removed completely" is only true after all three.

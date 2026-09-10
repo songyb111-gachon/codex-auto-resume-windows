@@ -128,6 +128,32 @@ def register_aumid(icon_path=None) -> bool:
     return True
 
 
+def notification_identity_owner(home) -> bool | None:
+    """Whether the registered notification identity belongs to ``home``.
+
+    ``None`` when nothing is registered, so a caller can tell "not ours" from "not
+    there" - the first must be left alone, the second is simply nothing to do.
+
+    The AUMID and the Start Menu shortcut are one registration in two places: Windows
+    will not draw a toast from an unpackaged application unless a shortcut carries the
+    same AppUserModelID, so they are installed together and point at the same
+    installation. Both are per-user singletons at fixed locations, which means a second
+    copy of this tool overwrites them rather than adding its own - and an uninstall that
+    removed them without asking whose they were would silence the *other* copy's
+    notifications while leaving it running. The icon path is the identifying part: it is
+    written as an absolute path inside the installation that registered it.
+    """
+    registration = aumid_registration()
+    if not registration:
+        return None
+    icon = registration.get("IconUri")
+    if not icon:
+        # Registered without an icon: nothing identifies it, so treat it as not ours
+        # rather than guess. Leaving a stray key behind is the cheaper mistake.
+        return False
+    return _inside(icon, home)
+
+
 def unregister_aumid() -> bool:
     """Remove only our own AUMID key. Idempotent."""
     winreg = _winreg()

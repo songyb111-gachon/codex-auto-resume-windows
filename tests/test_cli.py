@@ -411,6 +411,68 @@ class UninstallSafetyTests(unittest.TestCase):
                             "state must survive an aborted uninstall (%s)" % label)
         del app
 
+    def test_an_aborted_uninstall_removes_no_registration_either(self):
+        """"Aborted before removing anything" has to mean anything.
+
+        The check used to run *after* the autostart value, the notification identity,
+        the Start Menu entry and the toast handler had already been deleted. State did
+        survive, so the message was true of state and of nothing else - and what the
+        user was left with was an installation that still ran, still had pending
+        recoveries, and could no longer start at sign-in or draw a notification.
+        """
+        self.cli("install")
+        app = App(config.Paths(self.home), console=False, enable_logging=False)
+        for probe, label in ((None, "unknown"), (True, "running")):
+            with patch.object(App, "watcher_running", return_value=probe), \
+                 patch.object(startup, "_winreg", return_value=FakeWinreg()), \
+                 patch.object(startup, "uninstall") as run_key, \
+                 patch.object(startup, "unregister_aumid") as aumid, \
+                 patch.object(startup, "uninstall_protocol") as protocol, \
+                 patch.object(shortcut, "uninstall") as start_menu:
+                code, out, _ = self.cli("uninstall")
+            self.assertEqual(code, 1, label)
+            for name, spy in (("autostart", run_key), ("notification identity", aumid),
+                              ("protocol handler", protocol), ("start menu entry", start_menu)):
+                spy.assert_not_called()
+        del app
+
+    def test_uninstall_keeps_a_notification_identity_that_is_not_ours(self):
+        """The AUMID and the Start Menu shortcut are per-user singletons.
+
+        Both live at fixed locations, so a second copy of this tool overwrites them
+        rather than adding its own. The autostart and the protocol handler have always
+        been ownership-checked for exactly that reason; these two were not, so
+        uninstalling a checkout silenced the released installation's notifications while
+        leaving it running - measured, by doing it.
+        """
+        self.cli("install")
+        elsewhere = str(Path(self.temp.name) / "other-install" / "codex-auto-resume.ico")
+        with patch.object(App, "watcher_running", return_value=False), \
+             patch.object(startup, "_winreg", return_value=FakeWinreg()), \
+             patch.object(startup, "aumid_registration",
+                          return_value={"DisplayName": "Codex Auto Resume", "IconUri": elsewhere}), \
+             patch.object(startup, "unregister_aumid") as aumid, \
+             patch.object(shortcut, "uninstall") as start_menu:
+            code, out, _ = self.cli("uninstall")
+        self.assertEqual(code, 0)
+        aumid.assert_not_called()
+        start_menu.assert_not_called()
+        self.assertIn("different installation", out)
+
+    def test_uninstall_removes_a_notification_identity_that_is_ours(self):
+        self.cli("install")
+        ours = str(self.home / "codex-auto-resume.ico")
+        with patch.object(App, "watcher_running", return_value=False), \
+             patch.object(startup, "_winreg", return_value=FakeWinreg()), \
+             patch.object(startup, "aumid_registration",
+                          return_value={"DisplayName": "Codex Auto Resume", "IconUri": ours}), \
+             patch.object(startup, "unregister_aumid", return_value=True) as aumid, \
+             patch.object(shortcut, "uninstall", return_value=True) as start_menu:
+            code, _, _ = self.cli("uninstall")
+        self.assertEqual(code, 0)
+        aumid.assert_called_once()
+        start_menu.assert_called_once()
+
 
 class WatcherLoopTests(unittest.TestCase):
     def test_transient_adapter_failure_does_not_end_the_watcher(self):

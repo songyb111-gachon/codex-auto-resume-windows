@@ -122,10 +122,25 @@ blurring. A pinned digest is a commitment made in the repository: the file has t
 exactly those bytes. The sidecar is served from the same origin as the archive, so
 checking one against the other is trust-on-first-use over TLS to GitHub — it proves the
 download is intact and is a coherent build of this exact version, not that GitHub served
-what the author intended. The script prints which of the two it used. A version's digest
-is null at the moment it is tagged and filled in after publication, because the archive is
-not reproducible: the in-box C# compiler stamps a fresh module version GUID into every
-build, so the digest can only come from the published file.
+what the author intended. The script prints which of the two it used — and a third case,
+a local file handed to `-ArchivePath` for a version with no pinned digest, where there is
+nothing to compare against at all and it says so without a tick.
+
+A version's digest is null at the moment it is tagged and filled in after publication,
+because the archive is not reproducible: the in-box C# compiler stamps a fresh module
+version GUID into every build, so the digest can only come from the published file. Two
+consequences follow, and neither is a bug to be fixed so much as a shape to be aware of:
+
+* **The copy of the plugin inside the release always has `null` for its own version**, so
+  it can only ever verify by sidecar. That copy is the one Codex installs from after the
+  installer runs — and it never needs to bootstrap, because by then the product is already
+  installed. The pinned digest is for the plugin someone adds from the marketplace, which
+  tracks `main` and therefore picks up the post-release pin commit.
+* **Replacing a published asset invalidates a pinned digest.** The release workflow can
+  rebuild and re-upload with `--clobber`, and the new archive will not match a digest
+  recorded from the old one. That fails closed — the bootstrap refuses rather than
+  installing something unexpected — but it fails for everyone until the pin is updated.
+  CONTRIBUTING.md says so beside the button.
 
 Verified by feeding it a file that is not an archive, a genuine archive declaring a
 different version, and a correct archive against a deliberately wrong pinned digest. All
@@ -177,12 +192,22 @@ They are different operations and neither implies the other.
 | Removes the skill from Codex | yes | no |
 | Stops a running watcher | no | yes |
 | Removes sign-in autostart | no | yes |
-| Deletes pending state and logs | no | yes |
+| Deletes settings and pending state | no | only with `--purge` |
+| Deletes logs | no | yes |
+| Deletes the program files and the bundled runtime | no | no |
 
 There is no plugin uninstall hook to attach to, so removing the plugin cannot clean up on its
-own. It does not leave a watcher running forever either: with the plugin gone the launcher finds
-no engine, logs one line and exits, so autostart stops at the next sign-in. To remove everything
-at once, run `uninstall` first, then `codex plugin remove`.
+own.
+
+Nor does either of them remove the *installation*. `uninstall` stops the watcher and takes away
+every registration, and `--purge` additionally deletes settings and pending recoveries - but the
+application, the bundled interpreter and the settings window stay in
+`%USERPROFILE%\.codex-auto-resume`, because they are what a later `setup` would pick up again. Only
+`Uninstall.cmd` from the release archive removes those. Deleting the directory by hand does the
+same thing and is safe once `uninstall` has run: nothing is left running to be surprised by it.
+
+The order matters: run `uninstall` first, then `codex plugin remove`. The other way round leaves
+a watcher running with no skill to stop it.
 
 ## Two installations are refused, not merged
 

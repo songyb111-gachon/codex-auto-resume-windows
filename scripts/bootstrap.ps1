@@ -73,6 +73,11 @@ function Read-Json {
 
 function Get-PluginVersion {
     $manifest = Read-Json (Join-Path $PluginRoot '.codex-plugin\plugin.json')
+    # Under StrictMode a missing property throws before the check below can report it,
+    # so ask whether it is there rather than reading it and hoping.
+    if (-not $manifest.PSObject.Properties.Match('version').Count) {
+        throw 'The plugin manifest has no version, so there is nothing to fetch.'
+    }
     $version = $manifest.version
     # Strict semver, because the version is spliced into a URL. Anything else stops here
     # rather than reaching the network.
@@ -98,7 +103,23 @@ function Get-PinnedDigest {
 
 function Assert-TrustedHost {
     param($Response, [string]$What)
-    $final = $Response.BaseResponse.ResponseUri
+    # Where the bytes actually came from, after redirects. Windows PowerShell 5.1 hands
+    # back an HttpWebResponse, which spells it ResponseUri; PowerShell 7 hands back an
+    # HttpResponseMessage, which does not have that property at all and spells it
+    # RequestMessage.RequestUri. Reading only the 5.1 name would throw under StrictMode
+    # on pwsh - fail closed, but fail closed on every download, which is not a check so
+    # much as an outage. Neither present means we cannot tell, and cannot tell is a
+    # refusal.
+    $base = $Response.BaseResponse
+    $final = $null
+    if ($base.PSObject.Properties.Match('ResponseUri').Count) {
+        $final = $base.ResponseUri
+    } elseif ($base.PSObject.Properties.Match('RequestMessage').Count -and $base.RequestMessage) {
+        $final = $base.RequestMessage.RequestUri
+    }
+    if ($null -eq $final) {
+        throw ($What + ': this PowerShell does not report where the download came from, so it was refused.')
+    }
     if ($final.Scheme -ne 'https' -or ($AllowedHosts -notcontains $final.Host)) {
         throw ($What + ' was redirected to a host this installer does not trust: ' + $final.Host)
     }
@@ -122,6 +143,7 @@ function Test-Archive {
                   'payload/app/mcp/codex-auto-resume-mcp.exe',
                   'payload/app/.mcp.json',
                   'payload/app/.codex-plugin/plugin.json',
+                  'payload/app/scripts/plugin_setup.py',
                   'payload/CodexAutoResumeSettings.exe',
                   'install/install.ps1',
                   'Install.cmd')
@@ -140,6 +162,10 @@ function Test-Archive {
         }
         # And it has to be this product at this version, not merely a well-formed zip.
         $entry = $archive.GetEntry('payload/app/.codex-plugin/plugin.json')
+        # GetEntry is ordinal while -notcontains above is not, so an entry differing only
+        # in case satisfies the presence check and returns $null here. Say so instead of
+        # dereferencing nothing.
+        if ($null -eq $entry) { throw 'The archive names its manifest with unexpected casing.' }
         $reader = New-Object IO.StreamReader($entry.Open())
         try { $manifest = $reader.ReadToEnd() | ConvertFrom-Json } finally { $reader.Dispose() }
         if ($manifest.name -ne 'codex-auto-resume') {
@@ -182,6 +208,21 @@ if ($installed -eq $version -and -not $Force) {
     # on a machine where the last install was interrupted.
     Step 'Checking it over'
     Write-Host ''
+    # This branch writes to the installation without going through install.ps1, so it
+    # has to take install.ps1's lock itself. It used to take none at all, which meant a
+    # repair and a running installer could rewrite the same registrations at once - the
+    # one case the lock exists for. Windows releases it when this process ends, moments
+    # from now; an abandoned lock means the previous holder died, so it is taken rather
+    # than treated as contention.
+    $lock = New-Object System.Threading.Mutex($false, 'Local\CodexAutoResume.Install')
+    $held = $false
+    try { $held = $lock.WaitOne(0) }
+    catch [System.Threading.AbandonedMutexException] { $held = $true }
+    if (-not $held) {
+        Fail 'Another Codex Auto Resume installation is already running.'
+        Step 'Wait for it to finish, then try again.'
+        exit 1
+    }
     $python = Join-Path $installHome 'runtime\python.exe'
     $setup = Join-Path $installHome 'app\scripts\plugin_setup.py'
     $arguments = @($setup, 'setup')
@@ -192,11 +233,11 @@ if ($installed -eq $version -and -not $Force) {
     exit $code
 }
 
-# There is deliberately no lock taken here. Downloading and verifying touch nothing
-# shared - the working directory is unique to this run - and the one step that does,
-# the install itself, takes the lock in install.ps1 where every route passes through
-# it. One owner, no recursive acquisition, and a second bootstrap is refused at the
-# moment it would actually collide rather than at the moment it starts.
+# No lock is taken around the download. Fetching and verifying touch nothing shared -
+# the working directory is unique to this run - and the step that does, the install
+# itself, takes the lock inside install.ps1. A second bootstrap is therefore refused at
+# the moment it would actually collide rather than at the moment it starts. The repair
+# branch above is the exception: it skips install.ps1, so it takes the lock itself.
 $started = $false
 $work = Join-Path ([IO.Path]::GetTempPath()) ('codex-auto-resume-' + [Guid]::NewGuid().ToString('N'))
 try {
@@ -231,7 +272,11 @@ try {
     } elseif ($ArchivePath) {
         # Nothing to check a local file against. Say so; the layout and version checks
         # below still run, and they are the reason this is not simply unchecked.
-        Ok ('SHA-256 ' + $actual.Substring(0, 16) + '... (no pinned digest for this version)')
+        # Deliberately not an [ok]: nothing was compared. Printing a hash-shaped string
+        # beside a tick is how an unverified file comes to look like a verified one.
+        Step ('SHA-256 ' + $actual.Substring(0, 16) + '... - NOT checked against anything.')
+        Step ('This version has no pinned digest, and a local file has no published')
+        Step ('checksum to fetch. Only the contents checks below apply.')
     } else {
         $sidecar = $zip + '.sha256'
         Get-Remote -Uri ($base + $name + '.sha256') -OutFile $sidecar -What 'The checksum'
