@@ -63,7 +63,15 @@ def relink(text: str, english: str, base: str) -> str:
     text = re.sub(r'\]\((?:\./)?%s\)' % name, '](%s%s)' % (base, english), text)
     # And links between the Korean documents themselves. On ko, `SECURITY.ko.md` *is*
     # `SECURITY.md`, so a link written for main would point at a file that is not there.
-    text = re.sub(r'([\w/.-]+)\.ko\.md', lambda found: found.group(1) + '.md', text)
+    #
+    # Only relative link targets. A first attempt rewrote the suffix wherever it appeared,
+    # which also edited prose inside a fenced code block and mangled any absolute URL that
+    # happened to end in `.ko.md` - a file on somebody else's host, renamed by us. The
+    # lookahead rejects a scheme, and the character class stops before a dot so a target
+    # cannot run across a domain name.
+    relative = r'(?!\w+:)((?:\./)?[\w/-]+)\.ko\.md'
+    text = re.sub(r'\]\(%s\)' % relative, lambda found: "](%s.md)" % found.group(1), text)
+    text = re.sub(r'href="%s"' % relative, lambda found: 'href="%s.md"' % found.group(1), text)
     return text
 
 
