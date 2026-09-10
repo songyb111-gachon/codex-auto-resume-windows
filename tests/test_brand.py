@@ -151,6 +151,47 @@ class SurfaceTests(unittest.TestCase):
         self.assertEqual(stray, [], "colours belong in brand.py, not in the window")
 
 
+class WindowScalingTests(unittest.TestCase):
+    """Fixed pixel sizes in the settings window must follow the display.
+
+    Windows Forms scales the font and leaves explicit sizes alone, so a window written
+    at 96 DPI keeps its width while its text doubles. At 200% the second column's labels
+    clipped, the spin boxes crowded the card edge and the last row fell off the bottom.
+    It looked right at 100% and 150%, which is why it survived two releases.
+    """
+
+    def setUp(self):
+        self.source = (ROOT / "gui" / "SettingsApp.cs").read_text(encoding="utf-8")
+
+    def test_no_size_or_padding_is_written_in_raw_pixels(self):
+        # `new Size(a, b)` and `new Padding(...)` with bare integers are the shape that
+        # does not scale. Zeros are fine: zero is zero at any DPI.
+        offenders = []
+        for match in re.finditer(r"new (?:Size|Padding)\(([^)]*)\)", self.source):
+            parts = [p.strip() for p in match.group(1).split(",")]
+            if all(p == "0" or not p.isdigit() for p in parts):
+                continue
+            offenders.append(match.group(0))
+        self.assertEqual(offenders, [], "write these through Px()/Pad() so they scale")
+
+    def test_the_scale_does_not_come_from_deviceDpi(self):
+        """`DeviceDpi` answers 96 on a 192-DPI screen here, so a fix using it does nothing.
+
+        The manifest declares per-monitor awareness, but .NET Framework WinForms only
+        honours that with an app.config opt-in this product does not ship. Measured: the
+        first attempt at this fix scaled by DeviceDpi and changed the rendered window by
+        not one pixel.
+        """
+        code = "\n".join(line for line in self.source.splitlines()
+                         if not line.lstrip().startswith("//"))
+        self.assertNotIn("DeviceDpi", code, "the comment may name it; the code may not")
+        self.assertIn("GetDpiForSystem", code)
+
+    def test_the_absolute_column_holding_the_state_dot_scales_too(self):
+        # It was a bare 22 while the dot became 24 wide, which sliced a third off it.
+        self.assertRegex(self.source, r"ColumnStyle\(SizeType\.Absolute, Px\(")
+
+
 class RetiredColourTests(unittest.TestCase):
     def test_no_tracked_file_still_carries_a_retired_colour(self):
         wanted = {value.lower() for value in RETIRED}
