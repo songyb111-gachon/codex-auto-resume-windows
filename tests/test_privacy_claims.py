@@ -57,11 +57,22 @@ QUALIFIERS = re.compile(
     r"워처|복구 런타임|설치|내려받",   # ko: watcher, recovery runtime, install, download
     re.I)
 
-DOCS = ("README.md", "README.ko.md", "PRIVACY.md", "SECURITY.md", "SECURITY.ko.md",
-        "SUPPORT.md", "CONTRIBUTING.md", "CONTRIBUTORS.ko.md",
-        "docs/PLUGIN.md", "docs/BRAND.md", "docs/COMPARISON.md",
-        "docs/COMPARISON.ko.md", "docs/DEVELOPMENT.ko.md",
-        "skills/codex-auto-resume/SKILL.md")
+def documents_here(names):
+    """The subset of `names` this checkout actually has.
+
+    On the generated `ko` branch each Korean source has been written over its English
+    sibling and then removed, so naming both here would mean opening a file that is not
+    there. The English name still resolves - it is the Korean text, under that name.
+    """
+    return tuple(name for name in names if (ROOT / name).is_file())
+
+
+DOCS = documents_here((
+    "README.md", "README.ko.md", "PRIVACY.md", "SECURITY.md", "SECURITY.ko.md",
+    "SUPPORT.md", "CONTRIBUTING.md", "CONTRIBUTORS.ko.md",
+    "docs/PLUGIN.md", "docs/BRAND.md", "docs/COMPARISON.md",
+    "docs/COMPARISON.ko.md", "docs/DEVELOPMENT.ko.md",
+    "skills/codex-auto-resume/SKILL.md"))
 
 # The changelog is a record of what past releases did and must not be rewritten to match
 # today; docs/DEVELOPMENT.md is the same, a history rather than a description.
@@ -181,7 +192,7 @@ class WordingTests(unittest.TestCase):
                             "the Third parties section must not open with None")
 
     def test_the_readme_summary_row_admits_the_download(self):
-        for name in ("README.md", "README.ko.md"):
+        for name in documents_here(("README.md", "README.ko.md")):
             text = (ROOT / name).read_text(encoding="utf-8")
             row = [line for line in text.splitlines()
                    if line.startswith("|") and re.search(r"(?i)telemetry|텔레메트리", line)]

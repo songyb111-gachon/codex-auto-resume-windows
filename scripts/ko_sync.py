@@ -24,6 +24,7 @@ import argparse
 import json
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 MAPPING_NAME = "scripts/ko_branch.json"
@@ -61,17 +62,46 @@ def relink(text: str, english: str, base: str) -> str:
     name = re.escape(english)
     text = re.sub(r'href="(?:\./)?%s"' % name, 'href="%s%s"' % (base, english), text)
     text = re.sub(r'\]\((?:\./)?%s\)' % name, '](%s%s)' % (base, english), text)
-    # And links between the Korean documents themselves. On ko, `SECURITY.ko.md` *is*
-    # `SECURITY.md`, so a link written for main would point at a file that is not there.
-    #
-    # Only relative link targets. A first attempt rewrote the suffix wherever it appeared,
-    # which also edited prose inside a fenced code block and mangled any absolute URL that
-    # happened to end in `.ko.md` - a file on somebody else's host, renamed by us. The
-    # lookahead rejects a scheme, and the character class stops before a dot so a target
-    # cannot run across a domain name.
-    relative = r'(?!\w+:)((?:\./)?[\w/-]+)\.ko\.md'
-    text = re.sub(r'\]\(%s\)' % relative, lambda found: "](%s.md)" % found.group(1), text)
-    text = re.sub(r'href="%s"' % relative, lambda found: 'href="%s.md"' % found.group(1), text)
+    return drop_ko_suffix(text)
+
+
+# A relative link target naming a Korean document. The lookahead rejects a scheme and the
+# character class stops before a dot, so an absolute URL that merely ends in `.ko.md` - a
+# file on somebody else's host - cannot be rewritten, and a target cannot run across a
+# domain name. A first attempt rewrote the suffix wherever it appeared and edited prose
+# inside a fenced code block.
+KO_TARGET = r'(?!\w+:)((?:\./)?[\w/-]+)\.ko\.md'
+
+
+def tracked_markdown(root: Path) -> list[Path]:
+    """The Markdown files this branch actually ships, in a stable order.
+
+    Tracked rather than globbed: `build/stage/` holds a staged copy of the payload after
+    a release build, and sweeping that too made the generator report that it had rewritten
+    code - which is precisely what `test_it_touches_no_code` exists to catch, and it did.
+    """
+    listing = subprocess.run(["git", "-C", str(root), "ls-files", "*.md"],
+                             capture_output=True, text=True, encoding="utf-8")
+    if listing.returncode != 0:
+        raise SystemExit("ko_sync needs a git checkout; `git ls-files` failed here")
+    return sorted((root / name) for name in listing.stdout.split() if (root / name).is_file())
+
+
+def drop_ko_suffix(text: str) -> str:
+    """Point links at the name a Korean document has on ko.
+
+    On ko, `SECURITY.ko.md` *is* `SECURITY.md`, so a link written for main points at a
+    file that is not there. Both halves of the link need rewriting:
+
+    * the **target**, or the reader gets a dead link;
+    * the **label**, because these documents write the filename as the link text, and
+      sending a Korean reader to look for `SECURITY.ko.md` on a branch that has no such
+      file is the same defect one layer up. Rewriting only the target is how the old ko
+      branch came to link to itself for four releases.
+    """
+    text = re.sub(r'\]\(%s\)' % KO_TARGET, lambda found: "](%s.md)" % found.group(1), text)
+    text = re.sub(r'href="%s"' % KO_TARGET, lambda found: 'href="%s.md"' % found.group(1), text)
+    text = re.sub(r'\[%s\]' % KO_TARGET, lambda found: "[%s.md]" % found.group(1), text)
     return text
 
 
@@ -97,12 +127,62 @@ def build(root: Path, *, check: bool = False) -> list[str]:
         destination.write_text(wanted, encoding="utf-8")
         origin.unlink()
 
+    # Every other page ships untouched *except* for links naming a Korean document.
+    #
+    # `not_yet_translated` pages are English on ko, which is accurate - but an English
+    # page with a dead link is not. CHANGELOG.md linked to README.ko.md, a file this
+    # very function had just deleted from the branch.
+    for markdown in tracked_markdown(root):
+        if markdown.name == Path(NOTICE_PATH).name:
+            continue
+        before = markdown.read_text(encoding="utf-8")
+        after = drop_ko_suffix(before)
+        if after == before:
+            continue
+        relative = markdown.relative_to(root).as_posix()
+        if relative not in changed:
+            changed.append(relative)
+        if not check:
+            markdown.write_text(after, encoding="utf-8")
+
     changed.append(NOTICE_PATH)
     if not check:
         notice = root / NOTICE_PATH
         notice.parent.mkdir(parents=True, exist_ok=True)
         notice.write_text(NOTICE, encoding="utf-8")
+        broken = dead_links(root)
+        if broken:
+            raise SystemExit("the generated tree has links to files it does not contain:"
+                             + "".join("\n  " + entry for entry in broken))
     return changed
+
+
+# A relative link target: not a scheme, not a bare anchor, not a mail address.
+LINK = re.compile(r'\]\(\s*(?!\w+:|#)([^)\s]+)|href="(?!\w+:|#)([^"]+)"')
+
+
+def dead_links(root: Path) -> list[str]:
+    """Relative links in the generated tree that point at nothing.
+
+    The sync renames five documents and deletes their originals, so every link naming
+    one has to be rewritten - and the way that goes wrong is silent: the page still
+    renders, the link still looks like a link, and it 404s only for the reader. Checking
+    the result is cheaper than remembering every page that might mention a Korean file.
+    """
+    missing = []
+    for markdown in tracked_markdown(root):
+        here = markdown.parent
+        for found in LINK.finditer(markdown.read_text(encoding="utf-8")):
+            target = (found.group(1) or found.group(2)).split("#")[0].strip()
+            if not target:
+                continue
+            try:
+                if (here / target).exists():
+                    continue
+            except OSError:
+                pass
+            missing.append("%s -> %s" % (markdown.relative_to(root).as_posix(), target))
+    return missing
 
 
 def main(argv=None) -> int:
