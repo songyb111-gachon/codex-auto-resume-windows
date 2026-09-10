@@ -164,7 +164,15 @@ def start_watcher(home: Path) -> str:
     says it is running no matter what happened next.
     """
     app = App(config.Paths(home), console=False, enable_logging=False)
-    if app.watcher_running() is not False:
+    # `is True`, not `is not False`. The probe has three answers, and None means it could
+    # not tell - which this rounded up to "a watcher is already running", so setup printed
+    # "the watcher is running" without having launched one or looked at one. That is the
+    # exact overclaim the rest of this release removes.
+    #
+    # Falling through on None is safe: `App.run` refuses a busy mutex, so a second watcher
+    # cannot start beside a live one, and the launch is reported by `await_watcher`, which
+    # returns "unconfirmed" for a probe that stays unavailable.
+    if app.watcher_running() is True:
         return "already-running"
     flags = 0
     if os.name == "nt":

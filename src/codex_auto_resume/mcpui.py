@@ -119,6 +119,8 @@ function initialData() {
 
 var HOST = bridge();
 var DATA = initialData();
+// Survives a re-render: set before render(), shown by it, then cleared.
+var NOTICE = '';
 var EDITORS = {};
 
 var LABELS = {
@@ -308,6 +310,13 @@ function render() {
   footer.appendChild(message);
   root.appendChild(footer);
 
+  // A message left over from the click that caused this render. It is carried across
+  // rather than written before render(), which empties the panel and would discard it.
+  if (NOTICE) {
+    message.textContent = NOTICE;
+    NOTICE = '';
+  }
+
   if (!HOST) {
     message.textContent = 'Read-only here. Use the Codex Auto Resume settings window to change these.';
     return;
@@ -349,14 +358,16 @@ function render() {
         var state = payload.state;
         if (state === 'running' || state === 'already-running') {
           status.watcher_running = true;
-          message.textContent = '';
+          NOTICE = '';
         } else if (state === 'exited') {
-          message.textContent = 'It started and stopped again; nothing is watching.';
-          start.disabled = false;
+          NOTICE = 'It started and stopped again; nothing is watching.';
         } else {
-          message.textContent = 'Started, but not confirmed running yet. Refresh in a moment.';
-          start.disabled = false;
+          NOTICE = 'Started, but not confirmed running yet. Ask for the status again.';
         }
+        // Through NOTICE rather than onto `message`, because render() empties the panel
+        // and builds a fresh span: text written here first would be on a node that is
+        // detached before the browser paints it, and the click would look like nothing
+        // happened - on exactly the two states that most need explaining.
         render();
       }, function (error) {
         message.textContent = 'Could not start it: ' + (error && error.message ? error.message : 'refused');
