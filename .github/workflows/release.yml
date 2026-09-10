@@ -33,6 +33,14 @@ permissions:
   id-token: write
   attestations: write
 
+# One release at a time, and never cancel one that is running. The step that refuses to
+# republish a version reads the release's assets and then uploads; two runs of the same
+# tag could both read "no assets yet" and both upload, which is exactly the mutability
+# this release line exists to forbid. Serialising by tag closes that window.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
     # The product is Windows-only, and the release contains two Windows executables
