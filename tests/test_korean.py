@@ -100,6 +100,30 @@ class GeneratorTests(unittest.TestCase):
         self.assertIn("(docs/COMPARISON.md)", out)
         self.assertNotIn(".ko.md", out)
 
+    def test_it_rewrites_links_and_leaves_everything_else_alone(self):
+        """The first version rewrote the suffix anywhere it appeared.
+
+        That edited prose inside fenced code blocks and renamed any absolute URL that
+        happened to end in `.ko.md` - a file on somebody else's host. Each case below is
+        one it got wrong or one it must keep getting right.
+        """
+        import ko_sync
+        base = "https://example.invalid/main/"
+        unchanged = (
+            "[x](https://example.com/README.md)",       # already absolute
+            "[y](https://example.com/docs/T.ko.md)",    # someone else's file
+            "The English README.md has more.",          # prose, not a link
+            '<img src="docs/images/settings-panel.png">',
+        )
+        for text in unchanged:
+            with self.subTest(text):
+                self.assertEqual(ko_sync.relink(text, "README.md", base), text)
+
+        fenced = "```\npython x.py README.md\n```\n"
+        out = ko_sync.relink(fenced + '<a href="README.md">E</a>', "README.md", base)
+        self.assertTrue(out.startswith(fenced), "prose in a code block must survive")
+        self.assertIn('href="%sREADME.md"' % base, out)
+
     def test_the_workflow_builds_from_the_tested_commit(self):
         """`github.sha` on a workflow_run event is main's head, not what was tested."""
         text = (ROOT / ".github" / "workflows" / "sync-ko.yml").read_text(encoding="utf-8")
