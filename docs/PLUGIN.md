@@ -136,11 +136,12 @@ consequences follow, and neither is a bug to be fixed so much as a shape to be a
   installer runs — and it never needs to bootstrap, because by then the product is already
   installed. The pinned digest is for the plugin someone adds from the marketplace, which
   tracks `main` and therefore picks up the post-release pin commit.
-* **Replacing a published asset invalidates a pinned digest.** The release workflow can
-  rebuild and re-upload with `--clobber`, and the new archive will not match a digest
-  recorded from the old one. That fails closed — the bootstrap refuses rather than
-  installing something unexpected — but it fails for everyone until the pin is updated.
-  CONTRIBUTING.md says so beside the button.
+* **A published version cannot be replaced**, which is what makes the pin worth having.
+  The workflow used to be able to rebuild an existing tag and upload over its assets; a
+  digest recorded from the old archive would then match nothing, and the bootstrap would
+  refuse to install that version for everybody. Since v0.5.4 publishing is refused outright
+  when the version already has assets, so a correction takes a new version number and the
+  bytes behind `v0.5.4` stay the bytes `v0.5.4` was published with.
 
 Verified by feeding it a file that is not an archive, a genuine archive declaring a
 different version, and a correct archive against a deliberately wrong pinned digest. All
