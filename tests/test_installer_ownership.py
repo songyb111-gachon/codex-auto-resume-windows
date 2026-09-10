@@ -643,6 +643,22 @@ class InstallerDeletionRoutingTests(unittest.TestCase):
             self.assertLess(claimed, text.rindex(destructive),
                             "%s runs before the root is claimed" % destructive)
 
+    def test_the_uninstall_keeps_its_proof_until_the_last_step_can_fail(self):
+        text = self.source()
+        stuck = text.index("Fail 'Some program files are still in use")
+        marker = text.index("'runtime.json', '.owned-by-codex-auto-resume'")
+        self.assertLess(stuck, marker,
+                        "deleting the proof before a step that can abort makes the "
+                        "advised retry refuse the half-deleted installation")
+
+    def test_a_removal_codex_refused_is_not_reported_as_a_removal(self):
+        text = self.source()
+        branch = text[text.index("if ($Uninstall) {"):text.index("# ---", text.index("if ($Uninstall) {"))]
+        self.assertNotIn("$null = Invoke-Codex", branch,
+                         "an unexamined exit code prints Removed. over a refusal")
+        self.assertIn("if ($script:Failed) {", branch,
+                      "the branch must not end on an unqualified success")
+
 
 if __name__ == "__main__":
     unittest.main()
