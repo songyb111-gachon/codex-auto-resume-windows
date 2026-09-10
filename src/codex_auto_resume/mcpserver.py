@@ -410,11 +410,24 @@ class Server:
         result = self.control.reset_recovery_budget(arguments.get("interruption_id"))
         return self._reply("Attempts restored; it is waiting again. Nothing was sent.", result)
 
+    # What each outcome of a start actually means, in the caller's words. Only the
+    # first of these says the watcher is running, and it is the only one that has been
+    # told so by the same probe `get_status` uses. Reporting a launch as a running
+    # watcher is what produced "The watcher is running." followed immediately by a
+    # status saying it was not.
+    START_WORDING = {
+        "running": "The watcher is running.",
+        "already-running": "It was already running; nothing to do.",
+        "exited": "The watcher was started but stopped again straight away. "
+                  "Check logs/launcher.log; nothing is watching right now.",
+        "unconfirmed": "Watcher launch requested, but its running state could not be "
+                       "confirmed. Ask for the status again in a moment.",
+    }
+
     def _tool_start_watcher(self, _arguments) -> dict:
         result = self.control.start_watcher()
-        return self._reply(
-            "The watcher is running." if result["started"]
-            else "It was already running; nothing to do.", result)
+        return self._reply(self.START_WORDING.get(result.get("state"),
+                                                  self.START_WORDING["unconfirmed"]), result)
 
     def _tool_retry_now(self, arguments) -> dict:
         result = self.control.request_retry_now(arguments.get("interruption_id"))

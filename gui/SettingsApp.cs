@@ -824,11 +824,28 @@ namespace CodexAutoResume
                 var response = bridge.Call("start-watcher", null);
                 if (!Equals(response["ok"], true))
                     throw new InvalidOperationException((string)response["error"]);
-                // The probe reads a single-instance mutex the new process has to take,
-                // so an immediate re-read can still say "not running". One short wait is
-                // the difference between showing the truth and showing a stale failure.
-                System.Threading.Thread.Sleep(1200);
+                // No fixed wait any more. The engine now waits for the same
+                // single-instance mutex probe the status line reads and reports what it
+                // saw, so the answer is already known by the time this returns. The old
+                // 1200 ms sleep was both slower than an ordinary start - measured at
+                // 0.16-0.30 s - and shorter than a slow one, in which case the window
+                // showed "not running" for a watcher that was starting perfectly well.
+                var result = response.ContainsKey("result")
+                           ? response["result"] as Dictionary<string, object> : null;
+                string state = result != null && result.ContainsKey("state")
+                             ? result["state"] as string : null;
                 RefreshStatus(editors.ContainsKey("__startup") ? editors["__startup"] as CheckBox : null);
+                if (state != "running" && state != "already-running")
+                {
+                    // RefreshStatus has just written the status line from the probe, so
+                    // this replaces it rather than competing with it: the watcher is not
+                    // running, and the reason it is not is worth more than the reason a
+                    // stopped watcher is normally not running.
+                    detail.Text = state == "exited"
+                        ? "It started and stopped again - see the launcher log"
+                        : "Started, but not confirmed running yet";
+                    header.Invalidate(true);
+                }
             }
             catch (Exception error)
             {

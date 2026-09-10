@@ -67,5 +67,26 @@ class RowLayoutTests(unittest.TestCase):
         self.assertIn("new Padding(0)", margins[0])
 
 
+class WatcherStartReportingTests(unittest.TestCase):
+    """The window may not say the watcher is running on the strength of a launch."""
+
+    def setUp(self):
+        self.source = SETTINGS.read_text(encoding="utf-8")
+        start = self.source.index("private void StartWatcher()")
+        self.method = self.source[start:self.source.index("private void Save()", start)]
+
+    def test_it_does_not_wait_a_fixed_time_and_hope(self):
+        self.assertNotIn("Thread.Sleep", self.method,
+                         "a fixed wait is both slower than an ordinary start and shorter "
+                         "than a slow one; the engine now waits for the real answer")
+
+    def test_it_reads_the_state_the_engine_reported(self):
+        self.assertIn('"state"', self.method,
+                      "the window must report what the engine observed, not that the call "
+                      "returned")
+        for state in ('"running"', '"already-running"', '"exited"'):
+            self.assertIn(state, self.method, state)
+
+
 if __name__ == "__main__":
     unittest.main()
