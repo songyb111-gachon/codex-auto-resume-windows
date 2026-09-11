@@ -236,6 +236,35 @@ class PixelTests(unittest.TestCase):
     ACTIVE = (0x06, 0xB6, 0xD4)   # Brand.Active - the running state dot
     LINE = (0xDC, 0xE3, 0xEC)     # Brand.Line - the hairlines under the header, over the footer
 
+    ACCENT = (0x12, 0x57, 0xB8)   # Brand.Accent - each card's left rail
+
+    def test_every_card_shows_its_accent_rail(self):
+        """Four cards, four rails. A capture once lost one whole card's border and rail."""
+        for name in ("assets/screenshot-settings.png", "assets/screenshot-settings-ko.png"):
+            width, height, rows = read_png(ROOT / name)
+            runs = []                          # (x, top, bottom) of long vertical accent runs
+            for x in range(width):
+                top = None
+                for y in range(height):
+                    hit = rows[y][x] == self.ACCENT
+                    if hit and top is None:
+                        top = y
+                    if (not hit or y == height - 1) and top is not None:
+                        if y - top >= 60:
+                            runs.append((x, top, y))
+                        top = None
+            cards = []                         # merge adjacent columns covering the same rows
+            for x, top, bottom in runs:
+                for card in cards:
+                    if x - card["right"] <= 1 and top < card["bottom"] and bottom > card["top"]:
+                        card["right"] = x
+                        break
+                else:
+                    cards.append({"left": x, "right": x, "top": top, "bottom": bottom})
+            rails = [c for c in cards if c["right"] - c["left"] <= 8]
+            with self.subTest(name):
+                self.assertEqual(len(rails), 4, "expected four card rails, found %d" % len(rails))
+
     def test_every_window_screenshot_has_both_hairlines(self):
         """One capture in four lost the header's rule the same way the dot was lost."""
         for name in ("assets/screenshot-settings.png", "assets/screenshot-settings-ko.png"):

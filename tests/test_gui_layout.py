@@ -108,6 +108,30 @@ class WatcherStartReportingTests(unittest.TestCase):
             self.assertIn(state, self.method, state)
 
 
+class BufferedPaintTests(unittest.TestCase):
+    """Every control that paints itself is double-buffered.
+
+    Three captures in a row lost something drawn in a Paint handler - the status dot, the
+    header's hairline, then a whole card's border and accent rail - because an unbuffered
+    control is erased to its background first and painted a moment later, and anything
+    that looks in between sees the erased state. Fixing them one at a time only moved the
+    bug to the next painter, so this checks all of them.
+    """
+
+    BUFFERED = {"BufferedPanel", "BufferedTable"}
+
+    def test_every_paint_handler_is_on_a_buffered_control(self):
+        source = SETTINGS.read_text(encoding="utf-8")
+        painters = sorted(set(re.findall(r"(\w+)\.Paint \+=", source)))
+        self.assertTrue(painters, "no Paint handlers found - the pattern is wrong")
+        for name in painters:
+            declared = re.search(r"(?:var|Panel|TableLayoutPanel)\s+%s\s*=\s*new\s+(\w+)\(" % name, source)
+            with self.subTest(name):
+                self.assertIsNotNone(declared, "cannot find where %s is created" % name)
+                self.assertIn(declared.group(1), self.BUFFERED,
+                              "%s paints itself but is a plain %s" % (name, declared.group(1)))
+
+
 class FooterTests(unittest.TestCase):
     """The strip along the bottom is as tall as what it holds.
 
