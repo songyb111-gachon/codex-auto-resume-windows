@@ -58,16 +58,33 @@ jobs:
       # The tested commit, not main's current head. On a workflow_run event the default
       # checkout ref is the *default branch's* head, which is a different commit whenever
       # something was pushed while the tests were running.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.event.inputs.sha || 'main' }}
           fetch-depth: 0
+          # The steps below run this commit's own scripts and tests. The token must not be
+          # sitting in .git/config while they do; only the final push step is given it.
+          persist-credentials: false
 
       - name: Say which commit this is building from
         shell: bash
         run: |
           echo "source commit: $(git rev-parse HEAD)"
           echo "subject      : $(git log -1 --pretty=%s)"
+
+      # The dispatch input is described as a commit on main, and until now nothing
+      # checked it: pasting a fork pull request's SHA ran that code's ko_sync.py and test
+      # suite with a write token and force-pushed its tree to ko. Whatever the trigger,
+      # the commit being published must already be part of main.
+      - name: Refuse anything that is not on main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor HEAD FETCH_HEAD; then
+            echo "::error::$(git rev-parse HEAD) is not on main; ko is only ever built from main"
+            exit 1
+          fi
 
       - name: Replace the English documents with their Korean counterparts
         shell: bash
@@ -110,7 +127,7 @@ jobs:
       # opened against ko was answered with failures about the wrong thing. Nothing
       # noticed, because test.yml only runs on main and on pull requests. Now the tree
       # is tested before it is published, on the platform the product supports.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
@@ -124,6 +141,8 @@ jobs:
         shell: bash
         env:
           SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.event.inputs.sha }}
+          # The only step that holds the token, and it runs no code from the tree.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           source_sha="${SOURCE_SHA:-$(git rev-parse HEAD)}"
@@ -141,4 +160,5 @@ jobs:
           # Force, because ko is generated rather than developed. Its history is a log of
           # syncs, and a sync that could not fast-forward would otherwise stall the branch
           # for ever - which is exactly how it came to be three releases behind.
-          git push --force origin HEAD:refs/heads/ko
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            HEAD:refs/heads/ko

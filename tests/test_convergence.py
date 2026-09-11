@@ -414,13 +414,17 @@ class ReleaseImmutabilityTests(unittest.TestCase):
 
     def test_a_dispatch_cannot_publish(self):
         """The dry run may build and verify; it may not create or change a release."""
-        # Every step that talks to the releases API is gated on a tag push.
+        # Every step that talks to the releases API lives in the publish job, and that
+        # job - not each step - is gated on a tag *push*. Gating steps on
+        # startsWith(github.ref, 'refs/tags/v') alone was the old shape, and a dispatch
+        # whose ref is a tag satisfies it.
+        publish = self.workflow.index("\n  publish:")
+        guard = "if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')"
+        self.assertIn(guard, self.workflow[publish:self.workflow.index("steps:", publish)])
         for marker in ("gh release create", "gh release view"):
-            index = self.workflow.index(marker)
-            preceding = self.workflow[:index]
-            step = preceding.rindex("      - name:")
-            self.assertIn("startsWith(github.ref, 'refs/tags/v')", self.workflow[step:index],
-                          "%s must be reachable only from a tag push" % marker)
+            with self.subTest(marker):
+                self.assertGreater(self.workflow.index(marker), publish,
+                                   "%s must be reachable only from the publish job" % marker)
 
     def test_the_dispatch_input_no_longer_names_a_release(self):
         # It used to be `tag`, and it meant "rebuild this published release".
