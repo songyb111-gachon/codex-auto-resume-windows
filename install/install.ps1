@@ -735,9 +735,9 @@ if ($watcherUnconfirmed) {
     Write-Host 'Open Start Menu > Codex Auto Resume and use Start watcher, or run this again.'
 } elseif ($previousWatcherStillRunning) {
     Write-Host 'Updated. Your settings and pending recoveries were kept.'
-    Write-Host 'The previous version of the watcher is still running and will keep running'
-    Write-Host 'until it stops. To switch to this version now, open Start Menu > Codex Auto'
-    Write-Host 'Resume and use Stop watcher, then Start watcher - or sign out and back in.'
+    Write-Host 'The previous version of the watcher was asked to stop and is still finishing'
+    Write-Host 'what it was doing; nothing was ended by force. Once it has stopped, open'
+    Write-Host 'Start Menu > Codex Auto Resume and use Start watcher - or sign out and back in.'
 } else {
     if ($upgrade) { Write-Host 'Updated. Your settings and pending recoveries were kept.' }
     else { Write-Host 'Installed and running.' }
