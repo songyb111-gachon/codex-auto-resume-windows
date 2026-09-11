@@ -15,8 +15,17 @@ name: release
 # digest pin depends on. A correction now needs a new version, which is the honest way to
 # say "these are different bytes".
 #
-# What is left of the dispatch is a dry run: it builds and verifies whatever ref you point
-# it at and keeps the archive as a workflow artifact. It cannot publish.
+# Two jobs, split by privilege. `build` runs the repository's code - its tests, its build
+# scripts - with a read-only token that is not left on disk. `publish` holds the rights to
+# create a release and attest it, and runs none of the repository's code: it takes the
+# archive `build` produced, checks it again, attests it and publishes it.
+#
+# The split exists because the dispatch "dry run" was not one. Its build steps ran with
+# the workflow-wide contents: write and id-token: write, checkout left the token in
+# .git/config, and the three publish steps were gated only on github.ref being a tag - so
+# a dispatch run against a tag could publish, and a dispatch against somebody's pull
+# request ran their code holding a write token. Now a dispatch builds with nothing to
+# steal, and only a real tag push reaches `publish`.
 on:
   push:
     tags: ["v*"]
@@ -26,12 +35,8 @@ on:
         description: "Branch, tag or SHA to build and verify. Never publishes."
         required: false
 
-permissions:
-  contents: write
-  # For build provenance on the published archive. `attestations: write` records it and
-  # `id-token: write` is how the runner proves to the attestation service who it is.
-  id-token: write
-  attestations: write
+# Nothing by default. Each job asks for exactly what it uses.
+permissions: {}
 
 # One release at a time, and never cancel one that is running. The step that refuses to
 # republish a version reads the release's assets and then uploads; two runs of the same
@@ -42,21 +47,27 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
+  build:
     # The product is Windows-only, and the release contains two Windows executables
     # compiled with the in-box C# compiler, so it can only be built on Windows.
     runs-on: windows-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       # A dispatch builds and verifies whatever ref it names and publishes nothing, so
       # naming an existing tag re-checks that tag's source rather than replacing what it
-      # released. Only a tag push reaches the three steps that touch a release.
-      - uses: actions/checkout@v4
+      # released.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
+          # The token is for this checkout, not for whatever the checked-out code does next.
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.13"
 
@@ -65,7 +76,13 @@ jobs:
         shell: pwsh
         run: |
           $manifest = Get-Content .codex-plugin/plugin.json -Raw | ConvertFrom-Json
-          $declared = $manifest.version
+          $declared = [string]$manifest.version
+          # The version names files and a release, and later steps read it. It is checked
+          # here, once, so nothing downstream ever handles a value shaped like anything
+          # but a version.
+          if ($declared -notmatch '^\d+\.\d+\.\d+$') {
+            throw "plugin.json version '$declared' is not MAJOR.MINOR.PATCH"
+          }
           if ($env:GITHUB_REF -like 'refs/tags/*') {
             $tagged = $env:GITHUB_REF -replace '^refs/tags/v', ''
             # A tag that disagrees with the manifest would publish an archive whose name,
@@ -91,13 +108,17 @@ jobs:
         run: python build/make_release.py
 
       - name: Extract the release notes
-        run: python build/release_notes.py "${{ steps.version.outputs.version }}" --output "${{ runner.temp }}/notes.md"
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: pwsh
+        run: python build/release_notes.py "$env:VERSION" --output build/dist/release-notes.md
 
       - name: Check the archive is what it claims to be
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         shell: pwsh
         run: |
-          $version = '${{ steps.version.outputs.version }}'
-          $zip = "build/dist/CodexAutoResume-v$version-win-x64.zip"
+          $zip = "build/dist/CodexAutoResume-v$($env:VERSION)-win-x64.zip"
           if (-not (Test-Path $zip)) { throw "the build did not produce $zip" }
           # The checksum published beside the archive has to be the checksum OF the
           # archive; a stale one is worse than none, because people verify against it.
@@ -119,62 +140,101 @@ jobs:
           Write-Host "archive verified: $actual"
 
       - name: Keep the archive even when nothing is published
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: CodexAutoResume-v${{ steps.version.outputs.version }}-win-x64
+          name: release-build
           path: |
             build/dist/*.zip
             build/dist/*.sha256
+            build/dist/release-notes.md
+          if-no-files-found: error
+
+      - name: Say what a dry run did and did not do
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: pwsh
+        run: |
+          Write-Host "Built and verified v$($env:VERSION)."
+          Write-Host "Nothing was published: a dispatch never reaches the publish job."
+          Write-Host "The archive is attached to this run as a workflow artifact."
+
+  publish:
+    needs: build
+    # A tag push, and only a tag push. A dispatch whose ref happens to be a tag satisfies
+    # startsWith(github.ref, 'refs/tags/v') too, which is how the old single job could
+    # publish from a "dry run".
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      # To create the release.
+      contents: write
+      # For build provenance: `attestations: write` records it and `id-token: write` is
+      # how the runner proves to the attestation service who it is.
+      id-token: write
+      attestations: write
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      GH_REPO: ${{ github.repository }}
+
+    steps:
+      # No checkout. Nothing in this job runs the repository's code.
+      - name: Take the archive the build job verified
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-build
+          path: dist
+
+      - name: Check it again, here
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "bad version '$VERSION'"; exit 1; }
+          [[ "$GITHUB_REF" == "refs/tags/v$VERSION" ]] || { echo "tag $GITHUB_REF does not match v$VERSION"; exit 1; }
+          zip="dist/CodexAutoResume-v$VERSION-win-x64.zip"
+          recorded="$(cut -d' ' -f1 "$zip.sha256")"
+          actual="$(sha256sum "$zip" | cut -d' ' -f1)"
+          [[ "$recorded" == "$actual" ]] || { echo "checksum mismatch: recorded $recorded, actual $actual"; exit 1; }
+          echo "archive verified: $actual"
 
       # The immutability gate. Publishing is refused outright if this version already
       # has assets, rather than replacing them - so the archive a `v0.5.4` download
       # returns today is the archive it returned the day it was published.
       - name: Refuse to republish a version that already has assets
-        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: pwsh
+        shell: bash
         run: |
-          $version = '${{ steps.version.outputs.version }}'
-          $existing = gh release view "v$version" --json assets 2>$null
-          if ($LASTEXITCODE -ne 0 -or -not $existing) {
-            Write-Host "no release for v$version yet; publishing is allowed"
+          set -uo pipefail
+          if ! existing="$(gh release view "v$VERSION" --json assets 2>/dev/null)"; then
+            echo "no release for v$VERSION yet; publishing is allowed"
             exit 0
-          }
-          $assets = ($existing | ConvertFrom-Json).assets
-          if ($assets -and @($assets).Count -gt 0) {
-            Write-Host "::error::Release v$version already has published assets:"
-            foreach ($a in @($assets)) { Write-Host ("::error::  " + $a.name) }
-            throw "A published version is immutable. Bump the version and tag again instead of replacing v$version."
-          }
-          Write-Host "release v$version exists but carries no assets; publishing is allowed"
+          fi
+          count="$(jq '.assets | length' <<<"$existing")"
+          if [[ "$count" -gt 0 ]]; then
+            echo "::error::Release v$VERSION already has published assets:"
+            jq -r '.assets[].name | "::error::  " + .' <<<"$existing"
+            echo "A published version is immutable. Bump the version and tag again instead of replacing v$VERSION."
+            exit 1
+          fi
+          echo "release v$VERSION exists but carries no assets; publishing is allowed"
 
       # Build provenance, so a downloaded archive can be traced back to the workflow run
       # and the commit that produced it. Runs before publication: an archive that cannot
       # be attested should not become a release.
       - name: Attest the archive
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:
-          subject-path: build/dist/CodexAutoResume-v${{ steps.version.outputs.version }}-win-x64.zip
+          subject-path: dist/CodexAutoResume-v${{ needs.build.outputs.version }}-win-x64.zip
 
       - name: Publish the GitHub release
-        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: pwsh
+        shell: bash
         run: |
-          $version = '${{ steps.version.outputs.version }}'
-          gh release create "v$version" `
-            "build/dist/CodexAutoResume-v$version-win-x64.zip" `
-            "build/dist/CodexAutoResume-v$version-win-x64.zip.sha256" `
-            --title "v$version" `
-            --notes-file "${{ runner.temp }}/notes.md"
-
-      - name: Say what a dry run did and did not do
-        if: github.event_name == 'workflow_dispatch'
-        shell: pwsh
-        run: |
-          Write-Host "Built and verified v${{ steps.version.outputs.version }}."
-          Write-Host "Nothing was published: a dispatch cannot create or change a release."
-          Write-Host "The archive is attached to this run as a workflow artifact." 
+          set -euo pipefail
+          gh release create "v$VERSION" \
+            "dist/CodexAutoResume-v$VERSION-win-x64.zip" \
+            "dist/CodexAutoResume-v$VERSION-win-x64.zip.sha256" \
+            --title "v$VERSION" \
+            --notes-file dist/release-notes.md

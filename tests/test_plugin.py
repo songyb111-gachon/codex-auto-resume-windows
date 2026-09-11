@@ -505,7 +505,8 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("unittest discover", self.text)
 
     def test_it_publishes_only_from_a_tag(self):
-        self.assertIn("if: startsWith(github.ref, 'refs/tags/v')", self.text)
+        # A tag *push*: a dispatch whose ref is a tag satisfies startsWith() alone.
+        self.assertIn("if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')", self.text)
 
     def test_it_refuses_a_tag_that_disagrees_with_the_manifest(self):
         self.assertIn("does not match plugin.json version", self.text)
