@@ -347,7 +347,7 @@ class T16UserJoinedTests(Base):
         """Whoever wrote it, and whatever its clientId, a user message without our
         marker in our turn means the turn is shared now: handed over immediately,
         while the turn is still running."""
-        for client_id in (None, "c0ffee00-1234-4d2b-9f00-000000000001"):
+        for client_id in (None, "0a1b2c3d-0016-7000-8000-000000000001"):
             with self.subTest(client_id=client_id):
                 w, thread, key, turn = self.join(client_id)
                 w.tick(1)
