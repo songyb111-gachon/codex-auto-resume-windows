@@ -1,3 +1,13 @@
+# Every text file is checked out with CRLF, whatever the machine's core.autocrlf says.
+#
+# The release archive packs source files, and the settings window compiles in a manifest,
+# so their line endings are part of the release's bytes. With the checkout left to each
+# machine's Git configuration, two builds of the same tag produced different archives
+# depending on who cloned it - which made "build it yourself and compare the digest" a
+# test of someone's Git settings rather than of the release. The repository stores LF;
+# only the working tree is fixed. Binary files are detected and left alone.
+* text=auto eol=crlf
+
 # Windows launchers must keep CRLF wherever they are unpacked, including a
 # release ZIP downloaded on another platform.
 *.cmd text eol=crlf

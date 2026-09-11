@@ -27,6 +27,7 @@ Add-Type -Namespace CaptureNative -Name Win -MemberDefinition @'
 [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
 [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr dc, uint flags);
 [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr c);
+[DllImport("user32.dll")] public static extern bool RedrawWindow(IntPtr h, IntPtr rect, IntPtr region, uint flags);
 public struct RECT { public int L, T, R, B; }
 '@
 
@@ -40,6 +41,14 @@ try {
     $process.Refresh()
     $handle = $process.MainWindowHandle
     if ($handle -eq [IntPtr]::Zero) { throw 'The window did not appear.' }
+
+    # Paint everything now, synchronously, before looking. A child that had been invalidated
+    # but not yet repainted was captured as its erased background: the Korean screenshot
+    # published with v0.5.7 shows no status dot. RDW_INVALIDATE | RDW_ERASE |
+    # RDW_ALLCHILDREN | RDW_UPDATENOW | RDW_FRAME makes the capture independent of when the
+    # window last got round to painting.
+    [void][CaptureNative.Win]::RedrawWindow($handle, [IntPtr]::Zero, [IntPtr]::Zero, 0x0001 -bor 0x0004 -bor 0x0080 -bor 0x0100 -bor 0x0400)
+    Start-Sleep -Milliseconds 300
 
     $rect = New-Object CaptureNative.Win+RECT
     [void][CaptureNative.Win]::GetWindowRect($handle, [ref]$rect)
