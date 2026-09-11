@@ -310,25 +310,35 @@ class ActivationTests(unittest.TestCase):
             handler.close()
 
     def test_unknown_interruption_cancels_nothing(self):
-        with patch.object(Store, "cancel") as cancel:
+        with patch.object(Store, "cancel_interruption") as cancel, \
+             patch.object(Store, "cancel_thread") as thread_wide:
             code, _ = self.run_activate(notify.cancel_uri("f0" * 32), self.home)
         self.assertEqual(code, cli.EXIT_ERROR)
         cancel.assert_not_called()
+        thread_wide.assert_not_called()
 
     def test_malformed_uri_never_reaches_the_store(self):
-        with patch.object(Store, "cancel") as cancel, patch.object(Store, "get") as get:
+        with patch.object(Store, "cancel_interruption") as cancel, \
+             patch.object(Store, "cancel_thread") as thread_wide, \
+             patch.object(Store, "get") as get:
             code, _ = self.run_activate("codex-auto-resume:cancel?i=not-hex", self.home)
         self.assertEqual(code, cli.EXIT_ERROR)
         get.assert_not_called()
         cancel.assert_not_called()
+        thread_wide.assert_not_called()
 
-    def test_a_real_record_is_cancelled_by_its_own_thread_id(self):
+    def test_a_real_record_is_cancelled_by_its_own_interruption_id(self):
+        # The button names one interruption, so it stops that task and whatever
+        # continues it - not every later interruption in the conversation.
         record = {"thread_id": THREAD, "interruption_id": INTERRUPTION}
         with patch.object(Store, "get", return_value=record), \
-             patch.object(Store, "cancel") as cancel:
+             patch.object(Store, "cancel_interruption") as cancel, \
+             patch.object(Store, "cancel_thread") as thread_wide:
             code, out = self.run_activate(notify.cancel_uri(INTERRUPTION), self.home)
         self.assertEqual(code, cli.EXIT_OK)
-        self.assertEqual(cancel.call_args.args[0], THREAD)
+        self.assertEqual(cancel.call_args.args[0], INTERRUPTION)
+        self.assertEqual(cancel.call_args.kwargs.get("actor"), "toast")
+        thread_wide.assert_not_called()
         self.assertIn(THREAD, out)
 
 
@@ -341,7 +351,7 @@ class EngineNotificationTests(unittest.TestCase):
         harness = Harness(Path(temp.name), **kwargs)
         self.addCleanup(temp.cleanup)
         self.addCleanup(harness.store.close)
-        harness.source.fail_usage(T1)
+        harness.home.fail_usage(T1)
         harness.enable()
         harness.tick()
         return harness, T1

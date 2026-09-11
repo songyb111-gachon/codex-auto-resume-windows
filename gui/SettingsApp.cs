@@ -848,6 +848,10 @@ namespace CodexAutoResume
             TableLayoutPanel limits = NewGroup(S("group.limits", "Limits"), leftStack);
             TableLayoutPanel notifications = NewGroup(S("group.notifications", "Notifications"), rightStack);
             TableLayoutPanel windows = NewGroup(S("group.windows", "Windows"), rightStack);
+            // First in its card, above the Windows preferences the schema adds.
+            CheckBox startup = NewCheck(S("field.startup", "Run at Windows sign-in"), false);
+            windows.Controls.Add(startup);
+            editors["__startup"] = startup;
 
             foreach (object entry in schema)
             {
@@ -856,7 +860,8 @@ namespace CodexAutoResume
                 string group = field.ContainsKey("group") ? (string)field["group"] : "advanced";
                 TableLayoutPanel host = group == "recovery" ? recovery
                                       : group == "limits" ? limits
-                                      : group == "notifications" ? notifications : null;
+                                      : group == "notifications" ? notifications
+                                      : group == "windows" ? windows : null;
                 if (host == null) continue;      // advanced fields stay out of the window
 
                 string type = (string)field["type"];
@@ -916,10 +921,6 @@ namespace CodexAutoResume
                     editors[name] = combo;
                 }
             }
-
-            CheckBox startup = NewCheck(S("field.startup", "Run at Windows sign-in"), false);
-            windows.Controls.Add(startup);
-            editors["__startup"] = startup;
 
             columns.ResumeLayout(true);
             RefreshStatus(startup);

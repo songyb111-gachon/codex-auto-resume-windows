@@ -140,7 +140,13 @@ class ToolSurfaceTests(McpTestCase):
     def test_no_tool_accepts_a_thread_by_anything_but_an_exact_id(self):
         for tool in mcpserver.TOOLS:
             for name, described in tool["inputSchema"].get("properties", {}).items():
-                if name.endswith("_id"):
+                if name == "thread_id":
+                    # A conversation is named by its canonical, lowercase UUID and
+                    # nothing else - never a title, a prefix or "the latest".
+                    self.assertEqual(described.get("pattern"),
+                                     "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                                     tool["name"])
+                elif name.endswith("_id"):
                     self.assertEqual(described.get("pattern"), "^[0-9a-fA-F]{64}$", tool["name"])
                 self.assertNotIn(name, ("title", "project", "latest", "last", "recent"))
 

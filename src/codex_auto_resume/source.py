@@ -21,7 +21,17 @@ MAX_SCAN_BYTES = 8 * 1024 * 1024
 MAX_META_BYTES = 256 * 1024
 MAX_ITEM_BYTES = 1024 * 1024
 MARKER_RE = re.compile(r"\[codex-auto-resume:[0-9a-f]{64}\]\Z")
+CLIENT_ID_RE = re.compile(r"[A-Za-z0-9-]{1,64}\Z")
 KNOWN_STATUSES = {"failed", "completed", "interrupted", "inProgress"}
+# Item types that count as a turn having produced something. Anything Codex adds later
+# does not count until it is added here on purpose.
+PROGRESS_ITEM_TYPES = frozenset({"agentMessage", "commandExecution", "fileChange", "mcpToolCall"})
+
+
+def _turn_status(value):
+    if value is None:
+        return None
+    return value if value in KNOWN_STATUSES else "other"
 
 
 class SourceError(RuntimeError):
@@ -144,8 +154,9 @@ DB_KINDS = {
     }),
     "history": (re.compile(r"thread_history_(\d+)\.sqlite\Z"), {
         "thread_turns": {"thread_id", "turn_id", "status", "error_json", "started_at",
-                         "completed_at", "rollout_ordinal", "rollout_end_byte_offset"},
-        "thread_items": {"thread_id", "item_type", "item_json"},
+                         "completed_at", "rollout_ordinal", "rollout_end_byte_offset",
+                         "first_user_item_id"},
+        "thread_items": {"thread_id", "turn_id", "item_id", "item_type", "item_json"},
     }),
     "queue": (re.compile(r"queue_(\d+)\.sqlite\Z"), {
         "queued_items": {"id", "thread_id", "payload_json"},
@@ -257,6 +268,26 @@ class LocalSource:
             return None
         except (ValueError, UnicodeError):
             return None
+
+    def _rollout_path(self, thread_id: str) -> Path | None:
+        """Where a conversation's file is, confined to the Codex sessions folder.
+
+        Only for the size comparison behind projection freshness, which needs nothing
+        else: the file is not opened, and whether the thread is still eligible for
+        recovery does not matter - a settle must be able to tell, for an archived
+        thread too, whether Codex's history has caught up.
+        """
+        if not valid_uuid(thread_id):
+            return None
+        with self._db("state") as connection:
+            row = connection.execute("SELECT rollout_path FROM threads WHERE id=?", (thread_id,)).fetchone()
+        if row is None or not isinstance(row["rollout_path"], str):
+            return None
+        path = _safe_path(Path(row["rollout_path"]))
+        if (not path.is_relative_to(_safe_path(self.home / "sessions"))
+                or path.suffix != ".jsonl" or thread_id not in path.name):
+            return None
+        return path
 
     def latest(self, thread_id: str) -> dict | None:
         if not valid_uuid(thread_id) or self._metadata(thread_id, strict=True) is None:
@@ -420,25 +451,58 @@ class LocalSource:
                         buckets[bucket] = limits
         return _choose_reset(buckets, row["completed_at"]) if found else unknown
 
-    def delivery(self, thread_id: str, marker: str) -> dict:
+    # ------------------------------------------------------------------------
+    # Following our own continuation.
+    #
+    # Every query below that returns stored content is bounded by `instr(...,marker)>0`,
+    # so the only message text that can ever leave SQL is our own continuation. Every
+    # query over anyone else's rows returns counts, booleans and ids - never content.
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def _identity(thread_id, marker):
         if not valid_uuid(thread_id) or not isinstance(marker, str) or not MARKER_RE.fullmatch(marker):
             raise SourceError("Invalid delivery identity")
-        delivered = False
+
+    def marker_rows(self, thread_id: str, marker: str) -> list:
+        """Every history row that holds our marker, with the facts about its own turn.
+
+        The turn a continuation started is the turn of the row that holds its marker.
+        It is never "the latest turn": by the time anyone looks, a person may already
+        have started another one.
+        """
+        self._identity(thread_id, marker)
         with self._db("history") as connection:
-            # instr bounds the returned content to this unique owned marker.
             rows = connection.execute(
-                "SELECT item_json FROM thread_items WHERE thread_id=? "
-                "AND item_type='userMessage' AND instr(item_json,?)>0",
-                (thread_id, marker))
-            for row in rows:
-                payload = _json(row["item_json"])
-                if isinstance(payload, dict) and payload.get("type") == "userMessage":
-                    delivered |= _content_has_marker(payload.get("content"), marker)
-            row = connection.execute(
-                "SELECT turn_id FROM thread_turns WHERE thread_id=? "
-                "ORDER BY rollout_ordinal DESC LIMIT 1", (thread_id,)).fetchone()
-            latest_turn_id = row["turn_id"] if row and valid_uuid(row["turn_id"]) else None
-        queued = []
+                "SELECT i.turn_id, i.item_id, i.item_json, t.rollout_ordinal, t.status, "
+                "t.first_user_item_id IS NULL AS first_unset, "
+                "coalesce(t.first_user_item_id = i.item_id, 0) AS starts_turn "
+                "FROM thread_items i LEFT JOIN thread_turns t "
+                "ON t.thread_id=i.thread_id AND t.turn_id=i.turn_id "
+                "WHERE i.thread_id=? AND i.item_type='userMessage' AND instr(i.item_json,?)>0",
+                (thread_id, marker)).fetchall()
+        found = []
+        for row in rows:
+            payload = _json(row["item_json"])
+            if not (isinstance(payload, dict) and payload.get("type") == "userMessage"
+                    and _content_has_marker(payload.get("content"), marker)):
+                continue
+            client = payload.get("clientId")
+            ordinal = row["rollout_ordinal"]
+            found.append({
+                "turn_id": row["turn_id"] if valid_uuid(row["turn_id"]) else None,
+                "ordinal": ordinal if type(ordinal) is int else None,
+                "status": _turn_status(row["status"]),
+                # A row whose turn is not projected yet cannot say who started it.
+                "first_unset": bool(row["first_unset"]) or type(ordinal) is not int,
+                "starts_turn": bool(row["starts_turn"]),
+                "client_id": client if isinstance(client, str) and CLIENT_ID_RE.fullmatch(client) else None,
+            })
+        return found
+
+    def queued_rows(self, thread_id: str, marker: str) -> list:
+        """Our own queued items: ids and client ids only."""
+        self._identity(thread_id, marker)
+        found = []
         with self._db("queue") as connection:
             rows = connection.execute(
                 "SELECT id,payload_json FROM queued_items WHERE thread_id=? "
@@ -446,8 +510,183 @@ class LocalSource:
             for row in rows:
                 payload = _json(row["payload_json"])
                 if valid_uuid(row["id"]) and _queue_has_marker(payload, marker):
-                    queued.append(row["id"])
-        return {"delivered": delivered, "queued_ids": queued, "latest_turn_id": latest_turn_id}
+                    client = payload["UserInput"].get("client_id")
+                    found.append({"id": row["id"], "client_id": client if isinstance(client, str)
+                                  and CLIENT_ID_RE.fullmatch(client) else None})
+        return found
+
+    def queue_row(self, thread_id: str, queue_id: str, marker: str) -> dict:
+        """Whether the queued item with this exact id still exists, and still is ours.
+
+        A row with our id but without our marker is one somebody edited in Codex; its
+        content is not returned, only that fact.
+        """
+        self._identity(thread_id, marker)
+        if not valid_uuid(queue_id):
+            raise SourceError("Invalid queue identity")
+        with self._db("queue") as connection:
+            row = connection.execute(
+                "SELECT instr(payload_json,?)>0 AS has_marker FROM queued_items "
+                "WHERE thread_id=? AND id=?", (marker, thread_id, queue_id)).fetchone()
+        return {"exists": row is not None, "has_marker": bool(row["has_marker"]) if row else False}
+
+    def foreign_queued(self, thread_id: str, marker: str) -> int:
+        """How many items on this thread's queue are not ours. A number only."""
+        self._identity(thread_id, marker)
+        with self._db("queue") as connection:
+            return connection.execute(
+                "SELECT count(*) FROM queued_items WHERE thread_id=? AND instr(payload_json,?)=0",
+                (thread_id, marker)).fetchone()[0]
+
+    def later_turns(self, thread_id: str, after_ordinal: int, marker: str) -> list:
+        """Turns after the failed one, each classified as ours, someone else's, or not
+        yet knowable. Booleans and ids only.
+
+        A turn whose first user message is not projected yet is "undetermined": while it
+        runs it cannot have started our queued item, so waiting is always safe. Once it
+        has finished without any user message - input a hook blocked, or a turn Codex
+        started itself - it is treated as someone else's.
+        """
+        self._identity(thread_id, marker)
+        if type(after_ordinal) is not int:
+            raise SourceError("Invalid ordinal")
+        with self._db("history") as connection:
+            rows = connection.execute(
+                "SELECT t.turn_id, t.status, t.rollout_ordinal, "
+                "t.first_user_item_id IS NOT NULL AS has_first, "
+                "EXISTS(SELECT 1 FROM thread_items i WHERE i.thread_id=t.thread_id "
+                "AND i.item_id=t.first_user_item_id AND i.item_type='userMessage' "
+                "AND instr(i.item_json,?)>0) AS first_is_ours "
+                "FROM thread_turns t WHERE t.thread_id=? AND t.rollout_ordinal>? "
+                "ORDER BY t.rollout_ordinal", (marker, thread_id, after_ordinal)).fetchall()
+        turns = []
+        for row in rows:
+            status = _turn_status(row["status"])
+            if row["first_is_ours"]:
+                kind, reason = "ours", None
+            elif not row["has_first"] and status == "inProgress":
+                kind, reason = "undetermined", None
+            elif not row["has_first"]:
+                kind, reason = "foreign", "turn_without_user_item"
+            else:
+                kind, reason = "foreign", "later_turn_exists"
+            turns.append({"turn_id": row["turn_id"] if valid_uuid(row["turn_id"]) else None,
+                          "ordinal": row["rollout_ordinal"], "status": status,
+                          "kind": kind, "reason": reason})
+        return turns
+
+    def turn_observation(self, thread_id: str, turn_id: str, marker: str) -> dict:
+        """What happened in one exact turn, content-free.
+
+        Progress is at least one assistant message, command, file change or tool call
+        in *that* turn - not in any later turn, which may be somebody else's. A user
+        message in the turn that is not ours means a person joined it.
+        """
+        self._identity(thread_id, marker)
+        if not valid_uuid(turn_id):
+            raise SourceError("Invalid turn identity")
+        with self._db("history") as connection:
+            turn = connection.execute(
+                "SELECT status, completed_at, rollout_ordinal FROM thread_turns "
+                "WHERE thread_id=? AND turn_id=?", (thread_id, turn_id)).fetchone()
+            if turn is None:
+                return {"found": False}
+            counts = {row[0]: row[1] for row in connection.execute(
+                "SELECT item_type, count(*) FROM thread_items WHERE thread_id=? AND turn_id=? "
+                "GROUP BY item_type", (thread_id, turn_id)) if isinstance(row[0], str)}
+            foreign = connection.execute(
+                "SELECT count(*) FROM thread_items WHERE thread_id=? AND turn_id=? "
+                "AND item_type='userMessage' AND instr(item_json,?)=0",
+                (thread_id, turn_id, marker)).fetchone()[0]
+            later_terminal = bool(type(turn["rollout_ordinal"]) is int and connection.execute(
+                "SELECT EXISTS(SELECT 1 FROM thread_turns WHERE thread_id=? AND rollout_ordinal>? "
+                "AND status IN ('completed','failed','interrupted'))",
+                (thread_id, turn["rollout_ordinal"])).fetchone()[0])
+        completed = turn["completed_at"]
+        return {
+            "found": True,
+            "status": _turn_status(turn["status"]),
+            "completed_at": completed if epoch(completed) else None,
+            "progress": any(counts.get(kind, 0) > 0 for kind in PROGRESS_ITEM_TYPES),
+            "foreign_user_messages": foreign,
+            "later_terminal": later_terminal,
+        }
+
+    def turn_progress(self, thread_id: str, turn_id: str):
+        """Whether one turn produced anything: True, False, or None when unreadable."""
+        if not valid_uuid(thread_id) or not valid_uuid(turn_id):
+            return None
+        kinds = tuple(sorted(PROGRESS_ITEM_TYPES))
+        try:
+            with self._db("history") as connection:
+                return bool(connection.execute(
+                    "SELECT EXISTS(SELECT 1 FROM thread_items WHERE thread_id=? AND turn_id=? "
+                    "AND item_type IN (%s))" % ",".join("?" for _ in kinds),
+                    (thread_id, turn_id, *kinds)).fetchone()[0])
+        except (SourceError, sqlite3.Error, OSError, ValueError):
+            return None
+
+    def turn_markers(self, thread_id: str, turn_id: str, markers) -> list:
+        """Which of these markers appear in a user message of one turn. Booleans only."""
+        if not valid_uuid(thread_id) or not valid_uuid(turn_id):
+            raise SourceError("Invalid turn identity")
+        wanted = [marker for marker in markers if isinstance(marker, str) and MARKER_RE.fullmatch(marker)]
+        found = []
+        with self._db("history") as connection:
+            for marker in wanted:
+                if connection.execute(
+                        "SELECT EXISTS(SELECT 1 FROM thread_items WHERE thread_id=? AND turn_id=? "
+                        "AND item_type='userMessage' AND instr(item_json,?)>0)",
+                        (thread_id, turn_id, marker)).fetchone()[0]:
+                    found.append(marker)
+        return found
+
+    def marker_presence(self, thread_id: str, marker: str) -> dict:
+        """How many copies of our marker exist anywhere on this thread. Counts only.
+
+        Checked immediately before a send: a copy that already exists means another
+        installation derived the same marker and got there first.
+        """
+        self._identity(thread_id, marker)
+        with self._db("history") as connection:
+            history = connection.execute(
+                "SELECT count(*) FROM thread_items WHERE thread_id=? AND instr(item_json,?)>0",
+                (thread_id, marker)).fetchone()[0]
+        with self._db("queue") as connection:
+            queue = connection.execute(
+                "SELECT count(*) FROM queued_items WHERE thread_id=? AND instr(payload_json,?)>0",
+                (thread_id, marker)).fetchone()[0]
+        return {"history": history, "queue": queue}
+
+    def projection(self, thread_id: str) -> dict:
+        """Whether Codex's history tables have caught up with the conversation's file.
+
+        Content-free: the size of the rollout file from one stat call, compared with
+        the byte offset the projection has reached. A projection that stays behind means
+        the tables this tool reads are not the whole story, so nothing may be decided
+        from them. `fresh` is None when it cannot be told.
+        """
+        if not valid_uuid(thread_id):
+            return {"table": None, "fresh": None}
+        try:
+            with self._db("history") as connection:
+                if not connection.execute(
+                        "SELECT 1 FROM sqlite_master WHERE type='table' "
+                        "AND name='thread_history_projection_state'").fetchone():
+                    return {"table": False, "fresh": None}
+                row = connection.execute(
+                    "SELECT next_rollout_byte_offset FROM thread_history_projection_state "
+                    "WHERE thread_id=?", (thread_id,)).fetchone()
+            path = self._rollout_path(thread_id)
+        except (SourceError, sqlite3.Error, OSError, ValueError):
+            return {"table": None, "fresh": None}
+        if row is None or path is None or type(row[0]) is not int:
+            return {"table": True, "fresh": None}
+        try:
+            size = path.stat().st_size
+        except OSError:
+            return {"table": True, "fresh": None}
+        return {"table": True, "fresh": size == row[0]}
 
 
 def _content_has_marker(content, marker):

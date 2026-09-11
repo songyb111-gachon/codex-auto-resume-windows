@@ -359,6 +359,114 @@ class StopEvent:
             k.CloseHandle(handle)
 
 
+class WakeEvent:
+    """Auto-reset named event: "look now", sent by Retry Now.
+
+    Only the watcher creates it, and it refuses one a lower-integrity process created
+    first, exactly like the stop event. A client can only open it and set it. It is
+    never an instruction to send: a wake runs the ordinary tick, every gate included,
+    and the stored schedule stays the authority, so a lost wake only delays.
+    """
+
+    def __init__(self, name: str):
+        identity = os.path.normcase(str(Path.home().resolve())) + "::wake::" + str(name)
+        self.name = "Local\\codex-auto-resume-wake-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()
+        self.handle = None
+
+    def __enter__(self):
+        k = StopEvent._api()
+        self.handle = k.CreateEventW(None, False, False, self.name)
+        existed = C.get_last_error() == ERROR_ALREADY_EXISTS
+        if not self.handle:
+            raise AdapterError("wake_event_creation_failed")
+        try:
+            _refuse_if_squatted(self.handle, existed)
+        except AdapterError:
+            self.handle = None
+            raise
+        return self
+
+    def __exit__(self, *unused):
+        if self.handle is not None:
+            _kernel().CloseHandle(self.handle)
+            self.handle = None
+
+    def signal(self) -> bool:
+        """Ask a running watcher to look now. False when none holds the event."""
+        k = StopEvent._api()
+        handle = k.OpenEventW(0x0002, False, self.name)  # EVENT_MODIFY_STATE
+        if not handle:
+            return False
+        try:
+            return bool(k.SetEvent(handle))
+        finally:
+            k.CloseHandle(handle)
+
+
+def wait_any(handles, seconds: float):
+    """Wait on several events. Returns the index of the one signalled, or None on timeout."""
+    live = [handle for handle in handles if handle]
+    if not live:
+        time.sleep(max(0.0, min(float(seconds), 3600.0)))
+        return None
+    k = _kernel()
+    k.WaitForMultipleObjects.argtypes = [W.DWORD, C.POINTER(W.HANDLE), W.BOOL, W.DWORD]
+    k.WaitForMultipleObjects.restype = W.DWORD
+    array = (W.HANDLE * len(live))(*live)
+    millis = int(max(0.0, min(float(seconds), 3600.0)) * 1000)
+    result = k.WaitForMultipleObjects(len(live), array, False, millis)
+    if result < len(live):
+        return handles.index(live[result])
+    return None
+
+
+class HomeLock:
+    """An exclusive lock, for the watcher's whole life, on our own file for one Codex home.
+
+    The single-instance mutex is per state directory and per logon session. Two
+    installations with different state directories - or one in another session of the
+    same user - could otherwise both recover the same Codex conversations. The file is
+    ours, under the user's local application data, never anything of Codex's.
+    """
+
+    def __init__(self, codex_home, base=None):
+        resolved = os.path.normcase(str(Path(codex_home).resolve()))
+        root = Path(base) if base else Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "codex-auto-resume" / "homes"
+        self.path = root / (hashlib.sha256(resolved.encode("utf-8")).hexdigest() + ".lock")
+        self._fd = None
+
+    @property
+    def held(self) -> bool:
+        return self._fd is not None
+
+    def __enter__(self):
+        import msvcrt
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o600)
+        except OSError:
+            raise AdapterError("home_lock_unavailable") from None
+        try:
+            os.lseek(fd, 0, 0)
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        except OSError:
+            os.close(fd)
+            raise AdapterError("home_lock_busy") from None
+        self._fd = fd
+        return self
+
+    def __exit__(self, *unused):
+        if self._fd is not None:
+            import msvcrt
+            try:
+                os.lseek(self._fd, 0, 0)
+                msvcrt.locking(self._fd, msvcrt.LK_UNLCK, 1)
+            except OSError:
+                pass
+            os.close(self._fd)
+            self._fd = None
+
+
 def _epoch(value):
     return value if type(value) is int and 0 < value <= 4102444800 else None
 

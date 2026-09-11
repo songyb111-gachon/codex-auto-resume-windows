@@ -21,8 +21,10 @@ from pathlib import Path
 import time
 import uuid
 
-from . import config, settings, startup
-from .store import TERMINAL, Store, StoreError
+from . import config, machine, settings, startup
+from .store import (MAX_BUDGET_RESETS, TERMINAL, LegacyStore, StateFromNewerVersion, Store,
+                    StoreError, UpgradePending)
+from .windows import AdapterError, Mutex, WakeEvent
 
 
 # How long to wait for a launched watcher to become visible, and how often to look.
@@ -33,6 +35,16 @@ from .store import TERMINAL, Store, StoreError
 # disk; the interval is short so the ordinary case returns almost at once.
 WATCHER_START_TIMEOUT = 6.0
 WATCHER_START_INTERVAL = 0.1
+# A cancel must not fail because the watcher happens to be writing. The store already
+# waits ten seconds for a lock; the cancel tries again for this long in total.
+CANCEL_RETRY_SECONDS = 30.0
+# A heartbeat older than this, from a watcher that holds the mutex, is not ticking.
+TICK_STALE_SECONDS = 180.0
+
+UPGRADE_PENDING = ("Upgrade pending: an older watcher still owns the state. Use Stop watcher, "
+                   "then Start watcher, or sign out and back in.")
+NEWER_STATE = ("The recovery state was written by a newer version of Codex Auto Resume. "
+               "Update this installation; do not delete the state.")
 
 
 class ControlError(RuntimeError):
@@ -55,6 +67,40 @@ def _thread_id(value) -> str:
     if str(parsed) != str(value):
         raise ControlError("thread id must be lowercase canonical UUID text")
     return str(value)
+
+
+def describe_record(row, *, enabled=True, thread_enabled=True, watcher=None) -> dict:
+    """One record as every interface shows it: stable machine values only."""
+    described = machine.describe(row, enabled=enabled, thread_enabled=thread_enabled, watcher=watcher)
+    gates = machine.decode_gates(row.get("gate_eval")) if row.get("gate_eval") else None
+    return {
+        "interruption_id": row["interruption_id"],
+        "thread_id": row["thread_id"],
+        "state": row["state"],
+        "code": described["code"],
+        "reason": described["reason"],
+        "overlays": described["overlays"],
+        "eligible_at": described["eligible_at"],
+        "terminal": described["terminal"],
+        "category": row["category"],
+        "detected_at": row["detected_at"],
+        "reset_at": row["reset_at"],
+        "next_retry_at": row["next_retry_at"],
+        "recovery_attempts": row["recovery_attempts"],
+        "no_progress_count": row["no_progress_count"],
+        "chain_continuations": row["chain_continuations"],
+        "chain_origin_id": row["chain_origin_id"],
+        "parent_interruption_id": row["parent_interruption_id"],
+        "budget_resets": row["budget_resets"],
+        "cancel_requested": bool(row["cancel_requested"]),
+        "recovery_turn_status": row["recovery_turn_status"],
+        "user_joined": bool(row["user_joined"]),
+        "after_user_work": bool(row["after_user_work"]),
+        "outcome_at": row["outcome_at"],
+        "first_queued_at": row["first_queued_at"],
+        "gates": {name: list(result) for name, result in gates.items()} if gates else None,
+        "gates_at": row["gate_eval_at"],
+    }
 
 
 class Control:
@@ -85,17 +131,58 @@ class Control:
     def describe_settings(self) -> list:
         return settings.describe()
 
-    # -------------------------------------------------------------------- status
-    def _open(self) -> Store:
+    # ------------------------------------------------------------------- state
+    def _open(self, *, legacy_ok: bool = False):
+        """The state, opened the way every per-call opener must open it.
+
+        An older schema is upgraded only while holding the watcher's single-instance
+        mutex, which proves no watcher is using it. If a watcher holds the mutex it is
+        an older one, and until it stops only the actions that reduce automation are
+        offered (`legacy_ok`); everything else says the upgrade is pending.
+        """
         try:
-            return Store(self.paths.state_dir)
+            return Store(self.paths.state_dir, check=False)
+        except UpgradePending:
+            pass
+        except StateFromNewerVersion:
+            raise ControlError(NEWER_STATE) from None
         except StoreError as exc:
             raise ControlError("local state is unavailable: %s" % exc) from None
+        try:
+            with Mutex(str(self.paths.state_dir), timeout=0.0):
+                return Store(self.paths.state_dir, migrate=True, check=True)
+        except AdapterError:
+            pass
+        except StoreError as exc:
+            raise ControlError("local state is unavailable: %s" % exc) from None
+        if legacy_ok:
+            try:
+                return LegacyStore(self.paths.state_dir)
+            except StoreError:
+                pass
+        raise ControlError(UPGRADE_PENDING)
 
     def watcher_running(self):
         """True / False / None, where None means the probe itself was unavailable."""
         from .app import App
         return App(self.paths, console=False, enable_logging=False).watcher_running()
+
+    def _watcher(self, store) -> dict:
+        """What is known about the watcher: the mutex probe plus its own heartbeat."""
+        running = self.watcher_running()
+        status = None
+        try:
+            status = store.watcher_status() if isinstance(store, Store) else None
+        except StoreError:
+            status = None
+        ticking = None
+        if running is True and status and status.get("last_tick_at"):
+            ticking = time.time() - status["last_tick_at"] < TICK_STALE_SECONDS
+        return {"running": running, "ticking": ticking,
+                "engine_state": (status or {}).get("engine_state", "unknown"),
+                "last_tick_at": (status or {}).get("last_tick_at"),
+                "last_tick_ok": (status or {}).get("last_tick_ok"),
+                "code_version": (status or {}).get("code_version")}
 
     def startup_enabled(self) -> bool:
         try:
@@ -166,33 +253,40 @@ class Control:
     def _confirm_watcher(self, process) -> dict:
         return await_watcher(self.watcher_running, process)
 
-
     def get_status(self) -> dict:
         values = self.get_settings()
-        with self._open() as store:
+        with self._open(legacy_ok=True) as store:
             stored = store.settings()
             counts = store.status_counts()
-            pending = len(store.pending())
+            legacy = isinstance(store, LegacyStore)
+            watcher = self._watcher(store)
+            codes: dict[str, int] = {}
+            pending = 0
+            if not legacy:
+                for row in store.pending():
+                    pending += 1
+                    code = machine.public_code(row)
+                    codes[code] = codes.get(code, 0) + 1
+            else:
+                pending = sum(count for state, count in counts.items() if state not in TERMINAL)
         return {
             "version": _version(),
             "enabled": bool(stored["enabled"]),
-            "watcher_running": self.watcher_running(),
+            "watcher_running": watcher["running"],
+            "watcher": watcher,
+            "upgrade_pending": legacy,
             "startup_enabled": self.startup_enabled(),
             "pending": pending,
             "states": counts,
+            "codes": codes,
             "settings": values,
         }
 
     # ------------------------------------------------------------------- pending
-    def list_pending(self, include_terminal: bool = False, source=None) -> list:
-        """Pending recoveries, with display labels attached where available.
-
-        Labels are decoration: every action below addresses a record by its exact
-        interruption id, never by anything shown here.
-        """
-        with self._open() as store:
-            rows = store.all_records() if include_terminal else store.pending()
-            enabled = {row["thread_id"]: store.thread_enabled(row["thread_id"]) for row in rows}
+    def _described(self, store, rows, source=None) -> list:
+        settings_row = store.settings()
+        disabled = store.disabled_threads()
+        watcher = self._watcher(store)
         listed = []
         for row in rows:
             identity = {}
@@ -201,23 +295,47 @@ class Control:
                     identity = source.identity(row["thread_id"]) or {}
                 except Exception:
                     identity = {}
-            listed.append({
-                "interruption_id": row["interruption_id"],
-                "thread_id": row["thread_id"],
-                "state": row["state"],
-                "category": row["category"],
-                "detected_at": row["detected_at"],
-                "reset_at": row["reset_at"],
-                "next_retry_at": row["next_retry_at"],
-                "recovery_attempts": row["recovery_attempts"],
-                "no_progress_count": row["no_progress_count"],
-                "thread_enabled": enabled[row["thread_id"]],
-                "terminal": row["state"] in TERMINAL,
-                "name": identity.get("name"),
-                "project": identity.get("project"),
-                "cwd_basename": identity.get("cwd_basename"),
-            })
+            item = describe_record(row, enabled=settings_row["enabled"],
+                                   thread_enabled=row["thread_id"] not in disabled,
+                                   watcher=watcher)
+            item.update({"thread_enabled": row["thread_id"] not in disabled,
+                         "name": identity.get("name"), "project": identity.get("project"),
+                         "cwd_basename": identity.get("cwd_basename")})
+            listed.append(item)
         return listed
+
+    def list_pending(self, include_terminal: bool = False, source=None) -> list:
+        """Pending recoveries, with display labels attached where available.
+
+        Labels are decoration: every action below addresses a record by its exact
+        interruption id, never by anything shown here.
+        """
+        with self._open() as store:
+            rows = store.all_records() if include_terminal else store.pending()
+            return self._described(store, rows, source)
+
+    def history(self, limit: int = 200, include_hidden: bool = False, source=None) -> list:
+        """Recent recoveries, newest first, for the History view. Clear history hides
+        rows here and nowhere else."""
+        with self._open() as store:
+            return self._described(store, store.history(include_hidden=include_hidden, limit=limit), source)
+
+    def timeline(self, interruption_id: str) -> dict:
+        """The content-free journal of one recovery's whole chain, oldest first."""
+        key = _identifier(interruption_id)
+        with self._open() as store:
+            record = store.get(key)
+            if record is None:
+                raise ControlError("no such interruption")
+            events = store.events(chain_origin_id=record["chain_origin_id"])
+        return {"interruption_id": key, "chain_origin_id": record["chain_origin_id"], "events": events}
+
+    def statistics(self, days: float | None = None) -> dict:
+        since = 0.0 if not days else max(0.0, time.time() - float(days) * 86400)
+        with self._open() as store:
+            result = store.statistics(since)
+        result["period_days"] = days
+        return result
 
     # ------------------------------------------------------------------ mutations
     def set_enabled(self, enabled: bool) -> dict:
@@ -226,51 +344,89 @@ class Control:
         Pending records are preserved either way."""
         if not isinstance(enabled, bool):
             raise ControlError("enabled must be true or false")
-        with self._open() as store:
+        with self._open(legacy_ok=True) as store:
             store.set_enabled(enabled, time.time())
             return {"enabled": bool(store.settings()["enabled"])}
 
-    def cancel_interruption(self, interruption_id: str) -> dict:
-        """Stop recovering one exact interruption. Always available: cancelling only
-        ever reduces automation, so it never needs Codex to be running."""
-        key = _identifier(interruption_id)
-        with self._open() as store:
-            record = store.get(key)
-            if record is None:
-                raise ControlError("no such interruption")
-            store.cancel(record["thread_id"], time.time())
-            return {"interruption_id": key, "thread_id": record["thread_id"],
-                    "state": store.get(key)["state"]}
-
-    def cancel_thread(self, thread_id: str) -> dict:
+    def set_thread_enabled(self, thread_id: str, enabled: bool, *, actor: str = "gui") -> dict:
+        """Switch automatic recovery on or off for one conversation."""
         thread = _thread_id(thread_id)
-        with self._open() as store:
-            store.cancel(thread, time.time())
+        if not isinstance(enabled, bool):
+            raise ControlError("enabled must be true or false")
+        with self._open(legacy_ok=True) as store:
+            store.set_thread_enabled(thread, enabled, actor=actor)
+            return {"thread_id": thread, "enabled": store.thread_enabled(thread)}
+
+    def cancel_interruption(self, interruption_id: str, *, actor: str = "gui") -> dict:
+        """Stop recovering one exact interruption, and anything that continues it.
+
+        Always available: cancelling only ever reduces automation, so it never needs
+        Codex to be running, and it is retried rather than lost when the watcher is
+        busy writing. A continuation that may already be in Codex is only marked; the
+        watcher takes it back if it is still queued.
+        """
+        key = _identifier(interruption_id)
+        deadline = time.monotonic() + CANCEL_RETRY_SECONDS
+        while True:
+            try:
+                with self._open() as store:
+                    result = store.cancel_interruption(key, time.time(), actor=actor)
+                    if result is None:
+                        raise ControlError("no such interruption")
+                    record = store.get(key)
+                break
+            except ControlError:
+                raise
+            except StoreError:
+                if time.monotonic() >= deadline:
+                    raise ControlError("the state is busy; the cancel was not recorded") from None
+                time.sleep(0.5)
+        effects = result["effects"]
+        if not result["changed"]:
+            message = "already finished; nothing to stop"
+        elif any(effect == "cancel_requested" for effect in effects.values()):
+            message = ("cancelled; a continuation already handed to Codex is withdrawn if it is "
+                       "still queued, and one already running is not stopped")
+        else:
+            message = "cancelled"
+        return {"interruption_id": key, "thread_id": record["thread_id"], "state": record["state"],
+                "changed": result["changed"], "effects": effects, "message": message}
+
+    def cancel_thread(self, thread_id: str, *, actor: str = "gui") -> dict:
+        """Turn automatic recovery off for one conversation and stop what it has."""
+        thread = _thread_id(thread_id)
+        with self._open(legacy_ok=True) as store:
+            store.cancel_thread(thread, time.time(), actor=actor)
         return {"thread_id": thread}
 
-    def reset_recovery_budget(self, interruption_id: str) -> dict:
+    def reset_recovery_budget(self, interruption_id: str, *, actor: str = "gui") -> dict:
         """Give an exhausted interruption its attempts back.
 
         Deliberately explicit, and deliberately not a send: the record re-enters the
-        normal waiting state and every gate runs again from the top. The store decides
-        whether the record is eligible, so this cannot restore a budget the state
-        machine considers finished for some other reason.
+        wait its kind of failure needs and every gate runs again from the top. It does
+        not switch a conversation back on, and it can be done a few times per task, not
+        without limit.
         """
         key = _identifier(interruption_id)
         with self._open() as store:
             record = store.get(key)
             if record is None:
                 raise ControlError("no such interruption")
-            if record["state"] not in ("retry_budget_exhausted", "no_progress_exhausted"):
-                raise ControlError("that recovery has not been exhausted")
-            if not store.restore_budget(key, time.time()):
-                raise ControlError("that recovery cannot be resumed")
-            # Exhausting a budget also parks the thread; without this the record would
-            # be eligible and the thread still switched off.
-            store.set_thread_enabled(record["thread_id"], True)
-            return {"interruption_id": key, "state": store.get(key)["state"]}
+            restored, detail = store.restore_budget_detailed(key, time.time(), actor=actor)
+            if not restored:
+                raise ControlError({
+                    "not_exhausted": "that recovery has not been exhausted",
+                    "cancel_requested": "that recovery was cancelled",
+                    "possibly_sent": "that recovery may already have been sent",
+                    "reset_limit": ("its budget was already reset %d times; continue this task "
+                                    "in Codex yourself" % MAX_BUDGET_RESETS),
+                }.get(detail, "that recovery cannot be continued"))
+            thread_on = store.thread_enabled(record["thread_id"])
+            note = None if thread_on else ("automatic recovery is off for this conversation; "
+                                           "switch it on for this recovery to run")
+            return {"interruption_id": key, "state": store.get(key)["state"], "note": note}
 
-    def request_retry_now(self, interruption_id: str) -> dict:
+    def request_retry_now(self, interruption_id: str, *, actor: str = "gui") -> dict:
         """Make a waiting interruption eligible immediately.
 
         This brings the *schedule* forward and nothing else. It does not send, does not
@@ -283,13 +439,36 @@ class Control:
             record = store.get(key)
             if record is None:
                 raise ControlError("no such interruption")
-            if record["state"] in TERMINAL:
-                raise ControlError("that recovery has already finished")
-            if record["cancel_requested"]:
-                raise ControlError("that recovery was cancelled")
-            store.update(key, next_retry_at=time.time())
-            return {"interruption_id": key, "state": record["state"],
-                    "note": "eligible now; every safety check still applies"}
+            accepted, detail = store.request_retry_now(key, time.time(), actor=actor)
+        if not accepted:
+            raise ControlError({
+                "finished": "that recovery has already finished",
+                "cancel_requested": "that recovery was cancelled",
+                "claimed": "that recovery is being sent now",
+                "in_flight": "that recovery is already in Codex",
+                "observing": "that recovery is already running in Codex",
+            }.get(detail, "that recovery cannot be checked now"))
+        woke = False
+        try:
+            woke = WakeEvent(str(self.paths.state_dir)).signal()
+        except Exception:
+            woke = False
+        now = time.time()
+        if detail > now + 1:
+            note = ("the usage reset is at a later time; the watcher checks then, and every "
+                    "safety check still applies")
+        elif woke:
+            note = "checking now; every safety check still applies"
+        else:
+            note = "the watcher checks at its next poll; every safety check still applies"
+        return {"interruption_id": key, "state": record["state"], "eligible_at": detail,
+                "woke": woke, "note": note}
+
+    def clear_history(self, *, actor: str = "gui") -> dict:
+        """Hide finished recoveries from the History view. Deletes nothing, cancels
+        nothing, and never hides a recovery that may still change."""
+        with self._open() as store:
+            return store.hide_history(time.time(), actor=actor)
 
 
 def await_watcher(probe, process, *, timeout=None, interval=None) -> dict:

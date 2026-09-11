@@ -10,10 +10,10 @@ import sys
 import time
 import uuid
 
-from . import config, notify, settings, shortcut, startup
+from . import config, machine, notify, settings, shortcut, startup
 from .app import EXIT_BUSY, EXIT_ERROR, EXIT_OK, App
 from .logbook import format_local, tail
-from .store import TERMINAL, StoreError
+from .store import TERMINAL, LegacyStore, StoreError, UpgradePending
 from .windows import AdapterError
 
 PROG = "auto_resume"
@@ -78,6 +78,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("activate", help="handle a codex-auto-resume: URI (used by the notification button)")
     p.add_argument("uri")
+
+    p = sub.add_parser("diagnostics", help="write a redacted diagnostics file to read before sharing")
+    p.add_argument("--out", help="file to write (default: a new file in the current directory)")
+
+    p = sub.add_parser("downgrade-state",
+                       help="rewrite the state for an older release (stop the watcher first)")
+    p.add_argument("--to", type=int, required=True, choices=[2],
+                   help="the schema to write: 2 is what v0.5.x reads")
     return parser
 
 
@@ -94,15 +102,27 @@ def _app(args) -> App:
     return App(paths, codex_exe=args.codex_exe, codex_home=args.codex_home, console=not args.quiet)
 
 
+def _open_state(app):
+    """The state for a command that only switches things on or off, or cancels.
+
+    While an older watcher still owns an unmigrated state, these keep working through
+    the schema that watcher understands; nothing else does until it stops.
+    """
+    try:
+        return app.open_store()
+    except UpgradePending:
+        return LegacyStore(app.paths.state_dir)
+
+
 def cmd_enable(args) -> int:
     app = _app(args)
     if args.lookback_hours is not None:
         # An update, not a save: naming one field must never rewrite the other fifteen.
         app.settings = config.update_settings(app.paths, {"detection_lookback_hours": args.lookback_hours})
-    with app.open_store() as store:
+    with _open_state(app) as store:
         if args.thread_id:
             thread_id = canonical_thread_id(args.thread_id)
-            store.set_thread_enabled(thread_id, True)
+            store.set_thread_enabled(thread_id, True, actor="cli")
             app.logger.info("thread %s: enabled by user", thread_id)
             _print("thread %s enabled" % thread_id)
         else:
@@ -116,10 +136,10 @@ def cmd_enable(args) -> int:
 
 def cmd_disable(args) -> int:
     app = _app(args)
-    with app.open_store() as store:
+    with _open_state(app) as store:
         if args.thread_id:
             thread_id = canonical_thread_id(args.thread_id)
-            store.set_thread_enabled(thread_id, False)
+            store.set_thread_enabled(thread_id, False, actor="cli")
             app.logger.info("thread %s: disabled by user", thread_id)
             _print("thread %s disabled (pending records kept, never submitted while disabled)" % thread_id)
         else:
@@ -134,6 +154,8 @@ def _record_view(row: dict) -> dict:
         "thread_id": row["thread_id"],
         "interruption_id": row["interruption_id"],
         "state": row["state"],
+        "code": machine.public_code(row),
+        "reason": machine.public_reason(row),
         "detected_at": format_local(row["detected_at"]),
         "reset_at": format_local(row["reset_at"]) if row["reset_at"] else None,
         "limit_type": row["limit_type"],
@@ -162,7 +184,8 @@ def cmd_pending(args) -> int:
         return EXIT_OK
     for view in views:
         _print("thread %s" % view["thread_id"])
-        _print("  state        : %s%s" % (view["state"], "" if view["thread_enabled"] else "  (thread disabled)"))
+        _print("  status       : %s%s" % (view["code"], "" if view["thread_enabled"] else "  (thread disabled)"))
+        _print("  state        : %s" % view["state"])
         _print("  detected     : %s" % view["detected_at"])
         _print("  reset        : %s  [%s%s]" % (view["reset_at"] or "unknown", view["limit_type"] or "unknown", ", uncertain" if view["uncertain"] else ""))
         _print("  next check   : %s" % (view["next_retry_at"] or "-"))
@@ -178,9 +201,10 @@ def cmd_pending(args) -> int:
 def cmd_cancel(args) -> int:
     app = _app(args)
     thread_id = canonical_thread_id(args.thread_id)
-    with app.open_store() as store:
-        store.cancel(thread_id, _now())
-        rows = [row for row in store.all_records() if row["thread_id"] == thread_id]
+    with _open_state(app) as store:
+        store.cancel_thread(thread_id, _now(), actor="cli")
+        rows = ([row for row in store.all_records() if row["thread_id"] == thread_id]
+                if not isinstance(store, LegacyStore) else [])
     app.logger.info("thread %s: cancel requested by user", thread_id)
     in_flight = [row for row in rows if row["state"] not in TERMINAL]
     _print("thread %s cancelled and disabled" % thread_id)
@@ -321,13 +345,23 @@ def cmd_activate(args) -> int:
     if interruption_id is None:
         app.logger.info("activation ignored: malformed or unsupported URI")
         return EXIT_ERROR
-    with app.open_store() as store:
-        record = store.get(interruption_id)
-        if record is None:
-            app.logger.info("activation ignored: no record for that interruption")
-            return EXIT_ERROR
-        thread_id = record["thread_id"]
-        store.cancel(thread_id, _now())
+    # The button names one interruption, so it stops that task and whatever continues
+    # it - not every later interruption in the conversation. Only while an older watcher
+    # still owns the state does it fall back to that watcher's thread-wide cancel.
+    with _open_state(app) as store:
+        if isinstance(store, LegacyStore):
+            thread_id = store.thread_of(interruption_id)
+            if thread_id is None:
+                app.logger.info("activation ignored: no record for that interruption")
+                return EXIT_ERROR
+            store.cancel_thread(thread_id, _now())
+        else:
+            record = store.get(interruption_id)
+            if record is None:
+                app.logger.info("activation ignored: no record for that interruption")
+                return EXIT_ERROR
+            thread_id = record["thread_id"]
+            store.cancel_interruption(interruption_id, _now(), actor="toast")
     app.logger.info("thread %s: cancelled from the notification", thread_id)
     notify.cancelled(thread_id)
     _print("thread %s cancelled" % thread_id)
@@ -336,7 +370,9 @@ def cmd_activate(args) -> int:
 
 def cmd_install(args) -> int:
     app = _app(args)
-    with app.open_store() as store:
+    # Reads one setting; while an older watcher still owns the state it is read through
+    # that watcher's schema, and the upgrade happens when a current watcher starts.
+    with _open_state(app) as store:
         enabled = store.settings()["enabled"]
     _print("owned state directory : %s" % app.paths.state_dir)
     _print("owned log directory   : %s" % app.paths.logs_dir)
@@ -503,7 +539,48 @@ def cmd_uninstall(args) -> int:
     return EXIT_OK
 
 
+def cmd_diagnostics(args) -> int:
+    from . import control, diagnostics
+    paths = config.Paths(args.home)
+    target = Path(args.out) if args.out else Path.cwd() / diagnostics.default_name()
+    try:
+        written = diagnostics.write(control.Control(paths), target)
+    except FileExistsError as exc:
+        raise CliError(str(exc)) from None
+    _print("diagnostics written to %s" % written)
+    _print("ids are aliases and paths are removed; read the file before sharing it")
+    return EXIT_OK
+
+
+def cmd_downgrade_state(args) -> int:
+    """Rewrite the state so a v0.5 release can read it, keeping every record.
+
+    Needs the watcher stopped: it runs only while holding the watcher's mutex, so a
+    watcher cannot be writing rows while their schema changes. Deleting the state is
+    never the way back - it would forget which failures were already cancelled,
+    exhausted or possibly sent, and which conversations were switched off.
+    """
+    from .store import downgrade_to_v2
+    app = _app(args)
+    try:
+        with app.mutex(timeout=0.0):
+            result = downgrade_to_v2(app.paths.state_dir)
+    except AdapterError:
+        _print("the watcher is running; stop it first (stop), then run this again")
+        return EXIT_ERROR
+    if not result["changed"]:
+        _print("the state is already schema 2; nothing to do")
+        return EXIT_OK
+    app.logger.info("state downgraded to schema 2 (%d records kept)", result["rows"])
+    _print("state rewritten as schema 2; %d records kept, and a copy of the previous state "
+           "was saved beside it" % result["rows"])
+    _print("install the older release now; starting this version's watcher again upgrades "
+           "the state again")
+    return EXIT_OK
+
+
 COMMANDS = {
+    "downgrade-state": cmd_downgrade_state, "diagnostics": cmd_diagnostics,
     "enable": cmd_enable, "disable": cmd_disable, "status": cmd_status, "pending": cmd_pending,
     "cancel": cmd_cancel, "logs": cmd_logs, "run": cmd_run, "stop": cmd_stop,
     "install": cmd_install, "uninstall": cmd_uninstall, "doctor": cmd_doctor,

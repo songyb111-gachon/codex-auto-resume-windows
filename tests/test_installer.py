@@ -156,23 +156,22 @@ class StateUpgradeTests(unittest.TestCase):
         self.root = Path(self.temp.name)
 
     def make_schema_1(self):
-        """A database exactly as schema 1 wrote it, with one pending record."""
-        store = Store(self.root)
+        """A database exactly as schema 1 wrote it - by the tagged v0.3.2 store code
+        itself - with one pending record."""
+        from test_control_v3 import legacy_store_module
+        old = legacy_store_module("v0.3.2")
+        store = old.Store(self.root)
         store.register(failure(), 111.0, state="waiting_reset", next_retry_at=222.0)
         store.close()
-        path = self.root / "state.sqlite"
-        with closing(sqlite3.connect(path)) as db:
-            for name, _definition in (("category", ""), ("recovery_attempts", ""), ("no_progress_count", "")):
-                db.execute("ALTER TABLE interruptions DROP COLUMN %s" % name)
-            db.execute("PRAGMA user_version=1")
-            db.commit()
-        return path
+        return self.root / "state.sqlite"
 
     def test_upgrading_preserves_the_pending_record(self):
         path = self.make_schema_1()
         with closing(sqlite3.connect(path)) as db:
             self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 1)
-        store = Store(self.root)
+        # Only an opener allowed to migrate - the watcher, or one holding its mutex -
+        # upgrades; it goes 1 -> 2 -> 3 in one transaction.
+        store = Store(self.root, migrate=True)
         self.addCleanup(store.close)
         records = store.all_records()
         self.assertEqual(len(records), 1)
@@ -181,7 +180,7 @@ class StateUpgradeTests(unittest.TestCase):
 
     def test_upgraded_rows_default_to_the_only_category_schema_1_could_record(self):
         self.make_schema_1()
-        store = Store(self.root)
+        store = Store(self.root, migrate=True)
         self.addCleanup(store.close)
         row = store.all_records()[0]
         self.assertEqual(row["category"], "usage_limit")
@@ -190,7 +189,7 @@ class StateUpgradeTests(unittest.TestCase):
 
     def test_the_upgrade_is_recorded_and_not_repeated(self):
         path = self.make_schema_1()
-        Store(self.root).close()
+        Store(self.root, migrate=True).close()
         with closing(sqlite3.connect(path)) as db:
             self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
         store = Store(self.root)          # opening again must be a no-op
@@ -199,7 +198,7 @@ class StateUpgradeTests(unittest.TestCase):
 
     def test_a_future_schema_is_still_refused(self):
         self.make_schema_1()
-        Store(self.root).close()
+        Store(self.root, migrate=True).close()
         with closing(sqlite3.connect(self.root / "state.sqlite")) as db:
             db.execute("PRAGMA user_version=%d" % (SCHEMA_VERSION + 1))
             db.commit()

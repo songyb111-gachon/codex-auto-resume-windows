@@ -14,51 +14,51 @@
   "system_dpi": 144,
   "inputs": {
     ".codex-plugin/plugin.json": "f18091fe2b0bbd05fda0c9b870a055ac8d62ff212b3053d4d1eb7b0280b4056a",
-    "gui/SettingsApp.cs": "ac95e72f35990f8b502b65fdf3113da3a2b1069f06901e6c81c3e86d2235b49a",
+    "gui/SettingsApp.cs": "2ad2d465b2fd99a832eb43a28b26ff405695b3831091be6764aec5abc20db61e",
     "gui/Brand.cs": "5016afc205d24c1113fd388478e00e2df6123b2b9f55d293d127c7977c0f1b30",
     "gui/app.manifest": "db5f16dcf2448fdd7e3812dfdaa6d2da893b92c27a982721d3f04cdc05559870",
     "assets/codex-auto-resume.ico": "45c3f3a0d02d78f9be0b80532eedc2f524cd7ebe1056007dacdb286ca743bd52",
-    "src/codex_auto_resume/settings.py": "1353c0526c19f2f200fa74b5f899c76628ec276de6ddd96d4d43092567b801d5",
-    "src/codex_auto_resume/controlcli.py": "f1825cf7519df91168cf542ee0aee3711a3c908efdd8c9db3ee7e860fed33ecf",
-    "src/codex_auto_resume/app.py": "29a1c1a2d5d419231a7d379d390df4f325b8b0323f2e7ee4abd68159c08b1e74",
+    "src/codex_auto_resume/settings.py": "1da7cb06c528abaf6e48a60b4b0a6652d4ec55b4502ff9e704ba19fe2f26ba17",
+    "src/codex_auto_resume/controlcli.py": "2502fb74f704293461d99909ddc4364c7551fd3a512727233a8020c6245a601f",
+    "src/codex_auto_resume/app.py": "3b1fe6421a464303eb023cceeb26645449b4f9a71e789184655a9d131a73bc44",
     "build/capture_window.ps1": "a9046f64acddf8fc75fb3a0bb8bd2d2300318ab86e1647a25d8c3b46b238ba17",
     "build/make_gui.ps1": "8c52f2c6dc71f820a52c88b51c0eab6553f16ba26b8eefcbdec651b25b0f8eae",
     "build/make_screenshots.py": "f32c9eb9cd002a83424145744d30e61ef944cb2bd41066a4a3082dd8c8e319ec",
-    "<panel render:en>": "1bcbcf18db2b8b8e4dfc563cf774bf525e4fb2a2dc963ea1b03818759ceb4b44",
-    "<panel render:ko>": "a1b631a5e75002583348475e98505af2fc1514154982ff697d39dc383938a540"
+    "<panel render:en>": "746776392ad8422549a5e500220908bf175cbb3679a391b1255199c11a112202",
+    "<panel render:ko>": "5dd41f6ef693c8b69e86e481439f763c8b37deafecc2a2816f2b5e07eadf3b15"
   },
   "images": {
     "assets/screenshot-panel.png": {
-      "sha256": "6ca5ea376980dbf738573281fd43073a9e73d4010a3f4c304988307cf29c664d",
-      "size": "1800x1226"
+      "sha256": "e99dffc9ed85ccbc5b885258fa442279a6598640f9128dc0fa0fcf98ec82d2a0",
+      "size": "1800x1228"
     },
     "assets/screenshot-settings.png": {
-      "sha256": "913c9149e916aa90827063ac1244462359c2bc80188d8eb7c03361982674dd5e",
-      "size": "1200x948"
+      "sha256": "f530c569f8b5c1b5446df34505f11a89fd3409a44f9239a175ed15a952f0e3f0",
+      "size": "1200x1007"
     },
     "assets/screenshot-panel-ko.png": {
-      "sha256": "2554e76c3e0bdaaf48cce933e5b3414954f347648af361e3d26ee0a481efa96c",
-      "size": "1800x1226"
+      "sha256": "e0a52b3645112a4dc0a5704a7175840080ed70d58d44d6d3b8c1d2ab3b6a8473",
+      "size": "1800x1250"
     },
     "assets/screenshot-settings-ko.png": {
-      "sha256": "0a6c32eacca1bc2ed0aa5e1e8adcbb74b2d98960c6ce63d526407b66cf01997d",
-      "size": "1200x948"
+      "sha256": "71f7826d2b860773694653d04b59c23cd7d05f54ef6f3f797f041abc07e3d802",
+      "size": "1200x1007"
     },
     "docs/images/settings-panel.png": {
-      "sha256": "6ca5ea376980dbf738573281fd43073a9e73d4010a3f4c304988307cf29c664d",
-      "size": "1800x1226"
+      "sha256": "e99dffc9ed85ccbc5b885258fa442279a6598640f9128dc0fa0fcf98ec82d2a0",
+      "size": "1800x1228"
     },
     "docs/images/settings-window.png": {
-      "sha256": "913c9149e916aa90827063ac1244462359c2bc80188d8eb7c03361982674dd5e",
-      "size": "1200x948"
+      "sha256": "f530c569f8b5c1b5446df34505f11a89fd3409a44f9239a175ed15a952f0e3f0",
+      "size": "1200x1007"
     },
     "docs/images/settings-panel-ko.png": {
-      "sha256": "2554e76c3e0bdaaf48cce933e5b3414954f347648af361e3d26ee0a481efa96c",
-      "size": "1800x1226"
+      "sha256": "e0a52b3645112a4dc0a5704a7175840080ed70d58d44d6d3b8c1d2ab3b6a8473",
+      "size": "1800x1250"
     },
     "docs/images/settings-window-ko.png": {
-      "sha256": "0a6c32eacca1bc2ed0aa5e1e8adcbb74b2d98960c6ce63d526407b66cf01997d",
-      "size": "1200x948"
+      "sha256": "71f7826d2b860773694653d04b59c23cd7d05f54ef6f3f797f041abc07e3d802",
+      "size": "1200x1007"
     }
   }
 }

@@ -206,8 +206,10 @@ class DescribeTests(unittest.TestCase):
         self.assertEqual(len(self.described), len(settings.FIELDS))
 
     def test_every_entry_carries_a_group_the_interfaces_understand(self):
+        # "windows" holds desktop preferences - the notification-area icon - shown in
+        # the settings window's Windows card and not offered to Codex.
         for entry in self.described:
-            self.assertIn(entry["group"], {"recovery", "limits", "notifications", "advanced"})
+            self.assertIn(entry["group"], {"recovery", "limits", "notifications", "windows", "advanced"})
 
     def test_published_ranges_accept_their_own_bounds(self):
         # A user interface builds its spin boxes from these numbers, so a bound the
