@@ -2,9 +2,10 @@
 
 ## v0.5.7 — Security fix
 
-One fix, shipped on its own rather than held for v0.6.0, because it is a code
-injection in every earlier release. Nothing else changes: recovery, settings, state
-and the install layout are exactly v0.5.6's. Upgrading is the whole remedy.
+A security release, shipped on its own rather than held for v0.6.0, because it closes
+a code injection present in every earlier release. Recovery, settings, state and the
+install layout are exactly v0.5.6's. Upgrading is the whole remedy - and, as of this
+release, an upgrade replaces the running watcher, which is what makes that true.
 
 ### Security
 
@@ -23,6 +24,23 @@ and the install layout are exactly v0.5.6's. Upgrading is the whole remedy.
   so there is no character a name could contain that changes what runs. The tests raise
   every quote-like and interpolation character through the real interpreter and fail
   on the previous code.
+
+- **Fixed: an upgrade left the old watcher running the old code.** The installer renamed
+  the program folders under the running watcher - Windows allows that - and the old
+  process carried on from the renamed copy until the next sign-in, while setup saw it
+  running and started nothing. For this release that would have meant the fix was
+  installed and not in effect. The installer now asks the running watcher to stop
+  through its own stop request, waits for it, and only then replaces the files; the new
+  watcher starts at the end as before. It asks and never kills: a watcher stopped in
+  the middle of sending a continuation could not prove afterwards whether it was sent.
+  If it does not stop within a minute, the upgrade still completes and says plainly that
+  the previous version is still running and how to switch. Measured on real Windows: a
+  running watcher is handed over in under two seconds.
+- **Fixed: Install.cmd and Uninstall.cmd could run a program planted next to them.** They
+  started `chcp` and `powershell.exe` by bare name, and Windows looks in the current
+  folder first - so a release extracted into a Downloads folder that already held a
+  file called `chcp.bat` ran that file before the installer. Both are now started by
+  their full path under `%SystemRoot%\System32`.
 
 ## v0.5.6 — Finished, not just working
 
