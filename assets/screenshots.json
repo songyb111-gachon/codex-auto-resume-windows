@@ -22,7 +22,7 @@
     "src/codex_auto_resume/controlcli.py": "f1825cf7519df91168cf542ee0aee3711a3c908efdd8c9db3ee7e860fed33ecf",
     "src/codex_auto_resume/app.py": "29a1c1a2d5d419231a7d379d390df4f325b8b0323f2e7ee4abd68159c08b1e74",
     "build/capture_window.ps1": "a9046f64acddf8fc75fb3a0bb8bd2d2300318ab86e1647a25d8c3b46b238ba17",
-    "build/make_gui.ps1": "ccbf1d53b18c7a5203f05713ec667c9b8d4f61e8e71edf27f155e8f6a956f6d0",
+    "build/make_gui.ps1": "8c52f2c6dc71f820a52c88b51c0eab6553f16ba26b8eefcbdec651b25b0f8eae",
     "build/make_screenshots.py": "f32c9eb9cd002a83424145744d30e61ef944cb2bd41066a4a3082dd8c8e319ec",
     "<panel render:en>": "1bcbcf18db2b8b8e4dfc563cf774bf525e4fb2a2dc963ea1b03818759ceb4b44",
     "<panel render:ko>": "a1b631a5e75002583348475e98505af2fc1514154982ff697d39dc383938a540"
@@ -41,7 +41,7 @@
       "size": "1800x1226"
     },
     "assets/screenshot-settings-ko.png": {
-      "sha256": "0a6c32eacca1bc2ed0aa5e1e8adcbb74b2d98960c6ce63d526407b66cf01997d",
+      "sha256": "e584a6022cfc2592a131e445e030789a73679a5b8b69605347e56cd8965263d0",
       "size": "1200x948"
     },
     "docs/images/settings-panel.png": {
@@ -57,7 +57,7 @@
       "size": "1800x1226"
     },
     "docs/images/settings-window-ko.png": {
-      "sha256": "0a6c32eacca1bc2ed0aa5e1e8adcbb74b2d98960c6ce63d526407b66cf01997d",
+      "sha256": "e584a6022cfc2592a131e445e030789a73679a5b8b69605347e56cd8965263d0",
       "size": "1200x948"
     }
   }

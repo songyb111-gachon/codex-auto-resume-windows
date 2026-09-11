@@ -122,6 +122,16 @@ class BuildScriptTests(unittest.TestCase):
         body = script[script.index("function Build"):]
         self.assertIn("$normalizer $exe", body[:body.index("\n}")])
 
+    def test_the_executables_carry_a_version_resource_from_the_manifest(self):
+        """Without one they said 0.0.0.0 with no product or publisher - in Explorer, and
+        in the SmartScreen and Smart App Control prompts where people decide to trust a file."""
+        script = (ROOT / "build" / "make_gui.ps1").read_text(encoding="utf-8")
+        for attribute in ("AssemblyProduct", "AssemblyCompany", "AssemblyFileVersion",
+                          "AssemblyInformationalVersion", "AssemblyCopyright"):
+            self.assertIn(attribute, script)
+        self.assertIn(".codex-plugin\plugin.json", script)
+        self.assertEqual(script.count("-Description '"), 2, "both executables are described")
+
     def test_the_release_build_proves_it_twice(self):
         workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
         self.assertIn("Check the executables are reproducible", workflow)
