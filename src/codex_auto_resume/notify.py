@@ -13,13 +13,11 @@ conversation id and a local time - never prompt text, error text or account data
 """
 from __future__ import annotations
 
-import base64
-import os
 import subprocess
 import time
 from xml.sax.saxutils import quoteattr, escape
 
-from . import messages
+from . import messages, pwsh
 
 SCHEME = "codex-auto-resume"
 # The toast is sent under our own AppUserModelID, so Windows attributes it to
@@ -44,9 +42,9 @@ $ErrorActionPreference = 'Stop'
 [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType=WindowsRuntime] | Out-Null
 [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom, ContentType=WindowsRuntime] | Out-Null
 $doc = New-Object Windows.Data.Xml.Dom.XmlDocument
-$doc.LoadXml(%(xml)s)
+$doc.LoadXml($env:CODEX_AUTO_RESUME_ARG_XML)
 $toast = New-Object Windows.UI.Notifications.ToastNotification $doc
-[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier(%(aumid)s).Show($toast)
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($env:CODEX_AUTO_RESUME_ARG_AUMID).Show($toast)
 """
 
 
@@ -83,24 +81,6 @@ def parse_cancel_uri(uri: str) -> str | None:
     return candidate
 
 
-def _powershell() -> str | None:
-    root = os.environ.get("SystemRoot")
-    if os.name != "nt" or not root:
-        return None
-    path = os.path.join(root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
-    return path if os.path.isfile(path) else None
-
-
-def _ps_literal(value: str) -> str:
-    """A PowerShell single-quoted string.
-
-    Single quotes suppress every form of interpolation, and doubling an embedded quote is
-    the only escape that exists inside them. XML escaping must NOT be used here: it would
-    turn the document's own angle brackets into entities and break LoadXml.
-    """
-    return "'" + str(value).replace("'", "''") + "'"
-
-
 def _toast_xml(title, body, button=None, uri=None, extra=()) -> str:
     actions = ""
     if button and uri:
@@ -116,24 +96,20 @@ def _toast_xml(title, body, button=None, uri=None, extra=()) -> str:
 
 def show(title: str, body: str, *, button: str | None = None, uri: str | None = None,
          extra=()) -> bool:
-    """Best effort. Returns True only when PowerShell reported success."""
-    shell = _powershell()
-    if shell is None:
+    """Best effort. Returns True only when PowerShell reported success.
+
+    The toast document travels as an environment variable into a constant script, never
+    as script text: a title is whatever Codex named the conversation and a project is a
+    folder name, and neither may be able to change what PowerShell runs. See pwsh.py.
+    """
+    if pwsh.executable() is None:
         return False
-    script = _SCRIPT % {"xml": _ps_literal(_toast_xml(title, body, button, uri, extra)),
-                        "aumid": _ps_literal(aumid())}
-    # -EncodedCommand takes UTF-16LE base64: no quoting rules apply to the payload at all,
-    # so no string built here can be reinterpreted as PowerShell syntax.
-    encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
     try:
-        completed = subprocess.run(
-            [shell, "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
-            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            timeout=TIMEOUT_SECONDS, shell=False,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-    except (OSError, subprocess.SubprocessError):
+        code = pwsh.run(_SCRIPT, {"XML": _toast_xml(title, body, button, uri, extra),
+                                  "AUMID": aumid()}, timeout=TIMEOUT_SECONDS)
+    except (OSError, subprocess.SubprocessError, pwsh.PowerShellError):
         return False
-    return completed.returncode == 0
+    return code == 0
 
 
 def _local_time(when: float) -> str:
