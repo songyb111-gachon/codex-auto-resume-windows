@@ -176,6 +176,76 @@ class CopyTests(unittest.TestCase):
                                          "%s shows the %s screenshots" % (name, other))
 
 
+def read_png(path):
+    """Width, height and rows of RGB tuples, from an 8-bit RGB or RGBA PNG.
+
+    Standard library only: the tests run where Pillow is not installed. Handles exactly
+    what the screenshot generator writes and refuses anything else.
+    """
+    import zlib
+    raw = Path(path).read_bytes()
+    if raw[:8] != bytes([0x89]) + b"PNG" + bytes([13, 10, 26, 10]):
+        raise ValueError("not a PNG")
+    pos, data, width = 8, b"", None
+    while pos < len(raw):
+        length, kind = struct.unpack(">I4s", raw[pos:pos + 8])
+        chunk = raw[pos + 8:pos + 8 + length]
+        if kind == b"IHDR":
+            width, height, depth, colour, _, _, interlace = struct.unpack(">IIBBBBB", chunk)
+            if depth != 8 or colour not in (2, 6) or interlace:
+                raise ValueError("unsupported PNG layout")
+            channels = 3 if colour == 2 else 4
+        elif kind == b"IDAT":
+            data += chunk
+        pos += 12 + length
+    pixels = zlib.decompress(data)
+    stride = width * channels
+    rows, previous = [], bytearray(stride)
+    for y in range(height):
+        start = y * (stride + 1)
+        mode, line = pixels[start], bytearray(pixels[start + 1:start + 1 + stride])
+        for i in range(stride):
+            left = line[i - channels] if i >= channels else 0
+            up = previous[i]
+            corner = previous[i - channels] if i >= channels else 0
+            if mode == 1:
+                line[i] = (line[i] + left) & 0xFF
+            elif mode == 2:
+                line[i] = (line[i] + up) & 0xFF
+            elif mode == 3:
+                line[i] = (line[i] + (left + up) // 2) & 0xFF
+            elif mode == 4:
+                p_ = left + up - corner
+                pa, pb, pc = abs(p_ - left), abs(p_ - up), abs(p_ - corner)
+                line[i] = (line[i] + (left if pa <= pb and pa <= pc else up if pb <= pc else corner)) & 0xFF
+        rows.append([tuple(line[x * channels:x * channels + 3]) for x in range(width)])
+        previous = line
+    return width, height, rows
+
+
+class PixelTests(unittest.TestCase):
+    """A few things that must be visible, checked on the pixels themselves.
+
+    The v0.5.7 Korean window screenshot was published with a white square where the
+    status dot belongs: the capture landed after the dot's panel was erased and before it
+    was painted. Every input the freshness digest tracks was unchanged, so nothing else
+    noticed. The capture now forces a synchronous repaint and the dot is double-buffered;
+    this checks the result.
+    """
+
+    ACTIVE = (0x06, 0xB6, 0xD4)   # Brand.Active - the running state dot
+
+    def test_every_window_screenshot_shows_the_state_dot(self):
+        for name in ("assets/screenshot-settings.png", "assets/screenshot-settings-ko.png"):
+            width, height, rows = read_png(ROOT / name)
+            header = rows[:height * 15 // 100]
+            left = width // 8
+            near = sum(1 for row in header for pixel in row[:left]
+                       if all(abs(a - b) <= 24 for a, b in zip(pixel, self.ACTIVE)))
+            with self.subTest(name):
+                self.assertGreater(near, 40, "the header's state dot is missing from %s" % name)
+
+
 class ContentTests(unittest.TestCase):
     """Two properties of the pictures themselves, checked without reading pixels."""
 

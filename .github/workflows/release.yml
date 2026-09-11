@@ -104,6 +104,28 @@ jobs:
         shell: pwsh
         run: ./build/make_gui.ps1
 
+      # Built a second time from the same source, and the digests compared. A release is
+      # meant to be reproducible - anyone can rebuild the tag and get these bytes - and
+      # this is where that stops being a claim: if the two builds on one machine differ,
+      # nothing a reader rebuilds will match either, and the release does not go out.
+      - name: Check the executables are reproducible
+        shell: pwsh
+        run: |
+          $first = @{}
+          foreach ($exe in Get-ChildItem build -Filter *.exe) {
+            $first[$exe.Name] = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash
+          }
+          if ($first.Count -lt 2) { throw 'expected two executables in build/' }
+          Start-Sleep -Seconds 2
+          ./build/make_gui.ps1 | Out-Null
+          foreach ($exe in Get-ChildItem build -Filter *.exe) {
+            $second = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash
+            if ($first[$exe.Name] -ne $second) {
+              throw "$($exe.Name) differs between two builds of the same source"
+            }
+            Write-Host "$($exe.Name) reproducible: $($second.ToLower())"
+          }
+
       - name: Build the release archive
         run: python build/make_release.py
 

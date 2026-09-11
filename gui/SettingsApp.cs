@@ -157,6 +157,22 @@ namespace CodexAutoResume
     }
 
     /// A drop-down entry whose stored value and displayed label differ.
+    /// A panel that paints into a back buffer, so a repaint never shows it erased.
+    ///
+    /// The status dot is drawn in a Paint handler on an ordinary Panel, which Windows
+    /// erases to the background colour first and paints second. Anything that looks in
+    /// between - a screenshot, or the eye during a status refresh - sees no dot at all:
+    /// the Korean window screenshot published with v0.5.7 has a white square where the
+    /// dot belongs.
+    internal sealed class BufferedPanel : Panel
+    {
+        internal BufferedPanel()
+        {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                     ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+        }
+    }
+
     internal sealed class Choice
     {
         internal readonly string Value;
@@ -443,7 +459,7 @@ namespace CodexAutoResume
             // Drawn rather than a glyph so the dot stays round and vertically centred at
             // any scaling, and it carries the same state as the words beside it. It
             // spans both rows because it describes the pair, not the first line.
-            var dot = new Panel();
+            var dot = new BufferedPanel();
             dot.Dock = DockStyle.Fill;
             dot.BackColor = Surface;
             dot.Paint += delegate(object sender, PaintEventArgs e)
