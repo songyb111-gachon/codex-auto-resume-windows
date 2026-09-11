@@ -187,6 +187,76 @@ def desktop_pair(rows, codex_exe):
     return {**app, "server": server}
 
 
+ERROR_ALREADY_EXISTS = 183
+SECURITY_MANDATORY_MEDIUM_RID = 0x2000
+SYSTEM_MANDATORY_LABEL_ACE_TYPE = 0x11
+
+
+def _integrity_rid(handle) -> int:
+    """The mandatory integrity level of a kernel object, as the label SID's last RID.
+
+    An object with no explicit label is Medium: that is how Windows treats it, and it is
+    what an object created by this (Medium) process looks like.
+    """
+    advapi = C.WinDLL("advapi32", use_last_error=True)
+    advapi.GetSecurityInfo.argtypes = [W.HANDLE, C.c_int, W.DWORD, C.c_void_p, C.c_void_p,
+                                       C.c_void_p, C.POINTER(C.c_void_p), C.POINTER(C.c_void_p)]
+    advapi.GetSecurityInfo.restype = W.DWORD
+    advapi.GetAce.argtypes = [C.c_void_p, W.DWORD, C.POINTER(C.c_void_p)]
+    advapi.GetAce.restype = W.BOOL
+    advapi.GetSidSubAuthorityCount.argtypes = [C.c_void_p]
+    advapi.GetSidSubAuthorityCount.restype = C.POINTER(C.c_ubyte)
+    advapi.GetSidSubAuthority.argtypes = [C.c_void_p, W.DWORD]
+    advapi.GetSidSubAuthority.restype = C.POINTER(W.DWORD)
+    kernel = _kernel()
+    kernel.LocalFree.argtypes = [C.c_void_p]
+    kernel.LocalFree.restype = C.c_void_p
+    sacl, descriptor = C.c_void_p(), C.c_void_p()
+    # SE_KERNEL_OBJECT, LABEL_SECURITY_INFORMATION
+    status = advapi.GetSecurityInfo(handle, 6, 0x10, None, None, None, C.byref(sacl), C.byref(descriptor))
+    if status != 0:
+        raise AdapterError("object_label_unreadable")
+    try:
+        if not sacl.value:
+            return SECURITY_MANDATORY_MEDIUM_RID
+        count = C.cast(sacl.value + 4, C.POINTER(C.c_ushort))[0]   # ACL.AceCount
+        for index in range(count):
+            ace = C.c_void_p()
+            if not advapi.GetAce(sacl, index, C.byref(ace)):
+                continue
+            if C.cast(ace.value, C.POINTER(C.c_ubyte))[0] != SYSTEM_MANDATORY_LABEL_ACE_TYPE:
+                continue
+            sid = ace.value + 8                                        # ACE_HEADER + Mask
+            last = advapi.GetSidSubAuthorityCount(sid)[0] - 1
+            return int(advapi.GetSidSubAuthority(sid, last)[0])
+        return SECURITY_MANDATORY_MEDIUM_RID
+    finally:
+        if descriptor.value:
+            kernel.LocalFree(descriptor)
+
+
+def _refuse_if_squatted(handle, existed: bool) -> None:
+    """Refuse a named object that a lower-integrity process created before we did.
+
+    The watcher's mutex and stop event have predictable names in the session namespace,
+    which a low-integrity process - a browser renderer, say - is allowed to create
+    objects in. The v0.6.0 security review demonstrated it with a real Low process: by
+    creating the mutex first it made every status read say the watcher was running while
+    none was, and blocked the real one from starting; by creating the stop event first and
+    signalling it, it made a real watcher exit on start.
+
+    Once this process has created them, a lower-integrity process cannot touch them - the
+    default policy forbids writing up. So the only opening is getting there first, and
+    that is detectable: the object then carries the creator's lower label. Refusing it
+    turns a silent lie ("running") into an honest failure that says why. It does not
+    make recovery run while the squatter is alive; nothing at this level can, and the
+    alternative is a watcher controlled by a process with fewer rights than the user.
+    """
+    if existed and _integrity_rid(handle) < SECURITY_MANDATORY_MEDIUM_RID:
+        _kernel().CloseHandle(handle)
+        raise AdapterError("named_object_squatted")
+
+
 class Mutex:
     """Current-session named mutex, default user DACL, unique per user + state path.
 
@@ -205,8 +275,14 @@ class Mutex:
         k.CreateMutexW.argtypes = [C.c_void_p, W.BOOL, W.LPCWSTR]
         k.CreateMutexW.restype = W.HANDLE
         self.handle = k.CreateMutexW(None, False, self.name)
+        existed = C.get_last_error() == ERROR_ALREADY_EXISTS
         if not self.handle:
             raise AdapterError("mutex_creation_failed")
+        try:
+            _refuse_if_squatted(self.handle, existed)
+        except AdapterError:
+            self.handle = None
+            raise
         result = k.WaitForSingleObject(self.handle, int(self.timeout * 1000))
         if result not in (0, 128):
             k.CloseHandle(self.handle)
@@ -249,8 +325,14 @@ class StopEvent:
     def __enter__(self):
         k = self._api()
         self.handle = k.CreateEventW(None, True, False, self.name)
+        existed = C.get_last_error() == ERROR_ALREADY_EXISTS
         if not self.handle:
             raise AdapterError("stop_event_creation_failed")
+        try:
+            _refuse_if_squatted(self.handle, existed)
+        except AdapterError:
+            self.handle = None
+            raise
         k.ResetEvent(self.handle)  # a stale signal must not stop a fresh watcher
         return self
 

@@ -201,8 +201,17 @@ class App:
                 self.logger.info("another watcher already holds the single-instance mutex; exiting")
                 return EXIT_BUSY
         try:
-            with self.stop_event() as stop:
+            try:
+                stop = self.stop_event().__enter__()
+            except AdapterError as exc:
+                # A stop event planted by a lower-integrity process would let that process
+                # stop the watcher at will; refuse to run on it rather than obey it.
+                self.logger.info("stop event unavailable (%s); refusing to run", exc)
+                return EXIT_ERROR
+            try:
                 return self._loop(mutex, stop, once=once, poll=poll)
+            finally:
+                stop.__exit__(None, None, None)
         finally:
             mutex.__exit__(None, None, None)
 
