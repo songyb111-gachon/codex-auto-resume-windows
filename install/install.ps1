@@ -186,6 +186,37 @@ function Get-OwnedMcpProcess {
     return ,$found
 }
 
+function Get-OwnedWatcherProcess {
+    <#
+        The watcher belonging to this installation, if one is running.
+
+        Found by what it is, not by what it is called: the bundled interpreter of *this*
+        installation, running this installation's watcher launcher. Any other Python on
+        the machine - another project, a second installation - is not ours to wait for.
+
+        An upgrade has to know, because renaming the program directories under a running
+        watcher succeeds and leaves the old code executing from the renamed copy. v0.5.7
+        is a security fix; an upgrade that left the vulnerable watcher running until the
+        next sign-in would not have fixed anything yet.
+    #>
+    $found = @()
+    $all = @(Get-CimInstance Win32_Process -Filter "Name='pythonw.exe' OR Name='python.exe'" -ErrorAction SilentlyContinue)
+    foreach ($process in $all) {
+        $exe = $process.ExecutablePath
+        $line = $process.CommandLine
+        if ([string]::IsNullOrWhiteSpace($exe) -or [string]::IsNullOrWhiteSpace($line)) { continue }
+        if (-not (Test-PathInside $exe $RunDir)) { continue }
+        if ($line -notmatch 'watcher-launcher\.py') { continue }
+        $found += $process
+    }
+    # The leading comma keeps an empty or one-element result an array. Callers read
+    # (Get-OwnedWatcherProcess).Count; wrapping the call in @() instead would make a
+    # one-element array of the array, whose Count is always 1 - which is exactly how
+    # the first version of the upgrade handover waited sixty seconds for a watcher
+    # that had exited in under one.
+    return ,$found
+}
+
 function Invoke-Codex {
     # Native stderr must not become a terminating error: PowerShell 5.1 wraps it in an
     # ErrorRecord, and `codex` writes ordinary progress there. Capture to files instead
@@ -534,6 +565,38 @@ foreach ($stale in (Get-ChildItem -Path $OwnedHome -Directory -Filter '*.old-*' 
     $null = Remove-OwnedItem $stale.FullName
 }
 
+# Hand over from a running watcher before its files are replaced.
+#
+# Renaming app\ and runtime\ under a live watcher succeeds - Windows allows it - and the
+# old process carries on running the old code from the renamed copy, while setup below
+# sees the watcher mutex held, reports it already running and starts nothing. For an
+# ordinary upgrade that only delays the new version until the next sign-in. For a
+# security fix it means the fix is installed and not in effect. So the running watcher
+# is asked to stop through its own stop event - the same request "stop" and uninstall
+# make - and waited for.
+#
+# It is asked, never killed. A watcher stopped mid-submission would leave that recovery
+# unable to prove whether it was sent, and the product then refuses to send it again.
+# If it does not finish within the wait, the upgrade still completes and says plainly
+# that the old version is still running and how to replace it.
+$previousWatcherStillRunning = $false
+if ((Get-OwnedWatcherProcess).Count -gt 0) {
+    Step 'Stopping the running watcher so the new version takes over'
+    if ((Test-Path $Python) -and (Test-Path (Join-Path $AppDir 'scripts\plugin_setup.py'))) {
+        $null = Invoke-Setup @('stop')
+    }
+    $deadline = (Get-Date).AddSeconds(60)
+    while ((Get-Date) -lt $deadline -and (Get-OwnedWatcherProcess).Count -gt 0) {
+        Start-Sleep -Milliseconds 500
+    }
+    if ((Get-OwnedWatcherProcess).Count -gt 0) {
+        $previousWatcherStillRunning = $true
+        Warn 'The previous watcher is still finishing and was left running.'
+    } else {
+        Ok 'The previous watcher stopped'
+    }
+}
+
 # Replace only the program directories. Settings, state and logs sit beside them and are
 # deliberately not in this list, so an upgrade cannot lose a pending recovery.
 #
@@ -664,6 +727,11 @@ if ($watcherUnconfirmed) {
     else { Write-Host 'Installed.' }
     Write-Host 'The watcher could not be confirmed running, so nothing is being watched yet.'
     Write-Host 'Open Start Menu > Codex Auto Resume and use Start watcher, or run this again.'
+} elseif ($previousWatcherStillRunning) {
+    Write-Host 'Updated. Your settings and pending recoveries were kept.'
+    Write-Host 'The previous version of the watcher is still running and will keep running'
+    Write-Host 'until it stops. To switch to this version now, open Start Menu > Codex Auto'
+    Write-Host 'Resume and use Stop watcher, then Start watcher - or sign out and back in.'
 } else {
     if ($upgrade) { Write-Host 'Updated. Your settings and pending recoveries were kept.' }
     else { Write-Host 'Installed and running.' }
