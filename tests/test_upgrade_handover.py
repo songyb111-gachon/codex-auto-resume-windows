@@ -97,7 +97,10 @@ class UpgradeHandoverTests(unittest.TestCase):
         branch = tail[tail.index("elseif ($previousWatcherStillRunning)"):]
         branch = branch[:branch.index("} else {")]
         self.assertNotIn("Installed and running", branch)
-        self.assertIn("Stop watcher", branch)
+        # The settings window has a Start watcher button and no Stop watcher button, so
+        # the message may only point at the one that exists.
+        self.assertIn("Start watcher", branch)
+        self.assertNotIn("Stop watcher", branch)
 
 
 if __name__ == "__main__":
