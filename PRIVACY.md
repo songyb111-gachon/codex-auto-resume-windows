@@ -3,16 +3,34 @@
 Codex Auto Resume runs on your machine. It has no server, no account and no telemetry, and
 the watcher makes no outbound network request of its own.
 
-There is one exception, and it is worth stating up front rather than in a footnote:
-**installing or updating it from the Codex plugin downloads the release from GitHub.** The
-sections below separate the two, because they are genuinely different.
+It does cause network traffic, though, and that is worth stating up front rather than in a
+footnote. There are two kinds, and they are genuinely different:
+
+- **OpenAI, through Codex.** The watcher drives the official Codex binary already signed in
+  on your machine. When a recovery is due, it asks Codex for your current usage, and Codex
+  asks OpenAI. Codex identifies these requests as coming from this tool (client name
+  `codex_auto_resume` and a version number), so OpenAI can see that you use it and when it
+  checks. The resumed turn itself runs in your Codex desktop app and goes to OpenAI like any
+  turn you start. And when you use the plugin's tools inside a Codex conversation, what they
+  return becomes part of that conversation.
+- **GitHub and, through Codex's marketplace refresh, other marketplace hosts, at install.**
+  Installing or updating from the Codex plugin downloads the release from GitHub, as does
+  downloading the ZIP yourself. The installer then asks Codex to refresh marketplaces: the
+  installers of v0.4.0 through v0.5.7 refresh every Git marketplace you have configured,
+  wherever it is hosted, while the installer on the main branch, which ships in the release
+  after v0.5.7, refreshes only a surviving `codex-auto-resume-windows` registration, from
+  wherever it points.
+
+This tool has no update check of any kind. The sections below take each in turn.
 
 ## What it sends to the developer
 
-Nothing. There is no telemetry, no analytics, no crash reporting and no automatic update
-check — no endpoint of any kind exists to receive them.
+Nothing, beyond the aggregate download count GitHub shows for every release (see
+[Installing it](#installing-it)). There is no telemetry, no analytics, no crash reporting, no opt-in reporting and no
+automatic update check — no endpoint of any kind exists to receive them.
 
-Specifically, none of the following ever leaves your computer:
+Specifically, this tool itself sends none of the following to its developer or to anyone
+else; what reaches OpenAI through Codex is described next:
 
 - your prompts, or any conversation content;
 - assistant replies;
@@ -24,48 +42,185 @@ Specifically, none of the following ever leaves your computer:
 - conversation titles, project names or working directory paths;
 - conversation UUIDs, recovery counts or any other statistic about what it did.
 
+Some of it does leave your computer, and then through Codex, to OpenAI (or, for the
+conversation, to whichever model provider you have configured Codex to use): the
+conversation, when the desktop app runs the resumed turn; the usage check, which Codex
+makes with your existing sign-in and identifies as coming from this tool; and, when you use
+the plugin inside a Codex conversation, whatever its tools and commands return — which can
+include conversation UUIDs, recovery counts and local paths.
+[When you use it from Codex](#when-you-use-it-from-codex) says exactly what that is.
+
 This is a property of the code rather than a policy: nothing under `src/` or `scripts/*.py`
-imports a networking module, so the watcher cannot open a connection even by accident.
+imports a networking module, and a test fails if an import statement names one, so the
+watcher opens no connection of its own. The connections it causes go through the official
+Codex binary.
 
 ## Installing it
 
 The Codex plugin is the recommended way in, and it is not self-contained: the watcher, the
 settings window and the Windows runtime arrive in the release archive. So when you ask Codex
-to set up auto resume, `scripts/bootstrap.ps1` downloads that archive.
+to set up auto resume, `scripts/bootstrap.ps1` downloads that archive, unless that version
+is already installed and you did not pass `-Force` (then it re-runs setup instead: it
+repairs the registrations and starts the watcher if it is not running) or you pass it a
+file with `-ArchivePath`.
 
-- It contacts **github.com** and GitHub's release storage, over HTTPS, and nothing else.
-- It downloads exactly two things: this version's release archive, and — only when the
-  plugin carries no pinned checksum for that version — the `.sha256` published beside it.
+- The download contacts **github.com** and GitHub's release storage over HTTPS, following at
+  most five redirects. After the download finishes, the host it finally landed on is
+  checked. If it is not one of three GitHub hosts, the file is discarded and nothing from it
+  runs. Because the check comes after the download, a redirect to another host would still
+  send the request there, with the details below, before the file is refused.
+- It downloads at most two things: this version's release archive and, only when the
+  plugin carries no pinned digest for that version, the `.sha256` published beside it.
 - The URL is built from constants in the repository and the plugin's own version. There is
   no "latest", and nothing you type becomes part of it.
 - It uploads nothing. No prompt, conversation, account identifier, machine identifier or
-  recovery data is attached to the request; there is nowhere for it to go.
+  recovery data is attached to the request. GitHub sees your IP address and PowerShell's
+  standard User-Agent, which names your Windows version and locale (for example `ko-KR`),
+  as it would for any download made from PowerShell.
 
-GitHub therefore sees an ordinary download request — as it would for any download — and
-counts it in the repository's public download total. That is the one respect in which
-installing this tool is not invisible, and no wording here can make it otherwise. The
-release-archive route avoids it entirely: once you have the ZIP, `Install.cmd` uses no
-network at all.
+The downloaded archive is checked before anything in it runs: against the digest pinned for
+that version in the plugin's `scripts/release.json`, which comes from the main branch, where
+each version's digest is committed after its release is published; or, for a version with no
+pin yet, against the `.sha256` published beside it. The bootstrap says which of the two it
+used. When you hand the bootstrap a file with `-ArchivePath` instead and the version has no
+pinned digest, there is nothing to compare the file with; the bootstrap says so, and only
+its checks of the archive's contents apply.
 
-Nothing about **using** the tool involves GitHub. It never checks for updates.
+The installer it then runs copies the program into the installation directory, registers
+that copy with Codex as a local plugin marketplace, and installs the plugin from those files,
+so Codex does not fetch the plugin again. Installing repoints the `codex-auto-resume-windows`
+marketplace at this installation, replacing whatever source that name had. The installer
+then asks Codex to refresh marketplaces, and how far that reaches depends on the version:
+
+- On the main branch, the installer runs
+  `codex plugin marketplace upgrade codex-auto-resume-windows` — this product's marketplace,
+  by name, and not the form that refreshes every Git marketplace you have configured. For
+  the local marketplace just registered, that command does nothing; it only has an effect
+  if an earlier registration under that name is still in place, and then Codex refreshes it
+  from wherever that registration points (normally GitHub). This is on the main branch and
+  ships in the release after v0.5.7.
+- The installers of v0.4.0 through v0.5.7 run `codex plugin marketplace upgrade` with no
+  name. Codex's own help describes that form as upgrading all the Git marketplaces you have
+  configured, so installing one of those releases can contact other marketplaces' hosts as
+  well as GitHub.
+
+GitHub therefore sees an ordinary download request, with the IP address and User-Agent
+described above, and counts it in the repository's public download total; no wording here
+can make installing this tool invisible to GitHub. Downloading the ZIP yourself from the
+releases page is the same kind of GitHub download, counted the same way. After that,
+`Install.cmd` itself downloads nothing: it installs from the files already on disk, and its
+only download-like step is the marketplace refresh described above. The Codex commands it
+runs may do whatever any Codex process does at start-up, and the watcher it starts behaves
+as described under [What it runs](#what-it-runs).
+
+On that route nothing in this tool checks the archive for you — `Install.cmd` installs
+whatever it was unpacked from — so check the ZIP before you extract it. In PowerShell:
+
+```powershell
+(Get-FileHash .\CodexAutoResume-vX.Y.Z-win-x64.zip -Algorithm SHA256).Hash
+```
+
+Compare the result, ignoring case, with the `.sha256` file published beside the archive,
+and with the digest pinned for that version in
+[`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json)
+on the main branch. The pinned digest reaches you by a different channel — a commit in this
+repository, not a release asset. A version is pinned once its archive has been published,
+so for the newest release there may briefly be only the `.sha256` to compare with. With the
+GitHub CLI you can also check which workflow built the archive, for releases from v0.5.4 on
+(this asks GitHub for the archive's attestation, and fetches Sigstore's public signing
+roots):
+
+```powershell
+gh attestation verify .\CodexAutoResume-vX.Y.Z-win-x64.zip --repo songyb111-gachon/codex-auto-resume-windows
+```
+
+An attestation says which workflow run built the archive. Every archive published so far,
+v0.5.0 through v0.5.7, was built by the earlier single-job release workflow, which referred
+to its GitHub Actions by floating tags rather than pinned commits, and the executables in
+those archives are not reproducible, so you cannot rebuild them byte for byte to compare.
+The separate build and publish jobs, the commit-pinned actions and the reproducible
+executables are on the main branch and ship in the release after v0.5.7. Nothing this
+project builds is Authenticode-signed — the two executables, `Install.cmd`, `Uninstall.cmd`
+and the PowerShell scripts — while the bundled Python interpreter (`pythonw.exe`,
+`python.exe` and its DLLs) keeps the Python Software Foundation's signature.
+
+This tool itself contacts no GitHub host while it runs, and it has no update check. A Codex
+process, including one this tool starts, may refresh Git marketplaces of its own accord;
+that is Codex's behaviour, and once installing has
+repointed this product's marketplace, it points at the local copy rather than at GitHub.
 
 ## What it reads
 
-It reads Codex's own local state, read-only, to notice that a task was interrupted:
+It reads Codex's own local state to notice that a task was interrupted and to decide when
+resuming is safe. Codex's databases are opened read-only (SQLite `mode=ro` with
+`query_only`), and rollout files are opened for reading only:
 
-- lifecycle records — whether a turn failed, and the structured error variant Codex recorded;
-- the exact conversation UUID and turn ordinal;
+- lifecycle records — whether a turn failed, when, and where it sits in the conversation;
+- the error Codex recorded for the failed turn. The category comes from the structured error
+  code Codex recorded and the HTTP status it carries. The error's message text is consulted
+  only when Codex recorded no code at all, and then only for a short fixed list of
+  connection, timeout and stream-interruption phrases. Either way only a category name is
+  kept, and the error itself is dropped at once;
+- the exact conversation UUID, turn id and turn ordinal;
+- the conversation's row in Codex's thread list and the first line of its rollout file (the
+  session header). The header is parsed whole, up to 256 KiB, and only its id and origin
+  fields are used, to confirm the conversation is a desktop-app conversation it may act on.
+  The header can hold other session details as well, such as the working directory's full
+  path; those are parsed and discarded;
 - rate-limit and usage snapshots, for the reset timestamp;
-- `threads.name`, the project name and the working directory's last path segment, used only as
-  labels in a notification.
+- `threads.name`, the project name and the working directory (only its last segment is
+  kept), used only as labels in a notification.
 
-It deliberately does not read the fields that hold your prompt. On the current Codex schema
-`title`, `preview` and `first_user_message` contain the raw first message, so they are never
-read; display labels come from `threads.name` only. Identity always comes from the UUID, never
-from a label.
+It also asks Windows content-free questions, chiefly two: which ChatGPT and Codex processes
+are running (process id, parent and executable path), to find the desktop app; and, through
+the Restart Manager, which process has the conversation's lock file open, to tell whether
+the conversation is open in the app. The rest are content-free too: the path and start time
+of a process it found, to confirm it is still the same one; the per-user registry values it
+registered itself; and the integrity level of the watcher's single-instance mutex and stop
+event, a check that is on the main branch and ships in the release after v0.5.7.
 
-It never writes to Codex's files, never takes a lock on them, and never touches credential
-storage.
+No decision rests on the text of your messages, except whether one of them carries this
+tool's own marker (below). It never selects the `title`, `preview` or
+`first_user_message` columns, which on the current Codex schema contain the raw first
+message, and the conversation-name label comes from `threads.name` only. Identity always
+comes from the UUID, never from a label.
+
+Two reads pass over your conversation itself, and it is better to say so plainly:
+
+- **For a usage limit only**, to find when the limit resets, it reads up to 8 MiB of the
+  conversation's rollout file ending at the failure, into memory. That part of the file is
+  your conversation. It keeps only the rate-limit numbers and whether the failure was a
+  usage limit, and discards the rest when the scan ends.
+- **To prove its own message arrived**, it has SQLite search that conversation's user
+  messages and queued messages for its own marker. SQLite reads those rows to answer; only
+  rows containing the marker — the tool's own continuation message — come back.
+
+No conversation content from either is stored, logged or sent. What is kept is the reset
+time (which is also logged) and the limit's bucket name, and the id of the tool's own queued
+message.
+
+It does not itself open a Codex database, rollout or configuration file for writing. SQLite's
+read-only access does take shared locks and, for a WAL-mode database, opens the
+shared-memory index (the `-shm` file) for writing to update it. It does not take the app's
+thread writer lock, and does not itself read credential storage: the Codex processes it
+starts use Codex's own stored sign-in, and this tool never sees it.
+
+When Codex's state has to change, it asks Codex to make the change through Codex's own
+interfaces:
+
+- `codex queue` adds its one continuation message to one exact conversation;
+- the App Server's `thread/queue/delete` withdraws that same message, when it has to;
+- at install and uninstall, `codex plugin marketplace add` registers the installation
+  directory as the `codex-auto-resume-windows` marketplace and `remove` removes it by name,
+  and `codex plugin add` and `remove` act on this plugin. In v0.4.0 through v0.5.7,
+  `codex plugin marketplace upgrade` acts on every Git marketplace you have configured;
+  acting on that marketplace alone, by name, is on the main branch and ships in the release
+  after v0.5.7 (see [Installing it](#installing-it)). Installing repoints the
+  `codex-auto-resume-windows` marketplace at this installation, replacing whatever source
+  that name had; uninstalling removes it only while it still points at this installation.
+
+Codex makes those changes itself. The Codex processes it starts may also update Codex's own
+logs and caches as a side effect, as any Codex process does.
 
 ## What it runs
 
@@ -74,64 +229,164 @@ already there:
 
 - the official `codex` binary — `codex queue` to continue the conversation, and
   `codex app-server --stdio` to read your usage and to remove a queued item it put there
-  itself;
+  itself. The only requests it sends the App Server are `initialize`,
+  `account/rateLimits/read` and `thread/queue/delete`, plus the `initialized` notification
+  that completes the handshake; it refuses every request the server sends back;
 - short `codex --version` and `codex queue --help` probes, to confirm it is driving the
   interface it expects;
-- Windows PowerShell, to ask the Restart Manager which process owns a Codex file and to
-  raise a notification.
+- Windows PowerShell, by its full path under `System32` and with fixed scripts, to list the
+  running ChatGPT and Codex processes and to raise a notification. The Restart Manager is
+  called directly, not through PowerShell. Setting up the Start Menu shortcut runs a fixed
+  PowerShell script too.
 
-Model requests are made by the official Codex binary, already signed in, exactly as they
-would be if you had typed the message yourself.
+Values such as a notification's label or a shortcut's path reach those scripts as
+environment variables rather than as script text, so PowerShell does not parse them as code.
+From v0.4.0 through v0.5.6 the names a notification shows were written into the script, and
+a conversation, project or folder name containing a curly quote could run as a command
+(before v0.4.0, notifications held only fixed text, a time and a short id). In v0.5.0
+through v0.5.6 the Start Menu shortcut's paths were written into its script the same way;
+those come from where the tool is installed rather than from a conversation. v0.5.7 fixed
+both. No Python code here uses `shell=True`, `os.system`, `eval` or `exec`, and every
+Python subprocess gets an argument list. Installing, uninstalling and the plugin's setup are PowerShell
+scripts as well (`install\install.ps1`, `scripts\bootstrap.ps1`), and the installer runs
+the `codex plugin` commands listed above.
 
-On every one of those invocations it also turns Codex's own reporting off: analytics
-disabled, every OpenTelemetry exporter set to none, prompt logging off, and the ChatGPT
-base URL pinned to the official one so a stray local configuration cannot send a
-continuation somewhere else. Those are settings for the subprocess this tool starts, not
-for your own Codex sessions, which are unaffected.
+The resumed turn is not run by any of those processes. `codex queue` places the message in
+Codex's queue and exits; your Codex desktop app picks it up and runs the turn, signed in as
+you and under your own settings, exactly as if you had typed the message yourself, and sends
+it to OpenAI as it does every turn. The one thing this tool asks the Codex processes it
+starts to fetch from OpenAI is your usage (`account/rateLimits/read`). Codex identifies
+these requests as coming from this tool (client name `codex_auto_resume` and a version
+number), so OpenAI can see that you use it and when it checks. Every App Server session it opens,
+including one that only withdraws its own queued message, introduces itself to Codex that
+way. In v0.5.7 and earlier releases the version it gives is a fixed `0.1`; giving the
+product's real version is on the main branch and ships in the release after v0.5.7. It asks
+for usage only when a recovery is due and the conversation is open in the app, and reuses
+the answer for 30 seconds. What a Codex process does on its own account when it starts —
+keeping its sign-in current, for instance — is Codex's behaviour, not something this tool
+requests, and it has not been measured.
+
+Every `codex` process the recovery runtime starts runs with `OTEL_SDK_DISABLED=true` set in
+its environment. The `codex app-server` and `codex queue` processes also get flags that turn
+analytics off (`analytics.enabled=false`), set the OpenTelemetry exporters
+(`otel.exporter`, `otel.trace_exporter`, `otel.metrics_exporter`) to none, turn prompt
+logging off (`otel.log_user_prompt=false`) and pin the ChatGPT base URL to the official one.
+Those settings apply only to the processes this tool starts. They do not change the desktop
+app: the resumed turn runs in the app under your own Codex settings.
+
+## When you use it from Codex
+
+The plugin gives Codex tools (`get_status`, `list_pending`, `open_settings` and the controls)
+and a skill that runs the tool's commands (for example `status`, `pending`, `doctor` and
+`logs`). When they
+run inside a Codex conversation, what they return becomes part of that conversation. The
+one-line summary always does, and the structured data may as well; Codex sends the
+conversation to OpenAI like any tool output. That is:
+
+- from `get_status`: the version, whether recovery is on, whether the watcher is running and
+  whether sign-in autostart is registered, counts by state, and your settings — which
+  include the Codex executable path if you set one. In v0.5.0 through v0.5.7 it also returns
+  the installation directory's path, which normally includes your Windows user name; leaving
+  it out is on the main branch and ships in the release after v0.5.7;
+- from `list_pending`: the pending recoveries, with their conversation ids, interruption ids,
+  states, categories, times and attempt counts; `open_settings` returns those together with
+  the status and settings above;
+- from the commands: the same, plus each pending recovery's reset time, limit bucket and
+  last reason code, the desktop app's process ids, and local paths such as the Codex executable, the Codex home,
+  the state file and the log file — which normally include your Windows user name — and,
+  from `logs`, recent log lines.
+
+None of it is prompt text, assistant output or tool content. The settings window, opened
+from the Start Menu, reads the same information on your machine and sends it nowhere.
 
 ## What it stores, and where
 
-Everything it records about your work lives under `%USERPROFILE%\.codex-auto-resume\`:
+Its own records live in its installation directory, `%USERPROFILE%\.codex-auto-resume\` by
+default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
+`CODEX_AUTO_RESUME_HOME`, points):
 
-- `config/state.sqlite` — pending recoveries: conversation UUID, turn ordinal, timestamps,
-  failure category, attempt counts, state;
+- `config/state.sqlite` — pending recoveries: conversation UUID, the interruption's id, the
+  failed turn's id and ordinal, timestamps, failure category, for a usage limit the limit's
+  bucket name and reset time and whether that reading was uncertain, attempt counts, state,
+  flags and the last reason code, and the two ids it needs to prove delivery (its marker and
+  the queued item's id); also the on/off switch for recovery, with when it was switched on
+  and the poll interval, and the switch for each conversation. None of it is content;
 - `config/settings.json` — your settings;
-- `logs/` — what the watcher did, by state name and conversation UUID.
+- `logs/` — `auto-resume.log`, what the watcher did, by reason code and conversation UUID;
+  `errors.log`, the Python traceback when something goes wrong; and `launcher.log`, a line
+  per launch (and why, if one failed).
 
-The logs record state transitions and identifiers, not content. No prompt text, assistant
-output, tool output or error body is written to them.
+Engine events are written from a fixed message table. The main log also records the state
+directory's path, which normally includes your Windows user name, and — for a Codex version
+this tool was not verified against — the version string `codex --version` printed. Prompt
+text, assistant output, tool output and Codex's error text are not deliberately written to
+any log. When something fails, `errors.log` receives the full Python traceback, and
+`launcher.log` and `errors.log` receive the exception's message; this tool does not control
+what text an exception carries.
 
-Outside that directory it registers ordinary per-user Windows plumbing, none of it needing
-administrator rights and none of it containing anything about your conversations: a Start
-Menu shortcut, the sign-in autostart value (unless you skip it), the notification sender
-identity Windows requires before it will draw a toast at all, and the handler for the
-notification button's `codex-auto-resume:` link. Uninstalling removes them.
+Beside those it keeps the program itself (`app\` and `runtime\`), the settings window, the
+icon notifications use, the sign-in launcher, and `runtime.json`, which records where the
+plugin is installed.
+
+Two traces of your conversations live outside that directory, and neither is written by
+this tool directly.
+Windows keeps the notifications it showed in its notification history for a while, or until
+you clear them.
+And each resumed conversation contains the continuation message, with its
+`[codex-auto-resume:…]` marker, in Codex's own history, like any message.
+
+Outside that directory it also registers ordinary per-user Windows plumbing, none of it
+needing administrator rights and none of it containing anything about your conversations: a
+Start Menu shortcut carrying the tool's notification identity, which Windows requires before
+it will draw a toast at all; the registry entry that gives that identity its name and icon;
+the sign-in autostart value (unless you skip it); and the handler for the notification
+button's `codex-auto-resume:` link. Through the `codex plugin` commands it registers this
+plugin and its local marketplace in your Codex configuration, and Codex keeps its own copy
+of the plugin. Uninstalling removes those Windows entries that belong to this installation,
+and asks Codex to remove the plugin and the marketplace only while they still point at this
+installation; Codex then removes its own copy.
 
 Uninstalling keeps the state directory by default so a reinstall does not lose pending
-recoveries; `Uninstall.cmd` with the purge option removes it. You can delete it yourself at
-any time.
+recoveries; `Uninstall.cmd -Purge` removes it. You can delete it yourself at any time.
 
 ## Notifications
 
-Windows notifications are raised locally through the operating system's own notification API.
-They show a display label, a local time and the conversation UUID — never prompt text, error
-text or account data. They are not routed through any service.
+Windows notifications are raised locally through the operating system's own notification
+API. They show up to two labels — drawn from the conversation's name as Codex stores it, the
+project name and the folder name — each on one line and at most 72 characters, plus the
+conversation UUID. A usage-limit notice also shows the local reset time. They carry no error
+text or account data, and this tool does not route them through any service. If Codex
+derived the name from your first message, the label reflects it, as Codex's own list does.
 
 ## Third parties
 
-**GitHub, when you install or update from the plugin** — the download described above, and
-nothing else. It is subject to GitHub's own privacy practices, as any download would be.
+**GitHub**, for the release download when you install or update from the plugin, or when
+you download the ZIP yourself, and for the marketplace refresh described under
+[Installing it](#installing-it) when a marketplace it refreshes points at GitHub. It is
+subject to GitHub's own privacy practices, as any download would be.
 
-Apart from that there are none. What runs is the Python standard library, the interpreter
-that ships in the release archive, and two small Windows programs built from this repository
-— the settings window and the MCP launcher. It integrates only with the Codex installation
-already on your machine.
+**OpenAI**, only through the official Codex app and CLI already signed in on your machine:
+the usage check, which Codex identifies as coming from this tool; the resumed turn; and
+whatever the plugin's tools and commands return inside a Codex conversation. This tool has
+no connection to OpenAI of its own; that traffic is Codex's, under your own account. If you
+have configured Codex to use a different model provider, the conversation goes there
+instead, as all your Codex conversations do.
 
-## Future versions
+**Other marketplace hosts**, through Codex's marketplace refresh at install: a surviving
+registration named `codex-auto-resume-windows` is refreshed from wherever it points, and the
+installers of v0.4.0 through v0.5.7 refresh every Git marketplace you have configured, from
+wherever each one points. Refreshing only this product's marketplace, by name, is on the
+main branch and ships in the release after v0.5.7.
 
-If any form of opt-in reporting is ever added, it will be off by default, it will say exactly
-what it would send before sending anything, and this document will describe it before the
-release that contains it. Nothing of the kind exists today.
+Beyond these, and a host that a GitHub redirect might send the download request to (see
+[Installing it](#installing-it)), this tool sends nothing to any other party; Windows may
+make certificate checks of its own during the download. What runs is
+the Python standard library, the interpreter that ships in the release archive, two small
+Windows programs built from this repository — the settings window and the MCP launcher —
+Windows PowerShell, the .NET C# compiler Windows PowerShell uses to build the shortcut
+helper when it creates the Start Menu shortcut, `cmd.exe` (with `chcp.com`, which sets the
+console to UTF-8) for `Install.cmd` and `Uninstall.cmd`, and the Codex installation already
+on your machine.
 
 ## Questions
 

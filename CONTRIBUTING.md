@@ -36,27 +36,106 @@ declaring an MCP server (see below).
 
 ## Building a release
 
+This section describes the release process on the main branch. The split of the release
+workflow into build and publish jobs, the actions pinned to commits, Dependabot, the
+reproducible executables, the CRLF checkout and the executables' version resources are on
+the main branch and ship in the release after v0.5.7. Every archive published so far,
+v0.5.0 through v0.5.7, was built by the earlier single-job workflow, which referred to its
+actions by floating tags, and with executables that cannot be reproduced.
+
 ```bash
 powershell -ExecutionPolicy Bypass -File build/make_gui.ps1
 python build/make_release.py
 ```
 
-The first builds `CodexAutoResumeSettings.exe` and `codex-auto-resume-mcp.exe`; the second
-downloads the pinned embeddable Python (checksum-verified), assembles the payload, and writes
-the ZIP and its SHA-256 into `build/dist/`.
+The first builds `CodexAutoResumeSettings.exe` and `codex-auto-resume-mcp.exe`, makes them
+reproducible (below), and prints the compiler it used and each executable's SHA-256; it
+needs `python` on `PATH` for that step. The second downloads the pinned embeddable Python
+(checksum-verified), assembles the payload, and writes the ZIP and its SHA-256 into
+`build/dist/`.
 
 Releases are published by the tagged GitHub Actions workflow, not from a developer machine.
+On the main branch it has two jobs. `build` runs the repository's code - the tests and the
+build scripts - with a read-only token that checkout does not leave on disk. `publish`
+holds the rights to create the release and attest it, runs none of the repository's
+scripts or tests, and runs only on a tag push. Every action the workflows use is pinned to
+a full commit SHA. Dependabot proposes updates as pull requests; `.github/dependabot.yml`
+turns on no automatic merging, and each one is meant to be reviewed and merged by a person.
+Nothing in the repository checks its own settings on GitHub.
+
+### Making the build reproducible
+
+The build is designed so that, from a fresh clone, with the same build of the in-box
+compiler and the same Python build, the same source produces the same archive, byte for
+byte, and a rebuild of a tag can be compared with the published digest. How far that has
+been verified is set out below. It applies only to a tag whose source contains
+`build/normalize_pe.py`, and no release from v0.5.0 through v0.5.7 has one. What it
+relies on:
+
+- **The executables.** The in-box C# compiler has no `/deterministic` switch, and two builds
+  of the same source differ, as measured, in exactly two fields: the COFF header's timestamp and the
+  module's random MVID. `build/normalize_pe.py` sets the first to a constant and the second
+  to a GUID derived from the module's own content, as Roslyn's `/deterministic` does for the
+  MVID. It locates both by parsing the PE and CLI metadata, and refuses a file that fails
+  its structural checks, for example one with a debug directory or a PE checksum.
+  `make_gui.ps1` runs it on both executables. The version resource they carry is
+  generated from the manifest, so it depends on the source alone.
+- **The archive.** `build/make_release.py` fixes the file order, the entry timestamps and
+  the compression level, and writes no build-host path. The `zipfile` and `zlib` modules
+  that write it still come from the Python that runs it, so for a comparison use the
+  Python line the release workflow uses, 3.13, or at least the same zlib build: on
+  Windows, Python 3.14 and later use zlib-ng, which can compress the same files to
+  different bytes.
+- **Line endings.** The archive packs source files, so their line endings are part of its
+  bytes. `.gitattributes` checks every text file out with CRLF whatever the machine's
+  `core.autocrlf` says; the repository still stores LF.
+- **Checked, not assumed.** The release workflow builds the executables twice and refuses to
+  continue if the digests differ, and `tests/test_reproducible.py` compiles a real program
+  twice with the real compiler and holds the normaliser to the two-field claim.
+
+How far that has been verified: two local builds, and a build from a separate clone,
+produced identical executables; the archive writer reproduced a published archive byte
+for byte from its entries with the same zlib (1.3.1). Whether GitHub's runner produces the
+same bytes as a local build has not been verified. It depends on the build of the in-box
+compiler, which is why `make_gui.ps1` prints it, and on the Python that writes the archive.
+
+### Rebuilding a tag and comparing digests
+
+For a tag whose source contains `build/normalize_pe.py`, start from a fresh clone, so
+`.gitattributes` decides the line endings rather than an old checkout, and build with
+Python 3.13:
+
+```powershell
+git clone --branch v<version> --depth 1 https://github.com/songyb111-gachon/codex-auto-resume-windows.git
+cd codex-auto-resume-windows
+powershell -ExecutionPolicy Bypass -File build/make_gui.ps1
+python build/make_release.py
+Get-Content .\build\dist\CodexAutoResume-v<version>-win-x64.zip.sha256
+```
+
+Compare the digest with the published `.sha256` and with the version's entry in
+[`scripts/release.json` on `main`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json).
+If they differ, compare the `compiler` line and the two executable digests `make_gui.ps1`
+printed with the same lines in the release run's log, while GitHub still retains that log,
+and compare the files inside the two archives;
+[`docs/VERIFY.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md)
+has a snippet that does that without extracting either. If every file matches and the
+archive digest still differs, look at the Python and zlib that wrote the archive. A tag
+whose source has no `build/normalize_pe.py` predates all of this - that is every release
+published so far, v0.5.0 through v0.5.7 - and its executables will not match.
 
 ### After a release is published: pin its digest
 
 The Codex plugin installs the release by downloading it, so it needs to know what the
 archive should hash to. `scripts/release.json` maps a version to that digest, and a version
-simply has no entry there until its archive exists — a chicken-and-egg the build cannot
-solve, because the archive is not reproducible. Absent and `null` mean the same thing to
-the bootstrap, so there is no placeholder to add before tagging and none to find afterwards:
-publishing adds the key. (The in-box C# compiler stamps
-a fresh module version GUID into every assembly, so two builds of identical source differ.
-`build/make_release.py` says so in full.)
+has no entry there until its archive exists (the v0.5.2 to v0.5.4 tags carried a `null`
+placeholder, which the bootstrap treats the same as no entry; v0.5.0 and v0.5.1, published
+before the table existed, have none at all). The archive contains `release.json`
+itself, so it cannot carry its own digest, and the pin is taken from the published file
+rather than from a local rebuild because it has to describe the bytes people download - and
+a runner build matching a local one is the part that has not been verified. Absent and
+`null` mean the same thing to the bootstrap, so there is no placeholder to add before
+tagging and none to find afterwards: publishing adds the key.
 
 So, once the release is up:
 
@@ -66,13 +145,17 @@ So, once the release is up:
 
 Until that commit exists, the plugin verifies against the published `.sha256` sidecar
 instead and says so when it runs. That is weaker — the sidecar comes from the same origin
-as the archive — so it is worth closing rather than leaving.
+as the archive — so it is worth closing rather than leaving. The commit does not reach the
+plugin copy an install registers: that copy carries the archive's own `release.json`, so
+for its own version it keeps falling back to the sidecar (or, with `-ArchivePath`, to no
+comparison) and says so.
 
-### A published version is immutable
+### Do not change a published version
 
-`v0.5.4` names one archive, with one SHA-256, for as long as the release exists. There is
-no supported way to change the bytes behind a published version, and the release workflow
-refuses to try: publishing stops if the version already has assets.
+`v0.5.4` is meant to name one archive, with one SHA-256, for as long as the release exists.
+There is no supported way to change the bytes behind a published version, and the release
+workflow, since v0.5.4, refuses to try: publishing stops if the version already has
+assets.
 
 This is not tidiness. The plugin's bootstrap pins a version's digest and refuses anything
 else, so replacing a published archive either breaks every install of that version or -
@@ -83,19 +166,41 @@ So a correction gets a new version. If a published archive turns out to be wrong
 version, tag, and publish that; the mistaken release stays as a record of what was actually
 released, which is the point of a release.
 
-The manual dispatch still exists and is now a dry run: point it at any ref and it builds,
-tests and verifies, then keeps the archive as a workflow artifact. It cannot create or
-change a release.
+That refusal is the workflow's rule, not GitHub's. The releases from v0.5.0 through v0.5.7
+are not GitHub "immutable releases" - a repository setting; GitHub reports each of them as
+not immutable - so someone with write access could still replace an asset by hand. What
+would show it is the digest pinned on `main`, and the build provenance attestation checked
+against the release workflow and the tag, which is why
+[`docs/VERIFY.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md)
+tells users to check both.
+
+The manual dispatch still exists. On the main branch it is a dry run: point it at any ref
+and it builds, tests and verifies with a read-only token, then keeps the archive as a
+workflow artifact. The publish job runs only on a tag push, so a dispatch of the
+main-branch workflow cannot create or change a release. That is on the main branch and
+ships in the release after v0.5.7. In the earlier single-job workflow, which built every
+archive from v0.5.0 through v0.5.7, a dispatch ran with the workflow's write permissions.
+In its v0.5.2 and v0.5.3 versions, a dispatch given a tag rebuilt that tag and replaced
+the release's assets (`--clobber`). Those copies of the workflow remain at those tags, and
+someone with write access can still dispatch them. Dispatched on its own tag, such a copy
+first tries to create that version's release, which fails because the release exists, so
+it reaches the replace step only when run from a branch that holds it. In its v0.5.0 to
+v0.5.3 versions, a dispatch started on a tag with no release yet could also create that
+release (in v0.5.2 and v0.5.3, from a build of the ref named in its `tag` input), with no
+attestation. In its versions from v0.5.4 on, a dispatch started on a tag, while that version had no assets yet, could
+publish and attest a build of any ref whose `plugin.json` declared that tag's version;
+the attestation records which event started the run.
 
 > Actions → **release** → Run workflow → optionally set **ref**.
 
 ### Changing anything visual
 
 Colours, the icon and the generated files that carry them are covered in
-[`docs/BRAND.md`](docs/BRAND.md). The short version: the palette lives in
-`src/codex_auto_resume/brand.py`, `gui/Brand.cs` and `assets/brand/icon.svg` are generated
-from it, and `tests/test_brand.py` regenerates both and compares. Do not write a colour
-literal into the settings window or the panel stylesheet; there is a test for that too.
+[`docs/BRAND.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/BRAND.md).
+The short version: the palette lives in `src/codex_auto_resume/brand.py`, `gui/Brand.cs`
+and `assets/brand/icon.svg` are generated from it, and `tests/test_brand.py` regenerates
+both and compares. Do not write a colour literal into the settings window or the panel
+stylesheet; there is a test for that too.
 
 ## The MCP declaration is added at build time
 

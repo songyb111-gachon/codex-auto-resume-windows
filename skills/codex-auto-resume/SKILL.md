@@ -20,6 +20,11 @@ them instead of the commands below: they are
 typed, they refuse an invalid value instead of writing it, and `open_settings` shows the
 user a panel they can read and change directly.
 
+`resume_auto_recovery`, `update_settings`, `restore_default_settings`, `cancel_recovery`,
+`reset_recovery_budget` and `start_watcher` are marked so that Codex asks the user before
+running them in Auto approval mode. If the user declines one, do not run the matching
+command below instead.
+
 Use the commands below when the tools are not available - the plugin's server has not
 started, or the user is asking to install, repair or remove the product, which the tools
 deliberately cannot do.
@@ -52,10 +57,20 @@ It is safe to run again - that is also the repair path and the upgrade path. Add
 
 Tell the user plainly what it is about to do before running it: it downloads this
 version's release archive from the project's GitHub releases over HTTPS, checks its
-SHA-256, checks the contents are this product at this version, and only then installs -
-into their user profile, touching nothing outside it. If they would rather do it
-themselves, the same archive is on the project's GitHub releases page and the ZIP
-contains `Install.cmd`.
+SHA-256, checks the contents are this product at this version, and only then installs,
+for their Windows user only and without administrator rights. Besides the files in
+`%USERPROFILE%\.codex-auto-resume` it registers the watcher to start at sign-in (unless
+`-NoStartup`), a Start Menu entry and a notification sender, and this plugin with Codex.
+
+Nothing this project builds is code-signed, so Smart App Control may block its two small
+programs, and SmartScreen may warn about a downloaded `Install.cmd`. Say so plainly if it
+happens, and do not suggest turning either off.
+
+If they would rather do it themselves, the same archive is on the project's GitHub
+releases page and the ZIP contains `Install.cmd`. `Install.cmd` does not check the archive
+it came in, so tell them to verify the ZIP before extracting it, as described in
+https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md.
+Never state a digest yourself.
 
 If it reports that it could not download, say so and stop. Do not look for another
 source for the archive, do not offer a different URL, and do not try to assemble an
@@ -102,7 +117,10 @@ pick "the most recent thread".
    is set and exactly equals one of those listed thread IDs, use that one.
 3. Otherwise show the pending entries and ask which one to cancel.
 
-Cancelling affects only that conversation. It does not turn off auto resume globally.
+Cancelling affects only that conversation, but all of it: every recovery in it that has
+not been sent is cancelled, and auto resume is switched off for that conversation. A
+continuation already in Codex's queue is withdrawn when the watcher next checks it, if it
+is still queued. It does not turn off auto resume globally.
 
 ## Reporting results
 
@@ -110,7 +128,9 @@ Report what the command actually printed. Useful fields from `status` and `pendi
 
 - `auto-resume` — whether it is on at all.
 - `watcher` — `running` means it is waiting in the background. `not running` means nothing
-  will be resumed; offer to run `enable`, which also starts it.
+  will be resumed; offer the `start_watcher` tool, or `enable`, which also starts it but
+  switches auto resume back on if the user had paused it. `unknown` means the check itself
+  could not answer; do not report it as running, and offer `doctor`.
 - `state` on a pending entry:
   - `waiting_reset` / `waiting_poll` — waiting for the usage limit to reset.
   - `waiting_backoff` — a temporary failure; waiting out a short bounded delay.
@@ -124,8 +144,9 @@ Report what the command actually printed. Useful fields from `status` and `pendi
   - `retry_budget_exhausted` / `no_progress_exhausted` — recovery gave up on purpose, either
     after too many attempts or after repeated attempts that produced nothing. Tell the user to
     look at that conversation first. If they want it to keep trying anyway, `reset_recovery_budget`
-    gives that one interruption its attempts back — it sends nothing, and every check runs again
-    from the top. Never offer it as a way to "force" a resume.
+    gives that one interruption its attempts back and switches auto resume back on for its
+    conversation — it sends nothing, and every check runs again from the top. Never offer it as
+    a way to "force" a resume.
 
 `retry_now` brings a waiting recovery's next attempt forward. It is not a send: the watcher still
 revalidates the interruption, still needs the conversation open, still waits for usage, and still
@@ -139,7 +160,8 @@ There are three ways to change a setting, and all three write the same file thro
 validator, so a value set in one is the value the others show:
 
 - `open_settings` — the panel, in this conversation. Best when the user wants to look.
-- `update_settings` — one or more named settings. Only the named ones change.
+- `update_settings` — one or more named settings. Only the named ones change, and it accepts
+  only the settings described below.
 - **Start Menu → Codex Auto Resume** — a standalone window that works with Codex closed.
 
 Never edit `settings.json` by hand, and never tell the user to. A hand-written file is
@@ -165,26 +187,35 @@ Turning notifications off changes nothing about whether a task is recovered - sa
 people reasonably assume otherwise.
 
 Do not offer to build any other interface. There is no checkbox inside the Codex usage-limit
-notice and none can be added; see the project's docs/PLUGIN.md if asked why.
+notice and none can be added through the Codex plugin API; see
+https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/PLUGIN.md if asked
+why.
 
 ## What it does and does not do
 
-- Recovers a **usage limit**, and failures it can positively classify as temporary: connection
-  failures, timeouts, transient 429s, server 5xx, and stream disconnections.
+- Recovers a **usage limit**, and failures it can positively classify as temporary from the
+  error code Codex records: connection failures, rate limits, server errors and overloads, and
+  stream disconnections. Only when Codex recorded no code at all does it match a short list of
+  transport-failure phrases. Codex 0.153.4 records many timeouts and gateway errors (502, 503,
+  504) with a generic code; those count as unknown and are not retried.
 - It is **not** a general retry tool. User cancellation, permission, approval, policy, invalid
   requests, context-length errors and permanent authentication failures are never retried — and
   neither is any failure it cannot classify. If asked to "retry everything", explain that
   unknown failures are deliberately left alone, and do not try to work around it.
 - Resumes only the **exact** interrupted conversation.
-- Does nothing while any part of the situation is uncertain. It prefers missing a resume
+- Sends nothing while any part of the situation is uncertain. It prefers missing a resume
   over resuming twice.
 - The conversation must be **open in the Codex app** at reset time. If it is not, the entry
   waits at `waiting_for_loaded_thread` until the user opens it. This is a real limitation;
   state it plainly rather than promising fully unattended recovery.
-- Reads Codex's local state read-only. It never edits Codex files, never touches
-  credentials, and nothing it reads leaves the machine. There is no telemetry and no
-  update check; the only part that uses the network is the setup script above, which
-  downloads and verifies the release from GitHub.
+- Its own code opens Codex's databases and files read-only and never reads credentials.
+  What changes in Codex, Codex makes itself when asked: its command-line queue adds the
+  continuation to that one conversation, and its App Server withdraws that same message
+  when it has to.
+- Its own runtime has no network code, no telemetry and no update check. The setup script
+  downloads the release from GitHub. The Codex processes it starts use the user's existing
+  sign-in to check usage, and the resumed turn goes to OpenAI like any turn the user starts.
+  What these tools and commands return becomes part of this conversation.
 
 ## Setup notes
 
@@ -192,6 +223,10 @@ notice and none can be added; see the project's docs/PLUGIN.md if asked why.
   pending entries. Run again when the user asks to repair or update it: if the installed
   version already matches this plugin it re-checks the registration rather than
   downloading anything.
+- An upgrade asks the running watcher to stop and waits up to a minute; it never ends it by
+  force. If setup says the previous watcher is still running, it will exit when it finishes
+  what it is doing; then `start_watcher` starts the new version. Do not end the process
+  yourself.
 - There is one installation, in `%USERPROFILE%\.codex-auto-resume`, and everything points
   at it: the watcher, the sign-in entry, the notification buttons, the settings window,
   this plugin's tools and the command line. If the user has two, that is a fault worth
@@ -207,17 +242,24 @@ notice and none can be added; see the project's docs/PLUGIN.md if asked why.
 ## Removing it
 
 `codex plugin remove` removes this skill but does not stop a watcher that is already
-running, and it does not remove the installation the setup script made.
+running, does not remove the `codex-auto-resume-windows` marketplace the setup script
+registered, and does not remove the installation the setup script made.
 
 To remove everything, in this order:
 
-1. `uninstall` - stops the watcher and takes away every registration. Add `--purge` to
-   delete settings and pending recoveries too; without it they are kept so a later setup
-   picks them up.
-2. `codex plugin remove` - takes away this skill.
-3. Tell the user to delete `%USERPROFILE%\.codex-auto-resume`, which still holds the
-   application, the bundled Python and the settings window. Nothing is running by then, so
-   it is safe. Do not delete it for them without asking - if they skipped `--purge` it also
-   holds their pending recoveries.
+1. `uninstall` - stops the watcher, then removes the Windows registrations that belong to
+   this installation (sign-in entry, notification sender, Start Menu entry). If it cannot
+   confirm the watcher stopped it removes nothing and says so; report that and stop. It also
+   deletes its logs. Add `--purge` to delete settings and pending recoveries too; without it
+   they are kept so a later setup picks them up.
+2. `codex plugin remove codex-auto-resume@codex-auto-resume-windows` - takes away this skill.
+3. Run `codex plugin marketplace list --json`. If `codex-auto-resume-windows` is listed and its
+   `root` is inside the installation folder, remove it with
+   `codex plugin marketplace remove codex-auto-resume-windows`. If it points anywhere else,
+   leave it and tell the user where it points.
+4. Tell the user to delete `%USERPROFILE%\.codex-auto-resume`, which still holds the
+   application, the bundled Python and the settings window. If Windows reports a file in use,
+   Codex or the settings window still has it open: close both and try again. Do not delete it
+   for them without asking - if they skipped `--purge` it also holds their pending recoveries.
 
-Say which of the three you did. "Removed completely" is only true after all three.
+Say which of the four you did. "Removed completely" is only true after all four.
