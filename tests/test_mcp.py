@@ -243,7 +243,7 @@ class ToolBehaviourTests(McpTestCase):
         self.assertIs(self.control.get_status()["enabled"], True)
 
     def test_an_advanced_setting_is_refused_even_if_the_schema_is_ignored(self):
-        response = self.call("update_settings", {"codex_exe": "C:\somewhere\codex.exe"})
+        response = self.call("update_settings", {"codex_exe": r"C:\somewhere\codex.exe"})
         self.assertIs(response["result"]["isError"], True)
         self.assertIsNone(self.control.get_settings().get("codex_exe"))
 
