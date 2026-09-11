@@ -15,12 +15,13 @@ Two decisions worth stating, both learned the hard way:
   no network and installs the same bytes that were verified here.
 
 What is fixed here: file order, entry timestamps, compression level, and the absence of
-any build-host path. What is *not*, and the claim was previously overstated: the archive
-is not byte-reproducible, because the two C# executables in it are not. The in-box
-compiler stamps every assembly with a fresh module version GUID, so two builds of
-byte-identical source produce different binaries - measured, by building twice and
-comparing. The published checksum therefore identifies one build; it does not let anyone
-reproduce it. Saying otherwise would invite someone to verify something that cannot hold.
+any build-host path. The two C# executables are made repeatable separately: the in-box
+compiler stamps every assembly with a fresh timestamp and module version GUID, and
+build/normalize_pe.py replaces both with values derived from the rest of the file (see
+build/make_gui.ps1). Two builds from fresh clones of one commit, on one machine with the
+same compiler, produced a byte-identical archive. That is all that has been shown: a
+build on another machine, or with another compiler build, has not been compared. Every
+archive published up to v0.5.7 was built before this and is not reproducible.
 """
 from __future__ import annotations
 
@@ -66,8 +67,8 @@ EXCLUDE_SUFFIXES = {".pyc", ".pyo", ".log", ".sqlite", ".sqlite-wal", ".sqlite-s
 EXCLUDE_NAMES = {".owned-by-codex-auto-resume", "runtime.json", "settings.json",
                  "state.sqlite", ".DS_Store", "Thumbs.db"}
 
-# A fixed timestamp removes one source of build-to-build variation. It does not make the
-# archive byte-identical - see the module docstring for what does not.
+# A fixed timestamp removes one source of build-to-build variation. The module docstring
+# says what else is needed, and how far the result has been checked.
 ZIP_TIMESTAMP = (2026, 1, 1, 0, 0, 0)
 
 
