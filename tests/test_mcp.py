@@ -165,8 +165,29 @@ class ToolSurfaceTests(McpTestCase):
 
     def test_the_settings_schema_is_generated_from_the_shared_fields(self):
         properties = mcpserver.settings_schema()["properties"]
-        self.assertEqual(set(properties), set(settings.FIELDS))
+        offered = {e["name"] for e in settings.describe() if e.get("group") in mcpserver.USER_GROUPS}
+        self.assertEqual(set(properties), offered)
         self.assertIs(mcpserver.settings_schema()["additionalProperties"], False)
+
+    def test_advanced_settings_are_not_offered_to_a_model(self):
+        """codex_exe decides which binary the watcher runs; no GUI shows it, nor may MCP."""
+        properties = mcpserver.settings_schema()["properties"]
+        for name in ("codex_exe", "detection_lookback_hours"):
+            self.assertNotIn(name, properties)
+
+    def test_automation_can_be_reduced_freely_but_only_increased_with_approval(self):
+        """Codex asks before a tool marked destructive. Content in a conversation must not
+        be able to turn recovery back up behind the user's back."""
+        hints = {tool["name"]: tool["annotations"]["destructiveHint"] for tool in mcpserver.TOOLS}
+        self.assertNotIn("set_auto_recovery", hints, "one tool for both directions could not ask for one")
+        self.assertIs(hints["pause_auto_recovery"], False)
+        for name in ("resume_auto_recovery", "reset_recovery_budget", "start_watcher",
+                     "update_settings", "restore_default_settings", "cancel_recovery"):
+            with self.subTest(name):
+                self.assertIs(hints[name], True)
+        for name in ("open_settings", "get_status", "list_pending", "retry_now"):
+            with self.subTest(name):
+                self.assertIs(hints[name], False)
 
     def test_the_settings_schema_offers_no_unknown_failure_switch(self):
         for name in mcpserver.settings_schema()["properties"]:
@@ -209,9 +230,29 @@ class ToolBehaviourTests(McpTestCase):
 
     def test_pause_keeps_pending_recoveries(self):
         self.register()
-        self.call("set_auto_recovery", {"enabled": False})
+        # Start from "on": a fresh home is off already, and this test used to pass without
+        # the pause ever happening - it kept passing when the tool it called was removed.
+        self.control.set_enabled(True)
+        self.assertNotIn("isError", self.call("pause_auto_recovery", {})["result"])
         self.assertIs(self.control.get_status()["enabled"], False)
         self.assertEqual(len(self.control.list_pending()), 1)
+
+    def test_resume_turns_it_back_on(self):
+        self.control.set_enabled(False)
+        self.assertNotIn("isError", self.call("resume_auto_recovery", {})["result"])
+        self.assertIs(self.control.get_status()["enabled"], True)
+
+    def test_an_advanced_setting_is_refused_even_if_the_schema_is_ignored(self):
+        response = self.call("update_settings", {"codex_exe": "C:\somewhere\codex.exe"})
+        self.assertIs(response["result"]["isError"], True)
+        self.assertIsNone(self.control.get_settings().get("codex_exe"))
+
+    def test_status_does_not_carry_the_install_path(self):
+        """MCP output is part of the conversation Codex sends to OpenAI, and the default
+        install path contains the Windows user name."""
+        status = self.call("get_status", {})["result"]["structuredContent"]
+        self.assertNotIn("home", status)
+        self.assertNotIn(str(self.control.paths.home), json.dumps(status))
 
     def test_cancel_requires_the_exact_identifier(self):
         self.register()

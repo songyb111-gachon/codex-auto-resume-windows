@@ -362,7 +362,7 @@ function render() {
 
   pause.onclick = function () {
     pause.disabled = true;
-    HOST.callTool('set_auto_recovery', {enabled: !status.enabled}).then(function () {
+    HOST.callTool(status.enabled ? 'pause_auto_recovery' : 'resume_auto_recovery', {}).then(function () {
       status.enabled = !status.enabled;
       render();
     }, function () { pause.disabled = false; });

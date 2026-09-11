@@ -50,6 +50,11 @@ def _identifier_schema(title: str) -> dict:
             "pattern": "^[0-9a-fA-F]{64}$"}
 
 
+# Settings groups a person can change from a front end. Anything else is not offered to
+# a model and is refused if a client sends it anyway.
+USER_GROUPS = frozenset({"recovery", "limits", "notifications"})
+
+
 def settings_schema() -> dict:
     """The update_settings input schema, generated from the shared field definitions.
 
@@ -60,6 +65,14 @@ def settings_schema() -> dict:
     properties = {}
     for entry in policy.describe():
         name = entry["name"]
+        # Only what a person can change in the settings window or the panel. The
+        # "advanced" group - which engine binary to run, how far back to look - is
+        # deliberately absent from both, and it was present here: a prompt-injected model
+        # could point codex_exe somewhere else without any approval prompt. Nothing
+        # executes an arbitrary path (the location is confined before anything runs), but
+        # recovery silently stopped at the next watcher start.
+        if entry.get("group") not in USER_GROUPS:
+            continue
         described = {"boolean": {"type": "boolean"},
                      "integer": {"type": "integer"},
                      "number": {"type": "number"},
@@ -125,7 +138,10 @@ TOOLS = [
                        "silently adjusted. There is no setting that retries an "
                        "unclassified failure; do not look for one.",
         "inputSchema": settings_schema(),
-        "annotations": {"readOnlyHint": False, "destructiveHint": False,
+        # Marked destructive so Codex asks first. A setting can turn recovery up - a
+        # category back on, more attempts - and content in a conversation must not be
+        # able to do that on the user's behalf without the user seeing it.
+        "annotations": {"readOnlyHint": False, "destructiveHint": True,
                         "idempotentHint": True, "openWorldHint": False},
     },
     {
@@ -138,14 +154,25 @@ TOOLS = [
                         "idempotentHint": True, "openWorldHint": False},
     },
     {
-        "name": "set_auto_recovery",
-        "title": "Pause or resume automatic recovery",
-        "description": "Global pause and resume. Pausing keeps every pending recovery; "
-                       "nothing is discarded and nothing is sent while paused.",
-        "inputSchema": {"type": "object",
-                        "properties": {"enabled": {"type": "boolean"}},
-                        "required": ["enabled"], "additionalProperties": False},
+        "name": "pause_auto_recovery",
+        "title": "Pause automatic recovery",
+        "description": "Global pause. Nothing is sent while paused. Pausing only ever "
+                       "reduces automation, so it needs no confirmation.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
         "annotations": {"readOnlyHint": False, "destructiveHint": False,
+                        "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "resume_auto_recovery",
+        "title": "Resume automatic recovery",
+        "description": "Undo a global pause. Recovery then continues under every usual "
+                       "check. This turns automation back on, so Codex asks the user "
+                       "before running it.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+        # These were one tool, set_auto_recovery, with no approval either way - so a
+        # prompt-injected turn could quietly reverse the user's pause. Pausing and
+        # resuming are now separate, and only the direction that adds automation asks.
+        "annotations": {"readOnlyHint": False, "destructiveHint": True,
                         "idempotentHint": True, "openWorldHint": False},
     },
     {
@@ -169,7 +196,8 @@ TOOLS = [
         "inputSchema": {"type": "object",
                         "properties": {"interruption_id": _identifier_schema("Interruption id")},
                         "required": ["interruption_id"], "additionalProperties": False},
-        "annotations": {"readOnlyHint": False, "destructiveHint": False,
+        # Destructive: it re-arms a recovery that had stopped, so Codex asks first.
+        "annotations": {"readOnlyHint": False, "destructiveHint": True,
                         "idempotentHint": False, "openWorldHint": False},
     },
     {
@@ -180,7 +208,8 @@ TOOLS = [
                        "it is not running. It starts the same process the installer "
                        "starts and decides nothing about any interruption.",
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
-        "annotations": {"readOnlyHint": False, "destructiveHint": False,
+        # Destructive: a watcher the user stopped would start recovering again.
+        "annotations": {"readOnlyHint": False, "destructiveHint": True,
                         "idempotentHint": True, "openWorldHint": False},
     },
     {
@@ -386,6 +415,11 @@ class Server:
     def _tool_update_settings(self, arguments) -> dict:
         if not arguments:
             raise ControlError("name at least one setting to change")
+        # The schema already omits them; a client that ignores the schema is refused here.
+        offered = set(settings_schema()["properties"])
+        refused = sorted(set(arguments) - offered)
+        if refused:
+            raise ControlError("not changeable from Codex: %s" % ", ".join(refused))
         values = self.control.update_settings(arguments)
         return self._reply("Updated %s." % ", ".join(sorted(arguments)), {"settings": values})
 
@@ -393,14 +427,14 @@ class Server:
         return self._reply("Settings restored to their defaults.",
                            {"settings": self.control.restore_defaults()})
 
-    def _tool_set_auto_recovery(self, arguments) -> dict:
-        enabled = arguments.get("enabled")
-        if not isinstance(enabled, bool):
-            raise ControlError("enabled must be true or false")
-        result = self.control.set_enabled(enabled)
-        return self._reply(
-            "Automatic recovery is now %s. Pending recoveries were kept."
-            % ("on" if result["enabled"] else "paused"), result)
+    def _tool_pause_auto_recovery(self, _arguments) -> dict:
+        result = self.control.set_enabled(False)
+        return self._reply("Automatic recovery is paused. Nothing will be sent until it is resumed.",
+                           result)
+
+    def _tool_resume_auto_recovery(self, _arguments) -> dict:
+        result = self.control.set_enabled(True)
+        return self._reply("Automatic recovery is on again. Every check still applies.", result)
 
     def _tool_cancel_recovery(self, arguments) -> dict:
         result = self.control.cancel_interruption(arguments.get("interruption_id"))

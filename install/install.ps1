@@ -678,7 +678,13 @@ if ($added.Code -ne 0) {
     }
 }
 if ($added.Code -ne 0) { Warn 'Could not register the local marketplace; the Codex skill may be unavailable.' }
-$null = Invoke-Codex $codex @('plugin', 'marketplace', 'upgrade')
+# Ours, by name - never the no-name form. Without a name, Codex refreshes every Git
+# marketplace the user has configured and reinstalls those vendors' plugins: an action on
+# other people's software that nobody asked this installer to take, and a network fetch on
+# the route that promises none. Measured in an isolated CODEX_HOME: for the local
+# marketplace registered above, the named form is a no-op ("not configured as a Git
+# marketplace"); it only does anything when a GitHub registration survived the repoint.
+$null = Invoke-Codex $codex @('plugin', 'marketplace', 'upgrade', $MarketplaceName)
 $installed = Invoke-Codex $codex @('plugin', 'add', ($PluginName + '@' + $MarketplaceName))
 if ($installed.Code -ne 0 -and (($installed.Err + $installed.Out) -match 'os error 5|back up plugin cache')) {
     # Codex replaces the plugin by backing up its cache directory, and it cannot while

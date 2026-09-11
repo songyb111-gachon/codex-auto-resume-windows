@@ -14,7 +14,7 @@ Windows only.
 ## Prefer the tools when they are available
 
 This plugin also provides tools (`open_settings`, `get_status`, `list_pending`,
-`update_settings`, `restore_default_settings`, `set_auto_recovery`, `cancel_recovery`,
+`update_settings`, `restore_default_settings`, `pause_auto_recovery`, `resume_auto_recovery`, `cancel_recovery`,
 `reset_recovery_budget`, `start_watcher`, `retry_now`). When they are available, use
 them instead of the commands below: they are
 typed, they refuse an invalid value instead of writing it, and `open_settings` shows the
@@ -31,11 +31,20 @@ parts that do the work are a Windows runtime, a settings window and a background
 which are not in the plugin and cannot be. So the first step is always the setup script,
 which downloads the matching release, verifies it and installs it.
 
-Run this, from the plugin root - the directory containing this plugin's `scripts/` folder:
+Run the plugin's own setup script **by its absolute path**. This file is
+`<plugin root>\skills\codex-auto-resume\SKILL.md`, so the script is
+`<plugin root>\scripts\bootstrap.ps1` - two directories up from this file, then
+`scripts`. Before running it, check that `<plugin root>\.codex-plugin\plugin.json` exists
+and names `codex-auto-resume`; if it does not, stop and say the plugin files could not be
+found.
 
 ```bash
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/bootstrap.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File '<plugin root>\scripts\bootstrap.ps1'
 ```
+
+Never run it as a relative `scripts/bootstrap.ps1`. The working directory is usually the
+user's project, and a project can contain a script of the same name - running that one
+with `-ExecutionPolicy Bypass` would run someone else's code in the user's name.
 
 It needs nothing installed first: no Python, no administrator rights, no manual download.
 It is safe to run again - that is also the repair path and the upgrade path. Add
