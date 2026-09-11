@@ -17,10 +17,11 @@ supported way to attach it with a plain .lnk writer.
 """
 from __future__ import annotations
 
-import base64
 import os
 from pathlib import Path
 import subprocess
+
+from . import pwsh
 
 SHORTCUT_NAME = "Codex Auto Resume.lnk"
 TIMEOUT_SECONDS = 60
@@ -93,25 +94,12 @@ namespace CodexAutoResumeShell {
   }
 }
 '@
-[CodexAutoResumeShell.Maker]::Create(%(lnk)s, %(target)s, %(args)s, %(workdir)s, %(icon)s, %(aumid)s, %(desc)s)
+[CodexAutoResumeShell.Maker]::Create($env:CODEX_AUTO_RESUME_ARG_LNK, $env:CODEX_AUTO_RESUME_ARG_TARGET, $env:CODEX_AUTO_RESUME_ARG_ARGS, $env:CODEX_AUTO_RESUME_ARG_WORKDIR, $env:CODEX_AUTO_RESUME_ARG_ICON, $env:CODEX_AUTO_RESUME_ARG_AUMID, $env:CODEX_AUTO_RESUME_ARG_DESC)
 """
 
 
 class ShortcutError(RuntimeError):
     """Static reason only; never includes a shell transcript."""
-
-
-def _ps_literal(value) -> str:
-    """A PowerShell single-quoted string: no interpolation, doubled quotes escape."""
-    return "'" + str(value or "").replace("'", "''") + "'"
-
-
-def _powershell() -> str | None:
-    root = os.environ.get("SystemRoot")
-    if os.name != "nt" or not root:
-        return None
-    path = os.path.join(root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
-    return path if os.path.isfile(path) else None
 
 
 def start_menu_dir() -> Path:
@@ -132,8 +120,7 @@ def exists() -> bool:
 
 def install(target, arguments="", icon=None, aumid=None, description="Codex Auto Resume") -> bool:
     """Create or replace our Start Menu shortcut. Returns True when written."""
-    shell = _powershell()
-    if shell is None:
+    if pwsh.executable() is None:
         raise ShortcutError("PowerShell is unavailable; cannot create the Start Menu entry")
     if aumid is None:
         from .startup import AUMID
@@ -143,25 +130,23 @@ def install(target, arguments="", icon=None, aumid=None, description="Codex Auto
         destination.parent.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         raise ShortcutError("Cannot create the Start Menu folder") from exc
-    script = _MAKER % {
-        "lnk": _ps_literal(destination),
-        "target": _ps_literal(Path(target).resolve()),
-        "args": _ps_literal(arguments),
-        "workdir": _ps_literal(Path(target).resolve().parent),
-        "icon": _ps_literal(Path(icon).resolve() if icon else ""),
-        "aumid": _ps_literal(aumid),
-        "desc": _ps_literal(description),
+    # Paths come from the install location, which can contain any character the user's
+    # profile name does - an apostrophe included. They are passed beside the constant
+    # script, never inside it; see pwsh.py for why quoting them was not enough.
+    values = {
+        "LNK": destination,
+        "TARGET": Path(target).resolve(),
+        "ARGS": arguments or "",
+        "WORKDIR": Path(target).resolve().parent,
+        "ICON": Path(icon).resolve() if icon else "",
+        "AUMID": aumid,
+        "DESC": description or "",
     }
-    encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
     try:
-        completed = subprocess.run(
-            [shell, "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
-            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            timeout=TIMEOUT_SECONDS, shell=False,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-    except (OSError, subprocess.SubprocessError) as exc:
+        code = pwsh.run(_MAKER, values, timeout=TIMEOUT_SECONDS)
+    except (OSError, subprocess.SubprocessError, pwsh.PowerShellError) as exc:
         raise ShortcutError("Cannot create the Start Menu entry") from exc
-    if completed.returncode != 0 or not destination.is_file():
+    if code != 0 or not destination.is_file():
         raise ShortcutError("The Start Menu entry could not be written")
     return True
 

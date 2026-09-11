@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### Security
+
+- **Fixed: a folder or conversation name could run PowerShell commands.** Affects every
+  release up to and including v0.5.6. Notifications and the Start Menu shortcut are
+  written with a short Windows PowerShell script, and each value - the conversation's
+  name, its project folder, the install path - was placed in that script as a quoted
+  string with ASCII apostrophes doubled. PowerShell also treats `‘` `’` `‚` `‛` as
+  single quotes, so a name containing one of them ended the string early and the rest
+  of the name ran as PowerShell, from the watcher, under your account. An ordinary name
+  such as `Bob’s project` was enough to stop the notification appearing; a crafted one
+  was enough to run a command. Confirmed against the real interpreter before the fix.
+
+  Values no longer become script text at all. They are handed to a constant script as
+  environment variables and read with `$env:`, which PowerShell never parses as code,
+  so there is no character a name could contain that changes what runs. The tests raise
+  every quote-like and interpolation character through the real interpreter and fail
+  on the previous code.
+
 ## v0.5.6 — Finished, not just working
 
 The last v0.5 release, and a quality pass rather than a feature one. **Recovery is

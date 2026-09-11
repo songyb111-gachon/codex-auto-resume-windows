@@ -13,7 +13,7 @@ import subprocess
 import unittest
 from unittest.mock import MagicMock, patch
 
-from codex_auto_resume import cli, messages, notify, startup
+from codex_auto_resume import cli, messages, notify, pwsh, startup
 from codex_auto_resume.store import Store
 
 THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
@@ -64,7 +64,7 @@ class ToastPayloadTests(unittest.TestCase):
         self.assertNotIn("<actions>", notify._toast_xml("t", "b", "press me", None))
 
     def test_command_is_passed_as_encoded_base64_never_as_shell_text(self):
-        with patch.object(notify, "_powershell", return_value="powershell.exe"), \
+        with patch.object(pwsh, "executable", return_value="powershell.exe"), \
              patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
             self.assertTrue(notify.show("t", "'; Remove-Item C:\\ -Recurse #", button=None, uri=None))
         argv = run.call_args.args[0]
@@ -74,14 +74,13 @@ class ToastPayloadTests(unittest.TestCase):
         self.assertFalse(any("Remove-Item" in part for part in argv))
 
     @staticmethod
-    def _embedded_xml(argv):
-        """Recover the toast document from the script that was actually sent."""
-        import base64
-        script = base64.b64decode(argv[argv.index("-EncodedCommand") + 1]).decode("utf-16-le")
-        line = next(l for l in script.splitlines() if "LoadXml(" in l)
-        literal = line[line.index("(") + 1:line.rindex(")")]
-        assert literal.startswith("'") and literal.endswith("'"), literal
-        return literal[1:-1].replace("''", "'")
+    def _embedded_xml(call):
+        """Recover the toast document from what was actually handed to PowerShell.
+
+        It travels in the child's environment, not in the script - see pwsh.py. The
+        script itself is checked separately to contain no value at all.
+        """
+        return call.kwargs["env"][pwsh.PREFIX + "XML"]
 
     def test_never_more_than_three_lines(self):
         """Regression: Windows renders three <text> elements and silently drops a fourth.
@@ -91,10 +90,10 @@ class ToastPayloadTests(unittest.TestCase):
         """
         from xml.etree import ElementTree
 
-        with patch.object(notify, "_powershell", return_value="powershell.exe"),              patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
+        with patch.object(pwsh, "executable", return_value="powershell.exe"),              patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
             notify.scheduled(THREAD, INTERRUPTION, 1788645827.0, "usage_limit",
                              {"name": "A task", "project": "A project", "cwd_basename": "a-repo"})
-        root = ElementTree.fromstring(self._embedded_xml(run.call_args.args[0]))
+        root = ElementTree.fromstring(self._embedded_xml(run.call_args))
         lines = [node.text for node in root.findall("./visual/binding/text")]
         self.assertLessEqual(len(lines), notify.MAX_TOAST_LINES)
         self.assertEqual(lines[0], "A task")
@@ -111,10 +110,10 @@ class ToastPayloadTests(unittest.TestCase):
 
         for language in messages.SUPPORTED:
             with self.subTest(language=language):
-                with patch.object(messages, "preferred_languages", return_value=[language]),                      patch.object(notify, "_powershell", return_value="powershell.exe"),                      patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
+                with patch.object(messages, "preferred_languages", return_value=[language]),                      patch.object(pwsh, "executable", return_value="powershell.exe"),                      patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
                     notify.scheduled(THREAD, INTERRUPTION, None, "usage_limit", {"name": "A task"})
                 lines = [node.text for node in
-                         ElementTree.fromstring(self._embedded_xml(run.call_args.args[0]))
+                         ElementTree.fromstring(self._embedded_xml(run.call_args))
                          .findall("./visual/binding/text")]
                 self.assertEqual(lines[1], messages.MESSAGES[language]["toast_usage_soon"])
                 self.assertLessEqual(len(lines), notify.MAX_TOAST_LINES)
@@ -125,9 +124,9 @@ class ToastPayloadTests(unittest.TestCase):
         for category, identity in (
                 ("usage_limit", {"name": "A task", "project": "A project", "cwd_basename": "a-repo"}),
                 ("server_5xx", {"name": None, "project": None, "cwd_basename": None})):
-            with self.subTest(category=category),                  patch.object(notify, "_powershell", return_value="powershell.exe"),                  patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
+            with self.subTest(category=category),                  patch.object(pwsh, "executable", return_value="powershell.exe"),                  patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
                 notify.scheduled(THREAD, INTERRUPTION, None, category, identity)
-                root = ElementTree.fromstring(self._embedded_xml(run.call_args.args[0]))
+                root = ElementTree.fromstring(self._embedded_xml(run.call_args))
                 lines = [node.text for node in root.findall("./visual/binding/text")]
                 rendered = " | ".join(lines)
                 self.assertLessEqual(len(lines), notify.MAX_TOAST_LINES)
@@ -140,9 +139,9 @@ class ToastPayloadTests(unittest.TestCase):
         # turned its own angle brackets into entities and made every toast fail.
         from xml.etree import ElementTree
 
-        with patch.object(notify, "_powershell", return_value="powershell.exe"),              patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
+        with patch.object(pwsh, "executable", return_value="powershell.exe"),              patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
             notify.show("title", "body", button="press", uri=notify.cancel_uri(INTERRUPTION))
-        root = ElementTree.fromstring(self._embedded_xml(run.call_args.args[0]))
+        root = ElementTree.fromstring(self._embedded_xml(run.call_args))
         self.assertEqual(root.tag, "toast")
         action = root.find("./actions/action")
         self.assertEqual(action.get("activationType"), "protocol")
@@ -152,22 +151,30 @@ class ToastPayloadTests(unittest.TestCase):
         from xml.etree import ElementTree
 
         nasty = "it's ' '' fine'"
-        with patch.object(notify, "_powershell", return_value="powershell.exe"),              patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
+        with patch.object(pwsh, "executable", return_value="powershell.exe"),              patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
             notify.show("t", nasty)
-        root = ElementTree.fromstring(self._embedded_xml(run.call_args.args[0]))
+        root = ElementTree.fromstring(self._embedded_xml(run.call_args))
         self.assertEqual(root.findall("./visual/binding/text")[1].text, nasty)
 
-    def test_powershell_literal_doubles_embedded_quotes(self):
-        self.assertEqual(notify._ps_literal("a'b"), "'a''b'")
-        self.assertEqual(notify._ps_literal("<x>"), "'<x>'")
+    def test_the_script_sent_to_powershell_contains_no_value(self):
+        """The toast text is data. It must never reach PowerShell as source code."""
+        import base64
+        title = "Bob’s project"
+        with patch.object(pwsh, "executable", return_value="powershell.exe"),              patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
+            notify.show(title, "body text")
+        argv = run.call_args.args[0]
+        script = base64.b64decode(argv[argv.index("-EncodedCommand") + 1]).decode("utf-16-le")
+        self.assertEqual(script, notify._SCRIPT, "the script must be the constant, unformatted")
+        self.assertNotIn("Bob", script)
+        self.assertIn(title, self._embedded_xml(run.call_args))
 
     def test_a_failing_or_missing_powershell_is_not_an_error(self):
-        with patch.object(notify, "_powershell", return_value=None):
+        with patch.object(pwsh, "executable", return_value=None):
             self.assertFalse(notify.show("t", "b"))
-        with patch.object(notify, "_powershell", return_value="powershell.exe"), \
+        with patch.object(pwsh, "executable", return_value="powershell.exe"), \
              patch.object(subprocess, "run", side_effect=OSError("nope")):
             self.assertFalse(notify.show("t", "b"))
-        with patch.object(notify, "_powershell", return_value="powershell.exe"), \
+        with patch.object(pwsh, "executable", return_value="powershell.exe"), \
              patch.object(subprocess, "run", side_effect=subprocess.TimeoutExpired("ps", 20)):
             self.assertFalse(notify.show("t", "b"))
 
@@ -227,7 +234,7 @@ class NotificationIdentityTests(unittest.TestCase):
     def test_an_unregistered_identity_still_sends(self):
         # Delivery must not depend on the display name being registered.
         self.assertIsNone(startup.aumid_registration())
-        with patch.object(notify, "_powershell", return_value="powershell.exe"),              patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
+        with patch.object(pwsh, "executable", return_value="powershell.exe"),              patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
             self.assertTrue(notify.show("t", "b"))
         self.assertIn("-EncodedCommand", run.call_args.args[0])
 
