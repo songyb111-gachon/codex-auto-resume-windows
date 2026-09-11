@@ -221,6 +221,36 @@ class ReleaseManifestTests(unittest.TestCase):
         self.assertIn("{version}", self.release["archive"])
         self.assertTrue(self.release["archive"].endswith(".zip"))
 
+    def test_the_templates_are_exactly_these(self):
+        """Pinned exactly. A merged edit to either would change what every future install
+        downloads - the security review found `archive` accepted a path-traversal value
+        with the whole suite green."""
+        self.assertEqual(self.release["download"],
+                         "https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/download/v{version}/")
+        self.assertEqual(self.release["archive"], "CodexAutoResume-v{version}-win-x64.zip")
+
+    def test_a_tagged_current_version_is_pinned(self):
+        """Once the current version has been tagged here, its pin must not go missing.
+
+        The released-versions check exempts the current version, because its digest cannot
+        exist until it is published - which also let the current version's pin be deleted
+        after publication with the suite green. Where the tag is visible, that is caught.
+        Skipped where the checkout has no tags, and on the release run for that very tag,
+        which is the one moment the pin legitimately does not exist yet.
+        """
+        import os
+        import subprocess
+        from codex_auto_resume import config
+        current = config.version()
+        if os.environ.get("GITHUB_REF") == "refs/tags/v" + current:
+            self.skipTest("this is the release run for the current version")
+        tags = subprocess.run(["git", "-C", str(ROOT), "tag", "--list", "v" + current],
+                              capture_output=True, text=True).stdout.split()
+        if not tags:
+            self.skipTest("v%s is not tagged in this checkout" % current)
+        self.assertTrue(self.release["sha256"].get(current),
+                        "v%s is tagged but its digest is not pinned" % current)
+
     def test_no_other_substitution_is_possible(self):
         for value in (self.release["download"], self.release["archive"]):
             self.assertEqual(set(re.findall(r"\{(\w+)\}", value)), {"version"})

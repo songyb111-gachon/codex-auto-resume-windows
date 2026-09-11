@@ -443,7 +443,12 @@ class Protocol:
                                    cwd=str(self.backend.codex_home), env=self.backend._environment())
             self.reader = threading.Thread(target=self._read, daemon=True)
             self.reader.start()
-            response = self.call("initialize", {"clientInfo": {"name": "codex_auto_resume", "version": "0.1"},
+            # Codex reports clientInfo to OpenAI as the client's identity, so it should be
+            # true: this product's real version, read from the manifest like every other
+            # version it displays. It said "0.1" for six releases.
+            from .config import version as product_version
+            response = self.call("initialize", {"clientInfo": {"name": "codex_auto_resume",
+                                                               "version": product_version()},
                                                 "capabilities": {"experimentalApi": True}})
             if not isinstance(response, dict) or Path(response.get("codexHome", "")).resolve() != self.backend.codex_home:
                 raise AdapterError("protocol_home_mismatch")
