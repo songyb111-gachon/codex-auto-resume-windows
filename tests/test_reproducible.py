@@ -129,7 +129,7 @@ class BuildScriptTests(unittest.TestCase):
         for attribute in ("AssemblyProduct", "AssemblyCompany", "AssemblyFileVersion",
                           "AssemblyInformationalVersion", "AssemblyCopyright"):
             self.assertIn(attribute, script)
-        self.assertIn(".codex-plugin\plugin.json", script)
+        self.assertIn(r".codex-plugin\plugin.json", script)
         self.assertEqual(script.count("-Description '"), 2, "both executables are described")
 
     def test_the_release_build_proves_it_twice(self):
