@@ -33,6 +33,8 @@ build/dist/
 # Both small executables are compiled from gui/ by build/make_gui.ps1. A compiled
 # binary is not source, and the release build makes them from scratch.
 build/*.exe
+# Their version resources, generated from the manifest by the same script.
+build/*.VersionInfo.cs
 
 # Written by scripts/ko_sync.py into whatever tree it is pointed at. On the generated
 # `ko` branch the workflow force-adds it; anywhere else it is the residue of a local
