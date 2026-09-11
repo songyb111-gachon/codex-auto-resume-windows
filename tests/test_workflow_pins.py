@@ -85,6 +85,18 @@ class ActionPinTests(unittest.TestCase):
         # Updates arrive as pull requests. Nothing in this repository merges them.
         self.assertNotIn("automerge", text.lower())
 
+    def test_the_artifact_actions_are_only_proposed_together(self):
+        """The build job uploads what the publish job downloads; the two must agree.
+
+        Dependabot's first run opened separate pull requests bumping upload-artifact to
+        v7 and download-artifact to v8. Merging one of them alone would have broken the
+        release at the next tag, in a job that only runs on a tag.
+        """
+        text = (ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
+        group = text[text.index("groups:"):]
+        self.assertIn('"actions/upload-artifact"', group)
+        self.assertIn('"actions/download-artifact"', group)
+
 
 class ParserTests(unittest.TestCase):
     """The checks above are only as good as the line parser under them."""
