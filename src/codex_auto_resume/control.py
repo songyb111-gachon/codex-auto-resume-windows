@@ -180,7 +180,6 @@ class Control:
             "startup_enabled": self.startup_enabled(),
             "pending": pending,
             "states": counts,
-            "home": str(self.paths.home),
             "settings": values,
         }
 

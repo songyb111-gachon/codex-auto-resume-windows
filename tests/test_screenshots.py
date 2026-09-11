@@ -234,6 +234,17 @@ class PixelTests(unittest.TestCase):
     """
 
     ACTIVE = (0x06, 0xB6, 0xD4)   # Brand.Active - the running state dot
+    LINE = (0xDC, 0xE3, 0xEC)     # Brand.Line - the hairlines under the header, over the footer
+
+    def test_every_window_screenshot_has_both_hairlines(self):
+        """One capture in four lost the header's rule the same way the dot was lost."""
+        for name in ("assets/screenshot-settings.png", "assets/screenshot-settings-ko.png"):
+            width, height, rows = read_png(ROOT / name)
+            ruled = [y for y, row in enumerate(rows)
+                     if sum(1 for pixel in row if pixel == self.LINE) > width * 0.9]
+            with self.subTest(name):
+                self.assertTrue(any(y < height // 4 for y in ruled), "no rule under the header")
+                self.assertTrue(any(y > height * 3 // 4 for y in ruled), "no rule over the footer")
 
     def test_every_window_screenshot_shows_the_state_dot(self):
         for name in ("assets/screenshot-settings.png", "assets/screenshot-settings-ko.png"):

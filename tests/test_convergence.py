@@ -149,7 +149,7 @@ class EngineResolutionTests(unittest.TestCase):
     """Which copy of the code the watcher loads. There is usually more than one."""
 
     def cache(self, tmp: Path, name: str = "codex-auto-resume") -> Path:
-        version = tmp / ".codex" / "plugins" / "cache" / "market" / name / "9.9.9"
+        version = tmp / ".codex" / "plugins" / "cache" / "codex-auto-resume-windows" / name / "9.9.9"
         (version / "src" / "codex_auto_resume").mkdir(parents=True)
         (version / "src" / "codex_auto_resume" / "cli.py").write_text("", encoding="utf-8")
         (version / "src" / "auto_resume.py").write_text("", encoding="utf-8")

@@ -23,6 +23,7 @@ MARKETPLACE = ROOT / ".agents" / "plugins" / "marketplace.json"
 SKILL = ROOT / "skills" / "codex-auto-resume" / "SKILL.md"
 MCP_COMPANION = ROOT / ".mcp.json"
 PLUGIN_NAME = "codex-auto-resume"
+OURS = "codex-auto-resume-windows"   # the marketplace this product ships under
 
 
 def _load(name: str, path: Path):
@@ -227,22 +228,34 @@ class LauncherResolutionTests(unittest.TestCase):
         return base
 
     def test_finds_the_installed_plugin(self):
-        planted = self._plant("mine", "0.2.0")
+        planted = self._plant(OURS, "0.2.0")
         self.assertEqual(self.launcher.resolve_plugin_root(self.config()), planted)
 
     def test_an_update_to_a_new_version_directory_is_picked_up(self):
-        old = self._plant("mine", "0.2.0")
-        new = self._plant("mine", "0.2.1+codex.local")
+        old = self._plant(OURS, "0.2.0")
+        new = self._plant(OURS, "0.2.1+codex.local")
         import os
         os.utime(new, (2 ** 31, 2 ** 31))    # newest wins; version strings do not sort
         self.assertEqual(self.launcher.resolve_plugin_root(self.config()), new)
         self.assertNotEqual(self.launcher.resolve_plugin_root(self.config()), old)
 
     def test_incomplete_directory_is_ignored(self):
-        (self.cache / "mine" / PLUGIN_NAME / "0.2.0").mkdir(parents=True)
+        (self.cache / OURS / PLUGIN_NAME / "0.2.0").mkdir(parents=True)
         self.assertIsNone(self.launcher.resolve_plugin_root(self.config()))
 
     def test_removed_plugin_resolves_to_nothing_instead_of_starting(self):
+        self.assertIsNone(self.launcher.resolve_plugin_root(self.config()))
+
+    def test_a_same_named_plugin_from_another_marketplace_is_never_run(self):
+        """The sign-in launcher used to take the newest copy from any marketplace."""
+        ours = self._plant(OURS, "0.5.7")
+        theirs = self._plant("someone-else", "9.9.9")
+        import os
+        os.utime(theirs, (2 ** 31, 2 ** 31))    # newer, which used to be enough to win
+        self.assertEqual(self.launcher.resolve_plugin_root(self.config()), ours)
+
+    def test_only_another_marketplace_means_nothing_starts(self):
+        self._plant("someone-else", "9.9.9")
         self.assertIsNone(self.launcher.resolve_plugin_root(self.config()))
 
     def test_local_checkout_mode_uses_the_recorded_root(self):

@@ -14,7 +14,7 @@
   "system_dpi": 144,
   "inputs": {
     ".codex-plugin/plugin.json": "f18091fe2b0bbd05fda0c9b870a055ac8d62ff212b3053d4d1eb7b0280b4056a",
-    "gui/SettingsApp.cs": "6dd9a4e7b14281e3fa7c7c357ee2450ec4250e33a689831478762479f8d4bfac",
+    "gui/SettingsApp.cs": "08c9aa8bdb7da2bd38b25d0a521525ae16b10a5d3136d95ab0ad5f18cbb30f77",
     "gui/Brand.cs": "5016afc205d24c1113fd388478e00e2df6123b2b9f55d293d127c7977c0f1b30",
     "gui/app.manifest": "db5f16dcf2448fdd7e3812dfdaa6d2da893b92c27a982721d3f04cdc05559870",
     "assets/codex-auto-resume.ico": "45c3f3a0d02d78f9be0b80532eedc2f524cd7ebe1056007dacdb286ca743bd52",
@@ -24,8 +24,8 @@
     "build/capture_window.ps1": "a9046f64acddf8fc75fb3a0bb8bd2d2300318ab86e1647a25d8c3b46b238ba17",
     "build/make_gui.ps1": "ccbf1d53b18c7a5203f05713ec667c9b8d4f61e8e71edf27f155e8f6a956f6d0",
     "build/make_screenshots.py": "f32c9eb9cd002a83424145744d30e61ef944cb2bd41066a4a3082dd8c8e319ec",
-    "<panel render:en>": "b9371ada36da4ef11c5bc2871857987b62952f40e7331961e59754492a21010d",
-    "<panel render:ko>": "93ef0b05859c22e45a25c01f148bc3195da866f7b468a022918117df4bf5bffe"
+    "<panel render:en>": "1bcbcf18db2b8b8e4dfc563cf774bf525e4fb2a2dc963ea1b03818759ceb4b44",
+    "<panel render:ko>": "a1b631a5e75002583348475e98505af2fc1514154982ff697d39dc383938a540"
   },
   "images": {
     "assets/screenshot-panel.png": {

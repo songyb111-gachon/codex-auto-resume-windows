@@ -24,6 +24,8 @@ import sys
 import time
 
 CONFIG_NAME = "runtime.json"
+# The marketplace names this product is published under. See resolve_plugin_root.
+OUR_MARKETPLACES = frozenset({"codex-auto-resume-windows"})
 EXIT_ERROR = 1
 
 
@@ -73,11 +75,17 @@ def resolve_plugin_root(config: dict) -> Path | None:
         return home_app
     if config.get("mode") == "plugin":
         name = config.get("plugin_name") or ""
-        # Any marketplace: a user may reinstall the same plugin from a renamed source.
+        # This product's own marketplace only. It used to be any marketplace, on the grounds
+        # that a user might reinstall from a renamed source - which also meant another
+        # publisher's plugin that happened to share the name was run by this launcher, at
+        # sign-in, if it was the newest copy in the cache. A renamed source now fails
+        # closed: the launcher reports that no engine was found and the user reinstalls.
         cache = codex_home() / "plugins" / "cache"
         candidates = []
         try:
             for marketplace in cache.iterdir():
+                if marketplace.name not in OUR_MARKETPLACES:
+                    continue
                 versions = marketplace / name
                 if not versions.is_dir():
                     continue

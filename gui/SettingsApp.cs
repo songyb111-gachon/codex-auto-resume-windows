@@ -43,10 +43,29 @@ namespace CodexAutoResume
     {
         // A minimal reader for the control bridge's own output. Not a general parser:
         // it accepts exactly the shapes we emit, and anything else raises.
+        // The bridge's deepest real output is four levels. A limit well above that turns
+        // pathological input into a FormatException, which every caller catches, instead of
+        // a StackOverflowException, which .NET cannot catch and which ends the process -
+        // measured at about 6,000 levels with no limit.
+        private const int MaxDepth = 64;
+
         internal static object Parse(string text)
         {
             int index = 0;
-            return ParseValue(text, ref index);
+            int depth = 0;
+            try
+            {
+                return ParseValue(text, ref index, ref depth);
+            }
+            catch (IndexOutOfRangeException)
+            {
+                // Truncated input ran off the end of the string: say so as a format error.
+                throw new FormatException("unexpected end of JSON");
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                throw new FormatException("unexpected end of JSON");
+            }
         }
 
         private static void SkipWhitespace(string s, ref int i)
@@ -54,13 +73,19 @@ namespace CodexAutoResume
             while (i < s.Length && char.IsWhiteSpace(s[i])) i++;
         }
 
-        private static object ParseValue(string s, ref int i)
+        private static object ParseValue(string s, ref int i, ref int depth)
         {
             SkipWhitespace(s, ref i);
             if (i >= s.Length) throw new FormatException("unexpected end of JSON");
             char c = s[i];
-            if (c == '{') return ParseObject(s, ref i);
-            if (c == '[') return ParseArray(s, ref i);
+            if (c == '{' || c == '[')
+            {
+                if (++depth > MaxDepth) throw new FormatException("JSON nested too deeply");
+                object nested = c == '{' ? (object)ParseObject(s, ref i, ref depth)
+                                         : (object)ParseArray(s, ref i, ref depth);
+                depth--;
+                return nested;
+            }
             if (c == '"') return ParseString(s, ref i);
             if (s.Length - i >= 4 && s.Substring(i, 4) == "true") { i += 4; return true; }
             if (s.Length - i >= 5 && s.Substring(i, 5) == "false") { i += 5; return false; }
@@ -68,7 +93,7 @@ namespace CodexAutoResume
             return ParseNumber(s, ref i);
         }
 
-        private static Dictionary<string, object> ParseObject(string s, ref int i)
+        private static Dictionary<string, object> ParseObject(string s, ref int i, ref int depth)
         {
             var result = new Dictionary<string, object>();
             i++;
@@ -81,7 +106,7 @@ namespace CodexAutoResume
                 SkipWhitespace(s, ref i);
                 if (s[i] != ':') throw new FormatException("expected :");
                 i++;
-                result[key] = ParseValue(s, ref i);
+                result[key] = ParseValue(s, ref i, ref depth);
                 SkipWhitespace(s, ref i);
                 if (s[i] == ',') { i++; continue; }
                 if (s[i] == '}') { i++; return result; }
@@ -89,7 +114,7 @@ namespace CodexAutoResume
             }
         }
 
-        private static List<object> ParseArray(string s, ref int i)
+        private static List<object> ParseArray(string s, ref int i, ref int depth)
         {
             var result = new List<object>();
             i++;
@@ -97,7 +122,7 @@ namespace CodexAutoResume
             if (i < s.Length && s[i] == ']') { i++; return result; }
             while (true)
             {
-                result.Add(ParseValue(s, ref i));
+                result.Add(ParseValue(s, ref i, ref depth));
                 SkipWhitespace(s, ref i);
                 if (s[i] == ',') { i++; continue; }
                 if (s[i] == ']') { i++; return result; }
@@ -156,7 +181,6 @@ namespace CodexAutoResume
         }
     }
 
-    /// A drop-down entry whose stored value and displayed label differ.
     /// A panel that paints into a back buffer, so a repaint never shows it erased.
     ///
     /// The status dot is drawn in a Paint handler on an ordinary Panel, which Windows
@@ -173,6 +197,7 @@ namespace CodexAutoResume
         }
     }
 
+    /// A drop-down entry whose stored value and displayed label differ.
     internal sealed class Choice
     {
         internal readonly string Value;
@@ -270,8 +295,12 @@ namespace CodexAutoResume
         private readonly TableLayoutPanel columns = new TableLayoutPanel();
         private readonly TableLayoutPanel leftStack = new TableLayoutPanel();
         private readonly TableLayoutPanel rightStack = new TableLayoutPanel();
-        private readonly Panel header = new Panel();
-        private readonly Panel footer = new Panel();
+        // Buffered for the same reason as the status dot: both strips draw a hairline in a
+        // Paint handler, and the header is invalidated on every status refresh. Unbuffered,
+        // it was erased to white and repainted a moment later, and a capture taken in that
+        // moment - one in four, measured - showed the header with no rule under it.
+        private readonly Panel header = new BufferedPanel();
+        private readonly Panel footer = new BufferedPanel();
         private readonly Label headline = new Label();
         private readonly Label detail = new Label();
         private readonly Label versionText = new Label();
