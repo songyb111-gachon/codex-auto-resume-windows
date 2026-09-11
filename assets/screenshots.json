@@ -14,7 +14,7 @@
   "system_dpi": 144,
   "inputs": {
     ".codex-plugin/plugin.json": "f18091fe2b0bbd05fda0c9b870a055ac8d62ff212b3053d4d1eb7b0280b4056a",
-    "gui/SettingsApp.cs": "08c9aa8bdb7da2bd38b25d0a521525ae16b10a5d3136d95ab0ad5f18cbb30f77",
+    "gui/SettingsApp.cs": "ac95e72f35990f8b502b65fdf3113da3a2b1069f06901e6c81c3e86d2235b49a",
     "gui/Brand.cs": "5016afc205d24c1113fd388478e00e2df6123b2b9f55d293d127c7977c0f1b30",
     "gui/app.manifest": "db5f16dcf2448fdd7e3812dfdaa6d2da893b92c27a982721d3f04cdc05559870",
     "assets/codex-auto-resume.ico": "45c3f3a0d02d78f9be0b80532eedc2f524cd7ebe1056007dacdb286ca743bd52",
@@ -41,7 +41,7 @@
       "size": "1800x1226"
     },
     "assets/screenshot-settings-ko.png": {
-      "sha256": "e584a6022cfc2592a131e445e030789a73679a5b8b69605347e56cd8965263d0",
+      "sha256": "0a6c32eacca1bc2ed0aa5e1e8adcbb74b2d98960c6ce63d526407b66cf01997d",
       "size": "1200x948"
     },
     "docs/images/settings-panel.png": {
@@ -57,7 +57,7 @@
       "size": "1800x1226"
     },
     "docs/images/settings-window-ko.png": {
-      "sha256": "e584a6022cfc2592a131e445e030789a73679a5b8b69605347e56cd8965263d0",
+      "sha256": "0a6c32eacca1bc2ed0aa5e1e8adcbb74b2d98960c6ce63d526407b66cf01997d",
       "size": "1200x948"
     }
   }

@@ -197,6 +197,21 @@ namespace CodexAutoResume
         }
     }
 
+    /// The same, for a table that draws its own card border and accent rail.
+    ///
+    /// The third instance of one bug: after the dot and the header rule, a capture of the
+    /// Korean window came out with the Windows card's border and rail missing. Every
+    /// control in this file that has a Paint handler is now one of these two classes,
+    /// and tests/test_gui_layout.py holds it to that.
+    internal sealed class BufferedTable : TableLayoutPanel
+    {
+        internal BufferedTable()
+        {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                     ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+        }
+    }
+
     /// A drop-down entry whose stored value and displayed label differ.
     internal sealed class Choice
     {
@@ -680,7 +695,7 @@ namespace CodexAutoResume
             // measures AutoSize from anchored children only, so a docked AutoSize child
             // reports nothing: the panel keeps its default height and the last row of
             // every group is sliced off, bottom border and all.
-            var card = new TableLayoutPanel();
+            var card = new BufferedTable();
             card.Dock = DockStyle.Fill;
             card.ColumnCount = 1;
             card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
