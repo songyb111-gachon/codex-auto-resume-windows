@@ -3,14 +3,15 @@
 ## v0.5.7 — Security fix
 
 A security release, shipped on its own rather than held for v0.6.0, because it closes
-a code injection present in every earlier release. Recovery, settings, state and the
+a code injection present in v0.4.0 through v0.5.6. Recovery, settings, state and the
 install layout are exactly v0.5.6's. Upgrading is the whole remedy - and, as of this
 release, an upgrade replaces the running watcher, which is what makes that true.
 
 ### Security
 
-- **Fixed: a folder or conversation name could run PowerShell commands.** Affects every
-  release up to and including v0.5.6. Notifications and the Start Menu shortcut are
+- **Fixed: a folder or conversation name could run PowerShell commands.** Affects
+  v0.4.0 through v0.5.6; earlier releases put only fixed text, a time and a short id into
+  that script. Notifications and the Start Menu shortcut are
   written with a short Windows PowerShell script, and each value - the conversation's
   name, its project folder, the install path - was placed in that script as a quoted
   string with ASCII apostrophes doubled. PowerShell also treats `‘` `’` `‚` `‛` as

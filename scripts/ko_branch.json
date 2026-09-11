@@ -28,7 +28,8 @@
     "docs/BRAND.ko.md": "docs/BRAND.md",
     "docs/COMPARISON.ko.md": "docs/COMPARISON.md",
     "docs/DEVELOPMENT.ko.md": "docs/DEVELOPMENT.md",
-    "docs/PLUGIN.ko.md": "docs/PLUGIN.md"
+    "docs/PLUGIN.ko.md": "docs/PLUGIN.md",
+    "docs/VERIFY.ko.md": "docs/VERIFY.md"
   },
   "english_on_main": "https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/",
   "intentionally_english": {
@@ -50,16 +51,17 @@
     "CI does not translate anything. A person decides what the Korean should say."
   ],
   "reviewed": {
-    "CHANGELOG.md": "c2242570af3b954e2b6b1b288c117418b11ae64475316e4ef5ce55b16ad68838",
-    "CONTRIBUTING.md": "e12437ff85e285060a9eac9e3ac9796783c73070c06b37ffe9791ee50d00b9a9",
+    "CHANGELOG.md": "5277ded1628d5099815ecfa10f2a678dc572ae6dc6eea4dc5ecba1daae9f3477",
+    "CONTRIBUTING.md": "d94efcd27f8428fc10aebeb74772d830a1d4745a1355d2700e67d56b05220063",
     "CONTRIBUTORS.md": "698f3d4fb75b30354e1c6749d4702c0e5e36149c640d90dc18a8dfa6842d0c3b",
-    "PRIVACY.md": "1a775b80efe83b7947ac1341b95a93c1951707d0675e90bfa00b7f173580e752",
-    "README.md": "c988960e126b2cda8d44b168ec2e19b020a04076c98e724526970b9eda707056",
-    "SECURITY.md": "a9c097c0b2fc66cc368db1314206d1de3ffdc1b465ca6776804b15563375c339",
-    "SUPPORT.md": "f0c9091fae0cdff83e16dfffe6b5fe37beb67b8b4d69dfb25fc19f5d64067e8c",
+    "PRIVACY.md": "a4aedb48751edf029484df6b03e994f150f93dbe89e86971e12eee7eb929fe74",
+    "README.md": "c4f16a31e79b56892a471a26e54bb9bc4c1e6105ef2a9dc6b4a23ea25f623ba7",
+    "SECURITY.md": "6fc839d883e5dcc271305e79321c100c6a646cfcb598782e3325f1e92027045f",
+    "SUPPORT.md": "c921a7dd1e8d3e1c364a007d935971fdfa8619769fc493156cd7a5ac0fa1e230",
     "docs/BRAND.md": "f09eb683eb15ae428dd49f60555ec3a0899c29980dd42797d0276b9988b5a863",
     "docs/COMPARISON.md": "851fbd2c38dc8f1ee8c7bef16b247dfa7136d080209e99cb89bec2c99922dcc9",
     "docs/DEVELOPMENT.md": "3fe6e19f166d0928a713c96bc688663ca1d2509523bd6a51204f96f51ec972ea",
-    "docs/PLUGIN.md": "a7c1757a0b492184a417f318a3119bb96985fd7dc24a1389c6f3943bda3f14e6"
+    "docs/PLUGIN.md": "2bf26a3275e683bf65b3395b00ee237120b6a50df88941157e5b6beaa11d9dd1",
+    "docs/VERIFY.md": "8d1c74ff5c67e2be63203e0a1a79e67fab66d06746c709fcd41243f2960cded1"
   }
 }
