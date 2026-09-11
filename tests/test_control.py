@@ -135,7 +135,7 @@ class PendingTests(ControlTestCase):
     def test_pending_excludes_terminal_records_by_default(self):
         self.register()
         with Store(self.paths.state_dir) as store:
-            store.update(KEY, state="cancelled")
+            store.update(KEY, state="superseded")
         self.assertEqual(self.control.list_pending(), [])
         self.assertEqual(len(self.control.list_pending(include_terminal=True)), 1)
 
@@ -193,32 +193,53 @@ class CancelTests(ControlTestCase):
 
 
 class BudgetTests(ControlTestCase):
-    def exhaust(self, state="retry_budget_exhausted"):
-        self.register()
+    def exhaust(self, state="retry_budget_exhausted", category="usage_limit"):
+        self.register(category=category)
         with Store(self.paths.state_dir) as store:
             store.update(KEY, state=state, recovery_attempts=4, no_progress_count=3)
             store.set_thread_enabled(THREAD, False)
 
-    def test_reset_returns_a_record_to_the_normal_waiting_state(self):
+    def test_reset_returns_a_record_to_the_wait_its_kind_of_failure_needs(self):
+        # A usage limit whose reset has passed polls for usage; a temporary failure
+        # waits out its backoff. Neither is sent by the reset itself.
         self.exhaust()
         self.control.reset_recovery_budget(KEY)
         with Store(self.paths.state_dir) as store:
             record = store.get(KEY)
-        self.assertEqual(record["state"], "waiting_backoff")
+        self.assertEqual(record["state"], "waiting_poll")
         self.assertEqual(record["recovery_attempts"], 0)
         self.assertEqual(record["no_progress_count"], 0)
 
-    def test_reset_re_enables_the_thread(self):
-        self.exhaust()
-        self.control.reset_recovery_budget(KEY)
-        with Store(self.paths.state_dir) as store:
-            self.assertTrue(store.thread_enabled(THREAD))
-
-    def test_reset_also_covers_the_no_progress_budget(self):
-        self.exhaust(state="no_progress_exhausted")
+    def test_a_transient_record_returns_to_its_backoff(self):
+        self.exhaust(category="server_5xx")
         self.control.reset_recovery_budget(KEY)
         with Store(self.paths.state_dir) as store:
             self.assertEqual(store.get(KEY)["state"], "waiting_backoff")
+
+    def test_reset_leaves_a_switched_off_conversation_off(self):
+        # Switching recovery back on for a conversation is its own decision; a reset
+        # that did it too would undo a cancel the user never took back.
+        self.exhaust()
+        result = self.control.reset_recovery_budget(KEY)
+        with Store(self.paths.state_dir) as store:
+            self.assertFalse(store.thread_enabled(THREAD))
+        self.assertIn("switch it on", result["note"])
+
+    def test_reset_also_covers_the_no_progress_budget(self):
+        self.exhaust(state="no_progress_exhausted", category="timeout")
+        self.control.reset_recovery_budget(KEY)
+        with Store(self.paths.state_dir) as store:
+            self.assertEqual(store.get(KEY)["state"], "waiting_backoff")
+
+    def test_reset_is_bounded_per_task(self):
+        self.exhaust(category="timeout")
+        for _ in range(3):
+            self.control.reset_recovery_budget(KEY)
+            with Store(self.paths.state_dir) as store:
+                store.update(KEY, state="retry_budget_exhausted")
+        with self.assertRaises(control.ControlError) as caught:
+            self.control.reset_recovery_budget(KEY)
+        self.assertIn("yourself", str(caught.exception))
 
     def test_reset_refuses_a_record_that_is_not_exhausted(self):
         self.register()
@@ -253,7 +274,7 @@ class RetryNowTests(ControlTestCase):
     def test_retry_now_refuses_a_finished_recovery(self):
         self.register()
         with Store(self.paths.state_dir) as store:
-            store.update(KEY, state="resumed")
+            store.update(KEY, state="superseded")
         with self.assertRaises(control.ControlError):
             self.control.request_retry_now(KEY)
 
@@ -356,7 +377,13 @@ class BridgeTests(ControlTestCase):
             "reset-budget", "retry-now", "settings", "start-watcher", "startup",
             # `strings` is a read like `describe`: it returns the interface vocabulary
             # for the resolved language and touches nothing.
-            "status", "strings", "update"]))
+            "status", "strings", "update",
+            # Reads, and switches that only reduce automation or hide history. Turning a
+            # conversation back on sends nothing; the watcher's gates still decide.
+            "history", "timeline", "statistics", "clear-history", "thread-enabled",
+            "cancel-thread",
+            # Writes a redacted local file the user chose; it sends nothing anywhere.
+            "diagnostics"]))
 
 
 class StartWatcherTests(ControlTestCase):

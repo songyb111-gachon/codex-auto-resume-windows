@@ -24,6 +24,11 @@ import sys
 import time
 
 CONFIG_NAME = "runtime.json"
+# The watcher exits with this when the state was written by a newer version than the
+# code it is running (app.EXIT_SCHEMA_NEWER). The launcher then starts itself once more,
+# so an installation that has been updated underneath a running watcher takes over.
+EXIT_SCHEMA_NEWER = 4
+RELAUNCH_MARK = "CODEX_AUTO_RESUME_RELAUNCHED"
 # The marketplace names this product is published under. See resolve_plugin_root.
 OUR_MARKETPLACES = frozenset({"codex-auto-resume-windows"})
 EXIT_ERROR = 1
@@ -149,6 +154,9 @@ def _note(home: Path, text: str) -> None:
 def main(argv=None) -> int:
     here = Path(__file__).resolve().parent
     _note(here, "launcher started (pid %d)" % os.getpid())
+    if os.environ.get(RELAUNCH_MARK):
+        # Give the watcher that started this one time to release its mutex.
+        time.sleep(2)
     try:
         config = json.loads((here / CONFIG_NAME).read_text(encoding="utf-8"))
         home = Path(config["home"])
@@ -165,7 +173,34 @@ def main(argv=None) -> int:
     # registers `activate` through this same stable path, so a plugin update cannot leave
     # the button pointing at a version directory that no longer exists.
     command = [str(argument) for argument in (argv or [])] or ["run"]
-    return cli_main(["--home", str(home), "--quiet"] + command)
+    code = cli_main(["--home", str(home), "--quiet"] + command)
+    if code == EXIT_SCHEMA_NEWER and command == ["run"]:
+        _relaunch_once(here, command)
+    return code
+
+
+def _relaunch_once(here: Path, command) -> None:
+    """Start the launcher again, once, so it resolves the installation afresh.
+
+    Only once: a relaunched watcher that finds the state still newer than its code
+    exits for good, and says so, rather than restarting in a loop.
+    """
+    if os.environ.get(RELAUNCH_MARK):
+        _note(here, "the state is newer than the installed engine; not starting again")
+        return
+    import subprocess
+    _note(here, "the state is newer than this engine; starting the installed copy once")
+    flags = 0
+    if os.name == "nt":
+        flags = (getattr(subprocess, "DETACHED_PROCESS", 0)
+                 | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+    try:
+        subprocess.Popen([sys.executable, str(Path(__file__).resolve())] + list(command),
+                         env=dict(os.environ, **{RELAUNCH_MARK: "1"}), close_fds=True,
+                         creationflags=flags, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError as exc:
+        _complain(here, "could not start the installed copy: %s" % exc)
 
 
 def _guarded(argv=None) -> int:

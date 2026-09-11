@@ -209,9 +209,9 @@ def resumed(thread_id: str, identity=None) -> bool:
 def attempt_failed(thread_id: str, identity=None, *, certain: bool = True) -> bool:
     """A failed attempt, told apart from an uncertain one.
 
-    The distinction is the whole point: a failure that is *proven* not to have arrived
-    will be retried, while an uncertain one never will be, and telling a person the
-    wrong one of those is worse than saying nothing.
+    Both are final - a stored failure is never retried, and an uncertain submission is
+    never resent - but they mean different things to the person reading them: one did
+    not arrive, the other may have. Telling them the wrong one is worse than silence.
     """
     title = messages.text("toast_failed_title") if certain else messages.text("toast_unknown_title")
     body = messages.text("toast_failed_body") if certain else messages.text("toast_unknown_body")

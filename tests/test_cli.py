@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, patch
 from codex_auto_resume import cli, config, logbook, settings, shortcut, startup
 from codex_auto_resume.app import DEFAULT_POLL, App
 from codex_auto_resume.store import Store, StoreError
+from codex_auto_resume.windows import AdapterError
 
 THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
 
@@ -498,7 +499,11 @@ class WatcherLoopTests(unittest.TestCase):
             return OneTickEngine()
 
         stops = iter([False, False, False, True])
+        # Without a wake event the loop waits on the stop event alone, which is what
+        # this test drives. No notification-area icon is started inside a test run.
         with patch.object(App, "engine", side_effect=flaky_engine), \
+             patch.object(App, "wake_event", side_effect=AdapterError("unavailable")), \
+             patch.object(App, "_start_tray", return_value=None), \
              patch.object(App, "mutex"), patch.object(App, "stop_event") as stop_event:
             stop_event.return_value.__enter__.return_value.wait.side_effect = lambda s: next(stops)
             code = app.run(once=False, poll=5)

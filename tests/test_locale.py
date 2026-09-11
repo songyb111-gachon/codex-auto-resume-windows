@@ -176,8 +176,9 @@ class ReachTests(unittest.TestCase):
         english = interface.STRINGS["en"]
         korean = interface.STRINGS["ko"]
         same = [key for key in english if english[key] == korean[key]]
-        # `Windows` is a brand name and stays. Anything else matching is a missed string.
-        self.assertEqual(sorted(same), ["group.windows"],
+        # `Windows` and the product's own name are names and stay. Anything else matching
+        # is a missed string.
+        self.assertEqual(sorted(same), ["group.windows", "tray.title"],
                          "these are identical in both languages")
 
 

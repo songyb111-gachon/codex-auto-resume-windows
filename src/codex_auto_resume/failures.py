@@ -119,6 +119,12 @@ def _tag_and_status(info):
 def classify(error_info, message=None) -> str:
     """Return exactly one category name. Never raises, never returns error text."""
     tag, status = _tag_and_status(error_info)
+    if tag == "responseTooManyFailedAttempts" and status == 429:
+        # Codex gave up after its own retries, and the last thing the service said was
+        # "slow down". That is a rate limit, not a broken request, so it waits out a
+        # backoff like one - bounded by the per-task continuation cap, and switched off
+        # with the rate-limit category. Any other status, or none, stays terminal.
+        return "rate_limit_transient"
     if isinstance(tag, str):
         category = CODES.get(tag)
         if category is not None:

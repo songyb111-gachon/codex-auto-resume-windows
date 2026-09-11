@@ -178,9 +178,11 @@ TOOLS = [
     {
         "name": "cancel_recovery",
         "title": "Cancel one recovery",
-        "description": "Stop recovering one exact interruption. Identify it by the "
-                       "interruption id from list_pending - never by title, project or "
-                       "recency. Cancelling only ever reduces automation.",
+        "description": "Stop recovering one exact interruption and anything that "
+                       "continues it. Identify it by the interruption id from "
+                       "list_pending - never by title, project or recency. A continuation "
+                       "already in Codex's queue is withdrawn; one already running is not "
+                       "stopped. Cancelling only ever reduces automation.",
         "inputSchema": {"type": "object",
                         "properties": {"interruption_id": _identifier_schema("Interruption id")},
                         "required": ["interruption_id"], "additionalProperties": False},
@@ -223,6 +225,65 @@ TOOLS = [
                         "properties": {"interruption_id": _identifier_schema("Interruption id")},
                         "required": ["interruption_id"], "additionalProperties": False},
         "annotations": {"readOnlyHint": False, "destructiveHint": False,
+                        "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "disable_conversation_recovery",
+        "title": "Turn recovery off for one conversation",
+        "description": "Stop automatic recovery for one exact conversation, including "
+                       "its later interruptions, and cancel what it has waiting. Only "
+                       "ever reduces automation.",
+        "inputSchema": {"type": "object",
+                        "properties": {"thread_id": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                                              "description": "The conversation's exact thread id from list_pending"}},
+                        "required": ["thread_id"], "additionalProperties": False},
+        "annotations": {"readOnlyHint": False, "destructiveHint": False,
+                        "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "enable_conversation_recovery",
+        "title": "Turn recovery back on for one conversation",
+        "description": "Let automatic recovery run again for one exact conversation. "
+                       "Nothing is sent by this; every check still applies. This turns "
+                       "automation back on, so Codex asks the user first.",
+        "inputSchema": {"type": "object",
+                        "properties": {"thread_id": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                                              "description": "The conversation's exact thread id from list_pending"}},
+                        "required": ["thread_id"], "additionalProperties": False},
+        "annotations": {"readOnlyHint": False, "destructiveHint": True,
+                        "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "get_recovery_statistics",
+        "title": "Recovery statistics",
+        "description": "Counts of interruptions and how their recoveries ended, and "
+                       "median waits, over the last N days or all time. Content-free.",
+        "inputSchema": {"type": "object",
+                        "properties": {"days": {"type": "number", "minimum": 1, "maximum": 3650}},
+                        "additionalProperties": False},
+        "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                        "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "get_recovery_timeline",
+        "title": "Timeline of one recovery",
+        "description": "What happened to one exact interruption and everything that "
+                       "continued it: detection, waits, the send, the turn it started and "
+                       "how that turn ended. Codes and times only.",
+        "inputSchema": {"type": "object",
+                        "properties": {"interruption_id": _identifier_schema("Interruption id")},
+                        "required": ["interruption_id"], "additionalProperties": False},
+        "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                        "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "clear_recovery_history",
+        "title": "Clear recovery history",
+        "description": "Hide finished recoveries from the history. Deletes nothing and "
+                       "cancels nothing; a recovery that may still change stays visible, "
+                       "and hidden ones still count for every safety check.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+        "annotations": {"readOnlyHint": False, "destructiveHint": True,
                         "idempotentHint": True, "openWorldHint": False},
     },
 ]
@@ -437,12 +498,45 @@ class Server:
         return self._reply("Automatic recovery is on again. Every check still applies.", result)
 
     def _tool_cancel_recovery(self, arguments) -> dict:
-        result = self.control.cancel_interruption(arguments.get("interruption_id"))
-        return self._reply("That recovery was cancelled.", result)
+        result = self.control.cancel_interruption(arguments.get("interruption_id"), actor="mcp")
+        return self._reply(result["message"][:1].upper() + result["message"][1:] + ".", result)
 
     def _tool_reset_recovery_budget(self, arguments) -> dict:
-        result = self.control.reset_recovery_budget(arguments.get("interruption_id"))
-        return self._reply("Attempts restored; it is waiting again. Nothing was sent.", result)
+        result = self.control.reset_recovery_budget(arguments.get("interruption_id"), actor="mcp")
+        summary = "Attempts restored; it is waiting again. Nothing was sent."
+        if result.get("note"):
+            summary += " Note: " + result["note"] + "."
+        return self._reply(summary, result)
+
+    def _tool_disable_conversation_recovery(self, arguments) -> dict:
+        result = self.control.cancel_thread(arguments.get("thread_id"), actor="mcp")
+        return self._reply("Automatic recovery is off for that conversation.", result)
+
+    def _tool_enable_conversation_recovery(self, arguments) -> dict:
+        result = self.control.set_thread_enabled(arguments.get("thread_id"), True, actor="mcp")
+        return self._reply("Automatic recovery is on again for that conversation. Nothing was "
+                           "sent; every check still applies.", result)
+
+    def _tool_get_recovery_statistics(self, arguments) -> dict:
+        days = arguments.get("days")
+        if days is not None and (isinstance(days, bool) or not isinstance(days, (int, float))
+                                 or not 1 <= days <= 3650):
+            raise ControlError("days must be a number from 1 to 3650")
+        result = self.control.statistics(days)
+        rate = result.get("success_rate")
+        return self._reply("%d interruptions, %d continuations sent, %d recovered; success rate %s." % (
+            result["interruptions_detected"], result["continuations_submitted"],
+            result["outcomes"]["recovered"],
+            "not enough data yet" if rate is None else "%d%%" % round(rate * 100)), result)
+
+    def _tool_get_recovery_timeline(self, arguments) -> dict:
+        result = self.control.timeline(arguments.get("interruption_id"))
+        return self._reply("%d events." % len(result["events"]), result)
+
+    def _tool_clear_recovery_history(self, _arguments) -> dict:
+        result = self.control.clear_history(actor="mcp")
+        return self._reply("%d finished recoveries hidden; %d kept visible because they may still "
+                           "change. Nothing was deleted." % (result["hidden"], result["kept"]), result)
 
     # What each outcome of a start actually means, in the caller's words. Only the
     # first of these says the watcher is running, and it is the only one that has been
@@ -469,10 +563,10 @@ class Server:
                                                   self.START_WORDING["unconfirmed"]), result)
 
     def _tool_retry_now(self, arguments) -> dict:
-        result = self.control.request_retry_now(arguments.get("interruption_id"))
+        result = self.control.request_retry_now(arguments.get("interruption_id"), actor="mcp")
         return self._reply(
-            "It is eligible now. The watcher still revalidates it, still needs the "
-            "conversation open, and still refuses anything uncertain.", result)
+            result["note"][:1].upper() + result["note"][1:] + ". The watcher still revalidates "
+            "it, still needs the conversation open, and still refuses anything uncertain.", result)
 
 
 def main(argv=None) -> int:

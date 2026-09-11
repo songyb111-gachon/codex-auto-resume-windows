@@ -75,9 +75,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--home", help="runtime home (default: the installed location)")
     sub = parser.add_subparsers(dest="command", required=True)
     for name in ("status", "settings", "describe", "defaults", "pending", "start-watcher",
-                 "strings"):
+                 "strings", "history", "clear-history"):
         sub.add_parser(name)
-    for name in ("update", "enabled", "startup", "cancel", "reset-budget", "retry-now"):
+    for name in ("update", "enabled", "startup", "cancel", "reset-budget", "retry-now",
+                 "timeline", "statistics", "thread-enabled", "cancel-thread", "diagnostics"):
         p = sub.add_parser(name)
         p.add_argument("json", nargs="?", default="", help="JSON object argument")
     p = sub.add_parser("pending-all")
@@ -114,6 +115,10 @@ def main(argv=None) -> int:
             return _emit({"ok": True, "pending": control.list_pending(include_terminal=True)})
         if args.command == "start-watcher":
             return _emit({"ok": True, "result": control.start_watcher()})
+        if args.command == "history":
+            return _emit({"ok": True, "history": control.history()})
+        if args.command == "clear-history":
+            return _emit({"ok": True, "result": control.clear_history(actor="gui")})
 
         payload = _payload(args.json)
         if args.command == "update":
@@ -128,6 +133,32 @@ def main(argv=None) -> int:
             return _emit({"ok": True, "result": control.reset_recovery_budget(payload.get("interruption_id"))})
         if args.command == "retry-now":
             return _emit({"ok": True, "result": control.request_retry_now(payload.get("interruption_id"))})
+        if args.command == "timeline":
+            return _emit({"ok": True, "result": control.timeline(payload.get("interruption_id"))})
+        if args.command == "statistics":
+            days = payload.get("days")
+            if days is not None and (isinstance(days, bool) or not isinstance(days, (int, float))
+                                     or not 1 <= days <= 3650):
+                raise ControlError("days must be a number from 1 to 3650")
+            return _emit({"ok": True, "result": control.statistics(days)})
+        if args.command == "thread-enabled":
+            enabled = payload.get("enabled")
+            if not isinstance(enabled, bool):
+                raise ControlError("enabled must be true or false")
+            return _emit({"ok": True, "result": control.set_thread_enabled(payload.get("thread_id"), enabled)})
+        if args.command == "diagnostics":
+            from pathlib import Path
+            from . import diagnostics
+            target = payload.get("path")
+            if not isinstance(target, str) or not target.lower().endswith(".json"):
+                raise ControlError("choose a .json file to write")
+            try:
+                written = diagnostics.write(control, Path(target))
+            except FileExistsError:
+                raise ControlError("that file already exists; choose a new name") from None
+            return _emit({"ok": True, "result": {"path": str(written)}})
+        if args.command == "cancel-thread":
+            return _emit({"ok": True, "result": control.cancel_thread(payload.get("thread_id"))})
     except ControlError as exc:
         return _fail(exc)
     except Exception:

@@ -236,8 +236,10 @@ def cmd_setup(args) -> int:
         print("  %s" % conflict)
         return EXIT_ERROR
     install_launcher(home, "plugin" if installed_as_plugin() else "local")
-    _cli_silent(home, ["--quiet", "install"])
-    _cli_silent(home, ["--quiet", "enable"])
+    # Both are reported when they fail. Ignoring them is how a setup that never prepared
+    # the state, or never switched recovery on, used to end with "set up and running".
+    incomplete = (_cli_silent(home, ["--quiet", "install"]) != EXIT_OK)
+    incomplete |= (_cli_silent(home, ["--quiet", "enable"]) != EXIT_OK)
     if not args.no_startup:
         startup.install(watcher_command(home))
     # `install` above registered the protocol against the plugin's own versioned path;
@@ -254,11 +256,16 @@ def cmd_setup(args) -> int:
         print("  " + bullet() + " " + messages.text(key))
     print()
     confirmed = started in ("running", "already-running")
-    say("setup_done" if confirmed else "setup_unconfirmed")
+    if incomplete:
+        say("setup_incomplete")
+    else:
+        say("setup_done" if confirmed else "setup_unconfirmed")
     if not args.no_startup:
         say("setup_autostart")
     print()
     print("state: %s" % home)
+    if incomplete:
+        return EXIT_ERROR
     return EXIT_OK if confirmed else EXIT_UNCONFIRMED
 
 

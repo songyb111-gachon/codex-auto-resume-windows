@@ -707,6 +707,19 @@ if ($installed.Code -ne 0) {
     Write-Host '       Close the ChatGPT/Codex app and run this installer again to finish it.'
 } else { Ok 'Codex plugin installed' }
 
+# Every run, not only when a locked file forced it: a tool server Codex started before the
+# files were replaced is still running the previous version's code, and that code may not
+# read the state the new version writes. It holds no state of its own, so ending it only
+# costs a restart - Codex starts a fresh one, from the new files, when it next needs the
+# tools. Only this installation's own launchers are touched, found by path, never by name.
+$stale = Get-OwnedMcpProcess -Roots @($InstallHome, $PluginCacheRoot)
+if ($stale.Count -gt 0) {
+    Step 'Restarting the plugin tools on the new version'
+    foreach ($process in $stale) {
+        Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
+    }
+}
+
 Step 'Setting up the watcher'
 $setupArgs = @('setup')
 if ($SkipStartup) { $setupArgs += '--no-startup' }

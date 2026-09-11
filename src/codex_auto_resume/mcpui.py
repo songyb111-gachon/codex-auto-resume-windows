@@ -226,9 +226,15 @@ function renderPending(rows) {
     var name = element('code', null, row.name || row.thread_id.slice(0, 8));
     first.appendChild(name);
     line.appendChild(first);
+    // The public code, never the engine's working state: several stored states share
+    // one code, and what a person is told must not depend on engine internals.
+    var code = row.code || row.state;
     var state = element('td');
-    state.appendChild(element('span', 'state',
-                              t('state.' + row.state, row.state.replace(/_/g, ' '))));
+    state.appendChild(element('span', 'state', t('code.' + code, code.replace(/_/g, ' '))));
+    (row.overlays || []).forEach(function (overlay) {
+      state.appendChild(document.createTextNode(' '));
+      state.appendChild(element('span', 'state', t('overlay.' + overlay, overlay.replace(/_/g, ' '))));
+    });
     line.appendChild(state);
     line.appendChild(element('td', null, String(row.recovery_attempts)));
     table.appendChild(line);

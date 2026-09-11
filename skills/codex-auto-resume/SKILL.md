@@ -14,15 +14,17 @@ Windows only.
 ## Prefer the tools when they are available
 
 This plugin also provides tools (`open_settings`, `get_status`, `list_pending`,
-`update_settings`, `restore_default_settings`, `pause_auto_recovery`, `resume_auto_recovery`, `cancel_recovery`,
-`reset_recovery_budget`, `start_watcher`, `retry_now`). When they are available, use
-them instead of the commands below: they are
-typed, they refuse an invalid value instead of writing it, and `open_settings` shows the
-user a panel they can read and change directly.
+`update_settings`, `restore_default_settings`, `pause_auto_recovery`, `resume_auto_recovery`,
+`cancel_recovery`, `disable_conversation_recovery`, `enable_conversation_recovery`,
+`reset_recovery_budget`, `start_watcher`, `retry_now`, `get_recovery_statistics`,
+`get_recovery_timeline`, `clear_recovery_history`). When they are available, use them
+instead of the commands below: they are typed, they refuse an invalid value instead of
+writing it, and `open_settings` shows the user a panel they can read and change directly.
 
-`resume_auto_recovery`, `update_settings`, `restore_default_settings`, `cancel_recovery`,
-`reset_recovery_budget` and `start_watcher` are marked so that Codex asks the user before
-running them in Auto approval mode. If the user declines one, do not run the matching
+`resume_auto_recovery`, `enable_conversation_recovery`, `update_settings`,
+`restore_default_settings`, `cancel_recovery`, `reset_recovery_budget`, `start_watcher` and
+`clear_recovery_history` are marked so that Codex asks the user before running them in Auto
+approval mode. If the user declines one, do not run the matching
 command below instead.
 
 Use the commands below when the tools are not available - the plugin's server has not

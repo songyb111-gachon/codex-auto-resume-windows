@@ -83,9 +83,14 @@ def _optional_text(value, default):
 FIELDS = {
     "max_recovery_attempts": (4, lambda v, d: _bounded_int(v, d, 1, 20)),
     "max_no_progress": (3, lambda v, d: _bounded_int(v, d, 1, 10)),
+    # How many continuations one task may receive in total, across every failure of it.
+    # Never above 10, whatever the other limits say.
+    "max_chain_continuations": (6, lambda v, d: _bounded_int(v, d, 1, 10)),
     "retry_timing": (DEFAULT_TIMING, lambda v, d: _choice(v, d, RETRY_TIMING)),
     "detection_lookback_hours": (6.0, lambda v, d: _bounded_number(v, d, 0.0, 24 * 7)),
     "notifications": (True, _boolean),
+    # The watcher's notification-area icon. Showing it changes nothing about recovery.
+    "show_tray": (True, _boolean),
     "codex_exe": (None, _optional_text),
 }
 # Every configurable category defaults ON: these are the failures already proven safe
@@ -102,6 +107,7 @@ DEFAULTS = {name: default for name, (default, _coerce) in FIELDS.items()}
 RANGES = {
     "max_recovery_attempts": {"min": 1, "max": 20},
     "max_no_progress": {"min": 1, "max": 10},
+    "max_chain_continuations": {"min": 1, "max": 10},
     "detection_lookback_hours": {"min": 0.0, "max": float(24 * 7)},
     "retry_timing": {"choices": list(RETRY_TIMING)},
 }
@@ -248,7 +254,12 @@ def describe() -> list:
         elif name.startswith("notify_") or name == "notifications":
             entry["group"] = "notifications"
             entry["master"] = name == "notifications"
-        elif name in ("max_recovery_attempts", "max_no_progress", "retry_timing"):
+        elif name == "show_tray":
+            # A desktop preference, beside "run at sign-in" - not a notification, and
+            # not something the notifications switch governs.
+            entry["group"] = "windows"
+        elif name in ("max_recovery_attempts", "max_no_progress", "max_chain_continuations",
+                      "retry_timing"):
             entry["group"] = "limits"
         else:
             entry["group"] = "advanced"
