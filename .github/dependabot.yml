@@ -18,3 +18,11 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "actions"
+    # The release's build job uploads the archive and its publish job downloads it. The
+    # two actions have to agree on the artifact format, so they are only ever proposed
+    # together: merging one without the other would break the handoff at the next tag.
+    groups:
+      artifact-handoff:
+        patterns:
+          - "actions/upload-artifact"
+          - "actions/download-artifact"
