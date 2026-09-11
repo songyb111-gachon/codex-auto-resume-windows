@@ -60,7 +60,7 @@ jobs:
       # A dispatch builds and verifies whatever ref it names and publishes nothing, so
       # naming an existing tag re-checks that tag's source rather than replacing what it
       # released.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
           # The token is for this checkout, not for whatever the checked-out code does next.

@@ -58,7 +58,7 @@ jobs:
       # The tested commit, not main's current head. On a workflow_run event the default
       # checkout ref is the *default branch's* head, which is a different commit whenever
       # something was pushed while the tests were running.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.event.inputs.sha || 'main' }}
           fetch-depth: 0
