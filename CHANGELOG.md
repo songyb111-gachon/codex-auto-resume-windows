@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## v0.5.7 — Security fix
+
+One fix, shipped on its own rather than held for v0.6.0, because it is a code
+injection in every earlier release. Nothing else changes: recovery, settings, state
+and the install layout are exactly v0.5.6's. Upgrading is the whole remedy.
 
 ### Security
 
