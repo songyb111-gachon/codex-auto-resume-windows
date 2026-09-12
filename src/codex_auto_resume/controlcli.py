@@ -17,6 +17,14 @@ The surface is deliberately narrow and typed. There is no command that runs a pr
 reads an arbitrary file, writes the registry directly or executes SQL, and every
 identifier is validated before it reaches the store.
 
+A rejected request always answers `{"ok": false, "error": "...", "error_code": "..."}`:
+the English sentence, which the command line prints and a bug report quotes, and beside it
+the stable code from `control.ERROR_CODES` that a front end turns into its own language.
+Both, because neither is enough on its own - the window takes every other word it shows
+from `interface.py` in the machine's language, and used to put this one reason on screen in
+English underneath a Korean sentence. Nothing else is ever added to a rejection: no
+traceback, no path, no identifier.
+
 The wire is UTF-8, stated rather than inherited. Both callers redirect these streams, and
 a redirected stdout on Windows takes the machine's ANSI code page - so on a Korean install
 this wrote CP949 while the settings window decoded UTF-8, and every Korean label arrived
@@ -37,7 +45,7 @@ from pathlib import Path
 import sys
 
 from . import config
-from .control import Control, ControlError
+from .control import FALLBACK_CODE, Control, ControlError
 
 # Commands with no argument, and commands that take one JSON object.
 PLAIN = ("status", "settings", "describe", "defaults", "pending", "pending-all", "start-watcher",
@@ -45,6 +53,10 @@ PLAIN = ("status", "settings", "describe", "defaults", "pending", "pending-all",
 WITH_ARGUMENT = ("update", "enabled", "startup", "cancel", "reset-budget", "retry-now",
                  "timeline", "statistics", "thread-enabled", "cancel-thread", "diagnostics")
 MAX_LINE = 64 * 1024
+# What a rejection says when nothing more precise is known. Both the sentence and the code
+# are the generic ones: the log holds the detail, and a front end that shows this has still
+# shown it in the user's own language.
+GENERIC_ERROR = "the request could not be completed"
 
 
 def _use_utf8() -> None:
@@ -60,6 +72,18 @@ def _use_utf8() -> None:
             stream.reconfigure(encoding="utf-8", newline=chr(10))
         except (AttributeError, ValueError, OSError):
             pass
+
+
+def _rejected(message: str, code: str = FALLBACK_CODE) -> dict:
+    """The only shape a refusal leaves here in: the English sentence and its code.
+
+    The sentence is what the command line prints and what a bug report quotes; the code is
+    the same refusal as a stable value, so the window and the panel can say it in the
+    language they say everything else in rather than showing a Korean lead sentence over an
+    English explanation. Nothing else goes in - no traceback, no path, no identifier -
+    which is why every rejection is built here instead of at each `return`.
+    """
+    return {"ok": False, "error": message, "error_code": code}
 
 
 def _emit(payload) -> int:
@@ -158,7 +182,7 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
                     # Any other failure is contained to its own part too, and like the
                     # whole-command case below it never carries exception text, which can
                     # hold a path, into a front end.
-                    reply[key + "_error"] = "the request could not be completed"
+                    reply[key + "_error"] = GENERIC_ERROR
             return reply
         if command == "update":
             return {"ok": True, "settings": control.update_settings(payload)}
@@ -191,14 +215,16 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
             try:
                 written = diagnostics.write(control, Path(target))
             except FileExistsError:
-                raise ControlError("that file already exists; choose a new name") from None
+                raise ControlError("that file already exists; choose a new name",
+                                   code="file_exists") from None
             return {"ok": True, "result": {"path": str(written)}}
     except ControlError as exc:
-        return {"ok": False, "error": str(exc)}
+        return _rejected(str(exc), exc.code)
     except Exception:
-        # Never leak a traceback or a path into a front end; the log has the detail.
-        return {"ok": False, "error": "the request could not be completed"}
-    return {"ok": False, "error": "unknown command"}
+        # Never leak a traceback or a path into a front end; the log has the detail. The
+        # code is the generic one, because nothing here knows what went wrong.
+        return _rejected(GENERIC_ERROR)
+    return _rejected("unknown command")
 
 
 def serve(control: Control, stream_in, stream_out) -> int:
@@ -226,16 +252,16 @@ def serve(control: Control, stream_in, stream_out) -> int:
                 raise ControlError("unknown command")
             reply = dispatch(control, command, _payload(request.get("argument")))
         except ControlError as exc:
-            reply = {"ok": False, "error": str(exc)}
+            reply = _rejected(str(exc), exc.code)
         except (ValueError, RecursionError):
             # A deeply nested line raises RecursionError rather than ValueError; it is
             # the same malformed request and gets the same answer.
-            reply = {"ok": False, "error": "request must be JSON"}
+            reply = _rejected("request must be JSON")
         except Exception:
             # One bad line must never end the loop: the window would be left with a dead
             # pipe and a request that is never answered. No detail, for the same reason
             # `dispatch` gives none.
-            reply = {"ok": False, "error": "the request could not be completed"}
+            reply = _rejected(GENERIC_ERROR)
         json.dump({"id": request_id, "reply": reply}, stream_out, ensure_ascii=False, default=str)
         stream_out.write("\n")
         stream_out.flush()
@@ -268,7 +294,7 @@ def main(argv=None) -> int:
     try:
         payload = _payload(getattr(args, "json", ""))
     except ControlError as exc:
-        reply = {"ok": False, "error": str(exc)}
+        reply = _rejected(str(exc), exc.code)
     else:
         reply = dispatch(control, args.command, payload)
     return _emit(reply)

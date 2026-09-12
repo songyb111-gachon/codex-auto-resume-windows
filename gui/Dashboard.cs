@@ -1505,12 +1505,21 @@ namespace CodexAutoResume
         private void Report(Dictionary<string, object> reply)
         {
             if (Ok(reply)) return;
-            // A sentence in the window's own language first. The detail after it comes from
-            // the local service, which speaks English; it stays because it is what a bug
-            // report needs.
-            string reason = Convert.ToString(Get(reply, "error"), CultureInfo.InvariantCulture);
-            MessageBox.Show(this, S("action.failed", "That could not be done.") +
-                                  (string.IsNullOrEmpty(reason) ? "" : Environment.NewLine + Environment.NewLine + reason),
+            // Every refusal carries a code from a closed set, and the catalog has that code's
+            // sentence in the language this window is speaking. The English sentence beside it
+            // comes from the local service and stays underneath, because it is what a bug
+            // report needs - except where it would only repeat the line above it.
+            string code = Str(reply, "error_code");
+            string english = Convert.ToString(Get(reply, "error"), CultureInfo.InvariantCulture);
+            // The generic code is the exception: it is what a refusal carries when the
+            // sentence beside it is the informative half - a setting naming the bounds it
+            // refused, say - so translating it would replace the only useful words with
+            // "the request could not be completed".
+            string said = string.IsNullOrEmpty(code) || code == "request_failed"
+                        ? null : S("error." + code, null);
+            string lead = said ?? S("action.failed", "That could not be done.");
+            MessageBox.Show(this, lead + (said != null || string.IsNullOrEmpty(english)
+                                          ? "" : Environment.NewLine + Environment.NewLine + english),
                             "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 

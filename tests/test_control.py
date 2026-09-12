@@ -14,6 +14,7 @@ that quietly submitted would still look like it worked from the outside.
 """
 from __future__ import annotations
 
+import ast
 import io
 import json
 from pathlib import Path
@@ -446,7 +447,8 @@ class BridgeTests(ControlTestCase):
         replies = self.serve_lines(lines)
         self.assertEqual([reply["id"] for reply in replies], [1, 2, 3, 4, 5, 6])
         for reply in replies[0::2]:
-            self.assertEqual(reply["reply"], {"ok": False, "error": "argument must be a JSON object"})
+            self.assertEqual(reply["reply"], {"ok": False, "error": "argument must be a JSON object",
+                                              "error_code": control.FALLBACK_CODE})
         for reply in replies[1::2]:
             self.assertIs(reply["reply"]["ok"], True)
 
@@ -479,6 +481,135 @@ class BridgeTests(ControlTestCase):
         parser = controlcli.build_parser()
         offered = set([action for action in parser._actions if action.dest == "command"][0].choices)
         self.assertEqual(set(controlcli.PLAIN + controlcli.WITH_ARGUMENT) | {"serve"}, offered)
+
+
+class ErrorCodeTests(ControlTestCase):
+    """A refusal says the same thing twice: in English, and as a code.
+
+    Every other string the window and the panel show comes from `interface.py`, in the
+    language the machine asked for. The reason a request was refused did not: it arrived
+    from this layer as English prose, so a Korean user who cancelled a recovery that had
+    already finished read a Korean lead sentence over an English explanation. The code is
+    what closes that gap, and it closes it only if the vocabulary is closed and complete -
+    every refusal carries one, every code has a sentence in every language (asserted in
+    tests/test_locale.py), and the same refusal carries the same code every time.
+    """
+
+    def reject(self, command, payload=None):
+        """One rejected reply from the bridge, in the shape a front end receives it."""
+        reply = controlcli.dispatch(self.control, command, payload or {})
+        self.assertIs(reply["ok"], False, reply)
+        return reply
+
+    def test_every_refusal_in_the_control_layer_carries_a_code_from_the_set(self):
+        """Read from the source rather than from the raises a test happens to reach.
+
+        Some of these fire only for a store a version ahead, or for a record that vanished
+        between two statements. They are still refusals a Korean window has to have words
+        for, and walking the module is the only way to be sure of every one of them.
+        """
+        source = Path(control.__file__).read_text(encoding="utf-8")
+        raises = [node for node in ast.walk(ast.parse(source))
+                  if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "ControlError"]
+        self.assertGreaterEqual(len(raises), 20, "the walk found no refusals; the shape changed")
+        for node in raises:
+            with self.subTest(line=node.lineno):
+                keywords = {keyword.arg: keyword.value for keyword in node.keywords}
+                self.assertIn("code", keywords, "this refusal carries no code")
+                value = keywords["code"]
+                if isinstance(value, ast.Constant):
+                    self.assertIn(value.value, control.ERROR_CODES, "not in the closed set")
+                else:
+                    # The two table-driven refusals. Their whole vocabulary is the tables'
+                    # own, checked in the next test and driven through a real store in
+                    # tests/test_control_v3.py.
+                    self.assertEqual(getattr(value, "id", None), "code")
+
+    def test_the_refusal_tables_invent_no_code_of_their_own(self):
+        tables = {name: table for name, table in vars(control).items()
+                  if name.startswith("_REFUSALS_")}
+        self.assertTrue(tables, "the store's refusals are mapped somewhere this cannot see")
+        for name, table in tables.items():
+            self.assertIn(None, table, "%s has no last resort, so a detail it has never "
+                                       "heard of would raise without a code" % name)
+            for detail, (message, code) in table.items():
+                with self.subTest(table=name, detail=detail):
+                    self.assertIn(code, control.ERROR_CODES)
+                    self.assertTrue(message.strip())
+
+    def test_the_fallback_is_a_real_code_and_never_none(self):
+        # A rejection with no code at all would leave a front end holding the English
+        # sentence and no way to say it, which is the whole bug.
+        self.assertIn(control.FALLBACK_CODE, control.ERROR_CODES)
+        self.assertEqual(control.ControlError("x").code, control.FALLBACK_CODE)
+        self.assertEqual(control.ControlError("x", code=None).code, control.FALLBACK_CODE)
+
+    def test_the_sentence_is_untouched_by_the_code(self):
+        # The command line prints this and the logs keep it, so the code beside it must
+        # not have cost a single word of it.
+        with self.assertRaises(control.ControlError) as caught:
+            self.control.request_retry_now(KEY)
+        self.assertEqual(str(caught.exception), "no such interruption")
+        self.assertEqual(caught.exception.code, "no_such_interruption")
+
+    def test_a_rejection_carries_the_code_beside_the_sentence(self):
+        reply = self.reject("cancel", {"interruption_id": "latest"})
+        self.assertEqual(reply["error"], "invalid interruption id")
+        self.assertEqual(reply["error_code"], "invalid_id")
+
+    def test_the_same_rejection_carries_the_same_code_every_time(self):
+        # A front end keys its own wording off this, so it has to be stable across calls
+        # in a way English prose never promised to be.
+        codes = {self.reject("retry-now", {"interruption_id": KEY})["error_code"]
+                 for _ in range(5)}
+        self.assertEqual(codes, {"no_such_interruption"})
+
+    def test_every_rejection_the_bridge_can_make_carries_a_code_from_the_set(self):
+        self.register()
+        for command, payload in (("cancel", {"interruption_id": "latest"}),
+                                 ("retry-now", {"interruption_id": OTHER_KEY}),
+                                 ("reset-budget", {"interruption_id": KEY}),
+                                 ("thread-enabled", {"thread_id": THREAD, "enabled": "yes"}),
+                                 ("cancel-thread", {"thread_id": "everything"}),
+                                 ("update", {"max_no_progress": 99}),
+                                 ("statistics", {"days": 9999}),
+                                 ("diagnostics", {"path": "notes.txt"}),
+                                 ("no-such-command", {})):
+            with self.subTest(command):
+                reply = self.reject(command, payload)
+                self.assertIn(reply["error_code"], control.ERROR_CODES)
+
+    def test_the_generic_catch_all_carries_the_fallback_code(self):
+        with patch.object(control.Control, "get_status", side_effect=RuntimeError(str(self.home))):
+            reply = self.reject("status")
+        self.assertEqual(reply, {"ok": False, "error": "the request could not be completed",
+                                 "error_code": control.FALLBACK_CODE})
+
+    def test_a_rejection_reply_carries_nothing_but_the_sentence_and_the_code(self):
+        # Three keys, and none of them a path, an identifier or the text of an exception.
+        # The code is the machine-readable part, so nothing else has to be.
+        self.register()
+        reply = self.reject("reset-budget", {"interruption_id": KEY})
+        self.assertEqual(set(reply), {"ok", "error", "error_code"})
+        self.assertEqual(reply["error_code"], "not_exhausted")
+        text = json.dumps(reply)
+        for leak in (KEY, THREAD, str(self.home), "Traceback", "control.py"):
+            self.assertNotIn(leak, text, leak)
+
+    def test_serve_answers_a_rejection_with_the_code_too(self):
+        # The window drives the long-lived form, so it must not be the one front end that
+        # cannot say a refusal in the user's language.
+        out = io.StringIO()
+        request = json.dumps({"id": 1, "command": "cancel", "argument": {"interruption_id": "x"}})
+        controlcli.serve(self.control, io.StringIO(request + "\n"), out)
+        self.assertEqual(json.loads(out.getvalue())["reply"]["error_code"], "invalid_id")
+
+    def test_a_framing_failure_is_coded_too(self):
+        out = io.StringIO()
+        controlcli.serve(self.control, io.StringIO("not json\n"), out)
+        self.assertEqual(json.loads(out.getvalue())["reply"],
+                         {"ok": False, "error": "request must be JSON",
+                          "error_code": control.FALLBACK_CODE})
 
 
 class StartWatcherTests(ControlTestCase):

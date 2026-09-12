@@ -55,15 +55,91 @@ NEWER_STATE = ("The recovery state was written by a newer version of Codex Auto 
                "Update this installation; do not delete the state.")
 
 
+# Every way this layer can refuse a request, as a stable machine value. The English
+# sentence beside each one is what the command line prints and what a support log keeps;
+# the code is what a front end looks up in the language the rest of the product is already
+# speaking, because a window whose own lead sentence is Korean and whose explanation is
+# English has told half the story in the wrong language.
+#
+# The vocabulary is closed on purpose. `interface.py` carries an `error.<code>` string for
+# every member in every language, and the tests refuse both a raise whose code is not here
+# and a code that reaches the catalogs without a sentence to say it, so a new refusal
+# cannot quietly arrive untranslated.
+ERROR_CODES = frozenset({
+    "invalid_id", "invalid_thread_id", "invalid_enabled", "no_such_interruption",
+    "not_installed", "start_failed", "store_unavailable", "newer_state", "upgrade_pending",
+    "state_busy", "not_exhausted", "cancel_requested", "possibly_sent", "reset_limit",
+    "already_finished", "being_sent", "in_flight", "observing", "cannot_continue",
+    "cannot_check_now", "file_exists", "request_failed",
+})
+# The code for a refusal with nothing more specific to say, and the one every caller may
+# assume is present. A rejection carrying no code at all would leave a front end holding
+# the English sentence with no way to say it, which is the gap the codes exist to close,
+# so the default is a real member of the set and never None.
+FALLBACK_CODE = "request_failed"
+
+
 class ControlError(RuntimeError):
-    """A rejected request. The message is safe to show a user."""
+    """A rejected request. The message is safe to show a user.
+
+    `str(exc)` is exactly the English sentence it has always been, because the command
+    line prints it and the logs keep it. `code` is that same refusal as one of
+    `ERROR_CODES`, so a front end can say it in the person's own language instead of
+    parsing prose that was never meant to be parsed.
+    """
+
+    def __init__(self, message, *, code: str = FALLBACK_CODE):
+        super().__init__(message)
+        self.code = code or FALLBACK_CODE
+
+
+# What the store says when it refuses to restore a budget or to bring a check forward, as
+# the sentence a person reads and the code a front end translates. Each detail keeps its
+# own code rather than sharing one "cannot" for the group: "it was cancelled", "it may
+# already have been sent" and "you have given it its attempts back as often as you may"
+# have three different next steps, and one code for the three would hand every front end a
+# single unhelpful sentence to show for all of them.
+#
+# The entry under None is each table's own last resort, so a detail this layer has never
+# heard of - a store a version ahead, a record that vanished between two statements - still
+# arrives as a coded rejection rather than as an uncoded one.
+_REFUSALS_RESTORE = {
+    "not_exhausted": ("that recovery has not been exhausted", "not_exhausted"),
+    "finished": ("that recovery has already finished", "already_finished"),
+    "cancel_requested": ("that recovery was cancelled", "cancel_requested"),
+    "possibly_sent": ("that recovery may already have been sent", "possibly_sent"),
+    # Left as a template: the count belongs to this layer's own constant, and a sentence
+    # frozen at import stops following it the moment that constant moves.
+    "reset_limit": ("its budget was already reset %d times; continue this task in Codex "
+                    "yourself", "reset_limit"),
+    # The record went between the read and the write - the watcher can finish one and the
+    # row can be hidden. That is not a refusal of policy, and saying so would send a person
+    # looking for a rule that does not exist.
+    "unknown_record": ("no such interruption", "no_such_interruption"),
+    None: ("that recovery cannot be continued", "cannot_continue"),
+}
+_REFUSALS_RETRY = {
+    "finished": ("that recovery has already finished", "already_finished"),
+    "cancel_requested": ("that recovery was cancelled", "cancel_requested"),
+    "claimed": ("that recovery is being sent now", "being_sent"),
+    "in_flight": ("that recovery is already in Codex", "in_flight"),
+    "observing": ("that recovery is already running in Codex", "observing"),
+    "unknown_record": ("no such interruption", "no_such_interruption"),
+    None: ("that recovery cannot be checked now", "cannot_check_now"),
+}
+
+
+def _refusal(table: dict, detail) -> tuple:
+    """The sentence and the code for what the store refused, or the table's last resort."""
+    message, code = table.get(detail) or table[None]
+    return (message % MAX_BUDGET_RESETS if "%d" in message else message), code
 
 
 def _identifier(value, name="interruption id") -> str:
     """Interruption ids are opaque lowercase hex. Nothing else addresses a record."""
     text = str(value or "").strip().lower()
     if len(text) != 64 or any(character not in "0123456789abcdef" for character in text):
-        raise ControlError("invalid %s" % name)
+        raise ControlError("invalid %s" % name, code="invalid_id")
     return text
 
 
@@ -71,9 +147,11 @@ def _thread_id(value) -> str:
     try:
         parsed = uuid.UUID(str(value))
     except (ValueError, AttributeError, TypeError):
-        raise ControlError("thread id must be a canonical UUID") from None
+        raise ControlError("thread id must be a canonical UUID",
+                           code="invalid_thread_id") from None
     if str(parsed) != str(value):
-        raise ControlError("thread id must be lowercase canonical UUID text")
+        raise ControlError("thread id must be lowercase canonical UUID text",
+                           code="invalid_thread_id")
     return str(value)
 
 
@@ -137,13 +215,19 @@ class Control:
         try:
             return settings.update(self.settings_path(), changes)
         except settings.SettingsError as exc:
-            raise ControlError(str(exc)) from None
+            # The sentence is the validator's own and names the setting it refused. The
+            # closed set has no code for "this value is out of range", because a code is
+            # there for a refusal a front end must word itself and both settings surfaces
+            # already frame this one in their own language - "Not saved: {reason}" - around
+            # the English detail. So this carries the generic code deliberately.
+            raise ControlError(str(exc), code="request_failed") from None
 
     def restore_defaults(self) -> dict:
         try:
             return settings.save(self.settings_path(), settings.defaults())
         except settings.SettingsError as exc:
-            raise ControlError(str(exc)) from None
+            # Generic for the same reason as `update_settings` above.
+            raise ControlError(str(exc), code="request_failed") from None
 
     def describe_settings(self) -> list:
         return settings.describe()
@@ -162,22 +246,24 @@ class Control:
         except UpgradePending:
             pass
         except StateFromNewerVersion:
-            raise ControlError(NEWER_STATE) from None
+            raise ControlError(NEWER_STATE, code="newer_state") from None
         except StoreError as exc:
-            raise ControlError("local state is unavailable: %s" % exc) from None
+            raise ControlError("local state is unavailable: %s" % exc,
+                               code="store_unavailable") from None
         try:
             with Mutex(str(self.paths.state_dir), timeout=0.0):
                 return Store(self.paths.state_dir, migrate=True, check=True)
         except AdapterError:
             pass
         except StoreError as exc:
-            raise ControlError("local state is unavailable: %s" % exc) from None
+            raise ControlError("local state is unavailable: %s" % exc,
+                               code="store_unavailable") from None
         if legacy_ok:
             try:
                 return LegacyStore(self.paths.state_dir)
             except StoreError:
                 pass
-        raise ControlError(UPGRADE_PENDING)
+        raise ControlError(UPGRADE_PENDING, code="upgrade_pending")
 
     def watcher_running(self):
         """True / False / None, where None means the probe itself was unavailable."""
@@ -218,7 +304,7 @@ class Control:
 
     def set_startup_enabled(self, enabled: bool) -> bool:
         if not isinstance(enabled, bool):
-            raise ControlError("enabled must be true or false")
+            raise ControlError("enabled must be true or false", code="invalid_enabled")
         try:
             if enabled:
                 launcher = self.paths.home / "watcher-launcher.py"
@@ -230,7 +316,9 @@ class Control:
                 if value and startup.belongs_to(value, self.paths.home):
                     startup.uninstall()
         except startup.StartupError as exc:
-            raise ControlError(str(exc)) from None
+            # The registry layer's own sentence, and the generic code for the reason given
+            # at `update_settings`: the set has no word for a registration that failed.
+            raise ControlError(str(exc), code="request_failed") from None
         return self.startup_enabled()
 
     def start_watcher(self) -> dict:
@@ -255,7 +343,7 @@ class Control:
         launcher = self.paths.home / "watcher-launcher.py"
         entry = launcher if launcher.is_file() else self.paths.entry_script
         if not Path(entry).is_file():
-            raise ControlError("the watcher is not installed here")
+            raise ControlError("the watcher is not installed here", code="not_installed")
         flags = 0
         if os.name == "nt":
             flags = (getattr(subprocess, "DETACHED_PROCESS", 0)
@@ -270,7 +358,8 @@ class Control:
                                        creationflags=flags, stdin=subprocess.DEVNULL,
                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except OSError as exc:
-            raise ControlError("could not start the watcher: %s" % exc) from None
+            raise ControlError("could not start the watcher: %s" % exc,
+                               code="start_failed") from None
         result = self._confirm_watcher(process)
         result["started"] = True
         return result
@@ -396,7 +485,7 @@ class Control:
         with self._open() as store:
             record = store.get(key)
             if record is None:
-                raise ControlError("no such interruption")
+                raise ControlError("no such interruption", code="no_such_interruption")
             events = store.events(chain_origin_id=record["chain_origin_id"])
         # Each state an event moved to, also as the public code every interface already
         # has words for - the stored state names are the engine's, not a person's.
@@ -435,7 +524,7 @@ class Control:
         second concept, so there is only ever one answer to "is recovery running".
         Pending records are preserved either way."""
         if not isinstance(enabled, bool):
-            raise ControlError("enabled must be true or false")
+            raise ControlError("enabled must be true or false", code="invalid_enabled")
         with self._open(legacy_ok=True) as store:
             store.set_enabled(enabled, time.time())
             return {"enabled": bool(store.settings()["enabled"])}
@@ -444,7 +533,7 @@ class Control:
         """Switch automatic recovery on or off for one conversation."""
         thread = _thread_id(thread_id)
         if not isinstance(enabled, bool):
-            raise ControlError("enabled must be true or false")
+            raise ControlError("enabled must be true or false", code="invalid_enabled")
         with self._open(legacy_ok=True) as store:
             store.set_thread_enabled(thread, enabled, actor=actor)
             return {"thread_id": thread, "enabled": store.thread_enabled(thread)}
@@ -464,14 +553,15 @@ class Control:
                 with self._open() as store:
                     result = store.cancel_interruption(key, time.time(), actor=actor)
                     if result is None:
-                        raise ControlError("no such interruption")
+                        raise ControlError("no such interruption", code="no_such_interruption")
                     record = store.get(key)
                 break
             except ControlError:
                 raise
             except StoreError:
                 if time.monotonic() >= deadline:
-                    raise ControlError("the state is busy; the cancel was not recorded") from None
+                    raise ControlError("the state is busy; the cancel was not recorded",
+                                       code="state_busy") from None
                 time.sleep(0.5)
         effects = result["effects"]
         if not result["changed"]:
@@ -503,16 +593,17 @@ class Control:
         with self._open() as store:
             record = store.get(key)
             if record is None:
-                raise ControlError("no such interruption")
+                raise ControlError("no such interruption", code="no_such_interruption")
             restored, detail = store.restore_budget_detailed(key, time.time(), actor=actor)
             if not restored:
-                raise ControlError({
-                    "not_exhausted": "that recovery has not been exhausted",
-                    "cancel_requested": "that recovery was cancelled",
-                    "possibly_sent": "that recovery may already have been sent",
-                    "reset_limit": ("its budget was already reset %d times; continue this task "
-                                    "in Codex yourself" % MAX_BUDGET_RESETS),
-                }.get(detail, "that recovery cannot be continued"))
+                # The store checks "is it one of the two exhausted states" before it checks
+                # anything else, so it calls a cancelled or recovered record "not_exhausted"
+                # - which would tell a person their cancelled recovery still has attempts
+                # left. This layer has the record in hand and can say which it really is.
+                if detail == "not_exhausted" and record["state"] in TERMINAL:
+                    detail = "cancel_requested" if record["cancel_requested"] else "finished"
+                message, code = _refusal(_REFUSALS_RESTORE, detail)
+                raise ControlError(message, code=code)
             thread_on = store.thread_enabled(record["thread_id"])
             note = None if thread_on else ("automatic recovery is off for this conversation; "
                                            "switch it on for this recovery to run")
@@ -530,16 +621,11 @@ class Control:
         with self._open() as store:
             record = store.get(key)
             if record is None:
-                raise ControlError("no such interruption")
+                raise ControlError("no such interruption", code="no_such_interruption")
             accepted, detail = store.request_retry_now(key, time.time(), actor=actor)
         if not accepted:
-            raise ControlError({
-                "finished": "that recovery has already finished",
-                "cancel_requested": "that recovery was cancelled",
-                "claimed": "that recovery is being sent now",
-                "in_flight": "that recovery is already in Codex",
-                "observing": "that recovery is already running in Codex",
-            }.get(detail, "that recovery cannot be checked now"))
+            message, code = _refusal(_REFUSALS_RETRY, detail)
+            raise ControlError(message, code=code)
         woke = False
         try:
             woke = WakeEvent(str(self.paths.state_dir)).signal()

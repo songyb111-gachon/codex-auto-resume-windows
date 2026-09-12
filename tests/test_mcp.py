@@ -16,6 +16,8 @@ import io
 import json
 import re
 from pathlib import Path
+import shutil
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -297,6 +299,71 @@ class ToolBehaviourTests(McpTestCase):
             self.assertIn("error", self.call(name), name)
 
 
+class RefusalTests(McpTestCase):
+    """A refused call, as far as this layer carries it.
+
+    The English sentence is what the model reads and what a bug report quotes, and it is
+    unchanged. The code beside it is the same refusal as a stable machine value, and it is
+    the only part of a refusal another surface can say in another language - so a refusal
+    that leaves here without one is a panel that can only frame English in Korean.
+    """
+
+    def refuse(self, name, arguments=None) -> dict:
+        result = self.call(name, arguments or {})["result"]
+        self.assertIs(result["isError"], True, name)
+        return result
+
+    def test_a_refusal_carries_its_code_beside_the_sentence(self):
+        self.register()
+        result = self.refuse("reset_recovery_budget", {"interruption_id": KEY})
+        self.assertEqual(result["content"][0]["text"], "that recovery has not been exhausted")
+        self.assertEqual(result["structuredContent"], {"error_code": "not_exhausted"})
+
+    def test_the_same_refusal_carries_the_same_code_every_time(self):
+        # The panel keys its own wording off this, so it has to be stable across calls in
+        # a way English prose never promised to be.
+        codes = {self.refuse("cancel_recovery", {"interruption_id": "latest"})
+                 ["structuredContent"]["error_code"] for _ in range(5)}
+        self.assertEqual(codes, {"invalid_id"})
+
+    def test_every_refusal_this_server_can_make_carries_a_code_from_the_set(self):
+        self.register()
+        for name, arguments in (("cancel_recovery", {"interruption_id": "latest"}),
+                                ("retry_now", {"interruption_id": "b" * 64}),
+                                ("reset_recovery_budget", {"interruption_id": KEY}),
+                                ("enable_conversation_recovery", {"thread_id": "everything"}),
+                                ("disable_conversation_recovery", {"thread_id": THREAD.upper()}),
+                                ("update_settings", {"max_no_progress": 99}),
+                                ("update_settings", {"codex_exe": r"C:\somewhere\codex.exe"}),
+                                ("update_settings", {}),
+                                ("get_recovery_statistics", {"days": 9999})):
+            with self.subTest(name=name, arguments=arguments):
+                code = self.refuse(name, arguments)["structuredContent"]["error_code"]
+                self.assertIn(code, control.ERROR_CODES)
+
+    def test_a_refusal_this_server_words_itself_carries_a_code_too(self):
+        # Not every refusal comes from the control layer; this one is the tool refusing an
+        # empty change. It has nothing more specific to say, and the generic code is a real
+        # member of the set exactly so that no front end ever has to handle a missing one.
+        self.assertEqual(self.refuse("update_settings", {})["structuredContent"]["error_code"],
+                         control.FALLBACK_CODE)
+
+    def test_a_refusal_carries_nothing_but_the_sentence_and_the_code(self):
+        # This reply is part of the conversation Codex sends on. The code being the
+        # machine-readable half is what lets everything else stay out of it.
+        self.register()
+        result = self.refuse("reset_recovery_budget", {"interruption_id": KEY})
+        self.assertEqual(set(result), {"isError", "content", "structuredContent"})
+        self.assertEqual(set(result["structuredContent"]), {"error_code"})
+        for leak in (KEY, THREAD, str(self.home), "Traceback", "control.py"):
+            self.assertNotIn(leak, json.dumps(result), leak)
+
+    def test_a_call_that_succeeds_reports_no_refusal(self):
+        result = self.call("get_status")["result"]
+        self.assertNotIn("isError", result)
+        self.assertNotIn("error_code", result["structuredContent"])
+
+
 class WidgetTests(McpTestCase):
     def test_open_settings_points_at_the_ui_resource(self):
         result = self.call("open_settings")["result"]
@@ -354,6 +421,115 @@ class WidgetTests(McpTestCase):
     def test_a_preview_seed_is_escaped(self):
         page = mcpui.settings_page({"status": {"version": "</script><script>x"}})
         self.assertNotIn("</script><script>x", page)
+
+    def test_the_panel_is_served_a_sentence_for_every_refusal_it_may_be_handed(self):
+        """The catalog shipped with the page has to cover the whole closed set.
+
+        The panel is seeded once and never asks again, so a code whose string is missing
+        from the catalog it was served is a refusal it can only show in English - which is
+        the gap the codes exist to close.
+        """
+        catalog = json.loads(mcpui.settings_page().split("__CODEX_AUTO_RESUME_STRINGS__=", 1)[1]
+                             .split(";</script>", 1)[0])
+        missing = sorted(code for code in control.ERROR_CODES
+                         if not catalog.get("error." + code))
+        self.assertEqual(missing, [])
+
+    def test_only_the_refusal_helper_reads_the_english_sentence(self):
+        # Both failure paths word a refusal the same way. One that reached for
+        # `error.message` itself would be the Korean-frame-around-an-English-sentence bug
+        # coming back on exactly one button, which is how it went unnoticed the first time.
+        self.assertEqual(mcpui._SCRIPT.count("{reason: refusal(error)}"), 2)
+        self.assertNotIn("error.message",
+                         mcpui._SCRIPT.replace(javascript_function("refusal"), ""))
+
+    def test_the_one_code_the_panel_leaves_in_english_is_the_real_generic_one(self):
+        # The panel keeps the sentence for the code the control layer gives a refusal it
+        # deliberately leaves unworded, because that sentence names the setting it refused.
+        # Renaming the code there without renaming it here would quietly replace those
+        # details with "the request could not be completed".
+        found = re.search(r"GENERIC_REFUSAL = '([a-z_]+)'", mcpui._SCRIPT)
+        self.assertEqual(found.group(1), control.FALLBACK_CODE)
+
+
+NODE = shutil.which("node")
+
+
+def javascript_function(name: str) -> str:
+    """One top-level function out of the panel's script, by name.
+
+    The script is mostly DOM building, which is not worth running outside a browser. The
+    few pieces that are pure string work are top-level functions whose closing brace is in
+    the first column, so they can be lifted out and run on their own.
+    """
+    found = re.search(r"^function %s\(.*?^\}" % name, mcpui._SCRIPT, re.M | re.S)
+    assert found, name
+    return found.group(0)
+
+
+@unittest.skipUnless(NODE, "needs Node to run the panel's own code")
+class PanelWordingTests(unittest.TestCase):
+    """What a Korean reader actually sees when a call is refused.
+
+    Reading the source cannot tell a preference that works from one that throws, and this
+    decides the wording of every refusal the panel shows, so the panel's own function is
+    lifted out of the script and run rather than described.
+    """
+
+    KOREAN = {"error.already_finished": "이미 끝난 복구입니다.",
+              "error.request_failed": "요청을 처리하지 못했습니다.",
+              "panel.refused": "거부됨"}
+
+    def word(self, error, strings=None) -> str:
+        """What `refusal()` shows for one rejected call, run in the panel's own code."""
+        script = "\n".join([
+            # ASCII-escaped on purpose: the sentences are Korean and the script travels as
+            # a command-line argument, so nothing here depends on the console code page.
+            "var S = %s;" % json.dumps(self.KOREAN if strings is None else strings),
+            re.search(r"var GENERIC_REFUSAL = '[a-z_]+';", mcpui._SCRIPT).group(0),
+            javascript_function("t"),
+            javascript_function("refusal"),
+            "process.stdout.write(refusal(%s));" % json.dumps(error),
+        ])
+        done = subprocess.run([NODE, "-e", script], capture_output=True, text=True,
+                              encoding="utf-8")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        return done.stdout
+
+    def test_a_coded_refusal_is_shown_in_the_language_the_panel_speaks(self):
+        # The bug this closes: a Korean frame around an English sentence.
+        self.assertEqual(self.word({"message": "that recovery has already finished",
+                                    "structuredContent": {"error_code": "already_finished"}}),
+                         self.KOREAN["error.already_finished"])
+
+    def test_the_code_is_found_whether_or_not_the_host_wraps_the_result(self):
+        # Hosts differ on what they hand a rejected call, the way they differ on a
+        # fulfilled one, and the panel has no say in which shape it gets.
+        self.assertEqual(self.word({"message": "that recovery has already finished",
+                                    "error_code": "already_finished"}),
+                         self.KOREAN["error.already_finished"])
+
+    def test_a_refusal_with_no_code_still_says_what_went_wrong(self):
+        # An older watcher, from before the codes. Its sentence is all there is, and it is
+        # worth more than a panel that goes quiet about why nothing was saved.
+        self.assertEqual(self.word({"message": "that recovery has already finished"}),
+                         "that recovery has already finished")
+
+    def test_a_code_this_catalog_cannot_say_falls_back_to_the_sentence(self):
+        # A watcher newer than the page it is serving. Same rule, other direction.
+        self.assertEqual(self.word({"message": "something new refused it",
+                                    "structuredContent": {"error_code": "from_the_future"}}),
+                         "something new refused it")
+
+    def test_the_generic_code_keeps_the_detail_its_sentence_carries(self):
+        # A value the validator rejected. Its sentence names the setting; the generic
+        # string does not, so "Not saved: {reason}" would end up saying nothing twice.
+        self.assertEqual(self.word({"message": "max_no_progress must be between 1 and 20",
+                                    "structuredContent": {"error_code": "request_failed"}}),
+                         "max_no_progress must be between 1 and 20")
+
+    def test_a_refusal_that_says_nothing_at_all_is_still_worded(self):
+        self.assertEqual(self.word({}), self.KOREAN["panel.refused"])
 
 
 if __name__ == "__main__":

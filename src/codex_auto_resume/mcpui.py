@@ -146,6 +146,34 @@ function fill(key, fallback, values) {
   return text;
 }
 
+// The one code that is not worth translating, because the sentence beside it says more.
+// The control layer gives it to a refusal it deliberately leaves unworded - a value the
+// validator rejected, whose sentence names the setting it refused - and swapping that for
+// "the request could not be completed" inside "Not saved: {reason}" would throw away the
+// only informative half to say nothing twice.
+var GENERIC_REFUSAL = 'request_failed';
+
+// What a refused call says, in the language the rest of the panel is already speaking.
+//
+// Every refusal from the control layer carries a machine code from a closed set beside its
+// English sentence, and this page was served an `error.<code>` string for every member of
+// that set - so the code, not the prose, is the part that can be said in Korean. Without
+// it the panel could only wrap a Korean frame around an English sentence, which is half a
+// translation and reads worse than either language alone.
+//
+// Hosts differ on whether a rejected call hands back the whole tool result or only its
+// structured half, exactly as they differ on a fulfilled one, so both shapes are looked in
+// rather than depending on one. A refusal that arrives with no code at all is an older
+// watcher than the codes, and then its sentence is all there is - still better than a
+// panel that goes quiet about why nothing was saved.
+function refusal(error) {
+  var sentence = (error && error.message) ? error.message : t('panel.refused', 'refused');
+  var payload = (error && error.structuredContent) || error || {};
+  var code = payload.error_code;
+  if (!code || code === GENERIC_REFUSAL) return sentence;
+  return t('error.' + code, sentence);
+}
+
 function label(name) {
   var known = S['field.' + name];
   if (known) return known;
@@ -361,7 +389,7 @@ function render() {
       save.disabled = false;
     }, function (error) {
       message.textContent = fill('panel.not_saved', 'Not saved: {reason}',
-        {reason: (error && error.message) ? error.message : t('panel.refused', 'refused')});
+        {reason: refusal(error)});
       save.disabled = false;
     });
   };
@@ -402,7 +430,7 @@ function render() {
         render();
       }, function (error) {
         message.textContent = fill('panel.start_failed', 'Could not start it: {reason}',
-          {reason: (error && error.message) ? error.message : t('panel.refused', 'refused')});
+          {reason: refusal(error)});
         start.disabled = false;
       });
     };
