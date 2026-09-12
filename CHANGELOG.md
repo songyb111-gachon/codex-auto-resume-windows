@@ -2,12 +2,35 @@
 
 ## v0.6.0 — It follows its own turn, and it shows you the work
 
-Two changes, and the rest follows from them. The engine no longer reads the conversation
-for signs that a recovery worked: it follows the continuation it sent to the exact Codex
-turn that continuation started, and reads the outcome from that turn alone. And the window
-from the Start Menu, which was a settings page, now shows what the watcher has seen and
-done — Overview, Pending, History, Statistics and Diagnostics, beside the settings that
-were already there.
+Two changes, and most of the rest follows from them. The engine no longer reads the
+conversation for signs that a recovery worked: it follows the continuation it sent to the
+exact Codex turn that continuation started, and reads the outcome from that turn alone. And
+the window from the Start Menu, which was a settings page, now shows what the watcher has
+seen and done — Overview, Pending, History, Statistics and Diagnostics, beside the settings
+that were already there.
+
+In short, and each of these has its own section below:
+
+- **It follows its own turn.** A turn you started yourself can no longer be read as the
+  recovery working, and an outcome that could not be established is called unverified
+  rather than a success.
+- **A Dashboard, not a settings page.** Six pages, and every one of them is now captured
+  from the real window in both languages.
+- **An icon in the notification area**, owned by the watcher itself, with a live countdown
+  to the next check — and a route from its menu to the exact work that is waiting.
+- **Safety gates and a timeline.** Why a recovery is waiting, in the same 22 public words
+  everywhere, over a content-free journal that nothing reads back to decide anything.
+- **History, statistics and a redacted diagnostics export**, none of which can carry a
+  prompt, a reply, a path or an account.
+- **It can tell you a new version exists** — when you ask it, never on its own — and
+  install one through the same checksum-verified installer, keeping your pause, your
+  per-conversation decisions and everything waiting.
+- **Installing and repairing are harder to break**: a crash journal, a payload root copied
+  by name, an upgrade that repairs without deciding anything, and a watcher handover that
+  is checked rather than assumed.
+- **The supply chain is checkable**: every Action pinned to a commit, the build split from
+  the publish, reproducible executables, and a feature matrix that says for every capability
+  what evidence it has actually earned.
 
 The state file moves to schema 3 the first time the new watcher opens it. The last section
 says what works in between.

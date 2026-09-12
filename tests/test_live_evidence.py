@@ -26,6 +26,7 @@ import io
 import json
 from pathlib import Path
 import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -38,6 +39,23 @@ import live_evidence                                          # noqa: E402
 DOCUMENT = ROOT / "docs" / "LIVE_ACCEPTANCE.md"
 KOREAN = ROOT / "docs" / "LIVE_ACCEPTANCE.ko.md"
 EVIDENCE = ROOT / "docs" / "evidence" / "live"
+
+
+def generated_branch() -> bool:
+    """Whether this checkout is the generated `ko` branch.
+
+    There, `docs/LIVE_ACCEPTANCE.md` is the Korean text under the English name, so a test
+    that greps it for an English sentence is asking the wrong tree a question the right
+    one answers. The step ids and the recorded values are machine values and are the same
+    in both languages, so the checks about *those* still run here and should.
+
+    Keyed on the marker being tracked, because a stray local run of the generator leaves
+    an untracked copy behind and that must not excuse anything.
+    """
+    listed = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files", "--", ".github/GENERATED-BRANCH.md"],
+        capture_output=True, text=True, encoding="utf-8")
+    return bool(listed.returncode == 0 and listed.stdout.strip())
 
 # Never the manifest's version: a test that happened to agree with the product would pass
 # whether or not the check it is about still exists.
@@ -409,11 +427,15 @@ class DocumentTests(unittest.TestCase):
                          "a file; the validator is what refuses it")
 
     def test_the_document_says_an_empty_directory_is_not_a_pass(self):
+        if generated_branch():
+            raise unittest.SkipTest("this is the generated ko branch; the English source is on main")
         text = DOCUMENT.read_text(encoding="utf-8").lower()
         self.assertIn("not a pass", text)
         self.assertIn("nothing has been accepted yet", text)
 
     def test_the_document_says_which_steps_need_a_real_interruption(self):
+        if generated_branch():
+            raise unittest.SkipTest("this is the generated ko branch; the English source is on main")
         table = {}
         for line in DOCUMENT.read_text(encoding="utf-8").splitlines():
             if not line.startswith("| `"):
