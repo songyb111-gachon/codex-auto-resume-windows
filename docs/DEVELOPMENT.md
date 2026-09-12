@@ -72,9 +72,10 @@ Two latent bugs in the inherited code were found only by running it end to end:
 - The entry point called `main()` without `sys.exit()`, so every exit code was 0 and the
   single-instance "busy" signal was invisible.
 
-Added in this phase: the watcher loop, the full CLI, rotating logs that never record prompt or error
-text, optional per-user Windows autostart, clean uninstall, configuration and binary discovery, and a
-large expansion of the test suite.
+Added in this phase: the watcher loop, the full CLI, rotating logs that never record prompt text
+(`errors.log` does carry exception text this project did not write; see `PRIVACY.md`), optional
+per-user Windows autostart, clean uninstall, configuration and binary discovery, and a large
+expansion of the test suite.
 
 ## Phase 4 — Review and adversarial audit (Anthropic Claude Code)
 

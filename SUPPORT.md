@@ -19,7 +19,14 @@ Run the built-in check and paste its output. None of the checks below asks Codex
 anything, and none prints conversation content. The terminal commands do print local paths, which
 contain your Windows user name; redact it if you would rather not publish it.
 
-**Start Menu → Codex Auto Resume** shows the watcher state, what is pending and the version.
+**Start Menu → Codex Auto Resume** opens the window: Overview, Pending, History, Statistics,
+Diagnostics and Settings. Overview shows the watcher state, what is pending and the version.
+**Diagnostics → Export diagnostics...** writes one JSON file to a location you choose: the versions,
+your settings, every record's state, reason and the checks it is waiting on, the content-free
+journal, and the last 300 lines of each log. Conversation and interruption ids become aliases that
+mean nothing outside that file, and paths, your Windows user name and e-mail-shaped text are
+removed. Read it, then attach it instead of raw logs. `python src\auto_resume.py diagnostics`
+writes the same file.
 
 From a terminal, if you installed from source:
 
@@ -47,7 +54,7 @@ Whichever of these apply:
 | **A recoverable failure was missed** | What Codex showed you, and the log lines around that time |
 | **A task stayed at `waiting_for_loaded_thread`** | Whether the conversation was open in the app — see the note below |
 | **Notifications not appearing** | Whether Windows shows them for other apps, and whether **Codex Auto Resume** appears under Settings → Notifications |
-| **Settings window problems** | What you clicked, what happened, and your display scaling (100%, 125%, 150%…) |
+| **Window problems** | What you clicked, what happened, and your display scaling (100%, 125%, 150%…) |
 | **The settings panel in Codex** | Whether `codex mcp get codex-auto-resume` reports it enabled |
 | **Plugin not discovered** | The output of `codex plugin list` |
 
@@ -76,11 +83,15 @@ conversation in any 24 hours, at least 15 minutes apart. For either kind, recove
 default, after three recoveries in a row on the same conversation that were followed by neither
 a reply nor a completed turn, and a usage-limit recovery ends as `failed` after five failed
 launches of `codex queue` (a temporary failure reaches its attempt limit first, unless that
-setting is above four). The attempt count and the no-progress count are settings; the send cap,
-the 15 minutes and the five launches are not. An interruption stopped by the attempt count or
-the no-progress count can be given its attempts back by asking Codex to run the plugin's
-`reset_recovery_budget` tool with that interruption's id from `list_pending`. Neither the
-settings panel nor the settings window has a control for it.
+setting is above four). Whatever the individual failures were, one task also receives at most six
+continuations in total, by default, across its whole chain; reaching that cap stops the record as out
+of attempts, with the reason `chain_cap`. The attempt count, the no-progress count and the
+continuations-per-task cap are settings; the send cap, the 15 minutes and the five launches are not.
+An interruption stopped by any of those three counts can be given its attempts back with **Give
+attempts back** on the window's History page, or by asking Codex to run the plugin's
+`reset_recovery_budget` tool with that interruption's id from `list_pending`. It can be done three
+times for one task; after that the button goes quiet and the task has to be continued in Codex by
+hand. The settings panel in Codex has no control for it.
 
 **Windows warns about the installer, or blocks it.** Nothing this project builds is
 Authenticode-signed: not `Install.cmd` or `Uninstall.cmd`, not the PowerShell scripts, and not

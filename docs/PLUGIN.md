@@ -63,50 +63,66 @@ It is a front end and nothing more. No tool detects a failure, reserves an inter
 sends a continuation; the watcher stays the only thing that recovers, and it keeps running when
 the server is not. Two tools change *when* the watcher next looks at a record: `retry_now` moves
 a waiting record's next check to now, and `reset_recovery_budget` returns an exhausted record to
-waiting with its recovery attempts and its no-progress count reset to zero, and switches
-recovery for that conversation back on. Every gate still runs. That is a property of the
-surface, not a rule the model is asked to follow: there is no call that retries an unclassified
-failure, resolves a conversation by anything but its exact id, resends an uncertain submission
-or forces a send.
+waiting with its recovery attempts and its no-progress count reset to zero. It does not switch
+recovery for that conversation back on: where that conversation is off, the reply says so and
+nothing will run until it is switched on, and it can be used at most three times for one task.
+Every gate still runs. That is a property of the surface, not a rule the model is asked to
+follow: there is no call that retries an unclassified failure, resolves a conversation by
+anything but its exact id, resends an uncertain submission or forces a send.
 
 ### The tools, and which ones Codex asks about
 
 The table describes the server on the main branch, which ships in the release after v0.5.7.
 The server runs from the installed release, not from the plugin you add, so until that release
 is installed you have the server of the release you installed, v0.5.7 or earlier, which
-differs in four ways: pause and resume are one tool, `set_auto_recovery`, marked in neither
-direction; of the other tools that change something, only `restore_default_settings` and
-`cancel_recovery` are marked; `update_settings` also accepts two advanced settings; and
-`get_status` also reports the installation directory. The last two are described below the
-table.
+differs in six ways: it has ten tools rather than sixteen, without
+`disable_conversation_recovery`, `enable_conversation_recovery`, `get_recovery_statistics`,
+`get_recovery_timeline` and `clear_recovery_history`; its `cancel_recovery` stops recovery for
+the whole conversation the named interruption belongs to and switches that conversation off,
+rather than stopping one interruption and the records that continue it; pause and resume are
+one tool, `set_auto_recovery`, marked in neither direction; of the other tools that change
+something, only `restore_default_settings` and `cancel_recovery` are marked; `update_settings`
+also accepts two advanced settings; and `get_status` also reports the installation directory.
+The last two are described below the table.
 
 | Tool | What it does | Marked destructive |
 | --- | --- | --- |
 | `open_settings` | Shows the settings panel. Opening it changes nothing. | no |
 | `get_status` | Whether recovery is on, whether the watcher is running, counts by state, the version and the current settings. | no |
-| `list_pending` | Pending recoveries with their interruption ids, conversation ids, states and attempt counts. | no |
-| `pause_auto_recovery` | Global pause. The watcher sends nothing while paused. A continuation already waiting in Codex's queue is withdrawn when the watcher reaches it, and that recovery is cancelled - or, if the withdrawal cannot be confirmed, it is marked `submission_unknown` and never resent, though Codex's queue may still hold it; if Codex delivers it first, it counts as resumed. | no |
+| `list_pending` | Pending recoveries with their interruption ids, conversation ids, stored state, public code, reason, overlays and attempt counts. With `include_finished: true`, the recoveries that have already finished as well. | no |
+| `get_recovery_statistics` | How many interruptions were detected, how many continuations were sent, how they ended, and the median waits, over the last `days` days or all of it. Counts only; no ids. | no |
+| `get_recovery_timeline` | One interruption and everything that continued it, as codes and times. | no |
+| `pause_auto_recovery` | Global pause. The watcher sends nothing while paused. A continuation already waiting in Codex's queue is withdrawn when the watcher reaches it; a withdrawal the watcher can confirm returns that recovery to its waiting state with its attempt back, so resuming picks it up again. Only a withdrawal that cannot be confirmed is marked `submission_unknown` and never resent, though Codex's queue may still hold it; if Codex delivers it first, the engine follows the turn that continuation started and records what that turn actually did. | no |
 | `retry_now` | Moves a waiting record's next check to now. | no |
+| `disable_conversation_recovery` | Switches recovery off for one exact conversation, its later interruptions included, and cancels what it has waiting. | no |
 | `resume_auto_recovery` | Undoes a global pause. | yes |
+| `enable_conversation_recovery` | Switches recovery back on for one exact conversation. Nothing is sent; every check still applies. | yes |
 | `update_settings` | Changes user-facing settings: the recovery categories, the limits and the notifications. | yes |
 | `restore_default_settings` | Puts every setting back to its recommended value. | yes |
-| `cancel_recovery` | Stops recovery for the conversation the named interruption belongs to: every unfinished record on it is cancelled (one whose message is already on its way is reconciled instead and never resent), and the conversation is switched off. | yes |
+| `cancel_recovery` | Stops the named interruption and every record that continues it. One that was never sent is cancelled outright; one that may already be in Codex is marked, and the watcher takes back whatever is still queued - a turn already running is not stopped. The conversation itself stays switched on. | yes |
 | `reset_recovery_budget` | Returns an exhausted record to waiting, as above. | yes |
+| `clear_recovery_history` | Hides finished recoveries from the history. Deletes nothing and cancels nothing; a recovery that may still change stays visible, and hidden rows still count for every safety check. | yes |
 | `start_watcher` | Starts the watcher the installer starts, if it is not running. | yes |
 
 "Marked destructive" is MCP's `destructiveHint` annotation, which the server declares for
 each tool. Codex decides whether to ask under your approval settings; in its Auto approval
 mode it asks before running a tool marked this way. A tool that can add automation is marked.
-Turning recovery back on, re-arming a record that had stopped, changing or restoring settings
-(either can switch a recovery category back on) and starting a watcher you stopped can all add
-automation. `cancel_recovery` is marked too, because it switches a whole conversation off in a
-way no tool reverses: no tool restarts a record it cancelled, and through this plugin's tools and skill
-commands the conversation comes back on only if you give an exhausted recovery on it its
-attempts back. Outside them, the command line's `enable` with that conversation's id switches
-it back on. Pause and `retry_now` are not marked: a pause only reduces automation, though it
-also withdraws and cancels a continuation already waiting in Codex's queue, which no tool
-restores; `retry_now` cannot make anything recoverable that was not already pending. In
-v0.5.7 and earlier, pause and
+Turning recovery back on - globally, or for one conversation - re-arming a record that had
+stopped, changing or restoring settings (either can switch a recovery category back on) and
+starting a watcher you stopped can all add automation. `cancel_recovery` is marked for the
+opposite reason: no tool restarts a record it cancelled, so for that interruption and the
+records that continue it the stop is one-way. Switching a whole conversation off is a separate
+action, `disable_conversation_recovery`, and the switch itself is reversible -
+`enable_conversation_recovery` turns that conversation back on, as does the command line's
+`enable` with that conversation's id - though the records it cancelled stay cancelled.
+`clear_recovery_history` is marked for the same one-way reason: it deletes nothing and cancels
+nothing, but nothing puts a hidden row back in the history. Pause, `retry_now` and the
+read-only tools are not marked: a pause only reduces automation: a continuation already
+waiting in Codex's queue is withdrawn, and a withdrawal the watcher can confirm returns that
+recovery to waiting with its attempt back, so resuming picks it up again - only a withdrawal
+it cannot confirm, or a pause over a submission that was already uncertain, is final, and
+neither is ever sent again; `retry_now`
+cannot make anything recoverable that was not already pending. In v0.5.7 and earlier, pause and
 resume are one tool, `set_auto_recovery`, not marked destructive in either direction, so in
 Codex's Auto approval mode it runs without asking and a prompt-injected turn can quietly
 reverse a pause.
@@ -123,9 +139,10 @@ without asking, and `get_status` reports the installation directory as `home`.
 
 What a tool returns becomes part of the Codex conversation it was called from, and should be
 treated as sent to OpenAI like any tool output: the status summary (in v0.5.7 and earlier,
-with the installation directory), the settings, and for `list_pending` and `open_settings`
-the conversation and interruption ids with their states and counts. No tool returns a
-conversation's title or content. The same holds for command output the skill asks Codex to read back - `status`,
+with the installation directory), the settings, and for `list_pending` and `open_settings` the conversation and
+interruption ids with their states, codes and counts, and for `get_recovery_timeline` one
+chain's interruption ids with its event codes and times; `get_recovery_statistics` returns counts and times and no ids at all. No tool returns
+a conversation's title or content. The same holds for command output the skill asks Codex to read back - `status`,
 `pending`, `doctor`, `logs` - which also includes local paths and log lines.
 
 ### Two constraints that shaped it

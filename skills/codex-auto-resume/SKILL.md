@@ -111,18 +111,30 @@ Commands:
 
 ## Cancelling one task
 
-`cancel` needs the exact conversation UUID. Never guess it, never pass `--last`, and never
-pick "the most recent thread".
+Two kinds of id, and they are not interchangeable. `cancel_recovery`, `reset_recovery_budget`,
+`retry_now` and `get_recovery_timeline` take an `interruption_id`: one interruption's own
+64-character hex id, as `list_pending` returns it. `disable_conversation_recovery` and
+`enable_conversation_recovery` take a `thread_id`, the conversation's UUID, and so does the
+`cancel` command. Never guess either, and never pass one where the other belongs: the wrong
+shape is refused outright, and the right shape would act on something the user did not ask
+about. The `pending` command prints the conversation UUID in full but only the first 16
+characters of the interruption id, so take the whole interruption id from `list_pending`.
+Never pass `--last`, and never pick "the most recent thread".
 
-1. Run `pending` and read the listed thread IDs.
+1. Run `list_pending`, or `pending`, and read the entries.
 2. If the user means "this conversation" and the environment variable `CODEX_SESSION_ID`
-   is set and exactly equals one of those listed thread IDs, use that one.
+   is set and exactly equals one of the listed thread IDs, use that one.
 3. Otherwise show the pending entries and ask which one to cancel.
 
-Cancelling affects only that conversation, but all of it: every recovery in it that has
-not been sent is cancelled, and auto resume is switched off for that conversation. A
-continuation already in Codex's queue is withdrawn when the watcher next checks it, if it
-is still queued. It does not turn off auto resume globally.
+`cancel_recovery` stops one interruption and every continuation of it, and nothing else: the
+conversation stays switched on, so a later interruption in it is still recovered.
+`disable_conversation_recovery` is what switches a whole conversation off and cancels what it
+has waiting, and the `cancel <thread-uuid>` command does the same from the command line. Only
+`enable_conversation_recovery` switches one conversation back on again; the `enable` command
+here is the global one. In every case a recovery that was never sent is cancelled outright, a
+continuation already in Codex's queue is withdrawn when the watcher next checks it, if it is
+still queued, and a turn already running in Codex is not stopped. What a cancel stopped stays
+stopped. None of this turns off auto resume globally.
 
 ## Reporting results
 
@@ -133,28 +145,78 @@ Report what the command actually printed. Useful fields from `status` and `pendi
   will be resumed; offer the `start_watcher` tool, or `enable`, which also starts it but
   switches auto resume back on if the user had paused it. `unknown` means the check itself
   could not answer; do not report it as running, and offer `doctor`.
-- `state` on a pending entry:
-  - `waiting_reset` / `waiting_poll` — waiting for the usage limit to reset.
-  - `waiting_backoff` — a temporary failure; waiting out a short bounded delay.
-  - `waiting_for_loaded_thread` — the limit has reset, but that conversation is not open in
-    the app. Tell the user to open it; the watcher will then resume it.
-  - `resumed` — the continuation was delivered and confirmed.
+- the `status` line on a pending entry — the stable public code, which is what `pending`
+  prints there and what `list_pending` returns as `code`. It never depends on a setting, so
+  prefer it to `state` when telling the user what is happening.
+- `overlays`, on a `list_pending` entry — circumstances that change what a waiting recovery
+  will do next: `paused`, `thread_disabled`, `engine_unavailable`, `watcher_not_ticking`,
+  `compatibility_blocked`, `cancel_pending`. A recovery can be waiting exactly as it should
+  and still never run because of one of these, so say which.
+- `state` on a pending entry — the engine's own name for where that recovery is:
+  - `waiting_reset` / `waiting_poll` / `waiting_for_usage` — waiting for the usage limit to
+    reset.
+  - `waiting_backoff` / `waiting_retry` — a temporary failure; waiting out a short bounded
+    delay.
+  - `waiting_for_loaded_thread` — the limit has reset, but that conversation is not open
+    in the app. Tell the user to open it; the watcher will then resume it.
+  - `waiting_for_app` — the ChatGPT/Codex app or its server is not available to the
+    watcher, which is also what a Codex-version or lock problem looks like. Tell the user
+    to start the app, and offer `doctor` if it is already running.
+  - `submitting` / `queued` / `withdrawn_unconfirmed` — the message may already have reached
+    Codex. Never describe one of these as safe to send again.
+  - `turn_started` / `turn_completed` — the continuation started a turn, and the engine is
+    following that exact turn to see how it ends.
+  - `recovered` — that turn ran and made progress. This is what a recovery that worked looks
+    like.
+  - `completed_no_progress` — that turn ran and produced nothing.
+  - `handed_over` — a person started or joined that turn, or edited the queued message before
+    it ran. This is correct, not a fault.
+  - `recovery_turn_failed` — the recovery turn itself failed; a new record continues the same
+    chain.
+  - `outcome_unverified` — what that turn did could not be established. Not a success; tell
+    the user to check that conversation.
+  - `resumed` — a v0.5 row. This version never writes it; treat it as delivered but never
+    confirmed.
   - `submission_unknown` — the result could not be confirmed, so it will never be resent.
     Tell the user to check that conversation themselves.
-  - `superseded_by_user` — a later turn exists in that conversation, so the old failure was
-    dropped rather than replayed on top of newer work. This is correct, not a fault.
+  - `superseded_by_user` / `superseded` — a later turn exists in that conversation, so the old
+    failure was dropped rather than replayed on top of newer work. This is correct, not a fault.
+  - `cancelled` / `stopped_by_user` — someone stopped it. Nothing restarts a cancelled recovery.
+  - `failed` / `terminal_failure` — stopped for good.
   - `retry_budget_exhausted` / `no_progress_exhausted` — recovery gave up on purpose, either
     after too many attempts or after repeated attempts that produced nothing. Tell the user to
     look at that conversation first. If they want it to keep trying anyway, `reset_recovery_budget`
-    gives that one interruption its attempts back and switches auto resume back on for its
-    conversation — it sends nothing, and every check runs again from the top. Never offer it as
-    a way to "force" a resume.
+    gives that one interruption its attempts back — it sends nothing, and every check runs again
+    from the top. It does not switch a conversation back on: if that conversation was switched
+    off, the reply says so, and `enable_conversation_recovery` is what turns it on. It works at
+    most three times for one task; after that, tell the user to continue that task in Codex
+    themselves. Never offer it as a way to "force" a resume.
+
+If a tool or a command refuses with "an older watcher still owns the state", an upgrade is
+waiting for the watcher that is running to exit. What still works is pausing and resuming,
+switching a conversation off or on, and `get_status`; the rest refuses until that watcher
+exits. That is not a fault; the setup notes below say what to do.
 
 `retry_now` brings a waiting recovery's next attempt forward. It is not a send: the watcher still
 revalidates the interruption, still needs the conversation open, still waits for usage, and still
 refuses anything uncertain. Do not describe it as making a resume happen.
 
 Do not restate the reset time the Codex usage-limit notice already shows.
+
+## Looking further back
+
+- `get_recovery_statistics` — content-free counts over the last `days` days, or over all of
+  it when no `days` is given: how many interruptions were detected, how many continuations
+  were sent, how they ended, and the median waits. The success rate appears only once five
+  recoveries have ended, and says so until then.
+- `get_recovery_timeline` — one interruption and everything that continued it, as codes and
+  times. No prompt, no reply and no error text is kept there, so there is nothing to quote
+  back from it.
+- `list_pending` with `include_finished: true` — finished recoveries as well as waiting ones.
+- `clear_recovery_history` — hides finished recoveries from the history view. It deletes
+  nothing and cancels nothing, a recovery that may still change stays visible, and hidden
+  rows still count for every cap and duplicate check. Nothing brings a hidden row back, and
+  it makes nothing run again; do not offer it as a way to retry anything.
 
 ## Settings
 
@@ -164,15 +226,21 @@ validator, so a value set in one is the value the others show:
 - `open_settings` — the panel, in this conversation. Best when the user wants to look.
 - `update_settings` — one or more named settings. Only the named ones change, and it accepts
   only the settings described below.
-- **Start Menu → Codex Auto Resume** — a standalone window that works with Codex closed.
+- **Start Menu → Codex Auto Resume** — a standalone window that works with Codex closed. It
+  has six pages: Overview, Pending, History, Statistics, Diagnostics and Settings. Its
+  Diagnostics page is where "Export diagnostics..." lives, which writes a redacted JSON file
+  the user can read before sending it anywhere; no tool and none of the commands above do
+  that.
 
 Never edit `settings.json` by hand, and never tell the user to. A hand-written file is
 validated on read, so a bad value is silently replaced by the default and the user is left
 believing they changed something.
 
-What can be changed: which classified failure categories are recovered, how many attempts each
-interruption gets, when to stop after repeated no-progress recoveries, the retry timing preset,
-and which notifications appear.
+What `update_settings` can change: which classified failure categories are recovered, how many
+attempts each interruption gets, how many continuations one task gets in total (six by default,
+one to ten), when to stop after repeated no-progress recoveries, the retry timing preset, and
+which notifications appear. The notification-area icon is the one setting the window has and
+`update_settings` does not offer.
 
 What cannot, and is not an oversight: there is no setting that retries an unclassified failure,
 resolves a conversation by title, resends an uncertain submission, or forces a send. If the user
@@ -188,6 +256,13 @@ switch for all of them.
 Turning notifications off changes nothing about whether a task is recovered - say so, because
 people reasonably assume otherwise.
 
+While the watcher runs there is an icon in the notification area. It belongs to the watcher
+process, so it cannot show a watcher that is not there. Hovering over it says whether recovery
+is paused, how many recoveries are waiting and how many are running in Codex, and how long
+until the next check - which is when the watcher looks again, not when anything is sent. Its
+menu opens the window, pauses or resumes recovery, and stops the watcher. It is on by default
+and can be switched off in that window's Settings page.
+
 Do not offer to build any other interface. There is no checkbox inside the Codex usage-limit
 notice and none can be added through the Codex plugin API; see
 https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/PLUGIN.md if asked
@@ -197,9 +272,11 @@ why.
 
 - Recovers a **usage limit**, and failures it can positively classify as temporary from the
   error code Codex records: connection failures, rate limits, server errors and overloads, and
-  stream disconnections. Only when Codex recorded no code at all does it match a short list of
-  transport-failure phrases. Codex 0.153.4 records many timeouts and gateway errors (502, 503,
-  504) with a generic code; those count as unknown and are not retried.
+  stream disconnections. A code this product does not list is still classified from the HTTP
+  status the record carries, if it carries one: 429 as a rate limit, 408 and 425 as a timeout,
+  500 to 599 as a server error - all retried - and any other 4xx as permanent. Only when Codex
+  recorded no error information at all does it match a short list of transport-failure phrases.
+  A code it does not list that carries no status counts as unknown and is not retried.
 - It is **not** a general retry tool. User cancellation, permission, approval, policy, invalid
   requests, context-length errors and permanent authentication failures are never retried — and
   neither is any failure it cannot classify. If asked to "retry everything", explain that

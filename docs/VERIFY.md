@@ -124,8 +124,10 @@ itself, before anything from the archive runs:
   that copy falls back to the `.sha256`, or compares against nothing, and says so.
 - It checks that the archive holds the files every release must contain (the interpreter,
   the MCP server, its launcher and `.mcp.json`, the settings window, the plugin manifest,
-  the setup script and the installer), that the manifest inside names this product at
-  this version, and that no entry escapes the folder it is extracted into.
+  the setup script and the installer), that the payload root holds the settings window and
+  its icon and nothing else — the installer copies that root into the installation home —
+  that the manifest inside names this product at this version, and that no entry escapes
+  the folder it is extracted into.
 - Any failure stops, and the script then deletes its working copy of the download.
 
 It does not check the attestation. When the installed version already matches, it

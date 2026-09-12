@@ -11,7 +11,10 @@ properties intact.
   and no build step for the Python side.
 - The ChatGPT/Codex desktop app, if you want to run anything beyond the unit tests.
 - .NET Framework 4.8 (already on every supported Windows) to build the two small C#
-  executables — the settings window and the MCP launcher.
+  executables — the window and the MCP launcher (`gui/McpLauncher.cs`). The window is
+  compiled from three sources: `gui/SettingsApp.cs` for the form and the Settings page,
+  `gui/Dashboard.cs` for the navigation and the Overview, Pending, History, Statistics and
+  Diagnostics pages, and `gui/Brand.cs` for the palette.
 
 Nothing here needs administrator rights.
 
@@ -26,6 +29,13 @@ Set `PYTHONPATH=src` first, or run from a checkout where `src` is importable.
 The suite uses fakes and temporary directories. It never contacts the ChatGPT app, never
 sends a message to a Codex conversation, and never writes to your real registry. The live
 read-only checks stay skipped unless you set `CODEX_AR_LIVE=1` on Windows.
+
+Other parts skip quietly when the tool they need is missing, so a green run is not always a
+full run. The schema-migration and downgrade tests build their databases from the store
+code of real tagged releases, so those tags have to be in the checkout (`git fetch --tags`;
+a shallow clone has none, which is why CI checks out the full history).
+`tests/test_mcp.py` needs Node to run the panel's own code, and `tests/test_reproducible.py`
+and `tests/test_gui_json.py` need the in-box C# compiler.
 
 ## Validating plugin metadata
 
@@ -199,8 +209,12 @@ Colours, the icon and the generated files that carry them are covered in
 [`docs/BRAND.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/BRAND.md).
 The short version: the palette lives in `src/codex_auto_resume/brand.py`, `gui/Brand.cs`
 and `assets/brand/icon.svg` are generated from it, and `tests/test_brand.py` regenerates
-both and compares. Do not write a colour literal into the settings window or the panel
-stylesheet; there is a test for that too.
+both and compares. Do not write a colour literal into the window or the panel stylesheet.
+There is a test for that too, but it reads `gui/SettingsApp.cs` only — neither it nor the
+test that catches sizes written in raw pixels looks at `gui/Dashboard.cs`, so a colour or a
+raw pixel size written there is on you. Other tests do read that file: every Paint handler
+must sit on a buffered control, every class that draws itself must be double-buffered, and
+the long-lived bridge's command line is executed for real.
 
 ## The MCP declaration is added at build time
 
@@ -250,19 +264,27 @@ records that somebody did.
 
 ## Screenshots
 
-`python build/make_screenshots.py` renders the whole set from the working tree: the settings
-window and the Codex panel, in English and Korean, into `assets/` with copies in
-`docs/images/`. Nothing is captured by hand and nothing is edited afterwards.
+`python build/make_screenshots.py` renders the whole set from the working tree: the Codex
+panel, and the window's Overview, Pending and Settings pages, in English and Korean, into
+`assets/` with copies in `docs/images/`. Nothing is captured by hand and nothing is edited
+afterwards.
+
+It needs Windows, Microsoft Edge (it is what renders the panel), and
+`build/CodexAutoResumeSettings.exe` already built — run
+`powershell -ExecutionPolicy Bypass -File build/make_gui.ps1` first. The first run also
+downloads the pinned embeddable Python into `build/cache/`.
 
 They are pinned to light. The product follows the reader's Windows and Codex themes at
 runtime; the pictures do not, so that a gallery looks like one product and a build on a
 machine in dark mode produces the same bytes as a build on one in light mode.
 
 `assets/screenshots.json` records a digest of every input each image was rendered from —
-the window's source, the manifest, the panel's markup, the launcher, the icon. Change one
-and `tests/test_screenshots.py` fails telling you to re-run the generator. It is the
-mechanism that stops a screenshot describing a version of the product that no longer
-exists.
+the window's two sources, its palette, its DPI manifest, the plugin manifest, the icon, the
+capture and build scripts, the rendered panel markup, and the engine modules the window's
+figures and rows are computed from. `WINDOW_INPUTS` in `build/make_screenshots.py` is the
+list. Change one and `tests/test_screenshots.py` fails telling you to re-run the generator.
+It is the mechanism that stops a screenshot describing a version of the product that no
+longer exists.
 
 **One image is not generated: `docs/images/notification.png`.** It is a real Windows toast,
 raised by the product and drawn by the shell, so it takes the machine's theme and cannot be

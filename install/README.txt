@@ -19,7 +19,10 @@ recovered are kept.
 Uninstall.cmd removes the program but keeps your settings. To remove those too,
 run it with -Purge.
 
-After installing, ask Codex: open auto resume settings
-Or use Start Menu > Codex Auto Resume.
+After installing, an icon sits in the notification area while the watcher runs.
+Its menu opens the window, pauses recovery and stops the watcher.
+
+To see what it is doing, or to change anything: Start Menu > Codex Auto Resume.
+Or ask Codex: open auto resume settings
 
 https://github.com/songyb111-gachon/codex-auto-resume-windows
