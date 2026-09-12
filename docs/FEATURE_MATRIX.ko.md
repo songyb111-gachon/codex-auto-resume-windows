@@ -38,9 +38,9 @@
   그 대화의 로컬 기록·대기열로 확인한 것이고,
   [`docs/evidence/unloaded-thread-observation.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/evidence/unloaded-thread-observation.json)에
   `visual_ui_scraping_used: false`로 적혀 있습니다. 프로토콜 관측이지, 누가 지켜본 것이 아닙니다.
-- **다음 릴리스는 아직 공개되지 않았습니다.** 변경 기록의 Unreleased 절이 설명하는 것은 전부 main 브랜치에만
-  있고 공개된 적이 없으므로, 그에 관한 어떤 항목도 PUBLISHED를 주장할 수 없습니다. 이 문서에서
-  PUBLISHED는 마지막 릴리스까지 실제로 공개된 것만 가리킵니다.
+- **이번 릴리스는 아직 공개되지 않았습니다.** 변경 기록의 첫 절이 설명하는 것은 아직 공개된 적이
+  없으므로, 그에 관한 어떤 항목도 PUBLISHED를 주장할 수 없습니다. 이 문서에서 PUBLISHED는 그 앞
+  릴리스까지 실제로 공개된 것만 가리킵니다.
 - **REAL WINDOWS TESTED 항목은 대개 진짜 Windows 기능이 필요한 스위트 안의 테스트를 뜻하고**,
   그런 테스트는 기능이 없으면 스스로 건너뜁니다. 건너뛴 테스트는 아무것도 증명하지 않으므로,
   건너뛸 가능성이 있는 곳은 네 번째 칸에 적었습니다.

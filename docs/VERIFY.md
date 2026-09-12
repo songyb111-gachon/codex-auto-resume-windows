@@ -76,14 +76,13 @@ Do not extract anything yet. In PowerShell, in the folder you saved them to:
    any workflow run in the repository, on any branch or tag. Every archive from v0.5.4
    onwards has an attestation.
 
-   The attestation also names a commit. For an archive published by a tag push, that is
-   the commit that was built. The earlier single-job workflow, which built every archive
-   from v0.5.0 through v0.5.7, could also publish from a manual run: among its versions
-   that attest (v0.5.4 on), a run started on the tag, while that version had no assets yet, could
-   publish and attest a build of any ref whose `plugin.json` declared that tag's version.
-   The attestation records which event started the run. The workflow on the main branch
-   publishes only from a tag push; that change is on the main branch and ships in the
-   release after v0.5.7.
+   The attestation also names a commit. For an archive published by a tag push, that is the
+   commit that was built. The earlier single-job workflow, which built every archive from
+   v0.5.0 through v0.5.7, could also publish from a manual run: among its versions that attest
+   (v0.5.4 on), a run started on the tag, while that version had no assets yet, could publish
+   and attest a build of any ref whose `plugin.json` declared that tag's version. The
+   attestation records which event started the run. The workflow from v0.6.0 publishes only
+   from a tag push; that change is new in v0.6.0.
 
 Extract the archive and run `Install.cmd` only when every check you made agrees. If any of
 them disagrees, do not extract it: delete the file and open an issue with the version and
@@ -144,15 +143,14 @@ not use the file at all and re-runs setup instead, unless you also pass `-Force`
 
 ## Rebuilding a release yourself
 
-A rebuild compares a published archive with what its tagged source produces. It can match
-only for a release whose tag contains `build/normalize_pe.py`, and no release from v0.5.0
-through v0.5.7 does. Reproducible builds - `build/normalize_pe.py`, the CRLF checkout and
-the release workflow's second build - are on the main branch and ship in the release after
-v0.5.7. Every archive published so far, v0.5.0 through v0.5.7, was built by the earlier
-single-job release workflow, which referred to its actions by floating tags rather than
-pinned commits, and its executables carry a build time and a random GUID that no rebuild
-reproduces. For those releases, the digest checks above apply, and the attestation check
-applies from v0.5.4 on (there is no pinned digest for v0.5.0 or v0.5.1).
+A rebuild compares a published archive with what its tagged source produces. It can match only
+for a release whose tag contains `build/normalize_pe.py`, and no release from v0.5.0 through
+v0.5.7 does. Reproducible builds - `build/normalize_pe.py`, the CRLF checkout and the release
+workflow's second build - are new in v0.6.0. Every archive published so far, v0.5.0 through
+v0.5.7, was built by the earlier single-job release workflow, which referred to its actions by
+floating tags rather than pinned commits, and its executables carry a build time and a random
+GUID that no rebuild reproduces. For those releases, the digest checks above apply, and the
+attestation check applies from v0.5.4 on (there is no pinned digest for v0.5.0 or v0.5.1).
 
 For a release whose tag has `build/normalize_pe.py`, you need:
 
@@ -190,19 +188,18 @@ Get-Content .\build\dist\CodexAutoResume-vX.Y.Z-win-x64.zip.sha256
 names. The last line should match the published `.sha256` and the digest pinned on
 `main`. If it does, the published archive is exactly what that source produces.
 
-`build/make_gui.ps1` prints the compiler it used (a `compiler` line with its version) and
-the SHA-256 of each executable it built. The release run's log in the repository's Actions
-tab has the same lines while GitHub retains the run's logs, which is for the repository's
-retention period (90 days unless the repository sets otherwise), and GitHub shows them
-only to signed-in users. In that log, the step that builds the executables a second time
-prints each one's digest again. Comparing those tells you whether a difference is in the
-two compiled programs or somewhere else. These lines and the second build are on the main
-branch and ship in the release after v0.5.7; the runs that built v0.5.0 through v0.5.7
-print each executable's size, with no `compiler` line and no executable digest.
+`build/make_gui.ps1` prints the compiler it used (a `compiler` line with its version) and the
+SHA-256 of each executable it built. The release run's log in the repository's Actions tab has
+the same lines while GitHub retains the run's logs, which is for the repository's retention
+period (90 days unless the repository sets otherwise), and GitHub shows them only to signed-in
+users. In that log, the step that builds the executables a second time prints each one's digest
+again. Comparing those tells you whether a difference is in the two compiled programs or
+somewhere else. These lines and the second build are new in v0.6.0; the runs that built v0.5.0
+through v0.5.7 print each executable's size, with no `compiler` line and no executable digest.
 
 ### How the build is made reproducible
 
-These are on the main branch and ship in the release after v0.5.7.
+These are new in v0.6.0.
 
 - The in-box C# compiler has no `/deterministic` switch. Two builds of the same source
   differ, as measured, in exactly two fields: the PE header's timestamp and the module's random version
@@ -275,19 +272,17 @@ from the python.org embeddable runtime - keeps the signatures it was published w
 Python Software Foundation's, and Microsoft's on the two Visual C++ runtime DLLs
 (`vcruntime140.dll` and `vcruntime140_1.dll`).
 
-- **The process that starts at sign-in is the signed interpreter.** For an installation
-  from the release archive with sign-in start on, Windows starts its bundled
-  `pythonw.exe`. The Python code it runs is this project's own and is not signed.
-- **What is not signed:** the settings window `CodexAutoResumeSettings.exe`, the MCP
-  launcher `codex-auto-resume-mcp.exe` that Codex starts for the plugin's tools and panel,
-  `Install.cmd` and `Uninstall.cmd`, and the project's scripts. A `.cmd` file cannot carry
-  an Authenticode signature at all.
-- On the main branch, the two executables carry a version resource, so
-  **Properties → Details** shows the product name, the version, and a copyright line
-  naming the author. That ships in the release after v0.5.7; the executables in v0.5.0
-  through v0.5.7 were built without that product information. It is text in the
-  file, not a signature: anyone can write it, and Windows' security prompts still name the
-  publisher as unknown.
+- **The process that starts at sign-in is the signed interpreter.** For an installation from
+the release archive with sign-in start on, Windows starts its bundled `pythonw.exe`. The Python
+code it runs is this project's own and is not signed. - **What is not signed:** the settings
+window `CodexAutoResumeSettings.exe`, the MCP launcher `codex-auto-resume-mcp.exe` that Codex
+starts for the plugin's tools and panel, `Install.cmd` and `Uninstall.cmd`, and the project's
+scripts. A `.cmd` file cannot carry an Authenticode signature at all. - From v0.6.0, the two
+executables carry a version resource, so **Properties → Details** shows the product name, the
+version, and a copyright line naming the author. That ships in v0.6.0; the executables in
+v0.5.0 through v0.5.7 were built without that product information. It is text in the file, not
+a signature: anyone can write it, and Windows' security prompts still name the publisher as
+unknown.
 
 What you may see because of that:
 
@@ -324,7 +319,7 @@ If either one blocks you, please open an issue naming the file and the message.
   published so far, v0.5.0 through v0.5.7, was built by a single job that referred to its
   actions by floating tags rather than pinned commits, and with executables that cannot be
   reproduced. The split into a build job and a publish job, the actions pinned to full
-  commit SHAs, and Dependabot are on the main branch and ship in the release after v0.5.7.
+  commit SHAs, and Dependabot are new in v0.6.0.
 - **Tags are not signed.** Cloning `vX.Y.Z` trusts that the tag still points where it
   did. For an archive published by a tag push, the attestation records the commit that
   was built, which is why the rebuild prints `git rev-parse HEAD`. The earlier single-job

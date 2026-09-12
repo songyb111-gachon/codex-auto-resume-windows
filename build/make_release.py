@@ -141,9 +141,14 @@ def collect_gui(stage: Path) -> int:
     if not source.is_file():
         raise SystemExit("missing %s - run build/make_gui.ps1 first" % GUI_EXE)
     shutil.copyfile(source, stage / "payload" / GUI_EXE)
+    # Required, not optional. The bootstrap's archive check names both files at the payload
+    # root and refuses an archive carrying either a missing one or an extra one, so building
+    # without the icon produces a release that every install would reject - and it would say
+    # so at the user's machine rather than here.
     icon = ROOT / "assets" / "codex-auto-resume.ico"
-    if icon.is_file():
-        shutil.copyfile(icon, stage / "payload" / "codex-auto-resume.ico")
+    if not icon.is_file():
+        raise SystemExit("missing assets/codex-auto-resume.ico - the payload root needs it")
+    shutil.copyfile(icon, stage / "payload" / "codex-auto-resume.ico")
 
     launcher = ROOT / "build" / MCP_EXE
     if not launcher.is_file():

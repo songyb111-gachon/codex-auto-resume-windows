@@ -1,9 +1,6 @@
 # Changelog
 
-## Unreleased — It follows its own turn, and it shows you the work
-
-Nothing here has been released yet. This section takes the release's own heading, with
-its version number, when the release is made.
+## v0.6.0 — It follows its own turn, and it shows you the work
 
 Two changes, and the rest follows from them. The engine no longer reads the conversation
 for signs that a recovery worked: it follows the continuation it sent to the exact Codex

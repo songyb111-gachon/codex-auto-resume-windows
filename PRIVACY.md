@@ -17,8 +17,7 @@ footnote. There are three kinds, and they are genuinely different:
   Installing or updating from the Codex plugin downloads the release from GitHub, as does
   downloading the ZIP yourself. The installer then asks Codex to refresh marketplaces: the
   installers of v0.4.0 through v0.5.7 refresh every Git marketplace you have configured,
-  wherever it is hosted, while the installer on the main branch, which ships in the release
-  after v0.5.7, refreshes only a surviving `codex-auto-resume-windows` registration, from
+  wherever it is hosted, while the installer from v0.6.0, refreshes only a surviving `codex-auto-resume-windows` registration, from
   wherever it points.
 
 - **GitHub, when you ask whether there is a newer version.** From v0.6.0 the Diagnostics
@@ -113,17 +112,14 @@ so Codex does not fetch the plugin again. Installing repoints the `codex-auto-re
 marketplace at this installation, replacing whatever source that name had. The installer
 then asks Codex to refresh marketplaces, and how far that reaches depends on the version:
 
-- On the main branch, the installer runs
-  `codex plugin marketplace upgrade codex-auto-resume-windows` — this product's marketplace,
-  by name, and not the form that refreshes every Git marketplace you have configured. For
-  the local marketplace just registered, that command does nothing; it only has an effect
-  if an earlier registration under that name is still in place, and then Codex refreshes it
-  from wherever that registration points (normally GitHub). This is on the main branch and
-  ships in the release after v0.5.7.
-- The installers of v0.4.0 through v0.5.7 run `codex plugin marketplace upgrade` with no
-  name. Codex's own help describes that form as upgrading all the Git marketplaces you have
-  configured, so installing one of those releases can contact other marketplaces' hosts as
-  well as GitHub.
+- From v0.6.0, the installer runs `codex plugin marketplace upgrade codex-auto-resume-windows`
+— this product's marketplace, by name, and not the form that refreshes every Git marketplace
+you have configured. For the local marketplace just registered, that command does nothing; it
+only has an effect if an earlier registration under that name is still in place, and then Codex
+refreshes it from wherever that registration points (normally GitHub). This is new in v0.6.0. -
+The installers of v0.4.0 through v0.5.7 run `codex plugin marketplace upgrade` with no name.
+Codex's own help describes that form as upgrading all the Git marketplaces you have configured,
+so installing one of those releases can contact other marketplaces' hosts as well as GitHub.
 
 GitHub therefore sees an ordinary download request, with the IP address and User-Agent
 described above, and counts it in the repository's public download total; no wording here
@@ -156,14 +152,14 @@ gh attestation verify .\CodexAutoResume-vX.Y.Z-win-x64.zip --repo songyb111-gach
 ```
 
 An attestation says which workflow run built the archive. Every archive published so far,
-v0.5.0 through v0.5.7, was built by the earlier single-job release workflow, which referred
-to its GitHub Actions by floating tags rather than pinned commits, and the executables in
-those archives are not reproducible, so you cannot rebuild them byte for byte to compare.
-The separate build and publish jobs, the commit-pinned actions and the reproducible
-executables are on the main branch and ship in the release after v0.5.7. Nothing this
-project builds is Authenticode-signed — the two executables, `Install.cmd`, `Uninstall.cmd`
-and the PowerShell scripts — while the bundled Python interpreter (`pythonw.exe`,
-`python.exe` and its DLLs) keeps the Python Software Foundation's signature.
+v0.5.0 through v0.5.7, was built by the earlier single-job release workflow, which referred to
+its GitHub Actions by floating tags rather than pinned commits, and the executables in those
+archives are not reproducible, so you cannot rebuild them byte for byte to compare. The
+separate build and publish jobs, the commit-pinned actions and the reproducible executables are
+new in v0.6.0. Nothing this project builds is Authenticode-signed — the two executables,
+`Install.cmd`, `Uninstall.cmd` and the PowerShell scripts — while the bundled Python
+interpreter (`pythonw.exe`, `python.exe` and its DLLs) keeps the Python Software Foundation's
+signature.
 
 The watcher itself contacts no GitHub host: the code that reaches the network is the
 PowerShell installer, and a test fails if any module under `src/` or `scripts/*.py` imports
@@ -195,13 +191,13 @@ resuming is safe. Codex's databases are opened read-only (SQLite `mode=ro` with
 - `threads.name`, the project name and the working directory (only its last segment is
   kept), used only as labels in a notification.
 
-It also asks Windows content-free questions, chiefly two: which ChatGPT and Codex processes
-are running (process id, parent and executable path), to find the desktop app; and, through
-the Restart Manager, which process has the conversation's lock file open, to tell whether
-the conversation is open in the app. The rest are content-free too: the path and start time
-of a process it found, to confirm it is still the same one; the per-user registry values it
+It also asks Windows content-free questions, chiefly two: which ChatGPT and Codex processes are
+running (process id, parent and executable path), to find the desktop app; and, through the
+Restart Manager, which process has the conversation's lock file open, to tell whether the
+conversation is open in the app. The rest are content-free too: the path and start time of a
+process it found, to confirm it is still the same one; the per-user registry values it
 registered itself; and the integrity level of the watcher's single-instance mutex and stop
-event, a check that is on the main branch and ships in the release after v0.5.7.
+event, a check that is new in v0.6.0.
 
 No decision rests on the text of your messages, except whether one of them carries this
 tool's own marker (below). It never selects the `title`, `preview` or
@@ -243,8 +239,7 @@ interfaces:
   directory as the `codex-auto-resume-windows` marketplace and `remove` removes it by name,
   and `codex plugin add` and `remove` act on this plugin. In v0.4.0 through v0.5.7,
   `codex plugin marketplace upgrade` acts on every Git marketplace you have configured;
-  acting on that marketplace alone, by name, is on the main branch and ships in the release
-  after v0.5.7 (see [Installing it](#installing-it)). Installing repoints the
+  acting on that marketplace alone, by name, is new in v0.6.0 (see [Installing it](#installing-it)). Installing repoints the
   `codex-auto-resume-windows` marketplace at this installation, replacing whatever source
   that name had; uninstalling removes it only while it still points at this installation.
 
@@ -281,19 +276,18 @@ scripts as well (`install\install.ps1`, `scripts\bootstrap.ps1`), and the instal
 the `codex plugin` commands listed above.
 
 The resumed turn is not run by any of those processes. `codex queue` places the message in
-Codex's queue and exits; your Codex desktop app picks it up and runs the turn, signed in as
-you and under your own settings, exactly as if you had typed the message yourself, and sends
-it to OpenAI as it does every turn. The one thing this tool asks the Codex processes it
-starts to fetch from OpenAI is your usage (`account/rateLimits/read`). Codex identifies
-these requests as coming from this tool (client name `codex_auto_resume` and a version
-number), so OpenAI can see that you use it and when it checks. Every App Server session it opens,
-including one that only withdraws its own queued message, introduces itself to Codex that
-way. In v0.5.7 and earlier releases the version it gives is a fixed `0.1`; giving the
-product's real version is on the main branch and ships in the release after v0.5.7. It asks
-for usage only when a recovery is due and the conversation is open in the app, and reuses
-the answer for 30 seconds. What a Codex process does on its own account when it starts —
-keeping its sign-in current, for instance — is Codex's behaviour, not something this tool
-requests, and it has not been measured.
+Codex's queue and exits; your Codex desktop app picks it up and runs the turn, signed in as you
+and under your own settings, exactly as if you had typed the message yourself, and sends it to
+OpenAI as it does every turn. The one thing this tool asks the Codex processes it starts to
+fetch from OpenAI is your usage (`account/rateLimits/read`). Codex identifies these requests as
+coming from this tool (client name `codex_auto_resume` and a version number), so OpenAI can see
+that you use it and when it checks. Every App Server session it opens, including one that only
+withdraws its own queued message, introduces itself to Codex that way. In v0.5.7 and earlier
+releases the version it gives is a fixed `0.1`; giving the product's real version is new in
+v0.6.0. It asks for usage only when a recovery is due and the conversation is open in the app,
+and reuses the answer for 30 seconds. What a Codex process does on its own account when it
+starts — keeping its sign-in current, for instance — is Codex's behaviour, not something this
+tool requests, and it has not been measured.
 
 Every `codex` process the recovery runtime starts runs with `OTEL_SDK_DISABLED=true` set in
 its environment. The `codex app-server` and `codex queue` processes also get flags that turn
@@ -447,8 +441,8 @@ instead, as all your Codex conversations do.
 **Other marketplace hosts**, through Codex's marketplace refresh at install: a surviving
 registration named `codex-auto-resume-windows` is refreshed from wherever it points, and the
 installers of v0.4.0 through v0.5.7 refresh every Git marketplace you have configured, from
-wherever each one points. Refreshing only this product's marketplace, by name, is on the
-main branch and ships in the release after v0.5.7.
+wherever each one points. Refreshing only this product's marketplace, by name, is new in
+v0.6.0.
 
 Beyond these, and a host that a GitHub redirect might send the download request to (see
 [Installing it](#installing-it)), this tool sends nothing to any other party; Windows may

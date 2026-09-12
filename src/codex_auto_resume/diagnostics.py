@@ -27,7 +27,7 @@ import secrets
 import sys
 import time
 
-from . import config, logbook, machine
+from . import config, interface, logbook, machine, startup
 
 UUID_RE = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
 # Record ids are 64 hex characters; the log prints their first 12. Any run of 12 to 64
@@ -95,6 +95,55 @@ def _tail(path: Path, redact: Redactor) -> list:
     return [redact.text(line) for line in lines]
 
 
+def _installation(control) -> dict:
+    """Whether the pieces outside the state file are where they should be.
+
+    Not paths, and not what they contain: only whether each one is there, and whether the
+    one that names an owner names this installation. These are the first four questions
+    asked of a machine where something is not happening - the sign-in entry is missing, the
+    notification handler belongs to another copy, the MCP launcher was never unpacked, the
+    window is speaking the wrong language - and each of them used to need a person to walk
+    somebody through the registry over a support thread.
+    """
+    found = {}
+    try:
+        found["language"] = interface.language()
+    except Exception:
+        found["language"] = None
+    for name, read in (("startup_entry", lambda: startup.current_value()),
+                       ("protocol_handler", lambda: startup.protocol_value())):
+        try:
+            value = read()
+        except Exception:
+            found[name] = "unreadable"
+            continue
+        if not value:
+            found[name] = "absent"
+        else:
+            # Whether it points at this installation, never where it points.
+            try:
+                found[name] = "ours" if startup.belongs_to(value, control.paths.home) else "another"
+            except Exception:
+                found[name] = "unreadable"
+    try:
+        found["notification_identity"] = {True: "ours", False: "another", None: "absent"}[
+            startup.notification_identity_owner(control.paths.home)]
+    except Exception:
+        found["notification_identity"] = "unreadable"
+    home = Path(control.paths.home)
+    for name, relative in (("owner_marker", config.OWNER_MARKER),
+                           ("runtime_record", "runtime.json"),
+                           ("mcp_manifest", "app/.mcp.json"),
+                           ("mcp_launcher", "app/mcp/codex-auto-resume-mcp.exe"),
+                           ("settings_window", "CodexAutoResumeSettings.exe"),
+                           ("bundled_runtime", "runtime/python.exe")):
+        try:
+            found[name] = (home / relative).exists()
+        except OSError:
+            found[name] = None
+    return found
+
+
 def collect(control, *, now=None) -> dict:
     """The whole bundle, redacted. Works with the watcher stopped and Codex closed."""
     redact = Redactor()
@@ -130,6 +179,7 @@ def collect(control, *, now=None) -> dict:
         bundle["records"] = []
         bundle["events"] = []
         bundle["state_error"] = redact.text(str(exc))[:200]
+    bundle["installation"] = _installation(control)
     logs = control.paths.logs_dir
     bundle["logs"] = {name: _tail(logs / name, redact)
                       for name in ("auto-resume.log", "errors.log", "launcher.log")
