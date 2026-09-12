@@ -175,7 +175,7 @@
 
 | 기능 | 근거 등급 | 뒷받침하는 것 | 아직 없는 것 |
 | --- | --- | --- | --- |
-| 여섯 쪽 - 개요, 대기 중, 기록, 통계, 진단, 설정 | REAL WINDOWS TESTED, 여섯 중 셋에 대해 | `gui/Dashboard.cs`가 여섯 쪽을 모두 만든다. `docs/images/dashboard-overview.png`, `docs/images/dashboard-pending.png`, `docs/images/settings-window.png`은 `build/capture_window.ps1`로 144 DPI에서 컴파일된 창을 찍은 것이고, `assets/screenshots.json`에 고정되어 `tests/test_screenshots.py:ManifestTests`(5개)가 확인한다 | **기록·통계·진단 쪽에 대한 산출물이 하나도 없다.** 그 세 쪽이 그려진 적이 있다는 것을 저장소가 보여 주지 못한다. 같은 방식으로 세 장을 더 찍으면 해결된다. |
+| 여섯 쪽 - 개요, 대기 중, 기록, 통계, 진단, 설정 | REAL WINDOWS TESTED | `gui/Dashboard.cs`가 여섯 쪽을 모두 만들고, 여섯 쪽 모두 `build/capture_window.ps1`로 144 DPI에서 두 언어로 찍혀 있다. `docs/images/dashboard-overview.png`, `dashboard-pending.png`, `dashboard-history.png`, `dashboard-statistics.png`, `dashboard-diagnostics.png`, `settings-window.png`이며 `assets/screenshots.json`에 고정되고 `tests/test_screenshots.py:ManifestTests`(5개)가 확인한다 | 한 쪽을 한 크기에서 한 벌의 합성 레코드로 찍은 것이다. 그림은 쪽이 그려진다는 것을 보일 뿐, 사람이 그것을 쓰는 모습을 보이지는 않는다. |
 | 스크린샷은 최신이다. 그것을 만든 입력이 바뀌면 스위트가 실패한다 | UNIT TESTED | `tests/test_screenshots.py:ManifestTests.test_every_render_input_is_unchanged_since_the_images_were_made`, `test_the_committed_images_are_the_ones_the_manifest_describes`, `test_the_window_inputs_include_what_the_dashboard_is_computed_by` | 매니페스트는 마지막 릴리스의 번호를 적으므로, 다음 릴리스가 나오기 전까지 스크린샷 바닥글의 번호는 한 릴리스 뒤처진다. |
 | 스크린샷의 예시 자료에는 실제 식별자가 없다 | UNIT TESTED | `tests/test_screenshots.py:ContentTests.test_the_window_sample_carries_no_real_identifier`, `test_the_sample_data_carries_no_real_identifier` | - |
 | 창은 오래 사는 브리지 프로세스 하나와, 요청 하나에 JSON 한 줄로 이야기한다 | UNIT TESTED | `tests/test_gui_layout.py:PersistentBridgeTests.test_the_serve_command_line_answers_a_request`가 창이 만드는 바로 그 명령줄을 돌려 실제 응답을 요구한다. `tests/test_control.py:BridgeTests.test_serve_answers_every_line_with_exactly_one_line`, `test_serve_framing_edge_cases_each_get_the_answer_they_should`, `test_serve_cannot_reach_anything_the_one_shot_form_cannot` | 컴파일된 창 쪽 클라이언트는 한 번도 구동되지 않는다. |
@@ -356,7 +356,6 @@
 | 5초 갱신 | IMPLEMENTED | 그것을 재는 무엇이든. |
 | 실제 로그인에서의 실제 `Run` 키 | UNIT TESTED, 가짜 레지스트리 | Windows 로그인 뒤에 담은 `logs/launcher.log`. |
 | 실제 프로토콜 등록과 실제 알림 클릭 | UNIT TESTED, 가짜 레지스트리 | 위와 같은 것에, 활성화 기록을 더한 것. |
-| 기록·통계·진단 쪽 | IMPLEMENTED | `build/capture_window.ps1`로 캡처 세 장을 더 찍어 `assets/screenshots.json`에 넣기. |
 | 라이브 인수 절차 | UNVERIFIED | 누군가 실제 기계에서 [LIVE_ACCEPTANCE.ko.md](LIVE_ACCEPTANCE.ko.md)의 절차를 돌리고, 그 결과 파일을 `docs/evidence/live/` 아래에 커밋하기. |
 | Codex 안에서 본 것이 무엇이든 | - | 이 제품이 Codex 안에서 일하는 것을 지켜본 사람이 없다. 누군가 지켜보고 저장소가 그것을 기록하기 전까지, 이 문서의 어떤 항목도 REAL CODEX VISUALLY TESTED라고 말할 수 없다. |
 
