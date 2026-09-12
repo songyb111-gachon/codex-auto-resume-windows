@@ -1,0 +1,51 @@
+{
+  "what": "Cryptographic verification of the v0.6.0 archive's Sigstore build-provenance attestation, done outside GitHub on a Windows 11 machine",
+  "when_kst": "2026-09-13",
+  "how": "sigstore-python 4.5.0 in a throwaway virtual environment, twice: once through its command line (`python -m sigstore verify identity --bundle <bundle> --cert-identity <workflow ref> --cert-oidc-issuer https://token.actions.githubusercontent.com <archive>`) and once through its API (Verifier.production() with policy.Identity, verify_dsse). The bundle came from the public attestations endpoint for this digest; the archive was the one downloaded from the release page. The GitHub CLI was not available, which is why this route exists.",
+  "subject": {
+    "artifact": "CodexAutoResume-v0.6.0-win-x64.zip",
+    "size_bytes": 12096738,
+    "sha256": "791e92484c63fa4e38a987433857ffe4934d5b02733389ceb533a341faf8fbc3"
+  },
+  "verified": {
+    "dsse_signature_under_the_fulcio_leaf_key": true,
+    "certificate_chain_to_the_sigstore_root": true,
+    "embedded_signed_certificate_timestamp": true,
+    "rekor_inclusion_proof_and_signed_checkpoint": true,
+    "rekor_inclusion_promise": true,
+    "signed_subject_digest_matches_the_local_file": true,
+    "signature_algorithm": "ecdsa-with-SHA384",
+    "certificate_validity_minutes": 10,
+    "rekor_entry_kind": "dsse/0.0.1",
+    "rekor_log_index": 2808861016
+  },
+  "identity_the_certificate_carries": {
+    "san_uri": "https://github.com/songyb111-gachon/codex-auto-resume-windows/.github/workflows/release.yml@refs/tags/v0.6.0",
+    "oidc_issuer": "https://token.actions.githubusercontent.com",
+    "workflow_name": "release",
+    "workflow_trigger": "push",
+    "source_repository_ref": "refs/tags/v0.6.0",
+    "source_repository_digest": "efefbd0c44a0307ddb6536f7f53f28ca5f767f17",
+    "runner_environment": "github-hosted",
+    "source_repository_visibility": "public"
+  },
+  "controls_run_to_prove_the_checks_are_not_no_ops": [
+    "a flipped bit in the DSSE signature: rejected, invalid signature",
+    "a flipped bit in the DSSE payload: rejected, invalid signature",
+    "a flipped bit in the leaf certificate's signature: rejected, chain could not be built",
+    "a flipped bit in a Rekor inclusion-proof hash: rejected, invalid root hash",
+    "a flipped bit in the Rekor checkpoint: rejected, invalid checkpoint signature",
+    "an empty certificate-transparency keyring: rejected, SCT verification failed",
+    "a wrong tag in the expected identity: rejected by the policy",
+    "a wrong OIDC issuer: rejected by the policy",
+    "a flipped byte in the archive: the signature still verified, and the signed subject digest no longer matched the file, which is the distinction that matters"
+  ],
+  "what_this_does_not_show": [
+    "The Sigstore trust root was trusted on first use: it came from the root shipped with sigstore-python, refreshed over TLS from the Sigstore update framework repository. It was not authenticated against an out-of-band source.",
+    "The bundle carries no RFC3161 timestamp, so the Rekor entry is the only verified source of signing time. No independent timestamp authority corroborates it.",
+    "A Rekor v1 dsse/0.0.1 entry logs a hash over uncanonicalised JSON that cannot be recomputed, so the log body was cross-checked on the payload hash and the signature list rather than in full.",
+    "Inclusion was checked against a signed checkpoint; consistency proofs between checkpoints and independent log witnesses were not queried, so a split view of the log is outside what ran.",
+    "Provenance is not a build audit. It establishes that a GitHub-hosted run of this repository's release workflow, at this tag and this commit, produced an artifact with this digest. It says nothing about whether that workflow builds what it claims to, and the repository and the release are owned by the same account.",
+    "sigstore-python itself was installed from the package index over TLS with no signature check on the wheels. The controls above make it unlikely that the installed code is only pretending to verify, but they do not rule it out."
+  ]
+}

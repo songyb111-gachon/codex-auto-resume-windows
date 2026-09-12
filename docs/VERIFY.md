@@ -84,6 +84,36 @@ Do not extract anything yet. In PowerShell, in the folder you saved them to:
    attestation records which event started the run. The workflow from v0.6.0 publishes only
    from a tag push; that change is new in v0.6.0.
 
+   **If you do not have the GitHub CLI**, the same attestation can be checked with
+   `sigstore-python`, which is what was used here. Install it into a throwaway virtual
+   environment, fetch the bundle for the digest you measured, and verify:
+
+   ```powershell
+   py -3 -m venv .\sigstore-venv
+   .\sigstore-venv\Scripts\python.exe -m pip install sigstore
+   $digest = (Get-FileHash .\CodexAutoResume-vX.Y.Z-win-x64.zip -Algorithm SHA256).Hash.ToLower()
+   $url = "https://api.github.com/repos/songyb111-gachon/codex-auto-resume-windows/attestations/sha256:$digest"
+   (Invoke-WebRequest $url -UseBasicParsing).Content |
+       ConvertFrom-Json | ForEach-Object { $_.attestations[0].bundle } |
+       ConvertTo-Json -Depth 40 | Set-Content bundle.sigstore.json -Encoding utf8
+   .\sigstore-venv\Scripts\python.exe -m sigstore verify identity `
+       --bundle bundle.sigstore.json `
+       --cert-identity "https://github.com/songyb111-gachon/codex-auto-resume-windows/.github/workflows/release.yml@refs/tags/vX.Y.Z" `
+       --cert-oidc-issuer "https://token.actions.githubusercontent.com" `
+       .\CodexAutoResume-vX.Y.Z-win-x64.zip
+   ```
+
+   This is the same question `gh attestation verify` asks, by a different road: the
+   signature under the short-lived Fulcio certificate, that certificate's chain to the
+   Sigstore root, the certificate-transparency timestamp embedded in it, and the entry in
+   the Rekor transparency log. For v0.6.0 all four passed, and
+   [`docs/evidence/attestation-verified-2026-09-13.json`](evidence/attestation-verified-2026-09-13.json)
+   records the run - the identity the certificate carried, the nine tamper controls used to
+   show the checks are not no-ops, and the three things it still does not tell you: the
+   Sigstore root is trusted on first use, the bundle carries no separate timestamp
+   authority, and provenance says a workflow produced these bytes, not that the workflow
+   builds what it claims to.
+
 Extract the archive and run `Install.cmd` only when every check you made agrees. If any of
 them disagrees, do not extract it: delete the file and open an issue with the version and
 the values you got.
