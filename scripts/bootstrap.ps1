@@ -154,6 +154,23 @@ function Test-Archive {
         foreach ($entry in $required) {
             if ($names -notcontains $entry) { throw ('The archive is missing ' + $entry + '.') }
         }
+        # The payload root, exactly: the settings window and its icon, and nothing else.
+        # The installer copies those two by name into the installation home, so a file
+        # that should not be there is a sign this is not the build it claims to be - and
+        # it used to be worse than a sign, because the root was copied by wildcard and
+        # any name at all landed in the home, ownership markers and state included.
+        $rootFiles = @('CodexAutoResumeSettings.exe', 'codex-auto-resume.ico')
+        $atRoot = @($names | Where-Object { $_ -match '^payload/[^/]+$' })
+        foreach ($name in $rootFiles) {
+            if ($atRoot -notcontains ('payload/' + $name)) {
+                throw ('The archive is missing payload/' + $name + '.')
+            }
+        }
+        foreach ($name in $atRoot) {
+            if ($rootFiles -notcontains $name.Substring('payload/'.Length)) {
+                throw ('The archive carries an unexpected file at the payload root: ' + $name + '.')
+            }
+        }
         # No entry may escape the directory it is extracted into.
         foreach ($name in $names) {
             if ($name -match '(^|[\\/])\.\.([\\/]|$)' -or $name -match '^([\\/]|[A-Za-z]:)') {
@@ -225,7 +242,12 @@ if ($installed -eq $version -and -not $Force) {
     }
     $python = Join-Path $installHome 'runtime\python.exe'
     $setup = Join-Path $installHome 'app\scripts\plugin_setup.py'
-    $arguments = @($setup, 'setup')
+    # `--keep-state`, always: this branch is reached only when the installed version is
+    # already the one being installed, so it is a repair and never a first install. Plain
+    # `setup` runs the engine's `enable` and re-registers the sign-in entry, which would
+    # switch recovery back on for someone who paused it and put back a sign-in entry they
+    # removed - a decision, taken while claiming to check the installation over.
+    $arguments = @($setup, 'setup', '--keep-state')
     if ($NoStartup) { $arguments += '--no-startup' }
     & $python @arguments
     $code = $LASTEXITCODE

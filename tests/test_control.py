@@ -381,6 +381,9 @@ class BridgeTests(ControlTestCase):
         self.assertEqual(names, sorted([
             "cancel", "defaults", "describe", "enabled", "pending", "pending-all",
             "reset-budget", "retry-now", "settings", "start-watcher", "startup",
+            # Stopping asks the watcher to finish the tick it is in and kills nothing, so
+            # like the switches above it can only ever reduce what runs.
+            "stop-watcher",
             # `strings` is a read like `describe`: it returns the interface vocabulary
             # for the resolved language and touches nothing.
             "status", "strings", "update",
@@ -678,6 +681,115 @@ class StartWatcherReportingTests(ControlTestCase):
         self.assertEqual(claims, [], "a state that is not running must not say it is")
         for state in ("exited", "unconfirmed"):
             self.assertNotIn("is running", wording[state])
+
+
+class StopWatcherTests(ControlTestCase):
+    """Stopping the watcher is a request, and the reply is only ever what the mutex said.
+
+    The upgrade-pending message tells people to use Stop watcher and then Start watcher, so
+    the first half has to exist somewhere a front end can reach. What these tests pin down
+    is the honesty of the reply: a watcher stopped mid-submission cannot prove whether it
+    sent, so the stop is only ever the named event the watcher already waits on, and
+    "stopped" is only ever what the single-instance mutex answered.
+    """
+
+    def setUp(self):
+        super().setUp()
+        for name, value in (("WATCHER_STOP_TIMEOUT", 0.05), ("WATCHER_STOP_INTERVAL", 0)):
+            guard = patch.object(control, name, value)
+            guard.start()
+            self.addCleanup(guard.stop)
+        # The event stands in for the real one: these tests describe this layer, not a
+        # Windows named object, and no watcher is ever started to be stopped.
+        events = patch.object(control, "StopEvent")
+        self.event = events.start()
+        self.addCleanup(events.stop)
+        self.event.return_value.signal.return_value = True
+
+    def stop(self, *answers):
+        with patch.object(control.Control, "watcher_running", side_effect=scripted(*answers)):
+            return self.control.stop_watcher()
+
+    def test_nothing_holding_the_mutex_is_not_a_stop(self):
+        result = self.stop(False)
+        self.assertEqual(result["state"], "not-running")
+        self.assertIs(result["stopped"], False)
+        # Nothing is listening, so nothing is asked.
+        self.event.assert_not_called()
+
+    def test_a_watcher_that_lets_the_mutex_go_is_stopped(self):
+        result = self.stop(True, True, False)
+        self.assertEqual(result["state"], "stopped")
+        self.assertIs(result["stopped"], True)
+        self.assertIs(result["signalled"], True)
+
+    def test_a_watcher_that_still_holds_the_mutex_is_still_finishing(self):
+        # The ordinary answer for a tick that is in the middle of a submission. It is not
+        # a failure, and it is not a stop either.
+        result = self.stop(True)
+        self.assertEqual(result["state"], "still-finishing")
+        self.assertIs(result["stopped"], False)
+
+    def test_a_probe_that_cannot_tell_is_unknown_and_never_stopped(self):
+        # None means the probe was unavailable, not that the mutex was free; an upgrade
+        # invited on the strength of that would run over a watcher that never stopped.
+        result = self.stop(None)
+        self.assertEqual(result["state"], "unknown")
+        self.assertIs(result["stopped"], False)
+
+    def test_a_probe_that_raises_is_unknown_rather_than_stopped(self):
+        with patch.object(control.Control, "watcher_running", side_effect=RuntimeError("probe")):
+            result = self.control.stop_watcher()
+        self.assertEqual(result["state"], "unknown")
+        self.assertIs(result["stopped"], False)
+
+    def test_the_stop_is_asked_once_and_nothing_is_ever_killed(self):
+        # A watcher stopped mid-submission cannot prove whether it sent the continuation,
+        # and a continuation that may have been sent is never sent again - so the only
+        # stop is the one the watcher performs itself, and every way of ending a process
+        # is watched here rather than assumed absent.
+        killers = {}
+        for name in ("os.kill", "subprocess.Popen", "subprocess.run"):
+            guard = patch(name)
+            killers[name] = guard.start()
+            self.addCleanup(guard.stop)
+        result = self.stop(True, False)
+        self.assertEqual(result["state"], "stopped")
+        self.assertEqual(self.event.return_value.signal.call_count, 1)
+        for name, killer in killers.items():
+            self.assertEqual(killer.call_count, 0, name)
+
+    def test_the_layer_holds_no_way_to_end_a_process(self):
+        text = Path(control.__file__).read_text(encoding="utf-8")
+        for call in ("os.kill", "taskkill", "TerminateProcess", ".terminate(", ".kill("):
+            self.assertNotIn(call, text, call)
+
+    def test_every_reply_is_content_free(self):
+        # Four words and two flags. No path, no interruption id, no exception text, in any
+        # of the four outcomes.
+        vocabulary = {"stopped", "still-finishing", "not-running", "unknown"}
+        for answers in ((False,), (True,), (None,), (True, False)):
+            result = self.stop(*answers)
+            self.assertEqual(set(result), {"stopped", "signalled", "state", "reason"})
+            for value in result.values():
+                self.assertIn(value, vocabulary | {True, False, None})
+
+    def run_bridge(self, *argv):
+        stream = io.StringIO()
+        with patch("sys.stdout", stream):
+            code = controlcli.main(["--home", str(self.home), *argv])
+        return code, json.loads(stream.getvalue())
+
+    def test_the_bridge_answers_with_ok_and_the_same_result(self):
+        # The window and the command line have to mean the same thing by a stop, because
+        # the instruction that sends people here does not say which one to use.
+        with patch.object(control.Control, "watcher_running", return_value=True):
+            direct = self.control.stop_watcher()
+            code, payload = self.run_bridge("stop-watcher")
+        self.assertEqual(code, 0)
+        self.assertIs(payload["ok"], True)
+        self.assertEqual(payload["result"], direct)
+        self.assertEqual(payload["result"]["state"], "still-finishing")
 
 
 if __name__ == "__main__":

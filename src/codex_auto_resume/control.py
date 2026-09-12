@@ -24,7 +24,7 @@ import uuid
 from . import config, machine, settings, startup
 from .store import (MAX_BUDGET_RESETS, TERMINAL, LegacyStore, StateFromNewerVersion, Store,
                     StoreError, UpgradePending)
-from .windows import AdapterError, Mutex, WakeEvent
+from .windows import AdapterError, Mutex, StopEvent, WakeEvent
 
 
 # How long to wait for a launched watcher to become visible, and how often to look.
@@ -35,6 +35,14 @@ from .windows import AdapterError, Mutex, WakeEvent
 # disk; the interval is short so the ordinary case returns almost at once.
 WATCHER_START_TIMEOUT = 6.0
 WATCHER_START_INTERVAL = 0.1
+# How long to wait for a signalled watcher to let the single-instance mutex go, and how
+# often to look. A stop is a request and never a kill: the watcher finishes the tick it is
+# in first, and a tick that is submitting a continuation must not be cut short, because a
+# watcher stopped mid-submission cannot prove whether it sent. Ten seconds is what
+# `codex-auto-resume stop` has always waited, and "still finishing" is an ordinary answer
+# here rather than a failure.
+WATCHER_STOP_TIMEOUT = 10.0
+WATCHER_STOP_INTERVAL = 0.25
 # A cancel must not fail because the watcher happens to be writing. The store already
 # waits ten seconds for a lock; the cancel tries again for this long in total.
 CANCEL_RETRY_SECONDS = 30.0
@@ -191,7 +199,15 @@ class Control:
                 "engine_state": (status or {}).get("engine_state", "unknown"),
                 "last_tick_at": (status or {}).get("last_tick_at"),
                 "last_tick_ok": (status or {}).get("last_tick_ok"),
-                "code_version": (status or {}).get("code_version")}
+                "code_version": (status or {}).get("code_version"),
+                # The identity of the process making the claim, which is the only thing here
+                # that can prove a handover. `app.py` writes `config.version()` into the
+                # heartbeat on every tick, so the moment an upgrade replaces the files a
+                # still-running *old* watcher starts reporting the *new* version: a changed
+                # `code_version` therefore proves nothing about a restart, while a
+                # `started_at` that moved, from a watcher that holds the mutex, does.
+                "pid": (status or {}).get("pid"),
+                "started_at": (status or {}).get("started_at")}
 
     def startup_enabled(self) -> bool:
         try:
@@ -261,6 +277,51 @@ class Control:
 
     def _confirm_watcher(self, process) -> dict:
         return await_watcher(self.watcher_running, process)
+
+    def stop_watcher(self) -> dict:
+        """Ask a running watcher to stop, and report only what the probe can prove.
+
+        The product's own upgrade-pending message tells people to use Stop watcher and then
+        Start watcher. Start existed and stop did not, so that instruction could not be
+        followed from any front end - the only stop lived in the command line, which is
+        exactly the place a user of the window or the panel never goes.
+
+        This is that same stop and not a second mechanism: the named event the watcher
+        already waits on, signalled once. Nothing here kills a process, and nothing here may,
+        because a watcher stopped mid-submission cannot prove whether it sent the
+        continuation, and a continuation that may have been sent is never sent again. The
+        only safe stop is the one the watcher performs itself at the end of the tick it is in.
+
+        The four answers are the four things the single-instance mutex - the same probe
+        `watcher_running` uses, so every part of the product means one thing by "running" -
+        can say. `stopped` is the one that may never be guessed: "the probe could not tell"
+        and "it let go" are different sentences, and rounding the first into the second is how
+        a front end ends up inviting an upgrade that the old watcher is still holding.
+        """
+        def probe():
+            try:
+                return self.watcher_running()
+            except Exception:
+                # A probe that failed has not said the mutex is free. It says nothing at all,
+                # and nothing is not evidence of a stop.
+                return None
+
+        if probe() is False:
+            # Nothing holds the mutex, so there is nothing to ask and nothing to wait for.
+            return {"stopped": False, "signalled": False, "state": "not-running",
+                    "reason": "not-running"}
+        # Signalled exactly once, and only where something may be listening. `signal` opens
+        # the watcher's own event and creates nothing, so a stop can never be left lying
+        # around for a later watcher to find and obey.
+        try:
+            signalled = StopEvent(str(self.paths.state_dir)).signal()
+        except Exception:
+            # Not Windows, or the event could not be opened. The wait below still runs: what
+            # the mutex says is a question for the probe, not for how the asking went.
+            signalled = False
+        result = await_stopped(probe)
+        result["signalled"] = signalled
+        return result
 
     def get_status(self) -> dict:
         values = self.get_settings()
@@ -542,6 +603,33 @@ def await_watcher(probe, process, *, timeout=None, interval=None) -> dict:
             return {"confirmed": False, "state": "exited", "reason": "exited"}
         if time.monotonic() >= deadline:
             return {"confirmed": False, "state": "unconfirmed", "reason": "unconfirmed"}
+        time.sleep(interval)
+
+
+def await_stopped(probe, *, timeout=None, interval=None) -> dict:
+    """Wait, briefly and by the clock, for a signalled watcher to let the mutex go.
+
+    The stop event only delivers a request. The single-instance mutex is what says whether
+    the watcher is still there, and it is the authoritative answer the rest of the product
+    asks for too, so a stop reported here means the same thing a status read means.
+
+    Bounded on `time.monotonic`, like `await_watcher` above, so that a clock change can
+    neither cut the wait short nor extend it for ever.
+
+    A probe that cannot tell keeps the wait running and, if it is still the answer when the
+    time is up, is reported as `unknown` rather than as a watcher that is still finishing:
+    the two have different fixes, and only one of them is safe to upgrade over.
+    """
+    timeout = WATCHER_STOP_TIMEOUT if timeout is None else timeout
+    interval = WATCHER_STOP_INTERVAL if interval is None else interval
+    deadline = time.monotonic() + timeout
+    while True:
+        answer = probe()
+        if answer is False:
+            return {"stopped": True, "state": "stopped", "reason": None}
+        if time.monotonic() >= deadline:
+            state = "still-finishing" if answer is True else "unknown"
+            return {"stopped": False, "state": state, "reason": state}
         time.sleep(interval)
 
 

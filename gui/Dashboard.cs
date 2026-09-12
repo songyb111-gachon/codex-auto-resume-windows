@@ -370,7 +370,7 @@ namespace CodexAutoResume
         // Diagnostics
         private Label diagVersion, diagWatcher, diagLastCheck, diagEngine, diagRecovery, diagStartup,
                       diagUpgrade;
-        private Button exportButton, repairButton;
+        private Button exportButton, repairButton, stopButton;
 
         // ----------------------------------------------------------------- chrome
         private void BuildDashboard()
@@ -866,10 +866,15 @@ namespace CodexAutoResume
             tools.Margin = Pad(9, 0, 0, 14);
             exportButton = MakeButton(S("action.export", "Export diagnostics..."), false, delegate { ExportDiagnostics(); });
             repairButton = MakeButton(S("action.repair", "Repair installation"), false, delegate { Repair(); });
+            // The other half of what the upgrade-pending message tells people to do. Starting
+            // the watcher has always been in the header; stopping it lived only in the command
+            // line, which is the one place a person who uses this window never goes.
+            stopButton = MakeButton(S("action.stop_watcher", "Stop watcher"), false, delegate { StopWatcher(); });
             foreach (Button button in new[] {
                 exportButton,
                 MakeButton(S("action.open_logs", "Open logs folder"), false, delegate { OpenLogs(); }),
-                repairButton })
+                repairButton,
+                stopButton })
             {
                 button.Margin = Pad(0, 0, 0, 9);
                 tools.Controls.Add(button);
@@ -1449,6 +1454,7 @@ namespace CodexAutoResume
             UpdateToggle();
             if (exportButton != null) exportButton.Enabled = busy == 0;
             if (repairButton != null) repairButton.Enabled = busy == 0;
+            if (stopButton != null) stopButton.Enabled = busy == 0;
             if (saveButton != null) saveButton.Enabled = busy == 0;
             if (restoreButton != null) restoreButton.Enabled = busy == 0;
         }
@@ -1821,6 +1827,27 @@ namespace CodexAutoResume
             });
         }
 
+        private void StopWatcher()
+        {
+            if (!Confirm(S("confirm.stop_watcher",
+                           "Stop the watcher? It finishes the check it is in and then stops. Nothing waiting is lost, and nothing is recovered until it runs again."))) return;
+            CallAsync("stop-watcher", null, delegate(Dictionary<string, object> reply)
+            {
+                if (!Ok(reply)) { Report(reply); RefreshAfterChange(); return; }
+                // What the single-instance mutex actually said. "It let go" and "nobody could
+                // tell" are different answers, and only one of them means it is safe to
+                // replace the files underneath it - so they get different sentences.
+                string state = Str(Map(reply, "result"), "state") ?? "unknown";
+                string text = state == "stopped" ? S("diag.stop_stopped", "The watcher stopped.")
+                            : state == "still-finishing" ? S("diag.stop_finishing", "The watcher is finishing the check it is in, and stops when that is done.")
+                            : state == "not-running" ? S("diag.stop_not_running", "The watcher was not running.")
+                            : S("diag.stop_unknown", "Whether the watcher stopped could not be told.");
+                MessageBox.Show(this, text, "Codex Auto Resume", MessageBoxButtons.OK,
+                                state == "unknown" ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+                RefreshAfterChange();
+            });
+        }
+
         private void OpenLogs()
         {
             string logs = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
@@ -1829,27 +1856,60 @@ namespace CodexAutoResume
             catch (Exception error) { Report(Failure(error)); }
         }
 
+        // Long enough for a setup that is doing real work on a slow machine, and short
+        // enough that the window says something before a person gives up on it.
+        private const int RepairMilliseconds = 120000;
+
         private void Repair()
         {
             if (!Confirm(S("confirm.repair", "Run setup again to repair the Windows registrations?"))) return;
             string root = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
             string python = Path.Combine(root, "runtime", "python.exe");
             string setup = Path.Combine(root, "app", "scripts", "plugin_setup.py");
-            if (!File.Exists(python) || !File.Exists(setup))
-            {
-                MessageBox.Show(this, S("diag.repair_failed", "Setup did not finish."), "Codex Auto Resume",
-                                MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
             SetBusy(true);
             System.Threading.ThreadPool.QueueUserWorkItem(delegate
             {
-                bool ok = false;
+                string outcome, detail;
+                RunRepair(root, python, setup, out outcome, out detail);
+                MethodInvoker finish = delegate
+                {
+                    SetBusy(false);
+                    ReportRepair(outcome, detail);
+                    RefreshAfterChange();
+                };
+                try { if (IsHandleCreated && !IsDisposed) BeginInvoke(finish); }
+                catch (Exception) { }
+            });
+        }
+
+        /// Runs setup over this installation and says which of five things happened:
+        /// done, busy, incomplete, running or failed. They are five different sentences
+        /// because they ask for five different things from the person, and one of them -
+        /// a setup that is still working - is not a failure at all.
+        private static void RunRepair(string root, string python, string setup,
+                                      out string outcome, out string detail)
+        {
+            outcome = "failed";
+            detail = "";
+            // Nothing to run: this installation is missing the files setup is made of, so
+            // saying "setup did not finish" would describe the wrong problem.
+            if (!File.Exists(python) || !File.Exists(setup)) { outcome = "incomplete"; return; }
+            // The installer holds this while it works, and its own repair branch takes it
+            // for the same reason: two processes rewriting the same registrations at once
+            // is the one case the lock exists for. An abandoned lock means its holder died,
+            // so it is taken rather than read as contention.
+            using (var gate = new System.Threading.Mutex(false, "Local\\CodexAutoResume.Install"))
+            {
+                bool held = false;
+                try { held = gate.WaitOne(0); }
+                catch (System.Threading.AbandonedMutexException) { held = true; }
+                if (!held) { outcome = "busy"; return; }
                 try
                 {
-                    // --keep-state: repair repairs. It re-registers what is broken and starts a
-                    // stopped watcher, and never undoes a pause or adds back a sign-in start the
-                    // person switched off - a plain `setup` does both, as a first install should.
+                    // --keep-state: a repair repairs. It re-registers what is broken and
+                    // starts a stopped watcher, and never undoes a pause or adds back a
+                    // sign-in start the person switched off - a plain `setup` does both, as
+                    // a first install should.
                     var info = new ProcessStartInfo(python, Bridge.Quote(setup) + " setup --keep-state");
                     info.UseShellExecute = false;
                     // The installation this window belongs to. Setup resolves its target from
@@ -1861,35 +1921,73 @@ namespace CodexAutoResume
                     info.RedirectStandardError = true;
                     using (Process process = Process.Start(info))
                     {
-                        // Both pipes drained concurrently, so neither can fill and stall the other.
-                        Task<string> error = process.StandardError.ReadToEndAsync();
-                        string output = process.StandardOutput.ReadToEnd();
-                        error.Wait(120000);
-                        process.WaitForExit(120000);
+                        // Both pipes read without blocking on either, so a child that fills
+                        // one of them cannot stall the wait - and the wait is what decides
+                        // between "still working" and "failed".
+                        Task<string> output = process.StandardOutput.ReadToEndAsync();
+                        Task<string> failure = process.StandardError.ReadToEndAsync();
+                        if (!process.WaitForExit(RepairMilliseconds))
+                        {
+                            // Left running on purpose: it is still registering things, and
+                            // killing it halfway is how an installation ends up half written.
+                            // The lock goes back now rather than being held by a thread that
+                            // has stopped watching, which the installer's own comment allows
+                            // for by treating an abandoned lock as free.
+                            outcome = "running";
+                            return;
+                        }
+                        output.Wait(5000);
+                        failure.Wait(5000);
+                        detail = Tail((output.IsCompleted ? output.Result : "") + "\n" +
+                                      (failure.IsCompleted ? failure.Result : ""));
                         // 2 means everything was done but the watcher was not yet seen
-                        // running - and it is also what an older setup exits with when it
-                        // rejects an argument it does not know, such as --keep-state. So a
-                        // 2 counts only with the line setup prints when it has finished its
-                        // work; "Setup finished" over a setup that never ran is worse than
-                        // saying it failed.
-                        ok = process.HasExited &&
-                             (process.ExitCode == 0 ||
-                              (process.ExitCode == 2 && output.IndexOf("state: ", StringComparison.Ordinal) >= 0));
+                        // running - and it is also what setup exits with when it rejects an
+                        // argument it does not know, such as --keep-state on a copy older
+                        // than this window. So a 2 counts only with the line setup prints
+                        // when it has finished its work.
+                        if (process.ExitCode == 0 ||
+                            (process.ExitCode == 2 &&
+                             output.IsCompleted && output.Result.IndexOf("state: ", StringComparison.Ordinal) >= 0))
+                            outcome = "done";
                     }
                 }
-                catch (Exception) { ok = false; }
-                MethodInvoker finish = delegate
-                {
-                    SetBusy(false);
-                    MessageBox.Show(this, ok ? S("diag.repair_done", "Setup finished.")
-                                             : S("diag.repair_failed", "Setup did not finish."),
-                                    "Codex Auto Resume", MessageBoxButtons.OK,
-                                    ok ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
-                    RefreshAfterChange();
-                };
-                try { if (IsHandleCreated && !IsDisposed) BeginInvoke(finish); }
-                catch (Exception) { }
-            });
+                catch (Exception error) { detail = error.Message; }
+                finally { gate.ReleaseMutex(); }
+            }
+        }
+
+        /// The last few lines setup printed, which is where it says what went wrong. The
+        /// line naming the installation folder is dropped: it is the one line that is a
+        /// path rather than a reason.
+        private static string Tail(string output)
+        {
+            var lines = new List<string>();
+            foreach (string line in (output ?? "").Replace("\r", "").Split('\n'))
+            {
+                string trimmed = line.Trim();
+                if (trimmed.Length == 0 || trimmed.StartsWith("state: ", StringComparison.Ordinal)) continue;
+                lines.Add(trimmed);
+            }
+            var last = new List<string>();
+            for (int i = Math.Max(0, lines.Count - 3); i < lines.Count; i++) last.Add(lines[i]);
+            string text = string.Join(Environment.NewLine, last.ToArray());
+            return text.Length > 400 ? text.Substring(text.Length - 400) : text;
+        }
+
+        private void ReportRepair(string outcome, string detail)
+        {
+            bool calm = outcome == "done" || outcome == "running";
+            string text = outcome == "done" ? S("diag.repair_done", "Setup finished.")
+                        : outcome == "running" ? S("diag.repair_running", "Setup is taking longer than usual and is still working. It carries on in the background; look at this page again in a minute.")
+                        : outcome == "busy" ? S("diag.repair_busy", "An installation or a repair is already running. Try again once it has finished.")
+                        : outcome == "incomplete" ? S("diag.repair_incomplete", "Files this installation is made of are missing, so setup could not run. Install it again from the release archive.")
+                        : S("diag.repair_failed", "Setup did not finish.");
+            // What setup printed, but only where it is the answer: for the outcomes above it
+            // would be noise beside a sentence that already says what to do.
+            if (outcome == "failed" && !string.IsNullOrEmpty(detail))
+                text += Environment.NewLine + Environment.NewLine + detail;
+            MessageBox.Show(this, text, "Codex Auto Resume", MessageBoxButtons.OK,
+                            calm ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
         }
     }
 }
