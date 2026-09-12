@@ -33,7 +33,7 @@
     "src/codex_auto_resume/startup.py": "1f7ffd083142b5f610d92f7841abdf12849b5e5ea46a52911672a52d1f1a5534",
     "tests/codexsim.py": "3fa84999da270f70b7807500e7f33223201947bf0a4928a837f6b9c1874513f2",
     "build/capture_window.ps1": "91f681d9e247bfb4aa626d8ed3c030dd5fd666076503dc37fb596d41bb95e292",
-    "build/make_gui.ps1": "049c1addf8826ccbb7bff49b86aee192c2a53f43b061c426cc660005e6cefecf",
+    "build/make_gui.ps1": "7d79a8ffddd7b384a3aedf13cdddda959b3f794be3eb8d41d0ebc481872589f3",
     "build/make_screenshots.py": "d323d7e7e7aceb15d79776d44809c780ac1da39917896b9e78bc7c184a72dbd2",
     "<panel render:en>": "44b9414fa050625d277851a9e931d130c62cbd292e9dc716b3e34762e25e44f1",
     "<panel render:ko>": "8c571ff57cf61cf94b331a73b29ffa5b7d101efaea889fa3fea42cf0cd1b9968"
@@ -44,7 +44,7 @@
       "size": "1800x1228"
     },
     "assets/screenshot-dashboard.png": {
-      "sha256": "d79126a5bb356fba4fa5370e0f358805e1e2d7954a5c227b692c0281c08355f4",
+      "sha256": "98ed3fdace12d2d634886373baae55054c259f91f524ada6645d801f91ac1c84",
       "size": "1312x1086"
     },
     "assets/screenshot-pending.png": {
@@ -60,7 +60,7 @@
       "size": "1800x1250"
     },
     "assets/screenshot-dashboard-ko.png": {
-      "sha256": "dc0976ba7264623647b095b8ed8900abf9997767cf6658386aaa8da309658d4a",
+      "sha256": "f13c8b5d6af0b412a2c7aeb70f37384b3fd15635a429e29ea3a70fdb6b984b25",
       "size": "1312x1086"
     },
     "assets/screenshot-pending-ko.png": {
@@ -76,7 +76,7 @@
       "size": "1800x1228"
     },
     "docs/images/dashboard-overview.png": {
-      "sha256": "d79126a5bb356fba4fa5370e0f358805e1e2d7954a5c227b692c0281c08355f4",
+      "sha256": "98ed3fdace12d2d634886373baae55054c259f91f524ada6645d801f91ac1c84",
       "size": "1312x1086"
     },
     "docs/images/dashboard-pending.png": {
@@ -92,7 +92,7 @@
       "size": "1800x1250"
     },
     "docs/images/dashboard-overview-ko.png": {
-      "sha256": "dc0976ba7264623647b095b8ed8900abf9997767cf6658386aaa8da309658d4a",
+      "sha256": "f13c8b5d6af0b412a2c7aeb70f37384b3fd15635a429e29ea3a70fdb6b984b25",
       "size": "1312x1086"
     },
     "docs/images/dashboard-pending-ko.png": {
