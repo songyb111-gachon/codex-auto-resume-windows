@@ -490,7 +490,8 @@ class UpgradeKeepsTheOwnersChoiceTests(unittest.TestCase):
     def test_the_bootstraps_repair_branch_keeps_it_too(self):
         # That branch is reached only when the installed version already matches, so it
         # is by definition a repair and never a first install.
-        repair = block(self.bootstrap, "$installed -eq $version", "# No lock is taken")
+        repair = block(self.bootstrap, "if ($null -ne $standing -and $standing -ge 0",
+                       "# No lock is taken")
         self.assertIn("@($setup, 'setup', '--keep-state')", repair)
 
     def test_the_bootstrap_has_no_other_route_that_runs_setup_itself(self):

@@ -13,10 +13,11 @@
     execution, which means the interesting part of this script is what it refuses.
 
     What it will fetch
-      * Exactly one URL shape, built from constants in scripts/release.json and the
-        version in the plugin's own manifest. There is no "latest", no input that
-        becomes part of a URL, and no way to ask it for a different version: a plugin
-        at a given version can fetch that version's archive and nothing else.
+      * Exactly one URL shape, built from constants in scripts/release.json and a
+        version this script chose. No input becomes part of a URL. An ordinary run
+        fetches the version in the plugin's own manifest and nothing else; -Update is
+        the single exception, and the version it fetches is not an input either - it is
+        three integers read out of a redirect under this exact repository.
       * Over HTTPS, with TLS 1.2 at minimum, from github.com - and the final response
         URI has to be one of the three hosts in $AllowedHosts below, because a release
         download redirects to GitHub's object storage and nowhere else.
@@ -42,17 +43,40 @@
       policy change beyond this one process, nothing piped from the network into a
       shell, and no code from the archive is run before the archive has been verified.
 
+    Asking whether there is a newer release
+      -CheckOnly asks and answers. -Update asks, and installs the answer when it is
+      newer. Neither happens unless a person asks for it: nothing here polls, and a
+      watcher nobody has asked makes no request to github.com at all.
+
+      The question is answered without parsing anything github.com sends. The request
+      is a HEAD to the releases/latest URL in scripts/release.json, so no body is
+      transferred, and the answer is read out of the URL the request ended at: the path
+      has to begin with the exact owner and repository this product is published from,
+      and what follows has to be a tag named vMAJOR.MINOR.PATCH. The version is rebuilt
+      from those three integers, so the only thing that crosses from the network into a
+      download URL is arithmetic.
+
+      An update is refused unless it is strictly newer, compared as three integers and
+      never as text. A local build ahead of everything published is reported as that and
+      left alone. Everything an ordinary install verifies - the checksum, the contents,
+      the version inside the archive - is verified for an update too, and it goes through
+      the same installer, which keeps the state and the decisions already on the machine.
+
     Run: powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1
          Add -Force to reinstall a version that is already present.
          Add -ArchivePath <zip> to install a file you already have. It is checked
          against the pinned digest when this version has one; otherwise only the
          contents checks apply, because there is no sidecar to fetch for a local file.
+         Add -CheckOnly to ask whether a newer release exists and install nothing.
+         Add -Update to install one if there is.
 #>
 [CmdletBinding()]
 param(
     [switch]$Force,
     [switch]$NoStartup,
-    [string]$ArchivePath
+    [string]$ArchivePath,
+    [switch]$CheckOnly,
+    [switch]$Update
 )
 
 $ErrorActionPreference = 'Stop'
@@ -60,6 +84,16 @@ Set-StrictMode -Version 2.0
 
 $PluginRoot = Split-Path -Parent $PSScriptRoot
 $AllowedHosts = @('github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com')
+
+# What -CheckOnly and -Update answer with. Four codes, because there are four answers and
+# a caller that has to tell them apart should not have to read prose to do it. "Could not
+# ask" is its own answer and never borrows the one for "up to date": a machine with no
+# network would otherwise be told it is current, which is the one wrong thing an update
+# check can say. An update that goes ahead exits with the installer's own code instead.
+$ExitCurrent     = 0
+$ExitAvailable   = 10
+$ExitLocalNewer  = 11
+$ExitUnavailable = 12
 
 function Step { param([string]$Text) Write-Host ('  ' + $Text) }
 function Ok   { param([string]$Text) Write-Host ('  [ok] ' + $Text) }
@@ -101,28 +135,93 @@ function Get-PinnedDigest {
     return $digest.ToLower()
 }
 
-function Assert-TrustedHost {
-    param($Response, [string]$What)
+function Get-FinalUri {
+    param($Response)
     # Where the bytes actually came from, after redirects. Windows PowerShell 5.1 hands
     # back an HttpWebResponse, which spells it ResponseUri; PowerShell 7 hands back an
     # HttpResponseMessage, which does not have that property at all and spells it
     # RequestMessage.RequestUri. Reading only the 5.1 name would throw under StrictMode
     # on pwsh - fail closed, but fail closed on every download, which is not a check so
-    # much as an outage. Neither present means we cannot tell, and cannot tell is a
-    # refusal.
+    # much as an outage. Neither present means we cannot tell, and the caller treats
+    # cannot tell as a refusal.
     $base = $Response.BaseResponse
-    $final = $null
-    if ($base.PSObject.Properties.Match('ResponseUri').Count) {
-        $final = $base.ResponseUri
-    } elseif ($base.PSObject.Properties.Match('RequestMessage').Count -and $base.RequestMessage) {
-        $final = $base.RequestMessage.RequestUri
+    if ($base.PSObject.Properties.Match('ResponseUri').Count) { return $base.ResponseUri }
+    if ($base.PSObject.Properties.Match('RequestMessage').Count -and $base.RequestMessage) {
+        return $base.RequestMessage.RequestUri
     }
+    return $null
+}
+
+function Assert-TrustedHost {
+    param($Response, [string]$What)
+    $final = Get-FinalUri -Response $Response
     if ($null -eq $final) {
         throw ($What + ': this PowerShell does not report where the download came from, so it was refused.')
     }
     if ($final.Scheme -ne 'https' -or ($AllowedHosts -notcontains $final.Host)) {
         throw ($What + ' was redirected to a host this installer does not trust: ' + $final.Host)
     }
+}
+
+function Get-VersionParts {
+    param([string]$Version)
+    if ($Version -notmatch '^[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}$') {
+        throw ('Not a version this product uses: ' + $Version)
+    }
+    $parts = $Version.Split('.')
+    return @([int]$parts[0], [int]$parts[1], [int]$parts[2])
+}
+
+function Compare-ProductVersion {
+    param([string]$Left, [string]$Right)
+    # -1, 0 or 1, as three integers. Compared as text, '0.10.0' sorts before '0.9.0' and
+    # the tenth minor release of a line would look like a downgrade.
+    $a = Get-VersionParts $Left
+    $b = Get-VersionParts $Right
+    for ($i = 0; $i -lt 3; $i++) {
+        if ($a[$i] -lt $b[$i]) { return -1 }
+        if ($a[$i] -gt $b[$i]) { return 1 }
+    }
+    return 0
+}
+
+function Get-NewestPublishedVersion {
+    param($Release)
+    foreach ($name in @('owner', 'repo', 'latest')) {
+        if (-not $Release.PSObject.Properties.Match($name).Count) {
+            throw ('scripts/release.json has no "' + $name + '", so there is nothing to ask.')
+        }
+    }
+    # HEAD, so the tag page's body is never transferred - and therefore never available
+    # to be parsed by a later change to this script. The answer is the URL, not the page.
+    $response = Invoke-WebRequest -Uri $Release.latest -UseBasicParsing -Method Head `
+                                  -MaximumRedirection 5 -TimeoutSec 60
+    Assert-TrustedHost -Response $response -What 'The release page'
+    $final = Get-FinalUri -Response $response
+    # Asked again rather than assumed. Assert-TrustedHost refuses a response that will
+    # not say where it came from, so this is unreachable today; it is here because every
+    # line below reads a property of $final, and "the check above would have caught it"
+    # is the shape of reasoning that stops being true when the check above is edited.
+    if ($null -eq $final) { throw 'The release page did not say where it came from.' }
+    if ($final.Host -ne 'github.com') {
+        throw ('The release page ended on ' + $final.Host + ', which does not answer for this project.')
+    }
+    # The literal owner and repository, not a pattern. A redirect to a fork, or to
+    # another repository of the same owner, is a different project's release, and a
+    # release page that answers for a different project answers nothing here.
+    $expected = '/' + $Release.owner + '/' + $Release.repo + '/releases/tag/'
+    if (-not $final.AbsolutePath.StartsWith($expected, [StringComparison]::Ordinal)) {
+        throw ('The release page redirected outside this repository: ' + $final.AbsolutePath)
+    }
+    $tag = $final.AbsolutePath.Substring($expected.Length)
+    if ($tag -notmatch '^v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}$') {
+        throw ('The newest release is not tagged the way this product tags releases: ' + $tag)
+    }
+    # Rebuilt from the three numbers rather than reused as text: what reaches the URL
+    # below is arithmetic, and a leading zero or an unexpected character cannot survive
+    # being turned into an integer and back.
+    $parts = $tag.Substring(1).Split('.')
+    return ([string][int]$parts[0]) + '.' + ([string][int]$parts[1]) + '.' + ([string][int]$parts[2])
 }
 
 function Get-Remote {
@@ -217,8 +316,79 @@ if ([string]::IsNullOrWhiteSpace($installHome)) {
 }
 
 $installed = Get-InstalledVersion -Home_ $installHome
-if ($installed -eq $version -and -not $Force) {
-    Ok ('v' + $version + ' is already installed at ' + $installHome)
+
+# ------------------------------------------------------- is there a newer release?
+if ($CheckOnly -and $Update) {
+    Fail 'Use -CheckOnly or -Update, not both.'
+    exit $ExitUnavailable
+}
+if (($CheckOnly -or $Update) -and $ArchivePath) {
+    Fail 'A file you already have is not an update: -ArchivePath and -Update ask different questions.'
+    exit $ExitUnavailable
+}
+
+# What gets installed. It is the plugin's own version for every ordinary run, and only
+# -Update ever moves it.
+$target = $version
+if ($CheckOnly -or $Update) {
+    # "Up to date" is a question about the version that would run, which is the installed
+    # one wherever there is one. A plugin tree sitting at a version the machine has not
+    # installed yet is an install that has not happened, not an answer to this.
+    $current = $version
+    if ($installed) { $current = $installed }
+    Step 'Asking github.com which release is newest. Nothing is uploaded, and no page is read.'
+    $newest = $null
+    try { $newest = Get-NewestPublishedVersion -Release $release }
+    catch {
+        Fail $_.Exception.Message
+        Write-Host 'update: unavailable'
+        Step 'Nothing was changed. This says nothing about whether an update exists.'
+        exit $ExitUnavailable
+    }
+    $order = Compare-ProductVersion -Left $newest -Right $current
+    if ($order -lt 0) {
+        Ok ('This is v' + $current + ', which is ahead of the newest published release, v' + $newest + '.')
+        Write-Host ('update: newer-local ' + $current + ' ' + $newest)
+        Step 'Nothing was changed. An update would be a downgrade.'
+        exit $ExitLocalNewer
+    }
+    if ($order -eq 0) {
+        Ok ('v' + $current + ' is the newest published release.')
+        Write-Host ('update: current ' + $current)
+        exit $ExitCurrent
+    }
+    Ok ('v' + $newest + ' has been published. This machine has v' + $current + '.')
+    Write-Host ('update: available ' + $current + ' ' + $newest)
+    if ($CheckOnly) {
+        Step 'Nothing was installed. Run this again with -Update to install it.'
+        exit $ExitAvailable
+    }
+    $target = $newest
+}
+
+# Whether what is installed is older than, the same as, or newer than what would be
+# installed. Null where there is no installation, or one whose version cannot be read.
+#
+# The "newer" case is the one -Update creates and nothing else did: an update leaves the
+# machine ahead of the plugin tree it was started from, because Codex's copy of the plugin
+# is still whatever version it fetched. Without this, the next ordinary run of this script
+# would see a version it does not have and install it - over a newer one, silently. An
+# installation is only ever replaced by an older one on purpose, which is what -Force is.
+$standing = $null
+if ($installed) {
+    try { $standing = Compare-ProductVersion -Left $installed -Right $target }
+    catch { $standing = $null }
+}
+
+if ($null -ne $standing -and $standing -ge 0 -and -not $Force) {
+    if ($standing -eq 0) {
+        Ok ('v' + $target + ' is already installed at ' + $installHome)
+    } else {
+        Ok ('v' + $installed + ' is installed at ' + $installHome + ', which is newer than the v' +
+            $target + ' this copy of the plugin carries.')
+        Step 'Nothing was downloaded, and nothing was replaced with an older version.'
+        Step 'Add -Force to install this version over it.'
+    }
     # Still converge. Re-running setup is the repair path: it re-registers the sign-in
     # entry and the notification handler against the installed runtime and starts the
     # watcher if it is not running. All of that is cheap, and any of it can be missing
@@ -242,8 +412,8 @@ if ($installed -eq $version -and -not $Force) {
     }
     $python = Join-Path $installHome 'runtime\python.exe'
     $setup = Join-Path $installHome 'app\scripts\plugin_setup.py'
-    # `--keep-state`, always: this branch is reached only when the installed version is
-    # already the one being installed, so it is a repair and never a first install. Plain
+    # `--keep-state`, always: this branch is reached only when the installation is already
+    # at this version or past it, so it is a repair and never a first install. Plain
     # `setup` runs the engine's `enable` and re-registers the sign-in entry, which would
     # switch recovery back on for someone who paused it and put back a sign-in entry they
     # removed - a decision, taken while claiming to check the installation over.
@@ -272,7 +442,7 @@ try {
 
 try {
     New-Item -ItemType Directory -Force -Path $work | Out-Null
-    $name = $release.archive.Replace('{version}', $version)
+    $name = $release.archive.Replace('{version}', $target)
     $zip = Join-Path $work $name
 
     if ($ArchivePath) {
@@ -280,14 +450,14 @@ try {
         Step ('Using the archive you provided: ' + $ArchivePath)
         Copy-Item -Path $ArchivePath -Destination $zip -Force
     } else {
-        $base = $release.download.Replace('{version}', $version)
-        Step ('Downloading v' + $version + ' from github.com over HTTPS.')
+        $base = $release.download.Replace('{version}', $target)
+        Step ('Downloading v' + $target + ' from github.com over HTTPS.')
         Step ('Nothing is uploaded, and nothing runs until the download is verified.')
         Get-Remote -Uri ($base + $name) -OutFile $zip -What 'The archive'
     }
 
     $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
-    $pinned = Get-PinnedDigest -Release $release -Version $version
+    $pinned = Get-PinnedDigest -Release $release -Version $target
     if ($pinned) {
         if ($actual -ne $pinned) { throw 'The download does not match the digest pinned in this plugin.' }
         Ok 'SHA-256 matches the digest pinned in this plugin'
@@ -308,8 +478,8 @@ try {
         Ok 'SHA-256 matches the checksum published beside it (no pinned digest for this version)'
     }
 
-    Test-Archive -Zip $zip -Version $version
-    Ok ('Archive contents verified as Codex Auto Resume v' + $version)
+    Test-Archive -Zip $zip -Version $target
+    Ok ('Archive contents verified as Codex Auto Resume v' + $target)
 
     $unpacked = Join-Path $work 'unpacked'
     [IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path $zip), $unpacked)

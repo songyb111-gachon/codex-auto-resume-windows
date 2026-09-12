@@ -113,7 +113,12 @@ this product's plugin and marketplace).
     the `main` branch, which ships in the release after v0.5.7, it no longer includes the install
     path.
 
-  There is no telemetry and no update check. This tool sends nothing to its developer; there is no
+  There is no telemetry, and no update check runs unless you press the button for it: from
+  v0.6.0 *Check for updates* makes one HEAD request to this repository's `releases/latest`
+  page and reads the version out of the address it redirects to, never out of the page,
+  which is not transferred. A redirect that leaves this exact owner and repository is
+  refused, and the version is rebuilt from its three numbers before it can reach a download
+  URL. This tool sends nothing to its developer; there is no
   service of the developer's to send it to.
 - **No shell, and no values in script text.** No Python code uses `shell=True`, `os.system`, `eval`
   or `exec`, and every Python subprocess gets an argument list. Windows PowerShell runs the

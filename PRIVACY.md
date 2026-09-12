@@ -4,7 +4,7 @@ Codex Auto Resume runs on your machine. It has no server, no account and no tele
 the watcher makes no outbound network request of its own.
 
 It does cause network traffic, though, and that is worth stating up front rather than in a
-footnote. There are two kinds, and they are genuinely different:
+footnote. There are three kinds, and they are genuinely different:
 
 - **OpenAI, through Codex.** The watcher drives the official Codex binary already signed in
   on your machine. When a recovery is due, it asks Codex for your current usage, and Codex
@@ -21,13 +21,34 @@ footnote. There are two kinds, and they are genuinely different:
   after v0.5.7, refreshes only a surviving `codex-auto-resume-windows` registration, from
   wherever it points.
 
-This tool has no update check of any kind. The sections below take each in turn.
+- **GitHub, when you ask whether there is a newer version.** From v0.6.0 the Diagnostics
+  page has a *Check for updates* button, and `scripts/bootstrap.ps1 -CheckOnly` does the
+  same from a command line. Pressing it makes one HTTPS request to
+  `github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest`. It is a `HEAD`
+  request, so no page is transferred and none is read: the answer is the address the
+  redirect ends at. Choosing to install then downloads that release's archive and its
+  checksum, which is the same download the installer has always made.
+
+  Nothing about you is sent. The request carries no identifier this product invented — no
+  installation id, no version of yours, no machine name, no account — and GitHub sees what
+  it sees for any anonymous request to a public page: an IP address, a time and a user
+  agent. It happens when you press the button and at no other time.
+
+**There is no automatic update check.** Nothing polls, nothing checks on a schedule, and
+nothing checks when the window opens or when the watcher starts. A machine that is never
+asked makes none of these requests, and a machine that never installs makes none of the
+GitHub requests at all.
+
+The sections below take each in turn.
 
 ## What it sends to the developer
 
 Nothing, beyond the aggregate download count GitHub shows for every release (see
-[Installing it](#installing-it)). There is no telemetry, no analytics, no crash reporting, no opt-in reporting and no
-automatic update check — no endpoint of any kind exists to receive them.
+[Installing it](#installing-it)) and, if you press *Check for updates*, one more anonymous
+request to a public GitHub page. There is no telemetry, no analytics, no crash reporting,
+no opt-in reporting and no automatic update check — no endpoint of any kind exists to
+receive them, because no collection service is operated for this project. Local statistics
+in the window are read from your own database and never leave it.
 
 Specifically, this tool itself sends none of the following to its developer or to anyone
 else; what reaches OpenAI through Codex is described next:
@@ -144,7 +165,10 @@ project builds is Authenticode-signed — the two executables, `Install.cmd`, `U
 and the PowerShell scripts — while the bundled Python interpreter (`pythonw.exe`,
 `python.exe` and its DLLs) keeps the Python Software Foundation's signature.
 
-This tool itself contacts no GitHub host while it runs, and it has no update check. A Codex
+The watcher itself contacts no GitHub host: the code that reaches the network is the
+PowerShell installer, and a test fails if any module under `src/` or `scripts/*.py` imports
+a networking module. The update check is that same installer, run by the button rather than
+on a schedule, and never by the watcher. A Codex
 process, including one this tool starts, may refresh Git marketplaces of its own accord;
 that is Codex's behaviour, and once installing has
 repointed this product's marketplace, it points at the local copy rather than at GitHub.

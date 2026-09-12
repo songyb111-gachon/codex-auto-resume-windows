@@ -38,6 +38,15 @@ import watcher_launcher                # noqa: E402
 
 BOOTSTRAP = ROOT / "scripts" / "bootstrap.ps1"
 RELEASE = ROOT / "scripts" / "release.json"
+
+
+def block(text, start, end):
+    """One region of a script, lifted verbatim between two markers rather than by line
+    number, so reordering a file cannot quietly point a test at something else."""
+    first = text.index(start)
+    return text[first:text.index(end, first)]
+
+
 CHANGELOG_TEXT = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 INSTALLER = ROOT / "install" / "install.ps1"
 WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
@@ -333,11 +342,65 @@ class BootstrapTests(unittest.TestCase):
             self.assertTrue(host == "github.com" or host.endswith(".githubusercontent.com"), host)
 
     def test_the_version_it_fetches_cannot_be_supplied(self):
-        # No parameter feeds the URL. -ArchivePath names a local file, which is checked
-        # the same way as a download, and -Force and -NoStartup are switches.
+        """No parameter feeds a URL.
+
+        -ArchivePath names a local file, which is checked the same way as a download;
+        everything else is a switch and carries no value at all. -Update does move the
+        version that is fetched, but not to anywhere a caller chooses: the resolver takes
+        it from a redirect under this repository and rebuilds it out of three integers,
+        which `tests/test_update_check.py` exercises against the shipped function.
+        """
         parameters = re.search(r"param\((.*?)\n\)", self.text, re.S).group(1)
         self.assertEqual(set(re.findall(r"\$(\w+)", parameters)),
-                         {"Force", "NoStartup", "ArchivePath"})
+                         {"Force", "NoStartup", "ArchivePath", "CheckOnly", "Update"})
+        values = [name for name in re.findall(r"\[(\w+)\]\$(\w+)", parameters)]
+        self.assertEqual([name for kind, name in values if kind != "switch"], ["ArchivePath"])
+        # And the one value never reaches the URL the archive is fetched from.
+        fetch = self.text[self.text.index("$base = $release.download"):]
+        self.assertNotIn("$ArchivePath", fetch[:fetch.index("Get-Remote")])
+
+    def test_the_update_check_never_parses_what_the_server_sends(self):
+        """The answer is the URL the request ended at. Nothing reads the page."""
+        resolver = block(self.text, "function Get-NewestPublishedVersion", "\n}\n")
+        self.assertIn("-Method Head", resolver, "a body that is never read should not be sent")
+        for forbidden in ("ConvertFrom-Json", ".Content", "ParsedHtml", "-Body"):
+            self.assertNotIn(forbidden, resolver, forbidden)
+
+    def test_the_redirect_has_to_land_under_this_exact_repository(self):
+        resolver = block(self.text, "function Get-NewestPublishedVersion", "\n}\n")
+        self.assertIn("$expected = '/' + $Release.owner + '/' + $Release.repo + '/releases/tag/'",
+                      resolver)
+        # Ordinal, and a prefix rather than a substring: `-like '*repo*'` would accept a
+        # fork, and a culture-sensitive comparison is not a thing to rest this on.
+        self.assertIn("StartsWith($expected, [StringComparison]::Ordinal)", resolver)
+        self.assertNotIn("-like", resolver)
+        self.assertNotIn("-match $Release", resolver)
+
+    def test_the_version_it_learned_is_rebuilt_from_integers(self):
+        resolver = block(self.text, "function Get-NewestPublishedVersion", "\n}\n")
+        self.assertIn("[int]$parts[0]", resolver)
+        self.assertIn("[int]$parts[1]", resolver)
+        self.assertIn("[int]$parts[2]", resolver)
+
+    def test_the_four_answers_have_four_codes(self):
+        codes = dict(re.findall(r"\$(Exit\w+)\s*=\s*(\d+)", self.text))
+        self.assertEqual(set(codes), {"ExitCurrent", "ExitAvailable", "ExitLocalNewer",
+                                      "ExitUnavailable"})
+        self.assertEqual(len(set(codes.values())), 4, "two answers share a code")
+        # "Could not ask" must never be the code for "you are up to date".
+        self.assertNotEqual(codes["ExitUnavailable"], codes["ExitCurrent"])
+        self.assertEqual(codes["ExitCurrent"], "0")
+
+    def test_nothing_checks_for_an_update_unless_asked(self):
+        """No timer, no schedule, no check on the way to an ordinary install."""
+        definition = self.text.index("function Get-NewestPublishedVersion")
+        calls = [i for i in range(len(self.text))
+                 if self.text.startswith("Get-NewestPublishedVersion", i)
+                 and i != definition + len("function ")]
+        self.assertEqual(len(calls), 1, "the resolver is reached from more than one place")
+        # And that one call sits inside the branch only a switch opens.
+        guarded = block(self.text, "if ($CheckOnly -or $Update) {", "    $target = $newest")
+        self.assertIn("Get-NewestPublishedVersion -Release $release", guarded)
 
     def test_required_contents_match_the_release_workflow(self):
         # Two lists of the same thing, in two languages, in two files. They drift.

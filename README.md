@@ -1,6 +1,6 @@
 # Codex Auto Resume
 
-**Safe auto-resume and auto-retry for interrupted Codex tasks on Windows.**
+**Automatically resume the exact same Codex task on Windows after a usage limit resets.**
 
 [![tests](https://github.com/songyb111-gachon/codex-auto-resume-windows/actions/workflows/test.yml/badge.svg)](https://github.com/songyb111-gachon/codex-auto-resume-windows/actions/workflows/test.yml)
 [![latest release](https://img.shields.io/github/v/release/songyb111-gachon/codex-auto-resume-windows?label=release)](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest)
@@ -9,9 +9,13 @@
 
 <sub>🇰🇷 <a href="README.ko.md">한국어 README</a></sub>
 
-Hit a Codex usage limit, a rate limit, or a dropped connection in the middle of a long task?
-Codex Auto Resume waits, checks that it is genuinely safe, and then continues **that exact
-conversation** — so you come back to finished work instead of a stopped task.
+Codex stops mid-task and tells you to try again at 6:34 AM. You are asleep at 6:34 AM, and in
+the morning the task is exactly where it stopped.
+
+Codex Auto Resume waits out the reset, checks that continuing is genuinely safe, and then
+continues **that exact conversation** — so you come back to finished work instead of a stopped
+task. It also recovers temporary rate limits, network failures, timeouts, server errors and
+interrupted streams, but only where the failure is one it can name and is safe to retry.
 
 It is a small local watcher for the Windows ChatGPT/Codex desktop app. It reads Codex's own state
 read-only, classifies what actually went wrong, and sends one continuation message through the
@@ -33,11 +37,16 @@ v0.5.7).
 | **Identity** | the exact conversation UUID only — never `--last`, never "the most recent one", never a title or a folder name |
 | **Configure it** | a Windows window from the Start Menu — on the main branch, shipping in the release after v0.5.7, a Dashboard whose settings are one of its six pages — a settings panel inside Codex, or the command line |
 | **Tells you** | Windows notifications when a task is interrupted, when recovery starts, how it went, and when it gives up. While the watcher runs it also shows a notification-area icon, whose tooltip says whether recovery is paused, how many recoveries are waiting, how many are running in Codex, and how long until the next check (main branch; ships in the release after v0.5.7) |
-| **Privacy** | no telemetry, no analytics, no update check, never reads your credentials. The watcher has no network code; the usage check, the resumed turn and what the plugin's tools and commands return in a conversation go to OpenAI through Codex, as Codex's traffic always does; setup downloads the release from GitHub; and the v0.5.7 installer has Codex refresh every Git marketplace you have configured (naming only this one is on the main branch and ships in the release after v0.5.7) |
+| **Privacy** | no telemetry, no analytics, no automatic update check, never reads your credentials. *Check for updates* in the window asks GitHub which release is newest, and only when you press it. The watcher has no network code; the usage check, the resumed turn and what the plugin's tools and commands return in a conversation go to OpenAI through Codex, as Codex's traffic always does; setup downloads the release from GitHub; and the v0.5.7 installer has Codex refresh every Git marketplace you have configured (naming only this one is on the main branch and ships in the release after v0.5.7) |
 
 > **One honest limitation, up front.** Codex has to currently have that conversation open for a
 > recovery to be delivered. If the app restarted since, open the conversation once and recovery
 > continues on its own. [Why this is unavoidable today](#please-read-this-limitation-first).
+
+**Not the only tool in this space, and not the right one for everybody.** If you want the widest
+possible recovery, an agent other than Codex, or a platform other than Windows, one of the
+others will suit you better — [`docs/COMPARISON.md`](docs/COMPARISON.md) is a map of nine of
+them, re-surveyed on 2026-09-12, saying what each does better than this one.
 
 ## Install
 

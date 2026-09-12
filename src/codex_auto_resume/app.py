@@ -476,6 +476,7 @@ class App:
             icon = config.PROJECT_ROOT / "assets" / "codex-auto-resume.ico"
         icon_tray = tray.Tray(icon_path=icon, strings=interface.catalog(),
                               on_open=lambda: tray.open_dashboard(home), on_toggle=toggle,
+                              on_pending=lambda: tray.open_dashboard(home, "pending"),
                               on_stop=lambda: StopEvent(str(self.paths.state_dir)).signal(),
                               log=self.logger.info)
         if not icon_tray.start():
