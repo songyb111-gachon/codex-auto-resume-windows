@@ -11,8 +11,10 @@
 - Python 3.12 이상, 표준 라이브러리만 씁니다. 서드파티 런타임 의존성이 없고 Python 쪽에는 빌드
   단계도 없습니다.
 - 유닛 테스트 이상을 실행하려면 ChatGPT/Codex 데스크톱 앱.
-- 설정 창과 MCP 런처, 이 작은 C# 실행 파일 두 개를 빌드하려면 .NET Framework 4.8(지원되는
-  모든 Windows에 이미 들어 있습니다).
+- 창과 MCP 런처(`gui/McpLauncher.cs`), 이 작은 C# 실행 파일 두 개를 빌드하려면 .NET Framework
+  4.8(지원되는 모든 Windows에 이미 들어 있습니다). 창은 소스 세 개에서 컴파일됩니다.
+  `gui/SettingsApp.cs`가 창 자체와 설정 페이지를, `gui/Dashboard.cs`가 페이지 이동과 개요, 대기 중,
+  기록, 통계, 진단 페이지를, `gui/Brand.cs`가 팔레트를 담당합니다.
 
 여기 있는 어느 것도 관리자 권한이 필요하지 않습니다.
 
@@ -27,6 +29,12 @@ python -m unittest discover -s tests
 이 suite는 가짜 객체와 임시 디렉터리를 씁니다. ChatGPT 앱에 절대 접속하지 않고, Codex 대화에 메시지를
 절대 보내지 않으며, 실제 레지스트리에 절대 쓰지 않습니다. 실제 환경을 읽기 전용으로 확인하는 검사는
 Windows에서 `CODEX_AR_LIVE=1`을 설정하지 않는 한 건너뜁니다.
+
+필요한 도구가 없으면 조용히 건너뛰는 부분도 있어서, 초록불이 곧 전부 실행했다는 뜻은 아닙니다. 스키마
+마이그레이션과 다운그레이드 테스트는 실제 태그 릴리스의 store 코드로 데이터베이스를 만들기 때문에 그
+태그가 체크아웃에 있어야 합니다(`git fetch --tags`. shallow clone에는 없으며, CI가 전체 히스토리를
+받아 오는 이유가 이것입니다). `tests/test_mcp.py`는 패널 자신의 코드를 돌리려면 Node가,
+`tests/test_reproducible.py`와 `tests/test_gui_json.py`는 Windows에 내장된 C# 컴파일러가 필요합니다.
 
 ## 플러그인 메타데이터 검증
 
@@ -185,8 +193,12 @@ attestation을 기록할 수 있었습니다. 어떤 이벤트가 그 실행을 
 색상, 아이콘, 그리고 그것들을 담고 있는 생성 파일은
 [docs/BRAND.ko.md](docs/BRAND.ko.md)에서 다룹니다. 요약하면 이렇습니다. 팔레트는
 `src/codex_auto_resume/brand.py`에 있고, `gui/Brand.cs`와 `assets/brand/icon.svg`는 거기서
-생성되며, `tests/test_brand.py`가 둘을 다시 생성해 비교합니다. 설정 창이나 패널 스타일시트에 색상
-리터럴을 직접 쓰지 마세요. 그것을 검사하는 테스트도 있습니다.
+생성되며, `tests/test_brand.py`가 둘을 다시 생성해 비교합니다. 창이나 패널 스타일시트에 색상 리터럴을
+직접 쓰지 마세요. 그것을 검사하는 테스트도 있지만 `gui/SettingsApp.cs`만 읽습니다. 그 테스트도, 크기를
+픽셀로 직접 적은 것을 잡아내는 테스트도 `gui/Dashboard.cs`는 보지 않으므로, 그 파일에 색상이나 픽셀
+크기를 직접 쓴 것은 직접 챙겨야 합니다. 다른 테스트는 이 파일도 읽습니다. 모든 Paint 처리기는 버퍼가
+있는 컨트롤 위에 있어야 하고, 스스로 그리는 클래스는 이중 버퍼를 써야 하며, 상주 브리지의 명령줄은
+실제로 실행해 확인합니다.
 
 ## MCP 선언은 빌드 시점에 추가됩니다
 
@@ -232,18 +244,24 @@ python scripts/ko_sync.py --reviewed README.md
 
 ## 스크린샷
 
-`python build/make_screenshots.py`가 작업 트리에서 전체 모음을 렌더링합니다. 설정 창과 Codex 패널을
-영어와 한국어로 만들어 `assets/`에 넣고 `docs/images/`에 복사본을 둡니다. 손으로 찍는 것도, 찍은 뒤에
-손보는 것도 없습니다.
+`python build/make_screenshots.py`가 작업 트리에서 전체 모음을 렌더링합니다. Codex 패널과 창의 개요,
+대기 중, 설정 페이지를 영어와 한국어로 만들어 `assets/`에 넣고 `docs/images/`에 복사본을 둡니다. 손으로
+찍는 것도, 찍은 뒤에 손보는 것도 없습니다.
+
+실행하려면 Windows, Microsoft Edge(패널을 렌더링하는 것이 이것입니다), 그리고 이미 빌드된
+`build/CodexAutoResumeSettings.exe`가 필요합니다. 먼저
+`powershell -ExecutionPolicy Bypass -File build/make_gui.ps1`을 실행하세요. 처음 실행할 때는 고정된
+embeddable Python을 `build/cache/`로 내려받기도 합니다.
 
 라이트 테마로 고정합니다. 실행 중인 제품은 사용자의 Windows와 Codex 테마를 따르지만 그림은 따르지
 않습니다. 모음이 하나의 제품처럼 보여야 하고, 다크 모드인 PC에서 만든 결과가 라이트 모드인 PC에서 만든
 결과와 같아야 하기 때문입니다.
 
 `assets/screenshots.json`에는 각 이미지가 어떤 입력에서 렌더링되었는지 다이제스트가 기록됩니다 — 창의
-소스, 매니페스트, 패널의 마크업, 런처, 아이콘. 하나라도 바뀌면 `tests/test_screenshots.py`가 실패하며
-생성기를 다시 돌리라고 알려 줍니다. 스크린샷이 더 이상 존재하지 않는 버전의 제품을 설명하는 일을 막는
-장치입니다.
+소스 두 개, 팔레트, DPI 매니페스트, 플러그인 매니페스트, 아이콘, 캡처·빌드 스크립트, 렌더링된 패널
+마크업, 그리고 창의 수치와 행을 계산하는 엔진 모듈들. 전체 목록은 `build/make_screenshots.py`의
+`WINDOW_INPUTS`입니다. 하나라도 바뀌면 `tests/test_screenshots.py`가 실패하며 생성기를 다시 돌리라고
+알려 줍니다. 스크린샷이 더 이상 존재하지 않는 버전의 제품을 설명하는 일을 막는 장치입니다.
 
 **생성되지 않는 이미지가 하나 있습니다: `docs/images/notification.png`.** 이것은 제품이 띄우고 셸이
 그리는 진짜 Windows 토스트라서 기계의 테마를 따르고 고정할 수 없습니다. 나머지가 밝은 모음 안에서 혼자

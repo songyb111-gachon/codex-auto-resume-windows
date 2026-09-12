@@ -13,6 +13,11 @@ Not re-reviewed for v0.5.2: that release changed how the product is installed an
 looks like, and nothing in it came from reading another project. Saying that is cheaper than
 implying a review that did not happen.
 
+Not re-reviewed for the release after v0.5.7 either, and again nothing in it came from
+reading another project. What changed is this project: the Start Menu window became a
+Dashboard and the watcher grew a notification-area icon, which moves two more entries below
+— a tray icon out of *rejected*, a live countdown out of *deferred*.
+
 ## Others in the same space
 
 Checked for v0.5.1. None of these changed what this project builds; they are listed
@@ -47,8 +52,8 @@ architecture, from its own reading of Codex's local state.
 | Authentication failure | retried, with a lower limit | never retried; a person is needed |
 | Classification | message and wrapper matching | structured `codexErrorInfo`, then HTTP status |
 | Unloaded threads | woken through a shared app-server | left alone until you open them |
-| Long-lived processes | supervisor, worker, optional app-server, MCP server | one watcher, plus an MCP server while Codex runs |
-| Interface | tray icon, settings window, Codex panel | Start Menu window, Codex panel, notifications |
+| Long-lived processes | supervisor, worker, optional app-server, MCP server | one watcher, plus an MCP server while Codex runs and one control process while the window is open |
+| Interface | tray icon, settings window, Codex panel | Start Menu Dashboard (Overview, Pending, History, Statistics, Diagnostics, Settings), notification-area icon, Codex panel, notifications |
 
 Neither column is a criticism. Retrying an unknown failure is a reasonable choice for a tool whose
 goal is to recover as much as possible. It is the wrong choice for this one, whose promise is
@@ -68,6 +73,7 @@ narrower and, because of that, easier to trust: **it acts only on failures it ca
 | **Configurable wait strategy** | Three named presets rather than raw ladders, so no setting can produce a zero or unbounded delay |
 | **Restart an exhausted task with a fresh budget** | `reset_recovery_budget`, which restores the budget and sends nothing |
 | **Retry a pending task now** | `retry_now`, which moves the schedule and nothing else; every gate still runs |
+| **A live countdown per pending recovery** | The Dashboard's Pending page counts down to each record's next check, on the window's own timer (`Dashboard.cs:UpdateCountdowns`); the notification-area tooltip carries the same countdown |
 | **A persistent pause switch** | The existing global kill switch, reused rather than duplicated |
 | **State writes that survive a sharing violation** | Atomic replace from a uniquely named temporary; a failed write raises rather than corrupting |
 | **A self-contained Windows ZIP with a double-click installer**, no runtime prerequisite | The release carries its own Python; no administrator rights, no network at install time |
@@ -78,6 +84,7 @@ narrower and, because of that, easier to trust: **it acts only on failures it ca
 | --- | --- |
 | **An embedded Codex management panel** | Adopted in v0.5 as a read-only settings panel over MCP. It shows state and changes settings; it cannot recover anything, and the watcher runs whether or not it is open. Previously rejected — the reason given was that it would replace something a user could do in words. That was true of a panel that only *displayed*; it stopped being true once there were sixteen settings to find. |
 | **A graphical settings window** | Adopted in v0.5 as a standalone Start Menu window, for a different reason than theirs: settings must be reachable when Codex is closed and nothing else is running. |
+| **A tray icon and a supervisor process** | The icon was adopted in the release after v0.5.7, as a thread of the watcher itself (`app.py:_start_tray`) rather than a second process, so it cannot show a watcher that is not running. Its menu opens the window, pauses recovery and stops the watcher; `show_tray` turns it off. The supervisor is still rejected: another long-lived process to make one visible |
 | **An MCP server** | Adopted, deliberately narrow: typed configuration and safe control only. No tool detects, schedules, reserves or sends. |
 | **Notification of a retry limit being reached** | One of four lifecycle notifications, each with its own switch |
 | **Empty-input continuation, so no user bubble appears** | Not possible without their app-server route. A continuation message is sent, and the README says so plainly rather than implying the conversation is untouched |
@@ -94,7 +101,6 @@ narrower and, because of that, easier to trust: **it acts only on failures it ca
 | **Injecting items into a thread** (`thread/inject_items`) | Writing into a conversation by any route other than the documented queue is not something this tool should be able to do |
 | **Goal-state manipulation** | Reading and setting Codex's native goal state is a second model of what a task *is*, and every ambiguity in it becomes a way to resume the wrong work |
 | **Subagent recovery** | Recovering a child thread on a parent's behalf multiplies the identity problem that this project's safety rests on |
-| **A tray icon and a supervisor process** | Two more long-lived processes to make one visible. The Start Menu entry and the notifications cover the same need |
 | **Restoring model, provider, service tier, reasoning and permission settings** before recovery | It requires reading and replaying a slice of Codex's own session configuration. Here the thread is resumed as the user left it |
 | **Dispatching several due tasks at once** | Sequential dispatch under one lock is what makes the no-duplicate-send argument short enough to check |
 
@@ -103,7 +109,6 @@ narrower and, because of that, easier to trust: **it acts only on failures it ca
 | Feature | Condition |
 | --- | --- |
 | **Empty-response recovery** — treating a completion with no assistant reply as a temporary failure | Their handling is careful and privacy-bounded, and the failure is real. It stays out until it can be distinguished from a model that legitimately had nothing to say, on evidence from real Codex history rather than from reasoning about it. It would ship default-off |
-| **A live countdown per pending recovery** | Presentation only, and genuinely useful. It waits until the panel has been used enough to know whether it matters |
 | **A break-glass "safely disable" action** | Their version exists because shared mode can leave Codex pointing at a dead endpoint. Nothing here can put Codex in a state it needs rescuing from, so the action has nothing to undo. If that ever stops being true, this becomes required rather than optional |
 
 ## The line that decides

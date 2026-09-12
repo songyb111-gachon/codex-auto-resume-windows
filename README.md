@@ -28,11 +28,11 @@ v0.5.7).
 
 |  |  |
 | --- | --- |
-| **Recovers** | Codex usage limits, and these when Codex records a specific error code for them: rate limits (HTTP 429) · network failures · timeouts · temporary server errors (5xx) · dropped response streams. Codex 0.153.4 records many timeouts, dropped streams and 502/503/504 errors with a generic code, and records an HTTP 429 it has given up retrying as `responseTooManyFailedAttempts`; none of those is retried |
+| **Recovers** | Codex usage limits, and these when Codex records a specific error code for them: rate limits (HTTP 429) · network failures · timeouts · temporary server errors (5xx) · dropped response streams. Codex 0.153.4 records many timeouts, dropped streams and 502/503/504 errors with a generic code; one that carries no HTTP status is not retried, and one that carries a status is classified from it (429 a rate limit, 408 and 425 a timeout, 500-599 a server error, any other 4xx permanent). An HTTP 429 it has given up retrying is recorded as `responseTooManyFailedAttempts`, and that one is recovered as a rate limit; the same code with any other status, or none, is not |
 | **Never touches** | user cancellation · permission · approval · content policy · invalid requests · context length · permanent authentication failures · anything unclassified |
 | **Identity** | the exact conversation UUID only — never `--last`, never "the most recent one", never a title or a folder name |
-| **Configure it** | a Windows settings app, a settings panel inside Codex, or the command line |
-| **Tells you** | Windows notifications when a task is interrupted, when recovery starts, how it went, and when it gives up |
+| **Configure it** | a Windows window from the Start Menu — on the main branch, shipping in the release after v0.5.7, a Dashboard whose settings are one of its six pages — a settings panel inside Codex, or the command line |
+| **Tells you** | Windows notifications when a task is interrupted, when recovery starts, how it went, and when it gives up. While the watcher runs it also shows a notification-area icon, whose tooltip says whether recovery is paused, how many recoveries are waiting, how many are running in Codex, and how long until the next check (main branch; ships in the release after v0.5.7) |
 | **Privacy** | no telemetry, no analytics, no update check, never reads your credentials. The watcher has no network code; the usage check, the resumed turn and what the plugin's tools and commands return in a conversation go to OpenAI through Codex, as Codex's traffic always does; setup downloads the release from GitHub; and the v0.5.7 installer has Codex refresh every Git marketplace you have configured (naming only this one is on the main branch and ships in the release after v0.5.7) |
 
 > **One honest limitation, up front.** Codex has to currently have that conversation open for a
@@ -183,14 +183,25 @@ is the latest release's number, because the version changes only when a release 
 
 Each waiting recovery shows why it is waiting and when it is next checked. **Retry now** only
 asks the watcher to look again now — every check still applies, and nothing is sent unless
-they all pass. **Cancel** stops recovering that one interruption; a continuation already
-running in Codex is not stopped. **Turn off for this conversation** cancels its waiting
-recoveries and keeps automatic recovery off for that conversation until you turn it back on
-— the Pending and History pages then offer **Turn on for this conversation**:
+they all pass. **Cancel** stops recovering that interruption and everything that continues it:
+a record that was never sent is cancelled outright, one that may already be in Codex is marked
+and taken back if it is still queued, and a finished one is marked too, so no later failure of
+that task can start a new chain from it. A turn already running in Codex is not stopped, and the
+confirmation says so. **Turn off for this conversation** cancels its waiting recoveries and keeps
+automatic recovery off for that conversation until you turn it back on — the Pending and History
+pages then offer **Turn on for this conversation**:
 
 <img src="docs/images/dashboard-pending.png" alt="The Pending page of the Dashboard: two conversations waiting, one for the usage reset in about forty-two minutes and one with a retry scheduled in about a minute, with Retry now, Cancel, Timeline and Turn off for this conversation buttons" width="680">
 
 <img src="docs/images/settings-window.png" alt="The Settings page of the Dashboard, showing which failures are recovered, the attempt limits, the retry timing, the notification switches and the Windows options" width="680">
+
+While the watcher runs it also puts an icon in the notification area. It belongs to the watcher
+process itself, so it appears when one starts and goes when it stops. Its tooltip says whether
+recovery is paused, how many recoveries are waiting, how many are running in Codex and how long
+until the next check; its menu opens this window, pauses or resumes recovery, and stops the
+watcher. The countdown only means the watcher looks again — nothing is sent because it reaches
+zero. It is on by default and can be switched off on the Settings page. Main branch; it ships in
+the release after v0.5.7.
 
 ## Please read this limitation first
 
@@ -208,8 +219,11 @@ thread is reported unloaded before the message arrives. If Codex does not confir
 message may stay queued; the record is then marked `submission_unknown` and is never resent.
 
 So an unloaded thread is resumed **only after you open that conversation in the ChatGPT app yourself**.
-Until then the watcher simply waits in a `waiting_for_loaded_thread` state. It will not use GUI
-automation, will not force the conversation open, and will not queue a message on the off chance.
+Until then the watcher simply waits in its `waiting_for_loaded_thread` state, which the window and
+the Codex panel report as the public code `waiting_thread` and show as "waiting for the
+conversation", and which the command line prints beside the state. It
+will not use GUI automation, will not force the conversation open, and will not queue a message on
+the off chance.
 
 This is not fully unattended auto-resume across app restarts, and this README will not pretend otherwise.
 
@@ -219,12 +233,15 @@ This is not fully unattended auto-resume across app restarts, and this README wi
 > easy to install and control, not on making the runtime do more.
 
 The recovery engine is deliberately one small watcher. Everything else exists to see and control it:
-a standalone Windows settings window, a settings panel inside Codex over MCP, the command line, and
+a standalone Windows window — a settings window up to v0.5.7, a Dashboard on the main branch — a
+settings panel inside Codex over MCP, the command line, the watcher's own notification-area icon, and
 Windows notifications. None of those can recover anything by itself, and the watcher keeps running
 whether or not any of them is open.
 
-What the project still avoids: a tray controller, a management web UI, a supervisor process, a
-Windows service, a second recovery engine, and a second state database.
+What the project still avoids: a separate tray process, a management web UI, a supervisor process, a
+Windows service, a second recovery engine, and a second state database. The notification-area icon is
+not an exception: the watcher owns it, so it cannot show a watcher that is not there, and everything
+its menu offers goes through the same control layer as the other surfaces.
 
 ## Features
 
@@ -287,7 +304,7 @@ Automatically recovered:
 | Usage limit (`usageLimitExceeded`) | Waits for the real reset timestamp, then re-checks live usage |
 | Connection failure (`httpConnectionFailed`) | Bounded backoff |
 | Timeout (HTTP 408/425) | Bounded backoff |
-| Transient rate limit (HTTP 429, `rateLimitExceeded`) | Bounded backoff |
+| Transient rate limit (HTTP 429, `rateLimitExceeded`, and `responseTooManyFailedAttempts` carrying a 429) | Bounded backoff, with a first wait of at least a minute |
 | Server error (HTTP 5xx, `serverOverloaded`, `internalServerError`) | Bounded backoff |
 | Stream disconnection (`responseStreamDisconnected`, `responseStreamConnectionFailed`) | Bounded backoff |
 
@@ -295,15 +312,18 @@ Never recovered — these need a person, and retrying only wastes attempts:
 
 user cancellation · permission · approval required · content policy · invalid request ·
 context length exceeded · permanent authentication (401/403, `unauthorized`) · `badRequest` ·
-`sandboxError` · `responseTooManyFailedAttempts` · **anything unrecognised**.
+`sandboxError` · `responseTooManyFailedAttempts` with any status but 429 · **anything unrecognised**.
 
 Classification is structural: it reads the `codexErrorInfo` variant Codex writes, then an HTTP status
 carried by that variant. Message text is consulted only when there is no structured code at all, and
 only for transport failures that have none. A structured code is never overridden by message text.
 
-Recovery is bounded twice over: at most 4 attempts per interruption, and it stops after 3 consecutive
-recoveries that produced no visible progress. If you carry on in that conversation yourself, the old
-interruption is dropped rather than replayed on top of your work.
+Recovery is bounded three times over: at most 4 attempts per interruption, it stops after 3
+consecutive recoveries that produced no visible progress, and one task receives at most 6
+continuations in total across every failure of it — a failure of our own recovery turn continues that
+same chain instead of starting a fresh budget. The per-task limit accepts 1 to 10 and nothing outside
+it. If you carry on in that conversation yourself, the old interruption is dropped rather than
+replayed on top of your work.
 
 ## Managing it from Codex
 
@@ -312,12 +332,22 @@ Once it is installed, either route gives you the same skill. Just ask, in the ap
 > Set up auto resume
 
 and afterwards "show auto resume status", "show pending auto resumes", "open auto resume
-settings", "turn auto resume off", "cancel auto resume for this task", "uninstall auto resume".
+settings", "turn auto resume off" and "turn auto resume back on", "cancel auto resume for this
+task", "show auto resume statistics", "show the timeline for that recovery", "try that recovery
+now", "give that recovery its attempts back", "start the watcher", "clear auto resume history",
+"uninstall auto resume".
 
-The plugin is a thin front end over the same command-line tool described below. It adds no second
-engine and no background service. It keeps its state in `%USERPROFILE%\.codex-auto-resume\`, outside
-the plugin directory, so updating or removing the plugin never loses a pending resume. The watcher
-keeps running when the Codex app is closed, and starts again at Windows sign-in.
+Nothing that turns automation down is marked as needing your confirmation: pausing recovery, turning
+it off for one conversation, asking for a re-check. Turning it back on, changing a setting, starting
+the watcher, cancelling a recovery, giving a recovery its attempts back and clearing the history are
+all marked so that Codex asks you first.
+
+The plugin is a thin front end over the same validated control layer the command line and the Start
+Menu window use: its tools call that layer directly, and the skill falls back to the commands below
+when the tools are not available. It adds no second engine and no background service. It keeps its
+state in `%USERPROFILE%\.codex-auto-resume\`, outside the plugin directory, so updating or removing
+the plugin never loses a pending resume. The watcher keeps running when the Codex app is closed, and
+starts again at Windows sign-in.
 
 See [docs/PLUGIN.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/PLUGIN.md) for the layout, exactly what the setup script will and will
 not do, the update and removal lifecycle, and why the usage-limit notice does **not** get a checkbox.
@@ -408,7 +438,9 @@ records. `stop` asks a running watcher process to exit.
 | `run` | Run the watcher in the foreground (`--once`, `--poll N`). |
 | `stop` | Ask a running watcher to exit. |
 | `install` | Create the owned directories and state (`--startup`). |
-| `uninstall` | Remove autostart and owned state/logs (`--keep-logs`). |
+| `uninstall` | Remove autostart and owned state/logs (`--keep-logs`, `--keep-state`). |
+| `diagnostics` | Write one redacted diagnostics file, to read before you share it (`--out`). |
+| `downgrade-state --to 2` | Rewrite the state file for a v0.5 release; stop the watcher first. |
 
 Global options: `--home` (where this tool keeps its own state), `--codex-exe`, `--codex-home`, `--quiet`.
 
@@ -487,8 +519,9 @@ settings file is validated on read, so a bad value is quietly replaced by the sa
 you are left believing you changed something.
 
 You can choose which classified failure categories are recovered, how many attempts each
-interruption gets, when to give up after recoveries that produce nothing, how long to wait
-between attempts, and which notifications appear.
+interruption gets, how many continuations one task may receive in total, when to give up after
+recoveries that produce nothing, how long to wait between attempts, which notifications appear, and
+whether the watcher shows its notification-area icon.
 
 You cannot switch off a safety property, because none of them is a setting. There is no option
 that retries an unclassified failure, resolves a conversation by title, resends an uncertain
@@ -563,7 +596,10 @@ Uninstall is deliberately conservative:
 What it writes itself while running: its own `config/` and `logs/` (plus the bytecode cache
 Python writes inside its own program folder). Turning start-at-sign-in on or off from the
 settings changes the per-user Run value, and Windows keeps the notifications it shows in its
-notification history. What it asks Codex to do, through official interfaces: queue one
+notification history. One thing it writes elsewhere, and only when asked: **Export diagnostics...**
+on the Diagnostics page, and `diagnostics` on the command line, write one redacted JSON bundle to a
+path you choose; it sends nothing and refuses to overwrite an existing file. What it asks Codex to
+do, through official interfaces: queue one
 continuation message for one exact thread (`codex queue`), and withdraw that same queued
 message if it has to (the App Server's `thread/queue/delete`). Installing asks
 the `codex` CLI to register this plugin and its local marketplace, and a marketplace already

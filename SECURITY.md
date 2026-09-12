@@ -44,13 +44,23 @@ display it, and Windows keeps them in its notification history.
 
 **Writes** while running:
 
-- Files in its own `config/` and `logs/` directories.
+- Files in its own `config/` and `logs/` directories, including the copy of the state file it
+  takes before the first watcher of a new version upgrades the schema, and before
+  `downgrade-state` rewrites it (`state.vN-backup-*.sqlite`), kept for forensics.
 - One continuation message to one exact thread, through the official `codex queue` CLI.
 - When that message has to be withdrawn, `thread/queue/delete` requests to the official Codex App
   Server for that exact queued item, repeated if the withdrawal cannot be confirmed.
 - The notifications it raises, which Windows keeps in its notification history.
-- When you switch **Run at Windows sign-in** on or off in the settings window, its single `Run`
+- When you switch **Run at Windows sign-in** on or off in the window, its single `Run`
   value is written or removed.
+- Only when you ask for it, one diagnostics JSON file at a path you choose, from **Export
+  diagnostics...** in the window or `auto_resume.py diagnostics`. It holds versions, settings,
+  every record's state, reason and the checks it is waiting on, the content-free journal (up to
+  2,000 entries) and the last 300 lines of each log; conversation and interruption ids become
+  aliases valid only inside that one file, and file-system paths, the Windows user name and
+  anything shaped like an e-mail address are replaced. It refuses to overwrite an existing file,
+  and nothing sends it. `errors.log` carries exception text this product did not write: that is
+  redacted the same way rather than filtered, and the file says so at the top.
 
 The Codex processes it starts (`codex app-server`, `codex queue`) may also update Codex's own logs
 and caches, as any Codex process does.
@@ -141,7 +151,9 @@ this product's plugin and marketplace).
 - **No duplicate resume.** The interruption is durably reserved (SQLite, `synchronous=FULL`,
   `BEGIN IMMEDIATE`) before any external process can accept a message. If the result of a send is
   ambiguous, the record enters `submission_unknown` and is never resent. The watcher keeps checking
-  it for 24 hours, and it can still become `resumed` if the message turns out to have arrived.
+  it for 24 hours, and if the message turns out to have arrived it is matched to the exact turn
+  it started and follows that turn to its outcome. (`resumed`, the name v0.5 wrote on delivery,
+  is kept so old rows stay valid and is never written now.)
 - **Path confinement.** Owned directories are rejected if they are links, or if they resolve outside the
   configured home. The resolve-based check also catches NTFS junctions, which `is_symlink()` does not.
 - **No contention with the app's thread lock.** There is no byte-lock API anywhere in the adapter.
@@ -165,19 +177,26 @@ this product's plugin and marketplace).
   points to the planted event.
 - **Tools that turn recovery back up are marked so Codex asks first.** This is on the `main` branch
   and ships in the release after v0.5.7. The plugin's MCP tools that can turn recovery back on or
-  up, or change its settings - `resume_auto_recovery`, `reset_recovery_budget`, `start_watcher`,
-  `update_settings`, `restore_default_settings` - are annotated `destructiveHint: true`, and so is
-  `cancel_recovery`, so Codex asks the user before running them in its default approval mode.
-  `pause_auto_recovery` and `retry_now` are not: pausing never adds automation, and `retry_now`
-  only moves an already-registered attempt earlier, with every check still applied. Pausing is not
-  free: a continuation already waiting in Codex's queue is withdrawn and that recovery is cancelled
-  for good, and resuming does not bring it back. The prompt is Codex's to show: this product can
-  only mark its tools, and Codex's approval settings decide whether a prompt appears.
-  `update_settings` offers and accepts only the settings a person can change in the settings
+  up, or change its settings - `resume_auto_recovery`, `enable_conversation_recovery`,
+  `reset_recovery_budget`, `start_watcher`, `update_settings`, `restore_default_settings` - are
+  annotated `destructiveHint: true`, and so are `cancel_recovery` and `clear_recovery_history`, so
+  Codex asks the user before running them in its default approval mode. `pause_auto_recovery`,
+  `disable_conversation_recovery` and `retry_now` are not: pausing and switching one conversation
+  off never add automation, and `retry_now` only moves an already-registered attempt earlier, with
+  every check still applied. The two switches do not cost the same, though. Pausing withdraws a
+  continuation already waiting in Codex's queue, and a withdrawal the watcher can confirm puts that
+  recovery back in its waiting state with its attempt returned, so resuming picks it up again; only
+  a withdrawal that cannot be confirmed becomes `submission_unknown`, and only a pause over a
+  submission that was already uncertain ends as `failed`. Switching one conversation off cancels
+  every recovery it has waiting, and a cancelled recovery is final: switching that conversation
+  back on does not revive it, and giving attempts back refuses it. The prompt is Codex's to show:
+  this product can only mark its tools, and Codex's approval settings decide whether a prompt
+  appears. `update_settings` offers and accepts only the settings a person can change in the
   window, not the engine path (`codex_exe`) or the detection look-back, and `get_status` does not
   include the install path. In v0.5.7 only `restore_default_settings` and `cancel_recovery` are
   marked; `set_auto_recovery`, `reset_recovery_budget`, `start_watcher` and `update_settings`,
-  which there also offers the engine path, run without a prompt in Codex's default approval mode.
+  which there also offers the engine path, run without a prompt in Codex's default approval mode,
+  and a pause-withdrawn recovery there is cancelled outright.
 
 ## Destructive-operation safety
 
@@ -189,7 +208,15 @@ per-user registrations, which exist once per user, and the Codex marketplace nam
 under.
 
 - **Installing.** The install path destroys things too: it sweeps set-aside copies, moves `app/`
-  and `runtime/` out of the way, and deletes what it moved. It cannot ask the question the
+  and `runtime/` out of the way, and deletes what it moved. On the `main` branch, which ships in
+  the release after v0.5.7, it writes a small JSON journal at the installation root before the
+  first move, naming every tree it is about to move and the `*.old-*` name it will use - written
+  to a temporary name and moved over the real one, so a crash during the write leaves either the
+  previous journal or none. The next run reads it before it sweeps anything: it puts back a tree
+  whose target is missing, and checks both ends of every move against the installation it has
+  already proved is its own. The two files that belong at the installation root are copied there
+  by name rather than by wildcard, so nothing else a payload happens to carry reaches the home -
+  including a file named like this product's own provenance marker. It cannot ask the question the
   uninstaller asks, because the first install happens into a directory that is not ours yet. So it
   asks the other half: is anything of ours here? A directory already holding `app`, `runtime`,
   `config`, `logs` or a set-aside copy, with no proof any of it is ours, is refused and nothing in
@@ -427,6 +454,23 @@ still has each of these):
 - **The release workflow's dry run was not one.** A manual run against a tag could publish, and a
   manual run against any ref ran that ref's code holding a write token left in `.git/config`. On
   the `main` branch the workflow is split into the two jobs described under *Release integrity*.
+- **An interrupted install was destroyed by the run that came next.** The old `app\` and
+  `runtime\` are moved aside before the new ones are copied in, and the first thing the next run
+  does is delete every `*.old-*` directory it finds - so a power cut between the two left the only
+  complete copy under exactly that name, and the recovery attempt was what destroyed the
+  installation. On the `main` branch a journal written before the first move tells the next run
+  what to put back, as described under *Installing*.
+- **Whatever sat at the payload root was copied into the installation home.** It was a wildcard
+  copy, so a stray file in a release landed in the home under whatever name it carried, including
+  the two this product reads as proof that the home is its own (`.owned-by-codex-auto-resume`,
+  `runtime.json`). On the `main` branch the two files that belong there are copied by name, and a
+  payload missing either fails the install before anything is moved.
+- **An upgrade switched automatic recovery back on, and put back a sign-in start that had been
+  removed.** Plain `setup` runs the engine's `enable`, so upgrading over an installation whose
+  owner had paused recovery turned it back on silently, under the name of an update. On the `main`
+  branch the installer, and Repair in the window, run setup with `--keep-state` whenever the
+  program directory is already there: the pause is left alone, and the sign-in entry is
+  re-registered only where the one registered is already this installation's.
 
 ## Residual risks
 
@@ -435,8 +479,8 @@ still has each of these):
 - The tool no longer requires an exact engine version. An unrecognised build is accepted when the
   `codex queue` interface probe passes, which means a Codex update can change *semantics* without the
   probe noticing. This is mitigated rather than eliminated: every send is still proven afterwards by
-  the per-interruption marker in that exact thread, an unproven send never becomes `resumed`, and
-  `status`/`doctor`/the log state clearly when the engine is unverified.
+  the per-interruption marker in that exact thread, an unproven send is never recorded as a
+  recovery, and `status`/`doctor`/the log state clearly when the engine is unverified.
 - Unloaded threads are not resumed at all; this is a documented product limitation, not a security control.
 - If withdrawing its own queued message cannot be confirmed, the record becomes `submission_unknown`
   and the message may stay in Codex's queue, where it may be delivered if the conversation is
@@ -454,9 +498,17 @@ still has each of these):
   planted event.
 - Content in a conversation can pause recovery without a prompt, in v0.5.7 (through
   `set_auto_recovery`) and on the `main` branch (through `pause_auto_recovery`, which ships in the
-  release after v0.5.7) alike. Pausing
-  withdraws a continuation already waiting in Codex's queue and cancels that recovery for good;
-  resuming does not bring it back.
+  release after v0.5.7) alike. Pausing withdraws a continuation already waiting in Codex's queue.
+  On the `main` branch a withdrawal that can be confirmed returns that recovery to waiting with its
+  attempt returned, so resuming picks it up; only a withdrawal that cannot be confirmed
+  (`submission_unknown`), or a pause over an already uncertain submission (`failed`), is final. In
+  v0.5.7 the recovery is cancelled for good and resuming does not bring it back. Either way the
+  message is never sent twice.
+- On the `main` branch, content in a conversation can also switch recovery off for one
+  conversation without a prompt, through `disable_conversation_recovery` - and that one is not
+  reversible. It cancels every recovery that conversation has waiting, switching the conversation
+  back on does not revive them, and giving attempts back refuses a cancelled recovery. What it
+  costs is unfinished work left unresumed, never a message sent twice.
 - Whether Codex shows an approval prompt for the tools marked destructive is up to Codex's approval
   settings, not this product.
 - Nothing this project builds is Authenticode-signed (the two executables, `Install.cmd`,

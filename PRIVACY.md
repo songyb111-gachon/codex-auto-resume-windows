@@ -185,7 +185,7 @@ tool's own marker (below). It never selects the `title`, `preview` or
 message, and the conversation-name label comes from `threads.name` only. Identity always
 comes from the UUID, never from a label.
 
-Two reads pass over your conversation itself, and it is better to say so plainly:
+Three reads pass over your conversation itself, and it is better to say so plainly:
 
 - **For a usage limit only**, to find when the limit resets, it reads up to 8 MiB of the
   conversation's rollout file ending at the failure, into memory. That part of the file is
@@ -194,8 +194,13 @@ Two reads pass over your conversation itself, and it is better to say so plainly
 - **To prove its own message arrived**, it has SQLite search that conversation's user
   messages and queued messages for its own marker. SQLite reads those rows to answer; only
   rows containing the marker — the tool's own continuation message — come back.
+- **To read what its own message led to**, it asks SQLite how many items of each kind the one
+  turn that message started holds, whether any user message in that turn is not its own, and
+  whether a later turn has finished. Those rows are your conversation — the assistant's replies
+  in that turn, and anyone else's messages in it — but only counts and yes/no answers come back,
+  never text. What is kept is that turn's status and whether anything was produced in it.
 
-No conversation content from either is stored, logged or sent. What is kept is the reset
+No conversation content from any of them is stored, logged or sent. What is kept is the reset
 time (which is also logged) and the limit's bucket name, and the id of the tool's own queued
 message.
 
@@ -276,10 +281,13 @@ app: the resumed turn runs in the app under your own Codex settings.
 
 ## When you use it from Codex
 
-The plugin gives Codex tools (`get_status`, `list_pending`, `open_settings` and the controls)
-and a skill that runs the tool's commands (for example `status`, `pending`, `doctor` and
-`logs`). When they
-run inside a Codex conversation, what they return becomes part of that conversation. The
+The plugin gives Codex tools — `get_status`, `list_pending`, `get_recovery_timeline`,
+`get_recovery_statistics`, `open_settings`, and the controls (`retry_now`, `cancel_recovery`,
+`reset_recovery_budget`, `pause_auto_recovery` and `resume_auto_recovery`,
+`disable_conversation_recovery` and `enable_conversation_recovery`, `clear_recovery_history`,
+`start_watcher`, `update_settings`, `restore_default_settings`) — and a skill that runs the
+tool's commands (for example `status`, `pending`, `doctor` and `logs`). When they run inside a
+Codex conversation, what they return becomes part of that conversation. The
 one-line summary always does, and the structured data may as well; Codex sends the
 conversation to OpenAI like any tool output. That is:
 
@@ -289,15 +297,21 @@ conversation to OpenAI like any tool output. That is:
   directory's path, which normally includes your Windows user name; v0.5.0 through v0.5.7
   did, and a conversation held with one of them still carries it;
 - from `list_pending`: the pending recoveries, with their conversation ids, interruption ids,
-  states, categories, times and attempt counts; `open_settings` returns those together with
-  the status and settings above;
+  states, categories, times and attempt counts, and the finished ones too when it is asked for
+  them; `open_settings` returns those together with the status and settings above;
+- from `get_recovery_timeline`: one recovery's whole chain as event codes, reasons, actor, turn
+  references, counters and times, with the interruption ids of that chain and not the
+  conversation's — codes and times only, no prompt, reply or error text;
+- from `get_recovery_statistics`: over the last few days or all of it, how many interruptions
+  were detected and how many continuations were sent, how they ended, the medians and a count by
+  kind — numbers only;
 - from the commands: the same, plus each pending recovery's reset time, limit bucket and
   last reason code, the desktop app's process ids, and local paths such as the Codex executable, the Codex home,
   the state file and the log file — which normally include your Windows user name — and,
   from `logs`, recent log lines.
 
-None of it is prompt text, assistant output or tool content. The settings window, opened
-from the Start Menu, reads the same information on your machine and sends it nowhere.
+None of it is prompt text, assistant output or tool content. The window opened from the Start
+Menu reads the same information on your machine and sends it nowhere.
 
 ## What it stores, and where
 
@@ -315,6 +329,12 @@ default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
   times, at most 5,000 entries and 90 days, with no prompt, reply or error text - and one row
   for the watcher itself: its process id, session id, start and last-tick times, and which code
   version wrote them. None of it is content;
+- `config/state.vN-backup-<timestamp>.sqlite` — a copy of the state file, taken before the first
+  watcher of a new version upgrades the schema and before `downgrade-state` rewrites it. It holds
+  what `state.sqlite` held, and it is kept to explain a bad upgrade rather than as a way back.
+  Deleting `state.sqlite` does not remove it: `Uninstall.cmd` with `-Purge` takes it with the
+  rest of `config/`, and without `-Purge` it stays, as the state file does; the command line's
+  `uninstall` deletes `state.sqlite` unless you pass `--keep-state`, and leaves this copy either way;
 - `config/settings.json` — your settings;
 - `logs/` — `auto-resume.log`, what the watcher did, by reason code and conversation UUID;
   `errors.log`, the Python traceback when something goes wrong; and `launcher.log`, a line
@@ -328,7 +348,7 @@ any log. When something fails, `errors.log` receives the full Python traceback, 
 `launcher.log` and `errors.log` receive the exception's message; this tool does not control
 what text an exception carries.
 
-Beside those it keeps the program itself (`app\` and `runtime\`), the settings window, the
+Beside those it keeps the program itself (`app\` and `runtime\`), the window, the
 icon notifications use, the sign-in launcher, and `runtime.json`, which records where the
 plugin is installed.
 
@@ -346,8 +366,9 @@ restore anything still moved aside instead of sweeping it up. Uninstalling remov
 the rest.
 
 One more file exists only if you ask for it, and only where you put it. **Export
-diagnostics** in the window, or `auto-resume diagnostics` on the command line, writes one
-JSON file to a location you choose: your settings, one entry per recovery with its state,
+diagnostics...** in the window, or `auto_resume.py diagnostics` on the command line (`--out`
+names the file; without it, a new one in the current directory), writes one JSON file: your
+settings, one entry per recovery with its state,
 reason and the checks it is waiting on, up to 2,000 journal entries, and the last 300 lines
 of each log. Conversation and interruption ids are replaced by aliases that mean nothing
 outside that one file; paths, your Windows user name and e-mail-shaped text are removed.
