@@ -23,7 +23,7 @@ import unittest
 from unittest.mock import patch
 
 from codex_auto_resume import config, control, controlcli, settings
-from codex_auto_resume.store import Store
+from codex_auto_resume.store import Store, StoreError
 
 THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
 TURN = "0a1b2c3d-0002-7000-8000-000000000002"
@@ -144,6 +144,8 @@ class PendingTests(ControlTestCase):
         listed = self.control.list_pending()
         self.assertIsNone(listed[0]["name"])
         self.assertEqual(listed[0]["interruption_id"], KEY)
+        # A record that was never reset has every reset still available.
+        self.assertEqual(listed[0]["budget_resets_left"], control.MAX_BUDGET_RESETS)
 
     def test_a_failing_identity_lookup_does_not_break_the_listing(self):
         # Labels are decoration. A source that raises must cost a name, not the list.
@@ -240,6 +242,10 @@ class BudgetTests(ControlTestCase):
         with self.assertRaises(control.ControlError) as caught:
             self.control.reset_recovery_budget(KEY)
         self.assertIn("yourself", str(caught.exception))
+        # The listing says so in advance, so a front end can disable the button rather
+        # than offer one whose only answer is this refusal.
+        listed = self.control.list_pending(include_terminal=True)
+        self.assertEqual(listed[0]["budget_resets_left"], 0)
 
     def test_reset_refuses_a_record_that_is_not_exhausted(self):
         self.register()
@@ -383,7 +389,93 @@ class BridgeTests(ControlTestCase):
             "history", "timeline", "statistics", "clear-history", "thread-enabled",
             "cancel-thread",
             # Writes a redacted local file the user chose; it sends nothing anywhere.
-            "diagnostics"]))
+            "diagnostics",
+            # A read of several of the above at once, and the long-lived form of this
+            # same command table - not a command of its own.
+            "dashboard", "serve"]))
+
+    def test_serve_answers_every_line_with_exactly_one_line(self):
+        requests = "\n".join([
+            json.dumps({"id": 1, "command": "settings"}),
+            "not json",
+            json.dumps({"id": 3, "command": "no-such-command"}),
+            json.dumps({"id": 4, "command": "retry-now", "argument": {"interruption_id": "latest"}}),
+            json.dumps({"id": 5, "command": "dashboard"}),
+        ]) + "\n"
+        out = io.StringIO()
+        controlcli.serve(self.control, io.StringIO(requests), out)
+        replies = [json.loads(line) for line in out.getvalue().splitlines()]
+        self.assertEqual([reply["id"] for reply in replies], [1, None, 3, 4, 5])
+        self.assertTrue(replies[0]["reply"]["ok"])
+        self.assertEqual(replies[0]["reply"]["settings"], self.control.get_settings())
+        self.assertFalse(replies[1]["reply"]["ok"])
+        self.assertEqual(replies[2]["reply"]["error"], "unknown command")
+        self.assertIn("invalid interruption id", replies[3]["reply"]["error"])
+        self.assertTrue(replies[4]["reply"]["ok"])
+        for key in ("status", "pending", "history", "week"):
+            self.assertIn(key, replies[4]["reply"])
+
+    def serve_lines(self, lines):
+        out = io.StringIO()
+        self.assertEqual(controlcli.serve(self.control, io.StringIO("\n".join(lines) + "\n"), out), 0)
+        return [json.loads(line) for line in out.getvalue().splitlines()]
+
+    def test_a_dashboard_part_that_fails_costs_only_that_part(self):
+        # Not a ControlError: a store failure used to escape the per-part handler and
+        # take the whole Overview down with it, status included.
+        with patch.object(Store, "history", side_effect=StoreError(str(self.home))):
+            code, payload = self.run_bridge("dashboard")
+        self.assertEqual(code, 0)
+        self.assertIs(payload["ok"], True)
+        for key in ("status", "pending", "week"):
+            self.assertIn(key, payload)
+        self.assertNotIn("history", payload)
+        self.assertEqual(payload["history_error"], "the request could not be completed")
+        self.assertNotIn(str(self.home), json.dumps(payload))
+
+    def test_serve_answers_an_argument_of_the_wrong_type_and_keeps_going(self):
+        # Each of these reached `json.loads` as a non-string and raised TypeError, which
+        # ended the loop and left the window waiting for a reply that never came.
+        lines = []
+        for number, argument in ((1, [1]), (3, 5), (5, True)):
+            lines.append(json.dumps({"id": number, "command": "statistics", "argument": argument}))
+            lines.append(json.dumps({"id": number + 1, "command": "settings"}))
+        replies = self.serve_lines(lines)
+        self.assertEqual([reply["id"] for reply in replies], [1, 2, 3, 4, 5, 6])
+        for reply in replies[0::2]:
+            self.assertEqual(reply["reply"], {"ok": False, "error": "argument must be a JSON object"})
+        for reply in replies[1::2]:
+            self.assertIs(reply["reply"]["ok"], True)
+
+    def test_serve_framing_edge_cases_each_get_the_answer_they_should(self):
+        replies = self.serve_lines([
+            # A byte-order mark in front of the first request is not part of it.
+            "\ufeff" + json.dumps({"id": 1, "command": "settings"}),
+            # Blank and whitespace-only lines are not requests, so they get no reply.
+            "",
+            "   \t ",
+            json.dumps({"id": True, "command": "settings"}),
+            "x" * (controlcli.MAX_LINE + 1),
+            # Nested past the parser's recursion limit while still under MAX_LINE: this
+            # raises RecursionError, not ValueError, and used to end the loop.
+            "[" * 50000,
+            json.dumps({"id": 7, "command": "settings"}),
+        ])
+        self.assertEqual([(reply["reply"]["ok"], reply["reply"].get("error")) for reply in replies], [
+            (True, None),
+            (False, "id must be an integer"),
+            (False, "request too large"),
+            (False, "request must be JSON"),
+            (True, None),
+        ])
+        self.assertEqual([replies[index]["id"] for index in (0, 2, 3, 4)], [1, None, None, 7])
+
+    def test_serve_cannot_reach_anything_the_one_shot_form_cannot(self):
+        # The same table: a command the parser does not offer is not reachable over
+        # the long-lived pipe either.
+        parser = controlcli.build_parser()
+        offered = set([action for action in parser._actions if action.dest == "command"][0].choices)
+        self.assertEqual(set(controlcli.PLAIN + controlcli.WITH_ARGUMENT) | {"serve"}, offered)
 
 
 class StartWatcherTests(ControlTestCase):

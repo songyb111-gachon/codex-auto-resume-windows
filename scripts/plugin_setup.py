@@ -239,8 +239,17 @@ def cmd_setup(args) -> int:
     # Both are reported when they fail. Ignoring them is how a setup that never prepared
     # the state, or never switched recovery on, used to end with "set up and running".
     incomplete = (_cli_silent(home, ["--quiet", "install"]) != EXIT_OK)
-    incomplete |= (_cli_silent(home, ["--quiet", "enable"]) != EXIT_OK)
-    if not args.no_startup:
+    # A repair must not undo a decision the user made. Turning recovery back on, or
+    # adding a sign-in entry they removed, would do exactly that under the name of fixing
+    # something - so --keep-state leaves the pause switch alone and only re-registers an
+    # autostart that is already this installation's, which also repairs a stale path.
+    keep_state = getattr(args, "keep_state", False)
+    if not keep_state:
+        incomplete |= (_cli_silent(home, ["--quiet", "enable"]) != EXIT_OK)
+    # The same ownership check the settings window uses, so "ours" means one thing.
+    register_startup = (not args.no_startup
+                        and (not keep_state or control.Control(config.Paths(home)).startup_enabled()))
+    if register_startup:
         startup.install(watcher_command(home))
     # `install` above registered the protocol against the plugin's own versioned path;
     # replace it with the stable launcher so an update cannot orphan the button.
@@ -260,7 +269,7 @@ def cmd_setup(args) -> int:
         say("setup_incomplete")
     else:
         say("setup_done" if confirmed else "setup_unconfirmed")
-    if not args.no_startup:
+    if register_startup:
         say("setup_autostart")
     print()
     print("state: %s" % home)
@@ -434,6 +443,9 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("setup", help="prepare the runtime, enable auto resume and start the watcher")
     p.add_argument("--no-startup", action="store_true", help="do not register Windows sign-in autostart")
     p.add_argument("--replace-existing", action="store_true", help="take over an autostart registered by another installation")
+    p.add_argument("--keep-state", action="store_true",
+                   help="repair registrations only; never change the pause state or add a "
+                        "sign-in autostart that is not already there")
     sub.add_parser("status")
     sub.add_parser("pending")
     sub.add_parser("enable")

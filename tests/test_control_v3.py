@@ -17,7 +17,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from codex_auto_resume import config, control
+from codex_auto_resume import config, control, machine
 from codex_auto_resume.store import Store
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -112,9 +112,36 @@ class HistoryAndStatisticsTests(Base):
         events = self.control.timeline(KEY_A)["events"]
         self.assertEqual(events[0]["code"], "detected")
         allowed = {"event_id", "at", "interruption_id", "code", "from_state", "to_state", "reason",
-                   "actor", "turn_ref", "flags", "value"}
+                   "actor", "turn_ref", "flags", "value", "to_code"}
         for event in events:
             self.assertEqual(set(event), allowed)
+            # Derived from the state, from the closed public vocabulary - never free text.
+            self.assertIn(event["to_code"], set(machine.PUBLIC_CODES) | {None})
+        self.assertEqual(events[0]["to_code"], "waiting_reset")
+
+    def test_the_timeline_code_is_the_code_the_listing_shows(self):
+        # Derived from the state alone, a release after a queue process that never
+        # started read "scheduled" in the timeline and "failed_retryable" in Pending -
+        # two words for one moment of one record.
+        with self.store() as store:
+            store.set_enabled(True, 100.0)
+            store.register(detection(KEY_A, TURN_A), 100.0, state="waiting_backoff", next_retry_at=100.0)
+            self.assertTrue(store.reserve(KEY_A, 101.0))
+            self.assertTrue(store.release_claim(KEY_A, "waiting_retry", "queue_process_not_started", 102.0))
+        listed = self.control.list_pending()[0]
+        self.assertEqual(listed["code"], "failed_retryable")
+        events = self.control.timeline(KEY_A)["events"]
+        released = [event for event in events
+                    if (event["from_state"], event["to_state"]) == ("submitting", "waiting_retry")]
+        self.assertEqual(len(released), 1)
+        self.assertEqual(released[0]["to_code"], listed["code"])
+        # Retry now moves only the schedule and leaves the stored reason alone, so the
+        # record still lists as failed_retryable - and its event must say the same.
+        self.control.request_retry_now(KEY_A)
+        self.assertEqual(self.control.list_pending()[0]["code"], "failed_retryable")
+        last = self.control.timeline(KEY_A)["events"][-1]
+        self.assertEqual(last["reason"], "retry_now")
+        self.assertEqual(last["to_code"], "failed_retryable")
 
     def test_listing_carries_the_public_code_and_overlays(self):
         with self.store() as store:

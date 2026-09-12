@@ -109,7 +109,7 @@ function Build {
 # and the Codex panel cannot end up different colours.
 Build -Name 'CodexAutoResumeSettings.exe' -Target 'winexe' -WithManifest `
       -Description 'Codex Auto Resume settings' `
-      -Sources @((Join-Path $Root 'gui\SettingsApp.cs'), (Join-Path $Root 'gui\Brand.cs')) `
+      -Sources @((Join-Path $Root 'gui\SettingsApp.cs'), (Join-Path $Root 'gui\Dashboard.cs'), (Join-Path $Root 'gui\Brand.cs')) `
       -References @('System.dll', 'System.Drawing.dll', 'System.Windows.Forms.dll')
 
 # A console-subsystem executable on purpose: it inherits Codex's standard streams and

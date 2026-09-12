@@ -27,6 +27,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SETTINGS = ROOT / "gui" / "SettingsApp.cs"
+DASHBOARD = ROOT / "gui" / "Dashboard.cs"
 
 
 class RowLayoutTests(unittest.TestCase):
@@ -121,7 +122,8 @@ class BufferedPaintTests(unittest.TestCase):
     BUFFERED = {"BufferedPanel", "BufferedTable"}
 
     def test_every_paint_handler_is_on_a_buffered_control(self):
-        source = SETTINGS.read_text(encoding="utf-8")
+        # Both files of the window: the Dashboard's navigation strip paints its underline.
+        source = SETTINGS.read_text(encoding="utf-8") + DASHBOARD.read_text(encoding="utf-8")
         painters = sorted(set(re.findall(r"(\w+)\.Paint \+=", source)))
         self.assertTrue(painters, "no Paint handlers found - the pattern is wrong")
         for name in painters:
@@ -130,6 +132,50 @@ class BufferedPaintTests(unittest.TestCase):
                 self.assertIsNotNone(declared, "cannot find where %s is created" % name)
                 self.assertIn(declared.group(1), self.BUFFERED,
                               "%s paints itself but is a plain %s" % (name, declared.group(1)))
+
+    def test_every_control_that_draws_itself_is_buffered(self):
+        """A control class with its own OnPaint - the outcome chart - is the same painter."""
+        source = SETTINGS.read_text(encoding="utf-8") + DASHBOARD.read_text(encoding="utf-8")
+        classes = re.split(r"\n\s*(?:internal|public|private)\s+(?:sealed\s+)?(?:partial\s+)?class\s+", source)
+        drawn = [body for body in classes if "override void OnPaint(" in body]
+        self.assertTrue(drawn, "no OnPaint override found - the pattern is wrong")
+        for body in drawn:
+            name = body.split(None, 1)[0]
+            with self.subTest(name):
+                self.assertIn("ControlStyles.OptimizedDoubleBuffer", body,
+                              "%s paints itself without a back buffer" % name)
+
+
+class PersistentBridgeTests(unittest.TestCase):
+    """The long-lived bridge process actually starts.
+
+    Its first version passed the Python code without "-c", so python.exe took the code
+    for a script path and exited, and every call fell back to the one-shot bridge. Every
+    answer was still right, which is exactly why nothing noticed: the fallback hid a start
+    that had never once worked. So this runs the command line the window builds and
+    requires a real serve reply.
+    """
+
+    def test_the_serve_command_line_answers_a_request(self):
+        import json
+        import subprocess
+        import sys
+        source = DASHBOARD.read_text(encoding="utf-8")
+        start = source.index("private void StartLocked()")
+        method = source[start:source.index("internal void Stop()", start)]
+        self.assertIn('info.Arguments = "-c " + Bridge.Quote(code)', method,
+                      "the persistent bridge must pass its code with -c, as the one-shot bridge does")
+        code = "".join(re.findall(r'"((?:[^"\\]|\\.)*)"', method[method.index("string code ="):
+                                                               method.index(";", method.index('"sys.exit(')) + 1]))
+        self.assertIn("controlcli import main", code)
+        request = json.dumps({"id": 1, "command": "strings"}) + "\n"
+        result = subprocess.run([sys.executable, "-c", code, str(ROOT / "src"), "serve"],
+                                input=request, capture_output=True, text=True, encoding="utf-8",
+                                timeout=60)
+        replies = [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
+        self.assertEqual(len(replies), 1, result.stderr)
+        self.assertEqual(replies[0]["id"], 1)
+        self.assertIs(replies[0]["reply"]["ok"], True)
 
 
 class FooterTests(unittest.TestCase):

@@ -12,13 +12,15 @@
         than the screen, so nothing that happens to be in front of it lands in the shot.
 
     Run: powershell -ExecutionPolicy Bypass -File build/capture_window.ps1 `
-             -Exe <path to exe> -Out <path to png> [-Wait 6]
+             -Exe <path to exe> -Out <path to png> [-Wait 6] [-Arguments '--page=pending']
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$Exe,
     [Parameter(Mandatory = $true)][string]$Out,
-    [int]$Wait = 6
+    [int]$Wait = 6,
+    # Passed to the window as its command line - which page it opens on.
+    [string]$Arguments = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -35,7 +37,11 @@ public struct RECT { public int L, T, R, B; }
 # already have been given real coordinates.
 [void][CaptureNative.Win]::SetProcessDpiAwarenessContext([IntPtr](-4))
 
-$process = Start-Process $Exe -PassThru
+if ($Arguments) {
+    $process = Start-Process $Exe -ArgumentList $Arguments -PassThru
+} else {
+    $process = Start-Process $Exe -PassThru
+}
 try {
     Start-Sleep -Seconds $Wait
     $process.Refresh()
