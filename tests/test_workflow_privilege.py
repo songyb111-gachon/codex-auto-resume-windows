@@ -136,5 +136,46 @@ class YamlShapeTests(unittest.TestCase):
                 self.assertIn("jobs", document)
 
 
+class TagsAreFetchedWhereTheSuiteRunsTests(unittest.TestCase):
+    """A job that runs the suite has to check out the tags the suite reads.
+
+    `tests/test_control_v3.py:legacy_store_module` builds a database with the store code
+    of a real tagged release - `git show v0.5.7:src/codex_auto_resume/store.py` - so a
+    shallow checkout makes eight tests fail, and the message they fail with is "CI must
+    fetch the tags".
+
+    `test.yml` and `sync-ko.yml` had `fetch-depth: 0` from the day those tests were
+    written. `release.yml` runs the same suite and did not, and nothing noticed for two
+    releases because a dispatch never ran the tests to completion and no tag had ever
+    reached the job. The first real tag push - v0.6.0 - failed there, before publishing
+    anything. This is what stops the next one being found the same way.
+    """
+
+    def workflows_that_run_the_suite(self):
+        found = []
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            text = path.read_text(encoding="utf-8")
+            if "unittest discover" in text:
+                found.append((path.name, text))
+        return found
+
+    def test_the_set_of_workflows_that_run_the_suite_is_known(self):
+        self.assertEqual([name for name, _ in self.workflows_that_run_the_suite()],
+                         ["release.yml", "sync-ko.yml", "test.yml"])
+
+    def test_each_of_them_checks_out_the_tags(self):
+        for name, text in self.workflows_that_run_the_suite():
+            with self.subTest(name):
+                self.assertIn("fetch-depth: 0", text,
+                              "%s runs the suite, which reads tagged releases' source, so "
+                              "its checkout has to fetch the history and the tags" % name)
+
+    def test_fetching_the_history_does_not_come_with_a_token_on_disk(self):
+        """The two options sit together, and only one of them is about privilege."""
+        for name, text in self.workflows_that_run_the_suite():
+            with self.subTest(name):
+                self.assertIn("persist-credentials: false", text)
+
+
 if __name__ == "__main__":
     unittest.main()

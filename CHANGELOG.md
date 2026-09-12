@@ -319,6 +319,21 @@ says what works in between.
 - **The window is only ever opened on a page it has.** The page name reaches a command
   line, so the list of pages it may be is closed, whatever a caller passes.
 
+### The release workflow, the first time a tag actually reached it
+
+- **Fixed: the job that builds a release checked out no tags, and the suite it runs reads
+  them.** Four tests build a database with the store code of a real tagged release - the
+  upgrade and downgrade paths are tested against the bytes those releases actually shipped,
+  not against a description of them - so a checkout without tags makes eight tests fail,
+  with the message "CI must fetch the tags". `test.yml` and `sync-ko.yml` had fetched them
+  since those tests were written; `release.yml` had not, and nothing noticed for two
+  releases because a dispatch stops before publishing and no tag had ever reached the job.
+  The first real tag push failed there. Nothing was published: the build job failed, the
+  publish job never ran, and the release did not exist to be half-made. The workflow now
+  fetches the history, which costs history and not privilege - the token is still not left
+  on disk and the job still holds read access only - and a test requires every workflow
+  that runs the suite to check out the tags the suite reads.
+
 ### Between the old watcher and the new one
 
 - The state file is migrated 1 → 2 → 3 in one transaction, only by the watcher or by a
