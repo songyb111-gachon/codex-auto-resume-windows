@@ -439,7 +439,11 @@ with App(paths, console=False, enable_logging=False).mutex(timeout=0):
 """
 
 # Which page of the window each picture is of, as the window's own command line names it.
-WINDOW_PAGES = ("overview", "pending", "settings")
+# Every page the window has. The README shows three of them; the other three are here
+# because a page with no artifact is a page nothing in this repository shows ever
+# rendering, which is what docs/FEATURE_MATRIX.md said about History, Statistics and
+# Diagnostics for as long as they existed.
+WINDOW_PAGES = ("overview", "pending", "history", "statistics", "diagnostics", "settings")
 
 
 def render_window(targets: dict) -> dict:
@@ -584,6 +588,9 @@ LOCALES = ("en", "ko")
 WINDOW_NAMES_BY_PAGE = {
     "overview": ("screenshot-dashboard", "dashboard-overview"),
     "pending": ("screenshot-pending", "dashboard-pending"),
+    "history": ("screenshot-history", "dashboard-history"),
+    "statistics": ("screenshot-statistics", "dashboard-statistics"),
+    "diagnostics": ("screenshot-diagnostics", "dashboard-diagnostics"),
     "settings": ("screenshot-settings", "settings-window"),
 }
 
