@@ -65,6 +65,16 @@ jobs:
           ref: ${{ github.event.inputs.ref || github.ref }}
           # The token is for this checkout, not for whatever the checked-out code does next.
           persist-credentials: false
+          # The upgrade and downgrade tests build their databases with the store code of
+          # real tagged releases - `git show v0.5.7:src/.../store.py` - so the tags and
+          # their commits have to be here. `test.yml` has said so since those tests were
+          # written; this job runs the same suite and did not, because until v0.6.0 no tag
+          # had ever reached it. The first real tag push failed here, on eight tests whose
+          # own message is "CI must fetch the tags".
+          #
+          # It costs history, not privilege: the token is still not persisted, the job
+          # still holds `contents: read`, and the repository is public.
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
