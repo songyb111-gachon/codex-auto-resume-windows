@@ -36,6 +36,10 @@ Windows에서 `CODEX_AR_LIVE=1`을 설정하지 않는 한 건너뜁니다.
 받아 오는 이유가 이것입니다). `tests/test_mcp.py`는 패널 자신의 코드를 돌리려면 Node가,
 `tests/test_reproducible.py`와 `tests/test_gui_json.py`는 Windows에 내장된 C# 컴파일러가 필요합니다.
 
+초록불이 무엇을 말해 주고 무엇을 말해 주지 않는지는 기능별로 [docs/FEATURE_MATRIX.ko.md](docs/FEATURE_MATRIX.ko.md)에
+정리되어 있고, 어떤 suite도 대신할 수 없는 확인 — 실제 설치, 실제 중단, 실제 전송 — 은
+[docs/LIVE_ACCEPTANCE.ko.md](docs/LIVE_ACCEPTANCE.ko.md)의 절차입니다.
+
 ## 플러그인 메타데이터 검증
 
 플러그인 manifest, 마켓플레이스 인덱스, MCP 동반 파일은 `tests/test_plugin.py`가 다룹니다. 그중

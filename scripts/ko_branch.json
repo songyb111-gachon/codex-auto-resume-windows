@@ -29,7 +29,9 @@
     "docs/COMPARISON.ko.md": "docs/COMPARISON.md",
     "docs/DEVELOPMENT.ko.md": "docs/DEVELOPMENT.md",
     "docs/PLUGIN.ko.md": "docs/PLUGIN.md",
-    "docs/VERIFY.ko.md": "docs/VERIFY.md"
+    "docs/VERIFY.ko.md": "docs/VERIFY.md",
+    "docs/FEATURE_MATRIX.ko.md": "docs/FEATURE_MATRIX.md",
+    "docs/LIVE_ACCEPTANCE.ko.md": "docs/LIVE_ACCEPTANCE.md"
   },
   "english_on_main": "https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/",
   "intentionally_english": {
@@ -52,16 +54,18 @@
   ],
   "reviewed": {
     "CHANGELOG.md": "1b9c07c7b2a6a95aa6d908f25e0b99b08a4f33d2f9f80536d38546b189b0ca24",
-    "CONTRIBUTING.md": "e808e3228a17edec8b34c953d31403ca68e8eb82b72d21e7842ed7d422ae05b2",
+    "CONTRIBUTING.md": "78f09a9c20aded8f1c375cbdf426987e9bd5d85b08ed0868a55eba5ebc0fa7c4",
     "CONTRIBUTORS.md": "698f3d4fb75b30354e1c6749d4702c0e5e36149c640d90dc18a8dfa6842d0c3b",
     "PRIVACY.md": "c254c9b29492dccc573de98cddf9ce0f123de9fc637114252accdb4c842f1c32",
-    "README.md": "0886c9e682491d6d0b82812c69363b8046dd2036620aea1ef5a9a9d2b96c81a3",
+    "README.md": "220fc91020c5839af3fe032909ce373cf1cf03348ce5955b91bf30d837fe8728",
     "SECURITY.md": "0cc2bc279e9fe51fe12d943aa39c8d0b70d679016f6c42c7de00315b3c8dc485",
     "SUPPORT.md": "3b1658ceabbcbb4be3bed412084bdb1c5cda919f43f11ea6d565666715005780",
     "docs/BRAND.md": "f09eb683eb15ae428dd49f60555ec3a0899c29980dd42797d0276b9988b5a863",
     "docs/COMPARISON.md": "9dbebb54629bd8c087adeaabb7d0c902b80c2152742c1783074b1fb3c4dfca28",
-    "docs/DEVELOPMENT.md": "9ce3193730703ae728189779760f2d92f5d7c030f60d2a1384f587e85f18b2b9",
+    "docs/DEVELOPMENT.md": "ec06f0c2f5bdf6995cd813baf4331fc5ce6ad538921809ecfd737648915037a8",
     "docs/PLUGIN.md": "968b9a445a2c3f7d5a1cc7ef33a6623db7417a70981159383886ad53e0c7604d",
-    "docs/VERIFY.md": "edbe272fa25ee35aa3e4f30c59ddd50461cd1d4c9ef163d7d5b68636ed808c41"
+    "docs/VERIFY.md": "edbe272fa25ee35aa3e4f30c59ddd50461cd1d4c9ef163d7d5b68636ed808c41",
+    "docs/FEATURE_MATRIX.md": "742a4316db109698f8578ff191c4a40b40de15586749f37984c185c5a3e2740a",
+    "docs/LIVE_ACCEPTANCE.md": "bdcc6a9875d3f77e589d8f57660f5cf8c5e0ce2e62a3a6ed49afc1c8869dd8a8"
   }
 }

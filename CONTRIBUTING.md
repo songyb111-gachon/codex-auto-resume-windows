@@ -37,6 +37,11 @@ a shallow clone has none, which is why CI checks out the full history).
 `tests/test_mcp.py` needs Node to run the panel's own code, and `tests/test_reproducible.py`
 and `tests/test_gui_json.py` need the in-box C# compiler.
 
+What a green run does and does not establish is set out capability by capability in
+[`docs/FEATURE_MATRIX.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/FEATURE_MATRIX.md), and the checks
+no suite can make - a real install, a real interruption, a real send - are the procedure in
+[`docs/LIVE_ACCEPTANCE.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/LIVE_ACCEPTANCE.md).
+
 ## Validating plugin metadata
 
 The plugin manifest, the marketplace index and the MCP companion file are covered by
