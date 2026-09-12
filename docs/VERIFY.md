@@ -383,32 +383,37 @@ If either one blocks you, please open an issue naming the file and the message.
 - **`Install.cmd` does not check the archive**, and **the plugin route does not check the
   attestation.**
 - **Archives before v0.5.4 have no attestation.**
-- **Two of four proposed action upgrades are in; two are still waiting, deliberately.**
+- **All four proposed action upgrades are in, and two of them nothing can test.**
   Dependabot opened pull requests raising `actions/checkout` to v7.0.1,
   `actions/setup-python` to v7.0.0, `actions/attest-build-provenance` to v4.2.2, and the
   artifact pair to `upload-artifact` v7.0.1 with `download-artifact` v8.0.1. All four keep
   the full-commit pinning and its version comment, and none is a published security fix.
 
-  `checkout` and `setup-python` went in after v0.6.0 was published and verified, which is
-  the order the plan below names. Both new digests were resolved from the upstream
-  repositories' own git refs before being written, and both actions are exercised by
-  `test.yml` on every push, so CI is a real check on them rather than a formality. They
-  were applied as the one line each is: the proposed pull requests also rewrote all three
-  workflow files from LF to CRLF, which `.gitattributes` is written to prevent.
+  They went in after v0.6.0 was published and verified, `checkout` and `setup-python`
+  first, in the order the plan below named. Every new digest was resolved from the upstream
+  repository's own git ref before being written here, and every digest being replaced was
+  re-resolved at the same time, to check that nothing had been quietly retargeted. Each was
+  applied as the one line it is: the proposed pull requests also rewrote whole workflow
+  files from LF to CRLF, which `.gitattributes` exists to prevent.
 
-  The two still waiting are the two nothing can test. v0.6.0 is the first release the
-  split build-and-publish workflow has ever made. The artifact pair is what carries the
-  archive from the unprivileged build job to the privileged publish job, and the
-  attestation action is what the publish job signs with - and neither is reached by CI, nor
-  by a `workflow_dispatch`, which builds but never enters the publish job. The first proof
-  either works is a real tag push, and this workflow refuses to republish a version, so a
-  failure there costs a version number rather than a retry. `attest-build-provenance` v4
-  adds a second reason to think: from v4 it is a wrapper over `actions/attest`, and the ref
-  that wrapper pins internally is not something `tests/test_workflow_pins.py` can see.
+  `checkout` and `setup-python` are exercised by `test.yml` on every push, so CI is a real
+  check on them, and it passed. The other three are not: `download-artifact` and
+  `attest-build-provenance` run only in the publish job, which neither CI nor a
+  `workflow_dispatch` enters, and `upload-artifact` runs in a dispatch but its partner does
+  not. The first proof of that half is a real tag push.
 
-  They go in one at a time, the artifact pair together - never one without the other - then
-  the attestation, each with a `workflow_dispatch` dry run before the next tag, and with
-  the knowledge that the dry run cannot reach the half that matters.
+  What makes that acceptable rather than reckless is where a failure lands. Both steps run
+  *before* `gh release create`: an artifact that will not download, or an attestation that
+  will not sign, fails the run with nothing published, which is exactly what happened on
+  v0.6.0's first tag push for an unrelated reason. Nothing is half-made, the immutability
+  gate is never engaged, and the fix is to move the tag - not to burn a version.
+
+  One concern about `attest-build-provenance` v4 was checked and did not survive the
+  checking. Upstream describes v4 as a wrapper over `actions/attest`, which sounds like a
+  new layer the pin test cannot see. Reading the two `action.yml` files says otherwise: the
+  v2.4.0 this replaces is already a composite that calls two inner actions, and v4.2.2
+  calls one. Both pin what they call to a full commit. The indirection is not new, and v4
+  has less of it.
 
 Verifying tells you the file is the one this project published. It does not tell you the
 code is safe; for what the code is allowed to do, and how that is enforced, see
