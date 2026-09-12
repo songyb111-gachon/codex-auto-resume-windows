@@ -527,6 +527,8 @@ GitHub 빌드 출처 증명(attestation)도 있으며, 내려받은 파일을 �
 - 무엇을 읽고, 무엇을 저장하고, 무엇이 어디로 가는지: [PRIVACY.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/PRIVACY.ko.md)
 - 내려받은 압축 파일을 확인하고 릴리스를 직접 다시 빌드하는 방법, 그리고 그 확인이 증명하는 것과 증명하지 못하는 것: [docs/VERIFY.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.ko.md)
 - 플러그인 계층, 설치 스크립트가 가져올 수 있는 것과 확인하는 것, 업데이트와 제거의 수명 주기, 사용량 한도 안내에 체크박스를 넣지 못하는 이유: [docs/PLUGIN.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/PLUGIN.ko.md)
+- 이 제품이 한다고 말하는 모든 것과, 그 하나하나가 실제로 확보한 근거 등급: [docs/FEATURE_MATRIX.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/FEATURE_MATRIX.ko.md)
+- 릴리스 전에 사람이 실제 Windows 기계에서 실제 Codex를 상대로 밟는 인수 절차와, 단계마다 적어 두어야 할 것: [docs/LIVE_ACCEPTANCE.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/LIVE_ACCEPTANCE.ko.md)
 - 개발 과정: [docs/DEVELOPMENT.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/DEVELOPMENT.ko.md)
 - 같은 영역의 다른 프로젝트들과의 비교: [docs/COMPARISON.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/COMPARISON.ko.md)
 - 팔레트와 마크: [docs/BRAND.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/BRAND.ko.md)

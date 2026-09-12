@@ -8,6 +8,10 @@ it does **not** support.
 Identifiers in the linked evidence files are pseudonymised, and absolute paths and process ids are
 generalised. No conversation content, prompt text, or credential ever left the local machine.
 
+What each of those findings, and everything later built on them, is backed by *today* is in
+[FEATURE_MATRIX.md](FEATURE_MATRIX.md), capability by capability; the part of it that only a person on a real
+machine can settle is the procedure in [LIVE_ACCEPTANCE.md](LIVE_ACCEPTANCE.md).
+
 ## Phase 0 — Goals and safety constraints (Youngbin Song)
 
 The maintainer defined the problem, the architecture direction, and — most importantly — the safety

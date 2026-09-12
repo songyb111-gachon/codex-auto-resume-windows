@@ -1,0 +1,15 @@
+{
+  "format": "codex-auto-resume-live-acceptance/1",
+  "step": "install-verify",
+  "verdict": "pass",
+  "recorded_at": "2026-01-01",
+  "product_version": "0.0.0",
+  "codex_version": "0.0.0",
+  "windows_build": "10.0.0",
+  "observed": {
+    "archive_sha256_matches_published": true,
+    "archive_sha256_matches_pin": "not-published-yet",
+    "attestation": "verified"
+  },
+  "note": "An example of the shape, not a record of anything. Nothing was run to produce it: the version is 0.0.0 rather than a real one, and scripts/live_evidence.py recognises the file by its name, validates it like any other so it cannot go stale, and counts it towards no step. See docs/LIVE_ACCEPTANCE.md for what each field means."
+}
