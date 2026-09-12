@@ -62,6 +62,12 @@ if ([string]::IsNullOrWhiteSpace($codexHomeDir)) { $codexHomeDir = Join-Path $en
 $PluginCacheRoot = Join-Path (Join-Path (Join-Path $codexHomeDir 'plugins') 'cache') $MarketplaceName
 $Payload     = Join-Path (Split-Path -Parent $PSScriptRoot) 'payload'
 $Python      = Join-Path $RunDir 'python.exe'
+# What a run that does not finish leaves behind, so the next one can tell a program
+# directory that was moved aside from one that was only ever a leftover. It lives at the
+# installation root and nowhere else: `config\` and `logs\` hold the user's settings and
+# recovery history, and an installer has no business writing its own bookkeeping there.
+# The name says whose it is, so whoever finds it knows what they are looking at.
+$Journal     = Join-Path $InstallHome '.codex-auto-resume-install-journal.json'
 
 function Quote-Argument {
     <#
@@ -328,6 +334,92 @@ function Invoke-Setup {
     return $LASTEXITCODE
 }
 
+function Write-CopyJournal {
+    <#
+        Write down what is about to be moved aside, before any of it moves.
+
+        The rollback further down only covers a failure this process survives to catch.
+        A power cut between the move and the copy leaves the only complete tree under an
+        `*.old-*` name - and the first thing the next run does is sweep every `*.old-*`
+        directory away, so the recovery attempt is what destroys the installation. This
+        file is the one thing that can tell that run the difference.
+
+        Written atomically, because a half-written journal is worse than none: the text
+        goes to a temporary name first and is then moved over the real one, so a crash
+        during the write leaves either the previous journal or no journal at all.
+        ConvertTo-Json, so whoever finds the file can read what happened to their
+        installation without needing this script to explain it.
+    #>
+    param([string]$Path, [string]$Root, $Entries)
+    $moved = @()
+    foreach ($entry in $Entries) {
+        $moved += @{ name = $entry.src; target = $entry.dst; movedAside = $entry.aside }
+    }
+    $record = @{ version = 1
+                 written = (Get-Date -Format 'yyyy-MM-ddTHH:mm:ssK')
+                 home    = $Root
+                 moved   = $moved }
+    $temp = $Path + '.writing'
+    Set-Content -LiteralPath $temp -Value (ConvertTo-Json $record -Depth 4) -Encoding UTF8 -ErrorAction Stop
+    Move-Item -LiteralPath $temp -Destination $Path -Force -ErrorAction Stop
+}
+
+function Restore-InterruptedCopy {
+    <#
+        Put back a program directory that an interrupted run left moved aside.
+
+        Read before the sweep, because the sweep is the danger: a tree missing from its
+        target and sitting under the aside name the journal records is the installation,
+        not a leftover, and deleting it would leave nothing to install over.
+
+        Both ends of every move are re-checked against the root this run already proved
+        it owns. The journal is a file on disk like any other, and a path read out of a
+        file is not permission to move something.
+
+        Returns the aside paths the journal still accounts for, so the sweep that
+        follows leaves them where they are until this run has written a complete copy.
+    #>
+    param([string]$Path, [string]$Root)
+    $claimed = @()
+    if (-not (Test-Path -LiteralPath $Path)) { return ,$claimed }
+    try {
+        $record = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json
+    } catch {
+        Warn 'An interrupted installation left a journal here that cannot be read.'
+        Write-Host ('       ' + $Path)
+        Write-Host '       Nothing was moved or swept on its account. If a program directory'
+        Write-Host '       is missing, its copy is the *.old-* folder beside it.'
+        return ,$claimed
+    }
+    if (-not $record -or -not $record.PSObject.Properties.Match('moved').Count) { return ,$claimed }
+    foreach ($entry in @($record.moved)) {
+        $target = $entry.target
+        $aside  = $entry.movedAside
+        if ([string]::IsNullOrWhiteSpace($target) -or [string]::IsNullOrWhiteSpace($aside)) { continue }
+        if (-not (Test-PathInside $aside $Root) -or -not (Test-PathInside $target $Root)) {
+            Warn ('The journal names a path outside this installation; ignoring it: ' + $aside)
+            continue
+        }
+        $canonical = Resolve-Canonical $aside
+        if ($canonical) { $claimed += $canonical }
+        # The target being there means the copy got far enough to recreate it, so the
+        # aside copy is a leftover this run will replace rather than the only one left.
+        if (Test-Path -LiteralPath $target) { continue }
+        if (-not (Test-Path -LiteralPath $aside)) { continue }
+        Step ('Putting back the ' + $entry.name + ' folder an interrupted installation left aside')
+        try {
+            Move-Item -LiteralPath $aside -Destination $target -ErrorAction Stop
+            Ok ('Restored ' + $target)
+            $claimed = @($claimed | Where-Object { $_ -ne $canonical })
+        } catch {
+            Warn ('Could not put ' + $aside + ' back as ' + $target + ': ' + $_.Exception.Message)
+            Write-Host '       It was left exactly where it is and nothing will sweep it up.'
+            Write-Host '       Close the ChatGPT/Codex app and run this installer again.'
+        }
+    }
+    return ,$claimed
+}
+
 Write-Host ''
 Write-Host 'Codex Auto Resume'
 Write-Host ''
@@ -480,8 +572,11 @@ if ($Uninstall) {
     # ask the user to close Codex and try again - made that retry impossible: the second
     # run finds no proof and refuses to remove the half-deleted installation, permanently.
     # So the check comes first, and the proof only goes when there is nothing left to do.
+    # The copy journal is ours too, and an installation being removed has nothing left to
+    # put back, so it goes with the rest rather than outliving the thing it described.
     foreach ($file in @('CodexAutoResumeSettings.exe', 'codex-auto-resume.ico', 'watcher-launcher.py',
-                        'runtime.json', '.owned-by-codex-auto-resume')) {
+                        'runtime.json', '.owned-by-codex-auto-resume',
+                        '.codex-auto-resume-install-journal.json')) {
         $path = Join-Path $OwnedHome $file
         if (Test-Path $path) { $null = Remove-OwnedItem $path }
     }
@@ -556,12 +651,28 @@ if (-not $OwnedHome -or -not (Test-PathInside $AppDir $OwnedHome)) {
     exit 1
 }
 
+# Finish the previous run's move before deciding anything else.
+#
+# This comes first because everything below it assumes the installation is where it was
+# left: `$upgrade` is decided by whether `app\` is there, and the sweep deletes every
+# `*.old-*` directory it finds. A run that lost power between moving the old tree aside
+# and copying the new one over leaves the only complete copy under exactly that name, so
+# the two steps in that order used to answer "not installed" and then delete the proof.
+$claimedAside = Restore-InterruptedCopy -Path $Journal -Root $OwnedHome
+
 $upgrade = Test-Path $AppDir
 if ($upgrade) { Step 'Updating program files' } else { Step 'Installing program files' }
 
 # Sweep up copies moved aside by an earlier upgrade. They are only removable once
-# whatever was using them has exited, which is normally by now.
+# whatever was using them has exited, which is normally by now - except the ones the
+# journal still accounts for, which are either the tree just put back or the one an
+# interrupted run was replacing and could not.
 foreach ($stale in (Get-ChildItem -Path $OwnedHome -Directory -Filter '*.old-*' -ErrorAction SilentlyContinue)) {
+    $canonical = Resolve-Canonical $stale.FullName
+    if ($canonical -and ($claimedAside -contains $canonical)) {
+        Step ('Keeping ' + $stale.Name + ' until this installation is complete')
+        continue
+    }
     $null = Remove-OwnedItem $stale.FullName
 }
 
@@ -606,19 +717,41 @@ if ((Get-OwnedWatcherProcess).Count -gt 0) {
 # does allow renaming the directory that contains an open file - the running process
 # keeps working - so the old copy is moved out of the way and swept up next time.
 $pairs = @(@{ src = 'app'; dst = $AppDir }, @{ src = 'runtime'; dst = $RunDir })
+# The files the payload carries at its root, by name - the settings window and its icon,
+# which is exactly what build/make_release.py puts there. Named rather than enumerated:
+# copying whatever happened to be at the payload root wrote every stray file into the
+# installation home, including names this product reads as proof that the home is ours
+# (`runtime.json`, `.owned-by-codex-auto-resume`) or as state. An installer authors
+# neither. Checked here, before anything is moved, so a payload missing one of them
+# fails while putting it back is still free.
+$rootFiles = @('CodexAutoResumeSettings.exe', 'codex-auto-resume.ico')
 foreach ($pair in $pairs) {
     if (-not (Test-Path (Join-Path $Payload $pair.src))) { Fail ('Payload is incomplete: ' + $pair.src); exit 1 }
+}
+foreach ($name in $rootFiles) {
+    if (-not (Test-Path (Join-Path $Payload $name))) { Fail ('Payload is incomplete: ' + $name); exit 1 }
 }
 
 # Move everything aside first, copy second, and undo the whole thing on any failure -
 # including a failure during the copy. An upgrade that stops half way is worse than one
 # that does not happen: the first attempt at this rolled back a failed move but not a
 # failed copy, and left the application present and the interpreter missing.
+#
+# The names every tree will be moved to are decided before the first move and written to
+# the journal, because the undo below cannot run at all if the power goes. One stamp for
+# the whole run: the two trees have different base names, so they cannot collide.
+$stamp = Get-Date -Format 'yyyyMMddHHmmss'
+$plan = @()
+foreach ($pair in $pairs) {
+    if (-not (Test-Path $pair.dst)) { continue }
+    $aside = $pair.dst + '.old-' + $stamp
+    $plan += @{ src = $pair.src; dst = $pair.dst; aside = $aside }
+}
 $moved = @()
 try {
-    foreach ($pair in $pairs) {
-        if (-not (Test-Path $pair.dst)) { continue }
-        $aside = $pair.dst + '.old-' + (Get-Date -Format 'yyyyMMddHHmmss')
+    if ($plan.Count -gt 0) { Write-CopyJournal -Path $Journal -Root $OwnedHome -Entries $plan }
+    foreach ($pair in $plan) {
+        $aside = $pair.aside
         Move-Item -Path $pair.dst -Destination $aside -ErrorAction Stop
         $moved += @{ from = $aside; to = $pair.dst }
     }
@@ -635,23 +768,30 @@ try {
         if (Test-Path $undo.to) { $null = Remove-OwnedItem $undo.to }
         Move-Item -Path $undo.from -Destination $undo.to -Force -ErrorAction SilentlyContinue
     }
+    # The journal is deliberately left where it is. The undo above is best-effort, and if
+    # any part of it did not take, that file is the only record of where the tree went.
     Fail 'The existing installation was put back; nothing was changed.'
     Write-Host '       Close the ChatGPT/Codex app and run this installer again.'
     exit 1
 }
+# Both trees are in place, so nothing is waiting to be put back and the copies moved
+# aside are leftovers again rather than the last good ones.
+if (Test-Path -LiteralPath $Journal) { $null = Remove-OwnedItem $Journal }
 foreach ($old in $moved) { $null = Remove-OwnedItem $old.from }
 
 # The settings window and the icon live at the payload root because the window
 # resolves runtime\python.exe and app\src relative to its own directory. The window may
-# be open right now, so the same move-aside rule applies to it.
-foreach ($file in (Get-ChildItem -Path $Payload -File -ErrorAction SilentlyContinue)) {
-    $target = Join-Path $InstallHome $file.Name
+# be open right now, so the same move-aside rule applies to it. By name, from the list
+# checked above - never everything the payload root happens to hold.
+foreach ($name in $rootFiles) {
+    $source = Join-Path $Payload $name
+    $target = Join-Path $InstallHome $name
     try {
-        Copy-Item -Path $file.FullName -Destination $target -Force -ErrorAction Stop
+        Copy-Item -Path $source -Destination $target -Force -ErrorAction Stop
     } catch {
         $aside = $target + '.old-' + (Get-Date -Format 'yyyyMMddHHmmss')
         Move-Item -Path $target -Destination $aside -Force -ErrorAction SilentlyContinue
-        Copy-Item -Path $file.FullName -Destination $target -Force
+        Copy-Item -Path $source -Destination $target -Force
     }
 }
 foreach ($stale in (Get-ChildItem -Path $OwnedHome -File -Filter '*.old-*' -ErrorAction SilentlyContinue)) {
@@ -722,6 +862,16 @@ if ($stale.Count -gt 0) {
 
 Step 'Setting up the watcher'
 $setupArgs = @('setup')
+# An upgrade repairs an installation; it does not get to decide anything for its owner.
+# Plain `setup` runs the engine's `enable` and registers the sign-in entry, so upgrading
+# over an installation whose owner had paused recovery switched it back on, and put back
+# a sign-in entry they had removed - silently, under the name of an update. `--keep-state`
+# leaves the pause switch alone and only re-registers an autostart that is already ours,
+# which still repairs a stale path after the runtime moves.
+#
+# Only on the upgrade branch. A first install has no decision to preserve, and has to end
+# up enabled and registered or nothing is being watched.
+if ($upgrade) { $setupArgs += '--keep-state' }
 if ($SkipStartup) { $setupArgs += '--no-startup' }
 # 2 means everything was done but the watcher was not seen running - a real outcome that
 # is neither success nor failure. Treating it as failure would roll back a good install;

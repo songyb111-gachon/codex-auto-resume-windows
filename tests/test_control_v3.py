@@ -270,5 +270,48 @@ class UpgradeWindowTests(Base):
         self.assertIn("do not delete", str(caught.exception))
 
 
+class WatcherIdentityTests(Base):
+    """What a status read can, and cannot, prove about a handover.
+
+    `app.py` writes `config.version()` into the heartbeat on every tick, so the moment an
+    upgrade replaces the files a still-running *old* watcher starts reporting the *new*
+    version. `code_version` therefore cannot prove that a restart happened, and anything
+    that waits for it to change is waiting for something that has already changed. What can
+    prove it is the pair the store has recorded all along and this layer used to drop: a
+    `started_at` that moved, from a watcher that still holds the single-instance mutex.
+    """
+
+    def heartbeat(self, pid=4321, started_at=100.0, code_version="0.6.0", now=200.0):
+        with self.store() as store:
+            store.heartbeat(now, pid=pid, session_id="session", started_at=started_at,
+                            ok=True, engine_state="verified", code_version=code_version)
+        return self.control.get_status()["watcher"]
+
+    def test_the_status_carries_the_identity_of_the_watcher_that_wrote_it(self):
+        watcher = self.heartbeat()
+        self.assertEqual(watcher["pid"], 4321)
+        self.assertEqual(watcher["started_at"], 100.0)
+
+    def test_a_restart_shows_in_the_start_time_and_never_in_the_version(self):
+        before = self.heartbeat(code_version="0.6.0")
+        # The upgrade lands. The same process keeps ticking and now reports the new
+        # version, because the version is read from the files it was upgraded under.
+        during = self.heartbeat(code_version="0.7.0")
+        self.assertNotEqual(during["code_version"], before["code_version"])
+        self.assertEqual(during["started_at"], before["started_at"])
+        self.assertEqual(during["pid"], before["pid"])
+        # The handover itself: another process, with a start of its own.
+        after = self.heartbeat(pid=9876, started_at=500.0, code_version="0.7.0")
+        self.assertNotEqual(after["started_at"], before["started_at"])
+        self.assertNotEqual(after["pid"], before["pid"])
+
+    def test_a_state_no_watcher_has_written_to_reports_nothing(self):
+        with self.store():
+            pass
+        watcher = self.control.get_status()["watcher"]
+        self.assertIsNone(watcher["pid"])
+        self.assertIsNone(watcher["started_at"])
+
+
 if __name__ == "__main__":
     unittest.main()

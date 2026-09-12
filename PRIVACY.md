@@ -285,9 +285,9 @@ conversation to OpenAI like any tool output. That is:
 
 - from `get_status`: the version, whether recovery is on, whether the watcher is running and
   whether sign-in autostart is registered, counts by state, and your settings — which
-  include the Codex executable path if you set one. In v0.5.0 through v0.5.7 it also returns
-  the installation directory's path, which normally includes your Windows user name; leaving
-  it out is on the main branch and ships in the release after v0.5.7;
+  include the Codex executable path if you set one. It no longer returns the installation
+  directory's path, which normally includes your Windows user name; v0.5.0 through v0.5.7
+  did, and a conversation held with one of them still carries it;
 - from `list_pending`: the pending recoveries, with their conversation ids, interruption ids,
   states, categories, times and attempt counts; `open_settings` returns those together with
   the status and settings above;
@@ -310,7 +310,11 @@ default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
   bucket name and reset time and whether that reading was uncertain, attempt counts, state,
   flags and the last reason code, and the two ids it needs to prove delivery (its marker and
   the queued item's id); also the on/off switch for recovery, with when it was switched on
-  and the poll interval, and the switch for each conversation. None of it is content;
+  and the poll interval, and the switch for each conversation. Beside those it holds a bounded
+  journal of what happened to each recovery - codes, ids, actor, turn references, counters and
+  times, at most 5,000 entries and 90 days, with no prompt, reply or error text - and one row
+  for the watcher itself: its process id, session id, start and last-tick times, and which code
+  version wrote them. None of it is content;
 - `config/settings.json` — your settings;
 - `logs/` — `auto-resume.log`, what the watcher did, by reason code and conversation UUID;
   `errors.log`, the Python traceback when something goes wrong; and `launcher.log`, a line
@@ -327,6 +331,29 @@ what text an exception carries.
 Beside those it keeps the program itself (`app\` and `runtime\`), the settings window, the
 icon notifications use, the sign-in launcher, and `runtime.json`, which records where the
 plugin is installed.
+
+One more file appears while an installation replaces one that is already there:
+`.codex-auto-resume-install-journal.json`, at the installation root. A first install writes
+none, because it has nothing to move aside. The installer writes it before it moves anything,
+and it holds the time it was written, the installation directory, and one entry per program
+folder being replaced - `app\` or `runtime\`, the path it lives at, and the `*.old-*` name it
+was moved aside as. Nothing in it is about your conversations: it is a handful of directory
+names, times and a format number. Those paths sit inside the installation directory, which
+normally includes your Windows user name. It is deleted as soon as both folders are in place,
+so a run that finished leaves none behind. Finding one means an installation did not finish -
+it lost power part way, or it failed and put the old copy back - and the next run reads it to
+restore anything still moved aside instead of sweeping it up. Uninstalling removes it with
+the rest.
+
+One more file exists only if you ask for it, and only where you put it. **Export
+diagnostics** in the window, or `auto-resume diagnostics` on the command line, writes one
+JSON file to a location you choose: your settings, one entry per recovery with its state,
+reason and the checks it is waiting on, up to 2,000 journal entries, and the last 300 lines
+of each log. Conversation and interruption ids are replaced by aliases that mean nothing
+outside that one file; paths, your Windows user name and e-mail-shaped text are removed.
+`errors.log` can carry exception text this tool did not write, which is redacted the same way
+rather than filtered - so read the file before you send it to anyone. Nothing is sent by this
+tool, and a file that already exists is never overwritten.
 
 Two traces of your conversations live outside that directory, and neither is written by
 this tool directly.

@@ -41,7 +41,7 @@ from .control import Control, ControlError
 
 # Commands with no argument, and commands that take one JSON object.
 PLAIN = ("status", "settings", "describe", "defaults", "pending", "pending-all", "start-watcher",
-         "strings", "history", "clear-history", "dashboard")
+         "stop-watcher", "strings", "history", "clear-history", "dashboard")
 WITH_ARGUMENT = ("update", "enabled", "startup", "cancel", "reset-budget", "retry-now",
                  "timeline", "statistics", "thread-enabled", "cancel-thread", "diagnostics")
 MAX_LINE = 64 * 1024
@@ -133,6 +133,11 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
             return {"ok": True, "pending": control.list_pending(include_terminal=True)}
         if command == "start-watcher":
             return {"ok": True, "result": control.start_watcher()}
+        if command == "stop-watcher":
+            # The other half of the upgrade-pending instruction, and the only one a window
+            # or a panel can reach. It asks; it never kills, and it reports what the
+            # single-instance mutex actually said rather than what was asked for.
+            return {"ok": True, "result": control.stop_watcher()}
         if command == "history":
             return {"ok": True, "history": control.history(source=_labels())}
         if command == "clear-history":

@@ -7,19 +7,65 @@ from __future__ import annotations
 
 from contextlib import closing
 import io
+import json
+import os
 from pathlib import Path
 import re
 import shutil
 import sqlite3
 import subprocess
+import sys
 import tempfile
 import unittest
+import zipfile
 
 from codex_auto_resume.store import SCHEMA_VERSION, Store, StoreError
 
 ROOT = Path(__file__).resolve().parents[1]
 INSTALL_DIR = ROOT / "install"
 PS1 = INSTALL_DIR / "install.ps1"
+BOOTSTRAP = ROOT / "scripts" / "bootstrap.ps1"
+JOURNAL = ".codex-auto-resume-install-journal.json"
+WINDOWS = os.name == "nt"
+POWERSHELL = shutil.which("powershell") or shutil.which("powershell.exe")
+
+
+def block(text, start, end):
+    """One region of a script, lifted verbatim between two markers.
+
+    By marker rather than by line number, so reordering a file cannot quietly point a
+    test at something else - and lifted rather than reimplemented, so that editing the
+    installer is what these tests react to.
+    """
+    first = text.index(start)
+    return text[first:text.index(end, first)]
+
+
+def ps_literal(value) -> str:
+    # Backslash is not an escape character in PowerShell; a single-quoted string takes
+    # everything literally and only a quote needs doubling.
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+# The four reporting helpers the installer defines at the top of the file, so a lifted
+# block can talk the way it does in a real run without dragging in the whole script.
+VOICE = ("[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false\n"
+         "function Step { param([string]$m) Write-Host ('  ' + $m) }\n"
+         "function Ok   { param([string]$m) Write-Host ('  [ok] ' + $m) }\n"
+         "function Warn { param([string]$m) Write-Host ('  [!]  ' + $m) }\n"
+         "function Fail { param([string]$m) Write-Host ('  [x]  ' + $m) }\n")
+
+
+def run_probe(source: str, script: str) -> subprocess.CompletedProcess:
+    with tempfile.TemporaryDirectory() as name:
+        path = Path(name) / "probe.ps1"
+        # PowerShell 5.1 decodes a .ps1 as the ANSI code page unless it carries a UTF-8
+        # BOM, so a Unicode path in a probe would arrive mangled.
+        path.write_text(source + "\n" + script, encoding="utf-8-sig")
+        return subprocess.run(
+            ["powershell.exe", "-NoProfile", "-NonInteractive",
+             "-ExecutionPolicy", "Bypass", "-File", str(path)],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180)
 
 
 def failure(interruption="a" * 64, ordinal=5):
@@ -394,6 +440,399 @@ class UninstallStatePreservationTests(unittest.TestCase):
         self.run_uninstall()
         self.assertFalse(paths.settings_file.exists())
         self.assertFalse((paths.state_dir / "state.sqlite").exists())
+
+
+class UpgradeKeepsTheOwnersChoiceTests(unittest.TestCase):
+    """An upgrade repairs an installation; it does not decide for its owner.
+
+    Plain `setup` runs the engine's `enable` and registers the Windows sign-in entry.
+    Run over an existing installation that had recovery paused, that switched recovery
+    back on and put back a sign-in entry the owner had removed - silently, under the
+    name of an update. `--keep-state` leaves the pause switch alone and only repairs an
+    autostart that is already this installation's.
+
+    A first install is the opposite case: there is no decision to preserve, and it has
+    to end up enabled and registered or nothing is being watched.
+    """
+
+    def setUp(self):
+        self.text = PS1.read_text(encoding="utf-8")
+        self.bootstrap = BOOTSTRAP.read_text(encoding="utf-8")
+
+    def setup_section(self):
+        return block(self.text, "Step 'Setting up the watcher'", "Step 'Checking the installation'")
+
+    def test_the_upgrade_branch_asks_setup_to_keep_the_state(self):
+        self.assertIn("if ($upgrade) { $setupArgs += '--keep-state' }", self.setup_section())
+
+    def test_a_first_install_is_still_a_plain_setup(self):
+        section = self.setup_section()
+        self.assertIn("$setupArgs = @('setup')", section)
+        # Nothing else may add the flag: a line carrying it that is not guarded by
+        # $upgrade would take the decision away from a first install as well.
+        for line in section.splitlines():
+            if "--keep-state" in line and not line.strip().startswith("#"):
+                self.assertIn("$upgrade", line, line)
+
+    def test_whether_it_is_an_upgrade_is_decided_before_the_files_move(self):
+        # $upgrade is `Test-Path $AppDir`, and app\ is about to be moved aside.
+        self.assertLess(self.text.index("$upgrade = Test-Path $AppDir"),
+                        self.text.index("Move-Item -Path $pair.dst -Destination $aside"))
+
+    def test_the_flag_is_one_the_setup_command_actually_accepts(self):
+        # The installer passing a flag the bridge does not define is an argparse error
+        # and a failed setup, which is a worse bug than the one it fixes.
+        sys.path.insert(0, str(ROOT / "scripts"))
+        import plugin_setup
+        parsed = plugin_setup.build_parser().parse_args(["setup", "--keep-state"])
+        self.assertTrue(parsed.keep_state)
+
+    def test_the_bootstraps_repair_branch_keeps_it_too(self):
+        # That branch is reached only when the installed version already matches, so it
+        # is by definition a repair and never a first install.
+        repair = block(self.bootstrap, "$installed -eq $version", "# No lock is taken")
+        self.assertIn("@($setup, 'setup', '--keep-state')", repair)
+
+    def test_the_bootstrap_has_no_other_route_that_runs_setup_itself(self):
+        # Every other route goes through install.ps1, which decides for itself.
+        self.assertEqual(self.bootstrap.count("'setup'"), 1)
+
+
+class CrashDuringTheCopyTests(unittest.TestCase):
+    """A power cut between the move and the copy must not cost the only good tree.
+
+    The rollback in the installer covers a failure the process survives to catch. It
+    cannot cover the machine losing power: the old `app\\` and `runtime\\` are then
+    sitting under `*.old-*` names, and the first thing the next run did was sweep every
+    `*.old-*` directory away - so the recovery attempt destroyed the installation.
+
+    The journal is what tells that run the difference.
+    """
+
+    def setUp(self):
+        self.text = PS1.read_text(encoding="utf-8")
+
+    def test_the_journal_lives_at_the_install_root_and_says_whose_it_is(self):
+        line = [l for l in self.text.splitlines() if l.startswith("$Journal")][0]
+        self.assertIn("Join-Path $InstallHome", line)
+        self.assertIn(JOURNAL, line)
+        # Never in config\ or logs\: those hold the user's settings and recovery
+        # history, and an installer does not write its bookkeeping into them.
+        self.assertNotIn("'config'", line)
+        self.assertNotIn("'logs'", line)
+
+    def test_it_is_written_before_the_first_move(self):
+        self.assertLess(self.text.index("Write-CopyJournal -Path $Journal"),
+                        self.text.index("Move-Item -Path $pair.dst -Destination $aside"))
+
+    def test_it_names_what_was_moved_where_and_the_target(self):
+        body = block(self.text, "function Write-CopyJournal", "function Restore-InterruptedCopy")
+        for field in ("name", "target", "movedAside"):
+            self.assertIn(field, body)
+        self.assertIn("ConvertTo-Json", body)
+
+    def test_it_is_written_whole_or_not_at_all(self):
+        # A half-written journal would be read by the next run as the truth about where
+        # the installation went.
+        body = block(self.text, "function Write-CopyJournal", "function Restore-InterruptedCopy")
+        self.assertIn("$temp = $Path + '.writing'", body)
+        self.assertLess(body.index("Set-Content -LiteralPath $temp"),
+                        body.index("Move-Item -LiteralPath $temp -Destination $Path -Force"))
+
+    def test_it_is_read_before_anything_is_swept(self):
+        self.assertLess(self.text.index("Restore-InterruptedCopy -Path $Journal"),
+                        self.text.index("# Sweep up copies moved aside"))
+
+    def test_it_is_read_before_the_run_decides_it_is_a_first_install(self):
+        # A restored app\ is an upgrade; the sweep order used to make it look new.
+        self.assertLess(self.text.index("Restore-InterruptedCopy -Path $Journal"),
+                        self.text.index("$upgrade = Test-Path $AppDir"))
+
+    def test_the_sweep_spares_the_copies_the_journal_claims(self):
+        sweep = block(self.text, "# Sweep up copies moved aside", "# Hand over from a running watcher")
+        self.assertIn("$claimedAside -contains $canonical", sweep)
+        self.assertIn("-Filter '*.old-*'", sweep)
+
+    def test_the_journal_goes_when_the_copy_is_complete(self):
+        removal = self.text.index("$null = Remove-OwnedItem $Journal")
+        self.assertLess(self.text.index("Copy-Item -Path (Join-Path (Join-Path $Payload $pair.src)"),
+                        removal, "it may only go once both trees are in place")
+        self.assertLess(removal, self.text.index("Step 'Setting up the watcher'"))
+
+    def test_a_rolled_back_run_leaves_the_journal_behind(self):
+        # The undo is best-effort; if any part of it did not take, the journal is the
+        # only record of where the tree went.
+        rollback = block(self.text, "foreach ($undo in $moved)", "exit 1")
+        self.assertNotIn("Remove-OwnedItem $Journal", rollback)
+
+    def test_the_uninstaller_takes_its_own_file_with_it(self):
+        # An installation being removed has nothing left to put back, so the journal
+        # must not outlive the thing it described.
+        section = block(self.text, "if ($Uninstall)", "if (-not (Test-Path $Payload))")
+        self.assertIn(JOURNAL, section)
+
+
+@unittest.skipUnless(WINDOWS and POWERSHELL, "the installer is PowerShell on Windows")
+class JournalRecoveryTests(unittest.TestCase):
+    """The same contract, run rather than read.
+
+    The two journal functions are lifted out of the installer and driven against real
+    directories, because the property that matters - a tree that is missing at its
+    target comes back from its aside copy, and nothing else is touched - is behaviour,
+    not text.
+    """
+
+    def setUp(self):
+        text = PS1.read_text(encoding="utf-8")
+        self.source = (VOICE
+                       + block(text, "function Quote-Argument", "function Invoke-Setup")
+                       + block(text, "function Write-CopyJournal", "\nWrite-Host ''"))
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.home = self.root / "home"
+        self.home.mkdir()
+        self.journal = self.home / JOURNAL
+
+    def entry(self, name, target, aside):
+        return {"name": name, "target": str(target), "movedAside": str(aside)}
+
+    def write_journal(self, entries):
+        self.journal.write_text(json.dumps(
+            {"version": 1, "written": "2026-01-01T01:01:01+09:00",
+             "home": str(self.home), "moved": entries}, indent=2), encoding="utf-8")
+
+    def restore(self):
+        """Run Restore-InterruptedCopy for real; return (claimed paths, printed text)."""
+        out = self.root / "claimed.json"
+        done = run_probe(self.source,
+                         "$claimed = Restore-InterruptedCopy -Path %s -Root %s\n"
+                         "[IO.File]::WriteAllText(%s, (ConvertTo-Json @($claimed) -Compress))\n"
+                         % (ps_literal(self.journal), ps_literal(self.home), ps_literal(out)))
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        value = json.loads(out.read_text(encoding="utf-8"))
+        return ([] if value is None else value if isinstance(value, list) else [value]), done.stdout
+
+    def aside_with_content(self, name="app.old-20260101010101"):
+        aside = self.home / name
+        aside.mkdir()
+        (aside / "keep.txt").write_text("the only copy", encoding="utf-8")
+        return aside
+
+    def test_a_tree_left_aside_by_an_interrupted_run_is_put_back(self):
+        aside = self.aside_with_content()
+        self.write_journal([self.entry("app", self.home / "app", aside)])
+        claimed, printed = self.restore()
+        self.assertEqual((self.home / "app" / "keep.txt").read_text(encoding="utf-8"),
+                         "the only copy")
+        self.assertFalse(aside.exists(), "the copy was left in two places")
+        self.assertEqual(claimed, [], "once it is back there is nothing left to protect")
+        self.assertIn("Putting back", printed)
+
+    def test_a_tree_that_is_still_at_its_target_is_left_alone_but_protected(self):
+        # The copy got far enough to recreate the target, so the aside copy is a
+        # leftover - but not one this run may sweep, because it is still the last
+        # complete one until this run writes its own.
+        aside = self.aside_with_content()
+        (self.home / "app").mkdir()
+        self.write_journal([self.entry("app", self.home / "app", aside)])
+        claimed, _ = self.restore()
+        self.assertTrue((aside / "keep.txt").is_file())
+        self.assertEqual([Path(p).name for p in claimed], [aside.name])
+
+    def test_a_path_outside_the_installation_is_never_moved(self):
+        outside = self.root / "elsewhere.old-1"
+        outside.mkdir()
+        (outside / "theirs.txt").write_text("not ours", encoding="utf-8")
+        self.write_journal([self.entry("app", self.root / "elsewhere", outside)])
+        claimed, printed = self.restore()
+        self.assertTrue((outside / "theirs.txt").is_file(), "a foreign path must survive")
+        self.assertFalse((self.root / "elsewhere").exists())
+        self.assertEqual(claimed, [])
+        self.assertIn("outside this installation", printed)
+
+    def test_a_journal_that_cannot_be_read_destroys_nothing(self):
+        aside = self.aside_with_content()
+        self.journal.write_text("{ this is not json", encoding="utf-8")
+        claimed, printed = self.restore()
+        self.assertTrue((aside / "keep.txt").is_file())
+        self.assertEqual(claimed, [])
+        self.assertIn("cannot be read", printed)
+
+    def test_no_journal_at_all_is_the_ordinary_case(self):
+        claimed, printed = self.restore()
+        self.assertEqual(claimed, [])
+        self.assertEqual(printed.strip(), "")
+
+    def write_copy_journal(self, entries):
+        plan = ", ".join("@{ src = %s; dst = %s; aside = %s }"
+                         % (ps_literal(name), ps_literal(self.home / name),
+                            ps_literal(self.home / (name + ".old-1")))
+                         for name in entries)
+        done = run_probe(self.source,
+                         "$plan = @(%s)\n"
+                         "Write-CopyJournal -Path %s -Root %s -Entries $plan\n"
+                         % (plan, ps_literal(self.journal), ps_literal(self.home)))
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+
+    def test_the_journal_it_writes_is_readable_json_that_names_both_trees(self):
+        self.write_copy_journal(["app", "runtime"])
+        record = json.loads(self.journal.read_text(encoding="utf-8-sig"))
+        self.assertEqual(record["home"], str(self.home))
+        moved = {entry["name"]: entry for entry in record["moved"]}
+        self.assertEqual(set(moved), {"app", "runtime"})
+        self.assertEqual(moved["app"]["target"], str(self.home / "app"))
+        self.assertEqual(moved["app"]["movedAside"], str(self.home / "app.old-1"))
+
+    def test_writing_it_leaves_no_half_written_file_beside_it(self):
+        self.write_copy_journal(["app"])
+        self.write_copy_journal(["app", "runtime"])       # a second run replaces it
+        self.assertEqual(sorted(p.name for p in self.home.iterdir()), [JOURNAL])
+
+    def test_what_it_writes_is_what_the_recovery_reads(self):
+        # The two halves are written in one file and read in another situation entirely,
+        # so they are checked against each other rather than against a fixture.
+        aside = self.aside_with_content("app.old-1")
+        self.write_copy_journal(["app"])
+        claimed, printed = self.restore()
+        self.assertEqual((self.home / "app" / "keep.txt").read_text(encoding="utf-8"),
+                         "the only copy")
+        self.assertEqual(claimed, [])
+        self.assertFalse(aside.exists())
+        self.assertIn("Putting back", printed)
+
+    def test_the_sweep_keeps_a_claimed_copy_and_removes_an_unclaimed_one(self):
+        """The sweep itself, lifted out of the installer and run over real directories."""
+        text = PS1.read_text(encoding="utf-8")
+        # Remove-OwnedItem sits inside the helper block, so this is the real one too.
+        source = VOICE + block(text, "function Quote-Argument", "function Invoke-Setup")
+        claimed = self.aside_with_content("app.old-1")
+        leftover = self.aside_with_content("runtime.old-0")
+        script = ("$OwnedHome = %s\n$claimedAside = @((Resolve-Canonical %s))\n"
+                  % (ps_literal(self.home), ps_literal(claimed)))
+        script += block(text, "# Sweep up copies moved aside", "# Hand over from a running watcher")
+        done = run_probe(source, script)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertTrue((claimed / "keep.txt").is_file(),
+                        "the sweep deleted the copy the journal was protecting")
+        self.assertFalse(leftover.exists(), "an unclaimed leftover must still be swept")
+
+
+class PayloadRootTests(unittest.TestCase):
+    """The installation home is written by name, never by wildcard.
+
+    The root of the payload used to be copied with `Get-ChildItem -File`, so any file
+    that ever appeared there landed in the installation home - including the names this
+    product reads as proof that the home is ours (`runtime.json`,
+    `.owned-by-codex-auto-resume`) or as its state. An installer authors neither.
+    """
+
+    def setUp(self):
+        self.text = PS1.read_text(encoding="utf-8")
+
+    def test_the_payload_root_is_not_enumerated(self):
+        self.assertNotIn("Get-ChildItem -Path $Payload", self.text)
+
+    def test_the_list_is_fixed_and_holds_the_window_and_its_icon(self):
+        self.assertIn("$rootFiles = @('CodexAutoResumeSettings.exe', 'codex-auto-resume.ico')",
+                      self.text)
+        self.assertIn("foreach ($name in $rootFiles) {", self.text)
+
+    def test_it_is_the_list_the_release_build_puts_there(self):
+        # Two lists of the same thing in two languages. They drift.
+        build = (ROOT / "build" / "make_release.py").read_text(encoding="utf-8")
+        self.assertIn('GUI_EXE = "CodexAutoResumeSettings.exe"', build)
+        self.assertIn('stage / "payload" / GUI_EXE', build)
+        self.assertIn('stage / "payload" / "codex-auto-resume.ico"', build)
+
+    def test_a_missing_one_fails_the_way_a_missing_runtime_does(self):
+        check = block(self.text, "foreach ($name in $rootFiles) {", "# Move everything aside first")
+        self.assertIn("Fail ('Payload is incomplete: ' + $name); exit 1", check)
+
+    def test_it_fails_before_anything_has_been_moved(self):
+        self.assertLess(self.text.index("Fail ('Payload is incomplete: ' + $name)"),
+                        self.text.index("Move-Item -Path $pair.dst -Destination $aside"))
+
+    def test_the_move_aside_rule_still_covers_an_open_settings_window(self):
+        copy = block(self.text, "# The settings window and the icon live at the payload root",
+                     "foreach ($stale in")
+        self.assertIn("$aside = $target + '.old-'", copy)
+        self.assertIn("Move-Item -Path $target -Destination $aside", copy)
+
+
+class ArchiveContentsTests(unittest.TestCase):
+    """What the bootstrap accepts as a release of this product.
+
+    The installer copies the payload root by name, so a stray file there is no longer
+    copied into the home - but it is still a sign that the archive is not the build it
+    claims to be, and this is the last point where anyone looks before it is unpacked
+    and run.
+    """
+
+    ENTRIES = ("payload/runtime/python.exe",
+               "payload/app/src/codex_auto_resume/mcpserver.py",
+               "payload/app/mcp/codex-auto-resume-mcp.exe",
+               "payload/app/.mcp.json",
+               "payload/app/.codex-plugin/plugin.json",
+               "payload/app/scripts/plugin_setup.py",
+               "payload/CodexAutoResumeSettings.exe",
+               "payload/codex-auto-resume.ico",
+               "install/install.ps1",
+               "Install.cmd")
+
+    def setUp(self):
+        self.text = BOOTSTRAP.read_text(encoding="utf-8")
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+
+    def test_the_payload_root_is_checked_against_a_fixed_list(self):
+        check = block(self.text, "function Test-Archive", "function Get-InstalledVersion")
+        self.assertIn("$rootFiles = @('CodexAutoResumeSettings.exe', 'codex-auto-resume.ico')",
+                      check)
+        self.assertIn("unexpected file at the payload root", check)
+
+    def make_archive(self, name="release.zip", extra=(), omit=()):
+        path = self.root / name
+        with zipfile.ZipFile(path, "w") as bundle:
+            for entry in list(self.ENTRIES) + list(extra):
+                if entry in omit:
+                    continue
+                if entry.endswith(".codex-plugin/plugin.json"):
+                    bundle.writestr(entry, json.dumps({"name": "codex-auto-resume",
+                                                       "version": "9.9.9"}))
+                else:
+                    bundle.writestr(entry, "x")
+        return path
+
+    def check(self, path):
+        source = VOICE + block(self.text, "function Test-Archive", "function Get-InstalledVersion")
+        return run_probe(source, "try { Test-Archive -Zip %s -Version '9.9.9'; 'accepted' }\n"
+                                 "catch { $_.Exception.Message; exit 1 }\n" % ps_literal(path))
+
+    @unittest.skipUnless(WINDOWS and POWERSHELL, "the bootstrap is PowerShell on Windows")
+    def test_an_archive_shaped_like_a_release_is_accepted(self):
+        done = self.check(self.make_archive())
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("accepted", done.stdout)
+
+    @unittest.skipUnless(WINDOWS and POWERSHELL, "the bootstrap is PowerShell on Windows")
+    def test_an_extra_file_at_the_payload_root_is_refused(self):
+        # The name is deliberately one the product treats as proof of ownership.
+        done = self.check(self.make_archive(extra=("payload/.owned-by-codex-auto-resume",)))
+        self.assertEqual(done.returncode, 1, done.stdout)
+        self.assertIn("unexpected file at the payload root", done.stdout)
+
+    @unittest.skipUnless(WINDOWS and POWERSHELL, "the bootstrap is PowerShell on Windows")
+    def test_a_payload_root_missing_the_icon_is_refused(self):
+        done = self.check(self.make_archive(omit=("payload/codex-auto-resume.ico",)))
+        self.assertEqual(done.returncode, 1, done.stdout)
+        self.assertIn("missing payload/codex-auto-resume.ico", done.stdout)
+
+    @unittest.skipUnless(WINDOWS and POWERSHELL, "the bootstrap is PowerShell on Windows")
+    def test_a_deeper_file_is_not_mistaken_for_one_at_the_root(self):
+        done = self.check(self.make_archive(extra=("payload/app/assets/logo.png",)))
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
 
 
 if __name__ == "__main__":

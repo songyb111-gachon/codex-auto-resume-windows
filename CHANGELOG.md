@@ -1,5 +1,270 @@
 # Changelog
 
+## Unreleased — It follows its own turn, and it shows you the work
+
+Nothing here has been released yet. This section takes the release's own heading, with
+its version number, when the release is made.
+
+Two changes, and the rest follows from them. The engine no longer reads the conversation
+for signs that a recovery worked: it follows the continuation it sent to the exact Codex
+turn that continuation started, and reads the outcome from that turn alone. And the window
+from the Start Menu, which was a settings page, now shows what the watcher has seen and
+done — Overview, Pending, History, Statistics and Diagnostics, beside the settings that
+were already there.
+
+The state file moves to schema 3 the first time the new watcher opens it. The last section
+says what works in between.
+
+### Recovery follows the continuation it sent
+
+- **Fixed: a turn you started yourself could be read as the recovery working.** The engine
+  called a recovery delivered once its message appeared anywhere in the conversation, and
+  judged progress from any later turn — which can be a turn you started yourself. Each
+  continuation carries a marker built from the interruption's own id; the turn it started is
+  the turn of the history row that holds that marker, and a unique index in the state file
+  makes it impossible for two records to own one Codex turn. The outcome is read from that
+  turn and no other: recovered, no progress, failed, stopped by the user, handed over — a
+  person started or joined that turn, or edited the queued message before it ran — or
+  unverified, which is what an outcome that could not be established is called, rather
+  than a success.
+- **A failure of our own recovery turn is the same task failing again.** The record that
+  follows continues its parent's chain instead of starting a new one: it inherits every
+  counter in the one transaction that creates it, and is created already stopped when the
+  parent was cancelled, was taken over by a person, or had used up a budget. By default one
+  task gets at most six continuations; the setting that governs it accepts one to ten and
+  nothing outside that.
+- **Stable words for what a recovery is doing.** The engine's own vocabulary is 27 stored
+  states in five classes, and the window and the Codex panel never show one of them: they
+  read the same 22 public codes, and those never depend on a setting — a recovery that
+  failed stays failed even if you raise the attempt limit afterwards. The command line
+  still prints the stored state beside the code, for whoever is debugging a recovery.
+  Facts about the surroundings that change what a waiting recovery will do next — recovery
+  is paused, the conversation is switched off, the watcher is not ticking — are shown
+  beside the code
+  instead of folded into it, and never on a record that may already have been sent.
+- **A journal, and a timeline that reads it.** What happened to a recovery is written down
+  as codes, ids, counters and times; no prompt, no reply, no error text can reach it. The
+  timeline shows one recovery's whole chain in the same words the lists use, rather than in
+  the engine's state names. The journal is bounded at 5,000 entries and 90 days and never
+  drops an entry belonging to a recovery that is still running, and nothing reads it back
+  to decide anything — the decisions are made from the records.
+- **Clear history hides and never deletes.** It changes the History view and nothing else.
+  Anything that may still change stays visible — a recovery still running, an unconfirmed
+  submission still being reconciled — and hidden rows still count for every cap, cooldown
+  and duplicate check, which is what stops a finished failure from being detected all over
+  again.
+- **Cancel stops one task and everything that continues it.** A record that was never sent
+  is cancelled outright; anything that may already be in Codex is marked, and the watcher
+  takes back whatever is still queued. A turn already running in Codex is not stopped, and
+  the confirmation says so. A record that has already finished is marked too, so no later
+  failure of that task can start a new chain from it. Cancelling only ever reduces
+  automation, so it does not need Codex to be running, and it is retried for up to thirty
+  seconds rather than refused when the watcher happens to be writing.
+- **Giving attempts back is explicit, limited, and not a send.** An exhausted recovery
+  re-enters the wait its kind of failure needs, and every check runs again from the top. It
+  does not switch a conversation back on: if that conversation is off, it says so and
+  nothing will run until you switch it on. It can be done three times for one task, after
+  which the window says to continue that task in Codex yourself.
+- **Retry now is a re-check.** It brings the schedule forward and wakes the watcher. It
+  does not send, does not skip the loaded-thread requirement, does not open a usage window
+  and does not skip revalidation; a recovery whose usage limit has not lifted simply goes
+  back to waiting.
+- **Statistics, over the last 7 days, the last 30 or all of it**: how many interruptions
+  were detected, how many continuations were sent, how they ended, the median wait before
+  sending and the median time to recover, a count by kind, and how many times Retry now was
+  used. One final outcome per record, so a late receipt moves a record from unknown to what
+  really happened instead of counting it twice. The success rate appears only once five
+  recoveries have ended in one of the outcomes it counts; below that it says there is not
+  enough data yet.
+
+### The window shows the work
+
+- **Six pages instead of one.** Overview, Pending, History, Statistics, Diagnostics and the
+  settings that were already there. They read the same control layer the Codex panel and
+  the tools read, and the same state machine the command line reads, so the surfaces cannot
+  disagree about what a recovery is doing.
+- **No local web server, and nothing opens in a browser.** The pages are native controls,
+  and the window talks to one long-lived bridge process — one JSON line per request — in
+  place of a process per call. The whole Overview arrives in one round trip, with each part
+  failing on its own: a state that cannot be read must not take the status away with it.
+- **Every action names the conversation it acts on.** The lists refresh every five seconds,
+  so a confirmation that named nothing could be answered about a record that had moved
+  underneath it. Each action addresses a recovery by its exact interruption id, and each
+  confirmation names the conversation.
+- **Retry now is offered only where it can do something.** Not on a recovery whose usage
+  reset is still ahead, not while recovery is paused, and not on a conversation that is
+  switched off. Giving attempts back is gated differently, and deliberately: it is offered
+  on a recovery that stopped at its limit, was not cancelled, and still has resets left,
+  including while
+  recovery is paused and on a conversation that is switched off, because it sends nothing
+  — and where that conversation is off it says so, and that nothing will run until you
+  switch it on. Once a task has had its three the button goes quiet and a note says to
+  continue that task in Codex yourself.
+- **A part that cannot be read is shown as unreadable, not as empty.** "Nothing is waiting"
+  over a list that failed to load is the one wrong answer this page must not give:
+  recoveries may well be waiting. Nothing that talks to the bridge runs on the window's
+  thread, so a slow read cannot stop the window painting.
+- **Diagnostics writes a file you can read before you send it.** Export diagnostics... on
+  the Diagnostics page writes one JSON file where you choose. It holds the versions, the
+  watcher's health, your settings, every record's state, reason and gates, the content-free
+  journal and the last 300 lines of each log — enough to explain a recovery that went
+  wrong. Conversation and interruption ids become aliases that hold together inside that one
+  file and lead nowhere outside it, because the key is random and thrown away with the
+  bundle; file-system paths, your Windows user name and anything shaped like an e-mail
+  address are replaced. It sends nothing, and it refuses to overwrite an existing file. The
+  exception is `errors.log`: it carries exception messages this product did not write, so
+  they are redacted the same way but not filtered, and the file says so at the top.
+  `auto_resume diagnostics` writes the same bundle from the command line.
+
+### Codex can turn automation down on its own; turning it up asks you first
+
+- **Pause and resume are two tools, and only resume asks.** They were one tool,
+  `set_auto_recovery`, that took the direction as an argument — and Codex runs a tool
+  without asking unless it is marked destructive, so a conversation carrying someone else's
+  instructions could undo your pause in silence. `pause_auto_recovery` still runs without a
+  prompt, because pausing only ever reduces automation; `resume_auto_recovery` is marked
+  destructive, and so now are `reset_recovery_budget`, `start_watcher` and
+  `update_settings`. The prompt is Codex's to show, though: the mark is a request, not a
+  lock. That is why `update_settings` offers only the settings the window and the panel
+  offer, and refuses the advanced ones — which engine binary to run, how far back to
+  look — even from a client that ignores the schema.
+- **`get_status` no longer returns where this is installed.** It returned the installation
+  directory, which normally contains your Windows user name, into a conversation Codex
+  sends to OpenAI. Everything else it returns still goes there, and the skill's commands
+  still print local paths; PRIVACY.md lists what each one says.
+
+### Names, caches and replies that came from somewhere else
+
+- **A mutex or stop event created by a lower-integrity process is refused.** Both have
+  predictable names in the session namespace, where a Low-integrity process — a browser
+  renderer, say — may create objects, and getting there first was enough: a planted mutex
+  made every status read say a watcher was running when none was and made the real one exit
+  as a duplicate, and a planted stop event made a real watcher quit at startup, silently. An
+  object that already exists is now checked, and one labelled below Medium is refused: the
+  status reads unknown rather than running, and the watcher refuses to run and writes why in
+  its log. What it cannot do is recover anyway — while such a process holds the name,
+  nothing at this level can — but it is no longer invisible.
+- **The watcher launcher accepts only this product's marketplace.** With no installed
+  application it fell back to the newest plugin of the same name in any marketplace's cache:
+  another publisher's code, started at sign-in. It now fails closed and reports that it found
+  no engine — which means someone who installed from a renamed marketplace has to
+  reinstall, rather than have it quietly keep working.
+- **The installer no longer upgrades every marketplace on the machine.** It ran `codex plugin
+  marketplace upgrade` with no name, and without a name Codex refreshes every Git marketplace
+  you have configured and reinstalls those vendors' plugins — other people's software,
+  changed by an install that promised to touch only its own. It now names its own
+  marketplace, which for the local one it registers does nothing at all.
+- **A malformed reply can no longer end the window.** Its JSON reader had no depth limit, so
+  a deeply nested document ended the process with a StackOverflowException, which .NET cannot
+  catch and which leaves no message behind. It now fails at 64 levels as an ordinary format
+  error, and so does truncated input.
+
+### Both programs say which version they are
+
+- **The two executables carry a version resource.** They reported 0.0.0.0, with no product
+  and no publisher, in Explorer's Properties and in the SmartScreen and Smart App Control
+  prompts — which is exactly where someone decides whether to trust a file they have just
+  downloaded. Product, publisher, description, file and product version and copyright are now
+  generated from `.codex-plugin/plugin.json`, so they cannot drift from the release, and
+  because they are a pure function of the manifest they cost the build nothing that had been
+  measured: two builds from fresh clones of one commit, on one machine with the same compiler,
+  produced a byte-identical archive. That is all that has been shown - another machine has not
+  been compared, and no archive published up to v0.5.7 is reproducible at all. The files are still unsigned: this is what a signature
+  would have displayed, not a substitute for one.
+- **The App Server client tells Codex its real version.** It introduced itself as
+  `codex_auto_resume` version "0.1" in every release since the first, and now sends the version from the
+  manifest. Codex reports `clientInfo` to OpenAI as the client's identity, so this changes
+  what leaves the machine: the name was already going, and the number beside it is now true
+  rather than wrong.
+
+### The notification area shows it without opening anything
+
+- **An icon is there while the watcher runs.** It belongs to the watcher process itself, so it
+  cannot show a watcher that is not there: it appears when one starts and goes when it stops.
+  Its tooltip says whether recovery is paused, how many recoveries are waiting, how many are
+  running in Codex, and how long until the next check - counted down on your machine, and
+  reaching zero only means the watcher looks again, not that anything is sent. Its menu opens
+  the window, pauses or resumes recovery, and stops the watcher. It decides nothing itself:
+  everything it offers goes through the same control layer every other interface uses. It is
+  on by default and can be switched off in the settings.
+
+### Pause and resume say one thing in Korean
+
+- The Korean labels of pause and resume are now 자동 복구 일시 정지 and 자동 복구 다시 켜기
+  everywhere. The window's and the Codex panel's buttons said 복구 일시 중지 and
+  복구 다시 시작; both were brought to the words the notification-area menu already used.
+  English is unchanged.
+
+### An upgrade repairs; it does not decide
+
+- **Fixed: an upgrade switched automatic recovery back on.** Plain `setup` runs the engine's
+  `enable`, so upgrading over an installation whose owner had paused recovery switched it
+  back on, silently, under the name of an update. The installer now runs setup with
+  `--keep-state` whenever the program directory is already there, and the bootstrap does the
+  same on the branch that skips the download because the installed version already matches.
+  A first install still enables recovery: there is no decision to preserve, and it has to
+  end up watching or nothing is.
+- **Fixed: an upgrade put back a sign-in start that had been removed.** With `--keep-state`,
+  setup re-registers the sign-in entry only when the entry registered is already this
+  installation's — which still repairs its path after the runtime moves — and adds none
+  where there is none.
+- **Fixed: an interrupted copy was swept away by the next run.** The installer moves the old
+  `app\` and `runtime\` aside before copying the new ones over, and the first thing the next
+  run does is delete every `*.old-*` directory it finds. A power cut between the two left
+  the only complete copy under exactly that name, so the recovery attempt was what destroyed
+  the installation. The names every tree will be moved to are now decided before the first
+  move and written to a small JSON journal at the installation root — written to a temporary
+  name and moved over the real one, so a crash during the write leaves either the previous
+  journal or none. The next run reads it before it sweeps anything: it puts back a tree
+  whose target is missing, checks both ends of every move against the installation it has
+  already proved is its own, and keeps the aside copies the journal still accounts for until
+  this run has written a complete one. The journal is deleted once both trees are in place,
+  and deliberately left behind when a run fails, because the roll-back is best effort and
+  that file is then the only record of where a tree went.
+- **Fixed: whatever sat at the payload root was copied into the installation home.** It was
+  a wildcard copy, so a stray file in a release went straight into the home, including names
+  this product reads as proof that the home is its own (`runtime.json`,
+  `.owned-by-codex-auto-resume`) or as state. The two files that belong there — the settings
+  window and its icon — are now copied by name, and a payload missing either fails the
+  install before anything is moved. The bootstrap's archive check refuses an archive that
+  carries anything else at that root.
+- **Repair in the window says which of five things happened**: it finished, it is still
+  working, another installation or repair is already running, this installation is missing
+  the files setup is made of, or it failed — and only the failure carries the last few lines
+  setup printed, with the line that is a path dropped. It takes the installer's own lock, so
+  two processes cannot rewrite the same registrations at once, and a setup still working
+  after two minutes is left to finish in the background rather than killed halfway. It runs
+  setup with `--keep-state`, so a repair never undoes a pause or re-adds a sign-in start.
+- **Stop watcher is now in the window and on the bridge.** The upgrade-pending message tells
+  you to use Stop watcher and then Start watcher; Start was there and Stop lived only in the
+  command line, which is the one place a person who uses the window never goes. It is the
+  same named stop event the watcher already waits on, signalled once. It asks and never
+  kills: a watcher stopped in the middle of submitting a continuation could not prove
+  afterwards whether it sent, and a continuation that may have been sent is never sent
+  again. It then waits ten seconds for the single-instance mutex — the same probe everything
+  else calls "running" — and reports what that said: stopped, still finishing the check it
+  is in, not running, or unknown. Unknown is its own answer and is not rounded up to
+  stopped.
+
+### Between the old watcher and the new one
+
+- The state file is migrated 1 → 2 → 3 in one transaction, only by the watcher or by a
+  caller holding the watcher's mutex, and a copy of the old file is taken first for
+  forensics rather than as a restore path.
+- Until that happens — between an upgrade and the moment the old watcher exits — the
+  interfaces still do the things that only reduce automation: pause, switch a conversation
+  off, and cancel a conversation's recoveries the way v0.5 did, thread-wide. Everything else
+  says an older watcher still owns the state, and the window shows that sentence where a
+  list would be rather than an empty list.
+- `downgrade-state --to 2` rewrites the state for a v0.5 release with every interruption
+  row kept — cancelled, exhausted, unknown and hidden ones included, because those rows
+  are what stop an old failure from being detected and recovered a second time. It keeps
+  the rows, not everything about them: the journal and the watcher's own status table are
+  dropped outright, and the columns schema 3 added — which Codex turn a recovery started,
+  what it inherited from its parent, when history hid it — go with them, because schema 2
+  has nowhere to put them. The schema-3 file is copied first, and that copy is the only way
+  back.
+
 ## v0.5.7 — Security fix
 
 A security release, shipped on its own rather than held for v0.6.0, because it closes
