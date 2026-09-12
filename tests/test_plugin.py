@@ -466,6 +466,58 @@ class BridgeTests(unittest.TestCase):
         install.assert_not_called()
         remove.assert_not_called()
 
+    def setup_paused(self, argv, current):
+        """Run setup against a paused installation whose Run value is `current`.
+
+        The core commands run for real, through a wrapper that only records them, so the
+        pause state read back afterwards is the one the store actually holds.
+        """
+        from codex_auto_resume import config
+        from codex_auto_resume.store import Store
+        self.pretend_installed()
+        self.assertEqual(self.bridge._cli_silent(self.home, ["--quiet", "disable"]), self.bridge.EXIT_OK)
+        args = self.bridge.build_parser().parse_args(argv)
+        output = io.StringIO()
+        with patch.object(self.bridge, "runtime_home", return_value=self.home), \
+             patch.object(startup, "current_value", return_value=current), \
+             patch.object(startup, "install") as install, \
+             patch.object(self.bridge, "_cli_silent", wraps=self.bridge._cli_silent) as core, \
+             patch.object(self.bridge, "start_watcher", return_value="running"), \
+             contextlib.redirect_stdout(output):
+            code = self.bridge.cmd_setup(args)
+        with Store(config.Paths(self.home).state_dir) as store:
+            enabled = bool(store.settings()["enabled"])
+        commands = [call.args[1][-1] for call in core.call_args_list]
+        return code, install, commands, enabled, output.getvalue()
+
+    def test_keep_state_neither_resumes_nor_adds_an_autostart(self):
+        code, install, commands, enabled, text = self.setup_paused(["setup", "--keep-state"], None)
+        self.assertEqual(code, self.bridge.EXIT_OK)
+        self.assertNotIn("enable", commands)
+        self.assertIn("install", commands)          # the rest of the repair still runs
+        self.assertFalse(enabled, "a repair must not switch a paused installation back on")
+        install.assert_not_called()                 # there was no entry of ours to repair
+        self.assertNotIn(messages.text("setup_autostart"), text)
+
+    def test_keep_state_repairs_an_autostart_that_is_already_ours(self):
+        # Ours, but stale: registered with a different interpreter.
+        stale = startup.command_line(self.home / self.bridge.LAUNCHER_NAME, None,
+                                     launcher=Path(r"C:\Python313\pythonw.exe"))
+        code, install, commands, enabled, text = self.setup_paused(["setup", "--keep-state"], stale)
+        self.assertEqual(code, self.bridge.EXIT_OK)
+        self.assertNotIn("enable", commands)
+        self.assertFalse(enabled)
+        install.assert_called_once_with(self.bridge.watcher_command(self.home))
+        self.assertIn(messages.text("setup_autostart"), text)
+
+    def test_without_keep_state_setup_still_enables_and_registers(self):
+        code, install, commands, enabled, text = self.setup_paused(["setup"], None)
+        self.assertEqual(code, self.bridge.EXIT_OK)
+        self.assertEqual(commands, ["install", "enable"])
+        self.assertTrue(enabled)
+        install.assert_called_once_with(self.bridge.watcher_command(self.home))
+        self.assertIn(messages.text("setup_autostart"), text)
+
 
 class ReleaseNotesTests(unittest.TestCase):
     """The published release notes come from the changelog, so they cannot drift.

@@ -63,7 +63,8 @@ class ParserRobustnessTests(unittest.TestCase):
         subprocess.run([str(CSC), "/nologo", "/target:winexe", "/platform:x64", "/out:" + str(exe),
                         "/reference:System.dll", "/reference:System.Drawing.dll",
                         "/reference:System.Windows.Forms.dll",
-                        str(ROOT / "gui" / "SettingsApp.cs"), str(ROOT / "gui" / "Brand.cs")],
+                        # The settings window's sources, as build/make_gui.ps1 lists them.
+                        *[str(ROOT / "gui" / name) for name in ("SettingsApp.cs", "Dashboard.cs", "Brand.cs")]],
                        check=True, capture_output=True, timeout=180)
         env = dict(os.environ, CAR_EXE=str(exe))
         result = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", PROBE],

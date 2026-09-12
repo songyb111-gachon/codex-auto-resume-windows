@@ -99,6 +99,26 @@ class CatalogTests(unittest.TestCase):
                                  "a key missing here reaches a user as a blank label or "
                                  "as an English word inside a Korean sentence")
 
+    def test_no_key_is_defined_twice(self):
+        """A dict literal keeps the last of two equal keys without a word.
+
+        The Dashboard's strings repeated two keys the Codex panel already had, and the
+        Korean label of the panel's button changed with nobody deciding it should. The
+        catalogs above are the merged dictionaries, so only the source can show this.
+        """
+        import ast
+        source = (ROOT / "src" / "codex_auto_resume" / "interface.py").read_text(encoding="utf-8")
+        for node in ast.walk(ast.parse(source)):
+            if not isinstance(node, ast.Dict):
+                continue
+            seen = {}
+            for key in node.keys:
+                if isinstance(key, ast.Constant) and isinstance(key.value, str):
+                    with self.subTest(key=key.value):
+                        self.assertNotIn(key.value, seen, "defined at line %s and again at line %d"
+                                         % (seen.get(key.value), key.lineno))
+                    seen[key.value] = key.lineno
+
     def test_no_string_is_empty(self):
         for language, table in interface.STRINGS.items():
             for key, value in table.items():

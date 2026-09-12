@@ -36,8 +36,6 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "assets" / "screenshots.json"
 
-# The canonical asset on the left, the documentation copy on the right. One render, two
-# files, copied by the generator - not two captures kept in step by hand.
 # The canonical asset on the left, the documentation copy on the right, per locale. One
 # render, two files, copied by the generator - not two captures kept in step by hand.
 #
@@ -46,15 +44,27 @@ MANIFEST = ROOT / "assets" / "screenshots.json"
 COPIES = {
     "en": {
         "assets/screenshot-panel.png": "docs/images/settings-panel.png",
+        "assets/screenshot-dashboard.png": "docs/images/dashboard-overview.png",
+        "assets/screenshot-pending.png": "docs/images/dashboard-pending.png",
         "assets/screenshot-settings.png": "docs/images/settings-window.png",
     },
     "ko": {
         "assets/screenshot-panel-ko.png": "docs/images/settings-panel-ko.png",
+        "assets/screenshot-dashboard-ko.png": "docs/images/dashboard-overview-ko.png",
+        "assets/screenshot-pending-ko.png": "docs/images/dashboard-pending-ko.png",
         "assets/screenshot-settings-ko.png": "docs/images/settings-window-ko.png",
     },
 }
 ALL_COPIES = {canonical: copy
               for pairs in COPIES.values() for canonical, copy in pairs.items()}
+
+# What the plugin card ships: the panel Codex shows and the settings window. The card
+# describes the version an install fetches, and that version has no Dashboard, so the
+# Dashboard picture joins the card in the commit that bumps the version and not before.
+# The Pending page is documentation only - a catalogue entry is not the place for a table.
+CARD = ("assets/screenshot-panel.png", "assets/screenshot-settings.png")
+WINDOW_SHOTS = tuple(name for pairs in COPIES.values() for name in pairs
+                     if "screenshot-panel" not in name)
 
 # Which README shows which locale's pictures. A Korean page above English screenshots is
 # the documentation equivalent of the settings window that would not translate.
@@ -123,6 +133,35 @@ class ManifestTests(unittest.TestCase):
                          '"retry_timing"'):
             self.assertTrue(expected in html, "the rendered panel does not carry " + expected)
 
+    def test_the_window_inputs_include_what_the_dashboard_is_computed_by(self):
+        """The window's list went stale once already, by missing files like these.
+
+        The Dashboard computes its figures, rows, names, headline and footer from the
+        package at capture time, so each of these can change the picture without the
+        layout changing at all. Nothing can prove a compiled window's list complete; this
+        stops a file that is known to matter from falling off it again.
+        """
+        inputs = set(self.generator().WINDOW_INPUTS)
+        expected = (
+            "src/codex_auto_resume/store.py",
+            "src/codex_auto_resume/source.py",
+            "src/codex_auto_resume/config.py",
+            "src/codex_auto_resume/messages.py",
+            "src/codex_auto_resume/windows.py",
+            "src/codex_auto_resume/startup.py",
+            "src/codex_auto_resume/control.py",
+            "src/codex_auto_resume/controlcli.py",
+            "src/codex_auto_resume/machine.py",
+            "src/codex_auto_resume/interface.py",
+            "gui/Dashboard.cs",
+            "gui/SettingsApp.cs",
+            "tests/codexsim.py",
+        )
+        missing = [name for name in expected if name not in inputs]
+        self.assertEqual(missing, [],
+                         "the window is computed from these, so a change to one of them "
+                         "must mark the screenshots stale")
+
     def test_the_committed_images_are_the_ones_the_manifest_describes(self):
         wrong = [name for name, recorded in self.manifest["images"].items()
                  if digest(ROOT / name) != recorded["sha256"]]
@@ -142,8 +181,8 @@ class CopyTests(unittest.TestCase):
 
     def test_the_plugin_card_ships_the_canonical_assets(self):
         manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
-        declared = {name.lstrip("./") for name in manifest["interface"]["screenshots"]}
-        self.assertEqual(declared, set(COPIES["en"]),
+        declared = [name.lstrip("./") for name in manifest["interface"]["screenshots"]]
+        self.assertEqual(declared, list(CARD),
                          "the plugin card and this test disagree about which images ship")
 
     def test_each_readme_shows_its_own_locale(self):
@@ -267,7 +306,7 @@ class PixelTests(unittest.TestCase):
 
     def test_every_window_screenshot_has_both_hairlines(self):
         """One capture in four lost the header's rule the same way the dot was lost."""
-        for name in ("assets/screenshot-settings.png", "assets/screenshot-settings-ko.png"):
+        for name in WINDOW_SHOTS:
             width, height, rows = read_png(ROOT / name)
             ruled = [y for y, row in enumerate(rows)
                      if sum(1 for pixel in row if pixel == self.LINE) > width * 0.9]
@@ -276,7 +315,7 @@ class PixelTests(unittest.TestCase):
                 self.assertTrue(any(y > height * 3 // 4 for y in ruled), "no rule over the footer")
 
     def test_every_window_screenshot_shows_the_state_dot(self):
-        for name in ("assets/screenshot-settings.png", "assets/screenshot-settings-ko.png"):
+        for name in WINDOW_SHOTS:
             width, height, rows = read_png(ROOT / name)
             header = rows[:height * 15 // 100]
             left = width // 8
@@ -326,6 +365,55 @@ class ContentTests(unittest.TestCase):
                 self.assertRegex(value, synthetic,
                                  "a published screenshot must not show a real conversation")
         self.assertNotIn(str(Path.home()), blob, "the sample names a real home directory")
+
+    def test_the_window_sample_carries_no_real_identifier(self):
+        """The Dashboard pictures are public too, and are rendered from records written
+        at capture time. Seeded here the same way and read back whole."""
+        import re
+        import sqlite3
+        import sys
+        import tempfile
+        import time
+        sys.path.insert(0, str(ROOT / "build"))
+        try:
+            import make_screenshots
+        finally:
+            sys.path.pop(0)
+        synthetic = re.compile(r"^(?:0a1b2c3d-|([0-9a-f])\1{7}-|deadbeef-|12345678-)", re.I)
+        uuid = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}"
+                          r"-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
+        with tempfile.TemporaryDirectory() as scratch:
+            home, codex = Path(scratch) / "home", Path(scratch) / "codex"
+            make_screenshots.seed_window_state(home, codex, time.time())
+            # codexsim records absolute rollout paths, so the scratch root is in the data,
+            # and on some machines TEMP itself has a GUID segment. That identifier names
+            # this machine's temporary directory rather than a conversation, and it is not
+            # drawn, so it is set aside instead of failing a check about the sample. The
+            # resolved spelling too, in case a short name in TEMP is expanded on the way in.
+            own = {value.lower() for text in (scratch, str(Path(scratch).resolve()))
+                   for value in uuid.findall(text)}
+            # Each column value as it was stored. A repr'd row doubles every backslash in a
+            # Windows path, so the text searched would not be the text that was written.
+            values = []
+            for database in list(home.rglob("*.sqlite*")) + list(codex.rglob("*.sqlite")):
+                if database.suffix != ".sqlite":
+                    continue
+                with sqlite3.connect(database) as connection:
+                    for (table,) in connection.execute(
+                            "SELECT name FROM sqlite_master WHERE type='table'").fetchall():
+                        for row in connection.execute(
+                                'SELECT * FROM "%s"' % table).fetchall():
+                            values.extend(str(value) for value in row)
+                connection.close()
+        found = [value for text in values for value in uuid.findall(text)
+                 if value.lower() not in own]
+        self.assertTrue(found, "the sample should contain conversations to show")
+        for value in found:
+            with self.subTest(value):
+                self.assertRegex(value, synthetic,
+                                 "a published screenshot must not show a real conversation")
+        for name in make_screenshots.WINDOW_NAMES:
+            self.assertTrue(name.startswith("example-"), name)
 
     def test_the_sample_version_comes_from_the_manifest(self):
         """The whole point: change plugin.json and the picture's version follows."""

@@ -274,7 +274,7 @@ namespace CodexAutoResume
         // Doubling every backslash instead - the obvious-looking version - turns a path
         // into one with doubled separators. Windows tolerates that, so it works right up
         // until something compares two paths for equality.
-        private static string Quote(string value)
+        internal static string Quote(string value)
         {
             var builder = new StringBuilder("\"");
             int slashes = 0;
@@ -289,22 +289,30 @@ namespace CodexAutoResume
         }
     }
 
-    internal sealed class SettingsForm : Form
+    internal sealed partial class SettingsForm : Form
     {
         // The palette lives in src/codex_auto_resume/brand.py and is generated into
         // gui/Brand.cs, so the window, the Codex panel, the icon and the plugin card
         // cannot disagree about what colour this product is.
-        private static readonly Color Ink     = Brand.Ink;
-        private static readonly Color Muted   = Brand.Muted;
-        private static readonly Color Line    = Brand.Line;
-        private static readonly Color Surface = Brand.Surface;
-        private static readonly Color Canvas  = Brand.Canvas;
-        private static readonly Color Accent  = Brand.Accent;
-        private static readonly Color OnAccent = Brand.OnAccent;
-        private static readonly Color Active  = Brand.Active;
-        private static readonly Color Idle    = Brand.Idle;
+        //
+        // Except in High Contrast mode, where the person has chosen their colours for a
+        // reason and a brand palette would override it: then every colour is a system one.
+        private static readonly bool Contrast = SystemInformation.HighContrast;
+        private static readonly Color Ink     = Contrast ? SystemColors.WindowText : Brand.Ink;
+        private static readonly Color Muted   = Contrast ? SystemColors.GrayText : Brand.Muted;
+        // Secondary text that is still live. In High Contrast mode GrayText means
+        // "disabled", so there it is the ordinary text colour, and weight and position
+        // carry the hierarchy instead. Muted stays for what really is disabled.
+        private static readonly Color Secondary = Contrast ? SystemColors.WindowText : Brand.Muted;
+        private static readonly Color Line    = Contrast ? SystemColors.WindowFrame : Brand.Line;
+        private static readonly Color Surface = Contrast ? SystemColors.Window : Brand.Surface;
+        private static readonly Color Canvas  = Contrast ? SystemColors.Control : Brand.Canvas;
+        private static readonly Color Accent  = Contrast ? SystemColors.Highlight : Brand.Accent;
+        private static readonly Color OnAccent = Contrast ? SystemColors.HighlightText : Brand.OnAccent;
+        private static readonly Color Active  = Contrast ? SystemColors.Highlight : Brand.Active;
+        private static readonly Color Idle    = Contrast ? SystemColors.GrayText : Brand.Idle;
 
-        private readonly Bridge bridge;
+        private readonly PersistentBridge bridge;
         private readonly Dictionary<string, Control> editors = new Dictionary<string, Control>();
 
         private readonly TableLayoutPanel columns = new TableLayoutPanel();
@@ -365,7 +373,7 @@ namespace CodexAutoResume
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern int GetDpiForSystem();
 
-        private static readonly double DpiScale = MeasureDpiScale();
+        internal static readonly double DpiScale = MeasureDpiScale();
 
         // Every fixed number in this file is written at 96 DPI and scaled here.
         //
@@ -410,7 +418,7 @@ namespace CodexAutoResume
             return new Padding(Px(left), Px(top), Px(right), Px(bottom));
         }
 
-        internal SettingsForm(Bridge bridge)
+        internal SettingsForm(PersistentBridge bridge)
         {
             this.bridge = bridge;
             // Before anything is built: every label below asks the catalog for its text.
@@ -421,7 +429,7 @@ namespace CodexAutoResume
             BackColor = Canvas;
             StartPosition = FormStartPosition.CenterScreen;
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(Px(780), Px(560));
+            ClientSize = new Size(Px(860), Px(600));
             // Wide enough that the two columns always hold their content. Allowing a
             // narrower window buys nothing: the labels start truncating mid-word, which
             // looks broken rather than compact.
@@ -436,21 +444,36 @@ namespace CodexAutoResume
             BuildFooter();
             BuildHeader();
             BuildColumns();
+            BuildDashboard();
 
             // The fill control is added first so the docked strips keep their edges:
             // docking is resolved from the last-added control inward, so whatever is
-            // added first ends up with what is left.
-            Controls.Add(columns);
+            // added first ends up with what is left. The page host holds whichever page
+            // is showing; the settings columns are one of those pages.
+            Controls.Add(pageHost);
             Controls.Add(footer);
+            Controls.Add(nav);
             Controls.Add(header);
+            // The keyboard follows the screen, not the order docking needs: without these the
+            // Tab key went through the page, the footer and the page tabs before it reached
+            // the header's Start button - the one control that matters when the watcher is off.
+            header.TabIndex = 0;
+            nav.TabIndex = 1;
+            pageHost.TabIndex = 2;
+            footer.TabIndex = 3;
 
-            Load += delegate { Reload(); };
+            Load += delegate { Reload(); ShowPage(firstPage); StartClock(); };
+            FormClosed += delegate { StopClock(); bridge.Stop(); };
         }
 
         // ------------------------------------------------------------------- chrome
         private void BuildColumns()
         {
             columns.Dock = DockStyle.Fill;
+            // FitToContent measures this page before ShowPage first parents it, and an
+            // unparented control inherits Control.DefaultFont rather than the window's -
+            // which measured the settings 40 pixels shorter than they are.
+            columns.Font = Font;
             columns.BackColor = Canvas;
             columns.ColumnCount = 2;
             columns.RowCount = 1;
@@ -523,7 +546,7 @@ namespace CodexAutoResume
 
             detail.Dock = DockStyle.Fill;
             detail.TextAlign = ContentAlignment.TopLeft;
-            detail.ForeColor = Muted;
+            detail.ForeColor = Secondary;
             detail.AutoEllipsis = true;   // narrow gracefully instead of wrapping
             detail.Margin = Pad(0, 2, 0, 0);
 
@@ -588,8 +611,11 @@ namespace CodexAutoResume
             // allowed for, and every button lost the last two rows of its own border.
             row.Margin = new Padding(0);
             row.Controls.Add(MakeButton(S("action.close", "Close"), false, delegate { Close(); }));
-            row.Controls.Add(MakeButton(S("action.save", "Save"), true, delegate { Save(); }));
-            row.Controls.Add(MakeButton(S("action.restore", "Restore defaults"), false, delegate { RestoreDefaults(); }));
+            // Only the Settings page has anything to save.
+            saveButton = MakeButton(S("action.save", "Save"), true, delegate { Save(); });
+            restoreButton = MakeButton(S("action.restore", "Restore defaults"), false, delegate { RestoreDefaults(); });
+            row.Controls.Add(saveButton);
+            row.Controls.Add(restoreButton);
 
             versionText.Margin = new Padding(0);
             grid.Controls.Add(versionText, 0, 0);
@@ -623,6 +649,18 @@ namespace CodexAutoResume
             button.UseVisualStyleBackColor = false;
             button.Cursor = Cursors.Hand;
             button.Click += onClick;
+            if (primary)
+            {
+                // A disabled flat button keeps its fill and greys only its text, which on the
+                // accent reads as a live button with a rendering fault. So a primary button
+                // that cannot be pressed looks like any other that cannot.
+                button.EnabledChanged += delegate
+                {
+                    button.BackColor = button.Enabled ? Accent : Surface;
+                    button.FlatAppearance.BorderColor = button.Enabled ? Accent : Line;
+                    button.ForeColor = button.Enabled ? OnAccent : Muted;
+                };
+            }
             return button;
         }
 
@@ -691,6 +729,14 @@ namespace CodexAutoResume
         // -------------------------------------------------------------------- cards
         private TableLayoutPanel NewGroup(string title, TableLayoutPanel stack)
         {
+            TableLayoutPanel card = MakeCard(title);
+            stack.Controls.Add(card);
+            stack.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            return card;
+        }
+
+        private TableLayoutPanel MakeCard(string title)
+        {
             // The card IS the layout panel rather than a Panel wrapping one. A Panel
             // measures AutoSize from anchored children only, so a docked AutoSize child
             // reports nothing: the panel keeps its default height and the last row of
@@ -720,9 +766,6 @@ namespace CodexAutoResume
             heading.Font = new Font(Font.FontFamily, Font.Size + 0.5f, FontStyle.Bold);
             heading.Margin = Pad(0, 0, 0, 10);
             card.Controls.Add(heading);
-
-            stack.Controls.Add(card);
-            stack.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             return card;
         }
 
@@ -814,20 +857,31 @@ namespace CodexAutoResume
         // ------------------------------------------------------------------ loading
         private void Reload()
         {
-            List<object> schema;
-            Dictionary<string, object> current;
-            try
+            // Both reads on a worker, one after the other. The Dashboard's clock takes the
+            // bridge lock from a pool thread every five seconds, so reading the schema on
+            // this thread stops the window repainting until that read has finished too.
+            CallAsync("describe", null, delegate(Dictionary<string, object> described)
             {
-                schema = (List<object>)bridge.Call("describe", null)["schema"];
-                current = (Dictionary<string, object>)bridge.Call("settings", null)["settings"];
-            }
-            catch (Exception error)
-            {
-                headline.Text = "Could not read the local settings";
-                detail.Text = error.Message;
-                return;
-            }
+                if (!Ok(described)) { ReloadFailed(described); return; }
+                CallAsync("settings", null, delegate(Dictionary<string, object> settings)
+                {
+                    if (!Ok(settings)) { ReloadFailed(settings); return; }
+                    BuildEditors(described["schema"] as List<object>,
+                                 settings["settings"] as Dictionary<string, object>);
+                });
+            });
+        }
 
+        private void ReloadFailed(Dictionary<string, object> reply)
+        {
+            headline.Text = S("settings.load_failed", "Could not read the local settings");
+            detail.Text = Convert.ToString(Get(reply, "error"), CultureInfo.InvariantCulture);
+            header.Invalidate(true);
+        }
+
+        private void BuildEditors(List<object> schema, Dictionary<string, object> current)
+        {
+            if (schema == null || current == null) { ReloadFailed(null); return; }
             columns.SuspendLayout();
             foreach (TableLayoutPanel stack in new TableLayoutPanel[] { leftStack, rightStack })
             {
@@ -923,7 +977,7 @@ namespace CodexAutoResume
             }
 
             columns.ResumeLayout(true);
-            RefreshStatus(startup);
+            RefreshStatusAsync(null);
             FitToContent();
         }
 
@@ -932,7 +986,7 @@ namespace CodexAutoResume
             // A settings window should show its settings. Grow to fit both columns, and
             // fall back to scrolling only when the screen genuinely cannot hold them.
             int tallest = Math.Max(leftStack.PreferredSize.Height, rightStack.PreferredSize.Height);
-            int wanted = tallest + columns.Padding.Vertical + header.Height + footer.Height;
+            int wanted = tallest + columns.Padding.Vertical + header.Height + footer.Height + nav.Height;
             Rectangle screen = Screen.FromControl(this).WorkingArea;
             int maximum = screen.Height - (Height - ClientSize.Height) - 80;
             // The width is scaled, so on a small screen at a large scaling factor the
@@ -950,43 +1004,64 @@ namespace CodexAutoResume
             Top = Math.Max(screen.Top, screen.Top + (screen.Height - Height) / 2);
         }
 
-        private void RefreshStatus(CheckBox startup)
+        private void StatusUnavailable()
         {
-            try
-            {
-                var status = (Dictionary<string, object>)bridge.Call("status", null)["status"];
-                object running = status["watcher_running"];
-                bool enabled = Equals(status["enabled"], true);
-                double pending = status.ContainsKey("pending") ? (double)status["pending"] : 0;
-                if (startup != null) startup.Checked = Equals(status["startup_enabled"], true);
+            dotColor = Idle;
+            headline.Text = S("status.unavailable", "Status unavailable");
+            detail.Text = S("status.unavailable_detail", "Settings can still be changed and saved");
+            // The version is deliberately left as it was: a failed status read is no
+            // reason to drop the one field people are asked for when reporting a bug.
+            header.Invalidate(true);
+        }
 
-                dotColor = Equals(running, true) && enabled ? Active : Idle;
-                headline.Text = running == null ? S("status.unknown", "Watcher status unknown")
-                              : !Equals(running, true) ? S("status.not_running", "Watcher not running")
-                              : enabled ? S("status.watching", "Watching for interruptions")
-                              : S("status.paused", "Watching paused");
-                int count = (int)pending;
-                string tail = count == 0 ? S("status.pending_none", "Nothing pending")
-                            : count == 1 ? S("status.pending_one", "1 recovery pending")
-                            : S("status.pending_many", "{n} recoveries pending", "n", (int)count);
-                // Two facts, most consequential first: whether recovery can happen at
-                // all, and then what is waiting on it.
-                string recovery = !Equals(running, true)
-                                  ? S("status.recovery_idle", "Nothing will be recovered until it is running")
-                                : enabled ? S("status.recovery_on", "Automatic recovery is on")
-                                : S("status.recovery_paused", "Automatic recovery is paused");
-                detail.Text = recovery + "   ·   " + tail;
-                versionText.Text = "v" + status["version"];
-                if (startButton != null) startButton.Visible = Equals(running, false);
-            }
-            catch (Exception)
+        /// The status line, read on a worker. `after` runs on the window's thread once the
+        /// line has been written, so a caller with something more specific to say gets the
+        /// last word instead of racing the read for it.
+        private void RefreshStatusAsync(Action after)
+        {
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
             {
-                dotColor = Idle;
-                headline.Text = S("status.unavailable", "Status unavailable");
-                detail.Text = S("status.unavailable_detail", "Settings can still be changed and saved");
-                // The version is deliberately left as it was: a failed status read is no
-                // reason to drop the one field people are asked for when reporting a bug.
-            }
+                Dictionary<string, object> reply = null;
+                try { reply = bridge.Call("status", null); }
+                catch (Exception) { reply = null; }
+                MethodInvoker apply = delegate
+                {
+                    var status = Ok(reply) ? reply["status"] as Dictionary<string, object> : null;
+                    if (status != null)
+                        ApplyStatus(status, editors.ContainsKey("__startup") ? editors["__startup"] as CheckBox : null);
+                    else StatusUnavailable();
+                    if (after != null) after();
+                };
+                try { if (IsHandleCreated && !IsDisposed) BeginInvoke(apply); }
+                catch (Exception) { }
+            });
+        }
+
+        private void ApplyStatus(Dictionary<string, object> status, CheckBox startup)
+        {
+            object running = status["watcher_running"];
+            bool enabled = Equals(status["enabled"], true);
+            double pending = status.ContainsKey("pending") ? (double)status["pending"] : 0;
+            if (startup != null) startup.Checked = Equals(status["startup_enabled"], true);
+
+            dotColor = Equals(running, true) && enabled ? Active : Idle;
+            headline.Text = running == null ? S("status.unknown", "Watcher status unknown")
+                          : !Equals(running, true) ? S("status.not_running", "Watcher not running")
+                          : enabled ? S("status.watching", "Watching for interruptions")
+                          : S("status.paused", "Watching paused");
+            int count = (int)pending;
+            string tail = count == 0 ? S("status.pending_none", "Nothing pending")
+                        : count == 1 ? S("status.pending_one", "1 recovery pending")
+                        : S("status.pending_many", "{n} recoveries pending", "n", (int)count);
+            // Two facts, most consequential first: whether recovery can happen at
+            // all, and then what is waiting on it.
+            string recovery = !Equals(running, true)
+                              ? S("status.recovery_idle", "Nothing will be recovered until it is running")
+                            : enabled ? S("status.recovery_on", "Automatic recovery is on")
+                            : S("status.recovery_paused", "Automatic recovery is paused");
+            detail.Text = recovery + "   ·   " + tail;
+            versionText.Text = "v" + status["version"];
+            if (startButton != null) startButton.Visible = Equals(running, false);
             header.Invalidate(true);
         }
 
@@ -1048,22 +1123,22 @@ namespace CodexAutoResume
                            ? response["result"] as Dictionary<string, object> : null;
                 string state = result != null && result.ContainsKey("state")
                              ? result["state"] as string : null;
-                RefreshStatus(editors.ContainsKey("__startup") ? editors["__startup"] as CheckBox : null);
-                if (state != "running" && state != "already-running")
+                RefreshStatusAsync(delegate
                 {
-                    // RefreshStatus has just written the status line from the probe, so
-                    // this replaces it rather than competing with it: the watcher is not
-                    // running, and the reason it is not is worth more than the reason a
-                    // stopped watcher is normally not running.
+                    if (state == "running" || state == "already-running") return;
+                    // The status line has just been written from the probe, so this
+                    // replaces it rather than racing it: the watcher is not running, and
+                    // the reason it is not is worth more than the reason a stopped
+                    // watcher is normally not running.
                     detail.Text = state == "exited"
                         ? S("start.exited", "It started and stopped again - see logs in the installation folder")
                         : S("start.unconfirmed", "Started, but not confirmed running yet");
                     header.Invalidate(true);
-                }
+                });
             }
             catch (Exception error)
             {
-                RefreshStatus(editors.ContainsKey("__startup") ? editors["__startup"] as CheckBox : null);
+                RefreshStatusAsync(null);
                 MessageBox.Show(this, S("start.failed", "Could not start the watcher.") + Environment.NewLine +
                                 Environment.NewLine + error.Message,
                                 "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -1094,38 +1169,46 @@ namespace CodexAutoResume
             }
             changes.Append('}');
 
-            try
+            // The two writes on a worker, in order: the settings, then the sign-in entry.
+            // Neither is started until the one before it has been answered, so a failure
+            // stops the rest rather than reporting a save that half happened.
+            var startup = editors.ContainsKey("__startup") ? editors["__startup"] as CheckBox : null;
+            bool startAtSignIn = startup != null && startup.Checked;
+            CallAsync("update", changes.ToString(), delegate(Dictionary<string, object> updated)
             {
-                var response = bridge.Call("update", changes.ToString());
-                if (!Equals(response["ok"], true))
-                    throw new InvalidOperationException((string)response["error"]);
-                var startup = editors["__startup"] as CheckBox;
-                bridge.Call("startup", "{\"enabled\":" + (startup.Checked ? "true" : "false") + "}");
-                RefreshStatus(startup);
-                detail.Text = "Saved - the watcher uses these from its next check";
-            }
-            catch (Exception error)
-            {
-                MessageBox.Show(this, "Could not save." + Environment.NewLine + Environment.NewLine + error.Message,
-                                "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
+                if (!Ok(updated)) { SaveFailed(updated); return; }
+                CallAsync("startup", "{\"enabled\":" + (startAtSignIn ? "true" : "false") + "}",
+                          delegate(Dictionary<string, object> registered)
+                {
+                    if (!Ok(registered)) { SaveFailed(registered); return; }
+                    RefreshStatusAsync(delegate
+                    {
+                        detail.Text = S("settings.saved", "Saved - the watcher uses these from its next check");
+                        header.Invalidate(true);
+                    });
+                });
+            });
+        }
+
+        private void SaveFailed(Dictionary<string, object> reply)
+        {
+            MessageBox.Show(this, S("settings.save_failed", "Could not save.") + Environment.NewLine + Environment.NewLine +
+                            Convert.ToString(Get(reply, "error"), CultureInfo.InvariantCulture),
+                            "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
         private void RestoreDefaults()
         {
-            if (MessageBox.Show(this, "Reset every setting to its recommended value?",
+            if (MessageBox.Show(this, S("settings.confirm_restore", "Reset every setting to its recommended value?"),
                                 "Codex Auto Resume", MessageBoxButtons.YesNo,
                                 MessageBoxIcon.Question) != DialogResult.Yes) return;
-            try
+            CallAsync("defaults", null, delegate(Dictionary<string, object> reply)
             {
-                bridge.Call("defaults", null);
-                Reload();
-            }
-            catch (Exception error)
-            {
-                MessageBox.Show(this, "Could not restore defaults." + Environment.NewLine + Environment.NewLine + error.Message,
+                if (Ok(reply)) { Reload(); return; }
+                MessageBox.Show(this, S("settings.restore_failed", "Could not restore defaults.") + Environment.NewLine +
+                                Environment.NewLine + Convert.ToString(Get(reply, "error"), CultureInfo.InvariantCulture),
                                 "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
+            });
         }
     }
 
@@ -1134,6 +1217,12 @@ namespace CodexAutoResume
         [STAThread]
         internal static int Main(string[] argv)
         {
+            // The accessibility improvements .NET 4.8 ships but leaves off for an assembly
+            // with no target-framework attribute, which is what the in-box compiler builds.
+            // Without them a live region never reaches a screen reader.
+            AppContext.SetSwitch("Switch.UseLegacyAccessibilityFeatures", false);
+            AppContext.SetSwitch("Switch.UseLegacyAccessibilityFeatures.2", false);
+            AppContext.SetSwitch("Switch.UseLegacyAccessibilityFeatures.3", false);
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
@@ -1146,7 +1235,7 @@ namespace CodexAutoResume
                                 "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return 1;
             }
-            Application.Run(new SettingsForm(bridge));
+            Application.Run(new SettingsForm(new PersistentBridge(root, bridge)));
             return 0;
         }
     }

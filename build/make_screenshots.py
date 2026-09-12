@@ -1,4 +1,4 @@
-"""Render the two screenshots the README and the plugin card show.
+"""Render the screenshots the README and the plugin card show.
 
 Both images had drifted three releases behind the product: they showed v0.5.2 while the
 manifest said 0.5.4. That was not carelessness, it was the absence of this file. Every
@@ -7,11 +7,11 @@ screenshot in the repository was made by hand - build the window, arrange it, ru
 step that gets skipped, especially the fourth time.
 
 So the version in a screenshot now comes from the same place as the version everywhere
-else. There is no number in this file and no mock JSON on disk to forget: the settings
-window is rendered from a scratch installation assembled out of the working tree, and the
-panel is rendered from `mcpui` with sample data whose version field is `config.version()`.
-Change `.codex-plugin/plugin.json` and re-run this, and both images say the new version
-without another edit anywhere.
+else. There is no number in this file and no mock JSON on disk to forget: the window -
+its Overview, Pending and Settings pages - is rendered from a scratch installation
+assembled out of the working tree, and the panel is rendered from `mcpui` with sample
+data whose version field is `config.version()`. Change `.codex-plugin/plugin.json` and
+re-run this, and every image says the new version without another edit anywhere.
 
 `assets/screenshots.json` records what the images were rendered from. It is not a
 signature and it is not checked at runtime - `tests/test_screenshots.py` compares the
@@ -20,15 +20,19 @@ images did not. That is the part that could not be done by remembering.
 
     python build/make_screenshots.py
 
-Run it from a checkout, on Windows, with the settings window built. It writes the two
+Run it from a checkout, on Windows, with the settings window built. It writes the
 canonical assets and copies them to `docs/images/`.
 
 Two things it deliberately does NOT do:
 
-* It does not run a watcher. The settings window shows "watching" when the
-  single-instance mutex is held, so a helper holds exactly that mutex for the few seconds
-  of the capture. A real watcher would scan the user's own Codex history and could resume
-  a real conversation, which is not a thing a documentation build may do.
+* It does not run a watcher. The window shows "watching" when the single-instance mutex
+  is held and "checking" while the watcher's heartbeat is fresh, so a helper holds exactly
+  that mutex and writes exactly that heartbeat for the length of the capture. A real
+  watcher would scan the user's own Codex history and could resume a real conversation,
+  which is not a thing a documentation build may do. The records the Dashboard shows are
+  synthetic, written into the scratch installation's own store (see `seed_window_state`),
+  and the conversation names come from a synthetic Codex home the window is pointed at -
+  never from the user's.
 * It does not edit an image. If a screenshot is wrong, the source that produced it is
   wrong.
 """
@@ -70,11 +74,14 @@ COPIES = {PANEL: DOCS / "settings-panel.png", SETTINGS: DOCS / "settings-window.
 # five more that visibly change the pictures - the title-bar icon, the store fields behind
 # every pending row, the control layer that decides what a row carries, the DPI manifest
 # and the capture script itself. The panel no longer relies on a list at all (see below);
-# this one stays as short as it can be and is checked by tests/test_screenshots.py against
-# what the generator actually reads.
+# this one stays as short as it can be. Nothing can check it against what the compiled
+# window actually reads, so tests/test_screenshots.py checks the part that can be named:
+# that every file the Dashboard's figures, rows and names are computed by is on it. A file
+# missing from that test is a file this list can miss again.
 WINDOW_INPUTS = (
     ".codex-plugin/plugin.json",          # the version in the footer
     "gui/SettingsApp.cs",                 # the window's layout and wording
+    "gui/Dashboard.cs",                   # the Dashboard pages
     "gui/Brand.cs",                       # its palette
     "gui/app.manifest",                   # its DPI awareness, and so its size
     "assets/codex-auto-resume.ico",       # the mark in the title bar, which is captured
@@ -86,6 +93,22 @@ WINDOW_INPUTS = (
     # Start button is in the picture at all.
     "src/codex_auto_resume/controlcli.py",
     "src/codex_auto_resume/app.py",
+    # Every word of the window, in both languages, is the interface catalog; what a row
+    # carries and which public status it shows are decided by the control layer and the
+    # state machine.
+    "src/codex_auto_resume/interface.py",
+    "src/codex_auto_resume/control.py",
+    "src/codex_auto_resume/machine.py",
+    # The Dashboard computes its figures from the local records rather than reading them
+    # from a caption, so each of these changes a number, a row or a word in the picture.
+    # statistics, history order, pending rows, and the heartbeat behind 'checking'
+    "src/codex_auto_resume/store.py",
+    "src/codex_auto_resume/source.py",    # conversation names, via LocalSource.identity
+    "src/codex_auto_resume/config.py",    # Paths, codex_home and the version it reads
+    "src/codex_auto_resume/messages.py",  # which language the window is resolved to
+    "src/codex_auto_resume/windows.py",   # the mutex that decides 'watching'
+    "src/codex_auto_resume/startup.py",   # the start-at-sign-in value
+    "tests/codexsim.py",                  # the synthetic Codex home the names come from
     "build/capture_window.ps1",           # how much of the window is captured
     # Whether the icon and the DPI manifest are compiled into the binary at all, and
     # which sources go into it. The two entries above it are only inputs because this
@@ -191,6 +214,82 @@ def sample_panel_data() -> dict:
     status["home"] = r"%USERPROFILE%\.codex-auto-resume"
     return {"status": status, "schema": policy.describe(),
             "settings": policy.defaults(), "pending": waiting}
+
+
+# The Dashboard's sample: four conversations, from the same fixture family as the panel's.
+WINDOW_THREADS = ("11111111-1111-7111-8111-111111111111",
+                  "22222222-2222-7222-8222-222222222222",
+                  "33333333-3333-7333-8333-333333333333",
+                  "44444444-4444-7444-8444-444444444444")
+WINDOW_NAMES = ("example-project", "example-service", "example-docs", "example-app")
+
+
+def seed_window_state(home: Path, codex: Path, now: float) -> None:
+    """The records the Dashboard is photographed showing, written by the product's own store.
+
+    Two recoveries waiting - a usage limit that resets in about forty minutes and a
+    network failure due in a minute and a half - and six that finished earlier in the
+    week: four recovered, one whose turn ran but made no progress, and one a person took
+    over. Enough finished records for the success rate to be shown at all (it needs
+    five), and not a flattering hundred percent. Every record walks the same transitions the
+    engine makes (claim, send, the exact turn it started, how that turn ended), so the
+    history, the statistics and each timeline are what the store derives from them rather
+    than numbers typed here.
+
+    The names come from a synthetic Codex home, read through the same `LocalSource` the
+    window uses for a real one - so the picture never shows `11111111` where a person
+    would see their own project. `tests/codexsim.py` builds it: the columns of a real
+    Codex installation, with nothing of the user's in them.
+    """
+    sys.path.insert(0, str(ROOT / "tests"))
+    try:
+        from codexsim import CodexHome
+    finally:
+        sys.path.pop(0)
+    from codex_auto_resume.store import Store
+
+    sim = CodexHome(codex)
+    for thread, name in zip(WINDOW_THREADS, WINDOW_NAMES):
+        sim.add_thread(thread, name=name)
+    paths = config.Paths(home)
+    paths.ensure()
+    limits = {"max_recovery_attempts": 9, "max_no_progress": 9, "max_chain_continuations": 9}
+
+    def detection(index, thread, category, detected, reset_at=None):
+        return {"thread_id": thread, "turn_id": "0a1b2c3d-0301-7000-8000-%012d" % index,
+                "completed_at": detected - 1, "started_at": detected - 240, "ordinal": 2,
+                "interruption_id": "%x" % index * 64, "reset_at": reset_at,
+                "limit_type": "codex.primary" if category == "usage_limit" else category,
+                "uncertain": False, "category": category}
+
+    def finished(store, index, thread, category, detected, outcome):
+        record = detection(index, thread, category, detected)
+        store.register(record, detected, state="waiting_backoff", next_retry_at=detected + 60)
+        key = record["interruption_id"]
+        store.reserve_detailed(key, detected + 60, limits=limits)
+        store.update(key, at=detected + 61, event="submitted", state="queued",
+                     queue_id="0a1b2c3d-0302-7000-8000-%012d" % index)
+        store.correlate(key, "0a1b2c3d-0303-7000-8000-%012d" % index, detected + 64)
+        if outcome == "stopped_by_user":
+            store.update(key, at=detected + 200, state="stopped_by_user", outcome_at=detected + 200)
+            return
+        store.update(key, at=detected + 610, state="turn_completed")
+        store.update(key, at=detected + 620, state=outcome, outcome_at=detected + 620)
+
+    hour = 3600
+    with Store(paths.state_dir) as store:
+        store.set_enabled(True, now - 6 * 24 * hour)
+        finished(store, 1, WINDOW_THREADS[2], "server_5xx", now - 5 * 24 * hour, "recovered")
+        finished(store, 2, WINDOW_THREADS[0], "usage_limit", now - 4 * 24 * hour, "recovered")
+        finished(store, 3, WINDOW_THREADS[3], "network_transient", now - 3 * 24 * hour,
+                 "completed_no_progress")
+        finished(store, 4, WINDOW_THREADS[1], "server_5xx", now - 2 * 24 * hour, "recovered")
+        finished(store, 5, WINDOW_THREADS[3], "network_transient", now - 9 * hour, "stopped_by_user")
+        finished(store, 6, WINDOW_THREADS[2], "usage_limit", now - 3 * hour, "recovered")
+        store.register(detection(7, WINDOW_THREADS[0], "usage_limit", now - 25 * 60,
+                                 reset_at=now + 42 * 60 + 20), now - 25 * 60)
+        store.register(detection(8, WINDOW_THREADS[1], "network_transient", now - 50),
+                       now - 50, state="waiting_backoff", next_retry_at=now + 95)
 
 
 # ------------------------------------------------------------------------- panel
@@ -317,33 +416,55 @@ def scratch_installation(workspace: Path) -> Path:
     return home
 
 
+# Holds the watcher's mutex and writes the watcher's heartbeat once a second - the two
+# things the window reads to say a watcher is running and checking - and nothing else. No
+# engine, no source, no Codex.
 HOLD_MUTEX = """
-import sys, time
+import os, sys, time
 sys.path.insert(0, sys.argv[1])
 from codex_auto_resume import config
 from codex_auto_resume.app import App
+from codex_auto_resume.store import Store
 paths = config.Paths(sys.argv[2])
+started = time.time()
 with App(paths, console=False, enable_logging=False).mutex(timeout=0):
     sys.stdout.write("held\\n")
     sys.stdout.flush()
-    time.sleep(float(sys.argv[3]))
+    while time.time() - started < float(sys.argv[3]):
+        with Store(paths.state_dir) as store:
+            store.heartbeat(time.time(), pid=os.getpid(), session_id="screenshot",
+                            started_at=started - 5400, ok=True, engine_state="verified",
+                            code_version=config.version())
+        time.sleep(1)
 """
 
+# Which page of the window each picture is of, as the window's own command line names it.
+WINDOW_PAGES = ("overview", "pending", "settings")
 
-def render_settings_window(target: Path) -> str:
-    """Capture the window, with the watcher's mutex held but no watcher running.
+
+def render_window(targets: dict) -> dict:
+    """Capture each page of the window, with the watcher's mutex held but no watcher running.
 
     The window reports "watching" when the single-instance mutex is taken, so taking it
     is enough to show the product in its ordinary state. Starting a real watcher would
     put a recovery engine on the user's own Codex history for the length of a
     documentation build, which is not a trade this makes.
+
+    `targets` maps a page name to the image it is captured into. One installation serves
+    every page, so the pages show the same records at nearly the same moment.
     """
     with tempfile.TemporaryDirectory() as name:
         workspace = Path(name)
         home = scratch_installation(workspace)
+        codex = workspace / "codex"
+        seed_window_state(home, codex, time.time())
+        # The window reads conversation names from Codex's own state, found through
+        # CODEX_HOME - pointed here at the synthetic one, so a capture can never show,
+        # or even open, the user's.
+        environment = dict(os.environ, CODEX_HOME=str(codex))
         holder = subprocess.Popen(
             [str(home / "runtime" / "python.exe"), "-c", HOLD_MUTEX,
-             str(home / "app" / "src"), str(home), "40"],
+             str(home / "app" / "src"), str(home), str(40 + 20 * len(targets))],
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
         try:
             if (holder.stdout.readline() or "").strip() != "held":
@@ -357,15 +478,16 @@ def render_settings_window(target: Path) -> str:
                             str(home / "app" / "src"), str(home),
                             json.dumps({"enabled": True})],
                            check=True, capture_output=True, timeout=120)
-            subprocess.run(
-                ["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy",
-                 "Bypass", "-File", str(ROOT / "build" / "capture_window.ps1"),
-                 "-Exe", str(home / "CodexAutoResumeSettings.exe"),
-                 "-Out", str(target), "-Wait", "8"],
-                check=True, capture_output=True, timeout=300)
+            for page, target in targets.items():
+                subprocess.run(
+                    ["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy",
+                     "Bypass", "-File", str(ROOT / "build" / "capture_window.ps1"),
+                     "-Exe", str(home / "CodexAutoResumeSettings.exe"),
+                     "-Out", str(target), "-Wait", "8", "-Arguments", "--page=" + page],
+                    check=True, capture_output=True, timeout=300, env=environment)
         finally:
             holder.kill()
-    return dimensions(target)
+    return {page: dimensions(target) for page, target in targets.items()}
 
 
 # ---------------------------------------------------------------------- manifest
@@ -457,13 +579,31 @@ THEME = "light"
 LOCALES = ("en", "ko")
 
 
+# Canonical asset name and documentation copy name, per picture. The settings page keeps
+# the names it has always had, so links to it from outside the repository keep working.
+WINDOW_NAMES_BY_PAGE = {
+    "overview": ("screenshot-dashboard", "dashboard-overview"),
+    "pending": ("screenshot-pending", "dashboard-pending"),
+    "settings": ("screenshot-settings", "settings-window"),
+}
+
+
 def paths_for(locale: str):
-    """Where one locale's pair of images lives. English keeps the plain names."""
+    """Where one locale's images live: the panel first, then one per window page, each
+    mapped to its documentation copy. English keeps the plain names."""
     tag = "" if locale == "en" else "-" + locale
-    panel = ASSETS / ("screenshot-panel%s.png" % tag)
-    window = ASSETS / ("screenshot-settings%s.png" % tag)
-    return {panel: DOCS / ("settings-panel%s.png" % tag),
-            window: DOCS / ("settings-window%s.png" % tag)}
+    pairs = {ASSETS / ("screenshot-panel%s.png" % tag): DOCS / ("settings-panel%s.png" % tag)}
+    for page in WINDOW_PAGES:
+        asset, copy = WINDOW_NAMES_BY_PAGE[page]
+        pairs[ASSETS / ("%s%s.png" % (asset, tag))] = DOCS / ("%s%s.png" % (copy, tag))
+    return pairs
+
+
+def window_targets(locale: str) -> dict:
+    """Page name to canonical asset, for one locale."""
+    tag = "" if locale == "en" else "-" + locale
+    return {page: ASSETS / ("%s%s.png" % (WINDOW_NAMES_BY_PAGE[page][0], tag))
+            for page in WINDOW_PAGES}
 
 
 def main(argv=None) -> int:
@@ -479,13 +619,14 @@ def main(argv=None) -> int:
         # what the generator sets. Nothing here passes a language into a renderer: the
         # screenshots go through exactly the path a user's machine goes through.
         os.environ[messages.ENV_LANG] = locale
-        pair = paths_for(locale)
-        panel, window = list(pair)
+        pairs = paths_for(locale)
+        panel = next(iter(pairs))
         render_panel(panel)
         print("  %s  %s" % (panel.relative_to(ROOT), dimensions(panel)))
-        size = render_settings_window(window)
-        print("  %s  %s" % (window.relative_to(ROOT), size))
-        copies.update(pair)
+        targets = window_targets(locale)
+        for page, size in render_window(targets).items():
+            print("  %s  %s" % (targets[page].relative_to(ROOT), size))
+        copies.update(pairs)
     os.environ.pop(messages.ENV_LANG, None)
 
     for source, copy in copies.items():

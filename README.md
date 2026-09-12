@@ -171,10 +171,26 @@ the plugin serves to Codex, rather than a photograph of the Codex window around 
 
 <img src="docs/images/settings-panel.png" alt="The Codex Auto Resume settings panel: a status line saying the watcher is watching for interruptions with two recoveries pending, a table of what is waiting to resume, and cards for the recovered failure categories, the attempt limits and the notification switches" width="680">
 
-The same settings are in a standalone window from the Start Menu, which works with Codex
-closed:
+The Start Menu opens a standalone window, which works with Codex closed. On the main branch,
+shipping in the release after v0.5.7, it is a Dashboard: what the watcher is doing, what is
+waiting and when it is next looked at, what finished and how, the last week's numbers, the
+watcher's health, and the settings. It is a native window; there is no local web server and
+nothing opens in a browser. The pictures below are of a scratch installation holding sample
+records, not of anyone's real conversations; until that release, the version in their footer
+is the latest release's number, because the version changes only when a release is made.
 
-<img src="docs/images/settings-window.png" alt="The Codex Auto Resume settings window, showing which failures are recovered, the attempt limits, the retry timing and the notification switches" width="680">
+<img src="docs/images/dashboard-overview.png" alt="The Codex Auto Resume Dashboard overview: automatic recovery on, the watcher running and the Codex engine verified, two recoveries waiting with the next check in a minute and a half, the last seven days' interruptions, continuations sent, recoveries and success rate, and the four most recently finished recoveries" width="680">
+
+Each waiting recovery shows why it is waiting and when it is next checked. **Retry now** only
+asks the watcher to look again now — every check still applies, and nothing is sent unless
+they all pass. **Cancel** stops recovering that one interruption; a continuation already
+running in Codex is not stopped. **Turn off for this conversation** cancels its waiting
+recoveries and keeps automatic recovery off for that conversation until you turn it back on
+— the Pending and History pages then offer **Turn on for this conversation**:
+
+<img src="docs/images/dashboard-pending.png" alt="The Pending page of the Dashboard: two conversations waiting, one for the usage reset in about forty-two minutes and one with a retry scheduled in about a minute, with Retry now, Cancel, Timeline and Turn off for this conversation buttons" width="680">
+
+<img src="docs/images/settings-window.png" alt="The Settings page of the Dashboard, showing which failures are recovered, the attempt limits, the retry timing, the notification switches and the Windows options" width="680">
 
 ## Please read this limitation first
 
