@@ -218,11 +218,18 @@ These are new in v0.6.0.
 ### What a rebuild can and cannot show today
 
 Two builds from two fresh clones of one commit, on one machine with the same compiler and
-Python, produced a byte-identical archive, executables included. That is the extent of
-what has been checked. Whether GitHub's runner
-and your machine produce the same bytes has **not** been
-verified. The result depends on the build of the in-box compiler, which can differ from
-one Windows installation to another, and on the Python that writes the archive.
+Python, produced a byte-identical archive, executables included. From v0.6.0 there is a
+second result, and a stronger one: the archive GitHub's runner published and a rebuild of
+that tag from a fresh clone, on a different Windows machine, have the same SHA-256 - the
+whole ZIP, not only the files inside it.
+
+That is one measurement across two machines, and it does not say the two machines ran the
+same toolchain. The runner's compiler build is printed in the release run's log, and
+reading that log needs an account with access to the repository, so whether this was a
+same-toolchain match or a different-toolchain one is **not** established. What is
+established is that these two builds agreed. The result still depends on the build of the
+in-box compiler, which can differ from one Windows installation to another, and on the
+Python that writes the archive.
 
 So a match is strong evidence. A mismatch is a reason to look closer, not proof of
 tampering:

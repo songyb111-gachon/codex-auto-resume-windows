@@ -38,17 +38,23 @@
   그 대화의 로컬 기록·대기열로 확인한 것이고,
   [`docs/evidence/unloaded-thread-observation.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/evidence/unloaded-thread-observation.json)에
   `visual_ui_scraping_used: false`로 적혀 있습니다. 프로토콜 관측이지, 누가 지켜본 것이 아닙니다.
-- **이번 릴리스는 아직 공개되지 않았습니다.** 변경 기록의 첫 절이 설명하는 것은 아직 공개된 적이
-  없으므로, 그에 관한 어떤 항목도 PUBLISHED를 주장할 수 없습니다. 이 문서에서 PUBLISHED는 그 앞
-  릴리스까지 실제로 공개된 것만 가리킵니다.
+- **이번 릴리스는 공개되었습니다.** 압축 파일이 발행되었고, 그 해시가 `main`에 고정되었으며,
+  아래에서 PUBLISHED라고 적힌 항목들은 그것을 뜻합니다. 이 문서 어디에서도 PUBLISHED가 뜻하지
+  *않는* 것은, 누군가 그것을 설치해서 써 보았다는 것입니다. 발행된 바이트는 그 확인만을 위해 만든
+  상태 폴더와 Codex 홈을 상대로 구동했고, 설치 프로그램의 등록은 하나도 돌리지 않았으며, 실제
+  Codex 상태를 상대로 워처를 띄우지도 않았습니다. 누군가 쓰는 기계에서 설치하고 올리고 지우는
+  일은 [LIVE_ACCEPTANCE.ko.md](LIVE_ACCEPTANCE.ko.md)가 맡고 있고, 아무도 돌려 보지
+  않았습니다.
 - **REAL WINDOWS TESTED 항목은 대개 진짜 Windows 기능이 필요한 스위트 안의 테스트를 뜻하고**,
   그런 테스트는 기능이 없으면 스스로 건너뜁니다. 건너뛴 테스트는 아무것도 증명하지 않으므로,
   건너뛸 가능성이 있는 곳은 네 번째 칸에 적었습니다.
 
-  기록해 둔다. 2026-09-12, 이 문서를 쓴 Windows 11 기계에서
-  `PYTHONPATH="src;tests" python -m unittest discover -s tests`가 **1222개를 317초에 돌렸고,
-  실패는 없고 여섯 개를 건너뛰었다**. 건너뛴 여섯은 모두 `tests/test_integration_live.py`의
-  선택 참여 라이브 검사이며, `CODEX_AR_LIVE=1` 없이는 돌지 않겠다고 스스로 물러난 것이다. 아래
+  기록해 둔다. 2026-09-13, 릴리스가 공개된 뒤 이 문서를 쓴 Windows 11 기계에서
+  `PYTHONPATH="src;tests" python -m unittest discover -s tests`가 **1230개를 300초에 돌렸고,
+  실패는 없고 일곱 개를 건너뛰었다**. 일곱 중 여섯은 `tests/test_integration_live.py`의 선택 참여
+  라이브 검사이며, `CODEX_AR_LIVE=1` 없이는 돌지 않겠다고 스스로 물러난 것이다. 나머지 하나는
+  `tests/test_workflow_privilege.py:YamlShapeTests.test_every_workflow_parses`로, PyYAML이
+  필요한데 여기에는 깔려 있지 않다. 그 파일들은 푸시할 때마다 GitHub이 어차피 파싱한다. 아래
   REAL WINDOWS TESTED 줄은 모두 여기서 실제로 돌았고, 실제 Codex 설치에 닿을 검사는 하나도 돌지
   않았다.
 
@@ -283,7 +289,7 @@
 | 파일을 바꾸기 전에 워처를 넘겨받고, 중지 이벤트로 부탁하고, 기다림에 한계를 두고, 남아 있는 워처는 숨기지 않고 보고한다 | UNIT TESTED | `tests/test_upgrade_handover.py:UpgradeHandoverTests`(6개) | - |
 | 로그인 실행기는 이 제품 자신의 마켓플레이스만 받아들이고, 아니면 아무것도 시작하지 않는다 | UNIT TESTED | `tests/test_plugin.py:LauncherResolutionTests`(8개, `test_a_same_named_plugin_from_another_marketplace_is_never_run`, `test_only_another_marketplace_means_nothing_starts` 포함); `tests/test_convergence.py:EngineResolutionTests`(4개) | - |
 | 부트스트랩은 실행 전에 검증하고, GitHub 호스트만 받아들이며, 실패하면 아무것도 남기지 않는다 | UNIT TESTED | `tests/test_convergence.py:BootstrapTests`(12개), `ReleaseManifestTests`(6개), `HostPortabilityTests`(3개) | `scripts/bootstrap.ps1`에 대한 소스 검사다. 스위트가 실제로 내려받지는 않는다. |
-| 보통의 실행이 가져올 버전은 건네줄 수 없다. `-Update`만 그것을 옮기고, 그것도 이 저장소 아래에서 풀어낸 버전으로만 옮긴다 | REAL WINDOWS TESTED | `tests/test_update_check.py:ResolverTests`(9개)가 PowerShell 파서로 `scripts/bootstrap.ps1`에서 실제 해석기를 들어내어, 네트워크를 대신한 최종 URL 열아홉 가지에 대고 돌린다. 포크, 같은 소유자의 다른 저장소, 이름이 이것으로 시작할 뿐인 소유자, 내려받기에는 허용되지만 릴리스를 답하지는 않는 호스트, 평문 HTTP, 버전이 아닌 태그, 경로 거슬러 오르기, 어디서 왔는지 말하지 않는 응답이 들어 있다. 열아홉 중 넷만 받아들이고 나머지는 거부한다. 모양은 `tests/test_convergence.py:BootstrapTests`(12개 중 5개)가 못 박는다 | 모든 경우가 대역이다. 이것이 실제로 보내는 요청 하나인 github.com에 대한 `-CheckOnly`는 손으로 돌렸고 스위트에는 없다. |
+| 보통의 실행이 가져올 버전은 건네줄 수 없다. `-Update`만 그것을 옮기고, 그것도 이 저장소 아래에서 풀어낸 버전으로만 옮긴다 | REAL WINDOWS TESTED | `tests/test_update_check.py:ResolverTests`(9개)가 PowerShell 파서로 `scripts/bootstrap.ps1`에서 실제 해석기를 들어내어, 네트워크를 대신한 최종 URL 열아홉 가지에 대고 돌린다. 포크, 같은 소유자의 다른 저장소, 이름이 이것으로 시작할 뿐인 소유자, 내려받기에는 허용되지만 릴리스를 답하지는 않는 호스트, 평문 HTTP, 버전이 아닌 태그, 경로 거슬러 오르기, 어디서 왔는지 말하지 않는 응답이 들어 있다. 열아홉 중 넷만 받아들이고 나머지는 거부한다. 모양은 `tests/test_convergence.py:BootstrapTests`(12개 중 5개)가 못 박는다 | 모든 경우가 대역이다. 이것이 실제로 보내는 요청 하나인 github.com에 대한 `-CheckOnly`는 스위트에 없고 손으로 돌려야 한다. 이번 릴리스가 공개된 날 실제로 돌렸고, 넘겨받은 주소에서 가장 새 릴리스를 풀어내어 그 기계에 깔린 버전과 견주어 알려 주었으며, 내려받은 것은 없었다. |
 | 업데이트가 있는지 묻는 일은 페이지를 옮기지 않고, 사용자에 관한 것을 보내지 않으며, 스스로 일어나지 않는다 | UNIT TESTED | `tests/test_update_check.py:ResolverTests.test_it_asks_for_no_body_and_asks_only_the_constant`이 상수 URL로 가는 `HEAD` 한 번을 요구한다. `tests/test_convergence.py:BootstrapTests.test_the_update_check_never_parses_what_the_server_sends`, `test_nothing_checks_for_an_update_unless_asked`. `tests/test_gui_update.py:ButtonTests.test_nothing_asks_without_being_asked`가 창에서 그것을 부르는 곳이 단추뿐이기를 요구한다 | 익명 요청에 대해 GitHub가 남기는 것(주소, 시각, 사용자 에이전트)은 GitHub의 것이며, 여기서 검사하지 않고 `PRIVACY.md`가 밝힌다. |
 | 네 가지 답과 네 가지 종료 코드, 그리고 "물어보지 못함"은 결코 "최신"이 되지 않는다 | REAL WINDOWS TESTED | `tests/test_gui_update.py:BootstrapReadingTests`(4개)가 컴파일된 창의 `RunBootstrap`을 진짜 자식 프로세스 열세 가지에 대고 부른다. 종료 코드와 출력된 줄이 어긋나는 조합이 모두 들어 있고, 그 경우는 둘 다 믿지 않아야 한다. `tests/test_update_check.py:EndToEndTests`(5개)는 아무도 듣지 않는 포트를 향해 스크립트 전체를 돌려 종료 코드 12와 `update: unavailable`, 그리고 아무것도 설치되지 않음을 요구한다 | "이 빌드가 더 앞섬" 답은 대역과 창을 통해서만 시험되고 github.com을 상대로는 해 보지 않았다. |
 | 업데이트는 같은 설치기를 지나가고, 워처가 다시 시작했는지는 버전이 아니라 시작 시각으로 확인한다 | IMPLEMENTED | `scripts/bootstrap.ps1`이 대상 버전을 정한 뒤 여느 때의 내려받기와 체크섬·내용물·버전 검사를 거쳐 `install/install.ps1`로 간다. 그 `--keep-state`는 `tests/test_installer.py:UpgradeKeepsTheOwnersChoiceTests`(6개)가 시험한다. `gui/Dashboard.cs`의 `OfferUpdate`, `AfterUpdate`, `WatcherIdentity`는 `tests/test_gui_update.py:ButtonTests.test_the_watcher_identity_is_the_start_time_not_the_version`이 못 박는다 | **업데이트를 수행해 본 적이 없다.** 스위트에서 릴리스를 내려받는 것은 없고, 넘겨받기 확인은 실제 재시작을 본 적이 없다. 그것을 적을 곳은 [LIVE_ACCEPTANCE.ko.md](LIVE_ACCEPTANCE.ko.md)다. |
@@ -328,17 +334,17 @@
 
 | 기능 | 근거 등급 | 뒷받침하는 것 | 아직 없는 것 |
 | --- | --- | --- | --- |
-| 같은 소스로 두 번 빌드하면 PE 필드 정확히 두 개만 다르고, 정규화하면 실행 파일이 바이트까지 같아진다 | REAL WINDOWS TESTED | `tests/test_reproducible.py:RealCompilerTests`(7개)가 내장 C# 컴파일러로 진짜 실행 파일을 만들고 진짜 PE 바이트를 비교한다 | 컴파일러가 없으면 건너뛴다. **기계 하나뿐이다** - GitHub 러너와 다른 기계가 같은 바이트를 내는지는 확인되지 않았고, [VERIFY.ko.md](VERIFY.ko.md)가 그렇게 분명히 적고 있다. |
+| 같은 소스로 두 번 빌드하면 PE 필드 정확히 두 개만 다르고, 정규화하면 실행 파일이 바이트까지 같아진다 | REAL WINDOWS TESTED | `tests/test_reproducible.py:RealCompilerTests`(7개)가 내장 C# 컴파일러로 진짜 실행 파일을 만들고 진짜 PE 바이트를 비교한다 | 컴파일러가 없으면 건너뛴다. 이제 기계 하나뿐은 아니다. GitHub 러너가 이번 릴리스로 발행한 압축 파일과, 이 문서를 쓴 기계에서 그 태그를 다시 빌드해 만든 압축 파일이 ZIP 전체로 바이트까지 같았다. 아직 모르는 것은 두 기계가 같은 컴파일러 빌드를 썼는지다. 러너 쪽 값은 그 실행의 로그에만 찍힌다. |
 | 정규화한 프로그램이 그대로 돌고, 새로 넣은 MVID는 모듈 내용에서 나온다 | REAL WINDOWS TESTED | `tests/test_reproducible.py:RealCompilerTests.test_the_normalised_program_still_runs`, `test_the_mvid_depends_on_the_content`, `test_the_timestamp_is_the_fixed_value` | - |
 | 릴리스 빌드는 모든 실행 파일을 정규화하고, 두 번 빌드해서 재현 가능함을 증명한다 | UNIT TESTED | `tests/test_reproducible.py:BuildScriptTests`(3개) | `build/make_gui.ps1`과 워크플로에 대한 소스 확인이고, 릴리스 실행을 다시 돌려 보지는 않는다. |
-| 두 실행 파일이 플러그인 매니페스트에서 만든 버전 자원을 싣는다 | REAL WINDOWS TESTED | `tests/test_reproducible.py:VersionResourceTests`(4개)가 `build/make_gui.ps1`을 실제로 돌린 뒤, 탐색기의 속성·자세히가 쓰는 바로 그 호출로 빌드된 두 파일에서 자원을 읽어 온다. `BuildScriptTests.test_the_executables_carry_a_version_resource_from_the_manifest`는 스크립트 자체를 본다 | 내장 컴파일러가 없으면 건너뛴다. 사람이 그 탭을 직접 열어 본 적은 없고, 발행된 보관 파일의 실행 파일을 이렇게 읽어 본 적도 없다. |
-| 지금까지 공개된 릴리스 중 재현 가능한 것은 없다 | PUBLISHED, 한계로서 | [VERIFY.ko.md](VERIFY.ko.md)의 "지금 다시 빌드해서 알 수 있는 것과 알 수 없는 것": 지금까지의 어떤 릴리스 태그에도 `build/normalize_pe.py`가 들어 있지 않다 | 재현 가능한 첫 압축 파일은 다음 릴리스가 공개되어야 생긴다. |
+| 두 실행 파일이 플러그인 매니페스트에서 만든 버전 자원을 싣는다 | REAL WINDOWS TESTED | `tests/test_reproducible.py:VersionResourceTests`(4개)가 `build/make_gui.ps1`을 실제로 돌린 뒤, 탐색기의 속성·자세히가 쓰는 바로 그 호출로 빌드된 두 파일에서 자원을 읽어 온다. `BuildScriptTests.test_the_executables_carry_a_version_resource_from_the_manifest`는 스크립트 자체를 본다 | 내장 컴파일러가 없으면 건너뛴다. 사람이 그 탭을 직접 열어 본 적은 없다. 이번에 발행된 실행 파일들은 내려받은 압축 파일에서 같은 방식으로 읽어 보았고, 둘 다 매니페스트가 말하는 버전과 `Codex Auto Resume`를 답했다. |
+| 이번 릴리스는 태그에서 다시 빌드해 견주어 볼 수 있는 첫 릴리스다 | PUBLISHED | 발행된 압축 파일을, 그것을 발행한 기계가 아닌 다른 기계에서 그 태그를 새로 복제해 다시 빌드했고, ZIP 전체가 바이트까지 같았다. 양쪽 다 `791e9248…faf8fbc3`였다. 실험 자체는 [VERIFY.ko.md](VERIFY.ko.md)가 적고 있다 | **기계를 건너 바이트까지 같음을 한 번 측정했다.** 두 기계가 같은 도구 사슬을 썼는지는 확인되지 않았다. 러너의 컴파일러 빌드는 릴리스 실행 로그에만 찍히고, 그 로그는 계정이 있어야 읽을 수 있다. 같은 기계에서 같은 도구 사슬로 재현되는지는 별개의 결과이고, 그것을 붙들고 있는 것은 `tests/test_reproducible.py:RealCompilerTests`다. |
 | 모든 외부 액션이 전체 커밋으로 고정되고, 어느 릴리스인지 이름이 붙고, 어디서나 같은 커밋으로 고정된다. Dependabot이 갱신을 제안한다 | UNIT TESTED | `tests/test_workflow_pins.py:ActionPinTests`(6개), `ParserTests`(3개) | - |
 | 최상위에는 쓰기 권한이 없고, 빌드 작업은 쓸 수 없고, 게시 작업은 저장소 코드를 돌리지 않고, 태그 푸시만 게시한다 | UNIT TESTED | `tests/test_workflow_privilege.py:WorkflowPrivilegeTests`(8개), `KoSyncPrivilegeTests`(2개), `YamlShapeTests`(1개) | 워크플로 파일 확인이고, 실행을 다시 돌려 보지는 않는다. |
 | 공개된 버전의 자산은 덮어쓸 수 없고, 수동 실행으로는 게시할 수 없다 | UNIT TESTED | `tests/test_convergence.py:ReleaseImmutabilityTests`(5개) | 릴리스 자체는 GitHub의 불변 릴리스가 아니다. 이 규칙은 워크플로를 묶을 뿐 쓰기 권한을 가진 모두를 묶지 않는다. [VERIFY.ko.md](VERIFY.ko.md)가 그렇게 적고 있다. |
 | 릴리스 워크플로는 게시 전에 테스트를 돌리고, 매니페스트와 어긋나는 태그를 거절하고, 게시된 체크섬을 확인한다 | UNIT TESTED | `tests/test_plugin.py:ReleaseWorkflowTests`(6개) | - |
 | 현재 버전은 한 곳에만 있고, 변경 기록이 그 버전으로 시작한다 | UNIT TESTED | `tests/test_plugin.py:VersionConsistencyTests`(4개), `ReleaseNotesTests`(6개); `tests/test_privacy_claims.py:WordingTests.test_no_released_version_has_lost_its_changelog_section` | - |
-| 공개된 압축 파일은 해시로, 릴리스 페이지로, `main`에 고정된 해시로, 그리고 v0.5.4부터는 빌드 증명으로 확인된다 | PUBLISHED | [VERIFY.ko.md](VERIFY.ko.md); `scripts/release.json`; `tests/test_convergence.py:ReleaseManifestTests.test_every_released_version_is_pinned`, `test_digests_are_absent_or_real` | 다음 릴리스는 아직 공개되지 않았으므로 공개된 압축 파일도, 고정된 해시도, 증명도 없다. |
+| 공개된 압축 파일은 해시로, 릴리스 페이지로, `main`에 고정된 해시로, 그리고 v0.5.4부터는 빌드 증명으로 확인된다 | PUBLISHED | [VERIFY.ko.md](VERIFY.ko.md); `scripts/release.json`; `tests/test_convergence.py:ReleaseManifestTests.test_every_released_version_is_pinned`, `test_digests_are_absent_or_real` | 이번 릴리스에서는 발행된 압축 파일을 빌드 바깥에서 내려받아 해시했고, 그 한 숫자가 옆에 함께 발행된 사이드카와도, GitHub이 그 자산에 대해 알려 주는 해시와도, 빌드 증명의 대상과도 일치했다. 그 증명은 `.github/workflows/release.yml`과 이 저장소와 `refs/tags/`의 그 태그를 가리킨다. **증명의 서명 자체는 여기서 검증하지 않았다.** 그것은 `gh attestation verify`가 필요한데 이 기계에는 없다. 그래서 암호학적 검증은 UNVERIFIED이고, 증명이 담고 있는 네 가지 사실은 맞춰 보았다. |
 | 브랜드 자산과 아이콘이 원본에서 생성되고 최신 상태로 유지된다 | UNIT TESTED | `tests/test_brand.py:GeneratedFileTests`(4개), `PaletteTests`(4개), `SurfaceTests`(6개) | - |
 | 라이브 인수 기록은 기록다울 때만 받아들여진다. 빠진 필드, 관측한 것 없는 pass, 날것의 대화 id, 경로, 전자우편 주소, 검사기가 모르는 단계, 매니페스트와 다른 버전, 한 단계를 두고 엇갈리는 두 파일은 모두 거절된다 | UNIT TESTED | `scripts/live_evidence.py`를 `tests/test_live_evidence.py:WellFormedTests`(4개), `RefusalTests`(19개), `DirectoryTests`(10개), `DocumentTests`(7개)가 구동한다. 마지막 것은 [LIVE_ACCEPTANCE.ko.md](LIVE_ACCEPTANCE.ko.md)와 그 영어 원본, 그리고 검사기가 같은 단계와 같은 기록 항목을 말하도록 묶는다 | 검사기가 보는 것은 사람이 쓴 것의 모양과 그 어휘뿐이다. 그 일이 실제로 일어났는지는 확인할 수 없고, 스스로도 그렇게 적고 있다. |
 | 라이브 인수 절차 자체 - 설치, 워처, 대시보드, 실제 중단, 취소, 지금 재시도, 시도 되돌려주기, 일시 중지, 업그레이드, 복구, 제거를 실제 기계에서 실제 Codex를 상대로 | UNVERIFIED | [LIVE_ACCEPTANCE.ko.md](LIVE_ACCEPTANCE.ko.md)가 단계마다 무엇을 증명하는지, 무엇을 하는지, 통과가 어떤 모습인지, 무엇을 적어야 하는지를 말한다. 기록이 들어갈 곳은 `docs/evidence/live/`다 | **아무도 돌려 보지 않았다.** `docs/evidence/live/`에는 `README.md`와, 아무것도 기록하지 않고 어떤 단계로도 세지 않는 `example.json`만 있어서, 이 나무에서 `python scripts/live_evidence.py`는 아직 인수된 것이 없다고 찍고 2로 끝난다. Codex 안에서 지켜본 적이 없다고 적힌 이 문서의 모든 항목이 이 절차를 기다리고 있다. |
