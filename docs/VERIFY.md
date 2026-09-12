@@ -253,13 +253,18 @@ second result, and a stronger one: the archive GitHub's runner published and a r
 that tag from a fresh clone, on a different Windows machine, have the same SHA-256 - the
 whole ZIP, not only the files inside it.
 
-That is one measurement across two machines, and it does not say the two machines ran the
-same toolchain. The runner's compiler build is printed in the release run's log, and
-reading that log needs an account with access to the repository, so whether this was a
-same-toolchain match or a different-toolchain one is **not** established. What is
-established is that these two builds agreed. The result still depends on the build of the
-in-box compiler, which can differ from one Windows installation to another, and on the
-Python that writes the archive.
+The run log names the runner's compiler, and it was the same in-box build as the
+rebuilding machine's - `4.8.9221.0 built by: NET481REL1LAST_25H2` on both. So this is a
+**same-toolchain, cross-machine** match: the machine and the Windows build were different
+(Windows Server 2025 against Windows 11), the compiler build was not. The two executables
+matched the digests the run printed for them, and then the whole archive matched.
+
+That leaves one thing deliberately unclaimed. The result depends on the build of the
+in-box compiler, which can differ from one Windows installation to another, and two
+*different* compiler builds have never been compared. So this says these two builds
+agreed, not that every Windows machine will.
+[`docs/evidence/reproducible-build-2026-09-13.json`](evidence/reproducible-build-2026-09-13.json)
+records both toolchains and all three digests.
 
 So a match is strong evidence. A mismatch is a reason to look closer, not proof of
 tampering:
