@@ -342,6 +342,25 @@ If either one blocks you, please open an issue naming the file and the message.
 - **`Install.cmd` does not check the archive**, and **the plugin route does not check the
   attestation.**
 - **Archives before v0.5.4 have no attestation.**
+- **Four proposed action upgrades were deferred past v0.6.0, deliberately.** Dependabot has
+  open pull requests raising `actions/checkout` to v7.0.1, `actions/setup-python` to v7.0.0,
+  `actions/attest-build-provenance` to v4.2.2, and the artifact pair to
+  `upload-artifact` v7.0.1 with `download-artifact` v8.0.1. All four keep the full-commit
+  pinning and its version comment, and none of them is a published security fix.
+
+  v0.6.0 is the first release the split build-and-publish workflow has ever made. The
+  artifact pair is what carries the archive from the unprivileged build job to the
+  privileged publish job, and the attestation action is what the publish job signs with;
+  changing either at the same moment as the first real use of that path would make a
+  failure impossible to attribute to one of the two changes. The one concrete pressure is
+  that GitHub now forces `checkout` and `setup-python` onto Node 24 because the Node 20
+  they declare is deprecated, and says so on every run - but they run, and nothing about
+  this release depends on that changing.
+
+  After v0.6.0 is published and verified they go in one at a time, `checkout` and
+  `setup-python` first because of that deprecation, then the artifact pair together -
+  never one without the other - then the attestation, each with a `workflow_dispatch` dry
+  run before the next tag.
 
 Verifying tells you the file is the one this project published. It does not tell you the
 code is safe; for what the code is allowed to do, and how that is enforced, see

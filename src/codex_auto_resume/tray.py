@@ -39,7 +39,14 @@ SM_CXSMICON, SM_CYSMICON = 49, 50
 IDI_APPLICATION = 32512
 TIP_CHARS = 128
 
-MENU_OPEN, MENU_TOGGLE, MENU_STOP = 1, 2, 3
+# The menu's command ids. Deliberately not one per pending recovery: a context menu
+# built from a list that the watcher is still changing would act on whichever row the id
+# happened to mean when the menu was drawn, and there is no room beside a menu item to
+# name the conversation an action is about - which is how the window's confirmations stop
+# somebody cancelling the wrong task. The safe half of the same need is a route: Pending
+# opens the window on the page where those actions live, with their identities and their
+# confirmations intact.
+MENU_OPEN, MENU_TOGGLE, MENU_STOP, MENU_PENDING = 1, 2, 3, 4
 _DLLS = {}
 
 
@@ -120,10 +127,11 @@ class Tray:
     """One icon, one hidden window, one thread."""
 
     def __init__(self, *, icon_path=None, strings=None, on_open=None, on_toggle=None, on_stop=None,
-                 log=None):
+                 on_pending=None, log=None):
         self.icon_path = Path(icon_path) if icon_path else None
         self.strings = strings or {}
         self.on_open, self.on_toggle, self.on_stop = on_open, on_toggle, on_stop
+        self.on_pending = on_pending
         self.log = log or (lambda *args: None)
         self._snapshot = {}
         self._lock = threading.Lock()
@@ -261,6 +269,13 @@ class Tray:
             user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
             user32.AppendMenuW(menu, MF_STRING, MENU_OPEN,
                                self.strings.get("menu.open", "Open Codex Auto Resume"))
+            # Only while there is something to look at. An item that opens a page saying
+            # nothing is waiting is an item that teaches people not to use the menu.
+            waiting = int(snapshot.get("waiting", 0) or 0) + int(snapshot.get("running", 0) or 0)
+            if waiting and self.on_pending:
+                user32.AppendMenuW(menu, MF_STRING, MENU_PENDING,
+                                   self.strings.get("menu.pending", "Show what is waiting")
+                                   .replace("{n}", str(waiting)))
             paused = not snapshot.get("enabled", True)
             user32.AppendMenuW(menu, MF_STRING, MENU_TOGGLE,
                                self.strings.get("menu.resume", "Resume recovery") if paused
@@ -279,7 +294,8 @@ class Tray:
         self._act(chosen, paused)
 
     def _act(self, chosen, paused):
-        action = {MENU_OPEN: self.on_open, MENU_STOP: self.on_stop}.get(chosen)
+        action = {MENU_OPEN: self.on_open, MENU_STOP: self.on_stop,
+                  MENU_PENDING: self.on_pending}.get(chosen)
         try:
             if chosen == MENU_TOGGLE and self.on_toggle:
                 self.on_toggle(paused)          # paused -> resume; running -> pause
@@ -338,10 +354,23 @@ def snapshot_from(store, now: float) -> dict:
             "next_at": min(due) if due else None}
 
 
-def open_dashboard(home: Path) -> bool:
+# The pages the window will open on. A closed list, because the value is spliced into a
+# command line: nothing else may ever reach it, whatever a caller passes.
+PAGES = ("overview", "pending", "history", "statistics", "diagnostics", "settings")
+
+
+def open_dashboard(home: Path, page: str = None) -> bool:
     """Start the settings window, if it is installed beside the watcher."""
+    # The page is checked before anything else, including whether there is a window to
+    # open: a value that is not one of ours is a mistake in this file, and a mistake that
+    # only shows up on machines where the window happens to be installed is a worse one.
+    if page is not None and page not in PAGES:
+        raise ValueError("not a page of the window")
     exe = Path(home) / "CodexAutoResumeSettings.exe"
     if not exe.is_file():
         return False
-    subprocess.Popen([str(exe)], cwd=str(home), close_fds=True)
+    arguments = [str(exe)]
+    if page is not None:
+        arguments.append("--page=" + page)
+    subprocess.Popen(arguments, cwd=str(home), close_fds=True)
     return True

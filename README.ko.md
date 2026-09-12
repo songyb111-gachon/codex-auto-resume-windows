@@ -1,6 +1,6 @@
 # Codex Auto Resume
 
-**Windows에서 중단된 Codex 작업을 안전하게 이어서 진행합니다.**
+**Windows에서 사용량 한도가 풀리면 똑같은 그 Codex 작업을 자동으로 이어 갑니다.**
 
 [![tests](https://github.com/songyb111-gachon/codex-auto-resume-windows/actions/workflows/test.yml/badge.svg)](https://github.com/songyb111-gachon/codex-auto-resume-windows/actions/workflows/test.yml)
 [![latest release](https://img.shields.io/github/v/release/songyb111-gachon/codex-auto-resume-windows?label=release)](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest)
@@ -9,9 +9,13 @@
 
 <sub>🇺🇸 <a href="README.md">English README</a></sub>
 
-긴 작업 도중에 Codex 사용량 한도에 걸리거나, rate limit이 나거나, 연결이 끊긴 적 있으신가요?
-Codex Auto Resume는 안전해질 때까지 기다렸다가 **바로 그 대화**를 이어서 진행시킵니다. 돌아왔을 때
-멈춰 있는 작업이 아니라 끝난 작업을 보게 됩니다.
+Codex가 작업 도중에 멈추고 오전 6시 34분에 다시 해 보라고 말합니다. 오전 6시 34분에 사용자는
+자고 있고, 아침에 보면 작업은 멈춘 그 자리 그대로입니다.
+
+Codex Auto Resume는 한도가 풀릴 때까지 기다렸다가, 이어 가도 정말 안전한지 확인한 뒤 **바로 그
+대화**를 이어서 진행시킵니다. 돌아왔을 때 멈춰 있는 작업이 아니라 끝난 작업을 보게 됩니다. 일시적인
+rate limit, 네트워크 장애, 시간 초과, 서버 오류, 끊긴 스트림도 복구하지만, 이름을 댈 수 있고 다시
+시도해도 안전한 장애일 때만 그렇게 합니다.
 
 Windows ChatGPT/Codex 데스크톱 앱을 위한 작은 로컬 watcher입니다. Codex의 로컬 상태를 읽기 전용으로
 관찰하고, 무엇이 실패했는지 분류한 뒤, 공식 `codex queue` 명령으로 continuation 메시지 한 건을
@@ -32,7 +36,7 @@ Windows ChatGPT/Codex 데스크톱 앱을 위한 작은 로컬 watcher입니다.
 | **식별 방식** | 정확한 대화 UUID 하나. `--last`도, "가장 최근 것"도, 제목이나 폴더 이름도 쓰지 않습니다 |
 | **설정 방법** | 시작 메뉴에서 여는 Windows 창(main 브랜치에서는 개요·대기 중·기록·통계·진단·설정 여섯 페이지의 대시보드이며, 다음 릴리스에 포함), Codex 안의 설정 패널, 명령줄 |
 | **알려줍니다** | 중단 감지 · 복구 시작 · 결과 · 복구 중단 시 Windows 알림. 워처가 실행 중인 동안에는 알림 영역 아이콘이 자동 복구가 일시 정지 상태인지, 몇 건이 대기 중이고 몇 건이 Codex에서 실행 중인지, 다음 확인까지 얼마나 남았는지를 툴팁으로 보여 줍니다(main 브랜치, 다음 릴리스에 포함) |
-| **개인정보** | 텔레메트리 없음, 분석 없음, 업데이트 확인 없음, 자격 증명은 읽지 않음. watcher에는 네트워크 코드가 없으며, 사용량 확인과 재개된 턴, 그리고 대화 안에서 이 플러그인의 도구와 명령이 돌려준 결과는 여느 Codex 통신처럼 Codex를 통해 OpenAI로 갑니다. 설치 스크립트는 GitHub에서 릴리스를 내려받고, 현재 최신 릴리스의 설치기는 Codex가 사용자가 설정해 둔 모든 Git 마켓플레이스를 새로 고치게 합니다(이 마켓플레이스만 지정하는 동작은 main 브랜치에 있으며 다음 릴리스에 포함됩니다) |
+| **개인정보** | 텔레메트리 없음, 분석 없음, 자동 업데이트 확인 없음, 자격 증명은 읽지 않음. 창의 *업데이트 확인*은 눌렀을 때만 GitHub에 가장 최근 릴리스를 묻습니다. watcher에는 네트워크 코드가 없으며, 사용량 확인과 재개된 턴, 그리고 대화 안에서 이 플러그인의 도구와 명령이 돌려준 결과는 여느 Codex 통신처럼 Codex를 통해 OpenAI로 갑니다. 설치 스크립트는 GitHub에서 릴리스를 내려받고, 현재 최신 릴리스의 설치기는 Codex가 사용자가 설정해 둔 모든 Git 마켓플레이스를 새로 고치게 합니다(이 마켓플레이스만 지정하는 동작은 main 브랜치에 있으며 다음 릴리스에 포함됩니다) |
 
 > **먼저 알아두실 제한 하나.** 복구 메시지가 전달되려면 Codex가 그 대화를 열어 둔 상태여야 합니다.
 > 앱을 재시작했다면 그 대화를 한 번만 열어 주시면 이후는 알아서 진행됩니다.
@@ -409,7 +413,7 @@ Server의 `thread/queue/delete`)입니다. 설치할 때는 `codex` CLI에 이
 
 ## 개인정보
 
-이 프로젝트로 전송되는 것은 없습니다. 텔레메트리, 분석, 크래시 리포트, 업데이트 확인이 없으며,
+이 프로젝트로 전송되는 것은 없습니다. 텔레메트리, 분석, 크래시 리포트, 자동 업데이트 확인이 없으며,
 그것을 받을 이 프로젝트의 서버도 없습니다. 이 도구 자체는 프롬프트, 어시스턴트 응답, 도구 입출력,
 파일 내용, 계정 식별자, 자격 증명, 오류 본문 중 어느 것도 어디로도 전송하지 않습니다. 복구
 런타임(`src/`, `scripts/*.py`)은 네트워크 모듈을 import하지 않으며, `src/`나 `scripts/` 아래에서

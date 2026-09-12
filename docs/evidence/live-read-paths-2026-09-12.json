@@ -1,0 +1,33 @@
+{
+  "what": "The read-only paths of the engine, run against the real Codex installation on a Windows 11 machine",
+  "when_kst": "2026-09-12",
+  "how": "PYTHONPATH=\"src;tests\" CODEX_AR_LIVE=1 python -m unittest tests.test_integration_live",
+  "result": "6 tests, all passed, none skipped",
+  "observed": {
+    "official_binary_discovered": true,
+    "official_binary_name": "codex.exe",
+    "version_compatibility_checked": true,
+    "desktop_app_running": true,
+    "app_pairing_unambiguous": true,
+    "app_server_path_matches_discovered_binary": true,
+    "writer_locks_present_at_the_time": 0,
+    "absent_thread_classified_loaded": false,
+    "usage_read_succeeded": true,
+    "usage_fields": ["available", "limit_type", "reason", "reset_at", "windows"],
+    "usage_available": true,
+    "usage_reason": "exposed_windows_available_specific_model_bucket_not_guaranteed",
+    "account_identifier_in_parsed_usage": false,
+    "detection_pass_returned_a_list": true,
+    "anything_queued_or_sent": false,
+    "anything_written_to_codex_state": false,
+    "named_mutex_and_stop_event_roundtrip": true
+  },
+  "what_this_does_not_show": [
+    "No continuation was sent and no conversation was touched: these are the read paths only.",
+    "No thread was loaded at the time, so loaded-state classification of a real held lock was not exercised on this run; only the rule that an absent thread is never called loaded.",
+    "Usage was available, so the usage-limit branch was not reached. A usage limit cannot be summoned; docs/LIVE_ACCEPTANCE.md says so and says what to record instead.",
+    "One machine, one account, one Codex build."
+  ],
+  "visual_ui_scraping_used": false,
+  "note": "No identifier, path, account or conversation content is recorded here. The usage reason is Codex's own machine-readable string for why the answer is what it is, and carries nothing about the account."
+}

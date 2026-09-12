@@ -10,6 +10,7 @@ and hold the normaliser to that.
 """
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 import shutil
@@ -26,6 +27,26 @@ sys.path.insert(0, str(ROOT / "build"))
 import normalize_pe  # noqa: E402
 
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
+POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
+              / "WindowsPowerShell" / "v1.0" / "powershell.exe")
+READ_VERSION = r"""
+$ErrorActionPreference = 'Stop'
+$out = @{}
+foreach ($name in @('CodexAutoResumeSettings.exe', 'codex-auto-resume-mcp.exe')) {
+    $path = Join-Path $env:CAR_BUILD $name
+    $info = [Diagnostics.FileVersionInfo]::GetVersionInfo($path)
+    $out[$name] = @{
+        FileVersion      = $info.FileVersion
+        ProductVersion   = $info.ProductVersion
+        ProductName      = $info.ProductName
+        CompanyName      = $info.CompanyName
+        LegalCopyright   = $info.LegalCopyright
+        FileDescription  = $info.FileDescription
+    }
+}
+$out | ConvertTo-Json -Depth 4 -Compress
+"""
+
 SOURCE = """
 using System;
 static class Program {
@@ -84,7 +105,7 @@ class RealCompilerTests(unittest.TestCase):
     def test_the_normalised_program_still_runs(self):
         exe = self.folder / "normalised.exe"
         exe.write_bytes(normalize_pe.normalise(self.first))
-        result = subprocess.run([str(exe), "a", "b"], capture_output=True, text=True, timeout=60)
+        result = subprocess.run([str(exe), "a", "b"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout.strip(), "reproducible 2")
 
@@ -140,6 +161,84 @@ class BuildScriptTests(unittest.TestCase):
         archive = workflow.index("Build the release archive")
         self.assertLess(build, check)
         self.assertLess(check, archive)
+
+
+@unittest.skipUnless(CSC.is_file() and POWERSHELL.is_file(),
+                     "needs the in-box compiler and PowerShell")
+class VersionResourceTests(unittest.TestCase):
+    """Build both executables the way the release does, then read the resource back.
+
+    Asserting that `build/make_gui.ps1` contains the word `AssemblyFileVersion` proves the
+    script mentions it, not that a built file carries it: the attribute could be written
+    into a source the compiler never sees, or the resource could be dropped by a later
+    argument, and the source assertion would still pass. So this runs the real script and
+    then asks Windows - the same `GetFileVersionInfo` that fills in Explorer's Properties,
+    Details tab, which is where a person actually looks before trusting an unsigned file.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
+        cls.version = manifest["version"]
+        cls.publisher = manifest["author"]["name"]
+        cls.product = manifest["interface"]["displayName"]
+        cls.folder = Path(tempfile.mkdtemp())
+        build = subprocess.run(
+            [str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+             "-File", str(ROOT / "build" / "make_gui.ps1"),
+             "-Root", str(ROOT), "-Out", str(cls.folder)],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=900)
+        cls.build = build
+        if build.returncode != 0:
+            cls.fields = {}
+            return
+        # One PowerShell call reads both files: starting the host twice costs more than the
+        # compile did. FileVersionInfo is the managed face of the Win32 version resource.
+        read = subprocess.run(
+            [str(POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", READ_VERSION],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
+            env=dict(os.environ, CAR_BUILD=str(cls.folder)))
+        cls.read = read
+        cls.fields = json.loads(read.stdout) if read.returncode == 0 and read.stdout.strip() else {}
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.folder, ignore_errors=True)
+
+    def setUp(self):
+        if self.build.returncode != 0:
+            self.fail("build/make_gui.ps1 failed:\n" + (self.build.stderr or self.build.stdout)[-2000:])
+        if not self.fields:
+            self.fail("the version resource could not be read: " + getattr(self, "read", self.build).stderr[-2000:])
+
+    def test_both_executables_were_built(self):
+        self.assertEqual(sorted(self.fields), ["CodexAutoResumeSettings.exe", "codex-auto-resume-mcp.exe"])
+
+    def test_every_field_a_person_reads_comes_from_the_manifest(self):
+        for name, found in sorted(self.fields.items()):
+            with self.subTest(name):
+                # Explorer shows the file version; the informational version is what the
+                # product calls itself, and it is the manifest's version with nothing added.
+                self.assertEqual(found["FileVersion"], self.version + ".0")
+                self.assertEqual(found["ProductVersion"], self.version)
+                self.assertEqual(found["ProductName"], self.product)
+                self.assertEqual(found["CompanyName"], self.publisher)
+                self.assertIn(self.publisher, found["LegalCopyright"])
+                self.assertIn("MIT", found["LegalCopyright"])
+
+    def test_each_executable_describes_itself(self):
+        """Two files with one description is how a launcher ends up labelled as the window."""
+        descriptions = {name: found["FileDescription"] for name, found in self.fields.items()}
+        self.assertEqual(descriptions, {
+            "CodexAutoResumeSettings.exe": "Codex Auto Resume settings",
+            "codex-auto-resume-mcp.exe": "Codex Auto Resume MCP launcher",
+        })
+
+    def test_nothing_reports_the_zero_version_that_made_this_worth_doing(self):
+        for name, found in sorted(self.fields.items()):
+            with self.subTest(name):
+                self.assertNotEqual(found["FileVersion"], "0.0.0.0")
+                self.assertTrue(found["CompanyName"].strip(), "no publisher is what SmartScreen shows")
 
 
 if __name__ == "__main__":

@@ -15,6 +15,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 import re
+import subprocess
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -65,13 +66,47 @@ class CitationTests(unittest.TestCase):
                          "the matrix cites evidence that is no longer there; a citation "
                          "that does not resolve is a claim nobody can check")
 
-    def test_every_file_it_points_at_exists(self):
+    def test_every_file_it_points_at_is_in_the_repository(self):
+        """Not merely on the machine that wrote the sentence.
+
+        The first version of this asked whether the path existed, and passed for two
+        build outputs that are generated and ignored - present for anyone who had built
+        the executables, absent in a fresh clone and on CI. A reader who cannot open a
+        cited file has no evidence, so the question is whether the repository carries it.
+        """
         # A citation (`module.py:Class.test`) is the other test's business, and a pattern
         # (`gui/*.cs`) names a set rather than a file.
-        missing = sorted({path for path in PATH.findall(self.text)
-                          if ":" not in path and "*" not in path and "?" not in path
-                          and not (ROOT / path).exists()})
+        cited = {path for path in PATH.findall(self.text)
+                 if ":" not in path and "*" not in path and "?" not in path}
+        missing = sorted(path for path in cited if not (ROOT / path).exists())
         self.assertEqual(missing, [], "the matrix points at files that are not here")
+        tracked = self.tracked()
+        if tracked is None:
+            self.skipTest("git is not available to say what the repository carries")
+        untracked = []
+        for path in sorted(cited):
+            if (ROOT / path).is_dir():
+                # A directory is carried when anything in it is.
+                prefix = path.rstrip("/") + "/"
+                if not any(name.startswith(prefix) for name in tracked):
+                    untracked.append(path)
+            elif path not in tracked:
+                untracked.append(path)
+        self.assertEqual(untracked, [],
+                         "the matrix points at files that are not in the repository; a "
+                         "generated or ignored path is evidence only for whoever built it")
+
+    @staticmethod
+    def tracked():
+        """Every path the repository carries, or None where git cannot be asked."""
+        try:
+            listing = subprocess.run(["git", "-C", str(ROOT), "ls-files", "-z"],
+                                     capture_output=True, timeout=120)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if listing.returncode != 0:
+            return None
+        return {name for name in listing.stdout.decode("utf-8").split("\0") if name}
 
     def test_no_row_invents_a_level(self):
         """Every cell written as a level is one of the eight.

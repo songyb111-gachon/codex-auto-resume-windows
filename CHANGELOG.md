@@ -246,6 +246,59 @@ says what works in between.
   is in, not running, or unknown. Unknown is its own answer and is not rounded up to
   stopped.
 
+### It can tell you a new version exists, when you ask it
+
+- **New: Check for updates, in Diagnostics.** Until now nothing in the product knew a newer
+  release existed; a person found out by visiting the repository. The Diagnostics page now
+  has a button, and `scripts/bootstrap.ps1 -CheckOnly` does the same from a command line.
+  Nothing checks on its own: there is no timer, no check when the window opens and no check
+  when the watcher starts, because a request to github.com is a request the person's machine
+  makes and it should be one they asked for.
+- **The answer comes out of a URL, not out of a page.** The check is a `HEAD` request to
+  this repository's `releases/latest`, so no page is transferred and none is parsed. The
+  version is read from the address the redirect ends at, whose path has to begin with this
+  exact owner and repository — a fork, a mirror, or an owner whose name merely starts with
+  this one is refused — and is then rebuilt from its three numbers, so what reaches a
+  download URL is arithmetic rather than text somebody else chose.
+- **Four answers, and four exit codes.** Up to date, an update is available, this build is
+  ahead of everything published, or the question could not be asked. The last one is its own
+  answer and never becomes "up to date": a machine with no network being told it is current
+  is the one wrong thing an update check can say. The window believes an answer only when
+  the exit code and the printed line agree.
+- **Update reuses the installer rather than adding a second one.** It fetches that release's
+  archive, checks it against the checksum published beside it, checks the archive really is
+  this product at that version and that no entry escapes the extraction directory, and then
+  runs the same `install.ps1` every install runs — which moves the old trees aside, keeps its
+  journal, and runs setup with `--keep-state`, so a pause, a per-conversation decision, the
+  pending recoveries, the history and the sign-in choice all survive it. A release published
+  after this plugin was written cannot have been pinned before it existed, so an update is
+  normally verified against the published checksum rather than a pinned digest, and the
+  script says which of the two it did.
+- **Fixed, before it could ship: an ordinary run after an update installed the older
+  version back over it.** An update leaves the machine ahead of the plugin tree it was
+  started from, because Codex's copy of the plugin is still whatever version it fetched.
+  The next ordinary run of the setup script - which Codex may make on its own - saw a
+  version the machine did not have and installed it, over a newer one, silently. An
+  installation at the same version or a newer one is now converged rather than replaced,
+  and going back happens only when `-Force` asks for it.
+- **Whether the watcher actually changed hands is checked, and said.** A still-running old
+  watcher reads its version out of the files underneath it, so it starts reporting the new
+  version the moment they are replaced. The window compares the watcher's process identity
+  and start time across the update instead, and says plainly when the watcher running
+  afterwards is the one from before.
+
+### The notification area points at the work, and does not act on it
+
+- **The menu offers a route to what is waiting.** While something is waiting, the icon's
+  menu has an item that opens the window on its Pending page, where Retry now, Cancel,
+  the timeline and the per-conversation switch are, each naming the conversation it is
+  about. Retry now and Cancel are deliberately not in the menu itself: a context menu
+  built from a list the watcher is still changing acts on whichever record an id meant
+  when the menu was drawn, and a menu item has nowhere to put the name of the
+  conversation - which is the thing that stops somebody cancelling the wrong task.
+- **The window is only ever opened on a page it has.** The page name reaches a command
+  line, so the list of pages it may be is closed, whatever a caller passes.
+
 ### Between the old watcher and the new one
 
 - The state file is migrated 1 → 2 → 3 in one transaction, only by the watcher or by a
