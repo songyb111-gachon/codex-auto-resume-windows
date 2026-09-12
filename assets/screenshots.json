@@ -22,7 +22,7 @@
     "src/codex_auto_resume/settings.py": "1da7cb06c528abaf6e48a60b4b0a6652d4ec55b4502ff9e704ba19fe2f26ba17",
     "src/codex_auto_resume/controlcli.py": "a0d0120b14eeb59b4a8cc5ded92e2b096977b4dc86445176587e25d578338466",
     "src/codex_auto_resume/app.py": "e6e54a72fadf6211ba2dd7491a29093aba036bf5067fa5c1f8328f4ab2a5139c",
-    "src/codex_auto_resume/interface.py": "c4f67d4b0a49f5aaa10e1e31c371a120e59975076e825bd548ec666f53b93c4b",
+    "src/codex_auto_resume/interface.py": "07b0e2a280976864707045989709d6d04c2275a5b75db924948b394b154a5e6e",
     "src/codex_auto_resume/control.py": "9b63f8baa59331b54c9c956c52afe709dca3e970aaeee00146b5e58cadaa46d5",
     "src/codex_auto_resume/machine.py": "82fce5e79a8740401c167abfef9a9bd4560710da83573489b96008adac0dc4c3",
     "src/codex_auto_resume/store.py": "4d70a4ebfa7d9a87ae7fd25aead396980cf8514646c6220dbfa4da3a1d0a4fa7",
@@ -35,16 +35,16 @@
     "build/capture_window.ps1": "91f681d9e247bfb4aa626d8ed3c030dd5fd666076503dc37fb596d41bb95e292",
     "build/make_gui.ps1": "7d79a8ffddd7b384a3aedf13cdddda959b3f794be3eb8d41d0ebc481872589f3",
     "build/make_screenshots.py": "d323d7e7e7aceb15d79776d44809c780ac1da39917896b9e78bc7c184a72dbd2",
-    "<panel render:en>": "44b9414fa050625d277851a9e931d130c62cbd292e9dc716b3e34762e25e44f1",
-    "<panel render:ko>": "8c571ff57cf61cf94b331a73b29ffa5b7d101efaea889fa3fea42cf0cd1b9968"
+    "<panel render:en>": "f69b2469383df0d02ef0039187eaace70dd8d6306029d33aa5a858c8ea0b86f6",
+    "<panel render:ko>": "633ef3e32c2219549dde5368102ad12da2f546fdf5859e1bb78590b27aafc961"
   },
   "images": {
     "assets/screenshot-panel.png": {
-      "sha256": "66768d350c37726ee16d6fd5c061418589bfef4fae4141ce52653d7ff4917ca3",
+      "sha256": "e8362d06fed566fe4a68e921a3b47d528406fe51f1da4e300c2decad3173129c",
       "size": "1800x1228"
     },
     "assets/screenshot-dashboard.png": {
-      "sha256": "98ed3fdace12d2d634886373baae55054c259f91f524ada6645d801f91ac1c84",
+      "sha256": "d79126a5bb356fba4fa5370e0f358805e1e2d7954a5c227b692c0281c08355f4",
       "size": "1312x1086"
     },
     "assets/screenshot-pending.png": {
@@ -56,7 +56,7 @@
       "size": "1312x1086"
     },
     "assets/screenshot-panel-ko.png": {
-      "sha256": "aec0eb8b5ba4de3b314eb447f5bc7c1f5da1550134775b1cc784fdef02618fb1",
+      "sha256": "0e781fa26ba24609e56c22cac44c148c31a88a6a2e42f3fadf32315dbe9d68b8",
       "size": "1800x1250"
     },
     "assets/screenshot-dashboard-ko.png": {
@@ -72,11 +72,11 @@
       "size": "1312x1086"
     },
     "docs/images/settings-panel.png": {
-      "sha256": "66768d350c37726ee16d6fd5c061418589bfef4fae4141ce52653d7ff4917ca3",
+      "sha256": "e8362d06fed566fe4a68e921a3b47d528406fe51f1da4e300c2decad3173129c",
       "size": "1800x1228"
     },
     "docs/images/dashboard-overview.png": {
-      "sha256": "98ed3fdace12d2d634886373baae55054c259f91f524ada6645d801f91ac1c84",
+      "sha256": "d79126a5bb356fba4fa5370e0f358805e1e2d7954a5c227b692c0281c08355f4",
       "size": "1312x1086"
     },
     "docs/images/dashboard-pending.png": {
@@ -88,7 +88,7 @@
       "size": "1312x1086"
     },
     "docs/images/settings-panel-ko.png": {
-      "sha256": "aec0eb8b5ba4de3b314eb447f5bc7c1f5da1550134775b1cc784fdef02618fb1",
+      "sha256": "0e781fa26ba24609e56c22cac44c148c31a88a6a2e42f3fadf32315dbe9d68b8",
       "size": "1800x1250"
     },
     "docs/images/dashboard-overview-ko.png": {

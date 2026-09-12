@@ -61,6 +61,7 @@ cannot be reproduced.
 ```bash
 powershell -ExecutionPolicy Bypass -File build/make_gui.ps1
 python build/make_release.py
+python build/smoke_archive.py build/dist/CodexAutoResume-v<version>-win-x64.zip <version>
 ```
 
 The first builds `CodexAutoResumeSettings.exe` and `codex-auto-resume-mcp.exe`, makes them
@@ -68,6 +69,15 @@ reproducible (below), and prints the compiler it used and each executable's SHA-
 needs `python` on `PATH` for that step. The second downloads the pinned embeddable Python
 (checksum-verified), assembles the payload, and writes the ZIP and its SHA-256 into
 `build/dist/`.
+
+The third drives the archive's own bytes: it extracts the ZIP and runs the engine inside
+it with the interpreter inside it, against a state directory that exists only for that run,
+and reads the version resource off both executables. Nothing outside that directory is
+touched - no registration, no watcher, and `plugin_setup.py` is never run, because a smoke
+test that repoints the sign-in entry at a temporary folder and then deletes the folder has
+broken the installation it was checking. Run it again on the **published** archive once the
+release exists: "the build works" and "what people download works" are different sentences,
+and only the second is a promise to anybody.
 
 Releases are published by the tagged GitHub Actions workflow, not from a developer machine.
 From v0.6.0 it has two jobs. `build` runs the repository's code - the tests and the build

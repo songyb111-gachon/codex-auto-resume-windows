@@ -495,7 +495,14 @@ class ShortcutTests(unittest.TestCase):
             env=dict(os.environ, CAR_LINK=str(self.link)))
         self.assertEqual(result.returncode, 0, result.stderr[-800:])
         found = dict(line.split("=", 1) for line in result.stdout.splitlines() if "=" in line)
-        self.assertEqual(found.get("target", "").strip().lower(), str(self.target).lower())
+        target = found.get("target", "").strip()
+        # By file identity, not by spelling. A temporary directory under a long account
+        # name is handed to Python in its 8.3 form - `runner~1` on GitHub's Windows
+        # runner - and read back out of the shortcut in its long form, so the same file
+        # arrives as two different strings and only one of them is anybody's bug.
+        self.assertTrue(target, result.stdout[-500:])
+        self.assertTrue(os.path.samefile(target, str(self.target)),
+                        "the shortcut points at %s, not at %s" % (target, self.target))
         self.assertEqual(found.get("description", "").strip(), "Codex Auto Resume")
 
     def test_it_carries_the_identity_the_notifier_sends_toasts_under(self):

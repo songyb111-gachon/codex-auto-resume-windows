@@ -234,6 +234,26 @@ function field(entry, value) {
   return row;
 }
 
+// When a record is next looked at, as a local clock time.
+//
+// Not a ticking countdown: this page is drawn once from one tool result and is not
+// refreshed, so a number counting down here would be wrong within a minute and would go
+// on being wrong convincingly. A time is still true an hour later, and "due now" is what
+// a moment that has already passed actually means - the watcher looks at it on its next
+// pass, and nothing here can say when that is.
+function nextCheck(row) {
+  var at = row.eligible_at;
+  if (at === null || at === undefined) return t('panel.next_unknown', 'when it can be told');
+  var when = new Date(at * 1000);
+  if (isNaN(when.getTime())) return t('panel.next_unknown', 'when it can be told');
+  if (when.getTime() <= Date.now()) return t('panel.due', 'due now');
+  try {
+    return when.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+  } catch (error) {
+    return when.toTimeString().slice(0, 5);
+  }
+}
+
 function renderPending(rows) {
   if (!rows || !rows.length) return null;
   var box = element('section', 'card pending');
@@ -242,7 +262,7 @@ function renderPending(rows) {
   var table = document.createElement('table');
   var head = document.createElement('tr');
   [t('panel.col_conversation', 'Conversation'), t('panel.col_state', 'State'),
-   t('panel.col_attempts', 'Attempts')].forEach(function (name) {
+   t('panel.col_next', 'Next check'), t('panel.col_attempts', 'Attempts')].forEach(function (name) {
     head.appendChild(element('th', null, name));
   });
   table.appendChild(head);
@@ -264,6 +284,7 @@ function renderPending(rows) {
       state.appendChild(element('span', 'state', t('overlay.' + overlay, overlay.replace(/_/g, ' '))));
     });
     line.appendChild(state);
+    line.appendChild(element('td', null, nextCheck(row)));
     line.appendChild(element('td', null, String(row.recovery_attempts)));
     table.appendChild(line);
   });
@@ -316,6 +337,17 @@ function render() {
     count === 0 ? t('status.pending_none', 'Nothing pending')
     : count === 1 ? t('status.pending_one', '1 recovery pending')
     : fill('status.pending_many', '{n} recoveries pending', {n: count})));
+  // The soonest of them, which is the question a count raises rather than answers.
+  var soonest = null;
+  (DATA.pending || []).forEach(function (row) {
+    if (row.eligible_at === null || row.eligible_at === undefined) return;
+    if (soonest === null || row.eligible_at < soonest) soonest = row.eligible_at;
+  });
+  if (count && soonest !== null) {
+    facts.appendChild(element('span', null, '\u00b7'));
+    facts.appendChild(element('span', null,
+      fill('status.next_check', 'next check {time}', {time: nextCheck({eligible_at: soonest})})));
+  }
   hero.appendChild(facts);
   root.appendChild(hero);
 
