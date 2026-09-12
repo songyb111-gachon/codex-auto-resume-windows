@@ -107,10 +107,10 @@ as described in
 
 **The watcher will not start, or its state reads `unknown`.** If the log says
 `named_object_squatted`, another program running with fewer rights than you created the
-watcher's lock or its stop signal first. The watcher refuses to run under an object that program
-controls, rather than let it fake a running watcher or stop the real one; that refusal is on the
-main branch and ships in the release after v0.5.7. Signing out and back in ends every program in
-your session, which clears it; if it comes back, report it with those log lines.
+watcher's lock or its stop signal first. The watcher refuses to run under an object that
+program controls, rather than let it fake a running watcher or stop the real one; that refusal
+is new in v0.6.0. Signing out and back in ends every program in your session, which clears it;
+if it comes back, report it with those log lines.
 
 ## Security issues
 

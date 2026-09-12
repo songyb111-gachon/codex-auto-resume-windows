@@ -17,16 +17,16 @@ continues **that exact conversation** — so you come back to finished work inst
 task. It also recovers temporary rate limits, network failures, timeouts, server errors and
 interrupted streams, but only where the failure is one it can name and is safe to retry.
 
-It is a small local watcher for the Windows ChatGPT/Codex desktop app. It reads Codex's own state
-read-only, classifies what actually went wrong, and sends one continuation message through the
-official `codex queue` command. The watcher has no network code of its own, and nothing is sent
-to this project. Before a resume it checks your usage by asking the official Codex binary, which
-gets the answer from OpenAI; the resumed turn then runs in your desktop app under your own Codex
-settings and goes to OpenAI like any turn you start; what this plugin's tools and commands return
-in a Codex conversation goes to OpenAI with that conversation; setting it up from Codex downloads
-the release from GitHub; and installing with v0.5.7 also has Codex refresh every Git marketplace
-you have configured (naming only this one is on the main branch and ships in the release after
-v0.5.7).
+It is a small local watcher for the Windows ChatGPT/Codex desktop app. It reads Codex's own
+state read-only, classifies what actually went wrong, and sends one continuation message
+through the official `codex queue` command. The watcher has no network code of its own, and
+nothing is sent to this project. Before a resume it checks your usage by asking the official
+Codex binary, which gets the answer from OpenAI; the resumed turn then runs in your desktop app
+under your own Codex settings and goes to OpenAI like any turn you start; what this plugin's
+tools and commands return in a Codex conversation goes to OpenAI with that conversation;
+setting it up from Codex downloads the release from GitHub; and installing with v0.5.7 also has
+Codex refresh every Git marketplace you have configured (naming only this one is new in
+v0.6.0).
 
 **It deliberately does not retry everything.** A failure it cannot name is left alone.
 
@@ -35,9 +35,9 @@ v0.5.7).
 | **Recovers** | Codex usage limits, and these when Codex records a specific error code for them: rate limits (HTTP 429) · network failures · timeouts · temporary server errors (5xx) · dropped response streams. Codex 0.153.4 records many timeouts, dropped streams and 502/503/504 errors with a generic code; one that carries no HTTP status is not retried, and one that carries a status is classified from it (429 a rate limit, 408 and 425 a timeout, 500-599 a server error, any other 4xx permanent). An HTTP 429 it has given up retrying is recorded as `responseTooManyFailedAttempts`, and that one is recovered as a rate limit; the same code with any other status, or none, is not |
 | **Never touches** | user cancellation · permission · approval · content policy · invalid requests · context length · permanent authentication failures · anything unclassified |
 | **Identity** | the exact conversation UUID only — never `--last`, never "the most recent one", never a title or a folder name |
-| **Configure it** | a Windows window from the Start Menu — on the main branch, shipping in the release after v0.5.7, a Dashboard whose settings are one of its six pages — a settings panel inside Codex, or the command line |
-| **Tells you** | Windows notifications when a task is interrupted, when recovery starts, how it went, and when it gives up. While the watcher runs it also shows a notification-area icon, whose tooltip says whether recovery is paused, how many recoveries are waiting, how many are running in Codex, and how long until the next check (main branch; ships in the release after v0.5.7) |
-| **Privacy** | no telemetry, no analytics, no automatic update check, never reads your credentials. *Check for updates* in the window asks GitHub which release is newest, and only when you press it. The watcher has no network code; the usage check, the resumed turn and what the plugin's tools and commands return in a conversation go to OpenAI through Codex, as Codex's traffic always does; setup downloads the release from GitHub; and the v0.5.7 installer has Codex refresh every Git marketplace you have configured (naming only this one is on the main branch and ships in the release after v0.5.7) |
+| **Configure it** | a Windows window from the Start Menu — from v0.6.0, a Dashboard whose settings are one of its six pages — a settings panel inside Codex, or the command line |
+| **Tells you** | Windows notifications when a task is interrupted, when recovery starts, how it went, and when it gives up. While the watcher runs it also shows a notification-area icon, whose tooltip says whether recovery is paused, how many recoveries are waiting, how many are running in Codex, and how long until the next check |
+| **Privacy** | no telemetry, no analytics, no automatic update check, never reads your credentials. *Check for updates* in the window asks GitHub which release is newest, and only when you press it. The watcher has no network code; the usage check, the resumed turn and what the plugin's tools and commands return in a conversation go to OpenAI through Codex, as Codex's traffic always does; setup downloads the release from GitHub; and the v0.5.7 installer has Codex refresh every Git marketplace you have configured (naming only this one is new in v0.6.0) |
 
 > **One honest limitation, up front.** Codex has to currently have that conversation open for a
 > recovery to be delivered. If the app restarted since, open the conversation once and recovery
@@ -79,9 +79,9 @@ plugin's instructions have Codex tell you before it does any of that.
 
 This route downloads a published archive, and every archive published so far, v0.5.0 through
 v0.5.7, was built by the earlier single-job release workflow, with GitHub Actions referred to
-by floating tags and executables that cannot be rebuilt byte for byte. Step 2 of
-[From the release archive](#from-the-release-archive) lists what replaces that; those changes
-are on the main branch and ship in the release after v0.5.7.
+by floating tags and executables that cannot be rebuilt byte for byte. Step 2 of [From the
+release archive](#from-the-release-archive) lists what replaces that; those changes are new in
+v0.6.0.
 
 The plugin as added from GitHub carries the skills, that setup script and the engine's Python
 source, but no interpreter to run that source, and its manifest declares no MCP server (the
@@ -126,8 +126,7 @@ If you would rather download the release yourself instead of having the setup sc
    v0.5.0 through v0.5.7, was built by the earlier single-job release workflow, which referred
    to its GitHub Actions by floating tags and produced executables that cannot be rebuilt byte
    for byte. Separate build and publish jobs, actions pinned to exact commits, and reproducible
-   executables are on the main branch and ship in the release after v0.5.7.
-3. Extract it anywhere and double-click **`Install.cmd`**.
+   executables are new in v0.6.0. 3. Extract it anywhere and double-click **`Install.cmd`**.
 
 The archive carries its own Python runtime, so there is nothing to install first, and the
 recommended settings are already on when it finishes. `Install.cmd` downloads nothing itself:
@@ -137,7 +136,7 @@ and so also the one the Codex route installs today, asks Codex to refresh every 
 you have configured, and Codex fetches each of them from wherever it is hosted. On the main
 branch the installer names only this product's marketplace, which does nothing for the local
 registration it has just made; Codex fetches only if an earlier GitHub registration of that
-marketplace survived the repoint. That change ships in the release after v0.5.7.
+marketplace survived the repoint. That change ships in v0.6.0.
 
 Nothing this project builds is Authenticode-signed: not the two executables, not `Install.cmd`
 or `Uninstall.cmd`, and not its PowerShell or Python scripts. The bundled Python interpreter
@@ -180,13 +179,13 @@ the plugin serves to Codex, rather than a photograph of the Codex window around 
 
 <img src="docs/images/settings-panel.png" alt="The Codex Auto Resume settings panel: a status line saying the watcher is watching for interruptions with two recoveries pending, a table of what is waiting to resume, and cards for the recovered failure categories, the attempt limits and the notification switches" width="680">
 
-The Start Menu opens a standalone window, which works with Codex closed. On the main branch,
-shipping in the release after v0.5.7, it is a Dashboard: what the watcher is doing, what is
-waiting and when it is next looked at, what finished and how, the last week's numbers, the
-watcher's health, and the settings. It is a native window; there is no local web server and
-nothing opens in a browser. The pictures below are of a scratch installation holding sample
-records, not of anyone's real conversations; until that release, the version in their footer
-is the latest release's number, because the version changes only when a release is made.
+The Start Menu opens a standalone window, which works with Codex closed. From v0.6.0 shipping
+in v0.6.0, it is a Dashboard: what the watcher is doing, what is waiting and when it is next
+looked at, what finished and how, the last week's numbers, the watcher's health, and the
+settings. It is a native window; there is no local web server and nothing opens in a browser.
+The pictures below are of a scratch installation holding sample records, not of anyone's real
+conversations; until that release, the version in their footer is the latest release's number,
+because the version changes only when a release is made.
 
 <img src="docs/images/dashboard-overview.png" alt="The Codex Auto Resume Dashboard overview: automatic recovery on, the watcher running and the Codex engine verified, two recoveries waiting with the next check in a minute and a half, the last seven days' interruptions, continuations sent, recoveries and success rate, and the four most recently finished recoveries" width="680">
 
@@ -209,8 +208,8 @@ process itself, so it appears when one starts and goes when it stops. Its toolti
 recovery is paused, how many recoveries are waiting, how many are running in Codex and how long
 until the next check; its menu opens this window, pauses or resumes recovery, and stops the
 watcher. The countdown only means the watcher looks again — nothing is sent because it reaches
-zero. It is on by default and can be switched off on the Settings page. Main branch; it ships in
-the release after v0.5.7.
+zero. It is on by default and can be switched off on the Settings page. Main branch; it ships
+in v0.6.0.
 
 ## Please read this limitation first
 
@@ -241,11 +240,11 @@ This is not fully unattended auto-resume across app restarts, and this README wi
 > Keep the recovery engine small, local, conservative, and fail-closed. Spend complexity on making it
 > easy to install and control, not on making the runtime do more.
 
-The recovery engine is deliberately one small watcher. Everything else exists to see and control it:
-a standalone Windows window — a settings window up to v0.5.7, a Dashboard on the main branch — a
-settings panel inside Codex over MCP, the command line, the watcher's own notification-area icon, and
-Windows notifications. None of those can recover anything by itself, and the watcher keeps running
-whether or not any of them is open.
+The recovery engine is deliberately one small watcher. Everything else exists to see and
+control it: a standalone Windows window — a settings window up to v0.5.7, a Dashboard from
+v0.6.0 — a settings panel inside Codex over MCP, the command line, the watcher's own
+notification-area icon, and Windows notifications. None of those can recover anything by
+itself, and the watcher keeps running whether or not any of them is open.
 
 What the project still avoids: a separate tray process, a management web UI, a supervisor process, a
 Windows service, a second recovery engine, and a second state database. The notification-area icon is
@@ -605,19 +604,17 @@ Uninstall is deliberately conservative:
 What it writes itself while running: its own `config/` and `logs/` (plus the bytecode cache
 Python writes inside its own program folder). Turning start-at-sign-in on or off from the
 settings changes the per-user Run value, and Windows keeps the notifications it shows in its
-notification history. One thing it writes elsewhere, and only when asked: **Export diagnostics...**
-on the Diagnostics page, and `diagnostics` on the command line, write one redacted JSON bundle to a
-path you choose; it sends nothing and refuses to overwrite an existing file. What it asks Codex to
-do, through official interfaces: queue one
-continuation message for one exact thread (`codex queue`), and withdraw that same queued
-message if it has to (the App Server's `thread/queue/delete`). Installing asks
-the `codex` CLI to register this plugin and its local marketplace, and a marketplace already
-registered under this product's name (`codex-auto-resume-windows`) is repointed at this
-installation. Installing also asks Codex to refresh marketplaces. The v0.5.7 installer
-refreshes every Git marketplace you have configured. Refreshing only
-`codex-auto-resume-windows` is on the main branch and ships in the release after v0.5.7.
-`Uninstall.cmd` asks the `codex` CLI to unregister the plugin and its marketplace, only while
-they still point here.
+notification history. One thing it writes elsewhere, and only when asked: **Export
+diagnostics...** on the Diagnostics page, and `diagnostics` on the command line, write one
+redacted JSON bundle to a path you choose; it sends nothing and refuses to overwrite an
+existing file. What it asks Codex to do, through official interfaces: queue one continuation
+message for one exact thread (`codex queue`), and withdraw that same queued message if it has
+to (the App Server's `thread/queue/delete`). Installing asks the `codex` CLI to register this
+plugin and its local marketplace, and a marketplace already registered under this product's
+name (`codex-auto-resume-windows`) is repointed at this installation. Installing also asks
+Codex to refresh marketplaces. The v0.5.7 installer refreshes every Git marketplace you have
+configured. Refreshing only `codex-auto-resume-windows` is new in v0.6.0. `Uninstall.cmd` asks
+the `codex` CLI to unregister the plugin and its marketplace, only while they still point here.
 
 Design rules enforced in code:
 
@@ -689,7 +686,7 @@ to wherever your other Git marketplaces are hosted:
   `logs`, local paths that at the default location contain your Windows user name) becomes part
   of that conversation, and Codex sends it to OpenAI like any tool output. In v0.5.7 the
   `get_status` and `open_settings` tools also return the installation folder's path. Removing
-  it from those tools is on the main branch and ships in the release after v0.5.7. The commands
+  it from those tools is new in v0.6.0. The commands
   still print local paths.
 - **GitHub, when installing.** Installing or updating from the plugin makes the setup script
   download that version's release archive from GitHub over HTTPS (and its `.sha256` when the
@@ -701,8 +698,7 @@ to wherever your other Git marketplaces are hosted:
   that installer today whenever they install or upgrade (the plugin's repair of an
   already-installed version does not). It asks Codex to refresh every Git marketplace you have
   configured, and Codex fetches each one from wherever it is hosted, which may be neither
-  OpenAI nor GitHub. Naming only this product's marketplace instead is on the main branch and
-  ships in the release after v0.5.7; see [From the release archive](#from-the-release-archive).
+  OpenAI nor GitHub. Naming only this product's marketplace instead is new in v0.6.0; see [From the release archive](#from-the-release-archive).
 
 Codex's local state is opened read-only. Recovery decisions come from Codex's structured
 records (and, only where Codex recorded no error code, a short list of transport-failure
@@ -759,22 +755,22 @@ set CODEX_AR_LIVE=1 && python -m unittest tests.test_integration_live
 
 ## Security
 
-See [SECURITY.md](SECURITY.md) for the full model, the review process, and the issues that were found
-and fixed. In short: the recovery runtime has no network code and reads no credentials; it reads
-Codex's state read-only, opens none of Codex's files for writing, and makes its changes to Codex's
-state by asking Codex through official interfaces; what reaches OpenAI is Codex's own traffic; it
-fails closed; and uninstall is conservative. The only download the shipped code makes itself is
-the plugin's setup script fetching the matching release from GitHub, which it checks before
-installing; the v0.5.7 installer also asks Codex to refresh your configured Git marketplaces (see
-[From the release archive](#from-the-release-archive)). Release archives from v0.5.4 on also
-carry a GitHub build provenance attestation, and
+See [SECURITY.md](SECURITY.md) for the full model, the review process, and the issues that were
+found and fixed. In short: the recovery runtime has no network code and reads no credentials;
+it reads Codex's state read-only, opens none of Codex's files for writing, and makes its
+changes to Codex's state by asking Codex through official interfaces; what reaches OpenAI is
+Codex's own traffic; it fails closed; and uninstall is conservative. The only download the
+shipped code makes itself is the plugin's setup script fetching the matching release from
+GitHub, which it checks before installing; the v0.5.7 installer also asks Codex to refresh your
+configured Git marketplaces (see [From the release archive](#from-the-release-archive)).
+Release archives from v0.5.4 on also carry a GitHub build provenance attestation, and
 [docs/VERIFY.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md)
 shows how to check a download yourself. Every archive published so far, v0.5.0 through v0.5.7,
-was built by the earlier single-job release workflow, with GitHub Actions referred to by floating
-tags and executables that cannot be rebuilt byte for byte; the split into build and publish jobs,
-commit-pinned actions and reproducible executables are on the main branch and ship in the release
-after v0.5.7. Nothing this project builds is Authenticode-signed; the bundled Python interpreter
-keeps the Python Software Foundation's signature.
+was built by the earlier single-job release workflow, with GitHub Actions referred to by
+floating tags and executables that cannot be rebuilt byte for byte; the split into build and
+publish jobs, commit-pinned actions and reproducible executables are new in v0.6.0. Nothing
+this project builds is Authenticode-signed; the bundled Python interpreter keeps the Python
+Software Foundation's signature.
 
 The project went through three adversarial review rounds plus mutation testing, a crash-window matrix,
 and a cross-process race test. Confirmed issues were fixed and covered by regression tests.

@@ -72,18 +72,17 @@ anything but its exact id, resends an uncertain submission or forces a send.
 
 ### The tools, and which ones Codex asks about
 
-The table describes the server on the main branch, which ships in the release after v0.5.7.
-The server runs from the installed release, not from the plugin you add, so until that release
-is installed you have the server of the release you installed, v0.5.7 or earlier, which
-differs in six ways: it has ten tools rather than sixteen, without
-`disable_conversation_recovery`, `enable_conversation_recovery`, `get_recovery_statistics`,
-`get_recovery_timeline` and `clear_recovery_history`; its `cancel_recovery` stops recovery for
-the whole conversation the named interruption belongs to and switches that conversation off,
-rather than stopping one interruption and the records that continue it; pause and resume are
-one tool, `set_auto_recovery`, marked in neither direction; of the other tools that change
-something, only `restore_default_settings` and `cancel_recovery` are marked; `update_settings`
-also accepts two advanced settings; and `get_status` also reports the installation directory.
-The last two are described below the table.
+The table describes the server as it is from v0.6.0. The server runs from the installed
+release, not from the plugin you add, so until that release is installed you have the server of
+the release you installed, v0.5.7 or earlier, which differs in six ways: it has ten tools
+rather than sixteen, without `disable_conversation_recovery`, `enable_conversation_recovery`,
+`get_recovery_statistics`, `get_recovery_timeline` and `clear_recovery_history`; its
+`cancel_recovery` stops recovery for the whole conversation the named interruption belongs to
+and switches that conversation off, rather than stopping one interruption and the records that
+continue it; pause and resume are one tool, `set_auto_recovery`, marked in neither direction;
+of the other tools that change something, only `restore_default_settings` and `cancel_recovery`
+are marked; `update_settings` also accepts two advanced settings; and `get_status` also reports
+the installation directory. The last two are described below the table.
 
 | Tool | What it does | Marked destructive |
 | --- | --- | --- |
@@ -127,15 +126,15 @@ resume are one tool, `set_auto_recovery`, not marked destructive in either direc
 Codex's Auto approval mode it runs without asking and a prompt-injected turn can quietly
 reverse a pause.
 
-On the main branch, `update_settings` neither offers nor accepts the advanced settings -
-`codex_exe`, which engine binary to run, and `detection_lookback_hours` - which the settings
-window and the panel do not show either; a client that sends them anyway is refused. And
-`get_status` does not report the installation directory, whose path contains your Windows user
-name, though the settings it returns do include `codex_exe`, which is empty unless an engine
-path has been set, by hand or through `update_settings` in v0.5.7 or earlier. Both changes
-ship in the release after v0.5.7. In v0.5.7 and earlier, `update_settings` accepts those two settings
-as well and is not marked destructive, so in Codex's Auto approval mode it accepts them
-without asking, and `get_status` reports the installation directory as `home`.
+From v0.6.0, `update_settings` neither offers nor accepts the advanced settings - `codex_exe`,
+which engine binary to run, and `detection_lookback_hours` - which the settings window and the
+panel do not show either; a client that sends them anyway is refused. And `get_status` does not
+report the installation directory, whose path contains your Windows user name, though the
+settings it returns do include `codex_exe`, which is empty unless an engine path has been set,
+by hand or through `update_settings` in v0.5.7 or earlier. Both changes ship in v0.6.0. In
+v0.5.7 and earlier, `update_settings` accepts those two settings as well and is not marked
+destructive, so in Codex's Auto approval mode it accepts them without asking, and `get_status`
+reports the installation directory as `home`.
 
 What a tool returns becomes part of the Codex conversation it was called from, and should be
 treated as sent to OpenAI like any tool output: the status summary (in v0.5.7 and earlier,
@@ -195,7 +194,7 @@ allowed to do is deliberately narrow:
 
 | | |
 | --- | --- |
-| **Where from** | One URL shape, built from `scripts/release.json` and the version in this plugin's own manifest. No "latest", no parameter that reaches a URL: a plugin at a given version can fetch that version's archive and the `.sha256` published beside it, and nothing else. It fetches the `.sha256` only when there is no pinned digest to check against. |
+| **Where from** | One URL shape, built from `scripts/release.json` and a version this script chose. No parameter reaches a URL. An ordinary run fetches the version in this plugin's own manifest and the `.sha256` published beside it, and nothing else; it fetches the `.sha256` only when there is no pinned digest to check against. `-Update` is the one exception and the version it fetches is not an input either: it is three integers read out of a redirect under this exact owner and repository, and every check below still applies. |
 | **Over what** | HTTPS, TLS 1.2 minimum, and the *final* response URI has to be one of exactly three hosts - `github.com`, `objects.githubusercontent.com` or `release-assets.githubusercontent.com` - because a release download redirects to GitHub's object storage and nowhere else. |
 | **Checked how** | SHA-256 against the digest pinned in this plugin's `release.json` when there is one, and otherwise against the `.sha256` published beside the archive - and it says which. Then that the archive contains everything the release is defined to contain, that its manifest declares this product at this version, and that no entry escapes extraction. |
 | **Then** | Extract to a fresh temporary directory and run `install/install.ps1` from it. That installer is code from the downloaded archive, and nothing from the archive runs before all of the above passes. |
@@ -243,20 +242,19 @@ the attestation; `gh attestation verify` does, for anyone with the GitHub CLI.
 Every archive published so far, v0.5.0 through v0.5.7, was built by the earlier single-job
 release workflow, which referred to its Actions by floating tags, and its executables are not
 reproducible: each carries a build time and a random module id, and no rebuild of them will
-match. On the main branch the release workflow builds and publishes in separate jobs, pins
-every Action to a commit, and removes what made the executables differ from one build to the
-next; the checkout also gives every text file CRLF line endings whatever the machine's Git
-settings, because the archive's bytes include them. That ships in the release after v0.5.7,
-which is the first built that way. The in-box C# compiler stamps a build time and a fresh
-module version id into each executable, so the build normalises both - a fixed PE timestamp,
-and a module id derived from the content - and the workflow compiles the two executables
-twice and refuses to publish if they differ. When that normalisation was added, two local
-builds and a build from a separate clone produced byte-identical executables; the workflow's
-double compile repeats that check on every release build. That measurement covers the executables, not the
-whole archive, and whether GitHub's runner produces the same bytes as a local build has not
-been verified, so the pin is still taken from the published file rather than from a
-rebuild. [VERIFY.md](VERIFY.md) has the rebuild procedure, and what a match or a mismatch
-does and does not show.
+match. From v0.6.0 the release workflow builds and publishes in separate jobs, pins every
+Action to a commit, and removes what made the executables differ from one build to the next;
+the checkout also gives every text file CRLF line endings whatever the machine's Git settings,
+because the archive's bytes include them. That ships in v0.6.0, which is the first built that
+way. The in-box C# compiler stamps a build time and a fresh module version id into each
+executable, so the build normalises both - a fixed PE timestamp, and a module id derived from
+the content - and the workflow compiles the two executables twice and refuses to publish if
+they differ. When that normalisation was added, two local builds and a build from a separate
+clone produced byte-identical executables; the workflow's double compile repeats that check on
+every release build. That measurement covers the executables, not the whole archive, and
+whether GitHub's runner produces the same bytes as a local build has not been verified, so the
+pin is still taken from the published file rather than from a rebuild. [VERIFY.md](VERIFY.md)
+has the rebuild procedure, and what a match or a mismatch does and does not show.
 
 ### Checking a download yourself
 
@@ -303,7 +301,7 @@ pins the rules that make that true.
 | You do this | What happens |
 | --- | --- |
 | Download the archive, check it (above), run `Install.cmd` | Deploys the runtime and the application, registers the plugin from the payload itself rather than downloading it, then runs setup. It verifies nothing about the archive. |
-| `codex plugin add`, then *set up auto resume* | The skill has Codex run `bootstrap.ps1`; the bootstrap downloads and verifies the matching release and runs the same installer. Identical result. On the main branch the skill tells Codex to run `bootstrap.ps1` by its absolute path inside the plugin, and never as a relative `scripts/bootstrap.ps1`; that ships in the release after v0.5.7, and the skill in v0.5.2 through v0.5.7 gives the relative form. Codex follows the skill of the plugin you added: one added from the GitHub marketplace is a copy of `main` as it was when the marketplace was added or last upgraded, so it gives the absolute path only if that was after the change reached main (2026-09-11) - an older copy gives the relative form until the marketplace is upgraded with `codex plugin marketplace upgrade codex-auto-resume-windows` - while the copy the installer registers from an installed release carries that release's skill. |
+| `codex plugin add`, then *set up auto resume* | The skill has Codex run `bootstrap.ps1`; the bootstrap downloads and verifies the matching release and runs the same installer. Identical result. From v0.6.0 the skill tells Codex to run `bootstrap.ps1` by its absolute path inside the plugin, and never as a relative `scripts/bootstrap.ps1`; the skill in v0.5.2 through v0.5.7 gives the relative form. Codex follows the skill of the plugin you added: one added from the GitHub marketplace is a copy of `main` as it was when the marketplace was added or last upgraded, so it gives the absolute path only if that was after the change reached main (2026-09-11) - an older copy gives the relative form until the marketplace is upgraded with `codex plugin marketplace upgrade codex-auto-resume-windows` - while the copy the installer registers from an installed release carries that release's skill. |
 | Either of the above with something already installed | The installer first asks a running watcher to stop through its stop event and waits up to a minute. It does not kill it: if the old watcher is still running when the wait ends, the upgrade completes and says so, and the new version takes over once the old watcher has exited and a watcher is started again (`start_watcher`, the settings window's Start watcher, or the next sign-in). Then it moves the old payload aside, copies, and rolls back on failure. Settings, pending recoveries, retry budgets and logs are kept. Setup runs with `--keep-state` whenever there is already an installation to repair: the installer adds that switch when the program directory `app\` is present, and the bootstrap adds it on the repair described next. `--keep-state` does not run the engine's `enable`, and it does not create a sign-in entry - it re-registers one only when the entry already registered is this installation's, which still repairs a stale path after the runtime moves. So a global pause survives an upgrade, a reinstall over an existing installation and that repair, and so does a sign-in start you had turned off. A first install is the exception, and has to be: with no `app\` directory there is no decision to preserve, so setup switches automatic recovery on and registers the sign-in start unless it is run with `--no-startup` (the bootstrap's `-NoStartup`, the installer's `-SkipStartup`). Unless it is run with `-Force`, the bootstrap skips the download entirely when the installed version already matches, and re-runs setup to repair its Windows registrations - the sign-in entry, the notification button's handler and, while notifications are on, the notification sender identity and the Start Menu entry - and start the watcher if it is not running. That repair does not re-register the plugin or its marketplace in Codex; only the installer does that. |
 | Ask for anything else with nothing installed | `setup` refuses and prints the command that installs it. Nothing is registered, so there is no half-installation for a later run to mistake for a real one. |
 | `codex plugin remove` | Removes the skill, the tools and the panel. The watcher keeps running, from the installed application rather than from the cache copy that just disappeared. `uninstall` is what removes it. |
@@ -316,23 +314,22 @@ The plugin cache path contains the version, so it changes on every update. Three
 consequences are designed around:
 
 - **State must not live in the plugin.** Pending interruptions, settings and logs live in
-  `%USERPROFILE%\.codex-auto-resume\` by default. Updating or removing the plugin does not touch them.
-- **Autostart must not point into the plugin.** Setup copies `watcher_launcher.py` to that same
-  stable directory and registers *that*, so an update needs no re-registration.
-- **The installed application is the engine**, not the plugin cache copy. The launcher
-  resolves the installation's `app` directory first - under the home `runtime.json` records,
-  `%USERPROFILE%\.codex-auto-resume\app` by default - and, for a plugin installation, falls
-  back to the cache only when that directory holds no usable application. It used to prefer
-  the newest cache copy by modification time, which meant installing a newer plugin from a
-  marketplace silently swapped the engine underneath an older installation while the
-  settings window still talked to the old one. Updating a plugin should update the skills and the manifest;
-  replacing the engine is what the installer is for. On the main branch the cache fallback
-  considers only copies from this product's own marketplace, `codex-auto-resume-windows`, and
-  skips a same-named plugin from another marketplace; that ships in the release after
-  v0.5.7, and the launcher in v0.5.7 and earlier takes the newest same-named copy from any
-  marketplace. After the cache, the launcher tries the directory setup last ran from, which
-  `runtime.json` records; the installer runs setup from the installed application, so that is
-  normally the same directory.
+`%USERPROFILE%\.codex-auto-resume\` by default. Updating or removing the plugin does not touch
+them. - **Autostart must not point into the plugin.** Setup copies `watcher_launcher.py` to
+that same stable directory and registers *that*, so an update needs no re-registration. - **The
+installed application is the engine**, not the plugin cache copy. The launcher resolves the
+installation's `app` directory first - under the home `runtime.json` records,
+`%USERPROFILE%\.codex-auto-resume\app` by default - and, for a plugin installation, falls back
+to the cache only when that directory holds no usable application. It used to prefer the newest
+cache copy by modification time, which meant installing a newer plugin from a marketplace
+silently swapped the engine underneath an older installation while the settings window still
+talked to the old one. Updating a plugin should update the skills and the manifest; replacing
+the engine is what the installer is for. From v0.6.0 the cache fallback considers only copies
+from this product's own marketplace, `codex-auto-resume-windows`, and skips a same-named plugin
+from another marketplace; that ships in v0.6.0, and the launcher in v0.5.7 and earlier takes
+the newest same-named copy from any marketplace. After the cache, the launcher tries the
+directory setup last ran from, which `runtime.json` records; the installer runs setup from the
+installed application, so that is normally the same directory.
 
 Tested: after replacing `0.2.0` with `0.2.1+codex.local-test` and deleting the old directory,
 the launcher resolved the new one and the state was untouched.
@@ -513,12 +510,44 @@ already registered from a different source, the installer removes that registrat
 this installation in its place. It then asks Codex to upgrade that one marketplace by name,
 `codex plugin marketplace upgrade codex-auto-resume-windows`, rather than the form without a
 name, which, by Codex's own help text, refreshes every Git marketplace you have configured. For
-the local marketplace it has just registered, the named upgrade does nothing; it
-fetches anything only if an earlier Git registration of that name survived the
-repointing. The named form is on the main branch and ships in the release after v0.5.7; the
-installer in v0.5.7 and earlier runs the form without a name.
+the local marketplace it has just registered, the named upgrade does nothing; it fetches
+anything only if an earlier Git registration of that name survived the repointing. The named
+form is new in v0.6.0; the installer in v0.5.7 and earlier runs the form without a name.
 
 ## Long paths
 
 The plugin cache path plus the script path can exceed the Windows `MAX_PATH` limit of 260
 characters if `CODEX_HOME` is itself deeply nested. The default location is short and unaffected.
+
+## The public Plugin Directory, and why this plugin is not in it
+
+Checked against OpenAI's current submission documentation on 2026-09-12, because the answer
+had changed shape since it was last looked at and it is not the answer this project wanted.
+
+A directory listing needs a verified publisher identity and an organisation role with
+Apps Management write access; a name, a short and a long description, a logo and a
+category; website, support, privacy and terms URLs; the skill bundle; five positive test
+cases with fixtures, three negative ones, five starter prompts, release notes; and the
+regions it should be available in. All of that is preparable, and most of it exists
+already in this repository.
+
+One requirement is not preparable, and it is the one that decides this:
+
+> If your MCP server runs locally, deploy it to a public HTTPS URL. If you can't, reach
+> out to your OpenAI contact for local MCP support.
+
+This product's MCP server is a local executable, on purpose. Making it a public HTTPS
+endpoint would mean this project operating a server that receives people's recovery state,
+which is the single thing `PRIVACY.md` says it does not do and will not do. So there are
+three routes and only one of them is this product:
+
+1. **Submit as skills-only**, dropping the MCP server from the listing. That removes the
+   panel inside Codex and the typed control tools - a different product with the same name,
+   and the one a person would install from the directory would be the lesser one.
+2. **Ask OpenAI about local MCP support**, which the documentation names as the route for
+   exactly this case. That is a conversation a person has, not something a release can do.
+3. **Stay off the directory** and be installed the way it is installed today, from this
+   repository's marketplace.
+
+Until (2) has an answer, (3) is what happens, and this section is here so that is a
+recorded decision rather than a thing nobody got round to.

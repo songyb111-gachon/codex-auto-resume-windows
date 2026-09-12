@@ -70,6 +70,37 @@ class DiagnosticsTests(unittest.TestCase):
         second = json.loads(second_path.read_text(encoding="utf-8"))["records"][0]["record"]
         self.assertNotEqual(first, second, "an alias must not be a stable fingerprint of the id")
 
+    def test_it_says_whether_the_pieces_outside_the_state_file_are_there(self):
+        """The four questions asked first of a machine where nothing is happening.
+
+        A sign-in entry that is missing, a notification handler that belongs to another
+        copy, an MCP launcher that was never unpacked, a window speaking the wrong
+        language. Each used to need somebody walked through the registry over a support
+        thread; none of them is visible in a record or a log.
+        """
+        found = json.loads(self.bundle_text())["installation"]
+        self.assertEqual(
+            sorted(found),
+            ["bundled_runtime", "language", "mcp_launcher", "mcp_manifest",
+             "notification_identity", "owner_marker", "protocol_handler", "runtime_record",
+             "settings_window", "startup_entry"])
+        # This home is a temporary directory with nothing installed into it.
+        for name in ("owner_marker", "runtime_record", "mcp_manifest", "mcp_launcher",
+                     "settings_window", "bundled_runtime"):
+            self.assertIs(found[name], False, name)
+        for name in ("startup_entry", "protocol_handler", "notification_identity"):
+            self.assertIn(found[name], ("ours", "another", "absent", "unreadable"), name)
+        self.assertIn(found["language"], ("en", "ko"))
+
+    def test_it_says_whether_a_registration_is_ours_and_never_where_it_points(self):
+        """A registry value is a command line with an install path in it. What is useful is
+        whether it names this installation; what is dangerous is the rest of it."""
+        found = json.loads(self.bundle_text())["installation"]
+        for name in ("startup_entry", "protocol_handler", "notification_identity"):
+            value = found[name]
+            self.assertNotIn("\\", str(value), name)
+            self.assertNotIn(":", str(value), name)
+
     def test_it_never_overwrites_a_file(self):
         target = Path(self.temporary.name) / "exists.json"
         target.write_text("keep", encoding="utf-8")

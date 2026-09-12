@@ -51,12 +51,12 @@ declaring an MCP server (see below).
 
 ## Building a release
 
-This section describes the release process on the main branch. The split of the release
+This section describes the release process as it is from v0.6.0. The split of the release
 workflow into build and publish jobs, the actions pinned to commits, Dependabot, the
-reproducible executables, the CRLF checkout and the executables' version resources are on
-the main branch and ship in the release after v0.5.7. Every archive published so far,
-v0.5.0 through v0.5.7, was built by the earlier single-job workflow, which referred to its
-actions by floating tags, and with executables that cannot be reproduced.
+reproducible executables, the CRLF checkout and the executables' version resources are new in
+v0.6.0. Every archive published so far, v0.5.0 through v0.5.7, was built by the earlier
+single-job workflow, which referred to its actions by floating tags, and with executables that
+cannot be reproduced.
 
 ```bash
 powershell -ExecutionPolicy Bypass -File build/make_gui.ps1
@@ -70,13 +70,13 @@ needs `python` on `PATH` for that step. The second downloads the pinned embeddab
 `build/dist/`.
 
 Releases are published by the tagged GitHub Actions workflow, not from a developer machine.
-On the main branch it has two jobs. `build` runs the repository's code - the tests and the
-build scripts - with a read-only token that checkout does not leave on disk. `publish`
-holds the rights to create the release and attest it, runs none of the repository's
-scripts or tests, and runs only on a tag push. Every action the workflows use is pinned to
-a full commit SHA. Dependabot proposes updates as pull requests; `.github/dependabot.yml`
-turns on no automatic merging, and each one is meant to be reviewed and merged by a person.
-Nothing in the repository checks its own settings on GitHub.
+From v0.6.0 it has two jobs. `build` runs the repository's code - the tests and the build
+scripts - with a read-only token that checkout does not leave on disk. `publish` holds the
+rights to create the release and attest it, runs none of the repository's scripts or tests, and
+runs only on a tag push. Every action the workflows use is pinned to a full commit SHA.
+Dependabot proposes updates as pull requests; `.github/dependabot.yml` turns on no automatic
+merging, and each one is meant to be reviewed and merged by a person. Nothing in the repository
+checks its own settings on GitHub.
 
 ### Making the build reproducible
 
@@ -189,21 +189,20 @@ against the release workflow and the tag, which is why
 [`docs/VERIFY.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md)
 tells users to check both.
 
-The manual dispatch still exists. On the main branch it is a dry run: point it at any ref
-and it builds, tests and verifies with a read-only token, then keeps the archive as a
-workflow artifact. The publish job runs only on a tag push, so a dispatch of the
-main-branch workflow cannot create or change a release. That is on the main branch and
-ships in the release after v0.5.7. In the earlier single-job workflow, which built every
-archive from v0.5.0 through v0.5.7, a dispatch ran with the workflow's write permissions.
-In its v0.5.2 and v0.5.3 versions, a dispatch given a tag rebuilt that tag and replaced
-the release's assets (`--clobber`). Those copies of the workflow remain at those tags, and
-someone with write access can still dispatch them. Dispatched on its own tag, such a copy
-first tries to create that version's release, which fails because the release exists, so
-it reaches the replace step only when run from a branch that holds it. In its v0.5.0 to
-v0.5.3 versions, a dispatch started on a tag with no release yet could also create that
-release (in v0.5.2 and v0.5.3, from a build of the ref named in its `tag` input), with no
-attestation. In its versions from v0.5.4 on, a dispatch started on a tag, while that version had no assets yet, could
-publish and attest a build of any ref whose `plugin.json` declared that tag's version;
+The manual dispatch still exists. From v0.6.0 it is a dry run: point it at any ref and it
+builds, tests and verifies with a read-only token, then keeps the archive as a workflow
+artifact. The publish job runs only on a tag push, so a dispatch of the main-branch workflow
+cannot create or change a release. That is new in v0.6.0. In the earlier single-job workflow,
+which built every archive from v0.5.0 through v0.5.7, a dispatch ran with the workflow's write
+permissions. In its v0.5.2 and v0.5.3 versions, a dispatch given a tag rebuilt that tag and
+replaced the release's assets (`--clobber`). Those copies of the workflow remain at those tags,
+and someone with write access can still dispatch them. Dispatched on its own tag, such a copy
+first tries to create that version's release, which fails because the release exists, so it
+reaches the replace step only when run from a branch that holds it. In its v0.5.0 to v0.5.3
+versions, a dispatch started on a tag with no release yet could also create that release (in
+v0.5.2 and v0.5.3, from a build of the ref named in its `tag` input), with no attestation. In
+its versions from v0.5.4 on, a dispatch started on a tag, while that version had no assets yet,
+could publish and attest a build of any ref whose `plugin.json` declared that tag's version;
 the attestation records which event started the run.
 
 > Actions → **release** → Run workflow → optionally set **ref**.

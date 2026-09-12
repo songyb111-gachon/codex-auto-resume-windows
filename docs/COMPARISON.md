@@ -13,10 +13,10 @@ Not re-reviewed for v0.5.2: that release changed how the product is installed an
 looks like, and nothing in it came from reading another project. Saying that is cheaper than
 implying a review that did not happen.
 
-Not re-reviewed for the release after v0.5.7 either, and again nothing in it came from
-reading another project. What changed is this project: the Start Menu window became a
-Dashboard and the watcher grew a notification-area icon, which moves two more entries below
-— a tray icon out of *rejected*, a live countdown out of *deferred*.
+Not re-reviewed for v0.6.0 either, and again nothing in it came from reading another project.
+What changed is this project: the Start Menu window became a Dashboard and the watcher grew a
+notification-area icon, which moves two more entries below — a tray icon out of *rejected*, a
+live countdown out of *deferred*.
 
 Reviewed again for v0.6.0 on 2026-09-12, against `sybxxx/codex-auto-retry` **v0.7.11**,
 published that morning. Its scope has moved since the v0.5.0 review and this file has been
@@ -108,7 +108,7 @@ narrower and, because of that, easier to trust: **it acts only on failures it ca
 | --- | --- |
 | **An embedded Codex management panel** | Adopted in v0.5 as a read-only settings panel over MCP. It shows state and changes settings; it cannot recover anything, and the watcher runs whether or not it is open. Previously rejected — the reason given was that it would replace something a user could do in words. That was true of a panel that only *displayed*; it stopped being true once there were sixteen settings to find. |
 | **A graphical settings window** | Adopted in v0.5 as a standalone Start Menu window, for a different reason than theirs: settings must be reachable when Codex is closed and nothing else is running. |
-| **A tray icon and a supervisor process** | The icon was adopted in the release after v0.5.7, as a thread of the watcher itself (`app.py:_start_tray`) rather than a second process, so it cannot show a watcher that is not running. Its menu opens the window, pauses recovery and stops the watcher; `show_tray` turns it off. The supervisor is still rejected: another long-lived process to make one visible |
+| **A tray icon and a supervisor process** | The icon was adopted in v0.6.0, as a thread of the watcher itself (`app.py:_start_tray`) rather than a second process, so it cannot show a watcher that is not running. Its menu opens the window, pauses recovery and stops the watcher; `show_tray` turns it off. The supervisor is still rejected: another long-lived process to make one visible |
 | **An MCP server** | Adopted, deliberately narrow: typed configuration and safe control only. No tool detects, schedules, reserves or sends. |
 | **Notification of a retry limit being reached** | One of four lifecycle notifications, each with its own switch |
 | **Empty-input continuation, so no user bubble appears** | Not possible without their app-server route. A continuation message is sent, and the README says so plainly rather than implying the conversation is untouched |

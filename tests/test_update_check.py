@@ -465,5 +465,46 @@ class NeverGoesBackwardsTests(unittest.TestCase):
 
 
 
+class InstalledCopyCanAskTests(unittest.TestCase):
+    """An installation carries the script that answers the update question.
+
+    The window runs `<home>/app/scripts/bootstrap.ps1` with `<home>/app/scripts/release.json`
+    beside it. Both arrive only because `scripts` is one of the trees the release packs, and
+    nothing else in the suite would notice that changing: the feature would keep passing every
+    test here and stop working on every installed machine, where the button would report a
+    broken installation.
+    """
+
+    def setUp(self):
+        import sys
+        sys.path.insert(0, str(ROOT / "build"))
+        import make_release
+        self.release = make_release
+
+    def test_the_release_packs_the_scripts_tree(self):
+        self.assertIn("scripts", self.release.APP_TREES)
+
+    def test_nothing_excludes_the_two_files_the_window_runs(self):
+        for name in ("scripts/bootstrap.ps1", "scripts/release.json"):
+            with self.subTest(name):
+                path = Path(name)
+                self.assertTrue((ROOT / path).is_file())
+                self.assertTrue(self.release._wanted(path),
+                                "the release builder would leave this out")
+
+    def test_the_payload_root_is_the_two_files_the_installer_copies_by_name(self):
+        """`make_release` writes them and the bootstrap refuses anything else there, so the
+        two lists have to agree or every install rejects every release."""
+        builder = (ROOT / "build" / "make_release.py").read_text(encoding="utf-8")
+        self.assertIn('stage / "payload" / "codex-auto-resume.ico"', builder)
+        self.assertIn('shutil.copyfile(source, stage / "payload" / GUI_EXE)', builder)
+        # Not conditional: a build without the icon would produce a release nothing installs.
+        self.assertIn("missing assets/codex-auto-resume.ico", builder)
+        bootstrap = BOOTSTRAP.read_text(encoding="utf-8")
+        self.assertIn("$rootFiles = @('CodexAutoResumeSettings.exe', 'codex-auto-resume.ico')",
+                      bootstrap)
+
+
+
 if __name__ == "__main__":
     unittest.main()
