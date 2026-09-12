@@ -341,7 +341,8 @@ If either one blocks you, please open an issue naming the file and the message.
 ## What is not verified
 
 - **The releases are not GitHub immutable releases.** GitHub reports every release from
-  v0.5.0 through v0.5.7 as not immutable. Immutability is the repository setting that
+  v0.5.0 through v0.6.0 as not immutable, v0.6.0 included - the API was asked after it was
+  published. Immutability is the repository setting that
   makes GitHub itself refuse to change a published release's files or move its tag.
   The release workflow, from v0.5.4 on, refuses to publish over a version that already
   has assets. Its v0.5.2 and v0.5.3 versions did the opposite: a dispatch given a tag
@@ -352,11 +353,14 @@ If either one blocks you, please open an issue naming the file and the message.
   when it tries to create a release that already exists). What would reveal a replaced archive is the digest pinned on `main`, and an
   attestation checked against the release workflow and the tag as in step 4, which is why
   the steps above use both.
-- **The published archives came from the earlier release workflow.** Every archive
-  published so far, v0.5.0 through v0.5.7, was built by a single job that referred to its
-  actions by floating tags rather than pinned commits, and with executables that cannot be
-  reproduced. The split into a build job and a publish job, the actions pinned to full
-  commit SHAs, and Dependabot are new in v0.6.0.
+- **The archives up to v0.5.7 came from the earlier release workflow.** Every archive
+  published before v0.6.0 was built by a single job that referred to its actions by
+  floating tags rather than pinned commits, and with executables that cannot be reproduced.
+  v0.6.0 is the first archive built by the split build-and-publish workflow, with every
+  action pinned to a full commit, and the first whose executables a rebuild of the tag can
+  match. That is one release, not a record: the rest of this page is about what a reader
+  can check for themselves, and for v0.5.0 through v0.5.7 the answer is still the digest,
+  the release page and - from v0.5.4 - the attestation.
 - **Tags are not signed.** Cloning `vX.Y.Z` trusts that the tag still points where it
   did. For an archive published by a tag push, the attestation records the commit that
   was built, which is why the rebuild prints `git rev-parse HEAD`. The earlier single-job
@@ -374,25 +378,32 @@ If either one blocks you, please open an issue naming the file and the message.
 - **`Install.cmd` does not check the archive**, and **the plugin route does not check the
   attestation.**
 - **Archives before v0.5.4 have no attestation.**
-- **Four proposed action upgrades were deferred past v0.6.0, deliberately.** Dependabot has
-  open pull requests raising `actions/checkout` to v7.0.1, `actions/setup-python` to v7.0.0,
-  `actions/attest-build-provenance` to v4.2.2, and the artifact pair to
-  `upload-artifact` v7.0.1 with `download-artifact` v8.0.1. All four keep the full-commit
-  pinning and its version comment, and none of them is a published security fix.
+- **Two of four proposed action upgrades are in; two are still waiting, deliberately.**
+  Dependabot opened pull requests raising `actions/checkout` to v7.0.1,
+  `actions/setup-python` to v7.0.0, `actions/attest-build-provenance` to v4.2.2, and the
+  artifact pair to `upload-artifact` v7.0.1 with `download-artifact` v8.0.1. All four keep
+  the full-commit pinning and its version comment, and none is a published security fix.
 
-  v0.6.0 is the first release the split build-and-publish workflow has ever made. The
-  artifact pair is what carries the archive from the unprivileged build job to the
-  privileged publish job, and the attestation action is what the publish job signs with;
-  changing either at the same moment as the first real use of that path would make a
-  failure impossible to attribute to one of the two changes. The one concrete pressure is
-  that GitHub now forces `checkout` and `setup-python` onto Node 24 because the Node 20
-  they declare is deprecated, and says so on every run - but they run, and nothing about
-  this release depends on that changing.
+  `checkout` and `setup-python` went in after v0.6.0 was published and verified, which is
+  the order the plan below names. Both new digests were resolved from the upstream
+  repositories' own git refs before being written, and both actions are exercised by
+  `test.yml` on every push, so CI is a real check on them rather than a formality. They
+  were applied as the one line each is: the proposed pull requests also rewrote all three
+  workflow files from LF to CRLF, which `.gitattributes` is written to prevent.
 
-  After v0.6.0 is published and verified they go in one at a time, `checkout` and
-  `setup-python` first because of that deprecation, then the artifact pair together -
-  never one without the other - then the attestation, each with a `workflow_dispatch` dry
-  run before the next tag.
+  The two still waiting are the two nothing can test. v0.6.0 is the first release the
+  split build-and-publish workflow has ever made. The artifact pair is what carries the
+  archive from the unprivileged build job to the privileged publish job, and the
+  attestation action is what the publish job signs with - and neither is reached by CI, nor
+  by a `workflow_dispatch`, which builds but never enters the publish job. The first proof
+  either works is a real tag push, and this workflow refuses to republish a version, so a
+  failure there costs a version number rather than a retry. `attest-build-provenance` v4
+  adds a second reason to think: from v4 it is a wrapper over `actions/attest`, and the ref
+  that wrapper pins internally is not something `tests/test_workflow_pins.py` can see.
+
+  They go in one at a time, the artifact pair together - never one without the other - then
+  the attestation, each with a `workflow_dispatch` dry run before the next tag, and with
+  the knowledge that the dry run cannot reach the half that matters.
 
 Verifying tells you the file is the one this project published. It does not tell you the
 code is safe; for what the code is allowed to do, and how that is enforced, see
