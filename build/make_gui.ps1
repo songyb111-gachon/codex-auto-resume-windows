@@ -101,7 +101,17 @@ function Build {
     # produces the same bytes and anyone can rebuild a release and compare digests.
     & $python $normalizer $exe | Out-Null
     if ($LASTEXITCODE -ne 0) { throw ($Name + ' could not be made reproducible.') }
-    $digest = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+    # .NET rather than Get-FileHash. This script is run three ways - by a contributor in
+    # an ordinary Windows PowerShell session, by the release workflow under pwsh 7, and by
+    # `tests/test_reproducible.py` - and in the third the runner's own PSModulePath leaves
+    # Windows PowerShell without Get-FileHash while every other cmdlet here still resolves.
+    # The digest is a line of output; it is not worth a dependency on module autoloading.
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $stream = [IO.File]::OpenRead((Resolve-Path $exe))
+        try { $digest = [BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-', '').ToLower() }
+        finally { $stream.Dispose() }
+    } finally { $sha.Dispose() }
     Write-Host ('built ' + $exe + ' (' + (Get-Item $exe).Length + ' bytes, sha256 ' + $digest + ')')
 }
 
