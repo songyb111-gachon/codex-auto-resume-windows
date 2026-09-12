@@ -1,134 +1,113 @@
-# Contributing
+# 기여
 
-Thanks for looking. This is a small, deliberately conservative tool, so the most useful
-contributions are usually bug reports with a reproduction, and fixes that keep the safety
-properties intact.
+> 🌐 한국어 문서입니다. English version: [`main` 브랜치의 CONTRIBUTING.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/CONTRIBUTING.md)
 
-## Development environment
+들여다봐 주셔서 감사합니다. 이 도구는 작고 의도적으로 보수적으로 만들어져 있어서, 가장 도움이 되는
+기여는 대개 재현 절차가 있는 버그 신고와 안전 속성을 그대로 지키는 수정입니다.
 
-- Windows 10/11. The product is Windows-only, and so is most of the test suite.
-- Python 3.12 or newer, standard library only. There are no third-party runtime dependencies
-  and no build step for the Python side.
-- The ChatGPT/Codex desktop app, if you want to run anything beyond the unit tests.
-- .NET Framework 4.8 (already on every supported Windows) to build the two small C#
-  executables — the window and the MCP launcher (`gui/McpLauncher.cs`). The window is
-  compiled from three sources: `gui/SettingsApp.cs` for the form and the Settings page,
-  `gui/Dashboard.cs` for the navigation and the Overview, Pending, History, Statistics and
-  Diagnostics pages, and `gui/Brand.cs` for the palette.
+## 개발 환경
 
-Nothing here needs administrator rights.
+- Windows 10/11. 제품이 Windows 전용이고, 테스트 suite 대부분도 그렇습니다.
+- Python 3.12 이상, 표준 라이브러리만 씁니다. 서드파티 런타임 의존성이 없고 Python 쪽에는 빌드
+  단계도 없습니다.
+- 유닛 테스트 이상을 실행하려면 ChatGPT/Codex 데스크톱 앱.
+- 창과 MCP 런처(`gui/McpLauncher.cs`), 이 작은 C# 실행 파일 두 개를 빌드하려면 .NET Framework
+  4.8(지원되는 모든 Windows에 이미 들어 있습니다). 창은 소스 세 개에서 컴파일됩니다.
+  `gui/SettingsApp.cs`가 창 자체와 설정 페이지를, `gui/Dashboard.cs`가 페이지 이동과 개요, 대기 중,
+  기록, 통계, 진단 페이지를, `gui/Brand.cs`가 팔레트를 담당합니다.
 
-## Running the tests
+여기 있는 어느 것도 관리자 권한이 필요하지 않습니다.
+
+## 테스트 실행
 
 ```bash
 python -m unittest discover -s tests
 ```
 
-Set `PYTHONPATH=src` first, or run from a checkout where `src` is importable.
+먼저 `PYTHONPATH=src`를 설정하거나, `src`를 import할 수 있는 체크아웃에서 실행하세요.
 
-The suite uses fakes and temporary directories. It never contacts the ChatGPT app, never
-sends a message to a Codex conversation, and never writes to your real registry. The live
-read-only checks stay skipped unless you set `CODEX_AR_LIVE=1` on Windows.
+이 suite는 가짜 객체와 임시 디렉터리를 씁니다. ChatGPT 앱에 절대 접속하지 않고, Codex 대화에 메시지를
+절대 보내지 않으며, 실제 레지스트리에 절대 쓰지 않습니다. 실제 환경을 읽기 전용으로 확인하는 검사는
+Windows에서 `CODEX_AR_LIVE=1`을 설정하지 않는 한 건너뜁니다.
 
-Other parts skip quietly when the tool they need is missing, so a green run is not always a
-full run. The schema-migration and downgrade tests build their databases from the store
-code of real tagged releases, so those tags have to be in the checkout (`git fetch --tags`;
-a shallow clone has none, which is why CI checks out the full history).
-`tests/test_mcp.py` needs Node to run the panel's own code, and `tests/test_reproducible.py`
-and `tests/test_gui_json.py` need the in-box C# compiler.
+필요한 도구가 없으면 조용히 건너뛰는 부분도 있어서, 초록불이 곧 전부 실행했다는 뜻은 아닙니다. 스키마
+마이그레이션과 다운그레이드 테스트는 실제 태그 릴리스의 store 코드로 데이터베이스를 만들기 때문에 그
+태그가 체크아웃에 있어야 합니다(`git fetch --tags`. shallow clone에는 없으며, CI가 전체 히스토리를
+받아 오는 이유가 이것입니다). `tests/test_mcp.py`는 패널 자신의 코드를 돌리려면 Node가,
+`tests/test_reproducible.py`와 `tests/test_gui_json.py`는 Windows에 내장된 C# 컴파일러가 필요합니다.
 
-What a green run does and does not establish is set out capability by capability in
-[`docs/FEATURE_MATRIX.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/FEATURE_MATRIX.md), and the checks
-no suite can make - a real install, a real interruption, a real send - are the procedure in
-[`docs/LIVE_ACCEPTANCE.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/LIVE_ACCEPTANCE.md).
+초록불이 무엇을 말해 주고 무엇을 말해 주지 않는지는 기능별로 [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md)에
+정리되어 있고, 어떤 suite도 대신할 수 없는 확인 — 실제 설치, 실제 중단, 실제 전송 — 은
+[docs/LIVE_ACCEPTANCE.md](docs/LIVE_ACCEPTANCE.md)의 절차입니다.
 
-## Validating plugin metadata
+## 플러그인 메타데이터 검증
 
-The plugin manifest, the marketplace index and the MCP companion file are covered by
-`tests/test_plugin.py`. Run the suite after touching any of them; it checks the manifest
-against the fields Codex actually accepts, and it fails if the repository manifest starts
-declaring an MCP server (see below).
+플러그인 manifest, 마켓플레이스 인덱스, MCP 동반 파일은 `tests/test_plugin.py`가 다룹니다. 그중
+무엇이든 손댄 뒤에는 suite를 실행하세요. Codex가 실제로 받아들이는 필드에 맞춰 manifest를 검사하고,
+저장소 manifest가 MCP 서버를 선언하기 시작하면 실패합니다(아래 참고).
 
-## Building a release
+## 릴리스 빌드
 
-This section describes the release process as it is from v0.6.0. The split of the release
-workflow into build and publish jobs, the actions pinned to commits, Dependabot, the
-reproducible executables, the CRLF checkout and the executables' version resources are new in
-v0.6.0. Every archive published so far, v0.5.0 through v0.5.7, was built by the earlier
-single-job workflow, which referred to its actions by floating tags, and with executables that
-cannot be reproduced.
+이 절은 main 브랜치의 릴리스 과정을 설명합니다. 릴리스 워크플로를 빌드 작업과 게시 작업으로 나눈 것, 커밋으로 고정한 action, Dependabot, 재현
+가능한 실행 파일, CRLF 체크아웃, 실행 파일의 버전 리소스는 main 브랜치에 있으며 이번 릴리스에 포함됩니다. 지금까지 게시된 모든 압축 파일(v0.5.0부터
+v0.5.7까지)은 action을 움직이는 태그로 참조하던 예전의 단일 작업 워크플로가 빌드했고, 그 실행 파일은 재현할 수 없습니다.
 
 ```bash
 powershell -ExecutionPolicy Bypass -File build/make_gui.ps1
 python build/make_release.py
-python build/smoke_archive.py build/dist/CodexAutoResume-v<version>-win-x64.zip <version>
 ```
 
-The first builds `CodexAutoResumeSettings.exe` and `codex-auto-resume-mcp.exe`, makes them
-reproducible (below), and prints the compiler it used and each executable's SHA-256; it
-needs `python` on `PATH` for that step. The second downloads the pinned embeddable Python
-(checksum-verified), assembles the payload, and writes the ZIP and its SHA-256 into
-`build/dist/`.
+첫 번째는 `CodexAutoResumeSettings.exe`와 `codex-auto-resume-mcp.exe`를 빌드해 재현 가능하게
+만들고(아래 참고), 사용한 컴파일러와 각 실행 파일의 SHA-256을 출력합니다. 그 단계 때문에 `PATH`에
+`python`이 있어야 합니다. 두 번째는 고정된 embeddable Python을 내려받아(체크섬을 확인합니다)
+페이로드를 조립한 뒤 ZIP과 그 SHA-256을 `build/dist/`에 씁니다.
 
-The third drives the archive's own bytes: it extracts the ZIP and runs the engine inside
-it with the interpreter inside it, against a state directory that exists only for that run,
-and reads the version resource off both executables. Nothing outside that directory is
-touched - no registration, no watcher, and `plugin_setup.py` is never run, because a smoke
-test that repoints the sign-in entry at a temporary folder and then deletes the folder has
-broken the installation it was checking. Run it again on the **published** archive once the
-release exists: "the build works" and "what people download works" are different sentences,
-and only the second is a promise to anybody.
+릴리스는 개발자 PC가 아니라 태그로 실행되는 GitHub Actions 워크플로가 게시합니다. main 브랜치에서
+작업(job)은 둘입니다. `build`는 저장소의 코드 - 테스트와 빌드 스크립트 - 를 실행하며, 읽기 전용
+토큰을 쓰고 checkout은 그 토큰을 디스크에 남기지 않습니다. `publish`는 릴리스를 만들고 attestation을
+기록할 권한을 가지지만 저장소의 스크립트나 테스트는 하나도 실행하지 않고, 태그 push일 때만 실행됩니다. 모든
+워크플로가 쓰는 action은 전부 전체 커밋 SHA로 고정되어 있습니다. Dependabot이 업데이트를 pull request로
+제안합니다. `.github/dependabot.yml`은 자동 병합을 켜지 않으며, 각 pull request는 사람이 검토하고
+병합하도록 되어 있습니다. GitHub 쪽 저장소 설정은 저장소 안의 어떤 것으로도 확인되지 않습니다.
 
-Releases are published by the tagged GitHub Actions workflow, not from a developer machine.
-From v0.6.0 it has two jobs. `build` runs the repository's code - the tests and the build
-scripts - with a read-only token that checkout does not leave on disk. `publish` holds the
-rights to create the release and attest it, runs none of the repository's scripts or tests, and
-runs only on a tag push. Every action the workflows use is pinned to a full commit SHA.
-Dependabot proposes updates as pull requests; `.github/dependabot.yml` turns on no automatic
-merging, and each one is meant to be reviewed and merged by a person. Nothing in the repository
-checks its own settings on GitHub.
+### 빌드를 재현 가능하게 만들기
 
-### Making the build reproducible
+빌드는, 새로 clone한 사본에서 같은 빌드의 기본 포함 컴파일러와 같은 Python 빌드로 빌드하면 같은
+소스가 바이트 하나까지 같은 압축 파일을 만들고, 그래서 태그를 다시 빌드한 결과를 게시된 다이제스트와
+비교할 수 있도록 설계되어 있습니다. 그것이 어디까지 확인되었는지는 아래에 적어 두었습니다. 이것은
+소스에 `build/normalize_pe.py`가 들어 있는 태그에만 해당하고, v0.5.0부터 v0.5.7까지의 릴리스 중에는
+그런 것이 없습니다. 이것이 기대는 것들은 이렇습니다.
 
-The build is designed so that, from a fresh clone, with the same build of the in-box
-compiler and the same Python build, the same source produces the same archive, byte for
-byte, and a rebuild of a tag can be compared with the published digest. How far that has
-been verified is set out below. It applies only to a tag whose source contains
-`build/normalize_pe.py`, and no release from v0.5.0 through v0.5.7 has one. What it
-relies on:
+- **실행 파일.** Windows에 기본 포함된 C# 컴파일러에는 `/deterministic` 스위치가 없고, 같은 소스를 두
+  번 빌드하면, 측정한 바로는 정확히 두 필드가 다릅니다. COFF 헤더의 타임스탬프와, 모듈에 무작위로 찍히는 MVID입니다.
+  `build/normalize_pe.py`가 앞의 것을 상수로, 뒤의 것을 모듈 자신의 내용에서 얻은 GUID로 바꿉니다.
+  MVID에 대해서는 Roslyn의 `/deterministic`이 하는 것과 같은 방식입니다. 두 필드는 PE와 CLI 메타데이터를
+  파싱해서 찾고, 구조 검사를 통과하지 못한 파일, 예를 들어 디버그 디렉터리나 PE 체크섬이 있는 파일은
+  거부합니다. `make_gui.ps1`이 두 실행 파일 모두에 이것을 실행합니다. 실행 파일에 들어가는 버전
+  리소스는 매니페스트에서 생성되므로 소스에만 의존합니다.
+- **압축 파일.** `build/make_release.py`가 파일 순서, 항목 타임스탬프, 압축 수준을 고정하고, 빌드한
+  기기의 경로를 하나도 넣지 않습니다. 그래도 압축 파일을 쓰는 `zipfile`과 `zlib` 모듈은 그것을 실행하는
+  Python의 것이므로, 비교하려면 릴리스 워크플로가 쓰는 Python 계열인 3.13을 쓰거나, 적어도 같은 zlib
+  빌드를 쓰세요. Windows에서 Python 3.14 이상은 zlib-ng를 쓰고, 이것은 같은 파일들을 다른 바이트로
+  압축할 수 있습니다.
+- **줄 끝.** 압축 파일에는 소스 파일이 들어가므로 그 줄 끝도 압축 파일 바이트의 일부입니다.
+  `.gitattributes`가 기기의 `core.autocrlf` 설정과 상관없이 모든 텍스트 파일을 CRLF로 체크아웃합니다.
+  저장소 자체에는 여전히 LF로 저장됩니다.
+- **가정이 아니라 확인.** 릴리스 워크플로는 실행 파일을 두 번 빌드하고 다이제스트가 다르면 더 진행하지
+  않습니다. `tests/test_reproducible.py`는 실제 컴파일러로 실제 프로그램을 두 번 컴파일해, 다른 곳은
+  두 필드뿐이라는 주장을 normalizer가 지키는지 확인합니다.
 
-- **The executables.** The in-box C# compiler has no `/deterministic` switch, and two builds
-  of the same source differ, as measured, in exactly two fields: the COFF header's timestamp and the
-  module's random MVID. `build/normalize_pe.py` sets the first to a constant and the second
-  to a GUID derived from the module's own content, as Roslyn's `/deterministic` does for the
-  MVID. It locates both by parsing the PE and CLI metadata, and refuses a file that fails
-  its structural checks, for example one with a debug directory or a PE checksum.
-  `make_gui.ps1` runs it on both executables. The version resource they carry is
-  generated from the manifest, so it depends on the source alone.
-- **The archive.** `build/make_release.py` fixes the file order, the entry timestamps and
-  the compression level, and writes no build-host path. The `zipfile` and `zlib` modules
-  that write it still come from the Python that runs it, so for a comparison use the
-  Python line the release workflow uses, 3.13, or at least the same zlib build: on
-  Windows, Python 3.14 and later use zlib-ng, which can compress the same files to
-  different bytes.
-- **Line endings.** The archive packs source files, so their line endings are part of its
-  bytes. `.gitattributes` checks every text file out with CRLF whatever the machine's
-  `core.autocrlf` says; the repository still stores LF.
-- **Checked, not assumed.** The release workflow builds the executables twice and refuses to
-  continue if the digests differ, and `tests/test_reproducible.py` compiles a real program
-  twice with the real compiler and holds the normaliser to the two-field claim.
+어디까지 확인되었는지도 적어 둡니다. 로컬 빌드 두 번과, 따로 clone한 사본에서 한 빌드가 똑같은 실행
+파일을 만들었습니다. 그리고 압축 파일을 쓰는 코드가 같은 zlib(1.3.1)로, 게시된 압축 파일 하나를 그
+항목들로부터 바이트 하나까지 똑같이 다시 만들어 냈습니다. GitHub의 runner가 로컬 빌드와 같은
+바이트를 만드는지는 확인되지 않았습니다. 그것은 Windows에 기본 포함된 컴파일러의 빌드에 달려
+있고(`make_gui.ps1`이 컴파일러를 출력하는 이유가 그것입니다), 압축 파일을 쓰는 Python에도 달려
+있습니다.
 
-How far that has been verified: two local builds, and a build from a separate clone,
-produced identical executables; the archive writer reproduced a published archive byte
-for byte from its entries with the same zlib (1.3.1). Whether GitHub's runner produces the
-same bytes as a local build has not been verified. It depends on the build of the in-box
-compiler, which is why `make_gui.ps1` prints it, and on the Python that writes the archive.
+### 태그를 다시 빌드해 다이제스트 비교하기
 
-### Rebuilding a tag and comparing digests
-
-For a tag whose source contains `build/normalize_pe.py`, start from a fresh clone, so
-`.gitattributes` decides the line endings rather than an old checkout, and build with
-Python 3.13:
+소스에 `build/normalize_pe.py`가 들어 있는 태그라면, 오래된 체크아웃이 아니라 `.gitattributes`가 줄
+끝을 정하도록 새로 clone해서 시작하고, Python 3.13으로 빌드하세요.
 
 ```powershell
 git clone --branch v<version> --depth 1 https://github.com/songyb111-gachon/codex-auto-resume-windows.git
@@ -138,225 +117,202 @@ python build/make_release.py
 Get-Content .\build\dist\CodexAutoResume-v<version>-win-x64.zip.sha256
 ```
 
-Compare the digest with the published `.sha256` and with the version's entry in
-[`scripts/release.json` on `main`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json).
-If they differ, compare the `compiler` line and the two executable digests `make_gui.ps1`
-printed with the same lines in the release run's log, while GitHub still retains that log,
-and compare the files inside the two archives;
-[`docs/VERIFY.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md)
-has a snippet that does that without extracting either. If every file matches and the
-archive digest still differs, look at the Python and zlib that wrote the archive. A tag
-whose source has no `build/normalize_pe.py` predates all of this - that is every release
-published so far, v0.5.0 through v0.5.7 - and its executables will not match.
+이 다이제스트를 게시된 `.sha256`, 그리고
+[`main`에 있는 `scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json)의
+해당 버전 항목과 비교합니다. 다르면 `make_gui.ps1`이 출력한 `compiler` 줄과 두 실행 파일의 다이제스트를,
+GitHub가 그 로그를 아직 보관하고 있는 동안 릴리스 실행 로그의 같은 줄과 비교하고, 두 압축 파일 안의
+파일들을 비교하세요. [docs/VERIFY.md](docs/VERIFY.md)에 둘 다 풀지 않고 비교하는 코드가 있습니다.
+안의 파일이 모두 같은데도 압축 파일의 다이제스트가 다르다면, 압축 파일을 쓴 Python과 zlib를 살펴보세요.
+소스에 `build/normalize_pe.py`가 없는 태그는 이 모든 것보다 앞선 것이라서 - 지금까지 게시된 모든
+릴리스, 곧 v0.5.0부터 v0.5.7까지가 그렇습니다 - 그 실행 파일은 일치하지 않습니다.
 
-### After a release is published: pin its digest
+### 릴리스가 게시된 다음: 그 다이제스트를 고정하기
 
-The Codex plugin installs the release by downloading it, so it needs to know what the
-archive should hash to. `scripts/release.json` maps a version to that digest, and a version
-has no entry there until its archive exists (the v0.5.2 to v0.5.4 tags carried a `null`
-placeholder, which the bootstrap treats the same as no entry; v0.5.0 and v0.5.1, published
-before the table existed, have none at all). The archive contains `release.json`
-itself, so it cannot carry its own digest, and the pin is taken from the published file
-rather than from a local rebuild because it has to describe the bytes people download - and
-a runner build matching a local one is the part that has not been verified. Absent and
-`null` mean the same thing to the bootstrap, so there is no placeholder to add before
-tagging and none to find afterwards: publishing adds the key.
+Codex 플러그인은 릴리스를 내려받아 설치하므로, 그 압축 파일의 해시가 무엇이어야 하는지 알아야
+합니다. `scripts/release.json`이 버전과 그 다이제스트를 연결하는데, 압축 파일이 존재하기 전까지 그
+버전은 항목이 없습니다(v0.5.2부터 v0.5.4까지의 태그에는 `null` 자리표시자가 있었고, bootstrap은 이것을 항목이
+없는 것과 똑같이 봅니다. 그 표가 생기기 전에 게시된 v0.5.0과 v0.5.1은 항목이 아예 없습니다). 압축
+파일 안에 `release.json` 자체가 들어 있으므로 압축 파일은 자기
+다이제스트를 담을 수 없습니다. 그리고 고정값은 로컬에서 다시 빌드한 결과가 아니라 게시된 파일에서
+가져옵니다. 사람들이 내려받는 바로 그 바이트를 설명해야 하고, runner 빌드가 로컬 빌드와 일치하는지가
+확인되지 않은 부분이기 때문입니다. bootstrap에게는 항목이 없는 것과 `null`이 같은 뜻이므로,
+태그를 붙이기 전에 넣어 둘 자리표시자도 없고 나중에 찾아야 할 자리표시자도 없습니다. 키는 게시가
+추가합니다.
 
-So, once the release is up:
+그래서 릴리스가 올라가고 나면:
 
-1. Download the published `CodexAutoResume-v<version>-win-x64.zip`.
-2. `Get-FileHash <zip> -Algorithm SHA256` — and check it against the published `.sha256`.
-3. Put that digest in `scripts/release.json` under the version, and commit.
+1. 게시된 `CodexAutoResume-v<version>-win-x64.zip`을 내려받습니다.
+2. `Get-FileHash <zip> -Algorithm SHA256` — 그리고 함께 게시된 `.sha256`과 대조해 확인합니다.
+3. 그 다이제스트를 `scripts/release.json`의 해당 버전 아래에 넣고 커밋합니다.
 
-Until that commit exists, the plugin verifies against the published `.sha256` sidecar
-instead and says so when it runs. That is weaker — the sidecar comes from the same origin
-as the archive — so it is worth closing rather than leaving. The commit does not reach the
-plugin copy an install registers: that copy carries the archive's own `release.json`, so
-for its own version it keeps falling back to the sidecar (or, with `-ArchivePath`, to no
-comparison) and says so.
+그 커밋이 생기기 전까지 플러그인은 대신 게시된 `.sha256` 사이드카로 검증하며, 실행할 때 그 사실을
+알립니다. 이쪽이 더 약합니다 — 사이드카는 압축 파일과 같은 출처에서 옵니다 — 그러니 그대로 두기보다
+이 틈을 메우는 편이 낫습니다. 그 커밋은 설치가 등록한 플러그인 사본에는 닿지 않습니다. 그 사본은
+압축 파일 안의 `release.json`을 가지고 있으므로, 자기 버전에 대해서는 계속 사이드카로 대신
+확인하고(`-ArchivePath`라면 아무것과도 대조하지 않고) 그렇다고 알립니다.
 
-### Do not change a published version
+### 게시된 버전을 바꾸지 마세요
 
-`v0.5.4` is meant to name one archive, with one SHA-256, for as long as the release exists.
-There is no supported way to change the bytes behind a published version, and the release
-workflow, since v0.5.4, refuses to try: publishing stops if the version already has
-assets.
+`v0.5.4`는 릴리스가 존재하는 한 하나의 압축 파일, 하나의 SHA-256을 가리키도록 되어 있습니다.
+게시된 버전 뒤의 바이트를 바꾸는 지원되는 방법은 없으며, 릴리스 워크플로는 v0.5.4부터 시도조차
+거부합니다. 해당 버전에 이미 asset이 있으면 게시가 중단됩니다.
 
-This is not tidiness. The plugin's bootstrap pins a version's digest and refuses anything
-else, so replacing a published archive either breaks every install of that version or -
-worse - succeeds with bytes the pinned digest does not describe. Two people installing
-"v0.5.4" a month apart have to get the same thing.
+깔끔함의 문제가 아닙니다. 플러그인의 bootstrap은 버전의 다이제스트를 고정해 두고 그 밖의 것은
+거부하므로, 게시된 압축 파일을 교체하면 그 버전의 모든 설치가 깨지거나 - 더 나쁘게는 - 고정된
+다이제스트가 설명하지 않는 바이트로 성공합니다. 한 달 간격으로 "v0.5.4"를 설치한 두 사람은 같은 것을
+받아야 합니다.
 
-So a correction gets a new version. If a published archive turns out to be wrong, bump the
-version, tag, and publish that; the mistaken release stays as a record of what was actually
-released, which is the point of a release.
+그래서 수정은 새 버전을 받습니다. 게시된 압축 파일이 잘못된 것으로 드러나면 버전을 올리고, 태그를
+붙이고, 그것을 게시하세요. 잘못된 릴리스는 실제로 무엇이 릴리스되었는지에 대한 기록으로 남고, 그것이
+릴리스의 존재 이유입니다.
 
-That refusal is the workflow's rule, not GitHub's. The releases from v0.5.0 through v0.5.7
-are not GitHub "immutable releases" - a repository setting; GitHub reports each of them as
-not immutable - so someone with write access could still replace an asset by hand. What
-would show it is the digest pinned on `main`, and the build provenance attestation checked
-against the release workflow and the tag, which is why
-[`docs/VERIFY.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md)
-tells users to check both.
+다만 그 거부는 워크플로의 규칙일 뿐, GitHub가 강제하는 것은 아닙니다. v0.5.0부터 v0.5.7까지의 릴리스는
+GitHub의 "immutable releases"가 아닙니다 - 저장소 설정이며, GitHub는 그 릴리스들을 모두 immutable이
+아니라고 표시합니다. 그래서 쓰기 권한이 있는 사람은 여전히 asset을 손으로 바꿀 수 있습니다. 그런
+일이 있었다면 드러나게 해 주는 것은 `main`에 고정된 다이제스트, 그리고 릴리스 워크플로와 태그를
+지정해 확인한 빌드 provenance attestation이고,
+[docs/VERIFY.md](docs/VERIFY.md)가 사용자에게 둘 다 확인하라고 하는 이유가 그것입니다.
 
-The manual dispatch still exists. From v0.6.0 it is a dry run: point it at any ref and it
-builds, tests and verifies with a read-only token, then keeps the archive as a workflow
-artifact. The publish job runs only on a tag push, so a dispatch of the main-branch workflow
-cannot create or change a release. That is new in v0.6.0. In the earlier single-job workflow,
-which built every archive from v0.5.0 through v0.5.7, a dispatch ran with the workflow's write
-permissions. In its v0.5.2 and v0.5.3 versions, a dispatch given a tag rebuilt that tag and
-replaced the release's assets (`--clobber`). Those copies of the workflow remain at those tags,
-and someone with write access can still dispatch them. Dispatched on its own tag, such a copy
-first tries to create that version's release, which fails because the release exists, so it
-reaches the replace step only when run from a branch that holds it. In its v0.5.0 to v0.5.3
-versions, a dispatch started on a tag with no release yet could also create that release (in
-v0.5.2 and v0.5.3, from a build of the ref named in its `tag` input), with no attestation. In
-its versions from v0.5.4 on, a dispatch started on a tag, while that version had no assets yet,
-could publish and attest a build of any ref whose `plugin.json` declared that tag's version;
-the attestation records which event started the run.
+수동 실행은 여전히 있습니다. main 브랜치에서는 dry run입니다. 아무 ref나 가리키면 읽기 전용 토큰으로 빌드하고, 테스트하고, 검증한 뒤 압축 파일을 워크플로
+artifact로 남깁니다. 게시 작업은 태그 push일 때만 실행되므로, main 브랜치 워크플로를 수동 실행해서는 릴리스를 만들거나 바꿀 수 없습니다. 이것은 main
+브랜치에 있으며 이번 릴리스에 포함됩니다. v0.5.0부터 v0.5.7까지의 모든 압축 파일을 빌드한 예전의 단일 작업 워크플로에서는 수동 실행도 워크플로의 쓰기 권한을
+가지고 실행되었습니다. 그 워크플로의 v0.5.2와 v0.5.3 버전에서는, 태그를 지정한 수동 실행이 그 태그를 다시 빌드해 해당 릴리스의 asset을
+교체했습니다(`--clobber`). 그 워크플로 사본은 지금도 그 태그에 남아 있고, 쓰기 권한이 있는 사람은 여전히 그것을 수동 실행할 수 있습니다. 자기 태그에서
+수동 실행하면 그 사본은 먼저 해당 버전의 릴리스를 만들려고 하고, 릴리스가 이미 있으므로 거기서 실패합니다. 그래서 교체 단계에 이르는 것은 그 사본을 담은 브랜치에서
+실행했을 때뿐입니다. 그 워크플로의 v0.5.0부터 v0.5.3까지의 버전에서는, 아직 릴리스가 없는 태그에 대해 시작한 수동 실행이 그 릴리스를 만들 수도
+있었고(v0.5.2와 v0.5.3에서는 `tag` 입력에 지정한 ref를 빌드해서), attestation은 없었습니다. v0.5.4 이후 버전에서는, 태그에 대해 시작한
+수동 실행이 그 버전에 아직 asset이 없을 때, `plugin.json`에 그 태그의 버전이 적힌 ref라면 어느 것이든 빌드해 게시하고 attestation을 기록할
+수 있었습니다. 어떤 이벤트가 그 실행을 시작했는지는 attestation에 기록됩니다.
 
-> Actions → **release** → Run workflow → optionally set **ref**.
+> Actions → **release** → Run workflow → 필요하면 **ref** 지정.
 
-### Changing anything visual
+### 시각적인 것을 바꿀 때
 
-Colours, the icon and the generated files that carry them are covered in
-[`docs/BRAND.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/BRAND.md).
-The short version: the palette lives in `src/codex_auto_resume/brand.py`, `gui/Brand.cs`
-and `assets/brand/icon.svg` are generated from it, and `tests/test_brand.py` regenerates
-both and compares. Do not write a colour literal into the window or the panel stylesheet.
-There is a test for that too, but it reads `gui/SettingsApp.cs` only — neither it nor the
-test that catches sizes written in raw pixels looks at `gui/Dashboard.cs`, so a colour or a
-raw pixel size written there is on you. Other tests do read that file: every Paint handler
-must sit on a buffered control, every class that draws itself must be double-buffered, and
-the long-lived bridge's command line is executed for real.
+색상, 아이콘, 그리고 그것들을 담고 있는 생성 파일은
+[docs/BRAND.md](docs/BRAND.md)에서 다룹니다. 요약하면 이렇습니다. 팔레트는
+`src/codex_auto_resume/brand.py`에 있고, `gui/Brand.cs`와 `assets/brand/icon.svg`는 거기서
+생성되며, `tests/test_brand.py`가 둘을 다시 생성해 비교합니다. 창이나 패널 스타일시트에 색상 리터럴을
+직접 쓰지 마세요. 그것을 검사하는 테스트도 있지만 `gui/SettingsApp.cs`만 읽습니다. 그 테스트도, 크기를
+픽셀로 직접 적은 것을 잡아내는 테스트도 `gui/Dashboard.cs`는 보지 않으므로, 그 파일에 색상이나 픽셀
+크기를 직접 쓴 것은 직접 챙겨야 합니다. 다른 테스트는 이 파일도 읽습니다. 모든 Paint 처리기는 버퍼가
+있는 컨트롤 위에 있어야 하고, 스스로 그리는 클래스는 이중 버퍼를 써야 하며, 상주 브리지의 명령줄은
+실제로 실행해 확인합니다.
 
-## The MCP declaration is added at build time
+## MCP 선언은 빌드 시점에 추가됩니다
 
-The repository manifest declares only `skills`. The release build adds `mcpServers` to the
-copy it packs beside the bundled interpreter. That split is deliberate: the MCP server runs
-on the interpreter that ships in the release archive, so declaring it in the repository would
-make a marketplace install from GitHub register a command that is not there. Please do not
-"fix" that by moving the declaration into the manifest — the build refuses to run if both
-declare it.
+저장소 manifest는 `skills`만 선언합니다. 릴리스 빌드가 번들된 인터프리터 옆에 함께 넣는 사본에
+`mcpServers`를 추가합니다. 이렇게 나눈 것은 의도적입니다. MCP 서버는 릴리스 압축 파일에 함께 들어가는
+인터프리터로 실행되므로, 저장소에 선언해 두면 GitHub에서 마켓플레이스로 설치했을 때 존재하지 않는
+명령을 등록하게 됩니다. 선언을 manifest로 옮기는 방식으로 이것을 "고치지" 말아 주세요 — 양쪽 모두가
+선언하면 빌드가 실행을 거부합니다.
 
-## The Korean branch is generated
+## 한국어 브랜치는 생성됩니다
 
-`ko` is built from `main`, by `.github/workflows/sync-ko.yml`, every time main's tests
-pass — and it is force-updated. A pull request against `ko` cannot be merged and an edit
-made there is lost at the next sync, so please do not spend an evening on one.
+`ko`는 main의 테스트가 통과할 때마다 `.github/workflows/sync-ko.yml`이 `main`에서 만들어 내며, 강제로
+갱신됩니다. `ko`를 대상으로 한 pull request는 병합할 수 없고 거기서 한 수정은 다음 sync 때 사라지므로,
+거기에 저녁 시간을 쓰지 말아 주세요.
 
-It was an independent fork until v0.5.5, with its own copy of the engine, the installer,
-the workflows and the tests. It ended up three releases behind while still telling Korean
-readers that the tool made no network request and that installing meant downloading a
-release archive. That is what a second copy of a codebase does when somebody has to
-remember to merge it.
+v0.5.5까지는 독립적인 fork였고, 엔진, 설치 프로그램, 워크플로, 테스트의 사본을 따로 가지고 있었습니다.
+그러다 세 릴리스 뒤처진 채로, 한국어 독자에게는 여전히 이 도구가 네트워크 요청을 하지 않으며 설치란
+릴리스 압축 파일을 내려받는 것을 뜻한다고 말하고 있었습니다. 누군가 병합을 기억해야 하는 코드베이스의
+두 번째 사본은 그렇게 됩니다.
 
-So the code on `ko` is main's code, and the only difference is the language of the
-documents. To change something there:
+그래서 `ko`의 코드는 main의 코드이고, 유일한 차이는 문서의 언어입니다. 거기 있는 무언가를 바꾸려면:
 
-- **code, installer, workflows, tests** — change them on `main`; they reach `ko` unchanged.
-- **Korean prose** — change the `.ko.md` file on `main`. `scripts/ko_branch.json` maps each
-  one to the English page it replaces. What stays English is listed there too, with the
-  reason: the licence, because a translated licence is a second licence, and the Codex
-  skill, because it instructs Codex rather than a person.
+- **코드, 설치 프로그램, 워크플로, 테스트** — `main`에서 바꾸세요. 그대로 `ko`에 반영됩니다.
+- **한국어 문서** — `main`에 있는 `.ko.md` 파일을 바꾸세요. `scripts/ko_branch.json`이 각 파일을 그것이
+  대체하는 영어 페이지에 연결합니다. 영어로 남는 문서도 이유와 함께 같은 곳에 적혀 있습니다. 라이선스는
+  번역하면 두 번째 라이선스가 되기 때문이고, Codex 스킬은 사람이 아니라 Codex에게 지시하는 문서이기
+  때문입니다.
 
-`python scripts/ko_sync.py --check` shows what a sync would do without writing anything.
-Adding a Korean page means adding the file and its mapping entry in the same commit;
-`tests/test_korean.py` fails if a Korean page exists that nothing maps.
+`python scripts/ko_sync.py --check`는 아무것도 쓰지 않고 sync가 무엇을 할지 보여 줍니다. 한국어 페이지를
+추가한다는 것은 파일과 그 매핑 항목을 같은 커밋에 넣는다는 뜻입니다. 아무것도 매핑하지 않는 한국어
+페이지가 있으면 `tests/test_korean.py`가 실패합니다.
 
-The mapping also records which English revision each translation was made from. Change an
-English document and the suite fails naming both files, because a translation that goes
-stale quietly is how `ko` spent three releases describing a tool that no longer existed.
-Update the Korean, then record it:
+매핑에는 각 번역이 어떤 영어 개정판에서 나왔는지도 기록됩니다. 영어 문서를 바꾸면 테스트가 두 파일
+이름을 대며 실패합니다. 조용히 낡는 번역이야말로 `ko`가 세 릴리스 동안 이미 사라진 도구를 설명하고
+있었던 이유이기 때문입니다. 한국어를 고친 뒤 기록하세요.
 
 ```bash
 python scripts/ko_sync.py --reviewed README.md
 ```
 
-Nothing here is machine-translated. A person decides what the Korean says; the digest only
-records that somebody did.
+기계 번역은 하지 않습니다. 한국어를 어떻게 쓸지는 사람이 정하고, 다이제스트는 누군가 그 일을 했다는
+사실만 기록합니다.
 
-## Screenshots
+## 스크린샷
 
-`python build/make_screenshots.py` renders the whole set from the working tree: the Codex
-panel, and the window's Overview, Pending and Settings pages, in English and Korean, into
-`assets/` with copies in `docs/images/`. Nothing is captured by hand and nothing is edited
-afterwards.
+`python build/make_screenshots.py`가 작업 트리에서 전체 모음을 렌더링합니다. Codex 패널과 창의 개요,
+대기 중, 설정 페이지를 영어와 한국어로 만들어 `assets/`에 넣고 `docs/images/`에 복사본을 둡니다. 손으로
+찍는 것도, 찍은 뒤에 손보는 것도 없습니다.
 
-It needs Windows, Microsoft Edge (it is what renders the panel), and
-`build/CodexAutoResumeSettings.exe` already built — run
-`powershell -ExecutionPolicy Bypass -File build/make_gui.ps1` first. The first run also
-downloads the pinned embeddable Python into `build/cache/`.
+실행하려면 Windows, Microsoft Edge(패널을 렌더링하는 것이 이것입니다), 그리고 이미 빌드된
+`build/CodexAutoResumeSettings.exe`가 필요합니다. 먼저
+`powershell -ExecutionPolicy Bypass -File build/make_gui.ps1`을 실행하세요. 처음 실행할 때는 고정된
+embeddable Python을 `build/cache/`로 내려받기도 합니다.
 
-They are pinned to light. The product follows the reader's Windows and Codex themes at
-runtime; the pictures do not, so that a gallery looks like one product and a build on a
-machine in dark mode produces the same bytes as a build on one in light mode.
+라이트 테마로 고정합니다. 실행 중인 제품은 사용자의 Windows와 Codex 테마를 따르지만 그림은 따르지
+않습니다. 모음이 하나의 제품처럼 보여야 하고, 다크 모드인 PC에서 만든 결과가 라이트 모드인 PC에서 만든
+결과와 같아야 하기 때문입니다.
 
-`assets/screenshots.json` records a digest of every input each image was rendered from —
-the window's two sources, its palette, its DPI manifest, the plugin manifest, the icon, the
-capture and build scripts, the rendered panel markup, and the engine modules the window's
-figures and rows are computed from. `WINDOW_INPUTS` in `build/make_screenshots.py` is the
-list. Change one and `tests/test_screenshots.py` fails telling you to re-run the generator.
-It is the mechanism that stops a screenshot describing a version of the product that no
-longer exists.
+`assets/screenshots.json`에는 각 이미지가 어떤 입력에서 렌더링되었는지 다이제스트가 기록됩니다 — 창의
+소스 두 개, 팔레트, DPI 매니페스트, 플러그인 매니페스트, 아이콘, 캡처·빌드 스크립트, 렌더링된 패널
+마크업, 그리고 창의 수치와 행을 계산하는 엔진 모듈들. 전체 목록은 `build/make_screenshots.py`의
+`WINDOW_INPUTS`입니다. 하나라도 바뀌면 `tests/test_screenshots.py`가 실패하며 생성기를 다시 돌리라고
+알려 줍니다. 스크린샷이 더 이상 존재하지 않는 버전의 제품을 설명하는 일을 막는 장치입니다.
 
-**One image is not generated: `docs/images/notification.png`.** It is a real Windows toast,
-raised by the product and drawn by the shell, so it takes the machine's theme and cannot be
-pinned — it is dark in a gallery that is otherwise light. Faking it in HTML would produce a
-picture that is not a screenshot, which is worse. To retake it on a machine already in light
-mode, raise one with example data and capture the banner:
+**생성되지 않는 이미지가 하나 있습니다: `docs/images/notification.png`.** 이것은 제품이 띄우고 셸이
+그리는 진짜 Windows 토스트라서 기계의 테마를 따르고 고정할 수 없습니다. 나머지가 밝은 모음 안에서 혼자
+어둡습니다. HTML로 흉내 내면 스크린샷이 아닌 그림이 되므로 그쪽이 더 나쁩니다. 이미 라이트 모드인
+PC에서 다시 찍으려면 예시 데이터로 알림을 하나 띄운 뒤 배너를 캡처하세요.
 
 ```bash
 python -c "import time; from codex_auto_resume import notify; notify.scheduled('00000000-0000-4000-8000-000000000000', 'example', time.time()+3600, 'usage_limit', {'name': 'example-project', 'project': 'example'})"
 ```
 
-Use that nil-style UUID and those labels. Never photograph a real conversation: the toast
-shows a thread identifier, and a screenshot of a real one publishes it permanently.
+이 nil 형태의 UUID와 이 라벨을 쓰세요. 실제 대화를 찍으면 안 됩니다. 토스트에는 스레드 식별자가
+보이고, 실제 대화를 찍은 스크린샷은 그것을 영구히 공개합니다.
 
-Note that Windows may add the notification without showing a banner — Do Not Disturb, or
-banners turned off for this app in Settings → Notifications. It then lands in the Action
-Center only, and there is nothing on screen to capture.
+Windows가 배너를 띄우지 않고 알림만 추가할 수도 있습니다. 방해 금지 모드이거나, 설정 → 알림에서 이 앱의
+배너가 꺼져 있는 경우입니다. 그러면 알림 센터에만 들어가므로 화면에 캡처할 것이 없습니다.
 
-## Fixtures and privacy
+## 픽스처와 개인정보
 
-Everything committed here is public, including test fixtures and documentation examples. They
-are written on a developer's machine, and that machine's own paths and identifiers leak into
-them very easily. `tests/test_repo_hygiene.py` enforces the conventions below, so please keep
-to them rather than working around it.
+여기 커밋되는 것은 테스트 픽스처와 문서 예제를 포함해 전부 공개됩니다. 그것들은 개발자 PC에서
+작성되고, 그 PC 자신의 경로와 식별자가 아주 쉽게 섞여 들어갑니다. `tests/test_repo_hygiene.py`가 아래
+규칙을 강제하므로, 우회하지 마시고 규칙을 지켜 주세요.
 
-- **Home directories in examples are placeholders.** Use `ExampleUser`, `Example User` (when
-  you need a path containing a space), `someone`, `<user>`, or `%USERPROFILE%`. Never a real
-  account name.
-- **UUIDs in tracked files are obviously synthetic.** Use the project's fixture family,
-  `0a1b2c3d-0001-7000-8000-000000000001` and friends, or a repeated-nibble value such as
-  `22222222-2222-7222-8222-222222222222`. Never a conversation id copied out of real Codex
-  state — real ones are UUIDv7 values with a timestamp prefix and are trivially recognisable.
-- **No copied runtime state.** Databases, logs and `config/` are never tracked. If you need
-  evidence that something behaves a certain way, write a fixture that shows the structure with
-  synthetic values, the way `docs/evidence/` does.
-- **No real process ids, ports or machine-specific paths** in comments, docs or fixtures.
+- **예제의 홈 디렉터리는 자리표시자입니다.** `ExampleUser`, `Example User`(공백이 든 경로가 필요할 때),
+  `someone`, `<user>`, `%USERPROFILE%`를 쓰세요. 실제 계정 이름은 절대 쓰지 마세요.
+- **추적되는 파일의 UUID는 누가 봐도 합성된 값입니다.** 이 프로젝트의 픽스처 계열인
+  `0a1b2c3d-0001-7000-8000-000000000001`과 그 형제들, 또는 `22222222-2222-7222-8222-222222222222`처럼
+  같은 니블이 반복되는 값을 쓰세요. 실제 Codex 상태에서 복사해 온 대화 id는 절대 쓰지 마세요. 실제
+  값은 타임스탬프 접두사가 붙은 UUIDv7이라 알아보기가 아주 쉽습니다.
+- **런타임 상태를 복사해 오지 마세요.** 데이터베이스, 로그, `config/`는 추적하지 않습니다. 무언가가
+  특정 방식으로 동작한다는 증거가 필요하면, `docs/evidence/`가 하는 것처럼 합성된 값으로 구조를 보여
+  주는 픽스처를 작성하세요.
+- **실제 프로세스 id, 포트, 기기에 종속된 경로**는 주석, 문서, 픽스처 어디에도 넣지 마세요.
 
-## Changes that need extra care
+## 특별히 주의해야 할 변경
 
-The recovery engine is small on purpose, and several of its properties are the whole reason
-the tool is safe to leave running. A change that touches any of these needs a test that would
-fail without it:
+복구 엔진은 일부러 작게 만들었고, 그 속성 몇 가지는 이 도구를 켜 둔 채로 두어도 안전한 이유
+그 자체입니다. 아래 중 무엇이든 건드리는 변경에는, 그 변경이 없으면 실패하는 테스트가 필요합니다.
 
-- a conversation is identified by its exact UUID, and by nothing else — never `--last`, never a
-  title, project, working directory or recency;
-- a failure that cannot be classified is never retried;
-- user cancellation, permission, approval, content policy, invalid requests, context length and
-  permanent authentication failures are never retried;
-- a submission whose outcome is unknown is never automatically resent;
-- every gate is re-checked immediately before sending, inside the dispatch lock;
-- settings are policy only. Nothing in the settings schema may reach a safety limit, and the
-  worst a malformed settings file can do is make recovery more conservative.
+- 대화는 정확한 UUID로 식별하며, 그 밖의 무엇으로도 식별하지 않습니다. `--last`도, 제목도, 프로젝트도,
+  작업 디렉터리도, 최근 순도 아닙니다;
+- 분류할 수 없는 실패는 절대 재시도하지 않습니다;
+- 사용자 취소, 권한, 승인, 콘텐츠 정책, 잘못된 요청, 컨텍스트 길이, 영구 인증 실패는 절대 재시도하지
+  않습니다;
+- 결과를 알 수 없는 전송은 절대 자동으로 다시 보내지 않습니다;
+- 모든 관문은 전송 직전에, 디스패치 락 안에서 다시 확인합니다;
+- 설정은 정책일 뿐입니다. 설정 스키마의 어떤 값도 안전 한계에 닿을 수 없고, 설정 파일이 잘못되었을 때
+  일어날 수 있는 최악은 복구가 더 보수적으로 동작하는 것입니다.
 
-If you are unsure whether a change crosses one of those lines, open an issue first and say
-what you are trying to achieve — there is usually a way to get there that keeps the property.
+어떤 변경이 그 선 중 하나를 넘는지 확신이 서지 않으면, 먼저 이슈를 열고 무엇을 하려는지 적어 주세요 —
+대개는 그 속성을 지키면서 목적지에 닿는 방법이 있습니다.
 
-## Commit and pull requests
+## 커밋과 pull request
 
-- One change per commit, with a message that says what changed and why.
-- Run the full suite before pushing.
-- If you fixed something a user could hit, add the regression test in the same commit.
+- 커밋 하나에 변경 하나, 그리고 무엇이 왜 바뀌었는지 말하는 메시지.
+- 푸시하기 전에 전체 suite를 실행하세요.
+- 사용자가 겪을 수 있는 문제를 고쳤다면, 같은 커밋에 회귀 테스트를 추가하세요.

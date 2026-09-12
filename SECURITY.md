@@ -1,510 +1,459 @@
-# Security
+# 보안
 
-This document describes what the tool is allowed to touch, how that is enforced, how releases are
-built and can be checked, how it was reviewed, and what was actually found and fixed.
+> 🌐 한국어 문서입니다. English version: [`main` 브랜치의 SECURITY.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/SECURITY.md)
 
-The latest published release is v0.5.7. Several properties below exist only on the `main`
-branch and ship in v0.6.0. Each of them says so, and, where it matters, says what v0.5.7 does
-instead.
+이 문서는 이 도구가 무엇을 건드릴 수 있는지, 그것을 어떻게 강제하는지, 릴리스를 어떻게 만들고 어떻게
+확인할 수 있는지, 어떻게 검토했는지, 그리고 실제로 무엇을 발견하고 고쳤는지를 설명합니다.
 
-## Reporting
+아래는 이번 릴리스를 설명합니다. 몇몇 속성은 이번 릴리스에서 처음 들어온 것이라 해당 항목마다
+그렇게 적었고, 필요한 곳에는 그 전 릴리스가 대신 어떻게 동작했는지도 적었습니다.
 
-If you find a security issue, please open an issue on this repository.
+## 신고
 
-This project operates no service of its own - no server, no endpoint, no telemetry - so there is no
-vendor backend to notify. The only service the code this project ships contacts is GitHub
-(github.com, and the GitHub storage hosts it redirects release downloads to), when setup downloads
-a release. The Codex processes it starts talk to OpenAI with your existing sign-in, as Codex does
-(see *No network code in the recovery runtime* below). A finding in GitHub or in Codex itself
-belongs to that vendor's own reporting process, not here.
+보안 문제를 발견하시면 이 저장소에 이슈를 열어 주세요.
 
-## What it touches
+이 프로젝트는 자체 서비스를 운영하지 않습니다 - 서버도, 엔드포인트도, 텔레메트리도 없으므로 통보할
+벤더 백엔드가 없습니다. 이 프로젝트가 배포하는 코드가 직접 접속하는 서비스는 설치 중 릴리스를 내려받을
+때의 GitHub(github.com, 그리고 GitHub가 릴리스 다운로드를 넘겨주는 GitHub 저장 호스트들)뿐입니다. 이
+도구가 시작하는 Codex 프로세스는 평소 Codex와 마찬가지로, 이미 로그인된 계정으로 OpenAI와
+통신합니다(아래 *복구 런타임에는 네트워크 코드가 없음* 참고). GitHub나 Codex 자체의 문제라면 해당 벤더의
+신고 절차로 가야 하며 여기가 아닙니다.
 
-**Reads**, read-only for everything that is not its own:
+## 무엇을 건드리는가
 
-- Codex's SQLite state (thread metadata, turn history, the queue), opened with `mode=ro`,
-  `PRAGMA query_only=ON` and `PRAGMA trusted_schema=OFF`. SQLite takes its normal shared read
-  locks while it reads.
-- The conversation's rollout JSONL file, opened read-only: its first line, to confirm it is a
-  desktop-app conversation, and, for a usage limit only, up to 8 MiB just before the failure,
-  parsed in memory to find the reset time. That part of the file is conversation content.
-  Only the reset time and the name of the limit it belongs to, taken from the rate-limit snapshot,
-  are kept. Everything else is discarded, and nothing else from it is stored, logged or sent.
-- To prove its own message arrived, it has SQLite search that conversation's user messages and
-  queued messages for this tool's marker. Only rows containing the marker come back.
-- The recorded error of a failed turn. Its structured error type decides the category; only when a
-  failure carries no structured error at all is its message matched against a short fixed list of
-  transport failures. Either way, only the category name is kept.
-- Its own state and settings.
-- Windows process and Restart Manager information needed to identify the desktop app and its engine.
+**읽기** (자기 것이 아닌 것은 모두 읽기 전용):
 
-No prompt, assistant or tool content is kept in its state or written to its main log, apart from
-the conversation title Codex shows, which may be derived from your first message: notifications
-display it, and Windows keeps them in its notification history.
+- Codex의 SQLite 상태 (스레드 메타데이터, 턴 기록, 큐). `mode=ro`, `PRAGMA query_only=ON`,
+  `PRAGMA trusted_schema=OFF`로 엽니다. 읽는 동안 SQLite는 일반적인 공유 읽기 잠금을 겁니다.
+- 대화의 rollout JSONL 파일. 읽기 전용으로 엽니다. 데스크톱 앱 대화인지 확인하려고 첫 줄을 읽고,
+  사용량 한도일 때만 리셋 시각을 찾으려고 실패 직전 최대 8 MiB를 메모리에서 파싱합니다. 그 부분은 대화
+  내용입니다. rate limit 스냅숏에서 얻은 리셋 시각과 그 한도의 이름만 남기고 나머지는 모두 버리며, 그
+  밖의 무엇도 저장하거나 기록하거나 보내지 않습니다.
+- 자기 메시지가 도착했는지 증명하기 위해, SQLite가 그 대화의 사용자 메시지와 큐 메시지에서 이 도구의
+  marker를 찾게 합니다. marker가 들어 있는 행만 돌아옵니다.
+- 실패한 턴에 기록된 오류. 구조화된 오류 유형으로 범주를 정하고, 구조화된 오류가 아예 없는 실패일 때만
+  그 메시지를 짧은 고정 목록의 전송 오류와 대조합니다. 어느 경우든 남는 것은 범주 이름뿐입니다.
+- 자체 상태와 설정.
+- 데스크톱 앱과 그 엔진을 식별하는 데 필요한 Windows 프로세스 및 재시작 관리자 정보.
 
-**Writes** while running:
+프롬프트, 어시스턴트 응답, tool 내용은 상태에 저장하지도 본 로그에 남기지도 않습니다. 예외는 Codex가 보여 주는
+대화 제목이며, Codex가 첫 메시지에서 이 제목을 만들었을 수 있습니다. 알림이 이 제목을 표시하고, Windows는
+알림을 알림 기록에 보관합니다.
 
-- Files in its own `config/` and `logs/` directories, including the copy of the state file it
-  takes before the first watcher of a new version upgrades the schema, and before
-  `downgrade-state` rewrites it (`state.vN-backup-*.sqlite`), kept for forensics.
-- One continuation message to one exact thread, through the official `codex queue` CLI.
-- When that message has to be withdrawn, `thread/queue/delete` requests to the official Codex App
-  Server for that exact queued item, repeated if the withdrawal cannot be confirmed.
-- The notifications it raises, which Windows keeps in its notification history.
-- When you switch **Run at Windows sign-in** on or off in the window, its single `Run`
-  value is written or removed.
-- Only when you ask for it, one diagnostics JSON file at a path you choose, from **Export
-  diagnostics...** in the window or `auto_resume.py diagnostics`. It holds versions, settings,
-  every record's state, reason and the checks it is waiting on, the content-free journal (up to
-  2,000 entries) and the last 300 lines of each log; conversation and interruption ids become
-  aliases valid only inside that one file, and file-system paths, the Windows user name and
-  anything shaped like an e-mail address are replaced. It refuses to overwrite an existing file,
-  and nothing sends it. `errors.log` carries exception text this product did not write: that is
-  redacted the same way rather than filtered, and the file says so at the top.
+**실행 중의 쓰기**:
 
-The Codex processes it starts (`codex app-server`, `codex queue`) may also update Codex's own logs
-and caches, as any Codex process does.
+- 자체 `config/`와 `logs/` 디렉터리 안의 파일. 새 버전의 워처가 스키마를 올리기 직전, 그리고
+  `downgrade-state`가 상태를 되돌리기 직전에 뜨는 상태 파일 사본(`state.vN-backup-*.sqlite`)도
+  여기에 포함되며, 되돌리기용이 아니라 사후 확인용으로 남깁니다.
+- 공식 `codex queue` CLI를 통해 정확한 스레드 하나에 보내는 continuation 메시지 한 건.
+- 그 메시지를 거둬들여야 할 때, 공식 Codex App Server에 보내는 그 큐 항목 하나에 대한
+  `thread/queue/delete` 요청(회수가 확인되지 않으면 다시 보냄).
+- 이 도구가 띄운 알림. Windows가 알림 기록에 보관합니다.
+- 창에서 **Windows 로그인 시 실행**(Run at Windows sign-in)을 켜거나 끄면, 이 도구의 `Run` 값
+  하나를 쓰거나 지웁니다.
+- 사용자가 요청할 때만, 지정한 위치에 쓰는 진단 JSON 파일 하나. 창의 **진단 정보 내보내기...** 또는
+  `auto_resume.py diagnostics`로 만듭니다. 버전, 설정, 복구마다의 상태와 사유와 무엇을 기다리는지,
+  내용 없는 기록 최대 2,000건, 각 로그의 마지막 300줄이 들어갑니다. 대화 id와 중단 id는 그 파일
+  안에서만 통하는 별칭이 되고, 파일 경로와 Windows 사용자 이름, 이메일 형태의 문구는 대체됩니다. 이미
+  있는 파일은 덮어쓰지 않으며, 어디로도 보내지 않습니다. `errors.log`에는 이 제품이 쓰지 않은 예외
+  문구가 담길 수 있는데, 걸러내는 대신 같은 방식으로 가리고 파일 첫머리에 그렇게 적습니다.
 
-**Writes** at install time, for the current user only and never system-wide: a Start Menu
-shortcut, the sign-in autostart value unless you decline it, the notification sender identity
-Windows requires before it will draw a toast at all, and the handler for the notification
-button's own URL scheme. Through the `codex plugin` CLI it also registers a local plugin
-marketplace and this plugin in your Codex configuration, and asks Codex to refresh
-marketplaces. v0.5.7 and earlier releases run that refresh with no name, so Codex refreshes
-every Git marketplace you have configured. From v0.6.0, it names this product's own marketplace
-and refreshes only that one. Uninstalling removes all of these, under the ownership checks
-described below.
+이 도구가 시작하는 Codex 프로세스(`codex app-server`, `codex queue`)도 여느 Codex 프로세스처럼 Codex
+자신의 로그와 캐시를 갱신할 수 있습니다.
 
-**Never reads**: `auth.json`, tokens, cookies, authorization headers, or process memory. The Codex
-processes it starts use Codex's own stored sign-in; this tool never sees it.
+**설치 시점의 쓰기** (현재 사용자에 한하며, 시스템 전역에는 절대 쓰지 않습니다): 시작 메뉴 바로 가기, 거절하지 않는 한 로그인 자동 시작 값, Windows가
+토스트를 그리기 위해 요구하는 알림 발신자 식별자, 그리고 알림 버튼이 쓰는 URL 스킴의 핸들러. 또 `codex plugin` CLI를 통해 Codex 설정에 로컬
+플러그인 마켓플레이스와 이 플러그인을 등록하고, 마켓플레이스를 새로 고치도록 Codex에 요청합니다. 현재 최신 릴리스와 그 이전 릴리스는 이름을 지정하지 않고 새로
+고치므로, Codex는 사용자가 설정한 모든 Git 마켓플레이스를 새로 고칩니다. `main` 브랜치에서는 이 제품 자신의 마켓플레이스를 이름으로 지정해 그 하나만 새로
+고치며, 이는 이번 릴리스에 들어 있습니다. 제거하면 아래의 소유 확인을 거쳐 이 모두가 사라집니다.
 
-**Never opens for writing**: a Codex database, rollout or configuration file. If a Codex database
-uses SQLite's write-ahead log, SQLite may still update the shared-memory index file (`-shm`) beside
-it while reading. Codex's state changes when the product asks official Codex interfaces to act:
-`codex queue` (add one message), `thread/queue/delete` (withdraw that same message), and
-`codex plugin` / `codex plugin marketplace` at install and uninstall (register, refresh or remove
-this product's plugin and marketplace).
+**절대 읽지 않음:** `auth.json`, 토큰, 쿠키, authorization 헤더, 프로세스 메모리. 이 도구가 시작하는
+Codex 프로세스는 Codex가 저장해 둔 로그인 정보를 스스로 쓰며, 이 도구는 그것을 보지 않습니다.
 
-## Enforced properties
+**쓰기 모드로 열지 않음:** Codex의 데이터베이스, rollout, 설정 파일. Codex 데이터베이스가 SQLite의
+write-ahead log를 쓰는 경우, 읽는 동안에도 SQLite가 그 옆의 공유 메모리 인덱스 파일(`-shm`)을 갱신할 수
+있습니다. Codex의 상태는 이 제품이 공식 Codex 인터페이스에 요청할 때 바뀝니다: `codex queue`(메시지 한 건
+추가), `thread/queue/delete`(그 메시지 회수), 그리고 설치·제거 시의 `codex plugin` /
+`codex plugin marketplace`(이 제품의 플러그인과 마켓플레이스 등록, 새로 고침, 제거).
 
-- **No network code in the recovery runtime.** No file under `src/` or `scripts/*.py` imports a
-networking module, and a test fails if one gains an import of a networking module, so the
-watcher opens no connection of its own. That is a property of the code, checked by that test,
-not a sandbox. The traffic we know the product causes comes from elsewhere: - The Codex
-processes it starts ask OpenAI for your current usage (`account/rateLimits/read`) while a
-recovery is due. Codex identifies this tool to OpenAI by the client name and version the tool
-gives it: `codex_auto_resume` and `0.1` in v0.5.7; from v0.6.0, `codex_auto_resume` and the
-product's real version from the plugin manifest. These processes may also make Codex's own
-background requests (for example refreshing your sign-in), as any Codex process does. The
-resumed turn itself runs in your Codex desktop app, under your own Codex settings, and goes to
-OpenAI like any turn you start. - Setup: `scripts/bootstrap.ps1` downloads the release from
-GitHub over HTTPS and verifies it before anything in it runs. The installer then asks Codex to
-refresh marketplaces. In v0.5.7 and earlier releases it names none, so Codex refreshes every
-Git marketplace you have configured, fetching from their hosts. From v0.6.0, it names this
-product's own marketplace; for the local marketplace it registers that is a no-op, and Codex
-fetches only if an earlier GitHub registration of that name is still in place. - When you use
-this plugin's tools, or ask Codex to run its commands, inside a conversation, what they return
-(status, pending recoveries with their conversation ids, and for the commands, local paths that
-include your Windows user name) becomes part of that conversation, which Codex sends to OpenAI
-like any tool output. `get_status` also carries the engine path (`codex_exe`) if you have set
-one, and in v0.5.7 the install path, which contains your Windows user name; from v0.6.0, it no
-longer includes the install path.
+## 강제되는 속성
 
-  There is no telemetry, and no update check runs unless you press the button for it: from
-  v0.6.0 *Check for updates* makes one HEAD request to this repository's `releases/latest`
-  page and reads the version out of the address it redirects to, never out of the page,
-  which is not transferred. A redirect that leaves this exact owner and repository is
-  refused, and the version is rebuilt from its three numbers before it can reach a download
-  URL. This tool sends nothing to its developer; there is no
-  service of the developer's to send it to.
-- **No shell, and no values in script text.** No Python code uses `shell=True`, `os.system`, `eval`
-  or `exec`, and every Python subprocess gets an argument list. Windows PowerShell runs the
-  installer, the uninstaller and the plugin's setup script; the Python runtime uses it to list
-  ChatGPT and Codex processes (a fixed script) and raise notifications, and at setup to create the
-  Start Menu shortcut. The last two receive their values - toast text, shortcut paths - as
-  environment variables read by a constant script (`src/codex_auto_resume/pwsh.py`). PowerShell
-  does not parse an environment variable's value as code, so no character in a conversation title
-  or a folder name can change what runs. The Python runtime starts PowerShell by its full path under
-  `%SystemRoot%\System32`, and `Install.cmd` and `Uninstall.cmd` call both `chcp` and PowerShell the
-  same way, so a program of the same name sitting beside them is not run instead. The two small
-  Windows programs start the bundled Python with a command line quoted by the `CommandLineToArgvW`
-  rules.
-- **Its own code, found by path.** This is new in v0.6.0. The skill tells Codex (an instruction, not a check) to run the setup script by its
-  absolute path inside the plugin, not as a relative `scripts/bootstrap.ps1`, which would resolve
-  against the user's project and could run a script of the same name from it. The sign-in launcher
-  starts the installed application; its fallback, for installations older than the application
-  directory, searches Codex's plugin cache only under this product's own marketplace
-  (`codex-auto-resume-windows`), and the only other copy it will start is the one recorded when
-  setup ran. If neither qualifies, the launcher logs that no engine was found and starts nothing.
-  In v0.5.7 the skill gives the relative path, and the fallback accepts a same-named plugin from
-  any marketplace in the cache.
-- **Exact thread only.** Thread ids must be canonical UUIDs. `--last` is never used.
-- **No secrets in logs or state.** Engine events are logged from a fixed message table, with
-  untrusted values masked unless they are hex or digits. Prompt text, error text and account
-  identifiers are discarded at parse time. From the usage response, only numeric usage windows,
-  reset times and the limit bucket's name are kept; from an error, only its category.
-  A few lines outside the table record local facts: the main log records the state directory's
-  path, which contains your Windows user name, and, for an engine this tool was not verified
-  against, that engine's version string. Tracebacks go only to a separate error log (`errors.log`),
-  and the main log records the exception class name only.
-- **Fail closed.** Unknown loaded state, unknown usage, an unavailable probe, or a corrupted state file
-  results in waiting or refusing, never in sending.
-- **No duplicate resume.** The interruption is durably reserved (SQLite, `synchronous=FULL`,
-  `BEGIN IMMEDIATE`) before any external process can accept a message. If the result of a send is
-  ambiguous, the record enters `submission_unknown` and is never resent. The watcher keeps checking
-  it for 24 hours, and if the message turns out to have arrived it is matched to the exact turn
-  it started and follows that turn to its outcome. (`resumed`, the name v0.5 wrote on delivery,
-  is kept so old rows stay valid and is never written now.)
-- **Path confinement.** Owned directories are rejected if they are links, or if they resolve outside the
-  configured home. The resolve-based check also catches NTFS junctions, which `is_symlink()` does not.
-- **No contention with the app's thread lock.** There is no byte-lock API anywhere in the adapter.
-  Loaded state is determined purely from the Restart Manager inventory, so the tool never takes
-  the app's own thread writer lock. Reading Codex's databases uses SQLite's normal shared read locks.
-- **Least privilege.** No administrator rights are required. Optional autostart writes a single value
-  under the current user's `Run` key. No service, no scheduled task, nothing system-wide.
-- **Named objects planted by a less-trusted process are refused.** This is new in v0.6.0. The watcher's single-instance mutex and its stop event have
-  predictable names in the session namespace, where a process running at Low integrity may create
-  objects. If either already exists with an integrity label below Medium (the level an ordinary
-  user's programs run at), the watcher refuses it and logs `named_object_squatted`. A planted
-  mutex makes the watcher refuse to run and status read unknown; uninstall treats that unknown as
-  it treats any other, and aborts before removing anything. A planted stop event makes the watcher
-  refuse to start, so status reads not running. This covers an object a lower-integrity process
-  creates first. It does not cover a lower-integrity process that opens the running watcher's
-  mutex and takes it when the watcher exits: that mutex carries the watcher's own Medium label, so
-  it is not refused, and status reports a running watcher when none is, as in v0.5.7. In v0.5.7 a
-  planted mutex makes status report a watcher running when none is, and a planted, signalled stop
-  event makes a real watcher quit on start, logging only an ordinary stop request - nothing that
-  points to the planted event.
-- **Tools that turn recovery back up are marked so Codex asks first.** This is new in v0.6.0. The plugin's MCP tools that can turn recovery back on or
-  up, or change its settings - `resume_auto_recovery`, `enable_conversation_recovery`,
-  `reset_recovery_budget`, `start_watcher`, `update_settings`, `restore_default_settings` - are
-  annotated `destructiveHint: true`, and so are `cancel_recovery` and `clear_recovery_history`, so
-  Codex asks the user before running them in its default approval mode. `pause_auto_recovery`,
-  `disable_conversation_recovery` and `retry_now` are not: pausing and switching one conversation
-  off never add automation, and `retry_now` only moves an already-registered attempt earlier, with
-  every check still applied. The two switches do not cost the same, though. Pausing withdraws a
-  continuation already waiting in Codex's queue, and a withdrawal the watcher can confirm puts that
-  recovery back in its waiting state with its attempt returned, so resuming picks it up again; only
-  a withdrawal that cannot be confirmed becomes `submission_unknown`, and only a pause over a
-  submission that was already uncertain ends as `failed`. Switching one conversation off cancels
-  every recovery it has waiting, and a cancelled recovery is final: switching that conversation
-  back on does not revive it, and giving attempts back refuses it. The prompt is Codex's to show:
-  this product can only mark its tools, and Codex's approval settings decide whether a prompt
-  appears. `update_settings` offers and accepts only the settings a person can change in the
-  window, not the engine path (`codex_exe`) or the detection look-back, and `get_status` does not
-  include the install path. In v0.5.7 only `restore_default_settings` and `cancel_recovery` are
-  marked; `set_auto_recovery`, `reset_recovery_budget`, `start_watcher` and `update_settings`,
-  which there also offers the engine path, run without a prompt in Codex's default approval mode,
-  and a pause-withdrawn recovery there is cancelled outright.
+- **복구 런타임에는 네트워크 코드가 없음.** `src/`와 `scripts/*.py`의 어떤 파일도 네트워킹 모듈을
+  import하지 않으며, 어느 파일에든 네트워킹 모듈을 import하는 줄이 생기면 테스트가 실패하므로, 워처는
+  스스로 연결을 열지 않습니다. 이것은 그 테스트로 확인하는 코드의 속성이지 샌드박스가 아닙니다. 이 제품이
+  일으키는 것으로 알려진 통신은 다른 곳에서 나옵니다.
+  - 이 도구가 시작하는 Codex 프로세스는 복구할 차례가 된 건이 있을 때 OpenAI에 현재 사용량을
+    묻습니다(`account/rateLimits/read`). Codex는 이 도구가 넘겨준 클라이언트 이름과 버전으로 이 도구를
+    OpenAI에 알립니다. 현재 최신 릴리스에서는 `codex_auto_resume`와 `0.1`이고, `main` 브랜치에서는
+    `codex_auto_resume`와 플러그인 매니페스트에서 읽은 이 제품의 실제 버전이며, 이는 이번 릴리스에 들어 있습니다. 이 프로세스들은 여느 Codex 프로세스처럼 Codex 자체의 백그라운드 요청(예:
+    로그인 갱신)도 할 수 있습니다. 재개된 턴 자체는 사용자의 Codex 데스크톱 앱에서 사용자 자신의 Codex
+    설정으로 실행되며, 직접 시작한 턴과 똑같이 OpenAI로 갑니다.
+  - 설치: `scripts/bootstrap.ps1`이 HTTPS로 GitHub에서 릴리스를 내려받고, 그 안의 무엇이든 실행되기 전에
+    검증합니다. 이어서 설치기가 마켓플레이스를 새로 고치도록 Codex에 요청합니다. 현재 최신 릴리스와 그
+    이전 릴리스는 이름을 지정하지 않으므로, Codex는 사용자가 설정한 모든 Git 마켓플레이스를 새로 고치며 그
+    호스트들에서 내려받습니다. `main` 브랜치에서는 이 제품 자신의 마켓플레이스를 이름으로 지정하며, 이는
+    이번 릴리스에 들어 있습니다. 설치기가 등록하는 로컬 마켓플레이스에 대해서는 아무
+    일도 일어나지 않으며, 같은 이름의 예전 GitHub 등록이 남아 있을 때만 Codex가 내려받습니다.
+  - 대화 안에서 이 플러그인의 tool을 쓰거나 Codex에게 이 도구의 명령을 실행하게 하면, 그 결과(상태, 대화
+    ID가 붙은 대기 중 복구 목록, 그리고 명령의 경우 Windows 사용자 이름이 들어간 로컬 경로)는 그 대화의
+    일부가 되고, Codex는 여느 tool 출력과 마찬가지로 그것을 OpenAI로 보냅니다. `get_status`에는 엔진
+    경로(`codex_exe`)를 설정했다면 그 경로도 들어가고, 현재 최신 릴리스에서는 Windows 사용자 이름이
+    들어간 설치 경로도 들어갑니다. `main` 브랜치에서는 `get_status`에 설치 경로가 더 이상 들어가지 않으며,
+    이는 이번 릴리스에 들어 있습니다.
 
-## Destructive-operation safety
+  텔레메트리는 없고, 업데이트 확인은 단추를 누르지 않는 한 실행되지 않습니다. 이번 릴리스부터
+  *업데이트 확인*은 이 저장소의 `releases/latest` 쪽으로 HEAD 요청을 한 번 보내고, 버전을
+  페이지가 아니라 리디렉션이 끝난 주소에서 읽습니다. 페이지 본문은 오가지 않습니다. 이 소유자와
+  저장소를 벗어나는 리디렉션은 거부하며, 버전은 세 숫자로 다시 만든 뒤에야 내려받기 주소에
+  닿을 수 있습니다. 이 도구는 개발자에게 아무것도 보내지 않습니다. 보낼 개발자 쪽
+  서비스가 애초에 없습니다.
+- **셸 없음, 스크립트 본문에 값 없음.** 어떤 Python 코드도 `shell=True`, `os.system`, `eval`, `exec`를
+  쓰지 않으며, 모든 Python subprocess는 인자 목록으로 시작합니다. Windows PowerShell은 설치기, 제거기,
+  플러그인 설치 스크립트를 실행합니다. Python 런타임은 PowerShell로 ChatGPT·Codex 프로세스 목록을
+  얻고(고정 스크립트) 알림을 띄우며, 설치 시에는 시작 메뉴 바로 가기를 만듭니다. 뒤의 두 가지는 토스트
+  문구나 바로 가기 경로 같은 값을 고정 스크립트가 읽는 환경 변수로
+  받습니다(`src/codex_auto_resume/pwsh.py`). PowerShell은 환경 변수의 값을 코드로 해석하지 않으므로, 대화
+  제목이나 폴더 이름에 어떤 문자가 들어 있어도 실행되는 내용은 바뀌지 않습니다. Python 런타임은
+  PowerShell을 `%SystemRoot%\System32` 아래의 전체 경로로 실행하고, `Install.cmd`와 `Uninstall.cmd`도
+  `chcp`와 PowerShell을 같은 방식으로 호출하므로, 옆에 놓인 같은 이름의 프로그램이 대신 실행되지
+  않습니다. 두 개의 작은 Windows 프로그램은 `CommandLineToArgvW` 규칙에 맞게 인용한 명령줄로 번들
+  Python을 시작합니다.
+- **자기 코드를 경로로 찾음.** 이 항목은 `main` 브랜치에 있으며 이번 릴리스에 들어 있습니다. 스킬은 Codex에게(검사가 아니라 지시입니다) 설치 스크립트를 플러그인 안의 절대 경로로
+  실행하게 하며, 상대 경로 `scripts/bootstrap.ps1`로는 실행하지 않게 합니다. 상대 경로는 사용자의
+  프로젝트를 기준으로 풀리므로, 그 프로젝트 안에 있는 같은 이름의 스크립트가 실행될 수 있기 때문입니다.
+  로그인 런처는 설치된 애플리케이션을 시작합니다. 애플리케이션 디렉터리가 생기기 전의 설치본을 위한 대체
+  경로는 Codex의 플러그인 캐시를 이 제품 자신의 마켓플레이스(`codex-auto-resume-windows`) 아래에서만
+  찾으며, 그 밖에 시작하는 사본은 설치할 때 기록된 것 하나뿐입니다. 둘 다 해당하지 않으면 엔진을 찾지
+  못했다고 로그에 남기고 아무것도 시작하지 않습니다. 현재 최신 릴리스에서는 스킬이 상대 경로를 알려
+  주고, 대체 경로가 캐시에 있는 어느 마켓플레이스의 같은 이름 플러그인이든 받아들입니다.
+- **정확한 스레드만.** 스레드 ID는 canonical UUID여야 합니다. `--last`는 절대 쓰지 않습니다.
+- **로그와 상태에 비밀 없음.** 엔진 이벤트는 고정된 메시지 테이블로 기록하며, 신뢰할 수 없는 값은
+  16진수나 숫자가 아니면 마스킹합니다. 프롬프트 텍스트, 오류 텍스트, 계정 식별자는 파싱 단계에서
+  폐기합니다. 사용량 응답에서는 숫자로 된 사용량 구간과 리셋 시각, 한도 버킷 이름만 남기고, 오류에서는 그
+  범주만 남깁니다. 테이블 밖의 몇 줄은 로컬 정보를 기록합니다. 본 로그에는 Windows 사용자 이름이 들어간
+  상태 디렉터리 경로와, 검증되지 않은 엔진이라면 그 엔진의 버전 문자열이 남습니다. 트레이스백은 별도의
+  오류 로그(`errors.log`)에만 남고, 본 로그에는 예외 클래스명만 기록합니다.
+- **불확실하면 멈춤.** 로드 상태를 모르거나, 사용량을 모르거나, 프로브를 쓸 수 없거나, 상태 파일이
+  손상되었으면 대기하거나 거부하며, 절대 전송하지 않습니다.
+- **중복 재개 없음.** 외부 프로세스가 메시지를 받을 수 있게 되기 전에 중단 건을 durable하게 예약합니다
+  (SQLite, `synchronous=FULL`, `BEGIN IMMEDIATE`). 전송 결과가 모호하면 레코드는 `submission_unknown`
+  상태가 되고 다시 전송되지 않습니다. 워처는 24시간 동안 계속 확인하며, 메시지가 실제로 도착했던 것으로
+  밝혀지면 그 메시지가 시작한 정확한 턴과 대응되고 그 턴의 결과까지 따라갑니다. (`resumed`는 v0.5가
+  전달 시점에 쓰던 이름입니다. 옛 레코드가 그대로 유효하도록 남겨 둘 뿐, 지금은 쓰지 않습니다.)
+- **경로 봉쇄.** 소유 디렉터리가 링크이거나 설정된 home 밖으로 resolve되면 거부합니다. resolve 기반 검사는
+  `is_symlink()`가 잡지 못하는 NTFS junction도 잡아냅니다.
+- **앱의 스레드 잠금과 경합하지 않음.** 어댑터 어디에도 byte-lock API가 없습니다. 로드 상태는 오직 재시작
+  관리자 목록으로 판정하므로, 앱 자신의 스레드 writer lock을 잡는 일이 없습니다. Codex 데이터베이스를
+  읽을 때는 SQLite의 일반적인 공유 읽기 잠금을 씁니다.
+- **최소 권한.** 관리자 권한이 필요 없습니다. 선택적 자동 시작은 현재 사용자의 `Run` 키에 값 하나만 씁니다.
+  서비스도, 예약 작업도, 시스템 전역 변경도 없습니다.
+- **덜 신뢰되는 프로세스가 먼저 만든 이름 있는 객체는 거부.** 이 항목은 `main` 브랜치에 있으며 이번 릴리스에 들어 있습니다. 워처의 단일 인스턴스 뮤텍스와 중지 이벤트는 세션 네임스페이스에서 이름을
+  예측할 수 있고, 낮은 무결성 수준(Low)으로 실행되는 프로세스도 그곳에 객체를 만들 수 있습니다. 둘 중 하나가 Medium(일반 사용자 프로그램이 실행되는 수준)보다 낮은 무결성 레이블을
+  단 채 이미 있으면, 워처는 그것을 거부하고 로그에 `named_object_squatted`를 남깁니다. 미리 심어 둔
+  뮤텍스가 있으면 워처는 실행을 거부하고 상태는 알 수 없음으로 표시됩니다. 제거는 이 알 수 없음도 다른
+  경우와 똑같이 취급해, 아무것도 지우지 않고 중단합니다. 미리 심어 둔 중지 이벤트가 있으면 워처는 시작을
+  거부하므로, 상태는 실행 중 아님으로 표시됩니다. 이것은 낮은 무결성 프로세스가 먼저 만든 객체에
+  해당합니다. 낮은 무결성 프로세스가 실행 중인 워처의 뮤텍스를 열어 두었다가 워처가 종료할 때 그것을
+  차지하는 경우는 여기에 해당하지 않습니다. 그 뮤텍스에는 워처 자신의 Medium 레이블이 붙어 있으므로
+  거부되지 않고, 현재 최신 릴리스에서와 마찬가지로 워처가 없는데도 상태가 실행 중으로 표시됩니다.
+  현재 최신 릴리스에서는 미리 심어 둔 뮤텍스 때문에 워처가 없는데도 상태가 실행 중으로 표시되고, 미리 심어 두고
+  신호를 준 중지 이벤트 때문에 진짜 워처가 시작하자마자 종료하며, 로그에는 평범한 중지 요청만 남고 심어
+  둔 이벤트를 가리키는 내용은 없습니다.
+- **복구를 다시 켜거나 늘리는 tool에는 Codex가 먼저 묻도록 표시를 답니다.** 이 항목은 `main` 브랜치에
+  있으며 이번 릴리스에 들어 있습니다. 플러그인의 MCP tool 중 복구를 다시 켜거나
+  늘리거나 설정을 바꿀 수 있는 것 - `resume_auto_recovery`, `enable_conversation_recovery`,
+  `reset_recovery_budget`, `start_watcher`, `update_settings`, `restore_default_settings` - 과
+  `cancel_recovery`, `clear_recovery_history`에는 `destructiveHint: true`를 달아,
+  Codex가 기본 승인 모드에서 실행 전에 사용자에게 묻게 합니다. `pause_auto_recovery`와
+  `disable_conversation_recovery`, `retry_now`는 그렇지 않습니다. 일시 중지도, 대화 하나를 끄는 것도
+  자동화를 늘리는 일이 없고, `retry_now`는 이미 등록된 시도를 앞당길 뿐 모든 확인을 그대로 거칩니다.
+  다만 이 두 스위치의 대가는 같지 않습니다. 일시 중지하면 Codex의 큐에서 이미 기다리고 있던
+  continuation이 회수되는데, 워처가 회수를 확인할 수 있으면 그 복구는 대기 상태로 돌아가고 시도 횟수도
+  돌려받으므로, 다시 재개하면 이어서 진행됩니다. 회수를 확인할 수 없을 때만 `submission_unknown`이 되고,
+  이미 불확실했던 전송을 일시 중지로 회수한 경우에만 `failed`로 끝납니다. 대화 하나를 끄면 그 대화가
+  대기시켜 둔 복구가 모두 취소되고, 취소된 복구는 되돌릴 수 없습니다. 그 대화를 다시 켜도 되살아나지
+  않고, 시도 횟수 되돌리기도 거부합니다. 확인 창을 띄우는 것은 Codex입니다. 이 제품은 tool에 표시를 달
+  수 있을 뿐이고, 확인 창이 뜰지는 Codex의 승인 설정이 정합니다. `update_settings`는 창에서 사람이 바꿀
+  수 있는 설정만 제시하고 받아들이며, 엔진
+  경로(`codex_exe`)나 감지 조회 기간은 다루지 않습니다. `get_status`에는 설치 경로가 들어 있지 않습니다.
+  현재 최신 릴리스에서는 `restore_default_settings`와 `cancel_recovery`에만 표시가 있고,
+  `set_auto_recovery`, `reset_recovery_budget`, `start_watcher`, 그리고 그 릴리스에서는 엔진 경로도
+  제시하는 `update_settings`는 Codex의 기본 승인 모드에서 묻지 않고 실행됩니다. 또 그 릴리스에서는 일시
+  중지로 회수된 복구가 그대로 취소됩니다.
 
-**Nothing is destroyed that this installation cannot prove it owns, with two exceptions at install
-time.** The rule covers files, directories, processes and registrations, when installing and when
-uninstalling, because "it has the right name" was never evidence for any of them. The two exceptions
-are things installing replaces by name, both described under *Installing*: this product's own
-per-user registrations, which exist once per user, and the Codex marketplace name it registers
-under.
+## 파괴적 동작의 안전성
 
-- **Installing.** The install path destroys things too: it sweeps set-aside copies, moves
-`app/` and `runtime/` out of the way, and deletes what it moved. From v0.6.0, it writes a small
-JSON journal at the installation root before the first move, naming every tree it is about to
-move and the `*.old-*` name it will use - written to a temporary name and moved over the real
-one, so a crash during the write leaves either the previous journal or none. The next run reads
-it before it sweeps anything: it puts back a tree whose target is missing, and checks both ends
-of every move against the installation it has already proved is its own. The two files that
-belong at the installation root are copied there by name rather than by wildcard, so nothing
-else a payload happens to carry reaches the home - including a file named like this product's
-own provenance marker. It cannot ask the question the uninstaller asks, because the first
-install happens into a directory that is not ours yet. So it asks the other half: is anything
-of ours here? A directory already holding `app`, `runtime`, `config`, `logs` or a set-aside
-copy, with no proof any of it is ours, is refused and nothing in it is touched. A directory
-holding none of them has nothing to destroy, and is marked as ours *before* the first file is
-written - never afterwards, because a marker written after the fact would authorise the
-deletions backwards. Two things are replaced by name. The notification identity, the Start Menu
-shortcut and the URL handler exist once per user, so installing writes this installation's
-values over whatever is registered under those names - in practice, another copy of this
-product that did not register for sign-in. The sign-in value is not replaced: if it belongs to
-another installation, setup stops before writing any of the per-user entries above and says so.
-By then the installer has already copied the files and registered the Codex plugin and
-marketplace, including the repointing described next. And if the marketplace name
-`codex-auto-resume-windows` is already registered from a different source, installing removes
-that registration and registers the name again, pointing at this installation, without checking
-what the old source was. - **Upgrading.** Before replacing its files, an upgrade asks a running
-watcher to stop through its stop event - the same request `stop` and uninstall make - and waits
-up to a minute. It never kills the watcher: one stopped mid-submission would leave that
-recovery unable to prove whether it was sent. If the watcher is still running after the wait,
-the upgrade completes and says that the previous version is still running and how to replace
-it. The only processes an install stops by force are this plugin's own MCP launchers,
-identified by path as on uninstall, when they hold the plugin's files open and Codex cannot
-update the plugin; Codex starts a fresh one when it needs it. - **Uninstalling: directories.**
-The installation root has to be one we created: it carries our provenance marker
-(`.owned-by-codex-auto-resume`), or its `config/` does, or its `runtime.json` names that very
-directory. The root can be pointed anywhere by `CODEX_AUTO_RESUME_PLUGIN_HOME`, so a directory
-that merely contains folders called `app`, `runtime`, `config` and `logs` is refused and
-nothing in it is touched. Every path deleted is then re-checked against the *canonical* root,
-with junctions and symlinks resolved, so a link inside the installation cannot redirect a
-recursive delete out of it. Inside an owned directory, only our own file names are removed. -
-**Uninstalling: processes.** The MCP launcher is stopped only when its executable resolves
-inside this installation or inside this plugin's own Codex cache directory. Another program
-running under the same filename is left alone, and a process whose path cannot be read is
-skipped: not being able to tell is not permission to kill. - **Uninstalling: Codex
-configuration.** The plugin and its marketplace are removed only while they still point at this
-installation, which is read from `codex plugin list --json` and `codex plugin marketplace list
---json`. If you have repointed that marketplace name at a fork of your own, uninstalling this
-product leaves your configuration exactly where it is and says so. If Codex refuses a removal,
-that is reported as a refusal, never as a removal. - **Uninstalling: registry and Start Menu.**
-The sign-in entry, the notification identity, the Start Menu shortcut and the
-`codex-auto-resume:` handler are per-user singletons that a second installation would
-overwrite, so each is removed only when it still belongs to the installation being removed.
+**이 설치본이 자기 것임을 증명하지 못하는 것은 무엇도 파괴하지 않습니다. 예외는 설치 시점의 두
+가지입니다.** 이 규칙은 파일, 디렉터리, 프로세스, 등록 항목을 모두 덮고 설치와 제거 양쪽에 적용됩니다.
+"이름이 맞다"는 것은 그 무엇에 대해서도 증거였던 적이 없기 때문입니다. 두 예외는 설치가 이름으로 교체하는
+것들이며, 둘 다 *설치* 항목에 적었습니다. 사용자당 하나뿐인 이 제품의 사용자 단위 등록 항목과, 이 제품이
+등록하는 Codex 마켓플레이스 이름입니다.
 
-Uninstall first asks a running watcher to stop through its stop event. If a watcher is still
-running, or if it cannot verify whether one is running, uninstall aborts before removing anything
-at all — registrations included. The proof of ownership is deleted after the last step that can
-still stop the run, so an interrupted uninstall can be run again. Uninstall never deletes ChatGPT or
-Codex files itself: it asks the `codex` CLI to unregister this plugin and its marketplace, only
-while they still point at this installation, and Codex removes its own cached copy of the plugin.
-User repositories and parent directories are never deleted.
+- **설치.** 설치 경로도 파괴를 합니다. 밀쳐둔 사본을 청소하고, `app/`과 `runtime/`을 옆으로 옮기고, 옮긴
+  것을 지웁니다. `main` 브랜치(이번 릴리스에 들어 있습니다)에서는 무언가를 처음 옮기기 전에, 옮길 트리와
+  거기에 붙일 `*.old-*` 이름을 적은 작은 JSON 저널을 설치 루트에 씁니다. 임시 이름으로 썼다가 제자리로
+  옮기므로, 쓰다 만 저널은 남지 않고 이전 저널이 남거나 아무것도 남지 않습니다. 다음 실행은 무엇을 쓸어
+  내기 전에 그것부터 읽어, 대상이 사라진 트리는 되돌리고, 모든 이동의 양끝을 이미 자기 것임을 증명한
+  설치본과 대조합니다. 설치 루트에 놓여야 할 파일 두 개도 와일드카드가 아니라 이름으로 복사하므로,
+  릴리스에 딸려 온 다른 파일 - 이 제품이 자기 소유의 증거로 읽는 이름을 가진 파일까지 - 이 홈에 들어오지
+  않습니다. 설치 경로는 제거가 던지는 질문을 던질 수 없습니다. 최초 설치는 아직 우리 것이 아닌
+  디렉터리에서 일어나기 때문입니다. 그래서 반대쪽 절반을 묻습니다. 여기에 우리 것이 있는가? `app`,
+  `runtime`, `config`, `logs` 또는 밀쳐둔 사본이 이미 있는데 그중 무엇도 우리 것이라는 증거가 없다면
+  거부하고 아무것도 건드리지 않습니다. 그중 무엇도 없는 디렉터리는 파괴할 것이 없으므로, 첫 파일을 쓰기
+  *전에* 우리 것으로 표시합니다 - 나중이 아니라 먼저입니다. 나중에 쓴 표식은 이미 한 삭제를 소급해서
+  승인하는 것이고, 그것은 승인이 아닙니다. 이름으로 교체하는 것은 두 가지입니다. 알림 식별자, 시작 메뉴
+  바로 가기, URL 핸들러는 사용자당 하나뿐이므로, 그 이름으로 등록된 것이 무엇이든(실제로는 로그인 등록을
+  하지 않은 이 제품의 다른 사본이 만든 것) 그 위에 이 설치본의 것을 씁니다. 로그인 값은 교체하지 않습니다.
+  그 값이 다른 설치본의 것이면, 설치의 마지막 단계(setup)는 위의 사용자 단위 등록 항목을 하나도 쓰기 전에
+  멈추고 그렇다고 알립니다. 다만 그 시점에는 설치기가 이미 파일을 복사하고, 아래에 적은 마켓플레이스
+  이름 재등록을 포함해 Codex 플러그인과 마켓플레이스를 등록한 뒤입니다. 또 `codex-auto-resume-windows`라는
+  마켓플레이스 이름이 이미 다른 출처로 등록되어 있으면, 예전 출처가 무엇이었는지 확인하지 않고 그 등록을
+  지운 뒤 이 설치본을 가리키도록 다시 등록합니다.
+- **업그레이드.** 파일을 교체하기 전에 실행 중인 워처에게 중지 이벤트로 멈춰 달라고 요청하고 - `stop`과
+  제거가 보내는 것과 같은 요청입니다 - 최대 1분 기다립니다. 워처를 강제로 종료하지는 않습니다. 전송 도중에
+  멈춘 워처는 그 복구가 전송되었는지 증명할 수 없게 만들기 때문입니다. 기다린 뒤에도 워처가 실행 중이면,
+  업그레이드는 마무리하되 이전 버전이 아직 실행 중이라는 사실과 교체하는 방법을 알립니다. 설치가 강제로
+  멈추는 프로세스는 이 플러그인 자신의 MCP 런처뿐입니다. 제거 때와 같이 경로로 식별하며, 그것이 플러그인
+  파일을 열고 있어 Codex가 플러그인을 갱신하지 못할 때만 멈춥니다. 필요해지면 Codex가 새로 시작합니다.
+- **제거: 디렉터리.** 설치 루트가 우리가 만든 것이어야 합니다. 루트에 provenance marker
+  (`.owned-by-codex-auto-resume`)가 있거나, `config/`에 있거나, `runtime.json`이 바로 그 디렉터리를
+  가리켜야 합니다. 루트는 `CODEX_AUTO_RESUME_PLUGIN_HOME`으로 어디든 가리킬 수 있으므로, 단지 `app`,
+  `runtime`, `config`, `logs`라는 이름의 폴더를 담고 있을 뿐인 디렉터리는 거부되고 그 안의 무엇도 손대지
+  않습니다. 이후 삭제하는 모든 경로는 junction과 심볼릭 링크를 모두 resolve한 *정규* 루트에 대해 다시
+  검사하므로, 설치본 안의 링크가 재귀 삭제를 바깥으로 돌릴 수 없습니다. 소유한 디렉터리 안에서도 우리
+  자신의 파일 이름만 지웁니다.
+- **제거: 프로세스.** MCP 런처는 그 실행 파일 경로가 이 설치본 안이나 이 플러그인 자신의 Codex 캐시
+  디렉터리 안으로 resolve될 때만 중지합니다. 같은 파일 이름으로 실행 중인 다른 프로그램은 그대로 두며,
+  경로를 읽을 수 없는 프로세스는 건너뜁니다. 판단할 수 없다는 것은 죽여도 된다는 허가가 아닙니다.
+- **제거: Codex 설정.** 플러그인과 마켓플레이스는 여전히 이 설치본을 가리키고 있을 때만 제거하며, 이는
+  `codex plugin list --json`과 `codex plugin marketplace list --json`으로 읽습니다. 같은 마켓플레이스
+  이름을 직접 만든 포크로 돌려놓으셨다면, 이 제품을 제거해도 그 설정은 그대로 두고 그 사실을 알립니다.
+  Codex가 제거를 거부하면 거부는 거부로 보고하며, 제거했다고 말하지 않습니다.
+- **제거: 레지스트리와 시작 메뉴.** 로그인 항목, 알림 식별자, 시작 메뉴 바로 가기, `codex-auto-resume:`
+  핸들러는 두 번째 설치본이 덮어쓰게 되는 사용자 단위 단일 항목이므로, 제거 대상 설치본에 여전히 속해
+  있을 때만 제거합니다.
 
-## Release integrity
+제거는 먼저 실행 중인 워처에게 중지 이벤트로 멈춰 달라고 요청합니다. 그래도 워처가 실행 중이거나 실행
+여부를 확인할 수 없으면, 등록 항목을 포함해 무엇도 지우지 않고 중단합니다. 중간에 멈춘 제거가 다시 시도될
+수 있도록, 소유 증거는 멈출 수 있는 마지막 단계보다 나중에 지웁니다. 제거는 ChatGPT나 Codex 파일을 스스로
+지우지 않습니다. 이 설치본을 가리키고 있을 때에만 `codex` CLI에 이 플러그인과 마켓플레이스의 등록 해제를
+요청하고, 플러그인의 캐시 사본은 Codex가 지웁니다. 사용자 저장소와 상위 디렉터리는 절대 삭제하지 않습니다.
 
-Releases are built and published by GitHub Actions (`.github/workflows/release.yml`) from the
-tagged commit, not from a developer's working tree.
+## 릴리스 무결성
 
-Every archive published so far, v0.5.0 through v0.5.7, was built by the earlier single-job
-workflow, which referenced its actions by floating tags and produced executables that were not
-reproducible. The two-job split, the pinned actions, the reproducible executables and the
-version resource described below are new in v0.6.0.
+릴리스는 GitHub Actions(`.github/workflows/release.yml`)가 태그된 커밋에서 빌드하고 게시하며, 개발자의
+작업 트리에서 만들지 않습니다.
 
-- **Two jobs, split by privilege.** From v0.6.0. `build` runs the repository's code - the tests
-and the build scripts - with a read-only token that is not left on disk. `publish` holds the
-rights to create the release and attest it, runs no script from the repository - only the steps
-written in the workflow itself (it does not check the repository out) - and runs only on a tag
-push. A manual run builds and verifies whatever ref it names and never reaches `publish`. -
-**Pinned actions.** From v0.6.0. Every GitHub Action the workflows use is pinned to a full
-commit SHA, with the release it corresponds to in a comment, and a test enforces it. Dependabot
-proposes updates as pull requests for a person to review; nothing in the repository merges them
-automatically. - **A published version is not replaced by the workflow.** From v0.6.0,
-`publish` refuses a version that already has assets, so a correction needs a new version; the
-earlier single-job workflow refused the same way from v0.5.4 on. These are not GitHub
-"immutable releases": that repository setting is not enabled, so the rule is this workflow's
-rather than a platform guarantee, and a person with write access to the repository could still
-change a release's assets by hand. The digest an install is checked against is therefore kept
-as a commit on `main` rather than as a release asset; the next item says what that does and
-does not catch. - **What an install is checked against.** The plugin's setup script verifies
-the archive's SHA-256 against the digest pinned for that version in `scripts/release.json` -
-the copy that came with the plugin from `main`, where the pin is committed after the
-archive is published. It is a commit on `main`, not a release asset. A replaced asset no longer
-matches it unless the pin is changed too, and that change is a new commit on `main`, visible in
-its history unless that history is rewritten; the pin lives in the same repository, under the
-same write access. For a version with no pin yet - between publication and the pin commit - the
-script falls back to the `.sha256` published beside the archive and says so; that file shows
-the download is intact, not where it came from. A file passed with `-ArchivePath` is checked
-only against a pinned digest; if the version has none, its SHA-256 is compared with nothing,
-and the script says so. Every archive from v0.5.4 on also carries a GitHub build provenance
-attestation, which ties it to the workflow run and the commit that built it. - **Reproducible
-executables.** From v0.6.0. The in-box C# compiler stamps every build with the time and a
-random module id (MVID). `build/normalize_pe.py` fixes the PE timestamp and derives the MVID
-from the module's content, so the two executables depend only on their source and the compiler
-build (which the build log records), and the release build compiles them twice and refuses to
-publish if the two builds differ. Text files are checked out with CRLF everywhere
-(`.gitattributes`), because their line endings are part of the archive's bytes. Two full builds
-from fresh clones on one machine, with the same compiler, Python and zlib, produced
-byte-identical archives. Whether GitHub's runner produces the same bytes as a local build has
-not been verified. - **Version resource.** From v0.6.0. Both executables carry a Windows
-version resource - product, publisher, file and product version - generated from the plugin
-manifest, so a file's Properties name what it is. That is a label, not a signature: it says
-nothing about who built the file.
+지금까지 게시된 모든 압축 파일, 즉 v0.5.0부터 현재 최신 릴리스까지는 예전의 단일 작업 워크플로가 빌드했습니다. 그 워크플로는 Action을 떠다니는 태그로
+참조했고, 만든 실행 파일은 재현 가능하지 않았습니다. 아래에 적은 두 작업 분리, 고정된 Action, 재현 가능한 실행 파일, 버전 리소스는 `main` 브랜치에
+있으며 이번 릴리스부터 적용됩니다.
 
-## Code signing
+- **권한으로 나눈 두 작업.** `main` 브랜치에 있으며 이번 릴리스부터 적용됩니다.
+  `build`는 테스트와 빌드 스크립트 같은 저장소의 코드를 실행하되, 디스크에 남지 않는 읽기 전용 토큰만
+  가집니다. `publish`는 릴리스를 만들고 증명(attestation)할 권한을 갖지만 저장소의 스크립트는 전혀
+  실행하지 않고 워크플로 자체에 적힌 단계만 실행하며(저장소를 체크아웃하지도 않습니다), 태그 push에서만
+  실행됩니다. 수동 실행은 지정한 ref를 빌드하고
+  검증할 뿐 `publish`에는 도달하지 않습니다.
+- **고정된 Action.** `main` 브랜치에 있으며 이번 릴리스부터 적용됩니다.
+  워크플로가 쓰는 모든 GitHub Action은 전체 커밋 SHA로 고정되어 있고, 해당하는 릴리스가 주석으로 붙어
+  있으며, 테스트가 이를 강제합니다. Dependabot은 업데이트를 사람이 검토할 pull request로 제안하며, 저장소의
+  어떤 설정도 이를 자동으로 병합하지 않습니다.
+- **게시된 버전을 워크플로가 교체하지 않음.** `main` 브랜치에서는(이번 릴리스에 들어 있습니다) `publish`가 이미 자산이 있는 버전을 거부하므로, 고치려면 새 버전이 필요합니다. 예전의 단일
+  작업 워크플로도 v0.5.4부터 같은 방식으로 거부했습니다. 다만 GitHub의 "immutable releases"는 아닙니다. 그
+  저장소 설정이 켜져 있지 않으므로 이것은 플랫폼의 보장이 아니라 이 워크플로의 규칙이며, 저장소 쓰기
+  권한이 있는 사람은 여전히 릴리스 자산을 손으로 바꿀 수 있습니다. 그래서 설치가 대조하는 digest는 릴리스
+  자산이 아니라 `main`의 커밋으로 둡니다. 그것이 무엇을 잡아내고 무엇을 잡아내지 못하는지는 다음 항목에
+  적었습니다.
+- **설치가 대조하는 기준.** 플러그인의 설치 스크립트는 압축 파일의 SHA-256을 `scripts/release.json`에 그
+  버전용으로 고정된 digest와 대조합니다. 이 파일은 플러그인과 함께 `main` 브랜치에서 온 사본이며, 고정값은
+  압축 파일이 게시된 뒤에 `main`에 커밋됩니다. 이것은 릴리스 자산이 아니라 `main`의 커밋입니다. 교체된
+  자산은 고정값도 함께 바꾸지 않는 한 그것과 맞지 않게 되고, 고정값을 바꾸면 그 변경은 `main`의 새 커밋이
+  되어, 그 기록이 다시 쓰이지 않는 한 기록에 드러납니다. 고정값은 같은 저장소에, 같은 쓰기 권한
+  아래에 있습니다. 아직 고정값이 없는 버전이면 - 게시와 고정값 커밋 사이의 기간입니다 - 압축 파일 옆에 게시된 `.sha256`으로 대신 확인하고 그렇다고 알립니다. 그
+  파일은 다운로드가 온전한지는 보여 주지만 출처는 보여 주지 못합니다. `-ArchivePath`로 넘긴 파일은 고정된
+  digest와만 대조합니다. 그 버전에 고정값이 없으면 SHA-256을 아무것과도 대조하지 않으며, 스크립트가
+  그렇다고 알립니다. v0.5.4 이후의 모든 압축 파일에는 GitHub 빌드 출처 증명(build provenance
+  attestation)도 붙어 있어, 그 파일을 빌드한 워크플로 실행과 커밋을 알려 줍니다.
+- **재현 가능한 실행 파일.** `main` 브랜치에 있으며 이번 릴리스부터 적용됩니다.
+  Windows에 기본으로 들어 있는 C# 컴파일러는 빌드할 때마다 시각과 무작위 모듈 ID(MVID)를 찍어 넣습니다.
+  `build/normalize_pe.py`가 PE 타임스탬프를 고정하고 MVID를 모듈 내용에서 도출하므로 두 실행 파일은 소스와
+  컴파일러 빌드(빌드 로그에 기록됩니다)에만 의존하며, 릴리스 빌드는 이를 두 번 컴파일해 결과가 다르면
+  게시를 거부합니다. 줄 끝이 압축 파일 바이트의 일부이므로, 텍스트 파일은 어느 컴퓨터에서든 CRLF로
+  체크아웃됩니다(`.gitattributes`). 한 컴퓨터에서 같은 컴파일러, 같은 Python과 zlib로, 새로 클론한 두
+  사본으로 각각 전체 빌드한 결과는 바이트 단위로 같은 압축 파일이었습니다. GitHub의 runner가 로컬 빌드와
+  같은 바이트를 만드는지는 확인하지 않았습니다.
+- **버전 리소스.** `main` 브랜치에 있으며 이번 릴리스부터 적용됩니다. 두 실행
+  파일에는 플러그인 매니페스트에서 생성한 Windows 버전 리소스 - 제품, 게시자, 파일 버전, 제품 버전 - 가
+  들어 있어, 파일 속성에서 무엇인지 알 수 있습니다. 이것은 표시일 뿐 서명이 아니며, 누가 빌드했는지는
+  말해 주지 않습니다.
 
-Nothing this project builds is Authenticode-signed - the two executables, `Install.cmd`,
-`Uninstall.cmd` and the PowerShell scripts. The bundled Python interpreter keeps the signatures it
-was published with: the Python Software Foundation's on `pythonw.exe`, `python.exe` and the Python
-DLLs, and Microsoft's on the two Visual C++ runtime DLLs.
+## 코드 서명
 
-- What the sign-in entry starts is the bundled `pythonw.exe`, which carries the Python Software
-  Foundation's signature.
-- The two small executables - the settings window and the MCP launcher - are unsigned, and with
-  Smart App Control on, Windows may block them. On the manual route SmartScreen may warn, because a
-  ZIP downloaded in a browser and extracted with Explorer passes the mark of the web on to its
-  files. A `.cmd` file cannot carry an embedded Authenticode signature.
+이 프로젝트가 만드는 파일은 어느 것도 Authenticode 서명이 되어 있지 않습니다(두 실행 파일, `Install.cmd`,
+`Uninstall.cmd`, PowerShell 스크립트). 번들된 Python 인터프리터에는 게시될 때의 서명이 그대로 남아
+있습니다. `pythonw.exe`, `python.exe`와 Python DLL에는 Python Software Foundation의 서명이, 두 Visual C++
+런타임 DLL에는 Microsoft의 서명이 있습니다.
 
-Without a signature on this project's own files, what establishes that a file is the one this
-repository published is the checking described under *Release integrity* and below.
+- 로그인 항목이 시작하는 것은 번들된 `pythonw.exe`이며, Python Software Foundation의 서명이 있습니다.
+- 두 개의 작은 실행 파일 - 설정 창과 MCP 런처 - 은 서명되어 있지 않으며, 스마트 앱 컨트롤(Smart App
+  Control)이 켜져 있으면 Windows가 이 실행 파일들을 차단할 수 있습니다. 직접 내려받는 경로에서는
+  SmartScreen이 경고할 수 있는데, 브라우저로 내려받은 ZIP을 탐색기로 풀면 인터넷에서 왔다는 표시(mark of
+  the web)가 풀린 파일에 그대로 옮겨 가기 때문입니다. `.cmd` 파일은 파일 안에 Authenticode 서명을 담을 수
+  없습니다.
 
-## Verifying a release
+이 프로젝트 자신의 파일에는 서명이 없으므로, 파일이 이 저장소가 게시한 바로 그 파일임을 확인해 주는 것은
+*릴리스 무결성*과 아래에 설명한 검사입니다.
 
-If you download the archive yourself, verify it before extracting it. In PowerShell:
+## 릴리스 확인하기
+
+압축 파일을 직접 내려받았다면, 풀기 전에 확인하세요. PowerShell에서:
 
 ```powershell
 (Get-FileHash .\CodexAutoResume-vX.Y.Z-win-x64.zip -Algorithm SHA256).Hash
 ```
 
-Compare the result, ignoring case, with the `.sha256` file published beside the archive, and with
-the digest pinned for that version in
-[`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json)
-on the `main` branch. The pin reaches you by a different channel - a commit on `main`, not a
-release asset - so it is the comparison that does not rest on the release page alone. It is still
-in the same repository; a change to it is a new commit on `main`, visible in its history unless
-that history is rewritten. v0.5.0 and v0.5.1 have no pin, and a version published very recently
-may not be pinned yet. For v0.5.4 and later, you can also check the build provenance with
-the GitHub CLI:
+그 결과를 대소문자 구분 없이, 압축 파일 옆에 게시된 `.sha256` 파일과 비교하고, `main` 브랜치의
+[`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json)에
+그 버전용으로 고정된 digest와도 비교합니다. 고정값은 릴리스 자산이 아니라 `main`의 커밋이라는 다른
+경로로 오므로, 릴리스 페이지에만 기대지 않는 비교는 이쪽입니다. 그래도 같은 저장소에 있으며, 고정값이
+바뀌면 그 변경은 `main`의 새 커밋이 되어, 그 기록이 다시 쓰이지 않는 한 기록에 드러납니다. v0.5.0과
+v0.5.1에는 고정값이 없고, 막 게시된 버전은 아직 고정값이 없을 수 있습니다. v0.5.4 이후
+버전이라면 GitHub CLI로 빌드 출처도 확인할 수 있습니다:
 
 ```powershell
 gh attestation verify .\CodexAutoResume-vX.Y.Z-win-x64.zip --repo songyb111-gachon/codex-auto-resume-windows
 ```
 
-`Install.cmd` checks nothing about the archive it came in; this step is the check. The plugin route
-does the SHA-256 comparison itself, except for a file passed with `-ArchivePath` for a version with
-no pin, as described under *Release integrity*.
-[`docs/VERIFY.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md)
-goes through each step, what the plugin route checks for you, and how to rebuild a release and
-compare. Archives up to and including v0.5.7 were not built reproducibly, so a rebuild of those tags
-is not expected to match them byte for byte.
+`Install.cmd`는 자기가 들어 있던 압축 파일에 대해 아무것도 확인하지 않습니다. 이 단계가 곧 확인입니다.
+플러그인 경로에서는 설치 스크립트가 SHA-256 비교를 직접 합니다. 예외는 *릴리스 무결성*에 적은 대로,
+고정값이 없는 버전에 `-ArchivePath`로 넘긴 파일입니다. 단계별 설명, 플러그인 경로가 대신 확인해 주는 것,
+릴리스를 직접 다시 빌드해 비교하는 방법은
+[`docs/VERIFY.ko.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.ko.md)에
+있습니다. 현재 최신 릴리스까지의 압축 파일은 재현 가능하게 빌드되지 않았으므로, 그 태그들을 다시
+빌드해도 바이트 단위로 일치하리라고 기대할 수 없습니다.
 
-## Review process
+## 검토 과정
 
-Three adversarial review rounds. Each round ran several independent reviewers across different
-dimensions, and every finding was then given to three further independent agents whose task was to
-*refute* it. Only findings that survived refutation were treated as real.
+세 차례의 적대적 검토를 수행했습니다. 각 회차마다 여러 차원에 걸쳐 독립 리뷰어를 두었고, 나온 모든 발견은
+다시 세 명의 독립 에이전트에게 넘겨 **반증**을 시도하게 했습니다. 반증을 견뎌낸 발견만 실제 문제로
+취급했습니다.
 
-| Round | Scope | Confirmed | Rejected |
+| 회차 | 범위 | 확인 | 반증 |
 |---|---|---:|---:|
-| 1 | detector, store, Windows adapter, scheduler | 12 | 6 |
-| 2 | CLI, app, config, logging, autostart | 3 | 0 |
-| 3 | final audit across 9 dimensions | 8 | 3 |
+| 1 | detector, store, Windows 어댑터, 스케줄러 | 12 | 6 |
+| 2 | CLI, app, config, 로깅, 자동 시작 | 3 | 0 |
+| 3 | 9개 차원 최종 감사 | 8 | 3 |
 
-Empirical verification beyond review:
+검토 외의 실증 검증:
 
-- **Mutation testing.** Around twenty safety guards were deliberately broken to confirm the test suite
-  catches it. Three survivors exposed real gaps, all in uninstall safety, and regression tests were added.
-- **Crash-window matrix.** The process was killed at four points around sending. After restart, every
-  case sent at most once.
-- **Cross-process race.** Four processes raced to reserve the same interruption, eight times, with
-  exactly one winner each time.
+- **뮤테이션 테스트.** 안전 가드 약 20개를 의도적으로 망가뜨려 테스트가 잡아내는지 확인했습니다. 살아남은
+  3건이 실제 공백을 드러냈고 모두 제거 안전성 영역이었으며, 회귀 테스트를 추가했습니다.
+- **crash-window 매트릭스.** 전송 전후 네 지점에서 프로세스를 강제 종료했습니다. 재시작 후 모든 경우에서
+  전송은 최대 1회였습니다.
+- **교차 프로세스 경쟁.** 네 개 프로세스가 같은 중단 건을 두고 여덟 번 경쟁했고, 매번 정확히 하나만
+  성공했습니다.
 
-A later review took in the installer, the plugin's skill and MCP tools, the Windows named
-objects and the release workflow as well as the runtime, and its findings were checked again by
-a second, independent pass. What held up is in the last two lists below. The PowerShell fix is
-tested by running the original payload through the real interpreter (`tests/test_pwsh.py`), and
-the named-object check, which is new in v0.6.0, was measured against a real low-integrity
-process.
+이후의 검토는 런타임뿐 아니라 설치기, 플러그인의 스킬과 MCP tool, Windows의 이름 있는 객체, 릴리스 워크플로까지 다루었고, 그 발견은 독립된 두 번째
+검증을 다시 거쳤습니다. 살아남은 것은 아래의 마지막 두 목록에 있습니다. PowerShell 수정은 원래의 공격 문자열을 실제 인터프리터에 넣어 보는
+테스트(`tests/test_pwsh.py`)로 확인하고, 이번 릴리스에 포함되는 이름 있는 객체 검사는 실제 낮은 무결성 프로세스를 상대로 측정했습니다.
 
-## Notable issues found and fixed
+## 발견하고 고친 주요 문제
 
-- **The loaded-state probe could acquire the app's own exclusive writer lock** when the byte range was
-  momentarily free, which could make the app's own lock attempt fail with a lock violation. The locking
-  code was removed entirely.
-- **Autostart could point at the wrong state.** With a home configured by environment variable, the
-  registered command omitted it, so the autostarted watcher would use a different state database and a
-  different single-instance mutex, allowing a second watcher and silently resuming nothing.
-- **Uninstall could delete same-named files it never created.** Fixed with the provenance marker.
-- **Uninstall treated an unverifiable watcher probe as "not running".** Now fails closed.
-- **NTFS junctions bypassed directory confinement**, because `is_symlink()` does not detect them.
-- **A transient engine probe failure at logon terminated the watcher** for the whole session.
-- **Two inherited bugs made the prototype non-functional**: detection results were rejected by the store,
-  so nothing was ever registered or resumed, and the entry point swallowed all exit codes.
+- **로드 상태 프로브가 앱의 배타적 writer lock을 획득할 수 있었습니다.** byte range가 순간적으로 비어
+  있으면 획득에 성공해, 앱 자신의 잠금 시도가 lock violation으로 실패할 수 있었습니다. 잠금 코드를 통째로
+  제거했습니다.
+- **자동 시작이 잘못된 상태를 가리킬 수 있었습니다.** 환경변수로 home을 설정한 경우 등록 명령에서 그것이
+  빠져, 자동 시작된 watcher가 다른 상태 데이터베이스와 다른 단일 인스턴스 뮤텍스를 쓰게 됐습니다. 두 번째
+  watcher가 뜰 수 있었고 아무것도 재개하지 못했습니다.
+- **제거가 자기가 만들지 않은 동명 파일을 지울 수 있었습니다.** provenance marker로 해결했습니다.
+- **제거가 확인 불가한 watcher 프로브를 "미실행"으로 취급했습니다.** 이제 불확실하면 멈춥니다.
+- **NTFS junction이 디렉터리 봉쇄를 우회했습니다.** `is_symlink()`가 junction을 감지하지 못하기 때문입니다.
+- **로그인 시점의 일시적 엔진 프로브 실패가 watcher를 세션 내내 종료시켰습니다.**
+- **인수받은 버그 두 건이 프로토타입을 동작 불능으로 만들고 있었습니다.** detector 결과가 store에서 거부되어
+  아무것도 등록·재개되지 않았고, 진입점이 모든 종료 코드를 삼키고 있었습니다.
 
-From the later review, fixed in v0.5.7:
+이후의 검토에서 발견해 현재 최신 릴리스에서 고친 것:
 
-- **A folder or conversation name could run PowerShell.** Toast text and shortcut paths were
-  written into the script as single-quoted strings, escaping only the ASCII apostrophe. PowerShell
-  also treats U+2018, U+2019, U+201A and U+201B as single quotes, so a name containing one ended the
-  string and the rest ran as PowerShell under the user's account, silently. Every release from
-  v0.4.0 through v0.5.6 was affected; the next release fixed it. Values now travel as environment
-  variables to constant scripts.
-- **An upgrade could leave the old watcher running.** Renaming `app/` under a live watcher succeeds,
-  so the old code carried on from the renamed copy and a security fix could be installed but not in
-  effect. The installer now asks it to stop, as described under *Upgrading*.
-- **`Install.cmd` and `Uninstall.cmd` called `chcp` and PowerShell by bare name**, so `cmd.exe`
-  would run a program of the same name sitting in the same folder - which, if that folder is
-  Downloads, could be any earlier download. Both are now called by full path.
+- **폴더나 대화 이름이 PowerShell 코드를 실행할 수 있었습니다.** 토스트 문구와 바로 가기 경로를 작은따옴표
+  문자열로 스크립트 본문에 넣으면서 ASCII 아포스트로피만 이스케이프했습니다. PowerShell은 U+2018, U+2019,
+  U+201A, U+201B도 작은따옴표로 취급하므로, 이런 문자가 든 이름은 문자열을 일찍 닫았고 나머지가 사용자
+  계정으로, 아무 표시 없이 PowerShell로 실행되었습니다. v0.4.0부터 v0.5.6까지의 모든 릴리스가 영향을
+  받았고, v0.5.7에서 고쳤습니다. 이제 값은 환경 변수로 고정 스크립트에 전달됩니다.
+- **업그레이드가 이전 워처를 계속 실행 중인 채로 둘 수 있었습니다.** 실행 중인 워처 아래에서 `app/`의
+  이름을 바꾸는 것은 성공하므로, 옛 코드가 이름이 바뀐 사본에서 계속 돌았고 보안 수정이 설치되었는데도
+  적용되지 않을 수 있었습니다. 이제 설치기가 *업그레이드* 항목에 적은 대로 워처에게 멈춰 달라고 요청합니다.
+- **`Install.cmd`와 `Uninstall.cmd`가 `chcp`와 PowerShell을 이름만으로 호출했습니다.** 그래서 `cmd.exe`는
+  같은 폴더에 있는 같은 이름의 프로그램을 실행했을 것이고, 그 폴더가 다운로드 폴더라면 예전에 내려받은
+  아무 파일이나 그것이 될 수 있었습니다. 이제 둘 다 전체 경로로 호출합니다.
 
-From the later review, fixed in v0.6.0 (v0.5.7 still has each of these):
+이후의 검토에서 발견해 `main` 브랜치에서 고친 것으로, 이번 릴리스에 들어 있습니다(현재 최신 릴리스에는 아래 문제가 모두 남아 있습니다):
 
-- **The MCP tools let content in a conversation turn recovery back up without asking.**
-`set_auto_recovery` needed no approval in either direction, so a prompt-injected turn could
-undo the user's pause; `reset_recovery_budget` revived exhausted recoveries the same way; and
-`update_settings` offered the engine path. From v0.6.0, see *Tools that turn recovery back up
-are marked so Codex asks first*. - **The installer refreshed every Git marketplace the user had
-configured**, because it ran `codex plugin marketplace upgrade` with no name - an action on
-other publishers' plugins, and a network fetch from their hosts. From v0.6.0 it names its own
-marketplace. - **The sign-in launcher's fallback accepted a plugin of the same name from any
-marketplace** in Codex's plugin cache, and, for an installation with no application directory,
-could have run it at sign-in. From v0.6.0 it searches only this product's own marketplace,
-besides the copy recorded when setup ran. - **The skill ran the setup script by a relative
-path**, which resolves against the user's project. From v0.6.0 it gives the absolute path
-inside the plugin. - **A lower-integrity process could squat the watcher's mutex or stop
-event.** Creating the mutex first made status report a running watcher when none existed and
-kept the real one from starting; creating and signalling the stop event made a real watcher
-quit on start, logging only an ordinary stop request - nothing that points to the planted
-event. From v0.6.0 such objects are refused and logged. This covers an object a lower-integrity
-process creates first. It does not cover a lower-integrity process that opens the running
-watcher's mutex and takes it when the watcher exits: that mutex carries the watcher's own
-Medium label, so it is not refused, and status reports a running watcher, as in v0.5.7. - **The
-release workflow's dry run was not one.** A manual run against a tag could publish, and a
-manual run against any ref ran that ref's code holding a write token left in `.git/config`. On
-v0.6.0 the workflow is split into the two jobs described under *Release integrity*. - **An
-interrupted install was destroyed by the run that came next.** The old `app\` and `runtime\`
-are moved aside before the new ones are copied in, and the first thing the next run does is
-delete every `*.old-*` directory it finds - so a power cut between the two left the only
-complete copy under exactly that name, and the recovery attempt was what destroyed the
-installation. From v0.6.0 a journal written before the first move tells the next run what to
-put back, as described under *Installing*. - **Whatever sat at the payload root was copied into
-the installation home.** It was a wildcard copy, so a stray file in a release landed in the
-home under whatever name it carried, including the two this product reads as proof that the
-home is its own (`.owned-by-codex-auto-resume`, `runtime.json`). From v0.6.0 the two files that
-belong there are copied by name, and a payload missing either fails the install before anything
-is moved. - **An upgrade switched automatic recovery back on, and put back a sign-in start that
-had been removed.** Plain `setup` runs the engine's `enable`, so upgrading over an installation
-whose owner had paused recovery turned it back on silently, under the name of an update. From
-v0.6.0 the installer, and Repair in the window, run setup with `--keep-state` whenever
-the program directory is already there: the pause is left alone, and the sign-in entry is
-re-registered only where the one registered is already this installation's.
+- **MCP tool을 통해 대화 속 내용이 묻지 않고 복구를 다시 켜거나 늘릴 수 있었습니다.**
+  `set_auto_recovery`는 어느 방향이든 승인이 필요 없어서, 프롬프트 인젝션된 턴이 사용자의 일시 중지를
+  되돌릴 수 있었습니다. `reset_recovery_budget`도 같은 식으로 소진된 복구를 되살렸고, `update_settings`는
+  엔진 경로를 노출했습니다. `main` 브랜치의 동작은 *복구를 다시 켜거나 늘리는 tool에는 Codex가 먼저 묻도록
+  표시를 답니다* 항목을 참고하세요.
+- **설치기가 사용자가 설정한 모든 Git 마켓플레이스를 새로 고쳤습니다.** 이름 없이
+  `codex plugin marketplace upgrade`를 실행했기 때문이며, 다른 게시자의 플러그인에 손을 대고 그 호스트에서
+  내려받는 일이었습니다. `main` 브랜치에서는 자기 마켓플레이스 이름을 지정합니다.
+- **로그인 런처의 대체 경로가 Codex 플러그인 캐시에서 어느 마켓플레이스의 같은 이름 플러그인이든
+  받아들였고,** 애플리케이션 디렉터리가 없는 설치본이라면 로그인 시 그것을 실행할 수 있었습니다. `main`
+  브랜치에서는 설치할 때 기록된 사본 외에는 이 제품 자신의 마켓플레이스만 찾습니다.
+- **스킬이 설치 스크립트를 상대 경로로 실행했습니다.** 상대 경로는 사용자의 프로젝트를 기준으로 풀립니다.
+  `main` 브랜치에서는 플러그인 안의 절대 경로를 알려 줍니다.
+- **낮은 무결성 수준의 프로세스가 워처의 뮤텍스나 중지 이벤트를 선점할 수 있었습니다.** 뮤텍스를 먼저
+  만들면 워처가 없는데도 상태가 실행 중으로 표시되고 진짜 워처는 시작되지 못했으며, 중지 이벤트를 먼저
+  만들어 신호를 주면 진짜 워처가 시작하자마자 종료했으며, 로그에는 평범한 중지 요청만 남고 심어 둔
+  이벤트를 가리키는 내용은 없었습니다. `main` 브랜치에서는 그런 객체를 거부하고 로그에 남깁니다. 이것은
+  낮은 무결성 프로세스가 먼저 만든 객체에 해당합니다. 낮은 무결성 프로세스가 실행 중인 워처의 뮤텍스를
+  열어 두었다가 워처가 종료할 때 그것을 차지하는 경우는 여기에 해당하지 않습니다. 그 뮤텍스에는 워처 자신의
+  Medium 레이블이 붙어 있으므로 거부되지 않고, 현재 최신 릴리스에서와 마찬가지로 상태가 실행 중으로
+  표시됩니다.
+- **릴리스 워크플로의 시험 실행이 시험 실행이 아니었습니다.** 태그를 대상으로 한 수동 실행이 게시할 수
+  있었고, 어떤 ref를 대상으로 한 수동 실행이든 `.git/config`에 남은 쓰기 토큰을 가진 채 그 ref의 코드를
+  실행했습니다. `main` 브랜치에서는 워크플로가 *릴리스 무결성*에 적은 두 작업으로 나뉘어 있습니다.
+- **끝까지 가지 못한 설치를 그다음 실행이 파괴했습니다.** 새 `app\`과 `runtime\`을 복사해 넣기 전에
+  옛것을 옆으로 밀어 두는데, 다음 실행이 가장 먼저 하는 일이 눈에 띄는 `*.old-*` 디렉터리를 모두 지우는
+  것이었습니다. 그래서 그 사이에 전원이 끊기면 온전한 사본 하나가 바로 그 이름을 달고 남았고, 복구하려던
+  실행이 설치본을 파괴했습니다. `main` 브랜치에서는 처음 옮기기 전에 쓴 저널이 다음 실행에 무엇을
+  되돌려야 하는지 알려 줍니다. *설치* 항목을 참고하세요.
+- **페이로드 루트에 있던 것이 무엇이든 설치 홈으로 복사되었습니다.** 와일드카드 복사였기 때문에,
+  릴리스에 섞여 든 파일이 이름 그대로 홈에 들어갔습니다. 이 제품이 홈을 자기 것으로 읽는 근거인 두
+  이름(`.owned-by-codex-auto-resume`, `runtime.json`)도 예외가 아니었습니다. `main` 브랜치에서는 거기에
+  놓여야 할 파일 두 개를 이름으로 복사하며, 그중 하나라도 없는 페이로드는 무엇을 옮기기 전에 설치를
+  실패시킵니다.
+- **업그레이드가 자동 복구를 도로 켜고, 지워 둔 로그인 시작을 도로 넣었습니다.** 그냥 `setup`은 엔진의
+  `enable`을 실행하므로, 복구를 일시 중지해 둔 설치본 위로 업그레이드하면 업데이트라는 이름 아래 아무
+  표시 없이 다시 켜졌습니다. `main` 브랜치에서는 프로그램 디렉터리가 이미 있으면 설치기도, 창의 **설치
+  복구**도 setup을 `--keep-state`로 실행합니다. 일시 중지는 그대로 두고, 로그인 항목은 등록된 것이 이미
+  이 설치본의 것일 때만 다시 등록합니다.
 
-## Residual risks
+## 남아 있는 위험
 
-- The blocking usage bucket cannot always be identified from history with certainty, so live
-availability is re-checked immediately before sending. This reduces but does not eliminate the
-uncertainty. - The tool no longer requires an exact engine version. An unrecognised build is
-accepted when the `codex queue` interface probe passes, which means a Codex update can change
-*semantics* without the probe noticing. This is mitigated rather than eliminated: every send is
-still proven afterwards by the per-interruption marker in that exact thread, an unproven send
-is never recorded as a recovery, and `status`/`doctor`/the log state clearly when the engine is
-unverified. - Unloaded threads are not resumed at all; this is a documented product limitation,
-not a security control. - If withdrawing its own queued message cannot be confirmed, the record
-becomes `submission_unknown` and the message may stay in Codex's queue, where it may be
-delivered if the conversation is opened later. The tool never sends it again. - A
-lower-integrity process that holds the watcher's mutex or stop event name keeps recovery from
-running while it holds it, in v0.5.7 and in v0.6.0 alike. From v0.6.0, a planted
-mutex makes status read unknown and a planted stop event makes the watcher refuse to start, so
-status reads not running; both are logged as `named_object_squatted`. This covers an object a
-lower-integrity process creates first. It does not cover a lower-integrity process that opens
-the running watcher's mutex and takes it when the watcher exits: that mutex carries the
-watcher's own Medium label, so it is not refused, and status reports a running watcher, as in
-v0.5.7. In v0.5.7 a planted mutex makes status report a running watcher and the real one exit
-as a duplicate, and a planted, signalled stop event makes a real watcher quit on start, logging
-only an ordinary stop request - nothing that points to the planted event. - Content in a
-conversation can pause recovery without a prompt, in v0.5.7 (through `set_auto_recovery`) and
-in v0.6.0 (through `pause_auto_recovery`) alike. Pausing withdraws a continuation already
-waiting in Codex's queue. From v0.6.0 a withdrawal that can be confirmed returns that recovery
-to waiting with its attempt returned, so resuming picks it up; only a withdrawal that cannot be
-confirmed (`submission_unknown`), or a pause over an already uncertain submission (`failed`),
-is final. In v0.5.7 the recovery is cancelled for good and resuming does not bring it back.
-Either way the message is never sent twice. - From v0.6.0, content in a conversation can also
-switch recovery off for one conversation without a prompt, through
-`disable_conversation_recovery` - and that one is not reversible. It cancels every recovery
-that conversation has waiting, switching the conversation back on does not revive them, and
-giving attempts back refuses a cancelled recovery. What it costs is unfinished work left
-unresumed, never a message sent twice. - Whether Codex shows an approval prompt for the tools
-marked destructive is up to Codex's approval settings, not this product. - Nothing this project
-builds is Authenticode-signed (the two executables, `Install.cmd`, `Uninstall.cmd` and the
-PowerShell scripts); the bundled Python interpreter keeps the signatures it was published with:
-the Python Software Foundation's on `pythonw.exe`, `python.exe` and the Python DLLs, and
-Microsoft's on the two Visual C++ runtime DLLs. Releases are not GitHub-immutable. Trust in a
-download rests on the pinned digest and the provenance attestation (*Release integrity*,
-*Verifying a release*). - Every archive published so far, v0.5.0 through v0.5.7, was built by
-the earlier single-job workflow with floating action tags and executables that are not
-reproducible. Whether a local rebuild reproduces, byte for byte, an archive GitHub's runner
-publishes from v0.6.0 on has not been verified.
+- 실제로 차단한 사용량 버킷을 기록만으로 항상 특정할 수는 없어서, 전송 직전에 실시간 가용성을 다시 확인합니다. 불확실성을 줄이지만 완전히 없애지는 못합니다. - 이제
+엔진 버전 완전 일치를 요구하지 않습니다. 처음 보는 빌드도 `codex queue` 인터페이스 검사를 통과하면 받아들이는데, 이는 Codex 업데이트가 인터페이스는
+그대로 두고 **동작 의미만** 바꾸는 경우를 검사가 잡지 못한다는 뜻입니다. 제거가 아니라 완화입니다. 전송은 여전히 해당 스레드의 고유 marker로 사후 증명되고,
+증명되지 않은 전송은 복구로 기록되지 않으며, `status`/`doctor`/로그가 미검증 엔진임을 분명히 표시합니다. - 미로드 스레드는 아예 재개하지 않습니다. 이는
+문서화된 제품 제한이지 보안 통제가 아닙니다. - 자기 큐 메시지의 회수를 확인하지 못하면 레코드는 `submission_unknown`이 되고, 그 메시지는 Codex의
+큐에 남아 나중에 대화가 열릴 때 전달될 수도 있습니다. 이 도구가 그것을 다시 보내지는 않습니다. - 워처의 뮤텍스나 중지 이벤트 이름을 차지한 낮은 무결성 프로세스는,
+현재 최신 릴리스에서든 `main` 브랜치에서든 그것을 쥐고 있는 동안 복구를 막을 수 있습니다. 이번 릴리스에 들어 있는 `main` 브랜치에서는 미리 심어 둔 뮤텍스가
+있으면 상태가 알 수 없음으로 표시되고, 미리 심어 둔 중지 이벤트가 있으면 워처가 시작을 거부하므로 상태가 실행 중 아님으로 표시되며, 둘 다
+`named_object_squatted`로 로그에 남습니다. 이것은 낮은 무결성 프로세스가 먼저 만든 객체에 해당합니다. 낮은 무결성 프로세스가 실행 중인 워처의
+뮤텍스를 열어 두었다가 워처가 종료할 때 그것을 차지하는 경우는 여기에 해당하지 않습니다. 그 뮤텍스에는 워처 자신의 Medium 레이블이 붙어 있으므로 거부되지 않고,
+현재 최신 릴리스에서와 마찬가지로 상태가 실행 중으로 표시됩니다. 현재 최신 릴리스에서는 미리 심어 둔 뮤텍스 때문에 상태가 실행 중으로 표시되고 진짜 워처는 자신을
+중복으로 여겨 종료하며, 미리 심어 두고 신호를 준 중지 이벤트 때문에 진짜 워처가 시작하자마자 종료합니다. 이때 로그에는 평범한 중지 요청만 남고 심어 둔 이벤트를
+가리키는 내용은 없습니다. - 대화 속 내용이 확인 창 없이 복구를 일시 중지할 수 있습니다. 현재 최신 릴리스에서는 `set_auto_recovery`로, `main`
+브랜치에서는 `pause_auto_recovery`로(이번 릴리스에 들어 있습니다) 똑같이 가능합니다. 일시 중지하면 Codex의 큐에서 이미 기다리고 있던
+continuation이 회수됩니다. `main` 브랜치에서는 회수가 확인되면 그 복구가 대기 상태로 돌아가고 시도 횟수도 돌려받으므로 다시 재개하면 이어서 진행되며,
+회수를 확인할 수 없는 경우(`submission_unknown`)나 이미 불확실했던 전송을 회수한 경우(`failed`)만 최종입니다. 현재 최신 릴리스에서는 그 복구가
+영구히 취소되고 다시 재개해도 되살아나지 않습니다. 어느 쪽이든 메시지를 두 번 보내는 일은 없습니다. - `main` 브랜치에서는 대화 속 내용이 확인 창 없이 대화
+하나의 복구를 끌 수도 있습니다 (`disable_conversation_recovery`). 그리고 이쪽은 되돌릴 수 없습니다. 그 대화가 대기시켜 둔 복구가 모두
+취소되고, 그 대화를 다시 켜도 되살아나지 않으며, 시도 횟수 되돌리기도 취소된 복구는 거부합니다. 대가는 끝내지 못한 작업이 재개되지 않는 것이지, 메시지가 두 번
+전송되는 것은 아닙니다. - destructive로 표시한 tool에 대해 Codex가 확인 창을 띄울지는 이 제품이 아니라 Codex의 승인 설정이 정합니다. - 이
+프로젝트가 만드는 파일은 어느 것도 Authenticode 서명이 되어 있지 않으며(두 실행 파일, `Install.cmd`, `Uninstall.cmd`,
+PowerShell 스크립트). 번들된 Python 인터프리터에는 게시될 때의 서명이 그대로 남아 있습니다. `pythonw.exe`, `python.exe`와
+Python DLL에는 Python Software Foundation의 서명이, 두 Visual C++ 런타임 DLL에는 Microsoft의 서명이 있습니다. 릴리스는
+GitHub에서 immutable로 설정되어 있지 않습니다. 다운로드에 대한 신뢰는 고정된 digest와 빌드 출처 증명에 기댑니다(*릴리스 무결성*, *릴리스
+확인하기*). - 지금까지 게시된 모든 압축 파일, 즉 v0.5.0부터 현재 최신 릴리스까지는 떠다니는 태그로 참조한 Action을 쓰는 예전의 단일 작업 워크플로가
+빌드했고, 그 실행 파일은 재현 가능하지 않습니다. 이번 릴리스부터 GitHub의 runner가 게시하는 압축 파일을 로컬에서 다시 빌드해 바이트 단위로 재현할 수
+있는지는 확인하지 않았습니다.

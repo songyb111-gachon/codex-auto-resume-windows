@@ -1,34 +1,33 @@
-# Support
+# 지원
 
-Something not working? Open an
-[issue](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues).
+> 🌐 한국어 문서입니다. English version: [`main` 브랜치의 SUPPORT.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/SUPPORT.md)
 
-Not sure it is a bug — how something works, whether a failure should be recoverable, whether
-your setup is supported? Start a
-[discussion](https://github.com/songyb111-gachon/codex-auto-resume-windows/discussions)
-instead. Either is fine, and neither is the wrong door; nothing gets closed for being asked in
-the other one.
+무언가 제대로 동작하지 않나요?
+[이슈](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues)를 열어 주세요.
 
-Please **do not** include credentials or tokens, whole private conversations, private repository
-contents, or unredacted logs. Nothing in this tool needs any of that to be diagnosed, and an
-issue is public.
+버그인지 확신이 서지 않는다면 — 어떻게 동작하는지, 이 실패가 복구 대상이어야 하는지, 이 환경이
+지원되는지 같은 이야기라면 —
+[디스커션](https://github.com/songyb111-gachon/codex-auto-resume-windows/discussions)에
+올려 주세요. 어느 쪽이든 괜찮고, 잘못 찾아온 문은 없습니다. 다른 쪽에 올렸다고 닫히는 일은
+없습니다.
 
-## Before you report
+자격 증명이나 토큰, 비공개 대화 전문, 비공개 저장소 내용, 가리지 않은 로그는 **넣지 말아 주세요**.
+이 도구를 진단하는 데 그중 어느 것도 필요하지 않으며, 이슈는 공개됩니다.
 
-Run the built-in check and paste its output. None of the checks below asks Codex to change
-anything, and none prints conversation content. The terminal commands do print local paths, which
-contain your Windows user name; redact it if you would rather not publish it.
+## 신고하기 전에
 
-**Start Menu → Codex Auto Resume** opens the window: Overview, Pending, History, Statistics,
-Diagnostics and Settings. Overview shows the watcher state, what is pending and the version.
-**Diagnostics → Export diagnostics...** writes one JSON file to a location you choose: the versions,
-your settings, every record's state, reason and the checks it is waiting on, the content-free
-journal, and the last 300 lines of each log. Conversation and interruption ids become aliases that
-mean nothing outside that file, and paths, your Windows user name and e-mail-shaped text are
-removed. Read it, then attach it instead of raw logs. `python src\auto_resume.py diagnostics`
-writes the same file.
+내장된 점검을 실행하고 그 출력을 붙여넣어 주세요. 아래 점검은 어느 것도 Codex에게 무언가를 바꾸라고
+요청하지 않고, 대화 내용도 출력하지 않습니다. 다만 터미널 명령은 Windows 사용자 이름이 들어간 로컬 경로를
+출력하니, 공개하고 싶지 않다면 그 부분은 가려 주세요.
 
-From a terminal, if you installed from source:
+**시작 메뉴 → Codex Auto Resume**를 열면 개요, 대기 중, 기록, 통계, 진단, 설정 여섯 화면으로 된 창이
+뜹니다. 개요에 워처 상태, 무엇이 대기 중인지, 버전이 표시됩니다. **진단 → 진단 정보 내보내기...**는 버전,
+설정, 복구마다의 상태와 사유와 무엇을 기다리는지, 내용 없는 기록, 각 로그의 마지막 300줄을 담은 JSON 파일
+하나를 지정한 위치에 씁니다. 대화 id와 중단 id는 그 파일 안에서만 뜻이 통하는 별칭으로 바뀌고, 경로와
+Windows 사용자 이름, 이메일 형태의 문구는 지워집니다. 한 번 읽어 본 뒤, 로그 원문 대신 이 파일을 첨부해
+주세요. `python src\auto_resume.py diagnostics`도 같은 파일을 만듭니다.
+
+소스에서 설치하셨다면 터미널에서:
 
 ```bash
 python src\auto_resume.py doctor
@@ -38,82 +37,74 @@ python src\auto_resume.py doctor
 python src\auto_resume.py status
 ```
 
-`doctor` reports the discovered Codex engine, whether the app is paired, whether the Restart
-Manager probe works, and whether the local history is readable. `status` adds the watcher state,
-autostart registration and record counts.
+`doctor`는 찾아낸 Codex 엔진, 앱이 페어링되어 있는지, 재시작 관리자 프로브가 동작하는지, 로컬 기록을
+읽을 수 있는지를 보고합니다. `status`는 여기에 워처 상태, 자동 시작 등록, 레코드 수를 더합니다.
 
-## What to include
+## 무엇을 넣을 것인가
 
-Whichever of these apply:
+아래 중 해당하는 것은 무엇이든:
 
-| Problem | Useful to include |
+| 문제 | 함께 넣으면 도움이 되는 것 |
 | --- | --- |
-| **Install, upgrade or repair failed** | The full `Install.cmd` output, your Windows version, and whether the Codex app was open |
-| **Codex version compatibility** | The engine version from `doctor`, and whether it says *verified* or *unverified* |
-| **A failure was recovered that should not have been** | The failure category shown in `pending` or the log line, and what you expected instead |
-| **A recoverable failure was missed** | What Codex showed you, and the log lines around that time |
-| **A task stayed at `waiting_for_loaded_thread`** | Whether the conversation was open in the app — see the note below |
-| **Notifications not appearing** | Whether Windows shows them for other apps, and whether **Codex Auto Resume** appears under Settings → Notifications |
-| **Window problems** | What you clicked, what happened, and your display scaling (100%, 125%, 150%…) |
-| **The settings panel in Codex** | Whether `codex mcp get codex-auto-resume` reports it enabled |
-| **Plugin not discovered** | The output of `codex plugin list` |
+| **설치·업그레이드·복구 실패** | `Install.cmd`의 전체 출력, 사용 중인 Windows 버전, 그리고 Codex 앱이 열려 있었는지 여부 |
+| **Codex 버전 호환성** | `doctor`가 보여 주는 엔진 버전, 그리고 *verified*로 나오는지 *unverified*로 나오는지 |
+| **복구되지 말았어야 할 장애가 복구됨** | `pending`이나 로그 줄에 표시된 장애 분류, 그리고 대신 기대하신 동작 |
+| **복구할 수 있는 장애를 놓침** | Codex가 화면에 보여 준 내용, 그리고 그 시각 전후의 로그 줄 |
+| **작업이 `waiting_for_loaded_thread`에 머무름** | 그 대화가 앱에 열려 있었는지 여부 — 아래 항목을 참고하세요 |
+| **알림이 뜨지 않음** | 다른 앱의 알림은 Windows가 띄우는지, 그리고 설정 → 알림에 **Codex Auto Resume**가 나오는지 |
+| **창 문제** | 무엇을 클릭했고 무슨 일이 일어났는지, 그리고 디스플레이 배율(100%, 125%, 150%…) |
+| **Codex 안의 설정 패널** | `codex mcp get codex-auto-resume`가 활성 상태로 보고하는지 |
+| **플러그인이 발견되지 않음** | `codex plugin list`의 출력 |
 
-Log files are in `%USERPROFILE%\.codex-auto-resume\logs\` by default. They record state names, reason
-codes and conversation UUIDs, not conversation content. They also contain local paths with your
-Windows user name, and `errors.log` holds full tracebacks — so read before pasting, and redact
-anything you would rather not publish.
+로그 파일은 기본적으로 `%USERPROFILE%\.codex-auto-resume\logs\`에 있습니다. 대화 내용이 아니라 상태 이름, 사유
+코드, 대화 UUID를 기록합니다. 다만 Windows 사용자 이름이 들어간 로컬 경로도 담겨 있고, `errors.log`에는
+트레이스백 전체가 남습니다 — 그러니 붙여넣기 전에 한 번 읽어 보시고, 공개하고 싶지 않은 것은 가려
+주세요.
 
-## Known behaviour that is not a bug
+## 버그가 아닌 알려진 동작
 
-**A task waits until you open the conversation.** After the Codex app restarts, the target
-conversation is `notLoaded`, and there is no verified way for this tool to wake it. The
-candidate App Server routes, such as `thread/resume`, are ones this tool deliberately does not
-use. The watcher waits at `waiting_for_loaded_thread` until you open that conversation
-yourself, then continues on its own. This is documented in the
-[README](README.md#please-read-this-limitation-first) with the measurement behind it.
+**대화를 열 때까지 작업이 기다립니다.** Codex 앱이 재시작되고 나면 대상 대화는 `notLoaded` 상태이고,
+이 도구가 그것을 깨울 수 있는 검증된 방법은 없습니다. 후보로 꼽히는 App Server 경로(예를 들어
+`thread/resume`)는 이 도구가 의도적으로 쓰지 않습니다. 워처는 사용자가 그 대화를 직접 열 때까지
+`waiting_for_loaded_thread`에서 기다렸다가, 그다음부터는 알아서 이어 갑니다. 이 내용은 근거가 된 실측과
+함께 [README](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/README.md#please-read-this-limitation-first)에 정리되어 있습니다.
 
-**An unclassified failure is never retried.** If Codex failed in a way this tool cannot name, it
-deliberately does nothing. That is the core design choice, not an oversight — but if you think a
-failure *should* be classifiable, please report it with what Codex recorded.
+**분류되지 않은 장애는 절대 재시도하지 않습니다.** 이 도구가 이름 붙일 수 없는 방식으로 Codex가
+실패했다면, 의도적으로 아무것도 하지 않습니다. 빠뜨린 것이 아니라 핵심 설계 선택입니다 — 다만 분류할
+수 *있어야* 한다고 보시는 장애가 있다면, Codex가 기록한 내용과 함께 신고해 주세요.
 
-**A recovery stopped after a few attempts.** Recovery is bounded. For a temporary failure it
-makes, by default, at most four attempts per interruption. A usage limit has no limit on
-recovery attempts; it is limited instead by the cap every recovery is under, five sends per
-conversation in any 24 hours, at least 15 minutes apart. For either kind, recovery stops, by
-default, after three recoveries in a row on the same conversation that were followed by neither
-a reply nor a completed turn, and a usage-limit recovery ends as `failed` after five failed
-launches of `codex queue` (a temporary failure reaches its attempt limit first, unless that
-setting is above four). Whatever the individual failures were, one task also receives at most six
-continuations in total, by default, across its whole chain; reaching that cap stops the record as out
-of attempts, with the reason `chain_cap`. The attempt count, the no-progress count and the
-continuations-per-task cap are settings; the send cap, the 15 minutes and the five launches are not.
-An interruption stopped by any of those three counts can be given its attempts back with **Give
-attempts back** on the window's History page, or by asking Codex to run the plugin's
-`reset_recovery_budget` tool with that interruption's id from `list_pending`. It can be done three
-times for one task; after that the button goes quiet and the task has to be continued in Codex by
-hand. The settings panel in Codex has no control for it.
+**복구가 몇 번 시도한 뒤 멈췄습니다.** 복구에는 상한이 있습니다. 일시적인 장애라면 기본값으로
+중단 하나당 최대 4회 시도합니다. 사용량 한도에는 복구 시도 횟수의 상한이 없고, 대신 모든 복구에
+걸리는 상한, 즉 어느 24시간 동안에도 대화 하나당 최대 5번 전송하고, 전송 사이에는 최소 15분 간격을
+둔다는 상한을 받습니다. 어느 쪽이든, 기본값으로는 같은 대화에서 복구한 뒤 응답도 완료된 턴도
+이어지지 않은 경우가 3번 연속되면 멈추고, 사용량 한도 복구는 `codex queue` 실행이 5번 실패하면
+`failed`로 끝납니다(일시적인 장애는 시도 횟수 설정이 4보다 크지 않은 한 시도 횟수 상한에 먼저
+닿습니다). 또 개별 장애가 무엇이었든 한 작업이 받는 continuation은 체인 전체를 통틀어 기본 6회까지이며,
+이 상한에 닿으면 사유 `chain_cap`으로 시도를 다 쓴 상태가 됩니다. 시도 횟수와 진전 없음 횟수, 그리고
+작업당 continuation 상한은 설정에서 바꿀 수 있고, 전송 상한과 15분 간격과 5번의 실행은 바꿀 수
+없습니다. 이 세 가지 중 무엇 때문에 멈췄든, 창의 기록 화면에 있는 **시도 횟수 되돌리기**를 누르거나,
+Codex에게 플러그인의 `reset_recovery_budget` tool을 `list_pending`에 나온 그 중단의 id로 실행해
+달라고 하면 시도 횟수를 되돌려 받을 수 있습니다. 한 작업당 세 번까지이며, 그 뒤로는 버튼이 조용해지고
+그 작업은 Codex에서 직접 이어 가야 합니다. Codex 안의 설정 패널에는 이 기능이 없습니다.
 
-**Windows warns about the installer, or blocks it.** Nothing this project builds is
-Authenticode-signed: not `Install.cmd` or `Uninstall.cmd`, not the PowerShell scripts, and not
-the two small programs in the release - the settings window and the MCP launcher. A `.cmd` file
-cannot carry an embedded signature. SmartScreen may warn when you run them from a ZIP you
-downloaded and extracted with Explorer, because the extracted files keep the download's mark of
-the web, and Smart App Control, where it is on, may block the unsigned programs. The process
-that runs at sign-in is the bundled `pythonw.exe`, which keeps the Python Software Foundation's
-signature, as do `python.exe` and the interpreter's DLLs and extension modules (its two Visual
-C++ runtime DLLs are signed by Microsoft). Before you allow anything, check the archive
-as described in
-[Verifying a release](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md).
+**Windows가 설치기에 경고를 띄우거나 막습니다.** 이 프로젝트가 빌드하는 것은 어느 것도 Authenticode
+서명이 되어 있지 않습니다. `Install.cmd`와 `Uninstall.cmd`도, PowerShell 스크립트도, 릴리스에 든 작은
+프로그램 두 개 — 설정 창과 MCP 런처 — 도 마찬가지입니다. `.cmd` 파일은 파일 안에 서명을 담을 수
+없습니다. 내려받은 ZIP을 탐색기로 풀면 풀린 파일에도 다운로드 표시(mark of the web)가 남기 때문에,
+그것을 실행할 때 SmartScreen이 경고할 수 있습니다. 스마트 앱 컨트롤이 켜져 있다면 서명되지 않은
+프로그램을 막을 수도 있습니다. 로그인할 때 실행되는 프로세스는 함께 담긴 `pythonw.exe`이며, 여기에는
+Python Software Foundation의 서명이 그대로 있습니다. `python.exe`와 인터프리터의 DLL, 확장 모듈도
+마찬가지입니다(인터프리터에 딸린 Visual C++ 런타임 DLL 두 개는 Microsoft가 서명했습니다). 무엇이든
+허용하기 전에, [docs/VERIFY.md](docs/VERIFY.md)("릴리스 검증하기")에 적힌 대로 압축 파일부터
+확인하세요.
 
-**The watcher will not start, or its state reads `unknown`.** If the log says
-`named_object_squatted`, another program running with fewer rights than you created the
-watcher's lock or its stop signal first. The watcher refuses to run under an object that
-program controls, rather than let it fake a running watcher or stop the real one; that refusal
-is new in v0.6.0. Signing out and back in ends every program in your session, which clears it;
-if it comes back, report it with those log lines.
+**워처가 시작되지 않거나, 상태가 `unknown`으로 나옵니다.** 로그에 `named_object_squatted`가 있다면, 사용자보다 낮은 권한으로 도는 다른
+프로그램이 워처의 락이나 중지 신호를 먼저 만들어 둔 것입니다. 워처는 그 프로그램이 쥔 객체로는 실행을 거부합니다. 그대로 따르면 그 프로그램이 워처가 돌고 있는 것처럼
+꾸미거나 진짜 워처를 멈출 수 있기 때문입니다. 이 거부는 이번 릴리스부터입니다. 로그아웃했다가 다시 로그인하면 세션의 모든 프로그램이 끝나므로 이 상태도 풀립니다. 다시
+생긴다면 그 로그 줄과 함께 신고해 주세요.
 
-## Security issues
+## 보안 문제
 
-Open an issue like any other: that is how [SECURITY.md](SECURITY.md) asks for security reports,
-and the project names no private channel. Read it first anyway: it sets out what the tool is
-allowed to touch, which is usually enough to tell a finding from expected behaviour.
+다른 이슈와 똑같이 이슈를 열어 주세요. [SECURITY.md](SECURITY.md)도 보안 문제를 그렇게 신고해 달라고
+하며, 이 프로젝트가 따로 안내하는 비공개 채널은 없습니다. 그래도 먼저 읽어 보세요. 이 도구가 무엇을
+건드릴 수 있는지 적어 두었고, 대개는 그것만으로 발견한 것이 실제 문제인지 예상된 동작인지 가릴 수 있습니다.

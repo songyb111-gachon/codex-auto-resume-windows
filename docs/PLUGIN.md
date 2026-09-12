@@ -1,165 +1,151 @@
-# The Codex plugin layer
+# Codex 플러그인 계층
 
-This project keeps the recovery engine small, local, conservative and fail-closed, and uses
-Codex itself as the installation and control interface instead of building a second
-management application.
+> 🌐 한국어 문서입니다. English version: [`main` 브랜치의 docs/PLUGIN.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/PLUGIN.md)
 
-The plugin is a **thin front end**. It installs no second engine and holds no recovery logic,
-and none of its tools or skill commands queues a message to a thread; only the watcher does
-that. The skill works through the same command line a manual installation uses, and the
-tools through the control layer the settings window uses; where the two overlap, both end in
-the same store operations.
+이 프로젝트는 복구 엔진을 작고, 로컬에서 돌고, 보수적이며, 불확실하면 멈추는 상태로 유지하고,
+두 번째 관리 애플리케이션을 만드는 대신 Codex 자체를 설치·제어 인터페이스로 씁니다.
+
+플러그인은 **얇은 앞단**입니다. 두 번째 엔진을 설치하지 않고, 복구 로직을 갖고 있지 않으며, 그
+tool이나 스킬 명령 중 어느 것도 스레드에 메시지를 큐로 넣지 않습니다. 그 일은 워처만 합니다. 스킬은
+수동 설치가 쓰는 것과 같은 명령줄을 거치고, tool은 설정 창이 쓰는 것과 같은 제어 계층을 거치며, 둘이
+겹치는 동작은 결국 같은 저장소 동작에 이릅니다.
 
 ```
 Codex UI  ->  plugin skill  ->  existing CLI  ->  small safe watcher
 ```
 
-## Layout
+## 구조
 
-The repository root *is* the plugin root. There is exactly one copy of `src/`.
+저장소 루트가 *곧* 플러그인 루트입니다. `src/` 사본은 정확히 하나뿐입니다.
 
-| Path | Purpose |
+| 경로 | 용도 |
 | --- | --- |
-| `.agents/plugins/marketplace.json` | Marketplace index; one entry whose `source.path` is `"."`. |
-| `.codex-plugin/plugin.json` | Plugin manifest. Declares `skills` and the card's artwork; nothing else executable. The release build adds `mcpServers` to its copy (see below). |
-| `skills/codex-auto-resume/SKILL.md` | What Codex reads to answer "turn on auto resume". |
-| `scripts/bootstrap.ps1` | Turns the plugin into an installation (see below). |
-| `scripts/release.json` | The only location the bootstrap may fetch from, and the pinned digests. |
-| `scripts/plugin_setup.py` | The control layer the skill calls. |
-| `scripts/watcher_launcher.py` | Stable autostart entry point (see below). |
+| `.agents/plugins/marketplace.json` | 마켓플레이스 색인. `source.path`가 `"."`인 항목 하나뿐입니다. |
+| `.codex-plugin/plugin.json` | 플러그인 매니페스트. `skills`와 카드 이미지를 선언하며, 그 밖에 실행되는 것은 없습니다. 릴리스 빌드가 자기 사본에 `mcpServers`를 더합니다(아래 참고). |
+| `skills/codex-auto-resume/SKILL.md` | "auto resume 켜 줘"에 답하기 위해 Codex가 읽는 파일입니다. |
+| `scripts/bootstrap.ps1` | 플러그인을 설치본으로 바꿉니다(아래 참고). |
+| `scripts/release.json` | bootstrap이 내려받을 수 있는 유일한 위치, 그리고 고정된 digest 값입니다. |
+| `scripts/plugin_setup.py` | 스킬이 호출하는 제어 계층입니다. |
+| `scripts/watcher_launcher.py` | 안정적인 자동 시작 진입점입니다(아래 참고). |
 
-`codex plugin add` copies the **plugin root subtree** into
-`<CODEX_HOME>/plugins/cache/<marketplace>/<plugin>/<version>/`. Because the root is the plugin
-root, `src/` travels with it. A nested `plugins/codex-auto-resume/` layout would have required
-duplicating the engine, since the copy cannot reach outside the plugin root.
+`codex plugin add`는 **플러그인 루트 서브트리**를
+`<CODEX_HOME>/plugins/cache/<marketplace>/<plugin>/<version>/`으로 복사합니다. 저장소 루트가 곧
+플러그인 루트이므로 `src/`도 함께 따라갑니다. `plugins/codex-auto-resume/`처럼 한 단계 내려간
+배치였다면 엔진을 복제해야 했을 것입니다. 복사가 플러그인 루트 바깥에는 닿지 못하기 때문입니다.
 
-Verified against `codex-cli 0.153.4`, including with the plugin folder name deliberately
-different from the plugin name (a clone is named `codex-auto-resume-windows`, the plugin is
-`codex-auto-resume`). Codex's own `validate_plugin.py` accepts this layout.
+`codex-cli 0.153.4`로 확인했으며, 플러그인 폴더 이름을 일부러 플러그인 이름과 다르게 한 경우도
+포함했습니다(클론 이름은 `codex-auto-resume-windows`, 플러그인은 `codex-auto-resume`입니다).
+Codex 자체의 `validate_plugin.py`도 이 배치를 받아들입니다.
 
-## The MCP server
+## MCP 서버
 
-The manifest in this repository does not declare `mcpServers`; the release build adds it
-to the copy it ships. That split is deliberate. The server runs on the
-interpreter that comes in the release archive, so a marketplace install straight from
-GitHub has no interpreter to run it with - and with the declaration in the repository
-manifest, `codex plugin add` from a clone succeeds and registers the server as *enabled*,
-pointing at an executable that is not there. The user gets a permanently failing entry
-rather than an error they can act on. Measured against `codex-cli 0.153.4`, in an
-isolated `CODEX_HOME`. `.mcp.json` itself stays in the repository, because a
-security-relevant declaration should be reviewable as source rather than assembled out of
-a string in a build script.
+이 저장소의 매니페스트는 `mcpServers`를 선언하지 않습니다. 릴리스 빌드가 자기가 배포하는 사본에
+그것을 넣습니다. 이 분리는 의도적입니다. 서버는 릴리스 압축 파일에 들어 있는 인터프리터 위에서
+돌기 때문에, GitHub에서 곧바로 마켓플레이스로 설치하면 그것을 실행할 인터프리터가 없습니다.
+그런데 저장소 매니페스트에 선언이 들어 있으면, 클론에서 실행한 `codex plugin add`가 성공하면서
+서버를 *활성* 상태로 등록해 버립니다. 존재하지 않는 실행 파일을 가리킨 채로 말입니다. 사용자에게는
+손쓸 수 있는 오류 대신 영원히 실패하는 항목만 남습니다. 격리된 `CODEX_HOME`에서
+`codex-cli 0.153.4`로 실측했습니다. `.mcp.json` 자체는 저장소에 남겨 둡니다. 보안과 관련된 선언은
+빌드 스크립트 안의 문자열로 조립되는 대신 소스로서 검토할 수 있어야 하기 때문입니다.
 
-`hooks` is **rejected** by Codex plugin validation, so it is not used.
+`hooks`는 Codex 플러그인 검증에서 **거부**되므로 쓰지 않습니다.
 
-The server exists so the product can be managed from inside Codex - status, pending
-recoveries, settings, pause and resume, cancel - and so those actions mean the same thing they
-mean everywhere else, because every one of them goes through the same control layer
-(`control.py`) the settings window's bridge uses. The ones the command line also offers -
-pausing, resuming, cancelling, the status and the pending list - end in the same store
-operations it uses.
+서버가 있는 이유는 제품을 Codex 안에서 관리할 수 있게 하기 위해서입니다. 상태, 대기 중인 복구,
+설정, 일시 정지와 재개, 취소 말입니다. 그리고 그 동작들이 다른 곳에서와 똑같은 의미를 갖게 하기
+위해서이기도 합니다. 하나하나가 모두 설정 창의 브리지가 쓰는 것과 같은 제어 계층(`control.py`)을
+거치기 때문입니다. 그중 명령줄에도 있는 것 — 일시 정지, 재개, 취소, 상태, 대기 목록 — 은 명령줄이
+쓰는 것과 같은 저장소 동작으로 끝납니다.
 
-It is a front end and nothing more. No tool detects a failure, reserves an interruption or
-sends a continuation; the watcher stays the only thing that recovers, and it keeps running when
-the server is not. Two tools change *when* the watcher next looks at a record: `retry_now` moves
-a waiting record's next check to now, and `reset_recovery_budget` returns an exhausted record to
-waiting with its recovery attempts and its no-progress count reset to zero. It does not switch
-recovery for that conversation back on: where that conversation is off, the reply says so and
-nothing will run until it is switched on, and it can be used at most three times for one task.
-Every gate still runs. That is a property of the surface, not a rule the model is asked to
-follow: there is no call that retries an unclassified failure, resolves a conversation by
-anything but its exact id, resends an uncertain submission or forces a send.
+서버는 앞단일 뿐 그 이상이 아닙니다. 어떤 tool도 장애를 감지하거나, 중단 건을 선점하거나,
+continuation을 전송하지 않습니다. 복구하는 것은 여전히 워처뿐이고, 서버가 돌지 않을 때에도 워처는
+계속 돕니다. 워처가 다음에 레코드를 *언제* 볼지를 바꾸는 tool이 두 가지 있습니다. `retry_now`는 대기
+중인 레코드의 다음 확인을 지금으로 당기고, `reset_recovery_budget`은 소진된 레코드의 복구 시도 횟수와
+진전 없음 횟수를 0으로 되돌려 대기 상태로 돌려놓습니다. 그 대화의 복구를 다시 켜지는 않습니다. 그
+대화가 꺼져 있으면 답변이 그렇게 알려 주며, 켜기 전까지는 아무것도 실행되지 않습니다. 한 작업에 최대
+세 번까지만 쓸 수 있습니다. 어느 쪽이든 모든 관문은 그대로 다시 확인합니다. 이는 모델에게 지키라고
+부탁한 규칙이 아니라 표면 자체의 성질입니다. 분류되지 않은 장애를 재시도하거나, 정확한 id가 아닌
+무엇으로 대화를 특정하거나, 결과가 불확실한 전송을 다시 보내거나, 강제로 전송하는 호출은 아예
+존재하지 않습니다.
 
-### The tools, and which ones Codex asks about
+### tool 목록, 그리고 Codex가 먼저 묻는 것
 
-The table describes the server as it is from v0.6.0. The server runs from the installed
-release, not from the plugin you add, so until that release is installed you have the server of
-the release you installed, v0.5.7 or earlier, which differs in six ways: it has ten tools
-rather than sixteen, without `disable_conversation_recovery`, `enable_conversation_recovery`,
-`get_recovery_statistics`, `get_recovery_timeline` and `clear_recovery_history`; its
-`cancel_recovery` stops recovery for the whole conversation the named interruption belongs to
-and switches that conversation off, rather than stopping one interruption and the records that
-continue it; pause and resume are one tool, `set_auto_recovery`, marked in neither direction;
-of the other tools that change something, only `restore_default_settings` and `cancel_recovery`
-are marked; `update_settings` also accepts two advanced settings; and `get_status` also reports
-the installation directory. The last two are described below the table.
+아래 표는 main 브랜치의 서버를 설명하며, 이 서버는 이번 릴리스에 들어 있습니다. 서버는 사용자가 추가한 플러그인이 아니라 설치된 릴리스에서 실행되므로, 그 릴리스를
+설치하기 전까지는 설치해 둔 릴리스, 곧 현재 최신 릴리스(이번 릴리스)나 그 이전 릴리스의 서버를 쓰게 됩니다. 그 서버는 여섯 가지가 다릅니다. tool이 열여섯 개가
+아니라 열 개여서 `disable_conversation_recovery`, `enable_conversation_recovery`,
+`get_recovery_statistics`, `get_recovery_timeline`, `clear_recovery_history`가 없습니다.
+`cancel_recovery`가 중단 하나와 그것을 잇는 레코드들이 아니라 그 중단이 속한 대화 전체의 복구를 멈추고 그 대화를 끕니다. 일시 정지와 재개가
+`set_auto_recovery`라는 tool 하나이고 어느 방향에도 표시가 없습니다. 무언가를 바꾸는 나머지 tool 가운데 표시된 것은
+`restore_default_settings`와 `cancel_recovery`뿐입니다. `update_settings`가 고급 설정 두 가지도 받아들입니다. 그리고
+`get_status`가 설치 디렉터리도 알려 줍니다. 마지막 두 가지는 표 아래에서 설명합니다.
 
-| Tool | What it does | Marked destructive |
+| tool | 하는 일 | destructive 표시 |
 | --- | --- | --- |
-| `open_settings` | Shows the settings panel. Opening it changes nothing. | no |
-| `get_status` | Whether recovery is on, whether the watcher is running, counts by state, the version and the current settings. | no |
-| `list_pending` | Pending recoveries with their interruption ids, conversation ids, stored state, public code, reason, overlays and attempt counts. With `include_finished: true`, the recoveries that have already finished as well. | no |
-| `get_recovery_statistics` | How many interruptions were detected, how many continuations were sent, how they ended, and the median waits, over the last `days` days or all of it. Counts only; no ids. | no |
-| `get_recovery_timeline` | One interruption and everything that continued it, as codes and times. | no |
-| `pause_auto_recovery` | Global pause. The watcher sends nothing while paused. A continuation already waiting in Codex's queue is withdrawn when the watcher reaches it; a withdrawal the watcher can confirm returns that recovery to its waiting state with its attempt back, so resuming picks it up again. Only a withdrawal that cannot be confirmed is marked `submission_unknown` and never resent, though Codex's queue may still hold it; if Codex delivers it first, the engine follows the turn that continuation started and records what that turn actually did. | no |
-| `retry_now` | Moves a waiting record's next check to now. | no |
-| `disable_conversation_recovery` | Switches recovery off for one exact conversation, its later interruptions included, and cancels what it has waiting. | no |
-| `resume_auto_recovery` | Undoes a global pause. | yes |
-| `enable_conversation_recovery` | Switches recovery back on for one exact conversation. Nothing is sent; every check still applies. | yes |
-| `update_settings` | Changes user-facing settings: the recovery categories, the limits and the notifications. | yes |
-| `restore_default_settings` | Puts every setting back to its recommended value. | yes |
-| `cancel_recovery` | Stops the named interruption and every record that continues it. One that was never sent is cancelled outright; one that may already be in Codex is marked, and the watcher takes back whatever is still queued - a turn already running is not stopped. The conversation itself stays switched on. | yes |
-| `reset_recovery_budget` | Returns an exhausted record to waiting, as above. | yes |
-| `clear_recovery_history` | Hides finished recoveries from the history. Deletes nothing and cancels nothing; a recovery that may still change stays visible, and hidden rows still count for every safety check. | yes |
-| `start_watcher` | Starts the watcher the installer starts, if it is not running. | yes |
+| `open_settings` | 설정 패널을 보여 줍니다. 여는 것만으로는 아무것도 바뀌지 않습니다. | 아니오 |
+| `get_status` | 복구가 켜져 있는지, 워처가 돌고 있는지, 상태별 개수, 버전, 현재 설정. | 아니오 |
+| `list_pending` | 대기 중인 복구와 그 중단 id, 대화 id, 저장된 상태, 공개 코드, 사유, 오버레이, 시도 횟수. `include_finished: true`를 주면 이미 끝난 복구도 함께 나열합니다. | 아니오 |
+| `get_recovery_statistics` | 중단이 몇 건 감지되었고 continuation을 몇 건 보냈는지, 그것들이 어떻게 끝났는지, 대기 시간의 중앙값. 최근 `days`일 또는 전체 기간. 개수뿐이고 id는 들어 있지 않습니다. | 아니오 |
+| `get_recovery_timeline` | 중단 하나와 그것을 이은 모든 레코드를 코드와 시각으로. | 아니오 |
+| `pause_auto_recovery` | 전역 일시 정지. 정지된 동안 워처는 아무것도 보내지 않습니다. 이미 Codex의 큐에서 기다리던 continuation은 워처가 그것에 닿을 때 회수되며, 회수가 확인되면 그 복구는 대기 상태로 돌아가고 시도 횟수도 돌려받으므로 다시 켜면 이어서 진행됩니다. 회수를 확인하지 못하면 대신 `submission_unknown`으로 표시되고 다시 보내지지 않지만, Codex의 큐에는 여전히 남아 있을 수 있습니다. 그보다 먼저 Codex가 전달하면, 엔진이 그 continuation이 시작한 턴을 따라가서 그 턴이 실제로 무엇을 했는지 기록합니다. | 아니오 |
+| `retry_now` | 대기 중인 레코드의 다음 확인을 지금으로 당깁니다. | 아니오 |
+| `disable_conversation_recovery` | 대화 하나의 자동 복구를 끕니다. 그 뒤에 생기는 중단도 포함이며, 그 대화에서 대기 중이던 것은 취소됩니다. | 아니오 |
+| `resume_auto_recovery` | 전역 일시 정지를 풉니다. | 예 |
+| `enable_conversation_recovery` | 대화 하나의 자동 복구를 다시 켭니다. 이것으로 보내지는 것은 없고, 모든 확인은 그대로 적용됩니다. | 예 |
+| `update_settings` | 사용자용 설정을 바꿉니다. 복구 분류, 상한, 알림입니다. | 예 |
+| `restore_default_settings` | 모든 설정을 권장값으로 되돌립니다. | 예 |
+| `cancel_recovery` | 지정한 중단 하나와 그것을 잇는 모든 레코드를 멈춥니다. 아직 보내지 않은 것은 그대로 취소되고, 이미 Codex에 닿았을 수 있는 것은 표시만 해 두었다가 워처가 큐에 남은 것을 회수합니다. 이미 실행 중인 턴은 멈추지 않습니다. 대화 자체는 켜진 채로 남습니다. | 예 |
+| `reset_recovery_budget` | 위에서 설명한 대로, 소진된 레코드를 대기 상태로 돌려놓습니다. | 예 |
+| `clear_recovery_history` | 끝난 복구를 기록에서 숨깁니다. 아무것도 삭제하지 않고 취소하지도 않으며, 아직 바뀔 수 있는 복구는 계속 보이고, 숨긴 행도 모든 안전 확인에 그대로 셉니다. | 예 |
+| `start_watcher` | 워처가 돌고 있지 않으면, 설치기가 띄우는 것과 같은 워처를 띄웁니다. | 예 |
 
-"Marked destructive" is MCP's `destructiveHint` annotation, which the server declares for
-each tool. Codex decides whether to ask under your approval settings; in its Auto approval
-mode it asks before running a tool marked this way. A tool that can add automation is marked.
-Turning recovery back on - globally, or for one conversation - re-arming a record that had
-stopped, changing or restoring settings (either can switch a recovery category back on) and
-starting a watcher you stopped can all add automation. `cancel_recovery` is marked for the
-opposite reason: no tool restarts a record it cancelled, so for that interruption and the
-records that continue it the stop is one-way. Switching a whole conversation off is a separate
-action, `disable_conversation_recovery`, and the switch itself is reversible -
-`enable_conversation_recovery` turns that conversation back on, as does the command line's
-`enable` with that conversation's id - though the records it cancelled stay cancelled.
-`clear_recovery_history` is marked for the same one-way reason: it deletes nothing and cancels
-nothing, but nothing puts a hidden row back in the history. Pause, `retry_now` and the
-read-only tools are not marked: a pause only reduces automation: a continuation already
-waiting in Codex's queue is withdrawn, and a withdrawal the watcher can confirm returns that
-recovery to waiting with its attempt back, so resuming picks it up again - only a withdrawal
-it cannot confirm, or a pause over a submission that was already uncertain, is final, and
-neither is ever sent again; `retry_now`
-cannot make anything recoverable that was not already pending. In v0.5.7 and earlier, pause and
-resume are one tool, `set_auto_recovery`, not marked destructive in either direction, so in
-Codex's Auto approval mode it runs without asking and a prompt-injected turn can quietly
-reverse a pause.
+"destructive 표시"는 서버가 tool마다 선언하는 MCP의 `destructiveHint` 주석입니다. 물어볼지 말지는
+사용자의 승인 설정에 따라 Codex가 정하며, Auto 승인 모드에서는 이렇게 표시된 tool을 실행하기 전에
+묻습니다. 자동화를 늘릴 수 있는 tool에는 표시합니다. 복구를 다시 켜는 것 — 전체든 대화 하나든 —
+멈춘 레코드를 다시 살리는 것, 설정을 바꾸거나 기본값으로 되돌리는 것(둘 다 복구 분류를 다시 켤 수
+있습니다), 사용자가 멈춘 워처를 띄우는 것은 모두 자동화를 늘릴 수 있습니다. `cancel_recovery`에는
+반대 이유로 표시합니다. 취소한 레코드를 다시 시작하는 tool이 없어서, 그 중단과 그것을 잇는
+레코드들에 대해서는 되돌릴 수 없는 정지이기 때문입니다. 대화 전체를 끄는 것은 별개의 동작인
+`disable_conversation_recovery`이고, 그 스위치 자체는 되돌릴 수 있습니다.
+`enable_conversation_recovery`가 그 대화를 다시 켜며, 명령줄의 `enable`에 그 대화의 id를 주어도
+됩니다. 다만 그때 취소된 레코드는 취소된 채로 남습니다. `clear_recovery_history`에도 같은 이유로
+표시합니다. 아무것도 삭제하거나 취소하지 않지만, 숨긴 행을 기록에 되돌려 놓는 것이 없기 때문입니다.
+일시 정지와 `retry_now`, 그리고 읽기 전용 tool에는 표시하지 않습니다. 일시 정지는 자동화를 줄이기만
+합니다. 이미 Codex의 큐에서 기다리던 continuation은 회수되지만, 회수가 확인되면 그 복구는
+대기 상태로 돌아가고 시도 횟수도 돌려받습니다. 회수를 확인할 수 없는 경우와 이미 불확실했던 전송을
+일시 정지로 회수한 경우만 최종이며, 어느 쪽도 다시 보내지 않습니다. `retry_now`는 이미 대기 중이지 않던 것을 복구 대상으로 만들 수 없습니다. 현재 최신 릴리스와 그 이전에서는 일시 정지와 재개가 `set_auto_recovery`라는 tool 하나이고
+어느 방향으로도 destructive 표시가 없어서 Codex의 Auto 승인 모드에서는 묻지 않고 실행되므로,
+프롬프트 인젝션을 받은 턴이 사용자의 일시 정지를 조용히 되돌릴 수 있습니다.
 
-From v0.6.0, `update_settings` neither offers nor accepts the advanced settings - `codex_exe`,
-which engine binary to run, and `detection_lookback_hours` - which the settings window and the
-panel do not show either; a client that sends them anyway is refused. And `get_status` does not
-report the installation directory, whose path contains your Windows user name, though the
-settings it returns do include `codex_exe`, which is empty unless an engine path has been set,
-by hand or through `update_settings` in v0.5.7 or earlier. Both changes ship in v0.6.0. In
-v0.5.7 and earlier, `update_settings` accepts those two settings as well and is not marked
-destructive, so in Codex's Auto approval mode it accepts them without asking, and `get_status`
-reports the installation directory as `home`.
+main 브랜치에서 `update_settings`는 고급 설정 — 어떤 엔진 바이너리를 실행할지 정하는 `codex_exe`와
+`detection_lookback_hours` — 을 제시하지도 받아들이지도 않습니다. 설정 창과 패널도 이 둘을 보여 주지 않으며, 클라이언트가 그래도 보내면
+거부합니다. 그리고 `get_status`는 경로에 Windows 사용자 이름이 들어 있는 설치 디렉터리를 알려 주지 않습니다. 다만 `get_status`가 돌려주는
+설정에는 `codex_exe`가 들어 있으며, 손으로든 현재 최신 릴리스나 그 이전의 `update_settings`를 통해서든 엔진 경로가 지정되지 않았다면 비어
+있습니다. 두 변경 모두 이번 릴리스에 들어 있습니다. 현재 최신 릴리스와 그 이전에서는 `update_settings`가 이 두 설정도 받아들이는데,
+destructive 표시가 없어서 Codex의 Auto 승인 모드에서는 묻지 않고 받아들입니다. 그리고 `get_status`는 설치 디렉터리를 `home`으로 알려
+줍니다.
 
-What a tool returns becomes part of the Codex conversation it was called from, and should be
-treated as sent to OpenAI like any tool output: the status summary (in v0.5.7 and earlier,
-with the installation directory), the settings, and for `list_pending` and `open_settings` the conversation and
-interruption ids with their states, codes and counts, and for `get_recovery_timeline` one
-chain's interruption ids with its event codes and times; `get_recovery_statistics` returns counts and times and no ids at all. No tool returns
-a conversation's title or content. The same holds for command output the skill asks Codex to read back - `status`,
-`pending`, `doctor`, `logs` - which also includes local paths and log lines.
+tool이 돌려준 결과는 그 tool을 호출한 Codex 대화의 일부가 되며, 다른 tool 출력과 마찬가지로
+OpenAI로 보내진다고 여겨야 합니다. 상태 요약(현재 최신 릴리스와 그 이전에서는 설치 디렉터리 포함), 설정,
+그리고 `list_pending`과 `open_settings`의 경우 대화 id와 중단 id, 그 상태와 코드와
+횟수이며, `get_recovery_timeline`은 한 체인의 중단 id와 이벤트 코드·시각을 돌려줍니다. `get_recovery_statistics`는 개수와 시간만 돌려주고 id는 하나도 돌려주지 않습니다.
+대화의 제목이나 내용을 돌려주는 tool은 없습니다. 스킬이 Codex에게 읽어 보고하라고 하는 명령 출력(`status`,
+`pending`, `doctor`, `logs`)도 마찬가지이며, 여기에는 로컬 경로와 로그 줄도 들어 있습니다.
 
-### Two constraints that shaped it
+### 형태를 결정한 두 가지 제약
 
-**The command must be contained in the plugin.** Codex accepts a plugin stdio `command` only as a
-bare executable name or a path inside the plugin, and `cwd` only as a contained `./`,
-`${PLUGIN_ROOT}` or `${PLUGIN_DATA}` path. An absolute path to the bundled interpreter is
-neither, and a bare `python` would put back the system-Python requirement the product removed.
-So the payload ships `mcp/codex-auto-resume-mcp.exe`, a small launcher that resolves the
-interpreter from the runtime home and starts the server.
+**명령은 플러그인 안에 담겨 있어야 합니다.** Codex는 플러그인의 stdio `command`를 실행 파일 이름
+그 자체이거나 플러그인 안의 경로일 때만 받아들이고, `cwd`도 봉쇄된 `./`, `${PLUGIN_ROOT}`,
+`${PLUGIN_DATA}` 경로일 때만 받아들입니다. 함께 담긴 인터프리터의 절대 경로는 둘 중 어느 쪽도
+아니고, 그냥 `python`이라고 쓰면 이 제품이 없앤 시스템 Python 요구 사항이 되살아납니다. 그래서
+payload에는 `mcp/codex-auto-resume-mcp.exe`가 들어갑니다. 런타임 home에서 인터프리터를 찾아 서버를
+띄우는 작은 런처입니다.
 
-**The launcher relays the standard streams; it does not let the child inherit them.** A child
-process started with `CREATE_NO_WINDOW` and no explicit handle passing is given no usable
-standard handles at all. The server then waits forever for input, the host waits forever for a
-handshake, and nothing appears in any log. That was measured here, not guessed: the first
-version inherited, and both processes sat idle until they were killed.
+**런처는 표준 스트림을 중계합니다. 자식 프로세스가 그것을 상속하게 두지 않습니다.**
+`CREATE_NO_WINDOW`로 시작하면서 핸들을 명시적으로 넘기지 않은 자식 프로세스는 쓸 수 있는 표준
+핸들을 하나도 받지 못합니다. 그러면 서버는 입력을 영원히 기다리고, 호스트는 핸드셰이크를 영원히
+기다리며, 어떤 로그에도 아무것도 남지 않습니다. 추측이 아니라 여기서 실측한 결과입니다. 첫 버전은
+상속하게 두었고, 두 프로세스는 강제로 죽일 때까지 아무 일도 하지 않고 멈춰 있었습니다.
 
-Registration was verified against `codex-cli 0.153.4`:
+등록은 `codex-cli 0.153.4`로 확인했습니다.
 
 ```
 > codex mcp get codex-auto-resume
@@ -170,384 +156,347 @@ codex-auto-resume
   cwd: ...\plugins\cache\codex-auto-resume-windows\codex-auto-resume\0.5.0\.
 ```
 
-`"cwd": "."` rather than `"${PLUGIN_ROOT}"`: both are accepted by the validator, but the
-variable form is reported back as a literal path segment appended to the plugin root, so the
-plain form is the one that resolves the way it reads.
+`"${PLUGIN_ROOT}"`이 아니라 `"cwd": "."`입니다. 검증기는 둘 다 받아들이지만, 변수 형태는 플러그인
+루트 뒤에 문자 그대로 붙은 경로 조각으로 되돌아오기 때문에, 읽는 대로 resolve되는 쪽은 단순한
+형태입니다.
 
-## The plugin is not the product, so it installs the product
+## 플러그인은 제품이 아니므로, 제품을 설치합니다
 
-A plugin is a source tree. The parts that do the work — a Python runtime, a settings
-window, an MCP launcher — are a runtime and two compiled binaries, and they have no
-business in a source repository. So they are not in the plugin, and cannot be.
+플러그인은 소스 트리입니다. 실제로 일을 하는 부분 — Python 런타임, 설정 창, MCP 런처 — 은 런타임
+하나와 컴파일된 바이너리 둘이고, 소스 저장소에 있을 물건이 아닙니다. 그래서 플러그인 안에 없고,
+있을 수도 없습니다.
 
-**Codex has no install hook to put them there either.** Measured against `codex-cli
-0.153.4`, on a machine with nineteen installed plugins: a manifest may declare `skills`,
-`mcpServers`, `apps` and `hooks`, and none of those runs a command when a plugin is
-installed. `apps` names *hosted connectors* by id, which is no use to a local Windows
-tool. `hooks` fires on conversation lifecycle events and routes to an MCP tool — and the
-CLI's own guidance is to omit it from an authored manifest, because validation rejects it.
-`codex plugin` offers `add`, `list`, `marketplace` and `remove`, and nothing else.
+**그것들을 거기에 넣어 줄 설치 훅도 Codex에는 없습니다.** 플러그인 열아홉 개가 설치된 기기에서
+`codex-cli 0.153.4`로 실측했습니다. 매니페스트는 `skills`, `mcpServers`, `apps`, `hooks`를 선언할
+수 있지만, 그중 무엇도 플러그인이 설치될 때 명령을 실행하지 않습니다. `apps`는 *호스팅된 커넥터*를
+id로 지목하는 것이라 로컬 Windows 도구에는 쓸모가 없습니다. `hooks`는 대화 수명 주기 이벤트에서
+발화해 MCP tool로 넘어가는데, 검증이 거부하기 때문에 직접 작성하는 매니페스트에서는 빼라는 것이
+CLI 자체의 안내입니다. `codex plugin`이 제공하는 것은 `add`, `list`, `marketplace`, `remove`뿐입니다.
 
-So `scripts/bootstrap.ps1` fetches the matching release and runs its installer. It is
-PowerShell rather than Python because Python is one of the things it installs. What it is
-allowed to do is deliberately narrow:
+그래서 `scripts/bootstrap.ps1`이 해당하는 릴리스를 내려받아 그 설치기를 실행합니다. Python이 아니라
+PowerShell인 이유는 Python이 이 스크립트가 설치하는 것들 중 하나이기 때문입니다. 이 스크립트가 할
+수 있는 일은 의도적으로 좁습니다.
 
 | | |
 | --- | --- |
-| **Where from** | One URL shape, built from `scripts/release.json` and a version this script chose. No parameter reaches a URL. An ordinary run fetches the version in this plugin's own manifest and the `.sha256` published beside it, and nothing else; it fetches the `.sha256` only when there is no pinned digest to check against. `-Update` is the one exception and the version it fetches is not an input either: it is three integers read out of a redirect under this exact owner and repository, and every check below still applies. |
-| **Over what** | HTTPS, TLS 1.2 minimum, and the *final* response URI has to be one of exactly three hosts - `github.com`, `objects.githubusercontent.com` or `release-assets.githubusercontent.com` - because a release download redirects to GitHub's object storage and nowhere else. |
-| **Checked how** | SHA-256 against the digest pinned in this plugin's `release.json` when there is one, and otherwise against the `.sha256` published beside the archive - and it says which. Then that the archive contains everything the release is defined to contain, that its manifest declares this product at this version, and that no entry escapes extraction. |
-| **Then** | Extract to a fresh temporary directory and run `install/install.ps1` from it. That installer is code from the downloaded archive, and nothing from the archive runs before all of the above passes. |
-| **Never** | Administrator rights, any change to a Windows security setting, any execution-policy change beyond its own process, and nothing from the network is ever piped into a shell. Any failure deletes the download and stops. |
+| **어디서** | URL 형태 하나뿐이며, `scripts/release.json`과 이 플러그인 자신의 매니페스트에 적힌 버전으로 만듭니다. "latest"도 없고, URL에 닿는 파라미터도 없습니다. 특정 버전의 플러그인은 그 버전의 압축 파일과 그 옆에 게시된 `.sha256`만 내려받을 수 있고 그 밖에는 아무것도 내려받을 수 없습니다. `.sha256`은 대조할 고정 digest가 없을 때만 내려받습니다. |
+| **무엇을 통해** | HTTPS, TLS 1.2 이상, 그리고 *최종* 응답 URI가 정확히 세 호스트 중 하나여야 합니다 - `github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com`. 릴리스 다운로드는 GitHub의 오브젝트 스토리지로 리디렉션되고 그 밖의 어디로도 가지 않기 때문입니다. |
+| **무엇을 확인하는가** | 이 플러그인의 `release.json`에 고정된 digest가 있으면 그것과, 없으면 압축 파일 옆에 게시된 `.sha256`과 SHA-256을 대조하고, 둘 중 무엇을 썼는지 알립니다. 그다음에는 압축 파일이 릴리스에 들어 있기로 정의된 것을 모두 담고 있는지, 그 매니페스트가 이 제품의 이 버전임을 선언하는지, 그리고 압축을 풀 때 바깥으로 빠져나가는 항목이 없는지 확인합니다. |
+| **그다음** | 새로 만든 임시 디렉터리에 풀고 거기서 `install/install.ps1`을 실행합니다. 이 설치기는 내려받은 압축 파일에서 나온 코드이며, 위의 모든 검사를 통과하기 전에는 압축 파일 안의 무엇도 실행되지 않습니다. |
+| **절대 하지 않는 것** | 관리자 권한, Windows 보안 설정 변경, 자기 프로세스 범위를 넘어서는 실행 정책 변경. 그리고 네트워크에서 온 무엇도 셸로 파이프되지 않습니다. 실패하면 내려받은 파일을 지우고 멈춥니다. |
 
-**About the two digest cases**, because the difference is worth stating rather than
-blurring. A pinned digest is a commitment made in the repository: the file has to be
-exactly those bytes. The sidecar is served from the same origin as the archive, so
-checking one against the other is trust-on-first-use over TLS to GitHub — it proves the
-download is intact and is a coherent build of this exact version, not that GitHub served
-what the author intended. The script prints which of the two it used — and a third case,
-a local file handed to `-ArchivePath` for a version with no pinned digest, where there is
-nothing to compare against at all and it says so without a tick.
+**digest 두 경우를 짚어 둡니다.** 차이를 흐리는 것보다 밝혀 두는 편이 낫기 때문입니다. 고정된 digest는
+저장소에서 한 약속입니다. 그 파일은 정확히 그 바이트여야 합니다. 옆에 함께 게시되는 사이드카는
+압축 파일과 같은 origin에서 제공되므로, 하나를 다른 하나와 대조하는 것은 GitHub에 대한 TLS 위의
+trust-on-first-use입니다. 다운로드가 온전하고 정확히 이 버전의 일관된 빌드임은 증명하지만, GitHub가
+작성자가 의도한 것을 제공했음을 증명하지는 않습니다. 스크립트는 둘 중 무엇을 썼는지 출력합니다.
+그리고 세 번째 경우가 있습니다. 고정된 digest가 없는 버전에 대해 `-ArchivePath`로 로컬 파일을
+건네는 경우인데, 이때는 대조할 것이 아예 없으므로 체크 표시 없이 그렇다고 알립니다.
 
-A version has no digest in `release.json` at the moment it is tagged. Its entry is added after
-publication, by a commit to `main` that records the digest of the published file; the bootstrap
-treats a missing entry and a `null` one the same way. Two consequences follow, and neither is a
-bug to be fixed so much as a shape to be aware of:
+버전의 digest는 태그를 다는 시점에는 `release.json`에 없습니다. 그 항목은 게시한 뒤, 게시된 파일의
+digest를 기록하는 `main` 커밋으로 추가됩니다. bootstrap은 항목이 없는 경우와 `null`인 경우를 똑같이
+다룹니다. 여기서 두 가지가 따라 나오는데, 둘 다 고쳐야 할 버그라기보다는 알고 있어야 할 형태입니다.
 
-* **The copy of the plugin inside the release has no digest for its own version**, so it
-  could verify only by sidecar. That copy is the one Codex installs from after the installer
-  runs — and it has no need to bootstrap, because by then the product is already installed.
-  The pinned digest is for the plugin someone adds from the marketplace, which tracks `main`
-  and therefore picks up the post-release pin commit.
-* **The release workflow will not replace a published version.** It used to be able to
-  rebuild an existing tag and upload over its assets; a digest recorded from the old archive
-  would then match nothing, and the bootstrap would refuse to install that version for
-  everybody. Since v0.5.4 the workflow refuses to publish when the version already has
-  assets, so a correction takes a new version number. That refusal is the workflow's own:
-  the releases are not GitHub "immutable releases", a repository setting that is not enabled
-  today, so someone with write access to the repository could still replace an asset by
-  hand. The pin is what would reveal that: the bootstrap refuses an archive that no longer
-  matches the digest pinned for its version, and changing a published pin takes a commit to
-  `main`, visible in its history unless that history is rewritten. A version whose pin has
-  not landed yet has no such protection, and neither do v0.5.0 and v0.5.1, which have no pin.
+* **릴리스 안에 들어 있는 플러그인 사본에는 자기 버전의 digest가 없으므로**, 검증한다면 사이드카로만
+  할 수 있습니다. 설치기가 실행된 뒤 Codex가 설치에 쓰는 사본이 바로 그것인데, 그때는 이미 제품이
+  설치되어 있으므로 bootstrap할 필요가 없습니다. 고정된 digest는 마켓플레이스에서 플러그인을 추가하는
+  사람을 위한 것입니다. 그쪽은 `main`을 따라가므로 릴리스 이후의 고정 커밋을 함께 가져옵니다.
+* **릴리스 워크플로는 게시된 버전을 교체하지 않습니다.** 예전에는 워크플로가 이미 있는 태그를 다시
+  빌드해 그 asset 위에 덮어쓸 수 있었습니다. 그러면 옛 압축 파일에서 기록한 digest는 아무것과도 맞지
+  않게 되고, bootstrap은 모든 사람에 대해 그 버전의 설치를 거부하게 됩니다. v0.5.4부터 워크플로는
+  그 버전에 이미 asset이 있으면 게시를 거부하므로, 정정하려면 새 버전 번호를 써야 합니다. 다만 이
+  거부는 워크플로 자체의 것입니다. 릴리스에는 GitHub의 "immutable releases"(저장소 설정이며, 지금은
+  켜져 있지 않습니다)가 적용되어 있지 않으므로, 저장소 쓰기 권한이 있는 사람은 여전히 asset을 손으로
+  교체할 수 있습니다. 그것을 드러내 줄 것이 고정 digest입니다. 자기 버전에 고정된 digest와 더 이상
+  맞지 않는 압축 파일은 bootstrap이 거부하고, 이미 게시된 고정 digest를 바꾸려면 `main`에 커밋을
+  남겨야 하며, 그 커밋은 `main`의 기록이 다시 쓰이지 않는 한 그 기록에 보입니다. 고정 커밋이 아직
+  올라오지 않은 버전에는 이런 보호가 없고, 고정 digest가 아예 없는 v0.5.0과 v0.5.1도 마찬가지입니다.
 
-The bootstrap's checks were verified by feeding it a file that is not an archive, a genuine
-archive declaring a different version, and a correct archive against a deliberately wrong
-pinned digest. All three were refused with nothing installed.
+bootstrap의 검사는 압축 파일이 아닌 파일, 다른 버전을 선언하는 진짜 압축 파일, 그리고 일부러 틀린
+고정 digest에 맞춰 놓은 올바른 압축 파일을 각각 먹여서 확인했습니다. 세 경우 모두 거부되었고
+아무것도 설치되지 않았습니다.
 
-Every archive published since v0.5.4 also carries a GitHub build provenance attestation,
-which ties it to the workflow run and the commit that built it. The bootstrap does not check
-the attestation; `gh attestation verify` does, for anyone with the GitHub CLI.
+v0.5.4 이후 게시된 압축 파일에는 모두 GitHub 빌드 출처 증명(build provenance attestation)도 붙어
+있습니다. 그 파일을 만든 워크플로 실행과 커밋에 연결해 주는 기록입니다. bootstrap은 이 증명을
+확인하지 않습니다. GitHub CLI가 있다면 `gh attestation verify`로 확인할 수 있습니다.
 
-Every archive published so far, v0.5.0 through v0.5.7, was built by the earlier single-job
-release workflow, which referred to its Actions by floating tags, and its executables are not
-reproducible: each carries a build time and a random module id, and no rebuild of them will
-match. From v0.6.0 the release workflow builds and publishes in separate jobs, pins every
-Action to a commit, and removes what made the executables differ from one build to the next;
-the checkout also gives every text file CRLF line endings whatever the machine's Git settings,
-because the archive's bytes include them. That ships in v0.6.0, which is the first built that
-way. The in-box C# compiler stamps a build time and a fresh module version id into each
-executable, so the build normalises both - a fixed PE timestamp, and a module id derived from
-the content - and the workflow compiles the two executables twice and refuses to publish if
-they differ. When that normalisation was added, two local builds and a build from a separate
-clone produced byte-identical executables; the workflow's double compile repeats that check on
-every release build. That measurement covers the executables, not the whole archive, and
-whether GitHub's runner produces the same bytes as a local build has not been verified, so the
-pin is still taken from the published file rather than from a rebuild. [VERIFY.md](VERIFY.md)
-has the rebuild procedure, and what a match or a mismatch does and does not show.
+지금까지 게시된 압축 파일, 곧 v0.5.0부터 현재 최신 릴리스까지는 모두 예전의 단일 job 릴리스 워크플로가 빌드했습니다. 그 워크플로는 Action을 고정되지 않은
+태그로 참조했고, 그 실행 파일은 재현 가능하지 않습니다. 파일마다 빌드 시각과 무작위 모듈 id가 들어 있어서, 어떻게 다시 빌드해도 일치하지 않습니다. main
+브랜치의 릴리스 워크플로는 빌드와 게시를 별도 job으로 나누고, 모든 Action을 커밋에 고정하며, 빌드할 때마다 실행 파일이 달라지게 만들던 요인을 없앱니다. 또
+체크아웃은 기기의 Git 설정과 관계없이 모든 텍스트 파일에 CRLF 줄 끝을 씁니다. 압축 파일의 바이트에 줄 끝도 들어가기 때문입니다. 이 내용은 이번 릴리스부터이며,
+그 릴리스가 이렇게 빌드되는 첫 릴리스입니다. Windows에 기본 포함된 C# 컴파일러는 실행 파일마다 빌드 시각과 새 모듈 버전 id를 찍어 넣는데, 빌드가 그 둘을
+정규화합니다. PE 타임스탬프는 고정값으로, 모듈 id는 내용에서 유도한 값으로 바꿉니다. 그리고 워크플로는 두 실행 파일을 두 번 컴파일해서 서로 다르면 게시를
+거부합니다. 이 정규화를 넣었을 때, 로컬 빌드 두 번과 따로 클론한 사본에서 한 빌드가 바이트 단위까지 같은 실행 파일을 만들었습니다. 워크플로의 두 번 컴파일은 릴리스
+빌드마다 그 확인을 되풀이합니다. 이 측정은 압축 파일 전체가 아니라 실행 파일에 대한 것이고, GitHub의 러너가 로컬 빌드와 같은 바이트를 만드는지도 아직 확인하지
+않았으므로, 고정 digest는 여전히 다시 빌드한 결과가 아니라 게시된 파일에서 가져옵니다. 다시 빌드하는 절차와, 일치하거나 일치하지 않을 때 무엇을 알 수 있고
+무엇은 알 수 없는지는 [VERIFY.md](VERIFY.md)에 있습니다.
 
-### Checking a download yourself
+### 내려받은 파일을 직접 확인하기
 
-`Install.cmd` checks nothing about the archive it came in. On the plugin route the bootstrap
-did the checking before it extracted anything; on the manual route that is your step, and it
-belongs before you extract the ZIP, not after. In PowerShell, in the folder you downloaded to:
+`Install.cmd`는 자기가 들어 있던 압축 파일에 대해 아무것도 확인하지 않습니다. 플러그인 경로에서는
+bootstrap이 압축을 풀기 전에 확인을 마쳤지만, 수동 경로에서는 그것이 사용자의 몫이고, ZIP을 풀기
+*전에* 해야 합니다. 내려받은 폴더에서 PowerShell로:
 
 ```powershell
 (Get-FileHash .\CodexAutoResume-vX.Y.Z-win-x64.zip -Algorithm SHA256).Hash
 ```
 
-Compare the result with the `.sha256` file published beside the archive, with the SHA-256
-GitHub shows beside the asset on the release page, and with the digest pinned for that version
-in
-[`scripts/release.json` on the main branch](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json).
-The pin is the one that matters: it is a commit in the repository rather than a file next to
-the download, so it comes through a separate channel. Read it from `main`; the copy inside a tag
-or inside the archive has no digest for its own version. `Get-FileHash` prints upper-case hex
-and `release.json` stores lower case, so compare them ignoring case. A version released so
-recently that its pin commit has not landed yet has the sidecar, the digest GitHub shows on the
-release page, and the attestation, and no pin. Versions before v0.5.2 have no pin, and
-versions before v0.5.4 have no attestation. With the GitHub CLI, also check where the
-archive was built:
+결과를 압축 파일 옆에 게시된 `.sha256` 파일, 릴리스 페이지에서 GitHub가 asset 옆에 보여 주는
+SHA-256, 그리고
+[`main` 브랜치의 `scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json)에
+그 버전으로 고정된 digest와 대조하세요. 중요한 것은 고정 digest입니다. 다운로드 옆에 놓인 파일이
+아니라 저장소의 커밋이므로, 별도의 경로로 온 값입니다. `main`에서 읽으세요. 태그나 압축 파일
+안에 든 사본에는 자기 버전의 digest가 없습니다. `Get-FileHash`는 16진수를 대문자로 출력하고
+`release.json`은 소문자로 저장하므로, 대소문자는 무시하고 비교하세요. 막 나온 버전이라 고정 커밋이
+아직 올라오지 않았다면, 사이드카, 릴리스 페이지에서 GitHub가 보여 주는 digest, 출처 증명은 있지만
+고정 digest는 없습니다. v0.5.2보다 앞선 버전에는 고정 digest가 없고, v0.5.4보다 앞선 버전에는 출처
+증명이 없습니다. GitHub CLI가 있다면 압축 파일이 어디서 빌드되었는지도 확인하세요.
 
 ```powershell
 gh attestation verify .\CodexAutoResume-vX.Y.Z-win-x64.zip --repo songyb111-gachon/codex-auto-resume-windows
 ```
 
-If you have the plugin from the marketplace, its bootstrap can install a file you already
-have instead of downloading one: `-ArchivePath` takes the archive for the plugin's own version,
-checks it against the pinned digest when that version has one, and says plainly when it has
-nothing to compare against.
+마켓플레이스에서 추가한 플러그인이 있다면, 그 bootstrap이 새로 내려받는 대신 이미 가진 파일을 설치할
+수도 있습니다. `-ArchivePath`에 플러그인 자기 버전의 압축 파일을 주면, 그 버전에 고정된 digest가 있을
+때 그것과 대조하고, 대조할 것이 없을 때는 그렇다고 분명히 알립니다.
 
-[VERIFY.md](VERIFY.md) sets out the same checks step by step, what each one does and does not
-prove, and how to rebuild a release yourself.
+[VERIFY.md](VERIFY.md)에는 같은 확인이 단계별로, 각 확인이 무엇을 증명하고 무엇은 증명하지
+못하는지와 함께 정리되어 있고, 릴리스를 직접 다시 빌드하는 방법도 있습니다.
 
-## Where each route ends up
+## 어느 길로 가든 도착하는 곳
 
-Every way in converges on one installation, in `%USERPROFILE%\.codex-auto-resume` by default: one
-bundled interpreter, one watcher, one SQLite database, one `settings.json`, one sign-in
-entry, one notification handler and one Start Menu entry. `tests/test_convergence.py`
-pins the rules that make that true.
+들어오는 모든 길은 설치본 하나(기본 위치는 `%USERPROFILE%\.codex-auto-resume`)로 모입니다. 함께 담긴
+인터프리터 하나, 워처 하나, SQLite 데이터베이스 하나, `settings.json` 하나, 로그인 항목 하나, 알림
+핸들러 하나, 시작 메뉴 항목 하나입니다. 그것이 사실이 되게 하는 규칙은 `tests/test_convergence.py`가
+고정합니다.
 
-| You do this | What happens |
+| 이렇게 하면 | 이렇게 됩니다 |
 | --- | --- |
-| Download the archive, check it (above), run `Install.cmd` | Deploys the runtime and the application, registers the plugin from the payload itself rather than downloading it, then runs setup. It verifies nothing about the archive. |
-| `codex plugin add`, then *set up auto resume* | The skill has Codex run `bootstrap.ps1`; the bootstrap downloads and verifies the matching release and runs the same installer. Identical result. From v0.6.0 the skill tells Codex to run `bootstrap.ps1` by its absolute path inside the plugin, and never as a relative `scripts/bootstrap.ps1`; the skill in v0.5.2 through v0.5.7 gives the relative form. Codex follows the skill of the plugin you added: one added from the GitHub marketplace is a copy of `main` as it was when the marketplace was added or last upgraded, so it gives the absolute path only if that was after the change reached main (2026-09-11) - an older copy gives the relative form until the marketplace is upgraded with `codex plugin marketplace upgrade codex-auto-resume-windows` - while the copy the installer registers from an installed release carries that release's skill. |
-| Either of the above with something already installed | The installer first asks a running watcher to stop through its stop event and waits up to a minute. It does not kill it: if the old watcher is still running when the wait ends, the upgrade completes and says so, and the new version takes over once the old watcher has exited and a watcher is started again (`start_watcher`, the settings window's Start watcher, or the next sign-in). Then it moves the old payload aside, copies, and rolls back on failure. Settings, pending recoveries, retry budgets and logs are kept. Setup runs with `--keep-state` whenever there is already an installation to repair: the installer adds that switch when the program directory `app\` is present, and the bootstrap adds it on the repair described next. `--keep-state` does not run the engine's `enable`, and it does not create a sign-in entry - it re-registers one only when the entry already registered is this installation's, which still repairs a stale path after the runtime moves. So a global pause survives an upgrade, a reinstall over an existing installation and that repair, and so does a sign-in start you had turned off. A first install is the exception, and has to be: with no `app\` directory there is no decision to preserve, so setup switches automatic recovery on and registers the sign-in start unless it is run with `--no-startup` (the bootstrap's `-NoStartup`, the installer's `-SkipStartup`). Unless it is run with `-Force`, the bootstrap skips the download entirely when the installed version already matches, and re-runs setup to repair its Windows registrations - the sign-in entry, the notification button's handler and, while notifications are on, the notification sender identity and the Start Menu entry - and start the watcher if it is not running. That repair does not re-register the plugin or its marketplace in Codex; only the installer does that. |
-| Ask for anything else with nothing installed | `setup` refuses and prints the command that installs it. Nothing is registered, so there is no half-installation for a later run to mistake for a real one. |
-| `codex plugin remove` | Removes the skill, the tools and the panel. The watcher keeps running, from the installed application rather than from the cache copy that just disappeared. `uninstall` is what removes it. |
-| Two installers at once | The second is refused by a named lock. |
-| A source checkout beside an installation | Refused, as before: `setup` stops when the registered sign-in entry belongs to a different home, because two watchers could each resume the same interruption. |
+| 압축 파일을 내려받아 확인한 뒤(위 참고) `Install.cmd` 실행 | 런타임과 애플리케이션을 배치하고, 플러그인을 내려받는 대신 payload 자체에서 등록한 다음 setup을 실행합니다. 압축 파일에 대해서는 아무것도 확인하지 않습니다. |
+| `codex plugin add`, 그다음 *auto resume 설정해 줘* | 스킬이 Codex에게 `bootstrap.ps1`을 실행하게 합니다. bootstrap은 해당하는 릴리스를 내려받아 검증한 뒤 같은 설치기를 실행합니다. 결과는 동일합니다. 이번 릴리스의 main 브랜치의 스킬은 Codex에게 `bootstrap.ps1`을 플러그인 안의 절대 경로로 실행하고, 상대 경로 `scripts/bootstrap.ps1`로는 절대 실행하지 말라고 지시합니다. 이 내용은 이번 릴리스부터이며, v0.5.2부터 현재 최신 릴리스까지의 스킬은 상대 경로 형태를 안내합니다. Codex가 따르는 것은 사용자가 추가한 플러그인의 스킬입니다. GitHub 마켓플레이스에서 추가한 플러그인은 그 마켓플레이스를 추가하거나 마지막으로 업그레이드한 시점의 `main` 사본이라, 그 시점이 이 변경이 main에 들어간 뒤(2026-09-11)라면 절대 경로를 안내하고, 그보다 오래된 사본은 `codex plugin marketplace upgrade codex-auto-resume-windows`로 업그레이드하기 전까지 상대 경로 형태를 안내합니다. 설치기가 설치된 릴리스에서 등록하는 사본에는 그 릴리스의 스킬이 들어 있습니다. |
+| 위 둘 중 하나를, 이미 무언가 설치된 상태에서 | 설치기는 먼저 실행 중인 워처에게 중지 이벤트로 멈춰 달라고 요청하고 최대 1분을 기다립니다. 강제로 죽이지는 않습니다. 기다린 뒤에도 옛 워처가 돌고 있으면 업그레이드는 끝까지 진행하고 그 사실을 알립니다. 새 버전은 옛 워처가 끝난 뒤 워처가 다시 시작될 때(`start_watcher`, 설정 창의 Start watcher, 또는 다음 로그인) 넘겨받습니다. 그다음 옛 payload를 옆으로 밀어 두고 복사하며, 실패하면 되돌립니다. 설정, 대기 중인 복구, 재시도 예산, 로그는 그대로 남습니다. 고칠 설치본이 이미 있을 때 setup은 `--keep-state`로 실행됩니다. 설치기는 프로그램 디렉터리 `app\`이 있으면 이 스위치를 붙이고, bootstrap은 바로 뒤에 나오는 재실행에서 붙입니다. `--keep-state`는 엔진의 `enable`을 실행하지 않고, 로그인 시 시작 항목을 새로 만들지도 않습니다. 이미 등록된 항목이 이 설치본의 것일 때에만 다시 등록하므로, 런타임이 옮겨 간 뒤의 낡은 경로는 그대로 고쳐 줍니다. 그래서 전역 일시 정지는 업그레이드에도, 기존 설치본 위에 다시 설치해도, 그 재실행에도 유지되고, 꺼 두었던 로그인 시 시작도 마찬가지입니다. 첫 설치만 예외이고, 예외일 수밖에 없습니다. `app\` 디렉터리가 없으면 지킬 결정 자체가 없으므로, setup은 자동 복구를 켜고 `--no-startup`(bootstrap의 `-NoStartup`, 설치기의 `-SkipStartup`)으로 실행하지 않는 한 로그인 시 시작도 등록합니다. `-Force`로 실행하지 않는 한, 설치된 버전이 이미 일치하면 bootstrap은 다운로드를 통째로 건너뛰고 setup을 다시 실행해 Windows 쪽 등록 — 로그인 항목, 알림 버튼의 핸들러, 그리고 알림이 켜져 있다면 알림 발신자 ID와 시작 메뉴 항목 — 을 고치고, 워처가 돌고 있지 않으면 띄웁니다. 이 재실행은 Codex의 플러그인이나 그 마켓플레이스를 다시 등록하지 않습니다. 그것은 설치기만 합니다. |
+| 아무것도 설치되지 않은 상태에서 그 밖의 것을 요청 | `setup`이 거부하고 그것을 설치하는 명령을 출력합니다. 아무것도 등록되지 않으므로, 나중 실행이 진짜 설치본으로 착각할 반쪽짜리 설치가 남지 않습니다. |
+| `codex plugin remove` | 스킬과 tool과 패널을 제거합니다. 워처는 방금 사라진 캐시 사본이 아니라 설치된 애플리케이션에서 계속 실행됩니다. 그것을 제거하는 것은 `uninstall`입니다. |
+| 설치기 두 개가 동시에 | 두 번째는 이름 붙은 락이 거부합니다. |
+| 설치본 옆에 소스 체크아웃 | 이전과 마찬가지로 거부합니다. 등록된 로그인 항목이 다른 home에 속해 있으면 `setup`이 멈춥니다. 워처가 둘이면 같은 중단을 각자 재개할 수 있기 때문입니다. |
 
-## Runtime state lives outside the plugin
+## 런타임 상태는 플러그인 바깥에 있습니다
 
-The plugin cache path contains the version, so it changes on every update. Three
-consequences are designed around:
+플러그인 캐시 경로에는 버전이 들어 있어서 업데이트할 때마다 바뀝니다. 그로 인한 세 가지를 설계에
+반영했습니다.
 
-- **State must not live in the plugin.** Pending interruptions, settings and logs live in
-`%USERPROFILE%\.codex-auto-resume\` by default. Updating or removing the plugin does not touch
-them. - **Autostart must not point into the plugin.** Setup copies `watcher_launcher.py` to
-that same stable directory and registers *that*, so an update needs no re-registration. - **The
-installed application is the engine**, not the plugin cache copy. The launcher resolves the
-installation's `app` directory first - under the home `runtime.json` records,
-`%USERPROFILE%\.codex-auto-resume\app` by default - and, for a plugin installation, falls back
-to the cache only when that directory holds no usable application. It used to prefer the newest
-cache copy by modification time, which meant installing a newer plugin from a marketplace
-silently swapped the engine underneath an older installation while the settings window still
-talked to the old one. Updating a plugin should update the skills and the manifest; replacing
-the engine is what the installer is for. From v0.6.0 the cache fallback considers only copies
-from this product's own marketplace, `codex-auto-resume-windows`, and skips a same-named plugin
-from another marketplace; that ships in v0.6.0, and the launcher in v0.5.7 and earlier takes
-the newest same-named copy from any marketplace. After the cache, the launcher tries the
-directory setup last ran from, which `runtime.json` records; the installer runs setup from the
-installed application, so that is normally the same directory.
+- **상태는 플러그인 안에 있으면 안 됩니다.** 대기 중인 중단, 설정, 로그는 기본적으로 `%USERPROFILE%\.codex-auto-resume\`에 있습니다.
+플러그인을 업데이트하거나 제거해도 이것들은 건드리지 않습니다. - **자동 시작은 플러그인 안을 가리키면 안 됩니다.** setup은
+`watcher_launcher.py`를 그 같은 안정적인 디렉터리로 복사하고 *그것을* 등록하므로, 업데이트해도 다시 등록할 필요가 없습니다. - **엔진은 설치된
+애플리케이션이지** 플러그인 캐시 사본이 아닙니다. 런처는 설치본의 `app` 디렉터리 — `runtime.json`에 기록된 home 아래이며, 기본값은
+`%USERPROFILE%\.codex-auto-resume\app` — 를 먼저 resolve하고, 플러그인 설치본이라면 그 디렉터리에 쓸 수 있는 애플리케이션이 없을
+때만 캐시로 물러납니다. 예전에는 수정 시각 기준으로 가장 최신인 캐시 사본을 골랐는데, 그러면 마켓플레이스에서 더 새 플러그인을 설치하는 것만으로 옛 설치본 아래의
+엔진이 조용히 바뀌었고 설정 창은 여전히 옛것과 이야기하고 있었습니다. 플러그인 업데이트는 스킬과 매니페스트를 업데이트해야 하고, 엔진을 교체하는 것은 설치기가 할
+일입니다. main 브랜치에서는 캐시로 물러날 때 이 제품 자신의 마켓플레이스인 `codex-auto-resume-windows`에서 온 사본만 고려하고, 다른
+마켓플레이스에서 온 같은 이름의 플러그인은 건너뜁니다. 이 내용은 이번 릴리스부터이며, 현재 최신 릴리스와 그 이전의 런처는 어느 마켓플레이스에서 왔든 같은 이름의 가장
+최신 사본을 고릅니다. 캐시 다음으로 런처는 `runtime.json`에 기록된, setup이 마지막으로 실행된 디렉터리를 시도합니다. 설치기는 설치된 애플리케이션에서
+setup을 실행하므로, 보통은 같은 디렉터리입니다.
 
-Tested: after replacing `0.2.0` with `0.2.1+codex.local-test` and deleting the old directory,
-the launcher resolved the new one and the state was untouched.
+실제로 시험했습니다. `0.2.0`을 `0.2.1+codex.local-test`로 교체하고 옛 디렉터리를 지운 뒤, 런처는
+새것을 resolve했고 상태는 그대로였습니다.
 
-## `codex plugin remove` vs `uninstall`
+## `codex plugin remove`와 `uninstall`의 차이
 
-They are different operations and neither implies the other.
+둘은 서로 다른 동작이며, 어느 쪽도 다른 쪽을 함의하지 않습니다.
 
 | | `codex plugin remove` | `plugin_setup.py uninstall` |
 | --- | --- | --- |
-| Removes the skill from Codex | yes | no |
-| Stops a running watcher | no | yes |
-| Removes sign-in autostart | no | yes |
-| Deletes settings and pending state | no | only with `--purge` |
-| Deletes logs | no | yes |
-| Deletes the program files and the bundled runtime | no | no |
+| Codex에서 스킬 제거 | 예 | 아니오 |
+| 실행 중인 워처 중지 | 아니오 | 예 |
+| 로그인 자동 시작 제거 | 아니오 | 예 |
+| 설정과 대기 상태 삭제 | 아니오 | `--purge`를 줄 때만 |
+| 로그 삭제 | 아니오 | 예 |
+| 프로그램 파일과 함께 담긴 런타임 삭제 | 아니오 | 아니오 |
 
-There is no plugin uninstall hook to attach to, so removing the plugin cannot clean up on its
-own.
+붙일 수 있는 플러그인 제거 훅이 없으므로, 플러그인을 제거하는 것만으로는 스스로 정리할 수
+없습니다.
 
-Nor does either of them remove the *installation*. `uninstall` stops the watcher and takes away
-its Windows registrations - the sign-in entry, the notification sender identity, the
-notification button's handler and the Start Menu entry, each only where it belongs to this
-installation - and `--purge` additionally deletes settings and pending recoveries - but the
-application, the bundled interpreter and the settings window stay in the installation
-directory (`%USERPROFILE%\.codex-auto-resume` by default), because they are what a later `setup` would pick up again.
-Of this product's commands, only `Uninstall.cmd` from the release archive removes those.
-Deleting the directory by hand removes the same files, along with the settings and pending
-recoveries in it, and is safe once `uninstall` has run, because the watcher no longer runs from
-it. Unlike `Uninstall.cmd`, it leaves this plugin and its marketplace registered in Codex,
-pointing at a directory that no longer exists; run
-`codex plugin remove codex-auto-resume@codex-auto-resume-windows` first, and
-`codex plugin marketplace remove codex-auto-resume-windows` for the marketplace. If the plugin
-is still installed, close Codex first: Codex starts the plugin's tools on the bundled
-interpreter.
+그리고 둘 중 어느 쪽도 *설치본*을 제거하지는 않습니다. `uninstall`은 워처를 중지하고, Windows
+등록 — 로그인 항목, 알림 발신자 ID, 알림 버튼의 핸들러, 시작 메뉴 항목 — 을 각각 이 설치본에 속한
+경우에만 걷어 내며, `--purge`는 여기에 더해 설정과 대기 중인 복구를 지웁니다. 하지만 애플리케이션과 함께
+담긴 인터프리터와 설정 창은 설치 디렉터리(기본값은 `%USERPROFILE%\.codex-auto-resume`)에 그대로
+남습니다. 나중에 `setup`을
+하면 다시 집어 들 것들이기 때문입니다. 이 제품의 명령 가운데 그것들을 제거하는 것은 릴리스 압축 파일의
+`Uninstall.cmd`뿐입니다. 디렉터리를 손으로 지우면 같은 파일이, 그 안에 있는 설정과 대기 중인 복구와
+함께 지워지고, `uninstall`을 실행한 뒤라면 안전합니다. 워처가 더 이상 그 디렉터리에서 돌고 있지 않기
+때문입니다. 다만 `Uninstall.cmd`와 달리, 이 플러그인과 그 마켓플레이스는 이제 없는 디렉터리를 가리킨
+채 Codex에 등록된 채로 남습니다. 먼저
+`codex plugin remove codex-auto-resume@codex-auto-resume-windows`를 실행하고, 마켓플레이스는
+`codex plugin marketplace remove codex-auto-resume-windows`로 제거하세요. 플러그인이 아직 설치되어
+있다면 먼저 Codex를 닫으세요. Codex는 플러그인의 tool을 함께 담긴 인터프리터로 실행합니다.
 
-The order matters: run `uninstall` first, then `codex plugin remove`. The other way round leaves
-a watcher running with no skill to stop it.
+순서가 중요합니다. `uninstall`을 먼저 실행하고 그다음에 `codex plugin remove`입니다. 반대로 하면
+워처는 계속 도는데 그것을 멈출 스킬이 없는 상태가 됩니다.
 
-## Two installations are refused, not merged
+## 설치본 두 개는 병합하지 않고 거부합니다
 
-A manual checkout and a plugin installation keep separate state and separate single-instance
-locks, so both watchers would run and could each resume the same interruption. `setup` therefore
-checks the registered autostart value and stops if it belongs to a different installation.
-`status` reports the same conflict.
+수동 체크아웃과 플러그인 설치본은 상태도 단일 인스턴스 락도 따로 갖기 때문에, 워처 둘이 모두
+돌면서 같은 중단을 각자 재개할 수 있습니다. 그래서 `setup`은 등록된 자동 시작 값을 확인하고, 그것이
+다른 설치본에 속하면 멈춥니다. `status`도 같은 충돌을 보고합니다.
 
-Since v0.5.2 there is a second, earlier refusal, because the first one arrived too late.
-`setup` will not configure a watcher at all unless the bundled runtime and the application
-are both present in the state directory — it prints the bootstrap command instead. What it
-used to do was register a watcher against whatever interpreter was running it, which is how
-a marketplace install produced a lesser second product in the first place: a different
-Python, no settings window, no panel, and the same state directory as a real install. Every
-registration setup writes — the sign-in entry, the notification handler and the watcher
-itself — now names the interpreter the installer deployed, not the one that ran setup.
+v0.5.2부터는 두 번째 거부가 더 앞에서 일어납니다. 첫 번째 거부가 너무 늦게 도착했기 때문입니다.
+함께 담긴 런타임과 애플리케이션이 둘 다 상태 디렉터리에 있지 않으면 `setup`은 워처를 아예
+구성하지 않고, 대신 bootstrap 명령을 출력합니다. 예전에는 자신을 실행한 인터프리터가 무엇이든
+그것에 맞춰 워처를 등록했는데, 마켓플레이스 설치가 애초에 덜 갖춰진 두 번째 제품을 만들어 낸 경위가
+바로 이것입니다. 다른 Python, 설정 창 없음, 패널 없음, 그리고 진짜 설치본과 같은 상태 디렉터리
+말입니다. 이제 setup이 쓰는 모든 등록 — 로그인 항목, 알림 핸들러, 워처 자신 — 은 setup을
+실행한 인터프리터가 아니라 설치기가 배치한 인터프리터를 가리킵니다.
 
-The installer takes a named lock for the same reason, so a double-clicked `Install.cmd`
-and a plugin bootstrap cannot copy over each other's half-written payload. It is not
-released explicitly: the installer has many exit points, Windows releases a mutex when the
-process ends, and an *abandoned* lock means the previous holder died, so it is taken rather
-than treated as contention.
+설치기가 이름 붙은 락을 잡는 것도 같은 이유입니다. 더블 클릭한 `Install.cmd`와 플러그인 bootstrap이
+서로의 절반쯤 쓰인 payload를 덮어쓰지 못하게 하기 위해서입니다. 이 락은 명시적으로 해제하지
+않습니다. 설치기에는 빠져나가는 지점이 많고, Windows는 프로세스가 끝나면 뮤텍스를 해제하며,
+*버려진* 락은 이전 소유자가 죽었다는 뜻이므로 경합으로 취급하지 않고 그대로 잡습니다.
 
-Related: `uninstall` only unregisters an autostart value that belongs to the home being
-uninstalled. It reports and keeps anything else.
+관련해서, `uninstall`은 제거 대상 home에 속하는 자동 시작 값만 등록 해제합니다. 그 밖의 것은 알리고
+그대로 둡니다.
 
-## Language
+## 언어
 
-The product's own interface text - the notifications, the settings window, the settings panel
-in Codex and the plugin layer's messages - is in English by default, and in Korean only when
-the first language the detection below finds is Korean - normally, when Korean is the **most
-preferred** UI language. Some text does not follow the detection: the output of the
-`auto_resume.py` command line and the MCP tools' text replies are in English, and the
-continuation message the watcher queues into a conversation is in Korean for every user.
+제품 자체의 인터페이스 문구 — 알림, 설정 창, Codex 안의 설정 패널, 플러그인 계층의 메시지 — 는
+기본이 영어이고, 아래의 판별이 처음 찾은 언어가 한국어일 때만 한국어입니다. 보통은 한국어가 UI 언어
+중 **가장 선호되는** 언어일 때입니다. 판별을 따르지 않는 문구도 있습니다. `auto_resume.py` 명령줄의
+출력과 MCP tool의 텍스트 응답은 영어이고, 워처가 대화에 큐로 넣는 continuation 메시지는 모든 사용자에게
+한국어입니다.
 
-Detection reads the same source the ChatGPT desktop app uses for its own display language:
-Electron's `app.getPreferredSystemLanguages()`, which on Windows is `GetUserPreferredUILanguages`.
-Falling back, it reads `LC_ALL` / `LC_MESSAGES` / `LANG`, and `CODEX_AUTO_RESUME_LANG` overrides
-everything. No language is inferred from an IP address, a time zone, a user name, a country or a
-keyboard layout. When none of these gives an answer, the language is English, never a guess.
+판별은 ChatGPT 데스크톱 앱이 자기 표시 언어를 정할 때 쓰는 것과 같은 출처를 읽습니다. Electron의
+`app.getPreferredSystemLanguages()`이며, Windows에서는 `GetUserPreferredUILanguages`입니다. 그것이
+안 되면 `LC_ALL` / `LC_MESSAGES` / `LANG`을 읽고, `CODEX_AUTO_RESUME_LANG`은 모든 것을 덮어씁니다.
+IP 주소, 시간대, 사용자 이름, 국가, 키보드 레이아웃에서 언어를 추론하는 일은 없습니다. 이 가운데
+어느 것에서도 답을 얻지 못하면 영어이며, 추측하지 않습니다.
 
-The translated strings live in two small tables in `src/codex_auto_resume/`: `messages.py` for
-the plugin layer's messages and the notifications, and `interface.py` for the settings window
-and the panel, which are both handed the strings for the language `messages.py` decides. Text
-outside them - the `auto_resume.py` command line's output, the MCP tools' replies, the
-continuation message and the settings window's built-in English fallbacks - is not
-translated. No i18n framework and no new dependency.
+번역되는 문자열은 `src/codex_auto_resume/`의 작은 테이블 두 개에 있습니다. `messages.py`에는
+플러그인 계층의 메시지와 알림이, `interface.py`에는 설정 창과 패널의 문자열이 있으며, 설정 창과
+패널은 둘 다 `messages.py`가 정한 언어의 문자열을 건네받습니다. 그 바깥의 문구 — `auto_resume.py`
+명령줄의 출력, MCP tool의 응답, continuation 메시지, 설정 창에 내장된 영어 대체 문자열 — 는 번역되지
+않습니다. i18n 프레임워크도, 새 의존성도 없습니다.
 
-## The usage-limit checkbox: not possible through any official API
+## 사용량 한도 체크박스: 어떤 공식 API로도 불가능합니다
 
-The goal was to add exactly one line to the usage-limit notice Codex already shows:
+목표는 Codex가 이미 보여 주는 사용량 한도 안내에 정확히 한 줄을 더하는 것이었습니다.
 
-> ☑ Automatically resume this task after the reset
+> ☑ 초기화 후 이 작업을 자동으로 재개
 
-**This cannot be done through the official Codex plugin API.** It is not implemented, and nothing
-pretending to be it was built in its place. Re-checked from scratch for v0.5; the answer has not
-changed.
+**이것은 공식 Codex 플러그인 API로는 할 수 없습니다.** 구현되어 있지 않으며, 그 자리에 그런 척하는
+무언가를 만들어 두지도 않았습니다. v0.5를 위해 처음부터 다시 확인했고, 답은 달라지지 않았습니다.
 
-What was checked, against `codex-cli 0.153.4` and ChatGPT desktop `26.901.5280.0`:
+`codex-cli 0.153.4`와 ChatGPT 데스크톱 `26.901.5280.0`을 대상으로 확인한 내용입니다.
 
-1. **The plugin manifest has no UI surface.** Codex's own bundled plugin-authoring documentation
-   and its `validate_plugin.py` accept exactly these top-level fields: `id`, `name`, `version`,
+1. **플러그인 매니페스트에는 UI 표면이 없습니다.** Codex가 함께 담고 있는 플러그인 작성 문서와 그
+   `validate_plugin.py`가 받아들이는 최상위 필드는 정확히 이것들입니다. `id`, `name`, `version`,
    `description`, `skills`, `apps`, `mcpServers`, `interface`, `author`, `homepage`, `repository`,
-   `license`, `keywords`. `interface` is catalog presentation only — display name, description,
-   category, logo, brand colour, screenshots, default prompts. Nothing addresses an error state
-   or an app surface.
-2. **`apps` / `.app.json` is not a UI extension.** Its entries carry only `id` and `category`;
-   it registers connector apps, it does not render controls.
-3. **Plugin-provided UI is conversation-scoped.** MCP App `ui://` resources are fetched through
-   `mcpServer/resource/read` with an `originCallId` and a `threadId`, and render in a sandboxed
-   iframe attached to a tool result. There is no placement that anchors to app chrome.
-4. **The banner is hardcoded in the desktop app.** The notice is a React component built from
-   compiled `react-intl` messages (`codex.upsellBanner.merged.title`,
-   `codex.upsellBanner.*.headline`) inside the Electron bundle.
-5. **`pluginSlots` is unrelated.** The name looks promising but it belongs to the sidebar
-   onboarding checklist, mapping roles such as `mailApp` to connector names such as `gmail` so a
-   prefilled prompt can mention the right plugin. It is not a rendering slot.
-6. **There is no usage-limit lifecycle hook.** The hook event names in the binary are
-   `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `SessionStart`, `SessionEnd`, `Stop`,
-   `SubagentStop` and `Notification`. None fires on a usage limit — and plugin validation rejects
-   `hooks` anyway.
+   `license`, `keywords`. `interface`는 카탈로그 표시용일 뿐입니다. 표시 이름, 설명, 분류, 로고,
+   브랜드 색, 스크린샷, 기본 프롬프트 말입니다. 오류 상태나 앱 표면을 가리키는 것은 하나도 없습니다.
+2. **`apps` / `.app.json`은 UI 확장이 아닙니다.** 그 항목이 담는 것은 `id`와 `category`뿐입니다.
+   커넥터 앱을 등록할 뿐, 컨트롤을 그리지 않습니다.
+3. **플러그인이 제공하는 UI는 대화 범위입니다.** MCP App의 `ui://` 리소스는 `originCallId`와
+   `threadId`를 함께 실어 `mcpServer/resource/read`로 가져오며, tool 결과에 붙은 샌드박스 iframe
+   안에서 렌더링됩니다. 앱 크롬에 고정되는 배치는 없습니다.
+4. **배너는 데스크톱 앱에 하드코딩되어 있습니다.** 그 안내는 Electron 번들 안에서 컴파일된
+   `react-intl` 메시지(`codex.upsellBanner.merged.title`,
+   `codex.upsellBanner.*.headline`)로 만들어지는 React 컴포넌트입니다.
+5. **`pluginSlots`는 관계없습니다.** 이름은 그럴듯해 보이지만 사이드바 온보딩 체크리스트에 속한
+   것으로, 미리 채워진 프롬프트가 올바른 플러그인을 언급할 수 있도록 `mailApp` 같은 역할을 `gmail`
+   같은 커넥터 이름에 대응시킵니다. 렌더링 슬롯이 아닙니다.
+6. **사용량 한도 수명 주기 훅은 없습니다.** 바이너리에 들어 있는 훅 이벤트 이름은 `PreToolUse`,
+   `PostToolUse`, `UserPromptSubmit`, `SessionStart`, `SessionEnd`, `Stop`, `SubagentStop`,
+   `Notification`입니다. 사용량 한도에서 발화하는 것은 하나도 없으며, 애초에 플러그인 검증이
+   `hooks`를 거부합니다.
 
-### The three options, ranked, and what each one is worth
+### 세 가지 선택지, 순위, 그리고 각각의 값어치
 
-The question was re-opened from scratch for v0.5 against the build above, on the chance that a
-newer Codex had added a surface. It has not. What follows is what each option is actually worth
-today, best first.
+혹시 더 새로운 Codex가 표면을 추가했을까 싶어, v0.5를 위해 위 빌드를 대상으로 이 질문을 처음부터
+다시 열어 보았습니다. 추가되지 않았습니다. 아래는 오늘 각 선택지가 실제로 얼마나 값어치가 있는지를
+좋은 것부터 적은 것입니다.
 
-**A — a real control inside the notice. Still impossible.** Everything in the list above was
-re-checked against this build. The banner is still assembled from compiled `react-intl` message
-ids inside the Electron bundle (`codex.upsellBanner.*.headline`, `codex.upsellBanner.cta.*`);
-there is no id, slot, prop or plugin hook anywhere near it. Nothing in the plugin manifest, the
-MCP schema or the app's own bundled plugins can address app chrome.
+**A — 안내 안에 진짜 컨트롤 넣기. 여전히 불가능합니다.** 위 목록의 모든 항목을 이 빌드에 대해 다시
+확인했습니다. 배너는 여전히 Electron 번들 안에서 컴파일된 `react-intl` 메시지
+id(`codex.upsellBanner.*.headline`, `codex.upsellBanner.cta.*`)로 조립되며, 그 근처 어디에도 id도,
+슬롯도, prop도, 플러그인 훅도 없습니다. 플러그인 매니페스트에도, MCP 스키마에도, 앱이 자체적으로
+담고 있는 플러그인에도 앱 크롬을 가리킬 수 있는 것은 없습니다.
 
-**B — a Codex-native form at the moment of the interruption. Available in principle, not shipped.**
-An MCP server can call `elicitation/create`, and this build renders it: the wire types
-`ElicitRequestParamsWire::Form` and `::Url` are present, and the response is `accept` / `decline`
-/ `cancel`. A boolean property becomes a real checkbox. It carries no turn id, so it is not
-structurally bound to a live turn.
+**B — 중단 시점에 Codex 네이티브 폼 띄우기. 원리상 가능하지만 넣지 않았습니다.** MCP 서버는
+`elicitation/create`를 호출할 수 있고, 이 빌드는 그것을 렌더링합니다. wire 타입
+`ElicitRequestParamsWire::Form`과 `::Url`이 존재하고, 응답은 `accept` / `decline` / `cancel`입니다.
+불리언 속성은 진짜 체크박스가 됩니다. 다만 turn id를 싣지 않으므로, 살아 있는 턴에 구조적으로 묶여
+있지는 않습니다.
 
-It is not shipped anyway, and the reason is honest rather than technical. To reach a person at
-the moment of the interruption, the server would have to push a form into whatever conversation
-happens to be open, about a different conversation that failed - unasked, while they are working
-on something else. It also only reaches them if Codex is open, which is exactly when it is least
-needed, and the feature sits behind `features.tool_call_mcp_elicitation` (Statsig layer
-`223073164`, param `enable_tool_call_mcp_elicitation`), so on a machine where the gate is off it
-would silently do nothing at all. Building an interruption whose delivery cannot be relied on,
-into a place the user did not ask for it, is worse than not building it.
+어쨌든 넣지 않았고, 그 이유는 기술적인 것이 아니라 정직함의 문제입니다. 중단 시점에 사람에게
+닿으려면, 서버는 마침 열려 있는 대화가 무엇이든 그 안으로 폼을 밀어 넣어야 합니다. 실패한 것은 다른
+대화인데 말입니다. 묻지도 않았는데, 사용자가 다른 일을 하고 있는 중에 말입니다. 게다가 Codex가
+열려 있어야만 닿는데, 그때는 이 기능이 가장 덜 필요한 때이기도 합니다. 그리고 이 기능은
+`features.tool_call_mcp_elicitation` 뒤에 있어서(Statsig layer `223073164`, param
+`enable_tool_call_mcp_elicitation`), 그 게이트가 꺼진 기기에서는 아무 말 없이 아무것도 하지 않게
+됩니다. 전달을 믿을 수 없는 방해를, 사용자가 요청하지도 않은 자리에 만들어 넣는 것은 아예 만들지
+않는 것보다 나쁩니다.
 
-What *is* shipped is the same mechanism where it belongs: an MCP settings panel the user opens by
-asking. It renders in the conversation as a `ui://` resource on a read-only tool result, shows the
-current state and every option, and can pause recovery or change a setting - the whole control
-surface, at the moment the user wants it rather than at a moment we chose for them.
+*실제로* 넣은 것은 같은 메커니즘을 제자리에 둔 것입니다. 사용자가 요청해서 여는 MCP 설정
+패널입니다. 읽기 전용 tool 결과 위의 `ui://` 리소스로 대화 안에 렌더링되고, 현재 상태와 모든
+선택지를 보여 주며, 복구를 일시 정지하거나 설정을 바꿀 수 있습니다. 제어 표면 전체가, 우리가 골라
+준 시점이 아니라 사용자가 원하는 시점에 나타나는 것입니다.
 
-**C — a Windows notification. Shipped, and the one that actually arrives.** The watcher raises it
-the moment the interruption is recorded, whether or not Codex is open, carrying the one control
-the checkbox would have offered: a **Don't resume** button for that exact conversation, with
-resuming as the default. It is not inside the Codex notice, but it arrives at the same moment,
-which is the part that matters.
+**C — Windows 알림. 넣었고, 실제로 도착하는 것은 이것입니다.** 워처는 중단이 기록되는 그 순간에,
+Codex가 열려 있든 아니든 알림을 띄웁니다. 체크박스가 주었을 컨트롤 하나를 그대로 담아서 말입니다.
+바로 그 대화 하나에 대한 **재개하지 않음** 버튼이고, 기본값은 재개입니다. Codex 안내 안에 있지는
+않지만 같은 순간에 도착하며, 중요한 부분은 그쪽입니다.
 
-None of this is worked around. The only ways to put a control in that banner would be DOM or
-renderer injection, an Electron or binary patch, a CDP/DevTools bridge, accessibility-control
-injection, or GUI automation - all of them out of scope by design, and all of them would make
-this tool something a person should not install.
+이 중 무엇도 우회하지 않았습니다. 그 배너에 컨트롤을 넣는 유일한 방법은 DOM이나 렌더러 인젝션,
+Electron 또는 바이너리 패치, CDP/DevTools 브리지, 접근성 컨트롤 인젝션, GUI 자동화뿐인데, 전부
+설계상 범위 밖이고, 전부 이 도구를 사람이 설치해서는 안 되는 물건으로 만듭니다.
 
-## Local installs copy the whole working tree
+## 로컬 설치는 작업 트리 전체를 복사합니다
 
-Installing from a local path copies every file in the directory, including files Git ignores
-(`config/`, `logs/`, build scratch). Installing from GitHub clones the repository, so only
-tracked files ship. Prefer the GitHub source unless you are developing the plugin.
+로컬 경로에서 설치하면 Git이 무시하는 파일(`config/`, `logs/`, 빌드 임시 파일)까지 포함해 그
+디렉터리의 모든 파일이 복사됩니다. GitHub에서 설치하면 저장소를 클론하므로 추적되는 파일만
+들어갑니다. 플러그인을 개발하는 것이 아니라면 GitHub 쪽을 쓰세요.
 
-This is not what the installer does, despite also registering a local marketplace. It points
-Codex at the installed application directory, which is a payload the build assembled from an
-explicit list — no ignored files, no scratch, and no working tree to leak from. Doing it that
-way means the plugin is installed from the same bytes the archive's checksum covers, rather
-than from a second download.
+설치기도 로컬 마켓플레이스를 등록하기는 하지만, 설치기가 하는 일은 이것이 아닙니다. 설치기는
+Codex를 설치된 애플리케이션 디렉터리로 가리키는데, 그것은 빌드가 명시적인 목록에서 조립한
+payload입니다. 무시된 파일도, 임시 파일도 없고, 새어 나올 작업 트리 자체가 없습니다. 그렇게 하면
+플러그인은 두 번째 다운로드가 아니라, 압축 파일의 체크섬이 덮는 것과 같은 바이트에서 설치됩니다.
 
-Two details of that registration. If the `codex-auto-resume-windows` marketplace name is
-already registered from a different source, the installer removes that registration and adds
-this installation in its place. It then asks Codex to upgrade that one marketplace by name,
-`codex plugin marketplace upgrade codex-auto-resume-windows`, rather than the form without a
-name, which, by Codex's own help text, refreshes every Git marketplace you have configured. For
-the local marketplace it has just registered, the named upgrade does nothing; it fetches
-anything only if an earlier Git registration of that name survived the repointing. The named
-form is new in v0.6.0; the installer in v0.5.7 and earlier runs the form without a name.
+이 등록에는 짚어 둘 점이 두 가지 있습니다. `codex-auto-resume-windows`라는 마켓플레이스 이름이 이미 다른 출처로 등록되어 있으면, 설치기는 그
+등록을 지우고 이 설치본을 대신 등록합니다. 그다음 Codex에게 그 마켓플레이스 하나만 이름으로 지정해 업그레이드하라고 요청합니다. `codex plugin
+marketplace upgrade codex-auto-resume-windows`이며, 이름 없는 형태를 쓰지 않습니다. 이름 없는 형태는 Codex 자체 도움말에
+따르면 사용자가 설정해 둔 모든 Git 마켓플레이스를 새로 고칩니다. 방금 등록한 로컬 마켓플레이스에 대해서는 이름을 지정한 업그레이드가 아무 일도 하지 않습니다. 그
+이름으로 된 예전 Git 등록이 교체 과정에서 살아남은 경우에만 무언가를 가져옵니다. 이름을 지정하는 형태는 이번 릴리스부터입니다. 현재 최신 릴리스와 그 이전의 설치기는
+이름 없는 형태를 실행합니다.
 
-## Long paths
+## 긴 경로
 
-The plugin cache path plus the script path can exceed the Windows `MAX_PATH` limit of 260
-characters if `CODEX_HOME` is itself deeply nested. The default location is short and unaffected.
+`CODEX_HOME` 자체가 깊이 중첩되어 있으면, 플러그인 캐시 경로에 스크립트 경로를 더한 길이가
+Windows의 `MAX_PATH` 제한인 260자를 넘을 수 있습니다. 기본 위치는 짧아서 영향받지 않습니다.
 
-## The public Plugin Directory, and why this plugin is not in it
+## 공개 플러그인 디렉터리, 그리고 이 플러그인이 거기 없는 이유
 
-Checked against OpenAI's current submission documentation on 2026-09-12, because the answer
-had changed shape since it was last looked at and it is not the answer this project wanted.
+2026-09-12에 OpenAI의 현재 제출 문서를 상대로 확인했습니다. 마지막으로 살펴본 뒤로 답의 모양이
+바뀌었고, 이 프로젝트가 바라던 답도 아니기 때문입니다.
 
-A directory listing needs a verified publisher identity and an organisation role with
-Apps Management write access; a name, a short and a long description, a logo and a
-category; website, support, privacy and terms URLs; the skill bundle; five positive test
-cases with fixtures, three negative ones, five starter prompts, release notes; and the
-regions it should be available in. All of that is preparable, and most of it exists
-already in this repository.
+디렉터리에 올리려면 확인된 게시자 신원과 Apps Management 쓰기 권한을 가진 조직 역할이 필요하고,
+이름과 짧은 설명과 긴 설명, 로고와 분류, 웹사이트·지원·개인정보·약관 URL, 스킬 묶음, 픽스처가
+딸린 긍정 테스트 다섯 가지와 부정 테스트 세 가지, 시작 프롬프트 다섯 개, 릴리스 노트, 그리고
+제공할 지역이 필요합니다. 이 모두는 준비할 수 있고, 대부분은 이미 이 저장소에 있습니다.
 
-One requirement is not preparable, and it is the one that decides this:
+준비할 수 없는 요건이 하나 있고, 그것이 결론을 정합니다.
 
-> If your MCP server runs locally, deploy it to a public HTTPS URL. If you can't, reach
-> out to your OpenAI contact for local MCP support.
+> MCP 서버가 로컬에서 돈다면 공개 HTTPS URL에 배포하십시오. 그럴 수 없다면 OpenAI 담당자에게
+> 로컬 MCP 지원을 문의하십시오.
 
-This product's MCP server is a local executable, on purpose. Making it a public HTTPS
-endpoint would mean this project operating a server that receives people's recovery state,
-which is the single thing `PRIVACY.md` says it does not do and will not do. So there are
-three routes and only one of them is this product:
+이 제품의 MCP 서버는 일부러 로컬 실행 파일입니다. 그것을 공개 HTTPS 엔드포인트로 만든다는 것은
+이 프로젝트가 사람들의 복구 상태를 받는 서버를 운영한다는 뜻이고, 그것은 `PRIVACY.md`가 하지
+않는다고, 하지 않겠다고 적은 바로 그 하나입니다. 그래서 길은 셋이고, 그중 이 제품인 것은
+하나뿐입니다.
 
-1. **Submit as skills-only**, dropping the MCP server from the listing. That removes the
-   panel inside Codex and the typed control tools - a different product with the same name,
-   and the one a person would install from the directory would be the lesser one.
-2. **Ask OpenAI about local MCP support**, which the documentation names as the route for
-   exactly this case. That is a conversation a person has, not something a release can do.
-3. **Stay off the directory** and be installed the way it is installed today, from this
-   repository's marketplace.
+1. **스킬만으로 제출하고** 목록에서 MCP 서버를 뺀다. 그러면 Codex 안의 패널과 형식 있는 제어
+   도구가 사라집니다. 이름만 같은 다른 제품이고, 디렉터리에서 설치한 사람이 받는 것은 더 못한
+   쪽입니다.
+2. **OpenAI에 로컬 MCP 지원을 문의한다.** 문서가 바로 이 경우의 길로 이름 붙인 것입니다. 그것은
+   사람이 하는 대화이지 릴리스가 할 수 있는 일이 아닙니다.
+3. **디렉터리에 올리지 않고**, 지금처럼 이 저장소의 마켓플레이스에서 설치한다.
 
-Until (2) has an answer, (3) is what happens, and this section is here so that is a
-recorded decision rather than a thing nobody got round to.
+(2)에 답이 오기 전까지는 (3)이 일어납니다. 이 절은 그것이 아무도 손대지 않은 일이 아니라 기록된
+결정이 되도록 여기 있습니다.

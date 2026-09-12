@@ -1,459 +1,393 @@
-# Privacy
+# 개인정보
 
-Codex Auto Resume runs on your machine. It has no server, no account and no telemetry, and
-the watcher makes no outbound network request of its own.
+> 🌐 한국어 문서입니다. English version: [`main` 브랜치의 PRIVACY.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/PRIVACY.md)
 
-It does cause network traffic, though, and that is worth stating up front rather than in a
-footnote. There are three kinds, and they are genuinely different:
+Codex Auto Resume는 사용자의 PC에서 실행됩니다. 서버도, 계정도, 텔레메트리도 없으며, 워처는 스스로
+바깥으로 나가는 네트워크 요청을 하지 않습니다.
 
-- **OpenAI, through Codex.** The watcher drives the official Codex binary already signed in
-  on your machine. When a recovery is due, it asks Codex for your current usage, and Codex
-  asks OpenAI. Codex identifies these requests as coming from this tool (client name
-  `codex_auto_resume` and a version number), so OpenAI can see that you use it and when it
-  checks. The resumed turn itself runs in your Codex desktop app and goes to OpenAI like any
-  turn you start. And when you use the plugin's tools inside a Codex conversation, what they
-  return becomes part of that conversation.
-- **GitHub and, through Codex's marketplace refresh, other marketplace hosts, at install.**
-  Installing or updating from the Codex plugin downloads the release from GitHub, as does
-  downloading the ZIP yourself. The installer then asks Codex to refresh marketplaces: the
-  installers of v0.4.0 through v0.5.7 refresh every Git marketplace you have configured,
-  wherever it is hosted, while the installer from v0.6.0, refreshes only a surviving `codex-auto-resume-windows` registration, from
-  wherever it points.
+그렇다고 네트워크 트래픽을 전혀 일으키지 않는 것은 아니며, 이 점은 각주가 아니라 앞에서 밝히는 편이
+맞습니다. 종류는 두 가지이고, 실제로 서로 다른 이야기입니다.
 
-- **GitHub, when you ask whether there is a newer version.** From v0.6.0 the Diagnostics
-  page has a *Check for updates* button, and `scripts/bootstrap.ps1 -CheckOnly` does the
-  same from a command line. Pressing it makes one HTTPS request to
-  `github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest`. It is a `HEAD`
-  request, so no page is transferred and none is read: the answer is the address the
-  redirect ends at. Choosing to install then downloads that release's archive and its
-  checksum, which is the same download the installer has always made.
+- **Codex를 거친 OpenAI.** 워처는 이 PC에 이미 로그인되어 있는 공식 Codex 바이너리를 움직입니다. 복구할
+  때가 되면 Codex에게 현재 사용량을 묻고, Codex는 그것을 OpenAI에 묻습니다. Codex는 이 요청이 이 도구에서
+  온 것임을 밝히므로(클라이언트 이름 `codex_auto_resume`과 버전 번호), OpenAI는 사용자가 이 도구를 쓴다는
+  것과 언제 사용량을 확인하는지 알 수 있습니다. 재개된 턴 자체는 사용자의 Codex 데스크톱 앱에서 실행되며,
+  사용자가 직접 시작한 턴과 똑같이 OpenAI로 갑니다. 또 Codex 대화 안에서 플러그인의 도구를 쓰면, 도구가
+  돌려준 내용이 그 대화의 일부가 됩니다.
+- **설치할 때의 GitHub, 그리고 Codex의 마켓플레이스 새로 고침을 거친 다른 마켓플레이스 호스트.** Codex
+  플러그인으로 설치하거나 업데이트할 때, 그리고 ZIP을 직접 내려받을 때 GitHub에서 릴리스를 내려받습니다.
+  이어서 설치기는 Codex에게 마켓플레이스를 새로 고치라고 요청합니다. v0.4.0부터 현재 최신 릴리스(이번 릴리스)까지의 설치기는 사용자가 설정해 둔 모든 Git 마켓플레이스를, 어디에 호스팅되어 있든, 새로 고치고, main
+  브랜치의 설치기는 남아 있는 `codex-auto-resume-windows` 등록 하나만 그 등록이 가리키는 곳에서 새로 고칩니다.
+  이 설치기는 이번 릴리스부터입니다.
 
-  Nothing about you is sent. The request carries no identifier this product invented — no
-  installation id, no version of yours, no machine name, no account — and GitHub sees what
-  it sees for any anonymous request to a public page: an IP address, a time and a user
-  agent. It happens when you press the button and at no other time.
+- **새 버전이 있는지 물어볼 때의 GitHub.** 이번 릴리스부터 진단 쪽에 *업데이트 확인* 단추가
+  있고, 명령줄에서는 `scripts/bootstrap.ps1 -CheckOnly`가 같은 일을 합니다. 누르면
+  `github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest`로 HTTPS 요청을
+  한 번 보냅니다. `HEAD` 요청이라 페이지 본문은 오가지도 않고 읽지도 않습니다. 답은 리디렉션이
+  끝난 주소입니다. 설치하기로 하면 그 릴리스의 보관 파일과 체크섬을 내려받는데, 이는 설치기가
+  예전부터 해 온 그 내려받기와 같습니다.
 
-**There is no automatic update check.** Nothing polls, nothing checks on a schedule, and
-nothing checks when the window opens or when the watcher starts. A machine that is never
-asked makes none of these requests, and a machine that never installs makes none of the
-GitHub requests at all.
+  사용자에 관한 것은 아무것도 보내지 않습니다. 이 제품이 만들어 낸 식별자는 요청에 실리지
+  않습니다. 설치 식별자도, 사용자의 버전도, 기계 이름도, 계정도 없습니다. GitHub가 보는 것은
+  공개된 쪽에 익명으로 들어온 여느 요청과 같은 IP 주소와 시각, 사용자 에이전트뿐입니다. 그리고
+  단추를 누를 때만 일어납니다.
 
-The sections below take each in turn.
+**자동 업데이트 확인은 없습니다.** 주기적으로 묻는 것도, 일정에 따라 확인하는 것도 없고, 창을
+열 때나 워처가 시작할 때 확인하지도 않습니다. 아무도 묻지 않은 기계는 이 요청을 하나도 하지
+않으며, 설치하지 않는 기계는 GitHub 요청 자체를 하지 않습니다.
 
-## What it sends to the developer
+아래 절에서 하나씩 설명합니다.
 
-Nothing, beyond the aggregate download count GitHub shows for every release (see
-[Installing it](#installing-it)) and, if you press *Check for updates*, one more anonymous
-request to a public GitHub page. There is no telemetry, no analytics, no crash reporting,
-no opt-in reporting and no automatic update check — no endpoint of any kind exists to
-receive them, because no collection service is operated for this project. Local statistics
-in the window are read from your own database and never leave it.
+## 개발자에게 무엇을 전송하는가
 
-Specifically, this tool itself sends none of the following to its developer or to anyone
-else; what reaches OpenAI through Codex is described next:
+GitHub가 모든 릴리스에 대해 보여 주는 전체 다운로드 수 말고는([설치할 때](#설치할-때) 참고) 아무것도
+전송하지 않습니다. *업데이트 확인*을 누르면 공개된 GitHub 쪽에 익명 요청이 하나 더 갑니다.
+텔레메트리도, 분석도, 크래시 리포트도, 옵트인 방식의 보고도, 자동 업데이트 확인도 없으며 —
+그것을 받을 엔드포인트 자체가 어디에도 없습니다. 이 프로젝트를 위해 운영하는 수집 서비스가
+없기 때문입니다. 창에 보이는 통계는 사용자의 데이터베이스에서 읽으며 그 밖으로 나가지 않습니다.
 
-- your prompts, or any conversation content;
-- assistant replies;
-- tool input or tool output;
-- file or repository contents;
-- account identifiers, email addresses or subscription details;
-- credentials, API keys, tokens or cookies;
-- raw error bodies from the provider;
-- conversation titles, project names or working directory paths;
-- conversation UUIDs, recovery counts or any other statistic about what it did.
+구체적으로, 이 도구 자체는 다음 중 어느 것도 개발자에게든 다른 누구에게든 보내지 않습니다. Codex를 거쳐
+OpenAI로 가는 것은 바로 다음에 설명합니다:
 
-Some of it does leave your computer, and then through Codex, to OpenAI (or, for the
-conversation, to whichever model provider you have configured Codex to use): the
-conversation, when the desktop app runs the resumed turn; the usage check, which Codex
-makes with your existing sign-in and identifies as coming from this tool; and, when you use
-the plugin inside a Codex conversation, whatever its tools and commands return — which can
-include conversation UUIDs, recovery counts and local paths.
-[When you use it from Codex](#when-you-use-it-from-codex) says exactly what that is.
+- 프롬프트, 그리고 대화 내용 일체;
+- 어시스턴트 응답;
+- 도구 입력과 도구 출력;
+- 파일이나 저장소 내용;
+- 계정 식별자, 이메일 주소, 구독 정보;
+- 자격 증명, API 키, 토큰, 쿠키;
+- 제공자가 보낸 오류 본문 원문;
+- 대화 제목, 프로젝트 이름, 작업 디렉터리 경로;
+- 대화 UUID, 복구 횟수, 그 밖에 무엇을 했는지에 관한 어떤 통계도.
 
-This is a property of the code rather than a policy: nothing under `src/` or `scripts/*.py`
-imports a networking module, and a test fails if an import statement names one, so the
-watcher opens no connection of its own. The connections it causes go through the official
-Codex binary.
+다만 위 목록 가운데 일부는 이 PC를 떠나며, 그때는 Codex를 거쳐 OpenAI로 갑니다(대화의 경우, Codex에
+다른 모델 제공자를 설정해 두었다면 그 제공자로 갑니다). 데스크톱 앱이 재개된 턴을 실행할 때의 그 대화,
+Codex가 기존 로그인으로 수행하며 이 도구에서 온 요청이라고 밝히는 사용량 확인, 그리고 Codex 대화 안에서
+플러그인을 쓸 때 그 도구와 명령이 돌려주는 내용입니다. 마지막 것에는 대화 UUID, 복구 횟수, 로컬 경로가
+들어갈 수 있습니다. 정확히 무엇인지는 [Codex 안에서 사용할 때](#codex-안에서-사용할-때)에 적어 두었습니다.
 
-## Installing it
+이것은 정책이 아니라 코드의 속성입니다. `src/`나 `scripts/*.py` 아래의 어떤 코드도 네트워킹 모듈을
+import하지 않고, import 문이 그런 모듈을 가리키면 테스트가 실패하므로, 워처는 스스로 연결을 열지
+않습니다. 워처가 일으키는 연결은 공식 Codex 바이너리를 거칩니다.
 
-The Codex plugin is the recommended way in, and it is not self-contained: the watcher, the
-settings window and the Windows runtime arrive in the release archive. So when you ask Codex
-to set up auto resume, `scripts/bootstrap.ps1` downloads that archive, unless that version
-is already installed and you did not pass `-Force` (then it re-runs setup instead: it
-repairs the registrations and starts the watcher if it is not running) or you pass it a
-file with `-ArchivePath`.
+## 설치할 때
 
-- The download contacts **github.com** and GitHub's release storage over HTTPS, following at
-  most five redirects. After the download finishes, the host it finally landed on is
-  checked. If it is not one of three GitHub hosts, the file is discarded and nothing from it
-  runs. Because the check comes after the download, a redirect to another host would still
-  send the request there, with the details below, before the file is refused.
-- It downloads at most two things: this version's release archive and, only when the
-  plugin carries no pinned digest for that version, the `.sha256` published beside it.
-- The URL is built from constants in the repository and the plugin's own version. There is
-  no "latest", and nothing you type becomes part of it.
-- It uploads nothing. No prompt, conversation, account identifier, machine identifier or
-  recovery data is attached to the request. GitHub sees your IP address and PowerShell's
-  standard User-Agent, which names your Windows version and locale (for example `ko-KR`),
-  as it would for any download made from PowerShell.
+Codex 플러그인이 권장 설치 경로이고, 이 플러그인은 자립형이 아닙니다. 워처와 설정 창과 Windows 런타임은
+릴리스 압축 파일에 담겨 옵니다. 그래서 Codex에게 auto resume을 설정해 달라고 하면
+`scripts/bootstrap.ps1`이 그 압축 파일을 내려받습니다. 다만 그 버전이 이미 설치되어 있고 `-Force`를 주지
+않았다면 대신 설정을 다시 실행해 등록 항목을 복구하고 워처가 실행 중이 아니면 시작하기만 하고,
+`-ArchivePath`로 파일을 넘기면 그 파일을 쓰며, 이 두 경우에는 압축 파일을
+내려받지 않습니다.
 
-The downloaded archive is checked before anything in it runs: against the digest pinned for
-that version in the plugin's `scripts/release.json`, which comes from the main branch, where
-each version's digest is committed after its release is published; or, for a version with no
-pin yet, against the `.sha256` published beside it. The bootstrap says which of the two it
-used. When you hand the bootstrap a file with `-ArchivePath` instead and the version has no
-pinned digest, there is nothing to compare the file with; the bootstrap says so, and only
-its checks of the archive's contents apply.
+- 다운로드는 HTTPS로 **github.com**과 GitHub의 릴리스 저장소에 접속하며, 리디렉션은 최대 다섯 번까지
+  따라갑니다. 다운로드가 끝난 뒤 최종적으로 도달한 호스트를 확인해, GitHub 호스트 세 곳 중 하나가 아니면
+  파일을 버리고 그 안의 어떤 것도 실행하지 않습니다. 이 확인은 다운로드 뒤에 이루어지므로, 리디렉션이 다른
+  호스트로 향한다면 파일이 거부되기 전에 그 호스트에도 아래에 적은 요청 정보가 전달됩니다.
+- 내려받는 것은 많아야 두 가지입니다. 이 버전의 릴리스 압축 파일, 그리고 그 버전의 digest가 플러그인에
+  고정되어 있지 않을 때에 한해 그 옆에 함께 게시된 `.sha256`입니다.
+- URL은 저장소 안의 상수와 플러그인 자신의 버전으로 만듭니다. "latest"는 쓰지 않으며, 사용자가 입력한
+  무엇도 URL의 일부가 되지 않습니다.
+- 올려 보내는 것은 없습니다. 프롬프트, 대화, 계정 식별자, 기기 식별자, 복구 데이터 중 어느 것도 요청에
+  붙지 않습니다. GitHub가 보는 것은 IP 주소와 PowerShell의 표준 User-Agent이며, 여기에는 Windows 버전과
+  로캘(예: `ko-KR`)이 들어 있습니다. PowerShell로 무엇을 내려받든 마찬가지입니다.
 
-The installer it then runs copies the program into the installation directory, registers
-that copy with Codex as a local plugin marketplace, and installs the plugin from those files,
-so Codex does not fetch the plugin again. Installing repoints the `codex-auto-resume-windows`
-marketplace at this installation, replacing whatever source that name had. The installer
-then asks Codex to refresh marketplaces, and how far that reaches depends on the version:
+내려받은 압축 파일은 그 안의 어떤 것도 실행되기 전에 먼저 검증합니다. 기준은 플러그인에 들어 있는
+`scripts/release.json`에 그 버전용으로 고정된 digest입니다. 이 파일은 main 브랜치에서 오며, 각 버전의
+digest는 그 릴리스가 게시된 뒤에 커밋됩니다. 아직 고정된 digest가 없는 버전이라면 그 옆에 게시된
+`.sha256`과 대조합니다. 둘 중 무엇으로 검증했는지는 bootstrap이 알려 줍니다. 대신 `-ArchivePath`로 파일을
+넘겼는데 그 버전에 고정된 digest가 없다면 그 파일과 대조할 대상이 없습니다. bootstrap은 그렇다고 알려
+주며, 그때는 압축 파일 내용에 대한 검사만 적용됩니다.
 
-- From v0.6.0, the installer runs `codex plugin marketplace upgrade codex-auto-resume-windows`
-— this product's marketplace, by name, and not the form that refreshes every Git marketplace
-you have configured. For the local marketplace just registered, that command does nothing; it
-only has an effect if an earlier registration under that name is still in place, and then Codex
-refreshes it from wherever that registration points (normally GitHub). This is new in v0.6.0. -
-The installers of v0.4.0 through v0.5.7 run `codex plugin marketplace upgrade` with no name.
-Codex's own help describes that form as upgrading all the Git marketplaces you have configured,
-so installing one of those releases can contact other marketplaces' hosts as well as GitHub.
+이어서 실행되는 설치기는 프로그램을 설치 디렉터리에 복사하고, 설치 디렉터리에 복사한 그 사본을 Codex에
+로컬 플러그인 마켓플레이스로 등록한 뒤 그 파일에서 플러그인을 설치하므로, Codex가 플러그인을 다시
+내려받지 않습니다. 설치하면 `codex-auto-resume-windows`
+마켓플레이스가 이 설치를 가리키도록 바뀌며, 그 이름에 등록되어 있던 출처는 무엇이든 대체됩니다. 이어서
+설치기는 Codex에게 마켓플레이스를 새로 고치게 하는데, 그 범위는 버전에 따라 다릅니다:
 
-GitHub therefore sees an ordinary download request, with the IP address and User-Agent
-described above, and counts it in the repository's public download total; no wording here
-can make installing this tool invisible to GitHub. Downloading the ZIP yourself from the
-releases page is the same kind of GitHub download, counted the same way. After that,
-`Install.cmd` itself downloads nothing: it installs from the files already on disk, and its
-only download-like step is the marketplace refresh described above. The Codex commands it
-runs may do whatever any Codex process does at start-up, and the watcher it starts behaves
-as described under [What it runs](#what-it-runs).
+- main 브랜치의 설치기는 `codex plugin marketplace upgrade codex-auto-resume-windows`를 실행합니다. 이 제품의
+  마켓플레이스를 이름으로 지정한 것이며, 사용자가 설정해 둔 Git 마켓플레이스를 모두 새로 고치는 형태는
+  쓰지 않습니다. 방금 등록한 로컬 마켓플레이스에 대해서는 이 명령이 아무 일도 하지 않습니다. 그 이름의
+  예전 등록이 남아 있을 때에만 효과가 있고, 그때는 Codex가 그 등록이 가리키는 곳(보통은 GitHub)에서 새로
+  고칩니다. 이 동작은 이번 릴리스부터입니다.
+- v0.4.0부터 현재 최신 릴리스까지의 설치기는 이름 없이 `codex plugin marketplace upgrade`를 실행합니다.
+  Codex 자신의 도움말은 이 형태를, 사용자가 설정해 둔 모든 Git 마켓플레이스를 업그레이드하는 것으로
+  설명합니다. 따라서 그 릴리스들을 설치하면 GitHub뿐 아니라 다른 마켓플레이스의 호스트에도 접속할 수
+  있습니다.
 
-On that route nothing in this tool checks the archive for you — `Install.cmd` installs
-whatever it was unpacked from — so check the ZIP before you extract it. In PowerShell:
+따라서 GitHub는 여느 다운로드와 마찬가지로, 위에서 말한 IP 주소와 User-Agent가 붙은 평범한 다운로드 요청
+하나를 보게 되고, 저장소의 공개 다운로드 집계에 그것을 더합니다. 여기서 어떤 표현을 쓰더라도 이 도구를
+설치하는 일이 GitHub에 보이지 않게 되지는 않습니다. 릴리스 페이지에서 ZIP을 직접 내려받는 것도 같은
+종류의 GitHub 다운로드이며, 똑같이 집계됩니다. 그 뒤로 `Install.cmd` 자체는 아무것도 내려받지 않습니다.
+이미 디스크에 있는 파일로 설치하며, 다운로드에 해당하는 단계는 위에서 설명한 마켓플레이스 새로 고침
+하나뿐입니다. 설치기가 실행하는 Codex 명령은 여느 Codex 프로세스가 시작할 때 하는 일을 할 수 있고,
+설치기가 시작하는 워처는 [무엇을 실행하는가](#무엇을-실행하는가)에 적은 대로 동작합니다.
+
+이 경로에서는 이 도구의 어떤 부분도 압축 파일을 대신 검증해 주지 않습니다. `Install.cmd`는 자신이 들어
+있던 압축 파일을 검증하지 않습니다. 그러니 압축을 풀기 전에 ZIP을 확인하세요. PowerShell에서:
 
 ```powershell
 (Get-FileHash .\CodexAutoResume-vX.Y.Z-win-x64.zip -Algorithm SHA256).Hash
 ```
 
-Compare the result, ignoring case, with the `.sha256` file published beside the archive,
-and with the digest pinned for that version in
-[`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json)
-on the main branch. The pinned digest reaches you by a different channel — a commit in this
-repository, not a release asset. A version is pinned once its archive has been published,
-so for the newest release there may briefly be only the `.sha256` to compare with. With the
-GitHub CLI you can also check which workflow built the archive, for releases from v0.5.4 on
-(this asks GitHub for the archive's attestation, and fetches Sigstore's public signing
-roots):
+출력된 값을 압축 파일 옆에 게시된 `.sha256` 파일, 그리고 main 브랜치의
+[`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json)에 그 버전용으로 고정된 digest와 대조합니다. 대소문자는
+구분하지 않습니다. 고정된 digest는 다른 경로로 전달됩니다. 릴리스 에셋이 아니라 이 저장소의 커밋입니다.
+버전은 압축 파일이 게시된 뒤에 고정되므로, 가장 새 릴리스라면 잠시 동안은 `.sha256`만 대조할 수 있을 수도
+있습니다. GitHub CLI가 있으면 v0.5.4 이후 릴리스에 대해 어떤 워크플로가 압축 파일을 빌드했는지도 확인할 수
+있습니다(이 명령은 GitHub에 압축 파일의 attestation을 요청하고, Sigstore의 공개 서명 루트를 내려받습니다).
 
 ```powershell
 gh attestation verify .\CodexAutoResume-vX.Y.Z-win-x64.zip --repo songyb111-gachon/codex-auto-resume-windows
 ```
 
-An attestation says which workflow run built the archive. Every archive published so far,
-v0.5.0 through v0.5.7, was built by the earlier single-job release workflow, which referred to
-its GitHub Actions by floating tags rather than pinned commits, and the executables in those
-archives are not reproducible, so you cannot rebuild them byte for byte to compare. The
-separate build and publish jobs, the commit-pinned actions and the reproducible executables are
-new in v0.6.0. Nothing this project builds is Authenticode-signed — the two executables,
-`Install.cmd`, `Uninstall.cmd` and the PowerShell scripts — while the bundled Python
-interpreter (`pythonw.exe`, `python.exe` and its DLLs) keeps the Python Software Foundation's
-signature.
+attestation이 알려 주는 것은 어느 워크플로 실행이 압축 파일을 빌드했는지입니다. 지금까지 게시된 압축 파일, 곧 v0.5.0부터 현재 최신 릴리스까지는 모두
+예전의 단일 작업 릴리스 워크플로가 빌드했습니다. 그 워크플로는 GitHub Actions를 고정된 커밋이 아니라 움직이는 태그로 참조했고, 그 압축 파일에 든 실행
+파일은 재현 가능하지 않으므로 직접 빌드해서 바이트 단위로 대조할 수 없습니다. 빌드와 게시 작업의 분리, 커밋으로 고정한 action, 재현 가능한 실행 파일은 이번
+릴리스부터입니다. 이 프로젝트가 빌드하는 것 — 실행 파일 두 개, `Install.cmd`, `Uninstall.cmd`, PowerShell 스크립트 — 은 어느 것도
+Authenticode 서명이 되어 있지 않습니다. 함께 담긴 Python 인터프리터(`pythonw.exe`, `python.exe`와 그 DLL)는 Python
+Software Foundation의 서명을 그대로 유지합니다.
 
-The watcher itself contacts no GitHub host: the code that reaches the network is the
-PowerShell installer, and a test fails if any module under `src/` or `scripts/*.py` imports
-a networking module. The update check is that same installer, run by the button rather than
-on a schedule, and never by the watcher. A Codex
-process, including one this tool starts, may refresh Git marketplaces of its own accord;
-that is Codex's behaviour, and once installing has
-repointed this product's marketplace, it points at the local copy rather than at GitHub.
+워처 자체는 어떤 GitHub 호스트에도 접속하지 않습니다. 네트워크에 닿는 코드는 PowerShell
+설치기이며, `src/`나 `scripts/*.py`의 모듈이 네트워크 모듈을 import하면 테스트가 실패합니다.
+업데이트 확인은 그 설치기를 일정이 아니라 단추가 실행하는 것이고, 워처가 실행하는 일은 결코
+없습니다. Codex
+프로세스는, 이 도구가 시작한 것까지 포함해, 스스로 Git 마켓플레이스를 새로 고칠 수 있습니다. 그것은 Codex의 동작이며, 설치가 이 제품의 마켓플레이스를 다시 지정한
+뒤에는 그 마켓플레이스가 GitHub가 아니라 로컬 사본을 가리킵니다.
 
-## What it reads
+## 무엇을 읽는가
 
-It reads Codex's own local state to notice that a task was interrupted and to decide when
-resuming is safe. Codex's databases are opened read-only (SQLite `mode=ro` with
-`query_only`), and rollout files are opened for reading only:
+작업이 중단되었다는 것을 알아채고 재개해도 안전한지 판단하기 위해 Codex 자신의 로컬 상태를 읽습니다.
+Codex의 데이터베이스는 읽기 전용(SQLite `mode=ro`와 `query_only`)으로 열고, rollout 파일은 읽기용으로만
+엽니다:
 
-- lifecycle records — whether a turn failed, when, and where it sits in the conversation;
-- the error Codex recorded for the failed turn. The category comes from the structured error
-  code Codex recorded and the HTTP status it carries. The error's message text is consulted
-  only when Codex recorded no code at all, and then only for a short fixed list of
-  connection, timeout and stream-interruption phrases. Either way only a category name is
-  kept, and the error itself is dropped at once;
-- the exact conversation UUID, turn id and turn ordinal;
-- the conversation's row in Codex's thread list and the first line of its rollout file (the
-  session header). The header is parsed whole, up to 256 KiB, and only its id and origin
-  fields are used, to confirm the conversation is a desktop-app conversation it may act on.
-  The header can hold other session details as well, such as the working directory's full
-  path; those are parsed and discarded;
-- rate-limit and usage snapshots, for the reset timestamp;
-- `threads.name`, the project name and the working directory (only its last segment is
-  kept), used only as labels in a notification.
+- 수명 주기 기록 — 턴이 실패했는지, 언제였는지, 대화 안에서 몇 번째 턴인지;
+- 실패한 턴에 대해 Codex가 기록한 오류. 분류는 Codex가 기록한 구조화된 오류 코드와 거기 담긴 HTTP 상태로
+  정합니다. 오류 메시지 문구는 Codex가 코드를 전혀 기록하지 않았을 때에만 참고하며, 그때도 정해 둔 몇 가지
+  연결·시간 초과·스트림 중단 문구만 찾습니다. 어느 경우든 남는 것은 분류 이름 하나이고, 오류 자체는 곧바로
+  버립니다;
+- 정확한 대화 UUID, 턴 id, 턴 번호;
+- Codex 스레드 목록에 있는 그 대화의 행, 그리고 rollout 파일의 첫 줄(세션 헤더). 헤더는 최대 256 KiB까지
+  통째로 파싱하지만, 쓰는 것은 id와 출처를 나타내는 필드뿐입니다. 이 도구가 다뤄도 되는 데스크톱 앱
+  대화인지 확인하기 위해서입니다. 헤더에는 작업 디렉터리의 전체 경로 같은 다른 세션 정보도 들어 있을 수
+  있으며, 그것은 파싱한 뒤 버립니다;
+- 리셋 시각을 얻기 위한 rate limit·사용량 스냅숏;
+- `threads.name`, 프로젝트 이름, 작업 디렉터리(마지막 조각만 남깁니다). 알림에 표시할 이름으로만 씁니다.
 
-It also asks Windows content-free questions, chiefly two: which ChatGPT and Codex processes are
-running (process id, parent and executable path), to find the desktop app; and, through the
-Restart Manager, which process has the conversation's lock file open, to tell whether the
-conversation is open in the app. The rest are content-free too: the path and start time of a
-process it found, to confirm it is still the same one; the per-user registry values it
-registered itself; and the integrity level of the watcher's single-instance mutex and stop
-event, a check that is new in v0.6.0.
+그 밖에 Windows에 내용과 무관한 질문을 하며, 주된 것은 두 가지입니다. 데스크톱 앱을 찾기 위해 어떤 ChatGPT·Codex 프로세스가 실행 중인지(프로세스
+id, 부모, 실행 파일 경로)를 묻고, 대화가 앱에 열려 있는지 알기 위해 그 대화의 잠금 파일을 어느 프로세스가 열고 있는지를 재시작 관리자에 묻습니다. 나머지 질문도
+내용과 무관합니다. 찾아낸 프로세스가 여전히 같은 프로세스인지 확인하기 위한 그 프로세스의 경로와 시작 시각, 이 도구가 직접 등록한 사용자 단위 레지스트리 값, 그리고
+워처의 단일 인스턴스 뮤텍스와 중지 이벤트의 무결성 수준입니다. 마지막 확인은 이번 릴리스부터입니다.
 
-No decision rests on the text of your messages, except whether one of them carries this
-tool's own marker (below). It never selects the `title`, `preview` or
-`first_user_message` columns, which on the current Codex schema contain the raw first
-message, and the conversation-name label comes from `threads.name` only. Identity always
-comes from the UUID, never from a label.
+어떤 판단도 사용자 메시지의 문구에 기대지 않습니다. 예외는 그 가운데 하나에 이 도구 자신의 마커가 들어
+있는지 여부뿐입니다(아래 참고). `title`, `preview`, `first_user_message` 열은 조회하지
+않습니다. 현재 Codex 스키마에서 이 열들은 첫 메시지 원문을 담고 있습니다. 대화 이름으로 표시하는 이름은
+`threads.name`에서만 옵니다. 식별은 언제나 UUID로 하며, 표시용 이름으로 하지 않습니다.
 
-Three reads pass over your conversation itself, and it is better to say so plainly:
+대화 자체를 거쳐 가는 읽기가 세 가지 있고, 이것은 분명히 밝혀 두는 편이 낫습니다:
 
-- **For a usage limit only**, to find when the limit resets, it reads up to 8 MiB of the
-  conversation's rollout file ending at the failure, into memory. That part of the file is
-  your conversation. It keeps only the rate-limit numbers and whether the failure was a
-  usage limit, and discards the rest when the scan ends.
-- **To prove its own message arrived**, it has SQLite search that conversation's user
-  messages and queued messages for its own marker. SQLite reads those rows to answer; only
-  rows containing the marker — the tool's own continuation message — come back.
-- **To read what its own message led to**, it asks SQLite how many items of each kind the one
-  turn that message started holds, whether any user message in that turn is not its own, and
-  whether a later turn has finished. Those rows are your conversation — the assistant's replies
-  in that turn, and anyone else's messages in it — but only counts and yes/no answers come back,
-  never text. What is kept is that turn's status and whether anything was produced in it.
+- **사용량 한도일 때에만**, 한도가 언제 풀리는지 알기 위해 대화의 rollout 파일에서 실패 지점까지 최대
+  8 MiB를 메모리로 읽습니다. 파일의 그 부분은 사용자의 대화입니다. rate limit 숫자와 그 실패가 사용량
+  한도였는지 여부만 남기고, 나머지는 검사가 끝날 때 버립니다.
+- **자기 메시지가 도착했는지 증명하기 위해**, SQLite가 그 대화의 사용자 메시지와 큐에 든 메시지에서 이
+  도구의 마커를 찾게 합니다. SQLite는 답을 내기 위해 그 행들을 읽지만, 돌아오는 것은 마커가 든 행 — 이
+  도구가 보낸 continuation 메시지 — 뿐입니다.
+- **자기 메시지가 무엇으로 이어졌는지 읽기 위해**, 그 메시지가 시작한 턴 하나에 어떤 종류의 항목이 몇 개
+  있는지, 그 턴의 사용자 메시지 중 자기 것이 아닌 것이 있는지, 그 뒤에 끝난 턴이 있는지를 SQLite에
+  묻습니다. 그 행들은 사용자의 대화입니다 — 그 턴의 어시스턴트 응답이고, 그 턴에 들어온 다른 사람의
+  메시지입니다. 다만 돌아오는 것은 개수와 예/아니오뿐이고 본문은 아닙니다. 남는 것은 그 턴의 상태와, 그
+  안에서 무언가 만들어졌는지 여부입니다.
 
-No conversation content from any of them is stored, logged or sent. What is kept is the reset
-time (which is also logged) and the limit's bucket name, and the id of the tool's own queued
-message.
+어느 것에서도 대화 내용은 저장되거나 로그에 남거나 전송되지 않습니다. 남는 것은 리셋 시각(로그에도
+남습니다)과 한도의 bucket 이름, 그리고 이 도구가 큐에 넣은 자기 메시지의 id입니다.
 
-It does not itself open a Codex database, rollout or configuration file for writing. SQLite's
-read-only access does take shared locks and, for a WAL-mode database, opens the
-shared-memory index (the `-shm` file) for writing to update it. It does not take the app's
-thread writer lock, and does not itself read credential storage: the Codex processes it
-starts use Codex's own stored sign-in, and this tool never sees it.
+이 도구 스스로 Codex의 데이터베이스, rollout, 설정 파일을 쓰기 모드로 열지는 않습니다. 다만 SQLite의 읽기
+전용 접근도 공유 잠금을 잡으며, WAL 모드 데이터베이스라면 공유 메모리 인덱스(`-shm` 파일)를 쓰기 모드로
+열어 갱신합니다. 앱의 스레드 writer lock은 잡지 않고, 자격 증명 저장소를 이 도구가 직접 읽지도 않습니다. 이
+도구가 시작하는 Codex 프로세스는 Codex가 저장해 둔 로그인을 그대로 쓰며, 이 도구는 그 로그인을 보지 않습니다.
 
-When Codex's state has to change, it asks Codex to make the change through Codex's own
-interfaces:
+Codex의 상태를 바꿔야 할 때는 Codex 자신의 인터페이스를 통해 Codex에게 바꿔 달라고 요청합니다:
 
-- `codex queue` adds its one continuation message to one exact conversation;
-- the App Server's `thread/queue/delete` withdraws that same message, when it has to;
-- at install and uninstall, `codex plugin marketplace add` registers the installation
-  directory as the `codex-auto-resume-windows` marketplace and `remove` removes it by name,
-  and `codex plugin add` and `remove` act on this plugin. In v0.4.0 through v0.5.7,
-  `codex plugin marketplace upgrade` acts on every Git marketplace you have configured;
-  acting on that marketplace alone, by name, is new in v0.6.0 (see [Installing it](#installing-it)). Installing repoints the
-  `codex-auto-resume-windows` marketplace at this installation, replacing whatever source
-  that name had; uninstalling removes it only while it still points at this installation.
+- `codex queue`는 continuation 메시지 하나를 정확히 한 대화에 넣습니다;
+- App Server의 `thread/queue/delete`는 필요할 때 그 같은 메시지를 거둬들입니다;
+- 설치와 제거 때에는 `codex plugin marketplace add`가 설치 디렉터리를 `codex-auto-resume-windows`
+  마켓플레이스로 등록하고 `remove`가 그것을 이름으로 지우며, `codex plugin add`와 `remove`가 이 플러그인을
+  다룹니다. v0.4.0부터 현재 최신 릴리스까지는 `codex plugin marketplace upgrade`가 사용자가 설정해 둔
+  모든 Git 마켓플레이스를 다룹니다. 그 마켓플레이스 하나만 이름으로 다루는 동작은 이번 릴리스부터입니다([설치할 때](#설치할-때) 참고). 설치하면
+  `codex-auto-resume-windows` 마켓플레이스가 이 설치를 가리키도록 바뀌며, 그 이름에 등록되어 있던 출처는
+  무엇이든 대체됩니다. 제거는 그 마켓플레이스가 아직 이 설치를 가리키고 있을 때에만 그것을 지웁니다.
 
-Codex makes those changes itself. The Codex processes it starts may also update Codex's own
-logs and caches as a side effect, as any Codex process does.
+그 변경은 Codex가 직접 합니다. 또 이 도구가 시작하는 Codex 프로세스는, 여느 Codex 프로세스와 마찬가지로,
+부수적으로 Codex 자신의 로그와 캐시를 갱신할 수 있습니다.
 
-## What it runs
+## 무엇을 실행하는가
 
-Every process it starts for recovery runs on your machine, against the Codex installation
-already there:
+복구를 위해 시작하는 모든 프로세스는 이 PC에서, 이미 설치되어 있는 Codex를 대상으로 실행됩니다:
 
-- the official `codex` binary — `codex queue` to continue the conversation, and
-  `codex app-server --stdio` to read your usage and to remove a queued item it put there
-  itself. The only requests it sends the App Server are `initialize`,
-  `account/rateLimits/read` and `thread/queue/delete`, plus the `initialized` notification
-  that completes the handshake; it refuses every request the server sends back;
-- short `codex --version` and `codex queue --help` probes, to confirm it is driving the
-  interface it expects;
-- Windows PowerShell, by its full path under `System32` and with fixed scripts, to list the
-  running ChatGPT and Codex processes and to raise a notification. The Restart Manager is
-  called directly, not through PowerShell. Setting up the Start Menu shortcut runs a fixed
-  PowerShell script too.
+- 공식 `codex` 바이너리 — 대화를 이어 가기 위한 `codex queue`, 그리고 사용량을 읽고 자기가 넣어 둔 큐
+  항목을 자기가 지우기 위한 `codex app-server --stdio`. App Server에 보내는 요청은 `initialize`,
+  `account/rateLimits/read`, `thread/queue/delete`뿐이고, 여기에 핸드셰이크를 마치는 `initialized` 알림을
+  더 보냅니다. 서버가 거꾸로 보내오는 요청은 모두 거절합니다;
+- 기대하는 인터페이스를 다루고 있는지 확인하기 위한 짧은 `codex --version`, `codex queue --help` 프로브;
+- 실행 중인 ChatGPT·Codex 프로세스 목록을 얻고 알림을 띄우기 위한 Windows PowerShell. `System32` 아래의
+  전체 경로로 실행하고, 고정된 스크립트만 씁니다. 재시작 관리자는 PowerShell을 거치지 않고 직접
+  호출합니다. 시작 메뉴 바로 가기를 만들 때에도 고정된 PowerShell 스크립트를 실행합니다.
 
-Values such as a notification's label or a shortcut's path reach those scripts as
-environment variables rather than as script text, so PowerShell does not parse them as code.
-From v0.4.0 through v0.5.6 the names a notification shows were written into the script, and
-a conversation, project or folder name containing a curly quote could run as a command
-(before v0.4.0, notifications held only fixed text, a time and a short id). In v0.5.0
-through v0.5.6 the Start Menu shortcut's paths were written into its script the same way;
-those come from where the tool is installed rather than from a conversation. v0.5.7 fixed
-both. No Python code here uses `shell=True`, `os.system`, `eval` or `exec`, and every
-Python subprocess gets an argument list. Installing, uninstalling and the plugin's setup are PowerShell
-scripts as well (`install\install.ps1`, `scripts\bootstrap.ps1`), and the installer runs
-the `codex plugin` commands listed above.
+알림의 표시용 이름이나 바로 가기의 경로 같은 값은 스크립트 본문이 아니라 환경 변수로 전달되므로,
+PowerShell이 그것을 코드로 해석하지 않습니다. v0.4.0부터 v0.5.6까지는 알림에 표시하는 이름이 스크립트
+본문에 들어갔고, 곡선 따옴표가 든 대화·프로젝트·폴더 이름이 명령으로 실행될 수 있었습니다(v0.4.0 이전의
+알림에는 고정된 문구, 시각, 짧은 id만 들어 있었습니다). v0.5.0부터 v0.5.6까지는 시작 메뉴 바로 가기의 경로도
+같은 방식으로 스크립트 본문에 들어갔습니다. 이 경로는 대화가 아니라 이 도구가 설치된 위치에서 옵니다. 현재
+최신 릴리스에서 둘 다 고쳤습니다. Python 코드 어디에서도 `shell=True`, `os.system`, `eval`, `exec`를 쓰지
+않으며, Python의 모든 subprocess는 인자 목록으로 실행됩니다. 설치, 제거, 플러그인 설정도 PowerShell 스크립트(`install\install.ps1`,
+`scripts\bootstrap.ps1`)이며, 설치기는 위에 적은 `codex plugin` 명령을 실행합니다.
 
-The resumed turn is not run by any of those processes. `codex queue` places the message in
-Codex's queue and exits; your Codex desktop app picks it up and runs the turn, signed in as you
-and under your own settings, exactly as if you had typed the message yourself, and sends it to
-OpenAI as it does every turn. The one thing this tool asks the Codex processes it starts to
-fetch from OpenAI is your usage (`account/rateLimits/read`). Codex identifies these requests as
-coming from this tool (client name `codex_auto_resume` and a version number), so OpenAI can see
-that you use it and when it checks. Every App Server session it opens, including one that only
-withdraws its own queued message, introduces itself to Codex that way. In v0.5.7 and earlier
-releases the version it gives is a fixed `0.1`; giving the product's real version is new in
-v0.6.0. It asks for usage only when a recovery is due and the conversation is open in the app,
-and reuses the answer for 30 seconds. What a Codex process does on its own account when it
-starts — keeping its sign-in current, for instance — is Codex's behaviour, not something this
-tool requests, and it has not been measured.
+재개된 턴은 이 프로세스들 중 어느 것도 실행하지 않습니다. `codex queue`는 메시지를 Codex의 큐에 넣고 종료합니다. 그러면 사용자의 Codex 데스크톱
+앱이 그 메시지를 받아, 사용자로 로그인된 상태에서 사용자 자신의 설정으로, 사용자가 직접 입력했을 때와 완전히 똑같이 턴을 실행하고, 모든 턴과 마찬가지로 OpenAI로
+보냅니다. 이 도구가 자신이 시작한 Codex 프로세스에게 OpenAI에서 가져오라고 요청하는 것은 사용량 (`account/rateLimits/read`) 하나입니다.
+Codex는 이 요청이 이 도구에서 온 것임을 밝히므로(클라이언트 이름 `codex_auto_resume`과 버전 번호), OpenAI는 사용자가 이 도구를 쓴다는 것과
+언제 사용량을 확인하는지 알 수 있습니다. 이 도구가 여는 App Server 세션은, 자기가 넣은 큐 항목을 거둬들이기만 하는 세션까지 포함해 모두 Codex에게 이렇게
+자신을 밝힙니다. 현재 최신 릴리스와 그 이전 릴리스는 이때 고정값 `0.1`을 버전으로 보냅니다. 제품의 실제 버전을 보내는 동작은 이번 릴리스부터입니다. 사용량은
+복구할 때가 되었고 대화가 앱에 열려 있을 때에만 묻고, 받은 답은 30초 동안 재사용합니다. Codex 프로세스가 시작될 때 스스로 하는 일 — 예를 들어 로그인을
+최신으로 유지하는 일 — 은 Codex의 동작이지 이 도구가 요청하는 것이 아니며, 측정해 본 적도 없습니다.
 
-Every `codex` process the recovery runtime starts runs with `OTEL_SDK_DISABLED=true` set in
-its environment. The `codex app-server` and `codex queue` processes also get flags that turn
-analytics off (`analytics.enabled=false`), set the OpenTelemetry exporters
-(`otel.exporter`, `otel.trace_exporter`, `otel.metrics_exporter`) to none, turn prompt
-logging off (`otel.log_user_prompt=false`) and pin the ChatGPT base URL to the official one.
-Those settings apply only to the processes this tool starts. They do not change the desktop
-app: the resumed turn runs in the app under your own Codex settings.
+복구 런타임이 시작하는 모든 `codex` 프로세스는 환경 변수 `OTEL_SDK_DISABLED=true`를 설정한 채 실행됩니다.
+`codex app-server`와 `codex queue` 프로세스에는 여기에 더해, 분석을 끄고(`analytics.enabled=false`),
+OpenTelemetry exporter(`otel.exporter`, `otel.trace_exporter`, `otel.metrics_exporter`)를 none으로 두고,
+프롬프트 로깅을 끄고(`otel.log_user_prompt=false`), ChatGPT base URL을 공식 주소로 고정하는 옵션을 넘깁니다.
+이 설정은 이 도구가 시작하는 프로세스에만 적용됩니다. 데스크톱 앱은 바뀌지 않습니다. 재개된 턴은 사용자
+자신의 Codex 설정으로 앱 안에서 실행됩니다.
 
-## When you use it from Codex
+## Codex 안에서 사용할 때
 
-The plugin gives Codex tools — `get_status`, `list_pending`, `get_recovery_timeline`,
-`get_recovery_statistics`, `open_settings`, and the controls (`retry_now`, `cancel_recovery`,
-`reset_recovery_budget`, `pause_auto_recovery` and `resume_auto_recovery`,
-`disable_conversation_recovery` and `enable_conversation_recovery`, `clear_recovery_history`,
-`start_watcher`, `update_settings`, `restore_default_settings`) — and a skill that runs the
-tool's commands (for example `status`, `pending`, `doctor` and `logs`). When they run inside a
-Codex conversation, what they return becomes part of that conversation. The
-one-line summary always does, and the structured data may as well; Codex sends the
-conversation to OpenAI like any tool output. That is:
+플러그인은 Codex에게 도구와, 이 도구의 명령(예: `status`, `pending`, `doctor`, `logs`)을 실행하는 스킬을
+제공합니다. 도구는 `get_status`, `list_pending`, `get_recovery_timeline`, `get_recovery_statistics`,
+`open_settings`, 그리고 각종 제어 도구(`retry_now`, `cancel_recovery`, `reset_recovery_budget`,
+`pause_auto_recovery`와 `resume_auto_recovery`, `disable_conversation_recovery`와
+`enable_conversation_recovery`, `clear_recovery_history`, `start_watcher`, `update_settings`,
+`restore_default_settings`)입니다. 이것들이 Codex 대화 안에서
+실행되면 돌려준 내용이 그 대화의 일부가 됩니다. 한 줄 요약은 언제나 그렇고, 구조화된 데이터도 그럴 수
+있습니다. Codex는 여느 도구 출력과 마찬가지로 그 대화를 OpenAI로 보냅니다. 그 내용은 다음과 같습니다:
 
-- from `get_status`: the version, whether recovery is on, whether the watcher is running and
-  whether sign-in autostart is registered, counts by state, and your settings — which
-  include the Codex executable path if you set one. It no longer returns the installation
-  directory's path, which normally includes your Windows user name; v0.5.0 through v0.5.7
-  did, and a conversation held with one of them still carries it;
-- from `list_pending`: the pending recoveries, with their conversation ids, interruption ids,
-  states, categories, times and attempt counts, and the finished ones too when it is asked for
-  them; `open_settings` returns those together with the status and settings above;
-- from `get_recovery_timeline`: one recovery's whole chain as event codes, reasons, actor, turn
-  references, counters and times, with the interruption ids of that chain and not the
-  conversation's — codes and times only, no prompt, reply or error text;
-- from `get_recovery_statistics`: over the last few days or all of it, how many interruptions
-  were detected and how many continuations were sent, how they ended, the medians and a count by
-  kind — numbers only;
-- from the commands: the same, plus each pending recovery's reset time, limit bucket and
-  last reason code, the desktop app's process ids, and local paths such as the Codex executable, the Codex home,
-  the state file and the log file — which normally include your Windows user name — and,
-  from `logs`, recent log lines.
+- `get_status`: 버전, 복구가 켜져 있는지, 워처가 실행 중인지, 로그인 자동 시작이 등록되어 있는지, 상태별
+  개수, 사용자 설정. 설정에는 Codex 실행 파일 경로를 직접 지정했다면 그 경로도 들어 있습니다. 설치 디렉터리
+  경로(보통 Windows 사용자 이름이 들어 있습니다)는 이제 돌려주지 않습니다. v0.5.0부터 현재 최신
+  릴리스까지는 돌려주었고, 그때 나눈 대화에는 그 경로가 그대로 남아 있습니다;
+- `list_pending`: 대기 중인 복구와 그 대화 id, 중단 id, 상태, 분류, 시각, 시도 횟수. 요청하면 이미 끝난
+  복구도 함께 돌려줍니다. `open_settings`는 이것을 위의 상태·설정과 함께 돌려줍니다;
+- `get_recovery_timeline`: 복구 하나의 체인 전체를 이벤트 코드, 사유, 수행 주체, 턴 참조, 횟수와 시각으로
+  돌려줍니다. 그 체인에 속한 중단 id가 들어가며 대화 id는 돌려주지 않습니다. 코드와 시각뿐이고
+  프롬프트·응답·오류 문구는 들어가지 않습니다;
+- `get_recovery_statistics`: 최근 며칠 또는 전체 기간에 대해 중단이 몇 건 감지되었고 continuation을 몇 건
+  보냈는지, 그것들이 어떻게 끝났는지, 중앙값과 종류별 개수 — 숫자뿐입니다;
+- 명령: 위와 같은 내용에 더해 대기 중인 복구마다 초기화 시각, 한도 bucket, 마지막 사유 코드, 데스크톱 앱의
+  프로세스 id, 그리고
+  Codex 실행 파일·Codex 홈·상태 파일·로그 파일 같은 로컬 경로(보통 Windows 사용자 이름이 들어 있습니다),
+  `logs`에서는 최근 로그 줄.
 
-None of it is prompt text, assistant output or tool content. The window opened from the Start
-Menu reads the same information on your machine and sends it nowhere.
+어느 것도 프롬프트 내용, 어시스턴트 출력, 도구 내용이 아닙니다. 시작 메뉴에서 여는 창은 같은 정보를
+이 PC에서 읽을 뿐, 어디로도 보내지 않습니다.
 
-## What it stores, and where
+## 무엇을 어디에 저장하는가
 
-Its own records live in its installation directory, `%USERPROFILE%\.codex-auto-resume\` by
-default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
-`CODEX_AUTO_RESUME_HOME`, points):
+이 도구 자신의 기록은 설치 디렉터리에 있습니다. 기본값은 `%USERPROFILE%\.codex-auto-resume\`이고,
+`CODEX_AUTO_RESUME_PLUGIN_HOME`을 지정했다면 그곳, 그것이 없고 `CODEX_AUTO_RESUME_HOME`을 지정했다면
+그곳입니다:
 
-- `config/state.sqlite` — pending recoveries: conversation UUID, the interruption's id, the
-  failed turn's id and ordinal, timestamps, failure category, for a usage limit the limit's
-  bucket name and reset time and whether that reading was uncertain, attempt counts, state,
-  flags and the last reason code, and the two ids it needs to prove delivery (its marker and
-  the queued item's id); also the on/off switch for recovery, with when it was switched on
-  and the poll interval, and the switch for each conversation. Beside those it holds a bounded
-  journal of what happened to each recovery - codes, ids, actor, turn references, counters and
-  times, at most 5,000 entries and 90 days, with no prompt, reply or error text - and one row
-  for the watcher itself: its process id, session id, start and last-tick times, and which code
-  version wrote them. None of it is content;
-- `config/state.vN-backup-<timestamp>.sqlite` — a copy of the state file, taken before the first
-  watcher of a new version upgrades the schema and before `downgrade-state` rewrites it. It holds
-  what `state.sqlite` held, and it is kept to explain a bad upgrade rather than as a way back.
-  Deleting `state.sqlite` does not remove it: `Uninstall.cmd` with `-Purge` takes it with the
-  rest of `config/`, and without `-Purge` it stays, as the state file does; the command line's
-  `uninstall` deletes `state.sqlite` unless you pass `--keep-state`, and leaves this copy either way;
-- `config/settings.json` — your settings;
-- `logs/` — `auto-resume.log`, what the watcher did, by reason code and conversation UUID;
-  `errors.log`, the Python traceback when something goes wrong; and `launcher.log`, a line
-  per launch (and why, if one failed).
+- `config/state.sqlite` — 대기 중인 복구: 대화 UUID, 중단 id, 실패한 턴의 id와 번호, 타임스탬프, 장애 분류,
+  사용량 한도라면 그 한도의 bucket 이름과 리셋 시각 및 그 값이 불확실한지 여부, 시도 횟수, 상태, 플래그와
+  마지막 사유 코드, 그리고 전달을 증명하는 데 필요한 id 두 개(마커와 큐 항목 id). 복구 전체의 켜기/끄기
+  스위치(켠 시각과 폴링 간격 포함)와 대화별 스위치도 여기에 있습니다. 그 밖에 복구마다 무슨 일이 있었는지를
+  남기는 기록(코드, id, 수행 주체, 턴 참조, 횟수와 시각)이 최대 5,000건, 90일까지 보관되며 프롬프트나 응답,
+  오류 문구는 들어가지 않습니다. 워처 자신에 대한 줄도 하나 있습니다. 프로세스 id, 세션 id, 시작 시각과
+  마지막 확인 시각, 그리고 그것을 쓴 코드 버전입니다. 어느 것도 내용이 아닙니다;
+- `config/state.vN-backup-<시각>.sqlite` — 상태 파일의 사본입니다. 새 버전의 워처가 스키마를 올리기
+  직전에, 그리고 `downgrade-state`가 상태를 되돌리기 직전에 뜹니다. `state.sqlite`가 담고 있던 것을 그대로
+  담고 있으며, 되돌리기 위한 것이 아니라 잘못된 업그레이드를 설명하기 위해 남깁니다. `state.sqlite`를
+  지운다고 함께 지워지지는 않습니다. `Uninstall.cmd`에 `-Purge`를 주면 `config/` 전체와 함께 사라지고,
+  `-Purge` 없이 제거하면 상태 파일과 마찬가지로 그대로 남습니다. 명령줄의 `uninstall`은 `--keep-state`를
+  주지 않는 한 `state.sqlite`를 지우며, 이 사본은 어느 쪽이든 남깁니다;
+- `config/settings.json` — 사용자 설정;
+- `logs/` — 워처가 무엇을 했는지 사유 코드와 대화 UUID로 기록하는 `auto-resume.log`, 문제가 생겼을 때의
+  Python traceback이 남는 `errors.log`, 실행될 때마다 한 줄씩(실패했다면 그 이유도) 남는 `launcher.log`.
 
-Engine events are written from a fixed message table. The main log also records the state
-directory's path, which normally includes your Windows user name, and — for a Codex version
-this tool was not verified against — the version string `codex --version` printed. Prompt
-text, assistant output, tool output and Codex's error text are not deliberately written to
-any log. When something fails, `errors.log` receives the full Python traceback, and
-`launcher.log` and `errors.log` receive the exception's message; this tool does not control
-what text an exception carries.
+엔진 이벤트는 고정된 메시지 표로 만들어 기록합니다. 메인 로그에는 그 밖에 상태 디렉터리 경로(보통
+Windows 사용자 이름이 들어 있습니다)와, 이 도구가 검증하지 않은 Codex 버전이라면 `codex --version`이
+출력한 버전 문자열도 남습니다. 프롬프트 내용, 어시스턴트 출력, 도구 출력, Codex의 오류 문구를 일부러
+로그에 쓰는 일은 없습니다. 다만 무언가 실패하면 `errors.log`에는 Python traceback 전체가, `launcher.log`와
+`errors.log`에는 예외 메시지가 남으며, 예외에 어떤 문구가 담기는지는 이 도구가 정하지 않습니다.
 
-Beside those it keeps the program itself (`app\` and `runtime\`), the window, the
-icon notifications use, the sign-in launcher, and `runtime.json`, which records where the
-plugin is installed.
+그 옆에는 프로그램 자체(`app\`, `runtime\`), 창, 알림이 쓰는 아이콘, 로그인 시 실행되는 런처, 그리고
+플러그인이 어디에 설치되어 있는지 기록하는 `runtime.json`이 있습니다.
 
-One more file appears while an installation replaces one that is already there:
-`.codex-auto-resume-install-journal.json`, at the installation root. A first install writes
-none, because it has nothing to move aside. The installer writes it before it moves anything,
-and it holds the time it was written, the installation directory, and one entry per program
-folder being replaced - `app\` or `runtime\`, the path it lives at, and the `*.old-*` name it
-was moved aside as. Nothing in it is about your conversations: it is a handful of directory
-names, times and a format number. Those paths sit inside the installation directory, which
-normally includes your Windows user name. It is deleted as soon as both folders are in place,
-so a run that finished leaves none behind. Finding one means an installation did not finish -
-it lost power part way, or it failed and put the old copy back - and the next run reads it to
-restore anything still moved aside instead of sweeping it up. Uninstalling removes it with
-the rest.
+이미 있는 설치본을 교체하는 동안에만 생기는 파일이 하나 더 있습니다. 설치 루트에 놓이는
+`.codex-auto-resume-install-journal.json`입니다. 첫 설치는 옆으로 밀어 둘 것이 없으므로 이 파일을 아예 쓰지
+않습니다. 설치 프로그램은 무언가를 옮기기 전에 이 파일을 쓰며, 쓴 시각, 설치 디렉터리, 그리고 교체되는
+프로그램 폴더마다 한 항목 — `app\`인지 `runtime\`인지, 그 폴더가 있는 경로, 옆으로 밀어 두면서 붙인
+`*.old-*` 이름 — 이 들어 있습니다. 대화에 관한 것은 아무것도 들어 있지 않습니다. 디렉터리 이름 몇 개와
+시각, 형식 번호가 전부입니다. 다만 그 경로들은 설치 디렉터리 안에 있고, 설치 디렉터리에는 보통 Windows
+사용자 이름이 들어 있습니다. 두 폴더가 모두 제자리에 놓이는 순간 지워지므로 끝까지 실행된 설치는 이 파일을
+남기지 않습니다. 이 파일이 있다면 설치가 끝까지 가지 못했다는 뜻입니다. 도중에 전원이 끊겼거나, 실패해서 옛
+사본을 도로 제자리에 놓았거나입니다. 다음 실행은 그것을 읽어서, 아직 옆으로 밀려 있는 것을 쓸어 내는 대신
+제자리로 되돌립니다. 제거하면 나머지와 함께 지워집니다.
 
-One more file exists only if you ask for it, and only where you put it. **Export
-diagnostics...** in the window, or `auto_resume.py diagnostics` on the command line (`--out`
-names the file; without it, a new one in the current directory), writes one JSON file: your
-settings, one entry per recovery with its state,
-reason and the checks it is waiting on, up to 2,000 journal entries, and the last 300 lines
-of each log. Conversation and interruption ids are replaced by aliases that mean nothing
-outside that one file; paths, your Windows user name and e-mail-shaped text are removed.
-`errors.log` can carry exception text this tool did not write, which is redacted the same way
-rather than filtered - so read the file before you send it to anyone. Nothing is sent by this
-tool, and a file that already exists is never overwritten.
+요청할 때만, 그리고 지정한 위치에만 만들어지는 파일이 하나 더 있습니다. 창의 **진단 정보 내보내기...**나
+명령줄의 `auto_resume.py diagnostics`는 사용자가 고른 위치에 JSON 파일 하나를 씁니다(`--out`으로 파일을
+지정하고, 지정하지 않으면 현재 디렉터리에 새 파일을 만듭니다). 설정, 복구마다 상태와
+사유와 무엇을 기다리는지 한 줄씩, 최대 2,000건의 기록, 그리고 각 로그의 마지막 300줄이 들어갑니다. 대화
+id와 중단 id는 그 파일 안에서만 뜻이 통하는 별칭으로 바뀌고, 경로와 Windows 사용자 이름, 이메일 형태의
+문구는 지워집니다. `errors.log`에는 이 도구가 쓰지 않은 예외 문구가 담길 수 있는데, 걸러내는 대신 같은
+방식으로 가립니다. 누군가에게 보내기 전에 파일을 한 번 읽어 보세요. 이 도구가 어디로도 보내지 않으며,
+이미 있는 파일을 덮어쓰는 일도 없습니다.
 
-Two traces of your conversations live outside that directory, and neither is written by
-this tool directly.
-Windows keeps the notifications it showed in its notification history for a while, or until
-you clear them.
-And each resumed conversation contains the continuation message, with its
-`[codex-auto-resume:…]` marker, in Codex's own history, like any message.
+그 디렉터리 바깥에 남는 대화의 흔적이 두 가지 있으며, 어느 것도 이 도구가 직접 쓰는 것은 아닙니다.
+Windows는 보여 준 알림을 한동안, 또는 사용자가 지울 때까지 알림 기록에 보관합니다. 그리고 재개된 대화에는 모두
+`[codex-auto-resume:…]` 마커가 붙은 continuation 메시지가, 여느 메시지와 마찬가지로 Codex 자신의 기록에
+남습니다.
 
-Outside that directory it also registers ordinary per-user Windows plumbing, none of it
-needing administrator rights and none of it containing anything about your conversations: a
-Start Menu shortcut carrying the tool's notification identity, which Windows requires before
-it will draw a toast at all; the registry entry that gives that identity its name and icon;
-the sign-in autostart value (unless you skip it); and the handler for the notification
-button's `codex-auto-resume:` link. Through the `codex plugin` commands it registers this
-plugin and its local marketplace in your Codex configuration, and Codex keeps its own copy
-of the plugin. Uninstalling removes those Windows entries that belong to this installation,
-and asks Codex to remove the plugin and the marketplace only while they still point at this
-installation; Codex then removes its own copy.
+그 디렉터리 바깥에는 평범한 사용자 단위 Windows 등록 항목도 남기며, 어느 것도 관리자 권한이 필요하지
+않고 어느 것도 대화에 관한 내용을 담고 있지 않습니다. 이 도구의 알림 식별자를 담은 시작 메뉴 바로
+가기(Windows는 이것이 있어야 토스트를 그립니다), 그 식별자에 이름과 아이콘을 붙여 주는 레지스트리 항목,
+건너뛰지 않는 한 로그인 자동 시작 값, 그리고 알림 버튼이 쓰는 `codex-auto-resume:` 링크의 핸들러입니다.
+또 `codex plugin` 명령을 통해 이 플러그인과 로컬 마켓플레이스를 Codex 설정에 등록하며, Codex는 플러그인
+사본을 따로 보관합니다. 제거하면 Windows 등록 항목 가운데 이 설치에 속한 것을 지우고, 플러그인과
+마켓플레이스는 아직 이 설치를 가리키고 있을 때에만 Codex에게 제거를 요청합니다. 그러면 Codex가 자기
+사본을 지웁니다.
 
-Uninstalling keeps the state directory by default so a reinstall does not lose pending
-recoveries; `Uninstall.cmd -Purge` removes it. You can delete it yourself at any time.
+제거는 기본적으로 상태 디렉터리를 남겨 두므로 다시 설치해도 대기 중인 복구를 잃지 않습니다.
+`Uninstall.cmd -Purge`는 그것까지 지웁니다. 언제든 직접 지우셔도 됩니다.
 
-## Notifications
+## 알림
 
-Windows notifications are raised locally through the operating system's own notification
-API. They show up to two labels — drawn from the conversation's name as Codex stores it, the
-project name and the folder name — each on one line and at most 72 characters, plus the
-conversation UUID. A usage-limit notice also shows the local reset time. They carry no error
-text or account data, and this tool does not route them through any service. If Codex
-derived the name from your first message, the label reflects it, as Codex's own list does.
+Windows 알림은 운영체제 자신의 알림 API를 통해 로컬에서 띄웁니다. 알림에는 Codex에 저장된 대화 이름,
+프로젝트 이름, 폴더 이름 가운데서 고른 표시용 이름이 최대 두 개, 각각 한 줄에 최대 72자로 들어가고, 대화
+UUID가 함께 표시됩니다. 사용량 한도 알림에는 로컬 기준의 리셋 시각도 표시됩니다. 오류 문구나 계정 정보는
+들어 있지 않으며, 이 도구는 알림을 어떤 서비스로도 경유시키지 않습니다. Codex가 대화 이름을 첫 메시지에서
+만들었다면, Codex 자신의 목록과 마찬가지로 알림에도 그것이 드러납니다.
 
-## Third parties
+## 제3자
 
-**GitHub**, for the release download when you install or update from the plugin, or when
-you download the ZIP yourself, and for the marketplace refresh described under
-[Installing it](#installing-it) when a marketplace it refreshes points at GitHub. It is
-subject to GitHub's own privacy practices, as any download would be.
+**GitHub** — 플러그인으로 설치하거나 업데이트할 때, 또는 ZIP을 직접 내려받을 때의 릴리스 다운로드, 그리고
+[설치할 때](#설치할-때)에 적은 마켓플레이스 새로 고침 가운데 새로 고치는 마켓플레이스가 GitHub를 가리키는
+경우입니다.
+여느 다운로드와 마찬가지로 GitHub 자체의 개인정보 처리 방식이 적용됩니다.
 
-**OpenAI**, only through the official Codex app and CLI already signed in on your machine:
-the usage check, which Codex identifies as coming from this tool; the resumed turn; and
-whatever the plugin's tools and commands return inside a Codex conversation. This tool has
-no connection to OpenAI of its own; that traffic is Codex's, under your own account. If you
-have configured Codex to use a different model provider, the conversation goes there
-instead, as all your Codex conversations do.
+**OpenAI** — 이 PC에 이미 로그인되어 있는 공식 Codex 앱과 CLI를 통해서만입니다. Codex가 이 도구에서 온
+것이라고 밝히는 사용량 확인, 재개된 턴, 그리고 Codex 대화 안에서 플러그인의 도구와 명령이 돌려주는 내용이
+그리로 갑니다. 이 도구가 OpenAI와 따로 맺는 연결은 없으며, 그 트래픽은 사용자 자신의 계정으로 이루어지는
+Codex의 트래픽입니다. Codex에 다른 모델 제공자를 설정해 두었다면, 사용자의 모든 Codex 대화와 마찬가지로
+그 대화도 그 제공자로 갑니다.
 
-**Other marketplace hosts**, through Codex's marketplace refresh at install: a surviving
-registration named `codex-auto-resume-windows` is refreshed from wherever it points, and the
-installers of v0.4.0 through v0.5.7 refresh every Git marketplace you have configured, from
-wherever each one points. Refreshing only this product's marketplace, by name, is new in
-v0.6.0.
+**그 밖의 마켓플레이스 호스트** — 설치할 때 Codex가 마켓플레이스를 새로 고치면서 접속합니다. `codex-auto-resume-windows`라는 이름의 등록이
+남아 있으면 그 등록이 가리키는 곳에서 새로 고치고, v0.4.0부터 현재 최신 릴리스까지의 설치기는 사용자가 설정해 둔 모든 Git 마켓플레이스를 각각이 가리키는 곳에서
+새로 고칩니다. 이 제품의 마켓플레이스만 이름으로 새로 고치는 동작은 이번 릴리스부터입니다.
 
-Beyond these, and a host that a GitHub redirect might send the download request to (see
-[Installing it](#installing-it)), this tool sends nothing to any other party; Windows may
-make certificate checks of its own during the download. What runs is
-the Python standard library, the interpreter that ships in the release archive, two small
-Windows programs built from this repository — the settings window and the MCP launcher —
-Windows PowerShell, the .NET C# compiler Windows PowerShell uses to build the shortcut
-helper when it creates the Start Menu shortcut, `cmd.exe` (with `chcp.com`, which sets the
-console to UTF-8) for `Install.cmd` and `Uninstall.cmd`, and the Codex installation already
-on your machine.
+이것들, 그리고 GitHub의 리디렉션이 다운로드 요청을 보낼 수 있는 호스트([설치할 때](#설치할-때) 참고)
+말고는, 이 도구가 다른 누구에게 무엇을 보내는 일은 없습니다. 다운로드하는 동안 Windows가 자체적으로
+인증서 확인을 할 수는 있습니다. 실행되는 것은 Python 표준 라이브러리, 릴리스
+압축 파일에 함께 담겨 오는 인터프리터, 이 저장소에서 빌드한 작은 Windows 프로그램 두 개(설정 창과 MCP
+런처), Windows PowerShell, 시작 메뉴 바로 가기를 만들 때 Windows PowerShell이 바로 가기 도우미를 빌드하는
+데 쓰는 .NET C# 컴파일러, `Install.cmd`와 `Uninstall.cmd`를 실행하는 `cmd.exe`(콘솔을 UTF-8로 맞추는
+`chcp.com`과 함께), 그리고 이 PC에 이미 있는 Codex입니다.
 
-## Questions
+## 문의
 
-Open an issue, or see [SECURITY.md](SECURITY.md) for the security reporting process.
+이슈를 열어 주세요. 보안 신고 절차는 [SECURITY.md](SECURITY.md)를 참고하세요.

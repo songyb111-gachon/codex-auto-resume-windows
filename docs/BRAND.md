@@ -1,101 +1,101 @@
-# The look of it
+# 이 제품의 겉모습
 
-One palette, one mark, four surfaces. This is where the decisions are written down so a
-future change can argue with them rather than guess at them.
+> 🌐 한국어 문서입니다. English version: [`main` 브랜치의 docs/BRAND.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/BRAND.md)
 
-## The idea
+팔레트 하나, 마크 하나, 표면 넷. 나중에 바꿀 일이 생겼을 때 추측하는 대신 여기 적힌 결정과
+따져 볼 수 있도록, 그 결정들을 이 문서에 적어 둡니다.
 
-The product waits, and then it acts. That is the whole behaviour, so it is the whole
-palette: **deep blue at rest, cyan at the moment it does something.** The ramp is not
-decoration — a reader who learns that bright means active has learned what the tool does.
+## 발상
 
-Until v0.5.2 the product was green, and each surface carried its own copy of the colours:
-the settings window in C# literals, the Codex panel in a stylesheet, the icon renderer,
-the plugin manifest. They had already drifted — the manifest's brand colour and the panel's
-accent agreed with each other and with nothing else.
+이 제품은 기다렸다가 행동합니다. 그것이 동작의 전부이므로 팔레트의 전부이기도 합니다.
+**쉴 때는 짙은 파랑, 무언가를 하는 순간에는 시안.** 이 색의 단계는 장식이 아닙니다. 밝으면
+활성이라는 것을 익힌 사람은 이 도구가 무엇을 하는지를 익힌 것입니다.
 
-## Where a colour comes from
+v0.5.2까지 이 제품은 초록색이었고, 표면마다 색을 각자 복사해 들고 있었습니다. 설정 창은 C#
+리터럴로, Codex 패널은 스타일시트로, 아이콘 렌더러가 하나, 플러그인 매니페스트가 하나. 그리고
+이미 어긋나 있었습니다. 매니페스트의 브랜드 색과 패널의 accent는 서로 일치했을 뿐 나머지 어느
+것과도 일치하지 않았습니다.
 
-`src/codex_auto_resume/brand.py` and nowhere else.
+## 색은 어디에서 오는가
 
-| Surface | How it gets the palette |
+`src/codex_auto_resume/brand.py`, 그리고 그 밖에는 어디에도 없습니다.
+
+| 표면 | 팔레트를 가져오는 방법 |
 | --- | --- |
-| The Codex panel | `mcpui.py` builds its `:root` block from `brand.LIGHT` and `brand.DARK` at import. |
-| The settings window | `build/make_brand.py` generates `gui/Brand.cs`. The generated file is committed, so a contributor with no Python can still read what the window will look like. |
-| The icon | `assets/make_icon.py` imports the four icon colours directly. |
-| The plugin card | `.codex-plugin/plugin.json` carries `brandColor`, checked against `brand.BRAND`. |
+| Codex 패널 | `mcpui.py`가 import 시점에 `brand.LIGHT`와 `brand.DARK`로 `:root` 블록을 만듭니다. |
+| 설정 창 | `build/make_brand.py`가 `gui/Brand.cs`를 생성합니다. 생성된 파일을 커밋해 두므로, Python이 없는 기여자도 창이 어떤 모습일지 읽어 볼 수 있습니다. |
+| 아이콘 | `assets/make_icon.py`가 아이콘 색 네 개를 직접 import합니다. |
+| 플러그인 카드 | `.codex-plugin/plugin.json`이 `brandColor`를 담고 있으며, `brand.BRAND`와 대조해 검사합니다. |
 
-`tests/test_brand.py` regenerates both generated files and compares, so a hand-edit fails
-the suite instead of shipping. It also sweeps every tracked text file for the retired
-green, because the way a colour survives a rebrand is in a document nobody reopened.
+`tests/test_brand.py`는 생성 파일 두 개를 다시 만들어 비교하므로, 손으로 고친 값은 배포되는
+대신 테스트를 실패시킵니다. 또한 추적되는 모든 텍스트 파일에서 폐기된 초록색을 훑습니다.
+리브랜딩에서 색이 살아남는 경로는 아무도 다시 열어 보지 않은 문서이기 때문입니다.
 
-## The tokens
+## 토큰
 
-`LIGHT` and `DARK` hold the same key set — a token defined in one theme and not the other
-renders one theme's text on the other theme's ground, which is the classic unreadable-panel
-bug, and there is a test for it.
+`LIGHT`와 `DARK`는 같은 키 집합을 가집니다. 한쪽 테마에만 정의된 토큰은 한 테마의 텍스트를
+다른 테마의 바탕 위에 그리게 되고, 이것이 패널을 읽을 수 없게 만드는 전형적인 버그이며, 이를
+검사하는 테스트가 있습니다.
 
-| Token | Light | Dark | Used for |
+| 토큰 | Light | Dark | 쓰임 |
 | --- | --- | --- | --- |
-| `ink` | `#0F1B2D` | `#E6EDF5` | Text. A near-black carrying the same blue bias. |
-| `muted` | `#5A6B7F` | `#93A4B8` | Secondary text. |
-| `line` | `#DCE3EC` | `#24303F` | Hairlines and card edges. |
-| `surface` | `#FFFFFF` | `#161D27` | Cards. |
-| `canvas` | `#F2F5F9` | `#0E141C` | The ground behind them. |
-| `accent` | `#1257B8` | `#5AA5F5` | Anything to read or to click. |
-| `on_accent` | `#FFFFFF` | `#0B1220` | Text drawn *on* the accent. |
-| `active` | `#06B6D4` | `#22D3EE` | Fill only: running, work in flight. |
-| `idle` | `#94A3B8` | `#5C6B7C` | Fill only: stopped. |
-| `attention` | `#B45309` | `#F0A45C` | Fill only: needs a person. |
+| `ink` | `#0F1B2D` | `#E6EDF5` | 텍스트. 같은 파랑 기운을 담은 거의 검정. |
+| `muted` | `#5A6B7F` | `#93A4B8` | 보조 텍스트. |
+| `line` | `#DCE3EC` | `#24303F` | 헤어라인과 카드 테두리. |
+| `surface` | `#FFFFFF` | `#161D27` | 카드. |
+| `canvas` | `#F2F5F9` | `#0E141C` | 그 뒤의 바탕. |
+| `accent` | `#1257B8` | `#5AA5F5` | 읽거나 클릭할 모든 것. |
+| `on_accent` | `#FFFFFF` | `#0B1220` | accent *위에* 그리는 텍스트. |
+| `active` | `#06B6D4` | `#22D3EE` | 채움 전용: 실행 중, 진행 중인 작업. |
+| `idle` | `#94A3B8` | `#5C6B7C` | 채움 전용: 멈춤. |
+| `attention` | `#B45309` | `#F0A45C` | 채움 전용: 사람이 필요함. |
 
-**`active` is a fill-only token.** Against white it measures 2.4:1, which is right for a
-status dot and not enough for text. Every readable pairing carries a contrast assertion, so
-a later adjustment "for looks" cannot quietly make the panel unreadable.
+**`active`는 채움 전용 토큰입니다.** 흰 바탕에서 2.4:1로 측정되는데, 상태 점에는 맞고
+텍스트에는 모자랍니다. 읽어야 하는 모든 조합에는 대비 assertion이 붙어 있으므로, 나중에
+"보기 좋으라고" 손댄 값이 조용히 패널을 읽을 수 없게 만들 수는 없습니다.
 
-**`on_accent` exists because of a bug the tests found.** A dark theme needs a bright accent
-to stand off its surface, and a bright accent cannot then carry white text: white on
-`#5AA5F5` is 2.6:1. So the text on the accent is a token that goes dark exactly when the
-accent goes light. Nobody noticed by looking; the assertion did.
+**`on_accent`는 테스트가 찾아낸 버그 때문에 존재합니다.** 다크 테마에서 accent가 자기 표면에서
+떠 보이려면 밝아야 하고, 그렇게 밝아진 accent는 흰 텍스트를 담을 수 없습니다. `#5AA5F5` 위의
+흰색은 2.6:1입니다. 그래서 accent 위의 텍스트는 accent가 밝아지는 바로 그 순간에 어두워지는
+토큰입니다. 눈으로 보고 알아챈 사람은 없었고, assertion이 알아챘습니다.
 
-## The mark
+## 마크
 
-A rounded-square badge in deep blue carrying an open ring with a bright head at its leading
-end. The ring is the wait; the gap at the top is the interruption; the cyan head is the
-moment it resumes.
+짙은 파랑의 둥근 사각형 배지 안에, 앞쪽 끝에 밝은 머리가 달린 열린 고리가 들어 있습니다.
+고리는 기다림이고, 위쪽의 틈은 중단이며, 시안색 머리는 다시 이어지는 순간입니다.
 
-`assets/brand/icon.svg` is the vector master and `assets/codex-auto-resume.ico` the Windows
-raster set, both generated from the same nine numbers in `assets/make_icon.py` — one
-geometry, not a drawing and a copy of it.
+`assets/brand/icon.svg`가 벡터 원본이고 `assets/codex-auto-resume.ico`가 Windows 래스터
+세트이며, 둘 다 `assets/make_icon.py`에 있는 같은 숫자 아홉 개에서 생성됩니다. 도형 하나이지,
+그림 하나와 그 사본이 아닙니다.
 
-**Why this shape and not the other three.** Four concepts were built and rendered at all
-nine icon sizes on both a light and a dark ground; `build/icon_concepts.py` still renders
-the sheet, so the comparison can be repeated rather than believed.
+**왜 나머지 셋이 아니라 이 모양인가.** 후보 네 가지를 만들어, 아홉 가지 아이콘 크기 전부에서
+밝은 바탕과 어두운 바탕 양쪽에 렌더링했습니다. `build/icon_concepts.py`가 지금도 그 시트를
+렌더링하므로, 이 비교는 믿는 대신 다시 해 볼 수 있습니다.
 
-| Concept | Why not |
+| 후보 | 채택하지 않은 이유 |
 | --- | --- |
-| A **pause-then-play** pair | The most legible at 16px and the least distinctive anywhere. It is the most common glyph pair in software and it says "media player". |
-| A **chevron inside a ring** | Handsome at 256 and gone by 24: the chevron and the ring merged into one blob. |
-| An **arrowhead on an open arc** (the mark up to v0.5.1) | Reads as a flag at large sizes. A triangle joined to a curve at an angle stops looking joined. |
-| An **open ring with a round head** | Chosen. It survives sixteen pixels *and* stays specific — a circle is the one shape that cannot lose its silhouette when it is four pixels across. |
+| **일시정지 다음 재생** 한 쌍 | 16px에서 가장 잘 읽히고, 어디서든 가장 특징이 없습니다. 소프트웨어에서 가장 흔한 글리프 쌍이고, "미디어 플레이어"라고 말합니다. |
+| **고리 안의 꺾쇠** | 256에서는 보기 좋고 24에서는 사라집니다. 꺾쇠와 고리가 한 덩어리로 뭉쳤습니다. |
+| **열린 호에 붙은 화살촉** (v0.5.1까지의 마크) | 큰 크기에서는 깃발로 읽힙니다. 곡선에 비스듬히 붙인 삼각형은 붙어 있는 것으로 보이지 않게 됩니다. |
+| **둥근 머리가 달린 열린 고리** | 채택했습니다. 16픽셀에서도 살아남고 *동시에* 고유합니다. 원은 폭이 4픽셀이 되어도 실루엣을 잃지 않는 유일한 도형입니다. |
 
-The head sits at the end of the sweep rather than inside the gap, so it reads as leading
-the ring rather than floating beside it.
+머리는 틈 안이 아니라 호가 끝나는 자리에 놓입니다. 그래서 고리 옆에 떠 있는 것이 아니라 고리를
+이끄는 것으로 읽힙니다.
 
-## Rules that are not about colour
+## 색에 관한 것이 아닌 규칙들
 
-- **State leads.** On both the settings window and the Codex panel, what the watcher is
-  doing is the first thing and the largest type. It used to be a muted sentence along the
-  bottom of the window, under sixteen checkboxes — which put the one thing a person opens
-  the window to check below everything they did not come for.
-- **Order is an argument.** Cards run: what may be recovered, then how hard it will try,
-  then what it will tell you, then when it starts.
-- **Every status fact is its own label in its own cell.** A single concatenated string
-  wraps or truncates as the window narrows, and what disappears first is the version — the
-  part people are asked for when reporting a problem.
-- **The card is one object, repeated.** Same edge, same accent rail, same inner padding
-  across both surfaces, so the eye reads a list of sections rather than a pile of boxes.
+- **상태가 앞선다.** 설정 창과 Codex 패널 양쪽에서, 워처가 무엇을 하고 있는지가 가장 먼저
+  나오고 가장 큰 글자입니다. 예전에는 체크박스 열여섯 개 아래, 창 맨 밑에 흐린 한 문장으로
+  있었습니다. 사람이 창을 여는 단 하나의 이유를, 보러 온 것이 아닌 모든 것 아래에 둔 셈입니다.
+- **순서는 주장이다.** 카드는 이 순서로 놓입니다. 무엇을 복구할 수 있는지, 그다음 얼마나
+  끈질기게 시도할지, 그다음 무엇을 알려 줄지, 그다음 언제 시작할지.
+- **상태에 관한 사실은 하나하나가 자기 셀에 놓인 자기 레이블이다.** 하나로 이어 붙인 문자열은
+  창이 좁아지면 줄바꿈되거나 잘리는데, 가장 먼저 사라지는 것이 버전입니다. 문제를 신고할 때
+  사람들이 요구받는 바로 그 부분입니다.
+- **카드는 하나의 객체를 반복한 것이다.** 두 표면에 걸쳐 테두리도, accent 레일도, 안쪽 여백도
+  같습니다. 그래야 눈이 상자 더미가 아니라 섹션의 목록으로 읽습니다.
 
-## Redrawing anything
+## 다시 그리기
 
 ```bash
 python assets/make_icon.py     # icon, logos, vector master
@@ -103,7 +103,7 @@ python build/make_brand.py     # gui/Brand.cs
 python build/icon_concepts.py  # the concept comparison sheet
 ```
 
-Screenshots are captured with `build/capture_window.ps1`, which declares itself DPI aware
-before measuring. A DPI-unaware capture is told a scaled-down window rectangle, allocates a
-bitmap that size and returns a picture of the window's top-left corner — which looks
-exactly like a window whose layout is broken, and cost an afternoon once.
+스크린샷은 `build/capture_window.ps1`로 찍으며, 이 스크립트는 측정 전에 자신을 DPI aware로
+선언합니다. DPI를 인식하지 못하는 캡처는 축소된 창 사각형을 전달받아 그 크기의 비트맵을
+할당하고, 창의 좌측 상단 귀퉁이만 담긴 그림을 돌려줍니다. 레이아웃이 깨진 창과 정확히 똑같아
+보이고, 한 번은 오후 하루를 잡아먹었습니다.
