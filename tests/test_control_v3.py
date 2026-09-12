@@ -18,7 +18,7 @@ import unittest
 from unittest.mock import patch
 
 from codex_auto_resume import config, control, machine
-from codex_auto_resume.store import Store
+from codex_auto_resume.store import MAX_BUDGET_RESETS, Store
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = str(ROOT / "src")
@@ -180,6 +180,131 @@ class RetryNowTests(Base):
         with self.assertRaises(control.ControlError) as caught:
             self.control.request_retry_now(KEY_A)
         self.assertIn("being sent", str(caught.exception))
+
+
+class RefusalCodeTests(Base):
+    """Every way the store can refuse, told apart by its code.
+
+    These are the refusals a person acts on: one says the recovery is being sent right
+    now, one says it is already running in Codex, one says there is nothing left to give
+    back. A single code for the group would leave every front end with one sentence to
+    show for all of them - the English-prose problem again, with the prose moved - so each
+    detail is driven through a real store here and asserted to arrive as its own code.
+    """
+
+    def detection(self, index, category="server_5xx"):
+        """A record on a conversation of its own, so these cannot supersede each other."""
+        return dict(detection("%064x" % index, "0a1b2c3d-0002-7000-8000-%012d" % index,
+                              category=category),
+                    thread_id="0a1b2c3d-0001-7000-8000-%012d" % index)
+
+    def prepare(self, index, **changes):
+        """One waiting record, plus whatever the refusal under test needs written on it."""
+        key = "%064x" % index
+        with self.store() as store:
+            store.set_enabled(True, 100.0)
+            store.register(self.detection(index), 100.0, state="waiting_backoff",
+                           next_retry_at=100.0)
+            if changes:
+                store.update(key, **changes)
+        return key
+
+    def refusal(self, action, key):
+        with self.assertRaises(control.ControlError) as caught:
+            action(key)
+        self.assertIn(caught.exception.code, control.ERROR_CODES)
+        return caught.exception.code
+
+    def test_a_record_that_ended_is_never_told_it_has_attempts_left(self):
+        """The store answers "not_exhausted" for every state outside its two exhausted
+        ones, so a cancelled or recovered record used to be refused with "that recovery
+        has not been exhausted" - a sentence that is false about both, and a code a front
+        end would key its own wording off. The control layer holds the record and says
+        which it is.
+        """
+        cancelled = self.prepare(20)
+        self.control.cancel_interruption(cancelled)
+        self.assertEqual(self.refusal(self.control.reset_recovery_budget, cancelled),
+                         "cancel_requested")
+        finished = self.prepare(21, state="superseded")
+        self.assertEqual(self.refusal(self.control.reset_recovery_budget, finished),
+                         "already_finished")
+        # A record that really is still running keeps the answer it always had.
+        self.assertEqual(self.refusal(self.control.reset_recovery_budget, self.prepare(22)),
+                         "not_exhausted")
+
+    def test_a_record_that_went_between_the_read_and_the_write_says_so(self):
+        """Both refusal tables map the store's `unknown_record` to the sentence for a
+        record that is not there. It is a real race - the watcher can finish one while a
+        person looks at it - and "cannot be continued" would send them hunting for a rule.
+        """
+        for action, method in ((self.control.reset_recovery_budget, "restore_budget_detailed"),
+                               (self.control.request_retry_now, "request_retry_now")):
+            key = self.prepare(30)
+            with patch.object(Store, method, return_value=(False, "unknown_record")):
+                self.assertEqual(self.refusal(action, key), "no_such_interruption")
+
+    def test_each_restore_budget_refusal_arrives_as_its_own_code(self):
+        codes = {
+            "not_exhausted": self.refusal(self.control.reset_recovery_budget, self.prepare(1)),
+            "cancel_requested": self.refusal(
+                self.control.reset_recovery_budget,
+                self.prepare(2, state="retry_budget_exhausted", cancel_requested=True)),
+            "possibly_sent": self.refusal(
+                self.control.reset_recovery_budget,
+                self.prepare(3, state="no_progress_exhausted", submitted_at=120.0)),
+        }
+        # The fourth is reached only by using the allowance up, which is the point of it.
+        key = self.prepare(4, state="retry_budget_exhausted")
+        for _ in range(MAX_BUDGET_RESETS):
+            self.control.reset_recovery_budget(key)
+            with self.store() as store:
+                store.update(key, state="retry_budget_exhausted")
+        codes["reset_limit"] = self.refusal(self.control.reset_recovery_budget, key)
+        self.assertEqual(codes, {"not_exhausted": "not_exhausted",
+                                 "cancel_requested": "cancel_requested",
+                                 "possibly_sent": "possibly_sent",
+                                 "reset_limit": "reset_limit"})
+
+    def test_each_retry_now_refusal_arrives_as_its_own_code(self):
+        claimed = self.prepare(11)
+        with self.store() as store:
+            self.assertTrue(store.reserve(claimed, 101.0))
+        in_flight = self.prepare(12)
+        with self.store() as store:
+            self.assertTrue(store.reserve(in_flight, 101.0))
+            store.update(in_flight, state="queued", queue_id="0a1b2c3d-0009-7000-8000-000000000012")
+        observing = self.prepare(13)
+        with self.store() as store:
+            self.assertTrue(store.reserve(observing, 101.0))
+            store.update(observing, state="queued", queue_id="0a1b2c3d-0009-7000-8000-000000000013")
+            store.correlate(observing, TURN_C, 102.0)
+        codes = {
+            "finished": self.refusal(self.control.request_retry_now,
+                                     self.prepare(10, state="superseded")),
+            "claimed": self.refusal(self.control.request_retry_now, claimed),
+            "in_flight": self.refusal(self.control.request_retry_now, in_flight),
+            "observing": self.refusal(self.control.request_retry_now, observing),
+            # Shared with the restore-budget table above, deliberately: it is the same
+            # fact about the same record, and a person reading it needs one sentence.
+            "cancel_requested": self.refusal(self.control.request_retry_now,
+                                             self.prepare(14, cancel_requested=True)),
+        }
+        self.assertEqual(codes, {"finished": "already_finished",
+                                 "claimed": "being_sent",
+                                 "in_flight": "in_flight",
+                                 "observing": "observing",
+                                 "cancel_requested": "cancel_requested"})
+
+    def test_a_detail_this_layer_has_never_heard_of_is_still_coded(self):
+        # A store one version ahead answers with a detail no table here knows. That is a
+        # refusal a window still has to say something for, so it gets the table's own last
+        # resort rather than no code at all.
+        key = self.prepare(20)
+        with patch.object(Store, "request_retry_now", return_value=(False, "from_a_newer_store")):
+            self.assertEqual(self.refusal(self.control.request_retry_now, key), "cannot_check_now")
+        with patch.object(Store, "restore_budget_detailed", return_value=(False, "from_a_newer_store")):
+            self.assertEqual(self.refusal(self.control.reset_recovery_budget, key), "cannot_continue")
 
 
 def legacy_store_module(tag):

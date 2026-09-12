@@ -27,7 +27,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from codex_auto_resume import controlcli, interface, mcpui, messages   # noqa: E402
+from codex_auto_resume import control, controlcli, interface, mcpui, messages   # noqa: E402
 
 
 def env(*tags, override=None):
@@ -99,6 +99,67 @@ class CatalogTests(unittest.TestCase):
                                  "a key missing here reaches a user as a blank label or "
                                  "as an English word inside a Korean sentence")
 
+    def test_every_code_says_in_english_what_the_layer_raises(self):
+        """The catalog is what a front end shows; the raise is what the log and the
+        command line show. They are one sentence about one refusal, and nothing but a
+        test keeps them that way - the first version of this catalog had already drifted
+        from one of them by the time it was read.
+        """
+        import ast
+        from codex_auto_resume import control
+        # Both files that raise: the control layer, and the bridge's own framing refusals.
+        package = ROOT / "src" / "codex_auto_resume"
+        source = "\n".join((package / name).read_text(encoding="utf-8")
+                           for name in ("control.py", "controlcli.py"))
+        english = interface.STRINGS["en"]
+        raised = set()
+        wordings = {}
+        # The two refusal tables, which the raises read rather than spell out.
+        for table in (control._REFUSALS_RESTORE, control._REFUSALS_RETRY):
+            for message, code in table.values():
+                raised.add(code)
+                # `reset_limit` is the one sentence with a number in it. A catalog string
+                # cannot carry the count, so the words the History page already uses for
+                # that fact stand here instead; everything else must match.
+                if code == "reset_limit":
+                    continue
+                self.assertEqual(english["error." + code], message)
+        for node in ast.walk(ast.parse(source)):
+            if not (isinstance(node, ast.Call) and getattr(node.func, "id", "") == "ControlError"):
+                continue
+            code = None
+            for keyword in node.keywords:
+                if keyword.arg == "code" and isinstance(keyword.value, ast.Constant):
+                    code = keyword.value.value
+            if code is None:
+                continue          # the coded-by-default raises; test_control checks those
+            raised.add(code)
+            argument = node.args[0] if node.args else None
+            if isinstance(argument, ast.BinOp) and isinstance(argument.left, ast.Constant):
+                argument = argument.left          # "invalid %s" % name
+            fixed = None
+            if isinstance(argument, ast.Constant) and isinstance(argument.value, str):
+                fixed = argument.value
+            elif isinstance(argument, ast.Name):
+                fixed = getattr(control, argument.id, None)
+            if not isinstance(fixed, str):
+                continue          # str(exc) and friends carry a lower layer's own words
+            # Up to where the sentence stops being fixed, without the punctuation that
+            # was only there to introduce the part that varies.
+            wordings.setdefault(code, set()).add(fixed.split("%")[0].strip().rstrip(":;,- "))
+        for code, sentences in wordings.items():
+            # Compared as sentences rather than as bytes: the catalog writes what a dialog
+            # shows, so it capitalises and ends with a stop, while a raise is a fragment
+            # that gets embedded in a log line. The words have to be the same; the shape
+            # of the sentence is each surface's own business.
+            shown = english["error." + code].rstrip(".").casefold()
+            sentences = {sentence.rstrip(".").casefold() for sentence in sentences}
+            self.assertTrue(any(shown.startswith(sentence) for sentence in sentences),
+                            "error.%s says %r; the layer raises %s"
+                            % (code, shown, " or ".join(sorted(repr(s) for s in sentences))))
+        # And the set is exactly what is raised, rather than a list somebody keeps by hand.
+        self.assertEqual(set(control.ERROR_CODES) - {"request_failed"}, raised - {"request_failed"})
+
     def test_no_key_is_defined_twice(self):
         """A dict literal keeps the last of two equal keys without a word.
 
@@ -137,6 +198,27 @@ class CatalogTests(unittest.TestCase):
                 got = {piece.split("}")[0] for piece in table[key].split("{")[1:]}
                 with self.subTest(language + ":" + key):
                     self.assertEqual(got, wanted)
+
+    def test_every_refusal_code_has_a_sentence_in_every_language(self):
+        """The regression guard the error codes rest on.
+
+        A code added to the control layer without a Korean sentence is exactly the bug
+        the codes were added to end: a window whose own lead sentence is Korean and whose
+        explanation is English. Adding one has to fail here until both catalogs can say it.
+        """
+        for code in sorted(control.ERROR_CODES):
+            for language, table in interface.STRINGS.items():
+                with self.subTest(code=code, language=language):
+                    self.assertIn("error." + code, table,
+                                  "a refusal no %s user can read" % language)
+
+    def test_no_catalog_carries_a_refusal_that_can_no_longer_happen(self):
+        """The other direction, because the vocabulary is closed: a string for a code
+        nothing raises is dead weight that every translator keeps carrying."""
+        for language, table in interface.STRINGS.items():
+            stale = sorted(key for key in table if key.startswith("error.")
+                           and key[len("error."):] not in control.ERROR_CODES)
+            self.assertEqual(stale, [], language)
 
     def test_every_setting_the_panels_show_has_a_label(self):
         from codex_auto_resume import settings as policy

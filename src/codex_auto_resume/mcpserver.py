@@ -381,7 +381,7 @@ class Server:
         except ControlError as exc:
             # A rejected request is a tool-level failure, not a protocol failure: the
             # model should read the reason and correct itself, not lose the connection.
-            return self._result(request_id, self._failure(str(exc)))
+            return self._result(request_id, self._failure(str(exc), exc.code))
         except LookupError as exc:
             return self._error(request_id, INVALID_PARAMS, str(exc))
         except Exception:
@@ -422,8 +422,22 @@ class Server:
 
     # ---------------------------------------------------------------------- tools
     @staticmethod
-    def _failure(message: str) -> dict:
-        return {"isError": True, "content": [{"type": "text", "text": message}]}
+    def _failure(message: str, code: str) -> dict:
+        """A refused call: the sentence a reader gets, and the same refusal as a value.
+
+        The sentence is untouched - it is what the model reads and what a bug report
+        quotes. Beside it travels that refusal's code, one of the closed set the control
+        layer publishes, in the same `structuredContent` a successful call already
+        carries and under the same `error_code` name the bridge answers with. The code is
+        the only part of a refusal a front end can say in another language; without it the
+        settings panel could do nothing but frame an English sentence in Korean.
+
+        Nothing else goes in. A code from a closed set is a machine value that carries no
+        content of its own - free text here would, and this reply is part of what Codex
+        sends on.
+        """
+        return {"isError": True, "content": [{"type": "text", "text": message}],
+                "structuredContent": {"error_code": code}}
 
     @staticmethod
     def _reply(summary: str, data: dict, meta=None) -> dict:
