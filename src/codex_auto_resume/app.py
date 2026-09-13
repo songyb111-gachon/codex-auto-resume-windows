@@ -92,8 +92,9 @@ class App:
         self.settings = config.load_settings(paths)
         # Everything this process says - the icon, its menu, every notification - is in the
         # Interface language the user stored, which is `system` until they choose.
-        from . import l10n
+        from . import l10n, tray_popup
         l10n.set_preference(self.settings.get("interface_language"))
+        tray_popup.set_reduce_motion(self.settings.get("reduce_motion"))
         self._tray = None
         self._codex_exe_override = codex_exe or self.settings.get("codex_exe")
         self.codex_home = Path(codex_home).resolve() if codex_home else config.codex_home()
@@ -187,6 +188,8 @@ class App:
         previous = self.settings.get("interface_language")
         self.settings = values
         engine.apply_policy(values)
+        from . import tray_popup
+        tray_popup.set_reduce_motion(values.get("reduce_motion"))
         if values.get("interface_language") != previous:
             from . import interface, l10n
             l10n.set_preference(values.get("interface_language"))

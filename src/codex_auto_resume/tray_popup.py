@@ -959,8 +959,20 @@ class _PerMonitorDpi:
             function(C.c_void_p(self.previous))
 
 
+# The product's own Reduce motion setting, adopted by the watcher whenever it reads its
+# settings. Windows' own switch is honoured as well; either one stops all motion.
+_reduce_motion_setting = False
+
+
+def set_reduce_motion(value) -> None:
+    global _reduce_motion_setting
+    _reduce_motion_setting = value is True
+
+
 def reduced_motion() -> bool:
-    """True when Windows has been asked to show fewer animations."""
+    """True when Windows, or this product's Reduce motion setting, asks for fewer animations."""
+    if _reduce_motion_setting:
+        return True
     try:
         _declare()
         value = W.BOOL(1)
