@@ -39,10 +39,10 @@
   그 대화의 로컬 기록·대기열로 확인한 것이고,
   [`docs/evidence/unloaded-thread-observation.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/evidence/unloaded-thread-observation.json)에
   `visual_ui_scraping_used: false`로 적혀 있습니다. 프로토콜 관측이지, 누가 지켜본 것이 아닙니다.
-- **이번 릴리스는 아직 공개되지 않았고, 그 앞 릴리스는 공개되어 있습니다.** 아래에서
-  PUBLISHED라고 적힌 항목들이 뜻하는 것은 그 앞 릴리스입니다. 압축 파일이 발행되었고 해시가
-  `main`에 고정되어 있습니다. 이번 릴리스는 거기서 발견된 결함을 고치는 것이고, 공개되기 전까지
-  그 고침에 대해서는 무엇도 PUBLISHED를 주장하지 않습니다. 이 문서 어디에서도 PUBLISHED가 뜻하지
+- **이번 릴리스는 아직 공개되지 않았고, 그 앞의 두 릴리스는 공개되어 있습니다.** 아래에서
+  PUBLISHED라고 적힌 항목들이 뜻하는 것은 공개된 그 릴리스들입니다. 둘 다 압축 파일이 발행되었고
+  해시가 `main`에 고정되어 있습니다. 이번 릴리스는 그 둘 모두에 있는 결함 하나를 고치는 것이고,
+  공개되기 전까지 그 고침에 대해서는 무엇도 PUBLISHED를 주장하지 않습니다. 이 문서 어디에서도 PUBLISHED가 뜻하지
   *않는* 것은, 누군가 그것을 설치해서 써 보았다는 것입니다. 발행된 바이트는 그 확인만을 위해 만든
   상태 폴더와 Codex 홈을 상대로 구동했고, 설치 프로그램의 등록은 하나도 돌리지 않았으며, 실제
   Codex 상태를 상대로 워처를 띄우지도 않았습니다. 누군가 쓰는 기계에서 설치하고 올리고 지우는
