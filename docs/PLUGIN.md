@@ -548,7 +548,9 @@ not do.
 **B — a Codex-native form at the moment of the interruption. Available in principle, not
 shipped.** An MCP server can call `elicitation/create`, and the desktop app renders it: a boolean
 property becomes a real checkbox, and the response is `accept` / `decline` / `cancel`. In the
-0.154 build the request is associated with the turn that raised it. It is still not shipped. To
+desktop app's JavaScript as inspected on 2026-09-07, each request is filed under the turn that
+raised it (its `turnId`); which Codex version that bundle belongs to was not recorded. It is
+still not shipped. To
 reach a person at the moment of the interruption, the server would have to push a form into
 whatever conversation happens to be open, about a different conversation that failed, unasked;
 it only arrives while Codex is open; and it sits behind a feature gate
