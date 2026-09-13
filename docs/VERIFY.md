@@ -171,6 +171,58 @@ the contents checks apply. When the installed version already matches, the scrip
 not use the file at all and re-runs setup instead, unless you also pass `-Force`.
 [`docs/PLUGIN.md`](PLUGIN.md) describes the script in full.
 
+## Upgrading from v0.6.2 to v0.6.3
+
+The v0.6.3 archive is checked like any other, before it is extracted: the steps above, with
+v0.6.3's own file and values. v0.6.2's pin on `main` vouches for v0.6.2's file and nothing
+else. Until v0.6.3 is published and its pin committed, step 3 has nothing to compare with,
+which is the case [a new release has no pin for a while](#what-is-not-verified) describes.
+
+From v0.6.2 there are two routes, and both end in the same installer with `--keep-state`:
+extracting the archive and running `Install.cmd`, or the Dashboard's update button, whose
+verification step v0.6.2 repaired. An installation still on v0.6.0 or v0.6.1 carries the
+update script that could not verify what it downloaded, so move it by installing the
+archive the ordinary way.
+
+v0.6.3 changes one default on purpose. The message sent to continue a task used to be one
+fixed English sentence per kind of interruption; after the upgrade it is the Standard message
+in the continuation language, which on an English system reads almost the same.
+
+### What to look at once it is installed
+
+Verifying says the file is the one this project published; it does not say the new parts
+behave. v0.6.3 changes what the product says and shows rather than what recovery decides,
+and these are worth a few minutes by hand. [`LIVE_ACCEPTANCE.md`](LIVE_ACCEPTANCE.md) says
+how to make each check during an acceptance and where to write it down.
+
+- **Interface language** (Settings → General): a choice other than System is used by the
+  window, the popup, notifications and the panel, and is still chosen after the watcher
+  restarts and after you sign in again.
+- **Message style** and **Preview** (Settings → Continuation message): Preview changes with
+  a choice before it is saved, and saves nothing.
+- **Custom**: a message using `{reason}` is accepted and previewed exactly as typed; a
+  placeholder outside the five allowed ones is refused by name and changes nothing; an empty
+  message for one kind of interruption falls back to the message for every interruption,
+  then to Standard.
+- **Pending**: a task's **Auto-resume** box changes that task only, and a click on a task
+  that changed first is refused and changes nothing; **Cancel all** cancels every pending
+  recovery and turns no conversation off.
+- **The header** names what the watcher is doing, and **Reduce motion** (Settings →
+  Appearance) stops its animation and the popup's.
+- **The notification-area icon**: one click opens a small window and a second closes it;
+  clicking elsewhere or pressing Esc closes it; its check box refuses a task that changed
+  first; its **Open Dashboard** opens the window; restarting Windows Explorer brings the icon
+  back.
+- **Notifications**: an interruption's notification offers **Open Dashboard**, which opens
+  the Pending page and cancels nothing.
+- **The panel in Codex**: its Preview matches the Dashboard's, and a Custom message is shown
+  there but cannot be changed.
+
+Do these in a conversation you can throw away. The notification check needs a real
+interruption: induce a transient one as `LIVE_ACCEPTANCE.md` describes, and never fake a
+usage limit. Nothing here should be arranged by editing Codex's databases or this product's
+state, and every click should be yours rather than a script's.
+
 ## Rebuilding a release yourself
 
 A rebuild compares a published archive with what its tagged source produces. It can match only
