@@ -96,7 +96,9 @@ you can see.
 ### Evidence
 
 What was run for this release, and what was not. Unless it says otherwise, everything below
-was run on the code this tag was made from; the only later change is this section.
+was run on the code this tag was made from. Later commits changed only documents - this
+section and the feature matrix's record of the run - and one test, so that it reads the
+Korean documents where the generated `ko` branch keeps them.
 
 - **Tests.** The whole non-live suite passed on Windows 11 under Python 3.12 and 3.13
   (1,508 tests each), and in CI on 3.12, 3.13 and 3.14 as blocking jobs; the advisory 3.15
