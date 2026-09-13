@@ -1,10 +1,5 @@
 # Codex Auto Resume
 
-**수락 검사 상태:** 검사 대상 게시본에서 전송 전 투영·허용 상태 확인, 시도 횟수 계산,
-설치 실패 처리, MCP/UI 피드백 결함을 찾았습니다. 수정은 [변경 이력](CHANGELOG.ko.md)의
-**미배포** 항목이며 게시된 압축 파일에는 들어 있지 않습니다. 실제 수락 검사는 아직 끝나지
-않았으며, [증거 기록](docs/evidence/live/)에 막힌 단계를 구분했습니다.
-
 **Windows에서 사용량 한도가 풀리면 똑같은 그 Codex 작업을 자동으로 이어 갑니다.**
 
 [![tests](https://github.com/songyb111-gachon/codex-auto-resume-windows/actions/workflows/test.yml/badge.svg)](https://github.com/songyb111-gachon/codex-auto-resume-windows/actions/workflows/test.yml)
