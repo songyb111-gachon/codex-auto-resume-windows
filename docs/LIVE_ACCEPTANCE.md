@@ -26,7 +26,11 @@ An empty `docs/evidence/live/` is not a pass. It means nothing has been accepted
 - **The release candidate.** The archive built for the version you are accepting, and the
   `.sha256` published beside it. The version in `.codex-plugin/plugin.json` is the version
   every evidence file has to claim, so accept a build whose manifest already says the
-  number that is about to be released.
+  number that is about to be released. For v0.6.3 that number is `0.6.3`, and the
+  installation step 13 upgrades from is the published v0.6.2.
+- **What v0.6.3 adds is checked inside these steps.** [What v0.6.3 adds, and where to write
+  it down](#what-v063-adds-and-where-to-write-it-down) names the step each check belongs to
+  and the file whose note records it; read it before step 3.
 - **Time.** One step waits for a usage reset that may be hours away, and one step cannot
   be reached at all until a usage limit really happens to you. Both are described below.
 - **Write each file as you finish its step**, not at the end. The whole reason this
@@ -216,7 +220,8 @@ watcher process itself rather than to a claim about it, and that its tooltip rep
 four things it promises.
 
 **Do.** Open **Start Menu → Codex Auto Resume**; the Overview says whether a watcher is
-running. Find the icon in the notification area, hover for the tooltip, and open its menu.
+running. Find the icon in the notification area, hover for the tooltip, and right-click it for its menu. From v0.6.3 a single left click opens a small window instead, which is checked under
+[What v0.6.3 adds](#what-v063-adds-and-where-to-write-it-down).
 Then stop the watcher from that menu and watch the icon disappear; start it again from
 the window.
 
@@ -238,7 +243,10 @@ than whatever process raised it.
 **Do.** First set **Attempts per interruption** to 1 on the Settings page, so the record
 this produces reaches its budget in one continuation; that setting accepts 1 to 20, and
 **Continuations per task** — 1 to 10, six by default — is the separate cap on a whole
-chain. Then, in the disposable conversation, start a turn that will run for a while and
+chain. In the same visit, make the continuation-message checks under
+[What v0.6.3 adds](#what-v063-adds-and-where-to-write-it-down), and leave **Message style**
+on the style you mean to accept with — Standard, the default, unless you are accepting a
+Custom message on purpose. Then, in the disposable conversation, start a turn that will run for a while and
 take the network away until it fails. Put the network back. Watch the Pending page, or
 run `auto_resume pending`.
 
@@ -388,9 +396,10 @@ reset is refused. Never edit state or fabricate failures to arrange this. If tho
 conditions cannot be reached, record the step as `blocked` with the reset count actually
 observed, even if its first-reset behavior worked.
 
-The published v0.6.0 Dashboard discards the successful reset's explanatory note. If the
-conversation is off, record that missing feedback as a failure; the control result and
-MCP response still carry the note. A source fix does not change the published bytes.
+The published v0.6.0 Dashboard discarded the successful reset's explanatory note; v0.6.1
+shows it. If the build you are accepting does not show it while the conversation is off,
+record that missing feedback as a failure; the control result and MCP response still carry
+the note.
 
 **A pass.** The record re-enters waiting and every check runs again from the top. Because
 the conversation is off, the message says so and says that nothing will run until you
@@ -434,6 +443,13 @@ Run value is gone (`Get-ItemProperty HKCU:\Software\Microsoft\Windows\CurrentVer
 Then install the same or a newer archive over the installation — the ordinary upgrade
 path — and look again.
 
+For v0.6.3, start from an installation of the published v0.6.2 and install the v0.6.3
+archive over it. That upgrade changes one default on purpose: the continuation used to be
+one fixed English sentence per kind of interruption, and is now the Standard message in the
+continuation language. So read Settings afterwards — **Interface language** should be
+System, **Message style** Standard, and no Custom message set — and put anything else in the
+note.
+
 **A pass.** Recovery is still paused after the upgrade, and no sign-in entry was added.
 An entry that is already this installation's is re-registered, which repairs its path
 after the runtime moves; that is not the same as adding one.
@@ -476,6 +492,132 @@ copy is reported and kept. Settings and pending recoveries survive a plain unins
 **Record.** `route` as `"Uninstall.cmd"`, `"codex"` or `"source"`; `watcher_stopped`;
 `startup_entry` as `"removed"`, `"kept-not-ours"` or `"absent"`; `state_kept`;
 `refused_directories` as the number of directories it refused to delete from.
+
+## What v0.6.3 adds, and where to write it down
+
+v0.6.3 changes what the product says and shows, not what recovery decides: the classifier,
+the gates and the one watcher allowed to send are v0.6.2's. The checks below are for the new
+surfaces. None of them is a step of its own, and the validator knows nothing about them —
+an `observed` value a step does not list is refused, so they cannot be recorded there.
+Write each one instead as a short sentence of plain machine words in the `note` of the step
+named beside it; a `pass` may carry a note. That keeps them out of the count on purpose: a
+step's `pass` says nothing about these checks unless its note does.
+
+Everything above still holds. Use only the disposable conversation. Do not manufacture a
+usage limit, and do not edit Codex's databases or this product's state to reach a
+situation; where one cannot be reached honestly, write that it was not seen. Click and type
+yourself: none of this may be driven by a script, a macro or an accessibility tool, which is
+exactly what this product refuses to do itself. And write down no text a conversation
+contained, no Custom message you typed, and no screenshot.
+
+| Check | Do it during | Note it in |
+| --- | --- | --- |
+| Interface language, and that it survives a restart | Step 3 | `watcher-starts` |
+| The notification-area popup | Step 3 | `watcher-starts` |
+| Continuation message styles and Preview | Step 4 | `interruption-detected` |
+| Custom message: refusal and fallback | Step 4 | `interruption-detected` |
+| A notification's Open Dashboard, and the kind of interruption it names | Step 4 | `interruption-detected` |
+| The continuation that arrived is the one Preview showed | Step 5 | `continuation-exact-thread` |
+| The header's activity states, and Reduce motion | Step 8 | `dashboard-shows-it` |
+| The panel in Codex: Preview, and Custom text it cannot change | Step 8 | `dashboard-shows-it` |
+| A stale click refused | Step 9 | `cancel` |
+| Pending's Auto-resume box | Step 10 | `retry-now` |
+| Cancel all | After step 12 | `upgrade-keeps-decisions` |
+
+**Interface language — step 3, noted in `watcher-starts`.** If `CODEX_AUTO_RESUME_LANG` is
+set in your environment it overrides the setting, so remove it first. On **Settings →
+General**, set **Interface language** to a language Windows is not using; the window says
+that anything already open changes the next time it opens. Close and reopen the Dashboard,
+open the popup, and hover over the icon. Then stop the watcher from the menu, start it again
+from the window, and sign out and back in. Set it back to **System** at the end. *A pass:*
+everything opened after the change speaks the chosen language, the choice is still there
+after the watcher restart and the sign-in, and **System** brings back the first language
+Windows lists.
+
+**The notification-area popup — step 3, noted in `watcher-starts`.** Click the icon once: a
+small window opens beside it. Click the icon again: it closes. Open it and click somewhere
+else: it closes, and that click does not reopen it. Open it and press Esc: it closes. Press
+its **Open Dashboard**. Then, with the watcher running, restart Windows Explorer from Task
+Manager. *A pass:* each of those behaves as described, **Open Dashboard** opens the window
+and changes nothing, and the icon comes back by itself after Explorer restarts and still
+opens the popup on one click.
+
+**Continuation message styles and Preview — step 4, noted in `interruption-detected`.** On
+**Settings → Continuation message**, choose **Minimal**, then **Standard**, then
+**Detailed**, and for each one open **Preview** for a usage limit and for one transient
+kind, without saving. Leave the page without saving and open it again. *A pass:* Preview
+changes with each unsaved choice and says the watcher adds one line after the text; leaving
+without saving leaves the stored style as it was. Before you induce the failure, save the
+style you mean to accept with.
+
+**Custom message: refusal and fallback — step 4, noted in `interruption-detected`.** Choose
+**Custom**. Type a short, neutral sentence containing `{reason}` and save it. Replace
+`{reason}` with `{title}` and save again. Set **Use the message for** to **Each kind of
+interruption separately**, leave one kind empty and preview that kind; then clear the message
+for every interruption as well and preview it again. *A pass:* the first message is accepted
+and Preview shows it exactly as typed with the reason filled in; the second is refused by
+name, *Not saved*, and the first is still the stored one; Preview names the message for
+every interruption as the first fallback and the Standard message as the second. Note the
+three outcomes, never the words. Restore the style you are accepting with before you induce
+the failure.
+
+**A notification's Open Dashboard — step 4, noted in `interruption-detected`.** When the
+interruption's notification appears, read it without pressing **Don't retry** or **Don't
+resume**. Press **Open Dashboard**. *A pass:* a transient interruption's notification names
+the kind of interruption, and the button opens the Dashboard on the Pending page with the
+record still waiting and nothing cancelled. If no notification appeared, say so.
+
+**The continuation that arrived is the one Preview showed — step 5, noted in
+`continuation-exact-thread`.** Before the schedule comes round, open Preview for this
+record's kind of interruption. When the continuation appears in the conversation, compare
+the two by eye. *A pass:* it reads as Preview showed, followed by the watcher's one line.
+Note whether they matched, never the words.
+
+**The header's activity states, and Reduce motion — step 8, noted in
+`dashboard-shows-it`.** Watch the word beside the status dot in the Dashboard's header as the
+steps go by: *Monitoring* with nothing waiting, *Waiting* while a task waits for its time,
+*Checking* as one comes due, *Recovering* while the continuation runs in Codex, *Paused*
+while recovery is paused, and *Needs your attention* once the watcher is stopped in this
+step. Then turn on **Settings → Appearance → Reduce motion**. *A pass:* each word matches
+what Pending and the command line say is happening; with Reduce motion on nothing in the
+window or the popup breathes or pulses, and turning it off brings the motion back. Note the
+states you saw.
+
+**The panel in Codex — step 8, noted in `dashboard-shows-it`.** In the disposable
+conversation, open the panel (*open auto resume settings*) and use its Preview for the saved
+style. For the Custom text half, a Custom message has to be saved: if you are accepting with
+Standard, save a neutral one while recovery is paused, and restore Standard afterwards. The
+panel shows the message, offers no way to edit it, and says custom messages are written in
+the Windows Dashboard. Change an ordinary setting in the panel and save, then reopen the
+Dashboard. The panel does not refresh by itself, so reopen it before comparing. *A pass:* the
+panel's Preview matches the Dashboard's, the Custom text cannot be changed there, and saving
+in the panel left the Custom message as it was.
+
+**A stale click refused — step 9, noted in `cancel`.** A click is refused only when its task
+changed between being drawn and being clicked, and that must not be arranged by editing
+anything. The popup reads its list again every few seconds, so the moment is short: open the
+popup on the task step 9 is about, cancel that task on the Pending page as step 9 says, and
+at once click the task's box in the popup. The Pending page's own box can show the same
+refusal only when a task changes inside the five seconds between its refreshes, for example
+as its schedule comes round. *A pass:* the popup says *That task changed before the click
+reached it, so nothing was done*, and the record is exactly as the cancel left it. If a
+surface redrew first and the row had gone, write that the refusal was not seen; that is not
+a failure of the step.
+
+**Pending's Auto-resume box — step 10, noted in `retry-now`.** With the record waiting,
+clear its **Auto-resume** box on the Pending page, then tick it again, and look at the same
+task in the popup each time. *A pass:* nothing is sent for that task while the box is clear;
+ticking it again sends nothing because of the click and moves no schedule; the conversation
+is not switched off; and the popup shows the same state once it has read the list again.
+Note the code before and after each click.
+
+**Cancel all — after step 12, noted in `upgrade-keeps-decisions`, the next file you
+write.** It cancels every waiting record, so do it only when no step still needs one:
+induce one more interruption, or use any still waiting, then press **Cancel all** on Pending
+and read the confirmation before accepting it. *A pass:* the confirmation says anything
+already handed to Codex is withdrawn only if it is still queued; the result counts what was
+waiting; each of those records reads `cancelled` on History; no conversation was switched
+off; and there is no button anywhere that retries everything.
 
 ## What this procedure does not prove
 
