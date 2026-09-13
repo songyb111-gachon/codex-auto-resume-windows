@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 import shutil
 import struct
+import re
 import subprocess
 import sys
 import tempfile
@@ -126,6 +127,65 @@ class RealCompilerTests(unittest.TestCase):
         data = normalize_pe.normalise(self.first)
         offset = normalize_pe.locate(data)["timestamp"]
         self.assertEqual(struct.unpack_from("<I", data, offset)[0], normalize_pe.FIXED_TIMESTAMP)
+
+
+RANDOMLY_NAMED = """
+using System;
+static class Program {
+    static int Code(string s) {
+        switch (s) {
+            case "a": return 1; case "b": return 2; case "c": return 3; case "d": return 4;
+            case "e": return 5; case "f": return 6; case "g": return 7; case "h": return 8;
+            case "i": return 9; case "j": return 10;
+            default: return 0;
+        }
+    }
+    static int Main(string[] args) { return Code(args.Length > 0 ? args[0] : ""); }
+}
+"""
+
+
+@unittest.skipUnless(CSC.is_file(), "the in-box C# compiler is not available")
+class RandomlyNamedClassTests(unittest.TestCase):
+    """The third varying field, which stopped the first v0.6.3 release run.
+
+    A long string switch makes the in-box compiler emit a class named with a fresh random
+    GUID. The normaliser cannot make that name a function of the source, so it refuses the
+    image, and `make_gui.ps1` fails on the machine that built it."""
+
+    def test_an_image_with_a_randomly_named_class_is_refused(self):
+        folder = Path(tempfile.mkdtemp())
+        try:
+            source = folder / "Program.cs"
+            source.write_text(RANDOMLY_NAMED, encoding="utf-8")
+            exe = folder / "program.exe"
+            subprocess.run([str(CSC), "/nologo", "/target:exe", "/platform:x64", "/optimize+",
+                            "/out:" + str(exe), str(source)], check=True, capture_output=True, timeout=120)
+            data = exe.read_bytes()
+            self.assertIn(b"<PrivateImplementationDetails>{", data,
+                          "the compiler no longer emits the class; this test proves nothing")
+            with self.assertRaises(normalize_pe.NotNormalisable) as caught:
+                normalize_pe.normalise(data)
+            self.assertIn("PrivateImplementationDetails", str(caught.exception))
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
+
+    def test_the_shipped_window_source_has_no_long_string_switch(self):
+        # The same rule, read from the source, so it fails without a compiler too.
+        for name in ("Controls.cs", "SettingsApp.cs", "Dashboard.cs", "Brand.cs"):
+            text = (ROOT / "gui" / name).read_text(encoding="utf-8")
+            for match in re.finditer(r"\bswitch\s*\(", text):
+                start = text.find("{", match.end())
+                depth, end = 0, start
+                while end < len(text):
+                    depth += {"{": 1, "}": -1}.get(text[end], 0)
+                    if depth == 0:
+                        break
+                    end += 1
+                cases = len(re.findall(r'\bcase\s+"', text[start:end]))
+                with self.subTest(file=name, line=text.count("\n", 0, match.start()) + 1):
+                    # Measured on this compiler: six string cases produced the class, four did not.
+                    self.assertLess(cases, 5, "a string switch this long makes the build unreproducible")
 
 
 class RefusalTests(unittest.TestCase):

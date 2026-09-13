@@ -96,9 +96,21 @@ you can see.
 ### Evidence
 
 What was run for this release, and what was not. Unless it says otherwise, everything below
-was run on the code this tag was made from. Later commits changed only documents - this
+was run on the code this tag was made from, with one exception: three `switch` statements in
+the window's code were rewritten as plain comparisons, with no change in behaviour, after the
+local test runs and the Windows checks below (see the first release run, below); CI ran the
+whole suite again on the tagged commit. The other later commits changed only documents - this
 section and the feature matrix's record of the run - and one test, so that it reads the
 Korean documents where the generated `ko` branch keeps them.
+
+- **The first release run stopped itself.** Tagging this version started a release run that
+  builds the settings window twice and compares the two, and they differed, so nothing was
+  published. The in-box C# compiler names one class with a fresh random GUID when a string
+  `switch` has six or more cases, and three written for this release did. They are now plain
+  comparisons. `build/normalize_pe.py` refuses an executable that still holds such a class, so
+  the build fails on the machine that made it rather than in a release run, and a test compiles
+  a program with one and checks the refusal. The tag was then placed on the fixed commit;
+  nothing had been published under it.
 
 - **Tests.** The whole non-live suite passed on Windows 11 under Python 3.12 and 3.13
   (1,508 tests each), and in CI on 3.12, 3.13 and 3.14 as blocking jobs; the advisory 3.15

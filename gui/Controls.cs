@@ -785,40 +785,39 @@ namespace CodexAutoResume
         internal static double HaloOpacity(string state, double elapsedMs, bool reduced)
         {
             double low = Brand.HaloMin, high = Brand.HaloMax, middle = (low + high) / 2;
-            switch (state)
+            // Comparisons, not a switch: see DotColour. Six string cases were already enough for
+            // the in-box compiler to emit the randomly named class.
+            if (state == "monitoring")
             {
-                case "monitoring":
-                    if (reduced) return middle;
-                    return low + (high - low) * (0.5 - 0.5 * Math.Cos(2 * Math.PI * (elapsedMs % Brand.BreatheMs) / Brand.BreatheMs));
-                case "recovering":
-                    if (reduced) return Math.Min(0.6, high * 1.2);
-                    return low + (Math.Min(0.6, high * 1.6) - low) *
-                           (0.5 - 0.5 * Math.Cos(2 * Math.PI * (elapsedMs % Brand.AttentionMs) / Brand.AttentionMs));
-                case "waiting":
-                case "checking":
-                    return middle;
-                case "attention":
-                case "failed":
-                    if (reduced || elapsedMs >= Brand.AttentionMs) return middle;
-                    return middle + (Math.Min(0.6, high * 1.6) - middle) * Math.Sin(Math.PI * elapsedMs / Brand.AttentionMs);
-                default:
-                    return 0;          // paused, idle: still, and no halo
+                if (reduced) return middle;
+                return low + (high - low) * (0.5 - 0.5 * Math.Cos(2 * Math.PI * (elapsedMs % Brand.BreatheMs) / Brand.BreatheMs));
             }
+            if (state == "recovering")
+            {
+                if (reduced) return Math.Min(0.6, high * 1.2);
+                return low + (Math.Min(0.6, high * 1.6) - low) *
+                       (0.5 - 0.5 * Math.Cos(2 * Math.PI * (elapsedMs % Brand.AttentionMs) / Brand.AttentionMs));
+            }
+            if (state == "waiting" || state == "checking") return middle;
+            if (state == "attention" || state == "failed")
+            {
+                if (reduced || elapsedMs >= Brand.AttentionMs) return middle;
+                return middle + (Math.Min(0.6, high * 1.6) - middle) * Math.Sin(Math.PI * elapsedMs / Brand.AttentionMs);
+            }
+            return 0;          // paused, idle: still, and no halo
         }
 
         internal static Color DotColour(string state)
         {
-            switch (state)
-            {
-                case "monitoring":
-                case "recovering": return Palette.Active;
-                case "waiting":
-                case "checking": return Palette.Waiting;
-                case "attention": return Palette.Attention;
-                case "failed": return Palette.Danger;
-                case "paused": return Palette.Paused;
-                default: return Palette.Idle;
-            }
+            // Comparisons, not a switch. The in-box compiler turns a string switch with enough
+            // cases into a dictionary held by a class it names with a fresh random GUID, and that
+            // one name made two builds of the same source differ - which stopped a release.
+            if (state == "monitoring" || state == "recovering") return Palette.Active;
+            if (state == "waiting" || state == "checking") return Palette.Waiting;
+            if (state == "attention") return Palette.Attention;
+            if (state == "failed") return Palette.Danger;
+            if (state == "paused") return Palette.Paused;
+            return Palette.Idle;
         }
 
         private bool ShouldRun()

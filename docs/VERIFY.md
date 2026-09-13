@@ -287,7 +287,10 @@ These are new in v0.6.0.
   differ, as measured, in exactly two fields: the PE header's timestamp and the module's random version
   GUID (MVID). `build/normalize_pe.py` sets the timestamp to a constant and replaces the
   GUID with one derived from the module's own content. It refuses a file that fails its
-  structural checks, for example one with a debug directory or a PE checksum.
+  structural checks, for example one with a debug directory or a PE checksum. It also
+  refuses an executable holding a class the compiler named with a random GUID, which a long
+  string `switch` produces, so such a build fails rather than producing bytes a rebuild
+  cannot match.
 - `build/make_release.py` writes the archive with a fixed file order, fixed entry
   timestamps and a fixed compression level, and puts no path from the build machine in
   it. The compressed bytes still come from the zlib of the Python that runs it.
