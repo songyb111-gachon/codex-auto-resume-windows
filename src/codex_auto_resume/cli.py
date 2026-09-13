@@ -334,13 +334,22 @@ def cmd_stop(args) -> int:
 
 
 def cmd_activate(args) -> int:
-    """Handle the notification button. Reached from Windows, never from a terminal.
+    """Handle a notification button. Reached from Windows, never from a terminal.
 
-    The only action a URI can request is *cancelling* a resume, so a hostile URI can at
-    worst stop something from happening. The interruption id is validated as opaque hex
-    and must match a real record; nothing is looked up by thread, name or recency.
+    A URI can request exactly two things: *cancelling* one resume, or *opening* one page of
+    the Dashboard. Neither can make anything happen that should not - a hostile URI can at
+    worst stop something from happening or open a window. The interruption id is validated
+    as opaque hex and must match a real record; nothing is looked up by thread, name or
+    recency. The page must be one of the window's own pages.
     """
     app = _app(args)
+    page = notify.parse_open_uri(args.uri)
+    if page is not None:
+        from . import tray
+        opened = tray.open_dashboard(app.paths.home, page)
+        app.logger.info("dashboard opened from a notification" if opened
+                        else "activation: the Dashboard is not installed here")
+        return EXIT_OK if opened else EXIT_ERROR
     interruption_id = notify.parse_cancel_uri(args.uri)
     if interruption_id is None:
         app.logger.info("activation ignored: malformed or unsupported URI")

@@ -81,11 +81,52 @@ def parse_cancel_uri(uri: str) -> str | None:
     return candidate
 
 
-def _toast_xml(title, body, button=None, uri=None, extra=()) -> str:
+def open_uri(page: str = "pending") -> str:
+    """Capability URI that opens one page of the Dashboard.
+
+    Like cancelling, it cannot make anything happen that should not: it names a page
+    from a closed list, it changes no state, and a hostile page that knows the scheme can
+    at worst open a window.
+    """
+    return "%s:open?page=%s" % (SCHEME, page)
+
+
+def parse_open_uri(uri: str) -> str | None:
+    """Return the page, or None when the URI is not a valid open request."""
+    from urllib.parse import parse_qs, urlsplit
+
+    try:
+        parts = urlsplit(str(uri))
+    except (ValueError, TypeError):
+        return None
+    if parts.scheme.lower() != SCHEME:
+        return None
+    action = (parts.path or parts.netloc or "").strip("/").lower()
+    if action != "open":
+        return None
+    values = parse_qs(parts.query).get("page") or []
+    if len(values) != 1:
+        return None
+    page = values[0].strip().lower()
+    # The same closed list the icon uses, spelled out here so this module does not have to
+    # import the icon's window code to validate a string.
+    return page if page in ("overview", "pending", "history", "statistics", "diagnostics",
+                            "settings") else None
+
+
+# Windows shows at most five buttons on a toast. This product never needs more than two.
+MAX_TOAST_ACTIONS = 5
+
+
+def _toast_xml(title, body, button=None, uri=None, extra=(), more=()) -> str:
+    pairs = ([(button, uri)] if button and uri else []) + [
+        (label, target) for label, target in more if label and target]
     actions = ""
-    if button and uri:
-        actions = '<actions><action content=%s activationType="protocol" arguments=%s/></actions>' % (
-            quoteattr(button), quoteattr(uri))
+    if pairs:
+        actions = "<actions>%s</actions>" % "".join(
+            '<action content=%s activationType="protocol" arguments=%s/>' % (
+                quoteattr(label), quoteattr(target))
+            for label, target in pairs[:MAX_TOAST_ACTIONS])
     # Trimmed here rather than at the call sites, so no future caller can silently
     # lose a line to the platform limit.
     lines = [line for line in ([title] + list(extra) + [body]) if line][:MAX_TOAST_LINES]
@@ -95,7 +136,7 @@ def _toast_xml(title, body, button=None, uri=None, extra=()) -> str:
 
 
 def show(title: str, body: str, *, button: str | None = None, uri: str | None = None,
-         extra=()) -> bool:
+         extra=(), more=()) -> bool:
     """Best effort. Returns True only when PowerShell reported success.
 
     The toast document travels as an environment variable into a constant script, never
@@ -105,7 +146,7 @@ def show(title: str, body: str, *, button: str | None = None, uri: str | None = 
     if pwsh.executable() is None:
         return False
     try:
-        code = pwsh.run(_SCRIPT, {"XML": _toast_xml(title, body, button, uri, extra),
+        code = pwsh.run(_SCRIPT, {"XML": _toast_xml(title, body, button, uri, extra, more),
                                   "AUMID": aumid()}, timeout=TIMEOUT_SECONDS)
     except (OSError, subprocess.SubprocessError, pwsh.PowerShellError):
         return False
@@ -172,12 +213,18 @@ def scheduled(thread_id: str, interruption_id: str, reset_at: float | None,
                 else messages.text("toast_usage_soon"))
         button = messages.text("toast_button_cancel")
     else:
-        body = messages.text("toast_transient")
+        # The reason, named. "Temporary rate limit" and "server error" are different things
+        # to the person reading, and the classifier already knows which one this was. The
+        # label is the normalised one from the reason registry - never the error text.
+        from . import l10n, reasons
+        label = l10n.text(reasons.label_key(category), messages.language())
+        body = label + " · " + messages.text("toast_transient")
         button = messages.text("toast_button_no_retry")
     # Order matters: the reason must come before the identifiers, because a line that
     # does not fit is lost and losing the reason makes the notification pointless.
     return show(title, _origin_line(identity, title, thread_id),
-                button=button, uri=cancel_uri(interruption_id), extra=[body])
+                button=button, uri=cancel_uri(interruption_id), extra=[body],
+                more=[(messages.text("toast_button_open"), open_uri("pending"))])
 
 
 def cancelled(thread_id: str) -> bool:

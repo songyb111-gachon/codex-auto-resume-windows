@@ -90,6 +90,11 @@ class App:
             self.logger.handlers = [logging.NullHandler()]
             self.logger.propagate = False
         self.settings = config.load_settings(paths)
+        # Everything this process says - the icon, its menu, every notification - is in the
+        # Interface language the user stored, which is `system` until they choose.
+        from . import l10n
+        l10n.set_preference(self.settings.get("interface_language"))
+        self._tray = None
         self._codex_exe_override = codex_exe or self.settings.get("codex_exe")
         self.codex_home = Path(codex_home).resolve() if codex_home else config.codex_home()
         # Fixed at construction, so what the lock protects cannot move under a running
@@ -179,8 +184,16 @@ class App:
         values = config.load_settings(self.paths)
         if values == self.settings:
             return False
+        previous = self.settings.get("interface_language")
         self.settings = values
         engine.apply_policy(values)
+        if values.get("interface_language") != previous:
+            from . import interface, l10n
+            l10n.set_preference(values.get("interface_language"))
+            if self._tray is not None:
+                # The icon's words change with the language. Nothing else about the icon
+                # does, and nothing about recovery does at all.
+                self._tray.set_strings(interface.catalog())
         self.logger.info("settings reloaded")
         return True
 
@@ -481,6 +494,7 @@ class App:
                               log=self.logger.info)
         if not icon_tray.start():
             return None
+        self._tray = icon_tray
         return icon_tray
 
     def _update_tray(self, icon_tray, store):

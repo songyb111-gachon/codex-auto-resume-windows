@@ -183,6 +183,55 @@ def resolve(preference, environ=None) -> str:
     return from_system(environ)
 
 
+# ---------------------------------------------------------------- preference
+# The Interface language the user stored, for everything this process renders.
+#
+# Each process that shows a person anything - the watcher with its icon and its
+# notifications, the bridge the window talks to, the MCP server that draws the panel -
+# belongs to exactly one installation and reads exactly one settings file, so the choice
+# is held once per process rather than threaded through every call that formats a
+# sentence. The watcher sets it when it loads settings and again whenever they change;
+# the bridge and the MCP server set it before they hand over a catalog. Anything that
+# asks without a choice having been made gets `system`, which is what it always got.
+_preference = SYSTEM
+
+
+def set_preference(value) -> str:
+    """Adopt a stored Interface language. Returns the locale it now resolves to.
+
+    An unrecognised value is `system`, not an error: a settings file edited by hand, or
+    written by a newer version, must not leave a process unable to say anything.
+    """
+    global _preference
+    _preference = value if isinstance(value, str) and value in CHOICES else SYSTEM
+    return current()
+
+
+def preference() -> str:
+    return _preference
+
+
+def current(environ=None) -> str:
+    """The locale this process renders in right now."""
+    return resolve(_preference, environ)
+
+
+# Each language named in itself. These are not translated and do not live in the
+# catalogs: a person looking for their own language in a list scans for the name they
+# know, and "Japanese" written in Korean is a name a Japanese reader does not know.
+ENDONYMS = {
+    "en": "English",
+    "ko": "한국어",
+    "ja": "日本語",
+    "zh-CN": "简体中文",
+    "zh-TW": "繁體中文",
+    "es": "Español",
+    "de": "Deutsch",
+    "fr": "Français",
+    "pt-BR": "Português (Brasil)",
+}
+
+
 def _no_duplicates(pairs):
     seen = {}
     for key, value in pairs:

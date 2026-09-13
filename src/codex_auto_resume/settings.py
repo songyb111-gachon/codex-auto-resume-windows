@@ -169,6 +169,10 @@ RANGES = {
     "max_chain_continuations": {"min": 1, "max": 10},
     "detection_lookback_hours": {"min": 0.0, "max": float(24 * 7)},
     "retry_timing": {"choices": list(RETRY_TIMING)},
+    "interface_language": {"choices": list(l10n.CHOICES)},
+    "continuation_language": {"choices": list(CONTINUATION_LANGUAGES)},
+    "continuation_style": {"choices": list(continuation.STYLES)},
+    "custom_message_mode": {"choices": list(continuation.CUSTOM_MODES)},
 }
 
 
@@ -328,6 +332,18 @@ def describe() -> list:
         elif name in ("max_recovery_attempts", "max_no_progress", "max_chain_continuations",
                       "retry_timing"):
             entry["group"] = "limits"
+        elif name == "interface_language":
+            entry["group"] = "general"
+        elif name in ("continuation_language", "continuation_style", "custom_message_mode"):
+            entry["group"] = "continuation"
+        elif name.startswith("custom_message"):
+            # Free text. The surfaces need to know that before they draw a one-line box
+            # for it, and they need the limit before a person types past it.
+            entry["group"] = "continuation"
+            entry["multiline"] = True
+            entry["max_length"] = continuation.MAX_CUSTOM_LENGTH
+            if name != "custom_message":
+                entry["category"] = name[len("custom_message_"):]
         else:
             entry["group"] = "advanced"
         described.append(entry)

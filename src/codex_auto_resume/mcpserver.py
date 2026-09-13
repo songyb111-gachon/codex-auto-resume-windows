@@ -53,7 +53,7 @@ def _identifier_schema(title: str) -> dict:
 
 # Settings groups a person can change from a front end. Anything else is not offered to
 # a model and is refused if a client sends it anyway.
-USER_GROUPS = frozenset({"recovery", "limits", "notifications"})
+USER_GROUPS = frozenset({"general", "recovery", "limits", "notifications", "continuation"})
 
 
 def settings_schema() -> dict:
@@ -73,6 +73,16 @@ def settings_schema() -> dict:
         # executes an arbitrary path (the location is confined before anything runs), but
         # recovery silently stopped at the next watcher start.
         if entry.get("group") not in USER_GROUPS:
+            continue
+        # Custom continuation text is the one thing in the continuation group Codex may not
+        # write. Whatever it says is later sent into the user's conversations by the
+        # watcher, on the user's behalf, when nobody is watching. A model that had been
+        # talked into changing it by a page it read would have turned one injected
+        # instruction into a standing one, delivered at every future interruption. Language
+        # and style only choose among texts this product ships or the user wrote; the text
+        # itself is written in the Windows Dashboard, where the person typing it is the
+        # person it will speak for.
+        if name.startswith("custom_message") and name != "custom_message_mode":
             continue
         described = {"boolean": {"type": "boolean"},
                      "integer": {"type": "integer"},
@@ -289,6 +299,42 @@ TOOLS = [
     },
 ]
 
+from . import reasons as _reasons  # noqa: E402 - the Preview tool's schema names them
+
+# Preview, read-only. It sends nothing and saves nothing: it returns the text the watcher
+# would send for one kind of interruption under the current settings, or under a language
+# and style given for the preview alone. Custom text is not accepted here, for the same
+# reason it is not writable from Codex at all.
+TOOLS.append({
+    "name": "preview_recovery_message",
+    "title": "Preview the recovery message",
+    "description": "Show the exact text Codex Auto Resume would send to continue a task after "
+                   "an interruption of the given kind, under the current settings or the "
+                   "language and style given. Read-only: it saves nothing and sends nothing.",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "category": {"type": "string", "enum": list(_reasons.RECOVERABLE),
+                         "description": "The kind of interruption to preview."},
+            "changes": {
+                "type": "object",
+                "description": "Unsaved choices to preview with. Nothing is stored.",
+                "properties": {
+                    "interface_language": {"type": "string"},
+                    "continuation_language": {"type": "string"},
+                    "continuation_style": {"type": "string"},
+                    "custom_message_mode": {"type": "string"},
+                },
+                "additionalProperties": False,
+            },
+        },
+        "required": ["category"],
+        "additionalProperties": False,
+    },
+    "annotations": {"title": "Preview the recovery message", "readOnlyHint": True,
+                    "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+})
+
 RESOURCES = [{
     "uri": SETTINGS_UI,
     "name": "Codex Auto Resume settings",
@@ -426,7 +472,9 @@ class Server:
         uri = params.get("uri")
         if uri != SETTINGS_UI:
             raise LookupError("unknown resource")
+        from . import l10n
         from .mcpui import settings_page
+        l10n.set_preference(self.control.get_settings().get("interface_language"))
         return {"contents": [{"uri": SETTINGS_UI, "mimeType": "text/html+skybridge",
                               "text": settings_page()}]}
 
@@ -478,10 +526,16 @@ class Server:
 
     def _snapshot(self) -> dict:
         """Everything the settings panel needs, in one read."""
+        from . import l10n
+        settings = self.control.get_settings()
+        l10n.set_preference(settings.get("interface_language"))
         return {"status": self.control.get_status(),
                 "schema": self.control.describe_settings(),
-                "settings": self.control.get_settings(),
-                "pending": self.control.list_pending()}
+                "settings": settings,
+                "pending": self.control.list_pending(),
+                "reasons": list(_reasons.RECOVERABLE),
+                "endonyms": dict(l10n.ENDONYMS),
+                "system_language": l10n.from_system()}
 
     def _tool_open_settings(self, _arguments) -> dict:
         data = self._snapshot()
@@ -517,6 +571,18 @@ class Server:
             raise ControlError("not changeable from Codex: %s" % ", ".join(refused))
         values = self.control.update_settings(arguments)
         return self._reply("Updated %s." % ", ".join(sorted(arguments)), {"settings": values})
+
+    def _tool_preview_recovery_message(self, arguments) -> dict:
+        changes = arguments.get("changes")
+        if changes is not None:
+            if not isinstance(changes, dict):
+                raise ControlError("changes must be an object")
+            allowed = {"interface_language", "continuation_language", "continuation_style",
+                       "custom_message_mode"}
+            if set(changes) - allowed:
+                raise ControlError("only language and style can be previewed from Codex")
+        preview = self.control.preview_continuation(arguments.get("category"), changes)
+        return self._reply(preview["text"], {"preview": preview})
 
     def _tool_restore_default_settings(self, _arguments) -> dict:
         return self._reply("Settings restored to their defaults.",

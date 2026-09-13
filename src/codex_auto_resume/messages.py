@@ -34,13 +34,12 @@ MESSAGES = {locale: _plugin_messages(locale) for locale in l10n.LOCALES}
 
 
 def language(environ=None) -> str:
-    """The shipped language this machine asks for, or English.
+    """The language this process speaks: the stored Interface language, else Windows.
 
-    Only the *most preferred* tag counts. A machine that lists Japanese after English
-    is not asking for Japanese, and answering it in Japanese because the list mentions
-    it is how a product ends up speaking a language nobody chose.
+    With no choice stored this is what Windows asks for, and only the *most preferred*
+    tag counts - a machine that lists Japanese after English is not asking for Japanese.
     """
-    return l10n.from_system(environ)
+    return l10n.current(environ)
 
 
 def text(key: str, environ=None) -> str:

@@ -49,9 +49,10 @@ from .control import FALLBACK_CODE, Control, ControlError
 
 # Commands with no argument, and commands that take one JSON object.
 PLAIN = ("status", "settings", "describe", "defaults", "pending", "pending-all", "start-watcher",
-         "stop-watcher", "strings", "history", "clear-history", "dashboard")
+         "stop-watcher", "strings", "history", "clear-history", "dashboard", "cancel-all")
 WITH_ARGUMENT = ("update", "enabled", "startup", "cancel", "reset-budget", "retry-now",
-                 "timeline", "statistics", "thread-enabled", "cancel-thread", "diagnostics")
+                 "timeline", "statistics", "thread-enabled", "cancel-thread", "diagnostics",
+                 "preview-continuation", "interruption-recovery")
 MAX_LINE = 64 * 1024
 # What a rejection says when nothing more precise is known. Both the sentence and the code
 # are the generic ones: the log holds the detail, and a front end that shows this has still
@@ -145,8 +146,13 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
         if command == "strings":
             # The interface vocabulary for the resolved language, handed over whole. The
             # window does not decide the language and does not carry its own English.
-            from . import interface
-            return {"ok": True, "language": interface.language(), "strings": interface.catalog()}
+            # The Interface language is read again on every request: the window's own
+            # Settings page is where it changes, and the window asks again after saving.
+            from . import interface, l10n
+            l10n.set_preference(control.get_settings().get("interface_language"))
+            return {"ok": True, "language": interface.language(), "strings": interface.catalog(),
+                    "preference": l10n.preference(), "system_language": l10n.from_system(),
+                    "endonyms": dict(l10n.ENDONYMS)}
         if command == "describe":
             return {"ok": True, "schema": control.describe_settings()}
         if command == "defaults":
@@ -207,6 +213,18 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
             return {"ok": True, "result": control.set_thread_enabled(payload.get("thread_id"), enabled)}
         if command == "cancel-thread":
             return {"ok": True, "result": control.cancel_thread(payload.get("thread_id"))}
+        if command == "preview-continuation":
+            changes = payload.get("changes")
+            return {"ok": True, "result": control.preview_continuation(payload.get("category"),
+                                                                       changes)}
+        if command == "interruption-recovery":
+            enabled = payload.get("enabled")
+            if not isinstance(enabled, bool):
+                raise ControlError("enabled must be true or false")
+            return {"ok": True, "result": control.set_interruption_recovery(
+                payload.get("interruption_id"), payload.get("thread_id"), enabled)}
+        if command == "cancel-all":
+            return {"ok": True, "result": control.cancel_all_pending(actor="gui")}
         if command == "diagnostics":
             from . import diagnostics
             target = payload.get("path")

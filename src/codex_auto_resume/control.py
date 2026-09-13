@@ -70,7 +70,7 @@ ERROR_CODES = frozenset({
     "not_installed", "start_failed", "store_unavailable", "newer_state", "upgrade_pending",
     "state_busy", "not_exhausted", "cancel_requested", "possibly_sent", "reset_limit",
     "already_finished", "being_sent", "in_flight", "observing", "cannot_continue",
-    "cannot_check_now", "file_exists", "request_failed",
+    "cannot_check_now", "file_exists", "request_failed", "thread_mismatch",
 })
 # The code for a refusal with nothing more specific to say, and the one every caller may
 # assume is present. A rejection carrying no code at all would leave a front end holding
@@ -641,6 +641,122 @@ class Control:
             note = "the watcher checks at its next poll; every safety check still applies"
         return {"interruption_id": key, "state": record["state"], "eligible_at": detail,
                 "woke": woke, "note": note}
+
+    # ------------------------------------------------------------ continuation
+    def preview_continuation(self, category, changes=None, *, now=None) -> dict:
+        """The exact continuation the watcher would send, under the settings being edited.
+
+        `changes` are unsaved edits layered over the stored settings, so a Preview follows
+        what somebody is choosing or typing before anything is saved. A Custom message that
+        would be refused is reported beside the preview rather than previewed: what the
+        preview then shows is what would really be sent, which is the fallback. Previewing
+        text that could never be stored would show a message nobody will ever receive.
+
+        The text comes from `continuation.for_settings`, the same function the watcher calls
+        when it sends. There is no second rendering of a continuation anywhere.
+        """
+        from . import continuation, reasons
+        # Malformed requests, which only a front end with a bug can make. Like a value the
+        # settings validator refuses, they carry the generic code and say exactly what was
+        # wrong in the sentence.
+        if category not in reasons.RECOVERABLE:
+            problem = "a preview is only available for a recoverable kind of interruption"
+            raise ControlError(problem, code="request_failed")
+        values = dict(self.get_settings())
+        refusal = None
+        if changes is not None:
+            if not isinstance(changes, dict):
+                problem = "changes must be an object"
+                raise ControlError(problem, code="request_failed")
+            unknown = sorted(set(changes) - set(settings.FIELDS))
+            if unknown:
+                problem = "unknown setting: %s" % ", ".join(unknown)
+                raise ControlError(problem, code="request_failed")
+            for name, value in changes.items():
+                is_text = name.startswith("custom_message") and name != "custom_message_mode"
+                if is_text and value is not None and not (isinstance(value, str) and not value.strip()):
+                    try:
+                        continuation.validate_custom(value)
+                    except continuation.CustomMessageError as exc:
+                        refusal = refusal or str(exc)
+                        continue
+                    values[name] = value
+                elif is_text:
+                    values[name] = None
+                else:
+                    values[name] = value
+            values = settings.coerce(values)
+        moment = time.time() if now is None else float(now)
+        # A stand-in record with only the fields a message may refer to. A usage limit
+        # previews with a reset an hour away, so {reset_time} shows a real time.
+        sample = {"category": category, "attempt_count": 0,
+                  "reset_at": moment + 3600 if reasons.has_reset_time(category) else None}
+        text = continuation.for_settings(category, values, row=sample,
+                                         limits={"max_recovery_attempts":
+                                                 values["max_recovery_attempts"]})
+        return {"category": category, "locale": continuation.resolve_locale(values),
+                "style": continuation.style_from(values),
+                "source": continuation.source_for(category, values),
+                "text": text, "refusal": refusal}
+
+    def set_interruption_recovery(self, interruption_id, thread_id, enabled, *,
+                                    actor: str = "gui") -> dict:
+        """The per-task checkbox: automatic recovery on or off for this exact task.
+
+        A click carries both identities, and both are checked against the record as it is
+        now, not as it was when the row was drawn. A list that re-sorted between drawing
+        and clicking must never turn a click on one task into a change to another, so a
+        record that no longer exists, has finished, or belongs to a different conversation
+        is refused and nothing is changed.
+
+        What the switch changes is the conversation's policy, which is the thing that
+        survives: turning it off keeps this recovery - and anything that later interrupts
+        the same conversation - from being continued until it is turned back on. It never
+        sends anything, and turning it on still leaves every gate to run.
+        """
+        key = _identifier(interruption_id)
+        thread = _thread_id(thread_id)
+        if not isinstance(enabled, bool):
+            raise ControlError("enabled must be true or false", code="invalid_enabled")
+        with self._open() as store:
+            record = store.get(key)
+            if record is None:
+                raise ControlError("no such interruption", code="no_such_interruption")
+            # Nothing is changed by either refusal.
+            if record["thread_id"] != thread:
+                raise ControlError("that recovery belongs to a different conversation",
+                                   code="thread_mismatch")
+            if record["state"] in TERMINAL:
+                raise ControlError("that recovery has already finished", code="already_finished")
+            store.set_thread_enabled(thread, enabled, actor=actor)
+            return {"interruption_id": key, "thread_id": thread,
+                    "enabled": store.thread_enabled(thread), "state": record["state"]}
+
+    def cancel_all_pending(self, *, actor: str = "gui") -> dict:
+        """Stop every pending recovery, one exact interruption at a time.
+
+        Only cancelling is offered in bulk. It can only reduce what the tool does, so
+        doing it to everything at once cannot cause a send. "Retry now" is deliberately
+        not offered in bulk: one record at a time under one lock is what keeps the argument
+        that nothing is ever sent twice short enough to check.
+        """
+        with self._open() as store:
+            keys = [row["interruption_id"] for row in store.pending()]
+        cancelled = finished = failed = 0
+        for key in keys:
+            try:
+                result = self.cancel_interruption(key, actor=actor)
+            except ControlError:
+                failed += 1
+                continue
+            if result["changed"]:
+                cancelled += 1
+            else:
+                # Cancelling a chain's parent also stops its child, which is then found
+                # already finished when its own turn comes.
+                finished += 1
+        return {"requested": len(keys), "cancelled": cancelled,
+                "already_finished": finished, "failed": failed}
 
     def clear_history(self, *, actor: str = "gui") -> dict:
         """Hide finished recoveries from the History view. Deletes nothing, cancels

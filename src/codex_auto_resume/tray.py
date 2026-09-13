@@ -156,6 +156,14 @@ class Tray:
         with self._lock:
             self._snapshot = dict(snapshot)
 
+    def set_strings(self, strings: dict) -> None:
+        """Adopt a new vocabulary, after the Interface language changed."""
+        with self._lock:
+            self.strings = dict(strings or {})
+            # Forget the last tooltip so the next tick rewrites it even if the numbers in
+            # it have not moved.
+            self._last_tip = None
+
     def stop(self) -> None:
         if self._hwnd:
             _dll("user32").PostMessageW(self._hwnd, WM_CLOSE, 0, 0)
