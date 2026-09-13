@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- **Fixed: the Dashboard's update downloaded the archive and then could not verify it.**
+  The verification step used `Get-FileHash`, and on a real machine that cmdlet did not
+  resolve in the process the update button starts, so the run ended with "'Get-FileHash'
+  is not recognized as a cmdlet" and installed nothing. Refusing to install something it
+  could not verify was right; naming a cmdlet as the reason was not, and the feature was
+  unusable either way. The digest is now computed with the SHA-256 in the runtime
+  PowerShell is already hosted in, so there is nothing left to autoload. `make_gui.ps1`
+  had already moved off that cmdlet after meeting the same thing under the release
+  runner's module path; the shipped script had not, and this is the second time it has
+  cost something. Tests lift the function out of the shipped script and run it with
+  `Get-FileHash` removed from the session.
+
+  This does not repair an installation that already has the old script: the copy doing the
+  updating is the one with the defect. Reaching a build with the fix means installing it
+  the ordinary way rather than through the button.
+
 ## v0.6.1 — What running it for real found
 
 Every change here came from the first live acceptance of v0.6.0: installing the published

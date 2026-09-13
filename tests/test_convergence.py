@@ -314,6 +314,35 @@ class BootstrapTests(unittest.TestCase):
         for forbidden in ("Invoke-Expression", "iex ", "| iex", "DownloadString"):
             self.assertNotIn(forbidden, self.text, forbidden)
 
+    def test_the_digest_is_computed_without_depending_on_a_cmdlet_resolving(self):
+        """`Get-FileHash` is not available everywhere this script runs.
+
+        It has failed to resolve twice while every other cmdlet in the same script
+        still worked: under the release runner's PSModulePath, which is why
+        `build/make_gui.ps1` stopped using it, and in the process the Dashboard's
+        update button starts on a user's machine, where the archive downloaded and
+        then could not be verified. The script refused to install, which was right,
+        and the update was unusable, which was not.
+
+        The digest decides whether anything is installed at all, so it is computed
+        with the runtime PowerShell is already hosted in.
+        """
+        self.assertNotIn("(Get-FileHash", self.text,
+                         "the one number that gates installation must not depend on "
+                         "module autoloading")
+        self.assertIn("[Security.Cryptography.SHA256]::Create()", self.text)
+
+    def test_no_shipped_powershell_asks_for_that_cmdlet(self):
+        """The installer runs in the same places the bootstrap does."""
+        for script in sorted((ROOT / "scripts").glob("*.ps1")) + \
+                sorted((ROOT / "install").glob("*.ps1")):
+            with self.subTest(script.name):
+                body = script.read_text(encoding="utf-8")
+                calls = [line for line in body.splitlines()
+                         if "Get-FileHash" in line and not line.lstrip().startswith("#")
+                         and "`Get-FileHash`" not in line]
+                self.assertEqual(calls, [], "%s calls Get-FileHash" % script.name)
+
     def test_it_never_asks_for_administrator_rights(self):
         for forbidden in ("RunAs", "Set-ExecutionPolicy", "Set-MpPreference",
                           "Add-MpPreference", "netsh "):
