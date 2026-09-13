@@ -1,10 +1,5 @@
 # Security
 
-The current acceptance audit reproduced gaps in v0.6.0's pre-send projection and consent
-checks, daily attempt counting, and installer failure handling. The fixes listed under
-Unreleased in `CHANGELOG.md` are source changes only. Published v0.6.0 is unchanged and
-has not passed complete live acceptance. Read the safeguards below with that limit.
-
 This document describes what the tool is allowed to touch, how that is enforced, how releases are
 built and can be checked, how it was reviewed, and what was actually found and fixed.
 

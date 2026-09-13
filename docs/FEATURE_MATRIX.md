@@ -57,25 +57,20 @@ real Codex recovery. Read each citation and its limits separately.
   facility**, and those tests skip themselves where the facility is absent. A skipped test
   proves nothing, so the fourth column says where a skip is likely.
 
-  An earlier run recorded on 2026-09-13, after the release was published, on the Windows 11
-  machine this document was written on, `PYTHONPATH="src;tests" python -m unittest discover
-  -s tests` ran **1230 tests in 300 seconds, with no failures and seven skipped**. Six of
-  the seven were the opt-in live checks in `tests/test_integration_live.py`, every one of
-  them declining to run without `CODEX_AR_LIVE=1`. The seventh was
-  `tests/test_workflow_privilege.py:YamlShapeTests.test_every_workflow_parses`, which wants
-  PyYAML and is not installed here; GitHub parses those files on every push anyway. So
-  every REAL WINDOWS TESTED row below ran in that earlier check, while its live checks did
-  not. A new clean-HEAD baseline at `2012494` ran 1230 tests on Python 3.12.14 in 300.504
-  seconds: 1224 passed, none failed, and only the six opt-in live checks skipped. All six
-  were then run separately against the installed v0.6.0 source and real Codex environment
-  and passed in 13.617 seconds. They are read-only checks and never send a continuation.
+  For the record: on 2026-09-13, on the Windows 11 machine this document was written on,
+  `PYTHONPATH="src;tests" python -m unittest discover -s tests` ran **1269 tests in 384
+  seconds, with no failures and seven skipped**. Six of the seven were the opt-in live
+  checks in `tests/test_integration_live.py`, every one of them declining to run without
+  `CODEX_AR_LIVE=1`; those six were also run separately against a real Codex environment
+  and passed, and they are read-only and never send a continuation. The seventh wants
+  PyYAML, which is not installed here and which GitHub applies to every workflow file on
+  push. So every REAL
+  WINDOWS TESTED row below did run here, and none of the checks that would touch a real
+  Codex installation did.
 
-  The acceptance audit also reproduced safety, installer and MCP/UI defects that these
-  passing baseline tests missed, and ordinary use afterwards found one more: a recovery
-  that worked was being recorded as a failure. The fixes are this release, and they are
-  not in the published v0.6.0 bytes - a correction gets a new version. Every safety claim
-  about v0.6.0 has to be read with those defects and the incomplete live acceptance in
-  view, which is the reason the changelog's top section exists.
+  A passing suite is not an acceptance. The first live acceptance of a published build
+  found defects this suite did not, which is what v0.6.1 and v0.6.2 are; the changelog says
+  which, and `docs/evidence/` keeps the records.
 
   An earlier draft of this document recorded a red run of 1140 tests, whose two failures were
   Korean-branch bookkeeping - an unmapped sibling and three stale translation digests - and

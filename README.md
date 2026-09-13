@@ -1,10 +1,5 @@
 # Codex Auto Resume
 
-**Acceptance status:** the v0.6.0 audit found defects in pre-send projection/consent checks,
-attempt counting, installer failure paths and MCP/UI feedback. Fixes are under **Unreleased**
-in [CHANGELOG.md](CHANGELOG.md), not in the published archive. Live acceptance remains
-incomplete; [the evidence records](docs/evidence/live/) say which steps are blocked.
-
 **Automatically resume the exact same Codex task on Windows after a usage limit resets.**
 
 [![tests](https://github.com/songyb111-gachon/codex-auto-resume-windows/actions/workflows/test.yml/badge.svg)](https://github.com/songyb111-gachon/codex-auto-resume-windows/actions/workflows/test.yml)
