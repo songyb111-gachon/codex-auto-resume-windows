@@ -304,7 +304,8 @@ HTTP status를 봅니다. 메시지 문구는 구조화된 코드가 아예 없�
 화면은 English, 한국어, 日本語, 简体中文, 繁體中文, Español, Deutsch, Français, Português (Brasil)로
 표시됩니다. **화면 언어**의 기본값은 *시스템*이며, Windows가 첫 번째로 꼽는 언어를 따르고 이
 제품에 없는 언어면 영어로 표시합니다. 직접 고른 언어는 Windows보다 우선하며 재시작·복구·업데이트
-뒤에도 유지됩니다. 환경 변수 `CODEX_AUTO_RESUME_LANG`은 둘 다보다 우선합니다.
+뒤에도 유지됩니다. 환경 변수 `CODEX_AUTO_RESUME_LANG`은 Windows가 알려 주는 언어를 대신하므로,
+설정이 *시스템*일 때만 언어를 정합니다.
 
 ### 이어서 하기 메시지
 

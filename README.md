@@ -611,7 +611,8 @@ The interface speaks English, 한국어, 日本語, 简体中文, 繁體中文, 
 Português (Brasil). **Interface language** defaults to *System*, which follows the first language
 Windows lists and falls back to English for a language this product does not ship. A language
 you choose wins over Windows and is kept across restarts, repairs and updates. The
-`CODEX_AUTO_RESUME_LANG` environment variable overrides both.
+`CODEX_AUTO_RESUME_LANG` environment variable replaces what Windows reports, so it decides the
+language only while the setting is *System*.
 
 ### The continuation message
 
