@@ -1,5 +1,94 @@
 # Changelog
 
+## v0.6.3 — Nine languages, your own words, and a window that shows it is alive
+
+A feature and design release. Recovery itself decides exactly what it decided in v0.6.2:
+the same classifier, the same gates, the same one watcher that is the only thing allowed to
+send. What changed is what it says, in which language, and how much of what it is doing
+you can see.
+
+### Languages
+
+- **Nine interface languages**: English, 한국어, 日本語, 简体中文, 繁體中文, Español, Deutsch,
+  Français and Português (Brasil). The Dashboard, the notification-area popup and menu,
+  Windows notifications and the panel in Codex all speak the same one.
+- **Interface language setting** (Settings > General). The default, *System*, follows the
+  first language Windows lists, as before; a language this product does not ship is English.
+  An explicit choice wins over Windows and survives restarts, repairs and updates.
+  `CODEX_AUTO_RESUME_LANG` still overrides both.
+- Catalogs are plain JSON, one per language, with English as the source and the fallback
+  for any key a translation has not reached. Nothing is fetched from the network. The
+  translations are tracked against the English they were made from, so a sentence changed
+  in English shows up as stale in every language until it is looked at again.
+
+### The continuation message
+
+- **Continuation language** (default: the interface language) and **Message style**:
+  *Minimal* only asks Codex to retry; *Standard* (the default) says why the task stopped;
+  *Detailed* also asks Codex to check the work so far and not repeat what is done.
+- **Custom** sends your own words, exactly as typed - one message for every interruption,
+  or one per kind of interruption, falling back to the message for every interruption and
+  then to Standard. It may use `{reason}`, `{category}`, `{attempt}`, `{max_attempts}` and
+  `{reset_time}` and nothing else; a placeholder that would put your prompt, the reply, a
+  title, a path, an account or a token into the message is refused by name. At most 2000
+  characters. Nothing about the text can make a failure recoverable, skip a check, or
+  choose a different conversation.
+- **Preview** shows the exact text that would be sent, built by the same function the
+  watcher sends with, for each kind of interruption and for choices not yet saved.
+- Custom text is written only in the Windows Dashboard. It cannot be set from Codex - not
+  through `update_settings` and not through the new read-only `preview_recovery_message`
+  tool - because text sent automatically into your conversations must not be something a
+  model can be talked into changing.
+- **Changed default:** the continuation used to be one fixed English sentence per kind of
+  interruption. It is now the Standard message in the continuation language, which on an
+  English system reads almost the same.
+
+### The Dashboard
+
+- A new visual language shared with the popup and the panel: soft raised cards, rounded
+  controls, state words on tinted chips, a keyboard focus ring, and no colour without a
+  word beside it. High Contrast mode drops shadows and tints and uses system colours.
+  Light theme; the panel in Codex follows Codex's own theme.
+- The header's status dot shows what the watcher is doing - monitoring (a slow breath),
+  waiting, checking a task that has come due, recovering, paused, or needing you (one
+  pulse). **Reduce motion** (Settings > Appearance) stops every animation, and Windows'
+  own animation setting is always honoured.
+- **Settings** is split into General, Automatic recovery, Continuation message, Appearance
+  and Advanced.
+- **Pending** gains an **Auto-resume** check box for each task, bound to that task's exact
+  interruption and conversation. A click that reaches a record which has since finished,
+  disappeared or turned out to belong to another conversation is refused and changes
+  nothing. It changes policy only; the watcher still decides, and still sends.
+- **Why it is waiting** lists the watcher's safety checks for the chosen task as it last
+  recorded them.
+- **Cancel all** stops every pending recovery, one exact record at a time. There is
+  deliberately no "retry all".
+
+### Notifications
+
+- A transient interruption's notification names the kind of interruption.
+- Both interruption notifications gain **Open Dashboard**, which opens the Pending page and
+  can do nothing else.
+
+### Fixed
+
+- **A recoverable kind of interruption had no switch.** `auth_service_transient` (a
+  sign-in service that is temporarily unavailable) became recoverable after the settings'
+  list of switchable categories was last changed, so it was recovered with no way to turn
+  it off and no name in any window. It now has a switch, on by default, and a test holds
+  the classifier and the list of switches to each other in both directions.
+
+### Python
+
+- CI now runs every non-live test on Python 3.12, 3.13 and 3.14 as blocking jobs, and on
+  the 3.15 pre-release as an advisory job whose result is shown but does not block. 3.11
+  and older are not supported. The release still bundles Python 3.13.15, so installing it
+  needs no Python at all.
+
+### Evidence
+
+(to be completed with what was actually run: tests, CI, Windows checks, Codex checks)
+
 ## v0.6.2 — The update could not check what it had downloaded
 
 One fix, in the step that decides whether anything gets installed.
