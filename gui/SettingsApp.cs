@@ -1032,9 +1032,9 @@ namespace CodexAutoResume
             theme.ForeColor = Ink;
             look.Controls.Add(NewRow(S("field.theme", "Theme"), theme));
             look.Controls.Add(HelpText(S("help.theme",
-                "This window has one theme. The panel in Codex follows Codex's own light or dark theme.")));
+                "This window always uses the light theme. The panel in Codex follows Codex's own light or dark theme.")));
             TableLayoutPanel limits = NewGroup(S("group.limits", "Limits"), sections["advanced"]);
-            limits.Controls.Add(HelpText(S("help.limits", "How hard recovery tries before it stops and leaves the task to you.")));
+            limits.Controls.Add(HelpText(S("help.limits", "Sets how hard recovery tries before it stops and leaves the task to you.")));
 
             CheckBox master = null;
             var subordinate = new List<CheckBox>();
@@ -1075,7 +1075,7 @@ namespace CodexAutoResume
                     editors[name] = check;
                     if (name == "reduce_motion")
                         host.Controls.Add(HelpText(S("help.reduce_motion",
-                            "Stops the breathing and pulsing status animations in this window and the notification-area popup. Windows' own Animation effects setting is always honoured as well.")));
+                            "Stops the breathing and pulsing status animations in this window and the notification-area popup. Windows' own Animation effects setting is always honored as well.")));
                 }
                 else if (type == "integer")
                 {
@@ -1202,7 +1202,7 @@ namespace CodexAutoResume
             customRefusal = HelpText("");
             customRefusal.ForeColor = Palette.Danger;
             customCard.Controls.Add(customRefusal);
-            customCard.Controls.Add(HelpText(S("custom.placeholders", "You can use {reason}, {attempt}, {max_attempts} and {reset_time}.")));
+            customCard.Controls.Add(HelpText(S("custom.placeholders", "You can use {reason}, {category}, {attempt}, {max_attempts} and {reset_time}.")));
             customCard.Controls.Add(HelpText(S("custom.verbatim",
                 "Sent exactly as written. It is never translated or reworded, and changing either language leaves it as it is.")));
             customCard.Controls.Add(HelpText(S("custom.fallback",
