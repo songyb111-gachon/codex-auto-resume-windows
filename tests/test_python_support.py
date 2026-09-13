@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import re
+import subprocess
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,6 +27,20 @@ POLICY = json.loads((ROOT / "scripts" / "python_support.json").read_text(encodin
 WORKFLOWS = ROOT / ".github" / "workflows"
 
 VERSION = re.compile(r"^3\.\d+$")
+
+
+def generated_ko_branch() -> bool:
+    """Whether this checkout is the generated `ko` branch.
+
+    There the sync has written each Korean document over its English name and removed the
+    `.ko.md` file, so the English name already is the Korean text and the sibling is not
+    there to open. Keyed on the marker being tracked, as the other suites do, because a
+    stray local run of the generator leaves an untracked copy that must not excuse anything.
+    """
+    listed = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files", "--", ".github/GENERATED-BRANCH.md"],
+        capture_output=True, text=True, encoding="utf-8")
+    return bool(listed.returncode == 0 and listed.stdout.strip())
 
 
 def workflow(name: str) -> str:
@@ -156,7 +171,10 @@ class DocumentedMinimumTests(unittest.TestCase):
 
     def test_no_document_promises_an_older_interpreter(self):
         older = ["3.%d" % minor for minor in range(7, int(POLICY["minimum"].split(".")[1]))]
-        for name in ("README.md", "README.ko.md", "CONTRIBUTING.md", "CONTRIBUTING.ko.md"):
+        names = ["README.md", "CONTRIBUTING.md"]
+        if not generated_ko_branch():
+            names += ["README.ko.md", "CONTRIBUTING.ko.md"]
+        for name in names:
             text = (ROOT / name).read_text(encoding="utf-8")
             for version in older:
                 with self.subTest(name=name, version=version):
