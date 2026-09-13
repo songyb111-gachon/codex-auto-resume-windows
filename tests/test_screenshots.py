@@ -272,37 +272,20 @@ class PixelTests(unittest.TestCase):
     this checks the result.
     """
 
-    ACTIVE = (0x06, 0xB6, 0xD4)   # Brand.Active - the running state dot
-    LINE = (0xDC, 0xE3, 0xEC)     # Brand.Line - the hairlines under the header, over the footer
+    ACTIVE = (0x06, 0xB6, 0xD4)   # Brand.Active - the state dot while monitoring or recovering
+    WAITING = (0x1A, 0x5F, 0xA8)  # Brand.Waiting - the state dot while something waits
+    LINE = (0xD3, 0xDC, 0xE7)     # Brand.Line - the hairlines under the header, over the footer
+    SURFACE = (0xF6, 0xF8, 0xFB)  # Brand.Surface - the cards the pages are laid out on
 
-    ACCENT = (0x12, 0x57, 0xB8)   # Brand.Accent - each card's left rail
-
-    def test_every_card_shows_its_accent_rail(self):
-        """Four cards, four rails. A capture once lost one whole card's border and rail."""
-        for name in ("assets/screenshot-settings.png", "assets/screenshot-settings-ko.png"):
+    def test_every_window_screenshot_shows_its_cards(self):
+        """The pages are cards on the window's ground. A capture that lost them - erased and
+        not yet repainted - is mostly ground, which is what this catches."""
+        for name in WINDOW_SHOTS:
             width, height, rows = read_png(ROOT / name)
-            runs = []                          # (x, top, bottom) of long vertical accent runs
-            for x in range(width):
-                top = None
-                for y in range(height):
-                    hit = rows[y][x] == self.ACCENT
-                    if hit and top is None:
-                        top = y
-                    if (not hit or y == height - 1) and top is not None:
-                        if y - top >= 60:
-                            runs.append((x, top, y))
-                        top = None
-            cards = []                         # merge adjacent columns covering the same rows
-            for x, top, bottom in runs:
-                for card in cards:
-                    if x - card["right"] <= 1 and top < card["bottom"] and bottom > card["top"]:
-                        card["right"] = x
-                        break
-                else:
-                    cards.append({"left": x, "right": x, "top": top, "bottom": bottom})
-            rails = [c for c in cards if c["right"] - c["left"] <= 8]
+            surface = sum(1 for row in rows for pixel in row if pixel == self.SURFACE)
             with self.subTest(name):
-                self.assertEqual(len(rails), 4, "expected four card rails, found %d" % len(rails))
+                self.assertGreater(surface, width * height * 0.15,
+                                   "%s shows almost no card surface" % name)
 
     def test_every_window_screenshot_has_both_hairlines(self):
         """One capture in four lost the header's rule the same way the dot was lost."""
@@ -320,7 +303,8 @@ class PixelTests(unittest.TestCase):
             header = rows[:height * 15 // 100]
             left = width // 8
             near = sum(1 for row in header for pixel in row[:left]
-                       if all(abs(a - b) <= 24 for a, b in zip(pixel, self.ACTIVE)))
+                       if any(all(abs(a - b) <= 24 for a, b in zip(pixel, colour))
+                              for colour in (self.ACTIVE, self.WAITING)))
             with self.subTest(name):
                 self.assertGreater(near, 40, "the header's state dot is missing from %s" % name)
 
