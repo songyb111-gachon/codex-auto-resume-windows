@@ -40,14 +40,14 @@ real Codex recovery. Read each citation and its limits separately.
   `visual_ui_scraping_used: false` recorded in
   [`docs/evidence/unloaded-thread-observation.json`](evidence/unloaded-thread-observation.json).
   That is a protocol observation, not somebody watching.
-- **This version, v0.6.3, is not released; v0.6.2 is the newest that is.** The rows below
-  that say PUBLISHED mean a published version - v0.6.0, v0.6.1 or v0.6.2, all three of
-  whose archives are published and whose digests are pinned on `main`. v0.6.3 adds nine
-  interface languages, settings for the continuation message, a popup on the
-  notification-area icon, an Open Dashboard button on notifications and a redesigned window
-  and panel, and fixes one defect present in all three published versions: a recoverable
-  kind of interruption that had no switch. Until it is published nothing here claims
-  PUBLISHED for any of that. What PUBLISHED does *not* mean anywhere here
+- **v0.6.3 is the newest published version.** The rows below that say PUBLISHED mean a
+  published version - v0.6.0, v0.6.1, v0.6.2 or v0.6.3, all four of whose archives are
+  published and whose digests are pinned on `main`. v0.6.3 added nine interface languages,
+  settings for the continuation message, a popup on the notification-area icon, an Open
+  Dashboard button on notifications and a redesigned window and panel, and fixed one defect
+  present in the three versions before it: a recoverable kind of interruption that had no
+  switch. The rows about those features still name what tested them; none of them says
+  PUBLISHED, because none was re-run against the published bytes. What PUBLISHED does *not* mean anywhere here
   is that somebody installed it and used it: the published bytes were driven against a
   state directory and a Codex home that exist only for that check, with the installer's
   registrations never run and no watcher started against real Codex state. Installing,
