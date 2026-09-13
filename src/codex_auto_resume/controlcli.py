@@ -6,7 +6,8 @@ so neither of them re-implements validation, defaults or persistence.
 Two ways to call it, one set of commands:
 
 * one command per process - `controlcli <command> [json]` writes exactly one JSON object
-  on stdout;
+  on stdout. The argument may be `-` instead, which reads it from stdin; that is how the
+  window's one-shot bridge sends it, so a Custom message never sits on a command line;
 * `controlcli serve` - one long-lived process for a window that stays open. Each request
   is one line, `{"id": n, "command": "...", "argument": {...}}`, and each reply is one
   line, `{"id": n, "reply": {...}}`, where `reply` is exactly what the one-shot form
@@ -53,7 +54,14 @@ PLAIN = ("status", "settings", "describe", "defaults", "pending", "pending-all",
 WITH_ARGUMENT = ("update", "enabled", "startup", "cancel", "reset-budget", "retry-now",
                  "timeline", "statistics", "thread-enabled", "cancel-thread", "diagnostics",
                  "preview-continuation", "interruption-recovery")
-MAX_LINE = 64 * 1024
+# Big enough for the largest Save the settings layer accepts: eight Custom messages of 2000
+# characters each, and the window writes every line break as a six-character escape, so a
+# valid Save can come to nearly 100 KiB. At 64 KiB such a Save was refused as "request too
+# large" although every message in it was one the settings layer would have stored.
+MAX_LINE = 1024 * 1024
+# The one-shot form's argument that means "the JSON argument is on stdin". It is not JSON
+# itself, so it can never be an argument somebody meant literally.
+STDIN_ARGUMENT = "-"
 # What a rejection says when nothing more precise is known. Both the sentence and the code
 # are the generic ones: the log holds the detail, and a front end that shows this has still
 # shown it in the user's own language.
@@ -114,6 +122,27 @@ def _payload(raw) -> dict:
     return value
 
 
+def _argument(raw, stream):
+    """The one-shot form's JSON argument: as given, or read from `stream` when given as `-`.
+
+    The window's one-shot bridge sends every argument this way. It answers whenever the
+    long-lived process has failed, and what it carries then includes every Custom message on
+    the page. A command line can be read by any process the same user runs, and process
+    auditing (event 4688 with command lines, Sysmon, an EDR) keeps it; a command line also
+    stops at 32767 characters, which a Save of long messages could pass. The argument on the
+    command line still works, for everyone else who calls this.
+    """
+    if raw != STDIN_ARGUMENT:
+        return raw
+    if stream is None:
+        return ""
+    try:
+        return stream.read()
+    except (OSError, ValueError):
+        # ValueError is also what bytes that are not UTF-8 raise, and the wire is UTF-8.
+        raise ControlError("argument must be JSON") from None
+
+
 def _days(payload):
     days = payload.get("days")
     if days is not None and (isinstance(days, bool) or not isinstance(days, (int, float))
@@ -146,8 +175,10 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
         if command == "strings":
             # The interface vocabulary for the resolved language, handed over whole. The
             # window does not decide the language and does not carry its own English.
-            # The Interface language is read again on every request: the window's own
-            # Settings page is where it changes, and the window asks again after saving.
+            # The Interface language is read again on every request, so a window opened after
+            # it changes speaks the new one. A window that is already open asked once, when it
+            # was built, and keeps that language until it is opened again; its Settings page
+            # says so when a new language is saved.
             from . import interface, l10n
             l10n.set_preference(control.get_settings().get("interface_language"))
             return {"ok": True, "language": interface.language(), "strings": interface.catalog(),
@@ -294,7 +325,8 @@ def build_parser() -> argparse.ArgumentParser:
         sub.add_parser(name)
     for name in WITH_ARGUMENT:
         p = sub.add_parser(name)
-        p.add_argument("json", nargs="?", default="", help="JSON object argument")
+        p.add_argument("json", nargs="?", default="",
+                       help='JSON object argument, or "-" to read it from stdin')
     return parser
 
 
@@ -310,7 +342,7 @@ def main(argv=None) -> int:
     if args.command == "serve":
         return serve(control, sys.stdin, sys.stdout)
     try:
-        payload = _payload(getattr(args, "json", ""))
+        payload = _payload(_argument(getattr(args, "json", ""), sys.stdin))
     except ControlError as exc:
         reply = _rejected(str(exc), exc.code)
     else:

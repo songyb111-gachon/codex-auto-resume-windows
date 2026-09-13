@@ -358,6 +358,36 @@ class BridgeTests(ControlTestCase):
         self.assertEqual(code, 1)
         self.assertIn("JSON", payload["error"])
 
+    def run_bridge_with_stdin(self, text, *argv):
+        stream = io.StringIO()
+        with patch("sys.stdout", stream), patch("sys.stdin", io.StringIO(text)):
+            code = controlcli.main(["--home", str(self.home), *argv])
+        return code, json.loads(stream.getvalue())
+
+    def test_an_argument_of_a_dash_is_read_from_stdin(self):
+        # How the window's one-shot bridge sends every argument. A command line can be read by
+        # any process of the same user and is kept by process auditing, and a Custom message
+        # has no business in either; past 32767 characters a command line cannot carry it.
+        message = "계속해 주세요 🧩\n두 번째 줄"
+        argument = " " * 40000 + json.dumps({"max_no_progress": 8, "custom_message": message},
+                                            ensure_ascii=False)
+        code, payload = self.run_bridge_with_stdin(argument, "update", "-")
+        self.assertEqual(code, 0, payload)
+        stored = self.control.get_settings()
+        self.assertEqual(stored["max_no_progress"], 8)
+        self.assertEqual(stored["custom_message"], message)
+
+    def test_stdin_is_read_only_when_the_argument_is_a_dash(self):
+        code, _payload = self.run_bridge_with_stdin(json.dumps({"max_no_progress": 3}),
+                                                    "update", json.dumps({"max_no_progress": 8}))
+        self.assertEqual(code, 0)
+        self.assertEqual(self.control.get_settings()["max_no_progress"], 8)
+
+    def test_a_dash_argument_that_is_not_json_is_refused_like_any_other(self):
+        code, payload = self.run_bridge_with_stdin("{not json", "update", "-")
+        self.assertEqual(code, 1)
+        self.assertEqual(payload["error"], "argument must be JSON")
+
     def test_internal_failure_leaks_neither_traceback_nor_path(self):
         with patch.object(control.Control, "get_status", side_effect=RuntimeError(str(self.home))):
             code, payload = self.run_bridge("status")
@@ -478,6 +508,21 @@ class BridgeTests(ControlTestCase):
             (True, None),
         ])
         self.assertEqual([replies[index]["id"] for index in (0, 2, 3, 4)], [1, None, None, 7])
+
+    def test_serve_takes_the_largest_save_the_settings_accept(self):
+        # Eight Custom messages at the length limit, mostly line breaks, written the way the
+        # window's JSON writer writes them: a control character as \u00XX, six characters.
+        from codex_auto_resume import continuation, reasons
+        text = "x" + "\n" * (continuation.MAX_CUSTOM_LENGTH - 1)
+        names = ["custom_message"] + ["custom_message_" + category for category in reasons.RECOVERABLE]
+        fields = ",".join('"%s":%s' % (name, json.dumps(text).replace("\\n", "\\u000a")) for name in names)
+        line = '{"id":1,"command":"update","argument":{%s}}' % fields
+        self.assertGreater(len(line), 64 * 1024)
+        replies = self.serve_lines([line])
+        self.assertIs(replies[0]["reply"]["ok"], True, replies[0])
+        stored = self.control.get_settings()
+        for name in names:
+            self.assertEqual(stored[name], text, name)
 
     def test_serve_cannot_reach_anything_the_one_shot_form_cannot(self):
         # The same table: a command the parser does not offer is not reachable over

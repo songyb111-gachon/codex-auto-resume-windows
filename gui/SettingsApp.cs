@@ -251,9 +251,16 @@ namespace CodexAutoResume
             var arguments = new StringBuilder();
             arguments.Append("-c ").Append(Quote(code)).Append(' ').Append(Quote(appSrc));
             arguments.Append(' ').Append(command);
-            if (!string.IsNullOrEmpty(argument)) arguments.Append(' ').Append(Quote(argument));
+            // The argument goes in on stdin, never on the command line: "-" tells the bridge to
+            // read it there. This call answers whenever the long-lived process has failed, and
+            // then carries every Custom message on the page - on each pause in typing, for the
+            // Preview. A command line can be read by any process this user runs and is what
+            // process auditing keeps, and it stops at 32767 characters, which a Save could pass.
+            bool hasArgument = !string.IsNullOrEmpty(argument);
+            if (hasArgument) arguments.Append(" -");
             info.Arguments = arguments.ToString();
             info.UseShellExecute = false;
+            info.RedirectStandardInput = true;
             info.RedirectStandardOutput = true;
             info.RedirectStandardError = true;
             info.CreateNoWindow = true;
@@ -261,6 +268,15 @@ namespace CodexAutoResume
 
             using (Process process = Process.Start(info))
             {
+                // UTF-8 written by hand, as the long-lived bridge writes its requests: .NET
+                // Framework encodes a redirected stdin with the console code page. Closed with or
+                // without an argument, so the child never waits on a stdin nobody writes to.
+                if (hasArgument)
+                {
+                    byte[] bytes = new UTF8Encoding(false).GetBytes(argument);
+                    process.StandardInput.BaseStream.Write(bytes, 0, bytes.Length);
+                }
+                process.StandardInput.Close();
                 string output = process.StandardOutput.ReadToEnd();
                 process.StandardError.ReadToEnd();
                 process.WaitForExit(30000);
@@ -1362,10 +1378,24 @@ namespace CodexAutoResume
 
         private void UpdateCount(SoftTextArea area, Label count)
         {
-            int length = (area.Box.Text ?? "").Replace("\r\n", "\n").Length;
+            int length = CustomLength(area.Box.Text);
             count.Text = length.ToString(CultureInfo.CurrentCulture) + " / " +
                          MaxCustomLength.ToString(CultureInfo.CurrentCulture);
             count.ForeColor = length > MaxCustomLength ? Palette.Danger : Secondary;
+        }
+
+        /// A message's length as the settings layer counts it: Python's len(), in code points,
+        /// of the text as it is stored, with Windows line breaks as plain ones. string.Length
+        /// counts UTF-16 units, so every emoji counted twice, and 1200 of them showed a red
+        /// "2400 / 2000" over a message Save accepts. An unpaired surrogate is one character,
+        /// as the U+FFFD it is sent as.
+        internal static int CustomLength(string text)
+        {
+            string stored = (text ?? "").Replace("\r\n", "\n");
+            int length = 0;
+            for (int i = 0; i < stored.Length; i++)
+                if (i == 0 || !char.IsSurrogatePair(stored[i - 1], stored[i])) length++;
+            return length;
         }
 
         /// A message as the settings file stores it: Windows line breaks as plain ones, and an
@@ -1512,6 +1542,15 @@ namespace CodexAutoResume
             Top = Math.Max(screen.Top, screen.Top + (screen.Height - Height) / 2);
         }
 
+        /// Minimizing stops the halo's timer, and a restore changes neither the dot's state nor
+        /// its visibility, the only other things that start it again - so a watcher that was
+        /// breathing came back from the taskbar looking stuck. Both raise Resize.
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            stateDot.Sync();
+        }
+
         private void StatusUnavailable()
         {
             stateDot.State = "idle";
@@ -1552,10 +1591,14 @@ namespace CodexAutoResume
             double pending = status.ContainsKey("pending") ? (double)status["pending"] : 0;
             if (startup != null) startup.Checked = Equals(status["startup_enabled"], true);
 
-            // The coarse state, from the status alone. The Dashboard refines it from the
-            // pending list - recovering, due to be checked - as soon as it has one.
-            stateDot.State = running == null ? "idle" : !Equals(running, true) ? "attention"
-                           : !enabled ? "paused" : pending > 0 ? "waiting" : "monitoring";
+            // The coarse state, from the status alone, until the Dashboard has a snapshot. From
+            // then on UpdateCountdowns is the one place the dot is decided, from the pending list
+            // as well - recovering, due to be checked. Deciding it here too put the coarse state
+            // and then the refined one on the dot in the same refresh, and every change restarts
+            // the halo: an alarm pulsed again every five seconds, and an arc jumped to its start.
+            if (snapshot == null)
+                stateDot.State = running == null ? "idle" : !Equals(running, true) ? "attention"
+                               : !enabled ? "paused" : pending > 0 ? "waiting" : "monitoring";
             headline.Text = running == null ? S("status.unknown", "Watcher status unknown")
                           : !Equals(running, true) ? S("status.not_running", "Watcher not running")
                           : enabled ? S("status.watching", "Watching for interruptions")
