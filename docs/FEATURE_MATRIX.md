@@ -63,27 +63,21 @@ real Codex recovery. Read each citation and its limits separately.
   facility**, and those tests skip themselves where the facility is absent. A skipped test
   proves nothing, so the fourth column says where a skip is likely.
 
-  For the record: on 2026-09-13, on the Windows 11 machine this document was written on,
-  `PYTHONPATH="src;tests" python -m unittest discover -s tests` ran **1269 tests in 384
-  seconds, with no failures and seven skipped**. Six of the seven were the opt-in live
-  checks in `tests/test_integration_live.py`, every one of them declining to run without
-  `CODEX_AR_LIVE=1`; those six were also run separately against a real Codex environment
-  and passed, and they are read-only and never send a continuation. The seventh wants
-  PyYAML, which is not installed here and which GitHub applies to every workflow file on
-  push. So every REAL
-  WINDOWS TESTED row that existed then did run here, and none of the checks that would
-  touch a real Codex installation did.
-
-  That run is a record of the tree on that day, before the v0.6.3 work, and no full run of
-  the v0.6.3 tree is recorded here. What is recorded is narrower. On 2026-09-14, on a
-  Windows 11 machine with Node installed, the fourteen test modules the v0.6.3 rows lean
-  on most - `test_l10n`, `test_locale`, `test_continuation`, `test_control_continuation`,
-  `test_reasons`, `test_gui_v063`, `test_python_support`, `test_tray_popup`,
-  `test_mcpui_v063`, `test_notify`, `test_mcp`, `test_tray`, `test_surface_properties` and
-  `test_settings` - ran **403 tests with no failures and none skipped**, so the compiled
-  window's reflection tests, the popup's real Windows window and the panel's scripts in
-  Node all ran. The screenshots were regenerated for v0.6.3 on the same day, and
-  `tests/test_screenshots.py` passes against them; see §7.
+  For the record: on 2026-09-14, on the Windows 11 machine this document was written on,
+  `PYTHONPATH="src;tests" python -m unittest discover -s tests` ran the v0.6.3 tree -
+  **1508 tests, with no failures** - under Python 3.13 in 570 seconds with eight skipped,
+  and under Python 3.12 in 579 seconds with seven skipped. On both, six of the skips were
+  the opt-in live checks in `tests/test_integration_live.py`, each declining to run without
+  `CODEX_AR_LIVE=1`, and one was `tests/test_convergence.py`'s check that a tagged current
+  version is pinned, which skips until that version is tagged. The eighth, on 3.13 only, was
+  `tests/test_workflow_privilege.py:YamlShapeTests.test_every_workflow_parses`, which wants
+  PyYAML; that interpreter lacks it here, the test ran and passed under 3.12, and GitHub
+  parses the workflow files on every push anyway. So every REAL WINDOWS TESTED row ran here,
+  and none of the checks that would touch a real Codex installation did. The run includes the
+  compiled window's reflection tests, the popup's real Windows window, the panel's scripts in
+  Node, and `tests/test_screenshots.py` against the screenshots regenerated for v0.6.3 the
+  same day; see §7. The opt-in live checks were not run against a real Codex environment for
+  v0.6.3.
 
   A passing suite is not an acceptance. The first live acceptance of a published build
   found defects this suite did not, which is what v0.6.1 and v0.6.2 are; the changelog says

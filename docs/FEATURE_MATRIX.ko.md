@@ -59,27 +59,20 @@
   그런 테스트는 기능이 없으면 스스로 건너뜁니다. 건너뛴 테스트는 아무것도 증명하지 않으므로,
   건너뛸 가능성이 있는 곳은 네 번째 칸에 적었습니다.
 
-  이전 실행 기록이다. 2026-09-13, 릴리스가 공개된 뒤 이 문서를 쓴 Windows 11 기계에서
-  `PYTHONPATH="src;tests" python -m unittest discover -s tests`가 **1230개를 300초에 돌렸고,
-  실패는 없고 일곱 개를 건너뛰었다**. 일곱 중 여섯은 `tests/test_integration_live.py`의 선택 참여
-  라이브 검사이며, `CODEX_AR_LIVE=1` 없이는 돌지 않겠다고 스스로 물러난 것이다. 나머지 하나는
-  `tests/test_workflow_privilege.py:YamlShapeTests.test_every_workflow_parses`로, PyYAML이
-  필요한데 여기에는 깔려 있지 않다. 그 파일들은 푸시할 때마다 GitHub이 어차피 파싱한다. 아래
-  REAL WINDOWS TESTED 줄 가운데 그때 있던 것은 그 이전 실행에서 돌았으며 라이브 검사는 돌지 않았다. 새로 진행한
-  깨끗한 HEAD `2012494`의 기준 검사는 Python 3.12.14에서 300.504초 동안 1230개를 실행했고,
-  1224개 통과, 실패 0개, 선택 참여 라이브 검사 6개만 건너뛰었다. 그 6개는 이후 설치된 검사 대상 릴리스
-  소스와 실제 Codex 환경을 대상으로 따로 실행해 13.617초에 모두 통과했다. 모두 읽기 전용이며
-  이어서 하기를 보내지 않는다.
-
-  그 실행은 그날의 나무에 대한 기록이고 이번 릴리스 작업보다 앞서며, 이번 릴리스 나무를 통째로
-  돌린 기록은 여기에 없다. 기록된 것은 더 좁다. 2026-09-14, Node가 깔린 Windows 11 기계에서
-  이번 릴리스의 항목들이 가장 많이 기대는 테스트 모듈 열넷 - `test_l10n`, `test_locale`,
-  `test_continuation`, `test_control_continuation`, `test_reasons`, `test_gui_v063`,
-  `test_python_support`, `test_tray_popup`, `test_mcpui_v063`, `test_notify`, `test_mcp`,
-  `test_tray`, `test_surface_properties`, `test_settings` - 이 **403개를 실패 없이, 하나도
-  건너뛰지 않고** 돌았다. 그러니 컴파일된 창의 리플렉션 테스트, 팝업의 진짜 Windows 창, Node에서
-  도는 패널 스크립트가 모두 돌았다. 스크린샷은 같은 날 이 릴리스에 맞게 다시 만들었고,
-  `tests/test_screenshots.py`는 그 그림으로 통과한다. 7절을 보라.
+  실행 기록이다. 2026-09-14, 이 문서를 쓴 Windows 11 기계에서
+  `PYTHONPATH="src;tests" python -m unittest discover -s tests`가 이번 릴리스 나무를 돌렸고,
+  **1508개가 실패 없이** 통과했다. Python 3.13에서는 570초에 여덟 개를, Python 3.12에서는
+  579초에 일곱 개를 건너뛰었다. 두 번 모두 건너뛴 것 가운데 여섯은
+  `tests/test_integration_live.py`의 선택 참여 라이브 검사로, `CODEX_AR_LIVE=1` 없이는 돌지 않겠다고
+  스스로 물러난 것이고, 하나는 `tests/test_convergence.py`에서 태그된 현재 버전의 해시가 고정되어
+  있는지 보는 검사로, 그 버전에 태그가 붙기 전까지는 건너뛴다. 3.13에서만 건너뛴 여덟 번째는
+  `tests/test_workflow_privilege.py:YamlShapeTests.test_every_workflow_parses`로 PyYAML이 필요한데,
+  여기의 3.13에는 깔려 있지 않다. 그 테스트는 3.12에서 돌아 통과했고, 워크플로 파일은 푸시할
+  때마다 GitHub이 어차피 파싱한다. 그러니 REAL WINDOWS TESTED 줄은 모두 여기서 돌았고, 실제
+  Codex 설치를 건드릴 검사는 하나도 돌지 않았다. 그 실행에는 컴파일된 창의 리플렉션 테스트,
+  팝업의 진짜 Windows 창, Node에서 도는 패널 스크립트, 그리고 같은 날 이 릴리스에 맞게 다시
+  만든 스크린샷에 대한 `tests/test_screenshots.py`가 들어 있다. 7절을 보라. 선택 참여 라이브
+  검사는 이번 릴리스에서 실제 Codex 환경을 대상으로 돌리지 않았다.
 
   스위트가 통과했다는 것은 인수가 끝났다는 뜻이 아니다. 게시된 빌드를 처음으로 실제 인수해 보니
   이 스위트가 잡지 못한 결함들이 나왔고, 그것이 앞의 두 고침 릴리스다. 무엇이었는지는 변경 기록에
