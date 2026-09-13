@@ -32,6 +32,16 @@ defaults - inside goal-mode subagent chains.
 
 Two entries below moved because of that re-read, and the rest of this file stands.
 
+Checked again for v0.6.3 on 2026-09-14, and narrowly. `sybxxx/codex-auto-retry`'s releases
+page still lists **v0.7.11** as its newest release, so it has published nothing new to
+reconsider; the rest of that repository was not re-read, and the table of other projects below
+was not re-surveyed for v0.6.3. Two READMEs were read that day for the ideas credited to them
+further down - `saaranshM/unsnooze` and `boyso/codex-reset` - and nothing else. What changed is
+this project: v0.6.3 added a per-task Auto-resume check box, a list of the safety checks behind
+each wait, a Cancel all with no retry-all beside it, and a Custom continuation message, which
+moves one entry out of *not exposed*. The deferred and rejected entries were re-read against
+this project's own reasons, and all of them stand.
+
 ## Others in the same space
 
 Re-surveyed on 2026-09-12: every project below was checked against its repository that day, and
@@ -77,7 +87,7 @@ architecture, from its own reading of Codex's local state.
 | Classification | message and wrapper matching | structured `codexErrorInfo`, then HTTP status |
 | Unloaded threads | woken through a shared app-server | left alone until you open them |
 | Long-lived processes | supervisor, worker, optional app-server, MCP server | one watcher, plus an MCP server while Codex runs and one control process while the window is open |
-| Interface | tray icon, settings window, Codex panel | Start Menu Dashboard (Overview, Pending, History, Statistics, Diagnostics, Settings), notification-area icon, Codex panel, notifications |
+| Interface | tray icon, settings window, Codex panel | Start Menu Dashboard (Overview, Pending, History, Statistics, Diagnostics, Settings), notification-area icon with a popup, Codex panel, notifications with Don't resume and Open Dashboard; nine interface languages |
 
 Neither column is a criticism. Retrying an unknown failure is a reasonable choice for a tool whose
 goal is to recover as much as possible. It is the wrong choice for this one, whose promise is
@@ -108,11 +118,14 @@ narrower and, because of that, easier to trust: **it acts only on failures it ca
 | --- | --- |
 | **An embedded Codex management panel** | Adopted in v0.5 as a settings panel over MCP. It shows state and changes settings; it cannot submit a continuation, and the watcher runs whether or not it is open. Previously rejected — the reason given was that it would replace something a user could do in words. That was true of a panel that only *displayed*; it stopped being true once there were sixteen settings to find. |
 | **A graphical settings window** | Adopted in v0.5 as a standalone Start Menu window, for a different reason than theirs: settings must be reachable when Codex is closed and nothing else is running. |
-| **A tray icon and a supervisor process** | The icon was adopted in v0.6.0, as a thread of the watcher itself (`app.py:_start_tray`) rather than a second process, so it cannot show a watcher that is not running. Its menu opens the window, pauses recovery and stops the watcher; `show_tray` turns it off. The supervisor is still rejected: another long-lived process to make one visible |
+| **A tray icon and a supervisor process** | The icon was adopted in v0.6.0, as a thread of the watcher itself (`app.py:_start_tray`) rather than a second process, so it cannot show a watcher that is not running. Its menu opens the window, pauses recovery and stops the watcher; `show_tray` turns it off. Since v0.6.3 a single click opens a small popup beside it - what is waiting, when the watcher next looks, a check box per task, pause, and Open Dashboard - and a double click still opens the Dashboard. The supervisor is still rejected: another long-lived process to make one visible |
 | **An MCP server** | Adopted, deliberately narrow: typed configuration and safe control only. No tool detects, schedules, reserves or sends. |
 | **Notification of a retry limit being reached** | One of four lifecycle notifications, each with its own switch |
 | **Empty-input continuation, so no user bubble appears** | Not possible without their app-server route. A continuation message is sent, and the README says so plainly rather than implying the conversation is untouched |
-| **A fallback retry text the user can edit** | Not exposed. The continuation text is not a setting here, because a user-authored instruction sent automatically into a conversation is a much larger surface than it looks |
+| **A fallback retry text the user can edit** | Adapted in v0.6.3 as the **Custom** continuation message, under constraints that answer the reason it was not exposed before - a user-authored instruction sent automatically into a conversation is a much larger surface than it looks. It is written only in the Windows Dashboard and cannot be set from Codex: `update_settings` does not offer the text and `preview_recovery_message` does not accept it, because text sent into your conversations when nobody is watching must not be something a model can be talked into changing. It is sent exactly as typed, at most 2000 characters, as one message for every interruption or one per kind. It may use `{reason}`, `{category}`, `{attempt}`, `{max_attempts}` and `{reset_time}` and nothing else, and a placeholder that would carry the prompt, the reply, a title, a path, an account or a token is refused by name. The fallback is fixed: the message for that kind, else the message for every interruption, else the localized Standard message. Nothing about the text can make a failure recoverable, skip a check or choose a conversation |
+| **A dry run that says what would happen and why** (`saaranshM/unsnooze`'s `preview`) | v0.6.3's **Why it is waiting**, on the Dashboard's Pending page: the watcher's safety checks for the chosen task, as the watcher last recorded them and when (`control.py:describe_record`, `gates` and `gates_at`). It evaluates nothing when asked, so it cannot disagree with the watcher by being a second code path answering the same question. The Preview beside the continuation settings is the other half: the exact text that would be sent, from the function that sends it |
+| **A checkbox list of which conversations to auto-resume** (`boyso/codex-reset`, macOS) | v0.6.3's **Auto-resume** check box, in the notification-area popup and on the Dashboard's Pending page, for each task that is already waiting. A click carries that task's interruption id and conversation id as they were when the row was drawn, and the control layer refuses one that reaches a record which has since finished, disappeared or turned out to belong to another conversation. It changes whether that conversation may be resumed and sends nothing; the watcher still decides and still sends. There is no list of every conversation to tick in advance: the box exists only where there is an exact record to bind it to |
+| **Bulk actions on every tracked task** (`saaranshM/unsnooze`'s `cancel --all` and `resume-now --all`) | Half of it. v0.6.3's **Cancel all** on the Pending page stops every pending recovery, one exact record at a time, through the same cancel a single task uses (`control.py:cancel_all_pending`); it can only reduce what the tool does. There is deliberately no retry-all: one record at a time under one lock is what keeps the argument that nothing is ever sent twice short enough to check. Cancel all is not an MCP tool |
 
 ### Rejected — a deliberate choice, not an omission
 
@@ -135,6 +148,13 @@ narrower and, because of that, easier to trust: **it acts only on failures it ca
 | **Empty-response recovery** — treating a completion with no assistant reply as a temporary failure | Re-examined for v0.6.0. Their handling is careful and privacy-bounded — a boolean for whether a final message was present, never its contents — and they now also note that Codex's own "finished a turn" popup fires before a completion can be classified, so a false completion cannot be un-notified. The failure is real and the detection can be content-free. It stays out because nothing in this repository has ever seen one: distinguishing it from a model that legitimately had nothing to say needs privacy-stripped structural captures from real Codex history, and there are none. It would ship default-off |
 | **A break-glass "safely disable" action** | Their version exists because shared mode can leave Codex pointing at a dead endpoint. Nothing here can put Codex in a state it needs rescuing from, so the action has nothing to undo. If that ever stops being true, this becomes required rather than optional |
 
+**Re-read for v0.6.3 on 2026-09-14**, against this project's own reasons rather than against
+the other projects, which were not re-surveyed for it. Empty-response recovery stays deferred:
+there are still no privacy-stripped captures of a real one to tell it apart from a model that
+had nothing to say. Waking unloaded threads, goal-state manipulation and subagent recovery stay
+rejected, for the reasons in their rows. v0.6.3 changed what the product says and shows, and
+nothing in it moved a condition any of those reasons rests on.
+
 ## The line that decides
 
 > Keep the recovery engine small, local, conservative, and fail-closed; expand recovery only for
@@ -144,4 +164,6 @@ narrower and, because of that, easier to trust: **it acts only on failures it ca
 When a proposed feature would make the runtime do more rather than make the tool easier to install,
 understand or trust, it belongs in the other project, not this one. The v0.5 surfaces were added
 under exactly that test: they change how the product is *configured and explained*, and not one of
-them can recover anything.
+them can recover anything. So were v0.6.3's - nine languages, the continuation message's styles
+and Custom text, a popup and a redesign - and the classifier, the gates and the one watcher
+allowed to send are the ones v0.6.2 had.

@@ -15,7 +15,8 @@ you can see.
 - **Interface language setting** (Settings > General). The default, *System*, follows the
   first language Windows lists, as before; a language this product does not ship is English.
   An explicit choice wins over Windows and survives restarts, repairs and updates.
-  `CODEX_AUTO_RESUME_LANG` still overrides both.
+  `CODEX_AUTO_RESUME_LANG` still replaces what Windows reports, so it decides the language
+  only while the setting is *System*.
 - Catalogs are plain JSON, one per language, with English as the source and the fallback
   for any key a translation has not reached. Nothing is fetched from the network. The
   translations are tracked against the English they were made from, so a sentence changed

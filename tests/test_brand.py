@@ -73,6 +73,15 @@ class PaletteTests(unittest.TestCase):
             # themes, and the two are different colours for exactly this reason.
             self.assertGreaterEqual(brand.contrast(theme["accent"], theme["on_accent"]), 4.5)
 
+    def test_state_colours_are_readable_where_they_are_drawn(self):
+        """A state word is drawn in its state colour on a card, on a raised control and on
+        its own tinted chip, so each has to be readable there; brand.py promises 4.5:1."""
+        for name, theme in (("light", brand.LIGHT), ("dark", brand.DARK)):
+            for state in ("success", "waiting", "warning", "danger", "paused"):
+                for ground in ("surface", "raised"):
+                    with self.subTest(theme=name, state=state, ground=ground):
+                        self.assertGreaterEqual(brand.contrast(theme[state], theme[ground]), 4.5)
+
     def test_fill_only_tokens_are_documented_as_fill_only(self):
         # `active` does not reach text contrast and is not supposed to. The assertion
         # exists so that if someone raises it to text contrast they also have to come

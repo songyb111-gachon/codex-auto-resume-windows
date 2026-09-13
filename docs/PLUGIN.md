@@ -72,9 +72,12 @@ anything but its exact id, resends an uncertain submission or forces a send.
 
 ### The tools, and which ones Codex asks about
 
-The table describes the published v0.6.0 server. The server runs from the installed
-release, not from the plugin you add. An installation still on
-v0.5.7 or earlier differs in six ways: it has ten tools
+The table describes the v0.6.3 server. The server runs from the installed release, not from
+the plugin you add. An installation on v0.6.0 through v0.6.2 has sixteen tools, without
+`preview_recovery_message`, and its `update_settings` offers only the recovery categories, the
+limits and the notifications: the language and continuation settings do not exist before
+v0.6.3, and neither does a switch for `auth_service_transient`. An installation still on
+v0.5.7 or earlier differs from v0.6.0 in six more ways: it has ten tools
 rather than sixteen, without `disable_conversation_recovery`, `enable_conversation_recovery`,
 `get_recovery_statistics`, `get_recovery_timeline` and `clear_recovery_history`; its
 `cancel_recovery` stops recovery for the whole conversation the named interruption belongs to
@@ -91,12 +94,13 @@ the installation directory. The last two are described below the table.
 | `list_pending` | Pending recoveries with their interruption ids, conversation ids, stored state, public code, reason, overlays and attempt counts. With `include_finished: true`, the recoveries that have already finished as well. | no |
 | `get_recovery_statistics` | How many interruptions were detected, how many continuations were sent, how they ended, and the median waits, over the last `days` days or all of it. Counts only; no ids. | no |
 | `get_recovery_timeline` | One interruption and everything that continued it, as codes and times. | no |
+| `preview_recovery_message` | The exact text the watcher would send for one recoverable kind of interruption, under the current settings or with an unsaved Interface language, Continuation language, Message style or Custom mode. Built by the same function the watcher sends with. Accepts no Custom text; saves nothing and sends nothing. | no |
 | `pause_auto_recovery` | Global pause. The watcher sends nothing while paused. A continuation already waiting in Codex's queue is withdrawn when the watcher reaches it; a withdrawal the watcher can confirm returns that recovery to its waiting state with its attempt back, so resuming picks it up again. Only a withdrawal that cannot be confirmed is marked `submission_unknown` and never resent, though Codex's queue may still hold it; if Codex delivers it first, the engine follows the turn that continuation started and records what that turn actually did. | no |
 | `retry_now` | Moves a waiting record's next check to now. | no |
 | `disable_conversation_recovery` | Switches recovery off for one exact conversation, its later interruptions included, and cancels what it has waiting. | no |
 | `resume_auto_recovery` | Undoes a global pause. | yes |
 | `enable_conversation_recovery` | Switches recovery back on for one exact conversation. Nothing is sent; every check still applies. | yes |
-| `update_settings` | Changes user-facing settings: the recovery categories, the limits and the notifications. | yes |
+| `update_settings` | Changes user-facing settings: the Interface language, the recovery categories, the limits, the notifications, and the continuation message's language, style and Custom mode. Not the Custom message text itself (below). | yes |
 | `restore_default_settings` | Puts every setting back to its recommended value. | yes |
 | `cancel_recovery` | Stops the named interruption and every record that continues it. One that was never sent is cancelled outright; one that may already be in Codex is marked, and the watcher takes back whatever is still queued - a turn already running is not stopped. The conversation itself stays switched on. | yes |
 | `reset_recovery_budget` | Returns an exhausted record to waiting, as above. | yes |
@@ -135,15 +139,66 @@ settings it returns do include `codex_exe`, which is empty unless an engine path
 by hand or through `update_settings` in v0.5.7 or earlier. Both changes ship in v0.6.0. In
 v0.5.7 and earlier, `update_settings` accepts those two settings as well and is not marked
 destructive, so it does not request approval through that annotation, and `get_status`
-reports the installation directory as `home`.
+reports the installation directory as `home`. Nor does `update_settings` offer the two
+preferences that belong to Windows, the notification-area icon (`show_tray`) and Reduce motion
+(`reduce_motion`), which the panel does not show either.
+
+**Custom message text cannot be written from Codex.** `update_settings` offers
+`custom_message_mode` - one message for every interruption, or one per kind - but neither
+`custom_message` nor any `custom_message_<category>`, and a client that sends one anyway is
+refused; `preview_recovery_message` accepts only the four choices named in its row. The reason
+is what the text is for. The watcher later sends it into your conversations, on your behalf,
+when nobody is watching, so a model that had been talked into changing it by a page it read
+would turn one injected instruction into a standing one, delivered at every later interruption.
+The text is therefore written in the Windows Dashboard, by the person it will speak for. What
+Codex can change - the language and the style - only chooses among texts this product ships or
+you wrote.
 
 What a tool returns becomes part of the Codex conversation it was called from, and should be
 treated as sent to OpenAI like any tool output: the status summary (in v0.5.7 and earlier,
 with the installation directory), the settings, and for `list_pending` and `open_settings` the conversation and
 interruption ids with their states, codes and counts, and for `get_recovery_timeline` one
-chain's interruption ids with its event codes and times; `get_recovery_statistics` returns counts and times and no ids at all. No tool returns
+chain's interruption ids with its event codes and times; `get_recovery_statistics` returns counts and times and no ids at all. The settings that
+`get_status`, `open_settings`, `update_settings` and `restore_default_settings` return include
+any Custom message text you wrote in the Dashboard, and `preview_recovery_message` returns the
+text that would be sent, which under the Custom style is that text. No tool returns
 a conversation's title or content. The same holds for command output the skill asks Codex to read back - `status`,
 `pending`, `doctor`, `logs` - which also includes local paths and log lines.
+
+### The settings panel
+
+`open_settings` returns the panel as a `ui://` resource, which Codex renders beneath the tool
+result. It is one self-contained page - no script, stylesheet or font from anywhere else - and
+it draws itself from the settings schema the tool returns, so it shows the fields the settings
+module defines rather than a list of its own. It follows Codex's light or dark theme and its
+reduced-motion preference, in the visual language the Dashboard and the popup share
+([BRAND.md](BRAND.md)). Top to bottom:
+
+* **The state**: what the watcher is doing, in a word beside a halo - monitoring, waiting,
+  recovering, paused, or needing you when the watcher is not running, which is the only case
+  that offers **Start watcher**.
+* **Waiting to resume**, when anything is: up to eight tasks, each with its code, reason, next
+  check and attempts, and an **Auto-resume** switch for that task's conversation. The switch
+  calls `disable_conversation_recovery` or `enable_conversation_recovery` with the exact thread
+  id the row was drawn from, and the row changes only when the tool answers for that same
+  thread. Turning it off is confirmed in the panel first, because it cancels what that
+  conversation has waiting; turning it back on adds automation, so Codex may ask. The check box
+  in the Dashboard and the popup also checks the exact interruption before acting; no MCP tool
+  takes both ids, so the panel's switch names the conversation alone.
+* **General**: the Interface language.
+* **Automatic recovery**: pause or resume, which acts at once, the recovery categories, and the
+  limits, folded away.
+* **Notifications**, folded away.
+* **Continuation message**: the continuation language and the message style. Under *Custom* it
+  shows which stored message is used and what it says, read-only, with a note that Custom
+  messages are written in the Windows Dashboard. The page has no text field for them, and
+  neither its Save request nor its Preview request can carry one.
+* **Preview**: the exact text for a chosen kind of interruption, from
+  `preview_recovery_message`, following the language and style chosen but not yet saved. The
+  page never assembles a continuation of its own.
+* **Save**, for the settings above that wait for it.
+
+Where the host gives the page no way to call tools, it is a read-only summary and says so.
 
 ### Two constraints that shaped it
 
@@ -397,25 +452,45 @@ uninstalled. It reports and keeps anything else.
 
 ## Language
 
-The product's own interface text - the notifications, the settings window, the settings panel
-in Codex and the plugin layer's messages - is in English by default, and in Korean only when
-the first language the detection below finds is Korean - normally, when Korean is the **most
-preferred** UI language. Some text does not follow the detection: the output of the
-`auto_resume.py` command line and the MCP tools' text replies are in English, and the
-continuation message the watcher queues into a conversation is in Korean for every user.
+The product's own interface - the Dashboard, the notification-area popup and its menu, Windows
+notifications, the settings panel in Codex and the plugin layer's messages - ships in nine
+languages: English, 한국어, 日本語, 简体中文, 繁體中文, Español, Deutsch, Français and Português
+(Brasil). Until v0.6.3 it was English or Korean.
 
-Detection reads the same source the ChatGPT desktop app uses for its own display language:
-Electron's `app.getPreferredSystemLanguages()`, which on Windows is `GetUserPreferredUILanguages`.
-Falling back, it reads `LC_ALL` / `LC_MESSAGES` / `LANG`, and `CODEX_AUTO_RESUME_LANG` overrides
-everything. No language is inferred from an IP address, a time zone, a user name, a country or a
-keyboard layout. When none of these gives an answer, the language is English, never a guess.
+**Which one.** The **Interface language** setting decides (General, in the Dashboard's Settings
+and in the panel). Its default, *System*, follows Windows, read from the same source the ChatGPT
+desktop app uses for its own display language: Electron's `app.getPreferredSystemLanguages()`,
+which on Windows is `GetUserPreferredUILanguages`. Falling back, it reads `LC_ALL` /
+`LC_MESSAGES` / `LANG`, and `CODEX_AUTO_RESUME_LANG` replaces all of those. Only the first
+language counts: if this product does not ship it, the answer is English, never a language
+further down the list and never a guess. An explicit choice in the setting wins over Windows
+and over `CODEX_AUTO_RESUME_LANG` alike, which only decides while the setting is *System*, and it
+survives restarts, repairs and updates. One function, `l10n.normalize`, maps a tag to a
+catalog: Chinese by script or region (`Hant`, `TW`, `HK` and `MO` are traditional, anything
+else simplified), and `pt` and `pt-PT` to Brazilian Portuguese. No language is inferred from an
+IP address, a time zone, a user name, a country or a keyboard layout.
 
-The translated strings live in two small tables in `src/codex_auto_resume/`: `messages.py` for
-the plugin layer's messages and the notifications, and `interface.py` for the settings window
-and the panel, which are both handed the strings for the language `messages.py` decides. Text
-outside them - the `auto_resume.py` command line's output, the MCP tools' replies, the
-continuation message and the settings window's built-in English fallbacks - is not
-translated. No i18n framework and no new dependency.
+**The continuation message is localized too**, in its own setting, **Continuation language**,
+which by default follows the interface: the language you read and the language you want Codex
+addressed in are not always the same one. A Custom message is sent exactly as you typed it, in
+whatever language that was.
+
+**What is not translated.** The output of the `auto_resume.py` command line; the MCP tools'
+text replies - the one-line summary each tool returns and the sentence a refusal carries - which
+are English (the panel says a refusal in your language from the code that travels beside the
+sentence); and the Dashboard's built-in English fallbacks, which appear only for a key a catalog
+does not have.
+
+**Where the words live.** One JSON catalog per language, in `src/codex_auto_resume/locales/`.
+English is the source, and every other catalog is a layer over it, so a key a translation has not
+reached yet shows in English rather than as a blank or an error; the loader refuses a catalog
+with a duplicated key. `messages.py` and `interface.py` read their strings from these catalogs
+rather than keeping tables of their own. Each translation is tracked against the English it was
+made from: `build/l10n.py` records, for every translated key, a digest of the English sentence
+in `build/l10n/<locale>.basis.json`, so a sentence changed in English shows as stale in every
+language, and the tests fail until someone has looked at it again. The basis files live under
+`build/`, which is not part of a release. Nothing is fetched from the network - no translation
+service, no runtime download - and there is no i18n framework and no new dependency.
 
 ## The usage-limit checkbox: not possible through any official API
 
@@ -424,8 +499,8 @@ The goal was to add exactly one line to the usage-limit notice Codex already sho
 > ☑ Automatically resume this task after the reset
 
 **This cannot be done through the official Codex plugin API.** It is not implemented, and nothing
-pretending to be it was built in its place. Re-checked from scratch for v0.5; the answer has not
-changed.
+pretending to be it was built in its place. Re-checked from scratch for v0.5, and again for
+v0.6.3; the answer has not changed.
 
 What was checked, against `codex-cli 0.153.4` and ChatGPT desktop `26.901.5280.0`:
 
@@ -451,43 +526,51 @@ What was checked, against `codex-cli 0.153.4` and ChatGPT desktop `26.901.5280.0
    `SubagentStop` and `Notification`. None fires on a usage limit — and plugin validation rejects
    `hooks` anyway.
 
-### The three options, ranked, and what each one is worth
+For v0.6.3 the list was checked again - the validator's accepted fields, `apps` entries, the
+conversation-scoped MCP App views, the banner's compiled `codex.upsellBanner.*` messages with
+their closed set of calls to action, `pluginSlots` and the hook events - and it reads the same:
+nothing fires on a usage limit, and plugin validation still rejects `hooks`. One more surface was
+looked at: `openai/events/subscribe` exists, but it requires a trusted connector scope that a
+plugin does not have.
 
-The question was re-opened from scratch for v0.5 against the build above, on the chance that a
-newer Codex had added a surface. It has not. What follows is what each option is actually worth
-today, best first.
+### Where the control is instead, in order of how close it gets
 
-**A — a real control inside the notice. Still impossible.** Everything in the list above was
-re-checked against this build. The banner is still assembled from compiled `react-intl` message
-ids inside the Electron bundle (`codex.upsellBanner.*.headline`, `codex.upsellBanner.cta.*`);
-there is no id, slot, prop or plugin hook anywhere near it. Nothing in the plugin manifest, the
-MCP schema or the app's own bundled plugins can address app chrome.
+Every placement that was built binds to the exact interruption and the exact conversation it is
+shown beside, changes policy only - whether the watcher may resume that task - and never sends
+anything. The watcher still decides, checks everything again, and is still the only thing that
+sends.
 
-**B — a Codex-native form at the moment of the interruption. Available in principle, not shipped.**
-An MCP server can call `elicitation/create`, and this build renders it: the wire types
-`ElicitRequestParamsWire::Form` and `::Url` are present, and the response is `accept` / `decline`
-/ `cancel`. A boolean property becomes a real checkbox. It carries no turn id, so it is not
-structurally bound to a live turn.
+**A — a real control inside Codex's notice. Impossible.** The banner is assembled from compiled
+`react-intl` message ids inside the Electron bundle, with no id, slot, prop or plugin hook
+anywhere near it, so the only way in is to inject into the desktop app, which this project does
+not do.
 
-It is not shipped anyway, and the reason is honest rather than technical. To reach a person at
-the moment of the interruption, the server would have to push a form into whatever conversation
-happens to be open, about a different conversation that failed - unasked, while they are working
-on something else. It also only reaches them if Codex is open, which is exactly when it is least
-needed, and the feature sits behind `features.tool_call_mcp_elicitation` (Statsig layer
-`223073164`, param `enable_tool_call_mcp_elicitation`), so on a machine where the gate is off it
-would silently do nothing at all. Building an interruption whose delivery cannot be relied on,
-into a place the user did not ask for it, is worse than not building it.
-
-What *is* shipped is the same mechanism where it belongs: an MCP settings panel the user opens by
-asking. It renders in the conversation as a `ui://` resource on a read-only tool result, shows the
-current state and every option, and can pause recovery or change a setting - the whole control
-surface, at the moment the user wants it rather than at a moment we chose for them.
+**B — a Codex-native form at the moment of the interruption. Available in principle, not
+shipped.** An MCP server can call `elicitation/create`, and the desktop app renders it: a boolean
+property becomes a real checkbox, and the response is `accept` / `decline` / `cancel`. In the
+0.154 build the request is associated with the turn that raised it. It is still not shipped. To
+reach a person at the moment of the interruption, the server would have to push a form into
+whatever conversation happens to be open, about a different conversation that failed, unasked;
+it only arrives while Codex is open; and it sits behind a feature gate
+(`features.tool_call_mcp_elicitation`) that can be off, in which case it silently does nothing.
+Building an interruption whose delivery cannot be relied on, into a place the user did not ask
+for it, is worse than not building it.
 
 **C — a Windows notification. Shipped, and the one that actually arrives.** The watcher raises it
-the moment the interruption is recorded, whether or not Codex is open, carrying the one control
-the checkbox would have offered: a **Don't resume** button for that exact conversation, with
-resuming as the default. It is not inside the Codex notice, but it arrives at the same moment,
-which is the part that matters.
+the moment the interruption is recorded, whether or not Codex is open, with **Don't resume** (or
+**Don't retry**, for a transient failure) for that exact interruption, resuming as the default,
+and **Open Dashboard**, which opens the Pending page and can do nothing else.
+
+**D — the notification-area popup.** A single click on the watcher's icon opens a compact popup
+listing what is waiting; each task has its own check box, *Automatically resume this task when the
+limit resets* (or *Automatically retry this task*), bound to that task's interruption and
+conversation ids.
+
+**E — the Dashboard's Pending page.** The **Auto-resume** column carries the same switch for every
+waiting task, beside **Why it is waiting** and the rest of the task's record.
+
+A click on D or E that reaches a record which has since finished, disappeared, or turned out to
+belong to another conversation is refused by the control layer and changes nothing.
 
 None of this is worked around. The only ways to put a control in that banner would be DOM or
 renderer injection, an Electron or binary patch, a CDP/DevTools bridge, accessibility-control
