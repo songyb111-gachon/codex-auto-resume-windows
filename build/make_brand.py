@@ -59,6 +59,18 @@ FIELDS = (
     ("OnAccent", "on_accent", "text drawn on the accent"),
     ("Active", "active", "fill only: running"),
     ("Idle", "idle", "fill only: stopped"),
+    ("Raised", "raised", "a control resting on a card"),
+    ("Inset", "inset", "pressed, selected, a well"),
+    ("ShadowDark", "shadow_dark", "shadow below and right of a raised surface"),
+    ("ShadowLight", "shadow_light", "highlight above and left of it"),
+    ("AccentSoft", "accent_soft", "a quiet accent ground"),
+    ("Focus", "focus", "keyboard focus ring"),
+    ("Attention", "attention", "fill only: needs a person"),
+    ("Success", "success", "recovered"),
+    ("Waiting", "waiting", "waiting for a reset or retry"),
+    ("Warning", "warning", "needs a decision soon"),
+    ("Danger", "danger", "stopped or failed"),
+    ("Paused", "paused", "deliberately quiet"),
 )
 
 
@@ -71,6 +83,24 @@ def render() -> str:
         lines.append(
             "        internal static readonly Color %s = Color.FromArgb(0x%02X, 0x%02X, 0x%02X);"
             "  // %s, %s\n" % (name.ljust(width), red, green, blue, value, note))
+    lines.append("\n")
+    for prefix, table in (("Radius", brand.RADII), ("Space", brand.SPACING),
+                          ("Type", brand.TYPE)):
+        for name, value in table.items():
+            lines.append("        internal const int %s%s = %d;\n"
+                         % (prefix, name[:1].upper() + name[1:], int(value)))
+    for name, value in (("RaisedBlur", brand.ELEVATION["raised_blur"]),
+                        ("RaisedOffset", brand.ELEVATION["raised_offset"]),
+                        ("InsetBlur", brand.ELEVATION["inset_blur"]),
+                        ("InsetOffset", brand.ELEVATION["inset_offset"]),
+                        ("BreatheMs", brand.MOTION["breathe_ms"]),
+                        ("AttentionMs", brand.MOTION["attention_ms"]),
+                        ("TransitionMs", brand.MOTION["transition_ms"]),
+                        ("HaloRadius", brand.HALO["radius"])):
+        lines.append("        internal const int %s = %d;\n" % (name, int(value)))
+    lines.append("        internal const float ShadowOpacity = %sf;\n" % brand.ELEVATION["shadow_opacity"])
+    lines.append("        internal const float HaloMin = %sf;\n" % brand.HALO["min_opacity"])
+    lines.append("        internal const float HaloMax = %sf;\n" % brand.HALO["max_opacity"])
     lines.append("\n")
     lines.append('        internal const string HexAccent = "%s";\n' % brand.LIGHT["accent"])
     lines.append('        internal const string HexBrand = "%s";\n' % brand.BRAND)

@@ -19,15 +19,53 @@ namespace CodexAutoResume
 {
     internal static class Brand
     {
-        internal static readonly Color Ink      = Color.FromArgb(0x0F, 0x1B, 0x2D);  // #0F1B2D, text
-        internal static readonly Color Muted    = Color.FromArgb(0x5A, 0x6B, 0x7F);  // #5A6B7F, secondary text
-        internal static readonly Color Line     = Color.FromArgb(0xDC, 0xE3, 0xEC);  // #DCE3EC, hairlines and card edges
-        internal static readonly Color Surface  = Color.FromArgb(0xFF, 0xFF, 0xFF);  // #FFFFFF, cards
-        internal static readonly Color Canvas   = Color.FromArgb(0xF2, 0xF5, 0xF9);  // #F2F5F9, the window behind them
-        internal static readonly Color Accent   = Color.FromArgb(0x12, 0x57, 0xB8);  // #1257B8, anything to read or to click
-        internal static readonly Color OnAccent = Color.FromArgb(0xFF, 0xFF, 0xFF);  // #FFFFFF, text drawn on the accent
-        internal static readonly Color Active   = Color.FromArgb(0x06, 0xB6, 0xD4);  // #06B6D4, fill only: running
-        internal static readonly Color Idle     = Color.FromArgb(0x94, 0xA3, 0xB8);  // #94A3B8, fill only: stopped
+        internal static readonly Color Ink         = Color.FromArgb(0x0F, 0x1B, 0x2D);  // #0F1B2D, text
+        internal static readonly Color Muted       = Color.FromArgb(0x53, 0x64, 0x77);  // #536477, secondary text
+        internal static readonly Color Line        = Color.FromArgb(0xD3, 0xDC, 0xE7);  // #D3DCE7, hairlines and card edges
+        internal static readonly Color Surface     = Color.FromArgb(0xF6, 0xF8, 0xFB);  // #F6F8FB, cards
+        internal static readonly Color Canvas      = Color.FromArgb(0xE9, 0xEE, 0xF4);  // #E9EEF4, the window behind them
+        internal static readonly Color Accent      = Color.FromArgb(0x12, 0x57, 0xB8);  // #1257B8, anything to read or to click
+        internal static readonly Color OnAccent    = Color.FromArgb(0xFF, 0xFF, 0xFF);  // #FFFFFF, text drawn on the accent
+        internal static readonly Color Active      = Color.FromArgb(0x06, 0xB6, 0xD4);  // #06B6D4, fill only: running
+        internal static readonly Color Idle        = Color.FromArgb(0x94, 0xA3, 0xB8);  // #94A3B8, fill only: stopped
+        internal static readonly Color Raised      = Color.FromArgb(0xFB, 0xFC, 0xFE);  // #FBFCFE, a control resting on a card
+        internal static readonly Color Inset       = Color.FromArgb(0xE2, 0xE8, 0xF0);  // #E2E8F0, pressed, selected, a well
+        internal static readonly Color ShadowDark  = Color.FromArgb(0xB7, 0xC4, 0xD4);  // #B7C4D4, shadow below and right of a raised surface
+        internal static readonly Color ShadowLight = Color.FromArgb(0xFF, 0xFF, 0xFF);  // #FFFFFF, highlight above and left of it
+        internal static readonly Color AccentSoft  = Color.FromArgb(0xDC, 0xE8, 0xF8);  // #DCE8F8, a quiet accent ground
+        internal static readonly Color Focus       = Color.FromArgb(0x2F, 0x7D, 0xE1);  // #2F7DE1, keyboard focus ring
+        internal static readonly Color Attention   = Color.FromArgb(0xB4, 0x53, 0x09);  // #B45309, fill only: needs a person
+        internal static readonly Color Success     = Color.FromArgb(0x15, 0x70, 0x45);  // #157045, recovered
+        internal static readonly Color Waiting     = Color.FromArgb(0x1A, 0x5F, 0xA8);  // #1A5FA8, waiting for a reset or retry
+        internal static readonly Color Warning     = Color.FromArgb(0x9A, 0x4A, 0x06);  // #9A4A06, needs a decision soon
+        internal static readonly Color Danger      = Color.FromArgb(0xB4, 0x23, 0x18);  // #B42318, stopped or failed
+        internal static readonly Color Paused      = Color.FromArgb(0x55, 0x65, 0x7A);  // #55657A, deliberately quiet
+
+        internal const int RadiusCard = 16;
+        internal const int RadiusControl = 11;
+        internal const int RadiusChip = 999;
+        internal const int RadiusSmall = 7;
+        internal const int SpaceXs = 4;
+        internal const int SpaceS = 8;
+        internal const int SpaceM = 12;
+        internal const int SpaceL = 16;
+        internal const int SpaceXl = 24;
+        internal const int SpaceXxl = 32;
+        internal const int TypeTitle = 20;
+        internal const int TypeHeading = 14;
+        internal const int TypeBody = 12;
+        internal const int TypeSmall = 11;
+        internal const int RaisedBlur = 14;
+        internal const int RaisedOffset = 4;
+        internal const int InsetBlur = 6;
+        internal const int InsetOffset = 2;
+        internal const int BreatheMs = 2400;
+        internal const int AttentionMs = 1200;
+        internal const int TransitionMs = 160;
+        internal const int HaloRadius = 9;
+        internal const float ShadowOpacity = 0.55f;
+        internal const float HaloMin = 0.12f;
+        internal const float HaloMax = 0.34f;
 
         internal const string HexAccent = "#1257B8";
         internal const string HexBrand = "#1257B8";

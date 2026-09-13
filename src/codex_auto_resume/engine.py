@@ -107,6 +107,10 @@ class Engine:
         self.log = log or (lambda *args: None)
         self.notify = notify or (lambda *args: None)
         self.language = language or "en"
+        # The user's policy as last adopted. The continuation text is built from it at
+        # the moment of sending, so a style or language changed while a recovery waits
+        # applies to that recovery rather than to the next one.
+        self.policy_values = policy.defaults()
         # Whether this watcher holds the lock on its Codex home, and what the Codex
         # engine compatibility check concluded. Both are owned by the process.
         self.home_lock = home_lock or (lambda: True)
@@ -169,6 +173,7 @@ class Engine:
         because every value it reads has already been coerced to a sane default.
         """
         values = policy.coerce(values)
+        self.policy_values = values
         self.options["max_recovery_attempts"] = values["max_recovery_attempts"]
         self.options["max_no_progress"] = values["max_no_progress"]
         self.options["max_chain_continuations"] = values["max_chain_continuations"]
@@ -980,6 +985,21 @@ class Engine:
             if self.usage().get("available") is not True:
                 self.transition(current, "waiting_for_usage", "usage_recheck_failed", delay=900)
                 return
+            # The text is decided before the claim, not after it. Building it reads catalogs
+            # and settings; if either were ever broken, the failure has to happen while the
+            # record is still merely waiting. After the claim, any exception is treated as a
+            # send that may have happened - which is the right rule for a send and the wrong
+            # one for a sentence that was never finished.
+            #
+            # Nothing about the text can change what is allowed. Every gate above has
+            # already passed; the style and the Custom message decide words, and the words
+            # are only ever built for a category the classifier has proven recoverable.
+            try:
+                message = _message.for_settings(current["category"], self.policy_values,
+                                                row=current, limits=limits)
+            except Exception:
+                self.log(current["thread_id"], "continuation_text_fallback", None)
+                message = _message.build(current["category"], locale=l10n.DEFAULT)
             claimed, gate, reason = self.store.reserve_detailed(key, self.clock(), limits=limits,
                                                                 gates=vector)
             if not claimed:
@@ -996,8 +1016,7 @@ class Engine:
             # Reservation is durable before any external process can accept the message.
             try:
                 response = self.backend.send(current["thread_id"],
-                                             continuation(current["category"], self.language)
-                                             + "\n\n" + current["marker"],
+                                             message + "\n\n" + current["marker"],
                                              launch_guard=self.store.submission_guard(key))
             except Exception:
                 response = {"outcome": "unknown"}

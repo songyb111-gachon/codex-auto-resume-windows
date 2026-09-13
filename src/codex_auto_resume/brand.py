@@ -38,15 +38,33 @@ BRAND = "#1257B8"
 
 LIGHT = {
     "ink":     "#0F1B2D",   # text, a near-black carrying the same blue bias
-    "muted":   "#5A6B7F",   # secondary text; 5.4:1 on the canvas
-    "line":    "#DCE3EC",   # hairlines and card edges
-    "surface": "#FFFFFF",   # cards
-    "canvas":  "#F2F5F9",   # the window behind them
+    "muted":   "#536477",   # secondary text; readable on the canvas, not only on a card
+    "line":    "#D3DCE7",   # hairlines and card edges
+    # v0.6.3: the surfaces moved toward each other. A raised card in a soft interface is
+    # the same material as the window lifted by light and shadow, not a white sheet laid
+    # on a grey one - so the canvas warmed up a step and the card came down from pure
+    # white. The hairline stays: a shadow alone is not an edge for everybody, and nothing
+    # in this product may depend on seeing a shadow.
+    "surface": "#F6F8FB",   # cards
+    "canvas":  "#E9EEF4",   # the window behind them
+    "raised":  "#FBFCFE",   # a control resting on a card: a button, a chip, a toggle
+    "inset":   "#E2E8F0",   # pressed, selected, or a well a value sits in
+    "shadow_dark":  "#B7C4D4",  # the shadow below and right of a raised surface
+    "shadow_light": "#FFFFFF",  # the highlight above and left of it
     "accent":  "#1257B8",   # anything to read or to click
+    "accent_soft": "#DCE8F8",  # a quiet accent ground: a selected row, the active tab
     "on_accent": "#FFFFFF",  # text drawn *on* the accent, never on a page ground
+    "focus":   "#2F7DE1",   # the keyboard focus ring
     "active":  "#06B6D4",   # fill only: the watcher is running, work is in flight
     "idle":    "#94A3B8",   # fill only: stopped, nothing pending
     "attention": "#B45309",  # fill only: needs a person
+    # State colours that carry text. Each one is readable on a card - the tests hold them
+    # to 4.5:1 - because a state is never shown by colour alone: it always has a word.
+    "success": "#157045",   # recovered
+    "waiting": "#1A5FA8",   # waiting for a reset or a retry
+    "warning": "#9A4A06",   # needs a decision soon
+    "danger":  "#B42318",   # stopped, failed
+    "paused":  "#55657A",   # deliberately quiet
 }
 
 # Dark is not light inverted. Three things were wrong with the first attempt, and all
@@ -69,7 +87,13 @@ DARK = {
     "line":    "#2E3A4B",
     "surface": "#191F29",
     "canvas":  "#0C1118",
+    "raised":  "#212835",
+    "inset":   "#121820",
+    "shadow_dark":  "#05080C",
+    "shadow_light": "#27303D",
     "accent":  "#5CA2EE",
+    "accent_soft": "#1B2D45",
+    "focus":   "#7DB6F5",
     # Dark themes need a bright accent to stand off the surface, and a bright accent
     # cannot then carry white text: white on #5AA5F5 measures 2.6:1. So the text on the
     # accent is a token, not a literal, and it goes dark exactly when the accent goes
@@ -78,6 +102,11 @@ DARK = {
     "active":  "#35B5CC",
     "idle":    "#5F6E80",
     "attention": "#E09B57",
+    "success": "#5CC98E",
+    "waiting": "#7DB6F5",
+    "warning": "#E8A765",
+    "danger":  "#F2877C",
+    "paused":  "#9AACBF",
 }
 
 # The icon's own colours, which are deliberately not theme tokens: a Windows icon is
@@ -86,6 +115,38 @@ ICON_TOP = "#1B62C4"
 ICON_BOTTOM = "#0B2545"
 ICON_MARK = "#F2F9FF"
 ICON_ACCENT = "#4FE0F5"
+
+
+# ------------------------------------------------------------------- scale
+# Everything that is not a colour, in device-independent pixels at 96 DPI. The window
+# multiplies by its own scale factor; the panel writes these as CSS pixels. One table,
+# so a card in the window and a card in Codex round their corners by the same amount.
+RADII = {"card": 16, "control": 11, "chip": 999, "small": 7}
+SPACING = {"xs": 4, "s": 8, "m": 12, "l": 16, "xl": 24, "xxl": 32}
+TYPE = {"title": 20, "heading": 14, "body": 12, "small": 11}
+# A raised surface: a soft shadow offset down and right, a highlight up and left. Small
+# on purpose - exaggerated embossing is the thing that makes soft interfaces unreadable.
+ELEVATION = {"raised_blur": 14, "raised_offset": 4, "inset_blur": 6, "inset_offset": 2,
+             "shadow_opacity": 0.55}
+# Motion is a state, not decoration. Monitoring breathes slowly; a single attention pulse
+# is quicker and happens once; nothing blinks. Every recurring motion stops when a
+# person has asked Windows to reduce motion.
+MOTION = {"breathe_ms": 2400, "attention_ms": 1200, "transition_ms": 160}
+HALO = {"min_opacity": 0.12, "max_opacity": 0.34, "radius": 9}
+
+
+def css_scale() -> str:
+    """The scale as CSS custom properties, for the panel's stylesheet."""
+    parts = []
+    for prefix, table in (("radius", RADII), ("space", SPACING), ("type", TYPE)):
+        for name, value in table.items():
+            parts.append("--%s-%s: %spx;" % (prefix, name, value))
+    parts.append("--breathe: %dms;" % MOTION["breathe_ms"])
+    parts.append("--attention: %dms;" % MOTION["attention_ms"])
+    parts.append("--transition: %dms;" % MOTION["transition_ms"])
+    parts.append("--halo-min: %s;" % HALO["min_opacity"])
+    parts.append("--halo-max: %s;" % HALO["max_opacity"])
+    return " ".join(parts)
 
 
 def rgb(value: str) -> tuple[int, int, int]:

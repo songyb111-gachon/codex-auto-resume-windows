@@ -17,9 +17,16 @@ This plugin also provides tools (`open_settings`, `get_status`, `list_pending`,
 `update_settings`, `restore_default_settings`, `pause_auto_recovery`, `resume_auto_recovery`,
 `cancel_recovery`, `disable_conversation_recovery`, `enable_conversation_recovery`,
 `reset_recovery_budget`, `start_watcher`, `retry_now`, `get_recovery_statistics`,
-`get_recovery_timeline`, `clear_recovery_history`). When they are available, use them
-instead of the commands below: they are typed, they refuse an invalid value instead of
-writing it, and `open_settings` shows the user a panel they can read and change directly.
+`get_recovery_timeline`, `clear_recovery_history`, `preview_recovery_message`). When they are
+available, use them instead of the commands below: they are typed, they refuse an invalid
+value instead of writing it, and `open_settings` shows the user a panel they can read and
+change directly.
+
+`preview_recovery_message` shows the exact words the watcher would send for one kind of
+interruption, under the current language and style. It saves nothing and sends nothing.
+The user's own Custom message text cannot be written from Codex - not through
+`update_settings` and not through the preview. If the user wants to change it, tell them it
+is edited in the Windows Dashboard, under Settings > Continuation message.
 
 `resume_auto_recovery`, `enable_conversation_recovery`, `update_settings`,
 `restore_default_settings`, `cancel_recovery`, `reset_recovery_budget`, `start_watcher` and

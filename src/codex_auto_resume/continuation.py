@@ -26,6 +26,7 @@ make an unknown failure recoverable, and it is never asked to build text for one
 from __future__ import annotations
 
 import re
+import time
 
 from . import l10n, reasons
 
@@ -138,9 +139,11 @@ def metadata_for(row=None, *, locale=l10n.DEFAULT, limits=None, reset_time=None)
     category = None
     if row is not None:
         category = row["category"] if "category" in row.keys() else None
-        attempt = row["attempt_count"] if "attempt_count" in row.keys() else None
-        if attempt:
-            values["attempt"] = int(attempt)
+        # The number of *this* attempt: one more than the continuations already sent for
+        # this interruption. A first attempt is 1, never 0.
+        sent = row["attempt_count"] if "attempt_count" in row.keys() else None
+        if sent is not None:
+            values["attempt"] = int(sent or 0) + 1
     if category:
         values["category"] = category
         values["reason"] = l10n.text(reasons.label_key(category), locale)
@@ -174,7 +177,10 @@ def build(category, *, locale=l10n.DEFAULT, style=DEFAULT_STYLE, custom=None,
     values.setdefault("category", entry.category)
     values.setdefault("reason", l10n.text(entry.label_key, locale))
 
-    if style == "custom":
+    # A Custom message is only ever attached to a category that is continued. The engine
+    # never asks for anything else, and a Preview refuses to; this makes it structural too,
+    # so no caller can get the user's own words back for an unknown or terminal failure.
+    if style == "custom" and entry.recoverable:
         chosen = _custom_text(entry.category, custom)
         if chosen:
             return _fill(chosen, values)
@@ -207,3 +213,85 @@ def _custom_text(category, custom):
     if isinstance(candidate, str) and candidate.strip():
         return candidate
     return None
+
+
+# -------------------------------------------------------------- from settings
+# Everything below turns stored settings into the arguments `build()` takes. The watcher
+# calls `for_settings()` at the moment it sends, and the settings Preview calls the same
+# function with the values being edited, so there is one resolution of "which language,
+# which style, which Custom message" and not two that agree today.
+
+def resolve_locale(values, environ=None) -> str:
+    """The language a continuation is written in.
+
+    An explicit Continuation language wins. `follow`, the default, is the Interface
+    language - and the Interface language is itself `system`, following Windows, until
+    someone chooses one. Changing the Interface language therefore carries continuations
+    with it only for a person who has not chosen a Continuation language of their own.
+    """
+    values = values or {}
+    chosen = values.get("continuation_language")
+    if isinstance(chosen, str) and chosen in l10n.LOCALES:
+        return chosen
+    return l10n.resolve(values.get("interface_language"), environ)
+
+
+def style_from(values) -> str:
+    style = (values or {}).get("continuation_style")
+    return style if style in STYLES else DEFAULT_STYLE
+
+
+def custom_from(values) -> dict:
+    values = values or {}
+    mode = values.get("custom_message_mode")
+    return {"mode": mode if mode in CUSTOM_MODES else DEFAULT_CUSTOM_MODE,
+            "text": values.get("custom_message"),
+            "per_reason": {category: values.get("custom_message_" + category)
+                           for category in reasons.RECOVERABLE}}
+
+
+def source_for(category, values):
+    """Which text a continuation for this category actually uses.
+
+    `per_reason`, `global` or `standard` when the Custom style is selected - the third
+    meaning no usable Custom text exists and the Standard message is sent instead - and
+    `None` for every other style. A settings page says this out loud beside the Preview,
+    because "I chose Custom and something else was sent" is otherwise a mystery.
+    """
+    if style_from(values) != "custom":
+        return None
+    custom = custom_from(values)
+    if custom["mode"] == "per_reason":
+        text = custom["per_reason"].get(category)
+        if isinstance(text, str) and text.strip():
+            return "per_reason"
+    text = custom["text"]
+    if isinstance(text, str) and text.strip():
+        return "global"
+    return "standard"
+
+
+def format_reset_time(stamp):
+    """A reset time as a person reads it on this machine, or None if there is none."""
+    if not stamp:
+        return None
+    try:
+        return time.strftime("%H:%M", time.localtime(float(stamp)))
+    except (TypeError, ValueError, OverflowError, OSError):
+        return None
+
+
+def for_settings(category, values, *, row=None, limits=None, environ=None) -> str:
+    """The exact continuation for one interruption under these settings.
+
+    `row` is the interruption record, or a stand-in with the same few fields for a
+    Preview. Only the fields `metadata_for` names are read from it.
+    """
+    locale = resolve_locale(values, environ)
+    reset_at = None
+    if row is not None and "reset_at" in row.keys():
+        reset_at = row["reset_at"]
+    metadata = metadata_for(row, locale=locale, limits=limits,
+                            reset_time=format_reset_time(reset_at))
+    return build(category, locale=locale, style=style_from(values),
+                 custom=custom_from(values), metadata=metadata)

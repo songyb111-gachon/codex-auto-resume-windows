@@ -62,9 +62,9 @@ def language(environ=None) -> str:
 
 
 def resolve(preference=None, environ=None) -> str:
-    """The locale to render in: the user's stored choice, else what Windows asks for.
+    """The locale to render in: an explicit choice, else the process's stored one.
 
-    Passing `preference` is how a surface honours the Interface language setting; with
-    nothing passed this behaves as it always did and follows the machine.
+    With nothing passed this is the Interface language the process adopted from its
+    settings, which is `system` - follow Windows - until somebody chooses otherwise.
     """
-    return l10n.resolve(preference, environ)
+    return l10n.resolve(l10n.preference() if preference is None else preference, environ)

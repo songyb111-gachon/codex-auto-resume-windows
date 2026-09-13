@@ -17,7 +17,7 @@ ASKS_FIRST = {
     "clear_recovery_history",
 }
 READ_ONLY = {"open_settings", "get_status", "list_pending", "get_recovery_statistics",
-             "get_recovery_timeline"}
+             "get_recovery_timeline", "preview_recovery_message"}
 
 
 class ApprovalHintTests(unittest.TestCase):

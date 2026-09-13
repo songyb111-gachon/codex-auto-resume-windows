@@ -392,6 +392,10 @@ class BridgeTests(ControlTestCase):
             # conversation back on sends nothing; the watcher's gates still decide.
             "history", "timeline", "statistics", "clear-history", "thread-enabled",
             "cancel-thread",
+            # v0.6.3. A preview builds text and sends none of it; the per-task switch is
+            # the conversation switch above, checked against one exact record; Cancel all
+            # is `cancel` applied to each pending id in turn.
+            "preview-continuation", "interruption-recovery", "cancel-all",
             # Writes a redacted local file the user chose; it sends nothing anywhere.
             "diagnostics",
             # A read of several of the above at once, and the long-lived form of this
