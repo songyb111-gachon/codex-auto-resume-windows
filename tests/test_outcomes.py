@@ -334,6 +334,80 @@ class T15NoProgressTests(Base):
                 self.assertEqual(child["no_progress_count"], expected)
 
 
+class RecoveryInterruptedAgainTests(Base):
+    """A recovery turn that ran and was then interrupted is not a failed recovery.
+
+    Found by the first live acceptance, against real Codex, on published v0.6.0: three
+    recoveries in a row worked - the continuation was delivered, the task carried on -
+    and two of them were recorded as `recovery_failed`. The reason is the commonest way
+    a recovery turn ends in real use. It runs, it does work, and it meets the *next*
+    usage limit; Codex records the turn that limit interrupted as `failed`, and the
+    engine read that status without asking whether the turn had done anything.
+
+    The rule is the one the completed branch already used: progress decides. How the
+    turn ended is kept on the row as `recovery_turn_status`, and the journal keeps it as
+    the reason, so nothing is lost by calling the recovery what it was.
+    """
+
+    def outcome(self, *, progress, error_json):
+        w = self.world()
+        w.enable()
+        thread, key = w.queued()
+        turn = w.home.dispatch(thread, status="inProgress", progress=progress)
+        w.finish(thread, turn, "failed", error_json)
+        w.tick(1)
+        w.tick(11)
+        return w, thread, w.get(key)
+
+    def test_a_recovery_turn_that_worked_then_hit_the_next_usage_limit_is_recovered(self):
+        w, thread, row = self.outcome(progress=True, error_json=USAGE_ERROR)
+        self.assertEqual((row["state"], row["last_error"]),
+                         ("recovered", "progress_then_turn_failed"))
+        self.assertEqual(machine.public_code(row), "recovered")
+        # The raw status is not thrown away: it is why the journal says what it says.
+        self.assertEqual(row["recovery_turn_status"], "failed")
+        stats = w.store.statistics()
+        self.assertEqual(stats["outcomes"]["recovered"], 1)
+        self.assertEqual(stats["outcomes"].get("recovery_failed", 0), 0)
+
+    def test_the_limit_it_met_is_still_recorded_as_this_record_s_child(self):
+        """Calling the parent recovered must not lose the new interruption."""
+        w, thread, row = self.outcome(progress=True, error_json=USAGE_ERROR)
+        child = w.records(thread)[-1]
+        self.assertNotEqual(child["interruption_id"], row["interruption_id"])
+        self.assertEqual(child["parent_interruption_id"], row["interruption_id"])
+        self.assertEqual(child["no_progress_count"], 0)
+
+    def test_a_recovery_turn_that_failed_having_done_nothing_is_still_a_failed_recovery(self):
+        w, thread, row = self.outcome(progress=False, error_json=USAGE_ERROR)
+        self.assertEqual((row["state"], row["last_error"]),
+                         ("recovery_turn_failed", "turn_failed"))
+        self.assertEqual(machine.public_code(row), "recovery_failed")
+        self.assertEqual(row["recovery_turn_status"], "failed")
+
+    def test_the_same_rule_applies_to_a_failure_that_is_not_a_usage_limit(self):
+        """Progress is the question, not which error ended the turn."""
+        for progress, expected in ((True, "recovered"), (False, "recovery_turn_failed")):
+            with self.subTest(progress=progress):
+                _, _, row = self.outcome(progress=progress, error_json=SERVER_5XX)
+                self.assertEqual(row["state"], expected)
+
+    def test_an_interrupted_turn_is_the_user_stopping_it_however_much_it_did(self):
+        """Only `failed` gained the progress question; `interrupted` means a person."""
+        for progress in (True, False):
+            with self.subTest(progress=progress):
+                w = self.world()
+                w.enable()
+                thread, key = w.queued()
+                turn = w.home.dispatch(thread, status="inProgress", progress=progress)
+                w.finish(thread, turn, "interrupted")
+                w.tick(1)
+                w.tick(11)
+                row = w.get(key)
+                self.assertEqual((row["state"], row["last_error"]),
+                                 ("stopped_by_user", "turn_interrupted"))
+
+
 class T16UserJoinedTests(Base):
     def join(self, client_id):
         w = self.world()
@@ -1269,14 +1343,17 @@ class T32ProjectionTests(Base):
         self.assertEqual(w.get(key)["state"], "submission_unknown")
         self.assertEqual(w.sends(thread), 1)
 
-    def test_T32_a_gap_under_two_minutes_passes(self):
+    def test_T32_a_gap_under_two_minutes_waits_for_current_projection(self):
         w = self.world()
         thread, key = self.due_record(w, loaded=False)
         w.home.make_stale(thread)
         w.tick(5)                   # first seen stale, thread not loaded
-        self.assertEqual(w.get(key)["last_error"], "notLoaded")
+        self.assertEqual(w.get(key)["last_error"], "projection_stale")
         w.backend.loaded_map[thread] = "loaded"
         w.tick(60)                  # stale for 60 s
+        self.assertEqual(w.sends(thread), 0)
+        w.home.catch_up(thread)
+        w.tick(60)
         self.assertEqual(w.sends(thread), 1)
 
     def test_T32_a_missing_projection_table_blocks_as_incompatible(self):

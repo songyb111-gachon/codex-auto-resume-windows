@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import ctypes as C
 from ctypes import wintypes as W
+from contextlib import nullcontext
 import hashlib
 import json
 import math
@@ -742,7 +743,7 @@ class Backend:
         except (AdapterError, OSError, S.SubprocessError, ValueError):
             return {"available": None, "reset_at": None, "limit_type": "unknown", "reason": "usage_probe_unavailable"}
 
-    def send(self, thread_id, prompt):
+    def send(self, thread_id, prompt, *, launch_guard=None):
         """Only spawn failure permits retry. Every post-spawn uncertainty is terminal."""
         try:
             canonical_uuid(thread_id)
@@ -751,13 +752,20 @@ class Backend:
             self._compatible()
         except (AdapterError, ValueError):
             return {"outcome": "not_started", "error_code": "queue_preflight_failed"}
+        process = None
         try:
-            process = S.Popen(self._argv() + ["queue", "--thread", thread_id, "--message", prompt],
-                              stdin=S.DEVNULL, stdout=S.PIPE, stderr=S.DEVNULL, text=True,
-                              encoding="utf-8", errors="replace", shell=False, close_fds=True,
-                              creationflags=NO_WINDOW, cwd=str(self.codex_home), env=self._environment())
-        except OSError:
-            return {"outcome": "not_started", "error_code": "queue_spawn_failed"}
+            with launch_guard if launch_guard is not None else nullcontext(True) as permitted:
+                if permitted is not True:
+                    return {"outcome": "not_started", "error_code": "queue_consent_refused"}
+                process = S.Popen(self._argv() + ["queue", "--thread", thread_id, "--message", prompt],
+                                  stdin=S.DEVNULL, stdout=S.PIPE, stderr=S.DEVNULL, text=True,
+                                  encoding="utf-8", errors="replace", shell=False, close_fds=True,
+                                  creationflags=NO_WINDOW, cwd=str(self.codex_home), env=self._environment())
+        except Exception:
+            if process is None:
+                return {"outcome": "not_started", "error_code": "queue_spawn_failed"}
+            # A guard exit can fail after Popen. The process already exists: read its
+            # receipt below, never call this an unsent attempt or launch it again.
         try:
             stdout, _ = process.communicate(timeout=45)
             match = re.fullmatch(r"Queued message ([0-9a-f-]{36}) for thread " + re.escape(thread_id) + r"\.", stdout.strip())

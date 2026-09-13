@@ -552,12 +552,12 @@ class EngineScenarioTests(EngineCase):
         gate = threading.Event()
         original_send = self.h.backend.send
 
-        def racing_send(thread_id, prompt):
+        def racing_send(thread_id, prompt, **options):
             # While the first engine is inside its dispatch section, the second engine ticks.
             if not gate.is_set():
                 gate.set()
                 second.tick()
-            return original_send(thread_id, prompt)
+            return original_send(thread_id, prompt, **options)
 
         self.h.backend.send = racing_send
         self.h.tick()
@@ -1080,8 +1080,8 @@ class CorrelationTests(EngineCase):
         self.h.backend.after_accept = "queue"
         original = self.h.backend.send
 
-        def send(thread_id, prompt):
-            original(thread_id, prompt)
+        def send(thread_id, prompt, **options):
+            original(thread_id, prompt, **options)
             return {"outcome": "accepted", "queue_id": "not-a-queue-id"}
 
         self.h.backend.send = send
@@ -1285,6 +1285,43 @@ class PauseAndCancelTests(EngineCase):
         self.assertEqual(self.h.record()["state"], "cancelled")
         self.assertEqual(self.h.home.queued(T1), [], "no untracked row is left in Codex")
 
+    def test_consent_changed_during_final_source_read_prevents_process_launch(self):
+        for action in ("cancel", "pause", "disable"):
+            with self.subTest(action=action):
+                h = self.fresh()
+                self.ready_after_reset(h)
+                original = h.source.marker_presence
+
+                def read_then_change(thread, marker):
+                    found = original(thread, marker)
+                    if action == "cancel":
+                        h.store.cancel_interruption(h.record()["interruption_id"], h.now)
+                    elif action == "pause":
+                        h.store.set_enabled(False, h.now)
+                    else:
+                        h.store.set_thread_enabled(thread, False)
+                    return found
+
+                h.source.marker_presence = read_then_change
+                h.tick()
+                self.assert_no_send(h)
+                self.assertIsNone(h.record()["submitted_at"])
+                self.assertEqual(h.record()["retry_count"], 0)
+                self.assertEqual(h.record()["state"], "cancelled" if action == "cancel" else "waiting_poll")
+
+    def test_daily_cap_counts_repeated_launch_attempts_of_one_interruption(self):
+        self.h.engine.options.update({"thread_cooldown_seconds": 0,
+                                      "max_submissions_per_thread_per_day": 2})
+        self.ready_after_reset()
+        self.h.backend.default_outcome = "not_started"
+        self.h.tick()
+        self.h.tick(advance=60)
+        self.h.tick(advance=120)
+        self.assertEqual(len(self.h.backend.send_calls), 2)
+        self.assertEqual(self.h.record()["last_error"], "daily_submission_cap")
+        self.h.tick(advance=86401)
+        self.assertEqual(len(self.h.backend.send_calls), 3)
+
     def test_T24_pause_withdraws_and_returns_the_record_to_waiting(self):
         self.h.engine.options["max_submissions_per_thread_per_day"] = 1
         row = self.send_and_hold()
@@ -1395,11 +1432,23 @@ class GateTests(EngineCase):
         self.h.tick(advance=60)
         self.assertEqual(len(self.h.backend.send_calls), 1)
 
-    def test_T32_a_short_lag_does_not_block(self):
+    def test_T32_even_a_short_lag_blocks_a_new_send_until_caught_up(self):
         self.ready_after_reset()
         self.h.home.make_stale(T1)
         self.h.tick()
+        self.assert_no_send()
+        self.assertEqual(self.h.record()["last_error"], "projection_stale")
+        self.h.home.catch_up(T1)
+        self.h.tick(advance=60)
         self.assertEqual(len(self.h.backend.send_calls), 1)
+
+    def test_T32_unknown_projection_never_authorizes_a_new_send(self):
+        self.ready_after_reset()
+        with self.h.home._db("thread_history_1.sqlite") as db:
+            db.execute("DELETE FROM thread_history_projection_state")
+        self.h.tick()
+        self.assert_no_send()
+        self.assertEqual(self.h.record()["last_error"], "projection_stale")
 
     def test_T32_a_stale_history_withdraws_the_owned_row_and_never_releases_it(self):
         row = self.send_and_hold()

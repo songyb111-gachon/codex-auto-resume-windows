@@ -1,0 +1,353 @@
+{
+  "format": "codex-auto-resume-release-audit/1",
+  "recorded_at": "2026-09-13T07:50:13+00:00",
+  "scope": "v0.6.0 published and installed acceptance; unreleased source fixes",
+  "current_state": {
+    "repository_head": "20124946f6d6e686a595cb4b9bc8a659b1202020",
+    "release_tag_commit": "efefbd0c44a0307ddb6536f7f53f28ca5f767f17",
+    "installed_root": "default",
+    "installed_version": "0.6.0",
+    "executable_file_version": "0.6.0.0",
+    "installed_payload_files_matching_public_archive": 107,
+    "schema": 3,
+    "bundled_python": "3.13.15",
+    "initial_codex_engine": "0.153.4",
+    "latest_codex_engine": "0.154.0-alpha.6.2",
+    "latest_engine_state": "structurally_compatible",
+    "watcher_running": true,
+    "enabled_at_latest_observation": false,
+    "startup_enabled": false,
+    "attempts_per_interruption": 1,
+    "plugin_registered": true,
+    "plugin_enabled": true,
+    "plugin_version": "0.6.0",
+    "paused_for_manual_acceptance": true
+  },
+  "actually_observed_working": {
+    "published_archive_digest_and_exact_workflow_tag_attestation": "pass",
+    "installed_mcp": {
+      "initialize": true,
+      "tools_list": true,
+      "tool_count": 16,
+      "status_read": true,
+      "ui_resource_read": true,
+      "real_codex_visual": false
+    },
+    "dashboard": {
+      "shortcut_target_verified": true,
+      "process_launched": true,
+      "window_handle_present": true,
+      "process_responding": true,
+      "rendering_visually_observed": false
+    },
+    "watcher": {
+      "pause_persisted": true,
+      "cooperative_stop": true,
+      "restart": true,
+      "resume_setting_while_stopped": true,
+      "tray_visually_observed": false
+    },
+    "update_check": {
+      "installed_checkonly": "current 0.6.0",
+      "exit_code": 0,
+      "archive_installed": false
+    },
+    "diagnostics": {
+      "collected_in_memory": true,
+      "schema": 3,
+      "state_error": false,
+      "raw_uuid_shape_detected": false,
+      "personal_profile_shape_detected": false,
+      "raw_bundle_saved": false,
+      "not_a_complete_content_privacy_proof": true
+    }
+  },
+  "tests": {
+    "clean_head": {
+      "tests": 1230,
+      "passes": 1224,
+      "failures": 0,
+      "errors": 0,
+      "skips": 6,
+      "elapsed_seconds": 300.504,
+      "python": "3.12.14",
+      "skipped_tests": [
+        {
+          "test": "test_integration_live.LiveReadOnlyTests.test_app_pairing_is_unambiguous_or_absent",
+          "reason": "set CODEX_AR_LIVE=1 on Windows to run live read-only checks"
+        },
+        {
+          "test": "test_integration_live.LiveReadOnlyTests.test_detection_pass_is_read_only_and_never_sends",
+          "reason": "set CODEX_AR_LIVE=1 on Windows to run live read-only checks"
+        },
+        {
+          "test": "test_integration_live.LiveReadOnlyTests.test_live_usage_read_is_shape_safe",
+          "reason": "set CODEX_AR_LIVE=1 on Windows to run live read-only checks"
+        },
+        {
+          "test": "test_integration_live.LiveReadOnlyTests.test_loaded_state_classification_of_existing_locks",
+          "reason": "set CODEX_AR_LIVE=1 on Windows to run live read-only checks"
+        },
+        {
+          "test": "test_integration_live.LiveReadOnlyTests.test_official_binary_discovered_and_version_pinned",
+          "reason": "set CODEX_AR_LIVE=1 on Windows to run live read-only checks"
+        },
+        {
+          "test": "test_integration_live.LiveReadOnlyTests.test_single_instance_mutex_and_stop_event_roundtrip",
+          "reason": "set CODEX_AR_LIVE=1 on Windows to run live read-only checks"
+        }
+      ],
+      "failed_tests": []
+    },
+    "installed_live_read_only_initial": {
+      "total": 6,
+      "passed": 6,
+      "skipped": 0,
+      "elapsed_seconds": 13.617
+    },
+    "installed_live_read_only_latest_engine": {
+      "total": 6,
+      "passed": 6,
+      "skipped": 0,
+      "elapsed_seconds": 12.824
+    },
+    "candidate_full_suite": {
+      "tests": 1259,
+      "passes": 1252,
+      "failures": 1,
+      "errors": 0,
+      "skips": 6,
+      "elapsed_seconds": 320.186,
+      "python": "3.12.14",
+      "skipped_tests": [
+        {
+          "test": "test_integration_live.LiveReadOnlyTests.test_app_pairing_is_unambiguous_or_absent",
+          "reason": "set CODEX_AR_LIVE=1 on Windows to run live read-only checks"
+        },
+        {
+          "test": "test_integration_live.LiveReadOnlyTests.test_detection_pass_is_read_only_and_never_sends",
+          "reason": "set CODEX_AR_LIVE=1 on Windows to run live read-only checks"
+        },
+        {
+          "test": "test_integration_live.LiveReadOnlyTests.test_live_usage_read_is_shape_safe",
+          "reason": "set CODEX_AR_LIVE=1 on Windows to run live read-only checks"
+        },
+        {
+          "test": "test_integration_live.LiveReadOnlyTests.test_loaded_state_classification_of_existing_locks",
+          "reason": "set CODEX_AR_LIVE=1 on Windows to run live read-only checks"
+        },
+        {
+          "test": "test_integration_live.LiveReadOnlyTests.test_official_binary_discovered_and_version_pinned",
+          "reason": "set CODEX_AR_LIVE=1 on Windows to run live read-only checks"
+        },
+        {
+          "test": "test_integration_live.LiveReadOnlyTests.test_single_instance_mutex_and_stop_event_roundtrip",
+          "reason": "set CODEX_AR_LIVE=1 on Windows to run live read-only checks"
+        }
+      ],
+      "failed_tests": [
+        {
+          "test": "test_screenshots.ManifestTests.test_every_render_input_is_unchanged_since_the_images_were_made",
+          "reason": "Generated screenshots retain their previously recorded render inputs; source changed. No screenshot regeneration or manifest restamping was performed."
+        }
+      ]
+    },
+    "compileall_exit_code": 0,
+    "documentation_subset": {
+      "tests": 32,
+      "passes": 32,
+      "failures": 0
+    },
+    "evidence_and_korean_subset": {
+      "tests": 59,
+      "passes": 59,
+      "failures": 0
+    }
+  },
+  "live_acceptance": {
+    "pass": [
+      "install-verify"
+    ],
+    "fail": [],
+    "blocked": [
+      "cancel",
+      "continuation-exact-thread",
+      "dashboard-shows-it",
+      "follows-its-turn",
+      "give-attempts-back",
+      "install-run",
+      "interruption-detected",
+      "outcome-recorded",
+      "pause-resume",
+      "repair",
+      "retry-now",
+      "uninstall",
+      "upgrade-keeps-decisions",
+      "watcher-starts"
+    ],
+    "validator_exit": 2,
+    "disposable_conversations_created": 1,
+    "disposable_initial_turn_completed": true,
+    "interruption_induced": false,
+    "network_changed": false,
+    "important_conversations_excluded_from_acceptance": true
+  },
+  "defects": [
+    {
+      "severity": "P1",
+      "area": "recovery",
+      "reproduction": "A missing or briefly stale projection permitted a new synthetic continuation.",
+      "fix": "Require exact current projection before new send.",
+      "published_fix": false
+    },
+    {
+      "severity": "P1",
+      "area": "source",
+      "reproduction": "A newer unsupported database generation fell back to cached older state.",
+      "fix": "Read only newest generation, rediscovered per read.",
+      "published_fix": false
+    },
+    {
+      "severity": "P1",
+      "area": "consent",
+      "reproduction": "Pause or cancel committed during final source checks before the transport still launched.",
+      "fix": "Recheck consent under write lock through queue-process launch; release before receipt wait.",
+      "published_fix": false
+    },
+    {
+      "severity": "P2",
+      "area": "budget",
+      "reproduction": "Three claims on one interruption counted as one daily claim.",
+      "fix": "Conservatively count durable attempt totals until latest claim expires.",
+      "published_fix": false
+    },
+    {
+      "severity": "P2",
+      "area": "installer",
+      "reproduction": "Unreadable or malformed journal allowed following sweep to delete the good old copy.",
+      "fix": "Refuse before any restoration or sweep.",
+      "published_fix": false
+    },
+    {
+      "severity": "P2",
+      "area": "uninstall",
+      "reproduction": "Plugin removal failure deleted retry runtime and ownership proof.",
+      "fix": "Retain runtime when external removal fails.",
+      "published_fix": false
+    },
+    {
+      "severity": "P2",
+      "area": "uninstall",
+      "reproduction": "Locked Dashboard file remained while uninstall reported success and deleted runtime.",
+      "fix": "Check root program deletion before runtime removal; preserve retry on lock.",
+      "published_fix": false
+    },
+    {
+      "severity": "P2",
+      "area": "MCP",
+      "reproduction": "Invalid JSON-RPC envelopes and non-object arguments invoked fake controls.",
+      "fix": "Validate before dispatch.",
+      "published_fix": false
+    },
+    {
+      "severity": "P2",
+      "area": "panel",
+      "reproduction": "Resolved MCP refusal displayed Saved and changed pause UI; rerender lost acknowledged settings.",
+      "fix": "Validate results and preserve acknowledged state.",
+      "published_fix": false
+    },
+    {
+      "severity": "P2",
+      "area": "Dashboard",
+      "reproduction": "Budget-reset result note was discarded by the compiled UI formatter.",
+      "fix": "Display translated conversation-disabled feedback.",
+      "published_fix": false
+    },
+    {
+      "severity": "P2",
+      "area": "acceptance_tests",
+      "reproduction": "Adding valid live evidence failed tests assuming examples only and synthetic product version.",
+      "fix": "Validate real evidence against real manifest; retain isolated negative tests.",
+      "published_fix": false
+    }
+  ],
+  "claims_corrected": [
+    "Published is a distribution status, not stronger testing evidence.",
+    "MCP destructive annotations are approval requests, not observed host enforcement.",
+    "Helper-only journal test did not cover the following destructive sweep.",
+    "Baseline green tests did not prove release acceptance.",
+    "English and Korean release declarations and live procedures had drifted."
+  ],
+  "method_corrections": [
+    "Initial stopped-watcher result used the source default home rather than explicit installed home; discarded.",
+    "First suite used isolated embedded Python and concurrent edits; discarded as a clean baseline.",
+    "Cached local ZIP did not match published digest and was not executed; a fresh verified download was used.",
+    "The engine changed during the audit; latest-engine read-only checks were rerun.",
+    "No live evidence from automatic resumptions of this audit conversation is counted."
+  ],
+  "changes": {
+    "commits": [],
+    "published_bytes_changed": false,
+    "installed_program_bytes_changed": false,
+    "source_changes": "unreleased v0.6.1 candidates",
+    "files": [
+      "CHANGELOG.ko.md",
+      "CHANGELOG.md",
+      "PRIVACY.ko.md",
+      "PRIVACY.md",
+      "README.ko.md",
+      "README.md",
+      "SECURITY.ko.md",
+      "SECURITY.md",
+      "docs/COMPARISON.ko.md",
+      "docs/COMPARISON.md",
+      "docs/FEATURE_MATRIX.ko.md",
+      "docs/FEATURE_MATRIX.md",
+      "docs/LIVE_ACCEPTANCE.ko.md",
+      "docs/LIVE_ACCEPTANCE.md",
+      "docs/PLUGIN.ko.md",
+      "docs/PLUGIN.md",
+      "gui/Dashboard.cs",
+      "install/install.ps1",
+      "scripts/ko_branch.json",
+      "scripts/release.json",
+      "skills/codex-auto-resume/SKILL.md",
+      "src/codex_auto_resume/engine.py",
+      "src/codex_auto_resume/interface.py",
+      "src/codex_auto_resume/mcpserver.py",
+      "src/codex_auto_resume/mcpui.py",
+      "src/codex_auto_resume/source.py",
+      "src/codex_auto_resume/store.py",
+      "src/codex_auto_resume/windows.py",
+      "tests/codexsim.py",
+      "tests/test_engine.py",
+      "tests/test_gui_decisions.py",
+      "tests/test_installer.py",
+      "tests/test_live_evidence.py",
+      "tests/test_mcp.py",
+      "tests/test_outcomes.py",
+      "tests/test_source.py",
+      "tests/test_store.py",
+      "tests/test_windows.py"
+    ],
+    "evidence_files_added": 16
+  },
+  "still_unverified": [
+    "Real Codex visual panel and recovery behavior",
+    "Dashboard page rendering, all six pages, English/Korean layout and refresh responsiveness",
+    "Tray visibility, disappearance, menu and tooltip",
+    "Genuine interruption and recovery in disposable conversation",
+    "Exact continuation identity, correlation, manual-turn exclusion and outcome",
+    "Retry, Cancel, budget reset, queued withdrawal and notLoaded behavior in disposable conversation",
+    "Actual reinstall, upgrade decisions, Diagnostics-page repair and final uninstall",
+    "Source screenshot regeneration and final release build"
+  ],
+  "release_recommendation": {
+    "accept_v0_6_0_as_fully_validated": false,
+    "v0_6_1_warranted": true,
+    "do_not_replace_v0_6_0": true,
+    "candidate_ready_to_publish": false,
+    "reason": "Published safety defects require v0.6.1; candidate still has stale generated screenshots and incomplete real manual acceptance."
+  },
+  "next_manual_action": "Click Overview in the installed Dashboard and confirm it renders normally with version 0.6.0."
+}

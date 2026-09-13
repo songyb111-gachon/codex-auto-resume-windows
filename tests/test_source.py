@@ -683,16 +683,29 @@ class LocalSourceTests(unittest.TestCase):
         shutil.copy(self.home / "thread_history_1.sqlite", self.home / "thread_history_7.sqlite")
         self.assertEqual(LocalSource(self.home).resolve("history"), "thread_history_7.sqlite")
 
-    def test_newer_generation_with_missing_column_falls_back_then_refuses(self):
-        # A newer file whose schema lost a column we read is skipped in favour of an
-        # older usable one; if none is usable at all, we refuse rather than guess.
+    def test_newer_generation_with_missing_column_refuses_old_history(self):
+        # A migration can leave the old, now stale history behind. Its compatible
+        # schema is not evidence that it still describes the current Codex state.
         with self.db("thread_history_5.sqlite") as db:
             db.execute("CREATE TABLE thread_turns(thread_id TEXT, turn_id TEXT)")   # columns missing
             db.execute("CREATE TABLE thread_items(thread_id TEXT, item_type TEXT, item_json TEXT)")
-        self.assertEqual(LocalSource(self.home).resolve("history"), "thread_history_1.sqlite")
-        (self.home / "thread_history_1.sqlite").unlink()
         with self.assertRaises(SourceError):
             LocalSource(self.home).resolve("history")
+
+    def test_running_source_discovers_new_generation_after_first_read(self):
+        import shutil
+        self.assertEqual(self.source.resolve("history"), "thread_history_1.sqlite")
+        shutil.copy(self.home / "thread_history_1.sqlite", self.home / "thread_history_2.sqlite")
+        with self.db("thread_history_2.sqlite") as db:
+            db.execute("UPDATE thread_turns SET status='completed', error_json=NULL")
+        self.assertEqual(self.source.latest(TID)["status"], "completed")
+        self.assertEqual(self.source.latest_failures(1788620000), [])
+
+    def test_new_corrupt_generation_does_not_reuse_cached_database(self):
+        self.assertEqual(self.source.resolve("history"), "thread_history_1.sqlite")
+        (self.home / "thread_history_2.sqlite").write_bytes(b"not sqlite")
+        with self.assertRaises(SourceError):
+            self.source.latest(TID)
 
     def test_corrupt_database_safe_error(self):
         (self.home / "thread_history_1.sqlite").write_bytes(b"not sqlite sensitive-data")

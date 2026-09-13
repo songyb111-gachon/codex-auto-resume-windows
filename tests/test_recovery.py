@@ -329,7 +329,10 @@ class ChainTests(ChainBase):
         self.assertEqual(child["last_error"], "parent_cancelled")
         self.assertNotIn(parent["state"], machine.OUTCOMES, "decided before the parent's own outcome")
         harness.tick(advance=10)
-        self.assertEqual(harness.store.get(parent["interruption_id"])["state"], "recovery_turn_failed")
+        # The turn ran and made progress before the server error, so the parent's own
+        # outcome is `recovered`; what this test is about is that the child was stopped
+        # before the parent reached any outcome at all.
+        self.assertEqual(harness.store.get(parent["interruption_id"])["state"], "recovered")
         for _ in range(3):
             harness.tick(advance=3600)
         self.assertEqual(len(harness.backend.send_calls), 1)

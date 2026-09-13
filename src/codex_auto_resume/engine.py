@@ -658,8 +658,20 @@ class Engine:
                     self.transition(row, "completed_no_progress", "no_progress_observed",
                                     recovery_turn_status=status)
             elif status == "failed":
+                # A recovery turn that ran and then failed is not a failed recovery. The
+                # commonest way for one to end is the next usage limit: the continuation
+                # was delivered, the task moved, and Codex records the turn the limit
+                # interrupted as failed. Reading that status alone called three real
+                # recoveries in a row a failure, which is what the first live acceptance
+                # found. So ask the question the completed branch asks - did this turn do
+                # anything? - and keep the raw status on the row for whoever looks.
                 # The failure itself is registered by detection, as this record's child.
-                self.transition(row, "recovery_turn_failed", "turn_failed", recovery_turn_status=status)
+                if seen["progress"]:
+                    self.transition(row, "recovered", "progress_then_turn_failed",
+                                    recovery_turn_status=status)
+                else:
+                    self.transition(row, "recovery_turn_failed", "turn_failed",
+                                    recovery_turn_status=status)
             elif status == "interrupted":
                 self.transition(row, "stopped_by_user", "turn_interrupted", recovery_turn_status=status)
 
@@ -873,7 +885,9 @@ class Engine:
         if not self.valid_interruption(row):
             self.transition(row, *self.supersede_reason(row))
             return
-        fresh = self.projection_fresh(row["thread_id"])
+        # Even a brief lag can hide a newer user turn. The grace period is useful
+        # when watching an already queued item, but never authorizes a new send.
+        fresh = self._projection_now(row["thread_id"])
         if fresh is None:
             vector["engine_compatible"] = machine.gate(machine.BLOCK, "projection_table_missing")
             self._wait(row, "waiting_for_app", "projection_table_missing", poll, vector)
@@ -919,7 +933,7 @@ class Engine:
             return
         vector["no_newer_user_work"] = machine.gate(machine.PASS)
         recent = self.store.recent_claims(row["thread_id"], now - 86400)
-        if len(recent) >= self.options["max_submissions_per_thread_per_day"]:
+        if self.store.recent_claim_count(row["thread_id"], now - 86400) >= self.options["max_submissions_per_thread_per_day"]:
             # Defer until the oldest claim rolls out of the 24h window rather than
             # permanently abandoning a still-valid interruption. Bounded to N/day per thread.
             vector["attempt_budget"] = machine.gate(machine.WAIT, "daily_submission_cap")
@@ -977,7 +991,8 @@ class Engine:
             try:
                 response = self.backend.send(current["thread_id"],
                                              continuation(current["category"], self.language)
-                                             + "\n\n" + current["marker"])
+                                             + "\n\n" + current["marker"],
+                                             launch_guard=self.store.submission_guard(key))
             except Exception:
                 response = {"outcome": "unknown"}
             if not isinstance(response, dict):
@@ -1000,6 +1015,13 @@ class Engine:
             self.log(row["thread_id"], "continuation_submitted", None)
             self.announce("starting", reserved)
         elif outcome == "not_started":
+            if response.get("error_code") == "queue_consent_refused":
+                target = "cancelled" if reserved["cancel_requested"] else self.waiting_state(reserved)
+                reason = "user_cancelled" if reserved["cancel_requested"] else "released_before_send"
+                self.store.release_claim(row["interruption_id"], target, reason, self.clock(),
+                                         next_retry_at=self.clock() + self.options["state_poll_seconds"])
+                self.log(row["thread_id"], target, reason)
+                return
             retry = reserved["retry_count"] + 1
             if retry >= self.options["max_queue_retries"]:
                 self.transition(reserved, "failed", "queue_launch_retry_limit", retry_count=retry,
@@ -1042,7 +1064,7 @@ class Engine:
         if not self.valid_interruption(claim):
             state, reason = self.supersede_reason(claim)
             return state, reason, 0
-        if self.projection_fresh(claim["thread_id"]) is not True:
+        if self._projection_now(claim["thread_id"]) is not True:
             return "waiting_for_loaded_thread", "projection_stale", poll
         if self.source.foreign_queued(claim["thread_id"], claim["marker"]):
             return "waiting_retry", "user_input_queued", poll

@@ -336,6 +336,8 @@ STRINGS = {
         "action.failed": "That could not be done.",
         "pending.unavailable": "This cannot be read right now",
         "history.reset_limit": "Its attempts were already given back as many times as allowed; continue this task in Codex yourself.",
+        "history.reset_done": "Attempts restored. Nothing was sent.",
+        "history.reset_thread_off": "Automatic recovery is off for this conversation; switch it on before recovery can run.",
 
         # Why a request was refused, as the closed set of codes the control layer
         # carries beside its English sentence, so every surface says it in the
@@ -662,6 +664,8 @@ STRINGS = {
         "action.failed": "그 작업을 하지 못했습니다.",
         "pending.unavailable": "지금은 읽을 수 없습니다",
         "history.reset_limit": "시도 횟수를 되돌릴 수 있는 만큼 이미 되돌렸습니다. 이 작업은 Codex에서 직접 이어서 하세요.",
+        "history.reset_done": "시도 횟수를 되돌렸습니다. 아무것도 보내지 않았습니다.",
+        "history.reset_thread_off": "이 대화의 자동 복구가 꺼져 있습니다. 복구를 실행하려면 먼저 켜세요.",
 
         "error.already_finished": "이미 끝난 복구입니다.",
         "error.being_sent": "지금 보내는 중인 복구입니다.",

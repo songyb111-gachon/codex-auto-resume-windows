@@ -151,8 +151,8 @@ roots):
 gh attestation verify .\CodexAutoResume-vX.Y.Z-win-x64.zip --repo songyb111-gachon/codex-auto-resume-windows
 ```
 
-An attestation says which workflow run built the archive. Every archive published so far,
-v0.5.0 through v0.5.7, was built by the earlier single-job release workflow, which referred to
+An attestation says which workflow run built the archive. Archives
+v0.5.0 through v0.5.7 were built by the earlier single-job release workflow, which referred to
 its GitHub Actions by floating tags rather than pinned commits, and the executables in those
 archives are not reproducible, so you cannot rebuild them byte for byte to compare. The
 separate build and publish jobs, the commit-pinned actions and the reproducible executables are

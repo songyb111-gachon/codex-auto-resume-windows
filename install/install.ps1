@@ -387,11 +387,25 @@ function Restore-InterruptedCopy {
     } catch {
         Warn 'An interrupted installation left a journal here that cannot be read.'
         Write-Host ('       ' + $Path)
-        Write-Host '       Nothing was moved or swept on its account. If a program directory'
-        Write-Host '       is missing, its copy is the *.old-* folder beside it.'
-        return ,$claimed
+        # An empty protected set would let the caller sweep every *.old-* tree,
+        # including the only complete installation the unreadable journal described.
+        # Refuse before the sweep rather than interpreting unknown as nothing to keep.
+        throw 'Installation stopped before moving or sweeping anything. Preserve the journal and *.old-* folders for repair.'
     }
-    if (-not $record -or -not $record.PSObject.Properties.Match('moved').Count) { return ,$claimed }
+    if (-not $record -or -not $record.PSObject.Properties.Match('moved').Count -or
+        $null -eq $record.moved -or @($record.moved).Count -eq 0) {
+        throw 'The interrupted-installation journal has no usable move records. Nothing was moved or swept.'
+    }
+    # Validate the entire list before moving its first tree. Skipping a malformed
+    # entry would give the sweep permission to delete the tree that entry described.
+    foreach ($entry in @($record.moved)) {
+        foreach ($field in @('name', 'target', 'movedAside')) {
+            if ($null -eq $entry -or -not $entry.PSObject.Properties.Match($field).Count -or
+                $entry.$field -isnot [string] -or [string]::IsNullOrWhiteSpace($entry.$field)) {
+                throw 'The interrupted-installation journal contains an invalid move record. Nothing was moved or swept.'
+            }
+        }
+    }
     foreach ($entry in @($record.moved)) {
         $target = $entry.target
         $aside  = $entry.movedAside
@@ -530,6 +544,25 @@ if ($Uninstall) {
             Warn ("Marketplace '" + $MarketplaceName + "' now points to a different source.")
             Write-Host '       Leaving it configured because this installation no longer owns it.'
             Write-Host ('       Source: ' + $marketplaceRoot)
+        }
+    }
+    # Registration failures must leave a runnable uninstaller behind. Deleting the
+    # runtime here used to make the requested retry fail at the initial runtime check,
+    # while Codex still held a registration pointing at the deleted application.
+    if ($script:Failed) {
+        Write-Host 'The installed runtime was kept so this uninstall can be retried.'
+        exit 1
+    }
+    # An open settings window locks its executable. Check these files while the
+    # runtime still exists, otherwise a sharing violation can leave only that locked
+    # window behind and destroy the interpreter the documented retry requires.
+    foreach ($file in @('CodexAutoResumeSettings.exe', 'codex-auto-resume.ico')) {
+        $path = Join-Path $OwnedHome $file
+        if ((Test-Path -LiteralPath $path) -and -not (Remove-OwnedItem $path)) {
+            Fail 'A program file is still in use and could not be removed.'
+            Write-Host '       Close Codex Auto Resume and run this uninstaller again.'
+            Write-Host 'The installed runtime was kept so this uninstall can be retried.'
+            exit 1
         }
     }
     Step 'Removing program files'

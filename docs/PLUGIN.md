@@ -72,9 +72,9 @@ anything but its exact id, resends an uncertain submission or forces a send.
 
 ### The tools, and which ones Codex asks about
 
-The table describes the server as it is from v0.6.0. The server runs from the installed
-release, not from the plugin you add, so until that release is installed you have the server of
-the release you installed, v0.5.7 or earlier, which differs in six ways: it has ten tools
+The table describes the published v0.6.0 server. The server runs from the installed
+release, not from the plugin you add. An installation still on
+v0.5.7 or earlier differs in six ways: it has ten tools
 rather than sixteen, without `disable_conversation_recovery`, `enable_conversation_recovery`,
 `get_recovery_statistics`, `get_recovery_timeline` and `clear_recovery_history`; its
 `cancel_recovery` stops recovery for the whole conversation the named interruption belongs to
@@ -104,8 +104,9 @@ the installation directory. The last two are described below the table.
 | `start_watcher` | Starts the watcher the installer starts, if it is not running. | yes |
 
 "Marked destructive" is MCP's `destructiveHint` annotation, which the server declares for
-each tool. Codex decides whether to ask under your approval settings; in its Auto approval
-mode it asks before running a tool marked this way. A tool that can add automation is marked.
+each tool. It requests approval; Codex and your approval settings decide whether to ask.
+Actual Codex approval behavior has not been observed for this release; the tests check the
+annotations only. A tool that can add automation is marked.
 Turning recovery back on - globally, or for one conversation - re-arming a record that had
 stopped, changing or restoring settings (either can switch a recovery category back on) and
 starting a watcher you stopped can all add automation. `cancel_recovery` is marked for the
@@ -122,9 +123,9 @@ recovery to waiting with its attempt back, so resuming picks it up again - only 
 it cannot confirm, or a pause over a submission that was already uncertain, is final, and
 neither is ever sent again; `retry_now`
 cannot make anything recoverable that was not already pending. In v0.5.7 and earlier, pause and
-resume are one tool, `set_auto_recovery`, not marked destructive in either direction, so in
-Codex's Auto approval mode it runs without asking and a prompt-injected turn can quietly
-reverse a pause.
+resume are one tool, `set_auto_recovery`, not marked destructive in either direction, so
+the annotation does not request approval to resume. A host that permits the call without
+asking can let a prompt-injected turn reverse a pause.
 
 From v0.6.0, `update_settings` neither offers nor accepts the advanced settings - `codex_exe`,
 which engine binary to run, and `detection_lookback_hours` - which the settings window and the
@@ -133,7 +134,7 @@ report the installation directory, whose path contains your Windows user name, t
 settings it returns do include `codex_exe`, which is empty unless an engine path has been set,
 by hand or through `update_settings` in v0.5.7 or earlier. Both changes ship in v0.6.0. In
 v0.5.7 and earlier, `update_settings` accepts those two settings as well and is not marked
-destructive, so in Codex's Auto approval mode it accepts them without asking, and `get_status`
+destructive, so it does not request approval through that annotation, and `get_status`
 reports the installation directory as `home`.
 
 What a tool returns becomes part of the Codex conversation it was called from, and should be
@@ -239,7 +240,7 @@ Every archive published since v0.5.4 also carries a GitHub build provenance atte
 which ties it to the workflow run and the commit that built it. The bootstrap does not check
 the attestation; `gh attestation verify` does, for anyone with the GitHub CLI.
 
-Every archive published so far, v0.5.0 through v0.5.7, was built by the earlier single-job
+Archives v0.5.0 through v0.5.7 were built by the earlier single-job
 release workflow, which referred to its Actions by floating tags, and its executables are not
 reproducible: each carries a build time and a random module id, and no rebuild of them will
 match. From v0.6.0 the release workflow builds and publishes in separate jobs, pins every

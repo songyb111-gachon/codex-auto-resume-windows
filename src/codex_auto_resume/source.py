@@ -167,7 +167,6 @@ DB_KINDS = {
 class LocalSource:
     def __init__(self, codex_home: Path):
         self.home = _safe_path(Path(codex_home))
-        self._resolved: dict[str, str] = {}
 
     def _connect(self, path):
         connection = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=3)
@@ -187,9 +186,12 @@ class LocalSource:
         return True
 
     def resolve(self, kind: str) -> str:
-        """Newest generation of `kind` whose schema still has every column we read."""
-        if kind in self._resolved:
-            return self._resolved[kind]
+        """The newest generation, only if its current schema is supported.
+
+        Older files can survive a Codex migration. They are not a fallback: their
+        history and queue can be stale. Discover on every read so a running watcher
+        never stays attached to the pre-migration database.
+        """
         pattern, tables = DB_KINDS[kind]
         candidates = []
         try:
@@ -199,12 +201,11 @@ class LocalSource:
                     candidates.append((int(match.group(1)), entry))
         except OSError:
             raise SourceError("Codex local state unavailable or unsupported") from None
-        for _, path in sorted(candidates, key=lambda item: -item[0]):
+        for _, path in sorted(candidates, key=lambda item: -item[0])[:1]:
             connection = None
             try:
                 connection = self._connect(_safe_path(path))
                 if self._schema_ok(connection, tables):
-                    self._resolved[kind] = path.name
                     return path.name
             except (sqlite3.Error, OSError, ValueError):
                 continue

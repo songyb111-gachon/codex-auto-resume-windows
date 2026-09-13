@@ -138,7 +138,11 @@ REASONS = frozenset({
     # outcomes
     "marker_not_turn_initiator", "user_joined", "stale_turn_row", "unknown_turn_status",
     "outcome_deadline", "correlation_conflict", "progress_observed", "no_progress_observed",
-    "turn_failed", "turn_interrupted",
+    # `progress_then_turn_failed` is a recovery that worked and was interrupted again -
+    # usually by the next usage limit, which Codex records on the turn as a failure. The
+    # record is `recovered`, because it was; this reason is how the journal keeps the
+    # distinction that the turn itself did not end cleanly.
+    "turn_failed", "progress_then_turn_failed", "turn_interrupted",
 }) | WITHDRAW_REASONS
 
 EVENT_CODES = frozenset({

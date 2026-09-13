@@ -25,6 +25,7 @@ corrupt the stream, so diagnostics go to stderr.
 from __future__ import annotations
 
 import json
+import math
 import sys
 
 from . import settings as policy
@@ -353,14 +354,23 @@ class Server:
         return {"jsonrpc": "2.0", "id": request_id, "result": result}
 
     def handle(self, message):
+        # Check the envelope before any method can reach the control layer. In
+        # particular, a false-y malformed value is not the same as an omitted one.
         method = message.get("method")
         request_id = message.get("id")
-        params = message.get("params") or {}
-        if not isinstance(params, dict):
-            return self._error(request_id, INVALID_PARAMS, "params must be an object")
-        if request_id is None:
+        valid_id = (request_id is None or isinstance(request_id, str)
+                    or type(request_id) is int
+                    or (type(request_id) is float and math.isfinite(request_id)))
+        if (message.get("jsonrpc") != "2.0" or not isinstance(method, str)
+                or not valid_id):
+            return self._error(request_id if valid_id else None, INVALID_REQUEST,
+                               "invalid JSON-RPC request")
+        if "id" not in message:
             # A notification. Nothing may be written in reply, ever.
             return None
+        params = message.get("params", {})
+        if not isinstance(params, dict):
+            return self._error(request_id, INVALID_PARAMS, "params must be an object")
         try:
             if method == "initialize":
                 return self._result(request_id, self._initialize(params))
@@ -448,12 +458,22 @@ class Server:
 
     def _call_tool(self, params) -> dict:
         name = params.get("name")
-        arguments = params.get("arguments") or {}
+        arguments = params.get("arguments", {})
         if not isinstance(arguments, dict):
             raise ControlError("arguments must be an object")
-        handler = getattr(self, "_tool_" + str(name).replace("-", "_"), None)
-        if handler is None or not str(name).isidentifier():
+        tool = next((tool for tool in TOOLS if tool["name"] == name), None)
+        if tool is None:
             raise LookupError("unknown tool")
+        offered = tool["inputSchema"]["properties"]
+        if set(arguments) - set(offered):
+            raise ControlError("unrecognized tool arguments")
+        if any(key not in arguments for key in tool["inputSchema"].get("required", ())):
+            raise ControlError("missing required tool arguments")
+        # Settings and identifiers receive their full validation in the control
+        # layer; this flag used to coerce strings such as "false" to True.
+        if "include_finished" in arguments and not isinstance(arguments["include_finished"], bool):
+            raise ControlError("include_finished must be true or false")
+        handler = getattr(self, "_tool_" + name)
         return handler(arguments)
 
     def _snapshot(self) -> dict:

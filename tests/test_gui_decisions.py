@@ -205,6 +205,19 @@ $out.parts['no_reply'] = @{
     history = [bool]$unreadable.Invoke($null, [object[]]@($null, 'history'))
 }
 
+# A successful budget reset must retain its explanatory note; the generic Send
+# handler previously discarded it. Call the real formatter without opening a form.
+$notice = $form.GetMethod('BudgetResetNotice', $flags)
+$out.reset_notice = @{}
+foreach ($case in @(@('restored', $true, $false), @('thread_off', $true, $true), @('failed', $false, $true))) {
+    [Collections.Generic.Dictionary[string,object]]$reply = New-Object 'System.Collections.Generic.Dictionary[string,object]'
+    [Collections.Generic.Dictionary[string,object]]$result = New-Object 'System.Collections.Generic.Dictionary[string,object]'
+    $reply.Add('ok', [bool]$case[1])
+    if ($case[2]) { $result.Add('note', 'automatic recovery is off for this conversation') }
+    $reply.Add('result', $result)
+    $out.reset_notice[$case[0]] = $notice.Invoke($null, [object[]]@($reply, 'Attempts restored. Nothing was sent.', 'Switch this conversation on before recovery can run.'))
+}
+
 # And what it actually puts on screen. Real controls, not a form: what matters is the
 # text, and that the list is emptied rather than left showing rows nothing is refreshing.
 Add-Type -AssemblyName System.Windows.Forms
@@ -321,6 +334,13 @@ class DecisionTests(unittest.TestCase):
         self.assertEqual(shown["text"], "This cannot be read right now")
         self.assertNotIn("Nothing", shown["text"])
         self.assertTrue(shown["visible"])
+
+    def test_a_budget_reset_explains_when_the_conversation_is_still_off(self):
+        self.assertEqual(self.answer["reset_notice"]["thread_off"],
+                         "Attempts restored. Nothing was sent.\r\n\r\n"
+                         "Switch this conversation on before recovery can run.")
+        self.assertEqual(self.answer["reset_notice"]["restored"], "Attempts restored. Nothing was sent.")
+        self.assertIsNone(self.answer["reset_notice"]["failed"])
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,11 @@
+{
+  "format": "codex-auto-resume-live-acceptance/1",
+  "recorded_at": "2026-09-13T02:38:21+00:00",
+  "product_version": "0.6.0",
+  "codex_version": "0.153.4",
+  "windows_build": "10.0.26200",
+  "step": "pause-resume",
+  "verdict": "blocked",
+  "observed": {},
+  "note": "Basic installed pause and resume controls worked. No queued continuation or waiting recovery in a disposable test conversation was used, so withdrawal and resumed recovery are unaccepted."
+}

@@ -1,0 +1,15 @@
+{
+  "format": "codex-auto-resume-live-acceptance/1",
+  "recorded_at": "2026-09-13T02:38:21+00:00",
+  "product_version": "0.6.0",
+  "codex_version": "0.153.4",
+  "windows_build": "10.0.26200",
+  "step": "install-verify",
+  "verdict": "pass",
+  "observed": {
+    "archive_sha256_matches_published": true,
+    "archive_sha256_matches_pin": true,
+    "attestation": "verified"
+  },
+  "note": "Fresh public archive and sidecar downloaded; SHA-256 matched the main-branch pin before extraction. Sigstore identity verification succeeded for the exact release workflow and tag."
+}

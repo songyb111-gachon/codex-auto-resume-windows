@@ -1,5 +1,10 @@
 # Codex Auto Resume
 
+**Acceptance status:** the v0.6.0 audit found defects in pre-send projection/consent checks,
+attempt counting, installer failure paths and MCP/UI feedback. Fixes are under **Unreleased**
+in [CHANGELOG.md](CHANGELOG.md), not in the published archive. Live acceptance remains
+incomplete; [the evidence records](docs/evidence/live/) say which steps are blocked.
+
 **Automatically resume the exact same Codex task on Windows after a usage limit resets.**
 
 [![tests](https://github.com/songyb111-gachon/codex-auto-resume-windows/actions/workflows/test.yml/badge.svg)](https://github.com/songyb111-gachon/codex-auto-resume-windows/actions/workflows/test.yml)
@@ -77,8 +82,8 @@ they are by default), per-user registry values, and
 this plugin's marketplace and plugin registration in Codex, pointed at that installation. The
 plugin's instructions have Codex tell you before it does any of that.
 
-This route downloads a published archive, and every archive published so far, v0.5.0 through
-v0.5.7, was built by the earlier single-job release workflow, with GitHub Actions referred to
+This route downloads the matching published archive. Archives v0.5.0 through
+v0.5.7 were built by the earlier single-job release workflow, with GitHub Actions referred to
 by floating tags and executables that cannot be rebuilt byte for byte. Step 2 of [From the
 release archive](#from-the-release-archive) lists what replaces that; those changes are new in
 v0.6.0.
@@ -122,21 +127,21 @@ If you would rather download the release yourself instead of having the setup sc
 
    If anything does not match, delete the file and do not run it.
    [`docs/VERIFY.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md)
-   explains each check and what it does and does not prove. Every archive published so far,
-   v0.5.0 through v0.5.7, was built by the earlier single-job release workflow, which referred
+   explains each check and what it does and does not prove. Archives
+   v0.5.0 through v0.5.7 were built by the earlier single-job release workflow, which referred
    to its GitHub Actions by floating tags and produced executables that cannot be rebuilt byte
    for byte. Separate build and publish jobs, actions pinned to exact commits, and reproducible
-   executables are new in v0.6.0. 3. Extract it anywhere and double-click **`Install.cmd`**.
+   executables are included in the published v0.6.0 release.
+3. Extract it anywhere and double-click **`Install.cmd`**.
 
 The archive carries its own Python runtime, so there is nothing to install first, and the
 recommended settings are already on when it finishes. `Install.cmd` downloads nothing itself:
 it registers the Codex plugin from the files in the archive, so this route gets the panel too.
-It does ask Codex to refresh marketplaces, though. The installer in v0.5.7, the latest release
-and so also the one the Codex route installs today, asks Codex to refresh every Git marketplace
-you have configured, and Codex fetches each of them from wherever it is hosted. On the main
-branch the installer names only this product's marketplace, which does nothing for the local
+It does ask Codex to refresh marketplaces, though. The installer in v0.5.7 and earlier asks
+Codex to refresh every Git marketplace you have configured. The current v0.6.0
+installer names only this product's marketplace, which does nothing for the local
 registration it has just made; Codex fetches only if an earlier GitHub registration of that
-marketplace survived the repoint. That change ships in v0.6.0.
+marketplace survived the repoint.
 
 Nothing this project builds is Authenticode-signed: not the two executables, not `Install.cmd`
 or `Uninstall.cmd`, and not its PowerShell or Python scripts. The bundled Python interpreter
@@ -179,13 +184,13 @@ the plugin serves to Codex, rather than a photograph of the Codex window around 
 
 <img src="docs/images/settings-panel.png" alt="The Codex Auto Resume settings panel: a status line saying the watcher is watching for interruptions with two recoveries pending, a table of what is waiting to resume, and cards for the recovered failure categories, the attempt limits and the notification switches" width="680">
 
-The Start Menu opens a standalone window, which works with Codex closed. From v0.6.0 shipping
-in v0.6.0, it is a Dashboard: what the watcher is doing, what is waiting and when it is next
+The Start Menu opens a standalone window, which works with Codex closed. In v0.6.0
+it is a Dashboard: what the watcher is doing, what is waiting and when it is next
 looked at, what finished and how, the last week's numbers, the watcher's health, and the
 settings. It is a native window; there is no local web server and nothing opens in a browser.
-The pictures below are of a scratch installation holding sample records, not of anyone's real
-conversations; until that release, the version in their footer is the latest release's number,
-because the version changes only when a release is made.
+The existing pictures were captured before this acceptance run from a scratch installation
+holding synthetic records. They illustrate the published release and do not establish that
+any recovery was observed in real Codex. They have not been recaptured for the unreleased fixes.
 
 <img src="docs/images/dashboard-overview.png" alt="The Codex Auto Resume Dashboard overview: automatic recovery on, the watcher running and the Codex engine verified, two recoveries waiting with the next check in a minute and a half, the last seven days' interruptions, continuations sent, recoveries and success rate, and the four most recently finished recoveries" width="680">
 
@@ -348,7 +353,9 @@ now", "give that recovery its attempts back", "start the watcher", "clear auto r
 Nothing that turns automation down is marked as needing your confirmation: pausing recovery, turning
 it off for one conversation, asking for a re-check. Turning it back on, changing a setting, starting
 the watcher, cancelling a recovery, giving a recovery its attempts back and clearing the history are
-all marked so that Codex asks you first.
+all marked with MCP's `destructiveHint` to request approval. Codex and your approval settings
+decide whether to show a prompt; this project's tests check the annotations, and actual
+Codex approval behavior has not been observed for this release.
 
 The plugin is a thin front end over the same validated control layer the command line and the Start
 Menu window use: its tools call that layer directly, and the skill falls back to the commands below
@@ -694,11 +701,11 @@ to wherever your other Git marketplaces are hosted:
   request, as with any download. Downloading the archive yourself is the same GitHub download;
   after that, `Install.cmd` downloads nothing itself, but it does ask Codex to refresh
   marketplaces (next item).
-- **Your Git marketplaces' hosts, while the v0.5.7 installer runs.** Both install routes run
-  that installer today whenever they install or upgrade (the plugin's repair of an
-  already-installed version does not). It asks Codex to refresh every Git marketplace you have
-  configured, and Codex fetches each one from wherever it is hosted, which may be neither
-  OpenAI nor GitHub. Naming only this product's marketplace instead is new in v0.6.0; see [From the release archive](#from-the-release-archive).
+- **Marketplace hosts, while an installer runs.** v0.6.0 names only
+  `codex-auto-resume-windows`; if an earlier Git registration survives the local repoint,
+  Codex fetches it from wherever it points. Installers through v0.5.7 instead ask Codex to
+  refresh every configured Git marketplace, whose hosts may be neither OpenAI nor GitHub.
+  See [From the release archive](#from-the-release-archive).
 
 Codex's local state is opened read-only. Recovery decisions come from Codex's structured
 records (and, only where Codex recorded no error code, a short list of transport-failure
@@ -765,8 +772,8 @@ GitHub, which it checks before installing; the v0.5.7 installer also asks Codex 
 configured Git marketplaces (see [From the release archive](#from-the-release-archive)).
 Release archives from v0.5.4 on also carry a GitHub build provenance attestation, and
 [docs/VERIFY.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md)
-shows how to check a download yourself. Every archive published so far, v0.5.0 through v0.5.7,
-was built by the earlier single-job release workflow, with GitHub Actions referred to by
+shows how to check a download yourself. Archives v0.5.0 through v0.5.7
+were built by the earlier single-job release workflow, with GitHub Actions referred to by
 floating tags and executables that cannot be rebuilt byte for byte; the split into build and
 publish jobs, commit-pinned actions and reproducible executables are new in v0.6.0. Nothing
 this project builds is Authenticode-signed; the bundled Python interpreter keeps the Python
