@@ -25,7 +25,7 @@ class PreviewTests(ControlTestCase):
             with self.subTest(category):
                 preview = self.control.preview_continuation(category, now=now)
                 values = self.control.get_settings()
-                sample = {"category": category, "attempt_count": 0,
+                sample = {"category": category, "recovery_attempts": 0,
                           "reset_at": now + 3600 if reasons.has_reset_time(category) else None}
                 expected = continuation.for_settings(
                     category, values, row=sample,
@@ -49,9 +49,18 @@ class PreviewTests(ControlTestCase):
             "continuation_language": "en", "continuation_style": "custom",
             "custom_message": "Keep going  after the {reason}."})
         self.assertEqual(preview["source"], "global")
-        # Filled, and only tidied where a placeholder was: the double space typed by the
-        # person stays, because nothing was removed next to it.
-        self.assertIn("Network problem", preview["text"])
+        # Filled, and nothing else changed: the double space typed by the person stays.
+        self.assertEqual(preview["text"], "Keep going  after the %s."
+                         % l10n.text(reasons.label_key("network_transient"), "en"))
+
+    def test_custom_text_that_fills_in_to_nothing_previews_the_standard_message(self):
+        preview = self.control.preview_continuation("network_transient", {
+            "continuation_language": "en", "continuation_style": "custom",
+            "custom_message": "{reset_time}"})
+        self.assertIsNone(preview["refusal"])
+        self.assertEqual(preview["source"], "standard")
+        self.assertEqual(preview["text"], self.control.preview_continuation(
+            "network_transient", {"continuation_language": "en"})["text"])
 
     def test_a_message_without_placeholders_is_sent_byte_for_byte(self):
         typed = "  계속 진행해 주세요.\n\n(자동)  "

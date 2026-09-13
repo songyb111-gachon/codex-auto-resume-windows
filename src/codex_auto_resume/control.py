@@ -690,14 +690,13 @@ class Control:
         moment = time.time() if now is None else float(now)
         # A stand-in record with only the fields a message may refer to. A usage limit
         # previews with a reset an hour away, so {reset_time} shows a real time.
-        sample = {"category": category, "attempt_count": 0,
+        sample = {"category": category, "recovery_attempts": 0,
                   "reset_at": moment + 3600 if reasons.has_reset_time(category) else None}
-        text = continuation.for_settings(category, values, row=sample,
-                                         limits={"max_recovery_attempts":
-                                                 values["max_recovery_attempts"]})
+        limits = {"max_recovery_attempts": values["max_recovery_attempts"]}
+        text = continuation.for_settings(category, values, row=sample, limits=limits)
         return {"category": category, "locale": continuation.resolve_locale(values),
                 "style": continuation.style_from(values),
-                "source": continuation.source_for(category, values),
+                "source": continuation.source_for(category, values, row=sample, limits=limits),
                 "text": text, "refusal": refusal, "refusal_code": refusal_code,
                 "refusal_detail": refusal_detail}
 

@@ -316,7 +316,10 @@ class Tray:
             return False, None
         try:
             from . import tray_popup
-            attention = bool(self._popup is not None and self._popup.attention())
+            # Only while the popup is open. A closed popup reads nothing, so what it last
+            # read is a moment ago, not now, and a problem that has since cleared would
+            # otherwise keep the badge on "needs attention" until somebody opened it again.
+            attention = bool(self._popup is not None and self._popup.visible and self._popup.attention())
             token = tray_popup.BADGE.get(tray_popup.snapshot_activity(snapshot, time.time(),
                                                                       attention=attention))
             if token == self._badge_token:

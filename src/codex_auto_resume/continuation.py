@@ -28,7 +28,7 @@ from __future__ import annotations
 import re
 import time
 
-from . import l10n, reasons
+from . import failures, l10n, reasons
 
 # Minimal is short on purpose and says nothing about the cause. Standard names the
 # safely known reason. Detailed asks for the work to be continued from where it
@@ -121,24 +121,37 @@ def _fill(template: str, values: dict) -> str:
     """Substitute only what is known, and leave the rest exactly as written.
 
     A placeholder with no value - `{reset_time}` on a dropped connection, which has no
-    reset time - is removed rather than printed, and the tidying below keeps that from
-    leaving a double space or a stranded bullet.
+    reset time - is removed rather than printed, and only the gap it leaves is closed: the
+    spaces on either side of it become the ones on its left, or go altogether before
+    punctuation, a line break, or the start or end of the text. Nothing anywhere else is
+    touched - not a double space, not an indent, not the space French puts before a colon.
     """
     if not PLACEHOLDER.search(template):
-        # Nothing to substitute, so nothing to tidy up after. A Custom message with no
-        # placeholders is the common case and it goes out exactly as it was typed -
-        # spacing, line breaks and all. The tidying below exists only to repair the gap
-        # a removed placeholder leaves, and applying it here would quietly reflow
-        # somebody's text for no reason at all.
+        # Nothing to substitute. A Custom message with no placeholders is the common case
+        # and it goes out exactly as it was typed - spacing, line breaks and all.
         return template
-
-    def replace(match):
-        return str(values.get(match.group(1), ""))
-
-    text = PLACEHOLDER.sub(replace, template)
-    text = re.sub(r"[ \t]{2,}", " ", text)
-    text = re.sub(r" +([,.;:!?])", r"\1", text)
-    return text.strip()
+    out = ""
+    position = 0
+    for match in PLACEHOLDER.finditer(template):
+        out += template[position:match.start()]
+        position = match.end()
+        value = values.get(match.group(1))
+        value = "" if value is None else str(value)
+        if value:
+            out += value
+            continue
+        kept = out.rstrip(" \t")
+        after = template[position:]
+        rest = after.lstrip(" \t")
+        left, right = out[len(kept):], after[:len(after) - len(rest)]
+        if not (left or right):
+            continue
+        if not kept or kept.endswith("\n") or not rest or rest[0] in "\r\n,.;:!?":
+            out = kept
+        else:
+            out = kept + (left or right)
+        position += len(right)
+    return out + template[position:]
 
 
 def metadata_for(row=None, *, locale=l10n.DEFAULT, limits=None, reset_time=None) -> dict:
@@ -151,15 +164,22 @@ def metadata_for(row=None, *, locale=l10n.DEFAULT, limits=None, reset_time=None)
     category = None
     if row is not None:
         category = row["category"] if "category" in row.keys() else None
-        # The number of *this* attempt: one more than the continuations already sent for
-        # this interruption. A first attempt is 1, never 0.
-        sent = row["attempt_count"] if "attempt_count" in row.keys() else None
-        if sent is not None:
-            values["attempt"] = int(sent or 0) + 1
+    # A usage limit spends no attempts - waiting for a reset is not a try that failed - so
+    # it has neither an attempt number nor a maximum, and a message saying "2 of 3" there
+    # would be counting something that is not happening.
+    counted = category != failures.USAGE_LIMIT
+    if row is not None and counted:
+        # The number of *this* attempt, from the counter the attempt budget is checked
+        # against, so {attempt} and {max_attempts} always count the same thing: a claim
+        # given back, a budget restored or a chain continuing all move both together.
+        # A first attempt is 1, never 0.
+        spent = row["recovery_attempts"] if "recovery_attempts" in row.keys() else None
+        if spent is not None:
+            values["attempt"] = int(spent or 0) + 1
     if category:
         values["category"] = category
         values["reason"] = l10n.text(reasons.label_key(category), locale)
-    if limits:
+    if limits and counted:
         maximum = limits.get("max_recovery_attempts")
         if maximum:
             values["max_attempts"] = int(maximum)
@@ -182,20 +202,19 @@ def build(category, *, locale=l10n.DEFAULT, style=DEFAULT_STYLE, custom=None,
     The fallback when Custom is selected is deterministic and documented: the
     per-reason message if this category has a usable one, otherwise the global one,
     otherwise the localized Standard message for this category. An empty continuation
-    is never produced - every path ends at a template that exists.
+    is never produced - every path ends at a template that exists, and Custom text that
+    fills in to nothing is not usable.
     """
     entry = reasons.get(category)
-    values = dict(metadata or {})
-    values.setdefault("category", entry.category)
-    values.setdefault("reason", l10n.text(entry.label_key, locale))
+    values = _message_values(entry, locale, metadata)
 
     # A Custom message is only ever attached to a category that is continued. The engine
     # never asks for anything else, and a Preview refuses to; this makes it structural too,
     # so no caller can get the user's own words back for an unknown or terminal failure.
     if style == "custom" and entry.recoverable:
-        chosen = _custom_text(entry.category, custom)
-        if chosen:
-            return _fill(chosen, values)
+        _, text = _custom_choice(entry.category, custom, values)
+        if text is not None:
+            return text
         style = DEFAULT_STYLE
 
     if style == "minimal":
@@ -211,20 +230,34 @@ def build(category, *, locale=l10n.DEFAULT, style=DEFAULT_STYLE, custom=None,
     return _fill(l10n.text("continuation.minimal", locale), values)
 
 
-def _custom_text(category, custom):
+def _message_values(entry, locale, metadata):
+    values = dict(metadata or {})
+    values.setdefault("category", entry.category)
+    values.setdefault("reason", l10n.text(entry.label_key, locale))
+    return values
+
+
+def _custom_choice(category, custom, values):
+    """Which Custom text is sent for this category, and what it says: `(source, text)`,
+    or `(None, None)` when there is no usable Custom text.
+
+    Usable means it still says something once filled in. "{reset_time}" on its own, for
+    an interruption that has no reset time, fills in to nothing, and a turn holding only
+    the marker would spend an attempt on a message Codex has nothing to act on.
+    """
     if not isinstance(custom, dict):
-        return None
-    mode = custom.get("mode") or DEFAULT_CUSTOM_MODE
-    if mode == "per_reason":
-        per = custom.get("per_reason")
-        if isinstance(per, dict):
-            candidate = per.get(category)
-            if isinstance(candidate, str) and candidate.strip():
-                return candidate
-    candidate = custom.get("text")
-    if isinstance(candidate, str) and candidate.strip():
-        return candidate
-    return None
+        return None, None
+    candidates = []
+    per = custom.get("per_reason")
+    if (custom.get("mode") or DEFAULT_CUSTOM_MODE) == "per_reason" and isinstance(per, dict):
+        candidates.append(("per_reason", per.get(category)))
+    candidates.append(("global", custom.get("text")))
+    for source, candidate in candidates:
+        if isinstance(candidate, str) and candidate.strip():
+            text = _fill(candidate, values)
+            if text.strip():
+                return source, text
+    return None, None
 
 
 # -------------------------------------------------------------- from settings
@@ -262,25 +295,22 @@ def custom_from(values) -> dict:
                            for category in reasons.RECOVERABLE}}
 
 
-def source_for(category, values):
+def source_for(category, values, *, row=None, limits=None, environ=None):
     """Which text a continuation for this category actually uses.
 
     `per_reason`, `global` or `standard` when the Custom style is selected - the third
     meaning no usable Custom text exists and the Standard message is sent instead - and
     `None` for every other style. A settings page says this out loud beside the Preview,
-    because "I chose Custom and something else was sent" is otherwise a mystery.
+    because "I chose Custom and something else was sent" is otherwise a mystery. It is
+    decided for the same record `for_settings` is given, because whether Custom text is
+    usable can depend on what its placeholders fill in to.
     """
     if style_from(values) != "custom":
         return None
-    custom = custom_from(values)
-    if custom["mode"] == "per_reason":
-        text = custom["per_reason"].get(category)
-        if isinstance(text, str) and text.strip():
-            return "per_reason"
-    text = custom["text"]
-    if isinstance(text, str) and text.strip():
-        return "global"
-    return "standard"
+    locale, metadata = _settings_metadata(values, row, limits, environ)
+    filled = _message_values(reasons.get(category), locale, metadata)
+    source, _ = _custom_choice(category, custom_from(values), filled)
+    return source or "standard"
 
 
 def format_reset_time(stamp):
@@ -299,11 +329,15 @@ def for_settings(category, values, *, row=None, limits=None, environ=None) -> st
     `row` is the interruption record, or a stand-in with the same few fields for a
     Preview. Only the fields `metadata_for` names are read from it.
     """
+    locale, metadata = _settings_metadata(values, row, limits, environ)
+    return build(category, locale=locale, style=style_from(values),
+                 custom=custom_from(values), metadata=metadata)
+
+
+def _settings_metadata(values, row, limits, environ):
     locale = resolve_locale(values, environ)
     reset_at = None
     if row is not None and "reset_at" in row.keys():
         reset_at = row["reset_at"]
-    metadata = metadata_for(row, locale=locale, limits=limits,
-                            reset_time=format_reset_time(reset_at))
-    return build(category, locale=locale, style=style_from(values),
-                 custom=custom_from(values), metadata=metadata)
+    return locale, metadata_for(row, locale=locale, limits=limits,
+                                reset_time=format_reset_time(reset_at))

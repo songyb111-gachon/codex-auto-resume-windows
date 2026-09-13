@@ -748,6 +748,7 @@ WM_POPUP_STRINGS = WM_APP + 3
 WA_INACTIVE = 0
 VK_TAB, VK_RETURN, VK_SHIFT, VK_ESCAPE, VK_SPACE = 0x09, 0x0D, 0x10, 0x1B, 0x20
 VK_UP, VK_DOWN = 0x26, 0x28
+KEY_WAS_DOWN = 1 << 30                  # WM_KEYDOWN lParam: the key was already down (auto-repeat)
 WS_POPUP = 0x80000000
 WS_EX_TOPMOST, WS_EX_TOOLWINDOW = 0x00000008, 0x00000080
 CS_DROPSHADOW = 0x00020000
@@ -1618,6 +1619,7 @@ class Popup:
         self.hidden_at = None
         self._double_click_at = None
         self._key_at = None
+        self._painted_plan = None
         self.hover = self.pressed = self.focus = None
         self.keyboard = False
         self.dpi = 96
@@ -1746,6 +1748,7 @@ class Popup:
             user32.ShowWindow(hwnd, SW_HIDE)
             self.hidden_at = time.monotonic()
         self.hover = self.pressed = self.focus = None
+        self._painted_plan = None
 
     # ------------------------------------------------------------------- presenting
     def _round_corners(self):
@@ -1998,7 +2001,7 @@ class Popup:
             self.hide()
             return 0
         if message == WM_KEYDOWN:
-            return self._key(wparam)
+            return self._key(wparam, lparam)
         if message == WM_MOUSEMOVE:
             self._mouse_move(hwnd, lparam)
             return 0
@@ -2047,15 +2050,20 @@ class Popup:
                 canvas = self.render()
                 _dll("gdi32").SetDIBitsToDevice(dc, 0, 0, canvas.width, canvas.height, 0, 0, 0,
                                                 canvas.height, canvas.bits, C.byref(canvas.info), 0)
+                self._painted_plan = self._plan
         finally:
             user32.EndPaint(hwnd, C.byref(paint))
 
     def _hit(self, lparam):
-        if self._plan is None:
+        # Against the layout on screen. A read or a tick replaces `_plan` before Windows
+        # gets round to painting it, and a click queued in between was aimed at the rows
+        # the person could see, not at where they are about to move.
+        plan = self._painted_plan
+        if plan is None:
             return None
         x = C.c_short(lparam & 0xFFFF).value
         y = C.c_short((lparam >> 16) & 0xFFFF).value
-        return hit_test(self._plan["targets"], x, y)
+        return hit_test(plan["targets"], x, y)
 
     def _mouse_move(self, hwnd, lparam):
         user32 = _dll("user32")
@@ -2070,8 +2078,12 @@ class Popup:
             track.hwndTrack = hwnd
             self._tracking = bool(user32.TrackMouseEvent(C.byref(track)))
 
-    def _key(self, key):
+    def _key(self, key, lparam=0):
         user32 = _dll("user32")
+        if key in (VK_SPACE, VK_RETURN) and lparam & KEY_WAS_DOWN:
+            # Auto-repeat. A held key is one press: repeating it would flip a switch back
+            # and forth as each answer came in, and where it stopped would be chance.
+            return 0
         if key == VK_ESCAPE:
             self.hide()
             return 0

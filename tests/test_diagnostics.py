@@ -106,6 +106,10 @@ class DiagnosticsTests(unittest.TestCase):
             self.assertIn(found[name], ("ours", "another", "absent", "unreadable"), name)
         self.assertIn(found["language"], ("en", "ko"))
 
+    def test_the_language_is_what_the_settings_choose_not_what_this_process_adopted(self):
+        self.control.update_settings({"interface_language": "ja"})
+        self.assertEqual(json.loads(self.bundle_text())["installation"]["language"], "ja")
+
     def test_it_says_whether_a_registration_is_ours_and_never_where_it_points(self):
         """A registry value is a command line with an install path in it. What is useful is
         whether it names this installation; what is dangerous is the rest of it."""
