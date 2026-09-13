@@ -13,7 +13,7 @@ import subprocess
 import unittest
 from unittest.mock import MagicMock, patch
 
-from codex_auto_resume import cli, messages, notify, pwsh, startup
+from codex_auto_resume import cli, l10n, messages, notify, pwsh, startup
 from codex_auto_resume.store import Store
 
 THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
@@ -110,7 +110,7 @@ class ToastPayloadTests(unittest.TestCase):
 
         for language in messages.SUPPORTED:
             with self.subTest(language=language):
-                with patch.object(messages, "preferred_languages", return_value=[language]),                      patch.object(pwsh, "executable", return_value="powershell.exe"),                      patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
+                with patch.object(l10n, "preferred_languages", return_value=[language]),                      patch.object(pwsh, "executable", return_value="powershell.exe"),                      patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
                     notify.scheduled(THREAD, INTERRUPTION, None, "usage_limit", {"name": "A task"})
                 lines = [node.text for node in
                          ElementTree.fromstring(self._embedded_xml(run.call_args))

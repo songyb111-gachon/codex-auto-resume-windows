@@ -47,35 +47,61 @@ class DecisionTests(unittest.TestCase):
         # `preferred_languages` reads the Windows API first; on a developer machine that
         # would answer for the developer rather than for the case under test, so the tag
         # list is injected directly.
-        original = messages._windows_preferred
-        messages._windows_preferred = lambda: list(tags)
+        from codex_auto_resume import l10n
+        original = l10n._windows_preferred
+        l10n._windows_preferred = lambda: list(tags)
         try:
             environ = {} if override is None else {messages.ENV_LANG: override}
             return messages.language(environ)
         finally:
-            messages._windows_preferred = original
+            l10n._windows_preferred = original
 
     def test_korean_when_korean_is_the_primary_preference(self):
         for tags in (["ko-KR"], ["ko"], ["ko-KR", "en-US"], ["ko-Kore-KR"]):
             with self.subTest(tags):
                 self.assertEqual(self.resolve(tags), "ko")
 
-    def test_english_for_every_other_primary_preference(self):
-        for tags in (["en-US"], ["en-GB"], ["ja-JP"], ["zh-CN"], ["zh-Hant-TW"],
-                     ["fr-FR"], ["de-DE"], ["es-ES"], ["pt-BR"], ["ru-RU"]):
+    def test_a_shipped_language_is_answered_in_that_language(self):
+        """Nine languages, and the tag shapes Windows actually produces.
+
+        Until v0.6.3 every one of these except Korean resolved to English, because
+        English and Korean were all there was. The rule did not change - the most
+        preferred tag decides - only the number of catalogs it can decide between.
+        """
+        for tags, expected in ((["en-US"], "en"), (["en-GB"], "en"),
+                               (["ja-JP"], "ja"), (["ja"], "ja"),
+                               (["zh-CN"], "zh-CN"), (["zh-Hans-CN"], "zh-CN"),
+                               (["zh-Hant-TW"], "zh-TW"), (["zh-TW"], "zh-TW"),
+                               (["zh-HK"], "zh-TW"),
+                               (["fr-FR"], "fr"), (["fr-CA"], "fr"),
+                               (["de-DE"], "de"), (["de-AT"], "de"),
+                               (["es-ES"], "es"), (["es-419"], "es"),
+                               (["pt-BR"], "pt-BR"), (["pt-PT"], "pt-BR")):
+            with self.subTest(tags):
+                self.assertEqual(self.resolve(tags), expected)
+
+    def test_english_for_a_language_this_product_does_not_have(self):
+        for tags in (["ru-RU"], ["it-IT"], ["hi-IN"], ["ar-SA"], ["sv-SE"], ["tr-TR"]):
             with self.subTest(tags):
                 self.assertEqual(self.resolve(tags), "en")
 
-    def test_korean_listed_second_is_not_a_request_for_korean(self):
+    def test_a_second_preference_is_not_a_request_for_that_language(self):
         """The case the rule exists for.
 
         Windows lists every language a user has added. Someone whose interface is English
         and who also reads Korean has both, in that order, and would be surprised by a
         Korean settings window.
         """
-        for tags in (["en-US", "ko-KR"], ["ja-JP", "ko"], ["fr-FR", "ko-KR", "en-US"]):
+        for tags, expected in ((["en-US", "ko-KR"], "en"),
+                               (["ja-JP", "ko"], "ja"),
+                               (["fr-FR", "ko-KR", "en-US"], "fr"),
+                               # A first preference this product does not ship is an
+                               # answer too: English, not a search down the list for
+                               # something it does.
+                               (["ru-RU", "ko-KR"], "en"),
+                               (["sv-SE", "de-DE"], "en")):
             with self.subTest(tags):
-                self.assertEqual(self.resolve(tags), "en")
+                self.assertEqual(self.resolve(tags), expected)
 
     def test_no_preference_at_all_is_english(self):
         self.assertEqual(self.resolve([]), "en")
@@ -84,8 +110,14 @@ class DecisionTests(unittest.TestCase):
         self.assertEqual(self.resolve(["en-US"], override="ko"), "ko")
         self.assertEqual(self.resolve(["ko-KR"], override="en"), "en")
 
+    def test_the_override_wins_over_what_windows_prefers(self):
+        """`CODEX_AUTO_RESUME_LANG` is an instruction, not a hint."""
+        self.assertEqual(self.resolve(["ko-KR"], override="ja"), "ja")
+        self.assertEqual(self.resolve(["en-US"], override="zh-Hant-TW"), "zh-TW")
+
     def test_an_unsupported_override_is_english_rather_than_an_error(self):
-        self.assertEqual(self.resolve(["ko-KR"], override="ja"), "en")
+        self.assertEqual(self.resolve(["ko-KR"], override="sv"), "en")
+        self.assertEqual(self.resolve(["ko-KR"], override="nonsense"), "en")
 
 
 class CatalogTests(unittest.TestCase):
@@ -277,7 +309,8 @@ class ReachTests(unittest.TestCase):
         """A guard against the catalogs being accidentally identical."""
         english = interface.STRINGS["en"]
         korean = interface.STRINGS["ko"]
-        same = [key for key in english if english[key] == korean[key]]
+        same = [key for key in english
+                if key in korean and english[key] == korean[key]]
         # `Windows` and the product's own name are names and stay. Anything else matching
         # is a missed string.
         self.assertEqual(sorted(same), ["group.windows", "tray.title"],

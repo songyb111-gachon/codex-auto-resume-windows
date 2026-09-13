@@ -20,7 +20,7 @@ import os
 from pathlib import Path
 import tempfile
 
-from . import failures
+from . import continuation, failures, l10n, reasons
 
 CONFIG_VERSION = 2
 MAX_SETTINGS_BYTES = 256 * 1024
@@ -35,6 +35,14 @@ CONFIGURABLE_CATEGORIES = (
     "rate_limit_transient",
     "server_5xx",
     "stream_interrupted",
+    # Added late, and for a while it was the one recoverable category with no switch.
+    # The engine recovers a category that has no switch - deliberately, because the
+    # classifier has already decided it is safe and a missing toggle is not an
+    # instruction to stop - so the effect was not that this went unrecovered. It was
+    # that the settings surface under-reported what the product does, and a user who
+    # turned everything off still had this one on with nowhere to see it. Adding the
+    # switch changes no default: it is on, exactly as it has been.
+    "auth_service_transient",
 )
 
 # Notification events, each independently suppressible.
@@ -100,6 +108,57 @@ for _category in CONFIGURABLE_CATEGORIES:
 for _event in NOTIFICATION_EVENTS:
     FIELDS["notify_" + _event] = (True, _boolean)
 
+# ------------------------------------------------------------------- language
+# Two languages, deliberately independent. One is what the product says to you; the
+# other is what it says to Codex on your behalf. A Korean interface with English
+# continuations is a real preference - the person reads Korean and the model is being
+# addressed in the language the rest of their conversation is in - and a product that
+# tied the two together would be unable to express it.
+FIELDS["interface_language"] = (l10n.SYSTEM,
+                                lambda v, d: _choice(v, d, l10n.CHOICES))
+# `follow` is not a locale: it is the standing instruction to use whatever the
+# interface resolves to, so a later interface change carries the continuation with it
+# unless the user has said otherwise.
+FOLLOW_INTERFACE = "follow"
+CONTINUATION_LANGUAGES = (FOLLOW_INTERFACE,) + l10n.LOCALES
+FIELDS["continuation_language"] = (FOLLOW_INTERFACE,
+                                   lambda v, d: _choice(v, d, CONTINUATION_LANGUAGES))
+
+# -------------------------------------------------------- continuation message
+FIELDS["continuation_style"] = (continuation.DEFAULT_STYLE,
+                                lambda v, d: _choice(v, d, continuation.STYLES))
+FIELDS["custom_message_mode"] = (continuation.DEFAULT_CUSTOM_MODE,
+                                 lambda v, d: _choice(v, d, continuation.CUSTOM_MODES))
+
+
+def _custom_message(value, default):
+    """Stored exactly as typed, or refused. Never rewritten.
+
+    `None` means "not configured", which is not the same as an empty message: the
+    first falls back, the second would be a message that says nothing.
+    """
+    if value is None:
+        return None
+    try:
+        return continuation.validate_custom(value)
+    except continuation.CustomMessageError:
+        return default
+
+
+FIELDS["custom_message"] = (None, _custom_message)
+# One field per recoverable category, generated from the registry rather than listed,
+# so a category added to the classifier cannot end up without a place to put its text.
+for _category in reasons.RECOVERABLE:
+    FIELDS["custom_message_" + _category] = (None, _custom_message)
+
+# A refusal a person can act on. `validate_update` reports "invalid value for X" for
+# most fields, which is enough when the field is a number with a published range and
+# useless when it is free text: "invalid value for custom_message" does not say that
+# the problem is a placeholder that would have leaked the conversation.
+EXPLAIN = {name: lambda value: continuation.validate_custom(value)
+           for name in FIELDS if name.startswith("custom_message")
+           and name != "custom_message_mode"}
+
 DEFAULTS = {name: default for name, (default, _coerce) in FIELDS.items()}
 
 # Ranges published to the user interfaces so a slider or spin box cannot offer a value
@@ -147,6 +206,14 @@ def validate_update(changes) -> dict:
         default, coercer = FIELDS[name]
         coerced = coercer(value, default)
         if coerced != value and not (name == "codex_exe" and value is None):
+            explain = EXPLAIN.get(name)
+            if explain is not None and value is not None:
+                # The field's own validator says what is wrong with it. A range is
+                # self-explanatory; free text is not.
+                try:
+                    explain(value)
+                except ValueError as exc:
+                    raise SettingsError(str(exc)) from None
             raise SettingsError("invalid value for %s" % name)
         clean[name] = coerced
     return clean

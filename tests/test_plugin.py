@@ -15,7 +15,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from codex_auto_resume import messages, shortcut, startup
+from codex_auto_resume import l10n, messages, shortcut, startup
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / ".codex-plugin" / "plugin.json"
@@ -143,19 +143,31 @@ class ManifestTests(unittest.TestCase):
 
 class LocaleTests(unittest.TestCase):
     def test_english_is_the_default_for_unknown_locales(self):
-        for environ in ({}, {"LANG": "C"}, {"LANG": "fr_FR.UTF-8"}, {"LC_ALL": "de-DE"}):
-            with self.subTest(environ=environ), patch.object(messages, "_windows_preferred", return_value=[]):
+        """A language this build does not ship, and no preference at all."""
+        for environ in ({}, {"LANG": "C"}, {"LANG": "POSIX"},
+                        {"LANG": "ru_RU.UTF-8"}, {"LC_ALL": "sv-SE"},
+                        {"LC_MESSAGES": "it_IT.UTF-8"}):
+            with self.subTest(environ=environ), patch.object(l10n, "_windows_preferred", return_value=[]):
                 self.assertEqual(messages.language(environ), "en")
 
+    def test_a_posix_locale_for_a_shipped_language_is_honoured(self):
+        """The POSIX variables are a fallback, and they still say something real."""
+        for environ, expected in (({"LANG": "fr_FR.UTF-8"}, "fr"),
+                                  ({"LC_ALL": "de-DE"}, "de"),
+                                  ({"LANG": "pt_BR.UTF-8"}, "pt-BR"),
+                                  ({"LANG": "zh_TW.UTF-8"}, "zh-TW")):
+            with self.subTest(environ=environ), patch.object(l10n, "_windows_preferred", return_value=[]):
+                self.assertEqual(messages.language(environ), expected)
+
     def test_korean_only_when_it_is_the_most_preferred_language(self):
-        with patch.object(messages, "_windows_preferred", return_value=["ko-KR", "en-US"]):
+        with patch.object(l10n, "_windows_preferred", return_value=["ko-KR", "en-US"]):
             self.assertEqual(messages.language({}), "ko")
         # Korean merely present, but not preferred, is not an explicit request for Korean.
-        with patch.object(messages, "_windows_preferred", return_value=["en-US", "ko-KR"]):
+        with patch.object(l10n, "_windows_preferred", return_value=["en-US", "ko-KR"]):
             self.assertEqual(messages.language({}), "en")
 
     def test_explicit_override_wins(self):
-        with patch.object(messages, "_windows_preferred", return_value=["ko-KR"]):
+        with patch.object(l10n, "_windows_preferred", return_value=["ko-KR"]):
             self.assertEqual(messages.language({messages.ENV_LANG: "en"}), "en")
 
     def test_every_key_exists_in_every_language(self):
@@ -164,10 +176,10 @@ class LocaleTests(unittest.TestCase):
             self.assertEqual(set(messages.MESSAGES[code]), english, code)
 
     def test_a_failing_probe_falls_back_to_english_not_a_guess(self):
-        with patch.object(messages, "_windows_preferred", side_effect=OSError("no api")):
+        with patch.object(l10n, "_windows_preferred", side_effect=OSError("no api")):
             with self.assertRaises(OSError):
-                messages.language({})    # the probe itself is guarded inside _windows_preferred
-        with patch.object(messages, "_windows_preferred", return_value=[]):
+                messages.language({})    # the probe itself is guarded inside l10n._windows_preferred
+        with patch.object(l10n, "_windows_preferred", return_value=[]):
             self.assertEqual(messages.language({}), "en")
 
 

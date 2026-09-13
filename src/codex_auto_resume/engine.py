@@ -13,7 +13,7 @@ takes it back the moment anything makes it the wrong thing to run.
 from contextlib import nullcontext
 import time
 
-from . import failures, machine, messages, settings as policy
+from . import continuation as _message, failures, l10n, machine, messages, settings as policy
 from .machine import OBSERVING, TERMINAL, WAITING
 from .source import detect
 
@@ -43,8 +43,14 @@ CONTINUATION = CONTINUATIONS[("ko", "usage")]
 
 
 def continuation(category, language="en") -> str:
-    kind = "usage" if category == failures.USAGE_LIMIT else "transient"
-    return CONTINUATIONS[(language if language in messages.SUPPORTED else "en", kind)]
+    """The text for one interruption, in one language, in the default style.
+
+    Kept as the narrow entry point the older callers already use. The message itself
+    now comes from `continuation.py`, which is the only place one is built - the same
+    function the settings Preview calls, so a preview and a send cannot drift.
+    """
+    return _message.build(category, locale=l10n.resolve(language),
+                          style=_message.DEFAULT_STYLE)
 
 
 UNSENT = WAITING
