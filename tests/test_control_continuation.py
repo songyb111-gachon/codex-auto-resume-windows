@@ -65,6 +65,8 @@ class PreviewTests(ControlTestCase):
             "custom_message": "Here is my prompt: {prompt}"})
         self.assertIsNotNone(preview["refusal"])
         self.assertIn("{prompt}", preview["refusal"])
+        self.assertEqual((preview["refusal_code"], preview["refusal_detail"]),
+                         ("forbidden_placeholder", "{prompt}"))
         self.assertEqual(preview["source"], "standard")
         self.assertEqual(preview["text"], l10n.text("continuation.standard.server_5xx", "en"))
         self.assertNotIn("prompt", preview["text"])

@@ -18,6 +18,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -177,7 +178,20 @@ namespace CodexAutoResume
     /// so a screen reader said "Overview, page tab" for every tab alike.
     internal sealed class NavButton : Button
     {
-        private bool current;
+        private bool current, hover;
+
+        /// A section in a vertical list rather than a tab in a strip: text starts at the left.
+        internal bool Vertical;
+
+        internal NavButton()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
+                     ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+            FlatStyle = FlatStyle.Flat;
+            FlatAppearance.BorderSize = 0;
+            UseVisualStyleBackColor = false;
+            Cursor = Cursors.Hand;
+        }
 
         internal bool Current
         {
@@ -186,12 +200,49 @@ namespace CodexAutoResume
             {
                 if (current == value) return;
                 current = value;
+                Invalidate();
                 if (IsHandleCreated)
                 {
                     AccessibilityNotifyClients(AccessibleEvents.StateChange, -1);
                     if (value) AccessibilityNotifyClients(AccessibleEvents.Selection, -1);
                 }
             }
+        }
+
+        protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { hover = false; Invalidate(); base.OnMouseLeave(e); }
+        protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
+        protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
+
+        // The chosen page is a soft pill in the quiet accent, with its name in the accent;
+        // the others are plain words that lift slightly under the pointer. The state is also
+        // in the weight of the text and in what a screen reader is told, never in colour alone.
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            Color ground = Parent != null ? Parent.BackColor : Palette.Surface;
+            g.Clear(ground);
+            float inset = Soft.PxF(2);
+            var body = new RectangleF(inset, inset, Width - inset * 2f - 1f, Height - inset * 2f - 1f);
+            float radius = Soft.PxF(Brand.RadiusControl);
+            if (current || hover)
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                using (var path = Soft.Rounded(body, radius))
+                using (var brush = new SolidBrush(current ? Palette.AccentSoft : Soft.Mix(ground, Palette.Inset, 0.8)))
+                    g.FillPath(brush, path);
+            }
+            Rectangle bounds = Rectangle.Round(body);
+            if (Vertical)
+            {
+                bounds.X += Soft.Px(12);
+                bounds.Width = Math.Max(0, bounds.Width - Soft.Px(16));
+            }
+            Color text = !current ? Palette.Secondary : Palette.Contrast ? SystemColors.HighlightText : Palette.Accent;
+            TextRenderer.DrawText(g, Text, Font, bounds, text,
+                                  TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis |
+                                  (Vertical ? TextFormatFlags.Left : TextFormatFlags.HorizontalCenter));
+            if (Focused && ShowFocusCues) Soft.FocusRing(g, body, radius);
         }
 
         protected override AccessibleObject CreateAccessibilityInstance()
@@ -318,6 +369,76 @@ namespace CodexAutoResume
         }
     }
 
+    /// Why a task is waiting: the watcher's safety checks, each with its last result.
+    ///
+    /// The results are the ones the watcher itself recorded the last time it looked at the
+    /// task, read back from the store - nothing here evaluates a check, and nothing here can
+    /// make one pass.
+    internal sealed class GateList : Control
+    {
+        private readonly List<string[]> rows = new List<string[]>();   // label, result word, result code
+        private string empty = "";
+
+        internal GateList()
+        {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                     ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+            TabStop = false;
+            AccessibleRole = AccessibleRole.List;
+            AutoSize = true;
+        }
+
+        private int RowHeight { get { return Font.Height + Soft.Px(9); } }
+
+        internal void SetRows(List<string[]> fresh, string whenEmpty)
+        {
+            rows.Clear();
+            rows.AddRange(fresh);
+            empty = whenEmpty ?? "";
+            var spoken = new List<string>();
+            foreach (string[] row in rows) spoken.Add(row[0] + ": " + row[1]);
+            AccessibleDescription = rows.Count == 0 ? empty : string.Join(", ", spoken.ToArray());
+            if (Parent != null) Parent.PerformLayout();
+            Invalidate();
+        }
+
+        public override Size GetPreferredSize(Size proposedSize)
+        {
+            int width = proposedSize.Width > 0 && proposedSize.Width < 20000 ? proposedSize.Width : Soft.Px(260);
+            int height = rows.Count == 0
+                ? TextRenderer.MeasureText(empty.Length == 0 ? " " : empty, Font, new Size(width, int.MaxValue),
+                                           TextFormatFlags.WordBreak).Height
+                : rows.Count * RowHeight;
+            return new Size(width, height);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            Color ground = Parent != null ? Parent.BackColor : Palette.Surface;
+            g.Clear(ground);
+            if (rows.Count == 0)
+            {
+                TextRenderer.DrawText(g, empty, Font, ClientRectangle, Palette.Secondary,
+                                      TextFormatFlags.WordBreak | TextFormatFlags.Left);
+                return;
+            }
+            int y = 0, height = RowHeight;
+            foreach (string[] row in rows)
+            {
+                Color tone = row[2] == "PASS" ? Palette.Success : row[2] == "WAIT" ? Palette.Waiting
+                           : row[2] == "BLOCK" ? Palette.Danger : Palette.Paused;
+                Size chip = Soft.ChipSize(row[1], Font);
+                var label = new Rectangle(0, y, Math.Max(0, Width - chip.Width - Soft.Px(8)), height);
+                TextRenderer.DrawText(g, row[0], Font, label, Palette.Ink,
+                                      TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
+                                      TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
+                Soft.Chip(g, new Rectangle(Math.Max(0, Width - chip.Width), y, chip.Width, height), row[1], Font, tone, ground);
+                y += height;
+            }
+        }
+    }
+
     internal sealed partial class SettingsForm
     {
         // ------------------------------------------------------------------ state
@@ -358,7 +479,18 @@ namespace CodexAutoResume
         // Pending and history
         private ListView pendingList, historyList;
         private Label pendingEmpty, historyEmpty;
-        private Button retryButton, cancelButton, timelineButton, threadButton;
+        private Button retryButton, cancelButton, timelineButton, threadButton, cancelAllButton;
+        // Why the selected task is waiting.
+        private GateList explainList;
+        private Label explainAsOf;
+        // The Pending list's Auto-resume column, a check box for the task on its row.
+        private const int ResumeColumn = 5;
+        // The note that belongs to no single record: what Cancel all did.
+        private const string BulkNote = "*";
+        // The watcher's safety checks, in the order it evaluates them (machine.GATES).
+        private static readonly string[] GateOrder = { "consent", "engine_compatible", "single_owner",
+            "submission_safe", "identity", "known_failure", "schedule", "chain_budget", "attempt_budget",
+            "no_progress_budget", "thread_available", "no_newer_user_work", "usage" };
         private NoteLabel pendingNote, historyNote;
         private string pendingNoteFor, pendingNoteText = "";
         private Button historyTimeline, historyReset, historyThread, historyClear;
@@ -381,6 +513,9 @@ namespace CodexAutoResume
                 if (argument == "--settings") firstPage = "settings";
                 else if (argument.StartsWith("--page=", StringComparison.Ordinal))
                     firstPage = argument.Substring(7);
+                // Which section the Settings page opens on; anything unknown is General.
+                else if (argument.StartsWith("--section=", StringComparison.Ordinal))
+                    currentSection = argument.Substring(10);
             }
 
             nav.Dock = DockStyle.Top;
@@ -408,8 +543,8 @@ namespace CodexAutoResume
                 button.FlatAppearance.BorderSize = 0;
                 button.BackColor = Surface;
                 button.ForeColor = Secondary;
-                button.Padding = Pad(10, 6, 10, 6);
-                button.Margin = Pad(0, 4, 2, 0);
+                button.Padding = Pad(14, 8, 14, 8);
+                button.Margin = Pad(0, 6, 4, 0);
                 button.Cursor = Cursors.Hand;
                 button.UseVisualStyleBackColor = false;
                 string target = name;
@@ -421,17 +556,9 @@ namespace CodexAutoResume
             nav.Height = strip.PreferredSize.Height + Px(14);
             nav.Paint += delegate(object sender, PaintEventArgs e)
             {
-                // The selected page is underlined in the accent; a hairline closes the strip.
+                // The selected page is a soft pill (NavButton draws it); a hairline closes the strip.
                 using (var pen = new Pen(Line))
                     e.Graphics.DrawLine(pen, 0, nav.Height - 1, nav.Width, nav.Height - 1);
-                NavButton selected;
-                if (currentPage != null && navButtons.TryGetValue(currentPage, out selected))
-                {
-                    Rectangle bounds = nav.RectangleToClient(selected.RectangleToScreen(selected.ClientRectangle));
-                    using (var brush = new SolidBrush(Accent))
-                        e.Graphics.FillRectangle(brush, bounds.Left + Px(6), nav.Height - Px(3),
-                                                 bounds.Width - Px(12), Px(3));
-                }
             };
 
             pageHost.Dock = DockStyle.Fill;
@@ -491,7 +618,7 @@ namespace CodexAutoResume
             var page = new Panel();
             page.Dock = DockStyle.Fill;
             page.BackColor = Canvas;
-            page.Padding = Pad(18, 16, 18, 8);
+            page.Padding = Pad(10, 10, 10, 6);
             page.AutoScroll = true;
             return page;
         }
@@ -572,18 +699,164 @@ namespace CodexAutoResume
 
         private ListView List(string accessibleName, params KeyValuePair<string, int>[] columnSpec)
         {
-            var list = new ListView();
+            var list = new SoftList();
             list.View = View.Details;
             list.FullRowSelect = true;
             list.MultiSelect = false;
             list.HideSelection = false;
             list.Dock = DockStyle.Fill;
-            list.BorderStyle = BorderStyle.FixedSingle;
+            list.BorderStyle = BorderStyle.None;
             list.BackColor = Surface;
             list.ForeColor = Ink;
             list.AccessibleName = accessibleName;
-            foreach (var column in columnSpec) list.Columns.Add(column.Key, Px(column.Value));
+            // Rows tall enough for a state chip at any scaling. A ListView takes its row height
+            // from its small image list and from nothing else it will listen to.
+            list.SmallImageList = new ImageList();
+            list.SmallImageList.ImageSize = new Size(1, Math.Max(16, Math.Min(255, Px(34))));
+            list.OwnerDraw = true;
+            list.DrawColumnHeader += DrawHeader;
+            list.DrawItem += delegate { };
+            list.DrawSubItem += DrawCell;
+            var weights = new int[columnSpec.Length];
+            for (int i = 0; i < columnSpec.Length; i++)
+            {
+                list.Columns.Add(columnSpec[i].Key, Px(columnSpec[i].Value));
+                weights[i] = columnSpec[i].Value;
+            }
+            // The columns share the list's width in the proportions they were declared with, so
+            // the last one - the Auto-resume box - is never pushed past a scroll bar.
+            columnWeights[list] = weights;
+            list.ClientSizeChanged += delegate { FitColumns(list); };
             return list;
+        }
+
+        private readonly Dictionary<ListView, int[]> columnWeights = new Dictionary<ListView, int[]>();
+
+        private void FitColumns(ListView list)
+        {
+            int[] weights;
+            if (!columnWeights.TryGetValue(list, out weights) || list.Columns.Count != weights.Length) return;
+            int total = 0;
+            foreach (int weight in weights) total += weight;
+            int available = list.ClientSize.Width - Px(2);
+            if (available < Px(160) || total <= 0) return;
+            int used = 0;
+            for (int i = 0; i < weights.Length; i++)
+            {
+                int width = i == weights.Length - 1 ? available - used
+                          : (int)Math.Floor(available * (double)weights[i] / total);
+                width = Math.Max(Px(48), width);
+                if (list.Columns[i].Width != width) list.Columns[i].Width = width;
+                used += width;
+            }
+        }
+
+        /// A list on its own card, filling it.
+        private Control ListCard(ListView list)
+        {
+            var card = new SoftCard();
+            card.Dock = DockStyle.Fill;
+            card.ColumnCount = 1;
+            card.RowCount = 1;
+            card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            card.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            int room = SoftCard.Room;
+            card.Padding = new Padding(room + Px(8), room / 2 + Px(8), room + Px(8), room + room / 2 + Px(8));
+            card.Margin = new Padding(0);
+            list.Margin = new Padding(0);
+            card.Controls.Add(list, 0, 0);
+            return card;
+        }
+
+        private void DrawHeader(object sender, DrawListViewColumnHeaderEventArgs e)
+        {
+            using (var brush = new SolidBrush(Surface)) e.Graphics.FillRectangle(brush, e.Bounds);
+            using (var pen = new Pen(Line))
+                e.Graphics.DrawLine(pen, e.Bounds.Left, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
+            var bounds = new Rectangle(e.Bounds.X + Px(10), e.Bounds.Y, Math.Max(0, e.Bounds.Width - Px(14)), e.Bounds.Height);
+            TextRenderer.DrawText(e.Graphics, e.Header.Text, e.Font, bounds, Secondary,
+                                  TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
+                                  TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
+        }
+
+        private void DrawCell(object sender, DrawListViewSubItemEventArgs e)
+        {
+            var list = (ListView)sender;
+            bool selected = e.Item.Selected;
+            Color back = selected ? Palette.AccentSoft : Surface;
+            using (var brush = new SolidBrush(back)) e.Graphics.FillRectangle(brush, e.Bounds);
+            using (var pen = new Pen(Soft.Mix(Surface, Line, 0.6)))
+                e.Graphics.DrawLine(pen, e.Bounds.Left, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
+            var row = e.Item.Tag as Dictionary<string, object>;
+            var cell = new Rectangle(e.Bounds.X + Px(10), e.Bounds.Y, Math.Max(0, e.Bounds.Width - Px(14)), e.Bounds.Height);
+            string text = e.SubItem == null ? "" : e.SubItem.Text;
+            Color ink = Palette.Contrast && selected ? SystemColors.HighlightText : Ink;
+            if (e.ColumnIndex == 1 && row != null)
+                Soft.Chip(e.Graphics, cell, text, list.Font, Palette.Contrast && selected ? ink : ToneFor(row), back);
+            else if (list == pendingList && e.ColumnIndex == ResumeColumn && row != null)
+                DrawResumeBox(e.Graphics, cell, ThreadOn(row));
+            else
+                TextRenderer.DrawText(e.Graphics, text, list.Font, cell, e.ColumnIndex == 0 ? ink : Soft.Mix(ink, Secondary, 0.4),
+                                      TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
+                                      TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
+            if (e.ColumnIndex == 0 && selected && list.Focused)
+                using (var pen = new Pen(Palette.Focus, Soft.PxF(2)))
+                    e.Graphics.DrawLine(pen, e.Item.Bounds.Left + Px(2), e.Item.Bounds.Top + Px(6),
+                                        e.Item.Bounds.Left + Px(2), e.Item.Bounds.Bottom - Px(6));
+        }
+
+        /// The Auto-resume check box, drawn like every other check box in the window.
+        private void DrawResumeBox(Graphics g, Rectangle cell, bool on)
+        {
+            int box = Px(16);
+            var body = new RectangleF(cell.X + Px(2), cell.Y + (cell.Height - box) / 2f, box - 1f, box - 1f);
+            float radius = Soft.PxF(Brand.RadiusSmall - 2);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            if (!on)
+            {
+                Soft.Well(g, body, radius, false);
+                return;
+            }
+            using (var path = Soft.Rounded(body, radius))
+            using (var brush = new SolidBrush(Palette.Accent)) g.FillPath(brush, path);
+            using (var pen = new Pen(Palette.OnAccent, Soft.PxF(2)))
+            {
+                pen.StartCap = LineCap.Round;
+                pen.EndCap = LineCap.Round;
+                g.DrawLines(pen, new[] {
+                    new PointF(body.X + body.Width * 0.26f, body.Y + body.Height * 0.52f),
+                    new PointF(body.X + body.Width * 0.44f, body.Y + body.Height * 0.70f),
+                    new PointF(body.X + body.Width * 0.76f, body.Y + body.Height * 0.32f) });
+            }
+        }
+
+        /// The colour a record's state word is drawn in. Always beside the word itself.
+        internal static Color ToneFor(Dictionary<string, object> row)
+        {
+            if (HasOverlay(row, "paused") || HasOverlay(row, "thread_disabled")) return Palette.Paused;
+            switch (Str(row, "code") ?? "")
+            {
+                case "recovered":
+                case "delivered_legacy": return Palette.Success;
+                case "waiting_reset":
+                case "waiting_usage":
+                case "waiting_thread":
+                case "scheduled": return Palette.Waiting;
+                case "submission_claimed":
+                case "submitted":
+                case "turn_running":
+                case "turn_finishing": return Palette.Accent;
+                case "failed_retryable":
+                case "no_progress":
+                case "exhausted":
+                case "handed_over":
+                case "outcome_unverified":
+                case "submission_unknown":
+                case "withdrawing": return Palette.Warning;
+                case "failed_terminal":
+                case "recovery_failed": return Palette.Danger;
+                default: return Palette.Paused;
+            }
         }
 
         private static KeyValuePair<string, int> Col(string name, int width)
@@ -598,7 +871,7 @@ namespace CodexAutoResume
             TableLayoutPanel grid = Grid(2);
 
             TableLayoutPanel now = MakeCard(S("overview.now", "Right now"));
-            now.Margin = Pad(0, 0, 9, 14);
+            now.Margin = Pad(0, 0, 3, 2);
             TableLayoutPanel facts = Facts(now);
             nowRecovery = Fact(facts, S("overview.recovery", "Automatic recovery"));
             nowWatcher = Fact(facts, S("diag.watcher", "Watcher"));
@@ -609,7 +882,7 @@ namespace CodexAutoResume
             now.Controls.Add(toggleButton);
 
             TableLayoutPanel waiting = MakeCard(S("overview.waiting", "Waiting"));
-            waiting.Margin = Pad(9, 0, 0, 14);
+            waiting.Margin = Pad(3, 0, 0, 2);
             waitingLine = Value("-");
             waitingLine.Font = new Font(Font.FontFamily, Font.Size + 3f, FontStyle.Bold);
             nextLine = Value("");
@@ -624,7 +897,7 @@ namespace CodexAutoResume
             waiting.Controls.Add(show);
 
             TableLayoutPanel week = MakeCard(S("overview.week", "Last 7 days"));
-            week.Margin = Pad(0, 0, 9, 14);
+            week.Margin = Pad(0, 0, 3, 2);
             TableLayoutPanel weekFacts = Facts(week);
             weekDetected = Fact(weekFacts, S("overview.detected", "Interruptions"));
             weekSent = Fact(weekFacts, S("overview.sent", "Continuations sent"));
@@ -634,7 +907,7 @@ namespace CodexAutoResume
             // The last few recoveries that finished, so the page answers "did it work" as
             // well as "is it working" without a trip to the History page.
             TableLayoutPanel recent = MakeCard(S("overview.recent", "Recently finished"));
-            recent.Margin = Pad(9, 0, 0, 14);
+            recent.Margin = Pad(3, 0, 0, 2);
             recentGrid = Facts(recent);
             recentEmpty = Value(S("history.empty", "No recoveries yet"));
             recentEmpty.ForeColor = Secondary;
@@ -710,14 +983,16 @@ namespace CodexAutoResume
         {
             Panel page = Page();
             pendingList = List(S("nav.pending", "Pending"),
-                               Col(S("pending.col_conversation", "Conversation"), 220),
-                               Col(S("pending.col_status", "Status"), 200),
-                               Col(S("pending.col_category", "Kind"), 130),
-                               Col(S("pending.col_next", "Next check"), 110),
-                               Col(S("pending.col_attempts", "Attempts"), 80));
+                               Col(S("pending.col_conversation", "Conversation"), 140),
+                               Col(S("pending.col_status", "Status"), 190),
+                               Col(S("pending.col_category", "Kind"), 110),
+                               Col(S("pending.col_next", "Next check"), 84),
+                               Col(S("pending.col_attempts", "Attempts"), 70),
+                               Col(S("pending.col_resume", "Auto-resume"), 100));
             pendingEmpty = Value(S("pending.empty", "Nothing is waiting"));
             pendingEmpty.ForeColor = Secondary;
             pendingEmpty.Dock = DockStyle.Top;
+            pendingEmpty.Padding = Pad(8, 2, 0, 6);
 
             FlowLayoutPanel row = ButtonRow();
             retryButton = MakeButton(S("action.retry_now", "Retry now"), true, delegate { RetryNow(); });
@@ -725,9 +1000,11 @@ namespace CodexAutoResume
             timelineButton = MakeButton(S("action.timeline", "Timeline"), false, delegate { ShowTimeline(pendingList); });
             threadButton = MakeButton(S("action.thread_off", "Turn off for this conversation"), false,
                                       delegate { ToggleThread(pendingList); });
-            foreach (Button button in new[] { retryButton, cancelButton, timelineButton, threadButton })
+            // Only cancelling is offered for everything at once: it can only reduce what runs.
+            cancelAllButton = MakeButton(S("action.cancel_all", "Cancel all"), false, delegate { CancelAll(); });
+            foreach (Button button in new[] { retryButton, cancelButton, timelineButton, threadButton, cancelAllButton })
             {
-                button.Margin = Pad(0, 0, 9, 0);
+                button.Margin = Pad(0, 0, 6, 0);
                 row.Controls.Add(button);
             }
             // What the last Retry now actually did, in words - it is a request to look again,
@@ -738,13 +1015,50 @@ namespace CodexAutoResume
             pendingList.SelectedIndexChanged += delegate
             {
                 if (filling) return;
+                if (pendingNoteFor == BulkNote) pendingNoteFor = null;
                 ShowPendingNote();
+                ShowExplain();
                 UpdatePendingButtons();
             };
-            page.Controls.Add(pendingList);
+            // The Auto-resume column is a check box for exactly the task on its row. A click on
+            // it, or Space on the chosen row, switches it. The request carries that row's
+            // interruption and conversation ids, and the control layer refuses it if the record
+            // has since finished, gone, or turned out to belong to another conversation.
+            pendingList.MouseClick += delegate(object sender, MouseEventArgs e)
+            {
+                ListViewHitTestInfo hit = pendingList.HitTest(e.Location);
+                if (hit.Item == null || hit.SubItem == null) return;
+                if (hit.Item.SubItems.IndexOf(hit.SubItem) != ResumeColumn) return;
+                ToggleAutoResume(hit.Item.Tag as Dictionary<string, object>);
+            };
+            pendingList.KeyDown += delegate(object sender, KeyEventArgs e)
+            {
+                if (e.KeyCode != Keys.Space) return;
+                ToggleAutoResume(Selected(pendingList));
+                e.Handled = true;
+            };
+
+            TableLayoutPanel explain = MakeCard(S("explain.title", "Why it is waiting"));
+            explain.Dock = DockStyle.Right;
+            explain.AutoSize = false;
+            explain.AutoScroll = true;
+            explain.Width = Px(290);
+            explain.Margin = new Padding(0);
+            explainAsOf = Value("");
+            explainAsOf.ForeColor = Secondary;
+            explain.Controls.Add(explainAsOf);
+            explainList = new GateList();
+            explainList.Dock = DockStyle.Fill;
+            explainList.Font = Font;
+            explainList.AccessibleName = S("explain.title", "Why it is waiting");
+            explain.Controls.Add(explainList);
+
+            page.Controls.Add(ListCard(pendingList));
+            page.Controls.Add(explain);
             page.Controls.Add(pendingEmpty);
             page.Controls.Add(row);
             UpdatePendingButtons();
+            ShowExplain();
             return page;
         }
 
@@ -779,7 +1093,7 @@ namespace CodexAutoResume
             }
             historyNote = Note();
             row.Controls.Add(historyNote);
-            page.Controls.Add(historyList);
+            page.Controls.Add(ListCard(historyList));
             page.Controls.Add(historyEmpty);
             page.Controls.Add(row);
             UpdateHistoryButtons();
@@ -811,7 +1125,7 @@ namespace CodexAutoResume
 
             TableLayoutPanel grid = Grid(2);
             TableLayoutPanel numbers = MakeCard(S("nav.statistics", "Statistics"));
-            numbers.Margin = Pad(0, 0, 9, 14);
+            numbers.Margin = Pad(0, 0, 3, 2);
             TableLayoutPanel facts = Facts(numbers);
             statsDetected = Fact(facts, S("overview.detected", "Interruptions"));
             statsSent = Fact(facts, S("overview.sent", "Continuations sent"));
@@ -823,7 +1137,7 @@ namespace CodexAutoResume
             statsKinds = Fact(facts, S("stats.by_category", "By kind"));
 
             TableLayoutPanel outcomes = MakeCard(S("stats.outcomes", "How recoveries ended"));
-            outcomes.Margin = Pad(9, 0, 0, 14);
+            outcomes.Margin = Pad(3, 0, 0, 2);
             chart = new OutcomeChart();
             chart.Dock = DockStyle.Top;
             chart.Height = Px(220);
@@ -849,7 +1163,7 @@ namespace CodexAutoResume
             Panel page = Page();
             TableLayoutPanel grid = Grid(2);
             TableLayoutPanel health = MakeCard(S("diag.health", "Health"));
-            health.Margin = Pad(0, 0, 9, 14);
+            health.Margin = Pad(0, 0, 3, 2);
             TableLayoutPanel facts = Facts(health);
             diagVersion = Fact(facts, S("diag.version", "Version"));
             diagWatcher = Fact(facts, S("diag.watcher", "Watcher"));
@@ -867,7 +1181,7 @@ namespace CodexAutoResume
             health.Controls.Add(diagUpgrade);
 
             TableLayoutPanel tools = MakeCard(S("diag.tools", "Tools"));
-            tools.Margin = Pad(9, 0, 0, 14);
+            tools.Margin = Pad(3, 0, 0, 2);
             exportButton = MakeButton(S("action.export", "Export diagnostics..."), false, delegate { ExportDiagnostics(); });
             repairButton = MakeButton(S("action.repair", "Repair installation"), false, delegate { Repair(); });
             // Repair and update are different things and the two buttons say so: one runs
@@ -1080,8 +1394,9 @@ namespace CodexAutoResume
 
         private string KindLabel(Dictionary<string, object> row)
         {
+            // The reason's own name, as the notifications and the popup say it.
             string category = Str(row, "category") ?? "";
-            return S("field.recover_" + category, category.Replace('_', ' '));
+            return S("reason." + category, S("field.recover_" + category, category.Replace('_', ' ')));
         }
 
         private static bool HasOverlay(Dictionary<string, object> row, string name)
@@ -1174,8 +1489,10 @@ namespace CodexAutoResume
             }
             // A Retry now note belongs to one record; once that record has left Pending -
             // sent, finished or cancelled - the note no longer describes anything on screen.
-            if (pendingNoteFor != null && !Contains(pendingList, pendingNoteFor)) pendingNoteFor = null;
+            if (pendingNoteFor != null && pendingNoteFor != BulkNote && !Contains(pendingList, pendingNoteFor))
+                pendingNoteFor = null;
             ShowPendingNote();
+            ShowExplain();
             UpdateCountdowns();
             UpdatePendingButtons();
             UpdateHistoryButtons();
@@ -1209,7 +1526,7 @@ namespace CodexAutoResume
             // screen said "watching, recovery on" for as long as the reads kept failing.
             snapshot = null;
             shownEnabled = null;
-            dotColor = Idle;
+            stateDot.State = "idle";
             headline.Text = S("status.unavailable", "Status unavailable");
             detail.Text = S("status.unavailable_detail", "Settings can still be changed and saved");
             header.Invalidate(true);
@@ -1231,6 +1548,7 @@ namespace CodexAutoResume
             MarkStatisticsUnavailable();
             pendingNoteFor = null;
             SetNote(pendingNote, "");
+            ShowExplain();
             UpdatePendingButtons();
             UpdateHistoryButtons();
             UpdateToggle();
@@ -1257,7 +1575,7 @@ namespace CodexAutoResume
         {
             return pending
                 ? new[] { Conversation(row), CodeLabel(row), KindLabel(row), null,
-                          ((int)Number(row, "recovery_attempts")).ToString(CultureInfo.CurrentCulture) }
+                          ((int)Number(row, "recovery_attempts")).ToString(CultureInfo.CurrentCulture), "" }
                 : new[] { Conversation(row), CodeLabel(row), KindLabel(row),
                           When(Number(row, "detected_at")), When(Number(row, "outcome_at")) };
         }
@@ -1293,6 +1611,9 @@ namespace CodexAutoResume
                         for (int c = 0; c < cells.Length; c++)
                             if (cells[c] != null && item.SubItems[c].Text != cells[c]) item.SubItems[c].Text = cells[c];
                     }
+                    // A row is drawn from its record as well as its text - the state chip's
+                    // colour, the Auto-resume box - so a record that changed repaints.
+                    list.Invalidate();
                 }
                 else
                 {
@@ -1394,6 +1715,8 @@ namespace CodexAutoResume
                 string text = eligible <= 0 ? "" : eligible <= now ? S("pending.due", "due now") : Countdown(eligible - now);
                 if (item.SubItems[3].Text != text) item.SubItems[3].Text = text;
             }
+            // Every second, so a task that has just come due shows the watcher checking.
+            stateDot.State = Activity(status, pending, now);
         }
 
         private static Dictionary<string, object> Selected(ListView list)
@@ -1409,8 +1732,8 @@ namespace CodexAutoResume
         private void ShowPendingNote()
         {
             var chosen = Selected(pendingList);
-            bool mine = pendingNoteFor != null && chosen != null &&
-                        Str(chosen, "interruption_id") == pendingNoteFor;
+            bool mine = pendingNoteFor == BulkNote || (pendingNoteFor != null && chosen != null &&
+                        Str(chosen, "interruption_id") == pendingNoteFor);
             SetNote(pendingNote, mine ? pendingNoteText : "");
         }
 
@@ -1461,6 +1784,7 @@ namespace CodexAutoResume
             string text = ThreadOn(row) ? S("action.thread_off", "Turn off for this conversation")
                                         : S("action.thread_on", "Turn on for this conversation");
             if (threadButton.Text != text) threadButton.Text = text;
+            if (cancelAllButton != null) cancelAllButton.Enabled = idle && pendingList.Items.Count > 0;
         }
 
         private void UpdateHistoryButtons()
@@ -1659,6 +1983,113 @@ namespace CodexAutoResume
             string thread = Json.Escape(Str(row, "thread_id"));
             if (on) Send("cancel-thread", "{\"thread_id\":" + thread + "}");
             else Send("thread-enabled", "{\"thread_id\":" + thread + ",\"enabled\":true}");
+        }
+
+        /// The Auto-resume box on one row: automatic recovery on or off for that exact task.
+        private void ToggleAutoResume(Dictionary<string, object> row)
+        {
+            if (row == null || busy > 0) return;
+            string id = Str(row, "interruption_id"), thread = Str(row, "thread_id");
+            if (id == null || thread == null) return;
+            bool enable = !ThreadOn(row);
+            // Off only ever reduces what runs, so it happens at once. On asks first, naming the
+            // conversation, exactly as the button beside the list does.
+            if (enable && !Confirm(Named("confirm.thread_on",
+                                         "Turn automatic recovery back on for \"{name}\"? Nothing is sent now; every check still applies.", row)))
+                return;
+            Send("interruption-recovery", "{\"interruption_id\":" + Json.Escape(id) + ",\"thread_id\":" +
+                 Json.Escape(thread) + ",\"enabled\":" + (enable ? "true" : "false") + "}");
+        }
+
+        private void CancelAll()
+        {
+            if (busy > 0 || pendingList.Items.Count == 0) return;
+            if (!Confirm(S("confirm.cancel_all",
+                           "Stop every pending recovery? Anything already handed to Codex is withdrawn only if it is still queued.")))
+                return;
+            CallAsync("cancel-all", null, delegate(Dictionary<string, object> reply)
+            {
+                if (!Ok(reply))
+                {
+                    Report(reply);
+                    RefreshAfterChange();
+                    return;
+                }
+                var result = Map(reply, "result");
+                pendingNoteFor = BulkNote;
+                pendingNoteText = S("result.cancel_all", "Cancelled: {n}", "n", (int)Number(result, "cancelled"));
+                ShowPendingNote();
+                RefreshAfterChange();
+            });
+        }
+
+        /// What the watcher is doing, as the header's halo shows it.
+        ///
+        /// Pure, so the rule can be checked without a window: not running, not responding or
+        /// an unfinished upgrade needs a person; a pause is still; a continuation in Codex is
+        /// recovering; a task that has come due is being checked; anything else waiting is
+        /// waiting; and a running watcher with nothing to do is monitoring.
+        internal static string Activity(Dictionary<string, object> status, List<object> pending, double now)
+        {
+            if (status == null) return "idle";
+            object running = Get(status, "watcher_running");
+            if (running == null) return "idle";
+            var watcher = Map(status, "watcher");
+            if (!Equals(running, true) || Equals(Get(status, "upgrade_pending"), true) ||
+                Equals(Get(watcher, "ticking"), false))
+                return "attention";
+            if (!Equals(Get(status, "enabled"), true)) return "paused";
+            bool waiting = false, due = false, recovering = false;
+            if (pending != null)
+                foreach (object entry in pending)
+                {
+                    var row = entry as Dictionary<string, object>;
+                    if (row == null) continue;
+                    string code = Str(row, "code") ?? "";
+                    if (code == "submission_claimed" || code == "submitted" || code == "turn_running" ||
+                        code == "turn_finishing")
+                        recovering = true;
+                    double eligible = Number(row, "eligible_at");
+                    if (eligible > 0)
+                    {
+                        waiting = true;
+                        if (eligible <= now) due = true;
+                    }
+                }
+            if (recovering) return "recovering";
+            if (due) return "checking";
+            return waiting ? "waiting" : "monitoring";
+        }
+
+        /// The selected task's safety checks, as the watcher last recorded them.
+        private void ShowExplain()
+        {
+            if (explainList == null) return;
+            var row = Selected(pendingList);
+            var rows = new List<string[]>();
+            if (row == null)
+            {
+                explainAsOf.Text = "";
+                explainList.SetRows(rows, S("explain.none_selected", "Select a task to see why it is waiting."));
+                return;
+            }
+            var gates = Map(row, "gates");
+            double at = Number(row, "gates_at");
+            // Said once: either when the checks were last run, or - in the list's own place -
+            // that they have not been run yet.
+            explainAsOf.Text = gates == null || at <= 0 ? "" : S("explain.as_of", "Last checked {time}", "time", Ago(at));
+            if (gates != null)
+                foreach (string name in GateOrder)
+                {
+                    var result = Items(gates, name);
+                    string code = result != null && result.Count > 0 ? Convert.ToString(result[0], CultureInfo.InvariantCulture) : "UNKNOWN";
+                    string word = code == "PASS" ? S("gate.result.pass", "OK")
+                                : code == "WAIT" ? S("gate.result.wait", "Waiting")
+                                : code == "BLOCK" ? S("gate.result.block", "Blocked")
+                                : S("gate.result.unknown", "Unknown");
+                    rows.Add(new[] { S("gate." + name, name.Replace('_', ' ')), word, code });
+                }
+            explainList.SetRows(rows, S("explain.not_checked", "Not checked yet"));
         }
 
         private void TogglePause()

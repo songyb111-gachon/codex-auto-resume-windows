@@ -252,7 +252,7 @@ class DecisionTests(unittest.TestCase):
                         "/out:" + str(exe), "/reference:System.dll",
                         "/reference:System.Drawing.dll", "/reference:System.Windows.Forms.dll",
                         *[str(ROOT / "gui" / name)
-                          for name in ("SettingsApp.cs", "Dashboard.cs", "Brand.cs")]],
+                          for name in ("SettingsApp.cs", "Dashboard.cs", "Controls.cs", "Brand.cs")]],
                        check=True, capture_output=True, timeout=300)
         probe = work / "probe.ps1"
         probe.write_text(PROBE, encoding="utf-8")

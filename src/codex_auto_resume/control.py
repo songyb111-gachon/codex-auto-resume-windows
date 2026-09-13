@@ -663,7 +663,7 @@ class Control:
             problem = "a preview is only available for a recoverable kind of interruption"
             raise ControlError(problem, code="request_failed")
         values = dict(self.get_settings())
-        refusal = None
+        refusal = refusal_code = refusal_detail = None
         if changes is not None:
             if not isinstance(changes, dict):
                 problem = "changes must be an object"
@@ -678,7 +678,8 @@ class Control:
                     try:
                         continuation.validate_custom(value)
                     except continuation.CustomMessageError as exc:
-                        refusal = refusal or str(exc)
+                        if refusal is None:
+                            refusal, refusal_code, refusal_detail = str(exc), exc.code, exc.detail
                         continue
                     values[name] = value
                 elif is_text:
@@ -697,7 +698,8 @@ class Control:
         return {"category": category, "locale": continuation.resolve_locale(values),
                 "style": continuation.style_from(values),
                 "source": continuation.source_for(category, values),
-                "text": text, "refusal": refusal}
+                "text": text, "refusal": refusal, "refusal_code": refusal_code,
+                "refusal_detail": refusal_detail}
 
     def set_interruption_recovery(self, interruption_id, thread_id, enabled, *,
                                     actor: str = "gui") -> dict:

@@ -105,7 +105,7 @@ class BootstrapReadingTests(unittest.TestCase):
                         "/out:" + str(exe), "/reference:System.dll",
                         "/reference:System.Drawing.dll", "/reference:System.Windows.Forms.dll",
                         *[str(ROOT / "gui" / name)
-                          for name in ("SettingsApp.cs", "Dashboard.cs", "Brand.cs")]],
+                          for name in ("SettingsApp.cs", "Dashboard.cs", "Controls.cs", "Brand.cs")]],
                        check=True, capture_output=True, timeout=300)
         # Written to a file rather than passed with -Command: a command line this long is
         # refused outright on some machines, and the refusal arrives as "access is denied"

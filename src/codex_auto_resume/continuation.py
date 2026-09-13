@@ -72,7 +72,18 @@ PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
 class CustomMessageError(ValueError):
-    """A Custom message that will not be stored. The sentence names what to change."""
+    """A Custom message that will not be stored. The sentence names what to change.
+
+    `code` is the same refusal as a machine value (`not_text`, `empty`, `too_long`,
+    `forbidden_placeholder`, `unknown_placeholder`) and `detail` the one fact it needs -
+    the placeholder, or the length - so a surface can say it in the reader's language
+    instead of showing this English sentence inside a translated window.
+    """
+
+    def __init__(self, message, code="invalid", detail=None):
+        super().__init__(message)
+        self.code = code
+        self.detail = detail
 
 
 def validate_custom(text) -> str:
@@ -85,23 +96,24 @@ def validate_custom(text) -> str:
     tells you no.
     """
     if not isinstance(text, str):
-        raise CustomMessageError("A custom message has to be text.")
+        raise CustomMessageError("A custom message has to be text.", "not_text")
     if not text.strip():
-        raise CustomMessageError("A custom message cannot be empty.")
+        raise CustomMessageError("A custom message cannot be empty.", "empty")
     if len(text) > MAX_CUSTOM_LENGTH:
         raise CustomMessageError(
             "A custom message can be at most %d characters; this one is %d."
-            % (MAX_CUSTOM_LENGTH, len(text)))
+            % (MAX_CUSTOM_LENGTH, len(text)), "too_long", str(len(text)))
     for name in PLACEHOLDER.findall(text):
         lowered = name.lower()
         if lowered in FORBIDDEN_PLACEHOLDERS:
             raise CustomMessageError(
                 "{%s} is not available: it would put %s into the message."
-                % (name, FORBIDDEN_PLACEHOLDERS[lowered]))
+                % (name, FORBIDDEN_PLACEHOLDERS[lowered]), "forbidden_placeholder", "{%s}" % name)
         if name not in ALLOWED_PLACEHOLDERS:
             raise CustomMessageError(
                 "{%s} is not a placeholder this product knows. Available: %s."
-                % (name, ", ".join("{%s}" % allowed for allowed in ALLOWED_PLACEHOLDERS)))
+                % (name, ", ".join("{%s}" % allowed for allowed in ALLOWED_PLACEHOLDERS)),
+                "unknown_placeholder", "{%s}" % name)
     return text
 
 

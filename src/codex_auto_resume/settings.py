@@ -99,6 +99,9 @@ FIELDS = {
     "notifications": (True, _boolean),
     # The watcher's notification-area icon. Showing it changes nothing about recovery.
     "show_tray": (True, _boolean),
+    # Stops every looping and pulsing animation in the Dashboard and the notification-area
+    # popup, on top of Windows' own "Animation effects" switch, which is honoured anyway.
+    "reduce_motion": (False, _boolean),
     "codex_exe": (None, _optional_text),
 }
 # Every configurable category defaults ON: these are the failures already proven safe
@@ -325,6 +328,10 @@ def describe() -> list:
         elif name.startswith("notify_") or name == "notifications":
             entry["group"] = "notifications"
             entry["master"] = name == "notifications"
+        elif name == "reduce_motion":
+            # How the Windows surfaces look. The panel in Codex follows the host's own
+            # reduced-motion preference, so this is not offered there.
+            entry["group"] = "appearance"
         elif name == "show_tray":
             # A desktop preference, beside "run at sign-in" - not a notification, and
             # not something the notifications switch governs.

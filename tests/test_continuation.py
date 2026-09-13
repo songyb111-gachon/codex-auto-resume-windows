@@ -109,8 +109,18 @@ class CustomMessageTests(unittest.TestCase):
                     settings.validate_update({"custom_message": "x {%s} y" % name})
         for name in ("thread_id", "Reason", "time", "model"):
             with self.subTest(name):
-                with self.assertRaises(continuation.CustomMessageError):
+                with self.assertRaises(continuation.CustomMessageError) as caught:
                     continuation.validate_custom("{%s}" % name)
+                self.assertEqual((caught.exception.code, caught.exception.detail),
+                                 ("unknown_placeholder", "{%s}" % name))
+
+    def test_every_refusal_has_a_code_the_window_can_translate(self):
+        english = l10n._read(l10n.DEFAULT)
+        for bad in (None, "  ", "x" * (continuation.MAX_CUSTOM_LENGTH + 1), "{prompt}", "{nope}"):
+            with self.subTest(bad=repr(bad)[:20]):
+                with self.assertRaises(continuation.CustomMessageError) as caught:
+                    continuation.validate_custom(bad)
+                self.assertIn("custom.refusal." + caught.exception.code, english)
 
     def test_length_and_emptiness(self):
         self.assertEqual(continuation.validate_custom("x" * continuation.MAX_CUSTOM_LENGTH),

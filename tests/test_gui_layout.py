@@ -269,9 +269,11 @@ class NumericInsetTests(unittest.TestCase):
         """Retry timing is a ComboBox and is deliberately left alone."""
         self.assertEqual(self.source.count("GiveTextRoom(spin)"), 1,
                          "one call site, on the NumericUpDown the two Limits rows share")
-        combo = self.source.index("var combo = new ComboBox()")
-        self.assertNotIn("GiveTextRoom",
-                         self.source[combo:self.source.index("editors[name] = combo", combo)])
+        # Every drop-down on the page is built by ChoiceCombo or LanguageCombo.
+        for builder in ("private SoftCombo ChoiceCombo(", "private SoftCombo LanguageCombo("):
+            start = self.source.index(builder)
+            body = self.source[start:self.source.index("return combo;", start)]
+            self.assertNotIn("GiveTextRoom", body, builder)
 
 
 if __name__ == "__main__":
