@@ -278,7 +278,12 @@ the `codex plugin` commands listed above.
 The resumed turn is not run by any of those processes. `codex queue` places the message in
 Codex's queue and exits; your Codex desktop app picks it up and runs the turn, signed in as you
 and under your own settings, exactly as if you had typed the message yourself, and sends it to
-OpenAI as it does every turn. The one thing this tool asks the Codex processes it starts to
+OpenAI as it does every turn. From v0.6.3 that message is written in the continuation language
+you chose - by default the interface language - from translations that ship with the product,
+or, if you chose the Custom style, it is your own Custom message exactly as you typed it. Like
+every continuation, it becomes part of the resumed conversation that Codex sends to OpenAI, so
+write nothing in it you would not type into that conversation yourself.
+The one thing this tool asks the Codex processes it starts to
 fetch from OpenAI is your usage (`account/rateLimits/read`). Codex identifies these requests as
 coming from this tool (client name `codex_auto_resume` and a version number), so OpenAI can see
 that you use it and when it checks. Every App Server session it opens, including one that only
@@ -303,7 +308,7 @@ The plugin gives Codex tools — `get_status`, `list_pending`, `get_recovery_tim
 `get_recovery_statistics`, `open_settings`, and the controls (`retry_now`, `cancel_recovery`,
 `reset_recovery_budget`, `pause_auto_recovery` and `resume_auto_recovery`,
 `disable_conversation_recovery` and `enable_conversation_recovery`, `clear_recovery_history`,
-`start_watcher`, `update_settings`, `restore_default_settings`) — and a skill that runs the
+`start_watcher`, `update_settings`, `restore_default_settings`), and, from v0.6.3, `preview_recovery_message` — and a skill that runs the
 tool's commands (for example `status`, `pending`, `doctor` and `logs`). When they run inside a
 Codex conversation, what they return becomes part of that conversation. The
 one-line summary always does, and the structured data may as well; Codex sends the
@@ -311,7 +316,8 @@ conversation to OpenAI like any tool output. That is:
 
 - from `get_status`: the version, whether recovery is on, whether the watcher is running and
   whether sign-in autostart is registered, counts by state, and your settings — which
-  include the Codex executable path if you set one. It no longer returns the installation
+  include the Codex executable path if you set one and, from v0.6.3, the text of any Custom
+  message you have written (Codex can read it there, not change it). It no longer returns the installation
   directory's path, which normally includes your Windows user name; v0.5.0 through v0.5.7
   did, and a conversation held with one of them still carries it;
 - from `list_pending`: the pending recoveries, with their conversation ids, interruption ids,
@@ -323,6 +329,10 @@ conversation to OpenAI like any tool output. That is:
 - from `get_recovery_statistics`: over the last few days or all of it, how many interruptions
   were detected and how many continuations were sent, how they ended, the medians and a count by
   kind — numbers only;
+- from `preview_recovery_message`: the exact text a continuation would have for one kind of
+  interruption, under your settings or under a language and style given for the preview —
+  this product's message or, when the Custom style is selected, your Custom message. It saves
+  nothing and sends nothing;
 - from the commands: the same, plus each pending recovery's reset time, limit bucket and
   last reason code, the desktop app's process ids, and local paths such as the Codex executable, the Codex home,
   the state file and the log file — which normally include your Windows user name — and,
@@ -353,7 +363,9 @@ default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
   Deleting `state.sqlite` does not remove it: `Uninstall.cmd` with `-Purge` takes it with the
   rest of `config/`, and without `-Purge` it stays, as the state file does; the command line's
   `uninstall` deletes `state.sqlite` unless you pass `--keep-state`, and leaves this copy either way;
-- `config/settings.json` — your settings;
+- `config/settings.json` — your settings, including the interface and continuation languages
+  and, from v0.6.3, any Custom message you write in the Dashboard: the message for every
+  interruption and any per-kind ones, each at most 2,000 characters, stored exactly as typed;
 - `logs/` — `auto-resume.log`, what the watcher did, by reason code and conversation UUID;
   `errors.log`, the Python traceback when something goes wrong; and `launcher.log`, a line
   per launch (and why, if one failed).
@@ -386,7 +398,7 @@ the rest.
 One more file exists only if you ask for it, and only where you put it. **Export
 diagnostics...** in the window, or `auto_resume.py diagnostics` on the command line (`--out`
 names the file; without it, a new one in the current directory), writes one JSON file: your
-settings, one entry per recovery with its state,
+settings (a Custom message included), one entry per recovery with its state,
 reason and the checks it is waiting on, up to 2,000 journal entries, and the last 300 lines
 of each log. Conversation and interruption ids are replaced by aliases that mean nothing
 outside that one file; paths, your Windows user name and e-mail-shaped text are removed.
@@ -398,7 +410,8 @@ Two traces of your conversations live outside that directory, and neither is wri
 this tool directly.
 Windows keeps the notifications it showed in its notification history for a while, or until
 you clear them.
-And each resumed conversation contains the continuation message, with its
+And each resumed conversation contains the continuation message (your Custom message, when that
+is what was sent), with its
 `[codex-auto-resume:…]` marker, in Codex's own history, like any message.
 
 Outside that directory it also registers ordinary per-user Windows plumbing, none of it
@@ -423,6 +436,27 @@ project name and the folder name — each on one line and at most 72 characters,
 conversation UUID. A usage-limit notice also shows the local reset time. They carry no error
 text or account data, and this tool does not route them through any service. If Codex
 derived the name from your first message, the label reflects it, as Codex's own list does.
+
+From v0.6.3 a transient interruption's notification also names the kind of interruption, and
+both interruption notifications carry an **Open Dashboard** button. It opens the Dashboard's
+Pending page through the same `codex-auto-resume:` handler as the cancel button, and does
+nothing else.
+
+The popup that opens from the notification-area icon, new in v0.6.3, shows up to three
+waiting tasks: each one's conversation name, from the same read-only source the Dashboard and
+the notifications use (`threads.name`) and on one line of at most 120 characters, with the
+kind of interruption and when it is next checked. The watcher draws it on your machine and it
+sends nothing anywhere. It adds nothing to the logs but a line naming a popup action that
+failed, with its refusal code or exception class.
+
+## Languages
+
+From v0.6.3 the interface - the Dashboard, the popup and menu, notifications and the panel in
+Codex - and the continuation message are available in nine languages. The translations ship
+inside the release, one JSON file per language, and are read from disk: no language data is
+fetched and no translation service is used. The default, *System*, follows the first
+language Windows lists on this machine; a language you choose is stored in
+`config/settings.json` with your other settings.
 
 ## Third parties
 

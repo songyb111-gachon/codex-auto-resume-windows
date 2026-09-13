@@ -8,13 +8,21 @@ properties intact.
 
 - Windows 10/11. The product is Windows-only, and so is most of the test suite.
 - Python 3.12 or newer, standard library only. There are no third-party runtime dependencies
-  and no build step for the Python side.
+  and no build step for the Python side. What that promise covers is decided in one file,
+  `scripts/python_support.json`: CI runs every non-live test on Python 3.12, 3.13 and 3.14 as
+  blocking jobs, and on the 3.15 pre-release as an advisory one whose result is shown but does
+  not block; releases are built with 3.13; and the archive bundles Python 3.13.15, so nobody
+  installing a release needs a Python of their own. Adding a tested version never moves the
+  bundled runtime. `tests/test_python_support.py` fails if the workflows, or the minimum this
+  page and the README state, stop agreeing with that file.
 - The ChatGPT/Codex desktop app, if you want to run anything beyond the unit tests.
 - .NET Framework 4.8 (already on every supported Windows) to build the two small C#
   executables — the window and the MCP launcher (`gui/McpLauncher.cs`). The window is
-  compiled from three sources: `gui/SettingsApp.cs` for the form and the Settings page,
+  compiled from four sources: `gui/SettingsApp.cs` for the form and the Settings page,
   `gui/Dashboard.cs` for the navigation and the Overview, Pending, History, Statistics and
-  Diagnostics pages, and `gui/Brand.cs` for the palette.
+  Diagnostics pages, `gui/Controls.cs` for the soft cards, buttons, check boxes and choices
+  both are drawn with, and `gui/Brand.cs` for the palette. `build/make_gui.ps1` names all
+  four; a new window source has to be added there.
 
 Nothing here needs administrator rights.
 
@@ -228,7 +236,8 @@ There is a test for that too, but it reads `gui/SettingsApp.cs` only — neither
 test that catches sizes written in raw pixels looks at `gui/Dashboard.cs`, so a colour or a
 raw pixel size written there is on you. Other tests do read that file: every Paint handler
 must sit on a buffered control, every class that draws itself must be double-buffered, and
-the long-lived bridge's command line is executed for real.
+the long-lived bridge's command line is executed for real. `gui/Controls.cs`, which draws the
+soft controls both files use, has a test of its own that refuses a hexadecimal colour literal.
 
 ## The MCP declaration is added at build time
 
@@ -238,6 +247,32 @@ on the interpreter that ships in the release archive, so declaring it in the rep
 make a marketplace install from GitHub register a command that is not there. Please do not
 "fix" that by moving the declaration into the manifest — the build refuses to run if both
 declare it.
+
+## Translations
+
+The interface speaks nine languages, and every word of it - the Dashboard, the popup and
+menu, notifications, the panel in Codex and the continuation message - comes from a catalog:
+`src/codex_auto_resume/locales/<locale>.json`, one per language. English (`en.json`) is the
+source. Every other catalog is a translation of it, and at runtime English fills in any key a
+translation has not reached yet. A new sentence a user will read is a new key in `en.json`.
+
+A translation is only as current as the English it was made from, so `build/l10n.py` records,
+key by key, a digest of that English in `build/l10n/<locale>.basis.json`:
+
+```bash
+python build/l10n.py status                 # missing, stale and extra keys, per language
+python build/l10n.py export ja > work.json  # only the keys that need a translator
+python build/l10n.py import ja work.json    # merge, validate, record the basis
+python build/l10n.py mark ja KEY [KEY ...]  # reviewed: still right for the new English
+python build/l10n.py prune ja               # drop keys English no longer has
+python build/l10n.py check                  # exit 1 if anything is incomplete
+```
+
+So adding an English string, or changing one, is not finished until every catalog has caught
+up: the key is missing or stale in the other eight, and `tests/test_l10n.py` fails until each
+has been translated and imported, or marked as reviewed. An import that loses or invents a
+placeholder is refused. Nothing here reaches the network, and a test holds the localization
+modules and this tool to that.
 
 ## The Korean branch is generated
 
@@ -293,7 +328,7 @@ runtime; the pictures do not, so that a gallery looks like one product and a bui
 machine in dark mode produces the same bytes as a build on one in light mode.
 
 `assets/screenshots.json` records a digest of every input each image was rendered from —
-the window's two sources, its palette, its DPI manifest, the plugin manifest, the icon, the
+the window's three sources, its palette, its DPI manifest, the plugin manifest, the icon, the
 capture and build scripts, the rendered panel markup, and the engine modules the window's
 figures and rows are computed from. `WINDOW_INPUTS` in `build/make_screenshots.py` is the
 list. Change one and `tests/test_screenshots.py` fails telling you to re-run the generator.
@@ -350,7 +385,11 @@ fail without it:
 - a submission whose outcome is unknown is never automatically resent;
 - every gate is re-checked immediately before sending, inside the dispatch lock;
 - settings are policy only. Nothing in the settings schema may reach a safety limit, and the
-  worst a malformed settings file can do is make recovery more conservative.
+  worst a malformed settings file can do is make recovery more conservative;
+- the text of a Custom message is written only through the Dashboard's control layer, never
+  through an MCP tool, and its placeholders stay a whitelist;
+- no front end - the Dashboard, the notification-area popup, the panel in Codex - gains a way
+  to put a continuation into Codex. The watcher is the only thing that sends.
 
 If you are unsure whether a change crosses one of those lines, open an issue first and say
 what you are trying to achieve — there is usually a way to get there that keeps the property.

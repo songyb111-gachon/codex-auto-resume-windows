@@ -161,6 +161,11 @@ def collect(control, *, now=None) -> dict:
     }
     settings = control.get_settings()
     settings = dict(settings, codex_exe="<set>" if settings.get("codex_exe") else None)
+    # A Custom message is the user's own writing and may say anything, so the bundle records
+    # only whether each one is set. What was sent is not something a bug report needs.
+    for name in list(settings):
+        if name.startswith("custom_message") and name != "custom_message_mode":
+            settings[name] = "<set>" if settings.get(name) else None
     bundle["settings"] = settings
     try:
         status = control.get_status()
