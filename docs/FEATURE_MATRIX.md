@@ -40,10 +40,10 @@ real Codex recovery. Read each citation and its limits separately.
   `visual_ui_scraping_used: false` recorded in
   [`docs/evidence/unloaded-thread-observation.json`](evidence/unloaded-thread-observation.json).
   That is a protocol observation, not somebody watching.
-- **This version is not released; v0.6.0 is.** The rows below that say PUBLISHED mean
-  v0.6.0, whose archive is published and whose digest is pinned on `main`. This release
-  corrects defects in it, and until it is published nothing here claims PUBLISHED for the
-  corrections. What PUBLISHED does *not* mean anywhere here
+- **This version is not released; v0.6.1 is the newest that is.** The rows below that say
+  PUBLISHED mean a published version - v0.6.0 or v0.6.1, both of whose archives are
+  published and whose digests are pinned on `main`. This release corrects a defect in both,
+  and until it is published nothing here claims PUBLISHED for the correction. What PUBLISHED does *not* mean anywhere here
   is that somebody installed it and used it: the published bytes were driven against a
   state directory and a Codex home that exist only for that check, with the installer's
   registrations never run and no watcher started against real Codex state. Installing,

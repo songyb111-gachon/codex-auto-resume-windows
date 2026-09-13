@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## v0.6.2 — The update could not check what it had downloaded
+
+One fix, in the step that decides whether anything gets installed.
 
 - **Fixed: the Dashboard's update downloaded the archive and then could not verify it.**
   The verification step used `Get-FileHash`, and on a real machine that cmdlet did not
