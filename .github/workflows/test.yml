@@ -20,10 +20,26 @@ jobs:
   test:
     # This tool targets Windows only, so CI runs on Windows only.
     runs-on: windows-latest
+    # `scripts/python_support.json` is where these are decided, and
+    # `tests/test_python_support.py` fails if this list and that file stop agreeing.
+    # A matrix cannot read a file, so the list is repeated here and the test is what
+    # keeps the repetition honest.
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12", "3.13"]
+        python-version: ["3.12", "3.13", "3.14"]
+        experimental: [false]
+        include:
+          # The next Python, while it is still a release candidate. It is not decoration:
+          # it compiles the sources and runs the same suite, and a failure is annotated
+          # exactly like any other, so a real incompatibility is visible the day it
+          # appears. It does not block, because a defect in a pre-release interpreter is
+          # not a defect in this product - and finding out about a real one in October,
+          # from a user, is worse than finding out now from a lane nobody had to merge.
+          - python-version: "3.15"
+            experimental: true
+    # Only the pre-release lane is allowed to fail the job without failing the run.
+    continue-on-error: ${{ matrix.experimental }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -39,6 +55,17 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
+          # Needed for the future lane, and harmless for the others: a stable release
+          # is still preferred where one exists, so this does not quietly move a
+          # blocking version onto a release candidate. It also means the day the next
+          # Python ships, that lane starts testing the real thing without an edit.
+          allow-prereleases: true
+
+      - name: Say which interpreter this actually is
+        # The lane is named for a line, not a build. When a failure turns out to be the
+        # interpreter's, the first question is which one - and on the pre-release lane
+        # that answer changes under you.
+        run: python -c "import sys; print(sys.version)"
 
       - name: Compile all sources
         run: python -m compileall -q src tests scripts
