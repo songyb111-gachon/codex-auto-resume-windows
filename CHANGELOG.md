@@ -95,7 +95,57 @@ you can see.
 
 ### Evidence
 
-(to be completed with what was actually run: tests, CI, Windows checks, Codex checks)
+What was run for this release, and what was not. Unless it says otherwise, everything below
+was run on the code this tag was made from; the only later change is this section.
+
+- **Tests.** The whole non-live suite passed on Windows 11 under Python 3.12 and 3.13
+  (1,508 tests each), and in CI on 3.12, 3.13 and 3.14 as blocking jobs; the advisory 3.15
+  pre-release job passed too. The icon test used to compare compressed bytes and failed on
+  3.14 and 3.15 with identical pixels, because those Pythons deflate with a different zlib;
+  it now compares what each icon decodes to.
+- **A pre-release review.** Every change in this release was reviewed adversarially by
+  area, and each finding was checked by a second reviewer who tried to refute it. Eighteen
+  findings; one was refuted, and the other seventeen - fourteen distinct - are fixed here,
+  each with a test. The ones that could change what is sent or what a switch does:
+  - Custom text made only of placeholders - `{reset_time}` for an interruption with no
+    reset time - was sent as a turn holding nothing but the marker, and spent an attempt.
+  - A right-click on a task's Auto-resume box switched automatic recovery off for that
+    conversation.
+  - Holding Space or Enter on a switch in the notification-area popup flipped it back and
+    forth, and where it stopped was chance.
+  - A closed popup kept the icon's badge on "needs attention" after the problem cleared.
+  - The one-shot bridge put Custom message text on a `python.exe` command line.
+
+  The rest were wording and display defects: `{attempt}` counting claims rather than
+  attempts, filling a placeholder reflowing the whole message, High Contrast text drawn on
+  a Highlight fill, an alarm that pulsed again every refresh, a halo that stayed frozen
+  after a restore, a card that measured its text wider than it drew it, a counter that
+  counted emoji twice, the diagnostics export recording the wrong language, and the
+  translation export's own output refused by its import. Reviewing the fixes found one
+  more: the long-lived bridge refused a valid Save of long Custom messages as too large.
+- **On a real Windows 11 machine** (150% scaling). A release candidate built from this code
+  passed `build/smoke_archive.py` and was installed over an earlier candidate: the installer
+  reported the update and did not rewrite the settings file, the installed files matched the
+  archive, the installed MCP server reported 0.6.3 and 17 tools, `preview_recovery_message`
+  returned the Standard message in Korean, and `update_settings` refused `custom_message`.
+  The upgrade from v0.6.2 was performed with that earlier candidate, built before the review
+  fixes: it kept the settings file byte for byte and every pending and history record, and
+  its Dashboard showed the preserved history in Korean.
+- **The popup, by hand**, on the earlier candidate. A person clicked the notification-area
+  icon and the popup opened. With their permission Claude then drove the mouse and keyboard:
+  a click opened it, Open Dashboard opened the Pending page and closed it, and a click
+  elsewhere closed it. In a copy of the popup running against a stand-in control layer, real
+  Tab, Shift+Tab and Space presses moved the focus ring and switched the focused button.
+  Escape could not be pressed for real: while Claude's computer control was active, another
+  process held plain Escape as a global hotkey, so no window received its key-down. The
+  popup's Escape handling is covered by a test that delivers the key to the real window.
+- **Not verified.** The popup was not driven by hand again on the final candidate. The High
+  Contrast, right-click and minimize-and-restore fixes were not seen in a running window;
+  they are covered by the build, by tests that run the window's own code, and by checks on
+  its source. No Windows notification with Open Dashboard was raised, because no real
+  interruption happened and none was made up. No Codex conversation was continued with the
+  new messages, and the panel was not opened inside Codex. No real Codex visual recovery is
+  claimed. The screenshots are rendered from sample data, not from anyone's conversations.
 
 ## v0.6.2 — The update could not check what it had downloaded
 
