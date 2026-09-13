@@ -3,8 +3,8 @@
 This document describes what the tool is allowed to touch, how that is enforced, how releases are
 built and can be checked, how it was reviewed, and what was actually found and fixed.
 
-The current published release is v0.6.0. Historical differences below name v0.5.7 explicitly.
-Unreleased source fixes do not change the published v0.6.0 bytes.
+The newest published release is v0.6.2. Historical differences below name the release they
+apply to. Unreleased source changes do not change any published release's bytes.
 
 ## Reporting
 
@@ -46,7 +46,10 @@ display it, and Windows keeps them in its notification history.
 - Files in its own `config/` and `logs/` directories, including the copy of the state file it
   takes before the first watcher of a new version upgrades the schema, and before
   `downgrade-state` rewrites it (`state.vN-backup-*.sqlite`), kept for forensics.
-- One continuation message to one exact thread, through the official `codex queue` CLI.
+- One continuation message to one exact thread, through the official `codex queue` CLI. Its
+  text is this product's message in the language and style you chose or, from v0.6.3, the
+  Custom message you wrote in the Dashboard (see *The Custom message is written in the
+  Dashboard, and nowhere else* below).
 - When that message has to be withdrawn, `thread/queue/delete` requests to the official Codex App
   Server for that exact queued item, repeated if the withdrawal cannot be confirmed.
 - The notifications it raises, which Windows keeps in its notification history.
@@ -192,10 +195,55 @@ longer includes the install path.
   this product can only mark its tools, and Codex's approval settings decide whether a prompt
   appears. `update_settings` offers and accepts only the settings a person can change in the
   window, not the engine path (`codex_exe`) or the detection look-back, and `get_status` does not
-  include the install path. In v0.5.7 only `restore_default_settings` and `cancel_recovery` are
+  include the install path. From v0.6.3 it also leaves out the text of the Custom message
+  (see the next item). In v0.5.7 only `restore_default_settings` and `cancel_recovery` are
   marked; `set_auto_recovery`, `reset_recovery_budget`, `start_watcher` and `update_settings`,
   which there also offers the engine path, have no destructive annotation requesting approval,
   and a pause-withdrawn recovery there is cancelled outright.
+- **The Custom message is written in the Dashboard, and nowhere else.** New in v0.6.3. It is
+  the one piece of text a person writes that this product then sends by itself, into that
+  person's conversations, at every interruption it covers, while nobody is watching. So it is
+  written only through the local control layer the Windows Dashboard uses, and never through
+  the plugin's MCP tools: `update_settings` leaves the text fields out of its schema and
+  refuses them by name when a client sends them anyway. A prompt-injected model that could
+  write it would turn one injected instruction into a standing one, delivered at every future
+  interruption. What Codex may still set - the continuation language, the style and the
+  Custom mode - only chooses among texts this product ships or the person wrote. The new
+  `preview_recovery_message` tool is annotated `readOnlyHint: true`, saves nothing and sends
+  nothing; it accepts a language and style to preview with, and refuses Custom text. The
+  placeholders a message may use are a whitelist - `{reason}`, `{category}`, `{attempt}`,
+  `{max_attempts}` and `{reset_time}`, values this product counted or was told by Codex - so
+  a placeholder nobody has thought of yet is refused by default, and the ones that would put
+  the prompt, the reply, the conversation title, a path, the Windows account name, the raw
+  error, an account, an e-mail address, a credential or a token into the message are refused
+  by name, saying why. A message is at most 2,000 characters, and it is stored and sent
+  exactly as typed or refused; it is never trimmed or rewritten. The same check runs when the
+  settings file is read, so text put into `config/settings.json` by other means that fails it
+  is treated as not set, and the next message in the fallback is sent instead. Nothing about
+  the text can change what is recovered: it is built only after the classifier has found the
+  interruption recoverable and every gate has passed, it is attached only to a recoverable
+  kind of interruption, and it cannot skip a check or choose a different conversation.
+- **A notification button can cancel one recovery or open one page, and nothing else.** The
+  `codex-auto-resume:` handler accepts exactly two requests. `cancel` names one interruption
+  by its opaque id, which has to match a real record, and can only stop a recovery. `open`,
+  new in v0.6.3 for the **Open Dashboard** button, names one page from a fixed list -
+  Overview, Pending, History, Statistics, Diagnostics or Settings - and opens it. It changes no
+  state and cannot cause a send, so a page that knows the scheme can at worst open a window.
+  Anything else is logged as unsupported and ignored.
+- **Front ends ask; the watcher alone sends.** New in v0.6.3. The **Auto-resume** check box
+  beside each task, on the Pending page and in the notification-area popup, carries the exact
+  interruption id and conversation id of the row it was drawn in. When the click arrives, the
+  control layer reads the record again and refuses one that no longer exists, has finished,
+  or belongs to a different conversation, and a refused click changes nothing - so a list that
+  re-sorted between drawing and clicking cannot turn a click on one task into a change to
+  another. What the box changes is that conversation's switch, which is policy: it sends
+  nothing, and turning it on leaves every gate to run. The popup runs inside the watcher
+  process, on the notification-area icon's thread, and is a front end like the Dashboard: it
+  asks the control layer for four things only - the pending list, the status, the global
+  switch and the per-task switch - and imports nothing that can put a continuation into
+  Codex. **Cancel all** on the Pending page cancels every pending recovery one exact record
+  at a time. Cancelling is the only action offered in bulk, because it can only reduce what
+  the tool does; there is deliberately no bulk retry.
 
 ## Destructive-operation safety
 
@@ -507,4 +555,8 @@ download rests on the pinned digest and the provenance attestation (*Release int
 *Verifying a release*). - Archives v0.5.0 through v0.5.7 were built by
 the earlier single-job workflow with floating action tags and executables that are not
 reproducible. Whether a local rebuild reproduces, byte for byte, an archive GitHub's runner
-publishes from v0.6.0 on has not been verified.
+publishes from v0.6.0 on has not been verified. - A Custom message is sent as written, and
+Codex reads it as your own words. The checks above decide which values it may contain and
+that it cannot change what is recovered; they do not judge what it asks Codex to do. Any
+program running under your Windows account can also edit `config/settings.json`, as it can
+your other files; the placeholder and length checks still apply to what it writes.

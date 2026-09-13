@@ -55,6 +55,20 @@ class DiagnosticsTests(unittest.TestCase):
         self.assertIn("<path>", text)
         self.assertIn("<email>", text)
 
+    def test_a_custom_message_is_recorded_as_set_and_never_quoted(self):
+        """The user's own words may say anything; a bug report needs only whether they exist."""
+        self.control.update_settings({"continuation_style": "custom",
+                                      "custom_message": "Private note: meeting at the dentist",
+                                      "custom_message_usage_limit": "Carry on with the invoices"})
+        text = self.bundle_text()
+        for secret in ("dentist", "invoices"):
+            self.assertNotIn(secret, text)
+        settings = json.loads(text)["settings"]
+        self.assertEqual(settings["custom_message"], "<set>")
+        self.assertEqual(settings["custom_message_usage_limit"], "<set>")
+        self.assertIsNone(settings["custom_message_timeout"])
+        self.assertEqual(settings["continuation_style"], "custom")
+
     def test_aliases_are_consistent_inside_one_file(self):
         bundle = json.loads(self.bundle_text())
         record = bundle["records"][0]

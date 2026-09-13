@@ -38,7 +38,10 @@ you can see.
 - Custom text is written only in the Windows Dashboard. It cannot be set from Codex - not
   through `update_settings` and not through the new read-only `preview_recovery_message`
   tool - because text sent automatically into your conversations must not be something a
-  model can be talked into changing.
+  model can be talked into changing. It can be *read* there: the panel shows it, and
+  `get_status` and `open_settings` return it with the other settings, so whatever it says
+  becomes part of that conversation. A diagnostics export records only whether each
+  Custom message is set, never its text.
 - **Changed default:** the continuation used to be one fixed English sentence per kind of
   interruption. It is now the Standard message in the continuation language, which on an
   English system reads almost the same.
