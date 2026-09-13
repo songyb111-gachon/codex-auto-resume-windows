@@ -1,7 +1,9 @@
 """Render the Codex Auto Resume mark: a vector master, PNGs, and a Windows .ico.
 
 Deterministic and standard-library only, so a release build needs no image toolchain and
-produces byte-identical output on any machine.
+draws identical pixels on any machine. The compressed PNG bytes are identical only between
+Pythons built with the same zlib - zlib-ng, for one, deflates the same scanlines differently -
+so `tests/test_brand.py` compares decoded content rather than bytes.
 
 ## The mark
 

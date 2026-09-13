@@ -855,6 +855,37 @@ class WindowsTests(unittest.TestCase):
         finally:
             window.destroy()
 
+    def test_tab_moves_the_focus_space_uses_it_and_escape_closes_the_window(self):
+        # The messages a key press becomes, delivered to the real window procedure.
+        import ctypes
+        user32 = ctypes.WinDLL("user32")
+        user32.SendMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
+        window = self.make()
+        try:
+            window.show(activate=False, origin=(-32000, -32000))
+            self.pump(0.2)
+            self.assertTrue(window.visible)
+            order = popup.focus_order(window._plan["targets"])
+            user32.SendMessageW(window.hwnd, popup.WM_KEYDOWN, popup.VK_TAB, 0)
+            self.assertEqual(window.focus, order[0])
+            self.assertTrue(window.keyboard)
+            user32.SendMessageW(window.hwnd, popup.WM_KEYDOWN, popup.VK_TAB, 0)
+            self.assertEqual(window.focus, order[1])
+            self.assertEqual(order[1][0], "check")
+            user32.SendMessageW(window.hwnd, popup.WM_KEYDOWN, popup.VK_SPACE, 0)
+
+            def switched():
+                return [call for call in window.control.calls
+                        if call[0] == "set_interruption_recovery" and call[1] == order[1][1]]
+            deadline = time.monotonic() + 3
+            while not switched() and time.monotonic() < deadline:
+                self.pump(0.02)
+            self.assertEqual(len(switched()), 1)
+            user32.SendMessageW(window.hwnd, popup.WM_KEYDOWN, popup.VK_ESCAPE, 0)
+            self.assertFalse(window.visible)
+        finally:
+            window.destroy()
+
     def test_the_icon_starts_with_the_popup_wired_and_stops_cleanly(self):
         icon = tray.Tray(icon_path=ROOT / "assets" / "codex-auto-resume.ico", strings=EN,
                          control=FakeControl(self.ROWS))

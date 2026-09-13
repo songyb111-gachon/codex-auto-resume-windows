@@ -90,6 +90,43 @@ class PaletteTests(unittest.TestCase):
         self.assertIn("fill-only", brand.__doc__.lower().replace("fill only", "fill-only"))
 
 
+def png_content(data):
+    """The chunk sequence, header and uncompressed scanlines of a PNG - everything in it
+    except how the scanlines happened to be deflated."""
+    import struct
+    import zlib
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError("not a PNG")
+    tags, header, compressed, pos = [], None, b"", 8
+    while pos < len(data):
+        length, tag = struct.unpack_from(">I4s", data, pos)
+        payload = data[pos + 8:pos + 8 + length]
+        (crc,) = struct.unpack_from(">I", data, pos + 8 + length)
+        if crc != zlib.crc32(tag + payload) & 0xFFFFFFFF:
+            raise ValueError("bad %r chunk checksum" % tag)
+        tags.append(tag)
+        if tag == b"IHDR":
+            header = payload
+        elif tag == b"IDAT":
+            compressed += payload
+        pos += 12 + length
+    return tags, header, zlib.decompress(compressed)
+
+
+def ico_content(data):
+    """An .ico's directory, minus the byte counts and offsets that depend on compression,
+    and the decoded content of every PNG entry."""
+    import struct
+    reserved, kind, count = struct.unpack_from("<HHH", data)
+    entries = []
+    for index in range(count):
+        width, height, colours, spare, planes, bits, length, offset = struct.unpack_from(
+            "<BBBBHHII", data, 6 + 16 * index)
+        entries.append(((width, height, colours, spare, planes, bits),
+                        png_content(data[offset:offset + length])))
+    return (reserved, kind, count), entries
+
+
 class GeneratedFileTests(unittest.TestCase):
     def test_gui_brand_cs_is_current(self):
         self.assertEqual(make_brand.TARGET.read_text(encoding="utf-8"), make_brand.render(),
@@ -102,11 +139,21 @@ class GeneratedFileTests(unittest.TestCase):
 
     def test_icon_matches_its_generator(self):
         # The .ico is committed, so it can go stale against the code that draws it.
-        # Rendering it here is the only way "generated" stays true.
+        # Rendering it here is the only way "generated" stays true. What is compared is
+        # what each entry decodes to, not the compressed bytes, which depend on the zlib
+        # the running Python was built with (zlib-ng deflates the same pixels differently).
         images = [(size, make_icon.png(size, make_icon.render(size))) for size in make_icon.SIZES]
         current = (ROOT / "assets" / "codex-auto-resume.ico").read_bytes()
-        self.assertEqual(current, make_icon.ico(images),
+        self.assertEqual(ico_content(current), ico_content(make_icon.ico(images)),
                          "assets/codex-auto-resume.ico is stale; run python assets/make_icon.py")
+
+    def test_icon_comparison_still_sees_a_changed_pixel(self):
+        # Comparing decoded content must not become comparing nothing.
+        images = [(size, make_icon.png(size, make_icon.render(size))) for size in make_icon.SIZES]
+        pixels = bytearray(make_icon.render(16))
+        pixels[0] ^= 0xFF
+        altered = [(16, make_icon.png(16, bytes(pixels)))] + images[1:]
+        self.assertNotEqual(ico_content(make_icon.ico(images)), ico_content(make_icon.ico(altered)))
 
     def test_the_two_names_for_the_256_icon_agree(self):
         assets = ROOT / "assets"
