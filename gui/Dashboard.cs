@@ -837,29 +837,21 @@ namespace CodexAutoResume
         internal static Color ToneFor(Dictionary<string, object> row)
         {
             if (HasOverlay(row, "paused") || HasOverlay(row, "thread_disabled")) return Palette.Paused;
-            switch (Str(row, "code") ?? "")
-            {
-                case "recovered":
-                case "delivered_legacy": return Palette.Success;
-                case "waiting_reset":
-                case "waiting_usage":
-                case "waiting_thread":
-                case "scheduled": return Palette.Waiting;
-                case "submission_claimed":
-                case "submitted":
-                case "turn_running":
-                case "turn_finishing": return Palette.Accent;
-                case "failed_retryable":
-                case "no_progress":
-                case "exhausted":
-                case "handed_over":
-                case "outcome_unverified":
-                case "submission_unknown":
-                case "withdrawing": return Palette.Warning;
-                case "failed_terminal":
-                case "recovery_failed": return Palette.Danger;
-                default: return Palette.Paused;
-            }
+            // Comparisons rather than a switch, for the reason in Controls.DotColour: a string
+            // switch this long made the in-box compiler emit a randomly named class.
+            string code = Str(row, "code") ?? "";
+            if (code == "recovered" || code == "delivered_legacy") return Palette.Success;
+            if (code == "waiting_reset" || code == "waiting_usage" || code == "waiting_thread" || code == "scheduled")
+                return Palette.Waiting;
+            if (code == "submission_claimed" || code == "submitted" || code == "turn_running" ||
+                code == "turn_finishing")
+                return Palette.Accent;
+            if (code == "failed_retryable" || code == "no_progress" || code == "exhausted" ||
+                code == "handed_over" || code == "outcome_unverified" || code == "submission_unknown" ||
+                code == "withdrawing")
+                return Palette.Warning;
+            if (code == "failed_terminal" || code == "recovery_failed") return Palette.Danger;
+            return Palette.Paused;
         }
 
         private static KeyValuePair<string, int> Col(string name, int width)

@@ -100,6 +100,16 @@ def locate(data: bytes) -> dict:
     tables = streams.get("#~") or streams.get("#-")
     if not tables:
         raise NotNormalisable("no metadata table stream")
+    # A third varying field, which this cannot fix: for a string switch with enough cases, or
+    # a constant array initializer, the compiler emits a class named
+    # "<PrivateImplementationDetails>{GUID}" with a fresh random GUID. Deriving that name from
+    # the content would mean renaming a type, so the image is refused instead - the build
+    # fails where it is made, rather than in the release run that compares two builds.
+    strings = streams.get("#Strings")
+    if strings and b"<PrivateImplementationDetails>{" in data[strings[0]:strings[0] + strings[1]]:
+        raise NotNormalisable(
+            "image contains <PrivateImplementationDetails>{GUID}, a class the compiler names at "
+            "random; rewrite the string switch or constant array initializer that produced it")
 
     # The Module table (0x00) always has exactly one row, and it is always the first
     # table present. Its row is: Generation (u16), Name (string index), Mvid (GUID index),

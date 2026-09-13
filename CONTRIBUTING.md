@@ -110,7 +110,11 @@ relies on:
   module's random MVID. `build/normalize_pe.py` sets the first to a constant and the second
   to a GUID derived from the module's own content, as Roslyn's `/deterministic` does for the
   MVID. It locates both by parsing the PE and CLI metadata, and refuses a file that fails
-  its structural checks, for example one with a debug directory or a PE checksum.
+  its structural checks, for example one with a debug directory or a PE checksum. One
+  construct adds a third varying value that no after-the-fact edit can fix: a string `switch`
+  with enough cases makes the compiler emit a class named `<PrivateImplementationDetails>{GUID}`
+  with a fresh random GUID (measured: six cases did, four did not). The normaliser refuses any
+  executable that holds such a class, so the build fails on the machine that made it.
   `make_gui.ps1` runs it on both executables. The version resource they carry is
   generated from the manifest, so it depends on the source alone.
 - **The archive.** `build/make_release.py` fixes the file order, the entry timestamps and
@@ -124,7 +128,10 @@ relies on:
   `core.autocrlf` says; the repository still stores LF.
 - **Checked, not assumed.** The release workflow builds the executables twice and refuses to
   continue if the digests differ, and `tests/test_reproducible.py` compiles a real program
-  twice with the real compiler and holds the normaliser to the two-field claim.
+  twice with the real compiler and holds the normaliser to the two-field claim. It also
+  compiles a program with a long string `switch` and checks the normaliser refuses it, and
+  holds the window's own source to having no such `switch`. That rule was learned from the
+  first v0.6.3 release run, whose two builds differed and which published nothing.
 
 How far that has been verified: two local builds, and a build from a separate clone,
 produced identical executables; the archive writer reproduced a published archive byte
