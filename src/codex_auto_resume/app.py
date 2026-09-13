@@ -487,10 +487,18 @@ class App:
         icon = home / "codex-auto-resume.ico"
         if not icon.is_file():
             icon = config.PROJECT_ROOT / "assets" / "codex-auto-resume.ico"
+        # The popup's names come through `list_pending`, which asks the same read-only
+        # source the notifications use for a conversation's display name and nothing else.
+        try:
+            names = self.source()
+        except Exception:
+            names = None
         icon_tray = tray.Tray(icon_path=icon, strings=interface.catalog(),
                               on_open=lambda: tray.open_dashboard(home), on_toggle=toggle,
                               on_pending=lambda: tray.open_dashboard(home, "pending"),
                               on_stop=lambda: StopEvent(str(self.paths.state_dir)).signal(),
+                              control=Control(self.paths), pending_source=names,
+                              on_dashboard=lambda: tray.open_dashboard(home, "pending"),
                               log=self.logger.info)
         if not icon_tray.start():
             return None
