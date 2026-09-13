@@ -136,13 +136,19 @@ HALO = {"min_opacity": 0.12, "max_opacity": 0.34, "radius": 9}
 
 
 def css_scale() -> str:
-    """The scale as CSS custom properties, for the panel's stylesheet."""
+    """The scale as CSS custom properties, for the panel's stylesheet.
+
+    The attention pulse is `--pulse`, not `--attention`: the palette already emits
+    `--attention` as a colour on the same `:root`, and two custom properties with one name
+    do not raise anything - the later declaration wins, the dark theme re-declares the
+    colour, and an animation handed a colour for its duration simply does not run.
+    """
     parts = []
     for prefix, table in (("radius", RADII), ("space", SPACING), ("type", TYPE)):
         for name, value in table.items():
             parts.append("--%s-%s: %spx;" % (prefix, name, value))
     parts.append("--breathe: %dms;" % MOTION["breathe_ms"])
-    parts.append("--attention: %dms;" % MOTION["attention_ms"])
+    parts.append("--pulse: %dms;" % MOTION["attention_ms"])
     parts.append("--transition: %dms;" % MOTION["transition_ms"])
     parts.append("--halo-min: %s;" % HALO["min_opacity"])
     parts.append("--halo-max: %s;" % HALO["max_opacity"])
