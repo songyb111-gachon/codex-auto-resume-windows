@@ -8,6 +8,10 @@ action it offers goes through the same control layer as every other interface.
 It decides nothing. It shows what the last tick found - paused or not, how many
 recoveries are waiting, when the next one is due - and counts that time down locally.
 Reaching zero only means the watcher looks again; nothing is sent because of it.
+
+Since v0.6.3 a single click opens the mini-dashboard beside the icon (`tray_popup.py`),
+the right-click menu is what it always was, and the icon wears a small badge for the
+state it is in. The popup lives on this thread too, so it is gone when the icon is.
 """
 from __future__ import annotations
 
@@ -28,10 +32,16 @@ WM_LBUTTONUP = 0x0202
 WM_LBUTTONDBLCLK = 0x0203
 WM_RBUTTONUP = 0x0205
 WM_CONTEXTMENU = 0x007B
+WM_USER = 0x0400
 WM_APP = 0x8000
 CALLBACK = WM_APP + 1
-NIM_ADD, NIM_MODIFY, NIM_DELETE = 0, 1, 2
-NIF_MESSAGE, NIF_ICON, NIF_TIP = 0x1, 0x2, 0x4
+# With NOTIFYICON_VERSION_4 the shell reports a click or Enter on the icon as a select,
+# and a right click or the menu key as WM_CONTEXTMENU, instead of raw mouse messages.
+NIN_SELECT = WM_USER + 0
+NIN_KEYSELECT = WM_USER + 1
+NIM_ADD, NIM_MODIFY, NIM_DELETE, NIM_SETVERSION = 0, 1, 2, 4
+NOTIFYICON_VERSION_4 = 4
+NIF_MESSAGE, NIF_ICON, NIF_TIP, NIF_SHOWTIP = 0x1, 0x2, 0x4, 0x80
 MF_STRING, MF_GRAYED, MF_SEPARATOR = 0x0, 0x1, 0x800
 TPM_RIGHTBUTTON, TPM_RETURNCMD, TPM_NONOTIFY = 0x2, 0x100, 0x80
 IMAGE_ICON, LR_LOADFROMFILE = 1, 0x10
@@ -45,7 +55,8 @@ TIP_CHARS = 128
 # name the conversation an action is about - which is how the window's confirmations stop
 # somebody cancelling the wrong task. The safe half of the same need is a route: Pending
 # opens the window on the page where those actions live, with their identities and their
-# confirmations intact.
+# confirmations intact. (The popup's per-task switch is the other half: it names the
+# conversation beside the switch, and it is bound to that row's exact identities.)
 MENU_OPEN, MENU_TOGGLE, MENU_STOP, MENU_PENDING = 1, 2, 3, 4
 _DLLS = {}
 
@@ -124,15 +135,21 @@ def tooltip(snapshot: dict, strings: dict, now: float) -> str:
 
 
 class Tray:
-    """One icon, one hidden window, one thread."""
+    """One icon, one hidden window, one thread - and, once clicked, one popup on it."""
 
     def __init__(self, *, icon_path=None, strings=None, on_open=None, on_toggle=None, on_stop=None,
-                 on_pending=None, log=None):
+                 on_pending=None, log=None, control=None, pending_source=None, on_dashboard=None):
         self.icon_path = Path(icon_path) if icon_path else None
         self.strings = strings or {}
         self.on_open, self.on_toggle, self.on_stop = on_open, on_toggle, on_stop
         self.on_pending = on_pending
         self.log = log or (lambda *args: None)
+        # The popup's only way to act: the shared control layer, plus the read-only source
+        # `list_pending` uses to attach conversation names. Without a control there is no
+        # popup, and a double click opens the Dashboard as it did before v0.6.3.
+        self.control = control
+        self.pending_source = pending_source
+        self.on_dashboard = on_dashboard
         self._snapshot = {}
         self._lock = threading.Lock()
         self._thread = None
@@ -140,9 +157,16 @@ class Tray:
         self._ready = threading.Event()
         self._proc = None           # keeps the callback alive for the window's life
         self._icon = None
+        self._icon_owned = False
+        self._badge = None          # the badged copy currently shown, if any
+        self._badge_token = None
+        self._shown_icon = None
         self._last_tip = None
         self._taskbar_created = None
         self._class_name = None
+        self._version4 = False
+        self._popup = None
+        self._popup_failed = False
 
     # ----------------------------------------------------------------- public
     def start(self) -> bool:
@@ -163,6 +187,9 @@ class Tray:
             # Forget the last tooltip so the next tick rewrites it even if the numbers in
             # it have not moved.
             self._last_tip = None
+        popup = self._popup
+        if popup is not None:
+            popup.set_strings(strings)
 
     def stop(self) -> None:
         if self._hwnd:
@@ -199,6 +226,7 @@ class Tray:
         user32.LoadImageW.argtypes = [W.HINSTANCE, W.LPCWSTR, W.UINT, C.c_int, C.c_int, W.UINT]
         user32.LoadIconW.restype = W.HICON
         user32.LoadIconW.argtypes = [W.HINSTANCE, W.LPVOID]
+        user32.DestroyIcon.argtypes = [W.HICON]
         user32.PostMessageW.argtypes = [W.HWND, W.UINT, W.WPARAM, W.LPARAM]
         user32.TrackPopupMenu.argtypes = [W.HMENU, W.UINT, C.c_int, C.c_int, C.c_int, W.HWND, W.LPVOID]
         user32.AppendMenuW.argtypes = [W.HMENU, W.UINT, C.c_size_t, W.LPCWSTR]
@@ -229,7 +257,9 @@ class Tray:
             raise OSError("CreateWindowExW")
         self._taskbar_created = user32.RegisterWindowMessageW("TaskbarCreated")
         self._icon = self._load_icon()
+        self._shown_icon = self._icon
         self._notify(NIM_ADD)
+        self._set_version()
         user32.SetTimer(self._hwnd, 1, 1000, None)
 
     def _load_icon(self):
@@ -238,7 +268,9 @@ class Tray:
         if self.icon_path and self.icon_path.is_file():
             handle = user32.LoadImageW(None, str(self.icon_path), IMAGE_ICON, width, height, LR_LOADFROMFILE)
             if handle:
+                self._icon_owned = True
                 return handle
+        self._icon_owned = False            # a shared system icon is never destroyed
         return user32.LoadIconW(None, C.c_void_p(IDI_APPLICATION))
 
     def _data(self, flags):
@@ -248,23 +280,55 @@ class Tray:
         data.uID = 1
         data.uFlags = flags
         data.uCallbackMessage = CALLBACK
-        data.hIcon = self._icon
+        data.hIcon = self._shown_icon or self._icon
         with self._lock:
             snapshot = dict(self._snapshot)
         data.szTip = tooltip(snapshot, self.strings, time.time())
         return data
 
     def _notify(self, action):
-        data = self._data(NIF_MESSAGE | NIF_ICON | NIF_TIP)
+        # NIF_SHOWTIP: under version 4 the shell hides the standard tooltip unless asked.
+        data = self._data(NIF_MESSAGE | NIF_ICON | NIF_TIP | NIF_SHOWTIP)
         self._last_tip = data.szTip
         return _dll("shell32").Shell_NotifyIconW(action, C.byref(data))
+
+    def _set_version(self):
+        data = NOTIFYICONDATAW()
+        data.cbSize = C.sizeof(NOTIFYICONDATAW)
+        data.hWnd = self._hwnd
+        data.uID = 1
+        data.uVersion = NOTIFYICON_VERSION_4
+        self._version4 = bool(_dll("shell32").Shell_NotifyIconW(NIM_SETVERSION, C.byref(data)))
 
     def _refresh(self):
         with self._lock:
             snapshot = dict(self._snapshot)
         text = tooltip(snapshot, self.strings, time.time())
-        if text != self._last_tip:
+        changed, replaced = self._badge_for(snapshot)
+        if text != self._last_tip or changed:
             self._notify(NIM_MODIFY)
+        if replaced:
+            _dll("user32").DestroyIcon(replaced)        # only after the shell holds the new one
+
+    def _badge_for(self, snapshot):
+        """Swap the badge when the state it shows changed. Returns (changed, icon to destroy)."""
+        if not self._icon:
+            return False, None
+        try:
+            from . import tray_popup
+            attention = bool(self._popup is not None and self._popup.attention())
+            token = tray_popup.BADGE.get(tray_popup.snapshot_activity(snapshot, time.time(),
+                                                                      attention=attention))
+            if token == self._badge_token:
+                return False, None
+            badge = tray_popup.badge_icon(self._icon, token) if token else None
+            replaced, self._badge = self._badge, badge
+            self._badge_token = token
+            self._shown_icon = badge or self._icon
+            return True, replaced
+        except Exception as exc:
+            self.log("tray badge failed (%s)" % type(exc).__name__)
+            return False, None
 
     def _menu(self):
         user32 = _dll("user32")
@@ -312,32 +376,109 @@ class Tray:
         except Exception as exc:
             self.log("tray action failed (%s)" % type(exc).__name__)
 
+    # ----------------------------------------------------------------- popup
+    def _popup_for_click(self):
+        if self.control is None or self._popup_failed:
+            return None
+        if self._popup is None:
+            from . import tray_popup
+            with self._lock:
+                strings = dict(self.strings)
+            self._popup = tray_popup.Popup(control=self.control, source=self.pending_source,
+                                           strings=strings, on_dashboard=self.on_dashboard,
+                                           log=self.log,
+                                           anchor=lambda: tray_popup.icon_rect(self._hwnd, 1))
+        return self._popup
+
+    def _popup_broke(self, exc):
+        self.log("tray popup unavailable (%s)" % type(exc).__name__)
+        self._popup_failed = True
+        popup, self._popup = self._popup, None
+        if popup is not None:
+            try:
+                popup.destroy()
+            except Exception:
+                pass
+
+    def _select(self, keyboard=False):
+        popup = self._popup_for_click()
+        if popup is None:
+            return
+        try:
+            popup.on_select(keyboard=keyboard)
+        except Exception as exc:
+            self._popup_broke(exc)
+
+    def _double_click(self):
+        popup = self._popup_for_click()
+        if popup is None:
+            if self.on_open:
+                self._act(MENU_OPEN, False)
+            return
+        try:
+            popup.on_double_click()
+        except Exception as exc:
+            self._popup_broke(exc)
+
+    def _hide_popup(self):
+        if self._popup is not None:
+            try:
+                self._popup.hide()
+            except Exception as exc:
+                self._popup_broke(exc)
+
     def _wndproc(self, hwnd, message, wparam, lparam):
         user32 = _dll("user32")
         try:
             if message == CALLBACK:
                 event = lparam & 0xFFFF
-                if event in (WM_RBUTTONUP, WM_CONTEXTMENU):
-                    self._menu()
-                elif event in (WM_LBUTTONDBLCLK,) and self.on_open:
-                    self._act(MENU_OPEN, False)
+                if self._version4:
+                    if event in (NIN_SELECT, NIN_KEYSELECT):
+                        self._select(keyboard=event == NIN_KEYSELECT)
+                    elif event == WM_LBUTTONDBLCLK:
+                        self._double_click()
+                    elif event == WM_CONTEXTMENU:
+                        self._hide_popup()
+                        self._menu()
+                else:
+                    if event in (WM_RBUTTONUP, WM_CONTEXTMENU):
+                        self._hide_popup()
+                        self._menu()
+                    elif event == WM_LBUTTONUP:
+                        self._select()
+                    elif event == WM_LBUTTONDBLCLK:
+                        self._double_click()
                 return 0
             if message == WM_TIMER:
                 self._refresh()
                 return 0
             if self._taskbar_created and message == self._taskbar_created:
+                self._hide_popup()
                 self._notify(NIM_ADD)
+                self._set_version()
                 return 0
             if message == WM_CLOSE:
                 user32.DestroyWindow(hwnd)
                 return 0
             if message == WM_DESTROY:
                 user32.KillTimer(hwnd, 1)
+                popup, self._popup = self._popup, None
+                if popup is not None:
+                    try:
+                        popup.destroy()
+                    except Exception as exc:
+                        self.log("tray popup cleanup failed (%s)" % type(exc).__name__)
                 data = NOTIFYICONDATAW()
                 data.cbSize = C.sizeof(NOTIFYICONDATAW)
                 data.hWnd = hwnd
                 data.uID = 1
                 _dll("shell32").Shell_NotifyIconW(NIM_DELETE, C.byref(data))
+                if self._badge:
+                    user32.DestroyIcon(self._badge)
+                    self._badge = None
+                if self._icon and self._icon_owned:
+                    user32.DestroyIcon(self._icon)
+                self._icon = self._shown_icon = None
                 user32.PostQuitMessage(0)
                 return 0
         except Exception as exc:
