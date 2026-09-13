@@ -247,9 +247,13 @@ believing they changed something.
 
 What `update_settings` can change: which classified failure categories are recovered, how many
 attempts each interruption gets, how many continuations one task gets in total (six by default,
-one to ten), when to stop after repeated no-progress recoveries, the retry timing preset, and
-which notifications appear. The notification-area icon is the one setting the window has and
-`update_settings` does not offer.
+one to ten), when to stop after repeated no-progress recoveries, the retry timing preset, which
+notifications appear, the interface language, the continuation language, the message style
+(Minimal, Standard, Detailed or Custom), and whether a Custom message is one message for every
+interruption or one per kind. The window has three things `update_settings` does not offer: the
+notification-area icon, Reduce motion, and the Custom message text itself. If the user wants to
+change what a Custom message says, tell them it is written in the Dashboard, under Settings >
+Continuation message.
 
 What cannot, and is not an oversight: there is no setting that retries an unclassified failure,
 resolves a conversation by title, resends an uncertain submission, or forces a send. If the user
@@ -258,9 +262,10 @@ asks for one, say plainly that it does not exist by design and do not look for a
 ## Notifications
 
 Windows notifications cover the lifecycle: an interruption is detected, recovery starts, how it
-turned out, and when recovery stops for good. The first one carries a **Don't resume** button;
-doing nothing resumes, which is the default. Each event has its own switch, and there is a master
-switch for all of them.
+turned out, and when recovery stops for good. The first one carries a **Don't resume** button
+(**Don't retry** for a temporary failure) and an **Open Dashboard** button, which only opens the
+Dashboard's Pending page; doing nothing resumes, which is the default. Each event has its own
+switch, and there is a master switch for all of them.
 
 Turning notifications off changes nothing about whether a task is recovered - say so, because
 people reasonably assume otherwise.
@@ -268,9 +273,13 @@ people reasonably assume otherwise.
 While the watcher runs there is an icon in the notification area. It belongs to the watcher
 process, so it cannot show a watcher that is not there. Hovering over it says whether recovery
 is paused, how many recoveries are waiting and how many are running in Codex, and how long
-until the next check - which is when the watcher looks again, not when anything is sent. Its
-menu opens the window, pauses or resumes recovery, and stops the watcher. It is on by default
-and can be switched off in that window's Settings page.
+until the next check - which is when the watcher looks again, not when anything is sent. A
+single click opens a small popup beside it with the same state, the next check, up to three
+waiting tasks - each with a check box that switches automatic recovery off or on for that
+task's conversation, refused if the task has since finished or changed - Pause or Resume, and
+Open Dashboard. Its right-click menu opens the window, pauses or resumes recovery, and stops
+the watcher. Nothing in the popup or the menu sends a continuation. It is on by default and can
+be switched off in that window's Settings page.
 
 Do not offer to build any other interface. There is no checkbox inside the Codex usage-limit
 notice and none can be added through the Codex plugin API; see

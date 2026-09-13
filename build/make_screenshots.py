@@ -98,6 +98,19 @@ WINDOW_INPUTS = (
     # carries and which public status it shows are decided by the control layer and the
     # state machine.
     "src/codex_auto_resume/interface.py",
+    "src/codex_auto_resume/l10n.py",
+    "src/codex_auto_resume/locales/en.json",
+    "src/codex_auto_resume/locales/ko.json",
+    "src/codex_auto_resume/locales/ja.json",
+    "src/codex_auto_resume/locales/zh-CN.json",
+    "src/codex_auto_resume/locales/zh-TW.json",
+    "src/codex_auto_resume/locales/es.json",
+    "src/codex_auto_resume/locales/de.json",
+    "src/codex_auto_resume/locales/fr.json",
+    "src/codex_auto_resume/locales/pt-BR.json",
+    # The Settings page's Preview is the continuation the watcher would send.
+    "src/codex_auto_resume/continuation.py",
+    "src/codex_auto_resume/reasons.py",
     "src/codex_auto_resume/control.py",
     "src/codex_auto_resume/machine.py",
     # The Dashboard computes its figures from the local records rather than reading them
@@ -171,7 +184,10 @@ def sample_panel_data() -> dict:
     The version is not written here either. It arrives through `get_status()`, from the
     manifest, like every other current-facing surface.
     """
+    from unittest.mock import patch
+
     from codex_auto_resume import control as control_module
+    from codex_auto_resume import l10n, reasons
     from codex_auto_resume.store import Store
 
     # The panel shows a conversation by its first segment, so three ids from the same
@@ -190,6 +206,9 @@ def sample_panel_data() -> dict:
         paths = config.Paths(Path(name))
         paths.ensure()
         with Store(paths.state_dir) as store:
+            # On, as in the picture's headline: a scratch store starts paused, and every row
+            # would otherwise carry a "paused" chip under a headline saying recovery is on.
+            store.set_enabled(True, 90.0)
             for index, (thread, category) in enumerate(zip(threads, categories)):
                 store.register({
                     "thread_id": thread,
@@ -199,8 +218,11 @@ def sample_panel_data() -> dict:
                     "reset_at": 150.0 + index * 600, "limit_type": "codex.primary",
                     "uncertain": False, "category": category}, 100.0 + index)
         surface = control_module.Control(paths)
-        waiting = surface.list_pending()
-        status = surface.get_status()
+        # A watcher is running in the picture, so the rows are described as they are when
+        # one is - without "watcher not running" beside a headline that says it is.
+        with patch.object(control_module.Control, "watcher_running", return_value=True):
+            waiting = surface.list_pending()
+            status = surface.get_status()
     # A name is what a person recognises the work by. It reaches a real row from the
     # identity the watcher recorded, which a scratch store has no way to have; without it
     # the panel falls back to the first segment of the thread id and the picture shows a
@@ -213,8 +235,12 @@ def sample_panel_data() -> dict:
     status["watcher_running"] = True
     status["startup_enabled"] = True
     status["home"] = r"%USERPROFILE%\.codex-auto-resume"
+    # The rest of what `open_settings` returns, so the language choices and the Preview are
+    # drawn the way Codex draws them. The system language is pinned to the page's own.
     return {"status": status, "schema": policy.describe(),
-            "settings": policy.defaults(), "pending": waiting}
+            "settings": policy.defaults(), "pending": waiting,
+            "reasons": list(reasons.RECOVERABLE), "endonyms": dict(l10n.ENDONYMS),
+            "system_language": l10n.current()}
 
 
 # The Dashboard's sample: four conversations, from the same fixture family as the panel's.
@@ -386,8 +412,29 @@ def render_panel(target: Path) -> None:
 #
 # So the preview is given the one thing Codex gives it. Nothing here is drawn by the
 # stub: the markup, the styles and every string are still the resource Codex is served.
-PREVIEW_HOST = ("<script>window.openai={callTool:function(){"
-                "return new Promise(function(){});}};</script>")
+#
+# Its one answer is the Preview: `preview_recovery_message` returns what the real tool
+# returns for the default settings, computed by the same function, so the Continuation
+# message card shows real text rather than a spinner. Every other call never settles.
+def preview_host() -> str:
+    from codex_auto_resume import continuation, reasons
+    values = policy.defaults()
+    previews = {}
+    for category in reasons.RECOVERABLE:
+        # No reset time: a clock time would be this machine's, and the page's digest has to
+        # be the same on every machine.
+        text = continuation.for_settings(category, values,
+                                         row={"category": category, "attempt_count": 0})
+        previews[category] = {"category": category,
+                              "locale": continuation.resolve_locale(values),
+                              "style": continuation.style_from(values),
+                              "source": continuation.source_for(category, values),
+                              "text": text, "refusal": None}
+    return ("<script>window.__CAR_PREVIEWS__=%s;window.openai={callTool:function(name,args){"
+            "if(name==='preview_recovery_message'&&args&&window.__CAR_PREVIEWS__[args.category])"
+            "{return Promise.resolve({structuredContent:{preview:window.__CAR_PREVIEWS__[args.category]}});}"
+            "return new Promise(function(){});}};</script>"
+            % json.dumps(previews, ensure_ascii=False).replace("<", "\\u003c"))
 
 
 def panel_html(theme=None) -> str:
@@ -395,7 +442,69 @@ def panel_html(theme=None) -> str:
     page = mcpui.settings_page(sample_panel_data(), theme=theme)
     # Before the panel's own script, which reads the host as it starts.
     head, _, tail = page.rpartition("<script>")
-    return head + PREVIEW_HOST + "<script>" + tail
+    return head + preview_host() + "<script>" + tail
+
+
+# ------------------------------------------------------------------ tray popup
+# The notification-area popup, drawn by its own renderer into memory at a fixed scale and
+# written out, so the picture is the same pixels whatever display it is made on. The rows
+# are the Dashboard sample's conversations, at a fixed moment, so the countdowns read the
+# same every time.
+POPUP_SCALE = 2.0
+POPUP_NOW = 1_800_000_000.0
+POPUP_STATUS = {"enabled": True, "watcher_running": True,
+                "watcher": {"running": True, "ticking": True, "engine_state": "verified"}}
+
+
+def popup_rows() -> list:
+    def row(index, state, category, eligible, reset, enabled=True):
+        return {"interruption_id": ("%x" % index) * 64, "thread_id": WINDOW_THREADS[index - 1],
+                "state": state, "category": category, "eligible_at": eligible,
+                "reset_at": reset, "next_retry_at": eligible, "thread_enabled": enabled,
+                "name": WINDOW_NAMES[index - 1], "overlays": [],
+                "detected_at": POPUP_NOW - 600 + index}
+    return [row(1, "waiting_reset", "usage_limit", POPUP_NOW + 2540, POPUP_NOW + 2540),
+            row(2, "waiting_retry", "network_transient", POPUP_NOW + 95, None),
+            row(3, "waiting_backoff", "server_5xx", POPUP_NOW + 610, None, enabled=False)]
+
+
+def popup_view(locale: str):
+    from codex_auto_resume import interface, tray_popup
+    strings = interface.STRINGS[locale]
+    model = tray_popup.PopupModel(strings)
+    model.apply_outcome(("read",), ("ok", {"rows": popup_rows(), "status": POPUP_STATUS}), POPUP_NOW)
+    return strings, model.view(POPUP_NOW)
+
+
+def write_png(path: Path, width: int, height: int, bgra: bytes) -> None:
+    import zlib
+    raw = bytearray()
+    for y in range(height):
+        raw.append(0)
+        line = bgra[y * width * 4:(y + 1) * width * 4]
+        for x in range(width):
+            raw += bytes((line[x * 4 + 2], line[x * 4 + 1], line[x * 4], 255))
+
+    def chunk(kind, data):
+        return (struct.pack(">I", len(data)) + kind + data
+                + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF))
+
+    path.write_bytes(b"\x89PNG\r\n\x1a\n"
+                     + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
+                     + chunk(b"IDAT", zlib.compress(bytes(raw), 9)) + chunk(b"IEND", b""))
+
+
+def render_popup(target: Path, locale: str) -> None:
+    from codex_auto_resume import tray_popup
+    strings, view = popup_view(locale)
+    renderer = tray_popup.Renderer()
+    try:
+        plan = renderer.layout(view, POPUP_SCALE, tray_popup.locale_of(strings))
+        canvas = renderer.draw(view, plan, frame=tray_popup.halo(view["state"], 600, 5000))
+        width, height = plan["size"]
+        write_png(target, width, height, canvas.pixels())
+    finally:
+        renderer.close()
 
 
 def scratch_installation(workspace: Path) -> Path:
@@ -498,7 +607,10 @@ def render_window(targets: dict) -> dict:
                     ["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy",
                      "Bypass", "-File", str(ROOT / "build" / "capture_window.ps1"),
                      "-Exe", str(home / "CodexAutoResumeSettings.exe"),
-                     "-Out", str(target), "-Wait", "8", "-Arguments", "--page=" + page],
+                     "-Out", str(target), "-Wait", "15", "-Arguments",
+                     # The Settings page opens on the section with the most to show.
+                     "--page=settings --section=continuation" if page == "settings"
+                     else "--page=" + page],
                     check=True, capture_output=True, timeout=300, env=environment)
         finally:
             holder.kill()
@@ -531,12 +643,18 @@ def render_inputs() -> dict:
     # an English CI runner recomputed the English one and called the screenshots stale.
     # It is the same failure as hashing raw bytes for a file whose line endings the
     # checkout decides - the input has to be pinned, not observed.
-    for locale in LOCALES:
+    for locale in LOCALES + EXTRA_LOCALES:
         previous = os.environ.get(messages.ENV_LANG)
         os.environ[messages.ENV_LANG] = locale
         try:
             inputs["<panel render:%s>" % locale] = sha256(
                 panel_html(theme=THEME).encode("utf-8"))
+            # The popup's pixels depend on the view it draws and on the code that draws it.
+            _strings, view = popup_view(locale)
+            inputs["<popup render:%s>" % locale] = sha256(
+                (json.dumps(view, sort_keys=True, default=str)
+                 + input_digest(ROOT / "src" / "codex_auto_resume" / "tray_popup.py")
+                 + input_digest(ROOT / "src" / "codex_auto_resume" / "brand.py")).encode("utf-8"))
         finally:
             if previous is None:
                 os.environ.pop(messages.ENV_LANG, None)
@@ -592,6 +710,11 @@ def system_dpi() -> int:
 # build on a machine in light mode.
 THEME = "light"
 LOCALES = ("en", "ko")
+# Three more languages, documentation only: the Dashboard's main pages, the panel and the
+# popup, so the translations are seen rendered at all. They are not copied into assets/,
+# which ships in the release, and no README embeds them.
+EXTRA_LOCALES = ("ja", "zh-CN", "de")
+EXTRA_PAGES = ("overview", "pending", "settings")
 
 
 # Canonical asset name and documentation copy name, per picture. The settings page keeps
@@ -645,6 +768,23 @@ def main(argv=None) -> int:
         for page, size in render_window(targets).items():
             print("  %s  %s" % (targets[page].relative_to(ROOT), size))
         copies.update(pairs)
+    extras = []
+    for locale in LOCALES + EXTRA_LOCALES:
+        os.environ[messages.ENV_LANG] = locale
+        tag = "" if locale == "en" else "-" + locale
+        popup = DOCS / ("tray-popup%s.png" % tag)
+        render_popup(popup, locale)
+        extras.append(popup)
+        print("  %s  %s" % (popup.relative_to(ROOT), dimensions(popup)))
+        if locale in EXTRA_LOCALES:
+            panel = DOCS / ("settings-panel%s.png" % tag)
+            render_panel(panel)
+            extras.append(panel)
+            targets = {page: DOCS / ("%s%s.png" % (WINDOW_NAMES_BY_PAGE[page][1], tag))
+                       for page in EXTRA_PAGES}
+            for page, size in render_window(targets).items():
+                print("  %s  %s" % (targets[page].relative_to(ROOT), size))
+            extras.extend(targets.values())
     os.environ.pop(messages.ENV_LANG, None)
 
     for source, copy in copies.items():
@@ -661,11 +801,12 @@ def main(argv=None) -> int:
         "version": config.version(),
         "theme": THEME,
         "locales": list(LOCALES),
+        "documentation_locales": list(EXTRA_LOCALES),
         "system_dpi": system_dpi(),
         "inputs": render_inputs(),
         "images": {str(path.relative_to(ROOT)).replace("\\", "/"):
                    {"sha256": sha256(path.read_bytes()), "size": dimensions(path)}
-                   for path in list(copies) + list(copies.values())},
+                   for path in list(copies) + list(copies.values()) + extras},
     }, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print("manifest       : %s" % MANIFEST.relative_to(ROOT))
     return 0
