@@ -883,5 +883,22 @@ class WindowsTests(unittest.TestCase):
         self.assertLessEqual(after[1] - before[1], 2, "USER objects grew from %d to %d" % (before[1], after[1]))
 
 
+class ReduceMotionSettingTests(unittest.TestCase):
+    """The product's own Reduce motion setting stops the popup's motion, whatever Windows says."""
+
+    def tearDown(self):
+        popup.set_reduce_motion(False)
+
+    def test_the_setting_wins_over_windows(self):
+        popup.set_reduce_motion(True)
+        self.assertTrue(popup.reduced_motion())
+
+    def test_only_true_turns_it_on(self):
+        for value in (False, None, "true", 1):
+            with self.subTest(value=value):
+                popup.set_reduce_motion(value)
+                self.assertIs(popup._reduce_motion_setting, False)
+
+
 if __name__ == "__main__":
     unittest.main()

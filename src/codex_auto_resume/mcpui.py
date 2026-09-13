@@ -759,9 +759,9 @@ function segmented(entry, onChange) {
 // pass, and nothing here can say when that is.
 function nextCheck(row) {
   var at = row.eligible_at;
-  if (at === null || at === undefined) return t('panel.next_unknown', 'when it can be told');
+  if (at === null || at === undefined) return t('panel.next_unknown', 'not known yet');
   var when = new Date(at * 1000);
-  if (isNaN(when.getTime())) return t('panel.next_unknown', 'when it can be told');
+  if (isNaN(when.getTime())) return t('panel.next_unknown', 'not known yet');
   if (when.getTime() <= Date.now()) return t('panel.due', 'due now');
   // The clock, written the way the continuation writes a reset time. Not the browser's
   // own format: that speaks the browser's language, and put "오전 02:48" into an English

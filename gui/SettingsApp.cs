@@ -1017,7 +1017,7 @@ namespace CodexAutoResume
             // Automatic recovery: which kinds of interruption may be recovered at all.
             TableLayoutPanel recovery = NewGroup(S("group.recovery", "Automatic recovery"), sections["recovery"]);
             recovery.Controls.Add(HelpText(S("help.recovery",
-                "Only kinds of failure the product can recognise are ever recovered. Turning one off stops it; turning one on cannot make an unknown failure recoverable.")));
+                "Only kinds of failure the product can recognize are ever recovered. Turning one off stops it; turning one on cannot make an unknown failure recoverable.")));
 
             // Continuation message: its language and style, the Custom text, and the Preview.
             TableLayoutPanel words = NewGroup(S("group.continuation", "Continuation message"), sections["continuation"]);
@@ -1075,7 +1075,7 @@ namespace CodexAutoResume
                     editors[name] = check;
                     if (name == "reduce_motion")
                         host.Controls.Add(HelpText(S("help.reduce_motion",
-                            "Stops the breathing and pulsing status animations in this window and the notification-area popup.")));
+                            "Stops the breathing and pulsing status animations in this window and the notification-area popup. Windows' own Animation effects setting is always honoured as well.")));
                 }
                 else if (type == "integer")
                 {
