@@ -56,13 +56,13 @@ HOSTILE = {
 }
 
 
-def run_bridge(script: str, extra_env=None) -> subprocess.CompletedProcess:
+def run_bridge(script: str, extra_env=None, stdin=None) -> subprocess.CompletedProcess:
     """Run a snippet against the real module, with a hostile ambient encoding."""
     env = dict(os.environ)
     env.update(HOSTILE)
     env["PYTHONPATH"] = str(ROOT / "src")
     env.update(extra_env or {})
-    return subprocess.run([sys.executable, "-c", script],
+    return subprocess.run([sys.executable, "-c", script], input=stdin,
                           capture_output=True, env=env, cwd=str(ROOT), timeout=120)
 
 
@@ -103,6 +103,21 @@ class WireEncodingTests(unittest.TestCase):
         from codex_auto_resume import interface
         self.assertEqual(payload["strings"], interface.STRINGS["ko"],
                          "the catalog did not survive the wire intact")
+
+    def test_an_argument_on_stdin_is_read_as_utf8_whatever_the_code_page_says(self):
+        """The window's one-shot bridge sends its argument on stdin, and a Custom message can be
+        in any script. Read in the ambient code page, it would be stored as mojibake."""
+        import tempfile
+        message = " ".join(SAMPLES.values())
+        with tempfile.TemporaryDirectory() as home:
+            script = ("import sys;"
+                      "from codex_auto_resume.controlcli import main;"
+                      "sys.exit(main(['--home', %r, 'update', '-']))" % home)
+            argument = json.dumps({"custom_message": message}, ensure_ascii=False).encode("utf-8")
+            result = run_bridge(script, stdin=argument)
+        self.assertEqual(result.returncode, 0, result.stderr.decode("utf-8", "replace"))
+        payload = json.loads(result.stdout.decode("utf-8"))
+        self.assertEqual(payload["settings"]["custom_message"], message)
 
     def test_the_window_and_the_panel_agree_on_the_encoding(self):
         """Both callers redirect these streams; only one of them used to say so."""

@@ -791,16 +791,19 @@ namespace CodexAutoResume
             var cell = new Rectangle(e.Bounds.X + Px(10), e.Bounds.Y, Math.Max(0, e.Bounds.Width - Px(14)), e.Bounds.Height);
             string text = e.SubItem == null ? "" : e.SubItem.Text;
             Color ink = Palette.Contrast && selected ? SystemColors.HighlightText : Ink;
+            // The quieter columns and the focus mark too: in High Contrast a selected row is
+            // Highlight, and anything mixed away from HighlightText fell to about 2.4:1 on it.
+            Color quiet = Palette.Contrast && selected ? ink : Soft.Mix(ink, Secondary, 0.4);
             if (e.ColumnIndex == 1 && row != null)
                 Soft.Chip(e.Graphics, cell, text, list.Font, Palette.Contrast && selected ? ink : ToneFor(row), back);
             else if (list == pendingList && e.ColumnIndex == ResumeColumn && row != null)
                 DrawResumeBox(e.Graphics, cell, ThreadOn(row));
             else
-                TextRenderer.DrawText(e.Graphics, text, list.Font, cell, e.ColumnIndex == 0 ? ink : Soft.Mix(ink, Secondary, 0.4),
+                TextRenderer.DrawText(e.Graphics, text, list.Font, cell, e.ColumnIndex == 0 ? ink : quiet,
                                       TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
                                       TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
             if (e.ColumnIndex == 0 && selected && list.Focused)
-                using (var pen = new Pen(Palette.Focus, Soft.PxF(2)))
+                using (var pen = new Pen(Palette.Contrast ? ink : Palette.Focus, Soft.PxF(2)))
                     e.Graphics.DrawLine(pen, e.Item.Bounds.Left + Px(2), e.Item.Bounds.Top + Px(6),
                                         e.Item.Bounds.Left + Px(2), e.Item.Bounds.Bottom - Px(6));
         }
@@ -1020,12 +1023,15 @@ namespace CodexAutoResume
                 ShowExplain();
                 UpdatePendingButtons();
             };
-            // The Auto-resume column is a check box for exactly the task on its row. A click on
-            // it, or Space on the chosen row, switches it. The request carries that row's
+            // The Auto-resume column is a check box for exactly the task on its row. A left click
+            // on it, or Space on the chosen row, switches it. The request carries that row's
             // interruption and conversation ids, and the control layer refuses it if the record
             // has since finished, gone, or turned out to belong to another conversation.
             pendingList.MouseClick += delegate(object sender, MouseEventArgs e)
             {
+                // A ListView raises MouseClick for the right button as well, and turning recovery
+                // off asks nothing, so a right-click on the box switched a conversation off.
+                if (e.Button != MouseButtons.Left) return;
                 ListViewHitTestInfo hit = pendingList.HitTest(e.Location);
                 if (hit.Item == null || hit.SubItem == null) return;
                 if (hit.Item.SubItems.IndexOf(hit.SubItem) != ResumeColumn) return;
@@ -1674,16 +1680,21 @@ namespace CodexAutoResume
         private void UpdateCountdowns()
         {
             if (snapshot == null) return;
-            if (snapshot.ContainsKey("pending_error"))
+            double now = Now();
+            var status = Map(snapshot, "status");
+            bool unreadable = snapshot.ContainsKey("pending_error");
+            var pending = unreadable ? null : Items(snapshot, "pending");
+            // The one place a snapshot decides the header dot (ApplyStatus leaves it alone once
+            // there is one), and every second, so a task that has just come due shows the watcher
+            // checking. Before an unreadable list returns, which leaves Activity the status alone.
+            stateDot.State = Activity(status, pending, now);
+            if (unreadable)
             {
                 waitingLine.Text = pendingEmpty.Text;
                 nextLine.Text = "";
                 runningLine.Text = "";
                 return;
             }
-            double now = Now();
-            var status = Map(snapshot, "status");
-            var pending = Items(snapshot, "pending");
             int waiting = 0, running = 0;
             double next = 0;
             if (pending != null)
@@ -1715,8 +1726,6 @@ namespace CodexAutoResume
                 string text = eligible <= 0 ? "" : eligible <= now ? S("pending.due", "due now") : Countdown(eligible - now);
                 if (item.SubItems[3].Text != text) item.SubItems[3].Text = text;
             }
-            // Every second, so a task that has just come due shows the watcher checking.
-            stateDot.State = Activity(status, pending, now);
         }
 
         private static Dictionary<string, object> Selected(ListView list)
@@ -2028,7 +2037,9 @@ namespace CodexAutoResume
         /// Pure, so the rule can be checked without a window: not running, not responding or
         /// an unfinished upgrade needs a person; a pause is still; a continuation in Codex is
         /// recovering; a task that has come due is being checked; anything else waiting is
-        /// waiting; and a running watcher with nothing to do is monitoring.
+        /// waiting; and a running watcher with nothing to do is monitoring. With no pending list -
+        /// it could not be read - the status's own count says whether anything is waiting, so a
+        /// list that cannot be read is never shown as nothing to do.
         internal static string Activity(Dictionary<string, object> status, List<object> pending, double now)
         {
             if (status == null) return "idle";
@@ -2039,23 +2050,23 @@ namespace CodexAutoResume
                 Equals(Get(watcher, "ticking"), false))
                 return "attention";
             if (!Equals(Get(status, "enabled"), true)) return "paused";
+            if (pending == null) return Number(status, "pending") > 0 ? "waiting" : "monitoring";
             bool waiting = false, due = false, recovering = false;
-            if (pending != null)
-                foreach (object entry in pending)
+            foreach (object entry in pending)
+            {
+                var row = entry as Dictionary<string, object>;
+                if (row == null) continue;
+                string code = Str(row, "code") ?? "";
+                if (code == "submission_claimed" || code == "submitted" || code == "turn_running" ||
+                    code == "turn_finishing")
+                    recovering = true;
+                double eligible = Number(row, "eligible_at");
+                if (eligible > 0)
                 {
-                    var row = entry as Dictionary<string, object>;
-                    if (row == null) continue;
-                    string code = Str(row, "code") ?? "";
-                    if (code == "submission_claimed" || code == "submitted" || code == "turn_running" ||
-                        code == "turn_finishing")
-                        recovering = true;
-                    double eligible = Number(row, "eligible_at");
-                    if (eligible > 0)
-                    {
-                        waiting = true;
-                        if (eligible <= now) due = true;
-                    }
+                    waiting = true;
+                    if (eligible <= now) due = true;
                 }
+            }
             if (recovering) return "recovering";
             if (due) return "checking";
             return waiting ? "waiting" : "monitoring";

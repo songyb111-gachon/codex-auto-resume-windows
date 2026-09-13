@@ -427,11 +427,16 @@ namespace CodexAutoResume
             if (e.Index < 0) return;
             bool selected = (e.State & DrawItemState.Selected) != 0;
             bool face = (e.State & DrawItemState.ComboBoxEdit) != 0;
-            Color back = selected && !face ? Palette.AccentSoft : Palette.Raised;
+            bool highlighted = selected && !face;
+            Color back = highlighted ? Palette.AccentSoft : Palette.Raised;
+            // In High Contrast that ground is Highlight, and the one text colour every contrast
+            // theme pairs with Highlight is HighlightText - as the page tabs have it. WindowText
+            // on Highlight is under 1.5:1 in Aquatic and Desert.
+            Color ink = !Enabled ? Palette.Muted
+                      : highlighted && Palette.Contrast ? SystemColors.HighlightText : Palette.Ink;
             using (var brush = new SolidBrush(back)) e.Graphics.FillRectangle(brush, e.Bounds);
             var bounds = new Rectangle(e.Bounds.X + Soft.Px(6), e.Bounds.Y, Math.Max(0, e.Bounds.Width - Soft.Px(8)), e.Bounds.Height);
-            TextRenderer.DrawText(e.Graphics, GetItemText(Items[e.Index]), Font, bounds,
-                                  Enabled ? Palette.Ink : Palette.Muted,
+            TextRenderer.DrawText(e.Graphics, GetItemText(Items[e.Index]), Font, bounds, ink,
                                   TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
                                   TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
         }
@@ -461,9 +466,25 @@ namespace CodexAutoResume
             get { return new Font(Font.FontFamily, Font.Size, FontStyle.Bold); }
         }
 
+        private static RectangleF Body(int width, int height)
+        {
+            return new RectangleF(Soft.PxF(2), Soft.PxF(2), width - Soft.PxF(4) - 1f, height - Soft.PxF(4) - 1f);
+        }
+
+        /// The column the title and help are set in, on a card this wide: from past the radio
+        /// mark to the padding on the right. HeightFor measures in it and OnPaint draws in it.
+        /// Each used to work it out for itself, five pixels apart, and a help line that wrapped
+        /// only when it was drawn ran off the bottom of the card.
+        private static Rectangle TextColumn(int width)
+        {
+            RectangleF body = Body(width, 0);
+            int left = (int)(body.X + Soft.PxF(40));
+            return new Rectangle(left, 0, Math.Max(Soft.Px(80), (int)body.Right - left - Soft.Px(12)), 0);
+        }
+
         internal int HeightFor(int width)
         {
-            int textWidth = Math.Max(Soft.Px(80), width - Soft.Px(52));
+            int textWidth = TextColumn(width).Width;
             using (Font title = TitleFont)
             {
                 int top = TextRenderer.MeasureText(Text ?? "", title, new Size(textWidth, int.MaxValue),
@@ -485,7 +506,7 @@ namespace CodexAutoResume
         {
             Graphics g = e.Graphics;
             g.Clear(Parent != null ? Parent.BackColor : Palette.Surface);
-            var body = new RectangleF(Soft.PxF(2), Soft.PxF(2), Width - Soft.PxF(4) - 1f, Height - Soft.PxF(4) - 1f);
+            var body = Body(Width, Height);
             float radius = Soft.PxF(Brand.RadiusControl);
             g.SmoothingMode = SmoothingMode.AntiAlias;
             using (var path = Soft.Rounded(body, radius))
@@ -495,27 +516,35 @@ namespace CodexAutoResume
                 using (var pen = new Pen(Checked ? Palette.Accent : Palette.Line, Checked ? Soft.PxF(1.5) : 1f))
                     g.DrawPath(pen, path);
             }
+            // In High Contrast the chosen card is filled with Highlight, so everything drawn on
+            // it takes HighlightText, the colour every contrast theme pairs with Highlight - as
+            // the page tabs do. In Accent the radio dot was Highlight on Highlight, and the title
+            // and help in WindowText were under 1.5:1.
+            bool onHighlight = Checked && Palette.Contrast;
             // The radio mark, so the card still says "one of these" without its colour.
             float mark = Soft.PxF(16);
             var ring = new RectangleF(body.X + Soft.PxF(14), body.Y + Soft.PxF(12), mark, mark);
-            using (var pen = new Pen(Checked ? Palette.Accent : Palette.Muted, Soft.PxF(1.5))) g.DrawEllipse(pen, ring);
+            Color markColour = onHighlight ? SystemColors.HighlightText : Checked ? Palette.Accent : Palette.Muted;
+            using (var pen = new Pen(markColour, Soft.PxF(1.5))) g.DrawEllipse(pen, ring);
             if (Checked)
             {
                 float dot = mark * 0.5f;
-                using (var brush = new SolidBrush(Palette.Accent))
+                using (var brush = new SolidBrush(markColour))
                     g.FillEllipse(brush, ring.X + (mark - dot) / 2f, ring.Y + (mark - dot) / 2f, dot, dot);
             }
-            int left = (int)(body.X + Soft.PxF(40));
-            int textWidth = Math.Max(Soft.Px(80), (int)body.Right - left - Soft.Px(12));
+            Rectangle column = TextColumn(Width);
+            int left = column.X, textWidth = column.Width;
             using (Font title = TitleFont)
             {
                 Size top = TextRenderer.MeasureText(Text ?? "", title, new Size(textWidth, int.MaxValue), TextFormatFlags.WordBreak);
                 TextRenderer.DrawText(g, Text, title, new Rectangle(left, (int)body.Y + Soft.Px(10), textWidth, top.Height),
-                                      Palette.Ink, TextFormatFlags.WordBreak | TextFormatFlags.Left);
+                                      onHighlight ? SystemColors.HighlightText : Palette.Ink,
+                                      TextFormatFlags.WordBreak | TextFormatFlags.Left);
                 if (!string.IsNullOrEmpty(Help))
                     TextRenderer.DrawText(g, Help, Font,
                                           new Rectangle(left, (int)body.Y + Soft.Px(12) + top.Height, textWidth, Height),
-                                          Palette.Secondary, TextFormatFlags.WordBreak | TextFormatFlags.Left);
+                                          onHighlight ? SystemColors.HighlightText : Palette.Secondary,
+                                          TextFormatFlags.WordBreak | TextFormatFlags.Left);
             }
             if (Focused && ShowFocusCues) Soft.FocusRing(g, body, radius);
         }

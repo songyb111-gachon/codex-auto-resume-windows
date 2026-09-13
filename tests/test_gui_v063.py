@@ -40,7 +40,17 @@ CASES = {
     "running_in_codex": (RUNNING, [{"code": "turn_running"}], "recovering"),
     "recovering_beats_due": (RUNNING, [{"code": "scheduled", "eligible_at": NOW - 1},
                                        {"code": "submitted"}], "recovering"),
+    # No pending list, because it could not be read: the status's own count decides, so an
+    # unreadable list is never shown as nothing to do, and an alarm still wins.
+    "unreadable_waiting": (dict(RUNNING, pending=2), None, "waiting"),
+    "unreadable_nothing": (dict(RUNNING, pending=0), None, "monitoring"),
+    "unreadable_upgrade": (dict(RUNNING, upgrade_pending=True, pending=2), None, "attention"),
 }
+
+# Custom messages as the counter under the box sees them: line breaks, characters outside
+# the Basic Multilingual Plane, and surrogates left unpaired.
+TEXTS = ("", "plain words", "two\r\nlines\r\n", "\U0001f9e9" * 1200, "a\U0001f9e9b",
+         "\U00020000\U0002a6d6", "\ud83e", "\udde9", "\ud83e🧩", "\udde9\ud83e")
 
 STATES = ("monitoring", "waiting", "checking", "recovering", "paused", "attention", "failed", "idle")
 MOMENTS = (0.0, 300.0, 600.0, 1200.0, 1800.0, 5000.0)
@@ -55,7 +65,8 @@ $activity = $form.GetMethod('Activity', $flags)
 $opacity = $halo.GetMethod('HaloOpacity', $flags)
 $loops = $halo.GetMethod('Loops', $flags)
 $once = $halo.GetMethod('PulsesOnce', $flags)
-foreach ($pair in @(@('Activity', $activity), @('HaloOpacity', $opacity), @('Loops', $loops), @('PulsesOnce', $once))) {
+$length = $form.GetMethod('CustomLength', $flags)
+foreach ($pair in @(@('Activity', $activity), @('HaloOpacity', $opacity), @('Loops', $loops), @('PulsesOnce', $once), @('CustomLength', $length))) {
     if (-not $pair[1]) { throw ('missing ' + $pair[0]) }
 }
 
@@ -77,12 +88,14 @@ function To-Value {
     return [double]$value
 }
 
-$out = @{ activity = @{}; opacity = @{}; loops = @{}; once = @{} }
+$out = @{ activity = @{}; opacity = @{}; loops = @{}; once = @{}; lengths = @() }
 foreach ($case in (ConvertFrom-Json $env:CAR_CASES).PSObject.Properties) {
     $status = $null
     if ($null -ne $case.Value.status) { $status = [Collections.Generic.Dictionary[string,object]](To-Value $case.Value.status) }
     $pending = New-Object 'System.Collections.Generic.List[object]'
     foreach ($row in $case.Value.pending) { $pending.Add([Collections.Generic.Dictionary[string,object]](To-Value $row)) }
+    # A list that could not be read reaches Activity as no list at all.
+    if ($case.Value.unreadable) { $pending = $null }
     # Cast at the call: a PowerShell variable hands reflection its PSObject wrapper otherwise.
     $out.activity[$case.Name] = [string]$activity.Invoke($null, [object[]]@($status, [Collections.Generic.List[object]]$pending, [double]$env:CAR_NOW))
 }
@@ -94,6 +107,9 @@ foreach ($state in (ConvertFrom-Json $env:CAR_STATES)) {
         $out.opacity[$state].moving += [double]$opacity.Invoke($null, [object[]]@([string]$state, [double]$ms, $false))
         $out.opacity[$state].reduced += [double]$opacity.Invoke($null, [object[]]@([string]$state, [double]$ms, $true))
     }
+}
+foreach ($text in (ConvertFrom-Json $env:CAR_TEXTS)) {
+    $out.lengths += [int]$length.Invoke($null, [object[]]@([string]$text))
 }
 $out | ConvertTo-Json -Depth 6 -Compress
 """
@@ -114,12 +130,15 @@ class AliveStateTests(unittest.TestCase):
                        check=True, capture_output=True, timeout=300)
         probe = work / "probe.ps1"
         probe.write_text(PROBE, encoding="utf-8")
-        cases = {name: {"status": status, "pending": pending} for name, (status, pending, _) in CASES.items()}
+        cases = {name: {"status": status, "pending": pending or [], "unreadable": pending is None}
+                 for name, (status, pending, _) in CASES.items()}
         cls.result = subprocess.run(
             [str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(probe)],
             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600,
             env=dict(os.environ, CAR_EXE=str(exe), CAR_NOW=str(NOW), CAR_CASES=json.dumps(cases),
-                     CAR_STATES=json.dumps(list(STATES)), CAR_MOMENTS=json.dumps(list(MOMENTS))))
+                     CAR_STATES=json.dumps(list(STATES)), CAR_MOMENTS=json.dumps(list(MOMENTS)),
+                     # ASCII, surrogates escaped: an unpaired one cannot cross an environment block.
+                     CAR_TEXTS=json.dumps(list(TEXTS))))
         cls.answer = (json.loads(cls.result.stdout)
                       if cls.result.returncode == 0 and cls.result.stdout.strip() else {})
 
@@ -169,6 +188,75 @@ class AliveStateTests(unittest.TestCase):
         self.assertGreater(values[MOMENTS.index(600.0)], middle, "no pulse on entering the state")
         for moment in (1200.0, 1800.0, 5000.0):
             self.assertAlmostEqual(values[MOMENTS.index(moment)], middle, places=5)
+
+    def test_the_custom_message_counter_counts_what_the_settings_layer_counts(self):
+        """Code points of the text as stored, as Python's len() counts them - not UTF-16 units,
+        which showed 1200 emoji as a red "2400 / 2000" over a message Save accepts."""
+        self.assertEqual(len(self.answer["lengths"]), len(TEXTS))
+        for index, text in enumerate(TEXTS):
+            with self.subTest(index):
+                self.assertEqual(self.answer["lengths"][index], len(text.replace("\r\n", "\n")))
+
+
+class ReviewedRulesTests(unittest.TestCase):
+    """Window rules a pre-release review of v0.6.3 found broken, pinned where an edit would
+    quietly undo them. None of them can be seen without High Contrast, a right-click, a
+    minimized window or a particular width, which is how each one got past."""
+
+    def setUp(self):
+        self.dashboard = (ROOT / "gui" / "Dashboard.cs").read_text(encoding="utf-8")
+        self.window = (ROOT / "gui" / "SettingsApp.cs").read_text(encoding="utf-8")
+        self.controls = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
+        self.card = self.controls[self.controls.index("internal sealed class ChoiceCard"):
+                                  self.controls.index("internal sealed class ChoiceGroup")]
+
+    @staticmethod
+    def method(source, signature):
+        start = source.index(signature)
+        return source[start:source.index("\n        }\n", start)]
+
+    def test_text_on_a_high_contrast_highlight_is_highlight_text(self):
+        """Every contrast theme pairs Highlight with HighlightText. WindowText on it was under
+        1.5:1 in Aquatic and Desert, and a radio dot in Highlight on it was not there at all."""
+        paint = self.method(self.card, "protected override void OnPaint(")
+        self.assertIn("bool onHighlight = Checked && Palette.Contrast;", paint)
+        self.assertEqual(paint.count("onHighlight ? SystemColors.HighlightText"), 3,
+                         "the radio mark, the title and the help")
+        combo = self.method(self.controls, "protected override void OnDrawItem(")
+        self.assertIn("highlighted && Palette.Contrast ? SystemColors.HighlightText", combo)
+        cell = self.method(self.dashboard, "private void DrawCell(")
+        self.assertIn("Palette.Contrast && selected ? ink : Soft.Mix(ink, Secondary, 0.4)", cell)
+        self.assertEqual(cell.count("Soft.Mix(ink, Secondary"), 1)
+
+    def test_only_a_left_click_switches_auto_resume(self):
+        """A ListView raises MouseClick for the right button too, and off asks nothing."""
+        start = self.dashboard.index("pendingList.MouseClick +=")
+        handler = self.dashboard[start:self.dashboard.index("};", start)]
+        self.assertIn("if (e.Button != MouseButtons.Left) return;", handler)
+        self.assertLess(handler.index("MouseButtons.Left"), handler.index("ToggleAutoResume"))
+
+    def test_a_refresh_decides_the_header_dot_once(self):
+        """Each change of state restarts the halo, so a coarse state and then the refined one
+        in the same refresh made an alarm pulse again every five seconds."""
+        status = self.method(self.window, "private void ApplyStatus(")
+        self.assertEqual(status.count("stateDot.State ="), 1)
+        self.assertRegex(status, r"if \(snapshot == null\)\s+stateDot\.State =",
+                         "with a snapshot on screen, UpdateCountdowns decides the dot")
+        self.assertNotIn("stateDot.State", self.method(self.dashboard, "private void ApplySnapshot("))
+        countdowns = self.method(self.dashboard, "private void UpdateCountdowns(")
+        self.assertEqual(countdowns.count("stateDot.State ="), 1)
+        self.assertLess(countdowns.index("stateDot.State ="), countdowns.index("if (unreadable)"),
+                        "an unreadable pending list must still leave the dot decided")
+
+    def test_a_restored_window_starts_the_halo_again(self):
+        """Minimizing stops the timer; a restore changes neither the state nor the visibility."""
+        self.assertIn("stateDot.Sync();", self.method(self.window, "protected override void OnResize("))
+
+    def test_a_choice_card_measures_its_text_in_the_column_it_draws_it_in(self):
+        for signature in ("internal int HeightFor(", "protected override void OnPaint("):
+            with self.subTest(signature):
+                self.assertIn("TextColumn(", self.method(self.card, signature))
+        self.assertNotIn("Soft.Px(52)", self.card, "a width worked out a second way drifts again")
 
 
 class KeptInStepTests(unittest.TestCase):

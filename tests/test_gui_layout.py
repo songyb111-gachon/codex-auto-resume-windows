@@ -178,6 +178,49 @@ class PersistentBridgeTests(unittest.TestCase):
         self.assertIs(replies[0]["reply"]["ok"], True)
 
 
+class OneShotBridgeTests(unittest.TestCase):
+    """The one-shot bridge never puts its argument on a command line.
+
+    It answers whenever the long-lived process has failed, and it then carries every Custom
+    message on the Settings page - for a Preview on each pause in typing, and for Save. A
+    command line can be read by any process of the same user and is what process-creation
+    auditing keeps, and it stops at 32767 characters. So the argument goes to stdin, and this
+    runs the command line the window builds with an argument waiting there.
+    """
+
+    def setUp(self):
+        source = SETTINGS.read_text(encoding="utf-8")
+        start = source.index("internal Dictionary<string, object> Call(string command, string argument)")
+        self.method = source[start:source.index("internal static string Quote(", start)]
+
+    def test_the_argument_is_written_to_stdin_and_not_to_the_command_line(self):
+        self.assertNotIn("Quote(argument)", self.method)
+        self.assertIn('arguments.Append(" -")', self.method)
+        self.assertIn("info.RedirectStandardInput = true", self.method)
+        self.assertIn("new UTF8Encoding(false).GetBytes(argument)", self.method,
+                      "a redirected stdin takes the console code page unless the bytes are UTF-8")
+        self.assertIn("process.StandardInput.Close()", self.method)
+
+    def test_the_command_line_it_builds_reads_its_argument_from_stdin(self):
+        import json
+        import subprocess
+        import sys
+        import tempfile
+        code = "".join(re.findall(r'"((?:[^"\\]|\\.)*)"', self.method[self.method.index("string code ="):
+                                                               self.method.index(";", self.method.index('"sys.exit(')) + 1]))
+        self.assertIn("controlcli import main", code)
+        message = "Keep going — 계속 \U0001f9e9\nwith a second line"
+        with tempfile.TemporaryDirectory() as home:
+            # --home keeps this off the real installation; the rest is the window's own argv.
+            result = subprocess.run([sys.executable, "-c", code, str(ROOT / "src"), "--home", home, "update", "-"],
+                                    input=json.dumps({"custom_message": message}, ensure_ascii=False),
+                                    capture_output=True, text=True, encoding="utf-8", timeout=60)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        reply = json.loads(result.stdout)
+        self.assertIs(reply["ok"], True)
+        self.assertEqual(reply["settings"]["custom_message"], message)
+
+
 class FooterTests(unittest.TestCase):
     """The strip along the bottom is as tall as what it holds.
 
