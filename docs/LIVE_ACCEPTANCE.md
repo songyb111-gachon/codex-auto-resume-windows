@@ -90,7 +90,7 @@ something needs a continuation that is queued at the moment you pause.
 | `repair` | Repair says which of five things happened and changes no decision | `outcome`, `paused_unchanged`, `startup_entry_unchanged` | No |
 | `uninstall` | Uninstall removes what it owns and keeps what it cannot prove is its | `route`, `watcher_stopped`, `startup_entry`, `state_kept` | No |
 
-The five steps that say **Yes** need one detected interruption between them, not five.
+The nine steps that say **Yes** can share a detected interruption while its state allows it.
 Induce one transient failure with **Attempts per interruption** at 1 and it carries
 `interruption-detected` through `pause-resume`; induce a second when a step consumes the
 first, which `cancel` does.
@@ -245,11 +245,12 @@ run `auto_resume pending`.
 If a real usage limit has happened to you instead, that is the stronger evidence and this
 is the step to record it in: everything else follows the same path.
 
-**A pass.** A record appears with a category the engine chose from Codex's own
-`codexErrorInfo` and a public code that says what it is waiting for. A category of
-`unknown` is also a correct outcome — an error the engine cannot place is never retried —
-but it ends the interrupted-path steps, so record this step as it happened and mark the
-rest `blocked`.
+**A pass.** A recoverable record appears with a category the engine chose from Codex's
+own `codexErrorInfo` and a public code that says what it is waiting for. An `unknown` or
+terminal failure is correctly excluded from registration and retrying, so it produces
+no Pending row. In that case record this step and its downstream steps as `blocked`,
+with the observed classification and a note that no recoverable record was registered.
+Do not invent a record alias for an excluded failure.
 
 **Record.** `category` (a failure category — `usage_limit`, a transient one, a terminal
 one or `unknown`); `code` (the public code shown); `thread` and `record` as aliases from a
@@ -288,8 +289,10 @@ and read the record's `turn_started_at` and `recovery_turn_status`, or run
 
 **A pass.** The record names one turn, and it is the turn its own continuation started —
 not yours. The window shows `turn_running` and then `turn_finishing`; your turn changes
-neither. If a person's turn arrived first and the engine calls the record `handed_over`,
-that is also a pass: it is the engine refusing to claim a turn it did not start.
+neither. If a person's turn arrived first and the engine calls the record `handed_over`
+without a marker-matched recovery turn, that is correct conservative behavior but does
+not prove correlation. Record this step as `blocked`, including the observed zero
+matches; do not record one match merely to satisfy a pass.
 
 **Record.** `record` as an alias; `marker_matched_turns` as the number of turns the marker
 matched (1); `turn_status` (a turn status — `inProgress`, `completed`, `failed`,
@@ -314,18 +317,20 @@ time is stored; `reason` when the record shows one.
 
 ### 8. The window shows it, in the same words — `dashboard-shows-it`
 
-**Proves.** That the Dashboard reads the same control layer as everything else, so the
-window, the Codex panel and the command line cannot disagree about what a recovery is
-doing — and that a part which cannot be read is shown as unreadable rather than as empty.
+**Proves.** That the Dashboard reads the same control layer as everything else and
+agrees about a stable record — and that a part which cannot be read is shown as
+unreadable rather than as empty. Snapshots taken at different times can differ while
+a recovery changes state; the Codex panel does not refresh automatically.
 
 **Do.** Open the window and visit Overview, Pending, History, Statistics and Diagnostics.
 Find the record from the steps above on History, open its Timeline, and compare its code
-with `auto_resume pending` or `auto_resume status` in a terminal. Then, with the window
+with `auto_resume pending --all` in a terminal. Then, with the window
 open, stop the watcher and look at the pages again.
 
 **A pass.** The same code in the window and on the command line. The Timeline shows the
-chain in the same words the lists use. With the watcher stopped, nothing claims that
-nothing is waiting; what cannot be read says so.
+chain in the same words the lists use. Stopping the watcher leaves the local store
+readable: existing records remain visible and the watcher is shown as stopped. Only
+an actual read failure should be shown as unreadable; an empty readable list is empty.
 
 **Record.** `pages_seen` as the list of pages you opened; `code_shown`;
 `agrees_with_command_line` as `true` or `false`.
@@ -357,14 +362,14 @@ not open a usage window and does not skip revalidation.
 **Do.** On a waiting record, press **Retry now** and read the note the page shows
 afterwards. The button is offered only where it can do something — not on a recovery whose
 usage reset is still ahead, not while recovery is paused, and not on a conversation that
-is switched off; confirm it is absent in one of those situations too.
+is switched off; confirm it is disabled in one of those situations too.
 
 **A pass.** The check happens at once and the record either moves on or goes back to
 waiting for the same reason. Nothing is sent because the button was pressed.
 
 **Record.** `code_before`; `code_after`; `continuation_sent` as `false`; `offered_when`
-as a short machine value describing where you found the button absent, such as
-`"absent-while-paused"`.
+as a short machine value describing where you found the button disabled, such as
+`"disabled-while-paused"`.
 
 ### 11. Giving attempts back is explicit, limited, and not a send — `give-attempts-back`
 
@@ -374,8 +379,18 @@ after three.
 
 **Do.** With **Attempts per interruption** at 1, let a record reach `exhausted`. Turn that
 conversation off with **Turn off for this conversation**, then press **Give attempts back**
-on History and read what it says.
-Press it until the button goes quiet.
+on History and read what it says. A successful reset changes `exhausted` to a waiting
+state, so the button becomes disabled immediately; repeatedly clicking it cannot test
+the three-reset limit. That limit requires additional genuine failures and exhaustion
+in the same recovery chain, with the conversation explicitly re-enabled between runs.
+After the third reset, let the same chain genuinely exhaust again and verify a fourth
+reset is refused. Never edit state or fabricate failures to arrange this. If those
+conditions cannot be reached, record the step as `blocked` with the reset count actually
+observed, even if its first-reset behavior worked.
+
+The published v0.6.0 Dashboard discards the successful reset's explanatory note. If the
+conversation is off, record that missing feedback as a failure; the control result and
+MCP response still carry the note. A source fix does not change the published bytes.
 
 **A pass.** The record re-enters waiting and every check runs again from the top. Because
 the conversation is off, the message says so and says that nothing will run until you

@@ -1,0 +1,14 @@
+{
+  "format": "codex-auto-resume-live-acceptance/1",
+  "recorded_at": "2026-09-13T02:38:21+00:00",
+  "product_version": "0.6.0",
+  "codex_version": "0.153.4",
+  "windows_build": "10.0.26200",
+  "step": "install-run",
+  "verdict": "blocked",
+  "observed": {
+    "install_root": "default",
+    "plugin_registered": true
+  },
+  "note": "Existing installation verified. This session has not completed the installer route or observed its panel inside Codex."
+}

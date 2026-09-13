@@ -1,0 +1,13 @@
+{
+  "format": "codex-auto-resume-live-acceptance/1",
+  "recorded_at": "2026-09-13T02:38:21+00:00",
+  "product_version": "0.6.0",
+  "codex_version": "0.153.4",
+  "windows_build": "10.0.26200",
+  "step": "watcher-starts",
+  "verdict": "blocked",
+  "observed": {
+    "watcher_running": true
+  },
+  "note": "Installed watcher stopped and restarted through its control layer. Notification icon presence, disappearance, menu and tooltip need manual visual observation; no GUI automation used."
+}

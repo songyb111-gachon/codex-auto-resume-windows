@@ -174,6 +174,48 @@ function refusal(error) {
   return t('error.' + code, sentence);
 }
 
+// MCP tool failures are successful JSON-RPC replies with isError set. A host may
+// resolve its promise with that reply (or only its structured content), so rejection
+// of the JavaScript promise alone is not evidence that the operation succeeded.
+function toolPayload(result) {
+  var payload = (result && result.structuredContent) || result || {};
+  if ((result && result.isError) || payload.error_code) {
+    var content = (result && result.content) || [];
+    var text = content.filter(function (item) { return item.type === 'text'; })
+                      .map(function (item) { return item.text; }).join(' ');
+    var error = new Error(text || t('panel.refused', 'refused'));
+    error.structuredContent = payload;
+    throw error;
+  }
+  return payload;
+}
+
+function callTool(name, arguments) {
+  return Promise.resolve().then(function () {
+    return HOST.callTool(name, arguments);
+  }).then(toolPayload);
+}
+
+function saveSettings(changes) {
+  return callTool('update_settings', changes).then(function (payload) {
+    if (!payload.settings || typeof payload.settings !== 'object' || Array.isArray(payload.settings)) {
+      throw new Error(t('panel.refused', 'refused'));
+    }
+    // A later pause re-renders the panel. Keep the acknowledged settings so that
+    // re-render cannot restore the values from the original open_settings snapshot.
+    DATA.settings = payload.settings;
+    return payload;
+  });
+}
+
+function setRecoveryEnabled(enable) {
+  return callTool(enable ? 'resume_auto_recovery' : 'pause_auto_recovery', {}).then(function (payload) {
+    if (typeof payload.enabled !== 'boolean') throw new Error(t('panel.refused', 'refused'));
+    DATA.status.enabled = payload.enabled;
+    return payload;
+  });
+}
+
 function label(name) {
   var known = S['field.' + name];
   if (known) return known;
@@ -416,7 +458,7 @@ function render() {
     Object.keys(EDITORS).forEach(function (name) { changes[name] = EDITORS[name](); });
     save.disabled = true;
     message.textContent = t('panel.saving', 'Saving...');
-    HOST.callTool('update_settings', changes).then(function () {
+    saveSettings(changes).then(function () {
       message.textContent = t('panel.saved', 'Saved.');
       save.disabled = false;
     }, function (error) {
@@ -428,17 +470,19 @@ function render() {
 
   pause.onclick = function () {
     pause.disabled = true;
-    HOST.callTool(status.enabled ? 'pause_auto_recovery' : 'resume_auto_recovery', {}).then(function () {
-      status.enabled = !status.enabled;
+    setRecoveryEnabled(!status.enabled).then(function () {
       render();
-    }, function () { pause.disabled = false; });
+    }, function (error) {
+      message.textContent = refusal(error);
+      pause.disabled = false;
+    });
   };
 
   if (start) {
     start.onclick = function () {
       start.disabled = true;
       message.textContent = t('panel.starting', 'Starting...');
-      HOST.callTool('start_watcher', {}).then(function (result) {
+      callTool('start_watcher', {}).then(function (result) {
         // Do not assume it worked. The panel used to set watcher_running to true here
         // and render a running watcher on the strength of the call not throwing, which
         // is a claim about a process nobody had looked at yet. Ask instead.

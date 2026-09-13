@@ -652,13 +652,47 @@ class JournalRecoveryTests(unittest.TestCase):
         self.assertEqual(claimed, [])
         self.assertIn("outside this installation", printed)
 
-    def test_a_journal_that_cannot_be_read_destroys_nothing(self):
+    def recover_and_sweep(self):
+        """Run the recovery helper and its actual caller's destructive next step."""
+        text = PS1.read_text(encoding="utf-8")
+        script = ("$OwnedHome = %s\n$Journal = %s\n"
+                  "$claimedAside = Restore-InterruptedCopy -Path $Journal -Root $OwnedHome\n"
+                  % (ps_literal(self.home), ps_literal(self.journal)))
+        script += block(text, "# Sweep up copies moved aside", "# Hand over from a running watcher")
+        return run_probe(self.source, script)
+
+    def test_a_journal_that_cannot_be_read_stops_before_the_sweep(self):
         aside = self.aside_with_content()
         self.journal.write_text("{ this is not json", encoding="utf-8")
-        claimed, printed = self.restore()
+        done = self.recover_and_sweep()
+        self.assertNotEqual(done.returncode, 0)
         self.assertTrue((aside / "keep.txt").is_file())
-        self.assertEqual(claimed, [])
-        self.assertIn("cannot be read", printed)
+        self.assertIn("cannot be read", done.stdout)
+
+    def test_a_journal_without_move_records_stops_before_the_sweep(self):
+        aside = self.aside_with_content()
+        for record in (None, {}, {"moved": None}, {"moved": []}):
+            with self.subTest(record=record):
+                self.journal.write_text(json.dumps(record), encoding="utf-8")
+                done = self.recover_and_sweep()
+                self.assertNotEqual(done.returncode, 0)
+                self.assertTrue((aside / "keep.txt").is_file(),
+                                "an unusable journal must not surrender its only complete tree")
+
+    def test_invalid_move_entries_stop_before_any_restore_or_sweep(self):
+        aside = self.aside_with_content()
+        target = self.home / "app"
+        valid = self.entry("app", target, aside)
+        invalid_entries = (None, {}, "invalid", {"name": "app"},
+                           dict(valid, target=""), dict(valid, movedAside=42))
+        for invalid in invalid_entries:
+            with self.subTest(entry=invalid):
+                self.write_journal([valid, invalid])
+                done = self.recover_and_sweep()
+                self.assertNotEqual(done.returncode, 0)
+                self.assertTrue((aside / "keep.txt").is_file())
+                self.assertFalse(target.exists(),
+                                 "the entire journal must pass before even a valid entry is moved")
 
     def test_no_journal_at_all_is_the_ordinary_case(self):
         claimed, printed = self.restore()
@@ -717,6 +751,97 @@ class JournalRecoveryTests(unittest.TestCase):
         self.assertTrue((claimed / "keep.txt").is_file(),
                         "the sweep deleted the copy the journal was protecting")
         self.assertFalse(leftover.exists(), "an unclaimed leftover must still be swept")
+
+
+@unittest.skipUnless(WINDOWS and POWERSHELL, "the installer is PowerShell on Windows")
+class UninstallRegistrationFailureTests(unittest.TestCase):
+    """Run the uninstall tail against real files, with only external Codex calls stubbed.
+
+    No real registration or process is queried or changed. A registration failure must
+    leave the runtime and ownership proof that the next uninstall needs to retry.
+    """
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.home = Path(self.temp.name) / "home"
+        (self.home / "app").mkdir(parents=True)
+        (self.home / "runtime").mkdir()
+        self.runtime = self.home / "runtime" / "python.exe"
+        self.runtime.write_text("synthetic runtime fixture", encoding="utf-8")
+        self.marker = self.home / ".owned-by-codex-auto-resume"
+        self.marker.write_text("synthetic ownership fixture", encoding="utf-8")
+        self.state = self.home / "config" / "settings.json"
+        self.state.parent.mkdir()
+        self.state.write_text("{}", encoding="utf-8")
+
+    def uninstall_tail(self, plugin_code=0, marketplace_code=0):
+        text = PS1.read_text(encoding="utf-8")
+        source = VOICE + block(text, "function Quote-Argument", "function Invoke-Setup")
+        source += ("\nfunction Fail { param([string]$m) "
+                   "$script:Failed = $true; Write-Host $m }\n")
+        script = ("$OwnedHome = %s\n$InstallHome = $OwnedHome\n"
+                  "$AppDir = Join-Path $OwnedHome app\n$RunDir = Join-Path $OwnedHome runtime\n"
+                  "$PluginCacheRoot = Join-Path $OwnedHome cache\n"
+                  "$PluginName = 'fixture-plugin'\n$MarketplaceName = 'fixture-market'\n"
+                  "$script:Failed = $false\n$Purge = $false\n"
+                  "$fixturePluginCode = %d\n$fixtureMarketplaceCode = %d\n"
+                  % (ps_literal(self.home), plugin_code, marketplace_code))
+        script += """
+function Get-CodexCli { return 'fixture-engine' }
+function Get-InstalledPluginSource { return $AppDir }
+function Get-MarketplaceRoot { return $AppDir }
+function Get-OwnedMcpProcess { return ,@() }
+function Invoke-Codex {
+    param([string]$Exe, [string[]]$Arguments)
+    $code = $fixturePluginCode
+    if ($Arguments[1] -eq 'marketplace') { $code = $fixtureMarketplaceCode }
+    return @{ Code = $code; Out = ''; Err = '' }
+}
+"""
+        branch = block(text, "# ----------------------------------------------------------------------- uninstall",
+                       "# -------------------------------------------------------------------------- install")
+        # Begin after the watcher and ownership checks; the closing brace still belongs
+        # to the installer's actual `if ($Uninstall)` branch.
+        script += "if ($true) {\n" + branch[branch.index("    $codex = Get-CodexCli"):]
+        return run_probe(source, script)
+
+    def assert_retry_is_possible(self, done):
+        self.assertNotEqual(done.returncode, 0)
+        self.assertTrue(self.runtime.is_file(), "the retry needs the installed interpreter")
+        self.assertTrue(self.marker.is_file(), "the retry needs the ownership proof")
+        self.assertTrue(self.state.is_file(), "an ordinary uninstall must preserve decisions")
+        self.assertIn("runtime was kept", done.stdout)
+
+    def test_failed_plugin_removal_keeps_the_runtime_for_retry(self):
+        self.assert_retry_is_possible(self.uninstall_tail(plugin_code=1))
+
+    def test_failed_marketplace_removal_keeps_the_runtime_for_retry(self):
+        self.assert_retry_is_possible(self.uninstall_tail(marketplace_code=1))
+
+    def test_a_locked_settings_window_keeps_the_runtime_for_retry(self):
+        window = self.home / "CodexAutoResumeSettings.exe"
+        window.write_text("synthetic settings window fixture", encoding="utf-8")
+        # Windows refuses deletion while this handle is open, as it does while an
+        # executable is running. This is a real sharing violation on a fixture file.
+        with window.open("rb"):
+            done = self.uninstall_tail()
+            self.assert_retry_is_possible(done)
+            self.assertTrue(window.is_file())
+            self.assertIn("still in use", done.stdout)
+        # Once the lock has gone, the same installation can finish uninstalling.
+        done = self.uninstall_tail()
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertFalse(window.exists())
+        self.assertFalse(self.runtime.exists())
+        self.assertFalse(self.marker.exists())
+
+    def test_successful_registration_removal_still_removes_program_files(self):
+        done = self.uninstall_tail()
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertFalse(self.runtime.exists())
+        self.assertFalse(self.marker.exists())
+        self.assertTrue(self.state.is_file())
 
 
 class PayloadRootTests(unittest.TestCase):

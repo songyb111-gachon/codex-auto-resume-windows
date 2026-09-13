@@ -28,7 +28,7 @@
     "A version has no entry here until its archive exists, and the key is added afterwards:",
     "the digest cannot be known before the archive exists. The executables inside are",
     "reproducible from v0.6.0 - build/normalize_pe.py replaces the two fields the in-box",
-    "compiler varies - but that has been measured on one machine with one compiler only,",
+    "compiler varies. The measured compiler and machine scope is recorded in VERIFY.md;",
     "so the digest is still taken from the published file rather than from a local",
     "rebuild. CONTRIBUTING.md carries that as a release step."
   ],

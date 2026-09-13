@@ -168,6 +168,41 @@ class _StoreCase(unittest.TestCase):
 
 
 class StoreTests(_StoreCase):
+
+    def test_daily_cap_counts_reclaims_without_using_the_prunable_journal(self):
+        self.store.set_enabled(True, 100)
+        key = self.make()
+        for at in (160, 170, 180):
+            self.assertTrue(self.store.reserve(key, at))
+            self.assertTrue(self.store.release_claim(key, "waiting_retry", "released_before_send", at))
+        self.db.execute("DELETE FROM events")
+        self.assertEqual(self.store.recent_claim_count(THREAD, 0), 3)
+        # The timestamps of earlier attempts are no longer known: conservatively
+        # count them all until the last claim leaves the window.
+        self.assertEqual(self.store.recent_claim_count(THREAD, 175), 3)
+        self.assertEqual(self.store.recent_claim_count(THREAD, 180), 0)
+
+    def test_submission_guard_serializes_control_writes_only_while_held(self):
+        self.store.set_enabled(True, 100)
+        key = self.make()
+        self.assertTrue(self.store.reserve(key, 160))
+        with Store(self.root) as control:
+            control._connection.execute("PRAGMA busy_timeout=0")
+            with self.store.submission_guard(key) as permitted:
+                self.assertTrue(permitted)
+                with self.assertRaises(StoreError):
+                    control.set_enabled(False, 161)
+            control.set_enabled(False, 162)
+            with self.store.submission_guard(key) as permitted:
+                self.assertFalse(permitted)
+
+    def test_submission_guard_refuses_a_cancelled_claim(self):
+        self.store.set_enabled(True, 100)
+        key = self.make()
+        self.assertTrue(self.store.reserve(key, 160))
+        self.store.cancel_interruption(key, 161)
+        with self.store.submission_guard(key) as permitted:
+            self.assertFalse(permitted)
     def test_initial_disabled_and_rearm_only_on_transition(self):
         self.assertEqual(self.store.settings(), {"enabled": False, "armed_at": 0, "poll_seconds": 30})
         self.store.set_enabled(True, 100)

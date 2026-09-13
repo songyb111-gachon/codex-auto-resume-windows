@@ -125,6 +125,61 @@ class TransportTests(McpTestCase):
         self.assertEqual(responses[0]["error"]["code"], mcpserver.INTERNAL_ERROR)
         self.assertNotIn(str(self.home), json.dumps(responses[0]))
 
+    def test_malformed_envelopes_never_reach_a_mutating_control(self):
+        valid = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                 "params": {"name": "resume_auto_recovery", "arguments": {}}}
+        for field, value in (("jsonrpc", None), ("jsonrpc", "1.0"), ("id", {}),
+                             ("id", []), ("id", True), ("id", float("nan")),
+                             ("id", float("inf")), ("method", [])):
+            with self.subTest(field=field, value=value), patch.object(self.control, "set_enabled") as mutate:
+                message = dict(valid, **{field: value})
+                reply = self.converse(message)[0]
+                self.assertEqual(reply["error"]["code"], mcpserver.INVALID_REQUEST)
+                mutate.assert_not_called()
+        del valid["jsonrpc"]
+        with patch.object(self.control, "set_enabled") as mutate:
+            self.assertEqual(self.converse(valid)[0]["error"]["code"], mcpserver.INVALID_REQUEST)
+            mutate.assert_not_called()
+
+    def test_falsey_nonobject_arguments_are_refused_without_mutation(self):
+        for arguments in ([], None, False, 0, ""):
+            with self.subTest(arguments=arguments), patch.object(self.control, "set_enabled") as mutate:
+                reply = self.converse({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                                       "params": {"name": "resume_auto_recovery",
+                                                  "arguments": arguments}})[0]
+                self.assertTrue(reply["result"]["isError"])
+                mutate.assert_not_called()
+
+    def test_falsey_nonobject_params_are_not_omitted_params(self):
+        for params in ([], None, False, 0, ""):
+            with self.subTest(params=params):
+                reply = self.converse({"jsonrpc": "2.0", "id": 1, "method": "ping",
+                                       "params": params})[0]
+                self.assertEqual(reply["error"]["code"], mcpserver.INVALID_PARAMS)
+
+    def test_null_request_id_is_answered_and_notification_is_not_executed(self):
+        self.assertEqual(self.converse({"jsonrpc": "2.0", "id": None, "method": "ping"})[0],
+                         {"jsonrpc": "2.0", "id": None, "result": {}})
+        with patch.object(self.control, "set_enabled") as mutate:
+            self.assertEqual(self.converse({"jsonrpc": "2.0", "method": "tools/call",
+                                           "params": {"name": "resume_auto_recovery"}}), [])
+            mutate.assert_not_called()
+
+    def test_unsupported_arguments_never_invoke_any_tool_handler(self):
+        server = mcpserver.Server(self.control)
+        for tool in mcpserver.TOOLS:
+            with self.subTest(tool=tool["name"]), patch.object(server, "_tool_" + tool["name"]) as handler:
+                reply = server.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                                       "params": {"name": tool["name"],
+                                                  "arguments": {"unexpected": True}}})
+                self.assertTrue(reply["result"]["isError"])
+                handler.assert_not_called()
+
+    def test_list_flag_is_a_boolean_and_never_coerced_from_text(self):
+        with patch.object(self.control, "list_pending") as read:
+            self.assertTrue(self.call("list_pending", {"include_finished": "false"})["result"]["isError"])
+            read.assert_not_called()
+
 
 class ToolSurfaceTests(McpTestCase):
     def test_every_tool_has_a_schema_and_an_implementation(self):
@@ -530,6 +585,78 @@ class PanelWordingTests(unittest.TestCase):
 
     def test_a_refusal_that_says_nothing_at_all_is_still_worded(self):
         self.assertEqual(self.word({}), self.KOREAN["panel.refused"])
+
+
+@unittest.skipUnless(NODE, "needs Node to run the panel's own code")
+class PanelResponseTests(unittest.TestCase):
+    """Run the panel's real promise handling without a browser, DOM or installed state."""
+
+    def run_case(self, body):
+        script = "\n".join([
+            "var S = {}; var DATA = {settings: {max_recovery_attempts: 4}, status: {enabled: true}};",
+            "var HOST;",
+            *[javascript_function(name) for name in
+              ("t", "toolPayload", "callTool", "saveSettings", "setRecoveryEnabled")],
+            "(async function () {" + body + "})().catch(function (error) {console.error(error); process.exit(1);});",
+        ])
+        done = subprocess.run([NODE, "-e", script], capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        return json.loads(done.stdout)
+
+    def test_resolved_tool_refusals_preserve_settings_and_pause_state(self):
+        observed = self.run_case("""
+          var rows = [];
+          for (var reply of [
+            {isError: true, content: [{type: 'text', text: 'state is unavailable'}], structuredContent: {error_code: 'store_unavailable'}},
+            {error_code: 'store_unavailable'}]) {
+            HOST = {callTool: function () {return Promise.resolve(reply);}};
+            for (var operation of [function () {return saveSettings({max_recovery_attempts: 1});},
+                                   function () {return setRecoveryEnabled(false);},
+                                   function () {return callTool('start_watcher', {});}]) {
+              try {await operation(); rows.push({refused: false});}
+              catch (error) {rows.push({refused: true, code: error.structuredContent.error_code});}
+            }
+          }
+          process.stdout.write(JSON.stringify({rows: rows, data: DATA}));
+        """)
+        self.assertEqual(observed["rows"], [{"refused": True, "code": "store_unavailable"}] * 6)
+        self.assertEqual(observed["data"], {"settings": {"max_recovery_attempts": 4}, "status": {"enabled": True}})
+
+    def test_saved_settings_survive_a_later_pause_render(self):
+        observed = self.run_case("""
+          HOST = {callTool: function (name) {
+            return Promise.resolve(name === 'update_settings'
+              ? {structuredContent: {settings: {max_recovery_attempts: 1}}}
+              : {structuredContent: {enabled: false}});
+          }};
+          await saveSettings({max_recovery_attempts: 1});
+          await setRecoveryEnabled(false);
+          process.stdout.write(JSON.stringify(DATA));
+        """)
+        self.assertEqual(observed, {"settings": {"max_recovery_attempts": 1}, "status": {"enabled": False}})
+
+    def test_pause_uses_the_acknowledged_state_instead_of_inverting_a_snapshot(self):
+        observed = self.run_case("""
+          HOST = {callTool: function () {return Promise.resolve({enabled: true});}};
+          await setRecoveryEnabled(false);
+          process.stdout.write(JSON.stringify(DATA.status));
+        """)
+        self.assertEqual(observed, {"enabled": True})
+
+    def test_missing_acknowledgements_and_synchronous_bridge_failures_reject(self):
+        observed = self.run_case("""
+          var refused = 0;
+          for (var failSync of [false, true]) {
+            HOST = {callTool: function () {if (failSync) throw new Error('bridge unavailable'); return {};}};
+            for (var operation of [function () {return saveSettings({max_recovery_attempts: 1});},
+                                   function () {return setRecoveryEnabled(false);}]) {
+              try {await operation();} catch (error) {refused++;}
+            }
+          }
+          process.stdout.write(JSON.stringify({refused: refused, data: DATA}));
+        """)
+        self.assertEqual(observed["refused"], 4)
+        self.assertEqual(observed["data"], {"settings": {"max_recovery_attempts": 4}, "status": {"enabled": True}})
 
 
 if __name__ == "__main__":

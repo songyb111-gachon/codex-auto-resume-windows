@@ -155,18 +155,17 @@ class WellFormedTests(unittest.TestCase):
         self.assertEqual(live_evidence.refusals(example.name, document,
                                                 product_version=VERSION), [])
 
-    def test_the_example_directory_holds_nothing_that_claims_to_be_evidence(self):
-        """Committing a fabricated file here would be the one unrecoverable mistake.
+    def test_repository_evidence_is_valid_for_the_actual_product(self):
+        """Real acceptance files may coexist with the non-counting example.
 
-        It cannot be refused after the fact: a well-formed file about a run nobody made
-        is indistinguishable from a well-formed file about a run somebody made. So the
-        repository ships the shape and nothing else until a person has actually run it.
+        Reject invalid evidence, not its existence. No test can establish whether an
+        observation really happened; the validator and human review retain that split.
         """
         for path in sorted(EVIDENCE.glob("*.json")):
             with self.subTest(path.name):
-                self.assertTrue(live_evidence.is_example(path.name),
-                                "%s claims to be evidence; nothing may be committed here "
-                                "that nobody performed" % path.name)
+                document = json.loads(path.read_text(encoding="utf-8"))
+                self.assertEqual(live_evidence.refusals(
+                    path.name, document, product_version=live_evidence.config.version()), [])
 
 
 class RefusalTests(unittest.TestCase):
@@ -369,8 +368,22 @@ class DirectoryTests(unittest.TestCase):
         self.assertIn("did not pass", printed)
 
     def test_the_repositorys_own_directory_is_read_without_error(self):
-        code, printed = run(EVIDENCE)
+        # run() supplies the synthetic 9.9.9 version for fixtures. Real repository
+        # evidence must instead be checked against the real manifest, just like CLI use.
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = live_evidence.main([str(EVIDENCE)])
+        printed = out.getvalue()
         self.assertIn(code, (live_evidence.EXIT_NOT_A_PASS, live_evidence.EXIT_OK), printed)
+        self.assertNotIn("refused", printed)
+
+    def test_examples_and_an_actual_observation_can_coexist(self):
+        with Directory() as scratch:
+            scratch.write("example.json", evidence())
+            scratch.write("install-verify.json", evidence())
+            code, printed = run(scratch.path)
+        self.assertEqual(code, live_evidence.EXIT_NOT_A_PASS)
+        self.assertIn("install-verify", printed)
         self.assertNotIn("refused", printed)
 
 

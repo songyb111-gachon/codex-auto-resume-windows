@@ -1,5 +1,43 @@
 # Changelog
 
+## v0.6.1 — What running it for real found
+
+Every change here came from the first live acceptance of v0.6.0: installing the published
+archive on a machine somebody uses and watching it work. The published v0.6.0 archive and
+tag are untouched - a correction gets a new version, which is what this is.
+
+- **Fixed: a recovery that worked was recorded as a failure.** The engine read the status
+  Codex puts on the recovery turn and nothing else. But the commonest way a recovery turn
+  ends is the *next* usage limit, and Codex records the turn a limit interrupted as
+  `failed` - so a continuation that was delivered, ran, and carried the task forward was
+  filed as `recovery_failed`. Three real recoveries in a row, two of them recorded as
+  failures, in the History, the statistics and the success rate. The outcome now asks the
+  question the completed branch already asked - did this turn do anything? - and a turn
+  that made progress is `recovered` whatever ended it. The raw status stays on the record
+  and in the journal, so nothing is lost by calling the recovery what it was. Recovery
+  itself was never affected: the chain continued correctly throughout, which is why only
+  the reporting was wrong, and why the numbers a person reads were the part that lied.
+- Require current, readable Codex projection data before a new continuation; never use
+  an older database after a newer unsupported generation appears.
+- Recheck pause, cancellation and conversation consent under the state write lock through
+  queue-process launch. Release that lock before waiting for a receipt.
+- Count repeated claims of one interruption toward the daily cap. Schema 3 retains only
+  the latest claim timestamp, so the count deliberately errs toward waiting longer.
+- Refuse unreadable or malformed installation journals before restoring or sweeping files.
+  Keep an uninstall retryable after plugin removal fails or a root program file is locked.
+- Reject malformed MCP envelopes and arguments before invoking controls. Do not show a
+  successful save or pause change after a refused call; preserve acknowledged settings.
+- Show the Dashboard's budget-reset explanation when the conversation is still disabled.
+- Correct release wording, approval-hint claims and the English/Korean live procedure.
+
+Live acceptance is incomplete, and the evidence for v0.6.0 does not carry over: evidence
+belongs to one build, so the records that described v0.6.0 are kept as history under
+`docs/evidence/live-0.6.0/` rather than inherited by this one. Of the fifteen steps there,
+one passed and fourteen were blocked, because no genuine interruption was exercised in the
+disposable acceptance conversation and no failure was fabricated to make one. The defect at
+the top of this list was found outside that procedure, in ordinary use, which is its own
+argument for running the procedure. No real Codex visual recovery is claimed.
+
 ## v0.6.0 — It follows its own turn, and it shows you the work
 
 Two changes, and most of the rest follows from them. The engine no longer reads the

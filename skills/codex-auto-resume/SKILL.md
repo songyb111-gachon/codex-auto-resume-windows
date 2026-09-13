@@ -23,8 +23,10 @@ writing it, and `open_settings` shows the user a panel they can read and change 
 
 `resume_auto_recovery`, `enable_conversation_recovery`, `update_settings`,
 `restore_default_settings`, `cancel_recovery`, `reset_recovery_budget`, `start_watcher` and
-`clear_recovery_history` are marked so that Codex asks the user before running them in Auto
-approval mode. If the user declines one, do not run the matching
+`clear_recovery_history` carry MCP's `destructiveHint` annotation to request approval.
+Codex and its approval settings decide whether to show a prompt; actual host approval
+behavior has not been observed for v0.6.0. The annotation is not an authorization lock.
+If the user declines one, do not run the matching
 command below instead.
 
 Use the commands below when the tools are not available - the plugin's server has not

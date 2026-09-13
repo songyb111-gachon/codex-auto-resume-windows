@@ -1,11 +1,15 @@
 # Security
 
+The current acceptance audit reproduced gaps in v0.6.0's pre-send projection and consent
+checks, daily attempt counting, and installer failure handling. The fixes listed under
+Unreleased in `CHANGELOG.md` are source changes only. Published v0.6.0 is unchanged and
+has not passed complete live acceptance. Read the safeguards below with that limit.
+
 This document describes what the tool is allowed to touch, how that is enforced, how releases are
 built and can be checked, how it was reviewed, and what was actually found and fixed.
 
-The latest published release is v0.5.7. Several properties below exist only on the `main`
-branch and ship in v0.6.0. Each of them says so, and, where it matters, says what v0.5.7 does
-instead.
+The current published release is v0.6.0. Historical differences below name v0.5.7 explicitly.
+Unreleased source fixes do not change the published v0.6.0 bytes.
 
 ## Reporting
 
@@ -175,11 +179,12 @@ longer includes the install path.
   planted mutex makes status report a watcher running when none is, and a planted, signalled stop
   event makes a real watcher quit on start, logging only an ordinary stop request - nothing that
   points to the planted event.
-- **Tools that turn recovery back up are marked so Codex asks first.** This is new in v0.6.0. The plugin's MCP tools that can turn recovery back on or
+- **Tools that turn recovery back up request approval through MCP annotations.** This is new in v0.6.0. The plugin's MCP tools that can turn recovery back on or
   up, or change its settings - `resume_auto_recovery`, `enable_conversation_recovery`,
   `reset_recovery_budget`, `start_watcher`, `update_settings`, `restore_default_settings` - are
-  annotated `destructiveHint: true`, and so are `cancel_recovery` and `clear_recovery_history`, so
-  Codex asks the user before running them in its default approval mode. `pause_auto_recovery`,
+  annotated `destructiveHint: true`, and so are `cancel_recovery` and `clear_recovery_history`.
+  This requests approval; actual prompt behavior depends on Codex and its approval settings,
+  and has not been observed for this release. `pause_auto_recovery`,
   `disable_conversation_recovery` and `retry_now` are not: pausing and switching one conversation
   off never add automation, and `retry_now` only moves an already-registered attempt earlier, with
   every check still applied. The two switches do not cost the same, though. Pausing withdraws a
@@ -194,7 +199,7 @@ longer includes the install path.
   window, not the engine path (`codex_exe`) or the detection look-back, and `get_status` does not
   include the install path. In v0.5.7 only `restore_default_settings` and `cancel_recovery` are
   marked; `set_auto_recovery`, `reset_recovery_budget`, `start_watcher` and `update_settings`,
-  which there also offers the engine path, run without a prompt in Codex's default approval mode,
+  which there also offers the engine path, have no destructive annotation requesting approval,
   and a pause-withdrawn recovery there is cancelled outright.
 
 ## Destructive-operation safety
@@ -271,7 +276,7 @@ User repositories and parent directories are never deleted.
 Releases are built and published by GitHub Actions (`.github/workflows/release.yml`) from the
 tagged commit, not from a developer's working tree.
 
-Every archive published so far, v0.5.0 through v0.5.7, was built by the earlier single-job
+Archives v0.5.0 through v0.5.7 were built by the earlier single-job
 workflow, which referenced its actions by floating tags and produced executables that were not
 reproducible. The two-job split, the pinned actions, the reproducible executables and the
 version resource described below are new in v0.6.0.
@@ -504,7 +509,7 @@ PowerShell scripts); the bundled Python interpreter keeps the signatures it was 
 the Python Software Foundation's on `pythonw.exe`, `python.exe` and the Python DLLs, and
 Microsoft's on the two Visual C++ runtime DLLs. Releases are not GitHub-immutable. Trust in a
 download rests on the pinned digest and the provenance attestation (*Release integrity*,
-*Verifying a release*). - Every archive published so far, v0.5.0 through v0.5.7, was built by
+*Verifying a release*). - Archives v0.5.0 through v0.5.7 were built by
 the earlier single-job workflow with floating action tags and executables that are not
 reproducible. Whether a local rebuild reproduces, byte for byte, an archive GitHub's runner
 publishes from v0.6.0 on has not been verified.

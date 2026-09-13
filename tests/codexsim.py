@@ -12,7 +12,7 @@ schema fails here too.
 """
 from __future__ import annotations
 
-from contextlib import closing
+from contextlib import closing, nullcontext
 import json
 from pathlib import Path
 import sqlite3
@@ -276,8 +276,11 @@ class SimBackend:
     def usage(self):
         return dict(self.usage_result)
 
-    def send(self, thread_id, prompt):
-        self.send_calls.append((thread_id, prompt))
+    def send(self, thread_id, prompt, *, launch_guard=None):
+        with launch_guard if launch_guard is not None else nullcontext(True) as permitted:
+            if permitted is not True:
+                return {"outcome": "not_started", "error_code": "queue_consent_refused"}
+            self.send_calls.append((thread_id, prompt))
         if self.on_send:
             self.on_send(thread_id, prompt)
         outcome = self.outcomes.get(thread_id, self.default_outcome)

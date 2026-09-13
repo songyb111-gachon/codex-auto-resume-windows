@@ -1625,7 +1625,25 @@ namespace CodexAutoResume
             if (!Confirm(Named("confirm.reset",
                                "Give \"{name}\" its attempts back? It waits and is checked again; nothing is sent now.", row)))
                 return;
-            Send("reset-budget", IdArgument(row));
+            CallAsync("reset-budget", IdArgument(row), delegate(Dictionary<string, object> reply)
+            {
+                Report(reply);
+                string notice = BudgetResetNotice(reply,
+                    S("history.reset_done", "Attempts restored. Nothing was sent."),
+                    S("history.reset_thread_off", "Automatic recovery is off for this conversation; switch it on before recovery can run."));
+                if (notice != null)
+                    MessageBox.Show(this, notice, "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                RefreshAfterChange();
+            });
+        }
+
+        internal static string BudgetResetNotice(Dictionary<string, object> reply, string restored, string threadOff)
+        {
+            if (!Ok(reply)) return null;
+            var result = Map(reply, "result");
+            if (result == null) return null;
+            return restored + (string.IsNullOrEmpty(Str(result, "note")) ? ""
+                              : Environment.NewLine + Environment.NewLine + threadOff);
         }
 
         private void ToggleThread(ListView list)

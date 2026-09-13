@@ -1,4 +1,5 @@
 """Safety tests: never launch Codex, send queues, inspect auth or control the app."""
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 import subprocess
 import unittest
@@ -200,6 +201,51 @@ class BackendTests(unittest.TestCase):
             result = self.backend.send(THREAD, "harmless")
         self.assertEqual(result["outcome"], "not_started")
         self.assertNotIn("secret", repr(result))
+
+    def test_final_consent_refusal_never_starts_queue_process(self):
+        with patch.object(w.S, "Popen") as popen:
+            result = self.backend.send(THREAD, "harmless", launch_guard=nullcontext(False))
+        popen.assert_not_called()
+        self.assertEqual(result, {"outcome": "not_started", "error_code": "queue_consent_refused"})
+
+    def test_launch_guard_is_released_before_waiting_for_receipt(self):
+        held = []
+
+        @contextmanager
+        def guard():
+            held.append(True)
+            try:
+                yield True
+            finally:
+                held.clear()
+
+        process = MagicMock(returncode=0)
+
+        def launch(*args, **kwargs):
+            self.assertEqual(held, [True])
+            return process
+
+        def receipt(**kwargs):
+            self.assertEqual(held, [])
+            return (f"Queued message {QUEUE} for thread {THREAD}.\n", None)
+
+        process.communicate.side_effect = receipt
+        with patch.object(w.S, "Popen", side_effect=launch):
+            result = self.backend.send(THREAD, "harmless", launch_guard=guard())
+        self.assertEqual(result["outcome"], "accepted")
+
+    def test_guard_exit_failure_after_launch_is_never_not_started(self):
+        @contextmanager
+        def guard():
+            yield True
+            raise RuntimeError("transaction exit failed")
+
+        process = MagicMock(returncode=1)
+        process.communicate.return_value = ("", None)
+        with patch.object(w.S, "Popen", return_value=process) as popen:
+            result = self.backend.send(THREAD, "harmless", launch_guard=guard())
+        self.assertEqual(popen.call_count, 1)
+        self.assertEqual(result["outcome"], "unknown")
 
     def test_nonzero_or_mismatched_acceptance_is_unknown_no_retry(self):
         for code, output in ((1, "secret diagnostic"), (0, f"Queued message {QUEUE} for thread {QUEUE}.")):

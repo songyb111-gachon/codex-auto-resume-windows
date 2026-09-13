@@ -1024,9 +1024,7 @@ class Store:
                 % where, (limit,))]
 
     def recent_claims(self, thread_id: str, since: float) -> list[float]:
-        """When this thread's records were claimed, newest first. A claim released
-        before its send still counts: the cap bounds how often we try, not how often
-        Codex received something."""
+        """The most recent claim of each record, for cooldown and next-check timing."""
         _uuid(thread_id, "thread_id")
         with self._read() as connection:
             rows = connection.execute(
@@ -1034,6 +1032,21 @@ class Store:
                 "WHERE thread_id=? AND coalesce(submitted_at, last_claim_at) > ? ORDER BY at DESC",
                 (thread_id, since)).fetchall()
         return [row[0] for row in rows if _finite(row[0]) is not None]
+
+    def recent_claim_count(self, thread_id: str, since: float) -> int:
+        """Conservative attempt count, including repeated claims of one record.
+
+        Schema 3 durably retains only each record's latest claim time and total
+        attempts. Count all of its attempts until that latest time leaves the window;
+        this can delay an old record, but cannot undercount or depend on a pruned
+        journal. Legacy records with a timestamp count at least once.
+        """
+        _uuid(thread_id, "thread_id")
+        with self._read() as connection:
+            return int(connection.execute(
+                "SELECT coalesce(sum(max(attempt_count, 1)), 0) FROM interruptions "
+                "WHERE thread_id=? AND coalesce(submitted_at, last_claim_at)>?",
+                (thread_id, since)).fetchone()[0])
 
     def claimed_on_thread(self, thread_id: str) -> list[dict[str, Any]]:
         """Records that may have put a continuation into this thread."""
@@ -1098,6 +1111,24 @@ class Store:
                             to_state=row["state"], reason=row["last_error"], actor=actor, flags=flags)
 
     # --------------------------------------------------------------- claiming
+    @contextmanager
+    def submission_guard(self, interruption_id: str):
+        """Serialize final consent with the queue process launch, and only launch.
+
+        Cancel, Pause and thread-disable use the same SQLite write lock. Once one
+        of those actions commits, a subsequent process launch cannot use its old
+        consent. The transport releases this before waiting for a receipt.
+        """
+        with self._transaction() as connection:
+            row = self._row(connection, interruption_id)
+            permitted = bool(
+                row is not None and row["state"] == "submitting"
+                and row["submitted_at"] is not None and row["queue_id"] is None
+                and not row["cancel_requested"]
+                and self._read_settings(connection)["enabled"]
+                and self._thread_enabled(connection, row["thread_id"]))
+            yield permitted
+
     def reserve(self, interruption_id: str, now: float, **options) -> bool:
         return self.reserve_detailed(interruption_id, now, **options)[0]
 

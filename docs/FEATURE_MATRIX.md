@@ -7,9 +7,10 @@ same product as a row somebody watched work.
 
 ## The vocabulary
 
-These levels are this project's own, and each one means something specific. They are
-ordered weakest to strongest, and a row claims the strongest level that something in the
-repository actually backs.
+These labels describe different kinds of evidence. PUBLISHED is a distribution status,
+not a stronger test result. A published capability can still lack integration or visual
+acceptance. Real Windows execution of an isolated component also does not establish a
+real Codex recovery. Read each citation and its limits separately.
 
 | Level | What it means |
 | --- | --- |
@@ -39,26 +40,42 @@ repository actually backs.
   `visual_ui_scraping_used: false` recorded in
   [`docs/evidence/unloaded-thread-observation.json`](evidence/unloaded-thread-observation.json).
   That is a protocol observation, not somebody watching.
-- **v0.6.0 is released.** Its archive is published, its digest is pinned on `main`, and
-  the rows below that say PUBLISHED mean it. What PUBLISHED does *not* mean anywhere here
+- **This version is not released; v0.6.0 is.** The rows below that say PUBLISHED mean
+  v0.6.0, whose archive is published and whose digest is pinned on `main`. This release
+  corrects defects in it, and until it is published nothing here claims PUBLISHED for the
+  corrections. What PUBLISHED does *not* mean anywhere here
   is that somebody installed it and used it: the published bytes were driven against a
   state directory and a Codex home that exist only for that check, with the installer's
   registrations never run and no watcher started against real Codex state. Installing,
   upgrading and uninstalling on a machine somebody uses is what `docs/LIVE_ACCEPTANCE.md`
-  is for, and nobody has run it.
+  is for. That procedure is now in progress: `docs/evidence/live/` records its completed
+  and blocked steps. A fresh v0.6.0 download matched the published sidecar and repository
+  pin, passed exact-workflow/tag Sigstore verification, and matched all 107 installed
+  payload files. Installed MCP, engine read paths, cooperative watcher stop/restart and
+  update checking were exercised on Windows. None is a real Codex visual observation.
 - **A REAL WINDOWS TESTED row usually means a test in the suite that needs a real Windows
   facility**, and those tests skip themselves where the facility is absent. A skipped test
   proves nothing, so the fourth column says where a skip is likely.
 
-  For the record: on 2026-09-13, after the release was published, on the Windows 11
+  An earlier run recorded on 2026-09-13, after the release was published, on the Windows 11
   machine this document was written on, `PYTHONPATH="src;tests" python -m unittest discover
   -s tests` ran **1230 tests in 300 seconds, with no failures and seven skipped**. Six of
   the seven were the opt-in live checks in `tests/test_integration_live.py`, every one of
   them declining to run without `CODEX_AR_LIVE=1`. The seventh was
   `tests/test_workflow_privilege.py:YamlShapeTests.test_every_workflow_parses`, which wants
   PyYAML and is not installed here; GitHub parses those files on every push anyway. So
-  every REAL WINDOWS TESTED row below did run here, and none of the checks that would touch
-  a real Codex installation did.
+  every REAL WINDOWS TESTED row below ran in that earlier check, while its live checks did
+  not. A new clean-HEAD baseline at `2012494` ran 1230 tests on Python 3.12.14 in 300.504
+  seconds: 1224 passed, none failed, and only the six opt-in live checks skipped. All six
+  were then run separately against the installed v0.6.0 source and real Codex environment
+  and passed in 13.617 seconds. They are read-only checks and never send a continuation.
+
+  The acceptance audit also reproduced safety, installer and MCP/UI defects that these
+  passing baseline tests missed, and ordinary use afterwards found one more: a recovery
+  that worked was being recorded as a failure. The fixes are this release, and they are
+  not in the published v0.6.0 bytes - a correction gets a new version. Every safety claim
+  about v0.6.0 has to be read with those defects and the incomplete live acceptance in
+  view, which is the reason the changelog's top section exists.
 
   An earlier draft of this document recorded a red run of 1140 tests, whose two failures were
   Korean-branch bookkeeping - an unmapped sibling and three stale translation digests - and
