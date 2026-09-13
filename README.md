@@ -168,48 +168,75 @@ Afterwards, change anything from **Start Menu → Codex Auto Resume**, or by ask
 ## What it looks like
 
 When a task is interrupted, Windows tells you — as **Codex Auto Resume**, not as whatever
-process happened to raise it. Doing nothing resumes; the button is the only action, and it
-only ever cancels.
+process happened to raise it. Doing nothing resumes. **Don't resume** only ever cancels, and
+**Open Dashboard** only opens the Dashboard's Pending page. The picture below was taken before
+**Open Dashboard** was added and before the identifier line said "Conversation";
+[The notification](#the-notification) shows what it says now.
 
 <img src="docs/images/notification.png" alt="A Windows notification from Codex Auto Resume saying a usage limit was reached and the task will resume after the reset, with a Don't resume button" width="470">
 
-Inside Codex, ask to *open auto resume settings* and the panel shows what is waiting and
-lets you change any of it. This is the panel's own page, rendered from the exact resource
-the plugin serves to Codex, rather than a photograph of the Codex window around it:
+Inside Codex, ask to *open auto resume settings* and the panel shows what is waiting and lets
+you change most of it, in sections for General, Recovery, Notifications and Continuation
+message, with a Preview of the exact message the watcher would send and a switch for each
+waiting conversation. It follows Codex's light or dark theme and its reduced-motion preference.
+A Custom message is shown there but not edited; that happens only in the Dashboard. This is the
+panel's own page, rendered from the exact resource the plugin serves to Codex, rather than a
+photograph of the Codex window around it:
 
-<img src="docs/images/settings-panel.png" alt="The Codex Auto Resume settings panel: a status line saying the watcher is watching for interruptions with two recoveries pending, a table of what is waiting to resume, and cards for the recovered failure categories, the attempt limits and the notification switches" width="680">
+<img src="docs/images/settings-panel.png" alt="The Codex Auto Resume panel: a status card saying two recoveries are waiting, the two waiting conversations each with an Auto-resume switch, the interface language, the recovered failure categories, Limits and Notifications folded away, the continuation language and message style, and a Preview of the Standard message for a usage limit" width="680">
 
-The Start Menu opens a standalone window, which works with Codex closed. In v0.6.0
-it is a Dashboard: what the watcher is doing, what is waiting and when it is next
-looked at, what finished and how, the last week's numbers, the watcher's health, and the
-settings. It is a native window; there is no local web server and nothing opens in a browser.
-The existing pictures were captured before this acceptance run from a scratch installation
-holding synthetic records. They illustrate the published release and do not establish that
-any recovery was observed in real Codex. They have not been recaptured for the unreleased fixes.
+The Start Menu opens the Dashboard, a standalone window that works with Codex closed: what the
+watcher is doing, what is waiting and when it is next looked at, what finished and how, the
+last week's numbers, the watcher's health, and the settings. The dot in its header shows what
+the watcher is doing — monitoring (a slow breath), waiting, checking a task that has come due,
+recovering, paused, or needing you (one pulse). **Reduce motion**, under Settings > Appearance,
+stops those animations, and Windows' own animation setting is always honoured; High Contrast
+mode drops the shadows and tints. It is a native window; there is no local web server and
+nothing opens in a browser.
+
+The pictures on this page are captured from a scratch installation holding synthetic records.
+They show what the windows look like; they do not show a real recovery, and they are not
+evidence that one was observed in Codex.
 
 <img src="docs/images/dashboard-overview.png" alt="The Codex Auto Resume Dashboard overview: automatic recovery on, the watcher running and the Codex engine verified, two recoveries waiting with the next check in a minute and a half, the last seven days' interruptions, continuations sent, recoveries and success rate, and the four most recently finished recoveries" width="680">
 
-Each waiting recovery shows why it is waiting and when it is next checked. **Retry now** only
-asks the watcher to look again now — every check still applies, and nothing is sent unless
-they all pass. **Cancel** stops recovering that interruption and everything that continues it:
-a record that was never sent is cancelled outright, one that may already be in Codex is marked
-and taken back if it is still queued, and a finished one is marked too, so no later failure of
-that task can start a new chain from it. A turn already running in Codex is not stopped, and the
-confirmation says so. **Turn off for this conversation** cancels its waiting recoveries and keeps
+Each waiting recovery shows why it is waiting and when it is next checked, and **Why it is
+waiting** lists the watcher's safety checks for the selected task as the watcher last recorded
+them. The **Auto-resume** check box on each row switches automatic recovery off or on for that
+task's conversation. The click carries the exact interruption and conversation the row was
+drawn from, and a click that reaches a task which has since finished, disappeared or turned
+out to belong to another conversation is refused and changes nothing; either way the box sends
+nothing. **Retry now** only asks the watcher to look again now — every check still applies, and
+nothing is sent unless they all pass. **Cancel** stops recovering that interruption and
+everything that continues it: a record that was never sent is cancelled outright, one that may
+already be in Codex is marked and taken back if it is still queued, and a finished one is
+marked too, so no later failure of that task can start a new chain from it. A turn already
+running in Codex is not stopped, and the confirmation says so. **Cancel all** does the same to
+every waiting recovery, one exact record at a time; there is deliberately no way to retry them
+all at once. **Turn off for this conversation** cancels its waiting recoveries and keeps
 automatic recovery off for that conversation until you turn it back on — the Pending and History
 pages then offer **Turn on for this conversation**:
 
-<img src="docs/images/dashboard-pending.png" alt="The Pending page of the Dashboard: two conversations waiting, one for the usage reset in about forty-two minutes and one with a retry scheduled in about a minute, with Retry now, Cancel, Timeline and Turn off for this conversation buttons" width="680">
+<img src="docs/images/dashboard-pending.png" alt="The Pending page of the Dashboard: two conversations waiting, one for the usage reset and one with a retry scheduled, each with a state chip and an Auto-resume check box, the Why it is waiting checklist for the selected task, and Retry now, Cancel, Timeline, Turn off for this conversation and Cancel all buttons" width="680">
 
-<img src="docs/images/settings-window.png" alt="The Settings page of the Dashboard, showing which failures are recovered, the attempt limits, the retry timing, the notification switches and the Windows options" width="680">
+<img src="docs/images/settings-window.png" alt="The Continuation message section of the Dashboard's Settings page: the continuation language, the four message styles with Standard selected, and a Preview of the message sent for a usage limit" width="680">
 
 While the watcher runs it also puts an icon in the notification area. It belongs to the watcher
-process itself, so it appears when one starts and goes when it stops. Its tooltip says whether
-recovery is paused, how many recoveries are waiting, how many are running in Codex and how long
-until the next check; its menu opens this window, pauses or resumes recovery, and stops the
-watcher. The countdown only means the watcher looks again — nothing is sent because it reaches
-zero. It is on by default and can be switched off on the Settings page. Main branch; it ships
-in v0.6.0.
+process itself, so it appears when one starts and goes when it stops, and it wears a small badge
+for the state the watcher is in. Its tooltip says whether recovery is paused, how many recoveries
+are waiting, how many are running in Codex and how long until the next check.
+
+A single click on the icon opens a small popup beside it, and another click closes it: the
+watcher's state, how many tasks are waiting and recovering, the next check, up to three waiting
+tasks, each with its own check box bound to that task's exact interruption and conversation,
+**Pause recovery** or **Resume recovery**, and **Open Dashboard**. A click anywhere else, or Esc,
+closes it too. The popup runs inside the watcher process, on the icon's own thread, and goes
+through the same control layer as every other surface; nothing in it can send a continuation.
+The right-click menu is what it was: it opens the Dashboard, pauses or resumes recovery, and
+stops the watcher. The countdown only means the watcher looks again — nothing is sent because it
+reaches zero. The icon is on by default and can be switched off on the Settings page.
+
+<img src="docs/images/tray-popup.png" alt="The notification-area popup: waiting, with the next check in a minute and a half and three waiting tasks, each with its kind of interruption, when it is next tried and a check box to resume or retry it automatically, and Pause recovery and Open Dashboard buttons" width="360">
 
 ## Please read this limitation first
 
@@ -243,13 +270,14 @@ This is not fully unattended auto-resume across app restarts, and this README wi
 The recovery engine is deliberately one small watcher. Everything else exists to see and
 control it: a standalone Windows window — a settings window up to v0.5.7, a Dashboard from
 v0.6.0 — a settings panel inside Codex over MCP, the command line, the watcher's own
-notification-area icon, and Windows notifications. None of those can recover anything by
-itself, and the watcher keeps running whether or not any of them is open.
+notification-area icon and the popup it opens, and Windows notifications. None of those can
+recover anything by itself, and the watcher keeps running whether or not any of them is open.
 
 What the project still avoids: a separate tray process, a management web UI, a supervisor process, a
-Windows service, a second recovery engine, and a second state database. The notification-area icon is
-not an exception: the watcher owns it, so it cannot show a watcher that is not there, and everything
-its menu offers goes through the same control layer as the other surfaces.
+Windows service, a second recovery engine, and a second state database. The notification-area icon and
+its popup are not an exception: the watcher owns both, so they cannot show a watcher that is not
+there, and everything their menu, buttons and check boxes offer goes through the same control layer
+as the other surfaces.
 
 ## Features
 
@@ -263,10 +291,18 @@ its menu offers goes through the same control layer as the other surfaces.
 - Handles several interrupted threads independently.
 - Bounded retry backoff, a global kill switch, and per-thread control.
 - Single-instance protection, optional per-user Windows autostart, and a conservative uninstall.
-- Three ways to change a setting — a Start Menu window, a panel inside Codex, and the command
-  line — all writing the same file through the same validator, so they cannot disagree.
+- Three ways to change a setting — the Dashboard from the Start Menu, a panel inside Codex, and
+  the command line — all writing the same file through the same validator, so they cannot disagree.
+- Nine interface languages: English, Korean, Japanese, Simplified and Traditional Chinese,
+  Spanish, German, French and Brazilian Portuguese. It follows Windows unless you choose one.
+- A continuation message you can shape: its language, a Minimal, Standard or Detailed style, or
+  your own Custom words, with a Preview built by the same code the watcher sends with.
+- A Dashboard that shows what the watcher is doing and why each task is waiting, with an
+  Auto-resume check box per waiting task, and a popup from the notification-area icon with the
+  same state, the next check and up to three waiting tasks.
 - Windows notifications across the lifecycle: interruption detected, recovery starting, how it
-  turned out, and when it stops for good. Each one has its own switch.
+  turned out, and when it stops for good. Each one has its own switch, and the interruption
+  notification can cancel that recovery or open the Dashboard.
 
 ## How it works
 
@@ -281,9 +317,14 @@ usage limit reached
   -> the same thread continues the original work
 ```
 
-The continuation message asks the agent to continue the interrupted work: to first check the current
-thread context and the real repository/file state, to avoid redoing finished work, and to carry on
-toward the original goal.
+What the continuation says depends on two settings: **Continuation language**, which by default
+follows the interface language, and **Message style**. *Standard*, the default, says why the task
+stopped and asks Codex to retry ("The task was interrupted because the usage limit was reached.
+Please retry."); *Minimal* only asks it to retry; *Detailed* also asks it to check the existing
+conversation and the current state of the work and to carry on without repeating what is already
+done; *Custom* sends your own words. Up to v0.6.2 it was one fixed English sentence per kind of
+interruption. The watcher adds one line after the message so it can recognise the exact turn it
+starts. No style changes what is recovered; see [The continuation message](#the-continuation-message).
 
 Loaded state is determined from the Windows Restart Manager: the app's own `codex.exe` engine holds the
 thread's writer lock file open for exactly as long as the thread is loaded. The tool only reads that
@@ -299,9 +340,9 @@ ownership information. It never acquires a lock on the app's file.
   offers `--thread` and `--message`, and `status`/`doctor` label it as unverified. Anything that
   cannot prove that interface is refused rather than guessed at.
 
-**Python is not required by either install route** — the installation brings its own runtime, and
-the plugin's setup script is PowerShell. Python 3.12+ is needed only if you run the engine from a
-source checkout.
+**Python is not required by either install route** — the installation brings its own runtime
+(Python 3.13.15), and the plugin's setup script is PowerShell. Python 3.12 or newer is needed only if
+you run the engine from a source checkout; see [Testing](#testing) for the versions CI runs.
 
 ## What is recovered, and what is not
 
@@ -343,10 +384,18 @@ and afterwards "show auto resume status", "show pending auto resumes", "open aut
 settings", "turn auto resume off" and "turn auto resume back on", "cancel auto resume for this
 task", "show auto resume statistics", "show the timeline for that recovery", "try that recovery
 now", "give that recovery its attempts back", "start the watcher", "clear auto resume history",
-"uninstall auto resume".
+"preview the auto resume message", "uninstall auto resume".
+
+"Preview the auto resume message" uses `preview_recovery_message`, one of the plugin's 17 tools. It
+is read-only: it shows the exact text the watcher would send for one kind of interruption, under the
+current language and style or under ones named for the preview alone, and it saves nothing and sends
+nothing. Codex can change the interface language, the continuation language and the message style,
+including switching it to Custom, but it cannot write a Custom message: that text is sent into your
+conversations automatically, so it is written only in the Windows Dashboard, under Settings >
+Continuation message.
 
 Nothing that turns automation down is marked as needing your confirmation: pausing recovery, turning
-it off for one conversation, asking for a re-check. Turning it back on, changing a setting, starting
+it off for one conversation, asking for a re-check. Previewing the message is read-only. Turning it back on, changing a setting, starting
 the watcher, cancelling a recovery, giving a recovery its attempts back and clearing the history are
 all marked with MCP's `destructiveHint` to request approval. Codex and your approval settings
 decide whether to show a prompt; this project's tests check the annotations, and actual
@@ -370,7 +419,7 @@ not do, the update and removal lifecycle, and why the usage-limit notice does **
 
 For development, or if you would rather run it yourself. This is not a third way to install the
 product — it is the engine on its own, with no settings window, no panel and no bundled runtime,
-and it needs **Python 3.12 or newer** on your PATH.
+and it needs **Python 3.12 or newer** on your PATH (CI runs it on 3.12, 3.13 and 3.14).
 
 ```bash
 git clone https://github.com/songyb111-gachon/codex-auto-resume-windows.git
@@ -459,44 +508,55 @@ By default, failures up to 6 hours old at the moment you run `enable` are still 
 
 ## The notification
 
-When the watcher records an interruption, Windows shows one notification naming the task, with a
-single cancel button.
+When the watcher records an interruption, Windows shows one notification naming the task.
 
 ```
 Payment retry refactor
 Codex usage limit reached. This task will resume at 05:56.
-example-project  ·  Thread: 0a1b2c3d-0109-7000-8000-000000000109
-                                             [Don't resume]
+example-project  ·  Conversation: 0a1b2c3d-0109-7000-8000-000000000109
+                         [Don't resume]   [Open Dashboard]
 ```
 
 The first line is the conversation title, or the project, or the working directory's name, or
 "Codex task". The **exact thread UUID is always shown**: titles repeat, identity must not. A
-temporary failure says "Codex was temporarily interrupted. Retrying automatically." instead, with a
-**Don't retry** button.
+temporary failure names what kind it was — "Network problem · Codex was temporarily interrupted.
+Retrying automatically." — with a **Don't retry** button instead.
 
 Three lines, not four: Windows renders at most three and drops the rest, so the reason comes
 before the identifiers rather than after them.
 
 Those names are for display only. Recovery never resolves a thread by title, project or recency.
 
-Doing nothing resumes — that is the default. Pressing the button cancels the auto-resume for that
-one conversation and nothing else.
+Doing nothing resumes — that is the default. **Don't resume** / **Don't retry** cancels the
+auto-resume for that one interruption and whatever continues it, and nothing else. **Open
+Dashboard** opens the Dashboard on its Pending page and does nothing more.
 
 This is the only point where a control can be offered at the time it matters. By the time a usage
 limit appears in the Codex app, that turn has already failed, so nothing can be added to the app's
 own usage-limit notice; the watcher, however, is running. See [docs/PLUGIN.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/PLUGIN.md) for
 why the notice itself cannot get a checkbox.
 
+A related choice is offered in two more places, each bound to the exact interruption and
+conversation it is shown beside: a check box on each task in the notification-area popup, and the
+**Auto-resume** column on the Dashboard's Pending page. Rather than cancelling one interruption,
+that check box switches automatic recovery off for the task's conversation until it is switched
+back on. A click that reaches a task which has since finished, disappeared or turned out to belong
+to a different conversation is refused and changes nothing. None of the three sends anything: they
+change whether the watcher may, and the watcher still checks everything before it does.
+
 Details worth knowing:
 
-- The button needs a handler, so `install` registers a per-user `codex-auto-resume:` URL protocol
+- The buttons need a handler, so `install` registers a per-user `codex-auto-resume:` URL protocol
   under `HKCU\Software\Classes`. `uninstall` removes it again, and only when it points at this
   installation.
-- That protocol accepts exactly one action, cancelling. A hostile or mistyped URI can only ever
-  *stop* a resume, never cause one, and the interruption id must match a real record.
+- That protocol accepts exactly two actions: cancelling one resume, and opening one page of the
+  Dashboard from a fixed list. A hostile or mistyped URI can only ever *stop* a resume or open a
+  window, never cause one, and the interruption id must match a real record.
 - The notification shows labels, a local time and the thread UUID — never prompt text, error text,
-  or account data. Display names come from `threads.name` only; `title`, `preview` and
-  `first_user_message` hold the raw first prompt on this schema and are never read.
+  or account data. The kind of interruption is the product's own label for the classified
+  category, not the error text. Display names come from `threads.name` only; `title`, `preview`
+  and `first_user_message` hold the raw first prompt on this schema and are never read.
+- Notifications are in the interface language.
 - It is best effort. If it cannot be shown, the resume still happens exactly as it would have.
 - They are attributed to **Codex Auto Resume**, with this project's own icon. That takes two
   registrations, not one: an AppUserModelID under `HKCU\Software\Classes\AppUserModelId` supplies
@@ -517,25 +577,69 @@ changes nothing about whether a task is recovered.
 
 Everything configurable lives in one place and is reachable three ways:
 
-- **Start Menu → Codex Auto Resume** — a standalone window. It works with Codex closed, the
-  plugin disabled, no network, no sign-in and no system Python, because configuration matters
-  most exactly when the thing it configures is unavailable.
+- **Start Menu → Codex Auto Resume** — the Dashboard's Settings page. It works with Codex
+  closed, the plugin disabled, no network, no sign-in and no system Python, because
+  configuration matters most exactly when the thing it configures is unavailable.
 - **Inside Codex** — ask to open auto resume settings and a panel appears in the conversation.
 - **The command line** — for scripting and for repair.
 
 All three write the same file through the same validator, so a value set in one is the value the
-others show. Nothing needs to be memorised and nothing needs hand-editing: a hand-written
-settings file is validated on read, so a bad value is quietly replaced by the safe default and
-you are left believing you changed something.
+others show. Nothing needs hand-editing: a hand-written settings file is validated on read, so a
+bad value is replaced by the safe default rather than half-applied.
 
-You can choose which classified failure categories are recovered, how many attempts each
-interruption gets, how many continuations one task may receive in total, when to give up after
-recoveries that produce nothing, how long to wait between attempts, which notifications appear, and
-whether the watcher shows its notification-area icon.
+The Settings page is split into five sections:
+
+| Section | What is in it |
+| --- | --- |
+| General | Interface language, starting at Windows sign-in, the notification-area icon, and which notifications appear |
+| Automatic recovery | Which classified kinds of interruption are recovered, one switch each |
+| Continuation message | The language and style of the message sent to Codex, your own Custom message, and a Preview of the exact text |
+| Appearance | The theme, and Reduce motion |
+| Advanced | Attempts per interruption, when to give up after recoveries that produce nothing, continuations per task, and retry timing |
+
+Every kind of interruption the watcher recovers has a switch, on by default. A sign-in service that
+is temporarily unavailable (`auth_service_transient`) was recovered with no switch up to v0.6.2; it
+now has one, **Sign-in service failures**.
 
 You cannot switch off a safety property, because none of them is a setting. There is no option
 that retries an unclassified failure, resolves a conversation by title, resends an uncertain
 submission or forces a send — by design, not by omission.
+
+### Languages
+
+The interface speaks English, 한국어, 日本語, 简体中文, 繁體中文, Español, Deutsch, Français and
+Português (Brasil). **Interface language** defaults to *System*, which follows the first language
+Windows lists and falls back to English for a language this product does not ship. A language
+you choose wins over Windows and is kept across restarts, repairs and updates. The
+`CODEX_AUTO_RESUME_LANG` environment variable overrides both.
+
+### The continuation message
+
+When the watcher resumes a task it sends Codex one short message, followed by one line it uses to
+recognise the exact turn it started. **Continuation language** decides the language of that message
+(by default, the interface language) and **Message style** its words:
+
+| Style | What it says |
+| --- | --- |
+| Minimal | Only asks Codex to retry |
+| Standard (default) | Says why the task stopped, then asks Codex to retry |
+| Detailed | Also asks Codex to check the work so far and not to repeat what is already done |
+| Custom | Your own words |
+
+A **Custom** message is sent exactly as you typed it and is never translated or reworded. You can
+write one message for every interruption, or one for each kind; an empty one falls back to the
+message for every interruption, then to Standard. It may use `{reason}`, `{category}`,
+`{attempt}`, `{max_attempts}` and `{reset_time}` and nothing else — a placeholder that would put
+your prompt, the reply, a title, a path, your account or a token into the message is refused by
+name — and it is at most 2000 characters. **Preview** shows the exact text that would be sent for
+each kind of interruption, built by the same code the watcher sends with.
+
+Custom message text can only be written in the Dashboard. Codex can preview the message and change
+its language or style, but it cannot set the text: words sent automatically into your conversations
+must not be something a model can be talked into changing.
+
+Nothing about the message changes what is recovered. The style and the text choose words for a
+recovery the watcher has already decided to make.
 
 ## Windows startup
 
@@ -715,7 +819,13 @@ Elsewhere it leaves a Start Menu shortcut, a sign-in entry, the Windows registra
 notifications need, and this plugin and its marketplace registered in Codex; `Uninstall.cmd`
 removes those that belong to this installation. Separately, Windows' notification history keeps
 the notifications it showed, and each resumed conversation keeps the continuation message and
-its marker as part of the conversation. [PRIVACY.md](PRIVACY.md) has the details.
+its marker as part of the conversation.
+
+A Custom continuation message is stored only in the local settings file in the installation folder.
+Like every continuation, though, what it says is sent into the resumed conversation, becomes part
+of it and reaches OpenAI with it, so do not write anything there you would not put in that
+conversation. The interface translations are local files installed with the product; choosing or
+changing a language makes no network request. [PRIVACY.md](PRIVACY.md) has the details.
 
 ## Known limitations
 
@@ -732,6 +842,9 @@ its marker as part of the conversation. [PRIVACY.md](PRIVACY.md) has the details
   the thread was confirmed loaded, the interruption was reserved, one continuation was submitted through
   `codex queue`, and delivery was independently confirmed 30 seconds later. That is one run, not a
   track record. Transient-failure recovery has been exercised by tests, not yet by a real outage.
+- The notification-area popup has not been exercised with a real click on its icon in Explorer.
+- The Japanese, Simplified and Traditional Chinese, Spanish, German, French and Brazilian
+  Portuguese translations have not been reviewed by native speakers.
 
 ## Testing
 
@@ -744,7 +857,9 @@ python -m unittest discover -s tests
 Set `PYTHONPATH=src` first (or use `set PYTHONPATH=src` on Windows).
 
 These tests use fakes and temporary directories. They never contact the ChatGPT app and never send a
-message to any conversation, so they are safe to run anywhere and are what CI runs.
+message to any conversation, so they are safe to run anywhere and are what CI runs. CI runs every one
+of them on Python 3.12, 3.13 and 3.14, each of which has to pass, and on the 3.15 pre-release as an
+advisory job whose result is shown but does not block.
 
 There is also an opt-in live check against your real environment. It verifies binary discovery,
 app pairing, loaded-state classification, and usage reading. It sends no message to any
