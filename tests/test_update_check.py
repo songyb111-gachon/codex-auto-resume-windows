@@ -15,6 +15,7 @@ shipped code with the network replaced - and no test here reaches the internet.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -504,6 +505,74 @@ class InstalledCopyCanAskTests(unittest.TestCase):
         self.assertIn("$rootFiles = @('CodexAutoResumeSettings.exe', 'codex-auto-resume.ico')",
                       bootstrap)
 
+
+
+HASH_PROBE = r"""
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version 2.0
+
+# The real function, lifted out of the shipped script, so this tests what installs run.
+$errors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile($env:CAR_BOOTSTRAP, [ref]$null, [ref]$errors)
+if ($errors -and $errors.Count) { throw 'bootstrap.ps1 does not parse' }
+$found = $false
+foreach ($node in $ast.FindAll({ param($n)
+        $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
+    if ($node.Name -eq 'Get-Sha256') { $found = $true; Invoke-Expression $node.Extent.Text }
+}
+if (-not $found) { throw 'bootstrap.ps1 has no Get-Sha256' }
+
+# Whatever else this session can or cannot resolve, the digest has to come out.
+if (Get-Command Get-FileHash -ErrorAction SilentlyContinue) {
+    Remove-Item function:\Get-FileHash -ErrorAction SilentlyContinue
+}
+Write-Output (Get-Sha256 -Path $env:CAR_FILE)
+"""
+
+
+@unittest.skipUnless(POWERSHELL.is_file(), "the bootstrap is PowerShell on Windows")
+class DigestTests(unittest.TestCase):
+    """The number that decides whether anything is installed.
+
+    A user pressed the Dashboard's update button on a published build: the archive
+    downloaded, and then the verification step failed with "'Get-FileHash' is not
+    recognized as a cmdlet". The script refused to install, which is the right end of a
+    verification it could not perform - but the update was unusable, and the reason it
+    gave named a cmdlet rather than anything a person could do something about.
+
+    `build/make_gui.ps1` had already met the same thing under the release runner's
+    module path and moved to the runtime's own SHA-256. The shipped script had not.
+    """
+
+    def digest_through_powershell(self, path: Path) -> str:
+        done = subprocess.run(
+            [str(POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", HASH_PROBE],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
+            env=dict(os.environ, CAR_BOOTSTRAP=str(BOOTSTRAP), CAR_FILE=str(path)))
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        return done.stdout.strip().splitlines()[-1].strip()
+
+    def test_it_agrees_with_a_known_sha256(self):
+        with tempfile.TemporaryDirectory() as folder:
+            sample = Path(folder) / "archive.zip"
+            # Not text: the bug would hide behind an encoding that happened to round-trip.
+            sample.write_bytes(bytes(range(256)) * 997)
+            expected = hashlib.sha256(sample.read_bytes()).hexdigest()
+            self.assertEqual(self.digest_through_powershell(sample), expected)
+
+    def test_it_answers_for_an_empty_file_too(self):
+        with tempfile.TemporaryDirectory() as folder:
+            sample = Path(folder) / "empty.zip"
+            sample.write_bytes(b"")
+            self.assertEqual(self.digest_through_powershell(sample),
+                             hashlib.sha256(b"").hexdigest())
+
+    def test_it_is_lower_case_hex_because_the_pin_is_compared_as_text(self):
+        with tempfile.TemporaryDirectory() as folder:
+            sample = Path(folder) / "archive.zip"
+            sample.write_bytes(b"codex-auto-resume")
+            digest = self.digest_through_powershell(sample)
+            self.assertRegex(digest, r"^[0-9a-f]{64}$")
 
 
 if __name__ == "__main__":

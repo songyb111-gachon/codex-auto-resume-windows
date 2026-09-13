@@ -99,6 +99,31 @@ function Step { param([string]$Text) Write-Host ('  ' + $Text) }
 function Ok   { param([string]$Text) Write-Host ('  [ok] ' + $Text) }
 function Fail { param([string]$Text) Write-Host ('  [!] ' + $Text) -ForegroundColor Red }
 
+function Get-Sha256 {
+    <#
+        The digest of a downloaded archive, computed with .NET rather than `Get-FileHash`.
+
+        This is the one number that decides whether anything is installed, so it must not
+        depend on a cmdlet resolving. `Get-FileHash` has now failed to resolve twice while
+        every other cmdlet in the same script still worked: once under the release runner's
+        PSModulePath, where `build/make_gui.ps1` moved off it for the same reason, and once
+        in the process the Dashboard's update button starts on a user's machine, where the
+        archive downloaded and then could not be verified. The second one is why this
+        exists: the update refused to install, which was right, but the feature was
+        unusable and the message named a cmdlet rather than anything a person could act on.
+
+        `[Security.Cryptography.SHA256]` is part of the runtime PowerShell is already
+        hosted in. There is nothing left to autoload.
+    #>
+    param([string]$Path)
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $stream = [IO.File]::OpenRead((Resolve-Path $Path))
+        try { return [BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-', '').ToLower() }
+        finally { $stream.Dispose() }
+    } finally { $sha.Dispose() }
+}
+
 function Read-Json {
     param([string]$Path)
     if (-not (Test-Path $Path)) { throw ('This plugin is incomplete: ' + $Path + ' is missing.') }
@@ -456,7 +481,7 @@ try {
         Get-Remote -Uri ($base + $name) -OutFile $zip -What 'The archive'
     }
 
-    $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+    $actual = Get-Sha256 -Path $zip
     $pinned = Get-PinnedDigest -Release $release -Version $target
     if ($pinned) {
         if ($actual -ne $pinned) { throw 'The download does not match the digest pinned in this plugin.' }
