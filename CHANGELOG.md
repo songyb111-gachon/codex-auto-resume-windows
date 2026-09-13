@@ -33,7 +33,11 @@ you can see.
   `{reset_time}` and nothing else; a placeholder that would put your prompt, the reply, a
   title, a path, an account or a token into the message is refused by name. At most 2000
   characters. Nothing about the text can make a failure recoverable, skip a check, or
-  choose a different conversation.
+  choose a different conversation. A placeholder with no value for that interruption is
+  left out, closing only the gap it leaves; a message left with nothing to say falls back
+  as if it were empty, rather than sending Codex a turn with nothing in it. `{attempt}` and
+  `{max_attempts}` count what the attempt budget counts, and a usage limit, which spends no
+  attempts, has neither.
 - **Preview** shows the exact text that would be sent, built by the same function the
   watcher sends with, for each kind of interruption and for choices not yet saved.
 - Custom text is written only in the Windows Dashboard. It cannot be set from Codex - not
