@@ -229,6 +229,21 @@ class ToolTests(unittest.TestCase):
         self.assertEqual(self.import_work({"a": "りんご", "zzz": "?"}), 1)
         self.assertEqual(self.tool.read_catalog("ja"), {})
 
+    def test_what_export_writes_is_what_import_reads_once_filled_in(self):
+        import io
+        stream = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
+        with patch("sys.stdout", stream):
+            self.assertEqual(self.tool.cmd_export(["ja"]), 0)
+            stream.flush()
+            work = json.loads(stream.buffer.getvalue().decode("utf-8"))
+        self.assertEqual(sorted(work), ["a", "b"])
+        self.assertEqual(self.import_work(work), 1)             # nothing written yet
+        work["a"]["text"] = "りんご"
+        work["b"]["text"] = "バナナ{n}本"
+        self.assertEqual(self.import_work(work), 0)
+        self.assertEqual(self.tool.read_catalog("ja"), {"a": "りんご", "b": "バナナ{n}本"})
+        self.assertEqual(self.tool.report("ja")["stale"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -13,7 +13,7 @@ catalogs; `export` hands a translator exactly the keys that are new or whose Eng
 moved, and `import` merges them back, checks them, and records what they were made from.
 
     py build/l10n.py status
-    py build/l10n.py export ja > work.json    # only what needs a translator
+    py build/l10n.py export ja > work.json    # only what needs a translator; fill in "text"
     py build/l10n.py import ja work.json      # merge, validate, record the basis
     py build/l10n.py mark ja KEY [KEY ...]    # reviewed: still right for the new English
     py build/l10n.py prune ja                 # drop keys English no longer has
@@ -111,10 +111,13 @@ def cmd_export(args) -> int:
     found = report(locale)
     wanted = sorted(set(found["missing"]) | set(found["stale"]) | set(found["placeholders"])
                     | (set(found["empty"]) & set(english)))
+    # `text` is the one field a translator writes and `import` reads. `current` is only
+    # there to be looked at: importing it back unread would record a stale sentence as
+    # checked against the new English.
     work = {}
     for key in wanted:
         work[key] = {"en": english[key], "current": table.get(key),
-                     "placeholders": sorted(l10n.placeholders(english[key]))}
+                     "placeholders": sorted(l10n.placeholders(english[key])), "text": None}
     sys.stdout.reconfigure(encoding="utf-8")
     print(json.dumps(work, ensure_ascii=False, indent=2))
     return 0
@@ -131,13 +134,14 @@ def cmd_import(args) -> int:
     problems = []
     merged = {}
     for key, value in incoming.items():
-        if isinstance(value, dict):
-            value = value.get("text", value.get("translation"))
+        exported = isinstance(value, dict)
+        if exported:
+            value = value.get("text") or value.get("translation")
         if key not in english:
             problems.append("%s: not a key in the English catalog" % key)
             continue
         if not isinstance(value, str) or not value.strip():
-            problems.append("%s: empty" % key)
+            problems.append("%s: empty%s" % (key, " - write the translation in \"text\"" if exported else ""))
             continue
         if l10n.placeholders(value) != l10n.placeholders(english[key]):
             problems.append("%s: placeholders %s, English has %s" % (

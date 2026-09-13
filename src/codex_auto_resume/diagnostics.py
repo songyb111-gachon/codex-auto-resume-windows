@@ -107,7 +107,10 @@ def _installation(control) -> dict:
     """
     found = {}
     try:
-        found["language"] = interface.language()
+        # What the settings choose, not what this process adopted: an export from the
+        # command line never adopts the Interface language, and an open Dashboard adopted
+        # it when it opened, which may be a language ago.
+        found["language"] = interface.resolve(control.get_settings().get("interface_language"))
     except Exception:
         found["language"] = None
     for name, read in (("startup_entry", lambda: startup.current_value()),

@@ -881,10 +881,68 @@ class WindowsTests(unittest.TestCase):
             while not switched() and time.monotonic() < deadline:
                 self.pump(0.02)
             self.assertEqual(len(switched()), 1)
+            self.pump(0.3)                              # the answer is in; the switch is free again
+            # Holding the key: Windows repeats the key-down with the was-down bit set. One
+            # press is one change, however long the key is held.
+            for _ in range(3):
+                user32.SendMessageW(window.hwnd, popup.WM_KEYDOWN, popup.VK_SPACE, popup.KEY_WAS_DOWN)
+                self.pump(0.1)
+            self.assertEqual(len(switched()), 1)
             user32.SendMessageW(window.hwnd, popup.WM_KEYDOWN, popup.VK_ESCAPE, 0)
             self.assertFalse(window.visible)
         finally:
             window.destroy()
+
+    def test_a_click_is_aimed_at_the_layout_on_screen_not_one_still_to_be_painted(self):
+        window = self.make()
+        try:
+            window.show(activate=False, origin=(-32000, -32000))
+            self.pump(0.2)
+            painted = window._plan
+            self.assertIs(window._painted_plan, painted)
+            target, (left, top, right, bottom) = painted["targets"][0]
+            self.assertEqual(target[0], "check")
+            x, y = (left + right) // 2, (top + bottom) // 2
+            # A read takes that task away and the layout is rebuilt, but not yet painted.
+            window.model.rows = [item for item in window.model.rows if item["interruption_id"] != target[1]]
+            window._rebuild(time.time())
+            self.assertNotEqual(popup.hit_test(window._plan["targets"], x, y), target)
+            self.assertEqual(window._hit((y << 16) | x), target)
+            window._invalidate()
+            self.pump(0.2)
+            self.assertIs(window._painted_plan, window._plan)
+            self.assertEqual(window._hit((y << 16) | x), popup.hit_test(window._plan["targets"], x, y))
+        finally:
+            window.destroy()
+
+    def test_a_closed_popup_does_not_hold_the_badge_on_attention(self):
+        import ctypes
+        from types import SimpleNamespace
+        user32 = ctypes.WinDLL("user32")
+        user32.LoadImageW.restype = ctypes.c_void_p
+        user32.LoadImageW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_uint, ctypes.c_int,
+                                      ctypes.c_int, ctypes.c_uint]
+        user32.DestroyIcon.argtypes = [ctypes.c_void_p]
+        base = user32.LoadImageW(None, str(ROOT / "assets" / "codex-auto-resume.ico"), 1, 32, 32, 0x10)
+        self.assertTrue(base)
+        stale = dict(STATUS, watcher=dict(STATUS["watcher"], ticking=False))
+        window = popup.Popup(control=FakeControl([], stale), strings=EN)
+        window.model.apply_outcome(("read",), popup.perform(("read",), window.control), time.time())
+        self.assertTrue(window.attention())
+        icon = SimpleNamespace(_icon=base, _popup=window, _badge=None, _badge_token=None, _shown_icon=None,
+                               log=lambda message: None)
+        snapshot = {"enabled": True, "waiting": 0, "running": 0, "next_at": None}
+        try:
+            window.visible = False
+            tray.Tray._badge_for(icon, snapshot)
+            self.assertNotEqual(icon._badge_token, "attention")
+            window.visible = True
+            tray.Tray._badge_for(icon, snapshot)
+            self.assertEqual(icon._badge_token, "attention")
+        finally:
+            if icon._badge:
+                user32.DestroyIcon(icon._badge)
+            user32.DestroyIcon(base)
 
     def test_the_icon_starts_with_the_popup_wired_and_stops_cleanly(self):
         icon = tray.Tray(icon_path=ROOT / "assets" / "codex-auto-resume.ico", strings=EN,

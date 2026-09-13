@@ -83,13 +83,83 @@ class CustomMessageTests(unittest.TestCase):
                                  typed)
 
     def test_the_safe_placeholders_are_filled(self):
-        metadata = continuation.metadata_for({"category": "usage_limit", "attempt_count": 1},
+        metadata = continuation.metadata_for({"category": "server_5xx", "recovery_attempts": 1,
+                                              "attempt_count": 7},
+                                             locale="en", limits={"max_recovery_attempts": 5})
+        text = continuation.build("server_5xx", locale="en", style="custom",
+                                  custom={"text": "{reason} ({category}), try {attempt}/{max_attempts}"},
+                                  metadata=metadata)
+        reason = l10n.text(reasons.label_key("server_5xx"), "en")
+        self.assertEqual(text, "%s (server_5xx), try 2/5" % reason)
+
+    def test_a_usage_limit_has_a_reset_time_and_no_attempt_count(self):
+        # Waiting for a reset spends no attempts, so there is no "2 of 5" to report.
+        metadata = continuation.metadata_for({"category": "usage_limit", "recovery_attempts": 0,
+                                              "attempt_count": 1},
                                              locale="en", limits={"max_recovery_attempts": 5},
                                              reset_time="14:05")
+        self.assertNotIn("attempt", metadata)
+        self.assertNotIn("max_attempts", metadata)
         text = continuation.build("usage_limit", locale="en", style="custom",
-                                  custom={"text": "{reason} ({category}), try {attempt}/{max_attempts}, reset {reset_time}"},
+                                  custom={"text": "{reason} until {reset_time}{attempt}{max_attempts}"},
                                   metadata=metadata)
-        self.assertEqual(text, "Usage limit (usage_limit), try 2/5, reset 14:05")
+        self.assertEqual(text, "%s until 14:05" % l10n.text(reasons.label_key("usage_limit"), "en"))
+
+    def test_attempt_counts_what_the_attempt_budget_counts(self):
+        # Not claims: a claim given back, a budget restored or a new link in a chain moves
+        # the budget's counter and not the claim count, and "4 of 3" is what followed.
+        for spent, claims in ((0, 0), (2, 0), (0, 3), (1, 5)):
+            with self.subTest(spent=spent, claims=claims):
+                metadata = continuation.metadata_for(
+                    {"category": "timeout", "recovery_attempts": spent, "attempt_count": claims},
+                    limits={"max_recovery_attempts": 3})
+                self.assertEqual((metadata["attempt"], metadata["max_attempts"]), (spent + 1, 3))
+
+    def test_filling_a_placeholder_changes_nothing_else_in_the_text(self):
+        metadata = {"attempt": 2, "reset_time": "14:00"}
+        for typed, expected in (
+                ("Try  again\n    - step {attempt} ?", "Try  again\n    - step 2 ?"),
+                ("Limite atteinte : reprise à {reset_time} !", "Limite atteinte : reprise à 14:00 !"),
+                ("  indented {attempt}\n", "  indented 2\n")):
+            with self.subTest(typed=typed):
+                self.assertEqual(continuation.build("timeout", style="custom", custom={"text": typed},
+                                                    metadata=metadata), expected)
+
+    def test_a_placeholder_with_no_value_closes_only_its_own_gap(self):
+        for typed, expected in (
+                ("Retry after {reset_time} please.", "Retry after please."),
+                ("Keep  going {reset_time}.", "Keep  going."),
+                ("{reset_time} Continue", "Continue"),
+                ("Continue {reset_time}", "Continue"),
+                ("Line one\n{reset_time} two", "Line one\ntwo"),
+                ("a {reset_time} {reset_time} b", "a b"),
+                ("x{reset_time}y", "xy")):
+            with self.subTest(typed=typed):
+                self.assertEqual(continuation.build("timeout", style="custom", custom={"text": typed},
+                                                    metadata={}), expected)
+
+    def test_custom_text_that_fills_in_to_nothing_is_not_used(self):
+        # "{reset_time}" alone, for an interruption with no reset time, would otherwise send
+        # a turn holding nothing but the marker, and spend an attempt doing it.
+        standard = continuation.build("network_transient", locale="en")
+        cases = (
+            ({"mode": "global", "text": "{reset_time}"}, standard),
+            ({"mode": "global", "text": " {reset_time} \n"}, standard),
+            ({"mode": "per_reason", "text": "G", "per_reason": {"network_transient": "{reset_time}"}}, "G"),
+            ({"mode": "per_reason", "text": "{reset_time}",
+              "per_reason": {"network_transient": "{reset_time}"}}, standard),
+        )
+        for custom, expected in cases:
+            with self.subTest(custom=custom):
+                self.assertEqual(continuation.build("network_transient", locale="en", style="custom",
+                                                    custom=custom, metadata={}), expected)
+        values = dict(settings.defaults(), continuation_language="en", continuation_style="custom",
+                      custom_message="{reset_time}")
+        row = {"category": "network_transient", "recovery_attempts": 0, "reset_at": None}
+        self.assertEqual(continuation.for_settings("network_transient", values, row=row),
+                         continuation.for_settings("network_transient",
+                                                   dict(values, continuation_style="standard"), row=row))
+        self.assertEqual(continuation.source_for("network_transient", values, row=row), "standard")
 
     def test_a_reset_time_is_never_invented_for_a_reason_that_has_none(self):
         metadata = continuation.metadata_for({"category": "timeout", "attempt_count": 0},
@@ -163,7 +233,7 @@ class NoLeakageTests(unittest.TestCase):
     SECRET = "SECRET-7f3a"
 
     def test_nothing_from_the_record_but_the_safe_fields_reaches_the_text(self):
-        row = {"category": "usage_limit", "attempt_count": 2, "reset_at": 1_800_000_000,
+        row = {"category": "usage_limit", "attempt_count": 2, "recovery_attempts": 1, "reset_at": 1_800_000_000,
                "thread_id": self.SECRET, "prompt": self.SECRET, "title": self.SECRET,
                "cwd": self.SECRET, "error": self.SECRET, "account": self.SECRET}
         every = "".join("{%s}" % name for name in continuation.ALLOWED_PLACEHOLDERS)
@@ -229,11 +299,15 @@ class WatcherSendsTheConfiguredMessageTests(EngineCase):
         self.assertEqual(self.sent_text(), l10n.text("continuation.standard.usage_limit", "ko"))
 
     def test_a_custom_message_is_sent_with_its_safe_values(self):
-        limit = settings.defaults()["max_recovery_attempts"]
-        self.policy(continuation_style="custom", custom_message="Carry on ({attempt}/{max_attempts}).")
+        # A usage limit: its reset time and its reason, and no attempt count, because
+        # waiting for a reset spends none.
+        self.policy(continuation_style="custom",
+                    custom_message="Carry on at {reset_time}, after the {reason}{attempt}{max_attempts}.")
         self.ready_after_reset()
         self.h.tick()
-        self.assertEqual(self.sent_text(), "Carry on (1/%d)." % limit)
+        self.assertEqual(self.sent_text(), "Carry on at %s, after the %s." % (
+            continuation.format_reset_time(self.h.record()["reset_at"]),
+            l10n.text(reasons.label_key("usage_limit"), "en")))
 
     def test_a_change_made_while_it_waits_applies_to_that_recovery(self):
         self.policy()
