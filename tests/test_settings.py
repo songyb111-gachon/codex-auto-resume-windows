@@ -211,7 +211,7 @@ class DescribeTests(unittest.TestCase):
         # Interface language, and "continuation" the words a continuation is sent with.
         for entry in self.described:
             self.assertIn(entry["group"], {"general", "recovery", "limits", "notifications",
-                                           "continuation", "windows", "advanced"})
+                                           "continuation", "appearance", "windows", "advanced"})
 
     def test_published_ranges_accept_their_own_bounds(self):
         # A user interface builds its spin boxes from these numbers, so a bound the

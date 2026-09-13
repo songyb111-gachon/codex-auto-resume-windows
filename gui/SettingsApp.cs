@@ -15,8 +15,10 @@
 //     hardcoded row is shorter than its own text and clips the descenders.
 //   * Groups sit in a TableLayoutPanel, not a FlowLayoutPanel: flow hands a child its
 //     preferred width, so an AutoSize group collapses to the width of its content.
-//   * Two columns, because one column does not fit a laptop screen, and a settings
-//     window that has to be scrolled to reveal settings is a poor settings window.
+//   * The Settings page is a list of sections beside one section's cards. Everything on
+//     one scrolling page stopped fitting a laptop screen once languages and the
+//     Continuation message joined it, and a setting is found faster under the name of
+//     what it is for.
 //   * Status leads. What the watcher is doing is the reason the window gets opened, so
 //     it sits at the top in the largest type here, and the settings follow it.
 //   * Every status fact is its own label in its own cell, never one concatenated string.
@@ -316,8 +318,33 @@ namespace CodexAutoResume
         private readonly Dictionary<string, Control> editors = new Dictionary<string, Control>();
 
         private readonly TableLayoutPanel columns = new TableLayoutPanel();
-        private readonly TableLayoutPanel leftStack = new TableLayoutPanel();
-        private readonly TableLayoutPanel rightStack = new TableLayoutPanel();
+        // The Settings page's sections, in the order the section list shows them. Each is a
+        // single column of cards; one is on screen at a time.
+        private static readonly string[] SectionOrder = { "general", "recovery", "continuation", "appearance", "advanced" };
+        private readonly Dictionary<string, TableLayoutPanel> sections = new Dictionary<string, TableLayoutPanel>();
+        private readonly Dictionary<string, NavButton> sectionButtons = new Dictionary<string, NavButton>();
+        private readonly Panel sectionScroll = new Panel();
+        private string currentSection = "general";
+        // Editors whose value is not a check box, a number or a drop-down, as the JSON each
+        // contributes to a save.
+        private readonly Dictionary<string, Func<string>> jsonValues = new Dictionary<string, Func<string>>();
+        // The Continuation message editors, kept so the Preview and the visibility rules can
+        // read what is on screen without asking anything.
+        private ChoiceGroup styleGroup;
+        private SoftCombo modeCombo, interfaceCombo, continuationCombo, previewReason, perReasonCombo;
+        private TableLayoutPanel customCard, perReasonPanel;
+        private SoftTextArea globalText, perReasonText;
+        private Label globalCount, perReasonCount, customRefusal, previewSource;
+        private SoftQuote previewText;
+        private readonly Dictionary<string, string> perReasonValues = new Dictionary<string, string>();
+        private readonly List<string> reasonOrder = new List<string>();
+        private string perReasonShown;
+        private Timer previewTimer;
+        private int previewToken;
+        private string loadedInterfaceLanguage = "system";
+        // The same limit the settings layer enforces. Shown, never enforced here: text past it
+        // is refused when saved rather than cut off while it is typed.
+        private const int MaxCustomLength = 2000;
         // Buffered for the same reason as the status dot: both strips draw a hairline in a
         // Paint handler, and the header is invalidated on every status refresh. Unbuffered,
         // it was erased to white and repainted a moment later, and a capture taken in that
@@ -327,7 +354,7 @@ namespace CodexAutoResume
         private readonly Label headline = new Label();
         private readonly Label detail = new Label();
         private readonly Label versionText = new Label();
-        private Color dotColor = Idle;
+        private readonly HaloDot stateDot = new HaloDot();
         private Button startButton;
 
         // The interface vocabulary, in the language the engine resolved. Fetched once,
@@ -340,6 +367,10 @@ namespace CodexAutoResume
         // call site, so a bridge that cannot answer degrades to what this file used to be
         // rather than to blank labels.
         private Dictionary<string, object> strings = new Dictionary<string, object>();
+        // Each language named in itself, and the language Windows asks for, for the two
+        // language drop-downs. Neither is translated.
+        private Dictionary<string, object> endonyms = new Dictionary<string, object>();
+        private string systemLanguage = "en";
 
         private string S(string key, string fallback)
         {
@@ -361,7 +392,14 @@ namespace CodexAutoResume
             {
                 var reply = bridge.Call("strings", null);
                 if (Equals(reply["ok"], true) && reply.ContainsKey("strings"))
+                {
                     strings = (Dictionary<string, object>)reply["strings"];
+                    object names, system;
+                    if (reply.TryGetValue("endonyms", out names) && names is Dictionary<string, object>)
+                        endonyms = (Dictionary<string, object>)names;
+                    if (reply.TryGetValue("system_language", out system) && system is string)
+                        systemLanguage = (string)system;
+                }
             }
             catch (Exception)
             {
@@ -429,11 +467,11 @@ namespace CodexAutoResume
             BackColor = Canvas;
             StartPosition = FormStartPosition.CenterScreen;
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(Px(860), Px(600));
+            ClientSize = new Size(Px(1040), Px(640));
             // Wide enough that the two columns always hold their content. Allowing a
             // narrower window buys nothing: the labels start truncating mid-word, which
             // looks broken rather than compact.
-            MinimumSize = new Size(Px(800), Px(420));
+            MinimumSize = new Size(Px(820), Px(460));
             try
             {
                 string icon = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "codex-auto-resume.ico");
@@ -469,22 +507,44 @@ namespace CodexAutoResume
         // ------------------------------------------------------------------- chrome
         private void BuildColumns()
         {
+            // The Settings page: the section list on the left and one section's cards on the
+            // right, scrolling on their own if a section is taller than the window.
             columns.Dock = DockStyle.Fill;
-            // FitToContent measures this page before ShowPage first parents it, and an
-            // unparented control inherits Control.DefaultFont rather than the window's -
-            // which measured the settings 40 pixels shorter than they are.
+            // FitToContent measures the sections before ShowPage first parents this page, and an
+            // unparented control inherits Control.DefaultFont rather than the window's.
             columns.Font = Font;
             columns.BackColor = Canvas;
             columns.ColumnCount = 2;
             columns.RowCount = 1;
-            columns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
-            columns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+            // Wide enough for "Automatische Wiederherstellung" and its peers at every scaling.
+            columns.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, Px(244)));
+            columns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             columns.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-            columns.Padding = Pad(18, 18, 18, 4);
-            columns.AutoScroll = true;
+            columns.Padding = Pad(12, 12, 8, 4);
 
-            foreach (TableLayoutPanel stack in new TableLayoutPanel[] { leftStack, rightStack })
+            var list = new FlowLayoutPanel();
+            list.Dock = DockStyle.Fill;
+            list.FlowDirection = FlowDirection.TopDown;
+            list.WrapContents = false;
+            list.BackColor = Canvas;
+            list.Margin = Pad(0, 8, 8, 0);
+            list.AccessibleRole = AccessibleRole.PageTabList;
+            list.AccessibleName = S("nav.settings", "Settings");
+            foreach (string name in SectionOrder)
             {
+                var button = new NavButton();
+                button.Vertical = true;
+                button.Text = SectionTitle(name);
+                button.Font = Font;
+                button.AutoSize = false;
+                button.Size = new Size(Px(230), Px(40));
+                button.Margin = Pad(0, 0, 0, 4);
+                string target = name;
+                button.Click += delegate { ShowSection(target); };
+                sectionButtons[name] = button;
+                list.Controls.Add(button);
+
+                var stack = new TableLayoutPanel();
                 stack.Dock = DockStyle.Top;
                 stack.ColumnCount = 1;
                 stack.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
@@ -492,11 +552,44 @@ namespace CodexAutoResume
                 stack.AutoSize = true;
                 stack.AutoSizeMode = AutoSizeMode.GrowAndShrink;
                 stack.BackColor = Canvas;
+                stack.Font = Font;
+                sections[name] = stack;
             }
-            leftStack.Margin = Pad(0, 0, 9, 0);
-            rightStack.Margin = Pad(9, 0, 0, 0);
-            columns.Controls.Add(leftStack, 0, 0);
-            columns.Controls.Add(rightStack, 1, 0);
+
+            sectionScroll.Dock = DockStyle.Fill;
+            sectionScroll.AutoScroll = true;
+            sectionScroll.BackColor = Canvas;
+            sectionScroll.Margin = new Padding(0);
+            columns.Controls.Add(list, 0, 0);
+            columns.Controls.Add(sectionScroll, 1, 0);
+        }
+
+        private string SectionTitle(string name)
+        {
+            switch (name)
+            {
+                case "general": return S("group.general", "General");
+                case "recovery": return S("group.recovery", "Automatic recovery");
+                case "continuation": return S("group.continuation", "Continuation message");
+                case "appearance": return S("group.appearance", "Appearance");
+                default: return S("group.advanced", "Advanced");
+            }
+        }
+
+        private void ShowSection(string name)
+        {
+            if (!sections.ContainsKey(name)) name = "general";
+            currentSection = name;
+            sectionScroll.SuspendLayout();
+            sectionScroll.Controls.Clear();
+            sectionScroll.Controls.Add(sections[name]);
+            sectionScroll.ResumeLayout(true);
+            sectionScroll.AutoScrollPosition = new Point(0, 0);
+            foreach (var pair in sectionButtons)
+            {
+                pair.Value.Current = pair.Key == name;
+                pair.Value.Font = new Font(Font, pair.Key == name ? FontStyle.Bold : FontStyle.Regular);
+            }
         }
 
         private void BuildHeader()
@@ -516,7 +609,7 @@ namespace CodexAutoResume
             grid.RowCount = 2;
             // Wide enough for the dot at any scaling: an absolute 22 held a 24-pixel dot
             // at 200% and sliced a third of it off.
-            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, Px(22)));   // state dot
+            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, Px(28)));   // state dot and its halo
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));   // what it is doing
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));        // the way out
             grid.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
@@ -525,17 +618,12 @@ namespace CodexAutoResume
 
             // Drawn rather than a glyph so the dot stays round and vertically centred at
             // any scaling, and it carries the same state as the words beside it. It
-            // spans both rows because it describes the pair, not the first line.
-            var dot = new BufferedPanel();
+            // spans both rows because it describes the pair, not the first line. Its halo is
+            // the one thing in the window that moves, and only while there is something to
+            // show moving (see HaloDot); with motion reduced it holds still.
+            var dot = stateDot;
             dot.Dock = DockStyle.Fill;
             dot.BackColor = Surface;
-            dot.Paint += delegate(object sender, PaintEventArgs e)
-            {
-                e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                int size = Px(12);
-                using (var brush = new SolidBrush(dotColor))
-                    e.Graphics.FillEllipse(brush, 0, (dot.Height - size) / 2, size, size);
-            };
 
             headline.Dock = DockStyle.Fill;
             headline.TextAlign = ContentAlignment.BottomLeft;
@@ -634,33 +722,17 @@ namespace CodexAutoResume
 
         private Button MakeButton(string text, bool primary, EventHandler onClick)
         {
-            var button = new Button();
+            // Raised on its card, or filled with the accent when it is the page's one primary
+            // action. A disabled button of either kind looks like every other that cannot be
+            // pressed (see SoftButton), so the accent never marks a dead control.
+            var button = new SoftButton(primary);
             button.Text = text;
             button.AutoSize = true;
             button.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            button.MinimumSize = new Size(Px(112), Px(32));
-            button.Padding = Pad(10, 0, 10, 0);
+            button.MinimumSize = new Size(Px(112), Px(38));
+            button.Padding = Pad(12, 0, 12, 0);
             button.Margin = Pad(9, 0, 0, 0);
-            button.FlatStyle = FlatStyle.Flat;
-            button.FlatAppearance.BorderSize = 1;
-            button.FlatAppearance.BorderColor = primary ? Accent : Line;
-            button.BackColor = primary ? Accent : Surface;
-            button.ForeColor = primary ? OnAccent : Ink;
-            button.UseVisualStyleBackColor = false;
-            button.Cursor = Cursors.Hand;
             button.Click += onClick;
-            if (primary)
-            {
-                // A disabled flat button keeps its fill and greys only its text, which on the
-                // accent reads as a live button with a rendering fault. So a primary button
-                // that cannot be pressed looks like any other that cannot.
-                button.EnabledChanged += delegate
-                {
-                    button.BackColor = button.Enabled ? Accent : Surface;
-                    button.FlatAppearance.BorderColor = button.Enabled ? Accent : Line;
-                    button.ForeColor = button.Enabled ? OnAccent : Muted;
-                };
-            }
             return button;
         }
 
@@ -741,29 +813,25 @@ namespace CodexAutoResume
             // measures AutoSize from anchored children only, so a docked AutoSize child
             // reports nothing: the panel keeps its default height and the last row of
             // every group is sliced off, bottom border and all.
-            var card = new BufferedTable();
+            //
+            // It paints its own lifted body inside a band it keeps for the shadow, so the
+            // padding starts outside that band (see SoftCard).
+            var card = new SoftCard();
             card.Dock = DockStyle.Fill;
             card.ColumnCount = 1;
             card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             card.GrowStyle = TableLayoutPanelGrowStyle.AddRows;
             card.AutoSize = true;
             card.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            card.BackColor = Surface;
-            card.Margin = Pad(0, 0, 0, 14);
-            card.Padding = Pad(20, 15, 16, 16);
-            card.Paint += delegate(object sender, PaintEventArgs e)
-            {
-                using (var pen = new Pen(Line))
-                    e.Graphics.DrawRectangle(pen, 0, 0, card.Width - 1, card.Height - 1);
-                using (var brush = new SolidBrush(Accent))
-                    e.Graphics.FillRectangle(brush, 1, 1, 3, card.Height - 2);
-            };
+            card.Margin = Pad(0, 0, 0, 2);
+            int room = SoftCard.Room;
+            card.Padding = new Padding(room + Px(18), room / 2 + Px(14), room + Px(16), room + room / 2 + Px(12));
 
             var heading = new Label();
             heading.Text = title;
             heading.AutoSize = true;
             heading.ForeColor = Ink;
-            heading.Font = new Font(Font.FontFamily, Font.Size + 0.5f, FontStyle.Bold);
+            heading.Font = new Font(Font.FontFamily, Font.Size + 1.5f, FontStyle.Bold);
             heading.Margin = Pad(0, 0, 0, 10);
             card.Controls.Add(heading);
             return card;
@@ -771,13 +839,34 @@ namespace CodexAutoResume
 
         private CheckBox NewCheck(string text, bool value)
         {
-            var check = new CheckBox();
+            var check = new SoftCheck();
             check.Text = text;
             check.AutoSize = true;
-            check.Margin = Pad(0, 5, 0, 5);
+            check.Margin = Pad(0, 3, 0, 3);
             check.Checked = value;
-            check.Cursor = Cursors.Hand;
             return check;
+        }
+
+        private Label HelpText(string text)
+        {
+            var label = new Label();
+            label.AutoSize = true;
+            label.MaximumSize = new Size(Px(600), 0);
+            label.Text = text;
+            label.ForeColor = Secondary;
+            label.Margin = Pad(0, 2, 0, 8);
+            return label;
+        }
+
+        private Label Caption(string text)
+        {
+            var label = new Label();
+            label.AutoSize = true;
+            label.Text = text;
+            label.ForeColor = Ink;
+            label.Font = new Font(Font.FontFamily, Font.Size, FontStyle.Bold);
+            label.Margin = Pad(0, 10, 0, 4);
+            return label;
         }
 
         private Control NewRow(string text, Control editor)
@@ -883,66 +972,117 @@ namespace CodexAutoResume
         {
             if (schema == null || current == null) { ReloadFailed(null); return; }
             columns.SuspendLayout();
-            foreach (TableLayoutPanel stack in new TableLayoutPanel[] { leftStack, rightStack })
+            foreach (TableLayoutPanel stack in sections.Values)
             {
                 stack.Controls.Clear();
                 stack.RowStyles.Clear();
             }
             editors.Clear();
+            jsonValues.Clear();
+            reasonOrder.Clear();
+            perReasonValues.Clear();
+            perReasonShown = null;
 
-            // Order is the argument the window makes: what may be recovered, then how
-            // hard it will try, then what it will tell you, then when it starts. Reading
-            // a two-column page means going down the left and then down the right, so
-            // that is the order the cards are added in.
-            //
-            // The split is two cards each rather than one and three. One and three was
-            // tried and looked unfinished: the left column ran out after six rows while
-            // the right ran to fifteen, leaving a third of the window blank.
-            TableLayoutPanel recovery = NewGroup(S("group.recovery", "Automatic recovery"), leftStack);
-            TableLayoutPanel limits = NewGroup(S("group.limits", "Limits"), leftStack);
-            TableLayoutPanel notifications = NewGroup(S("group.notifications", "Notifications"), rightStack);
-            TableLayoutPanel windows = NewGroup(S("group.windows", "Windows"), rightStack);
+            Soft.ReduceMotionSetting = Equals(Get(current, "reduce_motion"), true);
+            stateDot.Sync();
+            loadedInterfaceLanguage = Str(current, "interface_language") ?? "system";
+
+            var fields = new Dictionary<string, Dictionary<string, object>>();
+            foreach (object entry in schema)
+            {
+                var field = entry as Dictionary<string, object>;
+                string name = Str(field, "name");
+                if (name == null) continue;
+                fields[name] = field;
+                if (name.StartsWith("custom_message_", StringComparison.Ordinal) && Str(field, "category") != null)
+                    reasonOrder.Add(Str(field, "category"));
+            }
+
+            // General: the language this window speaks, what Windows does, what it tells you.
+            TableLayoutPanel language = NewGroup(S("field.interface_language", "Interface language"), sections["general"]);
+            interfaceCombo = LanguageCombo(fields, "interface_language", current);
+            interfaceCombo.Anchor = AnchorStyles.Left;
+            interfaceCombo.Margin = Pad(0, 0, 0, 6);
+            language.Controls.Add(interfaceCombo);
+            language.Controls.Add(HelpText(S("help.interface_language",
+                "Used by this window, the notification-area popup, notifications and the panel in Codex.")));
+            editors["interface_language"] = interfaceCombo;
+            TableLayoutPanel windows = NewGroup(S("group.windows", "Windows"), sections["general"]);
             // First in its card, above the Windows preferences the schema adds.
             CheckBox startup = NewCheck(S("field.startup", "Run at Windows sign-in"), false);
             windows.Controls.Add(startup);
             editors["__startup"] = startup;
+            TableLayoutPanel notifications = NewGroup(S("group.notifications", "Notifications"), sections["general"]);
 
+            // Automatic recovery: which kinds of interruption may be recovered at all.
+            TableLayoutPanel recovery = NewGroup(S("group.recovery", "Automatic recovery"), sections["recovery"]);
+            recovery.Controls.Add(HelpText(S("help.recovery",
+                "Only kinds of failure the product can recognise are ever recovered. Turning one off stops it; turning one on cannot make an unknown failure recoverable.")));
+
+            // Continuation message: its language and style, the Custom text, and the Preview.
+            TableLayoutPanel words = NewGroup(S("group.continuation", "Continuation message"), sections["continuation"]);
+            customCard = NewGroup(S("choice.style.custom", "Custom"), sections["continuation"]);
+            TableLayoutPanel preview = NewGroup(S("preview.title", "Preview"), sections["continuation"]);
+
+            // Appearance, and the limits nobody needs to change to get started.
+            TableLayoutPanel look = NewGroup(S("group.appearance", "Appearance"), sections["appearance"]);
+            var theme = new Label();
+            theme.AutoSize = true;
+            theme.Text = S("choice.theme.light", "Light");
+            theme.ForeColor = Ink;
+            look.Controls.Add(NewRow(S("field.theme", "Theme"), theme));
+            look.Controls.Add(HelpText(S("help.theme",
+                "This window has one theme. The panel in Codex follows Codex's own light or dark theme.")));
+            TableLayoutPanel limits = NewGroup(S("group.limits", "Limits"), sections["advanced"]);
+            limits.Controls.Add(HelpText(S("help.limits", "How hard recovery tries before it stops and leaves the task to you.")));
+
+            CheckBox master = null;
+            var subordinate = new List<CheckBox>();
             foreach (object entry in schema)
             {
-                var field = (Dictionary<string, object>)entry;
-                string name = (string)field["name"];
-                string group = field.ContainsKey("group") ? (string)field["group"] : "advanced";
+                var field = entry as Dictionary<string, object>;
+                string name = Str(field, "name");
+                if (name == null) continue;
+                string group = Str(field, "group") ?? "advanced";
                 TableLayoutPanel host = group == "recovery" ? recovery
                                       : group == "limits" ? limits
                                       : group == "notifications" ? notifications
-                                      : group == "windows" ? windows : null;
-                if (host == null) continue;      // advanced fields stay out of the window
+                                      : group == "windows" ? windows
+                                      : group == "appearance" ? look : null;
+                // General and Continuation are laid out by hand; the "advanced" fields - which
+                // engine binary to run, how far back to look - stay out of the window.
+                if (host == null) continue;
 
-                string type = (string)field["type"];
+                string type = Str(field, "type");
                 if (type == "boolean")
                 {
-                    bool value = current.ContainsKey(name) && Equals(current[name], true);
-                    CheckBox check = NewCheck(Humanise(name), value);
-                    if (field.ContainsKey("master") && Equals(field["master"], true))
+                    CheckBox check = NewCheck(Humanise(name), Equals(Get(current, name), true));
+                    if (Equals(Get(field, "master"), true))
                     {
                         // Built from the family rather than `new Font(check.Font, Bold)`:
                         // that overload can land on a substituted face and the row then
                         // renders in a different typeface from the rest of the window.
                         check.Font = new Font(Font.FontFamily, Font.Size, FontStyle.Bold);
-                        check.Margin = Pad(0, 4, 0, 10);
+                        check.Margin = Pad(0, 2, 0, 6);
+                        master = check;
                     }
                     else if (host == notifications)
                     {
-                        check.Margin = Pad(16, 5, 0, 5);   // subordinate to the master
+                        check.Margin = Pad(22, 2, 0, 2);   // subordinate to the master
+                        subordinate.Add(check);
                     }
                     host.Controls.Add(check);
                     editors[name] = check;
+                    if (name == "reduce_motion")
+                        host.Controls.Add(HelpText(S("help.reduce_motion",
+                            "Stops the breathing and pulsing status animations in this window and the notification-area popup.")));
                 }
                 else if (type == "integer")
                 {
                     var spin = new NumericUpDown();
                     spin.Width = Px(74);
                     spin.BorderStyle = BorderStyle.FixedSingle;
+                    spin.BackColor = Palette.Raised;
                     GiveTextRoom(spin);
                     spin.Minimum = field.ContainsKey("min") ? (decimal)(double)field["min"] : 0;
                     spin.Maximum = field.ContainsKey("max") ? (decimal)(double)field["max"] : 100;
@@ -954,59 +1094,427 @@ namespace CodexAutoResume
                 }
                 else if (type == "string" && field.ContainsKey("choices"))
                 {
-                    var combo = new ComboBox();
-                    combo.Width = Px(132);
-                    combo.DropDownStyle = ComboBoxStyle.DropDownList;
                     // Displayed translated, stored untranslated. `Choice` keeps the two
                     // apart, so Save writes "normal" whatever the label says - a settings
                     // file that changes meaning with the display language would be a bug
                     // the user could not see until the watcher read it back.
-                    var values = new List<string>();
-                    foreach (object choice in (List<object>)field["choices"])
-                    {
-                        values.Add((string)choice);
-                        combo.Items.Add(new Choice((string)choice,
-                                                   S("choice." + (string)choice, (string)choice)));
-                    }
-                    string value = current.ContainsKey(name) ? current[name] as string : null;
-                    combo.SelectedIndex = Math.Max(0, values.IndexOf(value));
-                    IgnoreWheel(combo);
+                    SoftCombo combo = ChoiceCombo(field, current, "choice.");
                     host.Controls.Add(NewRow(Humanise(name), combo));
                     editors[name] = combo;
                 }
             }
+            if (master != null)
+            {
+                // Progressive disclosure for notifications: the individual events only matter
+                // while notifications are on, so they are live only then.
+                CheckBox governing = master;
+                EventHandler follow = delegate { foreach (CheckBox sub in subordinate) sub.Enabled = governing.Checked; };
+                governing.CheckedChanged += follow;
+                follow(governing, EventArgs.Empty);
+            }
+
+            BuildContinuation(fields, current, words, preview);
 
             columns.ResumeLayout(true);
+            ShowSection(currentSection);
             RefreshStatusAsync(null);
             FitToContent();
         }
 
+        private void BuildContinuation(Dictionary<string, Dictionary<string, object>> fields,
+                                       Dictionary<string, object> current, TableLayoutPanel words,
+                                       TableLayoutPanel preview)
+        {
+            continuationCombo = LanguageCombo(fields, "continuation_language", current);
+            words.Controls.Add(NewRow(S("field.continuation_language", "Continuation language"), continuationCombo));
+            words.Controls.Add(HelpText(S("help.continuation_language",
+                "The language of the message sent to Codex. Unless it follows the interface, changing the interface language leaves it as it is.")));
+            editors["continuation_language"] = continuationCombo;
+
+            words.Controls.Add(Caption(S("field.continuation_style", "Message style")));
+            styleGroup = new ChoiceGroup();
+            styleGroup.Dock = DockStyle.Fill;
+            styleGroup.Font = Font;
+            styleGroup.Margin = Pad(0, 2, 0, 4);
+            styleGroup.AccessibleName = S("field.continuation_style", "Message style");
+            Dictionary<string, object> styleField;
+            List<object> styles = fields.TryGetValue("continuation_style", out styleField) ? Items(styleField, "choices") : null;
+            if (styles == null) styles = new List<object> { "minimal", "standard", "detailed", "custom" };
+            foreach (object choice in styles)
+            {
+                string style = Convert.ToString(choice, CultureInfo.InvariantCulture);
+                styleGroup.Add(new ChoiceCard(style, S("choice.style." + style, style), S("help.style." + style, "")));
+            }
+            styleGroup.Value = Str(current, "continuation_style") ?? "standard";
+            if (styleGroup.Value == null) styleGroup.Value = "standard";
+            words.Controls.Add(styleGroup);
+            ChoiceGroup chosenStyle = styleGroup;
+            jsonValues["continuation_style"] = delegate { return Json.Escape(chosenStyle.Value ?? "standard"); };
+
+            // Custom: shown only while Custom is the style. Its text is sent exactly as it is
+            // typed; the only change made is the one the text box makes itself - Windows line
+            // breaks are stored as plain ones.
+            Dictionary<string, object> modeField;
+            modeCombo = ChoiceCombo(fields.TryGetValue("custom_message_mode", out modeField) ? modeField : null,
+                                    current, "choice.custom_mode.");
+            modeCombo.Width = Px(300);
+            customCard.Controls.Add(NewRow(S("field.custom_message_mode", "Use the message for"), modeCombo));
+            editors["custom_message_mode"] = modeCombo;
+
+            customCard.Controls.Add(Caption(S("custom.global_title", "Message for every interruption")));
+            globalText = TextArea(FromStored(Str(current, "custom_message")),
+                                  S("custom.global_title", "Message for every interruption"));
+            customCard.Controls.Add(globalText);
+            globalCount = CountLabel();
+            customCard.Controls.Add(TextFooter(globalText, globalCount));
+            SoftTextArea global = globalText;
+            jsonValues["custom_message"] = delegate { return TextJson(global.Box.Text); };
+
+            perReasonPanel = new TableLayoutPanel();
+            perReasonPanel.ColumnCount = 1;
+            perReasonPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            perReasonPanel.GrowStyle = TableLayoutPanelGrowStyle.AddRows;
+            perReasonPanel.AutoSize = true;
+            perReasonPanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            perReasonPanel.Dock = DockStyle.Fill;
+            perReasonPanel.Margin = new Padding(0);
+            perReasonPanel.BackColor = Surface;
+            perReasonPanel.Controls.Add(Caption(S("custom.per_reason_title", "Message for one kind of interruption")));
+            perReasonCombo = new SoftCombo();
+            perReasonCombo.Width = Px(260);
+            IgnoreWheel(perReasonCombo);
+            foreach (string category in reasonOrder)
+            {
+                perReasonCombo.Items.Add(new Choice(category, S("reason." + category, category)));
+                perReasonValues[category] = FromStored(Str(current, "custom_message_" + category));
+                string key = category;
+                jsonValues["custom_message_" + key] = delegate { return TextJson(PerReasonValue(key)); };
+            }
+            perReasonPanel.Controls.Add(NewRow(S("custom.edit_for", "Message for"), perReasonCombo));
+            perReasonText = TextArea("", S("custom.per_reason_title", "Message for one kind of interruption"));
+            perReasonPanel.Controls.Add(perReasonText);
+            perReasonCount = CountLabel();
+            perReasonPanel.Controls.Add(TextFooter(perReasonText, perReasonCount));
+            customCard.Controls.Add(perReasonPanel);
+            perReasonCombo.SelectedIndexChanged += delegate { SwitchPerReason(); SchedulePreview(); };
+            if (perReasonCombo.Items.Count > 0) perReasonCombo.SelectedIndex = 0;
+
+            customRefusal = HelpText("");
+            customRefusal.ForeColor = Palette.Danger;
+            customCard.Controls.Add(customRefusal);
+            customCard.Controls.Add(HelpText(S("custom.placeholders", "You can use {reason}, {attempt}, {max_attempts} and {reset_time}.")));
+            customCard.Controls.Add(HelpText(S("custom.verbatim",
+                "Sent exactly as written. It is never translated or reworded, and changing either language leaves it as it is.")));
+            customCard.Controls.Add(HelpText(S("custom.fallback",
+                "An empty message falls back to the message for every interruption, and then to the Standard message.")));
+
+            // Preview: the exact text, from the same function the watcher sends with.
+            previewReason = new SoftCombo();
+            previewReason.Width = Px(260);
+            IgnoreWheel(previewReason);
+            foreach (string category in reasonOrder)
+                previewReason.Items.Add(new Choice(category, S("reason." + category, category)));
+            if (previewReason.Items.Count > 0) previewReason.SelectedIndex = 0;
+            preview.Controls.Add(NewRow(S("preview.for", "Preview for"), previewReason));
+            previewText = new SoftQuote();
+            previewText.Dock = DockStyle.Fill;
+            previewText.Font = Font;
+            previewText.Margin = Pad(0, 6, 0, 4);
+            previewText.AccessibleName = S("preview.title", "Preview");
+            preview.Controls.Add(previewText);
+            previewSource = HelpText("");
+            preview.Controls.Add(previewSource);
+            preview.Controls.Add(HelpText(S("preview.note",
+                "This is the text that will be sent. The watcher adds one line after it to recognise the exact turn it starts.")));
+
+            interfaceCombo.SelectedIndexChanged += delegate { RelabelFollow(); SchedulePreview(); };
+            continuationCombo.SelectedIndexChanged += delegate { SchedulePreview(); };
+            styleGroup.ValueChanged += delegate { UpdateContinuationVisibility(); SchedulePreview(); };
+            modeCombo.SelectedIndexChanged += delegate { UpdateContinuationVisibility(); SchedulePreview(); };
+            previewReason.SelectedIndexChanged += delegate { SchedulePreview(); };
+            RelabelFollow();
+            UpdateContinuationVisibility();
+            SchedulePreview();
+        }
+
+        private SoftCombo LanguageCombo(Dictionary<string, Dictionary<string, object>> fields, string name,
+                                        Dictionary<string, object> current)
+        {
+            var combo = new SoftCombo();
+            combo.Width = Px(300);
+            IgnoreWheel(combo);
+            Dictionary<string, object> field;
+            List<object> choices = fields.TryGetValue(name, out field) ? Items(field, "choices") : null;
+            if (choices == null) choices = new List<object>();
+            string value = Str(current, name);
+            int index = 0;
+            foreach (object choice in choices)
+            {
+                string locale = Convert.ToString(choice, CultureInfo.InvariantCulture);
+                if (locale == value) index = combo.Items.Count;
+                combo.Items.Add(new Choice(locale, LanguageLabel(locale)));
+            }
+            if (combo.Items.Count > 0) combo.SelectedIndex = index;
+            combo.AccessibleName = S("field." + name, name);
+            return combo;
+        }
+
+        private string LanguageLabel(string locale)
+        {
+            if (locale == "system")
+                return S("choice.language.system", "System ({language})", "language", Endonym(systemLanguage));
+            if (locale == "follow")
+                return S("choice.continuation_language.follow", "Same as the interface ({language})", "language",
+                         Endonym(InterfaceLocale()));
+            return Endonym(locale);
+        }
+
+        private string Endonym(string locale)
+        {
+            object name;
+            return locale != null && endonyms.TryGetValue(locale, out name) && name is string ? (string)name : locale;
+        }
+
+        /// The interface language as currently chosen on this page, resolved.
+        private string InterfaceLocale()
+        {
+            var chosen = interfaceCombo == null ? null : interfaceCombo.SelectedItem as Choice;
+            string value = chosen == null ? loadedInterfaceLanguage : chosen.Value;
+            return string.IsNullOrEmpty(value) || value == "system" ? systemLanguage : value;
+        }
+
+        /// "Same as the interface (...)" names the interface language, so it follows that choice.
+        private void RelabelFollow()
+        {
+            if (continuationCombo == null || continuationCombo.Items.Count == 0) return;
+            var first = continuationCombo.Items[0] as Choice;
+            if (first == null || first.Value != "follow") return;
+            int keep = continuationCombo.SelectedIndex;
+            continuationCombo.Items[0] = new Choice("follow", LanguageLabel("follow"));
+            continuationCombo.SelectedIndex = keep;
+        }
+
+        private SoftCombo ChoiceCombo(Dictionary<string, object> field, Dictionary<string, object> current, string prefix)
+        {
+            var combo = new SoftCombo();
+            combo.Width = Px(150);
+            IgnoreWheel(combo);
+            string name = Str(field, "name");
+            List<object> choices = Items(field, "choices") ?? new List<object>();
+            string value = name == null ? null : Str(current, name);
+            int index = 0;
+            foreach (object choice in choices)
+            {
+                string text = Convert.ToString(choice, CultureInfo.InvariantCulture);
+                if (text == value) index = combo.Items.Count;
+                combo.Items.Add(new Choice(text, S(prefix + text, text)));
+            }
+            if (combo.Items.Count > 0) combo.SelectedIndex = index;
+            return combo;
+        }
+
+        private SoftTextArea TextArea(string text, string name)
+        {
+            var area = new SoftTextArea();
+            area.Dock = DockStyle.Fill;
+            area.Margin = Pad(0, 2, 0, 2);
+            area.Font = Font;
+            area.Box.Font = Font;
+            area.Box.Text = text ?? "";
+            area.Box.AccessibleName = name;
+            area.Box.TextChanged += delegate { SchedulePreview(); };
+            return area;
+        }
+
+        private Label CountLabel()
+        {
+            var label = new Label();
+            label.AutoSize = true;
+            label.ForeColor = Secondary;
+            label.Margin = Pad(2, 6, 0, 0);
+            return label;
+        }
+
+        private Control TextFooter(SoftTextArea area, Label count)
+        {
+            var row = new TableLayoutPanel();
+            row.ColumnCount = 2;
+            row.RowCount = 1;
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            row.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            row.AutoSize = true;
+            row.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            row.Dock = DockStyle.Fill;
+            row.Margin = Pad(0, 0, 0, 4);
+            row.BackColor = Surface;
+            count.Anchor = AnchorStyles.Left | AnchorStyles.Top;
+            Button clear = MakeButton(S("custom.clear", "Clear"), false, delegate { area.Box.Clear(); area.Box.Focus(); });
+            clear.MinimumSize = new Size(Px(88), Px(34));
+            clear.Anchor = AnchorStyles.Right | AnchorStyles.Top;
+            clear.Margin = new Padding(0);
+            row.Controls.Add(count, 0, 0);
+            row.Controls.Add(clear, 1, 0);
+            area.Box.TextChanged += delegate { UpdateCount(area, count); };
+            UpdateCount(area, count);
+            return row;
+        }
+
+        private void UpdateCount(SoftTextArea area, Label count)
+        {
+            int length = (area.Box.Text ?? "").Replace("\r\n", "\n").Length;
+            count.Text = length.ToString(CultureInfo.CurrentCulture) + " / " +
+                         MaxCustomLength.ToString(CultureInfo.CurrentCulture);
+            count.ForeColor = length > MaxCustomLength ? Palette.Danger : Secondary;
+        }
+
+        /// A message as the settings file stores it: Windows line breaks as plain ones, and an
+        /// empty or blank box as "not set", which falls back rather than sending nothing.
+        private static string TextJson(string text)
+        {
+            string plain = (text ?? "").Replace("\r\n", "\n");
+            return plain.Trim().Length == 0 ? "null" : Json.Escape(plain);
+        }
+
+        private static string FromStored(string text)
+        {
+            return text == null ? "" : text.Replace("\r\n", "\n").Replace("\n", "\r\n");
+        }
+
+        private void SwitchPerReason()
+        {
+            if (perReasonShown != null) perReasonValues[perReasonShown] = perReasonText.Box.Text;
+            var chosen = perReasonCombo.SelectedItem as Choice;
+            perReasonShown = chosen == null ? null : chosen.Value;
+            string text;
+            perReasonText.Box.Text = perReasonShown != null && perReasonValues.TryGetValue(perReasonShown, out text)
+                                   ? text : "";
+        }
+
+        private string PerReasonValue(string category)
+        {
+            if (category == perReasonShown && perReasonText != null) return perReasonText.Box.Text;
+            string text;
+            return perReasonValues.TryGetValue(category, out text) ? text : "";
+        }
+
+        private void UpdateContinuationVisibility()
+        {
+            bool custom = styleGroup != null && styleGroup.Value == "custom";
+            if (customCard != null && customCard.Visible != custom) customCard.Visible = custom;
+            var mode = modeCombo == null ? null : modeCombo.SelectedItem as Choice;
+            bool perReason = custom && mode != null && mode.Value == "per_reason";
+            if (perReasonPanel != null && perReasonPanel.Visible != perReason) perReasonPanel.Visible = perReason;
+        }
+
+        private static string ComboJson(ComboBox combo)
+        {
+            var chosen = combo == null ? null : combo.SelectedItem as Choice;
+            return chosen == null ? "null" : Json.Escape(chosen.Value);
+        }
+
+        /// The Preview follows what is on screen, a moment after it stops changing.
+        private void SchedulePreview()
+        {
+            if (previewText == null) return;
+            if (previewTimer == null)
+            {
+                previewTimer = new Timer();
+                previewTimer.Interval = 350;
+                previewTimer.Tick += delegate { previewTimer.Stop(); RunPreview(); };
+            }
+            previewTimer.Stop();
+            previewTimer.Start();
+        }
+
+        private void RunPreview()
+        {
+            var reason = previewReason == null ? null : previewReason.SelectedItem as Choice;
+            if (reason == null || previewText == null || styleGroup == null) return;
+            var payload = new StringBuilder("{\"category\":").Append(Json.Escape(reason.Value)).Append(",\"changes\":{");
+            payload.Append("\"interface_language\":").Append(ComboJson(interfaceCombo));
+            payload.Append(",\"continuation_language\":").Append(ComboJson(continuationCombo));
+            payload.Append(",\"continuation_style\":").Append(Json.Escape(styleGroup.Value ?? "standard"));
+            payload.Append(",\"custom_message_mode\":").Append(ComboJson(modeCombo));
+            payload.Append(",\"custom_message\":").Append(TextJson(globalText == null ? "" : globalText.Box.Text));
+            foreach (string category in reasonOrder)
+                payload.Append(',').Append(Json.Escape("custom_message_" + category)).Append(':')
+                       .Append(TextJson(PerReasonValue(category)));
+            payload.Append("}}");
+            int token = ++previewToken;
+            string argument = payload.ToString();
+            // Not CallAsync: a Preview is not an action, so it neither waits for one nor makes
+            // the window's buttons wait for it.
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            {
+                Dictionary<string, object> reply = null;
+                try { reply = bridge.Call("preview-continuation", argument); }
+                catch (Exception) { reply = null; }
+                MethodInvoker apply = delegate
+                {
+                    if (token != previewToken) return;     // a newer Preview is on its way
+                    var result = Ok(reply) ? Map(reply, "result") : null;
+                    if (result == null)
+                    {
+                        previewText.Quote = S("preview.unavailable", "Preview is not available right now.");
+                        previewSource.Text = "";
+                        previewSource.Visible = false;
+                        customRefusal.Text = "";
+                        customRefusal.Visible = false;
+                        return;
+                    }
+                    previewText.Quote = Str(result, "text") ?? "";
+                    string source = Str(result, "source");
+                    previewSource.Text = source == null ? "" : S("preview.source." + source, "");
+                    previewSource.Visible = previewSource.Text.Length > 0;
+                    customRefusal.Text = RefusalText(result);
+                    customRefusal.Visible = customRefusal.Text.Length > 0;
+                };
+                try { if (IsHandleCreated && !IsDisposed) BeginInvoke(apply); }
+                catch (Exception) { }
+            });
+        }
+
+        /// Why a Custom message would be refused, in the window's language.
+        private string RefusalText(Dictionary<string, object> result)
+        {
+            string english = Str(result, "refusal");
+            if (english == null) return "";
+            string code = Str(result, "refusal_code");
+            string reason = code == null ? english
+                : S("custom.refusal." + code, english)
+                      .Replace("{placeholder}", Str(result, "refusal_detail") ?? "")
+                      .Replace("{max}", MaxCustomLength.ToString(CultureInfo.CurrentCulture));
+            return S("custom.refused", "Not saved: {reason}", "reason", reason);
+        }
+
         private void FitToContent()
         {
-            // A settings window should show its settings. Grow to fit both columns, and
-            // fall back to scrolling only when the screen genuinely cannot hold them.
-            int tallest = Math.Max(leftStack.PreferredSize.Height, rightStack.PreferredSize.Height);
+            // A settings window should show its settings. Grow to fit the tallest section,
+            // and fall back to scrolling only when the screen genuinely cannot hold it.
+            int tallest = 0;
+            foreach (TableLayoutPanel stack in sections.Values)
+                tallest = Math.Max(tallest, stack.PreferredSize.Height);
             int wanted = tallest + columns.Padding.Vertical + header.Height + footer.Height + nav.Height;
             Rectangle screen = Screen.FromControl(this).WorkingArea;
             int maximum = screen.Height - (Height - ClientSize.Height) - 80;
             // The width is scaled, so on a small screen at a large scaling factor the
-            // window can be asked to be wider than the display: 780 units at 250% is
-            // 1950 pixels, and a 1920-wide laptop cannot show that. Widths are clamped to
-            // the working area for the same reason heights are - a window whose controls
-            // sit past the edge of the screen cannot be reached at all, where a scrollable
-            // one can.
+            // window can be asked to be wider than the display. Widths are clamped to the
+            // working area for the same reason heights are - a window whose controls sit
+            // past the edge of the screen cannot be reached at all, where a scrollable one
+            // can.
             int widest = screen.Width - (Width - ClientSize.Width);
             int across = Math.Min(ClientSize.Width, Math.Max(Px(340), widest));
             if (MinimumSize.Width > screen.Width)
                 MinimumSize = new Size(Math.Max(Px(340), widest), MinimumSize.Height);
-            ClientSize = new Size(across, Math.Max(Px(340), Math.Min(wanted, maximum)));
+            ClientSize = new Size(across, Math.Max(Px(460), Math.Min(Math.Max(wanted, Px(640)), maximum)));
             Left = Math.Max(screen.Left, screen.Left + (screen.Width - Width) / 2);
             Top = Math.Max(screen.Top, screen.Top + (screen.Height - Height) / 2);
         }
 
         private void StatusUnavailable()
         {
-            dotColor = Idle;
+            stateDot.State = "idle";
             headline.Text = S("status.unavailable", "Status unavailable");
             detail.Text = S("status.unavailable_detail", "Settings can still be changed and saved");
             // The version is deliberately left as it was: a failed status read is no
@@ -1044,11 +1552,14 @@ namespace CodexAutoResume
             double pending = status.ContainsKey("pending") ? (double)status["pending"] : 0;
             if (startup != null) startup.Checked = Equals(status["startup_enabled"], true);
 
-            dotColor = Equals(running, true) && enabled ? Active : Idle;
+            // The coarse state, from the status alone. The Dashboard refines it from the
+            // pending list - recovering, due to be checked - as soon as it has one.
+            stateDot.State = running == null ? "idle" : !Equals(running, true) ? "attention"
+                           : !enabled ? "paused" : pending > 0 ? "waiting" : "monitoring";
             headline.Text = running == null ? S("status.unknown", "Watcher status unknown")
                           : !Equals(running, true) ? S("status.not_running", "Watcher not running")
                           : enabled ? S("status.watching", "Watching for interruptions")
-                          : S("status.paused", "Watching paused");
+                          : S("status.paused", "Automatic recovery paused");
             int count = (int)pending;
             string tail = count == 0 ? S("status.pending_none", "Nothing pending")
                         : count == 1 ? S("status.pending_one", "1 recovery pending")
@@ -1131,7 +1642,7 @@ namespace CodexAutoResume
                     // the reason it is not is worth more than the reason a stopped
                     // watcher is normally not running.
                     detail.Text = state == "exited"
-                        ? S("start.exited", "It started and stopped again - see logs in the installation folder")
+                        ? S("start.exited", "It started and stopped again. See the logs in the installation folder.")
                         : S("start.unconfirmed", "Started, but not confirmed running yet");
                     header.Invalidate(true);
                 });
@@ -1167,7 +1678,18 @@ namespace CodexAutoResume
                     changes.Append(Json.Escape(chosen == null ? null : chosen.Value));
                 }
             }
+            foreach (KeyValuePair<string, Func<string>> pair in jsonValues)
+            {
+                if (!first) changes.Append(',');
+                first = false;
+                changes.Append(Json.Escape(pair.Key)).Append(':').Append(pair.Value());
+            }
             changes.Append('}');
+
+            var chosenLanguage = interfaceCombo == null ? null : interfaceCombo.SelectedItem as Choice;
+            string language = chosenLanguage == null ? loadedInterfaceLanguage : chosenLanguage.Value;
+            bool languageChanged = language != loadedInterfaceLanguage;
+            var motion = editors.ContainsKey("reduce_motion") ? editors["reduce_motion"] as CheckBox : null;
 
             // The two writes on a worker, in order: the settings, then the sign-in entry.
             // Neither is started until the one before it has been answered, so a failure
@@ -1177,13 +1699,23 @@ namespace CodexAutoResume
             CallAsync("update", changes.ToString(), delegate(Dictionary<string, object> updated)
             {
                 if (!Ok(updated)) { SaveFailed(updated); return; }
+                loadedInterfaceLanguage = language;
+                if (motion != null)
+                {
+                    Soft.ReduceMotionSetting = motion.Checked;
+                    stateDot.Sync();
+                }
                 CallAsync("startup", "{\"enabled\":" + (startAtSignIn ? "true" : "false") + "}",
                           delegate(Dictionary<string, object> registered)
                 {
                     if (!Ok(registered)) { SaveFailed(registered); return; }
                     RefreshStatusAsync(delegate
                     {
-                        detail.Text = S("settings.saved", "Saved - the watcher uses these from its next check");
+                        // A new interface language reaches this window the next time it opens;
+                        // saying so is better than a window that half changes under the reader.
+                        detail.Text = languageChanged
+                            ? S("settings.language_changed", "Language changed. Anything already open changes the next time it opens.")
+                            : S("settings.saved", "Saved. The watcher uses these from its next check.");
                         header.Invalidate(true);
                     });
                 });

@@ -82,6 +82,7 @@ WINDOW_INPUTS = (
     ".codex-plugin/plugin.json",          # the version in the footer
     "gui/SettingsApp.cs",                 # the window's layout and wording
     "gui/Dashboard.cs",                   # the Dashboard pages
+    "gui/Controls.cs",                    # the soft controls both are drawn with
     "gui/Brand.cs",                       # its palette
     "gui/app.manifest",                   # its DPI awareness, and so its size
     "assets/codex-auto-resume.ico",       # the mark in the title bar, which is captured
@@ -290,6 +291,16 @@ def seed_window_state(home: Path, codex: Path, now: float) -> None:
                                  reset_at=now + 42 * 60 + 20), now - 25 * 60)
         store.register(detection(8, WINDOW_THREADS[1], "network_transient", now - 50),
                        now - 50, state="waiting_backoff", next_retry_at=now + 95)
+        # What the watcher last recorded for each of them, so "Why it is waiting" shows the
+        # checklist it shows for a real one: everything it could check passed, the schedule
+        # is what it is waiting on, and the checks that need Codex running were not reached.
+        from codex_auto_resume import machine
+        for index, schedule in ((7, "waiting_reset"), (8, "not_due")):
+            vector = {name: machine.gate(machine.PASS) for name in machine.GATES}
+            vector["schedule"] = machine.gate(machine.WAIT, schedule)
+            for name in ("thread_available", "no_newer_user_work", "usage"):
+                vector[name] = machine.gate(machine.UNKNOWN, machine.NOT_CHECKED)
+            store.record_gates("%x" % index * 64, vector, now - 40)
 
 
 # ------------------------------------------------------------------------- panel
