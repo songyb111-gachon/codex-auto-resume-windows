@@ -21,6 +21,13 @@ rests on the card; a value sits in a shallow well; a state is a word on a tinted
 state dot breathes while the watcher is watching. The flat cards with an accent rail that came
 before are gone.
 
+v0.6.4 made them one material rather than three similar ones. The panel in Codex was the
+reference: its shadows, sizes and control recipes moved into `brand.py` as data, and the
+Dashboard and the popup now draw the same lifted cards, the same shallow wells and the same
+switches from those numbers. Each surface kept its own text sizes and its own layout. The state
+light kept its shape and got back the colour it had before v0.6.3: cyan whenever the watcher is
+running, with a soft glow, and grey when it is paused or stopped.
+
 ## Where a colour comes from
 
 `src/codex_auto_resume/brand.py` and nowhere else — and since v0.6.3, every size, radius and
@@ -28,9 +35,9 @@ duration as well.
 
 | Surface | How it gets the palette |
 | --- | --- |
-| The Codex panel | `mcpui.py` builds its `:root` block at import from `brand.LIGHT` and `brand.DARK`, `brand.css_scale()`, and two elevation blocks of its own whose shadows are mixed from the `shadow_dark` and `shadow_light` tokens. |
-| The Dashboard | `build/make_brand.py` generates `gui/Brand.cs`: every light token as a `Color`, and the scale as constants. `gui/Controls.cs` reads the colours through one `Palette` class, which is also the one place High Contrast is honoured. The generated file is committed, so a contributor with no Python can still read what the window will look like. |
-| The notification-area popup | `tray_popup.py` imports `brand` and draws with `brand.LIGHT` and the scale directly. |
+| The Codex panel | `mcpui.py` builds its `:root` block at import from `brand.LIGHT` and `brand.DARK`, `brand.css_scale()` and `brand.css_elevation()`, which writes the shadow recipes as CSS. |
+| The Dashboard | `build/make_brand.py` generates `gui/Brand.cs`: every light token as a `Color`; the scale, the layout sizes, the shadow recipes and the state light's numbers as constants; and the state light's per-state rules as small generated methods. `gui/Controls.cs` reads the colours through one `Palette` class, which is also the one place High Contrast is honoured. The generated file is committed, so a contributor with no Python can still read what the window will look like. |
+| The notification-area popup | `tray_popup.py` imports `brand` and draws with `brand.LIGHT`, the scale, the shadow recipes and `brand.glow()` directly. |
 | The icon | `assets/make_icon.py` imports the four icon colours directly. |
 | The plugin card | `.codex-plugin/plugin.json` carries `brandColor`, checked against `brand.BRAND`. |
 
@@ -56,11 +63,13 @@ bug, and there is a test for it.
 | `shadow_dark` | `#B7C4D4` | `#05080C` | The shadow below and right of a raised surface. |
 | `shadow_light` | `#FFFFFF` | `#27303D` | The highlight above and left of it. |
 | `accent` | `#1257B8` | `#5CA2EE` | Anything to read or to click. |
+| `accent_hover` | `#135DC5` | `#62ADFF` | A primary button under the pointer: the accent brightened by 7%. |
+| `accent_pressed` | `#1250A7` | `#5290D3` | A primary button being pressed: the accent mixed 12% toward the ink (light) or the dark shadow (dark). |
 | `accent_soft` | `#DCE8F8` | `#1B2D45` | A quiet accent ground: a selected row, the active tab. |
 | `on_accent` | `#FFFFFF` | `#08111C` | Text drawn *on* the accent. |
 | `focus` | `#2F7DE1` | `#7DB6F5` | The keyboard focus ring. |
-| `active` | `#06B6D4` | `#35B5CC` | Fill only: running, work in flight. |
-| `idle` | `#94A3B8` | `#5F6E80` | Fill only: stopped. |
+| `active` | `#06B6D4` | `#35B5CC` | Fill only: the state light while the watcher is running and recovery is on. |
+| `idle` | `#94A3B8` | `#5F6E80` | Fill only: a stopped watcher's light. |
 | `attention` | `#B45309` | `#E09B57` | Fill only: needs a person. |
 | `success` | `#157045` | `#5CC98E` | State text: recovered. |
 | `waiting` | `#1A5FA8` | `#7DB6F5` | State text: waiting for a reset or a retry. |
@@ -92,34 +101,51 @@ window and a card in Codex round their corners by the same amount.
 | --- | --- | --- |
 | `RADII` | card 16, control 11, chip 999, small 7 | Corners. A chip is a pill. |
 | `SPACING` | 4, 8, 12, 16, 24, 32 (`xs` to `xxl`) | Padding and gaps. |
-| `TYPE` | title 20, heading 14, body 12, small 11 | Type sizes. |
-| `ELEVATION` | raised: 4 offset, 14 blur; inset: 2 offset, 6 blur; shadow opacity 0.55 | A raised surface, and a well. Small on purpose: exaggerated embossing is what makes soft interfaces unreadable. |
-| `MOTION` | breathe 2400 ms, attention 1200 ms, transition 160 ms | The state dot, and control transitions. |
-| `HALO` | opacity 0.12 to 0.34, radius 9 | The glow around the state dot. |
+| `TYPE` | title 20, heading 14, body 12, small 11 | The Dashboard's and the popup's type sizes. |
+| `TYPE_SCALE`, `LINE_HEIGHT`, `TYPE_ROLES` | display 21, title 15, body 14, small 12.5, mono 13 | The panel's type. The native surfaces keep `TYPE`: a notification-area popup and a fixed-size window read better with smaller text than a panel inside Codex. |
+| `LAYOUT` | button 34 high, field 35, switch 40 × 22, chip 22, card padding 16 × 18, page gap 14, and the rest | The sizes of the shared control recipes, taken from the panel. |
+| `SHADOWS` | light card: offset (4, 4), blur 14, `shadow_dark` at 0.55, and offset (−4, −4), blur 14, `shadow_light` at 0.90; control: the same at offset 2, blur 6; inset: offset 2, blur 6, inside the edge | A lifted card, a raised control and a well. Small on purpose: exaggerated embossing is what makes soft interfaces unreadable. |
+| `STATUS_DOT`, `STATUS_FILL`, `GLOW` | dot radius: window 5, popup 4.5, panel 6; the glow reaches 7 beyond the dot | The state light: its size, its colour for each state, and its glow. |
+| `MOTION` | transition 160 ms | Control transitions in the panel. |
 
 The window gets these as constants in `gui/Brand.cs` - `RadiusCard`, `SpaceM`, `TypeBody`,
-`RaisedBlur`, `ShadowOpacity`, `BreatheMs`, `AttentionMs`, `HaloMin` and the rest - and
-multiplies them by its own scale factor. The popup reads the same tables from `brand.py`. The
-panel gets CSS custom properties from `brand.css_scale()`: `--radius-*`, `--space-*`,
-`--type-*`, `--breathe`, `--pulse`, `--transition`, `--halo-min` and `--halo-max`.
+`ButtonHeight`, `FieldHeight`, the shadow recipes and the glow's numbers - and multiplies them
+by its own scale factor. The popup reads the same tables from `brand.py`. The panel gets CSS
+custom properties from `brand.css_scale()`: `--radius-*`, `--space-*`, `--type-*`, `--lh-*`,
+`--size-*`, `--glow-*` and `--transition`.
 
-The attention duration is `--pulse`, not `--attention`, because the palette already declares
-`--attention` as a colour on the same `:root`. Two custom properties with one name raise
-nothing: the later declaration wins, the dark theme declares the colour again, and an animation
-handed a colour for its duration simply does not run.
+The attention pulse's duration is `--glow-attention-ms`, never `--attention`, because the
+palette already declares `--attention` as a colour on the same `:root`. Two custom properties
+with one name raise nothing: the later declaration wins, the dark theme declares the colour
+again, and an animation handed a colour for its duration simply does not run. v0.6.3 met this
+and named the duration `--pulse`.
 
-The panel writes its shadows in its own stylesheet, from the shadow tokens. In the light theme
-they use the offsets and blurs in the table; in the dark theme a lift is mostly the hairline and
-a one-pixel top light, because a shadow on a near-black ground is invisible at best and muddy at
-worst.
+A shadow is data, not a stylesheet. `brand.shadow_alpha()` is the model - a CSS blur is a
+Gaussian with a standard deviation of half the blur - and `brand.css_elevation()` writes the
+recipes as the panel's `box-shadow` values. The Dashboard and the popup render the same recipes
+into cached images and stamp them around each card and control, and tests hold what they draw to
+the model within two levels of 255 at 100%, 150% and 200%. In the dark theme a lift is mostly the
+hairline and a one-pixel top light, because a shadow on a near-black ground is invisible at best
+and muddy at worst.
 
 ## Motion is a state
 
-The state dot says whether the watcher is alive, in the Dashboard's header, at the top of the
-popup and at the top of the panel. Monitoring breathes slowly; waiting holds a soft halo;
-checking a task that has come due turns a small arc (in the Dashboard and the popup); recovering
-pulses faster; paused is still, with no halo; a state that needs a person pulses once when it is
-entered and then holds. Nothing blinks, and the dot always has its word beside it.
+The state light says whether the watcher is alive, in the Dashboard's header, at the top of the
+popup and at the top of the panel. It is a flat dot with a soft glow around it, and the glow is
+the only thing that moves. `brand.glow()` defines it once, and all three surfaces are tested
+against that one function:
+
+| State | Colour | Glow |
+| --- | --- | --- |
+| Monitoring | `active` | Breathes slowly: opacity 0.14 to 0.30 over 3.6 s, the glow growing from 94% to its full size |
+| Waiting | `active` | Still, at 0.20 |
+| Checking a task that has come due | `active` | Still, at 0.20, with a thin arc turning once every 1.6 s (in the Dashboard and the popup) |
+| Recovering | `active` | Breathes a little faster: 0.18 to 0.38 over 2.2 s |
+| Needs a person | `attention` | One soft pulse from 0.20 to 0.42 and back over 1.4 s, then still |
+| Paused, stopped | `paused`, `idle` | None |
+
+The glow fades out over 7 pixels beyond the dot, with no edge anywhere. Nothing blinks, and the
+light always has its word beside it.
 
 All of it stops on request. The Dashboard and the popup stop every animation when **Reduce
 motion** is on (Settings > Appearance) or when Windows' own animation-effects switch is off, and
@@ -129,8 +155,10 @@ the Dashboard also stops it in High Contrast. The panel follows the host's
 ## High Contrast, and a window that stays light
 
 In High Contrast the Dashboard drops its shadows and tints, stops its motion and draws with
-system colours throughout; `Palette` in `gui/Controls.cs` is where that swap happens. The popup
-does not make that swap: it draws with the light palette in every mode.
+system colours throughout; `Palette` in `gui/Controls.cs` is where that swap happens. Since
+v0.6.4 the popup makes the same swap, with the same mapping, and the panel has a forced-colors
+style, so its lights, switch knobs and drop-down arrows stay visible. In all three the state
+light becomes a solid dot in a system colour, with no glow.
 
 The Dashboard is light-only, and that is a measurement rather than an opinion. A probe built for
 v0.5.6 painted a card, a spin box, a drop-down, a check box and a button in the dark palette and
@@ -185,9 +213,9 @@ the ring rather than floating beside it.
   part people are asked for when reporting a problem.
 - **The card is one object, repeated.** Same ground, same hairline, same radius and the same
   lift on all three surfaces, so the eye reads a list of sections rather than a pile of boxes.
-- **A standard control underneath.** In the Dashboard a button is still a `Button` and a check
-  box a `CheckBox`; only the painting is ours, so the keyboard, focus and screen readers behave
-  as they always did.
+- **A standard control underneath.** In the Dashboard a button is still a `Button`, a switch is a
+  `CheckBox` drawn as a switch, and a drop-down is a `ComboBox` whose closed face we draw; only
+  the painting is ours, so the keyboard, focus and screen readers behave as they always did.
 
 ## Redrawing anything
 

@@ -24,7 +24,8 @@ Four rules shape this file, and the tests hold it to each of them.
   carries on, exactly as `tray.py` does.
 
 The file is in two halves. The top half is pure - wording, ordering, placement, hit
-testing, focus order, motion, the icon badge's pixels - and is tested on any platform.
+testing, focus order, motion, the icon badge's pixels, the shape of every shadow - and is
+tested on any platform.
 The bottom half is the Win32 window and its GDI+ renderer, and only runs on Windows.
 """
 from __future__ import annotations
@@ -40,7 +41,13 @@ from . import brand, l10n, machine, reasons
 from .tray import countdown
 
 # ---------------------------------------------------------------------------- the pure half
-WIDTH = 360                  # device-independent pixels at 96 DPI
+WIDTH = 360                  # device-independent pixels at 96 DPI: the card and 12 px around it
+# v0.6.4: the card lifts off the canvas the way the panel's cards do, and its shadow reaches
+# 25 px past it. At 20 px the last of it is a third of a colour level, so the window keeps that
+# much canvas around the card. Only the canvas grows: the card, and every line of text in it,
+# is exactly as wide as it was.
+SHADOW_MARGIN = 20
+MARK = 22                    # the box the state dot sits in, beside the product's name
 MAX_TASKS = 3
 REFRESH_TICKS = 3            # re-read the list every third one-second tick while visible
 NOTICE_SECONDS = 4.0
@@ -60,15 +67,18 @@ STATES = ("monitoring", "waiting", "checking", "recovering", "paused", "attentio
 ATTENTION_OVERLAYS = frozenset({"compatibility_blocked", "engine_unavailable", "watcher_not_ticking"})
 
 # What each state is drawn with. Fill tokens for the dot, text tokens for its word: `active`
-# is fill-only and never carries text, which is why the two tables are separate.
-DOT_FILL = {"monitoring": "active", "waiting": "waiting", "checking": "accent",
-            "recovering": "active", "paused": "paused", "attention": "attention"}
+# is fill-only and never carries text, which is why the two tables are separate. The dot is
+# brand's status light, as in the window and the panel: every state in which the watcher runs
+# with recovery on is the `active` cyan it had before v0.6.3, a pause keeps its grey, and a
+# problem is amber. The word beside it, and its glow, tell the running states apart.
+DOT_FILL = {state: brand.status_fill(state) for state in STATES}
 STATE_INK = {"monitoring": "accent", "waiting": "waiting", "checking": "accent",
              "recovering": "accent", "paused": "paused", "attention": "warning"}
 # The icon's badge. Plain monitoring has none: an icon that always wears a dot says nothing.
 BADGE = {"monitoring": None, "waiting": "waiting", "checking": "waiting", "recovering": "active",
          "paused": "paused", "attention": "attention"}
-# A reason chip's text colour; its ground is the same colour at CHIP_ALPHA.
+# A reason chip's text colour; its ground is that colour mixed CHIP_ALPHA of the way into the
+# card's surface, as the panel mixes it, whatever the chip sits on.
 CHIP_ALPHA = 0.12
 
 
@@ -471,55 +481,21 @@ def next_focus(order, current, backwards=False):
 
 
 # ------------------------------------------------------------------------------- motion
-def _wave(elapsed_ms, period_ms) -> float:
-    """0 at the start of a period, 1 halfway, back to 0: a breath."""
-    phase = (elapsed_ms % period_ms) / float(period_ms)
-    return 0.5 - 0.5 * math.cos(2 * math.pi * phase)
-
-
 def halo(state, elapsed_ms, since_entered_ms=None, *, reduced=False):
-    """The halo behind the state dot for one frame, or None when there is none.
+    """The glow around the state dot for one frame, or None when there is none.
 
-    `opacity` is the halo's alpha, `scale` multiplies `HALO["radius"]`, and `arc` is the
-    start angle of the checking arc in degrees (None when there is no arc).
+    It is brand's status light, the one definition the window and the panel draw too: `opacity`
+    multiplies the glow's soft falloff, `scale` multiplies its outer radius, and `arc` is the
+    start angle of the checking arc in degrees (None when there is no arc). Monitoring breathes
+    slowly and low, waiting holds still, checking turns its arc, recovering breathes a little
+    quicker and brighter, a problem glows up once when it arrives, and a pause has no glow.
     """
-    low, high = brand.HALO["min_opacity"], brand.HALO["max_opacity"]
-    middle = (low + high) / 2
-    breathe, attention = brand.MOTION["breathe_ms"], brand.MOTION["attention_ms"]
-    if state == "paused":
-        return None
-    if reduced:
-        return {"opacity": middle, "scale": 1.0, "arc": None}
-    if state == "monitoring":
-        wave = _wave(elapsed_ms, breathe)
-        return {"opacity": low + (high - low) * wave, "scale": 0.86 + 0.14 * wave, "arc": None}
-    if state == "checking":
-        return {"opacity": middle, "scale": 1.0,
-                "arc": (elapsed_ms % attention) / float(attention) * 360.0}
-    if state == "recovering":
-        wave = _wave(elapsed_ms, attention)
-        strong = min(1.0, high * 1.8)
-        return {"opacity": high * 0.6 + (strong - high * 0.6) * wave, "scale": 0.9 + 0.3 * wave,
-                "arc": None}
-    if state == "attention":
-        since = since_entered_ms if since_entered_ms is not None else attention
-        if 0 <= since < attention:
-            wave = math.sin(math.pi * since / float(attention))
-            strong = min(1.0, high * 1.8)
-            return {"opacity": middle + (strong - middle) * wave, "scale": 1.0 + 0.2 * wave, "arc": None}
-        return {"opacity": middle, "scale": 1.0, "arc": None}
-    return {"opacity": middle, "scale": 1.0, "arc": None}      # waiting: a still, soft halo
+    return brand.glow(state, elapsed_ms, since_entered_ms, reduced=reduced)
 
 
 def animates(state, since_entered_ms=0, *, reduced=False) -> bool:
     """Whether the frame timer should run at all."""
-    if reduced:
-        return False
-    if state in ("monitoring", "checking", "recovering"):
-        return True
-    if state == "attention":
-        return since_entered_ms is not None and 0 <= since_entered_ms < brand.MOTION["attention_ms"]
-    return False
+    return brand.glow_moves(state, since_entered_ms, reduced=reduced)
 
 
 # ---------------------------------------------------------------------------- the badge
@@ -554,6 +530,132 @@ def composite_badge(pixels, width, height, colour) -> None:
             pixels[index + 3] = int(round(out * 255))
 
 
+# ---------------------------------------------------------------------------- elevation
+# The panel's raised and inset surfaces, as images GDI+ can stamp. A CSS blur B is a Gaussian
+# with sigma B/2, and across a straight edge its coverage is Phi(-d / sigma) - what
+# brand.shadow_alpha says - so every edge matches the panel to within a level. Round a corner
+# the distance is taken to the rounded rectangle; against a true blur that is at most two and a
+# half levels out at the card's corner, at a point the card itself covers. One byte of coverage
+# a pixel, worked out once for a size and a scale.
+_MASKS = {}
+_MASK_LIMIT = 64
+
+
+def _rounded_distance(x, y, half_width, half_height, radius) -> float:
+    """Signed distance from a point to a rounded rectangle centred on the origin; inside is negative."""
+    qx = abs(x) - (half_width - radius)
+    qy = abs(y) - (half_height - radius)
+    if qx > 0 and qy > 0:
+        return math.hypot(qx, qy) - radius
+    return max(qx, qy) - radius
+
+
+def _blurred(distance, sigma) -> float:
+    """How much of an edge blurred by `sigma` covers a point `distance` outside it."""
+    if sigma <= 0:
+        return max(0.0, min(1.0, 0.5 - distance))
+    return 0.5 * math.erfc(distance / (sigma * math.sqrt(2.0)))
+
+
+def _remember(key, mask):
+    if len(_MASKS) >= _MASK_LIMIT:
+        _MASKS.clear()
+    _MASKS[key] = mask
+    return mask
+
+
+def lift_coverage(width, height, radius, blur) -> dict:
+    """An outer shadow's shape: a rounded rectangle blurred by `blur`, in device pixels.
+
+    The image is the body - never wider or taller than its two corners and one straight pixel
+    between them - with `extent` pixels of blur on every side, so its middle row and column
+    stand for a straight edge of any length and one image serves every body of its kind. It is
+    symmetric: a quarter is worked out and the rest is its mirror. It is kept by the box it is
+    made from, not the body, so a taller card or a wider button finds the image already made.
+    """
+    core = 2 * int(math.ceil(radius)) + 1
+    box_w, box_h = min(width, core), min(height, core)
+    radius = max(0.0, min(radius, box_w / 2.0, box_h / 2.0))
+    key = ("lift", box_w, box_h, round(radius, 3), round(blur, 3))
+    if key in _MASKS:
+        return _MASKS[key]
+    sigma = blur / 2.0
+    extent = int(math.ceil(3 * sigma)) + 1
+    image_w, image_h = box_w + 2 * extent, box_h + 2 * extent
+    rows = [b""] * image_h
+    for j in range((image_h + 1) // 2):
+        y = j + 0.5 - image_h / 2.0
+        row = bytearray(image_w)
+        for i in range((image_w + 1) // 2):
+            distance = _rounded_distance(i + 0.5 - image_w / 2.0, y, box_w / 2.0, box_h / 2.0, radius)
+            row[i] = row[image_w - 1 - i] = int(_blurred(distance, sigma) * 255 + 0.5)
+        rows[j] = rows[image_h - 1 - j] = bytes(row)
+    return _remember(key, {"key": key, "width": image_w, "height": image_h,
+                           "centre": (image_w // 2, image_h // 2), "extent": extent,
+                           "coverage": b"".join(rows)})
+
+
+def well_coverage(width, height, radius, blur, dx, dy) -> dict:
+    """An inset shadow inside a box of `width` x `height`: how much of it shows at each pixel.
+
+    CSS draws an inset shadow as everything outside the box, moved by (dx, dy) and blurred, cut
+    to the box. The cut is in the coverage here, antialiased, so nothing has to be clipped. The
+    middle row and column stand for a straight edge as in `lift_coverage`, with room for the
+    offset and the blur; a well's light and dark shadows are one image turned round. Like a
+    lift, it is kept by the box it is made from, which is the same box turned round.
+    """
+    sigma = blur / 2.0
+    reach = int(math.ceil(radius)) + int(math.ceil(3 * sigma))
+    box_w = min(width, 2 * (reach + int(math.ceil(abs(dx)))) + 1)
+    box_h = min(height, 2 * (reach + int(math.ceil(abs(dy)))) + 1)
+    radius = max(0.0, min(radius, box_w / 2.0, box_h / 2.0))
+    key = ("well", box_w, box_h, round(radius, 3), round(blur, 3), round(dx, 3), round(dy, 3))
+    if key in _MASKS:
+        return _MASKS[key]
+    turned = _MASKS.get(key[:5] + (round(-dx, 3), round(-dy, 3)))
+    if turned is not None:
+        return _remember(key, dict(turned, key=key, coverage=turned["coverage"][::-1]))
+    half_w, half_h = box_w / 2.0, box_h / 2.0
+    data = bytearray(box_w * box_h)
+    for j in range(box_h):
+        y = j + 0.5 - half_h
+        for i in range(box_w):
+            x = i + 0.5 - half_w
+            inside = max(0.0, min(1.0, 0.5 - _rounded_distance(x, y, half_w, half_h, radius)))
+            if inside > 0:
+                hole = _blurred(_rounded_distance(x - dx, y - dy, half_w, half_h, radius), sigma)
+                data[j * box_w + i] = int((1.0 - hole) * inside * 255 + 0.5)
+    return _remember(key, {"key": key, "width": box_w, "height": box_h, "centre": (box_w // 2, box_h // 2),
+                           "extent": 0, "coverage": bytes(data)})
+
+
+def shadow_step(value) -> int:
+    """A shadow's offset in whole device pixels, rounded away from zero so light and dark stay opposite."""
+    return int(math.copysign(math.floor(abs(value) + 0.5), value))
+
+
+# ------------------------------------------------------------------------- High Contrast
+# With High Contrast on, the popup draws the way the settings window does (gui/Controls.cs,
+# Palette): every token is the system colour below, and nothing is drawn that a system colour
+# cannot say - no shadow, no tint, no glow. The state dot takes brand's STATUS_SYSTEM.
+SYSTEM_COLOURS = {"Window": 5, "WindowFrame": 6, "WindowText": 8, "Highlight": 13, "HighlightText": 14,
+                  "Control": 15, "GrayText": 17}          # GetSysColor indices
+CONTRAST_COLOURS = {
+    "ink": "WindowText", "muted": "GrayText", "line": "WindowFrame", "surface": "Window",
+    "canvas": "Control", "raised": "Window", "inset": "Window", "shadow_dark": "WindowFrame",
+    "shadow_light": "Window", "accent": "Highlight", "accent_hover": "Highlight",
+    "accent_pressed": "Highlight", "accent_soft": "Highlight", "on_accent": "HighlightText",
+    "focus": "WindowText", "active": "Highlight", "idle": "GrayText", "attention": "WindowText",
+    "success": "WindowText", "waiting": "WindowText", "warning": "WindowText", "danger": "WindowText",
+    "paused": "GrayText",
+}
+
+
+def contrast_colour(token) -> str:
+    """The system colour a brand token is drawn in while High Contrast is on."""
+    return CONTRAST_COLOURS.get(token, "WindowText")
+
+
 # ------------------------------------------------------------------------------- layout
 def layout(vm, scale, measure, width=WIDTH) -> dict:
     """Every rectangle the window draws, in device pixels, and the height it needs.
@@ -568,8 +670,10 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
     def px(value):
         return int(round(value * scale))
 
-    total = px(width)
-    margin, pad = px(space["m"]), px(space["l"])
+    # The card is as wide as it has always been; the canvas round it has room for its lift.
+    card_width = px(width) - 2 * px(space["m"])
+    margin, pad = px(SHADOW_MARGIN), px(space["l"])
+    total = card_width + 2 * margin
     left, right = margin + pad, total - margin - pad
     inner = right - left
     items, targets = [], []
@@ -580,7 +684,7 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
                       "wrap": wrap, "align": align, "target": target})
 
     # Header: the state dot, the product, the state in words.
-    mark = px(2 * brand.HALO["radius"] + 4)
+    mark = px(MARK)
     text_left = left + mark + px(space["s"] + 2)
     text_width = right - text_left
     _, title_h = measure("title", vm["title"], text_width, False)
@@ -589,7 +693,7 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
     header_h = max(mark, stack)
     top = y + (header_h - stack) // 2
     items.append({"kind": "halo", "cx": left + mark / 2.0, "cy": y + header_h / 2.0, "state": vm["state"],
-                  "radius": brand.HALO["radius"] * scale})
+                  "radius": brand.glow_extent(brand.STATUS_DOT["popup"]) * scale})
     text((text_left, top, right, top + title_h), "title", vm["title"], "ink")
     text((text_left, top + title_h, right, top + stack), "state", vm["state_text"],
          STATE_INK.get(vm["state"], "ink"), wrap=True)
@@ -645,17 +749,19 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
                          "text": task["status"], "colour": "muted", "wrap": True, "align": "left",
                          "target": None})
         line += status_h + px(space["s"]) + px(2)
-        box = px(16)
-        label_left = x0 + box + px(space["s"])
+        # The panel's switch rather than a check box: a pill, centred on its label's first line.
+        track_w, track_h = px(brand.LAYOUT["switch_width"]), px(brand.LAYOUT["switch_height"])
+        label_left = x0 + track_w + px(space["s"])
         _, label_h = measure("body", task["check_label"], x1 - label_left, True)
         _, first_line = measure("body", "Ag", content, False)
-        check_h = max(box, label_h)
-        box_top = line + max(0, (min(first_line, check_h) - box) // 2)
-        contents.append({"kind": "check", "rect": (x0, box_top, x0 + box, box_top + box),
+        track_top = line + max(0, (first_line - track_h) // 2)
+        label_top = line + max(0, (track_h - first_line) // 2)
+        check_h = max(track_top + track_h, label_top + label_h) - line
+        contents.append({"kind": "switch", "rect": (x0, track_top, x0 + track_w, track_top + track_h),
                          "checked": task["checked"], "busy": task["busy"], "target": target})
-        contents.append({"kind": "text", "rect": (label_left, line, x1, line + label_h), "role": "body",
-                         "text": task["check_label"], "colour": "ink", "wrap": True, "align": "left",
-                         "target": target})
+        contents.append({"kind": "text", "rect": (label_left, label_top, x1, label_top + label_h),
+                         "role": "body", "text": task["check_label"], "colour": "ink", "wrap": True,
+                         "align": "left", "target": target})
         hit = (x0 - px(4), line - px(4), x1 + px(4), line + check_h + px(4))
         targets.append((target, hit))
         row_bottom = line + check_h + row_pad
@@ -739,7 +845,7 @@ else:                                              # pragma: no cover - the pure
     W = None
 
 WM_ACTIVATE, WM_PAINT, WM_CLOSE, WM_ERASEBKGND = 0x0006, 0x000F, 0x0010, 0x0014
-WM_SETTINGCHANGE, WM_KEYDOWN, WM_TIMER = 0x001A, 0x0100, 0x0113
+WM_SYSCOLORCHANGE, WM_SETTINGCHANGE, WM_KEYDOWN, WM_TIMER = 0x0015, 0x001A, 0x0100, 0x0113
 WM_MOUSEMOVE, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSELEAVE = 0x0200, 0x0201, 0x0202, 0x02A3
 WM_DPICHANGED = 0x02E0
 WM_APP = 0x8000
@@ -759,6 +865,7 @@ IDC_ARROW = 32512
 MONITOR_DEFAULTTONEAREST = 2
 TME_LEAVE = 0x2
 SPI_GETCLIENTAREAANIMATION = 0x1042
+SPI_GETHIGHCONTRAST, HCF_HIGHCONTRASTON = 0x0042, 0x1
 DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND = 33, 2
 DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = -4
 DT_CENTER, DT_VCENTER, DT_WORDBREAK, DT_SINGLELINE = 0x1, 0x4, 0x10, 0x20
@@ -790,14 +897,10 @@ def role_size(role, locale) -> int:
     return size + 1 if locale in _DENSE_SCRIPTS and size <= 12 else size
 
 
-def argb(token, alpha=1.0) -> int:
-    red, green, blue = brand.rgb(brand.LIGHT[token])
+def _pack(rgb, alpha=1.0) -> int:
+    """(red, green, blue) and an alpha as the ARGB number GDI+ takes."""
+    red, green, blue = rgb
     return (max(0, min(255, int(round(alpha * 255)))) << 24) | (red << 16) | (green << 8) | blue
-
-
-def colorref(token) -> int:
-    red, green, blue = brand.rgb(brand.LIGHT[token])
-    return red | (green << 8) | (blue << 16)
 
 
 _DLLS = {}
@@ -850,6 +953,9 @@ if os.name == "nt":
     class PointF(C.Structure):
         _fields_ = [("X", C.c_float), ("Y", C.c_float)]
 
+    class HIGHCONTRASTW(C.Structure):
+        _fields_ = [("cbSize", W.UINT), ("dwFlags", W.DWORD), ("lpszDefaultScheme", W.LPWSTR)]
+
 
 def _signature(function, result, *arguments):
     function.restype = result
@@ -894,6 +1000,7 @@ def _declare():
         _signature(user32.CreateIconIndirect, H, C.POINTER(ICONINFO))
         _signature(user32.DestroyIcon, W.BOOL, H)
         _signature(user32.GetGuiResources, D, H, D)
+        _signature(user32.GetSysColor, D, I)
         for name, result, arguments in (("GetDpiForWindow", U, (H,)),
                                         ("SetThreadDpiAwarenessContext", H, (H,))):
             function = getattr(user32, name, None)
@@ -941,6 +1048,12 @@ def _declare():
         _signature(gdiplus.GdipFillEllipse, I, H, H, F, F, F, F)
         _signature(gdiplus.GdipDrawArc, I, H, H, F, F, F, F, F, F)
         _signature(gdiplus.GdipDrawLines, I, H, H, C.POINTER(PointF), I)
+        _signature(gdiplus.GdipAddPathEllipse, I, H, F, F, F, F)
+        _signature(gdiplus.GdipCreatePathGradientFromPath, I, H, C.POINTER(C.c_void_p))
+        _signature(gdiplus.GdipSetPathGradientCenterPoint, I, H, C.POINTER(PointF))
+        _signature(gdiplus.GdipSetPathGradientPresetBlend, I, H, C.POINTER(C.c_uint32), C.POINTER(F), I)
+        _signature(gdiplus.GdipSetInterpolationMode, I, H, I)
+        _signature(gdiplus.GdipDrawImageRectRectI, I, H, H, I, I, I, I, I, I, I, I, I, H, H, H)
         _DECLARED = True
 
 
@@ -989,6 +1102,42 @@ def gui_resources() -> tuple:
     _declare()
     user32, process = _dll("user32"), _dll("kernel32").GetCurrentProcess()
     return (user32.GetGuiResources(process, GR_GDIOBJECTS), user32.GetGuiResources(process, GR_USEROBJECTS))
+
+
+def high_contrast() -> bool:
+    """True while Windows' High Contrast is on."""
+    try:
+        _declare()
+        info = HIGHCONTRASTW()
+        info.cbSize = C.sizeof(HIGHCONTRASTW)
+        if not _dll("user32").SystemParametersInfoW(SPI_GETHIGHCONTRAST, info.cbSize, C.byref(info), 0):
+            return False
+        return bool(info.dwFlags & HCF_HIGHCONTRASTON)
+    except Exception:
+        return False
+
+
+def system_rgb(name) -> tuple:
+    """A system colour, by the name Windows Forms gives it, as (red, green, blue)."""
+    _declare()
+    value = _dll("user32").GetSysColor(SYSTEM_COLOURS[name])
+    return (value & 0xFF, (value >> 8) & 0xFF, (value >> 16) & 0xFF)
+
+
+# GetGuiResources cannot see GDI+ objects, so this module counts its own: every image,
+# graphics, brush, pen and path it makes, less every one it lets go. The leak tests read it.
+_GDIPLUS_LIVE = {"objects": 0}
+_GDIPLUS_LIVE_LOCK = threading.Lock()
+
+
+def _gdiplus_made(count):
+    with _GDIPLUS_LIVE_LOCK:
+        _GDIPLUS_LIVE["objects"] += count
+
+
+def gdiplus_objects() -> int:
+    """How many GDI+ objects this module holds at this moment."""
+    return _GDIPLUS_LIVE["objects"]
 
 
 def icon_rect(hwnd, uid=1):
@@ -1040,6 +1189,8 @@ def _gdiplus_release():
 
 
 PIXEL_FORMAT_32BPP_RGB = 0x00022009
+PIXEL_FORMAT_32BPP_PARGB = 0x000E200B
+UNIT_PIXEL, INTERPOLATION_NEAREST = 2, 5
 
 
 class _Painter:
@@ -1047,7 +1198,8 @@ class _Painter:
 
     GDI+ is pointed at the DIB's own memory rather than at its DC: drawing through a DC
     makes GDI+ compose every shape in a buffer of its own and copy it back, which at this
-    window's size cost about a tenth of a second a frame. Every object is released.
+    window's size cost about a tenth of a second a frame. Every object is released, and
+    counted in and out (`gdiplus_objects`).
     """
 
     def __init__(self, canvas):
@@ -1059,12 +1211,17 @@ class _Painter:
                                                    PIXEL_FORMAT_32BPP_RGB, canvas.bits, C.byref(self.bitmap))
         if status != 0:
             raise OSError("GdipCreateBitmapFromScan0 failed (%d)" % status)
+        _gdiplus_made(1)
         status = self.gp.GdipGetImageGraphicsContext(self.bitmap, C.byref(self.graphics))
         if status != 0:
             self.gp.GdipDisposeImage(self.bitmap)
+            _gdiplus_made(-1)
             raise OSError("GdipGetImageGraphicsContext failed (%d)" % status)
+        _gdiplus_made(1)
         self.gp.GdipSetSmoothingMode(self.graphics, 4)         # antialias
         self.gp.GdipSetPixelOffsetMode(self.graphics, 4)       # half: edges land on pixel edges
+        # A shadow image's one-pixel middle is stretched; nearest neighbour keeps it exact.
+        self.gp.GdipSetInterpolationMode(self.graphics, INTERPOLATION_NEAREST)
 
     def __enter__(self):
         return self
@@ -1072,11 +1229,34 @@ class _Painter:
     def __exit__(self, *unused):
         self.gp.GdipDeleteGraphics(self.graphics)
         self.gp.GdipDisposeImage(self.bitmap)
+        _gdiplus_made(-2)
+
+    def _made(self, status, what):
+        if status != 0:
+            raise OSError("%s failed (%d)" % (what, status))
+        _gdiplus_made(1)
+
+    def _delete_path(self, path):
+        self.gp.GdipDeletePath(path)
+        _gdiplus_made(-1)
+
+    def _delete_brush(self, brush):
+        self.gp.GdipDeleteBrush(brush)
+        _gdiplus_made(-1)
+
+    def _delete_pen(self, pen):
+        self.gp.GdipDeletePen(pen)
+        _gdiplus_made(-1)
+
+    def _brush(self, colour):
+        brush = C.c_void_p()
+        self._made(self.gp.GdipCreateSolidFill(colour, C.byref(brush)), "GdipCreateSolidFill")
+        return brush
 
     def _path(self, rect, radius):
         left, top, right, bottom = (float(value) for value in rect)
         path = C.c_void_p()
-        self.gp.GdipCreatePath(0, C.byref(path))
+        self._made(self.gp.GdipCreatePath(0, C.byref(path)), "GdipCreatePath")
         radius = max(0.0, min(float(radius), (right - left) / 2.0, (bottom - top) / 2.0))
         if radius <= 0.0:
             self.gp.GdipAddPathRectangle(path, left, top, right - left, bottom - top)
@@ -1091,39 +1271,43 @@ class _Painter:
 
     def _pen(self, colour, width):
         pen = C.c_void_p()
-        self.gp.GdipCreatePen1(colour, float(width), 2, C.byref(pen))      # unit: pixel
+        self._made(self.gp.GdipCreatePen1(colour, float(width), 2, C.byref(pen)), "GdipCreatePen1")  # pixels
         self.gp.GdipSetPenStartCap(pen, 2)                                 # round
         self.gp.GdipSetPenEndCap(pen, 2)
         self.gp.GdipSetPenLineJoin(pen, 2)
         return pen
 
     def fill_round(self, rect, radius, colour):
-        path, brush = self._path(rect, radius), C.c_void_p()
-        self.gp.GdipCreateSolidFill(colour, C.byref(brush))
+        path = self._path(rect, radius)
         try:
-            self.gp.GdipFillPath(self.graphics, brush, path)
+            brush = self._brush(colour)
+            try:
+                self.gp.GdipFillPath(self.graphics, brush, path)
+            finally:
+                self._delete_brush(brush)
         finally:
-            self.gp.GdipDeleteBrush(brush)
-            self.gp.GdipDeletePath(path)
+            self._delete_path(path)
 
     def stroke_round(self, rect, radius, colour, width):
         half = width / 2.0
         inner = (rect[0] + half, rect[1] + half, rect[2] - half, rect[3] - half)
-        path, pen = self._path(inner, max(0.0, radius - half)), self._pen(colour, width)
+        path = self._path(inner, max(0.0, radius - half))
         try:
-            self.gp.GdipDrawPath(self.graphics, pen, path)
+            pen = self._pen(colour, width)
+            try:
+                self.gp.GdipDrawPath(self.graphics, pen, path)
+            finally:
+                self._delete_pen(pen)
         finally:
-            self.gp.GdipDeletePen(pen)
-            self.gp.GdipDeletePath(path)
+            self._delete_path(path)
 
     def fill_circle(self, cx, cy, radius, colour):
-        brush = C.c_void_p()
-        self.gp.GdipCreateSolidFill(colour, C.byref(brush))
+        brush = self._brush(colour)
         try:
             self.gp.GdipFillEllipse(self.graphics, brush, float(cx - radius), float(cy - radius),
                                     float(radius * 2), float(radius * 2))
         finally:
-            self.gp.GdipDeleteBrush(brush)
+            self._delete_brush(brush)
 
     def arc(self, cx, cy, radius, start, sweep, colour, width):
         pen = self._pen(colour, width)
@@ -1131,15 +1315,85 @@ class _Painter:
             self.gp.GdipDrawArc(self.graphics, pen, float(cx - radius), float(cy - radius),
                                 float(radius * 2), float(radius * 2), float(start), float(sweep))
         finally:
-            self.gp.GdipDeletePen(pen)
+            self._delete_pen(pen)
 
-    def lines(self, points, colour, width):
-        array = (PointF * len(points))(*[PointF(float(x), float(y)) for x, y in points])
-        pen = self._pen(colour, width)
+    def glow(self, cx, cy, radius, stops, rgb, opacity):
+        """A soft round light of `radius`: `rgb` at `opacity` times each stop's factor.
+
+        `stops` are (fraction of the radius from the centre, factor) pairs, as brand.glow_stops
+        gives them; between two stops the alpha runs in a straight line, and at the edge it is
+        nothing, so the glow has no rim. A GDI+ path gradient counts its positions from the edge
+        inward, so the stops are turned round.
+        """
+        if radius <= 0 or opacity <= 0:
+            return
+        path = C.c_void_p()
+        self._made(self.gp.GdipCreatePath(0, C.byref(path)), "GdipCreatePath")
         try:
-            self.gp.GdipDrawLines(self.graphics, pen, array, len(points))
+            self.gp.GdipAddPathEllipse(path, float(cx - radius), float(cy - radius),
+                                       float(radius * 2), float(radius * 2))
+            brush = C.c_void_p()
+            self._made(self.gp.GdipCreatePathGradientFromPath(path, C.byref(brush)),
+                       "GdipCreatePathGradientFromPath")
+            try:
+                centre = PointF(float(cx), float(cy))
+                self.gp.GdipSetPathGradientCenterPoint(brush, C.byref(centre))
+                turned = list(reversed(stops))
+                colours = (C.c_uint32 * len(turned))(*[_pack(rgb, opacity * factor) for _, factor in turned])
+                positions = (C.c_float * len(turned))(*[1.0 - fraction for fraction, _ in turned])
+                self.gp.GdipSetPathGradientPresetBlend(brush, colours, positions, len(turned))
+                self.gp.GdipFillPath(self.graphics, brush, path)
+            finally:
+                self._delete_brush(brush)
         finally:
-            self.gp.GdipDeletePen(pen)
+            self._delete_path(path)
+
+
+class _ShadowImage:
+    """One shadow in its colour: a coverage mask as a premultiplied GDI+ image.
+
+    The pixels are made with four table look-ups over the mask rather than a loop, and GDI+
+    draws straight from that memory, so the memory lives exactly as long as the image.
+    """
+
+    def __init__(self, mask, rgb, strength):
+        self.width, self.height = mask["width"], mask["height"]
+        self.centre, self.extent = mask["centre"], mask["extent"]
+        coverage = mask["coverage"]
+        alpha = bytes(min(255, int(strength * level + 0.5)) for level in range(256))
+        pixels = bytearray(4 * self.width * self.height)
+        for offset, channel in enumerate((rgb[2], rgb[1], rgb[0])):
+            pixels[offset::4] = coverage.translate(bytes(int(channel * value / 255.0 + 0.5) for value in alpha))
+        pixels[3::4] = coverage.translate(alpha)
+        self._pixels = pixels
+        self._memory = (C.c_ubyte * len(pixels)).from_buffer(pixels)
+        self.bitmap = C.c_void_p()
+        status = _dll("gdiplus").GdipCreateBitmapFromScan0(self.width, self.height, self.width * 4,
+                                                           PIXEL_FORMAT_32BPP_PARGB,
+                                                           C.cast(self._memory, C.c_void_p), C.byref(self.bitmap))
+        if status != 0:
+            raise OSError("GdipCreateBitmapFromScan0 failed (%d)" % status)
+        _gdiplus_made(1)
+
+    def close(self):
+        if self.bitmap:
+            _dll("gdiplus").GdipDisposeImage(self.bitmap)
+            _gdiplus_made(-1)
+            self.bitmap = C.c_void_p()
+
+    def stamp(self, paint, left, top, width, height, middle=True):
+        """Into (left, top, width, height): the corners as they are, the middle row and column stretched."""
+        cx, cy = self.centre
+        right, bottom = self.width - cx - 1, self.height - cy - 1
+        columns = ((left, cx, 0), (left + cx, width - cx - right, cx), (left + width - right, right, cx + 1))
+        rows = ((top, cy, 0), (top + cy, height - cy - bottom, cy), (top + height - bottom, bottom, cy + 1))
+        for row, (y, tall, source_y) in enumerate(rows):
+            for column, (x, wide, source_x) in enumerate(columns):
+                if wide <= 0 or tall <= 0 or (row == column == 1 and not middle):
+                    continue
+                paint.gp.GdipDrawImageRectRectI(paint.graphics, self.bitmap, x, y, wide, tall, source_x, source_y,
+                                                1 if column == 1 else wide, 1 if row == 1 else tall,
+                                                UNIT_PIXEL, None, None, None)
 
 
 class _Canvas:
@@ -1267,12 +1521,16 @@ class Renderer:
             _gdiplus_release()
             raise
         self.fonts = None
-        self._background_key = None
-        self._background_pixels = None
+        self.contrast = False            # High Contrast: system colours, and no shadow, tint or glow
+        self._images = {}                # this scale's shadow images, by shape, colour and strength
+        self._images_scale = None
+        self._ground_key = None
+        self._ground_pixels = None
         self._halo_band = None
         self._halo_plan = None
 
     def close(self):
+        self._drop_images()
         if self.fonts is not None:
             self.fonts.close()
             self.fonts = None
@@ -1334,23 +1592,22 @@ class Renderer:
         scale = plan["scale"]
         canvas = self.canvas
         canvas.ensure(width, height)
-        self._background(plan)
+        self._ground(plan, pressed)
         busy = {item["target"] for item in plan["items"] if item.get("busy")}
         with _Painter(canvas) as paint:
             for item in plan["items"]:
-                if item["kind"] not in ("card", "halo"):
-                    self._shape(paint, item, scale, hover, pressed)
+                if item["kind"] == "button":
+                    self._button(paint, item, scale, hover, pressed)
         self._text(canvas.dc, plan, busy)
-        with _Painter(canvas) as paint:
-            for item in plan["items"]:
-                if item["kind"] == "check" and item["checked"]:
-                    self._tick(paint, item, scale)
-                if item["kind"] == "focusable" and focus is not None and item["target"] == focus:
-                    ring = max(2.0, 2.0 * scale)
-                    grow = ring + max(1.0, scale)
-                    rect = item["rect"]
-                    paint.stroke_round((rect[0] - grow, rect[1] - grow, rect[2] + grow, rect[3] + grow),
-                                       item["radius"] + grow, argb("focus"), ring)
+        if focus is not None:
+            with _Painter(canvas) as paint:
+                for item in plan["items"]:
+                    if item["kind"] == "focusable" and item["target"] == focus:
+                        ring = max(2.0, 2.0 * scale)
+                        grow = ring + max(1.0, scale)
+                        rect = item["rect"]
+                        paint.stroke_round((rect[0] - grow, rect[1] - grow, rect[2] + grow, rect[3] + grow),
+                                           item["radius"] + grow, self._argb("focus"), ring)
         self._keep_halo_band(plan)
         return self.draw_halo(plan, frame, restore=False)
 
@@ -1376,20 +1633,172 @@ class Renderer:
     def halo_plan(self):
         return self._halo_plan
 
-    def _background(self, plan):
-        """The ground, the card's shadow and the card: drawn once per size, then copied."""
-        canvas = self.canvas
-        card = plan["items"][0]
-        key = (plan["size"], plan["card"], card["radius"], plan["scale"])
-        if self._background_key == key and self._background_pixels is not None:
-            C.memmove(canvas.bits, self._background_pixels, len(self._background_pixels))
+    # ------------------------------------------------------------------ colours
+    def _rgb(self, token):
+        if self.contrast:
+            return system_rgb(contrast_colour(token))
+        return brand.rgb(brand.LIGHT[token])
+
+    def _argb(self, token, alpha=1.0):
+        return _pack(self._rgb(token), alpha)
+
+    def _colorref(self, token):
+        red, green, blue = self._rgb(token)
+        return red | (green << 8) | (blue << 16)
+
+    def _system_key(self):
+        """What the ground's colours depend on besides the tokens: the system colours, in High Contrast."""
+        return tuple(system_rgb(name) for name in sorted(SYSTEM_COLOURS)) if self.contrast else None
+
+    # ------------------------------------------------------------------ the ground
+    @staticmethod
+    def _lifted(item, pressed):
+        """A button stands on the card unless it is pressed or busy."""
+        return not item["busy"] and pressed != item["target"]
+
+    def _ground(self, plan, pressed):
+        """Everything but the text, the buttons' faces and the halo: drawn once, then copied.
+
+        The canvas, the card and its lift, the task rows, rules, chips, notes and switches, and
+        the lift under each button. None of it changes on a one-second tick, so a tick costs a
+        memory copy; hovering changes only a face. A press takes a button's lift away, so a
+        press is part of the key.
+        """
+        canvas, scale = self.canvas, plan["scale"]
+        self._use_scale(scale)
+        parts = []
+        for item in plan["items"]:
+            kind = item["kind"]
+            if kind == "button":
+                parts.append((kind, item["rect"], item["primary"], self._lifted(item, pressed)))
+            elif kind not in ("text", "focusable", "halo"):
+                parts.append((kind, item["rect"], item.get("radius"), item.get("tone"), item.get("checked"),
+                              item.get("busy")))
+        key = (plan["size"], scale, self._system_key(), tuple(parts))
+        if self._ground_key == key and self._ground_pixels is not None:
+            C.memmove(canvas.bits, self._ground_pixels, len(self._ground_pixels))
             return
         with _Painter(canvas) as paint:
-            paint.fill_round((0, 0, canvas.width, canvas.height), 0, argb("canvas"))
-            self._card(paint, card["rect"], card["radius"], plan["scale"])
-        self._background_pixels = canvas.pixels()
-        self._background_key = key
+            paint.fill_round((0, 0, canvas.width, canvas.height), 0, self._argb("canvas"))
+            for item in plan["items"]:
+                self._ground_item(paint, item, scale, pressed)
+        self._ground_pixels = canvas.pixels()
+        self._ground_key = key
 
+    def _ground_item(self, paint, item, scale, pressed):
+        kind = item["kind"]
+        hairline = max(1.0, round(scale))
+        if kind == "card":
+            rect, radius = item["rect"], item["radius"]
+            self._lift(paint, "card", rect, radius, scale)
+            paint.fill_round(rect, radius, self._argb("surface"))
+            paint.stroke_round(rect, radius, self._argb("line"), hairline)
+        elif kind == "panel":
+            # A task row is a tile, as in the panel: raised, a hairline, and no shadow of its own.
+            radius = brand.RADII["control"] * scale
+            paint.fill_round(item["rect"], radius, self._argb("raised"))
+            paint.stroke_round(item["rect"], radius, self._argb("line"), hairline)
+        elif kind == "rule":
+            paint.fill_round(item["rect"], 0, self._argb("line"))
+        elif kind in ("chip", "note"):
+            rect = item["rect"]
+            radius = (rect[3] - rect[1]) / 2.0 if kind == "chip" else brand.RADII["control"] * scale
+            if self.contrast:
+                if kind == "note":                       # no tint to hold it together: an edge instead
+                    paint.stroke_round(rect, radius, self._argb("line"), hairline)
+            else:
+                # Its tone mixed into the card's colour, whatever it sits on, and no edge: the same
+                # ground on a raised row as on the card.
+                ground = brand.mix(brand.LIGHT["surface"], brand.LIGHT[item["tone"]], CHIP_ALPHA)
+                paint.fill_round(rect, radius, _pack(brand.rgb(ground)))
+        elif kind == "switch":
+            self._switch(paint, item, scale)
+        elif kind == "button" and self._lifted(item, pressed):
+            self._lift(paint, "control", item["rect"], brand.RADII["control"] * scale, scale)
+
+    # ------------------------------------------------------------------ materials
+    def _use_scale(self, scale):
+        """Shadow images are kept for one scale only, so a change of display cannot grow them."""
+        if self._images_scale != scale:
+            self._drop_images()
+            self._images_scale = scale
+
+    def _drop_images(self):
+        for image in self._images.values():
+            image.close()
+        self._images = {}
+
+    def _image(self, mask, shadow):
+        key = (mask["key"], shadow.token, shadow.alpha)
+        image = self._images.get(key)
+        if image is None:
+            image = self._images[key] = _ShadowImage(mask, brand.rgb(brand.LIGHT[shadow.token]), shadow.alpha)
+        return image
+
+    def _lift(self, paint, recipe, rect, radius, scale):
+        """A raised body's shadows, the last listed first as CSS paints them; the body goes on top."""
+        if self.contrast:
+            return
+        left, top, right, bottom = (int(value) for value in rect)
+        for shadow in reversed(brand.SHADOWS["light"][recipe]):
+            image = self._image(lift_coverage(right - left, bottom - top, radius, shadow.blur * scale), shadow)
+            extent = image.extent
+            image.stamp(paint, left - extent + shadow_step(shadow.dx * scale),
+                        top - extent + shadow_step(shadow.dy * scale),
+                        right - left + 2 * extent, bottom - top + 2 * extent, middle=False)
+
+    def _well(self, paint, rect, radius, scale):
+        """The inset recipe inside a body's border: shade in from the top left, light from the bottom right."""
+        if self.contrast:
+            return
+        border = int(max(1.0, round(scale)))
+        left, top, right, bottom = (int(value) for value in rect)
+        width, height = right - left - 2 * border, bottom - top - 2 * border
+        if width <= 0 or height <= 0:
+            return
+        inner = max(0.0, radius - border)
+        for shadow in reversed(brand.SHADOWS["light"]["inset"]):
+            mask = well_coverage(width, height, inner, shadow.blur * scale, shadow.dx * scale, shadow.dy * scale)
+            self._image(mask, shadow).stamp(paint, left + border, top + border, width, height)
+
+    def _switch(self, paint, item, scale):
+        """The panel's switch: a well with a quiet knob when off, the accent with a white knob when on."""
+        left, top, right, bottom = rect = item["rect"]
+        radius = (bottom - top) / 2.0
+        faded = 0.5 if item["busy"] else 1.0              # busy: halfway into the row it sits on
+        knob = int(round(brand.LAYOUT["knob"] * scale))
+        knob_left = left + int(round(brand.LAYOUT["knob_inset"] * scale))
+        if item["checked"]:
+            paint.fill_round(rect, radius, self._argb("accent", faded))
+            knob_left += int(round(brand.LAYOUT["knob_travel"] * scale))
+            knob_token = "on_accent"
+        else:
+            paint.fill_round(rect, radius, self._argb("inset", faded))
+            if not item["busy"]:
+                self._well(paint, rect, radius, scale)
+            paint.stroke_round(rect, radius, self._argb("line", faded), max(1.0, round(scale)))
+            knob_token = "ink" if self.contrast else "muted"
+        paint.fill_circle(knob_left + knob / 2.0, (top + bottom) / 2.0, knob / 2.0, self._argb(knob_token, faded))
+
+    def _button(self, paint, item, scale, hover, pressed):
+        """A button's face. Its lift is in the ground; pressed, it sinks into a well instead."""
+        rect, target, primary = item["rect"], item["target"], item["primary"]
+        radius = brand.RADII["control"] * scale
+        sunk = not item["busy"] and pressed == target
+        if item["busy"]:
+            fill, edge = "surface", "line"
+        elif sunk:
+            fill, edge = ("accent_pressed", "accent") if primary else ("inset", "line")
+        elif hover == target:
+            fill, edge = ("accent_hover", "accent_hover") if primary else ("surface", "line")
+        else:
+            fill, edge = ("accent", "accent") if primary else ("raised", "line")
+        paint.fill_round(rect, radius, self._argb(fill))
+        if sunk:
+            self._well(paint, rect, radius, scale)
+        paint.stroke_round(rect, radius, self._argb(edge), max(1.0, round(scale)))
+
+    # ------------------------------------------------------------------ the status light
     def _keep_halo_band(self, plan):
         canvas = self.canvas
         item = next((entry for entry in plan["items"] if entry["kind"] == "halo"), None)
@@ -1398,86 +1807,34 @@ class Renderer:
             self._halo_band = None
             return
         _dll("gdi32").GdiFlush()
-        # The largest halo any state draws is 1.2 times its radius; leave room for the edge.
-        reach = item["radius"] * 1.35 + 2 * plan["scale"] + 2
+        # The item's radius is the largest glow any frame draws; leave room for its soft edge.
+        reach = item["radius"] + 2 * plan["scale"] + 2
         top = max(0, int(item["cy"] - reach))
         bottom = min(canvas.height, int(math.ceil(item["cy"] + reach)))
         offset = top * canvas.width * 4
         self._halo_band = (offset, C.string_at(canvas.bits.value + offset, (bottom - top) * canvas.width * 4))
 
-    def _shape(self, paint, item, scale, hover, pressed):
-        kind = item["kind"]
-        if kind == "panel":
-            radius = brand.RADII["control"] * scale
-            paint.fill_round(item["rect"], radius, argb("raised"))
-            paint.stroke_round(item["rect"], radius, argb("line"), max(1.0, round(scale)))
-        elif kind == "rule":
-            paint.fill_round(item["rect"], 0, argb("line"))
-        elif kind == "chip":
-            rect = item["rect"]
-            paint.fill_round(rect, (rect[3] - rect[1]) / 2.0, argb(item["tone"], CHIP_ALPHA))
-        elif kind == "note":
-            paint.fill_round(item["rect"], brand.RADII["small"] * scale, argb(item["tone"], CHIP_ALPHA))
-        elif kind == "check":
-            rect = item["rect"]
-            radius = min(brand.RADII["small"], 16 / 4.0) * scale
-            alpha = 0.5 if item["busy"] else 1.0
-            if item["checked"]:
-                paint.fill_round(rect, radius, argb("accent", alpha))
-            else:
-                paint.fill_round(rect, radius, argb("inset", alpha))
-                edge = "accent" if hover == item["target"] else "line"
-                paint.stroke_round(rect, radius, argb(edge, alpha), max(1.0, round(scale)))
-        elif kind == "button":
-            rect = item["rect"]
-            radius = brand.RADII["control"] * scale
-            alpha = 0.55 if item["busy"] else 1.0
-            if item["primary"]:
-                paint.fill_round(rect, radius, argb("accent", alpha))
-            else:
-                paint.fill_round(rect, radius, argb("inset" if hover == item["target"] else "raised", alpha))
-                paint.stroke_round(rect, radius, argb("line", alpha), max(1.0, round(scale)))
-            if not item["busy"] and item["target"] in (hover, pressed):
-                shade = 0.16 if pressed == item["target"] else (0.08 if item["primary"] else 0.0)
-                if shade:
-                    paint.fill_round(rect, radius, argb("ink", shade))
-
-    def _card(self, paint, rect, radius, scale):
-        elevation = brand.ELEVATION
-        offset = elevation["raised_offset"] * scale
-        blur = elevation["raised_blur"] * scale
-        steps = 7
-        # A soft shadow as a stack of widening, fading rounded rectangles: GDI+ has no blur,
-        # and at this size seven layers are indistinguishable from one.
-        for step in range(steps, 0, -1):
-            spread = blur * step / (2.0 * steps)
-            alpha = elevation["shadow_opacity"] * 0.22 * (1.0 - step / (steps + 1.0)) ** 1.6
-            grown = (rect[0] - spread + offset * 0.25, rect[1] - spread + offset,
-                     rect[2] + spread + offset * 0.25, rect[3] + spread + offset)
-            paint.fill_round(grown, radius + spread, argb("shadow_dark", alpha))
-        # The highlight is a hint of light up and left, one step wide: any more reads as embossed.
-        lift = max(1.0, offset / 4.0)
-        lifted = (rect[0] - lift, rect[1] - lift, rect[2] - lift, rect[3] - lift)
-        paint.fill_round(lifted, radius, argb("shadow_light", 0.45))
-        paint.fill_round(rect, radius, argb("surface"))
-        paint.stroke_round(rect, radius, argb("line"), max(1.0, round(scale)))
-
     def _halo(self, paint, item, scale, frame):
-        colour = DOT_FILL.get(item["state"], "idle")
-        cx, cy = item["cx"], item["cy"]
+        """The state dot, flat and the size it always was, with its glow and the checking arc."""
+        state, cx, cy = item["state"], item["cx"], item["cy"]
+        dot, light = brand.STATUS_DOT["popup"], brand.GLOW
+        arc = frame.get("arc") if frame is not None else None
+        arc_radius, arc_width = (dot + light["arc_gap"]) * scale, light["arc_width"] * scale
+        if self.contrast:
+            # A solid dot in a system colour, and the arc, if any, in the same colour.
+            colour = _pack(system_rgb(brand.status_system(state)))
+            paint.fill_circle(cx, cy, dot * scale, colour)
+            if arc is not None:
+                paint.arc(cx, cy, arc_radius, arc, light["arc_sweep"], colour, arc_width)
+            return
+        fill = DOT_FILL.get(state, "idle")
         if frame is not None:
-            paint.fill_circle(cx, cy, item["radius"] * frame["scale"], argb(colour, frame["opacity"]))
-        paint.fill_circle(cx, cy, 4.5 * scale, argb(colour))
-        if frame is not None and frame.get("arc") is not None:
-            paint.arc(cx, cy, item["radius"] - 1.5 * scale, frame["arc"], 100.0, argb("accent"),
-                      max(1.5, 1.75 * scale))
-
-    def _tick(self, paint, item, scale):
-        left, top, right, bottom = item["rect"]
-        size = right - left
-        points = [(left + size * 0.27, top + size * 0.52), (left + size * 0.44, top + size * 0.69),
-                  (left + size * 0.74, top + size * 0.34)]
-        paint.lines(points, argb("on_accent", 0.5 if item["busy"] else 1.0), max(1.5, 1.8 * scale))
+            paint.glow(cx, cy, brand.glow_radius(dot, frame["scale"]) * scale, brand.glow_stops(dot),
+                       brand.rgb(brand.LIGHT[fill]), frame["opacity"])
+        paint.fill_circle(cx, cy, dot * scale, self._argb(fill))
+        if arc is not None:
+            paint.arc(cx, cy, arc_radius, arc, light["arc_sweep"], self._argb("active", light["arc_alpha"]),
+                      arc_width)
 
     def _text(self, dc, plan, busy):
         gdi32, user32 = _dll("gdi32"), _dll("user32")
@@ -1490,10 +1847,9 @@ class Renderer:
                 previous = gdi32.SelectObject(dc, self.fonts.handles[item["role"]])
                 if original is None:
                     original = previous
-                colour = item["colour"]
-                if item.get("target") in busy and colour != "on_accent":
-                    colour = "muted"
-                gdi32.SetTextColor(dc, colorref(colour))
+                # Anything under way reads as waiting: a busy button's face is no longer the accent.
+                colour = "muted" if item.get("target") in busy else item["colour"]
+                gdi32.SetTextColor(dc, self._colorref(colour))
                 flags = DT_NOPREFIX
                 if item["wrap"]:
                     flags |= DT_WORDBREAK | DT_EDITCONTROL
@@ -1637,6 +1993,7 @@ class Popup:
         self._state_since = time.monotonic()
         self._epoch = time.monotonic()
         self._reduced = False
+        self._contrast = False
         self._tracking = False
         self._strings = None
         self._static_dirty = True        # anything but the halo changed since the last frame
@@ -1726,7 +2083,8 @@ class Popup:
         self.keyboard = keyboard
         self.hover = self.pressed = None
         self.focus = None
-        self._reduced = reduced_motion()
+        self._contrast = high_contrast()
+        self._reduced = reduced_motion() or self._contrast       # High Contrast moves nothing either
         self._request_read()
         if self.model.rows is None and self.model.status is None and self.control is not None:
             self._pending_show = (activate, origin)
@@ -1882,6 +2240,7 @@ class Popup:
         """Draw the current view into the canvas and return it (the tests read it back)."""
         if self._plan is None:
             self._rebuild(time.time())
+        self._renderer.contrast = self._contrast
         if self._static_dirty or self._renderer.halo_plan is not self._plan:
             self._static_dirty = False
             return self._renderer.draw(self._vm, self._plan, frame=self.frame(), hover=self.hover,
@@ -2035,8 +2394,12 @@ class Popup:
                     self._move(self._rebuild(time.time()), self._origin)
                     self._invalidate()
             return 0
-        if message == WM_SETTINGCHANGE:
-            self._reduced = reduced_motion()
+        if message in (WM_SETTINGCHANGE, WM_SYSCOLORCHANGE):
+            contrast = high_contrast()
+            if contrast != self._contrast or message == WM_SYSCOLORCHANGE:
+                self._contrast = contrast
+                self._invalidate()
+            self._reduced = reduced_motion() or contrast
             self._sync_frames()
             return None
         return None

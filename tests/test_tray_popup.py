@@ -11,11 +11,13 @@ from __future__ import annotations
 
 import ast
 import copy
+import hashlib
 import os
 from pathlib import Path
 import re
 import time
 import unittest
+import unittest.mock
 
 from codex_auto_resume import brand, control, interface, l10n, tray, tray_popup as popup
 
@@ -353,8 +355,12 @@ class LayoutTests(unittest.TestCase):
                     vm, plan = self.plan(interface.STRINGS[locale], rows, scale,
                                          notice=interface.STRINGS[locale]["popup.stale"])
                     width, height = plan["size"]
-                    self.assertEqual(width, round(popup.WIDTH * scale))
                     card = plan["card"]
+                    # The card is exactly as wide as it always was; only the canvas round it grew.
+                    self.assertEqual(card[2] - card[0],
+                                     round(popup.WIDTH * scale) - 2 * round(brand.SPACING["m"] * scale))
+                    margin = round(popup.SHADOW_MARGIN * scale)
+                    self.assertEqual((card[0], card[1], width - card[2], height - card[3]), (margin,) * 4)
                     for item in plan["items"]:
                         rect = item.get("rect")
                         if rect is None or item["kind"] in ("card", "focusable"):
@@ -363,7 +369,6 @@ class LayoutTests(unittest.TestCase):
                         self.assertGreaterEqual(rect[1], card[1], item)
                         self.assertLessEqual(rect[2], card[2], item)
                         self.assertLessEqual(rect[3], card[3], item)
-                    self.assertLessEqual(card[3], height)
 
     def test_wrapped_text_gets_all_the_height_it_measured(self):
         vm, plan = self.plan(interface.STRINGS["de"], notice=interface.STRINGS["de"]["popup.stale"])
@@ -389,62 +394,257 @@ class LayoutTests(unittest.TestCase):
         self.assertIn(EN["popup.nothing"], texts)
         self.assertIn(EN["popup.stale"], texts)
 
+    def test_the_card_s_lift_has_faded_into_the_canvas_by_the_window_s_edge(self):
+        canvas = brand.rgb(brand.LIGHT["canvas"])
+        for scale in (1.0, 1.25, 1.5, 1.75, 2.0):
+            margin = round(popup.SHADOW_MARGIN * scale)
+            for side in ("left", "top", "right", "bottom"):
+                with self.subTest(scale=scale, side=side):
+                    colour = brand.elevation_colour("card", side, margin, "canvas", scale=scale)
+                    self.assertLess(max(abs(part - ground) for part, ground in zip(colour, canvas)), 1.0)
+
+    def test_a_switch_sits_at_the_start_of_its_label_s_first_line(self):
+        first_line = measure("body", "Ag", 100, False)[1]
+        for scale in (1.0, 1.25, 1.5, 1.75, 2.0):
+            _, plan = self.plan(scale=scale)
+            switches = [item for item in plan["items"] if item["kind"] == "switch"]
+            self.assertEqual(len(switches), 2)
+            for switch in switches:
+                with self.subTest(scale=scale, target=switch["target"]):
+                    left, top, right, bottom = switch["rect"]
+                    self.assertEqual((right - left, bottom - top), (round(brand.LAYOUT["switch_width"] * scale),
+                                                                    round(brand.LAYOUT["switch_height"] * scale)))
+                    label = next(item for item in plan["items"]
+                                 if item["kind"] == "text" and item["target"] == switch["target"])
+                    self.assertEqual(label["rect"][0], right + round(brand.SPACING["s"] * scale))
+                    self.assertLessEqual(abs(label["rect"][1] + first_line / 2.0 - (top + bottom) / 2.0), 1.0)
+                    hit = dict(plan["targets"])[switch["target"]]
+                    self.assertTrue(hit[0] <= left and hit[1] <= top and right <= hit[2] and bottom <= hit[3])
+
+    def test_the_header_keeps_its_place_and_the_glow_stays_on_the_card(self):
+        for scale in (1.0, 1.25, 1.5, 1.75, 2.0):
+            with self.subTest(scale=scale):
+                _, plan = self.plan(scale=scale)
+                card = plan["card"]
+                halo = next(item for item in plan["items"] if item["kind"] == "halo")
+                self.assertAlmostEqual(halo["radius"], brand.glow_extent(brand.STATUS_DOT["popup"]) * scale)
+                self.assertGreaterEqual(halo["cx"] - halo["radius"], card[0])
+                title = next(item for item in plan["items"] if item["kind"] == "text" and item["role"] == "title")
+                self.assertEqual(title["rect"][0], card[0] + round(brand.SPACING["l"] * scale)
+                                 + round(popup.MARK * scale) + round((brand.SPACING["s"] + 2) * scale))
+
 
 # ------------------------------------------------------------------------------- motion
 class MotionTests(unittest.TestCase):
-    LOW, HIGH = brand.HALO["min_opacity"], brand.HALO["max_opacity"]
-    MIDDLE = (LOW + HIGH) / 2
-    BREATHE, PULSE = brand.MOTION["breathe_ms"], brand.MOTION["attention_ms"]
+    """The glow is brand's status light, frame for frame, and it moves as v0.6.4 decided."""
+    GLOW = brand.GLOW
+    STILL = brand.GLOW["still"]
+    MOMENTS = (0, 1, 97, 350, 550, 700, 900, 1100, 1399, 1400, 1600, 1800, 2200, 2700, 3599, 3600, 5000, 12345.6)
 
-    def test_monitoring_breathes_slowly_between_the_two_opacities(self):
-        self.assertAlmostEqual(popup.halo("monitoring", 0)["opacity"], self.LOW)
-        self.assertAlmostEqual(popup.halo("monitoring", self.BREATHE / 2)["opacity"], self.HIGH)
-        self.assertAlmostEqual(popup.halo("monitoring", self.BREATHE)["opacity"], self.LOW)
-        for elapsed in range(0, self.BREATHE, 97):
+    def test_every_frame_is_the_brand_status_light(self):
+        for state in popup.STATES + ("idle", "failed", "unknown"):
+            with self.subTest(state):
+                for elapsed in self.MOMENTS:
+                    for since in (None, -1, 0, 350, 700, 1399, 1400, 9999):
+                        for reduced in (False, True):
+                            self.assertEqual(popup.halo(state, elapsed, since, reduced=reduced),
+                                             brand.glow(state, elapsed, since, reduced=reduced))
+                            self.assertEqual(popup.animates(state, since, reduced=reduced),
+                                             brand.glow_moves(state, since, reduced=reduced))
+
+    def test_monitoring_breathes_slowly_and_low(self):
+        cycle, low, high = self.GLOW["monitoring_ms"], self.GLOW["monitoring_low"], self.GLOW["monitoring_high"]
+        self.assertAlmostEqual(popup.halo("monitoring", 0)["opacity"], low)
+        self.assertAlmostEqual(popup.halo("monitoring", cycle / 2)["opacity"], high)
+        self.assertAlmostEqual(popup.halo("monitoring", cycle)["opacity"], low)
+        for elapsed in range(0, cycle, 97):
             frame = popup.halo("monitoring", elapsed)
-            self.assertTrue(self.LOW - 1e-9 <= frame["opacity"] <= self.HIGH + 1e-9)
+            self.assertTrue(low - 1e-9 <= frame["opacity"] <= high + 1e-9)
+            self.assertTrue(self.GLOW["monitoring_scale_low"] - 1e-9 <= frame["scale"]
+                            <= self.GLOW["monitoring_scale_high"] + 1e-9)
+            self.assertIsNone(frame["arc"])
         self.assertTrue(popup.animates("monitoring"))
 
-    def test_waiting_is_a_still_soft_halo(self):
+    def test_waiting_is_a_still_soft_glow(self):
         frames = {tuple(sorted(popup.halo("waiting", elapsed).items())) for elapsed in range(0, 5000, 333)}
-        self.assertEqual(len(frames), 1)
-        self.assertAlmostEqual(popup.halo("waiting", 0)["opacity"], self.MIDDLE)
+        self.assertEqual(frames, {(("arc", None), ("opacity", self.STILL), ("scale", 1.0))})
         self.assertFalse(popup.animates("waiting"))
 
-    def test_checking_turns_a_small_arc(self):
-        first, later = popup.halo("checking", 0)["arc"], popup.halo("checking", self.PULSE / 4)["arc"]
-        self.assertAlmostEqual(later - first, 90.0)
+    def test_checking_turns_a_small_arc_over_a_still_glow(self):
+        first, later = popup.halo("checking", 0), popup.halo("checking", self.GLOW["arc_ms"] / 4)
+        self.assertAlmostEqual(later["arc"] - first["arc"], 90.0)
+        self.assertEqual((first["opacity"], later["opacity"]), (self.STILL, self.STILL))
         self.assertTrue(popup.animates("checking"))
 
-    def test_recovering_pulses_harder_and_faster_than_monitoring_breathes(self):
-        recovering = max(popup.halo("recovering", elapsed)["opacity"] for elapsed in range(0, self.PULSE, 10))
-        monitoring = max(popup.halo("monitoring", elapsed)["opacity"] for elapsed in range(0, self.BREATHE, 10))
+    def test_recovering_breathes_brighter_and_quicker_than_monitoring(self):
+        recovering = max(popup.halo("recovering", elapsed)["opacity"]
+                         for elapsed in range(0, self.GLOW["recovering_ms"], 10))
+        monitoring = max(popup.halo("monitoring", elapsed)["opacity"]
+                         for elapsed in range(0, self.GLOW["monitoring_ms"], 10))
         self.assertGreater(recovering, monitoring)
-        self.assertLess(self.PULSE, self.BREATHE)
-        self.assertAlmostEqual(popup.halo("recovering", 0)["opacity"], popup.halo("recovering", self.PULSE)["opacity"])
+        self.assertLess(self.GLOW["recovering_ms"], self.GLOW["monitoring_ms"])
+        self.assertAlmostEqual(popup.halo("recovering", 0)["opacity"],
+                               popup.halo("recovering", self.GLOW["recovering_ms"])["opacity"])
 
-    def test_paused_has_no_halo_and_nothing_moves(self):
+    def test_paused_has_no_glow_and_nothing_moves(self):
         self.assertIsNone(popup.halo("paused", 1234))
         self.assertIsNone(popup.halo("paused", 1234, reduced=True))
         self.assertFalse(popup.animates("paused"))
 
-    def test_attention_pulses_once_when_it_arrives_and_then_holds_still(self):
-        during = popup.halo("attention", 0, since_entered_ms=self.PULSE / 2)
-        self.assertGreater(during["opacity"], self.MIDDLE)
-        after = popup.halo("attention", 0, since_entered_ms=self.PULSE * 3)
-        self.assertAlmostEqual(after["opacity"], self.MIDDLE)
-        self.assertTrue(popup.animates("attention", self.PULSE / 2))
-        self.assertFalse(popup.animates("attention", self.PULSE + 1))
+    def test_attention_glows_up_once_when_it_arrives_and_then_holds_still(self):
+        pulse = self.GLOW["attention_ms"]
+        self.assertAlmostEqual(popup.halo("attention", 0, since_entered_ms=pulse / 2)["opacity"],
+                               self.GLOW["attention_peak"])
+        self.assertAlmostEqual(popup.halo("attention", 0, since_entered_ms=pulse * 3)["opacity"], self.STILL)
+        self.assertAlmostEqual(popup.halo("attention", 0)["opacity"], self.STILL)
+        self.assertTrue(popup.animates("attention", pulse / 2))
+        self.assertFalse(popup.animates("attention", pulse + 1))
 
     def test_reduced_motion_never_loops_or_pulses(self):
         for state in popup.STATES:
             with self.subTest(state):
                 self.assertFalse(popup.animates(state, 0, reduced=True))
-                if state == "paused":
-                    continue
-                for elapsed in (0, 400, 1200, 2400, 9999):
-                    frame = popup.halo(state, elapsed, since_entered_ms=elapsed, reduced=True)
-                    self.assertEqual(frame, {"opacity": self.MIDDLE, "scale": 1.0, "arc": None})
+                frames = {repr(popup.halo(state, elapsed, since_entered_ms=elapsed, reduced=True))
+                          for elapsed in (0, 400, 1200, 2400, 9999)}
+                self.assertEqual(len(frames), 1)
+        self.assertEqual(popup.halo("monitoring", 900, reduced=True),
+                         {"opacity": brand.glow_rest("monitoring"), "scale": 1.0, "arc": None})
+        self.assertAlmostEqual(brand.glow_rest("monitoring"), 0.22)
+        self.assertEqual(popup.halo("waiting", 900, reduced=True)["opacity"], self.STILL)
+        # Checking keeps its arc, still: with waiting and checking the same cyan, it is the difference.
+        self.assertEqual(popup.halo("checking", 900, reduced=True)["arc"], self.GLOW["arc_still_at"])
+
+
+class StatusLightTests(unittest.TestCase):
+    def test_the_dot_is_the_brand_status_light(self):
+        for state in popup.STATES:
+            self.assertEqual(popup.DOT_FILL[state], brand.status_fill(state), state)
+        for state in ("monitoring", "waiting", "checking", "recovering"):
+            self.assertEqual(popup.DOT_FILL[state], "active", state)      # the colour it had before v0.6.3
+        self.assertEqual(popup.DOT_FILL["paused"], "paused")
+        self.assertEqual(popup.DOT_FILL["attention"], "attention")
+
+
+# ---------------------------------------------------------------------------- elevation
+class ElevationTests(unittest.TestCase):
+    """The shadow images are the panel's recipes: brand's model along an edge, round at a corner."""
+
+    def test_along_an_edge_a_lift_is_brand_s_shadow_model(self):
+        for recipe, radius, body in (("card", brand.RADII["card"], (336, 400)),
+                                     ("control", brand.RADII["control"], (148, 32))):
+            for scale in (1.0, 1.5, 2.0):
+                with self.subTest(recipe=recipe, scale=scale):
+                    width, height = round(body[0] * scale), round(body[1] * scale)
+                    worst = 0.0
+                    for d in range(40):
+                        colour = [float(part) for part in brand.rgb(brand.LIGHT["canvas"])]
+                        for shadow in reversed(brand.SHADOWS["light"][recipe]):
+                            mask = popup.lift_coverage(width, height, radius * scale, shadow.blur * scale)
+                            box = mask["width"] - 2 * mask["extent"]
+                            column = mask["extent"] + box + d - popup.shadow_step(shadow.dx * scale)
+                            row = mask["centre"][1] * mask["width"]
+                            level = mask["coverage"][row + column] if 0 <= column < mask["width"] else 0
+                            alpha = min(255, int(shadow.alpha * level + 0.5)) / 255.0
+                            colour = [part + (tone - part) * alpha
+                                      for part, tone in zip(colour, brand.rgb(brand.LIGHT[shadow.token]))]
+                        model = brand.elevation_colour(recipe, "right", d + 0.5, "canvas", scale=scale)
+                        worst = max(worst, max(abs(part - want) for part, want in zip(colour, model)))
+                    self.assertLess(worst, 1.5)
+
+    def test_a_lift_is_symmetric_and_round_at_its_corners(self):
+        mask = popup.lift_coverage(336, 400, 16, 14)
+        width, height, extent = mask["width"], mask["height"], mask["extent"]
+        rows = [mask["coverage"][y * width:(y + 1) * width] for y in range(height)]
+        self.assertEqual(rows, rows[::-1])
+        self.assertTrue(all(row == row[::-1] for row in rows))
+        middle = mask["centre"][1]
+        self.assertLess(rows[extent][extent], rows[middle][extent])       # the corner is cut round
+
+    def test_along_its_top_a_well_is_brand_s_inset_model(self):
+        width, height, radius = 146, 30, 10               # a pressed button inside its border, at 100%
+        centre = None
+        worst = 0.0
+        for j in range(14):
+            colour = [float(part) for part in brand.rgb(brand.LIGHT["inset"])]
+            for shadow in reversed(brand.SHADOWS["light"]["inset"]):
+                mask = popup.well_coverage(width, height, radius, shadow.blur, shadow.dx, shadow.dy)
+                centre = mask["centre"][0]
+                level = mask["coverage"][j * mask["width"] + centre]
+                alpha = min(255, int(shadow.alpha * level + 0.5)) / 255.0
+                colour = [part + (tone - part) * alpha
+                          for part, tone in zip(colour, brand.rgb(brand.LIGHT[shadow.token]))]
+            model = brand.elevation_colour("inset", "top", j + 0.5, "inset")
+            worst = max(worst, max(abs(part - want) for part, want in zip(colour, model)))
+        self.assertLess(worst, 1.5)
+
+    def test_a_well_is_shaded_at_its_top_and_its_light_is_the_shade_turned_round(self):
+        popup._MASKS.clear()
+        light = popup.well_coverage(38, 20, 10, 6, -2, -2)["coverage"]
+        popup._MASKS.clear()
+        dark = popup.well_coverage(38, 20, 10, 6, 2, 2)
+        self.assertEqual(light, dark["coverage"][::-1])
+        data, width = dark["coverage"], dark["width"]
+        self.assertGreater(data[1 * width + 25], data[10 * width + 25])
+        self.assertGreater(data[1 * width + 25], data[18 * width + 25])
+
+    def test_every_body_longer_than_its_corners_shares_one_mask(self):
+        """A mask is keyed on the box it is made from, so a taller card or a wider button finds it."""
+        popup._MASKS.clear()
+        card = popup.lift_coverage(336, 400, 16, 14)
+        self.assertTrue(popup.lift_coverage(336, 520, 16, 14) is card, "a taller card made a mask of its own")
+        self.assertTrue(popup.lift_coverage(298, 401, 16, 14) is card, "a narrower card made a mask of its own")
+        well = popup.well_coverage(146, 30, 10, 6, 2, 2)
+        self.assertTrue(popup.well_coverage(230, 30, 10, 6, 2, 2) is well, "a wider well made a mask of its own")
+        # The light shadow is the shade turned round, whatever body the shade was made for.
+        with unittest.mock.patch.object(popup, "_rounded_distance", side_effect=AssertionError("made again")):
+            turned = popup.well_coverage(260, 30, 10, 6, -2, -2)
+        self.assertEqual(turned["coverage"], well["coverage"][::-1])
+        # A body shorter than its corners keeps a mask of its own, and every mask is the one it
+        # would have been made alone.
+        bodies = [("lift", (336, 400, 16, 14)), ("lift", (20, 400, 16, 14)), ("lift", (336, 21, 16, 14)),
+                  ("lift", (148, 32, 10, 6)), ("lift", (296, 64, 20, 12)), ("lift", (40, 40, 20, 12)),
+                  ("well", (146, 30, 10, 6, 2, 2)), ("well", (146, 30, 10, 6, -2, -2)),
+                  ("well", (36, 18, 9, 6, 2, 2)), ("well", (220, 45, 15, 9, -3, -3)),
+                  ("well", (30, 45, 15, 9, 3, 3))]
+        make = {"lift": popup.lift_coverage, "well": popup.well_coverage}
+        popup._MASKS.clear()
+        together = [make[kind](*args) for kind, args in bodies]
+        self.assertEqual(together[1]["width"] - 2 * together[1]["extent"], 20)
+        self.assertEqual(together[2]["height"] - 2 * together[2]["extent"], 21)
+        for (kind, args), mask in zip(bodies, together):
+            popup._MASKS.clear()
+            alone = make[kind](*args)
+            with self.subTest(kind=kind, args=args):
+                self.assertEqual({name: alone[name] for name in ("width", "height", "centre", "extent", "coverage")},
+                                 {name: mask[name] for name in ("width", "height", "centre", "extent", "coverage")})
+
+    def test_light_and_shade_move_by_the_same_whole_pixels(self):
+        self.assertEqual([popup.shadow_step(value) for value in (4.0, -4.0, 2.5, -2.5, 3.5, -3.5, 0.4)],
+                         [4, -4, 3, -3, 4, -4, 0])
+
+
+class HighContrastTests(unittest.TestCase):
+    """In High Contrast every colour is a system colour, mapped as the settings window maps it."""
+
+    def test_every_token_has_the_settings_window_s_system_colour(self):
+        window = {"ink": "WindowText", "muted": "GrayText", "line": "WindowFrame", "surface": "Window",
+                  "canvas": "Control", "raised": "Window", "inset": "Window", "accent": "Highlight",
+                  "on_accent": "HighlightText", "accent_soft": "Highlight", "focus": "WindowText",
+                  "active": "Highlight", "idle": "GrayText", "attention": "WindowText", "success": "WindowText",
+                  "waiting": "WindowText", "warning": "WindowText", "danger": "WindowText", "paused": "GrayText"}
+        for token, system in window.items():
+            self.assertEqual(popup.contrast_colour(token), system, token)
+        self.assertEqual(set(popup.CONTRAST_COLOURS), set(brand.LIGHT))
+        for token in brand.LIGHT:
+            self.assertIn(popup.contrast_colour(token), popup.SYSTEM_COLOURS, token)
+
+    def test_the_state_dot_is_a_system_colour_too(self):
+        for state in popup.STATES:
+            self.assertIn(brand.status_system(state), popup.SYSTEM_COLOURS, state)
+        self.assertEqual({brand.status_system(state) for state in ("monitoring", "waiting", "checking", "recovering")},
+                         {"Highlight"})
+        self.assertEqual(brand.status_system("attention"), "WindowText")
+        self.assertEqual(brand.status_system("paused"), "GrayText")
 
 
 class SelectTests(unittest.TestCase):
@@ -592,6 +792,33 @@ class BadgeTests(unittest.TestCase):
         pixels = bytearray(16 * 16 * 4)
         popup.composite_badge(pixels, 16, 16, brand.rgb(brand.LIGHT["attention"]))
         self.assertGreater(sum(pixels[3::4]), 255 * 4)
+
+    def test_the_icon_s_badge_is_what_it_was_before_v0_6_4(self):
+        """v0.6.4 changed the status light inside the windows and left the icon alone: the same
+        table, the same state from the same snapshot, and the same pixels, pinned from v0.6.3."""
+        self.assertEqual(popup.BADGE, {"monitoring": None, "waiting": "waiting", "checking": "waiting",
+                                       "recovering": "active", "paused": "paused", "attention": "attention"})
+        snapshots = [({}, {}), ({"enabled": True, "waiting": 0}, {}),
+                     ({"enabled": True, "waiting": 2, "next_at": NOW + 9}, {}),
+                     ({"enabled": True, "waiting": 2, "next_at": NOW - 1}, {}),
+                     ({"enabled": True, "waiting": 2, "next_at": None}, {}),
+                     ({"enabled": True, "running": 1, "waiting": 2}, {}), ({"enabled": False, "waiting": 2}, {}),
+                     ({"enabled": False, "running": 1}, {}), ({"enabled": True}, {"attention": True}),
+                     ({}, {"attention": True}), (None, {})]
+        self.assertEqual([popup.snapshot_activity(snapshot, NOW, **options) for snapshot, options in snapshots],
+                         ["monitoring", "monitoring", "waiting", "checking", "waiting", "recovering", "paused",
+                          "paused", "attention", "attention", "monitoring"])
+        digest = hashlib.sha256()
+        for size in (16, 20, 24, 32, 48):
+            for token in ("waiting", "active", "paused", "attention"):
+                pixels = bytearray()
+                for y in range(size):
+                    for x in range(size):
+                        pixels += bytes(((x * 17 + y * 5) % 256, (x * 3 + y * 11) % 256, (x * 29 + 7) % 256,
+                                         255 if (x + y) % 5 else 128))
+                popup.composite_badge(pixels, size, size, brand.rgb(brand.LIGHT[token]))
+                digest.update(bytes(pixels))
+        self.assertEqual(digest.hexdigest(), "5b39ad98edd39a1426d1cf24e4ac9a83c4bdc9199e5c625ad80c50fd63855494")
 
 
 class FontTests(unittest.TestCase):
@@ -741,13 +968,151 @@ class WindowsTests(unittest.TestCase):
                 index = (y * width + x) * 4
                 return pixels[index + 2], pixels[index + 1], pixels[index]
 
-            self.assertEqual(pixel(1, 1), brand.rgb(brand.LIGHT["canvas"]))
+            ground, surface = brand.rgb(brand.LIGHT["canvas"]), brand.rgb(brand.LIGHT["surface"])
+
+            def darker(one, other):
+                return all(part < reference for part, reference in zip(one, other))
+
+            self.assertEqual(pixel(1, 1), ground)
             left, top, right, bottom = dict(plan["targets"])[("dashboard",)]
             self.assertEqual(pixel(left + 6, (top + bottom) // 2), brand.rgb(brand.LIGHT["accent"]))
             card = plan["card"]
-            self.assertEqual(pixel(card[0] + 30, card[1] + 3), brand.rgb(brand.LIGHT["surface"]))
+            self.assertEqual(pixel(card[0] + 30, card[1] + 3), surface)
+            # The card is lifted off the canvas: shade below and right of it, light above and left.
+            middle_x, middle_y = (card[0] + card[2]) // 2, (card[1] + card[3]) // 2
+            for x, y in ((card[2] + 5, middle_y), (middle_x, card[3] + 5)):
+                self.assertTrue(darker(pixel(x, y), ground), (x, y, pixel(x, y)))
+            for x, y in ((card[0] - 6, middle_y), (middle_x, card[1] - 6)):
+                self.assertTrue(darker(ground, pixel(x, y)), (x, y, pixel(x, y)))
+            # A secondary button stands on the card, with shade under it.
+            left, top, right, bottom = dict(plan["targets"])[("toggle",)]
+            self.assertTrue(darker(pixel((left + right) // 2, bottom + 3), surface))
+            # A switch that is off is a well: shaded along the inside of its top, not in its middle.
+            off = next(item for item in plan["items"] if item["kind"] == "switch" and not item["checked"])
+            left, top, right, bottom = off["rect"]
+            self.assertLess(sum(pixel(left + 25, top + 2)), sum(pixel(left + 25, (top + bottom) // 2)) - 10)
+            # The dot is flat and cyan, with a soft glow round it that has faded before the words.
+            halo = next(item for item in plan["items"] if item["kind"] == "halo")
+            cx, cy = int(halo["cx"]), int(halo["cy"])
+            self.assertEqual(pixel(cx, cy), brand.rgb(brand.LIGHT[brand.status_fill(vm["state"])]))
+            self.assertEqual(brand.status_fill(vm["state"]), "active")
+            self.assertLess(pixel(cx + 7, cy)[0], surface[0] - 8)
+            self.assertEqual(pixel(cx + 13, cy), surface)
         finally:
             renderer.close()
+
+    def test_a_paused_dot_is_grey_with_no_glow(self):
+        renderer = popup.Renderer()
+        try:
+            vm = popup.view_model(self.ROWS, dict(STATUS, enabled=False), EN, NOW)
+            self.assertEqual(vm["state"], "paused")
+            plan = renderer.layout(vm, 1.5, "en")
+            canvas = renderer.draw(vm, plan, frame=popup.halo(vm["state"], 0))
+            pixels, width = canvas.pixels(), plan["size"][0]
+
+            def pixel(x, y):
+                index = (y * width + x) * 4
+                return pixels[index + 2], pixels[index + 1], pixels[index]
+
+            halo = next(item for item in plan["items"] if item["kind"] == "halo")
+            cx, cy = int(halo["cx"]), int(halo["cy"])
+            self.assertEqual(pixel(cx, cy), brand.rgb(brand.LIGHT["paused"]))
+            for distance in (9, 12, 15):
+                self.assertEqual(pixel(cx + distance, cy), brand.rgb(brand.LIGHT["surface"]))
+        finally:
+            renderer.close()
+
+    def test_high_contrast_is_system_colours_with_no_shadow_and_no_glow(self):
+        renderer = popup.Renderer()
+        try:
+            renderer.contrast = True
+            vm = popup.view_model(self.ROWS, STATUS, EN, NOW)
+            plan = renderer.layout(vm, 1.0, "en")
+            canvas = renderer.draw(vm, plan, frame=popup.halo(vm["state"], 0, reduced=True))
+            pixels, width = canvas.pixels(), plan["size"][0]
+
+            def pixel(x, y):
+                index = (y * width + x) * 4
+                return pixels[index + 2], pixels[index + 1], pixels[index]
+
+            ground, window = popup.system_rgb("Control"), popup.system_rgb("Window")
+            card = plan["card"]
+            middle_y = (card[1] + card[3]) // 2
+            self.assertEqual(pixel(1, 1), ground)
+            self.assertEqual(pixel(card[2] + 5, middle_y), ground)
+            self.assertEqual(pixel(card[0] - 6, middle_y), ground)
+            self.assertEqual(pixel(card[0] + 30, card[1] + 3), window)
+            halo = next(item for item in plan["items"] if item["kind"] == "halo")
+            cx, cy = int(halo["cx"]), int(halo["cy"])
+            self.assertEqual(pixel(cx, cy), popup.system_rgb(brand.status_system(vm["state"])))
+            self.assertEqual(pixel(cx + 7, cy), window)
+        finally:
+            renderer.close()
+
+    def test_high_contrast_holds_the_glow_still(self):
+        window = self.make()
+        original = popup.high_contrast
+        popup.high_contrast = lambda: True
+        try:
+            window.show(activate=False, origin=(-32000, -32000))
+            self.pump(0.2)
+            self.assertEqual(window._vm["state"], "recovering")          # a state that breathes
+            self.assertTrue(window._reduced)
+            self.assertFalse(window._frame_running)
+            self.assertTrue(window._renderer.contrast)
+        finally:
+            popup.high_contrast = original
+            window.destroy()
+
+    def test_the_renderer_lets_go_of_every_gdiplus_object(self):
+        """GetGuiResources cannot see GDI+, so the module counts its own objects."""
+        before = popup.gdiplus_objects()
+        renderer = popup.Renderer()
+        try:
+            vm = popup.view_model(self.ROWS, STATUS, EN, NOW)
+            held = {}
+            for scale in (1.0, 1.5, 1.0, 1.5):
+                plan = renderer.layout(vm, scale, "en")
+                for options in ({}, {"hover": ("dashboard",)}, {"pressed": ("toggle",)}, {"focus": ("toggle",)}):
+                    renderer.draw(vm, plan, frame=popup.halo("checking", 400), **options)
+                    renderer.draw_halo(plan, popup.halo("monitoring", 900))
+                count = popup.gdiplus_objects() - before
+                # The shadow images of one scale are kept, and nothing else outlives a frame.
+                self.assertGreater(count, 0)
+                self.assertEqual(held.setdefault(scale, count), count, scale)
+            renderer.contrast = True
+            renderer.draw(vm, plan, frame=popup.halo("checking", 400, reduced=True))
+        finally:
+            renderer.close()
+        self.assertEqual(popup.gdiplus_objects(), before)
+
+    def test_rows_notices_and_a_pause_add_no_shadow_image(self):
+        """The card's height comes and goes all day; the renderer holds one image per distinct shape."""
+        rows = self.ROWS + [row("e", eligible=NOW - 1, name="Due now")]
+        before = popup.gdiplus_objects()
+        renderer = popup.Renderer()
+        sizes, held = set(), []
+        try:
+            for _ in range(2):
+                for count in range(len(rows) + 1):
+                    for paused in (False, True):
+                        for notice in (None, EN["popup.stale"]):
+                            vm = popup.view_model(rows[:count], dict(STATUS, enabled=not paused), EN, NOW,
+                                                  notice=notice)
+                            plan = renderer.layout(vm, 1.0, "en")
+                            sizes.add(plan["size"])
+                            renderer.draw(vm, plan, frame=popup.halo(vm["state"], 0))
+                            for item in plan["items"]:
+                                if item["kind"] == "button":
+                                    renderer.draw(vm, plan, frame=popup.halo(vm["state"], 0),
+                                                  pressed=item["target"])
+                held.append(popup.gdiplus_objects() - before)
+            shapes = {(image.width, image.height, bytes(image._pixels)) for image in renderer._images.values()}
+        finally:
+            renderer.close()
+        self.assertEqual(popup.gdiplus_objects(), before)
+        self.assertGreaterEqual(len(sizes), 6)                 # the card really did change height
+        self.assertEqual(held, [len(shapes)] * 2, "%d window sizes" % len(sizes))
 
     def test_single_line_text_is_never_shortened_except_names_and_chips(self):
         """Measured by GDI itself, at every scale Windows offers, in every language."""
@@ -822,6 +1187,46 @@ class WindowsTests(unittest.TestCase):
             self.cycle_and_measure(once)
         finally:
             user32.DestroyIcon(base)
+
+    def test_the_badge_icon_is_the_badge_drawn_into_the_icon_s_own_pixels(self):
+        import ctypes
+        user32 = ctypes.WinDLL("user32")
+        user32.LoadImageW.restype = ctypes.c_void_p
+        user32.LoadImageW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_uint, ctypes.c_int,
+                                      ctypes.c_int, ctypes.c_uint]
+        user32.DestroyIcon.argtypes = [ctypes.c_void_p]
+        popup._declare()
+        gdi32 = popup._dll("gdi32")
+
+        def colour_pixels(icon):
+            info = popup.ICONINFO()
+            self.assertTrue(popup._dll("user32").GetIconInfo(icon, ctypes.byref(info)))
+            try:
+                shape = popup.BITMAP()
+                self.assertTrue(gdi32.GetObjectW(info.hbmColor, ctypes.sizeof(popup.BITMAP), ctypes.byref(shape)))
+                return popup._read_pixels(info.hbmColor, shape.bmWidth, abs(shape.bmHeight)), shape.bmWidth
+            finally:
+                gdi32.DeleteObject(info.hbmColor)
+                gdi32.DeleteObject(info.hbmMask)
+
+        for size in (16, 32):
+            base = user32.LoadImageW(None, str(ROOT / "assets" / "codex-auto-resume.ico"), 1, size, size, 0x10)
+            self.assertTrue(base)
+            try:
+                original, width = colour_pixels(base)
+                self.assertTrue(any(original[3::4]))                   # the icon carries its own alpha
+                for token in ("waiting", "active", "paused", "attention"):
+                    with self.subTest(size=size, token=token):
+                        expected = bytearray(original)
+                        popup.composite_badge(expected, width, len(original) // (4 * width),
+                                              brand.rgb(brand.LIGHT[token]))
+                        badge = popup.badge_icon(base, token)
+                        try:
+                            self.assertEqual(colour_pixels(badge)[0], expected)
+                        finally:
+                            user32.DestroyIcon(badge)
+            finally:
+                user32.DestroyIcon(base)
 
     def test_a_new_language_rebuilds_the_fonts_on_the_next_frame(self):
         window = self.make()
@@ -961,15 +1366,18 @@ class WindowsTests(unittest.TestCase):
         self.assertIsNone(icon._badge)
 
     def cycle_and_measure(self, action, rounds=50):
-        action()                                       # warm caches: fonts, GDI+, classes
+        action()                                       # warm caches: fonts, GDI+, classes, shadow images
         self.pump(0.02)
         before = popup.gui_resources()
+        drawing = popup.gdiplus_objects()
         for _ in range(rounds):
             action()
         self.pump(0.05)
         after = popup.gui_resources()
         self.assertLessEqual(after[0] - before[0], 2, "GDI objects grew from %d to %d" % (before[0], after[0]))
         self.assertLessEqual(after[1] - before[1], 2, "USER objects grew from %d to %d" % (before[1], after[1]))
+        self.assertEqual(popup.gdiplus_objects(), drawing,
+                         "GDI+ objects went from %d to %d" % (drawing, popup.gdiplus_objects()))
 
 
 class ReduceMotionSettingTests(unittest.TestCase):

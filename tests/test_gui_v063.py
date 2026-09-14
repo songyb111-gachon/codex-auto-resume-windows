@@ -29,7 +29,8 @@ RUNNING = {"watcher_running": True, "enabled": True, "watcher": {"ticking": True
 CASES = {
     "no_status": (None, [], "idle"),
     "watcher_unknown": ({"enabled": True}, [], "idle"),
-    "watcher_stopped": ({"watcher_running": False, "enabled": True}, [], "attention"),
+    # A stopped watcher is grey, as it was until v0.6.3: amber is for one that runs and is not well.
+    "watcher_stopped": ({"watcher_running": False, "enabled": True}, [], "idle"),
     "not_ticking": ({"watcher_running": True, "enabled": True, "watcher": {"ticking": False}}, [], "attention"),
     "upgrade_pending": (dict(RUNNING, upgrade_pending=True), [], "attention"),
     # A pause wins over everything that is waiting: nothing is recovered while paused.
@@ -104,8 +105,9 @@ foreach ($state in (ConvertFrom-Json $env:CAR_STATES)) {
     $out.once[$state] = [bool]$once.Invoke($null, [object[]]@([string]$state))
     $out.opacity[$state] = @{ moving = @(); reduced = @() }
     foreach ($ms in (ConvertFrom-Json $env:CAR_MOMENTS)) {
-        $out.opacity[$state].moving += [double]$opacity.Invoke($null, [object[]]@([string]$state, [double]$ms, $false))
-        $out.opacity[$state].reduced += [double]$opacity.Invoke($null, [object[]]@([string]$state, [double]$ms, $true))
+        # The same moment for the breathing clock and for the time since the state was entered.
+        $out.opacity[$state].moving += [double]$opacity.Invoke($null, [object[]]@([string]$state, [double]$ms, [double]$ms, $false))
+        $out.opacity[$state].reduced += [double]$opacity.Invoke($null, [object[]]@([string]$state, [double]$ms, [double]$ms, $true))
     }
 }
 foreach ($text in (ConvertFrom-Json $env:CAR_TEXTS)) {
@@ -161,13 +163,12 @@ class AliveStateTests(unittest.TestCase):
         self.assertEqual({state for state in STATES if self.answer["once"][state]},
                          {"attention", "failed"})
 
-    def test_monitoring_breathes_within_the_halo_range(self):
+    def test_monitoring_breathes_within_the_glow_range(self):
         values = self.answer["opacity"]["monitoring"]["moving"]
         self.assertGreater(max(values) - min(values), 0.1, "it does not visibly breathe")
         for value in values:
-            # Brand.cs holds these as floats, so allow a float's rounding.
-            self.assertGreaterEqual(value, brand.HALO["min_opacity"] - 1e-6)
-            self.assertLessEqual(value, brand.HALO["max_opacity"] + 1e-6)
+            self.assertGreaterEqual(value, brand.GLOW["monitoring_low"] - 1e-9)
+            self.assertLessEqual(value, brand.GLOW["monitoring_high"] + 1e-9)
 
     def test_nothing_moves_when_motion_is_reduced(self):
         for state in STATES:
@@ -184,10 +185,10 @@ class AliveStateTests(unittest.TestCase):
 
     def test_an_alarm_pulses_once_and_then_holds(self):
         values = self.answer["opacity"]["attention"]["moving"]
-        middle = (brand.HALO["min_opacity"] + brand.HALO["max_opacity"]) / 2
-        self.assertGreater(values[MOMENTS.index(600.0)], middle, "no pulse on entering the state")
-        for moment in (1200.0, 1800.0, 5000.0):
-            self.assertAlmostEqual(values[MOMENTS.index(moment)], middle, places=5)
+        still = brand.GLOW["still"]
+        self.assertGreater(values[MOMENTS.index(600.0)], still, "no pulse on entering the state")
+        for moment in (1800.0, 5000.0):
+            self.assertAlmostEqual(values[MOMENTS.index(moment)], still, places=9)
 
     def test_the_custom_message_counter_counts_what_the_settings_layer_counts(self):
         """Code points of the text as stored, as Python's len() counts them - not UTF-16 units,
