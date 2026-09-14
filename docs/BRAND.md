@@ -1,195 +1,189 @@
-# The look of it
+# 이 제품의 겉모습
 
-One palette, one scale, one mark, five surfaces. This is where the decisions are written down
-so a future change can argue with them rather than guess at them.
+> 🌐 한국어 문서입니다. English version: [`main` 브랜치의 docs/BRAND.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/BRAND.md)
 
-## The idea
+팔레트 하나, 스케일 하나, 마크 하나, 표면 다섯. 나중에 바꿀 일이 생겼을 때 추측하는 대신 여기 적힌
+결정과 따져 볼 수 있도록, 그 결정들을 이 문서에 적어 둡니다.
 
-The product waits, and then it acts. That is the whole behaviour, so it is the whole
-palette: **deep blue at rest, cyan at the moment it does something.** The ramp is not
-decoration — a reader who learns that bright means active has learned what the tool does.
+## 발상
 
-Until v0.5.2 the product was green, and each surface carried its own copy of the colours:
-the settings window in C# literals, the Codex panel in a stylesheet, the icon renderer,
-the plugin manifest. They had already drifted — the manifest's brand colour and the panel's
-accent agreed with each other and with nothing else.
+이 제품은 기다렸다가 행동합니다. 그것이 동작의 전부이므로 팔레트의 전부이기도 합니다.
+**쉴 때는 짙은 파랑, 무언가를 하는 순간에는 시안.** 이 색의 단계는 장식이 아닙니다. 밝으면
+활성이라는 것을 익힌 사람은 이 도구가 무엇을 하는지를 익힌 것입니다.
 
-v0.6.3 kept the palette's idea and changed its material. The Dashboard, the notification-area
-popup and the panel in Codex share one soft visual language: a card is the same material as the
-window behind it, lifted by a small shadow rather than laid on it as a white sheet; a control
-rests on the card; a value sits in a shallow well; a state is a word on a tinted chip; and the
-state dot breathes while the watcher is watching. The flat cards with an accent rail that came
-before are gone.
+v0.5.2까지 이 제품은 초록색이었고, 표면마다 색을 각자 복사해 들고 있었습니다. 설정 창은 C#
+리터럴로, Codex 패널은 스타일시트로, 아이콘 렌더러가 하나, 플러그인 매니페스트가 하나. 그리고
+이미 어긋나 있었습니다. 매니페스트의 브랜드 색과 패널의 accent는 서로 일치했을 뿐 나머지 어느
+것과도 일치하지 않았습니다.
 
-## Where a colour comes from
+이번 릴리스는 팔레트의 발상은 그대로 두고 재질을 바꿨습니다. 대시보드, 알림 영역 팝업, Codex 안의
+패널은 하나의 부드러운 시각 언어를 함께 씁니다. 카드는 흰 종이처럼 창 위에 얹힌 것이 아니라, 뒤의
+창과 같은 재질이 작은 그림자로 떠오른 것입니다. 컨트롤은 카드 위에 놓이고, 값은 얕은 우물 안에
+앉습니다. 상태는 자기 색을 옅게 깐 칩 위의 단어이고, 상태 점은 워처가 지켜보는 동안 숨을 쉽니다.
+v0.6.2까지의 평평한 카드와 accent 레일은 사라졌습니다.
 
-`src/codex_auto_resume/brand.py` and nowhere else — and since v0.6.3, every size, radius and
-duration as well.
+## 색은 어디에서 오는가
 
-| Surface | How it gets the palette |
+`src/codex_auto_resume/brand.py`, 그리고 그 밖에는 어디에도 없습니다. 이번 릴리스부터는 모든 크기,
+반경, 지속 시간도 마찬가지입니다.
+
+| 표면 | 팔레트를 가져오는 방법 |
 | --- | --- |
-| The Codex panel | `mcpui.py` builds its `:root` block at import from `brand.LIGHT` and `brand.DARK`, `brand.css_scale()`, and two elevation blocks of its own whose shadows are mixed from the `shadow_dark` and `shadow_light` tokens. |
-| The Dashboard | `build/make_brand.py` generates `gui/Brand.cs`: every light token as a `Color`, and the scale as constants. `gui/Controls.cs` reads the colours through one `Palette` class, which is also the one place High Contrast is honoured. The generated file is committed, so a contributor with no Python can still read what the window will look like. |
-| The notification-area popup | `tray_popup.py` imports `brand` and draws with `brand.LIGHT` and the scale directly. |
-| The icon | `assets/make_icon.py` imports the four icon colours directly. |
-| The plugin card | `.codex-plugin/plugin.json` carries `brandColor`, checked against `brand.BRAND`. |
+| Codex 패널 | `mcpui.py`가 import 시점에 `brand.LIGHT`와 `brand.DARK`, `brand.css_scale()`, 그리고 `shadow_dark`와 `shadow_light` 토큰을 섞어 그림자를 만드는 자체 elevation 블록 두 개로 `:root` 블록을 만듭니다. |
+| 대시보드 | `build/make_brand.py`가 `gui/Brand.cs`를 생성합니다. 밝은 테마의 모든 토큰은 `Color`로, 스케일은 상수로 들어갑니다. `gui/Controls.cs`는 색을 `Palette` 클래스 하나를 거쳐 읽고, 고대비 모드를 반영하는 곳도 그 한 곳입니다. 생성된 파일을 커밋해 두므로, Python이 없는 기여자도 창이 어떤 모습일지 읽어 볼 수 있습니다. |
+| 알림 영역 팝업 | `tray_popup.py`가 `brand`를 import해 `brand.LIGHT`와 스케일로 직접 그립니다. |
+| 아이콘 | `assets/make_icon.py`가 아이콘 색 네 개를 직접 import합니다. |
+| 플러그인 카드 | `.codex-plugin/plugin.json`이 `brandColor`를 담고 있으며, `brand.BRAND`와 대조해 검사합니다. |
 
-`tests/test_brand.py` regenerates both generated files and compares, so a hand-edit fails
-the suite instead of shipping. It also sweeps every tracked text file for the retired
-green, because the way a colour survives a rebrand is in a document nobody reopened.
+`tests/test_brand.py`는 생성 파일 두 개를 다시 만들어 비교하므로, 손으로 고친 값은 배포되는
+대신 테스트를 실패시킵니다. 또한 추적되는 모든 텍스트 파일에서 폐기된 초록색을 훑습니다.
+리브랜딩에서 색이 살아남는 경로는 아무도 다시 열어 보지 않은 문서이기 때문입니다.
 
-## The tokens
+## 토큰
 
-`LIGHT` and `DARK` hold the same key set — a token defined in one theme and not the other
-renders one theme's text on the other theme's ground, which is the classic unreadable-panel
-bug, and there is a test for it.
+`LIGHT`와 `DARK`는 같은 키 집합을 가집니다. 한쪽 테마에만 정의된 토큰은 한 테마의 텍스트를
+다른 테마의 바탕 위에 그리게 되고, 이것이 패널을 읽을 수 없게 만드는 전형적인 버그이며, 이를
+검사하는 테스트가 있습니다.
 
-| Token | Light | Dark | Used for |
+| 토큰 | Light | Dark | 쓰임 |
 | --- | --- | --- | --- |
-| `ink` | `#0F1B2D` | `#E8EEF6` | Text. A near-black carrying the same blue bias. |
-| `muted` | `#536477` | `#9AACBF` | Secondary text, readable on the canvas as well as on a card. |
-| `line` | `#D3DCE7` | `#2E3A4B` | Hairlines and card edges. |
-| `surface` | `#F6F8FB` | `#191F29` | Cards. |
-| `canvas` | `#E9EEF4` | `#0C1118` | The window behind them. |
-| `raised` | `#FBFCFE` | `#212835` | A control resting on a card: a button, a chip, a toggle. |
-| `inset` | `#E2E8F0` | `#121820` | Pressed, selected, or a well a value sits in. |
-| `shadow_dark` | `#B7C4D4` | `#05080C` | The shadow below and right of a raised surface. |
-| `shadow_light` | `#FFFFFF` | `#27303D` | The highlight above and left of it. |
-| `accent` | `#1257B8` | `#5CA2EE` | Anything to read or to click. |
-| `accent_soft` | `#DCE8F8` | `#1B2D45` | A quiet accent ground: a selected row, the active tab. |
-| `on_accent` | `#FFFFFF` | `#08111C` | Text drawn *on* the accent. |
-| `focus` | `#2F7DE1` | `#7DB6F5` | The keyboard focus ring. |
-| `active` | `#06B6D4` | `#35B5CC` | Fill only: running, work in flight. |
-| `idle` | `#94A3B8` | `#5F6E80` | Fill only: stopped. |
-| `attention` | `#B45309` | `#E09B57` | Fill only: needs a person. |
-| `success` | `#157045` | `#5CC98E` | State text: recovered. |
-| `waiting` | `#1A5FA8` | `#7DB6F5` | State text: waiting for a reset or a retry. |
-| `warning` | `#9A4A06` | `#E8A765` | State text: needs a decision soon. |
-| `danger` | `#B42318` | `#F2877C` | State text: stopped, failed. |
-| `paused` | `#55657A` | `#9AACBF` | State text: deliberately quiet. |
+| `ink` | `#0F1B2D` | `#E8EEF6` | 텍스트. 같은 파랑 기운을 담은 거의 검정. |
+| `muted` | `#536477` | `#9AACBF` | 보조 텍스트. 카드뿐 아니라 바탕 위에서도 읽힙니다. |
+| `line` | `#D3DCE7` | `#2E3A4B` | 헤어라인과 카드 테두리. |
+| `surface` | `#F6F8FB` | `#191F29` | 카드. |
+| `canvas` | `#E9EEF4` | `#0C1118` | 그 뒤의 창. |
+| `raised` | `#FBFCFE` | `#212835` | 카드 위에 놓인 컨트롤: 버튼, 칩, 토글. |
+| `inset` | `#E2E8F0` | `#121820` | 눌림, 선택됨, 또는 값이 앉는 우물. |
+| `shadow_dark` | `#B7C4D4` | `#05080C` | 떠오른 표면의 오른쪽 아래 그림자. |
+| `shadow_light` | `#FFFFFF` | `#27303D` | 그 왼쪽 위의 하이라이트. |
+| `accent` | `#1257B8` | `#5CA2EE` | 읽거나 클릭할 모든 것. |
+| `accent_soft` | `#DCE8F8` | `#1B2D45` | 조용한 accent 바탕: 선택된 행, 활성 탭. |
+| `on_accent` | `#FFFFFF` | `#08111C` | accent *위에* 그리는 텍스트. |
+| `focus` | `#2F7DE1` | `#7DB6F5` | 키보드 포커스 링. |
+| `active` | `#06B6D4` | `#35B5CC` | 채움 전용: 실행 중, 진행 중인 작업. |
+| `idle` | `#94A3B8` | `#5F6E80` | 채움 전용: 멈춤. |
+| `attention` | `#B45309` | `#E09B57` | 채움 전용: 사람이 필요함. |
+| `success` | `#157045` | `#5CC98E` | 상태 텍스트: 복구됨. |
+| `waiting` | `#1A5FA8` | `#7DB6F5` | 상태 텍스트: 초기화나 재시도를 기다림. |
+| `warning` | `#9A4A06` | `#E8A765` | 상태 텍스트: 곧 결정이 필요함. |
+| `danger` | `#B42318` | `#F2877C` | 상태 텍스트: 멈춤, 실패. |
+| `paused` | `#55657A` | `#9AACBF` | 상태 텍스트: 일부러 조용함. |
 
-**The surfaces moved toward each other in v0.6.3.** The card came down from pure white and the
-canvas down a step, because a raised card in a soft interface is the window's own material
-lifted by light and shadow. The hairline stayed: a shadow alone is not an edge for everybody.
+**이번 릴리스에서 표면들이 서로 가까워졌습니다.** 카드는 순백에서 내려오고 바탕도 한 단계
+내려왔습니다. 부드러운 인터페이스에서 떠오른 카드는 빛과 그림자로 들어 올린 창 자신의 재질이기
+때문입니다. 헤어라인은 남겼습니다. 그림자만으로는 누구에게나 테두리가 되지는 않습니다.
 
-**`active` is a fill-only token.** Against white it measures 2.4:1, which is right for a
-status dot and not enough for text. The five state colours are the other way round: each one
-carries a word, so each is readable on a card, at 5.6:1 or better in the light theme and 6.7:1
-or better in the dark. The tests assert contrast for text, secondary text, the accent and the
-text on it, so a later adjustment "for looks" cannot quietly make the panel unreadable.
+**`active`는 채움 전용 토큰입니다.** 흰 바탕에서 2.4:1로 측정되는데, 상태 점에는 맞고
+텍스트에는 모자랍니다. 상태 색 다섯 개는 그 반대입니다. 저마다 단어를 싣기 때문에 카드 위에서
+읽혀야 하고, 밝은 테마에서 5.6:1 이상, 어두운 테마에서 6.7:1 이상입니다. 테스트는 텍스트, 보조
+텍스트, accent, accent 위의 텍스트에 대비 assertion을 걸어 두므로, 나중에 "보기 좋으라고" 손댄
+값이 조용히 패널을 읽을 수 없게 만들 수는 없습니다.
 
-**`on_accent` exists because of a bug the tests found.** A dark theme needs a bright accent
-to stand off its surface, and a bright accent cannot then carry white text: white on
-`#5AA5F5` is 2.6:1. So the text on the accent is a token that goes dark exactly when the
-accent goes light. Nobody noticed by looking; the assertion did.
+**`on_accent`는 테스트가 찾아낸 버그 때문에 존재합니다.** 다크 테마에서 accent가 자기 표면에서
+떠 보이려면 밝아야 하고, 그렇게 밝아진 accent는 흰 텍스트를 담을 수 없습니다. `#5AA5F5` 위의
+흰색은 2.6:1입니다. 그래서 accent 위의 텍스트는 accent가 밝아지는 바로 그 순간에 어두워지는
+토큰입니다. 눈으로 보고 알아챈 사람은 없었고, assertion이 알아챘습니다.
 
-## The scale
+## 스케일
 
-Everything that is not a colour, in device-independent pixels at 96 DPI, so a card in the
-window and a card in Codex round their corners by the same amount.
+색이 아닌 모든 것이며, 96 DPI 기준의 장치 독립 픽셀입니다. 그래서 창 안의 카드와 Codex 안의
+카드가 같은 만큼 모서리를 둥글립니다.
 
-| Table | Values | Used for |
+| 테이블 | 값 | 쓰임 |
 | --- | --- | --- |
-| `RADII` | card 16, control 11, chip 999, small 7 | Corners. A chip is a pill. |
-| `SPACING` | 4, 8, 12, 16, 24, 32 (`xs` to `xxl`) | Padding and gaps. |
-| `TYPE` | title 20, heading 14, body 12, small 11 | Type sizes. |
-| `ELEVATION` | raised: 4 offset, 14 blur; inset: 2 offset, 6 blur; shadow opacity 0.55 | A raised surface, and a well. Small on purpose: exaggerated embossing is what makes soft interfaces unreadable. |
-| `MOTION` | breathe 2400 ms, attention 1200 ms, transition 160 ms | The state dot, and control transitions. |
-| `HALO` | opacity 0.12 to 0.34, radius 9 | The glow around the state dot. |
+| `RADII` | card 16, control 11, chip 999, small 7 | 모서리. 칩은 알약 모양입니다. |
+| `SPACING` | 4, 8, 12, 16, 24, 32 (`xs`부터 `xxl`까지) | 안쪽 여백과 간격. |
+| `TYPE` | title 20, heading 14, body 12, small 11 | 글자 크기. |
+| `ELEVATION` | raised: offset 4, blur 14; inset: offset 2, blur 6; 그림자 불투명도 0.55 | 떠오른 표면과 우물. 일부러 작습니다. 과장된 엠보싱이 부드러운 인터페이스를 읽을 수 없게 만듭니다. |
+| `MOTION` | breathe 2400 ms, attention 1200 ms, transition 160 ms | 상태 점과 컨트롤 전환. |
+| `HALO` | 불투명도 0.12~0.34, 반경 9 | 상태 점 둘레의 후광. |
 
-The window gets these as constants in `gui/Brand.cs` - `RadiusCard`, `SpaceM`, `TypeBody`,
-`RaisedBlur`, `ShadowOpacity`, `BreatheMs`, `AttentionMs`, `HaloMin` and the rest - and
-multiplies them by its own scale factor. The popup reads the same tables from `brand.py`. The
-panel gets CSS custom properties from `brand.css_scale()`: `--radius-*`, `--space-*`,
-`--type-*`, `--breathe`, `--pulse`, `--transition`, `--halo-min` and `--halo-max`.
+창은 이 값을 `gui/Brand.cs`의 상수 — `RadiusCard`, `SpaceM`, `TypeBody`, `RaisedBlur`,
+`ShadowOpacity`, `BreatheMs`, `AttentionMs`, `HaloMin` 등 — 로 받아 자기 배율을 곱합니다. 팝업은
+같은 테이블을 `brand.py`에서 읽습니다. 패널은 `brand.css_scale()`이 만든 CSS 사용자 정의 속성
+`--radius-*`, `--space-*`, `--type-*`, `--breathe`, `--pulse`, `--transition`, `--halo-min`,
+`--halo-max`를 받습니다.
 
-The attention duration is `--pulse`, not `--attention`, because the palette already declares
-`--attention` as a colour on the same `:root`. Two custom properties with one name raise
-nothing: the later declaration wins, the dark theme declares the colour again, and an animation
-handed a colour for its duration simply does not run.
+attention 지속 시간이 `--attention`이 아니라 `--pulse`인 이유는 팔레트가 같은 `:root`에 이미
+`--attention`을 색으로 선언하기 때문입니다. 이름이 같은 사용자 정의 속성 두 개는 아무 오류도 내지
+않습니다. 나중 선언이 이기고, 어두운 테마가 색을 다시 선언하며, 지속 시간 자리에 색을 받은
+애니메이션은 그냥 돌지 않습니다.
 
-The panel writes its shadows in its own stylesheet, from the shadow tokens. In the light theme
-they use the offsets and blurs in the table; in the dark theme a lift is mostly the hairline and
-a one-pixel top light, because a shadow on a near-black ground is invisible at best and muddy at
-worst.
+패널은 그림자를 자기 스타일시트에서 그림자 토큰으로 씁니다. 밝은 테마에서는 표의 offset과 blur를
+쓰고, 어두운 테마에서는 떠오름이 대부분 헤어라인과 위쪽 1픽셀 빛입니다. 거의 검은 바탕 위의
+그림자는 잘해야 안 보이고 못하면 탁해지기 때문입니다.
 
-## Motion is a state
+## 움직임은 상태다
 
-The state dot says whether the watcher is alive, in the Dashboard's header, at the top of the
-popup and at the top of the panel. Monitoring breathes slowly; waiting holds a soft halo;
-checking a task that has come due turns a small arc (in the Dashboard and the popup); recovering
-pulses faster; paused is still, with no halo; a state that needs a person pulses once when it is
-entered and then holds. Nothing blinks, and the dot always has its word beside it.
+상태 점은 대시보드 머리글, 팝업 맨 위, 패널 맨 위에서 워처가 살아 있는지를 말합니다. 감시 중에는
+천천히 숨 쉬고, 대기 중에는 옅은 후광을 유지하며, 기한이 된 작업을 확인할 때는 작은 호가 돌고
+(대시보드와 팝업), 복구 중에는 더 빠르게 맥동하며, 일시 정지는 후광 없이 멈춰 있고, 사람이 필요한
+상태는 들어설 때 한 번 맥동한 뒤 그대로 유지합니다. 깜빡이는 것은 없고, 점 옆에는 늘 그 단어가
+있습니다.
 
-All of it stops on request. The Dashboard and the popup stop every animation when **Reduce
-motion** is on (Settings > Appearance) or when Windows' own animation-effects switch is off, and
-the Dashboard also stops it in High Contrast. The panel follows the host's
-`prefers-reduced-motion` instead, which is why the setting is not offered there.
+요청하면 모두 멈춥니다. 대시보드와 팝업은 **움직임 줄이기**(설정 > 모양)가 켜져 있거나 Windows
+자체의 애니메이션 효과 스위치가 꺼져 있으면 모든 애니메이션을 멈추고, 대시보드는 고대비 모드에서도
+멈춥니다. 패널은 대신 호스트의 `prefers-reduced-motion`을 따르므로, 패널에는 이 설정이 없습니다.
 
-## High Contrast, and a window that stays light
+## 고대비 모드, 그리고 밝게 남는 창
 
-In High Contrast the Dashboard drops its shadows and tints, stops its motion and draws with
-system colours throughout; `Palette` in `gui/Controls.cs` is where that swap happens. The popup
-does not make that swap: it draws with the light palette in every mode.
+고대비 모드에서 대시보드는 그림자와 옅은 색을 버리고, 움직임을 멈추고, 전체를 시스템 색으로
+그립니다. 그 교체가 일어나는 곳이 `gui/Controls.cs`의 `Palette`입니다. 팝업은 그 교체를 하지
+않습니다. 어느 모드에서든 밝은 팔레트로 그립니다.
 
-The Dashboard is light-only, and that is a measurement rather than an opinion. A probe built for
-v0.5.6 painted a card, a spin box, a drop-down, a check box and a button in the dark palette and
-photographed the result. The body went dark; the parts Windows draws itself - the spinner's
-buttons, the drop-down's arrow, the check-box glyph - stayed light, which is worse than an
-honestly light window and not fixable without owner-drawing every native control. v0.6.3's soft
-controls paint over the standard controls rather than replacing them, so that finding still
-stands. The popup draws with the light palette too. The dark half of the palette is not unused:
-the panel in Codex is HTML and follows Codex's own theme.
+대시보드가 밝은 테마 전용인 것은 취향이 아니라 측정의 결과입니다. v0.5.6을 위해 만든 시험 창이
+카드, 스핀 상자, 드롭다운, 체크박스, 버튼을 어두운 팔레트로 칠해 사진을 찍었습니다. 본체는
+어두워졌지만 Windows가 직접 그리는 부분 — 스핀 상자의 단추, 드롭다운의 화살표, 체크박스 글리프 —
+은 밝은 채로 남았습니다. 정직하게 밝은 창보다 나쁘고, 모든 네이티브 컨트롤을 직접 그리지 않고는
+고칠 수 없습니다. 이번 릴리스의 부드러운 컨트롤은 표준 컨트롤을 대체하지 않고 그 위에 칠하므로, 그
+결과는 여전히 유효합니다. 팝업도 밝은 팔레트로 그립니다. 팔레트의 어두운 절반이 쓰이지 않는 것은
+아닙니다. Codex 안의 패널은 HTML이고 Codex 자신의 테마를 따릅니다.
 
-## The mark
+## 마크
 
-A rounded-square badge in deep blue carrying an open ring with a bright head at its leading
-end. The ring is the wait; the gap at the top is the interruption; the cyan head is the
-moment it resumes.
+짙은 파랑의 둥근 사각형 배지 안에, 앞쪽 끝에 밝은 머리가 달린 열린 고리가 들어 있습니다.
+고리는 기다림이고, 위쪽의 틈은 중단이며, 시안색 머리는 다시 이어지는 순간입니다.
 
-`assets/brand/icon.svg` is the vector master and `assets/codex-auto-resume.ico` the Windows
-raster set, both generated from the same nine numbers in `assets/make_icon.py` — one
-geometry, not a drawing and a copy of it.
+`assets/brand/icon.svg`가 벡터 원본이고 `assets/codex-auto-resume.ico`가 Windows 래스터
+세트이며, 둘 다 `assets/make_icon.py`에 있는 같은 숫자 아홉 개에서 생성됩니다. 도형 하나이지,
+그림 하나와 그 사본이 아닙니다.
 
-**Why this shape and not the other three.** Four concepts were built and rendered at all
-nine icon sizes on both a light and a dark ground; `build/icon_concepts.py` still renders
-the sheet, so the comparison can be repeated rather than believed.
+**왜 나머지 셋이 아니라 이 모양인가.** 후보 네 가지를 만들어, 아홉 가지 아이콘 크기 전부에서
+밝은 바탕과 어두운 바탕 양쪽에 렌더링했습니다. `build/icon_concepts.py`가 지금도 그 시트를
+렌더링하므로, 이 비교는 믿는 대신 다시 해 볼 수 있습니다.
 
-| Concept | Why not |
+| 후보 | 채택하지 않은 이유 |
 | --- | --- |
-| A **pause-then-play** pair | The most legible at 16px and the least distinctive anywhere. It is the most common glyph pair in software and it says "media player". |
-| A **chevron inside a ring** | Handsome at 256 and gone by 24: the chevron and the ring merged into one blob. |
-| An **arrowhead on an open arc** (the mark up to v0.5.1) | Reads as a flag at large sizes. A triangle joined to a curve at an angle stops looking joined. |
-| An **open ring with a round head** | Chosen. It survives sixteen pixels *and* stays specific — a circle is the one shape that cannot lose its silhouette when it is four pixels across. |
+| **일시정지 다음 재생** 한 쌍 | 16px에서 가장 잘 읽히고, 어디서든 가장 특징이 없습니다. 소프트웨어에서 가장 흔한 글리프 쌍이고, "미디어 플레이어"라고 말합니다. |
+| **고리 안의 꺾쇠** | 256에서는 보기 좋고 24에서는 사라집니다. 꺾쇠와 고리가 한 덩어리로 뭉쳤습니다. |
+| **열린 호에 붙은 화살촉** (v0.5.1까지의 마크) | 큰 크기에서는 깃발로 읽힙니다. 곡선에 비스듬히 붙인 삼각형은 붙어 있는 것으로 보이지 않게 됩니다. |
+| **둥근 머리가 달린 열린 고리** | 채택했습니다. 16픽셀에서도 살아남고 *동시에* 고유합니다. 원은 폭이 4픽셀이 되어도 실루엣을 잃지 않는 유일한 도형입니다. |
 
-The head sits at the end of the sweep rather than inside the gap, so it reads as leading
-the ring rather than floating beside it.
+머리는 틈 안이 아니라 호가 끝나는 자리에 놓입니다. 그래서 고리 옆에 떠 있는 것이 아니라 고리를
+이끄는 것으로 읽힙니다.
 
-## Rules that are not about colour
+## 색에 관한 것이 아닌 규칙들
 
-- **State leads.** In the Dashboard, the popup and the panel, what the watcher is doing is the
-  first thing and the largest type. It used to be a muted sentence along the bottom of the
-  window, under sixteen checkboxes — which put the one thing a person opens the window to check
-  below everything they did not come for.
-- **No colour without a word.** A state is a word on a chip tinted with its own colour, and the
-  dot always has its word beside it. `active` never carries text, which is why the popup keeps
-  separate tables for a dot's fill and its word's ink.
-- **Nothing depends on seeing a shadow.** Every card and control keeps a hairline edge, and the
-  keyboard focus ring has its own token, `focus`.
-- **Order is an argument.** The panel runs: the state; then what is waiting, because it is the
-  part that changes; then what is configured, general to particular; then what that
-  configuration will say. The Dashboard's Settings is split into General, Automatic recovery,
-  Continuation message, Appearance and Advanced.
-- **Every status fact is its own label in its own cell.** A single concatenated string
-  wraps or truncates as the window narrows, and what disappears first is the version — the
-  part people are asked for when reporting a problem.
-- **The card is one object, repeated.** Same ground, same hairline, same radius and the same
-  lift on all three surfaces, so the eye reads a list of sections rather than a pile of boxes.
-- **A standard control underneath.** In the Dashboard a button is still a `Button` and a check
-  box a `CheckBox`; only the painting is ours, so the keyboard, focus and screen readers behave
-  as they always did.
+- **상태가 앞선다.** 대시보드, 팝업, 패널에서 워처가 무엇을 하고 있는지가 가장 먼저 나오고 가장
+  큰 글자입니다. 예전에는 체크박스 열여섯 개 아래, 창 맨 밑에 흐린 한 문장으로 있었습니다. 사람이
+  창을 여는 단 하나의 이유를, 보러 온 것이 아닌 모든 것 아래에 둔 셈입니다.
+- **단어 없는 색은 없다.** 상태는 자기 색을 옅게 깐 칩 위의 단어이고, 점 옆에는 늘 그 단어가
+  있습니다. `active`는 텍스트를 싣지 않으며, 그래서 팝업은 점의 채움과 단어의 색을 따로 둔 표를
+  씁니다.
+- **그림자를 봐야 알 수 있는 것은 없다.** 모든 카드와 컨트롤에 헤어라인 테두리가 남아 있고, 키보드
+  포커스 링은 자기 토큰 `focus`를 가집니다.
+- **순서는 주장이다.** 패널은 이 순서입니다. 상태, 그다음 바뀌는 부분인 기다리는 작업, 그다음
+  일반에서 구체로 가는 설정, 그다음 그 설정이 무엇을 말할지. 대시보드의 설정은 일반, 자동 복구,
+  이어서 하기 메시지, 모양, 고급으로 나뉩니다.
+- **상태에 관한 사실은 하나하나가 자기 셀에 놓인 자기 레이블이다.** 하나로 이어 붙인 문자열은
+  창이 좁아지면 줄바꿈되거나 잘리는데, 가장 먼저 사라지는 것이 버전입니다. 문제를 신고할 때
+  사람들이 요구받는 바로 그 부분입니다.
+- **카드는 하나의 객체를 반복한 것이다.** 세 표면에 걸쳐 바탕도, 헤어라인도, 반경도, 떠오름도
+  같습니다. 그래야 눈이 상자 더미가 아니라 섹션의 목록으로 읽습니다.
+- **밑에는 표준 컨트롤이 있다.** 대시보드에서 버튼은 여전히 `Button`이고 체크박스는 `CheckBox`
+  입니다. 칠하는 것만 우리 몫이므로, 키보드, 포커스, 화면 낭독기는 늘 그랬던 대로 동작합니다.
 
-## Redrawing anything
+## 다시 그리기
 
 ```bash
 python assets/make_icon.py     # icon, logos, vector master
@@ -197,7 +191,7 @@ python build/make_brand.py     # gui/Brand.cs: the palette and the scale
 python build/icon_concepts.py  # the concept comparison sheet
 ```
 
-Screenshots are captured with `build/capture_window.ps1`, which declares itself DPI aware
-before measuring. A DPI-unaware capture is told a scaled-down window rectangle, allocates a
-bitmap that size and returns a picture of the window's top-left corner — which looks
-exactly like a window whose layout is broken, and cost an afternoon once.
+스크린샷은 `build/capture_window.ps1`로 찍으며, 이 스크립트는 측정 전에 자신을 DPI aware로
+선언합니다. DPI를 인식하지 못하는 캡처는 축소된 창 사각형을 전달받아 그 크기의 비트맵을
+할당하고, 창의 좌측 상단 귀퉁이만 담긴 그림을 돌려줍니다. 레이아웃이 깨진 창과 정확히 똑같아
+보이고, 한 번은 오후 하루를 잡아먹었습니다.
