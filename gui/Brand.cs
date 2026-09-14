@@ -13,33 +13,36 @@
 // The dark half of the palette is not unused: the Codex panel is HTML, follows the host's
 // colour scheme, and was rebalanced in the same release.
 
+using System;
 using System.Drawing;
 
 namespace CodexAutoResume
 {
     internal static class Brand
     {
-        internal static readonly Color Ink         = Color.FromArgb(0x0F, 0x1B, 0x2D);  // #0F1B2D, text
-        internal static readonly Color Muted       = Color.FromArgb(0x53, 0x64, 0x77);  // #536477, secondary text
-        internal static readonly Color Line        = Color.FromArgb(0xD3, 0xDC, 0xE7);  // #D3DCE7, hairlines and card edges
-        internal static readonly Color Surface     = Color.FromArgb(0xF6, 0xF8, 0xFB);  // #F6F8FB, cards
-        internal static readonly Color Canvas      = Color.FromArgb(0xE9, 0xEE, 0xF4);  // #E9EEF4, the window behind them
-        internal static readonly Color Accent      = Color.FromArgb(0x12, 0x57, 0xB8);  // #1257B8, anything to read or to click
-        internal static readonly Color OnAccent    = Color.FromArgb(0xFF, 0xFF, 0xFF);  // #FFFFFF, text drawn on the accent
-        internal static readonly Color Active      = Color.FromArgb(0x06, 0xB6, 0xD4);  // #06B6D4, fill only: running
-        internal static readonly Color Idle        = Color.FromArgb(0x94, 0xA3, 0xB8);  // #94A3B8, fill only: stopped
-        internal static readonly Color Raised      = Color.FromArgb(0xFB, 0xFC, 0xFE);  // #FBFCFE, a control resting on a card
-        internal static readonly Color Inset       = Color.FromArgb(0xE2, 0xE8, 0xF0);  // #E2E8F0, pressed, selected, a well
-        internal static readonly Color ShadowDark  = Color.FromArgb(0xB7, 0xC4, 0xD4);  // #B7C4D4, shadow below and right of a raised surface
-        internal static readonly Color ShadowLight = Color.FromArgb(0xFF, 0xFF, 0xFF);  // #FFFFFF, highlight above and left of it
-        internal static readonly Color AccentSoft  = Color.FromArgb(0xDC, 0xE8, 0xF8);  // #DCE8F8, a quiet accent ground
-        internal static readonly Color Focus       = Color.FromArgb(0x2F, 0x7D, 0xE1);  // #2F7DE1, keyboard focus ring
-        internal static readonly Color Attention   = Color.FromArgb(0xB4, 0x53, 0x09);  // #B45309, fill only: needs a person
-        internal static readonly Color Success     = Color.FromArgb(0x15, 0x70, 0x45);  // #157045, recovered
-        internal static readonly Color Waiting     = Color.FromArgb(0x1A, 0x5F, 0xA8);  // #1A5FA8, waiting for a reset or retry
-        internal static readonly Color Warning     = Color.FromArgb(0x9A, 0x4A, 0x06);  // #9A4A06, needs a decision soon
-        internal static readonly Color Danger      = Color.FromArgb(0xB4, 0x23, 0x18);  // #B42318, stopped or failed
-        internal static readonly Color Paused      = Color.FromArgb(0x55, 0x65, 0x7A);  // #55657A, deliberately quiet
+        internal static readonly Color Ink           = Color.FromArgb(0x0F, 0x1B, 0x2D);  // #0F1B2D, text
+        internal static readonly Color Muted         = Color.FromArgb(0x53, 0x64, 0x77);  // #536477, secondary text
+        internal static readonly Color Line          = Color.FromArgb(0xD3, 0xDC, 0xE7);  // #D3DCE7, hairlines and card edges
+        internal static readonly Color Surface       = Color.FromArgb(0xF6, 0xF8, 0xFB);  // #F6F8FB, cards
+        internal static readonly Color Canvas        = Color.FromArgb(0xE9, 0xEE, 0xF4);  // #E9EEF4, the window behind them
+        internal static readonly Color Accent        = Color.FromArgb(0x12, 0x57, 0xB8);  // #1257B8, anything to read or to click
+        internal static readonly Color OnAccent      = Color.FromArgb(0xFF, 0xFF, 0xFF);  // #FFFFFF, text drawn on the accent
+        internal static readonly Color Active        = Color.FromArgb(0x06, 0xB6, 0xD4);  // #06B6D4, fill only: running
+        internal static readonly Color Idle          = Color.FromArgb(0x94, 0xA3, 0xB8);  // #94A3B8, fill only: stopped
+        internal static readonly Color Raised        = Color.FromArgb(0xFB, 0xFC, 0xFE);  // #FBFCFE, a control resting on a card
+        internal static readonly Color Inset         = Color.FromArgb(0xE2, 0xE8, 0xF0);  // #E2E8F0, pressed, selected, a well
+        internal static readonly Color ShadowDark    = Color.FromArgb(0xB7, 0xC4, 0xD4);  // #B7C4D4, shadow below and right of a raised surface
+        internal static readonly Color ShadowLight   = Color.FromArgb(0xFF, 0xFF, 0xFF);  // #FFFFFF, highlight above and left of it
+        internal static readonly Color AccentSoft    = Color.FromArgb(0xDC, 0xE8, 0xF8);  // #DCE8F8, a quiet accent ground
+        internal static readonly Color Focus         = Color.FromArgb(0x2F, 0x7D, 0xE1);  // #2F7DE1, keyboard focus ring
+        internal static readonly Color Attention     = Color.FromArgb(0xB4, 0x53, 0x09);  // #B45309, fill only: needs a person
+        internal static readonly Color Success       = Color.FromArgb(0x15, 0x70, 0x45);  // #157045, recovered
+        internal static readonly Color Waiting       = Color.FromArgb(0x1A, 0x5F, 0xA8);  // #1A5FA8, waiting for a reset or retry
+        internal static readonly Color Warning       = Color.FromArgb(0x9A, 0x4A, 0x06);  // #9A4A06, needs a decision soon
+        internal static readonly Color Danger        = Color.FromArgb(0xB4, 0x23, 0x18);  // #B42318, stopped or failed
+        internal static readonly Color Paused        = Color.FromArgb(0x55, 0x65, 0x7A);  // #55657A, deliberately quiet
+        internal static readonly Color AccentHover   = Color.FromArgb(0x13, 0x5D, 0xC5);  // #135DC5, the primary button under the pointer
+        internal static readonly Color AccentPressed = Color.FromArgb(0x12, 0x50, 0xA7);  // #1250A7, the primary button pressed
 
         internal const int RadiusCard = 16;
         internal const int RadiusControl = 11;
@@ -69,5 +72,244 @@ namespace CodexAutoResume
 
         internal const string HexAccent = "#1257B8";
         internal const string HexBrand = "#1257B8";
+
+        // The panel's sizes, in CSS px (brand.LAYOUT). A padding is written Top, Right, Bottom, Left.
+        internal const int PagePadTop = 16;
+        internal const int PagePadRight = 14;
+        internal const int PagePadBottom = 20;
+        internal const int PagePadLeft = 14;
+        internal const int PageGap = 14;
+        internal const int CardPadTop = 16;
+        internal const int CardPadRight = 18;
+        internal const int CardPadBottom = 16;
+        internal const int CardPadLeft = 18;
+        internal const int CardHeadGap = 12;
+        internal const int CardFirstGap = 6;
+        internal const int HeroPadTop = 16;
+        internal const int HeroPadRight = 20;
+        internal const int HeroPadBottom = 16;
+        internal const int HeroPadLeft = 20;
+        internal const int HeroGap = 4;
+        internal const int SavebarPadTop = 10;
+        internal const int SavebarPadRight = 12;
+        internal const int SavebarPadBottom = 10;
+        internal const int SavebarPadLeft = 12;
+        internal const int RowPadTop = 11;
+        internal const int RowPadRight = 0;
+        internal const int RowPadBottom = 11;
+        internal const int RowPadLeft = 0;
+        internal const int RowGap = 16;
+        internal const int TilePadTop = 10;
+        internal const int TilePadRight = 12;
+        internal const int TilePadBottom = 10;
+        internal const int TilePadLeft = 14;
+        internal const int TileGap = 8;
+        internal const int ButtonHeight = 34;
+        internal const int ButtonPadTop = 6;
+        internal const int ButtonPadRight = 16;
+        internal const int ButtonPadBottom = 6;
+        internal const int ButtonPadLeft = 16;
+        internal const int FieldHeight = 35;
+        internal const int SelectPadTop = 6;
+        internal const int SelectPadRight = 34;
+        internal const int SelectPadBottom = 6;
+        internal const int SelectPadLeft = 12;
+        internal const int ChevronWidth = 10;
+        internal const int ChevronHeight = 5;
+        internal const int ChevronRight = 13;
+        internal const int NumberWidth = 88;
+        internal const int SegmentHeight = 36;
+        internal const int SegmentPadTop = 7;
+        internal const int SegmentPadRight = 8;
+        internal const int SegmentPadBottom = 7;
+        internal const int SegmentPadLeft = 8;
+        internal const int SegmentGap = 6;
+        internal const int SwitchWidth = 40;
+        internal const int SwitchHeight = 22;
+        internal const int Knob = 16;
+        internal const int KnobInset = 3;
+        internal const int KnobTravel = 18;
+        internal const int ChipHeight = 22;
+        internal const int ChipPadX = 9;
+        internal const int CountHeight = 20;
+        internal const int CountMinWidth = 24;
+        internal const int CountPadX = 8;
+        internal const int WellPadTop = 12;
+        internal const int WellPadRight = 14;
+        internal const int WellPadBottom = 12;
+        internal const int WellPadLeft = 14;
+        internal const int StoredPadTop = 9;
+        internal const int StoredPadRight = 12;
+        internal const int StoredPadBottom = 9;
+        internal const int StoredPadLeft = 12;
+        internal const int CalloutPadTop = 10;
+        internal const int CalloutPadRight = 12;
+        internal const int CalloutPadBottom = 10;
+        internal const int CalloutPadLeft = 12;
+        internal const int CalloutGap = 10;
+        internal const int CalloutBadge = 18;
+        internal const int NavPadTop = 7;
+        internal const int NavPadRight = 14;
+        internal const int NavPadBottom = 7;
+        internal const int NavPadLeft = 14;
+        internal const int FoldChevron = 8;
+        internal const int SkeletonHeight = 9;
+        internal const int SkeletonRadius = 6;
+        internal const int FocusWidth = 2;
+        internal const int FocusOffset = 2;
+        internal const int Hairline = 1;
+
+        // The panel's light elevation (brand.SHADOWS): one shadow in ShadowDark and one highlight in
+        // ShadowLight per recipe, in CSS px, and how far each recipe reaches past its box. A blur
+        // B is a Gaussian with sigma B/2. The inset recipe is drawn inside the box.
+        internal const float ElevCardShadowDx = 4f;
+        internal const float ElevCardShadowDy = 4f;
+        internal const float ElevCardShadowBlur = 14f;
+        internal const float ElevCardShadowAlpha = 0.55f;
+        internal const float ElevCardHighlightDx = -4f;
+        internal const float ElevCardHighlightDy = -4f;
+        internal const float ElevCardHighlightBlur = 14f;
+        internal const float ElevCardHighlightAlpha = 0.9f;
+        internal const int ElevCardReachLeft = 25;
+        internal const int ElevCardReachTop = 25;
+        internal const int ElevCardReachRight = 25;
+        internal const int ElevCardReachBottom = 25;
+        internal const float ElevControlShadowDx = 2f;
+        internal const float ElevControlShadowDy = 2f;
+        internal const float ElevControlShadowBlur = 6f;
+        internal const float ElevControlShadowAlpha = 0.45f;
+        internal const float ElevControlHighlightDx = -2f;
+        internal const float ElevControlHighlightDy = -2f;
+        internal const float ElevControlHighlightBlur = 6f;
+        internal const float ElevControlHighlightAlpha = 0.9f;
+        internal const int ElevControlReachLeft = 11;
+        internal const int ElevControlReachTop = 11;
+        internal const int ElevControlReachRight = 11;
+        internal const int ElevControlReachBottom = 11;
+        internal const float ElevInsetShadowDx = 2f;
+        internal const float ElevInsetShadowDy = 2f;
+        internal const float ElevInsetShadowBlur = 6f;
+        internal const float ElevInsetShadowAlpha = 0.38f;
+        internal const float ElevInsetHighlightDx = -2f;
+        internal const float ElevInsetHighlightDy = -2f;
+        internal const float ElevInsetHighlightBlur = 6f;
+        internal const float ElevInsetHighlightAlpha = 0.5f;
+        internal const int ElevInsetReachLeft = 0;
+        internal const int ElevInsetReachTop = 0;
+        internal const int ElevInsetReachRight = 0;
+        internal const int ElevInsetReachBottom = 0;
+
+        // The status light (brand.STATUS_DOT, brand.GLOW): the dot keeps its size, and the glow's
+        // numbers are the popup's and the panel's too.
+        internal const double StatusDotRadius = 5;
+        internal const double GlowExtent = 12.48;
+        internal const double GlowReach = 7;
+        internal const double GlowNearAt = 0.35;
+        internal const double GlowNearAlpha = 0.55;
+        internal const double GlowFarAt = 0.7;
+        internal const double GlowFarAlpha = 0.2;
+        internal const double GlowMonitoringMs = 3600;
+        internal const double GlowMonitoringLow = 0.14;
+        internal const double GlowMonitoringHigh = 0.3;
+        internal const double GlowMonitoringScaleLow = 0.94;
+        internal const double GlowMonitoringScaleHigh = 1;
+        internal const double GlowRecoveringMs = 2200;
+        internal const double GlowRecoveringLow = 0.18;
+        internal const double GlowRecoveringHigh = 0.38;
+        internal const double GlowRecoveringScaleLow = 0.96;
+        internal const double GlowRecoveringScaleHigh = 1.04;
+        internal const double GlowStill = 0.2;
+        internal const double GlowAttentionMs = 1400;
+        internal const double GlowAttentionPeak = 0.42;
+        internal const double GlowArcMs = 1600;
+        internal const double GlowArcAlpha = 0.55;
+        internal const double GlowArcGap = 3;
+        internal const double GlowArcWidth = 1.6;
+        internal const double GlowArcSweep = 100;
+        internal const double GlowArcStillAt = 300;
+
+        /// The colour a state's dot is filled with; anything unknown is idle grey.
+        internal static Color StatusFill(string state)
+        {
+            if (state == "monitoring" || state == "waiting" || state == "checking" || state == "recovering") return Active;
+            if (state == "attention") return Attention;
+            if (state == "failed") return Danger;
+            if (state == "paused") return Paused;
+            return Idle;
+        }
+
+        /// The same dot in High Contrast: a system colour, and never a glow.
+        internal static Color StatusSystem(string state)
+        {
+            if (state == "monitoring" || state == "waiting" || state == "checking" || state == "recovering") return SystemColors.Highlight;
+            if (state == "attention" || state == "failed") return SystemColors.WindowText;
+            return SystemColors.GrayText;
+        }
+
+        /// The glow around the status dot for one frame, or false when the state has none.
+        /// brand.glow() in C#: `arc` is the checking arc's start angle in degrees, or -1, and a
+        /// negative or NaN sinceEnteredMs means the state's one pulse is over. The caller draws
+        /// no glow in High Contrast.
+        internal static bool Glow(string state, double elapsedMs, double sinceEnteredMs, bool reduced,
+                                  out double opacity, out double scale, out double arc)
+        {
+            opacity = 0;
+            scale = 1;
+            arc = -1;
+            if (state == "monitoring")
+                return Breathe(elapsedMs, reduced, GlowMonitoringMs, GlowMonitoringLow, GlowMonitoringHigh,
+                               GlowMonitoringScaleLow, GlowMonitoringScaleHigh, out opacity, out scale);
+            if (state == "recovering")
+                return Breathe(elapsedMs, reduced, GlowRecoveringMs, GlowRecoveringLow, GlowRecoveringHigh,
+                               GlowRecoveringScaleLow, GlowRecoveringScaleHigh, out opacity, out scale);
+            if (state == "waiting")
+            {
+                opacity = GlowStill;
+                return true;
+            }
+            if (state == "checking")
+            {
+                opacity = GlowStill;
+                arc = reduced ? GlowArcStillAt : elapsedMs % GlowArcMs / GlowArcMs * 360.0;
+                return true;
+            }
+            if (state == "attention" || state == "failed")
+            {
+                opacity = GlowStill;
+                if (!reduced && sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs)
+                    opacity = GlowStill + (GlowAttentionPeak - GlowStill) * Breath(sinceEnteredMs, GlowAttentionMs);
+                return true;
+            }
+            return false;
+        }
+
+        /// Whether a frame timer has anything to draw for this state.
+        internal static bool GlowMoves(string state, double sinceEnteredMs, bool reduced)
+        {
+            if (reduced) return false;
+            if (state == "monitoring" || state == "recovering" || state == "checking") return true;
+            return (state == "attention" || state == "failed") && sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs;
+        }
+
+        private static bool Breathe(double elapsedMs, bool reduced, double cycleMs, double low, double high,
+                                    double small, double large, out double opacity, out double scale)
+        {
+            if (reduced)
+            {
+                opacity = (low + high) / 2;
+                scale = 1;
+                return true;
+            }
+            double wave = Breath(elapsedMs, cycleMs);
+            opacity = low + (high - low) * wave;
+            scale = small + (large - small) * wave;
+            return true;
+        }
+
+        /// 0 at the start of a cycle, 1 halfway, 0 again: a raised cosine.
+        private static double Breath(double elapsedMs, double cycleMs)
+        {
+            return 0.5 - 0.5 * Math.Cos(2 * Math.PI * (elapsedMs % cycleMs) / cycleMs);
+        }
     }
 }

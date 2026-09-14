@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import subprocess
 import time
-from xml.sax.saxutils import quoteattr, escape
 
 from . import messages, pwsh
 
@@ -119,6 +118,12 @@ MAX_TOAST_ACTIONS = 5
 
 
 def _toast_xml(title, body, button=None, uri=None, extra=(), more=()) -> str:
+    # Imported when a toast is built, not when this module is: `xml.sax` brings about
+    # ninety modules with it, `urllib.request`, `http.client`, `email` and `ssl` among
+    # them, and every process that imports the watcher paid for them whether or not it
+    # ever showed a notification.
+    from xml.sax.saxutils import escape, quoteattr
+
     pairs = ([(button, uri)] if button and uri else []) + [
         (label, target) for label, target in more if label and target]
     actions = ""

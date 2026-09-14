@@ -266,9 +266,21 @@ class Control:
         raise ControlError(UPGRADE_PENDING, code="upgrade_pending")
 
     def watcher_running(self):
-        """True / False / None, where None means the probe itself was unavailable."""
-        from .app import App
-        return App(self.paths, console=False, enable_logging=False).watcher_running()
+        """True / False / None, where None means the probe itself was unavailable.
+
+        The same probe as `App.watcher_running`, made here rather than borrowed. Building an
+        `App` only to ask imported the whole watcher - the engine, the icon's window code and
+        the notifications - so the first `status` of every bridge process waited 0.1 to 0.3 s
+        on imports, measured, holding the bridge lock the whole time. The tests hold the two
+        probes to the same answers.
+        """
+        try:
+            with Mutex(str(self.paths.state_dir), timeout=0.0):
+                return False
+        except AdapterError as exc:
+            if str(exc) == "mutex_busy":
+                return True
+            return None
 
     def _watcher(self, store) -> dict:
         """What is known about the watcher: the mutex probe plus its own heartbeat."""

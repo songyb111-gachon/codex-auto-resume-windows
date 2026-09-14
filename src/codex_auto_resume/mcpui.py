@@ -45,6 +45,9 @@ _STYLE = r"""
   @LIGHT@
   @ELEVATION_LIGHT@
   @SCALE@
+  /* The glow's easing: a half-cosine, to within 0.002 of its phase, so a breath the stylesheet
+     draws is the same curve brand.glow() gives the window and the popup. */
+  --glow-ease: cubic-bezier(.37, 0, .63, 1);
   --font: system-ui, "Segoe UI Variable Text", "Segoe UI", "Malgun Gothic", "Yu Gothic UI",
           "Microsoft YaHei UI", "Microsoft JhengHei UI", sans-serif;
   --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
@@ -57,75 +60,90 @@ _STYLE = r"""
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-body { margin: 0; padding: 16px 14px 20px; background: var(--canvas); color: var(--ink);
-       font: 14px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
+body { margin: 0; padding: var(--size-page-pad); background: var(--canvas); color: var(--ink);
+       font: var(--type-body)/var(--lh-body) var(--font); -webkit-font-smoothing: antialiased; }
 h1, h2, h3, p, ul { margin: 0; }
 button, select, input { font: inherit; }
-.page { max-width: 820px; margin: 0 auto; display: grid; gap: 14px; }
-.help, .note { color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.page { max-width: 820px; margin: 0 auto; display: grid; gap: var(--size-page-gap); }
+.help, .note { color: var(--muted); font-size: var(--type-small); line-height: var(--lh-small); }
 .note:empty { display: none; }
-.mono { font-family: var(--mono); font-size: 13px; }
+.mono { font-family: var(--mono); font-size: var(--type-mono); }
 
 /* The card is one object, repeated: one ground, one hairline, one radius, one soft lift.
    The hairline stays even where the shadow does the visible work - a shadow alone is not
    an edge for everybody, and nothing here may depend on seeing one. */
 .card { background: var(--surface); border: 1px solid var(--line);
         border-radius: var(--radius-card); box-shadow: var(--elev-card);
-        padding: 16px 18px; min-width: 0; }
+        padding: var(--size-card-pad); min-width: 0; }
 @supports (color: color-mix(in srgb, red 50%, blue)) {
   .card { background: var(--card-ground); }
 }
-.card h2 { font-size: 15px; line-height: 1.35; font-weight: 600; }
-.card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.count { min-width: 24px; padding: 0 8px; border-radius: 999px; background: var(--inset);
-         color: var(--muted); font-size: 12.5px; line-height: 20px; text-align: center;
+.card h2 { font-size: var(--type-title); line-height: var(--lh-title); font-weight: 600; }
+.card-head { display: flex; align-items: center; justify-content: space-between;
+             gap: var(--size-card-head-gap); }
+.count { min-width: var(--size-count-min-width); padding: 0 var(--size-count-pad-x); border-radius: 999px;
+         background: var(--inset); color: var(--muted); font-size: var(--type-small);
+         line-height: var(--size-count-height); text-align: center;
          font-variant-numeric: tabular-nums; }
 
 /* State leads. Whether anything is being watched is the reason the panel gets opened,
    so it is the first thing on it and the largest type on it - a word, never a colour
    alone, with the halo saying the same thing for a reader who glances. */
-.hero { display: grid; gap: 4px; padding: 16px 20px; }
-.eyebrow { font-size: 12.5px; color: var(--muted); }
+.hero { display: grid; gap: var(--size-hero-gap); padding: var(--size-hero-pad); }
+.eyebrow { font-size: var(--type-small); color: var(--muted); }
 .hero-state { display: flex; align-items: center; gap: 18px; padding: 8px 0 4px 9px; }
-.hero h1 { font-size: 21px; line-height: 1.25; font-weight: 600; letter-spacing: -.01em; }
+.hero h1 { font-size: var(--type-display); line-height: var(--lh-display); font-weight: 600;
+           letter-spacing: -.01em; }
 .facts { display: flex; flex-wrap: wrap; color: var(--muted); }
 .facts span:not(:last-child)::after { content: "\00b7"; padding: 0 8px; }
 .hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .hero-actions > * { margin-top: 6px; }
 
-/* Motion is a state. Monitoring breathes slowly; waiting holds a soft glow; recovering
-   pulses harder; paused is still and has no glow at all; a problem pulses once, when it
-   is first shown, and then holds - nothing here blinks for attention it already has. */
+/* The status light: a flat dot, and a glow that says it is alive. The dot is the brand's
+   `active` cyan whenever the watcher runs with recovery on, whatever it is doing; the word
+   beside it and the motion tell those states apart. A light that is off - stopped, not known
+   to be running, or paused - keeps the grey it always had and has no glow at all, and amber is
+   for a watcher that runs and is not well.
+
+   The glow is a falloff, never a disc with an edge, and its numbers are brand's GLOW, the
+   ones the window and the notification-area popup draw with. Monitoring breathes slowly and
+   low; recovering a little quicker and brighter; waiting holds still; a problem pulses once,
+   when it is first shown, and then holds - nothing here blinks for attention it already has. */
 .halo { --halo-color: var(--idle); position: relative; flex: none; width: 12px; height: 12px;
         border-radius: 50%; background: var(--halo-color); }
-.halo::before { content: ""; position: absolute; inset: -9px; border-radius: 50%;
-                background: var(--halo-color); opacity: var(--halo-min); }
-.halo.monitoring { --halo-color: var(--active); }
-.halo.monitoring::before { animation: breathe var(--breathe) ease-in-out infinite alternate; }
-.halo.waiting { --halo-color: var(--waiting); }
-.halo.waiting::before { opacity: calc((var(--halo-min) + var(--halo-max)) / 2); }
-.halo.recovering { --halo-color: var(--active); }
-.halo.recovering::before { animation: surge var(--pulse) ease-in-out infinite alternate; }
-.halo.paused { --halo-color: var(--paused); }
-.halo.paused::before { display: none; }
+.halo::before { content: none; position: absolute; inset: calc(-1 * var(--glow-reach));
+                border-radius: 50%; pointer-events: none; opacity: var(--glow-still);
+                background: radial-gradient(circle closest-side,
+                  var(--halo-color) var(--glow-edge),
+                  color-mix(in srgb, var(--halo-color) var(--glow-near-mix), transparent) var(--glow-near),
+                  color-mix(in srgb, var(--halo-color) var(--glow-far-mix), transparent) var(--glow-far),
+                  transparent var(--glow-outer)); }
+.halo.monitoring, .halo.waiting, .halo.checking, .halo.recovering { --halo-color: var(--active); }
 .halo.attention { --halo-color: var(--attention); }
-.halo.attention::before { opacity: calc((var(--halo-min) + var(--halo-max)) / 2); }
-.halo.attention.once::before { animation: once var(--pulse) ease-out 1; }
-@keyframes breathe {
-  from { opacity: var(--halo-min); transform: scale(.78); }
-  to { opacity: var(--halo-max); transform: scale(1); }
+.halo.paused { --halo-color: var(--paused); }
+.halo.monitoring::before, .halo.waiting::before, .halo.checking::before, .halo.recovering::before,
+.halo.attention::before { content: ""; }
+.halo.monitoring::before { opacity: var(--glow-monitoring-rest);
+                           animation: glow-monitoring var(--glow-monitoring-ms) var(--glow-ease) infinite; }
+.halo.recovering::before { opacity: var(--glow-recovering-rest);
+                           animation: glow-recovering var(--glow-recovering-ms) var(--glow-ease) infinite; }
+.halo.attention.once::before { animation: glow-attention var(--glow-attention-ms) var(--glow-ease) 1; }
+@keyframes glow-monitoring {
+  0%, 100% { opacity: var(--glow-monitoring-low); transform: scale(var(--glow-monitoring-scale-low)); }
+  50% { opacity: var(--glow-monitoring-high); transform: scale(var(--glow-monitoring-scale-high)); }
 }
-@keyframes surge {
-  from { opacity: var(--halo-min); transform: scale(.7); }
-  to { opacity: calc(var(--halo-max) + .2); transform: scale(1.18); }
+@keyframes glow-recovering {
+  0%, 100% { opacity: var(--glow-recovering-low); transform: scale(var(--glow-recovering-scale-low)); }
+  50% { opacity: var(--glow-recovering-high); transform: scale(var(--glow-recovering-scale-high)); }
 }
-@keyframes once {
-  from { opacity: calc(var(--halo-max) + .2); transform: scale(.5); }
-  to { opacity: calc((var(--halo-min) + var(--halo-max)) / 2); transform: scale(1); }
+@keyframes glow-attention {
+  0%, 100% { opacity: var(--glow-still); }
+  50% { opacity: var(--glow-attention-peak); }
 }
 
 /* Controls rest on the card; values sit in wells. */
-button { min-height: 34px; padding: 6px 16px; border-radius: var(--radius-control);
+button { min-height: var(--size-button-height); padding: var(--size-button-pad);
+         border-radius: var(--radius-control);
          border: 1px solid var(--line); background: var(--raised); color: var(--ink);
          box-shadow: var(--elev-control); font-weight: 500; line-height: 20px; cursor: pointer;
          transition: background-color var(--transition), border-color var(--transition),
@@ -133,35 +151,50 @@ button { min-height: 34px; padding: 6px 16px; border-radius: var(--radius-contro
 button:hover:not([disabled]) { background: var(--surface); }
 button:active:not([disabled]) { background: var(--inset); box-shadow: var(--elev-inset); }
 button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-button.primary:hover:not([disabled]) { background: var(--accent); filter: brightness(1.07); }
+button.primary:hover:not([disabled]) { background: var(--accent-hover); border-color: var(--accent-hover); }
+/* After hover, which it would otherwise lose to: a pressed primary stays primary. Without it a
+   key press, which is active without hover, fell through to `inset` under white text. */
+button.primary:active:not([disabled]) { background: var(--accent-pressed); border-color: var(--accent-pressed);
+                                        box-shadow: var(--elev-inset); }
 button.danger { color: var(--danger); }
-button[disabled] { opacity: .5; cursor: default; box-shadow: none; }
+/* Disabled is said by the text and the lost lift, not by fading the whole control: at half
+   opacity the label fell to about 3.3:1. `muted` on the card's ground stays above 4.5. */
+button[disabled] { background: var(--surface); border-color: var(--line); color: var(--muted);
+                   box-shadow: none; cursor: default; }
 :focus { outline: none; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-select, input[type=number] { min-height: 34px; padding: 6px 12px; color: var(--ink);
+select, input[type=number] { min-height: var(--size-field-height); padding: 6px 12px; color: var(--ink);
         background-color: var(--inset); border: 1px solid var(--line);
         border-radius: var(--radius-control); box-shadow: var(--elev-inset);
         transition: border-color var(--transition), box-shadow var(--transition); }
 select { appearance: none; -webkit-appearance: none; max-width: 100%; min-width: 0;
-         padding-right: 34px; cursor: pointer; text-overflow: ellipsis;
+         padding: var(--size-select-pad); cursor: pointer; text-overflow: ellipsis;
          background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
                            linear-gradient(135deg, var(--muted) 50%, transparent 50%);
-         background-position: calc(100% - 18px) 55%, calc(100% - 13px) 55%;
-         background-size: 5px 5px; background-repeat: no-repeat; }
+         background-position: calc(100% - var(--size-chevron-right) - var(--size-chevron-height)) 55%,
+                              calc(100% - var(--size-chevron-right)) 55%;
+         background-size: var(--size-chevron-height) var(--size-chevron-height);
+         background-repeat: no-repeat; }
 select option { background-color: var(--surface); color: var(--ink); }
-input[type=number] { width: 88px; text-align: right; font-variant-numeric: tabular-nums; }
-select:disabled, input[type=number]:disabled { opacity: .6; cursor: default; }
+input[type=number] { width: var(--size-number-width); text-align: right; font-variant-numeric: tabular-nums; }
+/* Opacity 1 is said, not left out: the browser's own stylesheet fades a disabled select to 0.7,
+   `appearance: none` or not, and muted text at 0.7 fell to about 3:1 in light. */
+select:disabled, input[type=number]:disabled { background-color: var(--surface); box-shadow: none;
+                                               color: var(--muted); cursor: default; opacity: 1; }
 
 input.switch { appearance: none; -webkit-appearance: none; position: relative; flex: none;
-               width: 40px; height: 22px; margin: 0; border-radius: 999px; cursor: pointer;
+               width: var(--size-switch-width); height: var(--size-switch-height); margin: 0;
+               border-radius: 999px; cursor: pointer;
                background: var(--inset); border: 1px solid var(--line); box-shadow: var(--elev-inset);
                transition: background-color var(--transition), border-color var(--transition); }
-input.switch::before { content: ""; position: absolute; top: 2px; left: 2px; width: 16px;
-                       height: 16px; border-radius: 50%; background: var(--muted);
+input.switch::before { content: ""; position: absolute; top: calc(var(--size-knob-inset) - var(--size-hairline));
+                       left: calc(var(--size-knob-inset) - var(--size-hairline)); width: var(--size-knob);
+                       height: var(--size-knob); border-radius: 50%; background: var(--muted);
                        transition: transform var(--transition), background-color var(--transition); }
 input.switch:checked { background: var(--accent); border-color: var(--accent); box-shadow: none; }
-input.switch:checked::before { transform: translateX(18px); background: var(--on-accent); }
+input.switch:checked::before { transform: translateX(var(--size-knob-travel)); background: var(--on-accent); }
+/* A switch carries no text, so it may still fade. */
 input.switch:disabled { opacity: .5; cursor: default; }
 
 /* A setting is a row: what it is on the left, the control on the right. When there is no
@@ -169,7 +202,7 @@ input.switch:disabled { opacity: .5; cursor: default; }
 .rows > .setting + .setting, .rows > .setting + .custom, .toggles > .setting,
 .custom > .setting + .setting { border-top: 1px solid var(--line); }
 .setting { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
-           gap: 6px 16px; padding: 11px 0; min-width: 0; }
+           gap: 6px var(--size-row-gap); padding: var(--size-row-pad); min-width: 0; }
 label.setting { cursor: pointer; }
 .setting-text { flex: 1 1 180px; min-width: 0; display: grid; gap: 2px; }
 .setting-label { font-weight: 500; }
@@ -177,7 +210,7 @@ label.setting { cursor: pointer; }
 .has-select .setting-control { flex: 0 1 280px; }
 .has-select select { width: 100%; }
 .setting.stack { display: grid; grid-template-columns: minmax(0, 1fr); justify-content: stretch; gap: 8px; }
-.card > h2 + *, .card-head + * { margin-top: 6px; }
+.card > h2 + *, .card-head + * { margin-top: var(--size-card-first-gap); }
 
 .toggles { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
            column-gap: 28px; }
@@ -185,20 +218,21 @@ label.setting { cursor: pointer; }
 .toggles.quiet .setting-label { color: var(--muted); }
 
 .master { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 10px 0 6px;
-          padding: 10px 12px 10px 14px; background: var(--raised); border: 1px solid var(--line);
+          padding: var(--size-tile-pad); background: var(--raised); border: 1px solid var(--line);
           border-radius: var(--radius-control); }
 .master-text { flex: 1 1 200px; display: flex; align-items: center; gap: 10px; min-width: 0;
                font-weight: 500; }
 .master .note { flex: 1 1 100%; }
+/* The same light, small and still: the state card above is the one that breathes. */
 .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--idle); }
 .dot.on { background: var(--active); }
 .dot.paused { background: var(--paused); }
 
-.segmented { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.segmented { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--size-segment-gap); }
 .segment { position: relative; display: flex; min-width: 0; }
 .segment input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0;
                  cursor: pointer; }
-.segment span { flex: 1; min-width: 0; padding: 7px 8px; text-align: center; line-height: 20px;
+.segment span { flex: 1; min-width: 0; padding: var(--size-segment-pad); text-align: center; line-height: 20px;
                 font-weight: 500; overflow-wrap: anywhere; color: var(--ink);
                 border-radius: var(--radius-control); border: 1px solid var(--line);
                 background: var(--raised); box-shadow: var(--elev-control);
@@ -209,47 +243,47 @@ label.setting { cursor: pointer; }
                                 color: var(--accent); border-color: var(--accent); font-weight: 600; }
 .segment input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 2px; }
 .segment input:disabled { cursor: default; }
-.segment input:disabled + span { opacity: .6; }
+.segment input:disabled + span { background: var(--surface); box-shadow: none; color: var(--muted); }
 
 /* Folding sections: what is rarely changed stays one line tall until it is wanted. */
 details.fold > summary { display: flex; align-items: center; justify-content: space-between;
                          gap: 12px; list-style: none; cursor: pointer; }
 details.fold > summary::-webkit-details-marker { display: none; }
-.chevron { flex: none; width: 8px; height: 8px; margin-right: 6px;
+.chevron { flex: none; width: var(--size-fold-chevron); height: var(--size-fold-chevron); margin-right: 6px;
            border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
            transform: translateY(-2px) rotate(45deg); transition: transform var(--transition); }
 details.fold:not([open]) > summary .chevron { transform: rotate(-45deg); }
 details.card.fold { padding: 0; }
-details.card.fold > summary { padding: 16px 18px; border-radius: var(--radius-card); }
+details.card.fold > summary { padding: var(--size-card-pad); border-radius: var(--radius-card); }
 details.card.fold[open] > summary { padding-bottom: 4px; }
 details.card.fold > .fold-body { padding: 0 18px 8px; }
 details.inner { border-top: 1px solid var(--line); }
 details.inner > summary { padding: 12px 0; border-radius: var(--radius-small); }
-details.inner > summary h3 { font-size: 14px; font-weight: 600; }
+details.inner > summary h3 { font-size: var(--type-body); font-weight: 600; }
 details.inner > .fold-body { padding-bottom: 2px; }
 details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
 
 /* What is waiting, as soft rows rather than a table. Wide content wraps inside its row;
    the panel itself never scrolls sideways. */
-.prows { list-style: none; padding: 0; display: grid; gap: 8px; }
+.prows { list-style: none; padding: 0; display: grid; gap: var(--size-tile-gap); }
 .prow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-width: 0;
-        padding: 10px 12px 10px 14px; background: var(--raised); border: 1px solid var(--line);
+        padding: var(--size-tile-pad); background: var(--raised); border: 1px solid var(--line);
         border-radius: var(--radius-control); }
 .prow-main { flex: 1 1 220px; min-width: 0; display: grid; gap: 3px; }
 .prow-title { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
 .prow-name { font-weight: 600; min-width: 0; max-width: 100%; overflow: hidden;
              text-overflow: ellipsis; white-space: nowrap; }
-.prow-meta { display: flex; flex-wrap: wrap; gap: 0 14px; color: var(--muted); font-size: 12.5px;
+.prow-meta { display: flex; flex-wrap: wrap; gap: 0 14px; color: var(--muted); font-size: var(--type-small);
              font-variant-numeric: tabular-nums; }
 .prow-meta b { font-weight: 500; color: var(--ink); }
 .prow-switch { display: flex; align-items: center; gap: 10px; margin-left: auto;
-               color: var(--muted); font-size: 12.5px; cursor: pointer; }
+               color: var(--muted); font-size: var(--type-small); cursor: pointer; }
 .prow-confirm { flex: 1 1 100%; display: grid; gap: 8px; padding-top: 10px;
                 border-top: 1px solid var(--line); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
-.chip { --chip: var(--paused); display: inline-block; max-width: 100%; padding: 1px 9px;
-        border-radius: 999px; font-size: 12.5px; line-height: 20px; font-weight: 500;
+.chip { --chip: var(--paused); display: inline-block; max-width: 100%; padding: 1px var(--size-chip-pad-x);
+        border-radius: 999px; font-size: var(--type-small); line-height: 20px; font-weight: 500;
         color: var(--chip); background: var(--inset); white-space: nowrap; overflow: hidden;
         text-overflow: ellipsis; }
 @supports (color: color-mix(in srgb, red 50%, blue)) {
@@ -266,35 +300,40 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
 .custom { display: grid; }
 .stored { display: grid; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); }
 .stored-item { display: grid; gap: 4px; min-width: 0; }
-.stored-title { font-size: 12.5px; font-weight: 500; color: var(--muted); }
-.stored-text { padding: 9px 12px; border-radius: var(--radius-control); background: var(--inset);
+.stored-title { font-size: var(--type-small); font-weight: 500; color: var(--muted); }
+.stored-text { padding: var(--size-stored-pad); border-radius: var(--radius-control); background: var(--inset);
                border: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere;
                max-height: 10.5em; overflow: auto; }
 .stored-item.unset { grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 12px; }
-.stored-item.unset .stored-title { color: var(--ink); font-size: 14px; font-weight: 400; }
-.stored-empty { color: var(--muted); font-size: 12.5px; }
-.callout { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; margin-bottom: 10px;
-           border-radius: var(--radius-control); background: var(--accent-soft); color: var(--ink);
-           font-size: 12.5px; line-height: 1.45; }
-.callout::before { content: "i"; flex: none; width: 18px; height: 18px; border-radius: 50%;
-                   background: var(--accent); color: var(--on-accent); font: 600 12px/18px var(--font);
-                   text-align: center; }
+.stored-item.unset .stored-title { color: var(--ink); font-size: var(--type-body); font-weight: 400; }
+.stored-empty { color: var(--muted); font-size: var(--type-small); }
+.callout { display: flex; align-items: flex-start; gap: var(--size-callout-gap); padding: var(--size-callout-pad);
+           margin-bottom: 10px; border-radius: var(--radius-control); background: var(--accent-soft);
+           color: var(--ink); font-size: var(--type-small); line-height: var(--lh-small); }
+.callout::before { content: "i"; flex: none; width: var(--size-callout-badge); height: var(--size-callout-badge);
+                   border-radius: 50%; background: var(--accent); color: var(--on-accent);
+                   font: 600 var(--type-badge)/var(--size-callout-badge) var(--font); text-align: center; }
 
-.bubble { margin-top: 10px; padding: 12px 14px; border-radius: var(--radius-control);
+.bubble { margin-top: 10px; padding: var(--size-well-pad); border-radius: var(--radius-control);
           background: var(--inset); border: 1px solid var(--line); box-shadow: var(--elev-inset); }
-.bubble-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55;
+.bubble-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: var(--lh-bubble);
                transition: opacity var(--transition); }
 .bubble[aria-busy="true"] .bubble-text { opacity: .55; }
 .bubble.unavailable .bubble-text { color: var(--muted); }
-.skeleton { display: block; height: 9px; margin: 6px 0; border-radius: 6px; background: var(--line); }
+.skeleton { display: block; height: var(--size-skeleton-height); margin: 6px 0;
+            border-radius: var(--size-skeleton-radius); background: var(--line); }
 .skeleton + .skeleton { width: 62%; }
 .preview .source { margin-top: 10px; color: var(--ink); font-weight: 500; }
 .preview .source + .help, .preview .bubble + .help { margin-top: 8px; }
 
 .savebar { position: sticky; bottom: 10px; z-index: 1; display: flex; flex-wrap: wrap;
-           align-items: center; gap: 8px 14px; padding: 10px 12px; background: var(--surface);
+           align-items: center; gap: 8px 14px; padding: var(--size-savebar-pad); background: var(--surface);
            border: 1px solid var(--line); border-radius: var(--radius-card);
            box-shadow: var(--elev-card); }
+/* The save card is a card: in dark it stands on the same lifted ground as the others. */
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .savebar { background: var(--card-ground); }
+}
 .savebar .note { flex: 1 1 200px; min-width: 0; }
 .savebar button { margin-left: auto; }
 
@@ -302,7 +341,7 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
   body { padding: 10px 10px 16px; }
   .card { padding: 14px; }
   .hero { padding: 14px 16px; }
-  .hero h1 { font-size: 20px; }
+  .hero h1 { font-size: var(--type-display-narrow); }
   /* One fact per line: a separator left hanging at the end of a wrapped line reads as a typo. */
   .facts { display: grid; gap: 1px; }
   .facts span:not(:last-child)::after { content: none; }
@@ -314,39 +353,43 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
   .segmented { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* A person who asked Windows for less motion gets none: every halo holds still at the
-   middle of its range, and nothing slides. */
+/* A person who asked Windows for less motion gets none: every glow holds still at its resting
+   strength - the opacity each state's rule above already sets - and nothing slides. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
-  .halo::before { opacity: calc((var(--halo-min) + var(--halo-max)) / 2); transform: none; }
+  .halo::before { transform: none; }
+}
+
+/* Windows High Contrast. The browser puts the person's system colours in place of the palette
+   and takes every shadow away - and it would paint the light over with the page's ground,
+   and the switch's knob with it. So those keep a solid system colour of their own: Highlight
+   while something is watched, the text colour for a problem, grey when the light is off. No
+   glow: a soft falloff is exactly what High Contrast is asked to remove. */
+@media (forced-colors: active) {
+  .card, .savebar, button, select, input, .segment span, .bubble { box-shadow: none; }
+  .halo, .dot, .halo.paused, .dot.paused { forced-color-adjust: none; background: GrayText; }
+  .halo.monitoring, .halo.waiting, .halo.checking, .halo.recovering, .dot.on { background: Highlight; }
+  .halo.attention { background: CanvasText; }
+  .halo::before { display: none; }
+  /* The chevron is a gradient, which forced colours remove; the system's own arrow replaces it. */
+  select { appearance: auto; -webkit-appearance: auto; }
+  input.switch::before { forced-color-adjust: none; background: CanvasText; }
+  input.switch:checked { forced-color-adjust: none; background: Highlight; border-color: Highlight; }
+  input.switch:checked::before { background: HighlightText; }
+  button[disabled], select:disabled, input:disabled, .segment input:disabled + span {
+    color: GrayText; border-color: GrayText; }
+  .segment input:checked + span { forced-color-adjust: none; background: Highlight; color: HighlightText;
+                                  border-color: Highlight; box-shadow: none; }
 }
 """
 
-# The lift of a surface, per theme. Light is the soft interface: a shadow down and right
-# at a little over half strength and a highlight up and left. Dark is mostly the hairline -
-# a shadow on a near-black ground is invisible at best and muddy at worst - so it keeps a
-# faint drop and a one-pixel top light, and the card itself comes up a step toward `raised`.
-_ELEVATION_LIGHT = (
-    "--elev-card: 4px 4px 14px color-mix(in srgb, var(--shadow-dark) 55%, transparent), "
-    "-4px -4px 14px color-mix(in srgb, var(--shadow-light) 90%, transparent); "
-    "--elev-control: 2px 2px 6px color-mix(in srgb, var(--shadow-dark) 45%, transparent), "
-    "-2px -2px 6px color-mix(in srgb, var(--shadow-light) 90%, transparent); "
-    "--elev-inset: inset 2px 2px 6px color-mix(in srgb, var(--shadow-dark) 38%, transparent), "
-    "inset -2px -2px 6px color-mix(in srgb, var(--shadow-light) 50%, transparent); "
-    "--card-ground: var(--surface);")
-_ELEVATION_DARK = (
-    "--elev-card: 0 1px 2px color-mix(in srgb, var(--shadow-dark) 70%, transparent), "
-    "0 6px 18px color-mix(in srgb, var(--shadow-dark) 35%, transparent), "
-    "inset 0 1px 0 color-mix(in srgb, var(--shadow-light) 45%, transparent); "
-    "--elev-control: 0 1px 2px color-mix(in srgb, var(--shadow-dark) 60%, transparent); "
-    "--elev-inset: inset 0 1px 2px color-mix(in srgb, var(--shadow-dark) 55%, transparent); "
-    "--card-ground: color-mix(in srgb, var(--raised) 22%, var(--surface));")
-
-# Resolved once, at import: the palette is a build-time fact, not a per-request one.
+# Resolved once, at import: the palette is a build-time fact, not a per-request one. The lift
+# of a surface is brand's SHADOWS written as CSS - the recipe the window and the popup paint
+# from - so this page states no shadow of its own.
 _STYLE = (_STYLE.replace("@LIGHT@", brand.css_variables(brand.LIGHT))
                 .replace("@DARK@", brand.css_variables(brand.DARK))
-                .replace("@ELEVATION_LIGHT@", _ELEVATION_LIGHT)
-                .replace("@ELEVATION_DARK@", _ELEVATION_DARK)
+                .replace("@ELEVATION_LIGHT@", brand.css_elevation("light"))
+                .replace("@ELEVATION_DARK@", brand.css_elevation("dark"))
                 .replace("@SCALE@", brand.css_scale()))
 
 _SCRIPT = r"""
@@ -556,6 +599,13 @@ function activity(status, rows) {
     if (moving.indexOf(list[j].code) >= 0) return 'recovering';
   }
   return (status.pending > 0 || list.length > 0) ? 'waiting' : 'monitoring';
+}
+
+// The status light for a state. Not quite the word: a watcher that is not running - or that
+// nothing has confirmed is running - is a light that is off, grey as it always was, while the
+// word beside it still asks for attention. Amber is for a watcher that runs and is not well.
+function lightFor(status, state) {
+  return (status && status.watcher_running === true) ? state : 'idle';
 }
 
 // The colour a state chip carries. Always beside its word, never instead of it.
@@ -804,7 +854,8 @@ function renderHero(status) {
   // already attributed, and the question a reader arrives with is what it is doing.
   hero.appendChild(element('div', 'eyebrow', 'Codex Auto Resume · v' + (status.version || '?')));
   var line = element('div', 'hero-state');
-  var halo = element('span', 'halo ' + state + (state === 'attention' && LAST_STATE !== 'attention' ? ' once' : ''));
+  var light = lightFor(status, state);
+  var halo = element('span', 'halo ' + light + (light === 'attention' && LAST_STATE !== 'attention' ? ' once' : ''));
   halo.setAttribute('aria-hidden', 'true');
   LAST_STATE = state;
   line.appendChild(halo);

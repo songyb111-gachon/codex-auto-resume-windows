@@ -10,6 +10,7 @@ import contextlib
 import io
 from pathlib import Path
 import subprocess
+import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -18,6 +19,7 @@ from codex_auto_resume.store import Store
 
 THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
 INTERRUPTION = "a1" * 32
+SRC = str(Path(__file__).resolve().parents[1] / "src")
 
 
 class CancelUriTests(unittest.TestCase):
@@ -58,6 +60,20 @@ class ToastPayloadTests(unittest.TestCase):
         self.assertNotIn("a\"b&c<d>", xml)
         self.assertIn("&amp;", xml)
         self.assertIn("&lt;d&gt;", xml)
+
+    def test_the_escaping_itself_has_not_moved(self):
+        # `saxutils` is imported when a toast is built rather than with the module. Pinned
+        # character for character, so that move cannot change what is escaped or which
+        # quote an attribute is given.
+        xml = notify._toast_xml('a"b&c<d>', "body & more", 'btn"x', "codex-auto-resume:cancel?i=1&j=2",
+                                extra=("it's <x>",), more=(("both ' and \" ", "u&v"), ("", "dropped")))
+        self.assertEqual(xml, (
+            '<toast duration="long"><visual><binding template="ToastGeneric">'
+            '<text>a"b&amp;c&lt;d&gt;</text><text>it\'s &lt;x&gt;</text><text>body &amp; more</text>'
+            '</binding></visual><actions>'
+            '<action content=\'btn"x\' activationType="protocol" arguments="codex-auto-resume:cancel?i=1&amp;j=2"/>'
+            '<action content="both \' and &quot; " activationType="protocol" arguments="u&amp;v"/>'
+            '</actions></toast>'))
 
     def test_button_is_omitted_without_a_uri(self):
         self.assertNotIn("<actions>", notify._toast_xml("t", "b", None, None))
@@ -195,6 +211,24 @@ class ToastPayloadTests(unittest.TestCase):
             notify.scheduled(THREAD, INTERRUPTION, None)
         body = show.call_args.args[1]
         self.assertNotIn("{", body)
+
+
+class ImportCostTests(unittest.TestCase):
+    def test_importing_the_module_does_not_load_xml_sax(self):
+        """`xml.sax` brings `urllib.request`, `http.client`, `email` and `ssl` with it.
+
+        Every process that imports the watcher imports this module, and most of them never
+        build a toast.
+        """
+        program = ("import sys\n"
+                   "sys.path.insert(0, sys.argv[1])\n"
+                   "import codex_auto_resume.notify\n"
+                   "print(sorted(name for name in sys.modules\n"
+                   "             if name == 'xml.sax' or name.startswith('xml.sax.')))\n")
+        result = subprocess.run([sys.executable, "-c", program, SRC], capture_output=True,
+                                text=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "[]")
 
 
 class NotificationIdentityTests(unittest.TestCase):

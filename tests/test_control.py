@@ -15,9 +15,13 @@ that quietly submitted would still look like it worked from the outside.
 from __future__ import annotations
 
 import ast
+from contextlib import contextmanager
 import io
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -25,7 +29,9 @@ from unittest.mock import patch
 
 from codex_auto_resume import config, control, controlcli, settings
 from codex_auto_resume.store import Store, StoreError
+from codex_auto_resume.windows import AdapterError, Mutex
 
+SRC = str(Path(__file__).resolve().parents[1] / "src")
 THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
 TURN = "0a1b2c3d-0002-7000-8000-000000000002"
 KEY = "a" * 64
@@ -970,6 +976,110 @@ class StopWatcherTests(ControlTestCase):
         self.assertIs(payload["ok"], True)
         self.assertEqual(payload["result"], direct)
         self.assertEqual(payload["result"]["state"], "still-finishing")
+
+
+@unittest.skipUnless(sys.platform == "win32", "Windows named objects")
+class WatcherProbeTests(unittest.TestCase):
+    """The bridge's probe and the watcher's own give one answer.
+
+    `Control.watcher_running` used to build an `App` and ask it; it now takes the mutex
+    itself, so that a bridge never imports the watcher. A copy can drift from what it
+    copies, and these tests are what stops it: whatever the mutex says, both say it.
+    """
+
+    def setUp(self):
+        from codex_auto_resume.app import App
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.paths = config.Paths(Path(self.temporary.name) / "home")
+        self.control = control.Control(self.paths)
+        self.app = App(self.paths, console=False, enable_logging=False)
+
+    def answers(self):
+        return self.control.watcher_running(), self.app.watcher_running()
+
+    @contextmanager
+    def another_watcher(self):
+        code = ("import sys, time\n"
+                "sys.path.insert(0, %r)\n"
+                "from codex_auto_resume.windows import Mutex\n"
+                "with Mutex(%r, timeout=0):\n"
+                "    print('held', flush=True)\n"
+                "    time.sleep(60)\n" % (SRC, str(self.paths.state_dir)))
+        process = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE, text=True)
+        try:
+            self.assertEqual(process.stdout.readline().strip(), "held")
+            yield
+        finally:
+            process.kill()
+            process.wait(timeout=10)
+            process.stdout.close()
+
+    def test_both_say_not_running_while_the_mutex_is_free(self):
+        self.assertEqual(self.answers(), (False, False))
+
+    def test_both_say_running_while_another_process_holds_it(self):
+        with self.another_watcher():
+            self.assertEqual(self.answers(), (True, True))
+        # Killed, the holder abandons the mutex, and an abandoned mutex is free to the next probe.
+        self.assertEqual(self.answers(), (False, False))
+
+    def test_both_say_unknown_when_the_probe_cannot_ask(self):
+        for reason in ("named_object_squatted", "mutex_creation_failed", "mutex_wait_failed"):
+            with patch.object(Mutex, "__enter__", side_effect=AdapterError(reason)):
+                self.assertEqual(self.answers(), (None, None), reason)
+
+
+@unittest.skipUnless(sys.platform == "win32", "Windows named objects")
+class BridgeImportTests(unittest.TestCase):
+    """A bridge answers `status` without importing the watcher.
+
+    The window's first header status and the MCP server's first answer both waited while
+    the bridge imported `app` for a mutex probe, holding its lock: `app` brought the engine,
+    the icon's popup and `notify`, and `notify` brought `xml.sax`, which brings
+    `urllib.request`, `http.client`, `email` and `ssl`. None of it is needed to take a
+    mutex and read a database.
+    """
+
+    NOT_LOADED = ("codex_auto_resume.app", "codex_auto_resume.notify",
+                  "codex_auto_resume.tray_popup", "xml.sax")
+    PROGRAM = ("import json, sys\n"
+               "sys.path.insert(0, sys.argv[1])\n"
+               "from codex_auto_resume.controlcli import main\n"
+               "code = main(sys.argv[2:])\n"
+               "sys.stdout.write('MODULES ' + json.dumps(sorted(sys.modules)) + chr(10))\n"
+               "sys.exit(code)\n")
+
+    def run_bridge(self, *argv, stdin=""):
+        with tempfile.TemporaryDirectory() as temporary:
+            # An empty Codex home, so nothing here can read the real one.
+            environment = dict(os.environ, CODEX_HOME=str(Path(temporary) / "codex"))
+            result = subprocess.run([sys.executable, "-c", self.PROGRAM, SRC,
+                                     "--home", str(Path(temporary) / "home")] + list(argv),
+                                    input=stdin, capture_output=True, text=True, encoding="utf-8",
+                                    env=environment, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        lines = result.stdout.splitlines()
+        self.assertTrue(lines and lines[-1].startswith("MODULES "), result.stdout)
+        return json.loads(lines[0]), set(json.loads(lines[-1][len("MODULES "):]))
+
+    def assert_watcher_not_loaded(self, loaded):
+        for name in self.NOT_LOADED:
+            self.assertEqual(sorted(module for module in loaded
+                                    if module == name or module.startswith(name + ".")), [], name)
+
+    def test_a_one_shot_status_loads_none_of_the_watcher(self):
+        reply, loaded = self.run_bridge("status")
+        self.assertIs(reply["ok"], True)
+        # The probe really ran: a fresh home has no watcher, and the mutex says so.
+        self.assertIs(reply["status"]["watcher_running"], False)
+        self.assert_watcher_not_loaded(loaded)
+
+    def test_a_serving_bridge_answers_status_without_loading_it_either(self):
+        reply, loaded = self.run_bridge("serve", stdin=json.dumps({"id": 1, "command": "status"}) + "\n")
+        self.assertEqual(reply["id"], 1)
+        self.assertIs(reply["reply"]["status"]["watcher_running"], False)
+        self.assert_watcher_not_loaded(loaded)
 
 
 if __name__ == "__main__":

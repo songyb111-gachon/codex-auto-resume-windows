@@ -181,6 +181,50 @@ namespace CodexAutoResume
             }
             return builder.Append('"').ToString();
         }
+
+        /// The shapes Parse returns, written back as JSON: for the window's own strings cache,
+        /// which keeps a bridge reply as it was parsed.
+        internal static string Write(object value)
+        {
+            var builder = new StringBuilder();
+            WriteValue(builder, value, 0);
+            return builder.ToString();
+        }
+
+        private static void WriteValue(StringBuilder builder, object value, int depth)
+        {
+            if (depth > MaxDepth) throw new FormatException("JSON nested too deeply");
+            var map = value as Dictionary<string, object>;
+            var list = value as List<object>;
+            if (value == null) builder.Append("null");
+            else if (value is bool) builder.Append((bool)value ? "true" : "false");
+            else if (value is string) builder.Append(Escape((string)value));
+            else if (value is double) builder.Append(((double)value).ToString("R", CultureInfo.InvariantCulture));
+            else if (map != null)
+            {
+                builder.Append('{');
+                bool first = true;
+                foreach (KeyValuePair<string, object> pair in map)
+                {
+                    if (!first) builder.Append(',');
+                    first = false;
+                    builder.Append(Escape(pair.Key)).Append(':');
+                    WriteValue(builder, pair.Value, depth + 1);
+                }
+                builder.Append('}');
+            }
+            else if (list != null)
+            {
+                builder.Append('[');
+                for (int i = 0; i < list.Count; i++)
+                {
+                    if (i > 0) builder.Append(',');
+                    WriteValue(builder, list[i], depth + 1);
+                }
+                builder.Append(']');
+            }
+            else throw new FormatException("not a JSON value");
+        }
     }
 
     /// A panel that paints into a back buffer, so a repaint never shows it erased.
@@ -333,14 +377,21 @@ namespace CodexAutoResume
         private readonly PersistentBridge bridge;
         private readonly Dictionary<string, Control> editors = new Dictionary<string, Control>();
 
-        private readonly TableLayoutPanel columns = new TableLayoutPanel();
+        private readonly TableLayoutPanel columns = new SoftStack();
         // The Settings page's sections, in the order the section list shows them. Each is a
         // single column of cards; one is on screen at a time.
         private static readonly string[] SectionOrder = { "general", "recovery", "continuation", "appearance", "advanced" };
         private readonly Dictionary<string, TableLayoutPanel> sections = new Dictionary<string, TableLayoutPanel>();
         private readonly Dictionary<string, NavButton> sectionButtons = new Dictionary<string, NavButton>();
-        private readonly Panel sectionScroll = new Panel();
+        private readonly Panel sectionScroll = new SoftPage();
         private string currentSection = "general";
+        // The schema and settings as read, until the Settings editors are built from them
+        // (BuildEditorsLater); null once they have been.
+        private List<object> pendingSchema;
+        private Dictionary<string, object> pendingSettings;
+        private bool shown, buildQueued;
+        // Set by LayoutAudit: the window is measured, so nothing is read and nothing is scheduled.
+        private bool auditing;
         // Editors whose value is not a check box, a number or a drop-down, as the JSON each
         // contributes to a save.
         private readonly Dictionary<string, Func<string>> jsonValues = new Dictionary<string, Func<string>>();
@@ -361,12 +412,15 @@ namespace CodexAutoResume
         // The same limit the settings layer enforces. Shown, never enforced here: text past it
         // is refused when saved rather than cut off while it is typed.
         private const int MaxCustomLength = 2000;
-        // Buffered for the same reason as the status dot: both strips draw a hairline in a
-        // Paint handler, and the header is invalidated on every status refresh. Unbuffered,
-        // it was erased to white and repainted a moment later, and a capture taken in that
-        // moment - one in four, measured - showed the header with no rule under it.
-        private readonly Panel header = new BufferedPanel();
-        private readonly Panel footer = new BufferedPanel();
+        // The header and the footer are cards on the canvas, as the panel's hero and its save bar
+        // are: each strip is a ground (see Ground) and its card is lifted on it. Grounds are
+        // double-buffered, because the header is invalidated on every status refresh, and an
+        // unbuffered strip was erased and repainted a moment later - a capture taken in that
+        // moment, one in four measured, showed the header with half of it missing.
+        private readonly Panel header = new SoftPage();
+        private readonly Panel footer = new SoftPage();
+        private readonly SoftCard hero = new SoftCard();
+        private readonly SoftCard savebar = new SoftCard();
         private readonly Label headline = new Label();
         private readonly Label detail = new Label();
         private readonly Label versionText = new Label();
@@ -402,32 +456,45 @@ namespace CodexAutoResume
                                                                                CultureInfo.InvariantCulture));
         }
 
-        private void LoadStrings()
+        /// The bridge's strings reply, or null when it could not be had.
+        private Dictionary<string, object> AskStrings()
         {
             try
             {
-                var reply = bridge.Call("strings", null);
-                if (Equals(reply["ok"], true) && reply.ContainsKey("strings"))
-                {
-                    strings = (Dictionary<string, object>)reply["strings"];
-                    object names, system;
-                    if (reply.TryGetValue("endonyms", out names) && names is Dictionary<string, object>)
-                        endonyms = (Dictionary<string, object>)names;
-                    if (reply.TryGetValue("system_language", out system) && system is string)
-                        systemLanguage = (string)system;
-                }
+                return bridge.Call("strings", null);
             }
             catch (Exception)
             {
                 // English, then. A settings window that will not open because it could
                 // not fetch its own labels is worse than one in the wrong language.
+                return null;
             }
+        }
+
+        /// Takes the words, the language names and Windows' language from a strings reply.
+        private void AdoptStrings(Dictionary<string, object> reply)
+        {
+            if (!Ok(reply) || !(Get(reply, "strings") is Dictionary<string, object>)) return;
+            strings = (Dictionary<string, object>)reply["strings"];
+            object names, system;
+            if (reply.TryGetValue("endonyms", out names) && names is Dictionary<string, object>)
+                endonyms = (Dictionary<string, object>)names;
+            if (reply.TryGetValue("system_language", out system) && system is string)
+                systemLanguage = (string)system;
         }
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern int GetDpiForSystem();
 
-        internal static readonly double DpiScale = MeasureDpiScale();
+        private static readonly double SystemScale = MeasureDpiScale();
+        private static double dpiScale = SystemScale;
+
+        /// The display's scale. Read-only to the window; only LayoutAudit stands another
+        /// scale in, to measure a layout at a scaling this machine is not set to.
+        internal static double DpiScale
+        {
+            get { return dpiScale; }
+        }
 
         // Every fixed number in this file is written at 96 DPI and scaled here.
         //
@@ -472,33 +539,77 @@ namespace CodexAutoResume
             return new Padding(Px(left), Px(top), Px(right), Px(bottom));
         }
 
-        internal SettingsForm(PersistentBridge bridge)
+        internal SettingsForm(PersistentBridge bridge) : this(bridge, null, null)
+        {
+        }
+
+        /// `catalog` and `windowFont` stand in a strings reply and the window's font, for
+        /// LayoutAudit; the window itself passes neither.
+        private SettingsForm(PersistentBridge bridge, Dictionary<string, object> catalog, Font windowFont)
         {
             this.bridge = bridge;
             // Before anything is built: every label below asks the catalog for its text.
-            LoadStrings();
+            //
+            // From the cache when it was written for exactly this installation, this Interface
+            // language and this Windows language (see StringsCache); otherwise asked for on a
+            // worker, while the fonts and the icon are made. The window used to wait 260-400 ms for
+            // the interpreter to start, and then spend 130-260 ms more on the first font.
+            string root = AppDomain.CurrentDomain.BaseDirectory;
+            string cacheKey = null;
+            System.Threading.Tasks.Task<Dictionary<string, object>> asking = null;
+            if (catalog != null) AdoptStrings(catalog);
+            else
+            {
+                cacheKey = StringsCache.Key(root);
+                Dictionary<string, object> cached = StringsCache.Read(root, cacheKey);
+                if (cached != null)
+                {
+                    AdoptStrings(cached);
+                    // The interpreter every later read needs starts now, and if its answer differs
+                    // from what was cached, the cache is what changes: this window keeps the words it
+                    // opened with, as it does after a language is saved.
+                    string key = cacheKey;
+                    System.Threading.ThreadPool.QueueUserWorkItem(delegate { StringsCache.Refresh(root, key, cached, AskStrings()); });
+                }
+                else asking = System.Threading.Tasks.Task.Factory.StartNew<Dictionary<string, object>>(AskStrings);
+            }
             Text = "Codex Auto Resume";
-            Font = SystemFonts.MessageBoxFont;
+            Font = windowFont ?? SystemFonts.MessageBoxFont;
+            // The type roles (Soft.RoleFont) are variants of the window's own font.
+            Soft.BaseFont = Font;
             ForeColor = Ink;
             BackColor = Canvas;
             StartPosition = FormStartPosition.CenterScreen;
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(Px(1040), Px(640));
+            // The proportions of v0.6.2. Every page is laid out to fit this at every scaling and in
+            // every language - tests/test_gui_layout.py measures it - and a Settings section taller
+            // than the page scrolls. v0.6.3 grew the window to its tallest section instead, which
+            // cost a second layout of everything before the first screen was painted.
+            ClientSize = new Size(Px(860), Px(600));
             // Wide enough that the two columns always hold their content. Allowing a
             // narrower window buys nothing: the labels start truncating mid-word, which
             // looks broken rather than compact.
-            MinimumSize = new Size(Px(820), Px(460));
+            MinimumSize = new Size(Px(800), Px(420));
             try
             {
-                string icon = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "codex-auto-resume.ico");
+                string icon = Path.Combine(root, "codex-auto-resume.ico");
                 if (File.Exists(icon)) Icon = new Icon(icon);
             }
             catch (Exception) { /* an icon is decoration; never fail the window over it */ }
+            if (asking != null)
+            {
+                Dictionary<string, object> reply = asking.Result;
+                AdoptStrings(reply);
+                string key = cacheKey;
+                // Kept only if it answers for the settings the key was taken of (StringsCache.Write).
+                System.Threading.ThreadPool.QueueUserWorkItem(delegate { StringsCache.Write(root, key, reply); });
+            }
 
             BuildFooter();
             BuildHeader();
             BuildColumns();
             BuildDashboard();
+            KeepOnScreen();
 
             // The fill control is added first so the docked strips keep their edges:
             // docking is resolved from the last-added control inward, so whatever is
@@ -516,8 +627,29 @@ namespace CodexAutoResume
             pageHost.TabIndex = 2;
             footer.TabIndex = 3;
 
-            Load += delegate { Reload(); ShowPage(firstPage); StartClock(); };
+            Load += delegate
+            {
+                if (auditing) return;
+                Reload();
+                ShowPage(firstPage);
+                StartClock();
+            };
+            Shown += delegate { shown = true; BuildEditorsLater(); };
             FormClosed += delegate { StopClock(); bridge.Stop(); };
+        }
+
+        /// The window within the screen it opens on. Its sizes are scaled, so on a small screen at
+        /// a large scaling factor it can be asked to be larger than the display - and a window
+        /// whose controls sit past the edge of the screen cannot be reached at all, where a
+        /// scrolling one can. Settled here, before it is shown, so it never jumps once it is.
+        private void KeepOnScreen()
+        {
+            Rectangle screen = Screen.FromControl(this).WorkingArea;
+            int frameWidth = Width - ClientSize.Width, frameHeight = Height - ClientSize.Height;
+            if (MinimumSize.Width > screen.Width || MinimumSize.Height > screen.Height)
+                MinimumSize = new Size(Math.Min(MinimumSize.Width, screen.Width), Math.Min(MinimumSize.Height, screen.Height));
+            ClientSize = new Size(Math.Max(Px(340), Math.Min(ClientSize.Width, screen.Width - frameWidth)),
+                                  Math.Max(Px(340), Math.Min(ClientSize.Height, screen.Height - frameHeight)));
         }
 
         // ------------------------------------------------------------------- chrome
@@ -526,24 +658,22 @@ namespace CodexAutoResume
             // The Settings page: the section list on the left and one section's cards on the
             // right, scrolling on their own if a section is taller than the window.
             columns.Dock = DockStyle.Fill;
-            // FitToContent measures the sections before ShowPage first parents this page, and an
-            // unparented control inherits Control.DefaultFont rather than the window's.
+            // The editors are built before ShowPage first shows this page, and an unparented
+            // control inherits Control.DefaultFont rather than the window's.
             columns.Font = Font;
-            columns.BackColor = Canvas;
             columns.ColumnCount = 2;
             columns.RowCount = 1;
             // Wide enough for "Automatische Wiederherstellung" and its peers at every scaling.
             columns.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, Px(244)));
             columns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             columns.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-            columns.Padding = Pad(12, 12, 8, 4);
+            columns.Padding = Pad(12, 0, 0, 0);
 
-            var list = new FlowLayoutPanel();
+            var list = new SoftFlow();
             list.Dock = DockStyle.Fill;
             list.FlowDirection = FlowDirection.TopDown;
             list.WrapContents = false;
-            list.BackColor = Canvas;
-            list.Margin = Pad(0, 8, 8, 0);
+            list.Margin = Pad(0, 10, 2, 0);
             list.AccessibleRole = AccessibleRole.PageTabList;
             list.AccessibleName = S("nav.settings", "Settings");
             foreach (string name in SectionOrder)
@@ -551,33 +681,86 @@ namespace CodexAutoResume
                 var button = new NavButton();
                 button.Vertical = true;
                 button.Text = SectionTitle(name);
-                button.Font = Font;
+                button.Font = Soft.RoleFont("nav");
                 button.AutoSize = false;
                 button.Size = new Size(Px(230), Px(40));
-                button.Margin = Pad(0, 0, 0, 4);
+                button.Margin = Pad(0, 0, 0, 2);
                 string target = name;
                 button.Click += delegate { ShowSection(target); };
                 sectionButtons[name] = button;
                 list.Controls.Add(button);
 
-                var stack = new TableLayoutPanel();
-                stack.Dock = DockStyle.Top;
+                var stack = new SoftStack();
+                // Not docked, and as wide as the page less a scroll bar whether or not one is
+                // showing (FitSections). Docked, a section took the page's width with the bar or
+                // without it, and Continuation - the one section tall enough to scroll - was laid out
+                // again at a new width every time it was shown.
+                stack.Location = Point.Empty;
+                stack.Anchor = AnchorStyles.Top | AnchorStyles.Left;
                 stack.ColumnCount = 1;
                 stack.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
                 stack.GrowStyle = TableLayoutPanelGrowStyle.AddRows;
                 stack.AutoSize = true;
                 stack.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-                stack.BackColor = Canvas;
                 stack.Font = Font;
+                // The cards' lift is kept inside the scrolling page, which is its edge (see Ground).
+                // Each card already keeps a gap below it.
+                Padding room = CardRoom();
+                stack.Padding = new Padding(room.Left, room.Top, room.Right, Math.Max(0, room.Bottom - Px(Brand.PageGap)));
+                // Every section stays on the page and only the one shown is visible (ShowSection).
+                stack.Visible = false;
                 sections[name] = stack;
+                sectionScroll.Controls.Add(stack);
             }
 
             sectionScroll.Dock = DockStyle.Fill;
             sectionScroll.AutoScroll = true;
-            sectionScroll.BackColor = Canvas;
             sectionScroll.Margin = new Padding(0);
+            sectionScroll.SizeChanged += delegate { FitSections(); };
             columns.Controls.Add(list, 0, 0);
             columns.Controls.Add(sectionScroll, 1, 0);
+            FitSections();
+        }
+
+        /// Every section as wide as the page less a vertical scroll bar, whether or not one is
+        /// showing, so a section's width changes only when the window's does.
+        ///
+        /// Docked, a section took whatever width the page had, and the page had less of it whenever
+        /// the section was tall enough to scroll. Continuation, which is, was resized twice and laid
+        /// out again at each new width on every switch to it; holding the width took that switch
+        /// from 290 to 225 ms (measured, 150%), and ShowSection the rest of the way. Before the page
+        /// has been laid out its width is worked out from the window's, as the table will give it.
+        private void FitSections()
+        {
+            int page = sectionScroll.Width > 0 ? sectionScroll.Width
+                     : ClientSize.Width - columns.Padding.Horizontal - Px(244);
+            int width = page - SystemInformation.VerticalScrollBarWidth;
+            if (width <= Px(160)) return;
+            foreach (TableLayoutPanel stack in sections.Values)
+            {
+                if (stack.MinimumSize.Width == width && stack.MaximumSize.Width == width) continue;
+                // In the order that never has the minimum above the maximum.
+                if (width < stack.MinimumSize.Width)
+                {
+                    stack.MinimumSize = new Size(width, 0);
+                    stack.MaximumSize = new Size(width, 0);
+                }
+                else
+                {
+                    stack.MaximumSize = new Size(width, 0);
+                    stack.MinimumSize = new Size(width, 0);
+                }
+            }
+        }
+
+        /// The room a page keeps around its cards for their lift: as far as the panel's card shadow
+        /// still changes the canvas by a colour level, at any scaling - 16 px up and to the left,
+        /// where the light is, and 17 down and to the right (brand.shadow_alpha). A page that is
+        /// scrolling is the edge of every shadow on it (see Ground), and at 14 px the cut was a
+        /// line one could see along the top of the Continuation section.
+        private Padding CardRoom()
+        {
+            return Pad(16, 16, 17, 17);
         }
 
         private string SectionTitle(string name)
@@ -596,16 +779,62 @@ namespace CodexAutoResume
         {
             if (!sections.ContainsKey(name)) name = "general";
             currentSection = name;
-            sectionScroll.SuspendLayout();
-            sectionScroll.Controls.Clear();
-            sectionScroll.Controls.Add(sections[name]);
-            sectionScroll.ResumeLayout(true);
-            sectionScroll.AutoScrollPosition = new Point(0, 0);
+            // Painting stops while one section is hidden and the next shown, so the section is
+            // painted once, finished (see Redraw).
+            bool paused = Redraw(sectionScroll, false);
+            try
+            {
+                // Every section stays on the page and only this one is visible. Taking a section
+                // off the page and putting the next one on moved each of its native fields to
+                // Windows' parking window and back: about 120 ms to take Continuation off and 160 ms
+                // to put it back, at 150% (measured).
+                sectionScroll.SuspendLayout();
+                foreach (var pair in sections)
+                    if (pair.Key != name) pair.Value.Visible = false;
+                // Held while it becomes visible, and laid out once after. Each control in a section
+                // that sizes itself asks the section to lay out again when it is shown: Continuation
+                // was laid out thirteen times on the way to the screen, and a switch to it took
+                // 225 ms; held, it is laid out once, and the switch takes 80 (measured, 150%).
+                TableLayoutPanel section = sections[name];
+                section.SuspendLayout();
+                section.Visible = true;
+                section.ResumeLayout(true);
+                sectionScroll.ResumeLayout(false);
+                sectionScroll.PerformLayout();
+                sectionScroll.AutoScrollPosition = new Point(0, 0);
+            }
+            finally
+            {
+                if (paused) Redraw(sectionScroll, true);
+            }
             foreach (var pair in sectionButtons)
             {
                 pair.Value.Current = pair.Key == name;
-                pair.Value.Font = new Font(Font, pair.Key == name ? FontStyle.Bold : FontStyle.Regular);
+                // Cached: a switch used to create a font for every item in the list.
+                pair.Value.Font = Soft.RoleFont(pair.Key == name ? "nav_current" : "nav");
             }
+        }
+
+        private const int WM_SETREDRAW = 0x000B;
+        private const int RDW_INVALIDATE = 0x0001;
+        private const int RDW_ERASE = 0x0004;
+        private const int RDW_ALLCHILDREN = 0x0080;
+        private const int RDW_FRAME = 0x0400;
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool RedrawWindow(IntPtr window, IntPtr rectangle, IntPtr region, int flags);
+
+        /// Stops painting `control` while what it shows is swapped, or starts it again and has
+        /// the whole of it painted once. Returns whether it stopped it: a window that is not on
+        /// screen is left alone, because turning painting back on also makes a window visible.
+        ///
+        /// A page switch otherwise painted every control it moved on the way, once for each move.
+        private static bool Redraw(Control control, bool on)
+        {
+            if (!on && (!control.IsHandleCreated || !control.Visible)) return false;
+            SendMessage(control.Handle, WM_SETREDRAW, on ? (IntPtr)1 : IntPtr.Zero, IntPtr.Zero);
+            if (on) RedrawWindow(control.Handle, IntPtr.Zero, IntPtr.Zero, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_FRAME);
+            return true;
         }
 
         private void BuildHeader()
@@ -614,37 +843,37 @@ namespace CodexAutoResume
             // type. It used to be a muted sentence in a strip along the bottom, under
             // sixteen checkboxes - which put the one thing a person opens this window to
             // check below everything they did not come for.
+            //
+            // A card on the canvas, as the panel's hero is. The card is the grid.
             header.Dock = DockStyle.Top;
-            header.BackColor = Surface;
-            header.Padding = Pad(22, 14, 18, 14);
-            header.Height = TextRenderer.MeasureText("Ag", Font).Height * 2 + Px(44);
-
-            var grid = new TableLayoutPanel();
-            grid.Dock = DockStyle.Fill;
-            grid.ColumnCount = 3;
-            grid.RowCount = 2;
-            // Wide enough for the dot at any scaling: an absolute 22 held a 24-pixel dot
-            // at 200% and sliced a third of it off.
-            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, Px(28)));   // state dot and its halo
-            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));   // what it is doing
-            grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));        // the way out
-            grid.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
-            grid.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
-            grid.BackColor = Surface;
+            header.Padding = Pad(14, 12, 14, 2);
+            hero.Dock = DockStyle.Fill;
+            hero.Margin = new Padding(0);
+            hero.Padding = Pad(Brand.HeroPadLeft, Brand.HeroPadTop, Brand.HeroPadRight, Brand.HeroPadBottom);
+            hero.ColumnCount = 3;
+            hero.RowCount = 2;
+            // Wide enough for the dot and its glow at any scaling: an absolute 22 held a 24-pixel
+            // dot at 200% and sliced a third of it off.
+            hero.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, Px(28)));   // state dot and its glow
+            hero.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));   // what it is doing
+            hero.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));        // the way out
+            hero.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
+            hero.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
 
             // Drawn rather than a glyph so the dot stays round and vertically centred at
             // any scaling, and it carries the same state as the words beside it. It
-            // spans both rows because it describes the pair, not the first line. Its halo is
+            // spans both rows because it describes the pair, not the first line. Its glow is
             // the one thing in the window that moves, and only while there is something to
             // show moving (see HaloDot); with motion reduced it holds still.
             var dot = stateDot;
             dot.Dock = DockStyle.Fill;
             dot.BackColor = Surface;
+            dot.Margin = new Padding(0);
 
             headline.Dock = DockStyle.Fill;
             headline.TextAlign = ContentAlignment.BottomLeft;
             headline.ForeColor = Ink;
-            headline.Font = new Font(Font.FontFamily, Font.Size + 2.5f, FontStyle.Bold);
+            headline.Font = Soft.RoleFont("display");
             headline.AutoEllipsis = true;
             headline.Text = "Loading...";
 
@@ -664,36 +893,43 @@ namespace CodexAutoResume
             startButton.Anchor = AnchorStyles.Right;
             startButton.Margin = Pad(16, 0, 0, 0);
 
-            grid.Controls.Add(dot, 0, 0);
-            grid.SetRowSpan(dot, 2);
-            grid.Controls.Add(headline, 1, 0);
-            grid.Controls.Add(detail, 1, 1);
-            grid.Controls.Add(startButton, 2, 0);
-            grid.SetRowSpan(startButton, 2);
-            header.Controls.Add(grid);
-            header.Paint += delegate(object sender, PaintEventArgs e)
+            hero.Controls.Add(dot, 0, 0);
+            hero.SetRowSpan(dot, 2);
+            hero.Controls.Add(headline, 1, 0);
+            hero.Controls.Add(detail, 1, 1);
+            hero.Controls.Add(startButton, 2, 0);
+            hero.SetRowSpan(startButton, 2);
+            header.Controls.Add(hero);
+            // Measured, not a formula of the font: two lines of the taller of the two, each row
+            // half the card so the pair stays centred on the dot, and never less than the dot's
+            // glow or the Start button need. Again whenever the window's font changes.
+            EventHandler fit = delegate
             {
-                using (var pen = new Pen(Line))
-                    e.Graphics.DrawLine(pen, 0, header.Height - 1, header.Width, header.Height - 1);
+                int line = Math.Max(headline.PreferredSize.Height, detail.PreferredSize.Height + detail.Margin.Vertical);
+                int body = Math.Max(2 * line, Math.Max(2 * HaloDot.Extent + Px(2),
+                                                      startButton.PreferredSize.Height + startButton.Margin.Vertical));
+                header.Height = body + hero.Padding.Vertical + header.Padding.Vertical;
             };
+            fit(this, EventArgs.Empty);
+            FontChanged += fit;
         }
 
         private void BuildFooter()
         {
+            // The save bar: a card on the canvas at the foot of the window, as the panel's is. The
+            // card is the grid.
             footer.Dock = DockStyle.Bottom;
-            footer.BackColor = Surface;
-            footer.Padding = Pad(18, 14, 18, 16);
-
-            var grid = new TableLayoutPanel();
-            grid.Dock = DockStyle.Fill;
-            grid.ColumnCount = 2;
-            grid.RowCount = 1;
-            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));   // version
-            grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));        // buttons
+            footer.Padding = Pad(14, 10, 14, 12);
+            savebar.Dock = DockStyle.Fill;
+            savebar.Margin = new Padding(0);
+            savebar.Padding = Pad(Brand.SavebarPadLeft + 6, Brand.SavebarPadTop, Brand.SavebarPadRight, Brand.SavebarPadBottom);
+            savebar.ColumnCount = 2;
+            savebar.RowCount = 1;
+            savebar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));   // version
+            savebar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));        // buttons
             // A Dock=Fill child of an implicit AutoSize row measures to nothing, and the
             // strip then renders empty. Say what the row is.
-            grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-            grid.BackColor = Surface;
+            savebar.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
 
             // In its own column, so narrowing the window shortens nothing that matters
             // and never takes away the one field people are asked for in a bug report.
@@ -702,13 +938,13 @@ namespace CodexAutoResume
             versionText.ForeColor = Idle;
             versionText.AutoEllipsis = true;
 
-            var row = new FlowLayoutPanel();
+            var row = new SoftFlow();
+            row.BackColor = Surface;
             row.Dock = DockStyle.Fill;
             row.FlowDirection = FlowDirection.RightToLeft;
             row.WrapContents = false;
             row.AutoSize = true;
             row.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            row.BackColor = Surface;
             // Explicit, because the default is 3px on every side and does not scale. Those
             // six pixels were the whole bug: the strip's height was computed from a text
             // measurement plus a constant, the row needed six more than the arithmetic
@@ -722,18 +958,19 @@ namespace CodexAutoResume
             row.Controls.Add(restoreButton);
 
             versionText.Margin = new Padding(0);
-            grid.Controls.Add(versionText, 0, 0);
-            grid.Controls.Add(row, 1, 0);
-            footer.Controls.Add(grid);
+            savebar.Controls.Add(versionText, 0, 0);
+            savebar.Controls.Add(row, 1, 0);
+            footer.Controls.Add(savebar);
             // Measured, not derived. A strip sized by a formula cannot know how tall an
             // AutoSize button becomes once the font is applied, and being two pixels short
-            // looks exactly like a drawing bug.
-            footer.Height = Math.Max(grid.PreferredSize.Height, row.PreferredSize.Height)
-                          + footer.Padding.Vertical;
-            footer.Paint += delegate(object sender, PaintEventArgs e)
+            // looks exactly like a drawing bug. Again whenever the window's font changes.
+            EventHandler fit = delegate
             {
-                using (var pen = new Pen(Line)) e.Graphics.DrawLine(pen, 0, 0, footer.Width, 0);
+                footer.Height = Math.Max(savebar.PreferredSize.Height, row.PreferredSize.Height + savebar.Padding.Vertical)
+                              + footer.Padding.Vertical;
             };
+            fit(this, EventArgs.Empty);
+            FontChanged += fit;
         }
 
         private Button MakeButton(string text, bool primary, EventHandler onClick)
@@ -745,8 +982,10 @@ namespace CodexAutoResume
             button.Text = text;
             button.AutoSize = true;
             button.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            button.MinimumSize = new Size(Px(112), Px(38));
-            button.Padding = Pad(12, 0, 12, 0);
+            // The panel's button height. Its body is the whole control now, where the old one kept
+            // three pixels of a 38-pixel control on every side for its own shadow.
+            button.MinimumSize = new Size(Px(112), Px(Brand.ButtonHeight));
+            button.Padding = Pad(Brand.ButtonPadLeft, 0, Brand.ButtonPadRight, 0);
             button.Margin = Pad(9, 0, 0, 0);
             button.Click += onClick;
             return button;
@@ -830,8 +1069,8 @@ namespace CodexAutoResume
             // reports nothing: the panel keeps its default height and the last row of
             // every group is sliced off, bottom border and all.
             //
-            // It paints its own lifted body inside a band it keeps for the shadow, so the
-            // padding starts outside that band (see SoftCard).
+            // Its body is the whole control; the ground it stands on draws its lift (see
+            // SoftCard). The panel's card padding, and the panel's gap below it.
             var card = new SoftCard();
             card.Dock = DockStyle.Fill;
             card.ColumnCount = 1;
@@ -839,15 +1078,15 @@ namespace CodexAutoResume
             card.GrowStyle = TableLayoutPanelGrowStyle.AddRows;
             card.AutoSize = true;
             card.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            card.Margin = Pad(0, 0, 0, 2);
-            int room = SoftCard.Room;
-            card.Padding = new Padding(room + Px(18), room / 2 + Px(14), room + Px(16), room + room / 2 + Px(12));
+            card.Margin = Pad(0, 0, 0, Brand.PageGap);
+            card.Padding = Pad(Brand.CardPadLeft, Brand.CardPadTop, Brand.CardPadRight, Brand.CardPadBottom);
 
             var heading = new Label();
             heading.Text = title;
             heading.AutoSize = true;
             heading.ForeColor = Ink;
-            heading.Font = new Font(Font.FontFamily, Font.Size + 1.5f, FontStyle.Bold);
+            // The card heading's size as it has always been; the weight is the panel's.
+            heading.Font = Soft.RoleFont("title");
             heading.Margin = Pad(0, 0, 0, 10);
             card.Controls.Add(heading);
             return card;
@@ -868,6 +1107,9 @@ namespace CodexAutoResume
             var label = new Label();
             label.AutoSize = true;
             label.MaximumSize = new Size(Px(600), 0);
+            // Stretched across its card, so it wraps at the card's width: the window is narrower
+            // than the line length the maximum allows for.
+            label.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
             label.Text = text;
             label.ForeColor = Secondary;
             label.Margin = Pad(0, 2, 0, 8);
@@ -880,7 +1122,7 @@ namespace CodexAutoResume
             label.AutoSize = true;
             label.Text = text;
             label.ForeColor = Ink;
-            label.Font = new Font(Font.FontFamily, Font.Size, FontStyle.Bold);
+            label.Font = Soft.RoleFont("heading");
             label.Margin = Pad(0, 10, 0, 4);
             return label;
         }
@@ -896,7 +1138,10 @@ namespace CodexAutoResume
             row.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             row.Dock = DockStyle.Fill;
             row.Margin = Pad(0, 6, 0, 6);
-            row.BackColor = Color.Transparent;
+            // Opaque, in the card's own colour. See-through, every repaint of the row and of its
+            // label asked the card behind it to paint its background again, shadow and all - 540
+            // card backgrounds, 11 seconds, in one measured session of v0.6.3.
+            row.BackColor = Surface;
 
             var label = new Label();
             label.Text = text;
@@ -906,37 +1151,44 @@ namespace CodexAutoResume
             label.AutoEllipsis = true;
             // The label's margins are what reserve the editor's height.
             //
-            // TableLayoutPanel measures this row from the label's cell, because a
-            // ComboBox under-reports its height until it has been shown - that is the
-            // whole reason the editor below is anchored to the top. So the row is as
-            // tall as the label plus its margins and nothing else, and if that is less
-            // than the editor really needs, the editor's bottom border is clipped away.
+            // TableLayoutPanel measures this row from the label's cell: the editor below is
+            // anchored to the top of its cell and does not size the row. So the row is as tall as
+            // the label plus its margins and nothing else, and if that is less than the editor
+            // really is, the editor's bottom edge is cut away - a child window is clipped to its
+            // parent.
             //
-            // Sizing the margins from both preferred heights does two jobs at once: the
-            // row ends up the editor's height plus a little, so nothing can be clipped,
-            // and the leftover is split above and below the label, so its text sits on
-            // the editor's centre line. Both hold at every scaling and in every font,
-            // including the Korean UI font, whose line height differs from the English
-            // one - which a fixed margin could not do.
-            int editorHeight = editor.PreferredSize.Height + Px(2);
-            int labelHeight = label.PreferredSize.Height;
-            int lift = Math.Max(0, (editorHeight - labelHeight) / 2);
-            label.Margin = new Padding(0, lift, Px(12), Math.Max(0, editorHeight - labelHeight - lift));
+            // Both heights change after this method returns, so the margins are worked out again
+            // whenever the editor's height or either font changes. Here, before the row has a
+            // parent, everything is measured in Control.DefaultFont (Gulim 9pt on a Korean
+            // Windows), not the window's font. The window's font arrives when the row joins its
+            // card, and a drop-down then takes its real height. v0.6.3 measured once, here: its
+            // drop-downs grew past a row sized in the default font, and their bottom edges were
+            // cut off by 5 to 10 pixels at every scaling and in every language. The editor's real
+            // Height is read as well as its PreferredSize, which for a native drop-down answered
+            // 33 for a 42-pixel field.
+            //
+            // The row ends up the editor's height plus a little, and the leftover is split above
+            // and below the label, so its text sits on the editor's centre line.
+            Action fit = delegate
+            {
+                int editorHeight = Math.Max(editor.Height, editor.PreferredSize.Height) + Px(2);
+                int labelHeight = label.PreferredSize.Height;
+                int lift = Math.Max(0, (editorHeight - labelHeight) / 2);
+                var wanted = new Padding(0, lift, Px(12), Math.Max(0, editorHeight - labelHeight - lift));
+                // Set only when it changes: the setter lays out the row and its card again.
+                if (label.Margin != wanted) label.Margin = wanted;
+            };
+            fit();
+            editor.SizeChanged += delegate { fit(); };
+            editor.FontChanged += delegate { fit(); };
+            label.FontChanged += delegate { fit(); };
 
-            // Top, not just Right. A Right-only anchor centres the control vertically,
-            // and TableLayoutPanel computes that centre from the size the control
-            // reported *before* it was shown. A ComboBox then re-sizes itself to fit the
-            // font, keeps the offset it was given, and hangs one to nine pixels past the
-            // bottom of the row - where its own bottom border is clipped away. It looks
-            // like a drawing bug and is a measurement one. Measured at 100/125/150/175/
-            // 200/250%: correct only at 100%, and worse the higher the scaling.
-            //
-            // Anchoring to the top removes the dependence on that stale measurement
-            // entirely. The row is always taller than the editor, so pinning it to the
-            // top cannot clip at any scale, and both editor kinds then start on the same
-            // line as each other. A margin does not work here for the same reason the
-            // bug exists: the row's own AutoSize measures the stale height too, so the
-            // margin does not make it grow.
+            // Top, not just Right. A Right-only anchor centres the editor vertically in a row
+            // that was measured before the editor had its real height, and the editor then hangs
+            // below the row's bottom edge. Pinned to the top it starts where the row does, and
+            // the margins above keep the row taller than it. A margin on the editor itself does
+            // not help: the row is measured from the label's cell, so it would only push the
+            // editor further down inside a row that did not grow.
             editor.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             editor.Margin = new Padding(0);
             row.Controls.Add(label, 0, 0);
@@ -971,8 +1223,14 @@ namespace CodexAutoResume
                 CallAsync("settings", null, delegate(Dictionary<string, object> settings)
                 {
                     if (!Ok(settings)) { ReloadFailed(settings); return; }
-                    BuildEditors(described["schema"] as List<object>,
-                                 settings["settings"] as Dictionary<string, object>);
+                    var schema = described["schema"] as List<object>;
+                    var current = settings["settings"] as Dictionary<string, object>;
+                    if (schema == null || current == null) { ReloadFailed(null); return; }
+                    AdoptSettings(current);
+                    pendingSchema = schema;
+                    pendingSettings = current;
+                    if (currentPage == "settings") BuildPendingEditors();
+                    else BuildEditorsLater();
                 });
             });
         }
@@ -984,8 +1242,45 @@ namespace CodexAutoResume
             header.Invalidate(true);
         }
 
+        /// What the window takes from the settings before any editor exists: whether motion is
+        /// reduced, and the Interface language as it is stored.
+        private void AdoptSettings(Dictionary<string, object> current)
+        {
+            Soft.ReduceMotionSetting = Equals(Get(current, "reduce_motion"), true);
+            stateDot.Sync();
+            loadedInterfaceLanguage = Str(current, "interface_language") ?? "system";
+        }
+
+        /// Builds the Settings editors once the first screen is up, when the window did not open on
+        /// Settings. They took 0.7-1.2 s of the window's own thread before its first paint, for a
+        /// page nobody had asked to see yet; now the header and the first page are painted first,
+        /// and the editors are built the next time nothing else is waiting. Switching to Settings
+        /// before then builds them at once (ShowPage).
+        private void BuildEditorsLater()
+        {
+            if (pendingSchema == null || !shown || buildQueued || auditing) return;
+            buildQueued = true;
+            EventHandler idle = null;
+            idle = delegate
+            {
+                Application.Idle -= idle;
+                buildQueued = false;
+                if (!IsDisposed) BuildPendingEditors();
+            };
+            Application.Idle += idle;
+        }
+
+        private void BuildPendingEditors()
+        {
+            if (pendingSchema == null) return;
+            BuildEditors(pendingSchema, pendingSettings);
+        }
+
         private void BuildEditors(List<object> schema, Dictionary<string, object> current)
         {
+            // Whatever was waiting to be built is this, or older than this.
+            pendingSchema = null;
+            pendingSettings = null;
             if (schema == null || current == null) { ReloadFailed(null); return; }
             columns.SuspendLayout();
             foreach (TableLayoutPanel stack in sections.Values)
@@ -999,9 +1294,7 @@ namespace CodexAutoResume
             perReasonValues.Clear();
             perReasonShown = null;
 
-            Soft.ReduceMotionSetting = Equals(Get(current, "reduce_motion"), true);
-            stateDot.Sync();
-            loadedInterfaceLanguage = Str(current, "interface_language") ?? "system";
+            AdoptSettings(current);
 
             var fields = new Dictionary<string, Dictionary<string, object>>();
             foreach (object entry in schema)
@@ -1075,10 +1368,10 @@ namespace CodexAutoResume
                     CheckBox check = NewCheck(Humanise(name), Equals(Get(current, name), true));
                     if (Equals(Get(field, "master"), true))
                     {
-                        // Built from the family rather than `new Font(check.Font, Bold)`:
-                        // that overload can land on a substituted face and the row then
-                        // renders in a different typeface from the rest of the window.
-                        check.Font = new Font(Font.FontFamily, Font.Size, FontStyle.Bold);
+                        // The heading role, which is built from the family rather than
+                        // `new Font(check.Font, Bold)`: that overload can land on a substituted face
+                        // and the row then renders in a different typeface from the rest of the window.
+                        check.Font = Soft.RoleFont("heading");
                         check.Margin = Pad(0, 2, 0, 6);
                         master = check;
                     }
@@ -1095,17 +1388,17 @@ namespace CodexAutoResume
                 }
                 else if (type == "integer")
                 {
-                    var spin = new NumericUpDown();
-                    spin.Width = Px(74);
-                    spin.BorderStyle = BorderStyle.FixedSingle;
-                    spin.BackColor = Palette.Raised;
+                    // A number in a well, as the panel's number field is. Everything is still read
+                    // from and written to the NumericUpDown inside it.
+                    var number = new SoftNumber();
+                    NumericUpDown spin = number.Spin;
                     GiveTextRoom(spin);
                     spin.Minimum = field.ContainsKey("min") ? (decimal)(double)field["min"] : 0;
                     spin.Maximum = field.ContainsKey("max") ? (decimal)(double)field["max"] : 100;
                     decimal value = current.ContainsKey(name) ? (decimal)(double)current[name] : spin.Minimum;
                     spin.Value = Math.Min(spin.Maximum, Math.Max(spin.Minimum, value));
                     IgnoreWheel(spin);
-                    host.Controls.Add(NewRow(Humanise(name), spin));
+                    host.Controls.Add(NewRow(Humanise(name), number));
                     editors[name] = spin;
                 }
                 else if (type == "string" && field.ContainsKey("choices"))
@@ -1133,8 +1426,7 @@ namespace CodexAutoResume
 
             columns.ResumeLayout(true);
             ShowSection(currentSection);
-            RefreshStatusAsync(null);
-            FitToContent();
+            if (!auditing) RefreshStatusAsync(null);
         }
 
         private void BuildContinuation(Dictionary<string, Dictionary<string, object>> fields,
@@ -1186,7 +1478,8 @@ namespace CodexAutoResume
             SoftTextArea global = globalText;
             jsonValues["custom_message"] = delegate { return TextJson(global.Box.Text); };
 
-            perReasonPanel = new TableLayoutPanel();
+            // A ground in the card's colour: the Clear button in it is lifted on it (see Ground).
+            perReasonPanel = new SoftStack();
             perReasonPanel.ColumnCount = 1;
             perReasonPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             perReasonPanel.GrowStyle = TableLayoutPanelGrowStyle.AddRows;
@@ -1353,7 +1646,8 @@ namespace CodexAutoResume
 
         private Control TextFooter(SoftTextArea area, Label count)
         {
-            var row = new TableLayoutPanel();
+            // A ground in the card's colour, for the Clear button's lift (see Ground).
+            var row = new SoftStack();
             row.ColumnCount = 2;
             row.RowCount = 1;
             row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
@@ -1430,11 +1724,14 @@ namespace CodexAutoResume
 
         private void UpdateContinuationVisibility()
         {
+            // Set every time, never only when `Visible` differs: it answers false for anything in a
+            // hidden section or page, and the editors are built while theirs is hidden - on idle, or
+            // while General is shown. A card told to hide there was left showing under Standard.
             bool custom = styleGroup != null && styleGroup.Value == "custom";
-            if (customCard != null && customCard.Visible != custom) customCard.Visible = custom;
+            if (customCard != null) customCard.Visible = custom;
             var mode = modeCombo == null ? null : modeCombo.SelectedItem as Choice;
             bool perReason = custom && mode != null && mode.Value == "per_reason";
-            if (perReasonPanel != null && perReasonPanel.Visible != perReason) perReasonPanel.Visible = perReason;
+            if (perReasonPanel != null) perReasonPanel.Visible = perReason;
         }
 
         private static string ComboJson(ComboBox combo)
@@ -1446,7 +1743,7 @@ namespace CodexAutoResume
         /// The Preview follows what is on screen, a moment after it stops changing.
         private void SchedulePreview()
         {
-            if (previewText == null) return;
+            if (previewText == null || auditing) return;
             if (previewTimer == null)
             {
                 previewTimer = new Timer();
@@ -1518,30 +1815,6 @@ namespace CodexAutoResume
             return S("custom.refused", "Not saved: {reason}", "reason", reason);
         }
 
-        private void FitToContent()
-        {
-            // A settings window should show its settings. Grow to fit the tallest section,
-            // and fall back to scrolling only when the screen genuinely cannot hold it.
-            int tallest = 0;
-            foreach (TableLayoutPanel stack in sections.Values)
-                tallest = Math.Max(tallest, stack.PreferredSize.Height);
-            int wanted = tallest + columns.Padding.Vertical + header.Height + footer.Height + nav.Height;
-            Rectangle screen = Screen.FromControl(this).WorkingArea;
-            int maximum = screen.Height - (Height - ClientSize.Height) - 80;
-            // The width is scaled, so on a small screen at a large scaling factor the
-            // window can be asked to be wider than the display. Widths are clamped to the
-            // working area for the same reason heights are - a window whose controls sit
-            // past the edge of the screen cannot be reached at all, where a scrollable one
-            // can.
-            int widest = screen.Width - (Width - ClientSize.Width);
-            int across = Math.Min(ClientSize.Width, Math.Max(Px(340), widest));
-            if (MinimumSize.Width > screen.Width)
-                MinimumSize = new Size(Math.Max(Px(340), widest), MinimumSize.Height);
-            ClientSize = new Size(across, Math.Max(Px(460), Math.Min(Math.Max(wanted, Px(640)), maximum)));
-            Left = Math.Max(screen.Left, screen.Left + (screen.Width - Width) / 2);
-            Top = Math.Max(screen.Top, screen.Top + (screen.Height - Height) / 2);
-        }
-
         /// Minimizing stops the halo's timer, and a restore changes neither the dot's state nor
         /// its visibility, the only other things that start it again - so a watcher that was
         /// breathing came back from the taskbar looking stuck. Both raise Resize.
@@ -1596,8 +1869,10 @@ namespace CodexAutoResume
             // as well - recovering, due to be checked. Deciding it here too put the coarse state
             // and then the refined one on the dot in the same refresh, and every change restarts
             // the halo: an alarm pulsed again every five seconds, and an arc jumped to its start.
+            // A watcher that is not running, or not known to be, is a light that is off - grey, as
+            // it was until v0.6.3; the headline beside it says what is wrong (see Activity).
             if (snapshot == null)
-                stateDot.State = running == null ? "idle" : !Equals(running, true) ? "attention"
+                stateDot.State = !Equals(running, true) ? "idle"
                                : !enabled ? "paused" : pending > 0 ? "waiting" : "monitoring";
             headline.Text = running == null ? S("status.unknown", "Watcher status unknown")
                           : !Equals(running, true) ? S("status.not_running", "Watcher not running")
@@ -1784,6 +2059,424 @@ namespace CodexAutoResume
                                 Environment.NewLine + Convert.ToString(Get(reply, "error"), CultureInfo.InvariantCulture),
                                 "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             });
+        }
+    }
+
+    internal sealed partial class SettingsForm
+    {
+        // ------------------------------------------------------------------ layout audit
+        private static readonly System.Reflection.MethodInfo OwnState =
+            typeof(Control).GetMethod("GetState", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+        /// Every place the window's layout cuts something off, at `scale` and in the language of
+        /// `stringsJson`: one line each, and an empty string when there is none.
+        ///
+        /// The window is built as it opens, at its opening size, with the Custom message and its
+        /// per-kind editor showing, and every page and every Settings section is laid out in turn.
+        /// It is never shown - it is not even a top-level window - and nothing is sent to it.
+        /// Another scaling is stood in for this machine's by scaling DpiScale and the fonts
+        /// together, which matched a real 144-DPI window to the pixel when the v0.6.4 clipping was
+        /// measured. Reported are:
+        ///   * a control that reaches past a container that does not scroll;
+        ///   * a page that would scroll sideways;
+        ///   * a drop-down that is not one field high;
+        ///   * text, a list's columns or other content that needs more room than it is drawn in,
+        ///     and a status light too small for its glow.
+        /// tests/test_gui_layout.py runs it in every language at five scalings.
+        internal static string LayoutAudit(string schemaJson, string settingsJson, string stringsJson, double scale)
+        {
+            var findings = new List<string>();
+            System.Reflection.FieldInfo fallback = typeof(Control).GetField("defaultFont",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Font defaultBefore = Control.DefaultFont;
+            Font baseBefore = Soft.BaseFont;
+            try
+            {
+                dpiScale = scale;
+                float factor = (float)(scale / SystemScale);
+                Font box = SystemFonts.MessageBoxFont;
+                var windowFont = new Font(box.FontFamily, box.SizeInPoints * factor, box.Style, GraphicsUnit.Point);
+                // An unparented control measures in Control.DefaultFont, which follows the display too.
+                if (fallback != null)
+                    fallback.SetValue(null, new Font(defaultBefore.FontFamily, defaultBefore.SizeInPoints * factor,
+                                                     defaultBefore.Style, GraphicsUnit.Point));
+                var catalog = Json.Parse(stringsJson) as Dictionary<string, object>;
+                var schema = Json.Parse(schemaJson) as List<object>;
+                var current = Json.Parse(settingsJson) as Dictionary<string, object>;
+                // A bridge rooted where nothing is: anything that still asked it would fail at once.
+                string nowhere = Path.Combine(Path.GetTempPath(), "codex-auto-resume-layout-audit-" + Guid.NewGuid().ToString("N"));
+                using (var form = new SettingsForm(new PersistentBridge(nowhere, new Bridge(nowhere)), catalog, windowFont))
+                {
+                    form.auditing = true;
+                    // A child of Windows' parking window rather than a window of its own, so the
+                    // screen it would open on neither clamps its size nor ever shows it.
+                    form.TopLevel = false;
+                    form.MinimumSize = Size.Empty;
+                    form.ClientSize = new Size(form.Px(860), form.Px(600));
+                    form.BuildEditors(schema, current);
+                    foreach (string page in PageOrder)
+                    {
+                        form.ShowPage(page);
+                        if (page != "settings")
+                        {
+                            form.Audit(page, findings);
+                            continue;
+                        }
+                        foreach (string section in SectionOrder)
+                        {
+                            form.ShowSection(section);
+                            form.Audit("settings/" + section, findings);
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                dpiScale = SystemScale;
+                if (fallback != null) fallback.SetValue(null, defaultBefore);
+                Soft.BaseFont = baseBefore;
+            }
+            return string.Join("\n", findings.ToArray());
+        }
+
+        /// Lays out what is on screen as showing the window would, and adds what does not fit.
+        private void Audit(string where, List<string> findings)
+        {
+            // A drop-down takes its real height only once it has a window, so everything on screen
+            // is given one, parents first.
+            Materialise(this);
+            PerformLayout();
+            Walk(this, where, findings);
+        }
+
+        /// Whether a control itself is visible, whatever its parents are.
+        private static bool OwnVisible(Control control)
+        {
+            return OwnState == null ? control.Visible : (bool)OwnState.Invoke(control, new object[] { 2 });
+        }
+
+        private static void Materialise(Control parent)
+        {
+            foreach (Control child in parent.Controls)
+            {
+                if (!OwnVisible(child) || child.Handle == IntPtr.Zero) continue;
+                Materialise(child);
+            }
+        }
+
+        private void Walk(Control parent, string path, List<string> findings)
+        {
+            var scroller = parent as ScrollableControl;
+            bool scrolls = scroller != null && scroller.AutoScroll;
+            if (scrolls && scroller.HorizontalScroll.Visible)
+                findings.Add(path + " :: scrolls sideways, " + scroller.DisplayRectangle.Width + " wide in " + scroller.ClientSize.Width);
+            foreach (Control child in parent.Controls)
+            {
+                if (!OwnVisible(child)) continue;
+                string place = path + "/" + AuditName(child);
+                if (!scrolls && parent != this)
+                {
+                    Size client = parent.ClientSize;
+                    if (child.Left < 0 || child.Top < 0 || child.Right > client.Width || child.Bottom > client.Height)
+                        findings.Add(place + " :: is cut off, " + child.Bounds + " in " + client);
+                }
+                var combo = child as SoftCombo;
+                if (combo != null && combo.Height != SoftCombo.FieldHeight)
+                    findings.Add(place + " :: is " + combo.Height + " high, not a field's " + SoftCombo.FieldHeight);
+                string fit = Fits(child, scrolls);
+                if (fit != null) findings.Add(place + " :: " + fit);
+                Walk(child, place, findings);
+            }
+        }
+
+        /// What a control needs and does not have, or null.
+        private static string Fits(Control c, bool inScroller)
+        {
+            if (c.Width <= 0 || c.Height <= 0) return null;
+            if (c is HaloDot)
+                return 2 * HaloDot.Extent > Math.Min(c.Width, c.Height)
+                     ? "is " + c.Size + ", too small for a glow " + 2 * HaloDot.Extent + " across" : null;
+            var card = c as ChoiceCard;
+            if (card != null) return Needs(card.HeightFor(c.Width), c.Height);
+            var quote = c as SoftQuote;
+            if (quote != null) return Needs(quote.GetPreferredSize(new Size(c.Width, 0)).Height, c.Height);
+            var gates = c as GateList;
+            if (gates != null) return inScroller ? null : Needs(gates.GetPreferredSize(new Size(c.Width, 0)).Height, c.Height);
+            var list = c as ListView;
+            if (list != null) return ColumnsFit(list);
+            if (string.IsNullOrEmpty(c.Text) || c is TextBoxBase || c is ComboBox || c is UpDownBase) return null;
+            var label = c as Label;
+            if (label != null)
+            {
+                if (label.AutoSize)
+                {
+                    // A label stretched across its cell wraps at the cell's width; any other keeps
+                    // the size it asks for.
+                    bool stretched = label.Dock != DockStyle.None ||
+                                     (label.Anchor & (AnchorStyles.Left | AnchorStyles.Right)) == (AnchorStyles.Left | AnchorStyles.Right);
+                    Size wanted = label.GetPreferredSize(stretched ? new Size(label.Width, 0) : Size.Empty);
+                    if (wanted.Height > label.Height) return "needs " + wanted.Height + " high, has " + label.Height;
+                    if (wanted.Width > label.Width + 1) return "needs " + wanted.Width + " wide, has " + label.Width;
+                    return null;
+                }
+                Size line = TextRenderer.MeasureText(label.Text, label.Font, new Size(int.MaxValue, int.MaxValue), TextFormatFlags.SingleLine);
+                if (line.Height > label.ClientSize.Height) return "needs " + line.Height + " high, has " + label.ClientSize.Height;
+                // One that ends in an ellipsis narrows by design; one that does not is cut.
+                if (!label.AutoEllipsis && line.Width > label.ClientSize.Width) return "needs " + line.Width + " wide, has " + label.ClientSize.Width;
+                return null;
+            }
+            Size text = TextRenderer.MeasureText(c.Text, c.Font, new Size(int.MaxValue, int.MaxValue), TextFormatFlags.SingleLine);
+            var nav = c as NavButton;
+            if (nav != null) return Inside(text, nav.TextBounds.Size);
+            if (c is SoftButton) return Inside(text, c.ClientSize);
+            var check = c as SoftCheck;
+            if (check != null)
+            {
+                Size wanted = check.GetPreferredSize(Size.Empty);
+                return wanted.Width > c.Width || wanted.Height > c.Height ? "needs " + wanted + ", has " + c.Size : null;
+            }
+            return null;
+        }
+
+        private static string Needs(int height, int has)
+        {
+            return height > has ? "needs " + height + " high, has " + has : null;
+        }
+
+        private static string Inside(Size text, Size room)
+        {
+            if (text.Height > room.Height) return "text needs " + text.Height + " high, has " + room.Height;
+            return text.Width > room.Width ? "text needs " + text.Width + " wide, has " + room.Width : null;
+        }
+
+        /// A list's columns within its width, each heading whole in its column.
+        private static string ColumnsFit(ListView list)
+        {
+            int total = 0;
+            var cut = new List<string>();
+            foreach (ColumnHeader column in list.Columns)
+            {
+                total += column.Width;
+                // DrawHeader's inset: 10 before the heading, 4 after it.
+                int room = column.Width - Soft.Px(14);
+                int needed = TextRenderer.MeasureText(column.Text, list.Font, new Size(int.MaxValue, int.MaxValue), TextFormatFlags.SingleLine).Width;
+                if (needed > room) cut.Add("'" + column.Text + "' needs " + needed + ", has " + room);
+            }
+            if (total > list.ClientSize.Width) return "columns are " + total + " wide in " + list.ClientSize.Width;
+            return cut.Count == 0 ? null : "column headings cut: " + string.Join("; ", cut.ToArray());
+        }
+
+        private static string AuditName(Control control)
+        {
+            string text = (control.Text ?? "").Replace("\r", " ").Replace("\n", " ");
+            if (text.Length > 32) text = text.Substring(0, 32);
+            if (text.Length == 0 && !string.IsNullOrEmpty(control.AccessibleName)) text = control.AccessibleName;
+            return control.GetType().Name + (text.Length > 0 ? "'" + text + "'" : "");
+        }
+    }
+
+    /// The last strings reply, kept so the window can label itself before the interpreter that
+    /// answers has started.
+    ///
+    /// Opening the window waited 260-400 ms for Python to start and import, to be told the words
+    /// it was told last time. A strings reply depends on three things, and a cached one is used
+    /// only while all three are exactly what they were when it was written:
+    ///   * the product and its catalogs: the window's version, and a digest of every file the
+    ///     words and the language rules are read from. Not their length and time: a release
+    ///     archive gives every file one fixed time, which extracting and copying keep, so a word
+    ///     corrected to one of the same length changed neither;
+    ///   * the Interface language stored in settings: a digest of the settings file, so any save
+    ///     at all makes the next opening ask again, and the language read from those same bytes,
+    ///     which a reply has to name as its own ("preference") to be kept or used;
+    ///   * the language Windows asks for: the preferred UI languages, and the environment
+    ///     variables Python reads before them.
+    /// Anything else - no cache, one that cannot be read, a key that differs - is a miss, and a miss
+    /// asks the bridge before the first label, as the window always did.
+    ///
+    /// The bridge reads the settings when it answers, after the key was taken. So a reply is kept
+    /// only if the key still describes the installation just before the file is put in place: a
+    /// language saved in between was otherwise kept under the old key, and opened a later window
+    /// once the language had been set back. So a language that has just changed never opens in
+    /// the old one.
+    ///
+    /// The file (config\strings-cache.json in the installation) is the window's own, beside the
+    /// settings: config\ and logs\ are the only folders the product writes, and uninstalling with
+    /// -Purge removes it with config\. Nothing else reads it, and deleting it only makes the next
+    /// opening ask.
+    internal static class StringsCache
+    {
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern bool GetUserPreferredUILanguages(int flags, out int count, char[] buffer, ref int size);
+
+        private const int MUI_LANGUAGE_NAME = 0x8;
+
+        // Where a key names the Interface language it was made from (PreferenceIn).
+        private const string PreferencePart = "|interface_language ";
+
+        private static string PathIn(string root)
+        {
+            return Path.Combine(Path.Combine(root, "config"), "strings-cache.json");
+        }
+
+        /// This installation's key as it is now, or null when it cannot be told.
+        internal static string Key(string root)
+        {
+            try
+            {
+                var key = new StringBuilder("2");
+                key.Append("|window ").Append(typeof(StringsCache).Assembly.GetName().Version);
+                key.Append("|root ").Append(Path.GetFullPath(root));
+                using (var sha = System.Security.Cryptography.SHA256.Create())
+                {
+                    string app = Path.Combine(root, "app");
+                    Stamp(key, sha, Path.Combine(Path.Combine(app, ".codex-plugin"), "plugin.json"));
+                    string package = Path.Combine(Path.Combine(app, "src"), "codex_auto_resume");
+                    foreach (string name in new[] { "interface.py", "l10n.py", "settings.py", "config.py", "controlcli.py" })
+                        Stamp(key, sha, Path.Combine(package, name));
+                    string locales = Path.Combine(package, "locales");
+                    string[] catalogs = Directory.Exists(locales) ? Directory.GetFiles(locales, "*.json") : new string[0];
+                    Array.Sort(catalogs, StringComparer.OrdinalIgnoreCase);
+                    foreach (string catalog in catalogs) Stamp(key, sha, catalog);
+                    // Read once, so the language is taken from the very bytes the digest is of.
+                    string settings = Path.Combine(Path.Combine(root, "config"), "settings.json");
+                    byte[] stored = File.Exists(settings) ? File.ReadAllBytes(settings) : null;
+                    string preference = StoredPreference(stored);
+                    if (preference == null) return null;
+                    key.Append("|settings ").Append(stored == null ? "-" : Convert.ToBase64String(sha.ComputeHash(stored)));
+                    key.Append(PreferencePart).Append(preference);
+                }
+                foreach (string name in new[] { "CODEX_AUTO_RESUME_LANG", "LC_ALL", "LC_MESSAGES", "LANG" })
+                    key.Append('|').Append(name).Append(' ').Append(Environment.GetEnvironmentVariable(name) ?? "");
+                key.Append("|windows ").Append(PreferredLanguages());
+                return key.ToString();
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        private static void Stamp(StringBuilder key, System.Security.Cryptography.HashAlgorithm sha, string path)
+        {
+            key.Append('|').Append(Path.GetFileName(path)).Append(' ');
+            key.Append(File.Exists(path) ? Convert.ToBase64String(sha.ComputeHash(File.ReadAllBytes(path))) : "-");
+        }
+
+        /// The Interface language `settings` stores, as the bridge takes it - `system` when there is
+        /// no settings file or it names none - or null when the file cannot be read as settings.
+        /// Wherever the bridge takes the file otherwise (a value it does not know is `system` to
+        /// it), its reply names another language and is not kept, which is only a miss.
+        private static string StoredPreference(byte[] settings)
+        {
+            if (settings == null) return "system";
+            var map = Json.Parse(new UTF8Encoding(false).GetString(settings).TrimStart('﻿')) as Dictionary<string, object>;
+            if (map == null) return null;
+            object value;
+            return map.TryGetValue("interface_language", out value) && value is string ? (string)value : "system";
+        }
+
+        /// The Interface language `key` was made from. Nothing before it in a key can hold a '|'.
+        private static string PreferenceIn(string key)
+        {
+            int start = key.IndexOf(PreferencePart, StringComparison.Ordinal);
+            if (start < 0) return null;
+            start += PreferencePart.Length;
+            int end = key.IndexOf('|', start);
+            return end < 0 ? key.Substring(start) : key.Substring(start, end - start);
+        }
+
+        /// Whether `reply` is the answer for the Interface language `key` was made from.
+        private static bool AnswersFor(Dictionary<string, object> reply, string key)
+        {
+            object preference;
+            string wanted = PreferenceIn(key);
+            return wanted != null && reply.TryGetValue("preference", out preference) &&
+                   preference is string && (string)preference == wanted;
+        }
+
+        private static string PreferredLanguages()
+        {
+            int count, size = 0;
+            if (!GetUserPreferredUILanguages(MUI_LANGUAGE_NAME, out count, null, ref size) || size <= 0) return "-";
+            var buffer = new char[size];
+            if (!GetUserPreferredUILanguages(MUI_LANGUAGE_NAME, out count, buffer, ref size)) return "-";
+            return new string(buffer, 0, Math.Min(size, buffer.Length)).TrimEnd('\0').Replace('\0', ',');
+        }
+
+        private static bool Usable(Dictionary<string, object> reply)
+        {
+            object ok, words;
+            return reply != null && reply.TryGetValue("ok", out ok) && Equals(ok, true) &&
+                   reply.TryGetValue("strings", out words) && words is Dictionary<string, object>;
+        }
+
+        /// The reply cached for exactly `key`, and for the Interface language it was made from, or null.
+        internal static Dictionary<string, object> Read(string root, string key)
+        {
+            if (key == null) return null;
+            try
+            {
+                string path = PathIn(root);
+                if (!File.Exists(path)) return null;
+                var entry = Json.Parse(File.ReadAllText(path, Encoding.UTF8)) as Dictionary<string, object>;
+                object stored, reply;
+                if (entry == null || !entry.TryGetValue("key", out stored) || !(stored is string) || (string)stored != key) return null;
+                if (!entry.TryGetValue("reply", out reply)) return null;
+                var map = reply as Dictionary<string, object>;
+                return Usable(map) && AnswersFor(map, key) ? map : null;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /// Keeps `reply` under `key`: a reply for the Interface language the key was made from, and
+        /// only while the key still describes this installation, checked again just before the file
+        /// is put in place. Written beside the old file and moved over it, so nothing ever reads half
+        /// of one; a failure leaves no cache, which is only a miss.
+        internal static void Write(string root, string key, Dictionary<string, object> reply)
+        {
+            if (key == null || !Usable(reply) || !AnswersFor(reply, key)) return;
+            string temporary = null;
+            try
+            {
+                var entry = new Dictionary<string, object>();
+                entry["key"] = key;
+                entry["reply"] = reply;
+                string path = PathIn(root);
+                string folder = Path.GetDirectoryName(path);
+                // The installation's own config\, never a folder made for the cache.
+                if (!Directory.Exists(folder)) return;
+                // Short, and this process's own: .NET Framework refuses a path of 260 characters, and
+                // a GUID in the name took an installation in a deep folder past that - every write
+                // failed there, silently, and the cache was never used.
+                temporary = Path.Combine(folder,
+                                         "strings-cache." + Process.GetCurrentProcess().Id.ToString(CultureInfo.InvariantCulture) + ".tmp");
+                File.WriteAllText(temporary, Json.Write(entry), new UTF8Encoding(false));
+                if (Key(root) != key) return;
+                if (File.Exists(path)) File.Replace(temporary, path, null);
+                else File.Move(temporary, path);
+                temporary = null;
+            }
+            catch (Exception) { }
+            finally
+            {
+                try { if (temporary != null && File.Exists(temporary)) File.Delete(temporary); }
+                catch (Exception) { }
+            }
+        }
+
+        /// Replaces the cache when a fresh reply says something other than the cached one - kept as
+        /// Write keeps any reply, so only while `key` still describes this installation.
+        internal static void Refresh(string root, string key, Dictionary<string, object> cached, Dictionary<string, object> fresh)
+        {
+            try
+            {
+                if (!Usable(fresh) || Json.Write(fresh) == Json.Write(cached)) return;
+                Write(root, key, fresh);
+            }
+            catch (Exception) { }
         }
     }
 

@@ -214,35 +214,57 @@ namespace CodexAutoResume
         protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
         protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
 
-        // The chosen page is a soft pill in the quiet accent, with its name in the accent;
-        // the others are plain words that lift slightly under the pointer. The state is also
-        // in the weight of the text and in what a screen reader is told, never in colour alone.
+        /// The tab's body. Room is kept around it for the focus ring, which a child window cannot
+        /// draw outside itself.
+        internal Rectangle Face
+        {
+            get
+            {
+                int ring = Soft.Px(Brand.FocusOffset + Brand.FocusWidth);
+                return Rectangle.Inflate(ClientRectangle, -ring, -ring);
+            }
+        }
+
+        /// Where the name is set: the body, and in the section list less its indent.
+        internal Rectangle TextBounds
+        {
+            get
+            {
+                Rectangle bounds = Face;
+                if (Vertical)
+                {
+                    bounds.X += Soft.Px(12);
+                    bounds.Width = Math.Max(0, bounds.Width - Soft.Px(16));
+                }
+                return bounds;
+            }
+        }
+
+        // The panel's tab, drawn as its segmented control draws a choice. The pages not chosen
+        // are muted words straight on the canvas, which come up as a raised body with a hairline
+        // under the pointer; the chosen page is pressed into a well, its name in the accent. The
+        // state is also in the weight of the text and in what a screen reader is told, never in
+        // colour alone.
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = e.Graphics;
-            Color ground = Parent != null ? Parent.BackColor : Palette.Surface;
-            g.Clear(ground);
-            float inset = Soft.PxF(2);
-            var body = new RectangleF(inset, inset, Width - inset * 2f - 1f, Height - inset * 2f - 1f);
+            // The ground behind the tab, lifts included: the header card's shadow runs on under
+            // the tabs rather than stopping at the edge of each one.
+            Ground.PaintArea(this, g, ClientRectangle);
+            Rectangle face = Face;
             float radius = Soft.PxF(Brand.RadiusControl);
-            if (current || hover)
+            if (current)
             {
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                using (var path = Soft.Rounded(body, radius))
-                using (var brush = new SolidBrush(current ? Palette.AccentSoft : Soft.Mix(ground, Palette.Inset, 0.8)))
-                    g.FillPath(brush, path);
+                // High Contrast keeps what it had: Highlight, with HighlightText on it.
+                if (Palette.Contrast) Soft.Body(g, face, radius, Palette.AccentSoft, Palette.AccentSoft, false);
+                else Soft.Body(g, face, radius, Palette.Inset, Palette.Inset, true);
             }
-            Rectangle bounds = Rectangle.Round(body);
-            if (Vertical)
-            {
-                bounds.X += Soft.Px(12);
-                bounds.Width = Math.Max(0, bounds.Width - Soft.Px(16));
-            }
+            else if (hover) Soft.Body(g, face, radius, Palette.Raised, Palette.Line, false);
             Color text = !current ? Palette.Secondary : Palette.Contrast ? SystemColors.HighlightText : Palette.Accent;
-            TextRenderer.DrawText(g, Text, Font, bounds, text,
+            TextRenderer.DrawText(g, Text, Font, TextBounds, text,
                                   TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis |
                                   (Vertical ? TextFormatFlags.Left : TextFormatFlags.HorizontalCenter));
-            if (Focused && ShowFocusCues) Soft.FocusRing(g, body, radius);
+            if (Focused && ShowFocusCues) Soft.Ring(g, face, radius);
         }
 
         protected override AccessibleObject CreateAccessibilityInstance()
@@ -282,6 +304,24 @@ namespace CodexAutoResume
         {
             base.OnTextChanged(e);
             if (IsHandleCreated && Text.Length > 0) AccessibilityNotifyClients(AccessibleEvents.NameChange, -1);
+        }
+    }
+
+    /// A line of text straight on the canvas beside a card.
+    ///
+    /// It paints the ground behind it, lifts included. A plain label paints a flat patch of its
+    /// background colour, and the card below "Nothing is waiting" had no light along its top edge
+    /// where the label covered it.
+    internal sealed class GroundLabel : Label
+    {
+        internal GroundLabel()
+        {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint, true);
+        }
+
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            Ground.Paint(this, e);
         }
     }
 
@@ -388,7 +428,7 @@ namespace CodexAutoResume
             AutoSize = true;
         }
 
-        private int RowHeight { get { return Font.Height + Soft.Px(9); } }
+        private int RowHeight { get { return Font.Height + Soft.Px(12); } }
 
         internal void SetRows(List<string[]> fresh, string whenEmpty)
         {
@@ -424,26 +464,37 @@ namespace CodexAutoResume
                 return;
             }
             int y = 0, height = RowHeight;
-            foreach (string[] row in rows)
-            {
-                Color tone = row[2] == "PASS" ? Palette.Success : row[2] == "WAIT" ? Palette.Waiting
-                           : row[2] == "BLOCK" ? Palette.Danger : Palette.Paused;
-                Size chip = Soft.ChipSize(row[1], Font);
-                var label = new Rectangle(0, y, Math.Max(0, Width - chip.Width - Soft.Px(8)), height);
-                TextRenderer.DrawText(g, row[0], Font, label, Palette.Ink,
-                                      TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
-                                      TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
-                Soft.Chip(g, new Rectangle(Math.Max(0, Width - chip.Width), y, chip.Width, height), row[1], Font, tone, ground);
-                y += height;
-            }
+            // The rows of a settings list in the panel: a hairline between each two, and the result
+            // as a borderless chip at the end of the row.
+            using (var rule = new SolidBrush(Palette.Line))
+                foreach (string[] row in rows)
+                {
+                    Color tone = row[2] == "PASS" ? Palette.Success : row[2] == "WAIT" ? Palette.Waiting
+                               : row[2] == "BLOCK" ? Palette.Danger : Palette.Paused;
+                    if (y > 0) g.FillRectangle(rule, 0, y, Width, Soft.Hairline);
+                    Size chip = Soft.ChipSize(row[1], Font);
+                    var label = new Rectangle(0, y, Math.Max(0, Width - chip.Width - Soft.Px(8)), height);
+                    TextRenderer.DrawText(g, row[0], Font, label, Palette.Ink,
+                                          TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
+                                          TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
+                    Soft.Chip(g, new Rectangle(Math.Max(0, Width - chip.Width), y, chip.Width, height), row[1], Font, tone, ground);
+                    y += height;
+                }
         }
     }
 
     internal sealed partial class SettingsForm
     {
         // ------------------------------------------------------------------ state
-        private readonly Panel nav = new BufferedPanel();
-        private readonly Panel pageHost = new Panel();
+        // Both are grounds on the canvas (see Ground): the tabs sit straight on it, under the
+        // header card, and the header card's lift runs on across them.
+        private readonly Panel nav = new SoftPage();
+        private readonly Panel pageHost = new SoftPage();
+        // How long ago the snapshot on screen was read (see ShowPage). Started again only when a
+        // read answers (Reread): a page built later is handed the snapshot already held (PageFor),
+        // and restarting it there made an old snapshot look new, so a first visit never read.
+        private readonly Stopwatch snapshotAge = new Stopwatch();
+        private const int FreshMilliseconds = 2000;
         private readonly Dictionary<string, Control> pages = new Dictionary<string, Control>();
         private readonly Dictionary<string, NavButton> navButtons = new Dictionary<string, NavButton>();
         private static readonly string[] PageOrder = { "overview", "pending", "history", "statistics",
@@ -519,16 +570,11 @@ namespace CodexAutoResume
             }
 
             nav.Dock = DockStyle.Top;
-            nav.BackColor = Surface;
-            // The bottom padding keeps the strip of buttons off the band where the nav
-            // draws the selected page's underline and its closing hairline; a docked child
-            // covers whatever of its parent it is given, painting included.
-            nav.Padding = Pad(14, 0, 14, 4);
-            var strip = new FlowLayoutPanel();
+            nav.Padding = Pad(12, 0, 14, 0);
+            var strip = new SoftFlow();
             strip.Dock = DockStyle.Fill;
             strip.FlowDirection = FlowDirection.LeftToRight;
             strip.WrapContents = false;
-            strip.BackColor = Surface;
             strip.Margin = new Padding(0);
             strip.AccessibleRole = AccessibleRole.PageTabList;
             string[] fallbacks = { "Overview", "Pending", "History", "Statistics", "Diagnostics", "Settings" };
@@ -537,14 +583,15 @@ namespace CodexAutoResume
                 string name = PageOrder[i];
                 var button = new NavButton();
                 button.Text = S("nav." + name, fallbacks[i]);
+                button.Font = Soft.RoleFont("nav");
                 button.AutoSize = true;
                 button.AutoSizeMode = AutoSizeMode.GrowAndShrink;
                 button.FlatStyle = FlatStyle.Flat;
                 button.FlatAppearance.BorderSize = 0;
-                button.BackColor = Surface;
                 button.ForeColor = Secondary;
-                button.Padding = Pad(14, 8, 14, 8);
-                button.Margin = Pad(0, 6, 4, 0);
+                // The panel's tab padding, 7 by 14, inside the room NavButton keeps for its ring.
+                button.Padding = Pad(18, 8, 18, 8);
+                button.Margin = Pad(0, 0, 2, 0);
                 button.Cursor = Cursors.Hand;
                 button.UseVisualStyleBackColor = false;
                 string target = name;
@@ -553,22 +600,17 @@ namespace CodexAutoResume
                 strip.Controls.Add(button);
             }
             nav.Controls.Add(strip);
-            nav.Height = strip.PreferredSize.Height + Px(14);
-            nav.Paint += delegate(object sender, PaintEventArgs e)
-            {
-                // The selected page is a soft pill (NavButton draws it); a hairline closes the strip.
-                using (var pen = new Pen(Line))
-                    e.Graphics.DrawLine(pen, 0, nav.Height - 1, nav.Width, nav.Height - 1);
-            };
+            // As tall as the tabs, measured, and again whenever the window's font changes.
+            EventHandler fit = delegate { nav.Height = strip.PreferredSize.Height + nav.Padding.Vertical; };
+            fit(this, EventArgs.Empty);
+            FontChanged += fit;
 
             pageHost.Dock = DockStyle.Fill;
-            pageHost.BackColor = Canvas;
 
-            pages["overview"] = BuildOverview();
-            pages["pending"] = BuildPending();
-            pages["history"] = BuildHistory();
-            pages["statistics"] = BuildStatistics();
-            pages["diagnostics"] = BuildDiagnostics();
+            // The Dashboard's pages are built the first time each is shown (PageFor). Settings is
+            // built here, empty, and filled with editors once the settings have been read.
+            columns.Visible = false;
+            pageHost.Controls.Add(columns);
             pages["settings"] = columns;
 
             KeyPreview = true;
@@ -593,32 +635,83 @@ namespace CodexAutoResume
 
         private void ShowPage(string name)
         {
-            if (!pages.ContainsKey(name)) name = "overview";
+            if (Array.IndexOf(PageOrder, name) < 0) name = "overview";
             currentPage = name;
-            pageHost.SuspendLayout();
-            pageHost.Controls.Clear();
-            pageHost.Controls.Add(pages[name]);
-            pageHost.ResumeLayout(true);
-            foreach (var pair in navButtons)
-            {
-                pair.Value.ForeColor = pair.Key == name ? Ink : Secondary;
-                pair.Value.Font = new Font(Font, pair.Key == name ? FontStyle.Bold : FontStyle.Regular);
-                pair.Value.Current = pair.Key == name;
-            }
             bool settings = name == "settings";
-            if (saveButton != null) saveButton.Visible = settings;
-            if (restoreButton != null) restoreButton.Visible = settings;
-            nav.Invalidate();
+            // Settings asked for before its editors were built on idle: built now, before it shows.
+            if (settings) BuildPendingEditors();
+            // Painting stops while one page is hidden and the next shown, so the page is painted
+            // once, finished (see Redraw).
+            bool paused = Redraw(pageHost, false);
+            try
+            {
+                Control page = PageFor(name);
+                // Every page stays in the host once built and only the one shown is visible: taking a
+                // page off and putting the next on moved every native control in it to Windows'
+                // parking window and back.
+                pageHost.SuspendLayout();
+                foreach (Control other in pageHost.Controls)
+                    if (other != page) other.Visible = false;
+                // Held while it becomes visible and laid out once after, as ShowSection holds a
+                // section - and the Settings page holds the section it shows, which is where each
+                // control that sizes itself asked for another layout: a switch to Settings took 113 ms
+                // once its sections kept one width, and takes 58 held (measured, 150%).
+                TableLayoutPanel section = settings && sections.ContainsKey(currentSection) ? sections[currentSection] : null;
+                page.SuspendLayout();
+                if (section != null) section.SuspendLayout();
+                page.Visible = true;
+                if (section != null) section.ResumeLayout(true);
+                page.ResumeLayout(true);
+                pageHost.ResumeLayout(false);
+                pageHost.PerformLayout();
+                foreach (var pair in navButtons)
+                {
+                    pair.Value.ForeColor = pair.Key == name ? Ink : Secondary;
+                    // Cached: a switch used to create a font for every tab.
+                    pair.Value.Font = Soft.RoleFont(pair.Key == name ? "nav_current" : "nav");
+                    pair.Value.Current = pair.Key == name;
+                }
+                if (saveButton != null) saveButton.Visible = settings;
+                if (restoreButton != null) restoreButton.Visible = settings;
+            }
+            finally
+            {
+                if (paused) Redraw(pageHost, true);
+            }
+            if (auditing) return;
             if (name == "statistics") LoadStatistics();
-            if (!settings) RefreshNow();
+            // Not when the snapshot on screen is under two seconds old: switching pages straight
+            // after a read asked for the same answer again - 17-87 ms of Python and up to 45 ms of
+            // redrawing, for nothing new.
+            if (!settings && (snapshot == null || snapshotAge.ElapsedMilliseconds >= FreshMilliseconds)) RefreshNow();
+        }
+
+        /// A page, built the first time it is shown. Building all five before the first screen
+        /// cost 75-290 ms, for pages most openings never visit. A page built after a snapshot has
+        /// arrived is given that snapshot at once, so it never shows its placeholders.
+        private Control PageFor(string name)
+        {
+            Control page;
+            if (pages.TryGetValue(name, out page)) return page;
+            page = name == "pending" ? BuildPending()
+                 : name == "history" ? BuildHistory()
+                 : name == "statistics" ? BuildStatistics()
+                 : name == "diagnostics" ? BuildDiagnostics()
+                 : BuildOverview();
+            page.Visible = false;
+            pages[name] = page;
+            pageHost.Controls.Add(page);
+            if (snapshot != null) ApplySnapshot(snapshot);
+            return page;
         }
 
         private Panel Page()
         {
-            var page = new Panel();
+            var page = new SoftPage();
             page.Dock = DockStyle.Fill;
-            page.BackColor = Canvas;
-            page.Padding = Pad(10, 10, 10, 6);
+            // A page scrolls, so it is the edge of the shadows on it (see Ground): the cards'
+            // lift is kept inside its padding.
+            page.Padding = CardRoom();
             page.AutoScroll = true;
             return page;
         }
@@ -626,6 +719,18 @@ namespace CodexAutoResume
         private Label Value(string text)
         {
             var label = new Label();
+            label.Text = text;
+            label.AutoSize = true;
+            label.ForeColor = Ink;
+            label.Margin = Pad(0, 3, 0, 3);
+            return label;
+        }
+
+        /// A line of text straight on the canvas beside a card, which keeps the card's lift where
+        /// a plain label would cover it (see GroundLabel).
+        private Label GroundText(string text)
+        {
+            var label = new GroundLabel();
             label.Text = text;
             label.AutoSize = true;
             label.ForeColor = Ink;
@@ -657,7 +762,10 @@ namespace CodexAutoResume
             grid.AutoSize = true;
             grid.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             grid.Dock = DockStyle.Fill;
-            grid.BackColor = Color.Transparent;
+            // Opaque, in the card's own colour. See-through, every repaint of the grid and of each
+            // label in it asked the card to paint its background again, shadow and all: 23 card
+            // backgrounds for one Overview, and 1.4 s the first time Statistics was shown.
+            grid.BackColor = Surface;
             card.Controls.Add(grid);
             return grid;
         }
@@ -675,25 +783,31 @@ namespace CodexAutoResume
 
         private TableLayoutPanel Grid(int columnCount)
         {
-            var grid = new TableLayoutPanel();
+            var grid = new SoftStack();
             grid.Dock = DockStyle.Top;
             grid.AutoSize = true;
             grid.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             grid.ColumnCount = columnCount;
             for (int i = 0; i < columnCount; i++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / columnCount));
-            grid.BackColor = Canvas;
             return grid;
+        }
+
+        /// The gap around a card in a grid of two columns, as the panel's page gap: half of it on
+        /// each side of the gutter between the columns, all of it under every row but the last.
+        private Padding GridGap(int column, bool lastRow)
+        {
+            int half = Brand.PageGap / 2;
+            return Pad(column == 0 ? 0 : half, 0, column == 0 ? half : 0, lastRow ? 0 : Brand.PageGap);
         }
 
         private FlowLayoutPanel ButtonRow()
         {
-            var row = new FlowLayoutPanel();
+            var row = new SoftFlow();
             row.Dock = DockStyle.Bottom;
             row.AutoSize = true;
             row.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             row.WrapContents = true;
-            row.BackColor = Canvas;
-            row.Padding = Pad(0, 10, 0, 4);
+            row.Padding = Pad(0, 12, 0, 0);
             return row;
         }
 
@@ -738,17 +852,45 @@ namespace CodexAutoResume
             if (!columnWeights.TryGetValue(list, out weights) || list.Columns.Count != weights.Length) return;
             int total = 0;
             foreach (int weight in weights) total += weight;
-            int available = list.ClientSize.Width - Px(2);
+            // All of it: the header control paints whatever the columns leave in plain white.
+            int available = list.ClientSize.Width;
             if (available < Px(160) || total <= 0) return;
+            // Every column first gets its heading, whole, in the list's font; what is left is shared
+            // in the declared proportions. Shared out alone, the proportions cut "Next check",
+            // "Attempts" and "Auto-resume" short in a window of v0.6.2's width.
+            var floor = new int[weights.Length];
+            int floors = 0;
+            for (int i = 0; i < weights.Length; i++)
+            {
+                floor[i] = HeadingWidth(list, i);
+                floors += floor[i];
+            }
+            int spare = Math.Max(0, available - floors);
             int used = 0;
             for (int i = 0; i < weights.Length; i++)
             {
-                int width = i == weights.Length - 1 ? available - used
-                          : (int)Math.Floor(available * (double)weights[i] / total);
-                width = Math.Max(Px(48), width);
+                int width = i == weights.Length - 1 ? Math.Max(floor[i], available - used)
+                          : floor[i] + (int)Math.Floor(spare * (double)weights[i] / total);
                 if (list.Columns[i].Width != width) list.Columns[i].Width = width;
                 used += width;
             }
+        }
+
+        /// How wide a column must be for its heading to be drawn whole: the heading in the list's
+        /// font, DrawHeader's inset around it, and never less than 48 px.
+        private int HeadingWidth(ListView list, int column)
+        {
+            int heading = TextRenderer.MeasureText(list.Columns[column].Text, list.Font, new Size(int.MaxValue, int.MaxValue),
+                                                   TextFormatFlags.SingleLine).Width;
+            return Math.Max(Px(48), heading + Px(14));
+        }
+
+        /// How wide a list must be for every heading to be drawn whole.
+        private int HeadingsWidth(ListView list)
+        {
+            int total = 0;
+            for (int i = 0; i < list.Columns.Count; i++) total += HeadingWidth(list, i);
+            return total;
         }
 
         /// A list on its own card, filling it.
@@ -760,8 +902,8 @@ namespace CodexAutoResume
             card.RowCount = 1;
             card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             card.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-            int room = SoftCard.Room;
-            card.Padding = new Padding(room + Px(8), room / 2 + Px(8), room + Px(8), room + room / 2 + Px(8));
+            // Its body is the whole control; the page it stands on draws its lift (see SoftCard).
+            card.Padding = Pad(8, 8, 8, 8);
             card.Margin = new Padding(0);
             list.Margin = new Padding(0);
             card.Controls.Add(list, 0, 0);
@@ -771,8 +913,8 @@ namespace CodexAutoResume
         private void DrawHeader(object sender, DrawListViewColumnHeaderEventArgs e)
         {
             using (var brush = new SolidBrush(Surface)) e.Graphics.FillRectangle(brush, e.Bounds);
-            using (var pen = new Pen(Line))
-                e.Graphics.DrawLine(pen, e.Bounds.Left, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
+            using (var brush = new SolidBrush(Line))
+                e.Graphics.FillRectangle(brush, e.Bounds.Left, e.Bounds.Bottom - Soft.Hairline, e.Bounds.Width, Soft.Hairline);
             var bounds = new Rectangle(e.Bounds.X + Px(10), e.Bounds.Y, Math.Max(0, e.Bounds.Width - Px(14)), e.Bounds.Height);
             TextRenderer.DrawText(e.Graphics, e.Header.Text, e.Font, bounds, Secondary,
                                   TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
@@ -783,10 +925,13 @@ namespace CodexAutoResume
         {
             var list = (ListView)sender;
             bool selected = e.Item.Selected;
-            Color back = selected ? Palette.AccentSoft : Surface;
+            // Rows on the card's surface with a full hairline between them, as the panel's setting
+            // rows have; the chosen row is pressed into the inset colour. High Contrast keeps
+            // Highlight for it.
+            Color back = !selected ? Surface : Palette.Contrast ? Palette.AccentSoft : Palette.Inset;
             using (var brush = new SolidBrush(back)) e.Graphics.FillRectangle(brush, e.Bounds);
-            using (var pen = new Pen(Soft.Mix(Surface, Line, 0.6)))
-                e.Graphics.DrawLine(pen, e.Bounds.Left, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
+            using (var brush = new SolidBrush(Line))
+                e.Graphics.FillRectangle(brush, e.Bounds.Left, e.Bounds.Bottom - Soft.Hairline, e.Bounds.Width, Soft.Hairline);
             var row = e.Item.Tag as Dictionary<string, object>;
             var cell = new Rectangle(e.Bounds.X + Px(10), e.Bounds.Y, Math.Max(0, e.Bounds.Width - Px(14)), e.Bounds.Height);
             string text = e.SubItem == null ? "" : e.SubItem.Text;
@@ -797,7 +942,7 @@ namespace CodexAutoResume
             if (e.ColumnIndex == 1 && row != null)
                 Soft.Chip(e.Graphics, cell, text, list.Font, Palette.Contrast && selected ? ink : ToneFor(row), back);
             else if (list == pendingList && e.ColumnIndex == ResumeColumn && row != null)
-                DrawResumeBox(e.Graphics, cell, ThreadOn(row));
+                DrawResumeBox(e.Graphics, cell, ThreadOn(row), back);
             else
                 TextRenderer.DrawText(e.Graphics, text, list.Font, cell, e.ColumnIndex == 0 ? ink : quiet,
                                       TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
@@ -808,29 +953,13 @@ namespace CodexAutoResume
                                         e.Item.Bounds.Left + Px(2), e.Item.Bounds.Bottom - Px(6));
         }
 
-        /// The Auto-resume check box, drawn like every other check box in the window.
-        private void DrawResumeBox(Graphics g, Rectangle cell, bool on)
+        /// The Auto-resume box, drawn as the switch every other on-or-off setting in the window is,
+        /// on the row's own ground.
+        private void DrawResumeBox(Graphics g, Rectangle cell, bool on, Color ground)
         {
-            int box = Px(16);
-            var body = new RectangleF(cell.X + Px(2), cell.Y + (cell.Height - box) / 2f, box - 1f, box - 1f);
-            float radius = Soft.PxF(Brand.RadiusSmall - 2);
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            if (!on)
-            {
-                Soft.Well(g, body, radius, false);
-                return;
-            }
-            using (var path = Soft.Rounded(body, radius))
-            using (var brush = new SolidBrush(Palette.Accent)) g.FillPath(brush, path);
-            using (var pen = new Pen(Palette.OnAccent, Soft.PxF(2)))
-            {
-                pen.StartCap = LineCap.Round;
-                pen.EndCap = LineCap.Round;
-                g.DrawLines(pen, new[] {
-                    new PointF(body.X + body.Width * 0.26f, body.Y + body.Height * 0.52f),
-                    new PointF(body.X + body.Width * 0.44f, body.Y + body.Height * 0.70f),
-                    new PointF(body.X + body.Width * 0.76f, body.Y + body.Height * 0.32f) });
-            }
+            int width = Px(Brand.SwitchWidth), height = Px(Brand.SwitchHeight);
+            var track = new Rectangle(cell.X + Px(2), cell.Y + (cell.Height - height) / 2, width, height);
+            Soft.Switch(g, track, on, true, ground);
         }
 
         /// The colour a record's state word is drawn in. Always beside the word itself.
@@ -866,7 +995,7 @@ namespace CodexAutoResume
             TableLayoutPanel grid = Grid(2);
 
             TableLayoutPanel now = MakeCard(S("overview.now", "Right now"));
-            now.Margin = Pad(0, 0, 3, 2);
+            now.Margin = GridGap(0, false);
             TableLayoutPanel facts = Facts(now);
             nowRecovery = Fact(facts, S("overview.recovery", "Automatic recovery"));
             nowWatcher = Fact(facts, S("diag.watcher", "Watcher"));
@@ -877,9 +1006,10 @@ namespace CodexAutoResume
             now.Controls.Add(toggleButton);
 
             TableLayoutPanel waiting = MakeCard(S("overview.waiting", "Waiting"));
-            waiting.Margin = Pad(3, 0, 0, 2);
+            waiting.Margin = GridGap(1, false);
             waitingLine = Value("-");
-            waitingLine.Font = new Font(Font.FontFamily, Font.Size + 3f, FontStyle.Bold);
+            // The count as the page's figure: its size as it has always been, the panel's weight.
+            waitingLine.Font = Soft.RoleFont("figure");
             nextLine = Value("");
             nextLine.ForeColor = Accent;
             runningLine = Value("");
@@ -892,7 +1022,7 @@ namespace CodexAutoResume
             waiting.Controls.Add(show);
 
             TableLayoutPanel week = MakeCard(S("overview.week", "Last 7 days"));
-            week.Margin = Pad(0, 0, 3, 2);
+            week.Margin = GridGap(0, true);
             TableLayoutPanel weekFacts = Facts(week);
             weekDetected = Fact(weekFacts, S("overview.detected", "Interruptions"));
             weekSent = Fact(weekFacts, S("overview.sent", "Continuations sent"));
@@ -902,7 +1032,7 @@ namespace CodexAutoResume
             // The last few recoveries that finished, so the page answers "did it work" as
             // well as "is it working" without a trip to the History page.
             TableLayoutPanel recent = MakeCard(S("overview.recent", "Recently finished"));
-            recent.Margin = Pad(3, 0, 0, 2);
+            recent.Margin = GridGap(1, true);
             recentGrid = Facts(recent);
             recentEmpty = Value(S("history.empty", "No recoveries yet"));
             recentEmpty.ForeColor = Secondary;
@@ -984,10 +1114,10 @@ namespace CodexAutoResume
                                Col(S("pending.col_next", "Next check"), 84),
                                Col(S("pending.col_attempts", "Attempts"), 70),
                                Col(S("pending.col_resume", "Auto-resume"), 100));
-            pendingEmpty = Value(S("pending.empty", "Nothing is waiting"));
+            pendingEmpty = GroundText(S("pending.empty", "Nothing is waiting"));
             pendingEmpty.ForeColor = Secondary;
             pendingEmpty.Dock = DockStyle.Top;
-            pendingEmpty.Padding = Pad(8, 2, 0, 6);
+            pendingEmpty.Padding = Pad(8, 0, 0, 10);
 
             FlowLayoutPanel row = ButtonRow();
             retryButton = MakeButton(S("action.retry_now", "Retry now"), true, delegate { RetryNow(); });
@@ -1037,11 +1167,10 @@ namespace CodexAutoResume
             };
 
             TableLayoutPanel explain = MakeCard(S("explain.title", "Why it is waiting"));
-            explain.Dock = DockStyle.Right;
+            explain.Dock = DockStyle.Fill;
             explain.AutoSize = false;
             explain.AutoScroll = true;
-            explain.Width = Px(290);
-            explain.Margin = new Padding(0);
+            explain.Margin = Pad(Brand.PageGap, 0, 0, 0);
             explainAsOf = Value("");
             explainAsOf.ForeColor = Secondary;
             explain.Controls.Add(explainAsOf);
@@ -1051,8 +1180,32 @@ namespace CodexAutoResume
             explainList.AccessibleName = S("explain.title", "Why it is waiting");
             explain.Controls.Add(explainList);
 
-            page.Controls.Add(ListCard(pendingList));
-            page.Controls.Add(explain);
+            // The list and why its task waits, side by side with the panel's gap between them. A
+            // table rather than two docked cards: docking ignores margins, and the gap is one. The
+            // explanation is a little narrower than it was, so the list keeps its columns in a
+            // window of v0.6.2's width.
+            var split = new SoftStack();
+            split.Dock = DockStyle.Fill;
+            split.ColumnCount = 2;
+            split.RowCount = 1;
+            split.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            split.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, Px(Brand.PageGap + 256)));
+            split.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            Control listCard = ListCard(pendingList);
+            split.Controls.Add(listCard, 0, 0);
+            split.Controls.Add(explain, 1, 0);
+            // The explanation gives way, down to 200 px, when the list's column headings need the
+            // room: Spanish needs about 20 px more than the list has beside a 256-px explanation.
+            EventHandler share = delegate
+            {
+                int needed = HeadingsWidth(pendingList) + listCard.Padding.Horizontal;
+                int width = Math.Max(Px(Brand.PageGap + 200), Math.Min(Px(Brand.PageGap + 256), split.ClientSize.Width - needed));
+                if ((int)split.ColumnStyles[1].Width != width) split.ColumnStyles[1].Width = width;
+            };
+            split.SizeChanged += share;
+            pendingList.FontChanged += share;
+
+            page.Controls.Add(split);
             page.Controls.Add(pendingEmpty);
             page.Controls.Add(row);
             UpdatePendingButtons();
@@ -1071,9 +1224,10 @@ namespace CodexAutoResume
                                Col(S("history.col_detected", "Detected"), 130),
                                Col(S("history.col_finished", "Finished"), 130));
             historyList.SelectedIndexChanged += delegate { if (!filling) UpdateHistoryButtons(); };
-            historyEmpty = Value(S("history.empty", "No recoveries yet"));
+            historyEmpty = GroundText(S("history.empty", "No recoveries yet"));
             historyEmpty.ForeColor = Secondary;
             historyEmpty.Dock = DockStyle.Top;
+            historyEmpty.Padding = Pad(8, 0, 0, 10);
 
             FlowLayoutPanel row = ButtonRow();
             historyTimeline = MakeButton(S("action.timeline", "Timeline"), false, delegate { ShowTimeline(historyList); });
@@ -1102,16 +1256,20 @@ namespace CodexAutoResume
         private Control BuildStatistics()
         {
             Panel page = Page();
-            var top = new FlowLayoutPanel();
+            // A ground, so the lift of the cards under it is not covered where it runs up into it.
+            var top = new SoftFlow();
             top.Dock = DockStyle.Top;
             top.AutoSize = true;
-            top.BackColor = Canvas;
-            top.Padding = Pad(0, 0, 0, 10);
-            var label = Value(S("stats.period", "Period"));
-            label.Margin = Pad(0, 7, 12, 0);
-            period = new ComboBox();
-            period.DropDownStyle = ComboBoxStyle.DropDownList;
-            period.Width = Px(160);
+            top.Padding = Pad(0, 0, 0, 12);
+            var label = GroundText(S("stats.period", "Period"));
+            // On the drop-down's centre line: half of what the field is taller than a line of the
+            // window's text. Measured in the window's font - the label has no parent yet, and would
+            // measure itself in the default one.
+            label.Margin = new Padding(0, Math.Max(0, (SoftCombo.FieldHeight - TextRenderer.MeasureText("Ag", Font).Height) / 2), Px(12), 0);
+            // A well, as every other drop-down in the window is.
+            period = new SoftCombo();
+            period.Width = Px(180);
+            IgnoreWheel(period);
             period.Items.Add(new Choice("7", S("stats.days7", "Last 7 days")));
             period.Items.Add(new Choice("30", S("stats.days30", "Last 30 days")));
             period.Items.Add(new Choice("", S("stats.all", "All time")));
@@ -1123,7 +1281,7 @@ namespace CodexAutoResume
 
             TableLayoutPanel grid = Grid(2);
             TableLayoutPanel numbers = MakeCard(S("nav.statistics", "Statistics"));
-            numbers.Margin = Pad(0, 0, 3, 2);
+            numbers.Margin = GridGap(0, true);
             TableLayoutPanel facts = Facts(numbers);
             statsDetected = Fact(facts, S("overview.detected", "Interruptions"));
             statsSent = Fact(facts, S("overview.sent", "Continuations sent"));
@@ -1135,7 +1293,7 @@ namespace CodexAutoResume
             statsKinds = Fact(facts, S("stats.by_category", "By kind"));
 
             TableLayoutPanel outcomes = MakeCard(S("stats.outcomes", "How recoveries ended"));
-            outcomes.Margin = Pad(3, 0, 0, 2);
+            outcomes.Margin = GridGap(1, true);
             chart = new OutcomeChart();
             chart.Dock = DockStyle.Top;
             chart.Height = Px(220);
@@ -1161,7 +1319,7 @@ namespace CodexAutoResume
             Panel page = Page();
             TableLayoutPanel grid = Grid(2);
             TableLayoutPanel health = MakeCard(S("diag.health", "Health"));
-            health.Margin = Pad(0, 0, 3, 2);
+            health.Margin = GridGap(0, true);
             TableLayoutPanel facts = Facts(health);
             diagVersion = Fact(facts, S("diag.version", "Version"));
             diagWatcher = Fact(facts, S("diag.watcher", "Watcher"));
@@ -1179,7 +1337,7 @@ namespace CodexAutoResume
             health.Controls.Add(diagUpgrade);
 
             TableLayoutPanel tools = MakeCard(S("diag.tools", "Tools"));
-            tools.Margin = Pad(3, 0, 0, 2);
+            tools.Margin = GridGap(1, true);
             exportButton = MakeButton(S("action.export", "Export diagnostics..."), false, delegate { ExportDiagnostics(); });
             repairButton = MakeButton(S("action.repair", "Repair installation"), false, delegate { Repair(); });
             // Repair and update are different things and the two buttons say so: one runs
@@ -1270,7 +1428,11 @@ namespace CodexAutoResume
                         Reread(false);
                         return;
                     }
-                    if (Ok(reply)) ApplySnapshot(reply);
+                    if (Ok(reply))
+                    {
+                        snapshotAge.Restart();
+                        ApplySnapshot(reply);
+                    }
                     else MarkUnavailable();
                 };
                 try { if (IsHandleCreated && !IsDisposed) BeginInvoke(apply); }
@@ -1417,15 +1579,16 @@ namespace CodexAutoResume
         {
             snapshot = reply;
             var status = Map(reply, "status");
-            bool upgrade = false;
+            // Only the pages built so far have anything to write to. A page built later is handed
+            // this same snapshot when it is (PageFor), so every part below checks for its page.
             if (status != null)
             {
                 ApplyStatus(status, null);
                 var watcher = Map(status, "watcher");
                 bool enabled = Equals(Get(status, "enabled"), true);
                 shownEnabled = enabled;
-                upgrade = Equals(Get(status, "upgrade_pending"), true);
-                nowRecovery.Text = enabled ? S("overview.on", "on") : S("overview.off", "paused");
+                bool upgrade = Equals(Get(status, "upgrade_pending"), true);
+                string recovery = enabled ? S("overview.on", "on") : S("overview.off", "paused");
                 object running = Get(status, "watcher_running");
                 string watcherText = running == null ? S("diag.unknown", "unknown")
                                    : !Equals(running, true) ? S("diag.not_running", "not running")
@@ -1434,16 +1597,23 @@ namespace CodexAutoResume
                 string engine = Str(watcher, "engine_state") ?? "unknown";
                 string engineText = S("engine." + engine, engine);
                 double last = Number(watcher, "last_tick_at");
-                nowWatcher.Text = watcherText;
-                nowEngine.Text = engineText;
-                nowLastCheck.Text = Ago(last);
-                diagVersion.Text = "v" + Convert.ToString(Get(status, "version"), CultureInfo.InvariantCulture);
-                diagWatcher.Text = watcherText;
-                diagEngine.Text = engineText;
-                diagLastCheck.Text = Ago(last);
-                diagRecovery.Text = nowRecovery.Text;
-                diagStartup.Text = Equals(Get(status, "startup_enabled"), true) ? S("diag.yes", "yes") : S("diag.no", "no");
-                diagUpgrade.Text = upgrade ? S("diag.upgrade_pending", "An older watcher still owns the state") : "";
+                if (nowRecovery != null)
+                {
+                    nowRecovery.Text = recovery;
+                    nowWatcher.Text = watcherText;
+                    nowEngine.Text = engineText;
+                    nowLastCheck.Text = Ago(last);
+                }
+                if (diagVersion != null)
+                {
+                    diagVersion.Text = "v" + Convert.ToString(Get(status, "version"), CultureInfo.InvariantCulture);
+                    diagWatcher.Text = watcherText;
+                    diagEngine.Text = engineText;
+                    diagLastCheck.Text = Ago(last);
+                    diagRecovery.Text = recovery;
+                    diagStartup.Text = Equals(Get(status, "startup_enabled"), true) ? S("diag.yes", "yes") : S("diag.no", "no");
+                    diagUpgrade.Text = upgrade ? S("diag.upgrade_pending", "An older watcher still owns the state") : "";
+                }
             }
             UpdateToggle();
 
@@ -1451,43 +1621,52 @@ namespace CodexAutoResume
             // is waiting" over a list that could not be read is the one wrong answer this page
             // must not give - recoveries may well be waiting, and an older watcher may still
             // be sending them.
-            string unreadable = upgrade ? S("diag.upgrade_pending", "An older watcher still owns the state")
-                                        : S("pending.unavailable", "This cannot be read right now");
+            string unreadable = UnreadableReason(status);
             var week = Map(reply, "week");
-            if (week != null)
+            if (weekDetected != null)
             {
-                var outcomes = Map(week, "outcomes");
-                weekDetected.Text = ((int)Number(week, "interruptions_detected")).ToString(CultureInfo.CurrentCulture);
-                weekSent.Text = ((int)Number(week, "continuations_submitted")).ToString(CultureInfo.CurrentCulture);
-                weekRecovered.Text = ((int)Number(outcomes, "recovered")).ToString(CultureInfo.CurrentCulture);
-                weekSuccess.Text = Rate(week);
+                if (week != null)
+                {
+                    var outcomes = Map(week, "outcomes");
+                    weekDetected.Text = ((int)Number(week, "interruptions_detected")).ToString(CultureInfo.CurrentCulture);
+                    weekSent.Text = ((int)Number(week, "continuations_submitted")).ToString(CultureInfo.CurrentCulture);
+                    weekRecovered.Text = ((int)Number(outcomes, "recovered")).ToString(CultureInfo.CurrentCulture);
+                    weekSuccess.Text = Rate(week);
+                }
+                else
+                {
+                    weekDetected.Text = weekSent.Text = weekRecovered.Text = weekSuccess.Text = "-";
+                }
             }
-            else
+            if (pendingList != null)
             {
-                weekDetected.Text = weekSent.Text = weekRecovered.Text = weekSuccess.Text = "-";
+                if (Unreadable(reply, "pending")) ShowUnreadable(pendingList, pendingEmpty, unreadable);
+                else
+                {
+                    FillList(pendingList, Items(reply, "pending"), true);
+                    pendingEmpty.Text = S("pending.empty", "Nothing is waiting");
+                    pendingEmpty.Visible = pendingList.Items.Count == 0;
+                }
             }
-            if (Unreadable(reply, "pending")) ShowUnreadable(pendingList, pendingEmpty, unreadable);
-            else
+            bool historyUnreadable = Unreadable(reply, "history");
+            if (historyList != null)
             {
-                FillList(pendingList, Items(reply, "pending"), true);
-                pendingEmpty.Text = S("pending.empty", "Nothing is waiting");
-                pendingEmpty.Visible = pendingList.Items.Count == 0;
+                if (historyUnreadable) ShowUnreadable(historyList, historyEmpty, unreadable);
+                else
+                {
+                    FillList(historyList, Items(reply, "history"), false);
+                    historyEmpty.Text = S("history.empty", "No recoveries yet");
+                    historyEmpty.Visible = historyList.Items.Count == 0;
+                }
             }
-            if (Unreadable(reply, "history"))
+            if (recentGrid != null)
             {
-                ShowUnreadable(historyList, historyEmpty, unreadable);
-                ClearRecent(unreadable);
-            }
-            else
-            {
-                FillList(historyList, Items(reply, "history"), false);
-                FillRecent(Items(reply, "history"));
-                historyEmpty.Text = S("history.empty", "No recoveries yet");
-                historyEmpty.Visible = historyList.Items.Count == 0;
+                if (historyUnreadable) ClearRecent(unreadable);
+                else FillRecent(Items(reply, "history"));
             }
             // A Retry now note belongs to one record; once that record has left Pending -
             // sent, finished or cancelled - the note no longer describes anything on screen.
-            if (pendingNoteFor != null && pendingNoteFor != BulkNote && !Contains(pendingList, pendingNoteFor))
+            if (pendingNoteFor != null && pendingNoteFor != BulkNote && pendingList != null && !Contains(pendingList, pendingNoteFor))
                 pendingNoteFor = null;
             ShowPendingNote();
             ShowExplain();
@@ -1528,28 +1707,42 @@ namespace CodexAutoResume
             headline.Text = S("status.unavailable", "Status unavailable");
             detail.Text = S("status.unavailable_detail", "Settings can still be changed and saved");
             header.Invalidate(true);
+            // Only the pages built so far have labels; a page built later starts from its own
+            // placeholders, which say no more than these do.
             string unknown = S("diag.unknown", "unknown");
             foreach (Label label in new[] { nowRecovery, nowWatcher, nowEngine, nowLastCheck,
                                             diagWatcher, diagEngine, diagLastCheck, diagRecovery })
-                label.Text = unknown;
+                if (label != null) label.Text = unknown;
             string unreadable = S("pending.unavailable", "This cannot be read right now");
-            ShowUnreadable(pendingList, pendingEmpty, unreadable);
-            ShowUnreadable(historyList, historyEmpty, unreadable);
-            ClearRecent(unreadable);
-            waitingLine.Text = unreadable;
-            nextLine.Text = "";
-            runningLine.Text = "";
+            if (pendingList != null) ShowUnreadable(pendingList, pendingEmpty, unreadable);
+            if (historyList != null) ShowUnreadable(historyList, historyEmpty, unreadable);
+            if (recentGrid != null) ClearRecent(unreadable);
+            if (waitingLine != null)
+            {
+                waitingLine.Text = unreadable;
+                nextLine.Text = "";
+                runningLine.Text = "";
+            }
             // The week's figures and the Statistics page are read the same way and have
             // failed the same way; left as they were, they would be the last good answer
             // under a header that says the state cannot be read.
-            weekDetected.Text = weekSent.Text = weekRecovered.Text = weekSuccess.Text = "-";
+            if (weekDetected != null) weekDetected.Text = weekSent.Text = weekRecovered.Text = weekSuccess.Text = "-";
             MarkStatisticsUnavailable();
             pendingNoteFor = null;
-            SetNote(pendingNote, "");
+            if (pendingNote != null) SetNote(pendingNote, "");
             ShowExplain();
             UpdatePendingButtons();
             UpdateHistoryButtons();
             UpdateToggle();
+        }
+
+        /// Why a part of a snapshot says nothing: an older watcher still owns the state, or the
+        /// part could not be read.
+        private string UnreadableReason(Dictionary<string, object> status)
+        {
+            return Equals(Get(status, "upgrade_pending"), true)
+                 ? S("diag.upgrade_pending", "An older watcher still owns the state")
+                 : S("pending.unavailable", "This cannot be read right now");
         }
 
         private string Rate(Dictionary<string, object> stats)
@@ -1682,9 +1875,12 @@ namespace CodexAutoResume
             stateDot.State = Activity(status, pending, now);
             if (unreadable)
             {
-                waitingLine.Text = pendingEmpty.Text;
-                nextLine.Text = "";
-                runningLine.Text = "";
+                if (waitingLine != null)
+                {
+                    waitingLine.Text = UnreadableReason(status);
+                    nextLine.Text = "";
+                    runningLine.Text = "";
+                }
                 return;
             }
             int waiting = 0, running = 0;
@@ -1705,12 +1901,16 @@ namespace CodexAutoResume
                 }
             }
             bool enabled = Equals(Get(status, "enabled"), true);
-            waitingLine.Text = waiting == 0 && running == 0 ? S("overview.none_waiting", "Nothing is waiting to be recovered")
-                             : S("overview.waiting_count", "{n} waiting", "n", waiting);
-            nextLine.Text = !(waiting > 0 && enabled && next > 0) ? ""
-                : next <= now ? S("overview.due", "Due to be checked now")
-                : S("overview.next", "Next check in {time}", "time", Countdown(next - now));
-            runningLine.Text = running > 0 ? S("overview.running_count", "{n} running in Codex", "n", running) : "";
+            if (waitingLine != null)
+            {
+                waitingLine.Text = waiting == 0 && running == 0 ? S("overview.none_waiting", "Nothing is waiting to be recovered")
+                                 : S("overview.waiting_count", "{n} waiting", "n", waiting);
+                nextLine.Text = !(waiting > 0 && enabled && next > 0) ? ""
+                    : next <= now ? S("overview.due", "Due to be checked now")
+                    : S("overview.next", "Next check in {time}", "time", Countdown(next - now));
+                runningLine.Text = running > 0 ? S("overview.running_count", "{n} running in Codex", "n", running) : "";
+            }
+            if (pendingList == null) return;
             foreach (ListViewItem item in pendingList.Items)
             {
                 var row = item.Tag as Dictionary<string, object>;
@@ -1732,6 +1932,7 @@ namespace CodexAutoResume
         // conversation read under another is a sentence about the other one.
         private void ShowPendingNote()
         {
+            if (pendingNote == null) return;
             var chosen = Selected(pendingList);
             bool mine = pendingNoteFor == BulkNote || (pendingNoteFor != null && chosen != null &&
                         Str(chosen, "interruption_id") == pendingNoteFor);
@@ -1775,6 +1976,7 @@ namespace CodexAutoResume
 
         private void UpdatePendingButtons()
         {
+            if (pendingList == null) return;
             var row = Selected(pendingList);
             bool idle = busy == 0;
             bool cancelled = Equals(Get(row, "cancel_requested"), true);
@@ -1790,6 +1992,7 @@ namespace CodexAutoResume
 
         private void UpdateHistoryButtons()
         {
+            if (historyList == null) return;
             var row = Selected(historyList);
             bool idle = busy == 0;
             historyTimeline.Enabled = idle && row != null;
@@ -1800,13 +2003,17 @@ namespace CodexAutoResume
                 ? S("history.reset_limit", "Its attempts were already given back as many times as allowed; continue this task in Codex yourself.")
                 : "");
             bool off = row != null && !ThreadOn(row);
-            if (historyThread.Visible != off) historyThread.Visible = off;
+            // Set every time. While History is not the page on screen `Visible` answers false
+            // whatever the button was told, and a write skipped for that left it offered beside a
+            // row whose conversation is on.
+            historyThread.Visible = off;
             historyThread.Enabled = idle && off;
             historyClear.Enabled = idle && historyList.Items.Count > 0;
         }
 
         private void UpdateToggle()
         {
+            if (toggleButton == null) return;
             toggleButton.Enabled = busy == 0;
             string text = shownEnabled == false ? S("action.resume", "Resume recovery") : S("action.pause", "Pause recovery");
             if (toggleButton.Text != text) toggleButton.Text = text;
@@ -2024,22 +2231,22 @@ namespace CodexAutoResume
             });
         }
 
-        /// What the watcher is doing, as the header's halo shows it.
+        /// What the watcher is doing, as the header's status light shows it.
         ///
-        /// Pure, so the rule can be checked without a window: not running, not responding or
-        /// an unfinished upgrade needs a person; a pause is still; a continuation in Codex is
-        /// recovering; a task that has come due is being checked; anything else waiting is
-        /// waiting; and a running watcher with nothing to do is monitoring. With no pending list -
-        /// it could not be read - the status's own count says whether anything is waiting, so a
-        /// list that cannot be read is never shown as nothing to do.
+        /// Pure, so the rule can be checked without a window. A watcher that is not running, or
+        /// not known to be, is a light that is off - grey, as it was until v0.6.3, with the
+        /// headline beside it saying what is wrong. One that runs but is not responding, or that
+        /// an unfinished upgrade still shares the state with, needs a person; a pause is still; a
+        /// continuation in Codex is recovering; a task that has come due is being checked; anything
+        /// else waiting is waiting; and a running watcher with nothing to do is monitoring. With no
+        /// pending list - it could not be read - the status's own count says whether anything is
+        /// waiting, so a list that cannot be read is never shown as nothing to do.
         internal static string Activity(Dictionary<string, object> status, List<object> pending, double now)
         {
             if (status == null) return "idle";
-            object running = Get(status, "watcher_running");
-            if (running == null) return "idle";
+            if (!Equals(Get(status, "watcher_running"), true)) return "idle";
             var watcher = Map(status, "watcher");
-            if (!Equals(running, true) || Equals(Get(status, "upgrade_pending"), true) ||
-                Equals(Get(watcher, "ticking"), false))
+            if (Equals(Get(status, "upgrade_pending"), true) || Equals(Get(watcher, "ticking"), false))
                 return "attention";
             if (!Equals(Get(status, "enabled"), true)) return "paused";
             if (pending == null) return Number(status, "pending") > 0 ? "waiting" : "monitoring";
@@ -2149,6 +2356,7 @@ namespace CodexAutoResume
             // seconds whether or not the last one has answered, and a bridge that is
             // slow - every call a fresh interpreter once the long-lived one is given up -
             // leaves a growing pile of them waiting on its lock.
+            if (period == null) return;
             if (loadingStats)
             {
                 if (afterChange) { statsAgain = true; statsToken++; }
@@ -2189,6 +2397,7 @@ namespace CodexAutoResume
             // The same rule as the Overview: a number that could not be read is shown as
             // unknown, never as the answer to a different question - the period before
             // this one, or a week whose figures are no longer being read.
+            if (chart == null) return;
             foreach (Label label in new[] { statsDetected, statsSent, statsRecovered, statsSuccess,
                                             statsWait, statsRecover, statsRetry, statsKinds })
                 label.Text = "-";

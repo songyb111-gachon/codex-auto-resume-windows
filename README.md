@@ -189,9 +189,12 @@ photograph of the Codex window around it:
 
 The Start Menu opens the Dashboard, a standalone window that works with Codex closed: what the
 watcher is doing, what is waiting and when it is next looked at, what finished and how, the
-last week's numbers, the watcher's health, and the settings. The dot in its header shows what
-the watcher is doing — monitoring (a slow breath), waiting, checking a task that has come due,
-recovering, paused, or needing you (one pulse). **Reduce motion**, under Settings > Appearance,
+last week's numbers, the watcher's health, and the settings. The light in its header shows what
+the watcher is doing. While it is running and recovery is on, the light is cyan with a soft
+glow: it breathes slowly while the watcher watches, holds still while it waits, turns a small arc
+while it checks a task that has come due, and breathes a little faster while it recovers. Paused
+or stopped, it is plain grey; amber with one soft pulse means it needs you. The word beside it
+always says which. **Reduce motion**, under Settings > Appearance,
 stops those animations, and Windows' own animation setting is always honoured; High Contrast
 mode drops the shadows and tints. It is a native window; there is no local web server and
 nothing opens in a browser.
@@ -204,10 +207,10 @@ evidence that one was observed in Codex.
 
 Each waiting recovery shows why it is waiting and when it is next checked, and **Why it is
 waiting** lists the watcher's safety checks for the selected task as the watcher last recorded
-them. The **Auto-resume** check box on each row switches automatic recovery off or on for that
+them. The **Auto-resume** switch on each row turns automatic recovery off or on for that
 task's conversation. The click carries the exact interruption and conversation the row was
 drawn from, and a click that reaches a task which has since finished, disappeared or turned
-out to belong to another conversation is refused and changes nothing; either way the box sends
+out to belong to another conversation is refused and changes nothing; either way the switch sends
 nothing. **Retry now** only asks the watcher to look again now — every check still applies, and
 nothing is sent unless they all pass. **Cancel** stops recovering that interruption and
 everything that continues it: a record that was never sent is cancelled outright, one that may
@@ -219,7 +222,7 @@ all at once. **Turn off for this conversation** cancels its waiting recoveries a
 automatic recovery off for that conversation until you turn it back on — the Pending and History
 pages then offer **Turn on for this conversation**:
 
-<img src="docs/images/dashboard-pending.png" alt="The Pending page of the Dashboard: two conversations waiting, one for the usage reset and one with a retry scheduled, each with a state chip and an Auto-resume check box, the Why it is waiting checklist for the selected task, and Retry now, Cancel, Timeline, Turn off for this conversation and Cancel all buttons" width="680">
+<img src="docs/images/dashboard-pending.png" alt="The Pending page of the Dashboard: two conversations waiting, one for the usage reset and one with a retry scheduled, each with a state chip and an Auto-resume switch, the Why it is waiting checklist for the selected task, and Retry now, Cancel, Timeline, Turn off for this conversation and Cancel all buttons" width="680">
 
 <img src="docs/images/settings-window.png" alt="The Continuation message section of the Dashboard's Settings page: the continuation language, the four message styles with Standard selected, and a Preview of the message sent for a usage limit" width="680">
 
@@ -230,7 +233,7 @@ are waiting, how many are running in Codex and how long until the next check.
 
 A single click on the icon opens a small popup beside it, and another click closes it: the
 watcher's state, how many tasks are waiting and recovering, the next check, up to three waiting
-tasks, each with its own check box bound to that task's exact interruption and conversation,
+tasks, each with its own switch bound to that task's exact interruption and conversation,
 **Pause recovery** or **Resume recovery**, and **Open Dashboard**. A click anywhere else, or Esc,
 closes it too. The popup runs inside the watcher process, on the icon's own thread, and goes
 through the same control layer as every other surface; nothing in it can send a continuation.
@@ -238,7 +241,7 @@ The right-click menu is what it was: it opens the Dashboard, pauses or resumes r
 stops the watcher. The countdown only means the watcher looks again — nothing is sent because it
 reaches zero. The icon is on by default and can be switched off on the Settings page.
 
-<img src="docs/images/tray-popup.png" alt="The notification-area popup: waiting, with the next check in a minute and a half and three waiting tasks, each with its kind of interruption, when it is next tried and a check box to resume or retry it automatically, and Pause recovery and Open Dashboard buttons" width="360">
+<img src="docs/images/tray-popup.png" alt="The notification-area popup: waiting, with the next check in a minute and a half and three waiting tasks, each with its kind of interruption, when it is next tried and a switch to resume or retry it automatically, and Pause recovery and Open Dashboard buttons" width="360">
 
 Every window, the popup, the notifications and the panel inside Codex follow the interface
 language. The same popup in Korean, Japanese, Simplified Chinese and German:
@@ -283,7 +286,7 @@ recover anything by itself, and the watcher keeps running whether or not any of 
 What the project still avoids: a separate tray process, a management web UI, a supervisor process, a
 Windows service, a second recovery engine, and a second state database. The notification-area icon and
 its popup are not an exception: the watcher owns both, so they cannot show a watcher that is not
-there, and everything their menu, buttons and check boxes offer goes through the same control layer
+there, and everything their menus, buttons and switches offer goes through the same control layer
 as the other surfaces.
 
 ## Features
@@ -305,7 +308,7 @@ as the other surfaces.
 - A continuation message you can shape: its language, a Minimal, Standard or Detailed style, or
   your own Custom words, with a Preview built by the same code the watcher sends with.
 - A Dashboard that shows what the watcher is doing and why each task is waiting, with an
-  Auto-resume check box per waiting task, and a popup from the notification-area icon with the
+  Auto-resume switch per waiting task, and a popup from the notification-area icon with the
   same state, the next check and up to three waiting tasks.
 - Windows notifications across the lifecycle: interruption detected, recovery starting, how it
   turned out, and when it stops for good. Each one has its own switch, and the interruption
@@ -544,9 +547,9 @@ own usage-limit notice; the watcher, however, is running. See [docs/PLUGIN.md](h
 why the notice itself cannot get a checkbox.
 
 A related choice is offered in two more places, each bound to the exact interruption and
-conversation it is shown beside: a check box on each task in the notification-area popup, and the
+conversation it is shown beside: a switch on each task in the notification-area popup, and the
 **Auto-resume** column on the Dashboard's Pending page. Rather than cancelling one interruption,
-that check box switches automatic recovery off for the task's conversation until it is switched
+that switch turns automatic recovery off for the task's conversation until it is switched
 back on. A click that reaches a task which has since finished, disappeared or turned out to belong
 to a different conversation is refused and changes nothing. None of the three sends anything: they
 change whether the watcher may, and the watcher still checks everything before it does.
