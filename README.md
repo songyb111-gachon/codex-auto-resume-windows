@@ -6,8 +6,9 @@
 [![latest release](https://img.shields.io/github/v/release/songyb111-gachon/codex-auto-resume-windows?label=release)](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest)
 [![platform: Windows 10/11](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4)](#install)
 [![license: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![languages: 9](https://img.shields.io/badge/languages-9-0891b2)](#languages)
 
-<sub>🇰🇷 <a href="README.ko.md">한국어 README</a></sub>
+<sub>🇰🇷 <a href="README.ko.md">한국어 README</a> · The app speaks nine languages: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil)</sub>
 
 Codex stops mid-task and tells you to try again at 6:34 AM. You are asleep at 6:34 AM, and in
 the morning the task is exactly where it stopped.
@@ -36,6 +37,7 @@ v0.6.0).
 | **Never touches** | user cancellation · permission · approval · content policy · invalid requests · context length · permanent authentication failures · anything unclassified |
 | **Identity** | the exact conversation UUID only — never `--last`, never "the most recent one", never a title or a folder name |
 | **Configure it** | a Windows window from the Start Menu — from v0.6.0, a Dashboard whose settings are one of its six pages — a settings panel inside Codex, or the command line |
+| **Languages** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) — in the Dashboard, the notification-area popup, Windows notifications, the panel inside Codex and the continuation message sent to Codex. It follows Windows unless you choose one; see [Languages](#languages) |
 | **Tells you** | Windows notifications when a task is interrupted, when recovery starts, how it went, and when it gives up. While the watcher runs it also shows a notification-area icon, whose tooltip says whether recovery is paused, how many recoveries are waiting, how many are running in Codex, and how long until the next check |
 | **Privacy** | no telemetry, no analytics, no automatic update check, never reads your credentials. *Check for updates* in the window asks GitHub which release is newest, and only when you press it. The watcher has no network code; the usage check, the resumed turn and what the plugin's tools and commands return in a conversation go to OpenAI through Codex, as Codex's traffic always does; setup downloads the release from GitHub; and the v0.5.7 installer has Codex refresh every Git marketplace you have configured (naming only this one is new in v0.6.0) |
 
@@ -237,6 +239,11 @@ stops the watcher. The countdown only means the watcher looks again — nothing 
 reaches zero. The icon is on by default and can be switched off on the Settings page.
 
 <img src="docs/images/tray-popup.png" alt="The notification-area popup: waiting, with the next check in a minute and a half and three waiting tasks, each with its kind of interruption, when it is next tried and a check box to resume or retry it automatically, and Pause recovery and Open Dashboard buttons" width="360">
+
+Every window, the popup, the notifications and the panel inside Codex follow the interface
+language. The same popup in Korean, Japanese, Simplified Chinese and German:
+
+<img src="docs/images/tray-popup-ko.png" alt="The notification-area popup in Korean" width="190"> <img src="docs/images/tray-popup-ja.png" alt="The notification-area popup in Japanese" width="190"> <img src="docs/images/tray-popup-zh-CN.png" alt="The notification-area popup in Simplified Chinese" width="190"> <img src="docs/images/tray-popup-de.png" alt="The notification-area popup in German" width="190">
 
 ## Please read this limitation first
 

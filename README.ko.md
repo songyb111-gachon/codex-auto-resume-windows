@@ -6,8 +6,9 @@
 [![latest release](https://img.shields.io/github/v/release/songyb111-gachon/codex-auto-resume-windows?label=release)](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest)
 [![platform: Windows 10/11](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4)](#설치)
 [![license: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![languages: 9](https://img.shields.io/badge/languages-9-0891b2)](#언어)
 
-<sub>🇺🇸 <a href="README.md">English README</a></sub>
+<sub>🇺🇸 <a href="README.md">English README</a> · 프로그램은 아홉 개 언어로 표시됩니다: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil)</sub>
 
 Codex가 작업 도중에 멈추고 오전 6시 34분에 다시 해 보라고 말합니다. 오전 6시 34분에 사용자는
 자고 있고, 아침에 보면 작업은 멈춘 그 자리 그대로입니다.
@@ -32,6 +33,7 @@ Codex에서 설치할 때는 GitHub에서 릴리스를 내려받습니다. 그�
 | **손대지 않습니다** | 사용자 취소 · 권한 · 승인 필요 · 콘텐츠 정책 · 잘못된 요청 · 컨텍스트 길이 초과 · 영구 인증 실패 · 분류되지 않은 모든 것 |
 | **식별 방식** | 정확한 대화 UUID 하나. `--last`도, "가장 최근 것"도, 제목이나 폴더 이름도 쓰지 않습니다 |
 | **설정 방법** | 시작 메뉴에서 여는 Windows 창(v0.6.0부터 개요·대기 중·기록·통계·진단·설정 여섯 페이지의 대시보드), Codex 안의 설정 패널, 명령줄 |
+| **언어** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil). 대시보드, 알림 영역 팝업, Windows 알림, Codex 안의 패널, Codex에 보내는 이어서 하기 메시지가 모두 이 언어들로 표시됩니다. 기본은 Windows 언어를 따르고 직접 고를 수도 있습니다. [언어](#언어) 참고 |
 | **알려줍니다** | 중단 감지 · 복구 시작 · 결과 · 복구 중단 시 Windows 알림. 워처가 실행 중인 동안에는 알림 영역 아이콘이 자동 복구가 일시 정지 상태인지, 몇 건이 대기 중이고 몇 건이 Codex에서 실행 중인지, 다음 확인까지 얼마나 남았는지를 툴팁으로 보여 줍니다(v0.6.0부터) |
 | **개인정보** | 텔레메트리 없음, 분석 없음, 자동 업데이트 확인 없음, 자격 증명은 읽지 않음. 창의 *업데이트 확인*은 눌렀을 때만 GitHub에 가장 최근 릴리스를 묻습니다. watcher에는 네트워크 코드가 없으며, 사용량 확인과 재개된 턴, 그리고 대화 안에서 이 플러그인의 도구와 명령이 돌려준 결과는 여느 Codex 통신처럼 Codex를 통해 OpenAI로 갑니다. 설치 스크립트는 GitHub에서 릴리스를 내려받고, v0.5.7의 설치기는 Codex가 사용자가 설정해 둔 모든 Git 마켓플레이스를 새로 고치게 합니다(이 마켓플레이스만 지정하는 동작은 v0.6.0부터입니다) |
 
@@ -210,6 +212,11 @@ Codex에서 실행 중인지, 다음 확인까지 얼마나 남았는지를 보�
 표시**로 끌 수 있습니다.
 
 <img src="docs/images/tray-popup-ko.png" alt="알림 영역 팝업. 대기 중 상태, 약 1분 30초 뒤 다음 확인, 대기 중인 작업 세 개가 각각 중단 종류, 다음 시도 시각, 자동으로 이어 가거나 다시 시도할지 정하는 체크박스와 함께 보이고, 자동 복구 일시 정지와 대시보드 열기 버튼" width="360">
+
+모든 창, 팝업, 알림, Codex 안의 패널은 화면 언어를 따릅니다. 같은 팝업을 영어, 일본어,
+중국어(간체), 독일어로 표시한 모습입니다.
+
+<img src="docs/images/tray-popup.png" alt="영어로 표시된 알림 영역 팝업" width="190"> <img src="docs/images/tray-popup-ja.png" alt="일본어로 표시된 알림 영역 팝업" width="190"> <img src="docs/images/tray-popup-zh-CN.png" alt="중국어(간체)로 표시된 알림 영역 팝업" width="190"> <img src="docs/images/tray-popup-de.png" alt="독일어로 표시된 알림 영역 팝업" width="190">
 
 ## 먼저 읽어야 할 제한 사항
 
