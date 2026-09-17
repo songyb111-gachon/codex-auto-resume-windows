@@ -1,0 +1,731 @@
+"""The v0.6.4 settings panel: the theme it applies to itself, the language it switches to at once,
+and which on/off settings are switches and which are check boxes.
+
+* **Theme.** Light and Dark stamp `data-theme` on the page's root, Use system setting stamps nothing
+  and leaves Codex's own scheme in charge, and a stamp the page was served with (the documentation
+  capture's) is left alone. Applied from the stored setting before the first paint and again the
+  moment a save is confirmed. High Contrast needs no rule of its own: forced colours replace
+  whichever palette is stamped.
+* **Language.** Every language's words for this page ship with it, so a saved Interface language is
+  spoken at once, by the same rule Python adopts a stored choice with.
+* **Switch or check box.** A switch turns something that runs on or off; a check box picks which
+  items of a list apply. The check box is brand's, token for token, in both themes and in forced
+  colours, and it sits left of its label.
+
+Most of this runs the panel's own script in Node against a small stand-in for the DOM, because the
+claims are about what the page does, not about what its source says.
+"""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+import unittest
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "tests"))
+
+from codex_auto_resume import brand, interface, l10n, mcpserver, mcpui, reasons   # noqa: E402
+from codex_auto_resume import settings as policy                                   # noqa: E402
+from test_mcpui_v063 import (FORCED, RULES, ROOT_TOKENS, declared, javascript_function,  # noqa: E402
+                             painted, run_javascript)
+
+NODE = shutil.which("node")
+ENGLISH = l10n.catalog("en")
+KOREAN = l10n.catalog("ko")
+THREAD = "11111111-1111-7111-8111-111111111111"
+
+DARK_TOKENS = dict(ROOT_TOKENS, **next(
+    declarations for context, selectors, declarations in RULES
+    if context == "" and selectors == (':root[data-theme="dark"]',)))
+LIGHT_TOKENS = dict(ROOT_TOKENS, **next(
+    declarations for context, selectors, declarations in RULES
+    if context == "" and selectors == (':root[data-theme="light"]',)))
+
+
+def served(page: str, name: str):
+    """One of the values the page assigns to `window` before its script runs. None of them can
+    contain `;window.` or `;</script>`: the page escapes every `<`, and the catalogs hold no
+    `;window.`."""
+    value = page.split("window.%s=" % name, 1)[1]
+    return json.loads(re.split(r";(?:window\.|</script>)", value, maxsplit=1)[0])
+
+
+# ------------------------------------------------------------------------------ the page in Node
+# Just enough of a document for the panel's script to draw itself: elements with children,
+# attributes, listeners, a class list, and a select whose value is its selected option's.
+FAKE_DOM = r"""
+function El(tag) {
+  this.tagName = tag; this.children = []; this.attributes = {}; this.listeners = {};
+  this.className = ''; this.style = {}; this._text = ''; this.parentNode = null;
+  var self = this;
+  this.classList = {
+    contains: function (name) { return self.className.split(/\s+/).indexOf(name) >= 0; },
+    toggle: function (name, force) {
+      var names = self.className.split(/\s+/).filter(function (n) { return n && n !== name; });
+      var on = force === undefined ? !this.contains(name) : !!force;
+      if (on) names.push(name);
+      self.className = names.join(' ');
+      return on;
+    }
+  };
+  if (tag === 'select') {
+    Object.defineProperty(this, 'options', {get: function () {
+      return self.children.filter(function (c) { return c.tagName === 'option'; });
+    }});
+    Object.defineProperty(this, 'value', {
+      get: function () {
+        var options = self.options, chosen = options.filter(function (o) { return o.selected; });
+        return chosen.length ? chosen[chosen.length - 1].value : (options[0] ? options[0].value : '');
+      },
+      set: function (v) { self.options.forEach(function (o) { o.selected = o.value === v; }); }
+    });
+  }
+}
+Object.defineProperty(El.prototype, 'textContent', {
+  get: function () { return this._text + this.children.map(function (c) { return c.textContent; }).join(''); },
+  set: function (v) { this.children = []; this._text = String(v); }
+});
+El.prototype.appendChild = function (child) { child.parentNode = this; this.children.push(child); return child; };
+El.prototype.setAttribute = function (n, v) { this.attributes[n] = String(v); };
+El.prototype.getAttribute = function (n) {
+  return Object.prototype.hasOwnProperty.call(this.attributes, n) ? this.attributes[n] : null;
+};
+El.prototype.hasAttribute = function (n) { return Object.prototype.hasOwnProperty.call(this.attributes, n); };
+El.prototype.removeAttribute = function (n) { delete this.attributes[n]; };
+El.prototype.focus = function () { document.activeElement = this; };
+El.prototype.addEventListener = function (type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); };
+El.prototype.fire = function (type) { var self = this; (this.listeners[type] || []).forEach(function (fn) { fn({target: self}); }); };
+El.prototype.all = function (test) {
+  var found = [];
+  (function walk(node) { node.children.forEach(function (c) { if (test(c)) found.push(c); walk(c); }); })(this);
+  return found;
+};
+var ROOT_NODE = new El('div');
+var document = {
+  documentElement: new El('html'),
+  createElement: function (tag) { return new El(tag); },
+  getElementById: function (id) { return id === 'root' ? ROOT_NODE : null; }
+};
+var window = {};
+async function settle() { for (var i = 0; i < 10; i++) await new Promise(function (r) { setImmediate(r); }); }
+function byId(id) { return ROOT_NODE.all(function (n) { return n.id === id; })[0]; }
+function saveButton() {
+  return ROOT_NODE.all(function (n) { return n.tagName === 'button' && n.parentNode.className === 'savebar'; })[0];
+}
+function footerNote() {
+  return ROOT_NODE.all(function (n) { return n.tagName === 'p' && n.parentNode.className === 'savebar'; })[0];
+}
+function stored(settings) {
+  window.__STORED__ = settings;
+  window.openai = {callTool: function (name, args) {
+    CALLS.push([name, args]);
+    if (name === 'update_settings') {
+      window.__STORED__ = Object.assign({}, window.__STORED__, args);
+      return Promise.resolve({structuredContent: {settings: Object.assign({}, window.__STORED__)}});
+    }
+    if (name === 'preview_recovery_message') {
+      return Promise.resolve({structuredContent: {preview: {text: 'preview', source: 'standard'}}});
+    }
+    return new Promise(function () {});
+  }};
+}
+var CALLS = [];
+"""
+
+
+def snapshot(**settings):
+    """What open_settings hands the panel, with the stored settings changed as asked."""
+    values = policy.defaults()
+    values.update(settings)
+    return {"status": {"enabled": True, "watcher_running": True, "pending": 1, "version": "0"},
+            "schema": policy.describe(), "settings": values,
+            "pending": [{"thread_id": THREAD, "interruption_id": "a" * 64, "code": "waiting_reset",
+                         "category": "usage_limit", "thread_enabled": True, "overlays": [],
+                         "name": "example-project", "eligible_at": None, "recovery_attempts": 0}],
+            "reasons": list(reasons.RECOVERABLE), "endonyms": dict(l10n.ENDONYMS),
+            "system_language": "en"}
+
+
+def run_page(body, data=None, locale="en", catalogs=None, root_attributes=None):
+    """Serve the whole panel script into the stand-in document, then run `body` against it."""
+    data = snapshot() if data is None else data
+    script = "\n".join([
+        FAKE_DOM,
+        "document.documentElement.attributes = %s;" % json.dumps(root_attributes or {}),
+        "window.__CODEX_AUTO_RESUME_STRINGS__ = %s;" % json.dumps(l10n.catalog(locale)),
+        "window.__CODEX_AUTO_RESUME_LOCALE__ = %s;" % json.dumps(locale),
+        "window.__CODEX_AUTO_RESUME_CATALOGS__ = %s;" % json.dumps(
+            mcpui.panel_catalogs() if catalogs is None else catalogs),
+        "window.__CODEX_AUTO_RESUME__ = %s;" % json.dumps(data),
+        "stored(window.__CODEX_AUTO_RESUME__.settings);",
+        mcpui._SCRIPT,
+        "(async function () { await settle();" + body + "})().catch(function (e) {console.error(e); process.exit(1);});",
+    ])
+    done = subprocess.run([NODE, "-"], input=script, capture_output=True, text=True, encoding="utf-8")
+    if done.returncode != 0:
+        raise AssertionError(done.stderr)
+    return json.loads(done.stdout)
+
+
+def say(expression: str) -> str:
+    return "process.stdout.write(JSON.stringify(%s));" % expression
+
+
+# ------------------------------------------------------------------------------------ the kinds
+def expected_kind(entry) -> str:
+    """The rule, written out once more in Python: a list item is a check box, the rest switches."""
+    if entry.get("master"):
+        return "switch"
+    return "check" if re.fullmatch(r"(recover|notify)_[a-z0-9_]+", entry["name"]) else "switch"
+
+
+@unittest.skipUnless(NODE, "needs Node to run the panel's own code")
+class ControlKindTests(unittest.TestCase):
+    def test_a_list_item_is_a_check_box_and_anything_that_runs_is_a_switch(self):
+        booleans = [entry for entry in policy.describe() if entry["type"] == "boolean"]
+        observed = run_javascript(["booleanKind"], say("%s.map(booleanKind)" % json.dumps(booleans)))
+        self.assertEqual(dict(zip((e["name"] for e in booleans), observed)),
+                         {e["name"]: expected_kind(e) for e in booleans})
+        kinds = dict(zip((e["name"] for e in booleans), observed))
+        # Named, so the rule cannot quietly drift into something that happens to fit today's schema.
+        self.assertEqual(kinds["notifications"], "switch")
+        self.assertEqual(kinds["show_tray"], "switch")
+        self.assertEqual(kinds["reduce_motion"], "switch")
+        for name in reasons.RECOVERABLE:
+            self.assertEqual(kinds["recover_" + name], "check", name)
+        self.assertTrue([name for name in kinds if name.startswith("notify_")])
+        for name in kinds:
+            if name.startswith("notify_"):
+                self.assertEqual(kinds[name], "check", name)
+
+    def test_the_drawn_panel_uses_each_kind_where_it_belongs(self):
+        observed = run_page(say("""(function () {
+          function describe(input) {
+            var row = input.parentNode.className === 'setting-control' ? input.parentNode.parentNode : input.parentNode;
+            return {cls: input.className, role: input.getAttribute('role'), type: input.type,
+                    first: row.children[0] === input, rowClass: row.className, row: row.tagName,
+                    text: row.textContent, disabled: !!input.disabled};
+          }
+          var sections = ROOT_NODE.all(function (n) { return n.tagName === 'section' || n.tagName === 'details'; });
+          function inputsOf(title) {
+            var section = sections.filter(function (s) {
+              return s.all(function (n) { return n.tagName === 'h2' && n.textContent === title; }).length;
+            })[0];
+            return section.all(function (n) { return n.tagName === 'input' && n.type === 'checkbox'; }).map(describe);
+          }
+          return {recovery: inputsOf(S['group.recovery']), notifications: inputsOf(S['group.notifications']),
+                  pending: inputsOf(S['panel.pending_title'])};
+        })()"""))
+        recover = [e for e in policy.describe() if e["name"].startswith("recover_")]
+        self.assertEqual(len(observed["recovery"]), len(recover))
+        self.assertEqual(sorted(i["text"] for i in observed["recovery"]),
+                         sorted(ENGLISH["field." + e["name"]] for e in recover))
+        for drawn in observed["recovery"]:
+            with self.subTest(drawn["text"]):
+                self.assertEqual((drawn["cls"], drawn["role"], drawn["first"], drawn["rowClass"], drawn["row"]),
+                                 ("check", None, True, "setting check", "label"))
+        master = [i for i in observed["notifications"] if i["text"] == ENGLISH["field.notifications"]]
+        self.assertEqual(len(master), 1)
+        self.assertEqual((master[0]["cls"], master[0]["role"], master[0]["first"]), ("switch", "switch", False))
+        events = [i for i in observed["notifications"] if i["text"] != master[0]["text"]]
+        self.assertEqual(len(events), len([e for e in policy.describe() if e["name"].startswith("notify_")]))
+        for drawn in events:
+            with self.subTest(drawn["text"]):
+                self.assertEqual((drawn["cls"], drawn["role"], drawn["first"]), ("check", None, True))
+        # A conversation's auto-resume turns something that runs on or off.
+        self.assertEqual([(i["cls"], i["role"]) for i in observed["pending"]], [("switch", "switch")])
+
+    def test_a_check_box_saves_like_any_other_choice(self):
+        observed = run_page("""
+          var box = ROOT_NODE.all(function (n) { return n.className === 'check'; })[0];
+          box.checked = !box.checked;
+          box.fire('change');
+          var primary = saveButton().className;
+          saveButton().onclick();
+          await settle();
+          """ + say("{primary: primary, calls: CALLS.filter(function (c) { return c[0] === 'update_settings'; })}"))
+        self.assertEqual(observed["primary"], "primary")
+        self.assertEqual(len(observed["calls"]), 1)
+        sent = observed["calls"][0][1]
+        # Everything the panel may write, except the language and theme it did not change here
+        # (ChangedElsewhereTests says why).
+        self.assertEqual(set(sent), set(mcpserver.settings_schema()["properties"]) - {"theme", "interface_language"})
+        self.assertEqual(sent["recover_" + reasons.RECOVERABLE[0]], False)
+
+    def test_without_a_host_every_box_is_disabled_and_still_drawn(self):
+        observed = run_page("window.openai = undefined; HOST = null; render();" + say(
+            "ROOT_NODE.all(function (n) { return n.className === 'check'; }).map(function (n) { return n.disabled; })"))
+        self.assertTrue(observed)
+        self.assertTrue(all(observed))
+
+
+class CheckBoxStyleTests(unittest.TestCase):
+    """The check box is brand's CHECKBOX, through the `--check-*` names, in light, dark and forced colours."""
+
+    STATES = {"off": "input.check", "on": "input.check:checked",
+              "off_disabled": "input.check:disabled", "on_disabled": "input.check:checked:disabled"}
+
+    def fill_edge_elev(self, state):
+        selector = self.STATES[state]
+        fill = declared(selector, "background")
+        edge = declared(selector, "border-color")
+        if edge is None:
+            edge = declared(selector, "border").split(" solid ", 1)[1]
+        return fill, edge, declared(selector, "box-shadow")
+
+    def test_every_state_is_drawn_with_its_own_check_properties(self):
+        for state in self.STATES:
+            prefix = "--check-%s-" % state.replace("_", "-")
+            with self.subTest(state):
+                self.assertEqual(self.fill_edge_elev(state),
+                                 ("var(%sfill)" % prefix, "var(%sedge)" % prefix, "var(%selev)" % prefix))
+        self.assertEqual(declared("input.check::before", "background"), "var(--check-on-mark)")
+        self.assertEqual(declared("input.check:checked:disabled::before", "background"),
+                         "var(--check-on-disabled-mark)")
+        self.assertEqual(declared("input.check::before", "visibility"), "hidden")
+        self.assertEqual(declared("input.check:checked::before", "visibility"), "visible")
+
+    def test_each_state_paints_brands_colours_in_both_themes(self):
+        for theme, tokens in (("light", LIGHT_TOKENS), ("dark", DARK_TOKENS), ("light", ROOT_TOKENS)):
+            for state in self.STATES:
+                checked, enabled = state.startswith("on"), not state.endswith("disabled")
+                expected = brand.check_box(checked, enabled, theme)
+                fill, edge, elev = self.fill_edge_elev(state)
+                with self.subTest(theme=theme, state=state):
+                    self.assertEqual(painted(fill, tokens).upper(), expected["fill"].upper())
+                    self.assertEqual(painted(edge, tokens).upper(), expected["edge"].upper())
+                    self.assertEqual(painted(elev, tokens),
+                                     painted("var(--elev-inset)", tokens) if expected["well"] else "none")
+                    mark = declared("input.check:checked:disabled::before" if state == "on_disabled"
+                                    else "input.check::before", "background")
+                    if expected["mark"]:
+                        self.assertEqual(painted(mark, tokens).upper(), expected["mark"].upper())
+
+    def test_its_size_shape_and_mark_are_brands(self):
+        self.assertEqual(declared("input.check", "width"), "var(--size-check-size)")
+        self.assertEqual(declared("input.check", "height"), "var(--size-check-size)")
+        self.assertEqual(declared("input.check", "border-radius"), "var(--radius-check)")
+        self.assertEqual(declared("input.check", "appearance"), "none")
+        self.assertEqual(declared("input.check", "position"), "relative")
+        self.assertEqual(declared(".setting.check", "gap"), "var(--size-check-gap)")
+        self.assertEqual(ROOT_TOKENS["--size-check-size"], "%dpx" % brand.LAYOUT["check_size"])
+        self.assertEqual(ROOT_TOKENS["--size-check-gap"], "%dpx" % brand.LAYOUT["check_gap"])
+        self.assertEqual(ROOT_TOKENS["--radius-check"], "%dpx" % brand.RADII["check"])
+        # The mark's layer covers the whole box, border included, and is cut to brand's tick.
+        self.assertEqual(declared("input.check::before", "content"), '""')
+        self.assertEqual(declared("input.check::before", "position"), "absolute")
+        self.assertEqual(declared("input.check::before", "inset"), "calc(-1 * var(--size-hairline))")
+        self.assertEqual(declared("input.check::before", "clip-path"), "var(--check-mark-shape)")
+        self.assertEqual(ROOT_TOKENS["--size-hairline"], "%dpx" % brand.LAYOUT["hairline"])
+
+    def test_the_box_is_centred_on_the_first_line_of_its_label(self):
+        self.assertEqual(declared(".setting.check", "align-items"), "flex-start")
+        self.assertEqual(declared(".setting.check", "justify-content"), "flex-start")
+        margin = declared("input.check", "margin")
+        self.assertEqual(margin, "calc((var(--type-body) * var(--lh-body) - var(--size-check-size)) / 2) 0 0")
+        line = brand.TYPE_SCALE["body"] * brand.LINE_HEIGHT["body"]
+        self.assertGreaterEqual(line, brand.LAYOUT["check_size"])
+        self.assertEqual(ROOT_TOKENS["--type-body"], "%gpx" % brand.TYPE_SCALE["body"])
+        self.assertEqual(float(ROOT_TOKENS["--lh-body"]), brand.LINE_HEIGHT["body"])
+
+    def test_disabled_is_said_by_brands_colours_not_by_fading(self):
+        for selector in ("input.check:disabled", "input.check:checked:disabled"):
+            self.assertIsNone(declared(selector, "opacity"))
+            self.assertIsNone(declared(selector, "opacity", FORCED))
+
+    def test_forced_colours_draw_brands_system_colours_and_no_shadow(self):
+        for state, selector in self.STATES.items():
+            system = brand.check_box_system(state.startswith("on"), not state.endswith("disabled"))
+            with self.subTest(state):
+                self.assertEqual(declared(selector, "background", FORCED), brand.css_system(system["fill"]))
+                self.assertEqual(declared(selector, "border-color", FORCED), brand.css_system(system["edge"]))
+                self.assertEqual(declared(selector, "box-shadow", FORCED), "none")
+                if system["mark"]:
+                    before = selector + "::before"
+                    self.assertEqual(declared(before, "background", FORCED), brand.css_system(system["mark"]))
+        # Left to forced colours, the mark's layer would be painted the page's ground.
+        self.assertEqual(declared("input.check", "forced-color-adjust", FORCED), "none")
+        # Having opted out, it draws its own focus ring in a system colour; so does the switch.
+        self.assertEqual(declared("input.check:focus-visible", "outline-color", FORCED), "Highlight")
+        self.assertEqual(declared("input.switch:focus-visible", "outline-color", FORCED), "Highlight")
+
+    def test_the_focus_ring_is_the_one_every_control_has(self):
+        self.assertIn(":focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }", mcpui._STYLE)
+        # Nothing of its own outside forced colours: the ring follows the box's corners, as it
+        # follows every control's.
+        for prop in ("outline", "outline-offset", "outline-color"):
+            self.assertIsNone(declared("input.check", prop))
+            self.assertIsNone(declared("input.check:focus-visible", prop))
+
+
+# ------------------------------------------------------------------------------------ the theme
+@unittest.skipUnless(NODE, "needs Node to run the panel's own code")
+class ThemeTests(unittest.TestCase):
+    def test_light_and_dark_stamp_and_everything_else_follows_codex(self):
+        cases = ["light", "dark", "system", None, "", "Dark", "high-contrast", 1]
+        observed = run_javascript(["themeStamp", "applyTheme"], """
+          function root(stamp) {
+            var attributes = stamp ? {'data-theme': stamp} : {};
+            return {attributes: attributes,
+                    getAttribute: function (n) { return n in attributes ? attributes[n] : null; },
+                    setAttribute: function (n, v) { attributes[n] = v; },
+                    removeAttribute: function (n) { delete attributes[n]; }};
+          }
+          var cases = %s;
+          process.stdout.write(JSON.stringify({
+            stamps: cases.map(themeStamp),
+            fromLight: cases.map(function (c) { var r = root('light'); applyTheme(r, {theme: c}, false); return r.getAttribute('data-theme'); }),
+            noSettings: (function () { var r = root('dark'); applyTheme(r, null, false); return r.getAttribute('data-theme'); })(),
+            pinned: cases.map(function (c) { var r = root('dark'); applyTheme(r, {theme: c}, true); return r.getAttribute('data-theme'); })
+          }));
+        """ % json.dumps(cases))
+        self.assertEqual(observed["stamps"], ["light", "dark", "", "", "", "", "", ""])
+        self.assertEqual(observed["fromLight"], ["light", "dark", None, None, None, None, None, None])
+        self.assertIsNone(observed["noSettings"])
+        self.assertEqual(observed["pinned"], ["dark"] * len(cases))
+
+    def test_the_stored_theme_is_on_the_root_before_the_first_paint(self):
+        for theme, stamp in (("light", "light"), ("dark", "dark"), ("system", None)):
+            with self.subTest(theme):
+                observed = run_page(say("document.documentElement.getAttribute('data-theme')"),
+                                    data=snapshot(theme=theme))
+                self.assertEqual(observed, stamp)
+        # A watcher older than the setting sends no theme at all: that is Use system setting.
+        data = snapshot()
+        del data["settings"]["theme"]
+        self.assertIsNone(run_page(say("document.documentElement.getAttribute('data-theme')"), data=data))
+
+    def test_a_pinned_page_keeps_its_stamp_whatever_is_stored(self):
+        observed = run_page(say("document.documentElement.getAttribute('data-theme')"),
+                            data=snapshot(theme="light"),
+                            root_attributes={"data-theme": "dark", "data-theme-pinned": ""})
+        self.assertEqual(observed, "dark")
+
+    def test_a_saved_theme_applies_at_once_in_place(self):
+        observed = run_page("""
+          var steps = [];
+          var first = ROOT_NODE.children[0];
+          async function choose(value) {
+            var select = byId('car-theme');
+            select.value = value;
+            select.fire('change');
+            var before = document.documentElement.getAttribute('data-theme');
+            saveButton().onclick();
+            await settle();
+            steps.push({before: before, after: document.documentElement.getAttribute('data-theme'),
+                        samePage: ROOT_NODE.children[0] === first, note: footerNote().textContent});
+          }
+          await choose('dark');
+          await choose('light');
+          await choose('system');
+          """ + say("{steps: steps, sent: CALLS.filter(function (c) { return c[0] === 'update_settings'; })"
+                    ".map(function (c) { return c[1].theme; })}"))
+        self.assertEqual([(s["before"], s["after"]) for s in observed["steps"]],
+                         [(None, "dark"), ("dark", "light"), ("light", None)])
+        # Not before the save is confirmed, and without redrawing a page whose words did not change.
+        self.assertTrue(all(s["samePage"] for s in observed["steps"]))
+        self.assertEqual({s["note"] for s in observed["steps"]}, {ENGLISH["panel.saved"]})
+        self.assertEqual(observed["sent"], ["dark", "light", "system"])
+
+    def test_a_refused_save_leaves_the_theme_as_it_was(self):
+        observed = run_page("""
+          window.openai.callTool = HOST.callTool = function (name) {
+            if (name === 'update_settings') return Promise.resolve({isError: true, content: [], structuredContent: {error_code: 'invalid_setting'}});
+            return new Promise(function () {});
+          };
+          var select = byId('car-theme');
+          select.value = 'dark';
+          select.fire('change');
+          saveButton().onclick();
+          await settle();
+          """ + say("document.documentElement.getAttribute('data-theme')"), data=snapshot(theme="light"))
+        self.assertEqual(observed, "light")
+
+    def test_the_appearance_card_offers_the_three_choices_in_the_panels_words(self):
+        observed = run_page(say("""(function () {
+          var select = byId('car-theme');
+          var card = select.parentNode.parentNode.parentNode.parentNode;
+          return {options: select.options.map(function (o) { return [o.value, o.textContent, !!o.selected]; }),
+                  title: card.children[0].textContent, help: select.parentNode.parentNode.textContent,
+                  last: ROOT_NODE.children[0].children.slice(-2)[0] === card,
+                  editors: Object.keys(collectChanges(EDITORS, DATA.schema))};
+        })()"""), data=snapshot(theme="dark"))
+        self.assertEqual(observed["options"], [[choice, ENGLISH["choice.theme." + choice], choice == "dark"]
+                                               for choice in policy.THEMES])
+        self.assertEqual(observed["title"], ENGLISH["group.appearance"])
+        self.assertIn(ENGLISH["help.theme"], observed["help"])
+        self.assertIn(ENGLISH["field.theme"], observed["help"])
+        # Where the Windows Dashboard puts it: after the continuation message, before the save card.
+        self.assertTrue(observed["last"])
+        self.assertIn("theme", observed["editors"])
+        self.assertNotIn("reduce_motion", observed["editors"])
+
+    def test_only_the_theme_of_the_appearance_settings_is_the_panels_to_change(self):
+        schema = policy.describe()
+        observed = run_javascript(["editable"], say("%s.filter(editable).map(function (e) { return e.name; })"
+                                                    % json.dumps(schema, default=str)))
+        appearance = {e["name"] for e in schema if e["group"] == "appearance"}
+        self.assertEqual(set(observed) & appearance, {"theme"})
+        self.assertEqual(set(observed), set(mcpserver.settings_schema()["properties"]))
+
+
+class ServedThemeTests(unittest.TestCase):
+    def test_codex_is_served_no_stamp_and_a_capture_is_served_a_pinned_one(self):
+        self.assertTrue(mcpui.settings_page().startswith("<!doctype html><html><head>"))
+        for theme in ("light", "dark"):
+            with self.subTest(theme):
+                self.assertTrue(mcpui.settings_page(theme=theme).startswith(
+                    '<!doctype html><html data-theme="%s" data-theme-pinned=""><head>' % theme))
+        self.assertTrue(mcpui.settings_page(theme="system").startswith("<!doctype html><html><head>"))
+
+    def test_the_theme_is_stamped_on_the_root_where_the_check_aliases_are_declared(self):
+        script = mcpui._SCRIPT
+        self.assertIn("applyTheme(document.documentElement, settings, THEME_PINNED);", script)
+        self.assertEqual(len(re.findall(r"setAttribute\('data-theme'", script)), 1)
+        self.assertIn("hasAttribute('data-theme-pinned')", script)
+        # Applied before the first render, and from a confirmed save - nowhere else.
+        self.assertEqual(re.findall(r"(?<!function )\badopt\(([^)]*)\)", script),
+                         ["payload.settings", "DATA && DATA.settings"])
+        self.assertLess(script.index("adopt(DATA && DATA.settings);"), script.rindex("render();"))
+
+
+# --------------------------------------------------------------------------------- the language
+class ServedLanguageTests(unittest.TestCase):
+    def test_every_language_ships_every_word_the_script_can_ask_for(self):
+        page = mcpui.settings_page()
+        catalogs = served(page, "__CODEX_AUTO_RESUME_CATALOGS__")
+        self.assertEqual(set(catalogs), set(l10n.LOCALES))
+        names, prefixes = mcpui.panel_keys()
+        self.assertGreater(len(names), 40)
+        for locale in l10n.LOCALES:
+            full = l10n.catalog(locale)
+            wanted = {key for key in full if key in names or key.startswith(prefixes)}
+            with self.subTest(locale):
+                self.assertEqual(catalogs[locale], {key: full[key] for key in wanted})
+                self.assertEqual(sorted(name for name in names if name not in catalogs[locale]), [])
+        # The prefixes are the ones the catalog test lists values for, so none of them is empty.
+        for prefix in prefixes:
+            self.assertTrue([key for key in catalogs["en"] if key.startswith(prefix)], prefix)
+
+    def test_the_served_words_are_the_resolved_language_and_say_which_it_is(self):
+        page = mcpui.settings_page()
+        self.assertEqual(served(page, "__CODEX_AUTO_RESUME_LOCALE__"), interface.language())
+        self.assertEqual(served(page, "__CODEX_AUTO_RESUME_STRINGS__"), interface.catalog())
+        # Every value before the script, which reads them as it starts.
+        script = page.index("<script>" + mcpui._SCRIPT)
+        for name in ("__CODEX_AUTO_RESUME_STRINGS__", "__CODEX_AUTO_RESUME_LOCALE__", "__CODEX_AUTO_RESUME_CATALOGS__"):
+            self.assertLess(page.index("window.%s=" % name), script, name)
+
+    def test_the_script_asks_for_words_only_by_a_written_key_or_prefix(self):
+        """`panel_catalogs` ships the keys it can read out of the script. A key computed any other
+        way would be a word no other language ships, so the only computed lookups are the helpers'."""
+        rest = mcpui._SCRIPT
+        for helper in ("t", "fill", "withLanguage"):
+            self.assertIn(javascript_function(helper), rest)
+            rest = rest.replace(javascript_function(helper), "")
+        self.assertEqual(re.findall(r"(?<![\w.])(?:t|fill|withLanguage)\(\s*(?!')|(?<![\w.])S\[(?!')", rest), [])
+        literal = re.findall(r"(?<![\w.])(?:t|fill|withLanguage)\(\s*'|(?<![\w.])S\['", rest)
+        matched = (re.findall(r"\b(?:t|fill|withLanguage)\(\s*'[a-z0-9_.]+'\s*[,)]", rest)
+                   + re.findall(r"\b(?:t|fill)\(\s*'[a-z0-9_.]+\.'\s*\+|\bS\['[a-z0-9_.]+\.'\s*\+", rest))
+        self.assertEqual(len(literal), len(matched))
+
+    def test_the_page_stays_self_contained_and_escaped(self):
+        page = mcpui.settings_page()
+        for forbidden in ("http://", "https://", "<script src", "textarea", "contenteditable"):
+            self.assertNotIn(forbidden, page.lower() if forbidden != "<script src" else page)
+        catalogs = page.split("window.__CODEX_AUTO_RESUME_CATALOGS__=", 1)[1].split(";</script>", 1)[0]
+        self.assertNotIn("<", catalogs)
+
+
+@unittest.skipUnless(NODE, "needs Node to run the panel's own code")
+class LanguageTests(unittest.TestCase):
+    def test_a_stored_language_resolves_as_python_adopts_it(self):
+        """`_read_resource` adopts the stored value with `l10n.set_preference` and resolves it;
+        `system_language` is Windows' answer, which Python worked out."""
+        preferences = list(l10n.CHOICES) + ["", None, 3]
+        cases = [[preference, system] for preference in preferences for system in l10n.LOCALES]
+        catalogs = {locale: {} for locale in l10n.LOCALES}
+        observed = run_javascript(["localeFor"], say("%s.map(function (c) { return localeFor(c[0], c[1], %s); })"
+                                                     % (json.dumps(cases), json.dumps(catalogs))))
+        for (preference, system), locale in zip(cases, observed):
+            adopted = preference if preference in l10n.CHOICES else l10n.SYSTEM
+            with self.subTest(preference=preference, system=system):
+                self.assertEqual(locale, l10n.resolve(adopted, {l10n.ENV_LANG: system}))
+
+    def test_a_language_the_page_has_no_words_for_keeps_the_words_it_was_served(self):
+        # Not English, and not Windows' language either: a stored choice this page cannot speak -
+        # which the settings file's validation leaves to a page older than the watcher - is not
+        # a reason to speak a language nobody chose.
+        observed = run_javascript(["localeFor"], say(
+            "[localeFor('system', undefined, {en: {}}), localeFor('ko', undefined, {en: {}}),"
+            " localeFor('ko', 'en', {en: {}}), localeFor('ko', 'en', {}), localeFor('en', null, null),"
+            " localeFor('ko-KR', 'en', {en: {}, ko: {}}), localeFor('EN', 'ko', {en: {}, ko: {}})]"))
+        self.assertEqual(observed, ["", "", "", "", "", "", ""])
+
+    def test_a_saved_language_redraws_the_panel_in_it_at_once(self):
+        observed = run_page("""
+          var before = ROOT_NODE.textContent;
+          var select = byId('car-interface_language');
+          select.value = 'ko';
+          select.fire('change');
+          saveButton().onclick();
+          await settle();
+          """ + say("{before: before, after: ROOT_NODE.textContent, note: footerNote().textContent,"
+                    " locale: LOCALE, save: saveButton().textContent, primary: saveButton().className,"
+                    " focused: document.activeElement === saveButton(),"
+                    " language: byId('car-interface_language').value}"))
+        keys = ("group.general", "group.recovery", "group.notifications", "group.continuation",
+                "group.appearance", "preview.title", "field.theme", "activity.waiting")
+        for key in keys:
+            with self.subTest(key):
+                self.assertNotEqual(ENGLISH[key], KOREAN[key])
+                self.assertIn(ENGLISH[key], observed["before"])
+                self.assertNotIn(KOREAN[key], observed["before"])
+                self.assertIn(KOREAN[key], observed["after"])
+                self.assertNotIn(ENGLISH[key], observed["after"])
+        self.assertEqual(observed["locale"], "ko")
+        self.assertEqual(observed["note"], KOREAN["panel.saved"])
+        self.assertEqual(observed["save"], KOREAN["action.save"])
+        self.assertEqual(observed["primary"], "")
+        # The pressed button was replaced by the redraw; the keyboard stays on its successor.
+        self.assertTrue(observed["focused"])
+        self.assertEqual(observed["language"], "ko")
+        self.assertNotIn(ENGLISH["settings.language_changed"], observed["after"])
+
+    def test_a_language_saved_as_system_speaks_windows_language(self):
+        data = snapshot(interface_language="en")
+        data["system_language"] = "ja"
+        observed = run_page("""
+          var select = byId('car-interface_language');
+          select.value = 'system';
+          select.fire('change');
+          saveButton().onclick();
+          await settle();
+          """ + say("{locale: LOCALE, note: footerNote().textContent}"), data=data)
+        self.assertEqual(observed, {"locale": "ja", "note": l10n.catalog("ja")["panel.saved"]})
+
+    def test_the_stored_language_wins_over_a_page_served_in_another(self):
+        # Codex may show a page it read before the language was changed somewhere else.
+        observed = run_page(say("{locale: LOCALE, text: ROOT_NODE.textContent}"),
+                            data=snapshot(interface_language="ko"), locale="en")
+        self.assertEqual(observed["locale"], "ko")
+        self.assertIn(KOREAN["group.recovery"], observed["text"])
+        self.assertNotIn(ENGLISH["group.recovery"], observed["text"])
+
+    def test_without_the_words_it_says_the_change_waits_and_keeps_its_language(self):
+        catalogs = {"en": mcpui.panel_catalogs()["en"]}
+        observed = run_page("""
+          var first = ROOT_NODE.children[0];
+          var select = byId('car-interface_language');
+          select.value = 'ko';
+          select.fire('change');
+          saveButton().onclick();
+          await settle();
+          """ + say("{locale: LOCALE, note: footerNote().textContent, same: ROOT_NODE.children[0] === first}"),
+                            catalogs=catalogs)
+        self.assertEqual(observed, {"locale": "en", "note": ENGLISH["settings.language_changed"], "same": True})
+
+    def test_a_save_that_changes_no_language_does_not_redraw(self):
+        observed = run_page("""
+          var first = ROOT_NODE.children[0];
+          var box = ROOT_NODE.all(function (n) { return n.className === 'check'; })[0];
+          box.checked = !box.checked;
+          box.fire('change');
+          saveButton().onclick();
+          await settle();
+          """ + say("{same: ROOT_NODE.children[0] === first, note: footerNote().textContent}"))
+        self.assertEqual(observed, {"same": True, "note": ENGLISH["panel.saved"]})
+
+
+@unittest.skipUnless(NODE, "needs Node to run the panel's own code")
+class ChangedElsewhereTests(unittest.TestCase):
+    """The page keeps the settings it was drawn with, and the Windows Dashboard, another panel or
+    Codex itself may change the language or the theme while it stays open. A save of anything else
+    must not send the old ones back: that quietly undid the change, and the Dashboard, which
+    reopens itself in a new language or theme, then reopened in the one it had just left."""
+
+    ELSEWHERE = """
+      window.__STORED__ = Object.assign({}, window.__STORED__, {theme: 'dark', interface_language: 'ko'});
+    """
+
+    def test_saving_something_else_leaves_a_language_and_theme_changed_elsewhere_alone(self):
+        observed = run_page(self.ELSEWHERE + """
+          var box = ROOT_NODE.all(function (n) { return n.className === 'check'; })[0];
+          box.checked = !box.checked;
+          box.fire('change');
+          saveButton().onclick();
+          await settle();
+          var sent = CALLS.filter(function (c) { return c[0] === 'update_settings'; }).map(function (c) { return c[1]; });
+          """ + say("{sent: sent, stored: window.__STORED__, locale: LOCALE,"
+                    " stamp: document.documentElement.getAttribute('data-theme'),"
+                    " theme: byId('car-theme').value, language: byId('car-interface_language').value,"
+                    " primary: saveButton().className, note: footerNote().textContent}"))
+        self.assertEqual(len(observed["sent"]), 1)
+        sent = observed["sent"][0]
+        self.assertNotIn("theme", sent)
+        self.assertNotIn("interface_language", sent)
+        self.assertEqual(sent["recover_" + reasons.RECOVERABLE[0]], False)
+        # Everything else is still sent whole, as it always was.
+        self.assertEqual(set(sent), set(mcpserver.settings_schema()["properties"]) - {"theme", "interface_language"})
+        self.assertEqual((observed["stored"]["theme"], observed["stored"]["interface_language"]), ("dark", "ko"))
+        # The confirmed settings are drawn: the controls say what is stored, so nothing is left
+        # looking unsaved and the next save cannot send the old values back either.
+        self.assertEqual((observed["stamp"], observed["theme"], observed["language"], observed["locale"]),
+                         ("dark", "dark", "ko", "ko"))
+        self.assertEqual(observed["primary"], "")
+        self.assertEqual(observed["note"], KOREAN["panel.saved"])
+
+    def test_a_theme_changed_elsewhere_is_drawn_after_a_save_and_a_second_save_keeps_it(self):
+        observed = run_page("""
+          window.__STORED__ = Object.assign({}, window.__STORED__, {theme: 'dark'});
+          var boxes = ROOT_NODE.all(function (n) { return n.className === 'check'; });
+          boxes[0].checked = !boxes[0].checked;
+          boxes[0].fire('change');
+          saveButton().onclick();
+          await settle();
+          var after = {theme: byId('car-theme').value, primary: saveButton().className,
+                       stamp: document.documentElement.getAttribute('data-theme')};
+          boxes = ROOT_NODE.all(function (n) { return n.className === 'check'; });
+          boxes[1].checked = !boxes[1].checked;
+          boxes[1].fire('change');
+          saveButton().onclick();
+          await settle();
+          """ + say("{after: after, stored: window.__STORED__.theme, locale: LOCALE,"
+                    " sent: CALLS.filter(function (c) { return c[0] === 'update_settings'; })"
+                    ".map(function (c) { return 'theme' in c[1]; })}"))
+        self.assertEqual(observed["after"], {"theme": "dark", "primary": "", "stamp": "dark"})
+        self.assertEqual(observed["sent"], [False, False])
+        self.assertEqual((observed["stored"], observed["locale"]), ("dark", "en"))
+
+    def test_a_language_or_theme_chosen_here_is_still_sent(self):
+        observed = run_page(self.ELSEWHERE + """
+          var theme = byId('car-theme');
+          theme.value = 'light';
+          theme.fire('change');
+          var language = byId('car-interface_language');
+          language.value = 'de';
+          language.fire('change');
+          saveButton().onclick();
+          await settle();
+          """ + say("{sent: CALLS.filter(function (c) { return c[0] === 'update_settings'; }).map(function (c) {"
+                    " return [c[1].theme, c[1].interface_language]; }), stored: window.__STORED__, locale: LOCALE}"))
+        self.assertEqual(observed["sent"], [["light", "de"]])
+        self.assertEqual((observed["stored"]["theme"], observed["stored"]["interface_language"], observed["locale"]),
+                         ("light", "de", "de"))
+
+    def test_only_the_language_and_theme_are_left_out_when_unchanged(self):
+        observed = run_javascript(["unedited"], say(
+            "[unedited({theme: 'system', interface_language: 'en', notifications: true, continuation_language: 'en'},"
+            " {theme: 'system', interface_language: 'en', notifications: true, continuation_language: 'en'}),"
+            " unedited({theme: 'dark', interface_language: 'en'}, {theme: 'system', interface_language: 'ko'}),"
+            " unedited({theme: 'system'}, {}), unedited({}, {theme: 'system'}), unedited({theme: 'dark'}, null)]"))
+        self.assertEqual(observed, [["interface_language", "theme"], [], [], [], []])
+
+
+if __name__ == "__main__":
+    unittest.main()

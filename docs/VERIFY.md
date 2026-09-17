@@ -206,13 +206,13 @@ how to make each check during an acceptance and where to write it down.
   placeholder outside the five allowed ones is refused by name and changes nothing; an empty
   message for one kind of interruption falls back to the message for every interruption,
   then to Standard.
-- **Pending**: a task's **Auto-resume** box changes that task only, and a click on a task
+- **Pending**: a task's **Auto-resume** switch changes that task only, and a click on a task
   that changed first is refused and changes nothing; **Cancel all** cancels every pending
   recovery and turns no conversation off.
 - **The header** names what the watcher is doing, and **Reduce motion** (Settings →
   Appearance) stops its animation and the popup's.
 - **The notification-area icon**: one click opens a small window and a second closes it;
-  clicking elsewhere or pressing Esc closes it; its check box refuses a task that changed
+  clicking elsewhere or pressing Esc closes it; its switch refuses a task that changed
   first; its **Open Dashboard** opens the window; restarting Windows Explorer brings the icon
   back.
 - **Notifications**: an interruption's notification offers **Open Dashboard**, which opens

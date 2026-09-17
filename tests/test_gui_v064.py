@@ -746,7 +746,7 @@ class SourceRuleTests(unittest.TestCase):
         self.assertNotRegex(self.code, r"(?:byte|short|int|long|float|double|char|bool)\s*\[\s*\]\s+\w+\s*=\s*\{")
 
     def test_high_contrast_draws_no_shadow(self):
-        for signature in ("internal static void StampOuter(", "internal static void StampInset("):
+        for signature in ("internal static void StampOuter(", "internal static void StampInner("):
             with self.subTest(signature):
                 body = self.body(signature)
                 self.assertRegex(body.split("{", 1)[1].lstrip(), r"^if \(Palette\.Contrast\b")

@@ -12,6 +12,9 @@ Reaching zero only means the watcher looks again; nothing is sent because of it.
 Since v0.6.3 a single click opens the mini-dashboard beside the icon (`tray_popup.py`),
 the right-click menu is what it always was, and the icon wears a small badge for the
 state it is in. The popup lives on this thread too, so it is gone when the icon is.
+
+Since v0.6.4 the popup and the menu open in the Interface language and the Theme stored at
+the moment they open (`_adopt_settings`), rather than waiting for the watcher's next tick.
 """
 from __future__ import annotations
 
@@ -20,6 +23,7 @@ from ctypes import wintypes as W
 import os
 from pathlib import Path
 import subprocess
+import sys
 import threading
 import time
 
@@ -58,6 +62,16 @@ TIP_CHARS = 128
 # confirmations intact. (The popup's per-task switch is the other half: it names the
 # conversation beside the switch, and it is bound to that row's exact identities.)
 MENU_OPEN, MENU_TOGGLE, MENU_STOP, MENU_PENDING = 1, 2, 3, 4
+
+# How the menu looks. Windows draws a popup menu itself, and draws it light unless the process has
+# asked for dark through uxtheme's preferred app mode - a call Windows exports by ordinal only, with
+# no documented name, stable since Windows 10 1903 (build 18362). On an older build that ordinal is
+# a different function, so nothing is asked there and the menu stays light. It is asked for
+# ForceDark exactly when the popup beside it is dark, and back to Default otherwise; High Contrast
+# needs no request, because Windows draws every menu in the contrast theme's colours.
+APP_MODE_DEFAULT, APP_MODE_FORCE_DARK = 0, 2
+UXTHEME_SET_PREFERRED_APP_MODE, UXTHEME_FLUSH_MENU_THEMES = 135, 136
+DARK_MENU_BUILD = 18362
 _DLLS = {}
 
 
@@ -134,6 +148,27 @@ def tooltip(snapshot: dict, strings: dict, now: float) -> str:
     return (title + "\n" + line)[:TIP_CHARS - 1]
 
 
+def menu_app_mode(look) -> int:
+    """The app mode the menu is asked for, by what the popup draws with: dark only in dark."""
+    return APP_MODE_FORCE_DARK if look == "dark" else APP_MODE_DEFAULT
+
+
+def prefer_app_mode(mode) -> bool:
+    """Ask Windows to draw this process's menus in `mode`. False where Windows cannot be asked."""
+    if os.name != "nt" or sys.getwindowsversion().build < DARK_MENU_BUILD:
+        return False
+    uxtheme = _dll("uxtheme")
+    # By ordinal each time: an export looked up this way is a fresh function object, so the types
+    # declared on it reach no other caller.
+    prefer = uxtheme[UXTHEME_SET_PREFERRED_APP_MODE]
+    prefer.argtypes, prefer.restype = (C.c_int,), C.c_int
+    flush = uxtheme[UXTHEME_FLUSH_MENU_THEMES]
+    flush.argtypes, flush.restype = (), None
+    prefer(mode)
+    flush()                                     # menus already themed in this process take it up
+    return True
+
+
 class Tray:
     """One icon, one hidden window, one thread - and, once clicked, one popup on it."""
 
@@ -167,6 +202,10 @@ class Tray:
         self._version4 = False
         self._popup = None
         self._popup_failed = False
+        self._settings_stamp = None   # the settings file as last read: (mtime, size), or None
+        self._settings_values = None
+        self._menu_mode = APP_MODE_DEFAULT   # what this process's menus were last asked to be
+        self._menu_theming = True            # False once Windows could not be asked
 
     # ----------------------------------------------------------------- public
     def start(self) -> bool:
@@ -335,6 +374,8 @@ class Tray:
 
     def _menu(self):
         user32 = _dll("user32")
+        self._adopt_settings()                  # the menu speaks the language stored now
+        self._theme_menu()                      # and is drawn in the theme the popup is
         with self._lock:
             snapshot = dict(self._snapshot)
         menu = user32.CreatePopupMenu()
@@ -379,6 +420,77 @@ class Tray:
         except Exception as exc:
             self.log("tray action failed (%s)" % type(exc).__name__)
 
+    # ------------------------------------------------------ what was stored since
+    def _stored_settings(self):
+        """The stored settings through the control layer, read again only when the file changed.
+
+        None when this icon has no control layer that can say. A look at the file's stamp is all
+        an unchanged file costs, so it is taken each time somebody opens the popup or the menu.
+        """
+        read = getattr(self.control, "get_settings", None)
+        if read is None:
+            return None
+        where = getattr(self.control, "settings_path", None)
+        stamp = None
+        if where is not None:
+            try:
+                status = os.stat(where())
+                stamp = (status.st_mtime_ns, status.st_size)
+            except OSError:
+                stamp = None
+        if stamp is None or stamp != self._settings_stamp or self._settings_values is None:
+            self._settings_values = dict(read())
+            self._settings_stamp = stamp
+        return self._settings_values
+
+    def _adopt_settings(self):
+        """Speak the stored Interface language and draw in the stored Theme from this opening on.
+
+        The watcher adopts a changed settings file at its next tick, which can be an hour away,
+        and somebody who has just chosen a language or a theme and clicks the icon expects the
+        popup and the menu to have it already. So the icon looks for itself before it opens
+        either - the same settings, resolved the way the watcher resolves them - and the watcher
+        restarts for none of it. The icon and its badge do not change with the theme.
+        """
+        try:
+            values = self._stored_settings()
+            if values is None:
+                return
+            from . import tray_popup
+            tray_popup.adopt_settings(values)
+            strings = tray_popup.vocabulary(values.get("interface_language"))
+            with self._lock:
+                changed = strings != self.strings
+            if changed:
+                self.set_strings(strings)
+        except Exception as exc:                # an unreadable file costs the new words, nothing else
+            self.log("tray settings read failed (%s)" % type(exc).__name__)
+
+    def _theme_menu(self):
+        """Ask for a dark menu when the popup beside it is dark, and for Windows' own look otherwise.
+
+        Resolved when the menu opens, the way the popup resolves it: the stored Theme, Windows' app
+        mode for Use system setting, and High Contrast over both. Asked only when that changes. If
+        Windows cannot be asked, or the request fails, the menu keeps the look it always had and
+        nothing is asked again; the failure is logged once.
+        """
+        if not self._menu_theming:
+            return
+        try:
+            from . import tray_popup
+            look = tray_popup.appearance(tray_popup.theme_setting(), tray_popup.apps_use_light_theme(),
+                                         tray_popup.high_contrast())
+            mode = menu_app_mode(look)
+            if mode == self._menu_mode:
+                return
+            if prefer_app_mode(mode):
+                self._menu_mode = mode
+            else:
+                self._menu_theming = False
+        except Exception as exc:
+            self._menu_theming = False
+            self.log("tray menu theme failed (%s)" % type(exc).__name__)
+
     # ----------------------------------------------------------------- popup
     def _popup_for_click(self):
         if self.control is None or self._popup_failed:
@@ -404,6 +516,7 @@ class Tray:
                 pass
 
     def _select(self, keyboard=False):
+        self._adopt_settings()
         popup = self._popup_for_click()
         if popup is None:
             return
@@ -413,6 +526,7 @@ class Tray:
             self._popup_broke(exc)
 
     def _double_click(self):
+        self._adopt_settings()
         popup = self._popup_for_click()
         if popup is None:
             if self.on_open:

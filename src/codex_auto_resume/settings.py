@@ -57,6 +57,15 @@ RETRY_TIMING = {
 }
 DEFAULT_TIMING = "normal"
 
+# Light or dark, for the settings window, the notification-area popup and the panel in
+# Codex. "system" is not a colour: it is the standing instruction to follow the host -
+# Windows' app mode for the window and the popup, Codex's own theme for the panel - so a
+# later change there carries every surface with it. Windows High Contrast outranks all
+# three on every surface; that is an accessibility setting, not a theme.
+THEME_SYSTEM = "system"
+THEMES = (THEME_SYSTEM, "light", "dark")
+DEFAULT_THEME = THEME_SYSTEM
+
 
 class SettingsError(ValueError):
     """A rejected write. Reads never raise; they fall back to defaults."""
@@ -99,6 +108,9 @@ FIELDS = {
     "notifications": (True, _boolean),
     # The watcher's notification-area icon. Showing it changes nothing about recovery.
     "show_tray": (True, _boolean),
+    # First in Appearance, so it comes before Reduce motion wherever the schema is listed.
+    # Changes nothing but colours; the notification-area icon and its badge stay as they are.
+    "theme": (DEFAULT_THEME, lambda v, d: _choice(v, d, THEMES)),
     # Stops every looping and pulsing animation in the Dashboard and the notification-area
     # popup, on top of Windows' own "Animation effects" switch, which is honoured anyway.
     "reduce_motion": (False, _boolean),
@@ -172,6 +184,7 @@ RANGES = {
     "max_chain_continuations": {"min": 1, "max": 10},
     "detection_lookback_hours": {"min": 0.0, "max": float(24 * 7)},
     "retry_timing": {"choices": list(RETRY_TIMING)},
+    "theme": {"choices": list(THEMES)},
     "interface_language": {"choices": list(l10n.CHOICES)},
     "continuation_language": {"choices": list(CONTINUATION_LANGUAGES)},
     "continuation_style": {"choices": list(continuation.STYLES)},
@@ -229,6 +242,17 @@ def validate_update(changes) -> dict:
 def timing_ladder(values) -> tuple:
     name = _choice((values or {}).get("retry_timing"), DEFAULT_TIMING, RETRY_TIMING)
     return RETRY_TIMING[name]
+
+
+def theme_preference(values) -> str:
+    """The stored theme choice - "system", "light" or "dark" - never anything else.
+
+    Only the choice. What "system" resolves to depends on the surface (Windows' app mode,
+    or the host's colour scheme in Codex), and High Contrast outranks every choice, so
+    resolving it belongs to the surface that draws.
+    """
+    raw = values.get("theme") if isinstance(values, dict) else None
+    return _choice(raw, DEFAULT_THEME, THEMES)
 
 
 def category_enabled(values, category: str) -> bool:
@@ -328,9 +352,10 @@ def describe() -> list:
         elif name.startswith("notify_") or name == "notifications":
             entry["group"] = "notifications"
             entry["master"] = name == "notifications"
-        elif name == "reduce_motion":
-            # How the Windows surfaces look. The panel in Codex follows the host's own
-            # reduced-motion preference, so this is not offered there.
+        elif name in ("theme", "reduce_motion"):
+            # How the surfaces look. The theme is offered in the window and in the panel,
+            # which it colours too. Reduce motion is only offered in the window: the panel
+            # in Codex follows the host's own reduced-motion preference.
             entry["group"] = "appearance"
         elif name == "show_tray":
             # A desktop preference, beside "run at sign-in" - not a notification, and

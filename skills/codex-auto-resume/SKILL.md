@@ -248,7 +248,7 @@ believing they changed something.
 What `update_settings` can change: which classified failure categories are recovered, how many
 attempts each interruption gets, how many continuations one task gets in total (six by default,
 one to ten), when to stop after repeated no-progress recoveries, the retry timing preset, which
-notifications appear, the interface language, the continuation language, the message style
+notifications appear, the interface language, the theme (light, dark, or following the system), the continuation language, the message style
 (Minimal, Standard, Detailed or Custom), and whether a Custom message is one message for every
 interruption or one per kind. The window has three things `update_settings` does not offer: the
 notification-area icon, Reduce motion, and the Custom message text itself. If the user wants to
@@ -275,7 +275,7 @@ process, so it cannot show a watcher that is not there. Hovering over it says wh
 is paused, how many recoveries are waiting and how many are running in Codex, and how long
 until the next check - which is when the watcher looks again, not when anything is sent. A
 single click opens a small popup beside it with the same state, the next check, up to three
-waiting tasks - each with a check box that switches automatic recovery off or on for that
+waiting tasks - each with a switch that turns automatic recovery off or on for that
 task's conversation, refused if the task has since finished or changed - Pause or Resume, and
 Open Dashboard. Its right-click menu opens the window, pauses or resumes recovery, and stops
 the watcher. Nothing in the popup or the menu sends a continuation. It is on by default and can

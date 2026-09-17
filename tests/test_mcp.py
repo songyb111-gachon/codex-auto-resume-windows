@@ -228,10 +228,22 @@ class ToolSurfaceTests(McpTestCase):
 
     def test_the_settings_schema_is_generated_from_the_shared_fields(self):
         properties = mcpserver.settings_schema()["properties"]
-        offered = {e["name"] for e in settings.describe() if e.get("group") in mcpserver.USER_GROUPS
+        offered = {e["name"] for e in settings.describe()
+                   if (e.get("group") in mcpserver.USER_GROUPS or e["name"] in mcpserver.PANEL_APPEARANCE)
                    and not (e["name"].startswith("custom_message") and e["name"] != "custom_message_mode")}
         self.assertEqual(set(properties), offered)
         self.assertIs(mcpserver.settings_schema()["additionalProperties"], False)
+
+    def test_the_theme_is_offered_and_the_windows_only_preferences_are_not(self):
+        """The panel is drawn in the theme too, so Codex may change it. Reduce motion and
+        the notification-area icon belong to the Windows surfaces and stay out."""
+        properties = mcpserver.settings_schema()["properties"]
+        self.assertEqual(mcpserver.PANEL_APPEARANCE, frozenset({"theme"}))
+        self.assertEqual(properties["theme"]["type"], "string")
+        self.assertEqual(properties["theme"]["enum"], ["system", "light", "dark"])
+        self.assertNotEqual(properties["theme"]["description"], "See the settings documentation.")
+        for name in ("reduce_motion", "show_tray"):
+            self.assertNotIn(name, properties)
 
     def test_a_model_cannot_write_the_text_sent_into_conversations(self):
         """Custom continuation text is sent later, by the watcher, into the user's
@@ -308,6 +320,23 @@ class ToolBehaviourTests(McpTestCase):
     def test_update_settings_persists_through_the_shared_layer(self):
         self.call("update_settings", {"max_no_progress": 8})
         self.assertEqual(self.control.get_settings()["max_no_progress"], 8)
+
+    def test_the_theme_is_changed_through_the_shared_layer_and_a_bad_one_is_refused(self):
+        result = self.call("update_settings", {"theme": "dark"})["result"]
+        self.assertNotIn("isError", result)
+        self.assertEqual(result["structuredContent"]["settings"]["theme"], "dark")
+        self.assertEqual(self.control.get_settings()["theme"], "dark")
+        refused = self.call("update_settings", {"theme": "blue"})
+        self.assertNotIn("error", refused)
+        self.assertIs(refused["result"]["isError"], True)
+        self.assertEqual(self.control.get_settings()["theme"], "dark")
+
+    def test_a_windows_only_preference_is_refused_even_if_the_schema_is_ignored(self):
+        for name in ("reduce_motion", "show_tray"):
+            with self.subTest(name):
+                response = self.call("update_settings", {name: not settings.DEFAULTS[name]})
+                self.assertIs(response["result"]["isError"], True)
+                self.assertEqual(self.control.get_settings()[name], settings.DEFAULTS[name])
 
     def test_a_refused_setting_is_a_tool_error_not_a_protocol_error(self):
         # The model should read the reason and correct itself, not lose the connection.

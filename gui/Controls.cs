@@ -17,6 +17,12 @@
 // * Motion is a state, not decoration, and it stops when Windows is asked to reduce motion,
 //   when this product's own "Reduce motion" setting is on, or when nothing is visible.
 //
+// v0.6.4 adds the dark theme. The window decides its theme once, as it opens (Theme.Resolve):
+// the Theme setting, Windows' app mode when that is "system", and High Contrast over both. It
+// then draws every colour and every shadow from Palette and Tokens, which hold that one theme
+// - never from Brand's light fields directly - so a change of theme is a new window
+// (SettingsForm.Reopen), not a repaint.
+//
 // A child window cannot paint outside itself, so a lift is not drawn by the control that has
 // it: the container behind it - its ground - stamps the shadow before the control paints its
 // body, and the control repaints only its rounded corners from that ground (see Ground).
@@ -30,37 +36,230 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows.Forms;
 
 namespace CodexAutoResume
 {
-    /// The palette as the window uses it, with High Contrast honoured in one place.
+    /// Which theme the window is drawn in.
+    ///
+    /// The Theme setting is "system", "light" or "dark". "system" follows Windows' app mode -
+    /// HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize, AppsUseLightTheme: 0 is
+    /// dark, anything else or nothing is light - and High Contrast wins over every choice. The
+    /// answer is one of "light", "dark" and "contrast", and it is decided once, as the window opens.
+    internal static class Theme
+    {
+        internal const string System = "system";
+        internal const string Light = "light";
+        internal const string Dark = "dark";
+        internal const string Contrast = "contrast";
+
+        private const string PersonalizeKey = @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
+
+        /// The most a settings file may hold and still be read: settings.MAX_SETTINGS_BYTES.
+        internal const int MaxSettingsBytes = 256 * 1024;
+
+        private const int SPI_GETHIGHCONTRAST = 0x0042;
+        private const int HCF_HIGHCONTRASTON = 0x0001;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct HighContrastInfo
+        {
+            internal int Size;
+            internal int Flags;
+            internal IntPtr DefaultScheme;
+        }
+
+        [DllImport("user32.dll", EntryPoint = "SystemParametersInfoW")]
+        private static extern bool SystemParametersInfo(int action, int parameter, ref HighContrastInfo info, int update);
+
+        /// The Theme preference the window opened with; set once, by Program.Main.
+        internal static string Opened = System;
+
+        /// A stored Theme preference as the settings layer reads it: "light" or "dark" exactly, and
+        /// "system" for anything else - a missing value, another case, another type.
+        internal static string Preference(object value)
+        {
+            string text = value as string;
+            return text == Light || text == Dark ? text : System;
+        }
+
+        /// The theme a window draws in. Pure, so the rule can be checked without a window.
+        /// `appsUseLightTheme` is the registry value, or -1 when there is none.
+        internal static string Resolve(string preference, int appsUseLightTheme, bool highContrast)
+        {
+            if (highContrast) return Contrast;
+            string chosen = Preference(preference);
+            if (chosen != System) return chosen;
+            return appsUseLightTheme == 0 ? Dark : Light;
+        }
+
+        /// Windows' app mode as the registry holds it, or -1 when it cannot be read.
+        internal static int AppsUseLightTheme()
+        {
+            try
+            {
+                using (Microsoft.Win32.RegistryKey key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(PersonalizeKey))
+                {
+                    object value = key == null ? null : key.GetValue("AppsUseLightTheme");
+                    if (value is int) return (int)value;
+                }
+            }
+            catch (Exception) { }
+            return -1;
+        }
+
+        /// The theme this machine gives a preference right now.
+        internal static string Current(string preference)
+        {
+            return Resolve(preference, AppsUseLightTheme(), HighContrast());
+        }
+
+        /// Whether High Contrast is on, asked of Windows now. Not SystemInformation.HighContrast: .NET keeps
+        /// that from its first read until its own hidden window has handled the change, and the window's
+        /// WM_SETTINGCHANGE for turning High Contrast on is handled first (SettingsForm.WndProc) - asked
+        /// there, it answered with the old value, and the window kept its colours under High Contrast.
+        internal static bool HighContrast()
+        {
+            try
+            {
+                var info = new HighContrastInfo();
+                info.Size = Marshal.SizeOf(typeof(HighContrastInfo));
+                info.Flags = 0;
+                info.DefaultScheme = IntPtr.Zero;
+                if (SystemParametersInfo(SPI_GETHIGHCONTRAST, info.Size, ref info, 0))
+                    return (info.Flags & HCF_HIGHCONTRASTON) != 0;
+            }
+            catch (Exception) { /* Windows could not be asked: .NET's copy, stale only while a change is on its way */ }
+            return SystemInformation.HighContrast;
+        }
+
+        /// The Theme preference an installation's settings store, read from its settings file before
+        /// anything is drawn: the bridge that reads it properly takes a Python start, and every colour
+        /// is decided before the first control exists. The first settings read through the bridge
+        /// confirms it (SettingsForm.Observe), so the file is read exactly as settings.load reads it for
+        /// the bridge: no more than MaxSettingsBytes, UTF-8 with no byte order mark and no invalid byte,
+        /// and one JSON value with nothing after it. Any other file is the defaults to the settings layer,
+        /// so it is "system" here too, as is no file at all - a file the two read differently opened the
+        /// window in one theme and had its first read reopen it in the other, every time it was opened.
+        internal static string Stored(string root)
+        {
+            try
+            {
+                var file = new FileInfo(Path.Combine(Path.Combine(root, "config"), "settings.json"));
+                if (!file.Exists || file.Length > MaxSettingsBytes) return System;
+                string text = new UTF8Encoding(false, true).GetString(File.ReadAllBytes(file.FullName));
+                if (text.Length > 0 && text[0] == '\uFEFF') return System;
+                var map = Json.ParseDocument(text) as Dictionary<string, object>;
+                object value;
+                return map != null && map.TryGetValue("theme", out value) ? Preference(value) : System;
+            }
+            catch (Exception)
+            {
+                return System;
+            }
+        }
+    }
+
+    /// The brand colours of the theme in effect - Brand's or Brand.Dark's, never a system colour.
+    /// What High Contrast replaces is Palette's business; a few rules that name the High Contrast
+    /// colour themselves (the scroll bar's) read the brand half here.
+    internal static class Tokens
+    {
+        internal static bool Dark;
+        internal static Color Ink, Muted, Line, Surface, Canvas, Raised, Inset, Accent, AccentHover, AccentPressed,
+                              OnAccent, AccentSoft, Focus, Active, Idle, Attention, Success, Waiting, Warning, Danger,
+                              Paused, Card, ShadowDark, ShadowLight;
+
+        static Tokens()
+        {
+            Adopt(false);
+        }
+
+        internal static void Adopt(bool dark)
+        {
+            Dark = dark;
+            if (dark)
+            {
+                Ink = Brand.Dark.Ink; Muted = Brand.Dark.Muted; Line = Brand.Dark.Line; Surface = Brand.Dark.Surface;
+                Canvas = Brand.Dark.Canvas; Raised = Brand.Dark.Raised; Inset = Brand.Dark.Inset; Accent = Brand.Dark.Accent;
+                AccentHover = Brand.Dark.AccentHover; AccentPressed = Brand.Dark.AccentPressed; OnAccent = Brand.Dark.OnAccent;
+                AccentSoft = Brand.Dark.AccentSoft; Focus = Brand.Dark.Focus; Active = Brand.Dark.Active; Idle = Brand.Dark.Idle;
+                Attention = Brand.Dark.Attention; Success = Brand.Dark.Success; Waiting = Brand.Dark.Waiting;
+                Warning = Brand.Dark.Warning; Danger = Brand.Dark.Danger; Paused = Brand.Dark.Paused;
+                Card = Brand.Dark.CardGround; ShadowDark = Brand.Dark.ShadowDark; ShadowLight = Brand.Dark.ShadowLight;
+            }
+            else
+            {
+                Ink = Brand.Ink; Muted = Brand.Muted; Line = Brand.Line; Surface = Brand.Surface;
+                Canvas = Brand.Canvas; Raised = Brand.Raised; Inset = Brand.Inset; Accent = Brand.Accent;
+                AccentHover = Brand.AccentHover; AccentPressed = Brand.AccentPressed; OnAccent = Brand.OnAccent;
+                AccentSoft = Brand.AccentSoft; Focus = Brand.Focus; Active = Brand.Active; Idle = Brand.Idle;
+                Attention = Brand.Attention; Success = Brand.Success; Waiting = Brand.Waiting;
+                Warning = Brand.Warning; Danger = Brand.Danger; Paused = Brand.Paused;
+                Card = Brand.CardGround; ShadowDark = Brand.ShadowDark; ShadowLight = Brand.ShadowLight;
+            }
+        }
+    }
+
+    /// The palette as the window uses it, with High Contrast honoured in one place. Light until the
+    /// window adopts its theme (Adopt), which Program.Main does before the first control is made.
     internal static class Palette
     {
-        internal static readonly bool Contrast = SystemInformation.HighContrast;
-        internal static readonly Color Ink           = Contrast ? SystemColors.WindowText : Brand.Ink;
-        internal static readonly Color Muted         = Contrast ? SystemColors.GrayText : Brand.Muted;
-        internal static readonly Color Secondary     = Contrast ? SystemColors.WindowText : Brand.Muted;
-        internal static readonly Color Line          = Contrast ? SystemColors.WindowFrame : Brand.Line;
-        internal static readonly Color Surface       = Contrast ? SystemColors.Window : Brand.Surface;
-        internal static readonly Color Canvas        = Contrast ? SystemColors.Control : Brand.Canvas;
-        internal static readonly Color Raised        = Contrast ? SystemColors.Window : Brand.Raised;
-        internal static readonly Color Inset         = Contrast ? SystemColors.Window : Brand.Inset;
-        internal static readonly Color Accent        = Contrast ? SystemColors.Highlight : Brand.Accent;
-        internal static readonly Color AccentHover   = Contrast ? SystemColors.Highlight : Brand.AccentHover;
-        internal static readonly Color AccentPressed = Contrast ? SystemColors.Highlight : Brand.AccentPressed;
-        internal static readonly Color OnAccent      = Contrast ? SystemColors.HighlightText : Brand.OnAccent;
-        internal static readonly Color AccentSoft    = Contrast ? SystemColors.Highlight : Brand.AccentSoft;
-        internal static readonly Color Focus         = Contrast ? SystemColors.WindowText : Brand.Focus;
-        internal static readonly Color Active        = Contrast ? SystemColors.Highlight : Brand.Active;
-        internal static readonly Color Idle          = Contrast ? SystemColors.GrayText : Brand.Idle;
-        internal static readonly Color Attention     = Contrast ? SystemColors.WindowText : Brand.Attention;
-        internal static readonly Color Success       = Contrast ? SystemColors.WindowText : Brand.Success;
-        internal static readonly Color Waiting       = Contrast ? SystemColors.WindowText : Brand.Waiting;
-        internal static readonly Color Warning       = Contrast ? SystemColors.WindowText : Brand.Warning;
-        internal static readonly Color Danger        = Contrast ? SystemColors.WindowText : Brand.Danger;
-        internal static readonly Color Paused        = Contrast ? SystemColors.GrayText : Brand.Paused;
+        /// "light", "dark" or "contrast".
+        internal static string Theme = CodexAutoResume.Theme.Light;
+        internal static bool Contrast;
+        internal static Color Ink, Muted, Secondary, Line, Surface, Canvas, Raised, Inset, Accent, AccentHover,
+                              AccentPressed, OnAccent, AccentSoft, Focus, Active, Idle, Attention, Success, Waiting,
+                              Warning, Danger, Paused;
+        /// A card's own ground: the surface in light, the surface lifted a step toward raised in dark.
+        internal static Color Card;
+
+        static Palette()
+        {
+            Adopt(CodexAutoResume.Theme.HighContrast() ? CodexAutoResume.Theme.Contrast : CodexAutoResume.Theme.Light);
+        }
+
+        /// Draws everything from here on in `theme`: "light", "dark" or "contrast". Anything else is light.
+        internal static void Adopt(string theme)
+        {
+            Contrast = theme == CodexAutoResume.Theme.Contrast;
+            bool dark = theme == CodexAutoResume.Theme.Dark;
+            Theme = Contrast ? CodexAutoResume.Theme.Contrast : dark ? CodexAutoResume.Theme.Dark : CodexAutoResume.Theme.Light;
+            Tokens.Adopt(dark);
+            Elevation.Forget();
+            Ink           = Contrast ? SystemColors.WindowText : Tokens.Ink;
+            Muted         = Contrast ? SystemColors.GrayText : Tokens.Muted;
+            Secondary     = Contrast ? SystemColors.WindowText : Tokens.Muted;
+            Line          = Contrast ? SystemColors.WindowFrame : Tokens.Line;
+            Surface       = Contrast ? SystemColors.Window : Tokens.Surface;
+            Card          = Contrast ? SystemColors.Window : Tokens.Card;
+            Canvas        = Contrast ? SystemColors.Control : Tokens.Canvas;
+            Raised        = Contrast ? SystemColors.Window : Tokens.Raised;
+            Inset         = Contrast ? SystemColors.Window : Tokens.Inset;
+            Accent        = Contrast ? SystemColors.Highlight : Tokens.Accent;
+            AccentHover   = Contrast ? SystemColors.Highlight : Tokens.AccentHover;
+            AccentPressed = Contrast ? SystemColors.Highlight : Tokens.AccentPressed;
+            OnAccent      = Contrast ? SystemColors.HighlightText : Tokens.OnAccent;
+            AccentSoft    = Contrast ? SystemColors.Highlight : Tokens.AccentSoft;
+            Focus         = Contrast ? SystemColors.WindowText : Tokens.Focus;
+            Active        = Contrast ? SystemColors.Highlight : Tokens.Active;
+            Idle          = Contrast ? SystemColors.GrayText : Tokens.Idle;
+            Attention     = Contrast ? SystemColors.WindowText : Tokens.Attention;
+            Success       = Contrast ? SystemColors.WindowText : Tokens.Success;
+            Waiting       = Contrast ? SystemColors.WindowText : Tokens.Waiting;
+            Warning       = Contrast ? SystemColors.WindowText : Tokens.Warning;
+            Danger        = Contrast ? SystemColors.WindowText : Tokens.Danger;
+            Paused        = Contrast ? SystemColors.GrayText : Tokens.Paused;
+        }
+
+        /// Whether the window is drawn dark: the dark theme, and not High Contrast.
+        internal static bool Dark
+        {
+            get { return Tokens.Dark && !Contrast; }
+        }
     }
 
     /// Drawing helpers shared by every soft control.
@@ -180,6 +379,13 @@ namespace CodexAutoResume
         /// behind the corners, and any inset shadow goes between the two (`inset`).
         internal static void Body(Graphics g, Rectangle face, float radius, Color fill, Color edge, bool inset)
         {
+            Body(g, face, radius, fill, edge, inset ? "inset" : null);
+        }
+
+        /// The same, with the inset shadows of the elevation recipe `inner` between the fill and the
+        /// hairline: a well's ("inset"), or in dark a card's one-pixel top light ("card"). Null for none.
+        internal static void Body(Graphics g, Rectangle face, float radius, Color fill, Color edge, string inner)
+        {
             GraphicsState state = g.Save();
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.PixelOffsetMode = PixelOffsetMode.Half;
@@ -187,10 +393,53 @@ namespace CodexAutoResume
             using (var brush = new SolidBrush(fill))
                 g.FillPath(brush, path);
             int hairline = Hairline;
-            if (inset)
-                Elevation.StampInset(g, Rectangle.Inflate(face, -hairline, -hairline), radius - hairline, face);
+            if (inner != null)
+                Elevation.StampInner(g, Rectangle.Inflate(face, -hairline, -hairline), inner, radius - hairline, face);
             Edge(g, face, radius, edge, hairline);
             g.Restore(state);
+        }
+
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmSetWindowAttribute(IntPtr window, int attribute, ref int value, int size);
+
+        [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
+        private static extern int SetWindowTheme(IntPtr window, string application, string idList);
+
+        // DWMWA_USE_IMMERSIVE_DARK_MODE: 20 from Windows 10 20H1, 19 on the builds before it.
+        internal const int DarkTitleBarAttribute = 20;
+        internal const int DarkTitleBarAttributeBefore20H1 = 19;
+
+        /// A top-level window's title bar in the dark theme, as Windows draws its own dark apps'. Nothing
+        /// in light or High Contrast; a Windows that knows neither attribute keeps its light title bar.
+        internal static void TitleBar(Form form)
+        {
+            if (!Palette.Dark || form == null) return;
+            EventHandler apply = delegate
+            {
+                int on = 1;
+                try
+                {
+                    if (DwmSetWindowAttribute(form.Handle, DarkTitleBarAttribute, ref on, 4) != 0)
+                        DwmSetWindowAttribute(form.Handle, DarkTitleBarAttributeBefore20H1, ref on, 4);
+                }
+                catch (Exception) { /* no dwmapi, or no such attribute: the title bar stays light */ }
+            };
+            form.HandleCreated += apply;
+            if (form.IsHandleCreated) apply(form, EventArgs.Empty);
+        }
+
+        /// The scroll bars Windows draws on a native control - a text box's - in its dark style, in the
+        /// dark theme only. Best effort: an older Windows keeps its light ones.
+        internal static void NativeScrollBars(Control control)
+        {
+            if (!Palette.Dark || control == null) return;
+            EventHandler apply = delegate
+            {
+                try { SetWindowTheme(control.Handle, "DarkMode_Explorer", null); }
+                catch (Exception) { }
+            };
+            control.HandleCreated += apply;
+            if (control.IsHandleCreated) apply(control, EventArgs.Empty);
         }
 
         /// A line `width` device pixels wide, just inside the edge of a body filling `face`.
@@ -394,6 +643,13 @@ namespace CodexAutoResume
     /// too short to have a straight middle gets a bitmap of its exact length instead, which for
     /// buttons, fields and switches - all one height - is still only a handful.
     ///
+    /// The recipes are the theme's (brand.SHADOWS): light's is a shadow and a highlight each, and
+    /// dark's another shape - two drops and an inset one-pixel top light for a card, one drop for a
+    /// control, one inset shadow for a well. So every shadow is read as Brand gives it, inset or not,
+    /// and never inferred from the recipe's name. An outer shadow is stamped by the ground behind a
+    /// body (StampOuter); an inset one by the body itself, between its fill and its hairline
+    /// (StampInner, through Soft.Body).
+    ///
     /// Nothing is drawn in High Contrast mode.
     internal static class Elevation
     {
@@ -408,38 +664,34 @@ namespace CodexAutoResume
         // keeps GDI+ off the slow path that image attributes force on every draw.
         private static readonly Dictionary<long, Template> cache = new Dictionary<long, Template>();
 
-        // Shadows by number: 0 and 1 a card's, 2 and 3 a control's, 4 and 5 a well's. The even
-        // one is the dark shadow and the odd one the highlight; the panel lists the dark one
-        // first, and a list is painted last to first, so the highlight goes down first.
-        private static int First(string recipe)
+        private static int RecipeId(string recipe)
         {
             if (recipe == "card") return 0;
-            if (recipe == "control") return 2;
-            if (recipe == "inset") return 4;
+            if (recipe == "control") return 1;
+            if (recipe == "inset") return 2;
             return -1;
         }
 
-        private static void Shadow(int id, out double dx, out double dy, out double blur, out double alpha)
+        /// How many shadows `recipe` has in the theme in effect.
+        internal static int Count(string recipe)
         {
-            if (id == 0) { dx = Brand.ElevCardShadowDx; dy = Brand.ElevCardShadowDy; blur = Brand.ElevCardShadowBlur; alpha = Brand.ElevCardShadowAlpha; }
-            else if (id == 1) { dx = Brand.ElevCardHighlightDx; dy = Brand.ElevCardHighlightDy; blur = Brand.ElevCardHighlightBlur; alpha = Brand.ElevCardHighlightAlpha; }
-            else if (id == 2) { dx = Brand.ElevControlShadowDx; dy = Brand.ElevControlShadowDy; blur = Brand.ElevControlShadowBlur; alpha = Brand.ElevControlShadowAlpha; }
-            else if (id == 3) { dx = Brand.ElevControlHighlightDx; dy = Brand.ElevControlHighlightDy; blur = Brand.ElevControlHighlightBlur; alpha = Brand.ElevControlHighlightAlpha; }
-            else if (id == 4) { dx = Brand.ElevInsetShadowDx; dy = Brand.ElevInsetShadowDy; blur = Brand.ElevInsetShadowBlur; alpha = Brand.ElevInsetShadowAlpha; }
-            else { dx = Brand.ElevInsetHighlightDx; dy = Brand.ElevInsetHighlightDy; blur = Brand.ElevInsetHighlightBlur; alpha = Brand.ElevInsetHighlightAlpha; }
-            // Brand.cs holds them as floats, and 0.55f widened is not 0.55.
+            return Tokens.Dark ? Brand.Dark.ElevationCount(recipe) : Brand.ElevationCount(recipe);
+        }
+
+        /// Shadow `index` of `recipe` in the theme in effect, front to back as brand.SHADOWS lists it.
+        private static bool Shadow(string recipe, int index, out double dx, out double dy, out double blur,
+                                   out double alpha, out bool inset, out Color tone)
+        {
+            bool found = Tokens.Dark ? Brand.Dark.ElevationShadow(recipe, index, out dx, out dy, out blur, out alpha, out inset, out tone)
+                                     : Brand.ElevationShadow(recipe, index, out dx, out dy, out blur, out alpha, out inset, out tone);
             alpha = Math.Round(alpha, 4);
+            return found;
         }
 
-        private static Color Tone(int id)
-        {
-            return id % 2 == 0 ? Brand.ShadowDark : Brand.ShadowLight;
-        }
-
-        /// How far a recipe's shadows reach past its box, per side, in device pixels at the
+        /// How far a recipe's outer shadows reach past its box, per side, in device pixels at the
         /// window's scale: offset plus three sigmas, past which a shadow is under a fifth of a
         /// percent of its strength (brand.reach). A ground that clips its children closer than
-        /// this cuts their shadow off. The inset recipe reaches nothing outside.
+        /// this cuts their shadow off. Inset shadows reach nothing outside.
         internal static Padding Reach(string recipe)
         {
             return Reach(recipe, SettingsForm.DpiScale);
@@ -447,13 +699,13 @@ namespace CodexAutoResume
 
         internal static Padding Reach(string recipe, double scale)
         {
-            int first = First(recipe);
-            if (first < 0 || first >= 4) return Padding.Empty;
             int left = 0, top = 0, right = 0, bottom = 0;
-            for (int id = first; id < first + 2; id++)
+            for (int index = 0; index < Count(recipe); index++)
             {
                 double dx, dy, blur, alpha;
-                Shadow(id, out dx, out dy, out blur, out alpha);
+                bool inset;
+                Color tone;
+                if (!Shadow(recipe, index, out dx, out dy, out blur, out alpha, out inset, out tone) || inset) continue;
                 left = Math.Max(left, Far(-dx, blur, scale));
                 top = Math.Max(top, Far(-dy, blur, scale));
                 right = Math.Max(right, Far(dx, blur, scale));
@@ -482,26 +734,41 @@ namespace CodexAutoResume
         }
 
         /// A body's outer lift, "card" or "control", stamped around `body` (in the coordinates
-        /// of `g`), drawing only the pieces that meet `clip`.
+        /// of `g`), drawing only the pieces that meet `clip`. Its inset shadows are the body's own.
         internal static void StampOuter(Graphics g, Rectangle body, string recipe, float radius, Rectangle clip)
         {
             if (Palette.Contrast || body.Width <= 0 || body.Height <= 0) return;
-            int first = First(recipe);
-            if (first < 0 || first >= 4) return;
+            int count = Count(recipe);
+            if (count == 0) return;
             Padding reach = Reach(recipe);
             var band = new Rectangle(body.X - reach.Left, body.Y - reach.Top, body.Width + reach.Horizontal, body.Height + reach.Vertical);
             if (!band.IntersectsWith(clip)) return;
-            StampOne(g, first + 1, SettingsForm.DpiScale, body, radius, clip);
-            StampOne(g, first, SettingsForm.DpiScale, body, radius, clip);
+            // Last to first, as CSS paints a shadow list.
+            for (int index = count - 1; index >= 0; index--)
+                if (!IsInset(recipe, index)) StampOne(g, recipe, index, SettingsForm.DpiScale, body, radius, clip);
         }
 
         /// A well's inset shadow inside `box` - the well inside its hairline - whose corners have
         /// `radius`. It is already clipped to that shape.
         internal static void StampInset(Graphics g, Rectangle box, float radius, Rectangle clip)
         {
+            StampInner(g, box, "inset", radius, clip);
+        }
+
+        /// The inset shadows of `recipe` inside `box`, the body inside its hairline.
+        internal static void StampInner(Graphics g, Rectangle box, string recipe, float radius, Rectangle clip)
+        {
             if (Palette.Contrast || box.Width <= 0 || box.Height <= 0 || !box.IntersectsWith(clip)) return;
-            StampOne(g, 5, SettingsForm.DpiScale, box, radius, clip);
-            StampOne(g, 4, SettingsForm.DpiScale, box, radius, clip);
+            for (int index = Count(recipe) - 1; index >= 0; index--)
+                if (IsInset(recipe, index)) StampOne(g, recipe, index, SettingsForm.DpiScale, box, radius, clip);
+        }
+
+        private static bool IsInset(string recipe, int index)
+        {
+            double dx, dy, blur, alpha;
+            bool inset;
+            Color tone;
+            return Shadow(recipe, index, out dx, out dy, out blur, out alpha, out inset, out tone) && inset;
         }
 
         /// Drops every cached bitmap; the next stamp builds what it needs again.
@@ -516,11 +783,12 @@ namespace CodexAutoResume
             get { return cache.Count; }
         }
 
-        private static void StampOne(Graphics g, int id, double scale, Rectangle body, float radius, Rectangle clip)
+        private static void StampOne(Graphics g, string recipe, int index, double scale, Rectangle body, float radius, Rectangle clip)
         {
             double dx, dy, blur, alpha;
-            Shadow(id, out dx, out dy, out blur, out alpha);
-            bool inset = id >= 4;
+            bool inset;
+            Color tone;
+            if (!Shadow(recipe, index, out dx, out dy, out blur, out alpha, out inset, out tone)) return;
             int reach = Spread(blur * scale / 2);
             radius = (float)Math.Max(0, Math.Min(radius, Math.Min(body.Width, body.Height) / 2.0));
             int core, pad, left = body.X, top = body.Y;
@@ -545,7 +813,7 @@ namespace CodexAutoResume
             int canonical = 2 * core + 1;
             int width = body.Width >= canonical ? canonical : body.Width;
             int height = body.Height >= canonical ? canonical : body.Height;
-            Template template = Get(id, scale, width, height, radius, fx, fy,
+            Template template = Get(recipe, index, scale, width, height, radius, fx, fy,
                                     width == canonical ? pad + core : -1, height == canonical ? pad + core : -1);
 
             GraphicsState state = g.Save();
@@ -590,10 +858,11 @@ namespace CodexAutoResume
             source = middle + 1; sourceLength = after; dest = total - after; destLength = after;
         }
 
-        private static Template Get(int id, double scale, int width, int height, double radius, double fx, double fy,
-                                    int middleX, int middleY)
+        private static Template Get(string recipe, int index, double scale, int width, int height, double radius,
+                                    double fx, double fy, int middleX, int middleY)
         {
-            long key = id;
+            // The theme, the recipe and the shadow, then the shape: a theme's bitmaps are never another's.
+            long key = (Tokens.Dark ? 1 : 0) * 16 + Math.Max(0, RecipeId(recipe)) * 4 + Math.Min(3, index);
             key = key * 1024 + Math.Min(1023, (int)Math.Round(scale * 100));
             key = key * 4096 + Math.Min(4095, width);
             key = key * 4096 + Math.Min(4095, height);
@@ -603,31 +872,35 @@ namespace CodexAutoResume
             Template template;
             if (cache.TryGetValue(key, out template)) return template;
             if (cache.Count >= 128) Forget();
-            template = id >= 4 ? Inner(id, scale, width, height, radius) : Outer(id, scale, width, height, radius, fx, fy);
+            double dx, dy, blur, alpha;
+            bool inset;
+            Color tone;
+            Shadow(recipe, index, out dx, out dy, out blur, out alpha, out inset, out tone);
+            template = inset ? Inner(dx, dy, blur, alpha, tone, scale, width, height, radius)
+                             : Outer(blur, alpha, tone, scale, width, height, radius, fx, fy);
             template.MiddleX = middleX;
             template.MiddleY = middleY;
             cache[key] = template;
             return template;
         }
 
-        private static Template Outer(int id, double scale, int width, int height, double radius, double fx, double fy)
+        private static Template Outer(double blur, double alpha, Color tone, double scale, int width, int height,
+                                      double radius, double fx, double fy)
         {
-            double dx, dy, blur, alpha;
-            Shadow(id, out dx, out dy, out blur, out alpha);
             double sigma = blur * scale / 2;
             int pad = Spread(sigma) + 1;
             int across = width + 2 * pad, down = height + 2 * pad;
             var shape = new double[across * down];
             Cover(shape, across, down, pad + fx, pad + fy, width, height, radius);
-            return Make(Blur(shape, across, down, sigma), across, down, alpha, Tone(id));
+            return Make(Blur(shape, across, down, sigma), across, down, alpha, tone);
         }
 
         /// An inset shadow is cast by everything outside the box, moved by the offset, blurred,
-        /// and seen only inside the box.
-        private static Template Inner(int id, double scale, int width, int height, double radius)
+        /// and seen only inside the box. With no blur - dark's one-pixel top light - it is that edge,
+        /// moved, and nothing else.
+        private static Template Inner(double dx, double dy, double blur, double alpha, Color tone, double scale,
+                                      int width, int height, double radius)
         {
-            double dx, dy, blur, alpha;
-            Shadow(id, out dx, out dy, out blur, out alpha);
             double sigma = blur * scale / 2, ox = dx * scale, oy = dy * scale;
             int margin = Spread(sigma) + (int)Math.Ceiling(Math.Max(Math.Abs(ox), Math.Abs(oy))) + 1;
             int across = width + 2 * margin, down = height + 2 * margin;
@@ -640,7 +913,7 @@ namespace CodexAutoResume
             for (int y = 0; y < height; y++)
                 for (int x = 0; x < width; x++)
                     inside[y * width + x] *= blurred[(y + margin) * across + x + margin];
-            return Make(inside, width, height, alpha, Tone(id));
+            return Make(inside, width, height, alpha, tone);
         }
 
         private static Template Make(double[] values, int width, int height, double alpha, Color tone)
@@ -753,39 +1026,48 @@ namespace CodexAutoResume
             return sign * (1 - poly * Math.Exp(-x * x));
         }
 
-        /// The shadows of `recipe` as they are stamped at `scale`, sampled across the middle of
-        /// each straight edge: for each of its two shadows (the dark one first) and each side
-        /// (left, top, right, bottom), the alpha 0.5, 1.5, 2.5 ... device pixels from the edge -
-        /// outward from the body for "card" and "control", inward from inside the hairline for
-        /// "inset". Draws into a bitmap and nowhere else; the tests hold it to brand.shadow_alpha.
+        /// The shadows of `recipe` as they are stamped at `scale` in the theme in effect, sampled
+        /// across the middle of each straight edge: for each of its shadows, in brand.SHADOWS'
+        /// order, and each side (left, top, right, bottom), the alpha 0.5, 1.5, 2.5 ... device pixels
+        /// from the edge - outward from the body for an outer shadow, inward from inside the hairline
+        /// for an inset one. Draws into a bitmap and nowhere else; the tests hold it to
+        /// brand.shadow_alpha.
         internal static float[] Profile(string recipe, double scale)
         {
-            int first = First(recipe);
-            if (first < 0) return new float[0];
-            bool inset = first == 4;
-            double dx, dy, blur, alpha;
-            Shadow(first, out dx, out dy, out blur, out alpha);
-            int samples = Spread(blur * scale / 2) + (int)Math.Ceiling(Math.Abs(dx) * scale) + 2;
-            float radius = (float)((first == 0 ? Brand.RadiusCard : Brand.RadiusControl) * scale);
+            int count = Count(recipe);
+            if (count == 0) return new float[0];
+            bool outer = false;
+            int samples = 0;
+            for (int index = 0; index < count; index++)
+            {
+                double dx, dy, blur, alpha;
+                bool inset;
+                Color tone;
+                Shadow(recipe, index, out dx, out dy, out blur, out alpha, out inset, out tone);
+                if (!inset) outer = true;
+                samples = Math.Max(samples, Spread(blur * scale / 2) + (int)Math.Ceiling(Math.Max(Math.Abs(dx), Math.Abs(dy)) * scale) + 2);
+            }
+            float radius = (float)((recipe == "card" ? Brand.RadiusCard : Brand.RadiusControl) * scale);
             int length = 4 * (samples + (int)Math.Ceiling(radius)) + 40;
-            int margin = inset ? 0 : samples + 4;
-            var result = new float[8 * samples];
+            int margin = outer ? samples + 4 : 0;
+            var result = new float[count * 4 * samples];
             using (var bitmap = new Bitmap(length + 2 * margin, length + 2 * margin, PixelFormat.Format32bppArgb))
             {
                 var body = new Rectangle(margin, margin, length, length);
                 var all = new Rectangle(0, 0, bitmap.Width, bitmap.Height);
                 int middle = margin + length / 2;
-                for (int shadow = 0; shadow < 2; shadow++)
+                for (int shadow = 0; shadow < count; shadow++)
                 {
                     using (Graphics g = Graphics.FromImage(bitmap))
                     {
                         g.Clear(Color.Transparent);
-                        StampOne(g, first + shadow, scale, body, radius, all);
+                        StampOne(g, recipe, shadow, scale, body, radius, all);
                     }
+                    bool inside = IsInset(recipe, shadow);
                     for (int i = 0; i < samples; i++)
                     {
-                        int near = inset ? margin + i : margin - 1 - i;
-                        int far = inset ? margin + length - 1 - i : margin + length + i;
+                        int near = inside ? margin + i : margin - 1 - i;
+                        int far = inside ? margin + length - 1 - i : margin + length + i;
                         result[(shadow * 4) * samples + i] = bitmap.GetPixel(near, middle).A / 255f;
                         result[(shadow * 4 + 1) * samples + i] = bitmap.GetPixel(middle, near).A / 255f;
                         result[(shadow * 4 + 2) * samples + i] = bitmap.GetPixel(far, middle).A / 255f;
@@ -796,16 +1078,16 @@ namespace CodexAutoResume
             return result;
         }
 
-        /// A `width` by `height` body of `recipe` as a page shows it, with `margin` device pixels
-        /// of ground around it: a card on the canvas, a control on a card, a well on a card. The
-        /// pixels as ARGB, row by row, for the tests that compare them with brand.elevation_colour.
+        /// A `width` by `height` body of `recipe` as a page shows it in the theme in effect, with
+        /// `margin` device pixels of ground around it: a card on the canvas, a control on a card, a
+        /// well on a card. The pixels as ARGB, row by row, for the tests that compare them with
+        /// brand.elevation_colour.
         internal static int[] Render(string recipe, double scale, int width, int height, int margin)
         {
-            int first = First(recipe);
-            if (first < 0) return new int[0];
-            bool inset = first == 4;
-            Color fill = first == 0 ? Brand.Surface : inset ? Brand.Inset : Brand.Raised;
-            float radius = (float)((first == 0 ? Brand.RadiusCard : Brand.RadiusControl) * scale);
+            int id = RecipeId(recipe);
+            if (id < 0) return new int[0];
+            Color fill = id == 0 ? Tokens.Card : id == 2 ? Tokens.Inset : Tokens.Raised;
+            float radius = (float)((id == 0 ? Brand.RadiusCard : Brand.RadiusControl) * scale);
             int hairline = Math.Max(1, (int)Math.Floor(scale + 1e-6));
             int across = width + 2 * margin, down = height + 2 * margin;
             var pixels = new int[across * down];
@@ -813,26 +1095,21 @@ namespace CodexAutoResume
             {
                 using (Graphics g = Graphics.FromImage(bitmap))
                 {
-                    g.Clear(first == 0 ? Brand.Canvas : Brand.Surface);
+                    g.Clear(id == 0 ? Tokens.Canvas : Tokens.Card);
                     var body = new Rectangle(margin, margin, width, height);
                     var all = new Rectangle(0, 0, across, down);
-                    if (!inset)
-                    {
-                        StampOne(g, first + 1, scale, body, radius, all);
-                        StampOne(g, first, scale, body, radius, all);
-                    }
+                    int count = Count(recipe);
+                    for (int index = count - 1; index >= 0; index--)
+                        if (!IsInset(recipe, index)) StampOne(g, recipe, index, scale, body, radius, all);
                     g.SmoothingMode = SmoothingMode.AntiAlias;
                     g.PixelOffsetMode = PixelOffsetMode.Half;
                     using (var path = Soft.Rounded(body, radius))
                     using (var brush = new SolidBrush(fill))
                         g.FillPath(brush, path);
-                    if (inset)
-                    {
-                        Rectangle box = Rectangle.Inflate(body, -hairline, -hairline);
-                        StampOne(g, 5, scale, box, radius - hairline, all);
-                        StampOne(g, 4, scale, box, radius - hairline, all);
-                    }
-                    Soft.Edge(g, body, radius, Brand.Line, hairline);
+                    Rectangle box = Rectangle.Inflate(body, -hairline, -hairline);
+                    for (int index = count - 1; index >= 0; index--)
+                        if (IsInset(recipe, index)) StampOne(g, recipe, index, scale, box, radius - hairline, all);
+                    Soft.Edge(g, body, radius, Tokens.Line, hairline);
                 }
                 BitmapData data = bitmap.LockBits(new Rectangle(0, 0, across, down), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
                 try
@@ -1479,21 +1756,21 @@ namespace CodexAutoResume
             return from + (step == 0 ? Math.Sign(left) : step);
         }
 
-        // States: 0 resting, 1 under the pointer, 2 dragged.
-        internal static Color TrackFill(bool contrast) { return contrast ? SystemColors.Window : Brand.Inset; }
-        internal static Color TrackEdge(bool contrast) { return contrast ? SystemColors.WindowFrame : Brand.Line; }
+        // States: 0 resting, 1 under the pointer, 2 dragged. The brand half is the theme's (Tokens).
+        internal static Color TrackFill(bool contrast) { return contrast ? SystemColors.Window : Tokens.Inset; }
+        internal static Color TrackEdge(bool contrast) { return contrast ? SystemColors.WindowFrame : Tokens.Line; }
 
         internal static Color ThumbFill(int state, bool contrast)
         {
             if (contrast) return state == 0 ? SystemColors.GrayText : SystemColors.Highlight;
-            return Brand.Raised;
+            return Tokens.Raised;
         }
 
         internal static Color ThumbEdge(int state, bool contrast)
         {
             if (contrast) return ThumbFill(state, true);
-            return state == 2 ? Soft.Mix(Brand.Line, Brand.Muted, 0.6)
-                 : state == 1 ? Soft.Mix(Brand.Line, Brand.Muted, 0.35) : Brand.Line;
+            return state == 2 ? Soft.Mix(Tokens.Line, Tokens.Muted, 0.6)
+                 : state == 1 ? Soft.Mix(Tokens.Line, Tokens.Muted, 0.35) : Tokens.Line;
         }
 
         internal static void Draw(Graphics g, Rectangle track, Rectangle thumb, int state)
@@ -1694,7 +1971,7 @@ namespace CodexAutoResume
         {
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
                      ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
-            BackColor = Palette.Surface;
+            BackColor = Palette.Card;
             tracker = new LiftTracker(this, "card");
         }
 
@@ -1713,7 +1990,8 @@ namespace CodexAutoResume
         {
             float radius = Soft.PxF(Brand.RadiusCard);
             Ground.PaintBehind(this, e.Graphics, ClientRectangle, radius);
-            Soft.Body(e.Graphics, ClientRectangle, radius, Palette.Surface, Palette.Line, false);
+            // The card's own ground, and in dark its one-pixel top light inside the hairline.
+            Soft.Body(e.Graphics, ClientRectangle, radius, Palette.Card, Palette.Line, "card");
             Ground.Stamps(this, e.Graphics, e.ClipRectangle);
         }
     }
@@ -1857,44 +2135,76 @@ namespace CodexAutoResume
         }
     }
 
-    /// A check box drawn as the panel's switch, with its words to the right. Still a CheckBox,
-    /// so Space turns it and a screen reader says what it is and whether it is on.
+    /// A true-or-false setting, of one of two kinds, with its words to the right. Still a CheckBox, so
+    /// Space turns it, the focus cue shows where the keyboard is, and a screen reader says what it
+    /// is and whether it is on.
+    ///
+    /// The kind follows what the setting is (v0.6.4), the same on every surface. A switch - the
+    /// panel's 40 by 22 pill - turns something that runs on or off: the notifications, the
+    /// notification-area icon, reduced motion, running at sign-in. A check box (Box) picks which items
+    /// of a list apply: which kinds of interruption may be recovered, which events notify. Its box sits
+    /// left of its label, as it does on the popup and the panel: unchecked it is the sunken well a
+    /// field is, checked the accent with an on-accent mark, disabled a flat surface with a muted mark,
+    /// and in High Contrast system colours with no shadow at all (brand.CHECKBOX).
     internal sealed class SoftCheck : CheckBox, ISoftLifted
     {
         private readonly LiftTracker tracker;
+        private bool box;
 
         internal SoftCheck()
         {
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                      ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
             Cursor = Cursors.Hand;
+            AccessibleRole = AccessibleRole.CheckButton;
             tracker = new LiftTracker(this, "control");
         }
 
-        private static int Gap { get { return Soft.Px(9); } }
+        /// Drawn as a check box rather than a switch.
+        internal bool Box
+        {
+            get { return box; }
+            set
+            {
+                if (box == value) return;
+                box = value;
+                if (AutoSize && Parent != null) Parent.PerformLayout();
+                Invalidate();
+                tracker.Update();
+            }
+        }
 
-        private Rectangle Track
+        private int Gap { get { return box ? Soft.Px(Brand.CheckGap) : Soft.Px(9); } }
+
+        /// The switch's track, or the check box's box: at the left, on the control's middle line.
+        internal Rectangle Glyph
         {
             get
             {
+                if (box)
+                {
+                    int size = Soft.Px(Brand.CheckSize);
+                    return new Rectangle(0, (Height - size) / 2, size, size);
+                }
                 int height = Soft.Px(Brand.SwitchHeight);
                 return new Rectangle(0, (Height - height) / 2, Soft.Px(Brand.SwitchWidth), height);
             }
         }
 
-        // No lift - a switch is a well - but its focus ring runs outside the control on the left,
-        // so the ground draws that part of it.
+        // No lift - a switch and a box are wells - but the focus ring runs outside the control on
+        // the left, so the ground draws that part of it.
         string ISoftLifted.Lift { get { return null; } }
-        float ISoftLifted.Radius { get { return Soft.Px(Brand.SwitchHeight) / 2f; } }
-        Rectangle ISoftLifted.Face { get { return Track; } }
+        float ISoftLifted.Radius { get { return box ? Soft.PxF(Brand.RadiusCheck) : Soft.Px(Brand.SwitchHeight) / 2f; } }
+        Rectangle ISoftLifted.Face { get { return Glyph; } }
         bool ISoftLifted.Ring { get { return Focused && ShowFocusCues; } }
 
         public override Size GetPreferredSize(Size proposedSize)
         {
             Size text = TextRenderer.MeasureText(Text ?? "", Font, new Size(int.MaxValue, int.MaxValue),
                                                  TextFormatFlags.SingleLine);
-            return new Size(Soft.Px(Brand.SwitchWidth) + Gap + text.Width + Soft.Px(6),
-                            Math.Max(Soft.Px(Brand.SwitchHeight), text.Height) + Soft.Px(6));
+            int glyphWidth = box ? Soft.Px(Brand.CheckSize) : Soft.Px(Brand.SwitchWidth);
+            int glyphHeight = box ? Soft.Px(Brand.CheckSize) : Soft.Px(Brand.SwitchHeight);
+            return new Size(glyphWidth + Gap + text.Width + Soft.Px(6), Math.Max(glyphHeight, text.Height) + Soft.Px(6));
         }
 
         protected override void OnCheckedChanged(EventArgs e) { Invalidate(); base.OnCheckedChanged(e); }
@@ -1907,13 +2217,55 @@ namespace CodexAutoResume
         {
             Graphics g = e.Graphics;
             Ground.PaintArea(this, g, ClientRectangle);
-            Rectangle track = Track;
-            Soft.Switch(g, track, Checked, Enabled, Parent != null ? Ground.Colour(Parent) : Palette.Surface);
-            var textBounds = new Rectangle(track.Right + Gap, 0, Math.Max(0, Width - track.Right - Gap), Height);
+            Rectangle glyph = Glyph;
+            if (box) DrawBox(g, glyph, Checked, Enabled);
+            else Soft.Switch(g, glyph, Checked, Enabled, Parent != null ? Ground.Colour(Parent) : Palette.Card);
+            var textBounds = new Rectangle(glyph.Right + Gap, 0, Math.Max(0, Width - glyph.Right - Gap), Height);
             TextRenderer.DrawText(g, Text, Font, textBounds, Enabled ? ForeColor : Palette.Muted,
                                   TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
                                   TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
-            if (Focused && ShowFocusCues) Soft.Ring(g, track, track.Height / 2f);
+            if (Focused && ShowFocusCues)
+                Soft.Ring(g, glyph, box ? Soft.PxF(Brand.RadiusCheck) : glyph.Height / 2f);
+        }
+
+        /// The check box in `face`, a CheckSize square at the window's scale: its fill, the inset well
+        /// while it is unchecked and enabled, its hairline, and the mark - the brand's centre line,
+        /// stroked CheckStroke wide with flat ends and a mitred corner.
+        internal static void DrawBox(Graphics g, Rectangle face, bool on, bool enabled)
+        {
+            Color fill, edge, mark;
+            bool marked, well;
+            if (Palette.Contrast)
+            {
+                fill = Brand.CheckSystemFill(on, enabled);
+                edge = Brand.CheckSystemEdge(on, enabled);
+                marked = Brand.CheckSystemMark(on, enabled, out mark);
+                well = false;
+            }
+            else
+            {
+                fill = Tokens.Dark ? Brand.Dark.CheckFill(on, enabled) : Brand.CheckFill(on, enabled);
+                edge = Tokens.Dark ? Brand.Dark.CheckEdge(on, enabled) : Brand.CheckEdge(on, enabled);
+                marked = Tokens.Dark ? Brand.Dark.CheckMark(on, enabled, out mark) : Brand.CheckMark(on, enabled, out mark);
+                well = Brand.CheckWell(on, enabled);
+            }
+            Soft.Body(g, face, Soft.PxF(Brand.RadiusCheck), fill, edge, well ? "inset" : null);
+            if (!marked) return;
+            float scale = (float)SettingsForm.DpiScale;
+            GraphicsState state = g.Save();
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.PixelOffsetMode = PixelOffsetMode.Half;
+            using (var pen = new Pen(mark, Soft.PxF(Brand.CheckStroke)))
+            {
+                pen.StartCap = LineCap.Flat;
+                pen.EndCap = LineCap.Flat;
+                pen.LineJoin = LineJoin.Miter;
+                g.DrawLines(pen, new[] {
+                    new PointF(face.X + Brand.CheckMarkStartX * scale, face.Y + Brand.CheckMarkStartY * scale),
+                    new PointF(face.X + Brand.CheckMarkCornerX * scale, face.Y + Brand.CheckMarkCornerY * scale),
+                    new PointF(face.X + Brand.CheckMarkEndX * scale, face.Y + Brand.CheckMarkEndY * scale) });
+            }
+            g.Restore(state);
         }
     }
 
@@ -1929,6 +2281,9 @@ namespace CodexAutoResume
             FlatStyle = FlatStyle.Flat;
             BackColor = Palette.Raised;
             ForeColor = Palette.Ink;
+            // Every list in the window whole, with no scroll bar of Windows' own beside it: the longest,
+            // the Interface language, has ten choices.
+            MaxDropDownItems = 12;
             Fit();
         }
 
@@ -2291,7 +2646,7 @@ namespace CodexAutoResume
         {
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint |
                      ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
-            BackColor = Palette.Surface;
+            BackColor = Palette.Card;
             // A TableLayoutPanel asks a child for its preferred size only when the child says
             // it sizes itself; otherwise it keeps whatever height the child already has, and
             // three of the four choices were cut off.
@@ -2388,6 +2743,8 @@ namespace CodexAutoResume
             Box.ScrollBars = ScrollBars.Vertical;
             Box.BackColor = Palette.Inset;
             Box.ForeColor = Palette.Ink;
+            // Its scroll bar is Windows' own; in dark, Windows' dark one.
+            Soft.NativeScrollBars(Box);
             Box.GotFocus += delegate { Invalidate(); };
             Box.LostFocus += delegate { Invalidate(); };
             Controls.Add(Box);
@@ -2765,13 +3122,13 @@ namespace CodexAutoResume
             return DotColour(state, Palette.Contrast);
         }
 
-        /// The dot's fill: the brand's colour for the state, or in High Contrast its system
-        /// colour. Comparisons, not a switch, inside Brand: the in-box compiler turns a string
-        /// switch with enough cases into a dictionary held by a class it names with a fresh
-        /// random GUID, and that one name made two builds of the same source differ.
+        /// The dot's fill: the brand's colour for the state in the theme in effect, or in High
+        /// Contrast its system colour. Comparisons, not a switch, inside Brand: the in-box compiler
+        /// turns a string switch with enough cases into a dictionary held by a class it names with a
+        /// fresh random GUID, and that one name made two builds of the same source differ.
         internal static Color DotColour(string state, bool contrast)
         {
-            return contrast ? Brand.StatusSystem(state) : Brand.StatusFill(state);
+            return contrast ? Brand.StatusSystem(state) : Tokens.Dark ? Brand.Dark.StatusFill(state) : Brand.StatusFill(state);
         }
 
         private bool ShouldRun()
@@ -2803,7 +3160,7 @@ namespace CodexAutoResume
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = e.Graphics;
-            g.Clear(Parent != null ? Ground.Colour(Parent) : Palette.Surface);
+            g.Clear(Parent != null ? Ground.Colour(Parent) : Palette.Card);
             double since = clock.Elapsed.TotalMilliseconds - enteredAt;
             double opacity, scale, arc;
             bool lit = Brand.Glow(state, since, since, Soft.ReduceMotion, out opacity, out scale, out arc);

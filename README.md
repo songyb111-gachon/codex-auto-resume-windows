@@ -178,9 +178,10 @@ process happened to raise it. Doing nothing resumes. **Don't resume** only ever 
 <img src="docs/images/notification.png" alt="A Windows notification from Codex Auto Resume saying a usage limit was reached and the task will resume after the reset, with a Don't resume button" width="470">
 
 Inside Codex, ask to *open auto resume settings* and the panel shows what is waiting and lets
-you change most of it, in sections for General, Recovery, Notifications and Continuation
-message, with a Preview of the exact message the watcher would send and a switch for each
-waiting conversation. It follows Codex's light or dark theme and its reduced-motion preference.
+you change most of it, in sections for General, Recovery, Notifications, Continuation message
+and Appearance, with a Preview of the exact message the watcher would send and a switch for each
+waiting conversation. It follows Codex's light or dark theme unless you choose one under
+Appearance, and Codex's reduced-motion preference; a language or theme saved there applies at once.
 A Custom message is shown there but not edited; that happens only in the Dashboard. This is the
 panel's own page, rendered from the exact resource the plugin serves to Codex, rather than a
 photograph of the Codex window around it:
@@ -194,14 +195,18 @@ the watcher is doing. While it is running and recovery is on, the light is cyan 
 glow: it breathes slowly while the watcher watches, holds still while it waits, turns a small arc
 while it checks a task that has come due, and breathes a little faster while it recovers. Paused
 or stopped, it is plain grey; amber with one soft pulse means it needs you. The word beside it
-always says which. **Reduce motion**, under Settings > Appearance,
-stops those animations, and Windows' own animation setting is always honoured; High Contrast
-mode drops the shadows and tints. It is a native window; there is no local web server and
-nothing opens in a browser.
+always says which. **Theme**, under Settings > Appearance, draws the window and the popup light or
+dark; its default, *Use system setting*, follows the app mode Windows is set to. When the
+interface language or the theme changes - saved in the window, changed in Codex, or Windows
+switching between light and dark - the window closes and opens again by itself, on the same page
+and in the same place, but never over changes you have not saved. **Reduce motion**, also under
+Appearance, stops those animations, and Windows' own animation setting is always honoured; High
+Contrast mode drops the shadows and tints, whatever the theme. It is a native window; there is no
+local web server and nothing opens in a browser.
 
-The pictures on this page are captured from a scratch installation holding synthetic records.
-They show what the windows look like; they do not show a real recovery, and they are not
-evidence that one was observed in Codex.
+The pictures on this page are captured from a scratch installation holding synthetic records, in
+the light theme. They show what the windows look like; they do not show a real recovery, and they
+are not evidence that one was observed in Codex.
 
 <img src="docs/images/dashboard-overview.png" alt="The Codex Auto Resume Dashboard overview: automatic recovery on, the watcher running and the Codex engine verified, two recoveries waiting with the next check in a minute and a half, the last seven days' interruptions, continuations sent, recoveries and success rate, and the four most recently finished recoveries" width="680">
 
@@ -238,7 +243,8 @@ tasks, each with its own switch bound to that task's exact interruption and conv
 closes it too. The popup runs inside the watcher process, on the icon's own thread, and goes
 through the same control layer as every other surface; nothing in it can send a continuation.
 The right-click menu is what it was: it opens the Dashboard, pauses or resumes recovery, and
-stops the watcher. The countdown only means the watcher looks again — nothing is sent because it
+stops the watcher; it is drawn dark while the popup is. The popup and the menu take up a new
+language or theme the next time they open, without restarting the watcher. The countdown only means the watcher looks again — nothing is sent because it
 reaches zero. The icon is on by default and can be switched off on the Settings page.
 
 <img src="docs/images/tray-popup.png" alt="The notification-area popup: waiting, with the next check in a minute and a half and three waiting tasks, each with its kind of interruption, when it is next tried and a switch to resume or retry it automatically, and Pause recovery and Open Dashboard buttons" width="360">
@@ -305,14 +311,16 @@ as the other surfaces.
   the command line — all writing the same file through the same validator, so they cannot disagree.
 - Nine interface languages: English, Korean, Japanese, Simplified and Traditional Chinese,
   Spanish, German, French and Brazilian Portuguese. It follows Windows unless you choose one.
+- Light and dark themes: the Dashboard and the popup follow Windows, and the panel follows Codex,
+  unless you choose one. High Contrast is always honoured.
 - A continuation message you can shape: its language, a Minimal, Standard or Detailed style, or
   your own Custom words, with a Preview built by the same code the watcher sends with.
 - A Dashboard that shows what the watcher is doing and why each task is waiting, with an
   Auto-resume switch per waiting task, and a popup from the notification-area icon with the
   same state, the next check and up to three waiting tasks.
 - Windows notifications across the lifecycle: interruption detected, recovery starting, how it
-  turned out, and when it stops for good. Each one has its own switch, and the interruption
-  notification can cancel that recovery or open the Dashboard.
+  turned out, and when it stops for good. Each one has its own check box under one switch for
+  them all, and the interruption notification can cancel that recovery or open the Dashboard.
 
 ## How it works
 
@@ -399,8 +407,8 @@ now", "give that recovery its attempts back", "start the watcher", "clear auto r
 "Preview the auto resume message" uses `preview_recovery_message`, one of the plugin's 17 tools. It
 is read-only: it shows the exact text the watcher would send for one kind of interruption, under the
 current language and style or under ones named for the preview alone, and it saves nothing and sends
-nothing. Codex can change the interface language, the continuation language and the message style,
-including switching it to Custom, but it cannot write a Custom message: that text is sent into your
+nothing. Codex can change the interface language, the continuation language, the message style,
+including switching it to Custom, and the theme, but it cannot write a Custom message: that text is sent into your
 conversations automatically, so it is written only in the Windows Dashboard, under Settings >
 Continuation message.
 
@@ -602,14 +610,19 @@ The Settings page is split into five sections:
 | Section | What is in it |
 | --- | --- |
 | General | Interface language, starting at Windows sign-in, the notification-area icon, and which notifications appear |
-| Automatic recovery | Which classified kinds of interruption are recovered, one switch each |
+| Automatic recovery | Which classified kinds of interruption are recovered, one check box each |
 | Continuation message | The language and style of the message sent to Codex, your own Custom message, and a Preview of the exact text |
-| Appearance | The theme, and Reduce motion |
+| Appearance | The theme - Use system setting, Light or Dark - and Reduce motion |
 | Advanced | Attempts per interruption, when to give up after recoveries that produce nothing, continuations per task, and retry timing |
 
-Every kind of interruption the watcher recovers has a switch, on by default. A sign-in service that
-is temporarily unavailable (`auth_service_transient`) was recovered with no switch up to v0.6.2; it
-now has one, **Sign-in service failures**.
+Every kind of interruption the watcher recovers has a check box, ticked by default. A sign-in service
+that is temporarily unavailable (`auth_service_transient`) was recovered with no way to turn it off up
+to v0.6.2; it now has one, **Sign-in service failures**.
+
+A switch turns on or off something that runs - notifications, the notification-area icon, Reduce
+motion, starting at sign-in, automatic recovery for one conversation - and a check box picks which
+items of a list apply: the kinds of interruption above, and which notifications appear. A setting is
+the same kind in the Dashboard and in the panel.
 
 You cannot switch off a safety property, because none of them is a setting. There is no option
 that retries an unclassified failure, resolves a conversation by title, resends an uncertain
@@ -622,7 +635,9 @@ Português (Brasil). **Interface language** defaults to *System*, which follows 
 Windows lists and falls back to English for a language this product does not ship. A language
 you choose wins over Windows and is kept across restarts, repairs and updates. The
 `CODEX_AUTO_RESUME_LANG` environment variable replaces what Windows reports, so it decides the
-language only while the setting is *System*.
+language only while the setting is *System*. A new language shows at once: the Dashboard reopens
+itself in it, the panel redraws in it, and the popup, the menu and notifications use it from the
+next time they appear.
 
 ### The continuation message
 
@@ -918,6 +933,7 @@ issue; diagnosing a problem does not need them.
 | [docs/COMPARISON.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/COMPARISON.md) | Other projects in this space, and every feature adopted, adapted, rejected or deferred — with the reason. |
 | [docs/BRAND.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/BRAND.md) | The palette, the mark, and why each is what it is. |
 | [docs/DEVELOPMENT.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/DEVELOPMENT.md) | How it was built, including the measurements behind the loaded/notLoaded limitation. |
+| [docs/ROADMAP.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/ROADMAP.md) | Where the project is heading, release by release: a planned direction, not a promise. |
 | [PRIVACY.md](PRIVACY.md) | What is read, what is stored, and what is sent anywhere. |
 | [SECURITY.md](SECURITY.md) | The threat model and how to report a vulnerability. |
 | [SUPPORT.md](SUPPORT.md) | Where to report each kind of problem, and what not to paste into a public issue. |

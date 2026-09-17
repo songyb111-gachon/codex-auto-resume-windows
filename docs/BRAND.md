@@ -28,6 +28,12 @@ switches from those numbers. Each surface kept its own text sizes and its own la
 light kept its shape and got back the colour it had before v0.6.3: cyan whenever the watcher is
 running, with a soft glow, and grey when it is paused or stopped.
 
+v0.6.4 also made them one material in both themes. The panel had always followed Codex into dark;
+the Dashboard and the popup now draw the panel's dark theme as well, from the same recipes, when
+Windows or the **Theme** setting asks for it. And it added the two controls the surfaces did not
+yet share: a check box, for picking the items of a list, and a soft scroll bar for the window's
+pages and lists.
+
 ## Where a colour comes from
 
 `src/codex_auto_resume/brand.py` and nowhere else — and since v0.6.3, every size, radius and
@@ -35,9 +41,9 @@ duration as well.
 
 | Surface | How it gets the palette |
 | --- | --- |
-| The Codex panel | `mcpui.py` builds its `:root` block at import from `brand.LIGHT` and `brand.DARK`, `brand.css_scale()` and `brand.css_elevation()`, which writes the shadow recipes as CSS. |
-| The Dashboard | `build/make_brand.py` generates `gui/Brand.cs`: every light token as a `Color`; the scale, the layout sizes, the shadow recipes and the state light's numbers as constants; and the state light's per-state rules as small generated methods. `gui/Controls.cs` reads the colours through one `Palette` class, which is also the one place High Contrast is honoured. The generated file is committed, so a contributor with no Python can still read what the window will look like. |
-| The notification-area popup | `tray_popup.py` imports `brand` and draws with `brand.LIGHT`, the scale, the shadow recipes and `brand.glow()` directly. |
+| The Codex panel | `mcpui.py` builds its `:root` block at import from `brand.LIGHT` and `brand.DARK`, `brand.css_scale()` - which also writes the check box's colours for each of its states - and `brand.css_elevation()`, which writes the shadow recipes of both themes as CSS. |
+| The Dashboard | `build/make_brand.py` generates `gui/Brand.cs`: every light token as a `Color`, and in the nested class `Brand.Dark` the dark twin of everything that changes with the theme, under the same name; the scale, the layout sizes, the shadow recipes and the state light's numbers as constants; and the per-state rules of the state light, the shadows and the check box as small generated methods. `gui/Controls.cs` adopts one theme before its first control is made and reads the brand's colours through one `Tokens` class, the only place a light colour and its dark twin are read; its `Palette` class is also the one place High Contrast is honoured. The generated file is committed, so a contributor with no Python can still read what the window will look like. |
+| The notification-area popup | `tray_popup.py` imports `brand` and draws with `brand.palette(theme)`, `brand.card_ground(theme)`, `brand.shadows(recipe, theme)`, the scale and `brand.glow()` directly, in the theme it resolved when it opened. |
 | The icon | `assets/make_icon.py` imports the four icon colours directly. |
 | The plugin card | `.codex-plugin/plugin.json` carries `brandColor`, checked against `brand.BRAND`. |
 
@@ -85,7 +91,14 @@ lifted by light and shadow. The hairline stayed: a shadow alone is not an edge f
 status dot and not enough for text. The five state colours are the other way round: each one
 carries a word, so each is readable on a card, at 5.6:1 or better in the light theme and 6.7:1
 or better in the dark. The tests assert contrast for text, secondary text, the accent and the
-text on it, so a later adjustment "for looks" cannot quietly make the panel unreadable.
+text on it, so a later adjustment "for looks" cannot quietly make the panel unreadable. Since
+v0.6.4 they do it in both themes on every ground a word is drawn on - the canvas, a card, a raised
+control, a well and `accent_soft` - and hold the focus ring to 3:1 against each.
+
+**In dark, a card is not its surface.** On a near-black canvas a card that is only `surface`
+reads as a hole, so a dark card's ground is `surface` moved 22% of the way toward `raised`,
+`#1B212C`. The panel writes it as `color-mix()`, and the window and the popup fill with
+`brand.card_ground()`, which is the same colour (`CARD_LIFT`). A light card is its surface.
 
 **`on_accent` exists because of a bug the tests found.** A dark theme needs a bright accent
 to stand off its surface, and a bright accent cannot then carry white text: white on
@@ -99,12 +112,12 @@ window and a card in Codex round their corners by the same amount.
 
 | Table | Values | Used for |
 | --- | --- | --- |
-| `RADII` | card 16, control 11, chip 999, small 7 | Corners. A chip is a pill. |
+| `RADII` | card 16, control 11, chip 999, small 7, check 5 | Corners. A chip is a pill. |
 | `SPACING` | 4, 8, 12, 16, 24, 32 (`xs` to `xxl`) | Padding and gaps. |
 | `TYPE` | title 20, heading 14, body 12, small 11 | The Dashboard's and the popup's type sizes. |
 | `TYPE_SCALE`, `LINE_HEIGHT`, `TYPE_ROLES` | display 21, title 15, body 14, small 12.5, mono 13 | The panel's type. The native surfaces keep `TYPE`: a notification-area popup and a fixed-size window read better with smaller text than a panel inside Codex. |
-| `LAYOUT` | button 34 high, field 35, switch 40 × 22, chip 22, card padding 16 × 18, page gap 14, and the rest | The sizes of the shared control recipes, taken from the panel. |
-| `SHADOWS` | light card: offset (4, 4), blur 14, `shadow_dark` at 0.55, and offset (−4, −4), blur 14, `shadow_light` at 0.90; control: the same at offset 2, blur 6; inset: offset 2, blur 6, inside the edge | A lifted card, a raised control and a well. Small on purpose: exaggerated embossing is what makes soft interfaces unreadable. |
+| `LAYOUT` | button 34 high, field 35, switch 40 × 22, check box 18 with 10 to its label, chip 22, card padding 16 × 18, page gap 14, and the rest | The sizes of the shared control recipes, taken from the panel. |
+| `SHADOWS` | light card: offset (4, 4), blur 14, `shadow_dark` at 0.55, and offset (−4, −4), blur 14, `shadow_light` at 0.90; control: the same at offset 2, blur 6; inset: offset 2, blur 6, inside the edge. Dark card: offset (0, 1), blur 2, `shadow_dark` at 0.70, offset (0, 6), blur 18, at 0.35, and a one-pixel `shadow_light` line at 0.45 inside the top edge; control: offset (0, 1), blur 2, at 0.60; inset: the same inside the edge, at 0.55 | A lifted card, a raised control and a well. Small on purpose: exaggerated embossing is what makes soft interfaces unreadable. |
 | `STATUS_DOT`, `STATUS_FILL`, `GLOW` | dot radius: window 5, popup 4.5, panel 6; the glow reaches 7 beyond the dot | The state light: its size, its colour for each state, and its glow. |
 | `MOTION` | transition 160 ms | Control transitions in the panel. |
 
@@ -126,7 +139,9 @@ recipes as the panel's `box-shadow` values. The Dashboard and the popup render t
 into cached images and stamp them around each card and control, and tests hold what they draw to
 the model within two levels of 255 at 100%, 150% and 200%. In the dark theme a lift is mostly the
 hairline and a one-pixel top light, because a shadow on a near-black ground is invisible at best
-and muddy at worst.
+and muddy at worst. That makes a dark card's recipe a different shape from a light one's - three
+shadows, one of them inside the edge - so every surface reads each shadow's own `inset` flag
+rather than guessing it from the recipe's name.
 
 ## Motion is a state
 
@@ -152,22 +167,87 @@ motion** is on (Settings > Appearance) or when Windows' own animation-effects sw
 the Dashboard also stops it in High Contrast. The panel follows the host's
 `prefers-reduced-motion` instead, which is why the setting is not offered there.
 
-## High Contrast, and a window that stays light
+## Light, dark and High Contrast
 
-In High Contrast the Dashboard drops its shadows and tints, stops its motion and draws with
-system colours throughout; `Palette` in `gui/Controls.cs` is where that swap happens. Since
-v0.6.4 the popup makes the same swap, with the same mapping, and the panel has a forced-colors
-style, so its lights, switch knobs and drop-down arrows stay visible. In all three the state
-light becomes a solid dot in a system colour, with no glow.
+**Theme**, under Settings > Appearance, is *Use system setting*, *Light* or *Dark*. For the
+Dashboard and the popup, *Use system setting* means the app mode Windows is set to - the
+`AppsUseLightTheme` value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`,
+where 0 is dark and a missing value is light. For the panel it means Codex's own theme: the page
+carries no theme of its own and follows `prefers-color-scheme`, while *Light* and *Dark* stamp its
+root with `data-theme`. The notification-area icon and its badge are drawn in the light palette
+whatever the setting says; they sit on the taskbar, not on any of the three surfaces.
 
-The Dashboard is light-only, and that is a measurement rather than an opinion. A probe built for
-v0.5.6 painted a card, a spin box, a drop-down, a check box and a button in the dark palette and
-photographed the result. The body went dark; the parts Windows draws itself - the spinner's
-buttons, the drop-down's arrow, the check-box glyph - stayed light, which is worse than an
-honestly light window and not fixable without owner-drawing every native control. v0.6.3's soft
-controls paint over the standard controls rather than replacing them, so that finding still
-stands. The popup draws with the light palette too. The dark half of the palette is not unused:
-the panel in Codex is HTML and follows Codex's own theme.
+Dark is the panel's dark theme on all three surfaces, from one set of numbers: `DARK`, the dark
+shadow recipes and the dark card ground. The window adopts its theme once, before its first
+control exists, and a test walks every control on every page of the dark window and finds no
+light colour; its title bar goes dark through `DWMWA_USE_IMMERSIVE_DARK_MODE`, and a text box's
+own scroll bars through Windows' dark style. The window builds its colours when it opens, so a
+changed theme reopens it rather than repainting it. The popup resolves its theme each time it
+opens, and while it is dark the watcher asks Windows for dark context menus too. What Windows
+draws itself stays Windows' own: message boxes, the file dialog, a text box's context menu, the
+frame of an open drop-down list, and notifications.
+
+The Dashboard was light-only until v0.6.4, and that was a measurement rather than an opinion. A
+probe built for v0.5.6 painted a card, a spin box, a drop-down, a check box and a button in the
+dark palette and photographed the result. The body went dark; the parts Windows draws itself -
+the spinner's buttons, the drop-down's arrow, the check-box glyph - stayed light, which is worse
+than an honestly light window and not fixable without owner-drawing every native control.
+v0.6.3's soft controls painted over the standard controls rather than replacing those parts.
+v0.6.4 draws each of them: the spin buttons are two wedges on the well, the drop-down's closed
+face is ours, a switch and a check box are drawn whole, and the scroll bar is our own. That is
+what made a dark window honest, and why it arrived with them rather than before.
+
+High Contrast wins over any theme. In it the Dashboard drops its shadows and tints, stops its
+motion and draws with system colours throughout; `Palette` in `gui/Controls.cs` is where that swap
+happens. The popup makes the same swap, with the same mapping, and the panel has a forced-colors
+style, so its lights, switch knobs, check boxes and drop-down arrows stay visible. In all three the
+state light becomes a solid dot in a system colour, with no glow.
+
+## Switches and check boxes
+
+A switch turns something that runs on or off: notifications, the notification-area icon, Reduce
+motion, Run at Windows sign-in, and automatic recovery for one conversation. A check box picks
+which items of a list apply: which kinds of interruption are recovered (`recover_<kind>`) and,
+under the notifications switch, which events notify (`notify_<event>`). A setting is the same kind
+on every surface that shows it, and a check box sits to the left of its label everywhere. A switch
+sits where its surface puts switches: at the end of its row in the panel and the popup, before its
+label in the Dashboard.
+
+The check box is the switch's material, written down in `brand.CHECKBOX`:
+
+| State | Fill | Edge | Mark |
+| --- | --- | --- | --- |
+| Unchecked | `inset`, with the inset shadow inside the edge | `muted` | - |
+| Checked | `accent` | `accent` | `on_accent` |
+| Unchecked, disabled | `surface` | `line` | - |
+| Checked, disabled | `surface` | `line` | `muted` |
+
+The box is 18 pixels - the switch's 16-pixel knob in a one-pixel frame - with corners of 5 and 10
+pixels to its label, so a row of check boxes is never taller than a row with a switch. Its edge
+unchecked is `muted`, not the `line` a field has: a switch that is off is still told apart by its
+knob, an empty box has nothing inside it, and a `line` hairline on a card measures 1.3:1, well
+under the 3:1 a control's outline needs. The tick is one polyline, `brand.CHECK_MARK`: two arms
+at 45 degrees meeting at a right angle, the long arm twice the short one, stroked 2 pixels wide
+with flat ends and a mitred corner. The window strokes it; the panel clips a layer to the same
+outline (`--check-mark-shape`). In High Contrast the box is `brand.CHECKBOX_SYSTEM` - a Window box
+with a WindowText edge, Highlight with a HighlightText tick when checked, GrayText when disabled -
+and never has a shadow. Its focus ring is every control's.
+
+## The scroll bar
+
+The window's pages, its Settings sections, Pending's **Why it is waiting** and every list scroll on
+a soft bar of the window's own rather than on Windows' scroll bar. The track is a pill 12 pixels
+wide in a 3-pixel margin, drawn as a well - `inset` with a `line` edge - and the thumb is a
+`raised` pill resting in it, with a control's lift kept inside the groove; its edge moves a step
+toward `muted` under the pointer and another while it is dragged. The thumb is as long as the
+share of the page that shows, and never shorter than 32 pixels. A wheel notch moves three lines
+of 33 pixels, which is what the panel's page moves; a press on the track moves a page; and a
+control the keyboard moves to is brought into view with 16 pixels around it, moving as little as
+it can. The bar shows only while there is more than fits, and glides unless motion is reduced. In
+High Contrast the track is Window with a WindowFrame edge and the thumb GrayText, Highlight under
+the pointer, with no shadow. A list's own scroll bar is clipped away behind the soft one. The bar
+is the Dashboard's alone: the popup does not scroll, and the panel scrolls in the page Codex shows
+it in.
 
 ## The mark
 
@@ -206,16 +286,19 @@ the ring rather than floating beside it.
   keyboard focus ring has its own token, `focus`.
 - **Order is an argument.** The panel runs: the state; then what is waiting, because it is the
   part that changes; then what is configured, general to particular; then what that
-  configuration will say. The Dashboard's Settings is split into General, Automatic recovery,
-  Continuation message, Appearance and Advanced.
+  configuration will say; then how it looks. The Dashboard's Settings is split into General,
+  Automatic recovery, Continuation message, Appearance and Advanced.
 - **Every status fact is its own label in its own cell.** A single concatenated string
   wraps or truncates as the window narrows, and what disappears first is the version — the
   part people are asked for when reporting a problem.
 - **The card is one object, repeated.** Same ground, same hairline, same radius and the same
   lift on all three surfaces, so the eye reads a list of sections rather than a pile of boxes.
-- **A standard control underneath.** In the Dashboard a button is still a `Button`, a switch is a
-  `CheckBox` drawn as a switch, and a drop-down is a `ComboBox` whose closed face we draw; only
-  the painting is ours, so the keyboard, focus and screen readers behave as they always did.
+- **A standard control underneath.** In the Dashboard a button is still a `Button`, a switch and
+  a check box are each a `CheckBox` drawn as one, and a drop-down is a `ComboBox` whose closed face
+  we draw; only the painting is ours, so the keyboard, focus and screen readers behave as they
+  always did. In the panel a check box is an `<input type="checkbox">` and a switch the same input
+  with `role="switch"`. The soft scroll bar is the one part with no standard control under it, and
+  it takes no focus: the keyboard goes to what it scrolls, which comes into view.
 
 ## Redrawing anything
 

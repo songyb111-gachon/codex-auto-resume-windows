@@ -349,6 +349,7 @@ class CatalogTests(unittest.TestCase):
         "choice.style.": continuation.STYLES,
         "help.style.": continuation.STYLES,
         "choice.custom_mode.": continuation.CUSTOM_MODES,
+        "choice.theme.": policy.THEMES,
         "preview.source.": ("global", "per_reason", "standard"),
         "choice.": tuple(policy.RETRY_TIMING),
         "code.": tuple(machine.PUBLIC_CODES),

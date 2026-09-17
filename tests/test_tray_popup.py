@@ -403,7 +403,9 @@ class LayoutTests(unittest.TestCase):
                     colour = brand.elevation_colour("card", side, margin, "canvas", scale=scale)
                     self.assertLess(max(abs(part - ground) for part, ground in zip(colour, canvas)), 1.0)
 
-    def test_a_switch_sits_at_the_start_of_its_label_s_first_line(self):
+    def test_a_switch_sits_at_the_end_of_its_label_s_first_line(self):
+        """v0.6.4: the label on the left, the switch against the row's inner right edge (the geometry
+        in every language and at every scale is tests/test_tray_popup_v064.py)."""
         first_line = measure("body", "Ag", 100, False)[1]
         for scale in (1.0, 1.25, 1.5, 1.75, 2.0):
             _, plan = self.plan(scale=scale)
@@ -416,10 +418,12 @@ class LayoutTests(unittest.TestCase):
                                                                     round(brand.LAYOUT["switch_height"] * scale)))
                     label = next(item for item in plan["items"]
                                  if item["kind"] == "text" and item["target"] == switch["target"])
-                    self.assertEqual(label["rect"][0], right + round(brand.SPACING["s"] * scale))
+                    row_inner_right = plan["card"][2] - round(brand.SPACING["l"] * scale) - round(brand.SPACING["m"] * scale)
+                    self.assertEqual(right, row_inner_right)
+                    self.assertEqual(label["rect"][2], left - round(popup.SWITCH_GAP * scale))
                     self.assertLessEqual(abs(label["rect"][1] + first_line / 2.0 - (top + bottom) / 2.0), 1.0)
                     hit = dict(plan["targets"])[switch["target"]]
-                    self.assertTrue(hit[0] <= left and hit[1] <= top and right <= hit[2] and bottom <= hit[3])
+                    self.assertTrue(hit[0] <= label["rect"][0] and hit[1] <= top and right <= hit[2] and bottom <= hit[3])
 
     def test_the_header_keeps_its_place_and_the_glow_stays_on_the_card(self):
         for scale in (1.0, 1.25, 1.5, 1.75, 2.0):

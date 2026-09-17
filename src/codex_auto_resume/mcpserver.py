@@ -54,6 +54,10 @@ def _identifier_schema(title: str) -> dict:
 # Settings groups a person can change from a front end. Anything else is not offered to
 # a model and is refused if a client sends it anyway.
 USER_GROUPS = frozenset({"general", "recovery", "limits", "notifications", "continuation"})
+# The one Appearance setting the panel offers, because it colours the panel as well. Reduce
+# motion stays out: it is a preference of the Windows surfaces, and the panel follows the
+# host's own reduced-motion setting instead. The notification-area icon ("windows") too.
+PANEL_APPEARANCE = frozenset({"theme"})
 
 
 def settings_schema() -> dict:
@@ -72,7 +76,7 @@ def settings_schema() -> dict:
         # could point codex_exe somewhere else without any approval prompt. Nothing
         # executes an arbitrary path (the location is confined before anything runs), but
         # recovery silently stopped at the next watcher start.
-        if entry.get("group") not in USER_GROUPS:
+        if entry.get("group") not in USER_GROUPS and name not in PANEL_APPEARANCE:
             continue
         # Custom continuation text is the one thing in the continuation group Codex may not
         # write. Whatever it says is later sent into the user's conversations by the
@@ -99,6 +103,11 @@ def settings_schema() -> dict:
                                         "Turning this on can never widen what counts as "
                                         "recoverable; the classifier decides that."
                                         % entry["category"].replace("_", " "))
+        elif name == "theme":
+            described["description"] = ("Light or dark for the settings window, the "
+                                        "notification-area popup and the settings panel. "
+                                        "system follows Windows' app mode, and in Codex "
+                                        "Codex's own theme. Changes nothing but colours.")
         described.setdefault("description", "See the settings documentation.")
         properties[name] = described
     return {"type": "object", "properties": properties, "additionalProperties": False}

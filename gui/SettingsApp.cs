@@ -25,7 +25,11 @@
 //     A single label wraps or truncates as the window narrows, and what disappears first
 //     is the version - the part people are asked for when reporting a problem.
 //   * Colours come from gui/Brand.cs, which is generated from the palette in
-//     src/codex_auto_resume/brand.py. Do not write a literal colour in this file.
+//     src/codex_auto_resume/brand.py, through Palette, which holds the theme the window opened
+//     in. Do not write a literal colour in this file, nor one of Brand's light fields.
+//   * A window speaks one language and draws one theme, both decided as it opens. When either
+//     changes - saved here, or anywhere else, or Windows' own app mode under "system" - the
+//     window reopens itself where it was (see Reopen), never while somebody has edits unsaved.
 //
 // Built with the in-box C# compiler against .NET Framework 4.8, which ships on every
 // supported Windows, so the release carries no extra runtime for the interface.
@@ -38,6 +42,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
+using System.Windows.Forms.Automation;
 
 namespace CodexAutoResume
 {
@@ -53,11 +58,29 @@ namespace CodexAutoResume
 
         internal static object Parse(string text)
         {
+            return ParseText(text, false);
+        }
+
+        /// A JSON document as Python's json.loads takes one: a value with nothing after it but whitespace. For
+        /// a file the settings layer reads too (Theme.Stored), where "{...} and more" is no settings at all.
+        internal static object ParseDocument(string text)
+        {
+            return ParseText(text, true);
+        }
+
+        private static object ParseText(string text, bool whole)
+        {
             int index = 0;
             int depth = 0;
             try
             {
-                return ParseValue(text, ref index, ref depth);
+                object value = ParseValue(text, ref index, ref depth);
+                if (whole)
+                {
+                    SkipWhitespace(text, ref index);
+                    if (index != text.Length) throw new FormatException("more after the JSON value");
+                }
+                return value;
             }
             catch (IndexOutOfRangeException)
             {
@@ -258,6 +281,34 @@ namespace CodexAutoResume
         }
     }
 
+    /// What the window was asked to open with, from its command line (SettingsForm.ParseArguments).
+    /// Every value has been checked against what it may be; what was not given, or not valid, is
+    /// null, false or zero, and the window opens as it always did.
+    internal sealed class OpenRequest
+    {
+        /// A page of the window: `--page=<name>`, or `--settings`, the older spelling.
+        internal string Page;
+        /// A Settings section: `--section=<name>`.
+        internal string Section;
+        /// A Theme preference - "system", "light" or "dark" - that the window opens in instead of the
+        /// stored one: `--theme=<name>`, which a window that reopens itself passes on (see Reopen).
+        internal string Theme;
+        /// Where the window goes, in device pixels: `--bounds=<x>,<y>,<width>,<height>`.
+        internal bool HasBounds;
+        internal Rectangle Bounds;
+        /// `--maximized`.
+        internal bool Maximized;
+        /// How many reopens in a row led to this window, 1 to 9: `--reopened=<n>`. 0 when a person
+        /// opened it.
+        internal int Generation;
+        /// How far the bounds reach past the frame one sees - the resize border Windows keeps invisible -
+        /// as the window this one replaces measured it: `--frame=<left>,<top>,<right>,<bottom>`. Empty
+        /// when not given.
+        internal Padding Frame;
+        /// Where the keyboard was in the window this one replaces (SettingsForm.FocusName): `--focus=<name>`.
+        internal string Focus;
+    }
+
     /// A drop-down entry whose stored value and displayed label differ.
     internal sealed class Choice
     {
@@ -355,24 +406,24 @@ namespace CodexAutoResume
     {
         // The palette lives in src/codex_auto_resume/brand.py and is generated into
         // gui/Brand.cs, so the window, the Codex panel, the icon and the plugin card
-        // cannot disagree about what colour this product is.
-        //
-        // Except in High Contrast mode, where the person has chosen their colours for a
-        // reason and a brand palette would override it: then every colour is a system one.
-        private static readonly bool Contrast = SystemInformation.HighContrast;
-        private static readonly Color Ink     = Contrast ? SystemColors.WindowText : Brand.Ink;
-        private static readonly Color Muted   = Contrast ? SystemColors.GrayText : Brand.Muted;
+        // cannot disagree about what colour this product is. The window reads it through
+        // Palette, which holds the one theme it opened in: light, dark, or High Contrast,
+        // where the person has chosen their colours for a reason and every colour is a
+        // system one.
+        private static bool Contrast { get { return Palette.Contrast; } }
+        private static Color Ink { get { return Palette.Ink; } }
+        private static Color Muted { get { return Palette.Muted; } }
         // Secondary text that is still live. In High Contrast mode GrayText means
         // "disabled", so there it is the ordinary text colour, and weight and position
         // carry the hierarchy instead. Muted stays for what really is disabled.
-        private static readonly Color Secondary = Contrast ? SystemColors.WindowText : Brand.Muted;
-        private static readonly Color Line    = Contrast ? SystemColors.WindowFrame : Brand.Line;
-        private static readonly Color Surface = Contrast ? SystemColors.Window : Brand.Surface;
-        private static readonly Color Canvas  = Contrast ? SystemColors.Control : Brand.Canvas;
-        private static readonly Color Accent  = Contrast ? SystemColors.Highlight : Brand.Accent;
-        private static readonly Color OnAccent = Contrast ? SystemColors.HighlightText : Brand.OnAccent;
-        private static readonly Color Active  = Contrast ? SystemColors.Highlight : Brand.Active;
-        private static readonly Color Idle    = Contrast ? SystemColors.GrayText : Brand.Idle;
+        private static Color Secondary { get { return Palette.Secondary; } }
+        private static Color Line { get { return Palette.Line; } }
+        // A card's own ground: what everything opaque inside a card is filled with.
+        private static Color Card { get { return Palette.Card; } }
+        private static Color Canvas { get { return Palette.Canvas; } }
+        private static Color Accent { get { return Palette.Accent; } }
+        private static Color OnAccent { get { return Palette.OnAccent; } }
+        private static Color Active { get { return Palette.Active; } }
 
         private readonly PersistentBridge bridge;
         private readonly Dictionary<string, Control> editors = new Dictionary<string, Control>();
@@ -409,6 +460,33 @@ namespace CodexAutoResume
         private Timer previewTimer;
         private int previewToken;
         private string loadedInterfaceLanguage = "system";
+        // What the window was opened with (see OpenRequest), and the installation it belongs to.
+        private readonly OpenRequest request;
+        private readonly string installRoot;
+        // Reopening (see Reopen). What this window shows - the Interface language its words were
+        // resolved for, and the theme it draws - against what is stored: the Interface language and
+        // Theme preference as last read or saved.
+        private string openedLanguage, openedTheme, storedLanguage, storedTheme;
+        private bool settingsRead, readingSettings, reopening, recheck;
+        private long settingsStamp;
+        // The language and theme a reopen on its way is for; and the pair a new window was last started for
+        // that never showed, which this window does not try again (CheckReopen, FinishReopen).
+        private string reopenLanguage, reopenTheme, declinedLanguage, declinedTheme;
+        // What a read or a save leaves undone while the window reopens, done after all if it stays.
+        private MethodInvoker heldForReopen;
+        // Where the keyboard was as a save that may reopen the window began (Save); and where a window that
+        // replaces another still has to put it once the page is built (FocusPending).
+        private string reopenFocus, pendingFocus;
+        // The resize border Windows keeps invisible around this window, as last measured (InvisibleFrame).
+        private Padding invisibleFrame;
+        // Whether the reopen note is showing, which the save card's height follows (BuildFooter).
+        private bool reopenNoteShown;
+        private EventHandler fitFooter;
+        // The editors' values as the page was built or last saved, which is what "unsaved edits" is
+        // measured from, and the sign-in switch as the status last said.
+        private Dictionary<string, string> baseline;
+        private bool startupBaseline;
+        private NoteLabel reopenNote;
         // The same limit the settings layer enforces. Shown, never enforced here: text past it
         // is refused when saved rather than cut off while it is typed.
         private const int MaxCustomLength = 2000;
@@ -425,7 +503,7 @@ namespace CodexAutoResume
         private readonly Label detail = new Label();
         private readonly Label versionText = new Label();
         private readonly HaloDot stateDot = new HaloDot();
-        private Button startButton;
+        private Button startButton, closeButton;
 
         // The interface vocabulary, in the language the engine resolved. Fetched once,
         // over the same bridge every other read goes through.
@@ -476,6 +554,8 @@ namespace CodexAutoResume
         {
             if (!Ok(reply) || !(Get(reply, "strings") is Dictionary<string, object>)) return;
             strings = (Dictionary<string, object>)reply["strings"];
+            // The Interface language these words were resolved for, as the settings stored it.
+            openedLanguage = Get(reply, "preference") as string;
             object names, system;
             if (reply.TryGetValue("endonyms", out names) && names is Dictionary<string, object>)
                 endonyms = (Dictionary<string, object>)names;
@@ -564,6 +644,12 @@ namespace CodexAutoResume
         private SettingsForm(PersistentBridge bridge, Dictionary<string, object> catalog, Font windowFont)
         {
             this.bridge = bridge;
+            // What it was asked to open with. A window LayoutAudit builds is asked for nothing.
+            request = catalog != null ? new OpenRequest() : ParseArguments(Environment.GetCommandLineArgs());
+            // The theme it draws was adopted before this (Program.Main), from the same request.
+            openedTheme = Palette.Theme;
+            storedTheme = Theme.Opened;
+            invisibleFrame = request.Frame;
             // Before anything is built: every label below asks the catalog for its text.
             //
             // From the cache when it was written for exactly this installation, this Interface
@@ -571,6 +657,7 @@ namespace CodexAutoResume
             // worker, while the fonts and the icon are made. The window used to wait 260-400 ms for
             // the interpreter to start, and then spend 130-260 ms more on the first font.
             string root = AppDomain.CurrentDomain.BaseDirectory;
+            installRoot = root;
             string cacheKey = null;
             System.Threading.Tasks.Task<Dictionary<string, object>> asking = null;
             if (catalog != null) AdoptStrings(catalog);
@@ -628,6 +715,16 @@ namespace CodexAutoResume
             BuildColumns();
             BuildDashboard();
             KeepOnScreen();
+            if (request.HasBounds)
+            {
+                // Reopened where the window it replaces was, on the screen that window was on: the frame one
+                // sees where that one's was, with the invisible border that window measured around it.
+                StartPosition = FormStartPosition.Manual;
+                Bounds = PlaceOnScreen(request.Bounds, Screen.FromRectangle(request.Bounds).WorkingArea, MinimumSize, request.Frame);
+            }
+            if (request.Maximized) WindowState = FormWindowState.Maximized;
+            // A dark title bar over a dark window.
+            Soft.TitleBar(this);
 
             // The fill control is added first so the docked strips keep their edges:
             // docking is resolved from the last-added control inward, so whatever is
@@ -650,9 +747,18 @@ namespace CodexAutoResume
                 if (auditing) return;
                 Reload();
                 ShowPage(firstPage);
+                // A window that replaces another puts the keyboard where that one had it (FocusName).
+                FocusInterim();
                 StartClock();
             };
-            Shown += delegate { shown = true; BuildEditorsLater(); };
+            Shown += delegate
+            {
+                shown = true;
+                // Measured once it is on screen, for a reopen from this window maximized (Reopen).
+                Padding measured = InvisibleFrame();
+                if (measured != Padding.Empty) invisibleFrame = measured;
+                BuildEditorsLater();
+            };
             FormClosed += delegate { StopClock(); bridge.Stop(); };
         }
 
@@ -886,7 +992,7 @@ namespace CodexAutoResume
             // show moving (see HaloDot); with motion reduced it holds still.
             var dot = stateDot;
             dot.Dock = DockStyle.Fill;
-            dot.BackColor = Surface;
+            dot.BackColor = Card;
             dot.Margin = new Padding(0);
 
             headline.Dock = DockStyle.Fill;
@@ -942,24 +1048,44 @@ namespace CodexAutoResume
             savebar.Dock = DockStyle.Fill;
             savebar.Margin = new Padding(0);
             savebar.Padding = Pad(Brand.SavebarPadLeft + 6, Brand.SavebarPadTop, Brand.SavebarPadRight, Brand.SavebarPadBottom);
-            savebar.ColumnCount = 2;
+            savebar.ColumnCount = 3;
             savebar.RowCount = 1;
-            savebar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));   // version
+            savebar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));        // version
+            savebar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));   // what happens once edits are saved
             savebar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));        // buttons
             // A Dock=Fill child of an implicit AutoSize row measures to nothing, and the
             // strip then renders empty. Say what the row is.
             savebar.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
 
-            // In its own column, so narrowing the window shortens nothing that matters
-            // and never takes away the one field people are asked for in a bug report.
-            versionText.Dock = DockStyle.Fill;
+            // In its own column, as wide as it is, so narrowing the window shortens nothing
+            // that matters and never takes away the one field people are asked for in a bug
+            // report.
+            versionText.AutoSize = true;
+            versionText.Anchor = AnchorStyles.Left;
             versionText.TextAlign = ContentAlignment.MiddleLeft;
-            versionText.ForeColor = Idle;
-            versionText.AutoEllipsis = true;
+            // Secondary text, which it is. The idle fill it was drawn in is a colour for a status light, 2.41:1
+            // on the card in light and 3.10:1 in dark: too faint for the one field people are asked to read out.
+            versionText.ForeColor = Secondary;
+
+            // Said only while a language or theme changed and there are edits to keep: the window
+            // reopens in the new one once they are saved or discarded (see CheckReopen). The card grows to
+            // hold all of it beside the buttons (fit, below) - five lines of French at the window's narrowest -
+            // and only past NoteLines does it end in an ellipsis; a screen reader has it whole.
+            reopenNote = new NoteLabel();
+            reopenNote.AutoSize = false;
+            reopenNote.Dock = DockStyle.Fill;
+            reopenNote.TextAlign = ContentAlignment.MiddleLeft;
+            reopenNote.AutoEllipsis = true;
+            reopenNote.UseMnemonic = false;
+            reopenNote.ForeColor = Secondary;
+            reopenNote.LiveSetting = AutomationLiveSetting.Polite;
+            reopenNote.Margin = Pad(16, 0, 8, 0);
+            reopenNote.Visible = false;
 
             var row = new SoftFlow();
-            row.BackColor = Surface;
-            row.Dock = DockStyle.Fill;
+            row.BackColor = Card;
+            // At the right of its cell and in the middle of it, beside a note taller than the buttons.
+            row.Anchor = AnchorStyles.Right;
             row.FlowDirection = FlowDirection.RightToLeft;
             row.WrapContents = false;
             row.AutoSize = true;
@@ -969,7 +1095,8 @@ namespace CodexAutoResume
             // measurement plus a constant, the row needed six more than the arithmetic
             // allowed for, and every button lost the last two rows of its own border.
             row.Margin = new Padding(0);
-            row.Controls.Add(MakeButton(S("action.close", "Close"), false, delegate { Close(); }));
+            closeButton = MakeButton(S("action.close", "Close"), false, delegate { Close(); });
+            row.Controls.Add(closeButton);
             // Only the Settings page has anything to save.
             saveButton = MakeButton(S("action.save", "Save"), true, delegate { Save(); });
             restoreButton = MakeButton(S("action.restore", "Restore defaults"), false, delegate { RestoreDefaults(); });
@@ -978,18 +1105,47 @@ namespace CodexAutoResume
 
             versionText.Margin = new Padding(0);
             savebar.Controls.Add(versionText, 0, 0);
-            savebar.Controls.Add(row, 1, 0);
+            savebar.Controls.Add(reopenNote, 1, 0);
+            savebar.Controls.Add(row, 2, 0);
             footer.Controls.Add(savebar);
             // Measured, not derived. A strip sized by a formula cannot know how tall an
             // AutoSize button becomes once the font is applied, and being two pixels short
-            // looks exactly like a drawing bug. Again whenever the window's font changes.
+            // looks exactly like a drawing bug. Again whenever the window's font changes, the
+            // reopen note is shown or hidden, and - while it shows - the room beside it changes.
             EventHandler fit = delegate
             {
-                footer.Height = Math.Max(savebar.PreferredSize.Height, row.PreferredSize.Height + savebar.Padding.Vertical)
-                              + footer.Padding.Vertical;
+                int content = Math.Max(savebar.PreferredSize.Height, row.PreferredSize.Height + savebar.Padding.Vertical);
+                if (reopenNoteShown) content = Math.Max(content, NoteHeight(row) + savebar.Padding.Vertical);
+                int height = content + footer.Padding.Vertical;
+                if (footer.Height != height) footer.Height = height;
             };
             fit(this, EventArgs.Empty);
             FontChanged += fit;
+            fitFooter = fit;
+            EventHandler follow = delegate { if (reopenNoteShown) fit(this, EventArgs.Empty); };
+            savebar.SizeChanged += follow;
+            row.SizeChanged += follow;
+            versionText.SizeChanged += follow;
+        }
+
+        /// The most lines the reopen note takes in the save card before it ends in an ellipsis.
+        private const int NoteLines = 6;
+        private const TextFormatFlags NoteFormat = TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl |
+                                                   TextFormatFlags.NoPrefix;
+
+        /// How tall the reopen note has to be to show all of it - up to NoteLines lines - in the width its
+        /// column has: the card's, less the version and `row`, the buttons, which are as wide as they ask.
+        private int NoteHeight(Control row)
+        {
+            int width = savebar.ClientSize.Width - savebar.Padding.Horizontal
+                      - (versionText.PreferredSize.Width + versionText.Margin.Horizontal)
+                      - (row.PreferredSize.Width + row.Margin.Horizontal)
+                      - reopenNote.Margin.Horizontal - reopenNote.Padding.Horizontal;
+            if (width <= 0 || string.IsNullOrEmpty(reopenNote.Text)) return 0;
+            int text = TextRenderer.MeasureText(reopenNote.Text, reopenNote.Font, new Size(width, int.MaxValue), NoteFormat).Height;
+            int line = TextRenderer.MeasureText("Ag", reopenNote.Font, new Size(int.MaxValue, int.MaxValue),
+                                                TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix).Height;
+            return Math.Min(text, NoteLines * line) + reopenNote.Padding.Vertical;
         }
 
         private Button MakeButton(string text, bool primary, EventHandler onClick)
@@ -1113,9 +1269,10 @@ namespace CodexAutoResume
             return card;
         }
 
-        private CheckBox NewCheck(string text, bool value)
+        private CheckBox NewCheck(string text, bool value, bool box)
         {
             var check = new SoftCheck();
+            check.Box = box;
             check.Text = text;
             check.AutoSize = true;
             check.Margin = Pad(0, 3, 0, 3);
@@ -1162,7 +1319,7 @@ namespace CodexAutoResume
             // Opaque, in the card's own colour. See-through, every repaint of the row and of its
             // label asked the card behind it to paint its background again, shadow and all - 540
             // card backgrounds, 11 seconds, in one measured session of v0.6.3.
-            row.BackColor = Surface;
+            row.BackColor = Card;
 
             var label = new Label();
             label.Text = text;
@@ -1238,6 +1395,8 @@ namespace CodexAutoResume
             // Both reads on a worker, one after the other. The Dashboard's clock takes the
             // bridge lock from a pool thread every five seconds, so reading the schema on
             // this thread stops the window repainting until that read has finished too.
+            // Taken before the read, so a change made while it is on its way is looked at again.
+            settingsStamp = SettingsStamp();
             CallAsync("describe", null, delegate(Dictionary<string, object> described)
             {
                 if (!Ok(described)) { ReloadFailed(described); return; }
@@ -1247,11 +1406,23 @@ namespace CodexAutoResume
                     var schema = described["schema"] as List<object>;
                     var current = settings["settings"] as Dictionary<string, object>;
                     if (schema == null || current == null) { ReloadFailed(null); return; }
-                    AdoptSettings(current);
-                    pendingSchema = schema;
-                    pendingSettings = current;
-                    if (currentPage == "settings") BuildPendingEditors();
-                    else BuildEditorsLater();
+                    // The first read since the window opened confirms the language and theme it opened
+                    // in; a later one - after Restore defaults - may have changed them.
+                    bool first = !settingsRead;
+                    settingsRead = true;
+                    Observe(current, first);
+                    // Not in a window that is reopening - and done after all if it stays (FinishReopen), or the
+                    // page would go on showing what the settings were, and a Save would write that back.
+                    HoldForReopen(delegate
+                    {
+                        AdoptSettings(current);
+                        pendingSchema = schema;
+                        pendingSettings = current;
+                        if (currentPage == "settings") BuildPendingEditors();
+                        else BuildEditorsLater();
+                        // The keyboard where the window this one replaces had it, now that it is there.
+                        FocusPending();
+                    });
                 });
             });
         }
@@ -1339,7 +1510,8 @@ namespace CodexAutoResume
             editors["interface_language"] = interfaceCombo;
             TableLayoutPanel windows = NewGroup(S("group.windows", "Windows"), sections["general"]);
             // First in its card, above the Windows preferences the schema adds.
-            CheckBox startup = NewCheck(S("field.startup", "Run at Windows sign-in"), false);
+            // A switch: it turns something that runs on or off (see IsListItem).
+            CheckBox startup = NewCheck(S("field.startup", "Run at Windows sign-in"), false, false);
             windows.Controls.Add(startup);
             editors["__startup"] = startup;
             TableLayoutPanel notifications = NewGroup(S("group.notifications", "Notifications"), sections["general"]);
@@ -1356,13 +1528,6 @@ namespace CodexAutoResume
 
             // Appearance, and the limits nobody needs to change to get started.
             TableLayoutPanel look = NewGroup(S("group.appearance", "Appearance"), sections["appearance"]);
-            var theme = new Label();
-            theme.AutoSize = true;
-            theme.Text = S("choice.theme.light", "Light");
-            theme.ForeColor = Ink;
-            look.Controls.Add(NewRow(S("field.theme", "Theme"), theme));
-            look.Controls.Add(HelpText(S("help.theme",
-                "This window always uses the light theme. The panel in Codex follows Codex's own light or dark theme.")));
             TableLayoutPanel limits = NewGroup(S("group.limits", "Limits"), sections["advanced"]);
             limits.Controls.Add(HelpText(S("help.limits", "Sets how hard recovery tries before it stops and leaves the task to you.")));
 
@@ -1386,7 +1551,8 @@ namespace CodexAutoResume
                 string type = Str(field, "type");
                 if (type == "boolean")
                 {
-                    CheckBox check = NewCheck(Humanise(name), Equals(Get(current, name), true));
+                    // A check box for an item of a list, a switch for anything that runs (IsListItem).
+                    CheckBox check = NewCheck(Humanise(name), Equals(Get(current, name), true), IsListItem(name));
                     if (Equals(Get(field, "master"), true))
                     {
                         // The heading role, which is built from the family rather than
@@ -1398,7 +1564,9 @@ namespace CodexAutoResume
                     }
                     else if (host == notifications)
                     {
-                        check.Margin = Pad(22, 2, 0, 2);   // subordinate to the master
+                        // Subordinate to the master, its words starting where the master switch's do:
+                        // 21 + a box of 18 + its gap of 10 is the switch's 40 + its gap of 9.
+                        check.Margin = Pad(21, 2, 0, 2);
                         subordinate.Add(check);
                     }
                     host.Controls.Add(check);
@@ -1428,9 +1596,13 @@ namespace CodexAutoResume
                     // apart, so Save writes "normal" whatever the label says - a settings
                     // file that changes meaning with the display language would be a bug
                     // the user could not see until the watcher read it back.
-                    SoftCombo combo = ChoiceCombo(field, current, "choice.");
+                    // The Theme's labels are its own ("Use system setting", "Light", "Dark").
+                    SoftCombo combo = ChoiceCombo(field, current, name == "theme" ? "choice.theme." : "choice.");
                     host.Controls.Add(NewRow(Humanise(name), combo));
                     editors[name] = combo;
+                    if (name == "theme")
+                        host.Controls.Add(HelpText(S("help.theme",
+                            "Light or dark for this window, the notification-area popup and the panel in Codex. Use system setting follows Windows; in Codex it follows Codex's own theme.")));
                 }
             }
             if (master != null)
@@ -1447,6 +1619,10 @@ namespace CodexAutoResume
 
             columns.ResumeLayout(true);
             ShowSection(currentSection);
+            // What unsaved edits are measured from: the page as it was built.
+            baseline = EditorValues();
+            CheckBox startupCheck = editors.ContainsKey("__startup") ? editors["__startup"] as CheckBox : null;
+            startupBaseline = startupCheck != null && startupCheck.Checked;
             if (!auditing) RefreshStatusAsync(null);
         }
 
@@ -1508,7 +1684,7 @@ namespace CodexAutoResume
             perReasonPanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             perReasonPanel.Dock = DockStyle.Fill;
             perReasonPanel.Margin = new Padding(0);
-            perReasonPanel.BackColor = Surface;
+            perReasonPanel.BackColor = Card;
             perReasonPanel.Controls.Add(Caption(S("custom.per_reason_title", "Message for one kind of interruption")));
             perReasonCombo = new SoftCombo();
             perReasonCombo.Width = Px(260);
@@ -1627,18 +1803,22 @@ namespace CodexAutoResume
         private SoftCombo ChoiceCombo(Dictionary<string, object> field, Dictionary<string, object> current, string prefix)
         {
             var combo = new SoftCombo();
-            combo.Width = Px(150);
             IgnoreWheel(combo);
             string name = Str(field, "name");
             List<object> choices = Items(field, "choices") ?? new List<object>();
             string value = name == null ? null : Str(current, name);
-            int index = 0;
+            int index = 0, widest = 0;
             foreach (object choice in choices)
             {
                 string text = Convert.ToString(choice, CultureInfo.InvariantCulture);
+                string label = S(prefix + text, text);
                 if (text == value) index = combo.Items.Count;
-                combo.Items.Add(new Choice(text, S(prefix + text, text)));
+                combo.Items.Add(new Choice(text, label));
+                widest = Math.Max(widest, TextRenderer.MeasureText(label, Font).Width);
             }
+            // As wide as its longest choice in the well's padding, beside the chevron: "Use system
+            // setting" is longer than any choice a drop-down here had before, in every language.
+            combo.Width = Math.Max(Px(150), Math.Min(Px(300), widest + Px(Brand.SelectPadLeft + Brand.SelectPadRight + 4)));
             if (combo.Items.Count > 0) combo.SelectedIndex = index;
             return combo;
         }
@@ -1678,7 +1858,7 @@ namespace CodexAutoResume
             row.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             row.Dock = DockStyle.Fill;
             row.Margin = Pad(0, 0, 0, 4);
-            row.BackColor = Surface;
+            row.BackColor = Card;
             count.Anchor = AnchorStyles.Left | AnchorStyles.Top;
             Button clear = MakeButton(S("custom.clear", "Clear"), false, delegate { area.Box.Clear(); area.Box.Focus(); });
             clear.MinimumSize = new Size(Px(88), Px(34));
@@ -1883,7 +2063,12 @@ namespace CodexAutoResume
             object running = status["watcher_running"];
             bool enabled = Equals(status["enabled"], true);
             double pending = status.ContainsKey("pending") ? (double)status["pending"] : 0;
-            if (startup != null) startup.Checked = Equals(status["startup_enabled"], true);
+            if (startup != null)
+            {
+                startup.Checked = Equals(status["startup_enabled"], true);
+                // What Windows has is not an edit.
+                startupBaseline = startup.Checked;
+            }
 
             // The coarse state, from the status alone, until the Dashboard has a snapshot. From
             // then on UpdateCountdowns is the one place the dot is decided, from the pending list
@@ -1998,32 +2183,11 @@ namespace CodexAutoResume
 
         private void Save()
         {
-            var changes = new StringBuilder("{");
-            bool first = true;
-            foreach (KeyValuePair<string, Control> pair in editors)
-            {
-                if (pair.Key == "__startup") continue;
-                if (!first) changes.Append(',');
-                first = false;
-                changes.Append(Json.Escape(pair.Key)).Append(':');
-                var check = pair.Value as CheckBox;
-                var spin = pair.Value as NumericUpDown;
-                var combo = pair.Value as ComboBox;
-                if (check != null) changes.Append(check.Checked ? "true" : "false");
-                else if (spin != null) changes.Append(((int)spin.Value).ToString(CultureInfo.InvariantCulture));
-                else if (combo != null)
-                {
-                    var chosen = combo.SelectedItem as Choice;
-                    changes.Append(Json.Escape(chosen == null ? null : chosen.Value));
-                }
-            }
-            foreach (KeyValuePair<string, Func<string>> pair in jsonValues)
-            {
-                if (!first) changes.Append(',');
-                first = false;
-                changes.Append(Json.Escape(pair.Key)).Append(':').Append(pair.Value());
-            }
-            changes.Append('}');
+            Dictionary<string, string> values = EditorValues();
+            string changes = ChangesJson(values);
+            // Where the keyboard is - on Save, as a rule - before the save takes the buttons away while it runs
+            // and Windows moves the keyboard on: where a window this save reopens puts it again.
+            string focus = FocusName();
 
             var chosenLanguage = interfaceCombo == null ? null : interfaceCombo.SelectedItem as Choice;
             string language = chosenLanguage == null ? loadedInterfaceLanguage : chosenLanguage.Value;
@@ -2035,27 +2199,49 @@ namespace CodexAutoResume
             // stops the rest rather than reporting a save that half happened.
             var startup = editors.ContainsKey("__startup") ? editors["__startup"] as CheckBox : null;
             bool startAtSignIn = startup != null && startup.Checked;
-            CallAsync("update", changes.ToString(), delegate(Dictionary<string, object> updated)
+            CallAsync("update", changes, delegate(Dictionary<string, object> updated)
             {
                 if (!Ok(updated)) { SaveFailed(updated); return; }
-                loadedInterfaceLanguage = language;
-                if (motion != null)
+                // What is on the page is what is saved, so nothing is left unsaved.
+                baseline = values;
+                var stored = Map(updated, "settings");
+                if (stored != null)
                 {
-                    Soft.ReduceMotionSetting = motion.Checked;
-                    stateDot.Sync();
+                    AdoptSettings(stored);
+                    Remember(stored);
                 }
+                else
+                {
+                    loadedInterfaceLanguage = language;
+                    if (motion != null)
+                    {
+                        Soft.ReduceMotionSetting = motion.Checked;
+                        stateDot.Sync();
+                    }
+                }
+                // This window's own write is not a change made somewhere else.
+                settingsStamp = SettingsStamp();
                 CallAsync("startup", "{\"enabled\":" + (startAtSignIn ? "true" : "false") + "}",
                           delegate(Dictionary<string, object> registered)
                 {
                     if (!Ok(registered)) { SaveFailed(registered); return; }
-                    RefreshStatusAsync(delegate
+                    startupBaseline = startAtSignIn;
+                    // A new Interface language or theme: the window reopens in it, where it is.
+                    reopenFocus = focus;
+                    CheckReopen(false);
+                    reopenFocus = null;
+                    // Said by this window only if it stays.
+                    HoldForReopen(delegate
                     {
-                        // A new interface language reaches this window the next time it opens;
-                        // saying so is better than a window that half changes under the reader.
-                        detail.Text = languageChanged
-                            ? S("settings.language_changed", "Language changed. Anything already open changes the next time it opens.")
-                            : S("settings.saved", "Saved. The watcher uses these from its next check.");
-                        header.Invalidate(true);
+                        RefreshStatusAsync(delegate
+                        {
+                            // A new interface language this window could not reopen in reaches it the next
+                            // time it opens; saying so is better than a window that half changes.
+                            detail.Text = languageChanged
+                                ? S("settings.language_changed", "Language changed. Anything already open changes the next time it opens.")
+                                : S("settings.saved", "Saved. The watcher uses these from its next check.");
+                            header.Invalidate(true);
+                        });
                     });
                 });
             });
@@ -2080,6 +2266,633 @@ namespace CodexAutoResume
                                 Environment.NewLine + Convert.ToString(Get(reply, "error"), CultureInfo.InvariantCulture),
                                 "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             });
+        }
+    }
+
+    internal sealed partial class SettingsForm
+    {
+        // ------------------------------------------------------------------ reopening
+        //
+        // A window speaks one language and draws one theme. Its words are resolved and its colours
+        // decided as it opens, into hundreds of controls, and changing either in place would mean
+        // building every page again under a person looking at it. So when the Interface language or
+        // the theme it draws changes, the window closes and opens again in the new one, where it was:
+        // the same page and Settings section, the same bounds, maximized or not.
+        //
+        // It notices a change in three ways: a Save here; the settings changing anywhere else while it
+        // is open - the panel in Codex, Codex itself through MCP, another window - which it finds by
+        // looking at the settings file every two seconds and reading the settings through the bridge
+        // when it moved (WatchSettings); and, while the Theme is "system", Windows' app mode or High
+        // Contrast changing (WM_SETTINGCHANGE). It never reopens under unsaved edits: then a note in
+        // the save card says it will, and it does as soon as they are saved or put back. Nor while
+        // minimized, while an action is on its way, or under a dialog - it waits for those.
+        //
+        // The new window is a new process, started before this one closes. The window has no
+        // single-instance rule of its own - the notification-area icon and the Start menu start one
+        // each time - so nothing refuses it, and this one stays until the new one is on screen. Its
+        // command line carries only checked values (ParseArguments), and a window it opens never
+        // reopens again for what it reads as it opens more than once in a row (ReopenDecision), so a
+        // disagreement between what it was started with and what it reads cannot become a loop. If the
+        // new process ends before it shows anything, this window stays and goes on as it was, and does
+        // not try again for that language and theme (FinishReopen).
+        //
+        // It opens where this one was: by the frame one sees, not the bounds, which reach past it by the
+        // resize border Windows keeps invisible (InvisibleFrame) - a window snapped or flush against an
+        // edge came back that border's width in from the edge. And the keyboard is where it was: on Save,
+        // after a save (FocusName).
+
+        internal const int KeepWindow = 0;
+        internal const int ReopenWindow = 1;
+        internal const int ReopenOnceSaved = 2;
+        internal const int AdoptWhatWasRead = 3;
+        /// How many reopens in a row may follow from what a window reads as it opens.
+        internal const int MaxGeneration = 2;
+
+        private const int WM_SETTINGCHANGE = 0x001A;
+        private const int SPI_SETHIGHCONTRAST = 0x0043;
+        // DWMWA_EXTENDED_FRAME_BOUNDS: the frame the desktop draws of a window.
+        private const int ExtendedFrameBounds = 9;
+        /// The widest an invisible resize border is taken to be, in device pixels: it is a few pixels at any scaling.
+        internal const int MaxFrame = 99;
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool EnableWindow(IntPtr window, bool enable);
+
+        [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
+        private static extern int DwmGetWindowAttribute(IntPtr window, int attribute,
+                                                        [System.Runtime.InteropServices.Out] int[] rectangle, int size);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool IsWindowEnabled(IntPtr window);
+
+        /// What a window that shows `openedLanguage` and `openedTheme` does once it knows the stored
+        /// Interface language is `language` and the theme it would now draw is `theme` ("light", "dark"
+        /// or "contrast"). Pure, so the rule can be checked without a window.
+        ///   * Nothing differs, or either side is not known: KeepWindow.
+        ///   * Something differs and there are unsaved edits: ReopenOnceSaved.
+        ///   * Something differs in the first read since it opened, and it was itself opened by
+        ///     MaxGeneration reopens in a row: AdoptWhatWasRead - it stays, and compares with what it
+        ///     read from then on. Two windows in a row that each read something other than what they
+        ///     were started with is a disagreement a third would only repeat.
+        ///   * Otherwise: ReopenWindow.
+        internal static int ReopenDecision(string openedLanguage, string openedTheme, string language, string theme,
+                                           bool dirty, bool firstRead, int generation)
+        {
+            bool changed = (openedLanguage != null && language != null && openedLanguage != language) ||
+                           (openedTheme != null && theme != null && openedTheme != theme);
+            if (!changed) return KeepWindow;
+            if (dirty) return ReopenOnceSaved;
+            if (firstRead && generation >= MaxGeneration) return AdoptWhatWasRead;
+            return ReopenWindow;
+        }
+
+        /// The generation a reopen passes on: one more than this window's when what it read as it opened
+        /// was the reason, and 1 for a change it saw afterwards - a new change, which starts a new count.
+        internal static int NextGeneration(bool firstRead, int generation)
+        {
+            return firstRead ? Math.Max(1, Math.Min(9, generation + 1)) : 1;
+        }
+
+        /// Whether a true-or-false setting picks which items of a list apply - which kinds of
+        /// interruption may be recovered, which events notify - and so is a check box. Anything else
+        /// turns something that runs on or off - the notifications, the notification-area icon, reduced
+        /// motion, running at sign-in - and is a switch. The same setting is the same kind on the popup
+        /// and on the panel in Codex.
+        internal static bool IsListItem(string name)
+        {
+            return name != null && (name.StartsWith("recover_", StringComparison.Ordinal) ||
+                                    name.StartsWith("notify_", StringComparison.Ordinal));
+        }
+
+        /// The window's command line, checked. `--page=`, `--section=` and `--theme=` must name a page,
+        /// a section or a Theme there is; `--bounds=` is four whole numbers, a position in the virtual
+        /// screen's range and a size from 1 to 32767; `--frame=` is four whole numbers from 0 to MaxFrame;
+        /// `--focus=` is a name IsFocusName accepts; `--reopened=` is one digit from 1 to 9;
+        /// `--maximized` and `--settings` are flags. Anything else, including a value that fails its
+        /// check, is ignored, as an unknown argument always was.
+        internal static OpenRequest ParseArguments(string[] arguments)
+        {
+            var request = new OpenRequest();
+            if (arguments == null) return request;
+            foreach (string argument in arguments)
+            {
+                if (string.IsNullOrEmpty(argument)) continue;
+                string value;
+                Rectangle bounds;
+                if (argument == "--settings") request.Page = "settings";
+                else if (argument == "--maximized") request.Maximized = true;
+                else if ((value = After(argument, "--page=")) != null)
+                {
+                    if (Array.IndexOf(PageOrder, value) >= 0) request.Page = value;
+                }
+                else if ((value = After(argument, "--section=")) != null)
+                {
+                    if (Array.IndexOf(SectionOrder, value) >= 0) request.Section = value;
+                }
+                else if ((value = After(argument, "--theme=")) != null)
+                {
+                    if (value == Theme.System || value == Theme.Light || value == Theme.Dark) request.Theme = value;
+                }
+                else if ((value = After(argument, "--bounds=")) != null)
+                {
+                    if (ParseBounds(value, out bounds))
+                    {
+                        request.Bounds = bounds;
+                        request.HasBounds = true;
+                    }
+                }
+                else if ((value = After(argument, "--reopened=")) != null)
+                {
+                    if (value.Length == 1 && value[0] >= '1' && value[0] <= '9') request.Generation = value[0] - '0';
+                }
+                else if ((value = After(argument, "--frame=")) != null)
+                {
+                    Padding inset;
+                    if (ParseFrame(value, out inset)) request.Frame = inset;
+                }
+                else if ((value = After(argument, "--focus=")) != null)
+                {
+                    if (IsFocusName(value)) request.Focus = value;
+                }
+            }
+            return request;
+        }
+
+        /// Four whole numbers from 0 to MaxFrame, one or two digits each: an invisible resize border.
+        private static bool ParseFrame(string text, out Padding inset)
+        {
+            inset = Padding.Empty;
+            string[] parts = text.Split(',');
+            if (parts.Length != 4) return false;
+            var numbers = new int[4];
+            for (int i = 0; i < parts.Length; i++)
+            {
+                string part = parts[i];
+                if (part.Length < 1 || part.Length > 2) return false;
+                for (int c = 0; c < part.Length; c++)
+                    if (part[c] < '0' || part[c] > '9') return false;
+                numbers[i] = int.Parse(part, NumberStyles.None, CultureInfo.InvariantCulture);
+                if (numbers[i] > MaxFrame) return false;
+            }
+            inset = new Padding(numbers[0], numbers[1], numbers[2], numbers[3]);
+            return true;
+        }
+
+        /// Whether `name` is a place FocusName gives: "save", "restore", "close" or "start"; "page." and a page;
+        /// "section." and a Settings section; or "setting." and a setting's name - lower-case letters, digits
+        /// and underscores, 64 at most.
+        internal static bool IsFocusName(string name)
+        {
+            if (name == null) return false;
+            if (name == "save" || name == "restore" || name == "close" || name == "start") return true;
+            string rest = After(name, "page.");
+            if (rest != null) return Array.IndexOf(PageOrder, rest) >= 0;
+            rest = After(name, "section.");
+            if (rest != null) return Array.IndexOf(SectionOrder, rest) >= 0;
+            rest = After(name, "setting.");
+            if (rest == null || rest.Length < 1 || rest.Length > 64) return false;
+            foreach (char c in rest)
+                if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_')) return false;
+            return true;
+        }
+
+        private static string After(string argument, string prefix)
+        {
+            return argument.StartsWith(prefix, StringComparison.Ordinal) ? argument.Substring(prefix.Length) : null;
+        }
+
+        private static bool ParseBounds(string text, out Rectangle bounds)
+        {
+            bounds = Rectangle.Empty;
+            string[] parts = text.Split(',');
+            if (parts.Length != 4) return false;
+            var numbers = new int[4];
+            for (int i = 0; i < parts.Length; i++)
+            {
+                string part = parts[i];
+                int start = part.StartsWith("-", StringComparison.Ordinal) ? 1 : 0;
+                if (part.Length <= start || part.Length > 6) return false;
+                for (int c = start; c < part.Length; c++)
+                    if (part[c] < '0' || part[c] > '9') return false;
+                numbers[i] = int.Parse(part, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture);
+            }
+            if (numbers[0] < -32768 || numbers[0] > 32767 || numbers[1] < -32768 || numbers[1] > 32767) return false;
+            if (numbers[2] < 1 || numbers[2] > 32767 || numbers[3] < 1 || numbers[3] > 32767) return false;
+            bounds = new Rectangle(numbers[0], numbers[1], numbers[2], numbers[3]);
+            return true;
+        }
+
+        /// The command line a window that reopens itself starts the new one with: where it is - with the
+        /// invisible border around its bounds, `frame` - the Theme preference stored, the generation
+        /// (NextGeneration) and where the keyboard is (`focus`). Only what ParseArguments accepts is written,
+        /// so every value reaches the new window as it was meant.
+        internal static string ReopenArguments(string page, string section, Rectangle bounds, bool maximized,
+                                               string theme, int generation, Padding frame, string focus)
+        {
+            var arguments = new List<string>();
+            if (page != null && Array.IndexOf(PageOrder, page) >= 0) arguments.Add("--page=" + page);
+            if (section != null && Array.IndexOf(SectionOrder, section) >= 0) arguments.Add("--section=" + section);
+            string text = string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}", bounds.X, bounds.Y, bounds.Width, bounds.Height);
+            Rectangle checkedBounds;
+            if (ParseBounds(text, out checkedBounds)) arguments.Add("--bounds=" + text);
+            if (maximized) arguments.Add("--maximized");
+            string inset = string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}", frame.Left, frame.Top, frame.Right, frame.Bottom);
+            Padding checkedFrame;
+            if (frame != Padding.Empty && ParseFrame(inset, out checkedFrame)) arguments.Add("--frame=" + inset);
+            arguments.Add("--theme=" + Theme.Preference(theme));
+            arguments.Add("--reopened=" + Math.Max(1, Math.Min(9, generation)).ToString(CultureInfo.InvariantCulture));
+            if (IsFocusName(focus)) arguments.Add("--focus=" + focus);
+            return string.Join(" ", arguments.ToArray());
+        }
+
+        /// Where a window asked to open at `wanted` goes, on a screen whose working area is `area`. The window
+        /// is placed by the frame one sees: `wanted` less `frame`, the resize border Windows keeps invisible
+        /// on its left, right and bottom, which may reach past the area as it does around a window snapped to
+        /// it. That frame is as large as it was, but no larger than the area and no smaller than `minimum`, the
+        /// bounds', allows, and moved only as far as it takes to be wholly on the screen. Pure.
+        internal static Rectangle PlaceOnScreen(Rectangle wanted, Rectangle area, Size minimum, Padding frame)
+        {
+            int width = Math.Min(area.Width, Math.Max(minimum.Width - frame.Horizontal, wanted.Width - frame.Horizontal));
+            int height = Math.Min(area.Height, Math.Max(minimum.Height - frame.Vertical, wanted.Height - frame.Vertical));
+            int x = Math.Max(area.Left, Math.Min(wanted.X + frame.Left, area.Right - width));
+            int y = Math.Max(area.Top, Math.Min(wanted.Y + frame.Top, area.Bottom - height));
+            return new Rectangle(x - frame.Left, y - frame.Top, width + frame.Horizontal, height + frame.Vertical);
+        }
+
+        /// How far this window's bounds reach past the frame one sees: the resize border Windows 10 and 11 keep
+        /// invisible on the left, right and bottom of a window (9 px at 150%, where it was measured), taken from
+        /// the frame the desktop draws. Padding.Empty while it cannot be measured: not on screen, maximized or
+        /// minimized, or an answer no border could be.
+        private Padding InvisibleFrame()
+        {
+            if (!IsHandleCreated || !Visible || WindowState != FormWindowState.Normal) return Padding.Empty;
+            try
+            {
+                var drawn = new int[4];
+                if (DwmGetWindowAttribute(Handle, ExtendedFrameBounds, drawn, 4 * sizeof(int)) != 0) return Padding.Empty;
+                Rectangle bounds = Bounds;
+                int left = drawn[0] - bounds.Left, top = drawn[1] - bounds.Top;
+                int right = bounds.Right - drawn[2], bottom = bounds.Bottom - drawn[3];
+                bool border = left >= 0 && top >= 0 && right >= 0 && bottom >= 0 &&
+                              left <= MaxFrame && top <= MaxFrame && right <= MaxFrame && bottom <= MaxFrame;
+                return border ? new Padding(left, top, right, bottom) : Padding.Empty;
+            }
+            catch (Exception)
+            {
+                return Padding.Empty;
+            }
+        }
+
+        /// Settings read through the bridge: what is stored now, compared with what the window shows.
+        private void Observe(Dictionary<string, object> current, bool firstRead)
+        {
+            Remember(current);
+            // Words that did not come from a reply - the bridge could not be asked, and the window speaks
+            // its English fallback - are no language to reopen from.
+            if (openedLanguage == null) openedLanguage = storedLanguage;
+            CheckReopen(firstRead);
+        }
+
+        private void Remember(Dictionary<string, object> current)
+        {
+            storedLanguage = Str(current, "interface_language") ?? "system";
+            storedTheme = Theme.Preference(Get(current, "theme"));
+        }
+
+        /// Decides, and does, what a change of language or theme asks of the window (ReopenDecision).
+        private void CheckReopen(bool firstRead)
+        {
+            if (auditing || reopening || IsDisposed || !settingsRead) return;
+            string theme = Theme.Current(storedTheme);
+            int decision = ReopenDecision(openedLanguage, openedTheme, storedLanguage, theme, Dirty(), firstRead,
+                                          request.Generation);
+            // Not again for the language and theme a new window was started for and never showed (FinishReopen).
+            if (decision != KeepWindow && storedLanguage == declinedLanguage && theme == declinedTheme)
+                decision = KeepWindow;
+            recheck = false;
+            if (decision == AdoptWhatWasRead)
+            {
+                openedLanguage = storedLanguage;
+                openedTheme = theme;
+                decision = KeepWindow;
+            }
+            ShowReopenNote(decision == ReopenOnceSaved);
+            // Unsaved edits are looked at again every second (StartClock), so putting them back reopens it.
+            if (decision == ReopenOnceSaved) recheck = true;
+            if (decision != ReopenWindow) return;
+            // Not while it is minimized, an action is on its way, or a dialog is open over it: then once
+            // that is over.
+            if (WindowState == FormWindowState.Minimized || busy > 0 || !IsHandleCreated || !IsWindowEnabled(Handle))
+            {
+                recheck = true;
+                return;
+            }
+            Reopen(firstRead);
+        }
+
+        private void ShowReopenNote(bool show)
+        {
+            if (reopenNote == null) return;
+            SetNote(reopenNote, show ? S("note.reopen_pending",
+                "The window will reopen in the new language or theme once you save or discard your changes.") : "");
+            reopenNote.Visible = show;
+            // The save card as tall as the note needs, and back.
+            if (reopenNoteShown == show) return;
+            reopenNoteShown = show;
+            if (fitFooter != null) fitFooter(this, EventArgs.Empty);
+        }
+
+        /// Whether the page holds edits that are not saved: an editor's value that is not what the page
+        /// was built with or last saved, or a sign-in switch that is not what Windows has.
+        private bool Dirty()
+        {
+            if (baseline == null) return false;
+            foreach (KeyValuePair<string, string> pair in EditorValues())
+            {
+                string was;
+                if (!baseline.TryGetValue(pair.Key, out was) || was != pair.Value) return true;
+            }
+            var startup = editors.ContainsKey("__startup") ? editors["__startup"] as CheckBox : null;
+            return startup != null && startup.Checked != startupBaseline;
+        }
+
+        /// Every editor's value as the JSON a Save sends for it.
+        private Dictionary<string, string> EditorValues()
+        {
+            var values = new Dictionary<string, string>();
+            foreach (KeyValuePair<string, Control> pair in editors)
+            {
+                if (pair.Key == "__startup") continue;
+                var check = pair.Value as CheckBox;
+                var spin = pair.Value as NumericUpDown;
+                var combo = pair.Value as ComboBox;
+                if (check != null) values[pair.Key] = check.Checked ? "true" : "false";
+                else if (spin != null) values[pair.Key] = ((int)spin.Value).ToString(CultureInfo.InvariantCulture);
+                else if (combo != null)
+                {
+                    var chosen = combo.SelectedItem as Choice;
+                    values[pair.Key] = Json.Escape(chosen == null ? null : chosen.Value);
+                }
+            }
+            foreach (KeyValuePair<string, Func<string>> pair in jsonValues)
+                values[pair.Key] = pair.Value();
+            return values;
+        }
+
+        /// The changes a Save sends: every value on the page, except the Interface language and the Theme
+        /// while they are still what the page was built with - so saving something else never puts back a
+        /// language or theme chosen somewhere else meanwhile, which this window is about to reopen in.
+        private string ChangesJson(Dictionary<string, string> values)
+        {
+            var changes = new StringBuilder("{");
+            bool first = true;
+            foreach (KeyValuePair<string, string> pair in values)
+            {
+                string was;
+                if ((pair.Key == "interface_language" || pair.Key == "theme") && baseline != null &&
+                    baseline.TryGetValue(pair.Key, out was) && was == pair.Value) continue;
+                if (!first) changes.Append(',');
+                first = false;
+                changes.Append(Json.Escape(pair.Key)).Append(':').Append(pair.Value);
+            }
+            return changes.Append('}').ToString();
+        }
+
+        /// The settings file's time and size, or 0 when there is none: what WatchSettings compares.
+        private long SettingsStamp()
+        {
+            try
+            {
+                var file = new FileInfo(Path.Combine(Path.Combine(installRoot ?? "", "config"), "settings.json"));
+                return file.Exists ? file.LastWriteTimeUtc.Ticks * 31 + file.Length : 0;
+            }
+            catch (Exception)
+            {
+                return 0;
+            }
+        }
+
+        /// Called every two seconds by the clock: when the settings file moved, the settings are read on a
+        /// worker and compared with what the window shows (Observe). Not while this window's own action is
+        /// on its way - a Save looks for itself - and one read at a time.
+        private void WatchSettings()
+        {
+            if (auditing || reopening || readingSettings || busy > 0 || !settingsRead) return;
+            long stamp = SettingsStamp();
+            if (stamp == settingsStamp) return;
+            settingsStamp = stamp;
+            readingSettings = true;
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            {
+                Dictionary<string, object> reply = null;
+                try { reply = bridge.Call("settings", null); }
+                catch (Exception) { reply = null; }
+                MethodInvoker apply = delegate
+                {
+                    readingSettings = false;
+                    var current = Ok(reply) ? Map(reply, "settings") : null;
+                    if (current != null) Observe(current, false);
+                };
+                try { if (IsHandleCreated && !IsDisposed) BeginInvoke(apply); }
+                catch (Exception) { readingSettings = false; }
+            });
+        }
+
+        /// Windows' app mode or High Contrast changed: the theme the window would draw may have.
+        protected override void WndProc(ref Message m)
+        {
+            base.WndProc(ref m);
+            if (m.Msg != WM_SETTINGCHANGE || auditing || !IsHandleCreated) return;
+            bool colours = m.WParam.ToInt64() == SPI_SETHIGHCONTRAST;
+            if (!colours && m.LParam != IntPtr.Zero)
+            {
+                try { colours = System.Runtime.InteropServices.Marshal.PtrToStringUni(m.LParam) == "ImmersiveColorSet"; }
+                catch (Exception) { }
+            }
+            if (colours) BeginInvoke(new MethodInvoker(delegate { CheckReopen(false); }));
+        }
+
+        /// Starts this window again in what is stored, where it is, and closes this one once the new one
+        /// is on screen - or after ten seconds, whatever it is doing. If the new one cannot be started,
+        /// this one stays as it is: the old words and colours are better than no window.
+        private void Reopen(bool firstRead)
+        {
+            if (reopening || auditing) return;
+            bool normal = WindowState == FormWindowState.Normal;
+            Rectangle bounds = normal ? Bounds : RestoreBounds;
+            // The invisible border as it is now; maximized, as it was last measured on screen, or as the window this
+            // one replaced measured it.
+            Padding measured = normal ? InvisibleFrame() : Padding.Empty;
+            if (measured != Padding.Empty) invisibleFrame = measured;
+            string arguments = ReopenArguments(currentPage ?? firstPage, currentSection, bounds,
+                                               WindowState == FormWindowState.Maximized, storedTheme,
+                                               NextGeneration(firstRead, request.Generation), invisibleFrame,
+                                               reopenFocus ?? FocusName());
+            Process started;
+            try
+            {
+                var info = new ProcessStartInfo(typeof(SettingsForm).Assembly.Location, arguments);
+                info.UseShellExecute = false;
+                info.WorkingDirectory = installRoot;
+                started = Process.Start(info);
+            }
+            catch (Exception)
+            {
+                return;
+            }
+            if (started == null) return;
+            reopening = true;
+            reopenLanguage = storedLanguage;
+            reopenTheme = Theme.Current(storedTheme);
+            recheck = false;
+            ShowReopenNote(false);
+            StopClock();
+            // No more input here: anything typed now would be lost with this window.
+            try { EnableWindow(Handle, false); }
+            catch (Exception) { }
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            {
+                bool shown = true;
+                try
+                {
+                    shown = AwaitWindow(delegate { started.Refresh(); return started.MainWindowHandle != IntPtr.Zero; },
+                                        delegate { return started.HasExited; }, 10000, 50);
+                }
+                catch (Exception) { }
+                finally { started.Dispose(); }
+                try { if (IsHandleCreated && !IsDisposed) BeginInvoke(new MethodInvoker(delegate { FinishReopen(shown); })); }
+                catch (Exception) { }
+            });
+        }
+
+        /// Waits for the window a reopen started: true once `hasWindow` says there is one, or once `milliseconds`
+        /// have passed, whatever it is doing; false when `hasExited` says the process ended first. A window is
+        /// looked for before an ending. Pure but for the wait, so both endings are checked without a process.
+        internal static bool AwaitWindow(Func<bool> hasWindow, Func<bool> hasExited, int milliseconds, int step)
+        {
+            var waited = Stopwatch.StartNew();
+            while (true)
+            {
+                if (hasWindow()) return true;
+                if (hasExited()) return false;
+                if (waited.ElapsedMilliseconds >= milliseconds) return true;
+                System.Threading.Thread.Sleep(Math.Max(1, step));
+            }
+        }
+
+        /// The end of a reopen. The new window came up (`shown`): this one closes. The new process ended before
+        /// it showed anything: this one stays as it was - taking input again, its clock running - and does what
+        /// a read or a save held back for the reopen (HoldForReopen), so the page follows the settings and a save
+        /// still says it saved. It does not try again for the language and theme it could not reopen in, or a
+        /// window that cannot start would be started over and over; a different change reopens it as ever.
+        private void FinishReopen(bool shown)
+        {
+            if (shown)
+            {
+                Close();
+                return;
+            }
+            reopening = false;
+            declinedLanguage = reopenLanguage;
+            declinedTheme = reopenTheme;
+            try { if (IsHandleCreated) EnableWindow(Handle, true); }
+            catch (Exception) { }
+            StartClock();
+            MethodInvoker held = heldForReopen;
+            heldForReopen = null;
+            if (held != null) held();
+        }
+
+        /// Does `work` now or, while the window is reopening, once it is known to stay (FinishReopen): a window
+        /// about to close has no page to fill and no save to confirm.
+        private void HoldForReopen(MethodInvoker work)
+        {
+            if (reopening) heldForReopen += work;
+            else work();
+        }
+
+        /// The control the keyboard is on, inside whichever containers hold it - a number field's own edit.
+        private Control FocusedControl()
+        {
+            Control active = ActiveControl;
+            for (var container = active as ContainerControl; container != null && container.ActiveControl != null;
+                 container = container.ActiveControl as ContainerControl)
+                active = container.ActiveControl;
+            return active;
+        }
+
+        /// Where the keyboard is in this window, as a name a reopen passes on (`--focus=`, IsFocusName): a button of
+        /// the save card, the header's Start button, a page's or a Settings section's tab, or a setting's editor.
+        /// Anywhere else, the tab of the Settings section or page on screen, so a screen reader starts again at
+        /// the page the person is on rather than at the first button of the window.
+        internal string FocusName()
+        {
+            for (Control control = FocusedControl(); control != null && control != this; control = control.Parent)
+            {
+                if (control == saveButton) return "save";
+                if (control == restoreButton) return "restore";
+                if (control == closeButton) return "close";
+                if (control == startButton) return "start";
+                foreach (KeyValuePair<string, NavButton> pair in navButtons)
+                    if (pair.Value == control) return "page." + pair.Key;
+                foreach (KeyValuePair<string, NavButton> pair in sectionButtons)
+                    if (pair.Value == control) return "section." + pair.Key;
+                foreach (KeyValuePair<string, Control> pair in editors)
+                    if (pair.Value == control && IsFocusName("setting." + pair.Key)) return "setting." + pair.Key;
+            }
+            string page = currentPage ?? firstPage;
+            return page == "settings" ? "section." + currentSection : "page." + page;
+        }
+
+        /// The control a FocusName names in this window, or null when there is none.
+        internal Control FocusTarget(string name)
+        {
+            if (!IsFocusName(name)) return null;
+            if (name == "save") return saveButton;
+            if (name == "restore") return restoreButton;
+            if (name == "close") return closeButton;
+            if (name == "start") return startButton;
+            NavButton tab;
+            Control editor;
+            string rest = After(name, "page.");
+            if (rest != null) return navButtons.TryGetValue(rest, out tab) ? tab : null;
+            rest = After(name, "section.");
+            if (rest != null) return sectionButtons.TryGetValue(rest, out tab) ? tab : null;
+            rest = After(name, "setting.");
+            return editors.TryGetValue(rest, out editor) ? editor : null;
+        }
+
+        /// As a window that replaces another opens: the keyboard on the tab of the page it opens on, which is
+        /// there already, until the control the old window had it on is built (FocusPending). A window a person
+        /// opened keeps Windows' first control, as it always did.
+        private void FocusInterim()
+        {
+            pendingFocus = request.Focus;
+            NavButton tab;
+            if (pendingFocus != null && navButtons.TryGetValue(currentPage ?? firstPage, out tab)) ActiveControl = tab;
+        }
+
+        /// Once the settings are read and the page built: the keyboard where the window this one replaces had it -
+        /// unless the person has moved it since, or that control cannot take it, out of sight or unable to act.
+        private void FocusPending()
+        {
+            string name = pendingFocus;
+            pendingFocus = null;
+            NavButton tab;
+            if (name == null || !navButtons.TryGetValue(currentPage ?? firstPage, out tab) || FocusedControl() != tab) return;
+            Control target = FocusTarget(name);
+            if (target == null || target == tab) return;
+            Control control = target;
+            for (; control != null && control != this; control = control.Parent)
+                if (!OwnVisible(control) || !control.Enabled) return;
+            if (control == this) ActiveControl = target;
+        }
+
+        /// Called every second by the clock.
+        private void TickReopen()
+        {
+            if (ticks % 2 == 0) WatchSettings();
+            if (recheck) CheckReopen(false);
         }
     }
 
@@ -2155,6 +2968,10 @@ namespace CodexAutoResume
                             form.Audit("settings/" + section, findings);
                         }
                     }
+                    // The reopen note, beside every button of the Settings page's save card, at the opening width
+                    // and at the narrowest the window goes: 800 wide, less a sizable frame's 8 px on each side.
+                    form.AuditReopenNote(form.Px(OpeningWidth), findings);
+                    form.AuditReopenNote(form.Px(800) - form.Px(16), findings);
                 }
             }
             finally
@@ -2174,6 +2991,23 @@ namespace CodexAutoResume
             Materialise(this);
             PerformLayout();
             Walk(this, where, findings);
+        }
+
+        /// Shows the reopen note with the window `width` wide, and adds it if any of what it says is cut off - it is
+        /// hidden everywhere else the audit looks, and ends in an ellipsis where it does not fit.
+        private void AuditReopenNote(int width, List<string> findings)
+        {
+            ClientSize = new Size(width, ClientSize.Height);
+            ShowReopenNote(true);
+            Materialise(this);
+            PerformLayout();
+            Size room = reopenNote.ClientSize;
+            int needed = TextRenderer.MeasureText(reopenNote.Text, reopenNote.Font,
+                                                  new Size(Math.Max(1, room.Width - reopenNote.Padding.Horizontal), int.MaxValue),
+                                                  NoteFormat).Height;
+            if (room.Width <= 0 || needed > room.Height - reopenNote.Padding.Vertical)
+                findings.Add("footer/reopen note at " + width + " :: needs " + needed + " high, has " + room);
+            ShowReopenNote(false);
         }
 
         /// Whether a control itself is visible, whatever its parents are.
@@ -2551,6 +3385,12 @@ namespace CodexAutoResume
                                 "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return 1;
             }
+            // The theme, decided before the first control is made: the one a reopening window passed on,
+            // or the one stored, as Windows and High Contrast have it now (Theme). Every colour below
+            // comes from it.
+            OpenRequest request = SettingsForm.ParseArguments(argv);
+            Theme.Opened = request.Theme ?? Theme.Stored(root);
+            Palette.Adopt(Theme.Current(Theme.Opened));
             Application.Run(new SettingsForm(new PersistentBridge(root, bridge)));
             return 0;
         }

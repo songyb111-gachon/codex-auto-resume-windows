@@ -27,6 +27,16 @@ mark that changes colour with the operating system is not a brand mark.
 for a status dot or a bar and is not enough for text. `accent` is the token for anything
 a person has to read; it reaches 6.8:1 on white and 6.7:1 on the dark surface. Text drawn
 *on* the accent takes `on_accent`, which is not the same colour in the two themes.
+
+## Two themes, three surfaces (v0.6.4)
+
+Until v0.6.4 only the Codex panel had a dark theme. Now the window and the notification-area
+popup have one too, and the panel in dark is the reference they are held to: the same DARK
+palette, the same dark elevation recipes, the same card ground. Every theme-dependent value is
+reachable by theme name - `palette(theme)`, `shadows(recipe, theme)`, `card_ground(theme)`,
+`status_colour(state, theme)`, `check_box(checked, enabled, theme)` - and the window gets the
+dark half generated as `Brand.Dark`, a twin of `Brand` with the same names. Which theme is in
+effect is the surfaces' business; High Contrast replaces both.
 """
 from __future__ import annotations
 
@@ -135,7 +145,7 @@ ICON_ACCENT = "#4FE0F5"
 # Everything that is not a colour, in device-independent pixels at 96 DPI. The window
 # multiplies by its own scale factor; the panel writes these as CSS pixels. One table,
 # so a card in the window and a card in Codex round their corners by the same amount.
-RADII = {"card": 16, "control": 11, "chip": 999, "small": 7}
+RADII = {"card": 16, "control": 11, "chip": 999, "small": 7, "check": 5}
 SPACING = {"xs": 4, "s": 8, "m": 12, "l": 16, "xl": 24, "xxl": 32}
 # The notification-area popup's type sizes. The panel sets its own (TYPE_SCALE, below) and
 # the settings window keeps the system message font, so this table is the popup's alone.
@@ -198,6 +208,12 @@ LAYOUT = {
     "knob": 16,
     "knob_inset": 3,                # from the track's outer edge
     "knob_travel": 18,
+    # v0.6.4: the check box (CHECKBOX, below). The knob plus a hairline each side, so its inner
+    # square is exactly the switch's knob; it fits inside the switch's height and inside one line
+    # of body text, so a row of check boxes is never taller than a row with a switch.
+    "check_size": 18,
+    "check_gap": 10,                # from the box to its label, which is always on its right
+    "check_stroke": 2,              # the check mark's line (CHECK_MARK)
     "chip_height": 22,
     "chip_pad_x": 9,
     "count_height": 20,
@@ -241,10 +257,62 @@ SHADOWS = {
         "inset": (Shadow(0, 1, 2, "shadow_dark", 0.55, True),),
     },
 }
-# The card's own ground in CSS. Dark lifts a card a step toward `raised`; it is a stylesheet
-# detail, because only the panel has a dark theme.
-_CARD_GROUND = {"light": "var(--surface)",
-                "dark": "color-mix(in srgb, var(--raised) 22%, var(--surface))"}
+# Dark's card recipe is not the same shape as light's: two drops in `shadow_dark` and an inset
+# one-pixel top light in `shadow_light`, where light has one drop and one highlight. So a surface
+# drawing dark reads each shadow's `inset` rather than inferring it from the recipe's name.
+
+# The card's own ground: `surface` moved this fraction of the way toward `raised`. Dark lifts a
+# card a step, because on a near-black canvas a surface that is only its own colour reads as a
+# hole; light's card is its surface. The panel writes it as color-mix; the window and the popup
+# fill with card_ground(theme), which is the same colour (no channel of it lands on a half, so
+# CSS's rounding and brand.mix's agree).
+CARD_LIFT = {"light": 0.0, "dark": 0.22}
+_CARD_GROUND = {name: ("var(--surface)" if not lift else
+                       "color-mix(in srgb, var(--raised) %d%%, var(--surface))" % int(round(lift * 100)))
+                for name, lift in CARD_LIFT.items()}
+
+# ------------------------------------------------------------------- the check box
+# v0.6.4. A switch turns something that runs on or off; a check box picks which items of a list
+# apply - which kinds of interruption may be recovered, which events notify. The same setting is
+# the same kind on every surface, and a check box sits to the left of its label everywhere.
+#
+# It is the switch's material: unchecked it is the sunken well fields and switch tracks are (the
+# `inset` fill with the inset elevation inside its border); checked it is the accent with an
+# `on_accent` mark, as the switch's track and knob are. Its edge unchecked is `muted`, not `line`:
+# the switch's off state is identified by its `muted` knob, and an empty box has nothing inside
+# to do that - a `line` hairline on the card is 1.3:1, well under the 3:1 a control's boundary
+# needs, so the box would all but vanish for some readers. Disabled, it is what a disabled field
+# or button is here: a `surface` fill, a `line` hairline, no lift, and a `muted` mark if checked.
+#
+# Sizes are LAYOUT's check_size, check_gap and check_stroke and RADII's check. The keyboard focus
+# ring is every control's: `focus`, LAYOUT focus_width, focus_offset outside the box, its corners
+# following the box's. Each state's entries are palette tokens; `well` says whether the inset
+# elevation is drawn inside the border.
+CHECKBOX = {
+    "off":          {"fill": "inset",   "edge": "muted",  "mark": None,        "well": True},
+    "on":           {"fill": "accent",  "edge": "accent", "mark": "on_accent", "well": False},
+    "off_disabled": {"fill": "surface", "edge": "line",   "mark": None,        "well": False},
+    "on_disabled":  {"fill": "surface", "edge": "line",   "mark": "muted",     "well": False},
+}
+# High Contrast / forced colours: system colours by the names Windows Forms gives them (the popup
+# and the window read these; the panel maps them through SYSTEM_CSS). Never a shadow.
+CHECKBOX_SYSTEM = {
+    "off":          {"fill": "Window",    "edge": "WindowText", "mark": None},
+    "on":           {"fill": "Highlight", "edge": "Highlight",  "mark": "HighlightText"},
+    "off_disabled": {"fill": "Window",    "edge": "GrayText",   "mark": None},
+    "on_disabled":  {"fill": "Window",    "edge": "GrayText",   "mark": "GrayText"},
+}
+# The same system colours as CSS names them in `@media (forced-colors: active)`.
+SYSTEM_CSS = {"Window": "Canvas", "WindowText": "CanvasText", "Highlight": "Highlight",
+              "HighlightText": "HighlightText", "GrayText": "GrayText", "WindowFrame": "CanvasText",
+              "Control": "Canvas"}
+# The mark: a polyline's centre line - start, corner, end - in CSS px from the box's outer
+# top-left corner (its border included), on the check_size box. Stroked check_stroke wide with
+# flat ends and a mitred corner, which is exactly the outline check_mark_outline() returns and
+# the panel clips with (`--check-mark-shape`). Both arms run at 45 degrees and meet at a right
+# angle, the long arm twice the short one; the outline is centred across the box and sits a tenth
+# of a pixel low, where the eye puts a tick's weight.
+CHECK_MARK = ((4.5, 8.75), (7.5, 11.75), (13.5, 5.75))
 
 # ------------------------------------------------------------------- the status light
 # A flat dot whose colour says what the watcher is doing, with a soft glow that says it is
@@ -362,15 +430,127 @@ def css_scale() -> str:
     parts.append("--glow-attention-peak: %s;" % _number(GLOW["attention_peak"]))
     parts.append("--glow-arc-ms: %dms;" % GLOW["arc_ms"])
     parts.append("--glow-arc-mix: %s%%;" % _number(GLOW["arc_alpha"] * 100))
+    parts.append(css_check_box())
     return " ".join(parts)
 
 
-def _theme_name(theme) -> str:
+def css_check_box() -> str:
+    """The check box's custom properties, part of css_scale().
+
+    `--check-<state>-<part>` for every CHECKBOX entry - `--check-off-fill: var(--inset);` - so a
+    stylesheet that draws with them follows the table and the theme block that redefines the
+    tokens. A custom property's var() is resolved on the element that declares it and inherited
+    resolved, so these follow a theme only where the theme is stamped on that same element: the
+    panel's `:root`, never a descendant.
+
+    `--check-<state>-elev` is `var(--elev-inset)` where the well is drawn and `none` elsewhere.
+    `--check-mark-shape` is the mark as a `clip-path` polygon on a box of `--size-check-size`,
+    measured from its outer top-left corner - so the layer it clips covers the whole box, border
+    included (an absolutely placed `::before` sits a hairline up and left of its padding box).
+    The sizes themselves are the `--size-check-*` and `--radius-check` css_scale() writes.
+    """
+    parts = []
+    for state, entry in CHECKBOX.items():
+        name = state.replace("_", "-")
+        for part in ("fill", "edge", "mark"):
+            if entry[part] is not None:
+                parts.append("--check-%s-%s: var(--%s);" % (name, part, entry[part].replace("_", "-")))
+        parts.append("--check-%s-elev: %s;" % (name, "var(--elev-inset)" if entry["well"] else "none"))
+    parts.append("--check-mark-shape: polygon(%s);" % ", ".join(
+        "%spx %spx" % (_number(x), _number(y)) for x, y in check_mark_outline()))
+    return " ".join(parts)
+
+
+THEMES = ("light", "dark")
+
+
+def theme_name(theme) -> str:
+    """'light' or 'dark', from either name or from LIGHT or DARK themselves; anything else raises.
+
+    'system' is not a theme here: a surface resolves it (Windows' app mode, or the host's colour
+    scheme) before it asks for colours.
+    """
     if theme is LIGHT or theme == "light":
         return "light"
     if theme is DARK or theme == "dark":
         return "dark"
     raise ValueError("expected 'light' or 'dark', got %r" % (theme,))
+
+
+def palette(theme) -> dict:
+    """LIGHT or DARK, by theme name."""
+    return DARK if theme_name(theme) == "dark" else LIGHT
+
+
+def shadows(recipe: str, theme="light") -> tuple:
+    """A theme's elevation recipe - 'card', 'control' or 'inset' - front to back, as CSS lists it.
+
+    Paint it back to front. Dark's card mixes outer shadows with an inset top light, so read each
+    Shadow's `inset` rather than the recipe's name.
+    """
+    return SHADOWS[theme_name(theme)][recipe]
+
+
+def card_ground(theme="light") -> str:
+    """A card's own fill in a theme: `surface`, lifted CARD_LIFT of the way toward `raised`."""
+    tokens = palette(theme)
+    return mix(tokens["surface"], tokens["raised"], CARD_LIFT[theme_name(theme)])
+
+
+def status_colour(state, theme="light") -> str:
+    """The `#RRGGBB` a state's dot and glow are drawn in, in a theme (status_fill's token)."""
+    return palette(theme)[status_fill(state)]
+
+
+def check_box_state(checked, enabled=True) -> str:
+    """The CHECKBOX key for a box: 'off', 'on', 'off_disabled' or 'on_disabled'."""
+    return ("on" if checked else "off") + ("" if enabled else "_disabled")
+
+
+def check_box(checked, enabled=True, theme="light") -> dict:
+    """A check box's colours in a theme: `fill`, `edge` and `mark` as `#RRGGBB` (`mark` None when
+    there is none) and `well`, whether the inset elevation is drawn inside the border."""
+    entry, tokens = CHECKBOX[check_box_state(checked, enabled)], palette(theme)
+    return {"fill": tokens[entry["fill"]], "edge": tokens[entry["edge"]],
+            "mark": tokens[entry["mark"]] if entry["mark"] else None, "well": entry["well"]}
+
+
+def check_box_system(checked, enabled=True) -> dict:
+    """The same box in High Contrast: `fill`, `edge` and `mark` as Windows system colour names."""
+    return dict(CHECKBOX_SYSTEM[check_box_state(checked, enabled)])
+
+
+def css_system(name: str) -> str:
+    """A Windows system colour name as CSS's forced-colors keyword (WindowText is CanvasText)."""
+    return SYSTEM_CSS[name]
+
+
+def check_mark(scale: float = 1.0, left: float = 0.0, top: float = 0.0) -> tuple:
+    """The mark's centre line - start, corner, end - in device px for a box whose outer top-left
+    corner is at (left, top); stroke it LAYOUT check_stroke * scale wide, flat ends, mitred."""
+    return tuple((left + x * scale, top + y * scale) for x, y in CHECK_MARK)
+
+
+def check_mark_outline(scale: float = 1.0, left: float = 0.0, top: float = 0.0) -> tuple:
+    """The stroked mark as a filled polygon: six points, the outer side first from the start.
+
+    Flat ends and a mitred corner, so filling this is exactly stroking check_mark(): the panel
+    clips with it, and a surface without a pen that mitres can fill it instead.
+    """
+    (x0, y0), (x1, y1), (x2, y2) = CHECK_MARK
+    half = LAYOUT["check_stroke"] / 2.0
+
+    def normal(ax, ay, bx, by):
+        length = math.hypot(bx - ax, by - ay)
+        return (-(by - ay) / length, (bx - ax) / length)
+
+    n1, n2 = normal(x0, y0, x1, y1), normal(x1, y1, x2, y2)
+    joint = 1.0 + n1[0] * n2[0] + n1[1] * n2[1]
+    mitre = (half * (n1[0] + n2[0]) / joint, half * (n1[1] + n2[1]) / joint)
+    points = ((x0 + half * n1[0], y0 + half * n1[1]), (x1 + mitre[0], y1 + mitre[1]),
+              (x2 + half * n2[0], y2 + half * n2[1]), (x2 - half * n2[0], y2 - half * n2[1]),
+              (x1 - mitre[0], y1 - mitre[1]), (x0 - half * n1[0], y0 - half * n1[1]))
+    return tuple((left + x * scale, top + y * scale) for x, y in points)
 
 
 def css_elevation(theme) -> str:
@@ -379,15 +559,15 @@ def css_elevation(theme) -> str:
     `color-mix(in srgb, X p%, transparent)` is X at alpha p, which is what keeps the shadow's
     colour a token in the stylesheet rather than a number baked into it.
     """
-    name = _theme_name(theme)
+    name = theme_name(theme)
     parts = []
-    for recipe, shadows in SHADOWS[name].items():
+    for recipe, listed in SHADOWS[name].items():
         parts.append("--elev-%s: %s;" % (recipe, ", ".join(
             "%s%s %s %s color-mix(in srgb, var(--%s) %d%%, transparent)" % (
                 "inset " if shadow.inset else "", _css_length(shadow.dx), _css_length(shadow.dy),
                 _css_length(shadow.blur), shadow.token.replace("_", "-"),
                 int(round(shadow.alpha * 100)))
-            for shadow in shadows)))
+            for shadow in listed)))
     parts.append("--card-ground: %s;" % _CARD_GROUND[name])
     return " ".join(parts)
 
@@ -424,17 +604,24 @@ def shadow_alpha(shadow: Shadow, d: float, side: str, scale: float = 1.0) -> flo
 
 
 def elevation_colour(recipe: str, side: str, d: float, ground: str, theme="light",
-                     scale: float = 1.0) -> tuple:
+                     scale: float = 1.0, inside=None) -> tuple:
     """The colour `d` device px from one edge of a box with `recipe`, as unrounded (r, g, b).
 
-    `ground` is a token or `#RRGGBB`: for an outer recipe, what the box stands on; for the
-    inset recipe, the well's own fill. The list is painted back to front, as CSS paints it.
+    `ground` is a token or `#RRGGBB`: outside the box, what the box stands on; inside it, the
+    box's own fill. `inside` says which side of the edge `d` runs: None means inside for a recipe
+    whose every shadow is inset (the well) and outside for any other. Only the shadows on that
+    side are applied - dark's card has an inset top light that never reaches outside it. The list
+    is painted back to front, as CSS paints it.
     """
-    palette = LIGHT if _theme_name(theme) == "light" else DARK
-    colour = [float(part) for part in rgb(palette.get(ground, ground))]
-    for shadow in reversed(SHADOWS[_theme_name(theme)][recipe]):
+    tokens, recipe_shadows = palette(theme), shadows(recipe, theme)
+    if inside is None:
+        inside = all(shadow.inset for shadow in recipe_shadows)
+    colour = [float(part) for part in rgb(tokens.get(ground, ground))]
+    for shadow in reversed(recipe_shadows):
+        if shadow.inset != bool(inside):
+            continue
         alpha = shadow_alpha(shadow, d, side, scale)
-        colour = [part + (tone - part) * alpha for part, tone in zip(colour, rgb(palette[shadow.token]))]
+        colour = [part + (tone - part) * alpha for part, tone in zip(colour, rgb(tokens[shadow.token]))]
     return tuple(colour)
 
 
@@ -448,7 +635,7 @@ def reach(recipe: str, theme="light", scale: float = 1.0) -> tuple:
     sides = []
     for side in _SIDES:
         far = 0.0
-        for shadow in SHADOWS[_theme_name(theme)][recipe]:
+        for shadow in SHADOWS[theme_name(theme)][recipe]:
             if not shadow.inset:
                 far = max(far, shadow_offset(shadow, side) + 1.5 * shadow.blur)
         sides.append(int(math.ceil(far * scale - 1e-9)))

@@ -70,6 +70,39 @@ def mapping() -> dict:
     return json.loads(MAPPING.read_text(encoding="utf-8"))
 
 
+VERSION = re.compile(r"v?\d+\.\d+\.\d+")
+# A changelog names the release it is announcing, and a page that recounts what happened up to
+# a version names it. Those are history, and history that must not mention the newest release
+# is not history. The rule is about *current-facing* prose claiming a version that nothing will
+# update - the same split the English side draws in tests/test_privacy_claims.py.
+HISTORICAL = {"CHANGELOG.ko.md", "CONTRIBUTING.ko.md", "DEVELOPMENT.ko.md"}
+# A roadmap is a plan written in versions, and every version it names becomes the current one in
+# its turn. Under the prose rule the release that moves the manifest would fail on headings that
+# are still right, and the only way through would be to write each future release as "the one
+# after" another. What does go stale in a roadmap is a release's status - out, or in development -
+# and RoadmapTests holds that to the manifest, in both languages, instead.
+PLANS = {"ROADMAP.ko.md"}
+
+
+def version_key(version: str) -> tuple:
+    return tuple(int(part) for part in version.lstrip("v").split("."))
+
+
+def versions_named_as_current(current: str) -> list:
+    """`name:line` for every line of a current-facing Korean document that names `current`."""
+    offenders = []
+    for path in korean_documents():
+        if path.name in HISTORICAL or path.name in PLANS:
+            continue
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            for found in VERSION.findall(line):
+                # Past releases are history and may be named; the current one may not,
+                # because nothing would update it.
+                if found.lstrip("v") == current:
+                    offenders.append("%s:%d" % (path.name, number))
+    return offenders
+
+
 def korean_documents() -> list[Path]:
     return sorted(ROOT.glob("*.ko.md")) + sorted((ROOT / "docs").glob("*.ko.md"))
 
@@ -267,26 +300,26 @@ class ClaimTests(unittest.TestCase):
     def test_the_korean_documents_name_no_version_as_current(self):
         """A version written into prose is a version that goes stale on its own."""
         from codex_auto_resume import config
-        pattern = re.compile(r"v?\d+\.\d+\.\d+")
-        current = config.version()
-        # A changelog names the release it is announcing, and a page that recounts what
-        # happened up to a version names it. Those are history, and history that must not
-        # mention the newest release is not history. The rule is about *current-facing*
-        # prose claiming a version that nothing will update - the same split the English
-        # side draws in tests/test_privacy_claims.py.
-        historical = {"CHANGELOG.ko.md", "CONTRIBUTING.ko.md", "DEVELOPMENT.ko.md"}
-        offenders = []
-        for path in korean_documents():
-            if path.name in historical:
-                continue
-            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-                for found in pattern.findall(line):
-                    # Past releases are history and may be named; the current one may not,
-                    # because nothing would update it.
-                    if found.lstrip("v") == current:
-                        offenders.append("%s:%d" % (path.name, number))
-        self.assertEqual(offenders, [],
+        self.assertEqual(versions_named_as_current(config.version()), [],
                          "the current version must come from the manifest, not from prose")
+
+    def test_a_version_bump_does_not_fail_on_a_roadmap_heading_that_is_still_right(self):
+        """The roadmap names every release it plans, and each becomes the current one in turn.
+
+        Under the prose rule the release that moved the manifest to 0.6.5 would have failed on
+        `## v0.6.5 — ...` - a heading that is still exactly right - and on every sentence about
+        what 0.6.5 is for, and again at each bump after it. What goes stale in a roadmap is a
+        release's status, which RoadmapTests holds to the manifest instead.
+        """
+        from codex_auto_resume import config
+        # Every bump still ahead: the versions the roadmap plans after the manifest's.
+        planned = sorted({found.lstrip("v") for found in VERSION.findall(
+            (ROOT / "docs" / "ROADMAP.ko.md").read_text(encoding="utf-8"))
+            if version_key(found) > version_key(config.version())}, key=version_key)
+        for version in planned:
+            with self.subTest(version):
+                self.assertEqual([name for name in versions_named_as_current(version)
+                                  if name.startswith("ROADMAP.ko.md:")], [])
 
     def test_the_korean_readme_keeps_the_guarantees_it_promises(self):
         for claim in ("UUID",          # the exact-thread guarantee
@@ -294,6 +327,73 @@ class ClaimTests(unittest.TestCase):
                       "provenance"):    # the ownership rule uninstall applies
             with self.subTest(claim):
                 self.assertIn(claim, self.readme)
+
+
+RELEASED, IN_DEVELOPMENT = "✅", "\U0001F6A7"     # the roadmap's two status marks
+
+
+def roadmap_marks(text: str) -> list:
+    """(version, mark) for each line that carries a status mark, in order; the version is the first
+    one the line names, or None."""
+    marks = []
+    for line in text.splitlines():
+        for mark in (RELEASED, IN_DEVELOPMENT):
+            if mark in line:
+                found = VERSION.search(line)
+                marks.append((found.group(0).lstrip("v") if found else None, mark))
+    return marks
+
+
+def stale_marks(text: str, current: str) -> list:
+    """What a roadmap marks wrongly for a manifest at `current`: a release still in development
+    that is not the current one, or a release marked out that is still ahead."""
+    wrong = []
+    for version, mark in roadmap_marks(text):
+        if version is None:
+            wrong.append("a %s mark names no version" % mark)
+        elif mark == IN_DEVELOPMENT and version != current:
+            wrong.append("v%s is marked in development, and the manifest says %s" % (version, current))
+        elif mark == RELEASED and version_key(version) > version_key(current):
+            wrong.append("v%s is marked released, and the manifest says %s" % (version, current))
+    return wrong
+
+
+class RoadmapTests(unittest.TestCase):
+    """The roadmap's statuses, which are the part of it that goes stale.
+
+    Its version names are plans and stay right (PLANS, above). Which release is out and which is
+    in development changes at every bump, so that is held to the manifest here: in English directly,
+    and in Korean by marking exactly what the English marks, in the same order.
+    """
+
+    def setUp(self):
+        skip_if_generated()
+        self.english = (ROOT / "docs" / "ROADMAP.md").read_text(encoding="utf-8")
+        self.korean = (ROOT / "docs" / "ROADMAP.ko.md").read_text(encoding="utf-8")
+
+    def test_the_roadmap_marks_releases_by_the_manifest(self):
+        from codex_auto_resume import config
+        current = config.version()
+        self.assertIn(current, {version for version, _ in roadmap_marks(self.english)},
+                      "docs/ROADMAP.md gives the manifest's version no status")
+        self.assertEqual(stale_marks(self.english, current), [],
+                         "docs/ROADMAP.md: mark the releases that are out and the one in development, "
+                         "then docs/ROADMAP.ko.md the same way")
+
+    def test_a_bump_that_leaves_the_roadmap_behind_is_caught(self):
+        from codex_auto_resume import config
+        ahead = sorted({version for version, _ in roadmap_marks(self.english)} | {
+            found.lstrip("v") for found in VERSION.findall(self.english)}, key=version_key)
+        after = [version for version in ahead if version_key(version) > version_key(config.version())]
+        if not after:
+            self.skipTest("the roadmap plans nothing after the manifest's version")
+        self.assertTrue(stale_marks(self.english, after[0]),
+                        "a manifest one release ahead should find the in-development mark stale")
+
+    def test_the_korean_roadmap_marks_what_the_english_one_marks(self):
+        self.assertEqual([mark for _, mark in roadmap_marks(self.korean)],
+                         [mark for _, mark in roadmap_marks(self.english)],
+                         "docs/ROADMAP.ko.md marks releases differently from docs/ROADMAP.md")
 
 
 if __name__ == "__main__":
