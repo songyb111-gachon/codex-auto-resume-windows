@@ -390,7 +390,8 @@ function New-Window {
     $formType.GetField('auditing', $instance).SetValue($window, $true)
     $window.TopLevel = $false
     $window.MinimumSize = [Drawing.Size]::Empty
-    $window.ClientSize = [Drawing.Size]::new(1000, 600)
+    # The opening size, read from the window: 1000 by 632 since the Overview's rows share the page (it was 600).
+    $window.ClientSize = [Drawing.Size]::new([int]$formType.GetField('OpeningWidth', $static).GetValue($null), [int]$formType.GetField('OpeningHeight', $static).GetValue($null))
     return $window
 }
 function Walk($control, [string]$path, $seen) {
@@ -658,7 +659,7 @@ try {
             $formType.GetField('auditing', $instance).SetValue($w, $true)
             $w.TopLevel = $false
             $w.MinimumSize = [Drawing.Size]::Empty
-            $w.ClientSize = [Drawing.Size]::new([int][Math]::Round($width * $systemScale), [int][Math]::Round(600 * $systemScale))
+            $w.ClientSize = [Drawing.Size]::new([int][Math]::Round($width * $systemScale), [int][Math]::Round([int]$formType.GetField('OpeningHeight', $static).GetValue($null) * $systemScale))
             $null = Invoke-Window $w 'BuildEditors' @($schema, $current)
             $null = Invoke-Window $w 'ShowPage' @('settings')
             $null = Invoke-Window $w 'ShowReopenNote' @($true)

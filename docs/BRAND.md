@@ -291,9 +291,11 @@ the ring rather than floating beside it.
 - **What a card leads to closes it.** A button or a switch at the right of a card or a row is
   pinned to its bottom-right corner: the heading and the text come first, from the top left, and
   the control ends the block - beside the last line where there is room, and under it, still on
-  the right, where there is not. Text wraps rather than running under a control, and the keyboard
-  reaches the control after the text. Buttons already along the bottom, drop-downs, chips and
-  check boxes keep their places, and so do the Dashboard's switches that sit before their labels.
+  the right, where there is not. A card taller than what it holds - the Overview's, whose two rows
+  share the page's height - keeps the text at its top and the control in its corner. Text wraps
+  rather than running under a control, and the keyboard reaches the control after the text.
+  Buttons already along the bottom, drop-downs, chips and check boxes keep their places, and so do
+  the Dashboard's switches that sit before their labels.
 - **Every status fact is its own label in its own cell.** A single concatenated string
   wraps or truncates as the window narrows, and what disappears first is the version — the
   part people are asked for when reporting a problem.

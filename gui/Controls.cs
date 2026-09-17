@@ -1408,6 +1408,138 @@ namespace CodexAutoResume
         }
     }
 
+    /// A grid of cards whose rows share the whole height of the page it fills (v0.6.4): every row as tall
+    /// as the others where the page has room for that, and every card as tall as its row, so the Overview's
+    /// cards reach from under the tabs to above the footer at whatever height the window has. As tall as their
+    /// content, the person found them too wide and too short, over an empty band.
+    ///
+    /// It fills its page, and the page measures it at what its rows need (Needed): each row as tall as its own
+    /// tallest card, measured at the narrower column's width as a table measures a card. A page with room for
+    /// every row as tall as the tallest card shares all of its height alike; a shorter one gives each row what
+    /// it needs and the rest to the shorter rows (Shares); one shorter still scrolls, and the rows keep what
+    /// they need. Counted with every row as tall as the tallest, the Overview scrolled in any window from 598
+    /// to 617 px high, where v0.6.3's fitted - and KeepOnScreen gives the window 601 on a 1920 by 1200 screen
+    /// at 175% (v0.6.4, measured). What a card holds stays at its top, and a control pinned to its bottom
+    /// right (SoftPin) goes down with the card's bottom edge. The gap between two rows is half under the one
+    /// and half over the other (Dashboard.RowGap), so rows of one height are cards of one height.
+    ///
+    /// It is AutoSize, though its page decides its size: a table answers its parent's layout from its own only
+    /// when it sizes itself (TableLayout returns AutoSize), and WinForms then lays the parent out once the table's
+    /// own layout has finished. So a card that grows on a page already laid out has the page measure the rows
+    /// again and scroll. Docked to fill, it is given the page's size whatever it asks for. Asked from inside its
+    /// own layout instead, the page gave the table a new size while that layout was still running, and the
+    /// table never laid its cards out at it.
+    internal sealed class SoftRows : TableLayoutPanel, ISoftGround
+    {
+        internal SoftRows(int columns, int rows)
+        {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                     ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+            BackColor = Palette.Canvas;
+            Dock = DockStyle.Fill;
+            AutoSize = true;
+            Margin = new Padding(0);
+            ColumnCount = columns;
+            RowCount = rows;
+            for (int i = 0; i < columns; i++) ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / columns));
+            for (int i = 0; i < rows; i++) RowStyles.Add(new RowStyle(SizeType.Percent, 100f / rows));
+        }
+
+        /// How tall it must be, `width` wide, for every row to hold its own tallest card, margins and all.
+        internal int Needed(int width)
+        {
+            int total = 0;
+            foreach (int need in RowNeeds(width)) total += need;
+            return Padding.Vertical + total;
+        }
+
+        /// How tall each row must be, `width` wide, to hold its tallest card, margins and all.
+        private int[] RowNeeds(int width)
+        {
+            var needs = new int[Math.Max(1, Math.Min(RowCount, RowStyles.Count))];
+            // The narrower of the columns as the table shares the width out: a card is never shorter narrower.
+            int column = Math.Max(1, (width - Padding.Horizontal) / Math.Max(1, ColumnCount));
+            foreach (Control child in Controls)
+            {
+                if (!Soft.OwnVisible(child)) continue;
+                int row = GetPositionFromControl(child).Row;
+                if (row < 0 || row >= needs.Length) continue;
+                int room = Math.Max(1, column - child.Margin.Horizontal);
+                int height = child.AutoSize ? child.GetPreferredSize(new Size(room, 0)).Height : child.Height;
+                needs[row] = Math.Max(needs[row], height + child.Margin.Vertical);
+            }
+            return needs;
+        }
+
+        protected override void OnLayout(LayoutEventArgs levent)
+        {
+            // The rows' shares for the size the table is about to lay its cards out at. A share that changes asks for
+            // a layout, which, asked from inside this one, does not run again: this one lays out with the new shares.
+            Rectangle display = DisplayRectangle;
+            float[] shares = Shares(RowNeeds(display.Width), display.Height);
+            for (int i = 0; i < shares.Length && i < RowStyles.Count; i++)
+                if (RowStyles[i].Height != shares[i]) RowStyles[i].Height = shares[i];
+            base.OnLayout(levent);
+        }
+
+        /// The weights of the rows' percent styles, for rows that need `needs` pixels in `room`:
+        ///   * alike, where every row can be as tall as the tallest needs;
+        ///   * what each row needs, where there is no more than that - a page with less scrolls, and a table
+        ///     given less on the way shares it in proportion;
+        ///   * between the two, the rows that need more than an even share of what the others leave keep what they
+        ///     need, and the others share the rest alike, so the shorter rows grow toward the taller and none is
+        ///     given less than it needs. In whole pixels that add up to `room`, so the table's shares are exact.
+        internal static float[] Shares(int[] needs, int room)
+        {
+            int rows = needs.Length, tallest = 0, total = 0;
+            foreach (int need in needs)
+            {
+                tallest = Math.Max(tallest, need);
+                total += need;
+            }
+            var shares = new float[rows];
+            if (total <= 0 || (long)tallest * rows <= room)
+            {
+                for (int i = 0; i < rows; i++) shares[i] = 100f / rows;
+                return shares;
+            }
+            if (room <= total)
+            {
+                for (int i = 0; i < rows; i++) shares[i] = needs[i];
+                return shares;
+            }
+            var keeps = new bool[rows];
+            int left = room, sharing = rows;
+            while (sharing > 1)
+            {
+                int most = -1;
+                for (int i = 0; i < rows; i++)
+                    if (!keeps[i] && (most < 0 || needs[i] > needs[most])) most = i;
+                if ((long)needs[most] * sharing <= left) break;
+                keeps[most] = true;
+                left -= needs[most];
+                sharing--;
+            }
+            int even = left / sharing, over = left - even * sharing;
+            for (int i = 0; i < rows; i++)
+            {
+                if (keeps[i])
+                {
+                    shares[i] = needs[i];
+                    continue;
+                }
+                shares[i] = even + (over > 0 ? 1 : 0);
+                if (over > 0) over--;
+            }
+            return shares;
+        }
+
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            Ground.Paint(this, e);
+        }
+    }
+
     /// A page that is a ground (see Ground): double-buffered and opaque. A page that `Scrolls` moves
     /// what it holds up and down when that is taller than the page, on the soft scroll bar - never
     /// on Windows' own.
@@ -1420,6 +1552,8 @@ namespace CodexAutoResume
     ///   * a child docked to the top or the bottom counts at its height;
     ///   * a child that fills counts at no more than its MinimumSize, so a page a list fills -
     ///     Pending, History - scrolls only when the rest of it no longer fits at all;
+    ///   * a grid whose rows share the page (SoftRows) counts at what its rows need, so the Overview
+    ///     fills the page it fits and scrolls only when its cards need more;
     ///   * a child placed where it is counts to its bottom.
     /// The wheel scrolls it over anything in it that does not take the wheel for itself (a drop-down
     /// or a number hands it on: Soft.PassWheel), and a control the keyboard moves to is scrolled into
@@ -1570,6 +1704,8 @@ namespace CodexAutoResume
             {
                 if (!Soft.OwnVisible(child)) continue;
                 if (child.Dock == DockStyle.Top || child.Dock == DockStyle.Bottom) stacked += child.Height;
+                else if (child is SoftRows && child.Dock == DockStyle.Fill)
+                    stacked += Math.Max(Math.Max(0, child.MinimumSize.Height), ((SoftRows)child).Needed(display.Width));
                 else if (child.Dock == DockStyle.Fill) stacked += Math.Max(0, child.MinimumSize.Height);
                 else if (child.Dock == DockStyle.None) placed = Math.Max(placed, child.Bottom - display.Top);
             }
@@ -2056,6 +2192,8 @@ namespace CodexAutoResume
     /// made the Overview taller than its window. Only where wrapping does not clear the column, or costs
     /// more, does the block grow, until the control is under the lowest thing in its column with the
     /// card's first gap between them. Text never runs under it. A control that is hidden takes no room.
+    /// A block given more height than that - its card stretched beside a taller one, or down a page whose
+    /// rows share its height (SoftRows) - keeps the names whole when the control fits under them.
     ///
     /// Where the content's lines are is worked out (Model) - never read from where its controls happen
     /// to be. A table asks a block how tall it is at widths it never gives it - 1, 0, a column's width on
@@ -2192,9 +2330,17 @@ namespace CodexAutoResume
         /// they are).
         private int Plan(int width, out int limit)
         {
+            int whole;
+            return Plan(width, out limit, out whole);
+        }
+
+        /// The same, and how tall the block is with every name of `wraps` whole (`whole`).
+        private int Plan(int width, out int limit, out int whole)
+        {
             limit = 0;
             var marks = new List<Mark>();
             int content = Model(body, 0, 0, width, 0, marks);
+            whole = content;
             if (!Soft.OwnVisible(pin)) return content;
             Size size = PinSize();
             int gap = Soft.Px(Brand.CardFirstGap);
@@ -2202,6 +2348,7 @@ namespace CodexAutoResume
             int column = width - PinWidth() - Soft.Px(Brand.CardHeadGap);
             int beside = Math.Max(content, size.Height);
             int best = Needed(marks, content, column, size.Height, gap);
+            whole = best;
             if (best == beside || wraps == null) return best;
             // The names wrap: as far as the values beside the control need, and else as far as every value
             // needs. The shortest block wins, the control under the facts among them.
@@ -2457,8 +2604,16 @@ namespace CodexAutoResume
         {
             int width = ClientSize.Width;
             if (width > 1) arranged = width;
-            int limit;
-            int needed = Plan(width, out limit);
+            int limit, whole;
+            int needed = Plan(width, out limit, out whole);
+            // The names give way only to keep the block short. A block stretched taller than that - beside a taller
+            // card, or down a page whose rows share its height (SoftRows) - has the room for them whole, with the
+            // control under the lowest line in its column, and keeps them whole.
+            if (limit > 0 && whole <= ClientSize.Height)
+            {
+                limit = 0;
+                needed = whole;
+            }
             if (wraps != null)
             {
                 bool isName = true;
