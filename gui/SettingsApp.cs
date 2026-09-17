@@ -572,12 +572,17 @@ namespace CodexAutoResume
         /// The window's opening client size, in logical pixels.
         ///
         /// The height is what the Overview needs with the most it ever shows - three lines under
-        /// Waiting, four finished conversations with long names - and room for a system font whose
-        /// lines run a pixel taller than this one's. Measured built and never shown, text drawn as this
-        /// window draws it, in all nine languages from 100% to 200%: 564 to 576 px, the same in every
-        /// language (tests/test_gui_layout.py holds the page to it). The window then fits a 1920 by
-        /// 1080 screen at 150% - a work area of 1280 by 672 logical pixels, of which the frame takes 38 -
-        /// with 52 device pixels to spare, and it is as tall as v0.6.2's.
+        /// Waiting, four finished conversations with long names, and Right now planned for the widest
+        /// words its facts and its button are ever given, whatever state the watcher is in. Measured built
+        /// and never shown, text drawn as this window draws it, in all nine languages from 100% to 200%:
+        /// 569 to 580 px, in French 569 to 595 and in German 585 to 597 (tests/test_gui_layout.py holds
+        /// the page to it, in every state). Since each card's button is pinned to its bottom right
+        /// (SoftPin), History stands under the four finished conversations, whose outcomes reach the
+        /// card's edge, and in French and German the names of Right now wrap beside the button that
+        /// resumes recovery; with the buttons beside the headings it was 564 to 576 in every language.
+        /// The window then fits a 1920 by 1080 screen at 150% - a work area of 1280 by 672 logical
+        /// pixels, of which the frame takes 38 - with 52 device pixels to spare, and it is as tall as
+        /// v0.6.2's.
         ///
         /// The width is where the Pending list draws "waiting for the usage reset" and "Usage limit"
         /// whole beside "Why it is waiting" at its full 256 px: 933 to 946 in English, 813 to 817 in
@@ -1015,8 +1020,12 @@ namespace CodexAutoResume
             // Close, which are about settings and not about the watcher.
             startButton = MakeButton(S("action.start", "Start watcher"), true, delegate { StartWatcher(); });
             startButton.Visible = false;
-            startButton.Anchor = AnchorStyles.Right;
+            // Pinned to the card's bottom right, beside the sentence under the headline (v0.6.4), as
+            // every button at the right of a card is. Its column is its own, so neither line of the
+            // headline ever runs under it.
+            startButton.Anchor = AnchorStyles.Right | AnchorStyles.Bottom;
             startButton.Margin = Pad(16, 0, 0, 0);
+            Pinned(startButton, hero);
 
             hero.Controls.Add(dot, 0, 0);
             hero.SetRowSpan(dot, 2);
@@ -1480,6 +1489,7 @@ namespace CodexAutoResume
                 stack.Controls.Clear();
                 stack.RowStyles.Clear();
             }
+            ForgetPins();
             editors.Clear();
             jsonValues.Clear();
             reasonOrder.Clear();
@@ -1862,8 +1872,11 @@ namespace CodexAutoResume
             count.Anchor = AnchorStyles.Left | AnchorStyles.Top;
             Button clear = MakeButton(S("custom.clear", "Clear"), false, delegate { area.Box.Clear(); area.Box.Focus(); });
             clear.MinimumSize = new Size(Px(88), Px(34));
-            clear.Anchor = AnchorStyles.Right | AnchorStyles.Top;
+            // At the bottom right of its row, as every button at the right of a row is (v0.6.4). The
+            // count beside it is one line, shorter than the button, so the row is the button's height.
+            clear.Anchor = AnchorStyles.Right | AnchorStyles.Bottom;
             clear.Margin = new Padding(0);
+            Pinned(clear, row);
             row.Controls.Add(count, 0, 0);
             row.Controls.Add(clear, 1, 0);
             area.Box.TextChanged += delegate { UpdateCount(area, count); };
@@ -2915,6 +2928,9 @@ namespace CodexAutoResume
         ///     page that scrolls up and down;
         ///   * a page that would scroll sideways;
         ///   * the Overview, Pending or History scrolling at all (AuditScrolling);
+        ///   * a button pinned to the bottom right of a card or a row (Pinned) that is not within a pixel of
+        ///     that corner, or that covers a line of text in its card or row (AuditPins) - the Start button
+        ///     too, shown for it, since the watcher in a dashboard reply is running;
         ///   * a drop-down that is not one field high;
         ///   * text, a list's columns or other content that needs more room than it is drawn in,
         ///     and a status light too small for its glow.
@@ -2922,6 +2938,7 @@ namespace CodexAutoResume
         internal static string LayoutAudit(string schemaJson, string settingsJson, string stringsJson, string snapshotJson, double scale)
         {
             var findings = new List<string>();
+            AuditedPins = 0;
             System.Reflection.FieldInfo fallback = typeof(Control).GetField("defaultFont",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
             Font defaultBefore = Control.DefaultFont;
@@ -2960,14 +2977,22 @@ namespace CodexAutoResume
                         {
                             form.Audit(page, findings);
                             form.AuditScrolling(page, findings);
+                            form.AuditPins(page, findings);
                             continue;
                         }
                         foreach (string section in SectionOrder)
                         {
                             form.ShowSection(section);
                             form.Audit("settings/" + section, findings);
+                            form.AuditPins("settings/" + section, findings);
                         }
                     }
+                    // The Start button shows only while the watcher is stopped: shown for this, and hidden again.
+                    form.startButton.Visible = true;
+                    Materialise(form);
+                    form.PerformLayout();
+                    form.AuditPins("header", findings);
+                    form.startButton.Visible = false;
                     // The reopen note, beside every button of the Settings page's save card, at the opening width
                     // and at the narrowest the window goes: 800 wide, less a sizable frame's 8 px on each side.
                     form.AuditReopenNote(form.Px(OpeningWidth), findings);
@@ -2981,6 +3006,107 @@ namespace CodexAutoResume
                 Soft.BaseFont = baseBefore;
             }
             return string.Join("\n", findings.ToArray());
+        }
+
+        /// Every way the Overview gives way as the watcher's state changes under it, at `scale` and in the
+        /// language of `stringsJson`: one line each, and an empty string when there is none (v0.6.4).
+        ///
+        /// `statesJson` is a list of [name, dashboard reply] pairs. The window is built as LayoutAudit builds it,
+        /// the Overview from the first reply - as a window opens on a watcher already in that state - and each
+        /// reply after it is applied to the page already laid out, as a refresh does. Last, the window is made
+        /// shorter than the page, so the soft bar shows, and given its opening height back. Reported are, at the
+        /// opening size after every step:
+        ///   * the Overview scrolling;
+        ///   * an Overview button (Pinned) out of its card's corner or over its text;
+        ///   * Right now laid out differently from the first step: its facts and its button are planned for the
+        ///     widest words each is ever given (SoftPin.Reserve), so neither a state nor the bar coming and going
+        ///     moves it - and the audit found German and French scrolling in states LayoutAudit's reply never
+        ///     shows;
+        ///   * a shorter window that did not scroll, which would leave the last step proving nothing.
+        /// tests/test_gui_layout.py runs it in every language at five scalings.
+        internal static string OverviewStatesAudit(string stringsJson, string statesJson, double scale)
+        {
+            var findings = new List<string>();
+            AuditedStates = 0;
+            System.Reflection.FieldInfo fallback = typeof(Control).GetField("defaultFont",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Font defaultBefore = Control.DefaultFont;
+            Font baseBefore = Soft.BaseFont;
+            try
+            {
+                dpiScale = scale;
+                float factor = (float)(scale / SystemScale);
+                Font box = SystemFonts.MessageBoxFont;
+                var windowFont = new Font(box.FontFamily, box.SizeInPoints * factor, box.Style, GraphicsUnit.Point);
+                if (fallback != null)
+                    fallback.SetValue(null, new Font(defaultBefore.FontFamily, defaultBefore.SizeInPoints * factor,
+                                                     defaultBefore.Style, GraphicsUnit.Point));
+                var catalog = Json.Parse(stringsJson) as Dictionary<string, object>;
+                var states = Json.Parse(statesJson) as List<object>;
+                string nowhere = Path.Combine(Path.GetTempPath(), "codex-auto-resume-layout-audit-" + Guid.NewGuid().ToString("N"));
+                using (var form = new SettingsForm(new PersistentBridge(nowhere, new Bridge(nowhere)), catalog, windowFont))
+                {
+                    form.auditing = true;
+                    form.TopLevel = false;
+                    form.MinimumSize = Size.Empty;
+                    var opening = new Size(form.Px(OpeningWidth), form.Px(OpeningHeight));
+                    form.ClientSize = opening;
+                    Size planned = Size.Empty;
+                    string first = null, last = null;
+                    foreach (object item in states ?? new List<object>())
+                    {
+                        var pair = item as List<object>;
+                        if (pair == null || pair.Count != 2) continue;
+                        last = Convert.ToString(pair[0], CultureInfo.InvariantCulture);
+                        var reply = pair[1] as Dictionary<string, object>;
+                        if (reply != null) form.ApplySnapshot(reply);
+                        if (first == null)
+                        {
+                            form.ShowPage("overview");
+                            first = last;
+                        }
+                        form.AuditState(last, first, ref planned, findings);
+                    }
+                    if (first == null) return "no states :: nothing was audited";
+                    form.ClientSize = new Size(opening.Width, opening.Height - form.Px(40));
+                    Materialise(form);
+                    form.PerformLayout();
+                    var page = form.pages["overview"] as SoftPage;
+                    if (page == null || !page.Overflowing)
+                        findings.Add("overview :: a window 40 px shorter did not scroll, so its round trip proves nothing");
+                    form.ClientSize = opening;
+                    form.AuditState(last + ", after the window was made shorter and taller again", first, ref planned, findings);
+                }
+            }
+            finally
+            {
+                dpiScale = SystemScale;
+                if (fallback != null) fallback.SetValue(null, defaultBefore);
+                Soft.BaseFont = baseBefore;
+            }
+            return string.Join("\n", findings.ToArray());
+        }
+
+        /// How many steps the last OverviewStatesAudit measured, so that a quiet report is known to have looked.
+        internal static int AuditedStates;
+
+        /// The Overview laid out as it is now, against what OverviewStatesAudit holds it to.
+        private void AuditState(string state, string first, ref Size planned, List<string> findings)
+        {
+            Materialise(this);
+            PerformLayout();
+            AuditedStates++;
+            string where = "overview (" + state + ")";
+            var page = pages["overview"] as SoftPage;
+            if (page != null && page.Overflowing)
+                findings.Add(where + " :: the page scrolls, " + page.Extent + " high in " + page.ClientSize.Height);
+            foreach (KeyValuePair<Control, Control> pair in pinned)
+                if (Showing(pair.Key)) AuditPin(where, pair.Key, pair.Value, findings);
+            Control block = toggleButton.Parent;
+            if (block == null) return;
+            if (planned.IsEmpty) planned = block.Size;
+            else if (block.Size != planned)
+                findings.Add(where + " :: Right now is laid out " + block.Size + " where it was " + planned + " for " + first);
         }
 
         /// Lays out what is on screen as showing the window would, and adds what does not fit.
@@ -3008,6 +3134,92 @@ namespace CodexAutoResume
             if (room.Width <= 0 || needed > room.Height - reopenNote.Padding.Vertical)
                 findings.Add("footer/reopen note at " + width + " :: needs " + needed + " high, has " + room);
             ShowReopenNote(false);
+        }
+
+        /// How many pinned controls the last LayoutAudit held to their corners, so that a quiet report is known
+        /// to have looked at them.
+        internal static int AuditedPins;
+
+        private readonly HashSet<Control> auditedPins = new HashSet<Control>();
+
+        /// Every pinned control on screen that is not in its corner or covers text (AuditPin), each where it
+        /// first shows.
+        private void AuditPins(string where, List<string> findings)
+        {
+            foreach (KeyValuePair<Control, Control> pair in pinned)
+            {
+                if (!Showing(pair.Key) || auditedPins.Contains(pair.Key)) continue;
+                auditedPins.Add(pair.Key);
+                AuditedPins++;
+                AuditPin(where, pair.Key, pair.Value, findings);
+            }
+        }
+
+        /// Whether a control, and everything it is in up to the window, is told to be visible.
+        private bool Showing(Control control)
+        {
+            for (Control c = control; c != null; c = c.Parent)
+            {
+                if (c == this) return true;
+                if (!OwnVisible(c)) return false;
+            }
+            return false;
+        }
+
+        /// A control pinned to the bottom right of `block` that is more than a pixel from that corner of the
+        /// block inside its padding, or that lies over the text of anything else in the block.
+        internal static void AuditPin(string where, Control control, Control block, List<string> findings)
+        {
+            string place = where + "/" + AuditName(control);
+            var inner = new Rectangle(block.Padding.Left, block.Padding.Top, block.ClientSize.Width - block.Padding.Horizontal,
+                                      block.ClientSize.Height - block.Padding.Vertical);
+            var bounds = new Rectangle(Point.Empty, control.Size);
+            for (Control c = control; c != null && c != block; c = c.Parent) bounds.Offset(c.Left, c.Top);
+            if (Math.Abs(bounds.Right - inner.Right) > 1 || Math.Abs(bounds.Bottom - inner.Bottom) > 1)
+                findings.Add(place + " :: is not at the bottom right of its " + AuditName(block) + ", " + bounds + " in " + inner);
+            Covered(place, control, block, Point.Empty, bounds, findings);
+        }
+
+        private static void Covered(string place, Control pinnedControl, Control container, Point offset, Rectangle bounds,
+                                    List<string> findings)
+        {
+            foreach (Control child in container.Controls)
+            {
+                if (child == pinnedControl || !OwnVisible(child)) continue;
+                var at = new Point(offset.X + child.Left, offset.Y + child.Top);
+                Rectangle text = TextBox(child, at);
+                if (!text.IsEmpty && text.IntersectsWith(bounds))
+                    findings.Add(place + " :: covers " + AuditName(child) + ", " + text + " under " + bounds);
+                Covered(place, pinnedControl, child, at, bounds, findings);
+            }
+        }
+
+        /// Where a label or a button draws its text, with its top left at `at`; empty for anything else. A
+        /// label's text is measured as it wraps in the label and placed as the label aligns it, so a label
+        /// stretched across a cell is held to its words and not to the cell.
+        private static Rectangle TextBox(Control control, Point at)
+        {
+            if (string.IsNullOrEmpty(control.Text) || !(control is Label || control is ButtonBase)) return Rectangle.Empty;
+            var bounds = new Rectangle(at, control.Size);
+            var label = control as Label;
+            if (label == null) return bounds;
+            TextFormatFlags format = TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl;
+            if (!label.UseMnemonic) format |= TextFormatFlags.NoPrefix;
+            Size text = TextRenderer.MeasureText(label.Text, label.Font,
+                                                 new Size(Math.Max(1, label.ClientSize.Width - label.Padding.Horizontal), int.MaxValue), format);
+            int width = Math.Min(text.Width + label.Padding.Horizontal, bounds.Width);
+            int height = Math.Min(text.Height + label.Padding.Vertical, bounds.Height);
+            int x = bounds.X, y = bounds.Y;
+            ContentAlignment align = label.TextAlign;
+            if ((align & (ContentAlignment.TopCenter | ContentAlignment.MiddleCenter | ContentAlignment.BottomCenter)) != 0)
+                x += (bounds.Width - width) / 2;
+            else if ((align & (ContentAlignment.TopRight | ContentAlignment.MiddleRight | ContentAlignment.BottomRight)) != 0)
+                x = bounds.Right - width;
+            if ((align & (ContentAlignment.MiddleLeft | ContentAlignment.MiddleCenter | ContentAlignment.MiddleRight)) != 0)
+                y += (bounds.Height - height) / 2;
+            else if ((align & (ContentAlignment.BottomLeft | ContentAlignment.BottomCenter | ContentAlignment.BottomRight)) != 0)
+                y = bounds.Bottom - height;
+            return new Rectangle(x, y, width, height);
         }
 
         /// Whether a control itself is visible, whatever its parents are.

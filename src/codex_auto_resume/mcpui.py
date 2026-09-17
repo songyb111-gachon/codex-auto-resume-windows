@@ -30,7 +30,9 @@ v0.6.4 added the Theme setting, which the panel applies to itself - Light or Dar
 `data-theme` on the root, Use system setting stamps nothing and follows Codex - and it
 speaks a newly saved Interface language at once, from every language's words for this page,
 which ship with it. An on/off setting is a switch when it turns something that runs on or
-off and a check box when it picks items of a list, as in the Windows Dashboard.
+off and a check box when it picks items of a list, as in the Windows Dashboard. A switch or a
+button at the right of a row is pinned to the row's bottom-right, beside the last line of the
+text it belongs to, as it is in the window and the notification-area popup.
 """
 from __future__ import annotations
 
@@ -233,12 +235,22 @@ input.check:checked:disabled { background: var(--check-on-disabled-fill);
 input.check:checked:disabled::before { background: var(--check-on-disabled-mark); }
 
 /* A setting is a row: what it is on the left, the control on the right. When there is no
-   room for both, the control moves under its name rather than pushing past the edge. */
+   room for both, the control moves under its name rather than pushing past the edge.
+
+   A switch or a button at the right of a row is pinned to the row's bottom-right: its right
+   edge on the row's, its bottom on the bottom of the text beside it - so it sits beside the
+   last line of a name that wraps, not centred on the first. Text shorter than the control is
+   still centred on it, so a one-line row is drawn as it always was. The control comes after
+   its text in the markup, which is the order it is read and reached by Tab, and it is a flex
+   item that never shrinks beside text that does: the text wraps, or the control drops under
+   it and stays on the right, and nothing ever runs underneath it. A select, a number, a chip
+   and a check box keep their places. */
 .rows > .setting + .setting, .rows > .setting + .custom, .toggles > .setting,
 .custom > .setting + .setting { border-top: 1px solid var(--line); }
 .setting { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
            gap: 6px var(--size-row-gap); padding: var(--size-row-pad); min-width: 0; }
 label.setting { cursor: pointer; }
+.setting.toggle > input.switch { align-self: flex-end; margin-left: auto; }
 .setting.check { flex-wrap: nowrap; justify-content: flex-start; align-items: flex-start;
                  gap: var(--size-check-gap); }
 .setting-text { flex: 1 1 180px; min-width: 0; display: grid; gap: 2px; }
@@ -257,9 +269,11 @@ label.setting { cursor: pointer; }
 .master { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 10px 0 6px;
           padding: var(--size-tile-pad); background: var(--raised); border: 1px solid var(--line);
           border-radius: var(--radius-control); }
-.master-text { flex: 1 1 200px; display: flex; align-items: center; gap: 10px; min-width: 0;
-               font-weight: 500; }
-.master .note { flex: 1 1 100%; }
+/* What the tile says - the state, and under it what the last press answered - is one block, and
+   the button is pinned to the tile's bottom-right beside it (see .setting). */
+.master-body { flex: 1 1 200px; display: grid; gap: 4px; min-width: 0; }
+.master-text { display: flex; align-items: center; gap: 10px; min-width: 0; font-weight: 500; }
+.master > button { align-self: flex-end; margin-left: auto; }
 /* The same light, small and still: the state card above is the one that breathes. */
 .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--idle); }
 .dot.on { background: var(--active); }
@@ -313,7 +327,9 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
 .prow-meta { display: flex; flex-wrap: wrap; gap: 0 14px; color: var(--muted); font-size: var(--type-small);
              font-variant-numeric: tabular-nums; }
 .prow-meta b { font-weight: 500; color: var(--ink); }
-.prow-switch { display: flex; align-items: center; gap: 10px; margin-left: auto;
+/* Pinned to the row's bottom-right, beside the facts line (see .setting); an open confirmation is
+   a line of its own under both. */
+.prow-switch { display: flex; align-items: center; align-self: flex-end; gap: 10px; margin-left: auto;
                color: var(--muted); font-size: var(--type-small); cursor: pointer; }
 .prow-confirm { flex: 1 1 100%; display: grid; gap: 8px; padding-top: 10px;
                 border-top: 1px solid var(--line); }
@@ -1187,8 +1203,11 @@ function renderRecovery(status, schema) {
   var node = card(t('group.recovery', 'Automatic recovery'));
   // The control every check box on this card depends on, first. It acts at once -
   // pausing needs no Save and resuming asks for approval - so it is a button beside what
-  // it will change, rather than a switch that looks like it waits for Save.
+  // it will change, rather than a switch that looks like it waits for Save. What the tile
+  // says comes first - the state, and under it what the last press answered - and the
+  // button last, pinned to the tile's bottom-right beside that text.
   var master = element('div', 'master');
+  var body = element('div', 'master-body');
   var text = element('div', 'master-text');
   var running = status.watcher_running === true;
   text.appendChild(element('span', 'dot' + (!running ? '' : status.enabled ? ' on' : ' paused')));
@@ -1196,14 +1215,15 @@ function renderRecovery(status, schema) {
     ? t('status.recovery_idle', 'Nothing will be recovered until it is running')
     : status.enabled ? t('status.recovery_on', 'Automatic recovery is on')
     : t('status.recovery_paused', 'Automatic recovery is paused')));
-  master.appendChild(text);
+  body.appendChild(text);
+  var note = element('p', 'note');
+  note.setAttribute('role', 'status');
+  body.appendChild(note);
+  master.appendChild(body);
   var pause = element('button', null, status.enabled
     ? t('action.pause', 'Pause recovery') : t('action.resume', 'Resume recovery'));
   pause.disabled = !HOST;
   master.appendChild(pause);
-  var note = element('p', 'note');
-  note.setAttribute('role', 'status');
-  master.appendChild(note);
   node.appendChild(master);
   if (HOST) {
     pause.onclick = function () {

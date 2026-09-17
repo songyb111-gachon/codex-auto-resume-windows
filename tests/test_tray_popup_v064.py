@@ -2,9 +2,10 @@
 
 Three decisions, each held here. The Theme setting: "system" follows Windows' app mode, a choice
 of light or dark overrides it, High Contrast outranks both, and the popup's colours, shadows and
-cached images follow whichever is in effect. The per-conversation switch sits at the right of its
-row, its label on the left wrapping in what the switch leaves - in every language, at every scale
-Windows offers. And a language or theme stored while the watcher runs is what the popup and the
+cached images follow whichever is in effect. The per-conversation switch sits at the bottom right of
+its row, level with the last line of its label, and the label on the left wraps in what the switch
+leaves - in every language, at every scale Windows offers, and with labels far longer than any
+translation. And a language or theme stored while the watcher runs is what the popup and the
 icon's menu show the next time they open, without the watcher being restarted.
 """
 from __future__ import annotations
@@ -36,17 +37,31 @@ def inside(inner, outer):
     return outer[0] <= inner[0] and outer[1] <= inner[1] and inner[2] <= outer[2] and inner[3] <= outer[3]
 
 
+def overlaps(one, other):
+    return one[0] < other[2] and other[0] < one[2] and one[1] < other[3] and other[1] < one[3]
+
+
 def task_parts(plan):
-    """Each task row as drawn: its tile, chip, switch, label and hit rectangle."""
+    """Each task row as drawn: its tile, chip, switch, label, hit rectangle and everything else on it."""
     items, hits = plan["items"], dict(plan["targets"])
     parts = []
     for switch in (item for item in items if item["kind"] == "switch"):
         panel = next(item for item in items if item["kind"] == "panel" and inside(switch["rect"], item["rect"]))
         chip = next(item for item in items if item["kind"] == "chip" and inside(item["rect"], panel["rect"]))
         label = next(item for item in items if item["kind"] == "text" and item["target"] == switch["target"])
+        others = [item for item in items if item is not switch and item["kind"] not in ("panel", "focusable")
+                  and "rect" in item and inside(item["rect"], panel["rect"])]
         parts.append({"panel": panel["rect"], "chip": chip["rect"], "switch": switch["rect"], "label": label,
-                      "hit": hits[switch["target"]], "target": switch["target"]})
+                      "hit": hits[switch["target"]], "target": switch["target"], "others": others})
     return parts
+
+
+def lengthen(vm, times):
+    """Every task's label said `times` over, in its own language: far longer than any translation."""
+    if times > 1:
+        for task in vm["tasks"]:
+            task["check_label"] = " ".join([task["check_label"]] * times)
+    return vm
 
 
 def restore_preferences(case):
@@ -190,47 +205,82 @@ class DarkElevationTests(unittest.TestCase):
 
 # ------------------------------------------------------------------------- the task switch
 class SwitchPlacementTests(unittest.TestCase):
-    """The label on the left, wrapping; the switch against the row's inner right edge."""
+    """The label on the left, wrapping; the switch at the row's bottom right, level with its last line."""
+
+    LENGTHS = (1, 3)        # each language's own labels, and each said three times over
 
     def plans(self):
         rows = task_rows()
         for locale in l10n.LOCALES:
             strings = interface.STRINGS[locale]
             for scale in SCALES:
-                vm = popup.view_model(rows, STATUS, strings, NOW, notice=strings["popup.stale"])
-                yield locale, scale, vm, popup.layout(vm, scale, measure)
+                for times in self.LENGTHS:
+                    vm = lengthen(popup.view_model(rows, STATUS, strings, NOW, notice=strings["popup.stale"]), times)
+                    yield locale, scale, times, vm, popup.layout(vm, scale, measure)
 
     def test_the_switch_is_at_the_row_s_inner_right_edge_under_the_chip(self):
-        for locale, scale, _, plan in self.plans():
+        for locale, scale, times, _, plan in self.plans():
             row_pad = round(brand.SPACING["m"] * scale)
             for part in task_parts(plan):
-                with self.subTest(locale=locale, scale=scale, target=part["target"][1][:1]):
+                with self.subTest(locale=locale, scale=scale, times=times, target=part["target"][1][:1]):
                     left, top, right, bottom = part["switch"]
                     self.assertEqual(right, part["panel"][2] - row_pad)
                     self.assertEqual(right, part["chip"][2])
                     self.assertEqual((right - left, bottom - top), (round(brand.LAYOUT["switch_width"] * scale),
                                                                     round(brand.LAYOUT["switch_height"] * scale)))
 
+    def test_the_switch_is_pinned_to_the_bottom_of_its_row_beside_the_label_s_last_line(self):
+        line_h = measure("body", "Ag", 100, False)[1]
+        lines_seen = set()
+        for locale, scale, times, _, plan in self.plans():
+            row_pad = round(brand.SPACING["m"] * scale)
+            track_h = round(brand.LAYOUT["switch_height"] * scale)
+            for part in task_parts(plan):
+                label, switch, hit = part["label"]["rect"], part["switch"], part["hit"]
+                lines = (label[3] - label[1]) // line_h
+                lines_seen.add(lines)
+                with self.subTest(locale=locale, scale=scale, times=times, lines=lines, target=part["target"][1][:1]):
+                    # Level with the last line: centred on it, as it is on a one-line label.
+                    self.assertLessEqual(abs(label[3] - line_h / 2.0 - (switch[1] + switch[3]) / 2.0), 0.5)
+                    # Its bottom is the text block's bottom, lower only by the half of it that is taller
+                    # than a line - and nothing on the row is lower than it: it closes the row.
+                    self.assertGreaterEqual(switch[3], label[3])
+                    self.assertLessEqual(switch[3] - label[3], -(-max(0, track_h - line_h) // 2))
+                    self.assertEqual(switch[3], max(item["rect"][3] for item in part["others"] + [{"rect": switch}]))
+                    self.assertEqual(switch[3], part["panel"][3] - row_pad)
+                    self.assertEqual(hit[3], switch[3] + round(4 * scale))
+                    # The label's top does not move with its length; one line of it is where it always was.
+                    line_top = hit[1] + round(4 * scale)
+                    self.assertEqual(label[1], line_top + max(0, (track_h - line_h) // 2))
+                    if lines == 1:
+                        self.assertEqual(switch[1], line_top + max(0, (line_h - track_h) // 2))
+                    else:
+                        self.assertGreater((switch[1] + switch[3]) / 2.0, label[1] + (lines - 1) * line_h)
+        self.assertIn(1, lines_seen)
+        self.assertGreaterEqual(max(lines_seen), 3, "no label wrapped far enough to tell its last line from the rest")
+
     def test_the_label_is_never_under_the_switch_in_any_language_at_any_scale(self):
-        first_line = measure("body", "Ag", 100, False)[1]
-        for locale, scale, _, plan in self.plans():
+        for locale, scale, times, _, plan in self.plans():
             row_pad = round(brand.SPACING["m"] * scale)
             for part in task_parts(plan):
                 label, switch = part["label"], part["switch"]
                 left, top, right, bottom = label["rect"]
-                with self.subTest(locale=locale, scale=scale, target=part["target"][1][:1]):
+                with self.subTest(locale=locale, scale=scale, times=times, target=part["target"][1][:1]):
                     self.assertEqual(left, part["panel"][0] + row_pad)
                     self.assertEqual(right, switch[0] - round(popup.SWITCH_GAP * scale))
                     self.assertLess(right, switch[0])
                     self.assertTrue(label["wrap"])
                     self.assertGreaterEqual(bottom - top, measure("body", label["text"], right - left, True)[1])
-                    # Centred on the label's first line, however many lines it wraps to.
-                    self.assertLessEqual(abs(top + first_line / 2.0 - (switch[1] + switch[3]) / 2.0), 1.0)
+                    # Nothing else on the row - the name, the chip and its word, the status, the label -
+                    # is under the switch, however far the label wraps.
+                    for item in part["others"]:
+                        self.assertFalse(overlaps(item["rect"], switch), item)
                     # Both inside the tile, with the tile's padding under them.
                     self.assertLessEqual(max(bottom, switch[3]), part["panel"][3] - row_pad)
 
     def test_a_label_far_longer_than_any_translation_wraps_and_the_row_grows(self):
         label = " ".join(["Automatically resume this task when the limit resets"] * 6)
+        line_h = measure("body", "Ag", 100, False)[1]
         rows = task_rows()
         for scale in SCALES:
             with self.subTest(scale=scale):
@@ -240,17 +290,21 @@ class SwitchPlacementTests(unittest.TestCase):
                 plan = popup.layout(vm, scale, measure)
                 parts = task_parts(plan)
                 for part in parts:
-                    rect = part["label"]["rect"]
-                    self.assertGreater(rect[3] - rect[1], 3 * measure("body", "Ag", 100, False)[1])
-                    self.assertLess(rect[2], part["switch"][0])
+                    rect, switch = part["label"]["rect"], part["switch"]
+                    self.assertGreater(rect[3] - rect[1], 3 * line_h)
+                    self.assertLess(rect[2], switch[0])
                     self.assertTrue(inside(rect, part["panel"]))
+                    # The switch went down with the last line, past every line before it.
+                    self.assertGreater((switch[1] + switch[3]) / 2.0, rect[1] + 3 * line_h)
+                    self.assertLessEqual(abs(rect[3] - line_h / 2.0 - (switch[1] + switch[3]) / 2.0), 0.5)
+                    self.assertTrue(inside(switch, part["panel"]))
                 for above, below in zip(parts, parts[1:]):
                     self.assertLessEqual(above["panel"][3], below["panel"][1])
 
     def test_the_whole_line_is_still_one_target_with_room_for_its_focus_ring(self):
-        for locale, scale, _, plan in self.plans():
+        for locale, scale, times, _, plan in self.plans():
             for part in task_parts(plan):
-                with self.subTest(locale=locale, scale=scale, target=part["target"][1][:1]):
+                with self.subTest(locale=locale, scale=scale, times=times, target=part["target"][1][:1]):
                     hit = part["hit"]
                     self.assertTrue(inside(part["switch"], hit))
                     self.assertTrue(inside(part["label"]["rect"], hit))
@@ -263,17 +317,17 @@ class SwitchPlacementTests(unittest.TestCase):
                                                     (part["switch"][1] + part["switch"][3]) // 2), part["target"])
 
     def test_the_keyboard_order_is_unchanged(self):
-        for locale, scale, vm, plan in self.plans():
-            with self.subTest(locale=locale, scale=scale):
+        for locale, scale, times, vm, plan in self.plans():
+            with self.subTest(locale=locale, scale=scale, times=times):
                 self.assertEqual(popup.focus_order(plan["targets"]),
                                  [("check", task["interruption_id"]) for task in vm["tasks"]]
                                  + [("toggle",), ("dashboard",)])
 
     def test_the_card_keeps_its_width_and_the_label_keeps_most_of_the_line(self):
-        for locale, scale, _, plan in self.plans():
+        for locale, scale, times, _, plan in self.plans():
             card = plan["card"]
             row_pad = round(brand.SPACING["m"] * scale)
-            with self.subTest(locale=locale, scale=scale):
+            with self.subTest(locale=locale, scale=scale, times=times):
                 self.assertEqual(card[2] - card[0], round(popup.WIDTH * scale) - 2 * round(brand.SPACING["m"] * scale))
                 for part in task_parts(plan):
                     content = part["panel"][2] - part["panel"][0] - 2 * row_pad
@@ -675,15 +729,57 @@ class DarkRendererTests(unittest.TestCase):
         for locale in l10n.LOCALES:
             strings = interface.STRINGS[locale]
             for scale in SCALES:
-                vm = popup.view_model(rows, STATUS, strings, NOW)
-                plan = self.renderer.layout(vm, scale, locale)
-                for part in task_parts(plan):
-                    left, top, right, bottom = part["label"]["rect"]
-                    width, height = self.renderer.measure("body", part["label"]["text"], right - left, True)
-                    with self.subTest(locale=locale, scale=scale, target=part["target"][1][:1]):
-                        self.assertLessEqual(width, right - left)
-                        self.assertLessEqual(height, bottom - top)
-                        self.assertLess(right, part["switch"][0])
+                for times in SwitchPlacementTests.LENGTHS:
+                    vm = lengthen(popup.view_model(rows, STATUS, strings, NOW), times)
+                    plan = self.renderer.layout(vm, scale, locale)
+                    line_h = self.renderer.measure("body", "Ag", 100, False)[1]
+                    for part in task_parts(plan):
+                        left, top, right, bottom = part["label"]["rect"]
+                        switch = part["switch"]
+                        width, height = self.renderer.measure("body", part["label"]["text"], right - left, True)
+                        with self.subTest(locale=locale, scale=scale, times=times, target=part["target"][1][:1]):
+                            self.assertLessEqual(width, right - left)
+                            self.assertLessEqual(height, bottom - top)
+                            self.assertLess(right, switch[0])
+                            # GDI's lines are all one height, so the last of them is the bottom one...
+                            self.assertEqual(height % line_h, 0)
+                            # ...and the switch is level with it and closes the row, over nothing else on it.
+                            self.assertLessEqual(abs(bottom - line_h / 2.0 - (switch[1] + switch[3]) / 2.0), 0.5)
+                            self.assertEqual(switch[3], max([switch[3]] + [item["rect"][3] for item in part["others"]]))
+                            for item in part["others"]:
+                                self.assertFalse(overlaps(item["rect"], switch), item)
+
+    def test_as_drawn_the_label_s_last_line_is_beside_the_switch_in_both_themes(self):
+        """The pixels, not the plan: GDI draws the label's lines where the layout measured them, so its
+        lowest ink is level with the switch and the lines above it are drawn above the switch."""
+        rows = task_rows()
+        for theme in ("light", "dark"):
+            for locale in ("en", "ko", "de"):
+                for scale in (1.0, 2.0):
+                    self.renderer.theme, self.renderer.contrast = theme, False
+                    vm = lengthen(popup.view_model(rows, STATUS, interface.STRINGS[locale], NOW), 3)
+                    plan = self.renderer.layout(vm, scale, locale)
+                    canvas = self.renderer.draw(vm, plan, frame=popup.halo(vm["state"], 0))
+                    pixels, width = canvas.pixels(), plan["size"][0]
+                    tile = brand.rgb(brand.palette(theme)["raised"])
+
+                    def blank(y, x0, x1):
+                        """Whether a run of pixels on line `y` is the tile's own colour and nothing else."""
+                        run = pixels[(y * width + x0) * 4:(y * width + x1) * 4]
+                        return all(run[channel::4] == bytes((tile[2 - channel],)) * (x1 - x0) for channel in range(3))
+
+                    for part in task_parts(plan):
+                        left, top, right, bottom = part["label"]["rect"]
+                        switch = part["switch"]
+                        inked = [y for y in range(top, bottom) if not blank(y, left, right)]
+                        with self.subTest(theme=theme, locale=locale, scale=scale, target=part["target"][1][:1]):
+                            self.assertTrue(inked)
+                            self.assertLess(min(inked), switch[1])               # the lines above it...
+                            self.assertGreaterEqual(max(inked), switch[1])       # ...and the last one beside it
+                            self.assertLess(max(inked), switch[3])
+                            # Nothing is drawn in the gap between the label's column and the switch.
+                            gap = [y for y in range(switch[1], switch[3]) if not blank(y, right, switch[0] - 2)]
+                            self.assertEqual(gap, [])
 
 
 @unittest.skipUnless(os.name == "nt", "the popup is a Windows window")

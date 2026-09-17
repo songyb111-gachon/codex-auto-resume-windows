@@ -11,8 +11,8 @@ new setting, **Theme**, changes how the product looks and nothing it does.
 - The Dashboard and the notification-area popup now use the materials of the panel in Codex:
   the same raised cards and sunken fields, the same soft shadows, corner radii and controls.
   State chips have no border, and buttons stand out and sink when pressed. The text sizes, the
-  Dashboard's pages and Settings sections, and the popup's layout - apart from where its switches
-  sit, below - are unchanged, and so are the notification-area icon and its badge.
+  Dashboard's pages and Settings sections, and the popup's layout - apart from where buttons and
+  switches sit, below - are unchanged, and so are the notification-area icon and its badge.
 - The Dashboard's header and footer are floating cards, and the page tabs sit on the canvas.
 - High Contrast: the popup follows it now too - system colours, no shadows, no motion - and
   the panel has a forced-colors style, so its lights, switch knobs and select arrows no longer
@@ -73,8 +73,31 @@ new setting, **Theme**, changes how the product looks and nothing it does.
 - The check box is new, in the same material: empty, it is a sunken well; ticked, it is filled
   with the accent and carries a tick; disabled, it is muted; in High Contrast it is drawn in system
   colours.
-- In the popup, each task's switch has moved to the right end of its row, level with the first
-  line of its label, and the label wraps in the room left of it.
+
+### Buttons and switches at the bottom right
+
+- A button or an on/off switch at the right of a card or a row is now pinned to its bottom-right
+  corner, in the Dashboard, the popup and the panel. What the card or row says comes first, from
+  the top left, and the control closes it. Text beside a control wraps, or the control moves under
+  the text and stays on the right, so nothing runs underneath it; in the Dashboard and the panel
+  the keyboard and screen readers reach the control after the text. Buttons that were already
+  along the bottom, drop-downs, chips, check boxes and the Dashboard's switches - before their
+  labels in Settings, in their column on Pending - stay where they were.
+- In the Dashboard, **Pause recovery** or **Resume recovery**, **Pending** and **History** sit at
+  the bottom right of their Overview cards rather than at the left under the cards' content, and
+  **Start watcher** sits at the bottom right of the header. **History** stands under the finished
+  conversations when their outcomes reach the card's edge.
+- **Right now** lists the watcher, the Codex engine and the last check first, and automatic
+  recovery last, on the line of the button that pauses and resumes it. The card is laid out for
+  the longest words it can show, so it does not move when the watcher's state changes or its last
+  check grows older, and the Overview still fits the window whatever state the watcher is in.
+- In the popup, each task's switch has moved to the right end of its row, level with the last line
+  of its label however far the label wraps, and the label wraps in the room left of it.
+- In the panel, the **Pause recovery** or **Resume recovery** button at the top of the Automatic
+  recovery card sits at the bottom right of its tile, beside the state and, when a pause fails,
+  the message under it. The **Show notifications** switch sits beside the last line of its label,
+  and each waiting conversation's **Auto-resume** switch beside the line with its next check and
+  attempts. In a narrow panel each moves under its text and stays on the right.
 
 ### The status light
 
@@ -90,9 +113,8 @@ new setting, **Theme**, changes how the product looks and nothing it does.
 - It opens at 1000 × 600 instead of growing to fit the longest Settings section: wide enough for
   the Overview to fit without scrolling in all nine languages at scalings from 100% to 200%, and
   still inside a 1920 × 1080 screen at 150%. A Settings section taller than the window scrolls.
-- Each Overview card's button sits beside its heading rather than below its content. On Pending,
-  **Why it is waiting** is as tall as the list beside it and scrolls inside its own card, so the
-  page does not.
+- On Pending, **Why it is waiting** is as tall as the list beside it and scrolls inside its own
+  card, so the page does not.
 - Pages, Settings sections and lists scroll on a soft bar made of the same material instead of
   Windows' own scroll bar. It shows only while there is more than fits, darkens a step under the
   pointer, glides unless motion is reduced, brings a control the keyboard moves to into view, and

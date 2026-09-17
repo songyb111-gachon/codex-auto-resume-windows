@@ -53,8 +53,8 @@ WIDTH = 360                  # device-independent pixels at 96 DPI: the card and
 # is exactly as wide as it was.
 SHADOW_MARGIN = 20
 MARK = 22                    # the box the state dot sits in, beside the product's name
-# v0.6.4: a task's switch is at the right of its row, as the panel's is, and this far from the
-# end of its label's column (the panel's `.prow-switch` gap).
+# v0.6.4: a task's switch is at the bottom right of its row, as the panel's is, level with its
+# label's last line and this far from the end of the label's column (the panel's `.prow-switch` gap).
 SWITCH_GAP = 10
 MAX_TASKS = 3
 REFRESH_TICKS = 3            # re-read the list every third one-second tick while visible
@@ -797,21 +797,26 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
         line += status_h + px(space["s"]) + px(2)
         # A switch, because it turns this conversation's automatic recovery on or off. Since v0.6.4
         # it is where the panel puts it: the label on the left, wrapping in what the switch leaves of
-        # the line, and the switch against the row's inner right edge - under the chip - centred on
-        # the label's first line. The whole line is still the one thing a click or a key presses.
+        # the line, and the switch against the row's inner right edge - under the chip - pinned to
+        # the bottom of the row: level with the label's last line, however far the label wraps, so
+        # it closes the row the way the window's card buttons close theirs. A one-line label is
+        # exactly where it was, its line centred on the switch; a longer one keeps its top where a
+        # one-line label's is and grows downward, and the switch goes down with its last line. The
+        # whole line is still the one thing a click or a key presses.
         track_w, track_h = px(brand.LAYOUT["switch_width"]), px(brand.LAYOUT["switch_height"])
         track_left = x1 - track_w
         label_right = track_left - px(SWITCH_GAP)
         _, label_h = measure("body", task["check_label"], label_right - x0, True)
-        _, first_line = measure("body", "Ag", content, False)
-        track_top = line + max(0, (first_line - track_h) // 2)
-        label_top = line + max(0, (track_h - first_line) // 2)
+        _, line_h = measure("body", "Ag", content, False)
+        label_top = line + max(0, (track_h - line_h) // 2)
+        # The switch stands beside the label's last line exactly as it stands beside a one-line label.
+        track_top = line + max(0, label_h - line_h) + max(0, (line_h - track_h) // 2)
         check_h = max(track_top + track_h, label_top + label_h) - line
-        contents.append({"kind": "switch", "rect": (track_left, track_top, x1, track_top + track_h),
-                         "checked": task["checked"], "busy": task["busy"], "target": target})
         contents.append({"kind": "text", "rect": (x0, label_top, label_right, label_top + label_h),
                          "role": "body", "text": task["check_label"], "colour": "ink", "wrap": True,
                          "align": "left", "target": target})
+        contents.append({"kind": "switch", "rect": (track_left, track_top, x1, track_top + track_h),
+                         "checked": task["checked"], "busy": task["busy"], "target": target})
         hit = (x0 - px(4), line - px(4), x1 + px(4), line + check_h + px(4))
         targets.append((target, hit))
         row_bottom = line + check_h + row_pad
