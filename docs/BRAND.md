@@ -210,8 +210,8 @@ motion, Run at Windows sign-in, and automatic recovery for one conversation. A c
 which items of a list apply: which kinds of interruption are recovered (`recover_<kind>`) and,
 under the notifications switch, which events notify (`notify_<event>`). A setting is the same kind
 on every surface that shows it, and a check box sits to the left of its label everywhere. A switch
-sits where its surface puts switches: at the end of its row in the panel and the popup, before its
-label in the Dashboard.
+sits where its surface puts switches: at the bottom right of its row in the panel and the popup,
+level with the last line of its label, and before its label in the Dashboard.
 
 The check box is the switch's material, written down in `brand.CHECKBOX`:
 
@@ -288,6 +288,12 @@ the ring rather than floating beside it.
   part that changes; then what is configured, general to particular; then what that
   configuration will say; then how it looks. The Dashboard's Settings is split into General,
   Automatic recovery, Continuation message, Appearance and Advanced.
+- **What a card leads to closes it.** A button or a switch at the right of a card or a row is
+  pinned to its bottom-right corner: the heading and the text come first, from the top left, and
+  the control ends the block - beside the last line where there is room, and under it, still on
+  the right, where there is not. Text wraps rather than running under a control, and the keyboard
+  reaches the control after the text. Buttons already along the bottom, drop-downs, chips and
+  check boxes keep their places, and so do the Dashboard's switches that sit before their labels.
 - **Every status fact is its own label in its own cell.** A single concatenated string
   wraps or truncates as the window narrows, and what disappears first is the version — the
   part people are asked for when reporting a problem.

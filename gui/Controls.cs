@@ -1311,13 +1311,21 @@ namespace CodexAutoResume
         }
 
         /// Repaints `band` (in `container`'s coordinates) on the container and on every
-        /// container it is seen through.
+        /// container it is seen through - and, in a block whose control lies over its content
+        /// (SoftPin), on the content's windows under the band, which draw that part of the lift
+        /// and the ring in their own backgrounds. Anywhere else a lifted control has no window
+        /// under its band but its own, so a container's is enough.
         internal static void Invalidate(Control container, Rectangle band)
         {
             Control c = container;
             for (int depth = 0; c != null && depth < Depth; depth++)
             {
-                if (c.IsHandleCreated && !c.IsDisposed) c.Invalidate(band, false);
+                if (c.IsHandleCreated && !c.IsDisposed)
+                {
+                    c.Invalidate(band, false);
+                    var block = c as SoftPin;
+                    if (block != null) block.InvalidateUnder(band);
+                }
                 if (!SeeThrough(c)) break;
                 band.Offset(c.Left, c.Top);
                 c = c.Parent;
@@ -1421,7 +1429,7 @@ namespace CodexAutoResume
         // Whether the lift of what it holds may cross out of it follows whether it is scrolling
         // (Ground.SeeThrough), so when that changes the grounds around it are painted again.
         private bool scrolling;
-        private bool scrolls, overflow;
+        private bool scrolls, overflow, moving, unsettled;
         private int offset, extent, glideTarget;
         private SoftScrollBar bar;
         private Timer glide;
@@ -1459,6 +1467,13 @@ namespace CodexAutoResume
 
         /// Whether it holds more than fits, so the bar is showing.
         internal bool Overflowing { get { return scrolls && overflow; } }
+
+        /// Asks for what it holds to be laid out once more before its layout ends: something in it (SoftPin)
+        /// was laid out with less room than it needs, measured before what it holds changed under it.
+        internal void Unsettle()
+        {
+            unsettled = true;
+        }
 
         /// How far down it is scrolled, in pixels.
         internal int Offset { get { return offset; } }
@@ -1498,6 +1513,9 @@ namespace CodexAutoResume
 
         protected override void OnLayout(LayoutEventArgs levent)
         {
+            // Laid out without the bar's gutter first, whatever showed before - except while it only moves
+            // what it holds (MoveTo), which changes nothing it measures.
+            if (scrolls && !moving) overflow = false;
             base.OnLayout(levent);
             if (scrolls) Settle(levent);
             bool now = Ground.Scrolling(this);
@@ -1507,13 +1525,25 @@ namespace CodexAutoResume
             if (form != null && form.IsHandleCreated) form.Invalidate(true);
         }
 
-        // Measures what it holds and lays it out again until that agrees with the offset and the bar:
-        // the gutter narrows what fills the width, which can only make it taller, so it settles in two
-        // passes at most once the bar has appeared or gone.
+        // Measures what it holds and lays it out again until that agrees with the offset and the bar: the
+        // gutter narrows what fills the width, which can only make it taller, so it settles in two passes at
+        // most once the bar has appeared or gone. It starts without the gutter (OnLayout), so whether the bar
+        // shows follows the page's size and what it holds, never what showed before: started from the last
+        // layout's gutter, the Overview's cards, narrower by it, wrapped taller than a page they fitted
+        // without it, and the bar never went (v0.6.4, measured: German at 150%, 617 px in 598, where the same
+        // page grown into that size measured 586).
         private void Settle(LayoutEventArgs levent)
         {
             for (int pass = 0; pass < 4; pass++)
             {
+                if (unsettled)
+                {
+                    // Something in it was given less room than it needs after its row was measured: what it
+                    // holds is laid out again, which measures it again.
+                    unsettled = false;
+                    foreach (Control child in Controls)
+                        if (Soft.OwnVisible(child)) child.PerformLayout();
+                }
                 int measured = Measure();
                 int viewport = ClientSize.Height;
                 bool over = viewport > 0 && measured > viewport;
@@ -1571,8 +1601,11 @@ namespace CodexAutoResume
             if (value == offset) return;
             offset = value;
             // The children move with their pixels; the page's own ground - its padding, the shadows
-            // in it, the bar - is painted again.
-            PerformLayout();
+            // in it, the bar - is painted again. Only moved: laid out without the gutter first, every
+            // frame of a glide would lay a page of cards out twice at two widths.
+            moving = true;
+            try { PerformLayout(); }
+            finally { moving = false; }
             Invalidate(false);
         }
 
@@ -1986,6 +2019,20 @@ namespace CodexAutoResume
 
         internal LiftTracker Tracker { get { return tracker; } }
 
+        /// The width the card is being measured at, while a table measures it; 0 otherwise. A table
+        /// measures a card by asking what it holds how wide it would be and how tall it is that wide,
+        /// never at the width it is measuring the card at - and a block that fills its card and wraps
+        /// or drops its button by width (SoftPin) is only as wide as the card (SoftPin.GetPreferredSize).
+        internal int Measuring { get; private set; }
+
+        public override Size GetPreferredSize(Size proposedSize)
+        {
+            int before = Measuring;
+            Measuring = proposedSize.Width > 1 && proposedSize.Width < 0x100000 ? proposedSize.Width : 0;
+            try { return base.GetPreferredSize(proposedSize); }
+            finally { Measuring = before; }
+        }
+
         protected override void OnPaintBackground(PaintEventArgs e)
         {
             float radius = Soft.PxF(Brand.RadiusCard);
@@ -1993,6 +2040,493 @@ namespace CodexAutoResume
             // The card's own ground, and in dark its one-pixel top light inside the hairline.
             Soft.Body(e.Graphics, ClientRectangle, radius, Palette.Card, Palette.Line, "card");
             Ground.Stamps(this, e.Graphics, e.ClipRectangle);
+        }
+    }
+
+    /// What a card holds under its heading, with the one control the card leads to pinned to its
+    /// bottom right (v0.6.4): the control's right edge on the block's right edge and its bottom on the
+    /// block's bottom - and the block fills its card's last row, so that is the card's inner
+    /// bottom-right corner however tall the card is stretched beside another.
+    ///
+    /// The content keeps the whole width. Where nothing in it reaches into the control's column - the
+    /// control's width and the card's head gap in from the right - the control sits beside the last
+    /// lines, as it does on the panel. Where something does, the text gives way first: the names of a
+    /// grid of facts (Wraps) wrap, so its values start further left and clear the column. That costs a
+    /// line, where putting the control under the facts costs a control and a gap - and in German that
+    /// made the Overview taller than its window. Only where wrapping does not clear the column, or costs
+    /// more, does the block grow, until the control is under the lowest thing in its column with the
+    /// card's first gap between them. Text never runs under it. A control that is hidden takes no room.
+    ///
+    /// Where the content's lines are is worked out (Model) - never read from where its controls happen
+    /// to be. A table asks a block how tall it is at widths it never gives it - 1, 0, a column's width on
+    /// the way to the real one - and keeps the answers, and a height read from the content as last laid
+    /// out answered for the wrong width: a card at 150% stayed three times as tall as its facts.
+    ///
+    /// A line whose words change with what it shows - a fact's value, the control's own words - can be
+    /// planned for the widest words it is ever given (Reserve), so the block is laid out the same whatever
+    /// it says now. Planned for the words on screen, Right now wrapped, or dropped its button, as the
+    /// watcher's state changed, and every refresh of "Last check" could move it: in French and German the
+    /// Overview opened on a watcher in trouble scrolled (v0.6.4, measured).
+    ///
+    /// The content comes first and the control last, which is the order they are seen in, the order Tab
+    /// reaches them, and - the content's window above the control's in the z-order - the order Windows
+    /// hands a screen reader. The content's window has a hole the control's size where the control is,
+    /// so it never paints over it. The block is a ground in the card's colour, seen through (see Ground),
+    /// and so are the content's tables: the control's lift and focus ring are drawn around it on all of
+    /// them, and repainted on all of them when it changes (InvalidateUnder).
+    internal sealed class SoftPin : Panel, ISoftGround
+    {
+        private readonly Control body, pin;
+        private readonly PinLayout engine = new PinLayout();
+        private TableLayoutPanel wraps;
+        // How wide the first column of `wraps` is with nothing wrapped, as the last Model found it.
+        private int naturalFirst;
+        // Measures a name as it would be with a narrower column, or a line with other words, without touching it.
+        private static readonly Label twin = new Label();
+        private static Button twinButton;
+        // The words each line, and the control, are planned for (Reserve), and the last size worked out for each.
+        private readonly Dictionary<Control, string[]> reserved = new Dictionary<Control, string[]>();
+        private readonly Dictionary<Control, Reservation> planned = new Dictionary<Control, Reservation>();
+        // The hole in the content's window, in its coordinates: where the control is.
+        private Rectangle hole;
+        // The width it was last laid out at; 0 before that.
+        private int arranged;
+
+        private struct Reservation
+        {
+            internal int Room;
+            internal Font Font;
+            internal Size Size;
+        }
+
+        internal SoftPin(Control body, Control pin)
+        {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                     ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+            this.body = body;
+            this.pin = pin;
+            BackColor = Palette.Card;
+            AutoSize = true;
+            AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            Margin = new Padding(0);
+            body.Dock = DockStyle.None;
+            body.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+            body.Margin = new Padding(0);
+            pin.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+            pin.Margin = new Padding(0);
+            // In this order the content is at the top of the z-order and the control under it.
+            Controls.Add(body);
+            Controls.Add(pin);
+            body.TabIndex = 0;
+            pin.TabIndex = 1;
+        }
+
+        /// Plans the block as though `control` - a label in the content, or the pinned button - said the
+        /// widest of `texts`, whatever it says now, so the block is laid out the same whichever of them it
+        /// says. Words it is given that are wider still are planned for as they come.
+        internal void Reserve(Control control, params string[] texts)
+        {
+            reserved[control] = texts;
+            planned.Remove(control);
+            PerformLayout();
+        }
+
+        /// Repaints `band`, in this block's coordinates, on every window of the content under it: they draw
+        /// the part of the control's lift and focus ring over them in their own backgrounds, and a repaint of
+        /// the block alone left the ring without its top and left edges and old pieces of it behind (v0.6.4).
+        internal void InvalidateUnder(Rectangle band)
+        {
+            InvalidateUnder(body, body.Left, body.Top, band);
+        }
+
+        private static void InvalidateUnder(Control control, int x, int y, Rectangle band)
+        {
+            var bounds = new Rectangle(x, y, control.Width, control.Height);
+            Rectangle part = Rectangle.Intersect(bounds, band);
+            if (part.IsEmpty || !control.IsHandleCreated || control.IsDisposed) return;
+            part.Offset(-x, -y);
+            control.Invalidate(part, false);
+            foreach (Control child in control.Controls)
+                if (Soft.OwnVisible(child)) InvalidateUnder(child, x + child.Left, y + child.Top, band);
+        }
+
+        /// A grid of facts in the content - a column of names as wide as the widest, and their values - whose
+        /// names wrap, down to their longest word, where its values would otherwise reach the control's column.
+        internal TableLayoutPanel Wraps
+        {
+            get { return wraps; }
+            set { wraps = value; PerformLayout(); }
+        }
+
+        public override System.Windows.Forms.Layout.LayoutEngine LayoutEngine { get { return engine; } }
+
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            Ground.Paint(this, e);
+        }
+
+        public override Size GetPreferredSize(Size proposedSize)
+        {
+            int limit;
+            if (proposedSize.Width > 1 && proposedSize.Width < 0x100000)
+                return new Size(proposedSize.Width, Plan(proposedSize.Width, out limit));
+            // Asked how narrow it can be (1) or how wide it would be (0), which a table asks for a column's
+            // width before it asks how tall the block is that wide - the height its card's row then keeps.
+            // The block fills its card, so: as wide as the card being measured (SoftCard.Measuring) leaves
+            // it, or else as it was last laid out. Answered from what the content said, the height was asked
+            // at a width the block never has, and followed the words: in English, Right now's row was 15 px
+            // taller with the watcher running than stopped, planned for the same words (v0.6.4, measured);
+            // answered from the last layout, a window given its height back kept the row of the width the
+            // soft bar had left it.
+            var card = Parent as SoftCard;
+            int filled = card != null && card.Measuring > 0 ? card.Measuring - card.Padding.Horizontal - Margin.Horizontal : arranged;
+            if (filled > 1) return new Size(filled, Plan(filled, out limit));
+            // Never laid out nor measured in a card: as wide as its content would be with the control beside it.
+            Size natural = body.GetPreferredSize(Size.Empty);
+            if (!Soft.OwnVisible(pin)) return natural;
+            Size size = PinSize();
+            return new Size(natural.Width + Soft.Px(Brand.CardHeadGap) + PinWidth(), Math.Max(natural.Height, size.Height));
+        }
+
+        /// How tall the block is `width` wide, and how wide the names of `wraps` may be then (0: as wide as
+        /// they are).
+        private int Plan(int width, out int limit)
+        {
+            limit = 0;
+            var marks = new List<Mark>();
+            int content = Model(body, 0, 0, width, 0, marks);
+            if (!Soft.OwnVisible(pin)) return content;
+            Size size = PinSize();
+            int gap = Soft.Px(Brand.CardFirstGap);
+            // The column the control's widest words would take, so the text stops short of it whichever it says.
+            int column = width - PinWidth() - Soft.Px(Brand.CardHeadGap);
+            int beside = Math.Max(content, size.Height);
+            int best = Needed(marks, content, column, size.Height, gap);
+            if (best == beside || wraps == null) return best;
+            // The names wrap: as far as the values beside the control need, and else as far as every value
+            // needs. The shortest block wins, the control under the facts among them.
+            int natural = naturalFirst, shortest = LongestWord(wraps);
+            int band = beside - size.Height - gap;
+            for (int pass = 0; pass < 2; pass++)
+            {
+                int right = int.MinValue;
+                foreach (Mark mark in marks)
+                    if (mark.Column == 1 && (pass == 1 || mark.Box.Bottom > band)) right = Math.Max(right, mark.Box.Right);
+                if (right <= column) continue;
+                int candidate = natural - (right - column);
+                if (candidate < shortest) continue;
+                var wrapped = new List<Mark>();
+                int height = Needed(wrapped, Model(body, 0, 0, width, candidate, wrapped), column, size.Height, gap);
+                if (height < best)
+                {
+                    best = height;
+                    limit = candidate;
+                }
+            }
+            return best;
+        }
+
+        // A line of text where Model lays it out: its box in the block, and for a cell of `wraps` its column.
+        private struct Mark
+        {
+            internal Rectangle Box;
+            internal int Column;
+        }
+
+        /// How tall a block of `content` must be for a control `tall` high at its bottom right to be clear of
+        /// every mark reaching right of `column`, `gap` under the lowest of them.
+        private static int Needed(List<Mark> marks, int content, int column, int tall, int gap)
+        {
+            int height = Math.Max(content, tall);
+            foreach (Mark mark in marks)
+                if (mark.Box.Width > 0 && mark.Box.Right > column) height = Math.Max(height, mark.Box.Bottom + gap + tall);
+            return height;
+        }
+
+        /// Lays `control` out `width` wide with its top left at (x, y) as its table would, adding a mark for
+        /// what it draws, and answers its height. A table of one column (a list of lines) or of two (a column
+        /// as wide as its widest cell, and the rest: a grid of facts) is laid out cell by cell; anything else
+        /// is taken to fill its width. `limit` is how wide the names of `wraps` may be (0: as wide as they are).
+        private int Model(Control control, int x, int y, int width, int limit, List<Mark> marks)
+        {
+            var table = control as TableLayoutPanel;
+            if (table != null && table.ColumnCount == 1)
+            {
+                int left = x + table.Padding.Left, top = y + table.Padding.Top;
+                int inner = width - table.Padding.Horizontal;
+                foreach (Control child in table.Controls)
+                {
+                    if (!Soft.OwnVisible(child)) continue;
+                    int room = Math.Max(0, inner - child.Margin.Horizontal);
+                    Size size = Measured(child, room);
+                    top += Place(child, left + child.Margin.Left, top + child.Margin.Top, Drawn(child, size, room), size,
+                                 limit, -1, marks) + child.Margin.Vertical;
+                }
+                return top + table.Padding.Bottom - y;
+            }
+            if (table != null && table.ColumnCount == 2) return ModelGrid(table, x, y, width, limit, marks);
+            return Place(control, x, y, width, Measured(control, width), limit, -1, marks);
+        }
+
+        private int ModelGrid(TableLayoutPanel table, int x, int y, int width, int limit, List<Mark> marks)
+        {
+            bool gives = table == wraps;
+            var cells = new List<Control>();
+            foreach (Control child in table.Controls)
+                if (Soft.OwnVisible(child)) cells.Add(child);
+            int inner = width - table.Padding.Horizontal;
+            int first = 0, unwrapped = 0;
+            for (int i = 0; i < cells.Count; i += 2)
+            {
+                Control name = cells[i];
+                first = Math.Max(first, (gives ? NameSize(name, limit) : Measured(name, 0)).Width + name.Margin.Horizontal);
+                if (gives) unwrapped = Math.Max(unwrapped, NameSize(name, 0).Width + name.Margin.Horizontal);
+            }
+            if (gives) naturalFirst = unwrapped;
+            first = Math.Min(first, inner);
+            int second = Math.Max(0, inner - first);
+            int left = x + table.Padding.Left, top = y + table.Padding.Top;
+            for (int i = 0; i < cells.Count; i += 2)
+            {
+                int line = 0;
+                for (int j = i; j < cells.Count && j < i + 2; j++)
+                {
+                    Control cell = cells[j];
+                    bool isName = j == i;
+                    int room = Math.Max(0, (isName ? first : second) - cell.Margin.Horizontal);
+                    Size size = isName && gives ? NameSize(cell, limit) : Measured(cell, room);
+                    int height = Place(cell, left + (isName ? 0 : first) + cell.Margin.Left, top + cell.Margin.Top,
+                                       Drawn(cell, size, room), size, limit, gives ? (isName ? 0 : 1) : -1, marks);
+                    line = Math.Max(line, height + cell.Margin.Vertical);
+                }
+                top += line;
+            }
+            return top + table.Padding.Bottom - y;
+        }
+
+        /// A control laid out at (x, y), `width` wide and as tall as `size`: a table is looked into; a line of
+        /// text, or anything else that draws, is marked. Answers its height.
+        private int Place(Control control, int x, int y, int width, Size size, int limit, int column, List<Mark> marks)
+        {
+            if (control is TableLayoutPanel) return Model(control, x, y, width, limit, marks);
+            bool draws = !(control is Label && string.IsNullOrEmpty(control.Text)) && !(control is Panel && control.Controls.Count == 0);
+            if (draws)
+            {
+                var mark = new Mark();
+                mark.Box = new Rectangle(x, y, width, size.Height);
+                mark.Column = column;
+                marks.Add(mark);
+            }
+            return size.Height;
+        }
+
+        /// A control's size in a cell `room` wide, or as wide as it would be when `room` is 0 - for a label
+        /// with reserved words (Reserve), as wide and as tall as the widest and tallest of them and its own.
+        private Size Measured(Control control, int room)
+        {
+            Size size = AsIs(control, room);
+            string[] texts;
+            var label = control as Label;
+            if (label == null || !label.AutoSize || !reserved.TryGetValue(control, out texts)) return size;
+            Reservation last;
+            if (!planned.TryGetValue(control, out last) || last.Room != room || last.Font != label.Font)
+            {
+                last = new Reservation();
+                last.Room = room;
+                last.Font = label.Font;
+                twin.AutoSize = true;
+                twin.Font = label.Font;
+                twin.Padding = label.Padding;
+                twin.UseMnemonic = label.UseMnemonic;
+                twin.MaximumSize = label.MaximumSize;
+                foreach (string text in texts)
+                {
+                    twin.Text = text ?? "";
+                    Size words = twin.GetPreferredSize(new Size(room, 0));
+                    last.Size = new Size(Math.Max(last.Size.Width, words.Width), Math.Max(last.Size.Height, words.Height));
+                }
+                planned[control] = last;
+            }
+            return new Size(Math.Max(size.Width, last.Size.Width), Math.Max(size.Height, last.Size.Height));
+        }
+
+        private static Size AsIs(Control control, int room)
+        {
+            return control.AutoSize ? control.GetPreferredSize(new Size(room, 0)) : control.Size;
+        }
+
+        /// A name of `wraps` as it is with its column at most `limit` wide (0: as wide as it is), measured on
+        /// a twin so the name itself is not changed. Asked for a width, which a label never answers from what
+        /// it remembers of other text.
+        private static Size NameSize(Control cell, int limit)
+        {
+            var label = cell as Label;
+            if (label == null) return AsIs(cell, 0);
+            twin.AutoSize = true;
+            twin.Font = label.Font;
+            twin.Padding = label.Padding;
+            twin.UseMnemonic = label.UseMnemonic;
+            twin.MaximumSize = limit > 0 ? new Size(Math.Max(1, limit - cell.Margin.Horizontal), 0) : Size.Empty;
+            twin.Text = label.Text;
+            return twin.GetPreferredSize(new Size(0x3FFFFFFF, 0));
+        }
+
+        /// How narrow the names of a grid can wrap: their longest word, and the name's margin.
+        private static int LongestWord(TableLayoutPanel grid)
+        {
+            int longest = 0;
+            bool isName = true;
+            foreach (Control cell in grid.Controls)
+            {
+                if (!Soft.OwnVisible(cell)) continue;
+                if (isName && cell is Label)
+                {
+                    string text = cell.Text;
+                    for (int start = 0; start < text.Length; )
+                    {
+                        int end = text.IndexOf(' ', start);
+                        if (end < 0) end = text.Length;
+                        if (end > start)
+                        {
+                            twin.MaximumSize = Size.Empty;
+                            twin.Font = cell.Font;
+                            twin.Padding = cell.Padding;
+                            twin.Text = text.Substring(start, end - start);
+                            longest = Math.Max(longest, twin.GetPreferredSize(new Size(0x3FFFFFFF, 0)).Width + cell.Margin.Horizontal);
+                        }
+                        start = end + 1;
+                    }
+                }
+                isName = !isName;
+            }
+            return longest;
+        }
+
+        /// How wide a control is drawn in its cell: all of the cell when it is stretched across it.
+        private static int Drawn(Control control, Size size, int room)
+        {
+            bool stretched = control.Dock == DockStyle.Fill ||
+                             (control.Anchor & (AnchorStyles.Left | AnchorStyles.Right)) == (AnchorStyles.Left | AnchorStyles.Right);
+            return stretched ? room : Math.Min(size.Width, room);
+        }
+
+        private Size PinSize()
+        {
+            return pin.AutoSize ? pin.GetPreferredSize(Size.Empty) : pin.Size;
+        }
+
+        /// How wide the control is with the widest of its reserved words (Reserve), or as it is: the width its
+        /// column is planned for. The control itself is as wide as what it says now, at the block's right edge.
+        private int PinWidth()
+        {
+            int width = PinSize().Width;
+            string[] texts;
+            var button = pin as ButtonBase;
+            if (button == null || !button.AutoSize || !reserved.TryGetValue(pin, out texts)) return width;
+            Reservation last;
+            if (!planned.TryGetValue(pin, out last) || last.Font != button.Font)
+            {
+                last = new Reservation();
+                last.Font = button.Font;
+                if (twinButton == null)
+                {
+                    twinButton = new Button();
+                    twinButton.AutoSize = true;
+                    twinButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                }
+                twinButton.FlatStyle = button.FlatStyle;
+                if (button.FlatStyle == FlatStyle.Flat) twinButton.FlatAppearance.BorderSize = button.FlatAppearance.BorderSize;
+                twinButton.Font = button.Font;
+                twinButton.Padding = button.Padding;
+                twinButton.MaximumSize = Size.Empty;
+                twinButton.MinimumSize = button.MinimumSize;
+                twinButton.MaximumSize = button.MaximumSize;
+                twinButton.UseMnemonic = button.UseMnemonic;
+                foreach (string text in texts)
+                {
+                    twinButton.Text = text ?? "";
+                    Size words = twinButton.GetPreferredSize(Size.Empty);
+                    last.Size = new Size(Math.Max(last.Size.Width, words.Width), Math.Max(last.Size.Height, words.Height));
+                }
+                planned[pin] = last;
+            }
+            return Math.Max(width, last.Size.Width);
+        }
+
+        private void Arrange()
+        {
+            int width = ClientSize.Width;
+            if (width > 1) arranged = width;
+            int limit;
+            int needed = Plan(width, out limit);
+            if (wraps != null)
+            {
+                bool isName = true;
+                foreach (Control cell in wraps.Controls)
+                {
+                    if (!Soft.OwnVisible(cell)) continue;
+                    Size wanted = limit > 0 ? new Size(Math.Max(1, limit - cell.Margin.Horizontal), 0) : Size.Empty;
+                    if (isName && cell.MaximumSize != wanted) cell.MaximumSize = wanted;
+                    isName = !isName;
+                }
+            }
+            int content = body.GetPreferredSize(new Size(width, 0)).Height;
+            if (body.Left != 0 || body.Top != 0 || body.Width != width || body.Height != content)
+            {
+                body.SetBounds(0, 0, width, content);
+                // Laid out at its width, what it holds can change under it - Recently finished fits its names
+                // to the width it gets - so it is planned again.
+                int ignored;
+                needed = Plan(width, out ignored);
+            }
+            var place = Rectangle.Empty;
+            if (Soft.OwnVisible(pin))
+            {
+                Size size = PinSize();
+                place = new Rectangle(width - size.Width, Math.Max(0, ClientSize.Height - size.Height), size.Width, size.Height);
+                if (pin.Bounds != place) pin.Bounds = place;
+            }
+            Cut(Rectangle.Intersect(place, body.Bounds));
+            if (needed <= ClientSize.Height) return;
+            // Given less than it needs: its row was measured before what it holds changed under it. The page lays
+            // what it holds out once more (SoftPage.Unsettle); left, History stood over the last outcomes of a
+            // Japanese Overview opened at 150% (v0.6.4, measured).
+            for (Control c = Parent; c != null; c = c.Parent)
+            {
+                var page = c as SoftPage;
+                if (page == null) continue;
+                page.Unsettle();
+                break;
+            }
+        }
+
+        /// Cuts the control's place out of the content's window, which is above it in the z-order - or
+        /// gives the content its whole window back when the control is beside none of it. What lies under
+        /// the hole is the control, and the hole is its size: every line beside it stops a head gap short.
+        private void Cut(Rectangle place)
+        {
+            place.Offset(-body.Left, -body.Top);
+            if (place == hole) return;
+            hole = place;
+            if (place.IsEmpty)
+            {
+                body.Region = null;
+                return;
+            }
+            // Everything the window could ever be but the hole, so the content growing needs no new region.
+            var region = new Region(new Rectangle(0, 0, short.MaxValue, short.MaxValue));
+            region.Exclude(place);
+            body.Region = region;
+        }
+
+        private sealed class PinLayout : System.Windows.Forms.Layout.LayoutEngine
+        {
+            public override bool Layout(object container, LayoutEventArgs layoutEventArgs)
+            {
+                ((SoftPin)container).Arrange();
+                // As an AutoSize panel's own layout does: what it holds may have changed its height.
+                return true;
+            }
         }
     }
 

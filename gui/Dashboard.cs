@@ -787,7 +787,7 @@ namespace CodexAutoResume
 
         private TableLayoutPanel Facts(TableLayoutPanel card)
         {
-            var grid = new TableLayoutPanel();
+            var grid = new SoftStack();
             grid.ColumnCount = 2;
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
@@ -799,7 +799,8 @@ namespace CodexAutoResume
             grid.Margin = new Padding(0);
             // Opaque, in the card's own colour. See-through, every repaint of the grid and of each
             // label in it asked the card to paint its background again, shadow and all: 23 card
-            // backgrounds for one Overview, and 1.4 s the first time Statistics was shown.
+            // backgrounds for one Overview, and 1.4 s the first time Statistics was shown. A ground
+            // (SoftStack), because a button pinned beside the facts lifts over the grid.
             grid.BackColor = Card;
             card.Controls.Add(grid);
             return grid;
@@ -1094,12 +1095,22 @@ namespace CodexAutoResume
             TableLayoutPanel now = MakeCard(S("overview.now", "Right now"));
             now.Margin = GridGap(0, false);
             TableLayoutPanel facts = Facts(now);
-            nowRecovery = Fact(facts, S("overview.recovery", "Automatic recovery"));
+            // Automatic recovery last, on the line of the button that pauses and resumes it, and the watcher and
+            // the engine first, above the button, where their longest words - "ne répond pas", "nicht unterstützt",
+            // "no se está ejecutando" - have the card's whole width. Beside the button, in French, "non pris en
+            // charge" took two more lines or the button under the facts, and the Overview scrolled (v0.6.4,
+            // measured: no order with automatic recovery first fitted every state in every language).
             nowWatcher = Fact(facts, S("diag.watcher", "Watcher"));
             nowEngine = Fact(facts, S("overview.engine", "Codex engine"));
             nowLastCheck = Fact(facts, S("overview.last_check", "Last check"));
+            nowRecovery = Fact(facts, S("overview.recovery", "Automatic recovery"));
             toggleButton = MakeButton(S("action.pause", "Pause recovery"), false, delegate { TogglePause(); });
-            HeadWith(now, toggleButton);
+            // The names give way before the button does: "Automatische Wiederherstellung" beside "Wiederherstellung
+            // pausieren" left the last facts under the button in German, and a button under the facts made the
+            // Overview taller than its window.
+            SoftPin nowBlock = PinTo(now, toggleButton);
+            nowBlock.Wraps = facts;
+            ReserveNowWords(nowBlock);
 
             TableLayoutPanel waiting = MakeCard(S("overview.waiting", "Waiting"));
             waiting.Margin = GridGap(1, false);
@@ -1113,16 +1124,16 @@ namespace CodexAutoResume
             waiting.Controls.Add(waitingLine);
             waiting.Controls.Add(nextLine);
             waiting.Controls.Add(runningLine);
-            HeadWith(waiting, MakeButton(S("nav.pending", "Pending"), false, delegate { ShowPage("pending"); }));
+            PinTo(waiting, MakeButton(S("nav.pending", "Pending"), false, delegate { ShowPage("pending"); }));
 
             TableLayoutPanel week = MakeCard(S("overview.week", "Last 7 days"));
             week.Margin = GridGap(0, true);
-            HeadWith(week, null);
             TableLayoutPanel weekFacts = Facts(week);
             weekDetected = Fact(weekFacts, S("overview.detected", "Interruptions"));
             weekSent = Fact(weekFacts, S("overview.sent", "Continuations sent"));
             weekRecovered = Fact(weekFacts, S("overview.recovered", "Recovered"));
             weekSuccess = Fact(weekFacts, S("overview.success", "Success rate"));
+            PinTo(week, null);
 
             // The last few recoveries that finished, so the page answers "did it work" as
             // well as "is it working" without a trip to the History page.
@@ -1132,7 +1143,7 @@ namespace CodexAutoResume
             recentEmpty = Value(S("history.empty", "No recoveries yet"));
             recentEmpty.ForeColor = Secondary;
             recent.Controls.Add(recentEmpty);
-            HeadWith(recent, MakeButton(S("nav.history", "History"), false, delegate { ShowPage("history"); }));
+            PinTo(recent, MakeButton(S("nav.history", "History"), false, delegate { ShowPage("history"); }));
             recentGrid.SizeChanged += delegate { FitRecentNames(); };
 
             grid.Controls.Add(now, 0, 0);
@@ -1143,42 +1154,69 @@ namespace CodexAutoResume
             return page;
         }
 
-        /// A card's heading with what the card leads to beside it, as the panel's card head has it:
-        /// the heading at the left, the button at the right, the card's gap between them. Every
-        /// Overview card has this row, one button high whether it holds a button or not, so the
-        /// facts in two cards side by side start on one line.
+        /// An Overview card as the person asked for it in v0.6.4: its heading at the top left, what it
+        /// holds under the heading, and what the card leads to pinned to the card's bottom right
+        /// (SoftPin) - beside the last lines where they leave room, under them where they do not. Every
+        /// Overview card has the panel's first gap under its heading, button or not, so the facts in two
+        /// cards side by side start on one line.
         ///
-        /// Under the card's content the button cost its card a button and a gap more, and the page
-        /// was then taller than a window that fits a 1920 by 1080 screen at 150%: 646 px of window
-        /// with the screenshots' conversations (measured), where that screen leaves 634.
-        private void HeadWith(TableLayoutPanel card, Button button)
+        /// Before, the button sat beside the heading in a row one button high, because a button in a row
+        /// of its own under every card's content made the page taller than a window that fits a 1920 by
+        /// 1080 screen at 150%. Pinned, the heading takes only its own height, and a button takes a row
+        /// of its own only in a card whose lines reach its column - Recently finished, whose outcomes run
+        /// to the card's edge - so the page still fits (SettingsForm.OpeningHeight). A card that leads
+        /// nowhere (`button` null) keeps its content where it is, and has no block.
+        private SoftPin PinTo(TableLayoutPanel card, Button button)
         {
             Control heading = card.Controls[0];
-            var head = new SoftStack();
-            head.BackColor = Card;
-            head.ColumnCount = 2;
-            head.RowCount = 1;
-            head.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            head.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-            head.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-            head.AutoSize = true;
-            head.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            head.Dock = DockStyle.Fill;
-            head.MinimumSize = new Size(0, Px(Brand.ButtonHeight));
-            // The panel's gap between a card's head and the first thing under it.
-            head.Margin = Pad(0, 0, 0, Brand.CardFirstGap);
-            heading.Margin = new Padding(0);
-            heading.Anchor = AnchorStyles.Left;
-            card.Controls.Remove(heading);
-            head.Controls.Add(heading, 0, 0);
-            if (button != null)
+            heading.Margin = Pad(0, 0, 0, Brand.CardFirstGap);
+            if (button == null) return null;
+            // A ground in the card's colour, as the card's rows are: the button's lift reaches over it.
+            var body = new SoftStack();
+            body.BackColor = Card;
+            body.ColumnCount = 1;
+            body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            body.GrowStyle = TableLayoutPanelGrowStyle.AddRows;
+            body.AutoSize = true;
+            body.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            var content = new List<Control>();
+            for (int i = 1; i < card.Controls.Count; i++) content.Add(card.Controls[i]);
+            foreach (Control control in content)
             {
-                button.Anchor = AnchorStyles.Right;
-                button.Margin = Pad(Brand.CardHeadGap, 0, 0, 0);
-                head.Controls.Add(button, 1, 0);
+                card.Controls.Remove(control);
+                body.Controls.Add(control);
             }
-            card.Controls.Add(head);
-            card.Controls.SetChildIndex(head, 0);
+            var block = new SoftPin(body, button);
+            block.Dock = DockStyle.Fill;
+            card.Controls.Add(block);
+            // The heading as tall as it is, and the block down to the card's inner bottom edge, however
+            // tall the card beside it makes this one.
+            card.RowStyles.Clear();
+            card.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            card.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            Pinned(button, card);
+            return block;
+        }
+
+        // Every control pinned to the bottom right of a block - a card, the header, a row - and that
+        // block, for LayoutAudit to hold each to its corner.
+        private readonly Dictionary<Control, Control> pinned = new Dictionary<Control, Control>();
+
+        private void Pinned(Control control, Control block)
+        {
+            pinned[control] = block;
+        }
+
+        /// Forgets the pinned controls no longer in the window: the Settings editors are built again after
+        /// Restore defaults, and the rows the old ones were pinned in are gone.
+        private void ForgetPins()
+        {
+            foreach (Control control in new List<Control>(pinned.Keys))
+            {
+                bool inWindow = false;
+                for (Control c = pinned[control]; c != null && !inWindow; c = c.Parent) inWindow = c == this;
+                if (!inWindow) pinned.Remove(control);
+            }
         }
 
         /// The longest a finished conversation's name is drawn in Recently finished: what how each one
@@ -1749,6 +1787,24 @@ namespace CodexAutoResume
         {
             object value = Get(row, "thread_enabled");
             return value == null || Equals(value, true);
+        }
+
+        /// Right now planned for every word its facts and its button are ever given - by ApplySnapshot, and
+        /// "unknown" by MarkUnavailable - so it is laid out the same in every state the watcher is in and at
+        /// every age of its last check (SoftPin.Reserve). The ages are the widest of each unit Age writes.
+        /// Planned for the words on screen, a refresh that changed "just now" to "3 min ago" wrapped the
+        /// French names, and the Overview opened on a watcher in trouble scrolled (v0.6.4, measured).
+        private void ReserveNowWords(SoftPin block)
+        {
+            string unknown = S("diag.unknown", "unknown");
+            block.Reserve(nowRecovery, S("overview.on", "on"), S("overview.off", "paused"), unknown);
+            block.Reserve(nowWatcher, S("diag.running", "running"), S("diag.not_running", "not running"),
+                          S("diag.not_responding", "not responding"), unknown);
+            block.Reserve(nowEngine, S("engine.verified", "verified"), S("engine.structurally_compatible", "structurally_compatible"),
+                          S("engine.incompatible", "incompatible"), S("engine.unknown", "unknown"), unknown);
+            block.Reserve(nowLastCheck, S("time.never", "never"), Age(0), Age(59), Age(59 * 60), Age(23 * 3600),
+                          Age(999 * 86400), unknown);
+            block.Reserve(toggleButton, S("action.pause", "Pause recovery"), S("action.resume", "Resume recovery"));
         }
 
         // ------------------------------------------------------------ snapshot use

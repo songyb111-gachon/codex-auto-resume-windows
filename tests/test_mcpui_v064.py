@@ -11,6 +11,10 @@ and which on/off settings are switches and which are check boxes.
 * **Switch or check box.** A switch turns something that runs on or off; a check box picks which
   items of a list apply. The check box is brand's, token for token, in both themes and in forced
   colours, and it sits left of its label.
+* **Pinned to the bottom-right.** A switch or a button at the right of a row sits at the row's
+  bottom-right - beside the last line of text that wraps, right-aligned still when it drops under
+  it - and comes after its text in the markup. A select, a chip, a check box and the buttons that
+  were already at the bottom keep their places.
 
 Most of this runs the panel's own script in Node against a small stand-in for the DOM, because the
 claims are about what the page does, not about what its source says.
@@ -725,6 +729,142 @@ class ChangedElsewhereTests(unittest.TestCase):
             " unedited({theme: 'dark', interface_language: 'en'}, {theme: 'system', interface_language: 'ko'}),"
             " unedited({theme: 'system'}, {}), unedited({}, {theme: 'system'}), unedited({theme: 'dark'}, null)]"))
         self.assertEqual(observed, [["interface_language", "theme"], [], [], [], []])
+
+
+# ------------------------------------------------------------------------ pinned to the bottom-right
+NARROW = "@media (max-width: 520px)"
+# Every control at the right of a row that is pinned, and the row it is pinned in.
+PINNED = {".setting.toggle > input.switch": ".setting", ".master > button": ".master",
+          ".prow-switch": ".prow"}
+
+
+def own_declarations(selector: str) -> dict:
+    """Every declaration the plain rules naming exactly `selector` give it, outside any at-rule."""
+    found = {}
+    for where, selectors, declarations in RULES:
+        if where == "" and selector in selectors:
+            found.update(declarations)
+    return found
+
+
+class PinnedControlStyleTests(unittest.TestCase):
+    """A switch or a button at the right of a row sits at the row's bottom-right: its right edge on
+    the row's, its bottom on the bottom of the text beside it. The renderer's own measurements are
+    not available here, so what is held is the flex arrangement that produces it - and that nothing
+    else was moved, resized or given a way to slide under the text."""
+
+    def test_each_control_is_pinned_to_the_end_of_its_row_on_both_axes(self):
+        for control, row in PINNED.items():
+            with self.subTest(control):
+                # Bottom: the end of the flex line, which is as tall as the text beside it.
+                self.assertEqual(declared(control, "align-self"), "flex-end")
+                # Right: on the row's right edge, and still there when it wraps under the text.
+                self.assertEqual(declared(control, "margin-left"), "auto")
+                self.assertEqual(declared(row, "display"), "flex")
+                self.assertEqual(declared(row, "flex-wrap"), "wrap")
+                # Text shorter than the control is still centred on it: a one-line row is unchanged.
+                self.assertEqual(declared(row, "align-items"), "center")
+
+    def test_the_text_beside_a_control_wraps_and_never_runs_under_it(self):
+        # The text shrinks and wraps; the control keeps its size. Neither is positioned, so the
+        # text cannot be laid out underneath the control - it wraps, or the control drops a line.
+        for text, basis in ((".setting-text", "1 1 180px"), (".master-body", "1 1 200px"),
+                            (".prow-main", "1 1 220px")):
+            with self.subTest(text):
+                self.assertEqual(declared(text, "flex"), basis)
+                self.assertEqual(declared(text, "min-width"), "0")
+        self.assertEqual(declared("input.switch", "flex"), "none")
+        for control in PINNED:
+            self.assertIsNone(declared(control, "position"), control)
+        # The note under the state is part of the text block, not a line that runs under the button.
+        self.assertEqual(declared(".master-body", "display"), "grid")
+        self.assertIsNone(declared(".master .note", "flex"))
+        # An open confirmation is a line of its own, under the text and the switch alike.
+        self.assertEqual(declared(".prow-confirm", "flex"), "1 1 100%")
+
+    def test_pinning_moves_a_control_and_changes_nothing_about_it(self):
+        # Hit targets, focus rings and colours are the controls' own rules, untouched.
+        self.assertEqual(set(own_declarations(".setting.toggle > input.switch")), {"align-self", "margin-left"})
+        self.assertEqual(set(own_declarations(".master > button")), {"align-self", "margin-left"})
+        self.assertEqual(declared("input.switch", "width"), "var(--size-switch-width)")
+        self.assertEqual(declared("input.switch", "height"), "var(--size-switch-height)")
+        self.assertEqual(declared("button", "min-height"), "var(--size-button-height)")
+        # Narrow, High Contrast and less motion keep the same place: none of them re-aligns a pinned
+        # control or the row it is pinned in.
+        for context in (NARROW, FORCED, "@media (prefers-reduced-motion: reduce)"):
+            for selector in set(PINNED) | set(PINNED.values()) | {"input.switch", "button", ".master-body"}:
+                for prop in ("align-self", "align-items", "margin-left", "flex-wrap", "display", "order"):
+                    with self.subTest(context=context, selector=selector, prop=prop):
+                        self.assertIsNone(declared(selector, prop, context))
+
+    def test_only_the_controls_at_the_right_of_a_row_are_pinned(self):
+        pinned = {selector for where, selectors, declarations in RULES
+                  if declarations.get("align-self") == "flex-end" for selector in selectors}
+        self.assertEqual(pinned, set(PINNED))
+        # A check box stays left of its label, on the label's first line.
+        self.assertEqual(declared(".setting.check", "align-items"), "flex-start")
+        # A select or a number stays centred beside its name.
+        self.assertIsNone(declared(".setting-control", "align-self"))
+        # The buttons already at the bottom - the save card's and the confirmation's - keep their places.
+        self.assertEqual(declared(".savebar", "align-items"), "center")
+        self.assertIsNone(declared(".savebar button", "align-self"))
+        self.assertIsNone(declared(".actions", "justify-content"))
+        # No control is reordered by CSS: what is seen first is what is read and reached first.
+        self.assertEqual([selectors for where, selectors, declarations in RULES if "order" in declarations], [])
+
+
+@unittest.skipUnless(NODE, "needs Node to run the panel's own code")
+class PinnedControlMarkupTests(unittest.TestCase):
+    """Content first, then the control: the order the page is read in and Tab moves in."""
+
+    DESCRIBE = """
+      function describe(node) {
+        return {tag: node.tagName, cls: node.className, role: node.getAttribute('role'),
+                children: node.children.map(function (c) { return c.tagName + '.' + c.className; })};
+      }
+    """
+
+    def test_each_pinned_control_is_the_last_thing_in_its_row(self):
+        observed = run_page(self.DESCRIBE + "OPEN.notifications = true; render();" + say("""(function () {
+          var master = ROOT_NODE.all(function (n) { return n.className === 'master'; })[0];
+          var body = master.children[0];
+          var toggle = ROOT_NODE.all(function (n) { return n.className === 'setting toggle'; })[0];
+          var prow = ROOT_NODE.all(function (n) { return n.className === 'prow'; })[0];
+          var wrap = prow.children[1];
+          return {master: describe(master), body: describe(body), note: describe(body.children[1]),
+                  toggle: describe(toggle), prow: describe(prow), wrap: describe(wrap)};
+        })()"""))
+        self.assertEqual(observed["master"]["children"], ["div.master-body", "button."])
+        self.assertEqual(observed["body"]["children"], ["div.master-text", "p.note"])
+        self.assertEqual(observed["note"]["role"], "status")
+        self.assertEqual(observed["toggle"]["children"], ["span.setting-text", "input.switch"])
+        self.assertEqual(observed["prow"]["children"], ["div.prow-main", "label.prow-switch"])
+        self.assertEqual(observed["wrap"]["children"], ["span.", "input.switch"])
+
+    def test_an_open_confirmation_follows_the_switch_it_asks_about(self):
+        observed = run_page(
+            "CONFIRM_ROW = DATA.pending[0].interruption_id; render();" + say(
+                "ROOT_NODE.all(function (n) { return n.className === 'prow'; })[0].children"
+                ".map(function (c) { return c.className; })"))
+        self.assertEqual(observed, ["prow-main", "prow-switch", "prow-confirm"])
+
+    def test_a_refused_pause_is_written_under_the_state_beside_the_button(self):
+        observed = run_page("""
+          window.openai.callTool = function (name) {
+            CALLS.push([name]);
+            return name === 'pause_auto_recovery' ? Promise.reject(new Error('not now')) : new Promise(function () {});
+          };
+          var master = ROOT_NODE.all(function (n) { return n.className === 'master'; })[0];
+          var pause = master.children[master.children.length - 1];
+          pause.onclick();
+          await settle();
+          var note = master.all(function (n) { return n.className === 'note'; })[0];
+          """ + say("{called: CALLS.map(function (c) { return c[0]; }), text: note.textContent,"
+                    " parent: note.parentNode.className, last: master.children[master.children.length - 1] === pause,"
+                    " enabled: !pause.disabled}"))
+        self.assertIn("pause_auto_recovery", observed["called"])
+        self.assertEqual((observed["text"], observed["parent"], observed["last"], observed["enabled"]),
+                         ("not now", "master-body", True, True))
 
 
 if __name__ == "__main__":

@@ -66,6 +66,7 @@ Additional work includes:
 - restrained status animations,
 - light and dark themes that follow Windows by default, with a choice in Settings,
 - switches and check boxes chosen by the kind of setting,
+- buttons and switches at the right of a card or row pinned to its bottom-right corner,
 - language and theme changes applied at once, with the window reopening itself where it has to.
 
 Recovery-engine changes should remain minimal unless directly required by this work.

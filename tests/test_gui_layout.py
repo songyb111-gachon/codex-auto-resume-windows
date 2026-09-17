@@ -409,6 +409,40 @@ def fullest_snapshot(now: float) -> dict:
             "pending": waiting, "history": waiting + history}
 
 
+def overview_states(now: float) -> list:
+    """The replies `SettingsForm.OverviewStatesAudit` applies in turn, as [name, reply] pairs: first a watcher in
+    trouble with recovery paused - the Overview is built from it, as a window opens on it - then the fullest reply, a
+    stopped watcher, one whose state is unknown, nothing waiting with History unreadable, and Pending unreadable.
+    These are the Right now card's widest words - "nicht unterstützt", "ne répond pas", "Reprendre la récupération" -
+    and in v0.6.4 the Overview opened on them scrolled in German and French, where fullest_snapshot fitted."""
+    fullest = fullest_snapshot(now)
+
+    def watcher(enabled=True, running=True, ticking=True, engine="verified", ago=0.0):
+        reply = copy.deepcopy(fullest)
+        status = reply["status"]
+        status["enabled"] = enabled
+        # None is a watcher whose state could not be told, which the dashboard shows as unknown.
+        status["watcher_running"] = running
+        status["watcher"].update(running=bool(running), ticking=ticking, engine_state=engine,
+                                 last_tick_at=0 if ago is None else now - ago)
+        return reply
+
+    idle = copy.deepcopy(fullest)
+    idle["pending"] = []
+    idle["status"]["pending"] = 0
+    del idle["history"]
+    idle["history_error"] = "database is locked"
+    unreadable = copy.deepcopy(fullest)
+    del unreadable["pending"]
+    unreadable["pending_error"] = "database is locked"
+    return [["a watcher in trouble, recovery paused", watcher(False, True, False, "incompatible", 59 * 60 + 30)],
+            ["the fullest", fullest],
+            ["a stopped watcher", watcher(True, False, True, "unknown", 3 * 86400)],
+            ["a watcher in an unknown state", watcher(True, None, True, "structurally_compatible", None)],
+            ["nothing waiting, History unreadable", idle],
+            ["Pending unreadable", unreadable]]
+
+
 def finished_while_open(snapshot: dict, now: float) -> dict:
     """The next read while the Overview is on screen: a recovery that has just finished, at the top of
     History, so Recently finished is rebuilt on a page that is already laid out."""
@@ -574,17 +608,105 @@ class WindowCompositionTests(unittest.TestCase):
         self.assertIn("else if (child.Dock == DockStyle.Fill) stacked += Math.Max(0, child.MinimumSize.Height);", measure,
                       "a filling child - the list and the explanation - counts at its minimum, so it gives way")
 
-    def test_the_overview_leads_with_each_cards_action_beside_its_heading(self):
+    def test_the_overview_pins_each_cards_action_to_the_cards_bottom_right(self):
+        """v0.6.4, as the person asked: a card's heading at the top left and the button it leads to at its
+        bottom right - beside the last lines where they leave room, under them where they do not, and never
+        over text (LayoutAuditTests measures every language at every scaling). It replaces the row that put
+        the button beside the heading."""
         overview = self.method(self.dashboard, "private Control BuildOverview(")
-        self.assertEqual(overview.count("HeadWith("), 4, "every Overview card has the head row, so their facts line up")
-        self.assertNotIn("Pad(0, 12, 0, 0)", overview, "a button under a card's content made the page taller than the window")
-        head = self.method(self.dashboard, "private void HeadWith(")
-        self.assertIn("head.MinimumSize = new Size(0, Px(Brand.ButtonHeight));", head)
-        self.assertIn("head.Margin = Pad(0, 0, 0, Brand.CardFirstGap);", head)
+        self.assertEqual(overview.count("PinTo("), 4, "every Overview card has the same gap under its heading, so their facts line up")
+        self.assertNotIn("HeadWith(", self.dashboard, "a card's button no longer sits beside its heading")
+        self.assertIn("SoftPin nowBlock = PinTo(now, toggleButton);", overview)
+        self.assertIn("nowBlock.Wraps = facts;", overview,
+                      "the names of the facts give way before the button drops under them: dropped in German, it "
+                      "made the Overview taller than its window")
+        self.assertIn("ReserveNowWords(nowBlock);", overview)
+        self.assertIn("PinTo(week, null);", overview)
+        pin = self.method(self.dashboard, "private SoftPin PinTo(")
+        self.assertIn("heading.Margin = Pad(0, 0, 0, Brand.CardFirstGap);", pin)
+        self.assertIn("card.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));", pin,
+                      "the block reaches the card's inner bottom edge however tall the card beside it makes this one")
+        self.assertIn("Pinned(button, card);", pin, "LayoutAudit holds the button to its card's corner")
+        controls = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
+        block = controls[controls.index("internal sealed class SoftPin"):controls.index("internal static class NativePaint")]
+        self.assertNotIn("SetChildIndex", block,
+                         "the content above the button in the z-order, so a screen reader reaches it first")
+        self.assertLess(block.index("Controls.Add(body);"), block.index("Controls.Add(pin);"))
+        self.assertIn("region.Exclude(place);", block, "and the button shows through a hole in the content's window")
+        self.assertIn("body.TabIndex = 0;", block)
+        self.assertIn("pin.TabIndex = 1;", block, "read and reached by Tab after what the card says")
+        self.assertIn("place = new Rectangle(width - size.Width, Math.Max(0, ClientSize.Height - size.Height), size.Width, size.Height);",
+                      block)
+        self.assertIn("Soft.Px(Brand.CardHeadGap)", block, "text stops the card's head gap short of the button")
+        self.assertIn("Soft.Px(Brand.CardFirstGap)", block, "and a button under text is the first gap below it")
+        planned = block[block.index("private int Plan("):block.index("private Size PinSize(")]
+        self.assertNotRegex(planned, r"(?<!Padding)(?<!Margin)(?<!AnchorStyles)\.(?:Left|Top|Bounds|Location)\b",
+                            "a height read from where the content was last laid out answered for a width the table "
+                            "only asked about, and a card at 150% stayed three times as tall as its facts")
+        self.assertIn("var card = Parent as SoftCard;", block,
+                      "asked how wide it would be, the block answers the width of the card being measured")
+        card = controls[controls.index("internal sealed class SoftCard"):controls.index("internal sealed class SoftPin")]
+        self.assertIn("Measuring = proposedSize.Width > 1 && proposedSize.Width < 0x100000 ? proposedSize.Width : 0;", card)
+        self.assertIn("page.Unsettle();", block, "a block given less than it needs has its page lay it out once more")
         facts = self.method(self.dashboard, "private TableLayoutPanel Facts(")
         self.assertIn("grid.Margin = new Padding(0);", facts, "the default 3 px margin never scaled")
+        self.assertIn("var grid = new SoftStack();", facts, "a ground, so a button pinned beside the facts keeps its lift")
         recent = self.method(self.dashboard, "private void FillRecent(")
         self.assertIn("new LineLabel()", recent, "a long conversation name wrapped the Overview past the window")
+
+    def test_right_now_is_planned_for_every_word_its_facts_and_its_button_are_given(self):
+        """Right now is laid out for the widest words each fact and the button are ever given (SoftPin.Reserve), so it
+        neither scrolls the Overview nor moves as the watcher's state changes or its last check ages; and its watcher
+        and engine, whose words run longest, stand above the button, with automatic recovery on the button's line.
+        LayoutAuditTests measures it in every language at every scaling."""
+        overview = self.method(self.dashboard, "private Control BuildOverview(")
+        order = [overview.index(name + " = Fact(facts,") for name in ("nowWatcher", "nowEngine", "nowLastCheck", "nowRecovery")]
+        self.assertEqual(order, sorted(order), "watcher, engine, last check, then automatic recovery beside its button")
+        reserve = self.method(self.dashboard, "private void ReserveNowWords(")
+        applied = self.method(self.dashboard, "private void ApplySnapshot(")
+        applied = applied[:applied.index("if (diagVersion != null)")]
+        for key in sorted(set(re.findall(r'S\("((?:overview|diag)\.[a-z_]+)"', applied))):
+            with self.subTest(key=key):
+                self.assertIn('S("%s"' % key, reserve, "a word Right now is given that it is not planned for")
+        for state in ("verified", "structurally_compatible", "incompatible", "unknown"):
+            with self.subTest(engine=state):
+                self.assertIn('S("engine.%s"' % state, reserve)
+        self.assertIn('S("engine." + engine, engine)', applied, "the engine's word is the one its state is looked up by")
+        for age in ("Age(0)", "Age(59)", "Age(59 * 60)", "Age(23 * 3600)", "Age(999 * 86400)", 'S("time.never", "never")'):
+            with self.subTest(age=age):
+                self.assertIn(age, reserve, "the widest word of each unit Age writes")
+        toggle = self.method(self.dashboard, "private void UpdateToggle(")
+        for key in re.findall(r'S\("(action\.[a-z_]+)"', toggle):
+            with self.subTest(key=key):
+                self.assertIn('block.Reserve(toggleButton, ', reserve)
+                self.assertIn('S("%s"' % key, reserve[reserve.index("block.Reserve(toggleButton, "):])
+        self.assertIn('"unknown"', self.method(self.dashboard, "private void MarkUnavailable("))
+        self.assertIn('string unknown = S("diag.unknown", "unknown");', reserve)
+
+    def test_a_page_shows_its_bar_by_what_fits_without_it_and_not_by_what_showed_before(self):
+        controls = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
+        page = controls[controls.index("internal sealed class SoftPage"):controls.index("internal interface ISoftScroller")]
+        layout = self.method(page, "protected override void OnLayout(")
+        self.assertLess(layout.index("if (scrolls && !moving) overflow = false;"), layout.index("base.OnLayout(levent);"),
+                        "laid out without the gutter first: kept from the last layout, it kept German's Overview scrolling")
+        move = self.method(page, "private void MoveTo(")
+        self.assertIn("moving = true;", move, "scrolling moves what the page holds and lays nothing out twice")
+        self.assertIn("finally { moving = false; }", move)
+        invalidate = self.method(controls, "internal static void Invalidate(Control container, Rectangle band)")
+        self.assertIn("block.InvalidateUnder(band);", invalidate,
+                      "a pinned button's ring and lift are repainted on the content windows under them")
+
+    def test_every_button_at_the_right_of_a_card_or_row_is_pinned_to_its_bottom_right(self):
+        """The header's Start button and the Clear buttons under the Custom messages are at the right of a card
+        and of a row, and are held to the bottom of it as the Overview's are."""
+        header = self.method(self.window, "private void BuildHeader(")
+        self.assertIn("startButton.Anchor = AnchorStyles.Right | AnchorStyles.Bottom;", header)
+        self.assertIn("Pinned(startButton, hero);", header)
+        footer = self.method(self.window, "private Control TextFooter(")
+        self.assertIn("clear.Anchor = AnchorStyles.Right | AnchorStyles.Bottom;", footer)
+        self.assertIn("Pinned(clear, row);", footer)
+        self.assertIn("ForgetPins();", self.method(self.window, "private void BuildEditors("),
+                      "rows built again after Restore defaults leave nothing pinned behind")
 
     def test_recently_finished_fits_its_names_after_every_outcome_and_age_is_written(self):
         """What each outcome says, age and all, decides what the names are left. Fitted inside the
@@ -657,15 +779,55 @@ $schema = [IO.File]::ReadAllText((Join-Path $work 'schema.json'), $utf8)
 $current = [IO.File]::ReadAllText((Join-Path $work 'settings.json'), $utf8)
 # The most the pages ever show (fullest_snapshot).
 $snapshot = [IO.File]::ReadAllText((Join-Path $work 'snapshot.json'), $utf8)
-$out = @{ audit = @{}; canary = ''; cramped = ''; cache = @{} }
+$out = @{ audit = @{}; pins = @{}; canary = ''; cramped = ''; cache = @{} }
+$auditedPins = $form.GetField('AuditedPins', $static)
 foreach ($locale in (ConvertFrom-Json $env:CAR_LOCALES)) {
     $catalog = [IO.File]::ReadAllText((Join-Path $work ('strings-' + $locale + '.json')), $utf8)
     $out.audit[$locale] = @{}
+    $out.pins[$locale] = @{}
     foreach ($scale in (ConvertFrom-Json $env:CAR_SCALES)) {
         $key = ([double]$scale).ToString('0.00', [Globalization.CultureInfo]::InvariantCulture)
         $out.audit[$locale][$key] = [string]$audit.Invoke($null, [object[]]@($schema, $current, $catalog, $snapshot, [double]$scale))
+        $out.pins[$locale][$key] = [int]$auditedPins.GetValue($null)
     }
 }
+# The Overview as the watcher's state changes under it (overview_states), opened on a watcher in trouble.
+$statesAudit = $form.GetMethod('OverviewStatesAudit', $static)
+$auditedStates = $form.GetField('AuditedStates', $static)
+$states = [IO.File]::ReadAllText((Join-Path $work 'states.json'), $utf8)
+$out.states = @{}
+$out.statesAudited = @{}
+foreach ($locale in (ConvertFrom-Json $env:CAR_LOCALES)) {
+    $catalog = [IO.File]::ReadAllText((Join-Path $work ('strings-' + $locale + '.json')), $utf8)
+    $out.states[$locale] = @{}
+    $out.statesAudited[$locale] = @{}
+    foreach ($scale in (ConvertFrom-Json $env:CAR_SCALES)) {
+        $key = ([double]$scale).ToString('0.00', [Globalization.CultureInfo]::InvariantCulture)
+        $out.states[$locale][$key] = [string]$statesAudit.Invoke($null, [object[]]@($catalog, $states, [double]$scale))
+        $out.statesAudited[$locale][$key] = [int]$auditedStates.GetValue($null)
+    }
+}
+# An engine state the window has no word for, as long as a paragraph: Right now cannot be planned for it, so a quiet
+# report on the states is the audit measuring.
+$english = [IO.File]::ReadAllText((Join-Path $work 'strings-en.json'), $utf8)
+$out.statesCanary = [string]$statesAudit.Invoke($null, [object[]]@($english, [IO.File]::ReadAllText((Join-Path $work 'states-canary.json'), $utf8), [double]1.0))
+# A button that is neither in its card's corner nor clear of the card's text, so a quiet report on pins is the
+# audit measuring them.
+$pinCard = New-Object Windows.Forms.Panel
+$pinCard.Padding = New-Object Windows.Forms.Padding 10
+$pinCard.Size = New-Object Drawing.Size 300, 120
+$covered = New-Object Windows.Forms.Label
+$covered.AutoSize = $false
+$covered.Text = 'covered'
+$covered.Bounds = New-Object Drawing.Rectangle 10, 60, 280, 20
+$stray = New-Object Windows.Forms.Button
+$stray.Text = 'stray'
+$stray.Bounds = New-Object Drawing.Rectangle 20, 50, 120, 34
+$pinCard.Controls.Add($covered)
+$pinCard.Controls.Add($stray)
+$pinFindings = New-Object 'System.Collections.Generic.List[string]'
+$null = $form.GetMethod('AuditPin', $static).Invoke($null, [object[]]@('canary', $stray.PSObject.BaseObject, $pinCard.PSObject.BaseObject, $pinFindings.PSObject.BaseObject))
+$out.pinCanary = ($pinFindings -join "`n")
 # A label that cannot fit, so an empty report means the audit looked rather than that it saw nothing.
 $canary = [IO.File]::ReadAllText((Join-Path $work 'strings-canary.json'), $utf8)
 $out.canary = [string]$audit.Invoke($null, [object[]]@($schema, $current, $canary, $snapshot, [double]1.0))
@@ -887,6 +1049,73 @@ foreach ($locale in (ConvertFrom-Json $env:CAR_LOCALES)) {
     $out.recent[$locale] = @{ opened = $opened; rebuilt = $rebuilt }
     $window.Dispose()
 }
+
+# Each Overview card's button, over the content it is pinned beside: the windows under its lift and focus ring, whether
+# a change of the button's state repaints them, and the order of the block's windows - the order Windows hands a
+# screen reader. At this machine's scale, in English, never shown: a window has a handle without being on screen.
+Add-Type -Namespace LayoutProbe -Name Native -MemberDefinition @'
+[DllImport("user32.dll")] public static extern System.IntPtr GetWindow(System.IntPtr window, uint command);
+'@
+$groundType = $assembly.GetType('CodexAutoResume.Ground', $true)
+$bandOf = $groundType.GetMethod('Band', $static)
+function Get-Under($container, [int]$x, [int]$y, $band, $skip, $list) {
+    foreach ($child in $container.Controls) {
+        if ($child -eq $skip -or -not (Test-Own $child)) { continue }
+        $bounds = New-Object Drawing.Rectangle ($x + $child.Left), ($y + $child.Top), $child.Width, $child.Height
+        if ($bounds.IntersectsWith($band)) { $null = $list.Add(@($child, $bounds)) }
+        Get-Under $child ($x + $child.Left) ($y + $child.Top) $band $skip $list
+    }
+}
+$window = New-Window $true
+Invoke-Window $window 'ApplySnapshot' @((Read-Snapshot 'snapshot.json'))
+Invoke-Window $window 'ShowPage' @('overview')
+$null = $materialise.Invoke($null, [object[]]@($window))
+$window.PerformLayout()
+$overview = (Get-Field $window 'pages')['overview']
+$out.lifts = @()
+$script:repainted = @{}
+foreach ($pair in (Get-Field $window 'pinned').GetEnumerator()) {
+    $button = $pair.Key
+    $onOverview = $false
+    for ($c = $button; $null -ne $c; $c = $c.Parent) { if ($c -eq $overview) { $onOverview = $true } }
+    if (-not $onOverview) { continue }
+    $block = $button.Parent
+    $band = [Drawing.Rectangle]$bandOf.Invoke($null, [object[]]@($button, 'control'))
+    $under = New-Object Collections.ArrayList
+    Get-Under $block 0 0 $band $button $under
+    $script:repainted.Clear()
+    foreach ($entry in $under) {
+        $entry[0].add_Invalidated([Windows.Forms.InvalidateEventHandler]{
+            param($sender, $e)
+            $script:repainted[[Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($sender)] = $e.InvalidRect
+        })
+    }
+    # A change of state that moves nothing: the lift goes, and comes back.
+    $button.Enabled = $false
+    $button.Enabled = $true
+    $names = @()
+    $covered = @()
+    foreach ($entry in $under) {
+        $names += ($entry[0].GetType().Name + ' ' + $entry[1])
+        $rect = $script:repainted[[Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($entry[0])]
+        $wanted = [Drawing.Rectangle]::Intersect($band, $entry[1])
+        $wanted.Offset(-$entry[1].X, -$entry[1].Y)
+        $covered += [bool]($null -ne $rect -and ([Drawing.Rectangle]$rect).Contains($wanted))
+    }
+    $order = @()
+    for ($h = [LayoutProbe.Native]::GetWindow($block.Handle, 5); $h -ne [IntPtr]::Zero; $h = [LayoutProbe.Native]::GetWindow($h, 2)) {
+        $order += [Windows.Forms.Control]::FromHandle($h).GetType().Name
+    }
+    $body = @($block.Controls | Where-Object { $_ -ne $button })[0]
+    $overlaps = $body.Bounds.IntersectsWith($button.Bounds)
+    $middle = New-Object Drawing.Point ($button.Left + [int]($button.Width / 2) - $body.Left), ($button.Top + [int]($button.Height / 2) - $body.Top)
+    $beside = New-Object Drawing.Point ($button.Left - 1 - $body.Left), ($button.Top + [int]($button.Height / 2) - $body.Top)
+    $region = $body.Region
+    $out.lifts += ,@{ text = [string]$button.Text; under = $names; repainted = $covered; order = $order; overlaps = [bool]$overlaps
+                      buttonShows = [bool]($null -ne $region -and -not $region.IsVisible($middle));
+                      contentShows = [bool]($null -eq $region -or $region.IsVisible($beside)) }
+}
+$window.Dispose()
 [IO.File]::WriteAllText((Join-Path $work 'result.json'), ($out | ConvertTo-Json -Depth 6 -Compress), $utf8)
 """
 
@@ -943,6 +1172,11 @@ class LayoutAuditTests(unittest.TestCase):
         (work / "snapshot.json").write_text(json.dumps(fullest, ensure_ascii=False), encoding="utf-8")
         (work / "snapshot-later.json").write_text(json.dumps(finished_while_open(fullest, now), ensure_ascii=False),
                                                   encoding="utf-8")
+        (work / "states.json").write_text(json.dumps(overview_states(now), ensure_ascii=False), encoding="utf-8")
+        unheard = copy.deepcopy(fullest)
+        unheard["status"]["watcher"]["engine_state"] = " ".join(["a-state-this-window-has-no-word-for"] * 12)
+        (work / "states-canary.json").write_text(json.dumps([["the fullest", fullest], ["an unheard-of engine", unheard]]),
+                                                 encoding="utf-8")
         install = work / "install"
         (install / "config").mkdir(parents=True)
         (install / "config" / "settings.json").write_text('{"interface_language": "system"}', encoding="utf-8")
@@ -981,6 +1215,67 @@ class LayoutAuditTests(unittest.TestCase):
                       "a 400-character label went unreported, so an empty report proves nothing")
         self.assertIn("reopen note at ", self.answer["canary"],
                       "a note sixty sentences long went unreported, so a quiet report on the note proves nothing")
+
+    def test_every_pinned_button_is_at_its_bottom_right_and_over_no_text(self):
+        """The Overview's three card buttons, the Custom messages' two Clear buttons and the header's Start
+        button, in every language at every scaling: each within a pixel of its card's or row's inner bottom-right
+        corner and over no line of text in it (their findings are in the first test's reports). This holds the
+        audit to having looked at all six."""
+        self.assertEqual(sorted(self.answer["pins"]), sorted(l10n.LOCALES))
+        for locale in l10n.LOCALES:
+            for scale in SCALES:
+                with self.subTest(locale=locale, scale=scale):
+                    self.assertEqual(self.answer["pins"][locale]["%.2f" % scale], 6)
+
+    def test_the_audit_finds_a_button_out_of_its_corner_or_over_text(self):
+        canary = self.answer["pinCanary"]
+        self.assertIn("canary/Button'stray' :: is not at the bottom right of its Panel", canary)
+        self.assertIn("canary/Button'stray' :: covers Label'covered'", canary)
+
+    def test_the_overview_neither_scrolls_nor_moves_whatever_state_the_watcher_is_in(self):
+        """Opened on a watcher in trouble with recovery paused, then refreshed through the fullest reply, a stopped
+        watcher, an unknown one, nothing waiting and unreadable lists, and last made shorter than the page and given
+        its height back (overview_states, SettingsForm.OverviewStatesAudit). At every step the Overview fits, its
+        buttons are in their corners over no text, and Right now is laid out as it was at the first. In v0.6.4 as
+        first pinned it scrolled in German at 125% and 150% and in French at every scaling, and a page the soft bar
+        had narrowed kept the bar at a height that fitted."""
+        self.assertEqual(sorted(self.answer["states"]), sorted(l10n.LOCALES))
+        for locale in l10n.LOCALES:
+            for scale in SCALES:
+                key = "%.2f" % scale
+                report = self.answer["states"][locale][key]
+                with self.subTest(locale=locale, scale=scale):
+                    self.assertEqual(report, "", "\n" + "\n".join(report.splitlines()[:40]))
+                    self.assertEqual(self.answer["statesAudited"][locale][key], len(overview_states(0)) + 1,
+                                     "every state and the round trip were measured")
+
+    def test_the_state_audit_finds_right_now_laid_out_for_words_it_was_not_planned_for(self):
+        self.assertIn("overview (an unheard-of engine) :: Right now is laid out", self.answer["statesCanary"],
+                      "an engine state as long as a paragraph moved nothing, so a quiet report on the states proves nothing")
+
+    def test_a_pinned_buttons_lift_and_focus_ring_are_repainted_on_the_content_under_them(self):
+        """The ring and the lift run outside the button, over the content it is pinned beside, whose windows draw
+        that part of them in their own backgrounds (Ground). A change of the button's state - focus, a press, being
+        disabled while an action runs, Pause becoming Resume - must repaint those windows too: repainting only the
+        block behind them left the ring without its top and left edges, and old pieces of it behind."""
+        lifts = self.answer["lifts"]
+        self.assertEqual(sorted(lift["text"] for lift in lifts), ["History", "Pause recovery", "Pending"])
+        self.assertGreater(sum(len(lift["under"]) for lift in lifts), 0, "no window lies under any ring, so none was checked")
+        for lift in lifts:
+            with self.subTest(lift["text"]):
+                self.assertEqual(lift["repainted"], [True] * len(lift["under"]),
+                                 "not repainted where the ring and the lift cross them: %s" % lift["under"])
+
+    def test_a_screen_reader_reaches_a_cards_content_before_its_pinned_button(self):
+        """Windows hands a screen reader a block's windows top of the z-order first. The content is on top and read
+        first, as it is seen and as Tab reaches it; the button shows through a hole in the content's window the
+        button's size, so the content never paints over it."""
+        for lift in self.answer["lifts"]:
+            with self.subTest(lift["text"]):
+                self.assertEqual(lift["order"], ["SoftStack", "SoftButton"])
+                if lift["overlaps"]:
+                    self.assertTrue(lift["buttonShows"], "the content's window covers the button")
+                self.assertTrue(lift["contentShows"], "the content's window is cut away beside the button")
 
     def test_the_audit_finds_an_overview_that_would_scroll(self):
         """The fullest Overview in every language at every scaling is in the first test's empty
