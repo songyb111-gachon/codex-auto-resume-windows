@@ -1128,12 +1128,32 @@ namespace CodexAutoResume
             // AutoSize button becomes once the font is applied, and being two pixels short
             // looks exactly like a drawing bug. Again whenever the window's font changes, the
             // reopen note is shown or hidden, and - while it shows - the room beside it changes.
+            bool fitting = false;
             EventHandler fit = delegate
             {
-                int content = Math.Max(savebar.PreferredSize.Height, row.PreferredSize.Height + savebar.Padding.Vertical);
-                if (reopenNoteShown) content = Math.Max(content, NoteHeight(row) + savebar.Padding.Vertical);
-                int height = content + footer.Padding.Vertical;
-                if (footer.Height != height) footer.Height = height;
+                // Laying the card out again below raises what calls this, so the height is worked out once.
+                if (fitting) return;
+                fitting = true;
+                try
+                {
+                    int content = Math.Max(savebar.PreferredSize.Height, row.PreferredSize.Height + savebar.Padding.Vertical);
+                    if (reopenNoteShown) content = Math.Max(content, NoteHeight(row) + savebar.Padding.Vertical);
+                    int height = content + footer.Padding.Vertical;
+                    if (footer.Height != height) footer.Height = height;
+                    // A height given to the strip while the window is being laid out reaches the strip and not
+                    // the card in it: the layout that is running has already placed the card, and the layout the
+                    // new height asks for is dropped when that one ends (Control.PerformLayout). The card would
+                    // then keep the height it was given before the note was shown - which is what left it two
+                    // lines short of the note on the CI runner (v0.6.4, measured). So the card is held to the
+                    // strip here, and the window laid out around a strip whose height changed; both are asked
+                    // for again from the window's own Resize, which is raised after that layout is over.
+                    if (savebar.Height != footer.ClientSize.Height - footer.Padding.Vertical)
+                    {
+                        PerformLayout();
+                        footer.PerformLayout();
+                    }
+                }
+                finally { fitting = false; }
             };
             fit(this, EventArgs.Empty);
             FontChanged += fit;
@@ -1142,6 +1162,9 @@ namespace CodexAutoResume
             savebar.SizeChanged += follow;
             row.SizeChanged += follow;
             versionText.SizeChanged += follow;
+            // The window's own size last of all: its Resize is raised once it has been laid out, which is the
+            // one place a card left short by a layout that was already running can be given its height.
+            Resize += follow;
         }
 
         /// The most lines the reopen note takes in the save card before it ends in an ellipsis.
@@ -1149,14 +1172,33 @@ namespace CodexAutoResume
         private const TextFormatFlags NoteFormat = TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl |
                                                    TextFormatFlags.NoPrefix;
 
+        /// The width the reopen note's column is given: the save card's, less the version and `row`, the
+        /// buttons, which are as wide as they ask - and the card is as wide as the window, less what the
+        /// strip it fills keeps around it.
+        ///
+        /// From the window's own width, never from the card's, which is the width the card was last laid
+        /// out at. The card's height is worked out when the note is shown, and a window that has just been
+        /// made narrower has not always laid the card out at its new width by then: measured at the width
+        /// the card still had, the note was given the room two lines of it need where four fit in the width
+        /// it really gets. That is what the card came out two lines short of on the CI runner - Spanish,
+        /// German and French from 150% up, in its fonts - while every window on the machine the layout was
+        /// written on laid the card out first and measured the same note right (v0.6.4, measured: the audit
+        /// holds the card to both orders now, AuditReopenNote).
+        private int NoteWidth(Control row)
+        {
+            // What a card filling the strip is given: the width docked children are laid out in, less the
+            // strip's padding. The strip is docked across the window, so nothing else takes from it.
+            return DisplayRectangle.Width - footer.Padding.Horizontal - savebar.Padding.Horizontal
+                 - (versionText.PreferredSize.Width + versionText.Margin.Horizontal)
+                 - (row.PreferredSize.Width + row.Margin.Horizontal)
+                 - reopenNote.Margin.Horizontal - reopenNote.Padding.Horizontal;
+        }
+
         /// How tall the reopen note has to be to show all of it - up to NoteLines lines - in the width its
-        /// column has: the card's, less the version and `row`, the buttons, which are as wide as they ask.
+        /// column has (NoteWidth).
         private int NoteHeight(Control row)
         {
-            int width = savebar.ClientSize.Width - savebar.Padding.Horizontal
-                      - (versionText.PreferredSize.Width + versionText.Margin.Horizontal)
-                      - (row.PreferredSize.Width + row.Margin.Horizontal)
-                      - reopenNote.Margin.Horizontal - reopenNote.Padding.Horizontal;
+            int width = NoteWidth(row);
             if (width <= 0 || string.IsNullOrEmpty(reopenNote.Text)) return 0;
             int text = TextRenderer.MeasureText(reopenNote.Text, reopenNote.Font, new Size(width, int.MaxValue), NoteFormat).Height;
             int line = TextRenderer.MeasureText("Ag", reopenNote.Font, new Size(int.MaxValue, int.MaxValue),
@@ -2952,6 +2994,7 @@ namespace CodexAutoResume
         {
             var findings = new List<string>();
             AuditedPins = 0;
+            AuditedNotes = 0;
             AuditedShortest = 0;
             AuditedAlike = 0;
             AuditedWraps = 0;
@@ -3016,7 +3059,8 @@ namespace CodexAutoResume
                     form.AuditPins("header", findings);
                     form.startButton.Visible = false;
                     // The reopen note, beside every button of the Settings page's save card, at the opening width
-                    // and at the narrowest the window goes: 800 wide, less a sizable frame's 8 px on each side.
+                    // and at the narrowest the window goes: 800 wide, less a sizable frame's 8 px on each side -
+                    // each in both orders a window comes to a width in (AuditReopenNote).
                     form.AuditReopenNote(form.Px(OpeningWidth), findings);
                     form.AuditReopenNote(form.Px(800) - form.Px(16), findings);
                 }
@@ -3338,9 +3382,29 @@ namespace CodexAutoResume
 
         /// Shows the reopen note with the window `width` wide, and adds it if any of what it says is cut off - it is
         /// hidden everywhere else the audit looks, and ends in an ellipsis where it does not fit.
+        ///
+        /// Twice, in both orders the window can come to that width in: laid out at it before the note is shown, and
+        /// shown while the layout that narrows the card is still to come - which is the order a window being resized
+        /// does it in, and the order the CI runner's did it in, where the card kept the height two lines of the note
+        /// needed and the four lines it takes in the width it really gets were cut (v0.6.4). Each starts from the
+        /// other width the audit measures, so the card is always laid out at a width that is not the one measured.
         private void AuditReopenNote(int width, List<string> findings)
         {
+            AuditReopenNote(width, false, findings);
+            AuditReopenNote(width, true, findings);
+        }
+
+        private void AuditReopenNote(int width, bool beforeTheLayout, List<string> findings)
+        {
+            int other = width == Px(OpeningWidth) ? Px(800) - Px(16) : Px(OpeningWidth);
+            ClientSize = new Size(other, ClientSize.Height);
+            Materialise(this);
+            PerformLayout();
+            // Held back, so the note is shown while the card is still as wide as it was at `other`: the height
+            // the card is given must be the one the note needs at `width`, not at the width the card has now.
+            if (beforeTheLayout) SuspendLayout();
             ClientSize = new Size(width, ClientSize.Height);
+            if (beforeTheLayout) ResumeLayout(false);
             ShowReopenNote(true);
             Materialise(this);
             PerformLayout();
@@ -3349,9 +3413,15 @@ namespace CodexAutoResume
                                                   new Size(Math.Max(1, room.Width - reopenNote.Padding.Horizontal), int.MaxValue),
                                                   NoteFormat).Height;
             if (room.Width <= 0 || needed > room.Height - reopenNote.Padding.Vertical)
-                findings.Add("footer/reopen note at " + width + " :: needs " + needed + " high, has " + room);
+                findings.Add("footer/reopen note at " + width + (beforeTheLayout ? ", shown before the window was laid out" : "") +
+                             " :: needs " + needed + " high, has " + room);
             ShowReopenNote(false);
+            AuditedNotes++;
         }
+
+        /// How many times the last LayoutAudit measured the reopen note in its save card - two widths in both
+        /// orders - so that a quiet report is known to have looked at each of them.
+        internal static int AuditedNotes;
 
         /// How many pinned controls the last LayoutAudit held to their corners, so that a quiet report is known
         /// to have looked at them.
