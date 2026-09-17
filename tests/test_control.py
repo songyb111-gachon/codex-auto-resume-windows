@@ -102,6 +102,24 @@ class SettingsSurfaceTests(ControlTestCase):
             if entry["type"] == "boolean":
                 self.control.update_settings({entry["name"]: False})
                 self.assertIs(self.control.get_settings()[entry["name"]], False)
+            for choice in entry.get("choices", ()):
+                with self.subTest(name=entry["name"], choice=choice):
+                    self.control.update_settings({entry["name"]: choice})
+                    self.assertEqual(self.control.get_settings()[entry["name"]], choice)
+
+    def test_the_theme_round_trips_and_a_bad_one_is_refused_by_name(self):
+        self.assertEqual(self.control.get_settings()["theme"], "system")
+        for choice in ("dark", "light", "system"):
+            with self.subTest(choice):
+                self.assertEqual(self.control.update_settings({"theme": choice})["theme"], choice)
+                self.assertEqual(self.control.get_settings()["theme"], choice)
+        self.control.update_settings({"theme": "dark"})
+        with self.assertRaises(control.ControlError) as caught:
+            self.control.update_settings({"theme": "midnight"})
+        self.assertIn("theme", str(caught.exception))
+        self.assertEqual(self.control.get_settings()["theme"], "dark")
+        self.control.restore_defaults()
+        self.assertEqual(self.control.get_settings()["theme"], "system")
 
     def test_settings_work_with_no_state_database(self):
         # Configuration must never depend on the store, Codex or the watcher: a user
@@ -352,6 +370,20 @@ class BridgeTests(ControlTestCase):
         self.control.update_settings({"retry_timing": "conservative"})
         _code, payload = self.run_bridge("settings")
         self.assertEqual(payload["settings"]["retry_timing"], "conservative")
+
+    def test_the_theme_round_trips_through_the_bridge_the_window_uses(self):
+        code, payload = self.run_bridge("update", json.dumps({"theme": "dark"}))
+        self.assertEqual(code, 0)
+        self.assertEqual(payload["settings"]["theme"], "dark")
+        self.assertEqual(self.control.get_settings()["theme"], "dark")
+        _code, payload = self.run_bridge("describe")
+        entry = next(entry for entry in payload["schema"] if entry["name"] == "theme")
+        self.assertEqual((entry["group"], entry["choices"], entry["default"]),
+                         ("appearance", ["system", "light", "dark"], "system"))
+        code, payload = self.run_bridge("update", json.dumps({"theme": "sepia"}))
+        self.assertEqual(code, 1)
+        self.assertIs(payload["ok"], False)
+        self.assertEqual(self.control.get_settings()["theme"], "dark")
 
     def test_rejected_update_reports_a_clean_failure(self):
         code, payload = self.run_bridge("update", json.dumps({"max_no_progress": 99}))

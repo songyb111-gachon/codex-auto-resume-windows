@@ -1,21 +1,80 @@
 # Changelog
 
-## v0.6.4 — One look, a quieter light, and a window that opens at once
+## v0.6.4 — One look in light and dark, a quieter status light, and a window that opens at once
 
 A design and speed release. Recovery decides exactly what it decided in v0.6.3: the same
-classifier, the same gates, the same one watcher that is the only thing allowed to send.
+classifier, the same gates, the same one watcher that is the only thing allowed to send. The one
+new setting, **Theme**, changes how the product looks and nothing it does.
 
 ### One design
 
 - The Dashboard and the notification-area popup now use the materials of the panel in Codex:
   the same raised cards and sunken fields, the same soft shadows, corner radii and controls.
-  Check boxes are switches, state chips have no border, buttons stand out and sink when
-  pressed. The text sizes, the Dashboard's pages and Settings sections, and the popup's layout
-  are unchanged, and so are the notification-area icon and its badge.
+  State chips have no border, and buttons stand out and sink when pressed. The text sizes, the
+  Dashboard's pages and Settings sections, and the popup's layout - apart from where its switches
+  sit, below - are unchanged, and so are the notification-area icon and its badge.
 - The Dashboard's header and footer are floating cards, and the page tabs sit on the canvas.
 - High Contrast: the popup follows it now too - system colours, no shadows, no motion - and
   the panel has a forced-colors style, so its lights, switch knobs and select arrows no longer
   disappear.
+
+### Light and dark
+
+- A new **Theme** setting, first under Settings > Appearance in the Dashboard and in a new
+  Appearance card at the end of the panel: **Use system setting**, the default, **Light** or
+  **Dark**. In the Dashboard and the popup, *Use system setting* follows the app mode Windows is
+  set to (Settings > Personalization > Colors); in the panel it follows Codex's own theme, as the
+  panel always has. **Light** and **Dark** hold on every surface, whatever Windows or Codex use.
+- Because the default follows Windows, on a PC whose apps are set to dark the Dashboard and the
+  popup are dark after this update. Choose **Light** to keep them as they were.
+- Dark is the panel's dark theme, now on all three surfaces: the same palette, cards lifted a
+  step off a near-black canvas by a faint drop shadow and a one-pixel light along their top edge,
+  and the same wells, switches, check boxes, buttons and scroll bars. The Dashboard's title bar
+  goes dark with it, and so does the notification-area icon's right-click menu whenever the popup
+  is dark, on Windows 10 version 1903 and later.
+- High Contrast wins over any theme, on every surface.
+- Some things Windows draws itself stay light in dark: the Dashboard's message boxes - its
+  confirmations and reports - the file dialog of **Export diagnostics...**, a text box's
+  right-click menu and the frame of an open drop-down list. Windows notifications look as Windows
+  draws them, and the notification-area icon and its badge do not change with the theme.
+- Codex can change the theme too: `update_settings` accepts `theme`. The notification-area icon and
+  Reduce motion are still not offered to Codex.
+
+### Changing the language or the theme
+
+- The Dashboard builds its words and colours when it opens. When a Save changes the Interface
+  language or the theme, the window now closes and opens again by itself, in the new language or
+  theme, on the same page and Settings section, in the same place and at the same size - maximized
+  if it was - with the keyboard where it was. It used to say that the change would show the next
+  time it opened.
+- It does the same when either is changed somewhere else while it is open - in the panel, through
+  Codex, on the command line or in another Dashboard window - when Windows switches its apps
+  between light and dark while the theme follows Windows, and when High Contrast is turned on or
+  off.
+- It never reopens over changes that are not saved. A note in the save card then says the window
+  will reopen once you save or discard them, and it reopens as soon as you do. If the new window
+  cannot start, the old one stays open and goes on working.
+- A Save sends the Interface language and the theme only when they were changed on that page, in
+  the Dashboard and in the panel, so saving something else cannot put back a language or a theme
+  that was changed elsewhere in the meantime.
+- The popup and the right-click menu use a new language or theme the next time they open, without
+  a restart of the watcher, and an open popup redraws when Windows switches between light and dark.
+- The panel applies a saved language or theme at once, where it is. To speak any of the nine
+  languages without asking again, it now carries all of their words, which takes the page Codex is
+  served from about 105 KB to about 205 KB.
+
+### Switches and check boxes
+
+- A switch now always turns something that runs on or off: notifications, the notification-area
+  icon, Reduce motion, Run at Windows sign-in, and automatic recovery for one conversation. A check
+  box picks which items of a list apply: which kinds of interruption are recovered and, under the
+  notifications switch, which events notify. A setting is the same kind in the Dashboard and in the
+  panel, and a check box sits to the left of its label everywhere.
+- The check box is new, in the same material: empty, it is a sunken well; ticked, it is filled
+  with the accent and carries a tick; disabled, it is muted; in High Contrast it is drawn in system
+  colours.
+- In the popup, each task's switch has moved to the right end of its row, level with the first
+  line of its label, and the label wraps in the room left of it.
 
 ### The status light
 
@@ -28,8 +87,16 @@ classifier, the same gates, the same one watcher that is the only thing allowed 
 
 ### The window
 
-- It opens at v0.6.2's size, 860 × 600, instead of growing to fit the longest Settings
-  section; a Settings section taller than the window scrolls.
+- It opens at 1000 × 600 instead of growing to fit the longest Settings section: wide enough for
+  the Overview to fit without scrolling in all nine languages at scalings from 100% to 200%, and
+  still inside a 1920 × 1080 screen at 150%. A Settings section taller than the window scrolls.
+- Each Overview card's button sits beside its heading rather than below its content. On Pending,
+  **Why it is waiting** is as tall as the list beside it and scrolls inside its own card, so the
+  page does not.
+- Pages, Settings sections and lists scroll on a soft bar made of the same material instead of
+  Windows' own scroll bar. It shows only while there is more than fits, darkens a step under the
+  pointer, glides unless motion is reduced, brings a control the keyboard moves to into view, and
+  is drawn in system colours in High Contrast.
 - It is faster. Measured at 150% scaling on an empty installation during development: the first painted header went from 1.46-1.54 s to 0.44-0.45 s, later page switches from a median of about
   100 ms (at most 203 ms) to 22 ms (at most 59 ms), the Continuation message section from 222-241 ms
   to 74-82 ms, and the bridge's status check from 341 ms to 168 ms.
@@ -49,6 +116,11 @@ classifier, the same gates, the same one watcher that is the only thing allowed 
   the window at five scalings in all nine languages and reports anything cut off.
 - In the panel, a primary button pressed from the keyboard showed white text on a light
   field, and disabled controls used half-transparent text; they now use readable muted text.
+
+### Documents
+
+- A roadmap, `docs/ROADMAP.md` and its Korean translation, says where the project is heading
+  release by release: a direction, not a promise.
 
 ### Evidence
 

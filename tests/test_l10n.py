@@ -63,6 +63,38 @@ class ShippedCatalogTests(unittest.TestCase):
     def test_the_endonyms_cover_exactly_the_shipped_languages(self):
         self.assertEqual(set(l10n.ENDONYMS), set(l10n.LOCALES))
 
+    def test_every_catalog_has_exactly_the_english_keys(self):
+        """Parity stated directly, beside the bookkeeping above: a key one catalog lacks
+        is an English word in that language, and a key only one has is dead weight."""
+        english = set(l10n._read(l10n.DEFAULT))
+        for locale in l10n.available():
+            with self.subTest(locale):
+                self.assertEqual(set(l10n._read(locale)), english)
+
+    def test_every_theme_choice_and_the_reopen_note_have_words_in_every_language(self):
+        """The theme picker is drawn from the settings schema, so a choice without a label
+        would show its raw value in the middle of a translated card."""
+        from codex_auto_resume import settings
+        wanted = ["field.theme", "help.theme", "note.reopen_pending"]
+        wanted += ["choice.theme." + choice for choice in settings.THEMES]
+        english = l10n._read(l10n.DEFAULT)
+        for locale in l10n.available():
+            table = l10n._read(locale)
+            labels = [table.get("choice.theme." + choice) for choice in settings.THEMES]
+            with self.subTest(locale):
+                for key in wanted:
+                    self.assertIn(key, table)
+                # Three different words: "Light" and "Dark" must never read the same.
+                self.assertEqual(len(set(labels)), len(labels), labels)
+                if locale != l10n.DEFAULT:
+                    self.assertNotEqual(table["choice.theme.system"], english["choice.theme.system"])
+                    self.assertNotEqual(table["note.reopen_pending"], english["note.reopen_pending"])
+        # The help sentence names the choice the way the picker spells it.
+        for locale in l10n.available():
+            table = l10n._read(locale)
+            with self.subTest(locale=locale, key="help.theme"):
+                self.assertIn(table["choice.theme.system"], table["help.theme"])
+
 
 class LoaderTests(unittest.TestCase):
     def setUp(self):

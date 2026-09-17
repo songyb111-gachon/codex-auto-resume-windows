@@ -72,8 +72,9 @@ anything but its exact id, resends an uncertain submission or forces a send.
 
 ### The tools, and which ones Codex asks about
 
-The table describes the v0.6.3 server. The server runs from the installed release, not from
-the plugin you add. An installation on v0.6.0 through v0.6.2 has sixteen tools, without
+The table describes the server from v0.6.4. The server runs from the installed release, not from
+the plugin you add. An installation on v0.6.3 has the same seventeen tools, but its
+`update_settings` does not offer the theme. One on v0.6.0 through v0.6.2 has sixteen tools, without
 `preview_recovery_message`, and its `update_settings` offers only the recovery categories, the
 limits and the notifications: the language and continuation settings do not exist before
 v0.6.3, and neither does a switch for `auth_service_transient`. An installation still on
@@ -100,7 +101,7 @@ the installation directory. The last two are described below the table.
 | `disable_conversation_recovery` | Switches recovery off for one exact conversation, its later interruptions included, and cancels what it has waiting. | no |
 | `resume_auto_recovery` | Undoes a global pause. | yes |
 | `enable_conversation_recovery` | Switches recovery back on for one exact conversation. Nothing is sent; every check still applies. | yes |
-| `update_settings` | Changes user-facing settings: the Interface language, the recovery categories, the limits, the notifications, and the continuation message's language, style and Custom mode. Not the Custom message text itself (below). | yes |
+| `update_settings` | Changes user-facing settings: the Interface language, the recovery categories, the limits, the notifications, the continuation message's language, style and Custom mode, and the theme. Not the Custom message text itself (below). | yes |
 | `restore_default_settings` | Puts every setting back to its recommended value. | yes |
 | `cancel_recovery` | Stops the named interruption and every record that continues it. One that was never sent is cancelled outright; one that may already be in Codex is marked, and the watcher takes back whatever is still queued - a turn already running is not stopped. The conversation itself stays switched on. | yes |
 | `reset_recovery_budget` | Returns an exhausted record to waiting, as above. | yes |
@@ -141,7 +142,8 @@ v0.5.7 and earlier, `update_settings` accepts those two settings as well and is 
 destructive, so it does not request approval through that annotation, and `get_status`
 reports the installation directory as `home`. Nor does `update_settings` offer the two
 preferences that belong to Windows, the notification-area icon (`show_tray`) and Reduce motion
-(`reduce_motion`), which the panel does not show either.
+(`reduce_motion`), which the panel does not show either. From v0.6.4 it does offer the theme,
+the one appearance setting the panel shows.
 
 **Custom message text cannot be written from Codex.** `update_settings` offers
 `custom_message_mode` - one message for every interruption, or one per kind - but neither
@@ -170,9 +172,9 @@ a conversation's title or content. The same holds for command output the skill a
 `open_settings` returns the panel as a `ui://` resource, which Codex renders beneath the tool
 result. It is one self-contained page - no script, stylesheet or font from anywhere else - and
 it draws itself from the settings schema the tool returns, so it shows the fields the settings
-module defines rather than a list of its own. It follows Codex's light or dark theme and its
-reduced-motion preference, in the visual language the Dashboard and the popup share
-([BRAND.md](BRAND.md)). Top to bottom:
+module defines rather than a list of its own. It follows Codex's light or dark theme unless the
+Theme setting chooses one, and Codex's reduced-motion preference, in the visual language the
+Dashboard and the popup share ([BRAND.md](BRAND.md)). Top to bottom:
 
 * **The state**: what the watcher is doing, in a word beside a halo - monitoring, waiting,
   recovering, paused, or needing you when the watcher is not running, which is the only case
@@ -182,13 +184,13 @@ reduced-motion preference, in the visual language the Dashboard and the popup sh
   calls `disable_conversation_recovery` or `enable_conversation_recovery` with the exact thread
   id the row was drawn from, and the row changes only when the tool answers for that same
   thread. Turning it off is confirmed in the panel first, because it cancels what that
-  conversation has waiting; turning it back on adds automation, so Codex may ask. The check box
+  conversation has waiting; turning it back on adds automation, so Codex may ask. The switch
   in the Dashboard and the popup also checks the exact interruption before acting; no MCP tool
   takes both ids, so the panel's switch names the conversation alone.
-* **General**: the Interface language.
-* **Automatic recovery**: pause or resume, which acts at once, the recovery categories, and the
-  limits, folded away.
-* **Notifications**, folded away.
+* **General**: the Interface language. Once a new one is saved, the panel speaks it at once.
+* **Automatic recovery**: pause or resume, which acts at once, a check box for each recovery
+  category, and the limits, folded away.
+* **Notifications**, folded away: the switch for notifications, and a check box for each event.
 * **Continuation message**: the continuation language and the message style. Under *Custom* it
   shows which stored message is used and what it says, read-only, with a note that Custom
   messages are written in the Windows Dashboard. The page has no text field for them, and
@@ -196,7 +198,10 @@ reduced-motion preference, in the visual language the Dashboard and the popup sh
 * **Preview**: the exact text for a chosen kind of interruption, from
   `preview_recovery_message`, following the language and style chosen but not yet saved. The
   page never assembles a continuation of its own.
-* **Save**, for the settings above that wait for it.
+* **Appearance**: the theme - Use system setting, Light or Dark. Once a new one is saved, the
+  panel draws itself in it at once.
+* **Save**, for the settings above that wait for it. It sends the Interface language and the
+  theme only when they were changed in the panel, so a save cannot put back one changed elsewhere.
 
 Where the host gives the page no way to call tools, it is a read-only summary and says so.
 
@@ -564,7 +569,7 @@ the moment the interruption is recorded, whether or not Codex is open, with **Do
 and **Open Dashboard**, which opens the Pending page and can do nothing else.
 
 **D — the notification-area popup.** A single click on the watcher's icon opens a compact popup
-listing what is waiting; each task has its own check box, *Automatically resume this task when the
+listing what is waiting; each task has its own switch, *Automatically resume this task when the
 limit resets* (or *Automatically retry this task*), bound to that task's interruption and
 conversation ids.
 

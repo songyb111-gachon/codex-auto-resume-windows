@@ -230,13 +230,13 @@ longer includes the install path.
   Overview, Pending, History, Statistics, Diagnostics or Settings - and opens it. It changes no
   state and cannot cause a send, so a page that knows the scheme can at worst open a window.
   Anything else is logged as unsupported and ignored.
-- **Front ends ask; the watcher alone sends.** New in v0.6.3. The **Auto-resume** check box
+- **Front ends ask; the watcher alone sends.** New in v0.6.3. The **Auto-resume** switch
   beside each task, on the Pending page and in the notification-area popup, carries the exact
   interruption id and conversation id of the row it was drawn in. When the click arrives, the
   control layer reads the record again and refuses one that no longer exists, has finished,
   or belongs to a different conversation, and a refused click changes nothing - so a list that
   re-sorted between drawing and clicking cannot turn a click on one task into a change to
-  another. What the box changes is that conversation's switch, which is policy: it sends
+  another. What it changes is that conversation's switch, which is policy: it sends
   nothing, and turning it on leaves every gate to run. The popup runs inside the watcher
   process, on the notification-area icon's thread, and is a front end like the Dashboard: it
   asks the control layer for four things only - the pending list, the status, the global

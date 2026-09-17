@@ -414,7 +414,7 @@ def finished_while_open(snapshot: dict, now: float) -> dict:
     History, so Recently finished is rebuilt on a page that is already laid out."""
     later = copy.deepcopy(snapshot)
     fresh = copy.deepcopy(snapshot["history"][-1])
-    fresh.update(interruption_id="8" * 64, thread_id="00000008-0000-7000-8000-000000000000",
+    fresh.update(interruption_id="8" * 64, thread_id="88888888-8888-7888-8888-888888888888",
                  name="a-conversation-that-finished-while-the-window-was-open", code="recovered", state="recovered",
                  outcome_at=now - 20 * 60, detected_at=now - 30 * 60)
     waiting = len(snapshot["pending"])
@@ -932,7 +932,9 @@ class LayoutAuditTests(unittest.TestCase):
         for locale in l10n.LOCALES:
             (work / ("strings-%s.json" % locale)).write_text(
                 json.dumps(reply(locale, l10n.catalog(locale)), ensure_ascii=False), encoding="utf-8")
-        canary = dict(l10n.catalog("en"), **{"field.theme": "W" * 400})
+        # And a reopen note no save card could hold, which the audit shows at the window's narrowest.
+        canary = dict(l10n.catalog("en"), **{"field.theme": "W" * 400,
+                                              "note.reopen_pending": " ".join(["The window reopens."] * 60)})
         (work / "strings-canary.json").write_text(json.dumps(reply("en", canary)), encoding="utf-8")
         cramped = dict(l10n.catalog("en"), **{"overview.waiting_count": " ".join(["{n} waiting"] * 60)})
         (work / "strings-cramped.json").write_text(json.dumps(reply("en", cramped)), encoding="utf-8")
@@ -977,6 +979,8 @@ class LayoutAuditTests(unittest.TestCase):
     def test_the_audit_finds_what_does_not_fit(self):
         self.assertIn("Label'WWWW", self.answer["canary"],
                       "a 400-character label went unreported, so an empty report proves nothing")
+        self.assertIn("reopen note at ", self.answer["canary"],
+                      "a note sixty sentences long went unreported, so a quiet report on the note proves nothing")
 
     def test_the_audit_finds_an_overview_that_would_scroll(self):
         """The fullest Overview in every language at every scaling is in the first test's empty

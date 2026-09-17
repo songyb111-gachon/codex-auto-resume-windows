@@ -167,6 +167,27 @@ def dimensions(path: Path) -> str:
 
 
 # --------------------------------------------------------------------- sample data
+def sample_settings() -> dict:
+    """The stored settings every picture is drawn from: the defaults, in the pinned THEME.
+
+    Stored, because storing is the only way the window can be given a theme. It resolves the stored
+    Theme when it starts, and the default, Use system setting, follows Windows' app mode - so a
+    scratch installation holding the plain defaults was photographed dark on a machine in dark mode,
+    beside light panel and popup pictures and under a manifest that said light. `--theme` is no way
+    round it either: the window's first settings read reopens it in the stored theme.
+    """
+    return dict(policy.defaults(), theme=THEME)
+
+
+def write_settings(home: Path) -> Path:
+    """Write `sample_settings()` where the window, the bridge and the watcher all read them."""
+    state = home / "config"
+    state.mkdir(parents=True, exist_ok=True)
+    target = state / "settings.json"
+    target.write_text(json.dumps(sample_settings(), indent=2), encoding="utf-8")
+    return target
+
+
 def sample_panel_data() -> dict:
     """What the panel is showing in the picture, produced by the product itself.
 
@@ -238,7 +259,7 @@ def sample_panel_data() -> dict:
     # The rest of what `open_settings` returns, so the language choices and the Preview are
     # drawn the way Codex draws them. The system language is pinned to the page's own.
     return {"status": status, "schema": policy.describe(),
-            "settings": policy.defaults(), "pending": waiting,
+            "settings": sample_settings(), "pending": waiting,
             "reasons": list(reasons.RECOVERABLE), "endonyms": dict(l10n.ENDONYMS),
             "system_language": l10n.current()}
 
@@ -498,6 +519,7 @@ def render_popup(target: Path, locale: str) -> None:
     from codex_auto_resume import tray_popup
     strings, view = popup_view(locale)
     renderer = tray_popup.Renderer()
+    renderer.theme = THEME                      # said, not left to the renderer's default
     try:
         plan = renderer.layout(view, POPUP_SCALE, tray_popup.locale_of(strings))
         canvas = renderer.draw(view, plan, frame=tray_popup.halo(view["state"], 600, 5000))
@@ -529,10 +551,10 @@ def scratch_installation(workspace: Path) -> Path:
     # installation without it is photographed wearing the default Windows icon.
     shutil.copyfile(ROOT / "assets" / "codex-auto-resume.ico", home / "codex-auto-resume.ico")
 
-    # Recovery on, so the window shows the state it is in when it is doing its job.
-    state = home / "config"
-    state.mkdir(parents=True, exist_ok=True)
-    (state / "settings.json").write_text(json.dumps(policy.defaults(), indent=2), encoding="utf-8")
+    # The defaults in the pinned theme (see `sample_settings`); recovery itself is switched on
+    # through the engine in `render_window`, so the window shows the state it is in when it is
+    # doing its job.
+    write_settings(home)
     return home
 
 
@@ -705,9 +727,11 @@ def system_dpi() -> int:
 #
 # Light, because the dark theme is the one that follows the reader's machine and a
 # gallery mixing a light notification with a dark panel does not look like one product.
-# The runtime still follows the user's Windows and Codex themes; only the pictures are
-# pinned, and only so that a build on a machine in dark mode produces the same bytes as a
-# build on a machine in light mode.
+# The runtime still follows the user's Theme setting, and with it Windows and Codex; only the
+# pictures are pinned, and only so that a build on a machine in dark mode produces the same
+# bytes as a build on a machine in light mode. Each surface is told in its own way: the panel
+# is served with the theme pinned, the popup's renderer is set to it, and the window's scratch
+# installation stores it as the Theme setting (`sample_settings`).
 THEME = "light"
 LOCALES = ("en", "ko")
 # Three more languages, documentation only: the Dashboard's main pages, the panel and the

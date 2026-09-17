@@ -521,16 +521,16 @@ contained, no Custom message you typed, and no screenshot.
 | The header's activity states, and Reduce motion | Step 8 | `dashboard-shows-it` |
 | The panel in Codex: Preview, and Custom text it cannot change | Step 8 | `dashboard-shows-it` |
 | A stale click refused | Step 9 | `cancel` |
-| Pending's Auto-resume box | Step 10 | `retry-now` |
+| Pending's Auto-resume switch | Step 10 | `retry-now` |
 | Cancel all | After step 12 | `upgrade-keeps-decisions` |
 
 **Interface language — step 3, noted in `watcher-starts`.** If `CODEX_AUTO_RESUME_LANG` is
 set in your environment it overrides the setting, so remove it first. On **Settings →
-General**, set **Interface language** to a language Windows is not using; the window says
-that anything already open changes the next time it opens. Close and reopen the Dashboard,
-open the popup, and hover over the icon. Then stop the watcher from the menu, start it again
-from the window, and sign out and back in. Set it back to **System** at the end. *A pass:*
-everything opened after the change speaks the chosen language, the choice is still there
+General**, set **Interface language** to a language Windows is not using and save; the window
+closes and opens again by itself, in that language and on the same section. Open the popup, and
+hover over the icon. Then stop the watcher from the menu, start it again from the window, and
+sign out and back in. Set it back to **System** at the end. *A pass:* the window reopened once,
+in the chosen language, everything opened after the change speaks it, the choice is still there
 after the watcher restart and the sign-in, and **System** brings back the first language
 Windows lists.
 
@@ -597,17 +597,17 @@ in the panel left the Custom message as it was.
 changed between being drawn and being clicked, and that must not be arranged by editing
 anything. The popup reads its list again every few seconds, so the moment is short: open the
 popup on the task step 9 is about, cancel that task on the Pending page as step 9 says, and
-at once click the task's box in the popup. The Pending page's own box can show the same
+at once click the task's switch in the popup. The Pending page's own switch can show the same
 refusal only when a task changes inside the five seconds between its refreshes, for example
 as its schedule comes round. *A pass:* the popup says *That task changed before the click
 reached it, so nothing was done*, and the record is exactly as the cancel left it. If a
 surface redrew first and the row had gone, write that the refusal was not seen; that is not
 a failure of the step.
 
-**Pending's Auto-resume box — step 10, noted in `retry-now`.** With the record waiting,
-clear its **Auto-resume** box on the Pending page, then tick it again, and look at the same
-task in the popup each time. *A pass:* nothing is sent for that task while the box is clear;
-ticking it again sends nothing because of the click and moves no schedule; the conversation
+**Pending's Auto-resume switch — step 10, noted in `retry-now`.** With the record waiting,
+turn its **Auto-resume** switch off on the Pending page, then on again, and look at the same
+task in the popup each time. *A pass:* nothing is sent for that task while the switch is off;
+turning it on again sends nothing because of the click and moves no schedule; the conversation
 is not switched off; and the popup shows the same state once it has read the list again.
 Note the code before and after each click.
 

@@ -398,6 +398,64 @@ class ContentTests(unittest.TestCase):
         for name in make_screenshots.WINDOW_NAMES:
             self.assertTrue(name.startswith("example-"), name)
 
+    def test_every_surface_is_drawn_in_the_pinned_theme(self):
+        """The window resolves the stored Theme when it starts, and the default - Use system
+        setting - follows Windows' app mode. A scratch installation that stored the defaults was
+        photographed dark on a machine in dark mode, beside light panel and popup pictures, under a
+        manifest that said light. Passing `--theme` is no way round it: the window's first settings
+        read reopens it in the stored theme. So the theme is stored, for every surface alike."""
+        import inspect
+        import sys
+        import tempfile
+        from unittest.mock import patch
+        sys.path.insert(0, str(ROOT / "build"))
+        sys.path.insert(0, str(ROOT / "src"))
+        try:
+            import make_screenshots
+            from codex_auto_resume import settings as policy
+            from codex_auto_resume import tray_popup
+        finally:
+            sys.path.pop(0)
+            sys.path.pop(0)
+        theme = make_screenshots.THEME
+        self.assertEqual(theme, self.manifest["theme"])
+        self.assertIn(theme, ("light", "dark"), "a picture cannot follow the machine it is made on")
+        # The window: what its scratch installation stores, read back the way the product reads it.
+        with tempfile.TemporaryDirectory() as scratch:
+            home = Path(scratch)
+            make_screenshots.write_settings(home)
+            stored = policy.load(home / "config" / "settings.json")
+            raw = json.loads((home / "config" / "settings.json").read_text(encoding="utf-8"))
+        self.assertEqual((stored["theme"], raw["theme"]), (theme, theme))
+        self.assertEqual({k: v for k, v in stored.items() if k != "theme"},
+                         {k: v for k, v in policy.defaults().items() if k != "theme"},
+                         "otherwise the pictures show the defaults")
+        self.assertIn("write_settings(home)", inspect.getsource(make_screenshots.scratch_installation))
+        self.assertNotIn("policy.defaults()", inspect.getsource(make_screenshots.scratch_installation))
+        self.assertNotIn("--theme", inspect.getsource(make_screenshots.render_window))
+        # The panel: served pinned, and its sample's own Theme control says the same.
+        self.assertEqual(make_screenshots.sample_panel_data()["settings"]["theme"], theme)
+        self.assertIn('data-theme="%s" data-theme-pinned=""' % theme, make_screenshots.panel_html(theme=theme))
+        # The popup: its renderer is told, rather than trusted to default to it.
+        seen = []
+
+        class Renderer:
+            theme = "unset"
+
+            def layout(self, view, scale, locale):
+                seen.append(self.theme)
+                return {"size": (1, 1)}
+
+            def draw(self, view, plan, frame=None):
+                return type("Canvas", (), {"pixels": lambda canvas: bytes(4)})()
+
+            def close(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as scratch, patch.object(tray_popup, "Renderer", Renderer):
+            make_screenshots.render_popup(Path(scratch) / "popup.png", "en")
+        self.assertEqual(seen, [theme])
+
     def test_the_sample_version_comes_from_the_manifest(self):
         """The whole point: change plugin.json and the picture's version follows."""
         import sys

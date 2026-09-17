@@ -196,8 +196,10 @@ running (process id, parent and executable path), to find the desktop app; and, 
 Restart Manager, which process has the conversation's lock file open, to tell whether the
 conversation is open in the app. The rest are content-free too: the path and start time of a
 process it found, to confirm it is still the same one; the per-user registry values it
-registered itself; and the integrity level of the watcher's single-instance mutex and stop
-event, a check that is new in v0.6.0.
+registered itself; whether High Contrast is on and, from v0.6.4, whether Windows is set to show
+apps light or dark - the per-user `AppsUseLightTheme` value, which it reads and never writes - so
+the Dashboard, the popup and its menu can be drawn to match; and the integrity level of the
+watcher's single-instance mutex and stop event, a check that is new in v0.6.0.
 
 No decision rests on the text of your messages, except whether one of them carries this
 tool's own marker (below). It never selects the `title`, `preview` or

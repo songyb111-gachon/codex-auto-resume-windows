@@ -23,6 +23,11 @@ Four rules shape this file, and the tests hold it to each of them.
   and every message is handled inside a `try` that logs the exception's class name and
   carries on, exactly as `tray.py` does.
 
+Since v0.6.4 it draws in the Theme setting - light, dark, or Windows' app mode - with brand's
+dark palette and dark elevation when dark, so it looks like the panel in Codex does in dark, and
+High Contrast outranks any theme. A language or theme stored while the watcher runs is what it
+shows the next time it opens (`theme_setting`, `vocabulary`, `Popup.follow_settings`).
+
 The file is in two halves. The top half is pure - wording, ordering, placement, hit
 testing, focus order, motion, the icon badge's pixels, the shape of every shadow - and is
 tested on any platform.
@@ -48,6 +53,9 @@ WIDTH = 360                  # device-independent pixels at 96 DPI: the card and
 # is exactly as wide as it was.
 SHADOW_MARGIN = 20
 MARK = 22                    # the box the state dot sits in, beside the product's name
+# v0.6.4: a task's switch is at the right of its row, as the panel's is, and this far from the
+# end of its label's column (the panel's `.prow-switch` gap).
+SWITCH_GAP = 10
 MAX_TASKS = 3
 REFRESH_TICKS = 3            # re-read the list every third one-second tick while visible
 NOTICE_SECONDS = 4.0
@@ -656,6 +664,44 @@ def contrast_colour(token) -> str:
     return CONTRAST_COLOURS.get(token, "WindowText")
 
 
+# --------------------------------------------------------------------------------- theme
+# v0.6.4. The Theme setting is "system", "light" or "dark". "system" follows Windows' app mode
+# (AppsUseLightTheme: 0 is dark, anything else or nothing at all is light), and High Contrast
+# outranks every choice. The popup resolves it each time it opens, again whenever Windows says a
+# setting changed while it is open, and whenever it reads the settings - so a new choice, or a
+# flip of Windows' mode, never needs the watcher restarted. The icon and its badge do not change.
+THEME_SYSTEM = "system"
+THEME_CHOICES = (THEME_SYSTEM,) + brand.THEMES
+
+
+def theme_choice(value) -> str:
+    """The stored choice as one of THEME_CHOICES; anything else is "system", as settings reads it."""
+    return value if isinstance(value, str) and value in THEME_CHOICES else THEME_SYSTEM
+
+
+def effective_theme(choice, apps_use_light=None) -> str:
+    """"light" or "dark": a choice of either, or for "system" what Windows' app mode says.
+
+    `apps_use_light` is True, False, or None when Windows does not say - which Windows itself
+    draws as light, so only an explicit False is dark.
+    """
+    choice = theme_choice(choice)
+    if choice != THEME_SYSTEM:
+        return choice
+    return "dark" if apps_use_light is False else "light"
+
+
+def appearance(choice, apps_use_light=None, contrast=False) -> str:
+    """What the popup draws with: "contrast" whenever High Contrast is on, else the theme."""
+    return "contrast" if contrast else effective_theme(choice, apps_use_light)
+
+
+def vocabulary(language) -> dict:
+    """The catalog a stored Interface language speaks, resolved exactly as the watcher resolves it."""
+    chosen = language if isinstance(language, str) and language in l10n.CHOICES else l10n.SYSTEM
+    return l10n.catalog(l10n.resolve(chosen))
+
+
 # ------------------------------------------------------------------------------- layout
 def layout(vm, scale, measure, width=WIDTH) -> dict:
     """Every rectangle the window draws, in device pixels, and the height it needs.
@@ -749,17 +795,21 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
                          "text": task["status"], "colour": "muted", "wrap": True, "align": "left",
                          "target": None})
         line += status_h + px(space["s"]) + px(2)
-        # The panel's switch rather than a check box: a pill, centred on its label's first line.
+        # A switch, because it turns this conversation's automatic recovery on or off. Since v0.6.4
+        # it is where the panel puts it: the label on the left, wrapping in what the switch leaves of
+        # the line, and the switch against the row's inner right edge - under the chip - centred on
+        # the label's first line. The whole line is still the one thing a click or a key presses.
         track_w, track_h = px(brand.LAYOUT["switch_width"]), px(brand.LAYOUT["switch_height"])
-        label_left = x0 + track_w + px(space["s"])
-        _, label_h = measure("body", task["check_label"], x1 - label_left, True)
+        track_left = x1 - track_w
+        label_right = track_left - px(SWITCH_GAP)
+        _, label_h = measure("body", task["check_label"], label_right - x0, True)
         _, first_line = measure("body", "Ag", content, False)
         track_top = line + max(0, (first_line - track_h) // 2)
         label_top = line + max(0, (track_h - first_line) // 2)
         check_h = max(track_top + track_h, label_top + label_h) - line
-        contents.append({"kind": "switch", "rect": (x0, track_top, x0 + track_w, track_top + track_h),
+        contents.append({"kind": "switch", "rect": (track_left, track_top, x1, track_top + track_h),
                          "checked": task["checked"], "busy": task["busy"], "target": target})
-        contents.append({"kind": "text", "rect": (label_left, label_top, x1, label_top + label_h),
+        contents.append({"kind": "text", "rect": (x0, label_top, label_right, label_top + label_h),
                          "role": "body", "text": task["check_label"], "colour": "ink", "wrap": True,
                          "align": "left", "target": target})
         hit = (x0 - px(4), line - px(4), x1 + px(4), line + check_h + px(4))
@@ -867,6 +917,12 @@ TME_LEAVE = 0x2
 SPI_GETCLIENTAREAANIMATION = 0x1042
 SPI_GETHIGHCONTRAST, HCF_HIGHCONTRASTON = 0x0042, 0x1
 DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND = 33, 2
+# Windows 11 draws a hairline round a rounded popup in the app mode's colour unless told the
+# window is dark; 20 since Windows 10 20H1, 19 on the builds before it.
+DWMWA_USE_IMMERSIVE_DARK_MODE, DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 = 20, 19
+HKEY_CURRENT_USER, RRF_RT_REG_DWORD = 0x80000001, 0x00000010
+PERSONALIZE_KEY = "Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize"
+APP_MODE_VALUE = "AppsUseLightTheme"
 DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = -4
 DT_CENTER, DT_VCENTER, DT_WORDBREAK, DT_SINGLELINE = 0x1, 0x4, 0x10, 0x20
 DT_CALCRECT, DT_NOPREFIX, DT_EDITCONTROL, DT_END_ELLIPSIS = 0x400, 0x800, 0x2000, 0x8000
@@ -1020,6 +1076,8 @@ def _declare():
         _signature(gdi32.CreateRoundRectRgn, H, I, I, I, I, I, I)
         _signature(gdi32.GetDIBits, I, H, H, U, U, H, C.POINTER(BITMAPINFO), U)
         _signature(gdi32.CreateBitmap, H, I, I, U, U, H)
+        _signature(_dll("advapi32").RegGetValueW, C.c_long, H, W.LPCWSTR, W.LPCWSTR, D, H,
+                   C.POINTER(W.DWORD), C.POINTER(W.DWORD))
         _signature(kernel32.GetModuleHandleW, H, W.LPCWSTR)
         _signature(kernel32.GetCurrentProcess, H)
         _signature(gdiplus.GdiplusStartup, I, C.POINTER(C.c_size_t), C.POINTER(GdiplusStartupInput), H)
@@ -1081,6 +1139,41 @@ _reduce_motion_setting = False
 def set_reduce_motion(value) -> None:
     global _reduce_motion_setting
     _reduce_motion_setting = value is True
+
+
+# The product's Theme setting, adopted the same way: by the watcher when it reads its settings,
+# by the icon each time somebody opens the popup or its menu, and by the popup from every read.
+_theme_setting = THEME_SYSTEM
+
+
+def set_theme(value) -> None:
+    global _theme_setting
+    _theme_setting = theme_choice(value)
+
+
+def theme_setting() -> str:
+    return _theme_setting
+
+
+def adopt_settings(values) -> None:
+    """Take up the stored Theme and Reduce motion from a settings dict; anything else is ignored."""
+    if isinstance(values, dict):
+        set_theme(values.get("theme"))
+        set_reduce_motion(values.get("reduce_motion"))
+
+
+def apps_use_light_theme():
+    """Windows' app mode: True for light, False for dark, None when Windows does not say."""
+    try:
+        _declare()
+        data, size = W.DWORD(0), W.DWORD(C.sizeof(W.DWORD))
+        status = _dll("advapi32").RegGetValueW(C.c_void_p(HKEY_CURRENT_USER), PERSONALIZE_KEY, APP_MODE_VALUE,
+                                               RRF_RT_REG_DWORD, None, C.byref(data), C.byref(size))
+        if status != 0:
+            return None
+        return data.value != 0
+    except Exception:
+        return None
 
 
 def reduced_motion() -> bool:
@@ -1522,8 +1615,9 @@ class Renderer:
             raise
         self.fonts = None
         self.contrast = False            # High Contrast: system colours, and no shadow, tint or glow
-        self._images = {}                # this scale's shadow images, by shape, colour and strength
-        self._images_scale = None
+        self.theme = "light"             # v0.6.4: "light" or "dark", as the window resolved it
+        self._images = {}                # this scale and theme's shadow images, by shape, theme, colour, strength
+        self._images_look = None
         self._ground_key = None
         self._ground_pixels = None
         self._halo_band = None
@@ -1634,10 +1728,17 @@ class Renderer:
         return self._halo_plan
 
     # ------------------------------------------------------------------ colours
+    def _theme(self):
+        """The theme the colours come from: brand's name for it, and light for anything unknown."""
+        return self.theme if self.theme in brand.THEMES else "light"
+
+    def _tokens(self):
+        return brand.palette(self._theme())
+
     def _rgb(self, token):
         if self.contrast:
             return system_rgb(contrast_colour(token))
-        return brand.rgb(brand.LIGHT[token])
+        return brand.rgb(self._tokens()[token])
 
     def _argb(self, token, alpha=1.0):
         return _pack(self._rgb(token), alpha)
@@ -1662,7 +1763,7 @@ class Renderer:
         The canvas, the card and its lift, the task rows, rules, chips, notes and switches, and
         the lift under each button. None of it changes on a one-second tick, so a tick costs a
         memory copy; hovering changes only a face. A press takes a button's lift away, so a
-        press is part of the key.
+        press is part of the key, and so is the theme every colour in it comes from.
         """
         canvas, scale = self.canvas, plan["scale"]
         self._use_scale(scale)
@@ -1674,7 +1775,7 @@ class Renderer:
             elif kind not in ("text", "focusable", "halo"):
                 parts.append((kind, item["rect"], item.get("radius"), item.get("tone"), item.get("checked"),
                               item.get("busy")))
-        key = (plan["size"], scale, self._system_key(), tuple(parts))
+        key = (plan["size"], scale, self._theme(), self._system_key(), tuple(parts))
         if self._ground_key == key and self._ground_pixels is not None:
             C.memmove(canvas.bits, self._ground_pixels, len(self._ground_pixels))
             return
@@ -1689,9 +1790,14 @@ class Renderer:
         kind = item["kind"]
         hairline = max(1.0, round(scale))
         if kind == "card":
+            # The panel's card: its lift, its ground (dark lifts it a step toward `raised`), dark's
+            # one-pixel top light inside the border, and the hairline.
             rect, radius = item["rect"], item["radius"]
             self._lift(paint, "card", rect, radius, scale)
-            paint.fill_round(rect, radius, self._argb("surface"))
+            ground = (self._argb("surface") if self.contrast
+                      else _pack(brand.rgb(brand.card_ground(self._theme()))))
+            paint.fill_round(rect, radius, ground)
+            self._inner(paint, "card", rect, radius, scale)
             paint.stroke_round(rect, radius, self._argb("line"), hairline)
         elif kind == "panel":
             # A task row is a tile, as in the panel: raised, a hairline, and no shadow of its own.
@@ -1709,7 +1815,8 @@ class Renderer:
             else:
                 # Its tone mixed into the card's colour, whatever it sits on, and no edge: the same
                 # ground on a raised row as on the card.
-                ground = brand.mix(brand.LIGHT["surface"], brand.LIGHT[item["tone"]], CHIP_ALPHA)
+                tokens = self._tokens()
+                ground = brand.mix(tokens["surface"], tokens[item["tone"]], CHIP_ALPHA)
                 paint.fill_round(rect, radius, _pack(brand.rgb(ground)))
         elif kind == "switch":
             self._switch(paint, item, scale)
@@ -1718,10 +1825,12 @@ class Renderer:
 
     # ------------------------------------------------------------------ materials
     def _use_scale(self, scale):
-        """Shadow images are kept for one scale only, so a change of display cannot grow them."""
-        if self._images_scale != scale:
+        """Shadow images are kept for one scale and one theme only, so neither a change of display nor
+        a flip of the theme can grow them."""
+        look = (scale, self._theme())
+        if self._images_look != look:
             self._drop_images()
-            self._images_scale = scale
+            self._images_look = look
 
     def _drop_images(self):
         for image in self._images.values():
@@ -1729,27 +1838,40 @@ class Renderer:
         self._images = {}
 
     def _image(self, mask, shadow):
-        key = (mask["key"], shadow.token, shadow.alpha)
+        # The theme is part of the key as well as the reason the images are dropped: a shadow's
+        # token is a different colour in each theme, and an image is that colour baked in.
+        theme = self._theme()
+        key = (mask["key"], theme, shadow.token, shadow.alpha)
         image = self._images.get(key)
         if image is None:
-            image = self._images[key] = _ShadowImage(mask, brand.rgb(brand.LIGHT[shadow.token]), shadow.alpha)
+            image = self._images[key] = _ShadowImage(mask, brand.rgb(brand.palette(theme)[shadow.token]),
+                                                     shadow.alpha)
         return image
 
     def _lift(self, paint, recipe, rect, radius, scale):
-        """A raised body's shadows, the last listed first as CSS paints them; the body goes on top."""
+        """A raised body's outer shadows, the last listed first as CSS paints them; the body goes on top.
+
+        Read from the theme's recipe shadow by shadow: dark's card mixes two drops with an inset top
+        light, which `_inner` draws once the body is filled.
+        """
         if self.contrast:
             return
         left, top, right, bottom = (int(value) for value in rect)
-        for shadow in reversed(brand.SHADOWS["light"][recipe]):
+        for shadow in reversed(brand.shadows(recipe, self._theme())):
+            if shadow.inset:
+                continue
             image = self._image(lift_coverage(right - left, bottom - top, radius, shadow.blur * scale), shadow)
             extent = image.extent
             image.stamp(paint, left - extent + shadow_step(shadow.dx * scale),
                         top - extent + shadow_step(shadow.dy * scale),
                         right - left + 2 * extent, bottom - top + 2 * extent, middle=False)
 
-    def _well(self, paint, rect, radius, scale):
-        """The inset recipe inside a body's border: shade in from the top left, light from the bottom right."""
+    def _inner(self, paint, recipe, rect, radius, scale):
+        """A recipe's inset shadows inside a body's border, over its fill, as CSS paints them."""
         if self.contrast:
+            return
+        inset = [shadow for shadow in reversed(brand.shadows(recipe, self._theme())) if shadow.inset]
+        if not inset:
             return
         border = int(max(1.0, round(scale)))
         left, top, right, bottom = (int(value) for value in rect)
@@ -1757,9 +1879,14 @@ class Renderer:
         if width <= 0 or height <= 0:
             return
         inner = max(0.0, radius - border)
-        for shadow in reversed(brand.SHADOWS["light"]["inset"]):
+        for shadow in inset:
             mask = well_coverage(width, height, inner, shadow.blur * scale, shadow.dx * scale, shadow.dy * scale)
             self._image(mask, shadow).stamp(paint, left + border, top + border, width, height)
+
+    def _well(self, paint, rect, radius, scale):
+        """The inset recipe inside a body's border: in light, shade in from the top left and light from
+        the bottom right; in dark, one soft shade along the inside of the top."""
+        self._inner(paint, "inset", rect, radius, scale)
 
     def _switch(self, paint, item, scale):
         """The panel's switch: a well with a quiet knob when off, the accent with a white knob when on."""
@@ -1830,7 +1957,7 @@ class Renderer:
         fill = DOT_FILL.get(state, "idle")
         if frame is not None:
             paint.glow(cx, cy, brand.glow_radius(dot, frame["scale"]) * scale, brand.glow_stops(dot),
-                       brand.rgb(brand.LIGHT[fill]), frame["opacity"])
+                       self._rgb(fill), frame["opacity"])
         paint.fill_circle(cx, cy, dot * scale, self._argb(fill))
         if arc is not None:
             paint.arc(cx, cy, arc_radius, arc, light["arc_sweep"], self._argb("active", light["arc_alpha"]),
@@ -1894,6 +2021,8 @@ def badge_icon(base_icon, token):
             mask = _read_pixels(mask_bitmap, width, height) if mask_bitmap else None
             for index in range(3, len(pixels), 4):
                 pixels[index] = 0 if mask is not None and mask[index - 3] else 255
+        # Always the light palette: the icon and its badge are the same whatever the Theme setting,
+        # because the taskbar they sit on is Windows' to colour, not this product's.
         composite_badge(pixels, width, height, brand.rgb(brand.LIGHT[token]))
         return _icon_from_pixels(pixels, width, height)
     finally:
@@ -1994,6 +2123,9 @@ class Popup:
         self._epoch = time.monotonic()
         self._reduced = False
         self._contrast = False
+        self._apps_light = None          # Windows' app mode when last asked: True, False or None
+        self._theme = "light"            # the theme in effect: the setting, resolved against that mode
+        self._framed_dark = None         # what DWM was last told about the window's frame
         self._tracking = False
         self._strings = None
         self._static_dirty = True        # anything but the halo changed since the last frame
@@ -2044,6 +2176,7 @@ class Popup:
             self._renderer = None
         self._plan = self._vm = None
         self._static_dirty = True
+        self._framed_dark = None
         if self._class:
             user32.UnregisterClassW(self._class, _dll("kernel32").GetModuleHandleW(None))
             self._class = None
@@ -2083,8 +2216,7 @@ class Popup:
         self.keyboard = keyboard
         self.hover = self.pressed = None
         self.focus = None
-        self._contrast = high_contrast()
-        self._reduced = reduced_motion() or self._contrast       # High Contrast moves nothing either
+        self._read_look()
         self._request_read()
         if self.model.rows is None and self.model.status is None and self.control is not None:
             self._pending_show = (activate, origin)
@@ -2107,6 +2239,56 @@ class Popup:
             self.hidden_at = time.monotonic()
         self.hover = self.pressed = self.focus = None
         self._painted_plan = None
+
+    # ------------------------------------------------------------------- appearance
+    def _read_look(self):
+        """Ask Windows again how to draw: High Contrast, its app mode and its motion setting.
+
+        On every opening and whenever Windows says a setting changed, never per frame. High
+        Contrast moves nothing either, and outranks the theme when drawing.
+        """
+        self._contrast = high_contrast()
+        self._apps_light = apps_use_light_theme()
+        self._reduced = reduced_motion() or self._contrast
+        self._theme = effective_theme(theme_setting(), self._apps_light)
+
+    def _follow_theme(self):
+        """The theme for the setting as it is now and the app mode last read; a change redraws everything."""
+        theme = effective_theme(theme_setting(), self._apps_light)
+        if theme != self._theme:
+            self._theme = theme
+            self._static_dirty = True
+
+    def _frame_theme(self):
+        """Tell DWM whether the window is dark, so the hairline Windows 11 draws round it matches."""
+        dark = appearance(self._theme, contrast=self._contrast) == "dark"
+        if not self.hwnd or dark == self._framed_dark:
+            return
+        self._framed_dark = dark
+        try:
+            value = C.c_int(1 if dark else 0)
+            dwm = _dll("dwmapi")
+            _signature(dwm.DwmSetWindowAttribute, C.c_long, C.c_void_p, W.DWORD, C.c_void_p, W.DWORD)
+            for attribute in (DWMWA_USE_IMMERSIVE_DARK_MODE, DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1):
+                if dwm.DwmSetWindowAttribute(self.hwnd, attribute, C.byref(value), C.sizeof(value)) == 0:
+                    break
+        except Exception:
+            pass                                   # a frame that stays light is not worth a failure
+
+    def follow_settings(self, values):
+        """Take up what a read of the stored settings says: the language, the theme, Reduce motion.
+
+        The icon hands over the same things before each opening; this is for a change made while
+        the popup is open, which then shows within one read.
+        """
+        if not isinstance(values, dict):
+            return
+        adopt_settings(values)
+        strings = vocabulary(values.get("interface_language"))
+        with self._lock:
+            if strings != (self._strings if self._strings is not None else self.model.strings):
+                self._strings = strings                    # applied by the next rebuild, as set_strings is
+        self._reduced = reduced_motion() or self._contrast
 
     # ------------------------------------------------------------------- presenting
     def _round_corners(self):
@@ -2163,6 +2345,7 @@ class Popup:
             order = focus_order(plan["targets"])
             self.focus = order[0] if order else None
         self._move(plan, origin)
+        self._frame_theme()
         self.visible = True
         user32.InvalidateRect(self.hwnd, None, False)
         user32.ShowWindow(self.hwnd, SW_SHOW if activate else SW_SHOWNOACTIVATE)
@@ -2193,6 +2376,7 @@ class Popup:
         if strings is not None:
             self.model.strings = strings
             self.locale = locale_of(strings)
+        self._follow_theme()
         vm = self.model.view(now)
         if vm["state"] != self._state:
             self._state = vm["state"]
@@ -2212,6 +2396,8 @@ class Popup:
         order = focus_order(plan["targets"])
         if self.focus is not None and self.focus not in order:
             self.focus = order[0] if order and self.keyboard else None
+        if self.visible:
+            self._frame_theme()
         self._sync_frames()
         _dll("user32").InvalidateRect(self.hwnd, None, False)
 
@@ -2240,7 +2426,11 @@ class Popup:
         """Draw the current view into the canvas and return it (the tests read it back)."""
         if self._plan is None:
             self._rebuild(time.time())
-        self._renderer.contrast = self._contrast
+        look = (self._theme, self._contrast)
+        if (self._renderer.theme, self._renderer.contrast) != look:
+            # The halo band saved with the last whole frame is in the old colours.
+            self._renderer.theme, self._renderer.contrast = look
+            self._static_dirty = True
         if self._static_dirty or self._renderer.halo_plan is not self._plan:
             self._static_dirty = False
             return self._renderer.draw(self._vm, self._plan, frame=self.frame(), hover=self.hover,
@@ -2285,6 +2475,9 @@ class Popup:
         if outcome[0] == "failed":
             self.log("tray popup %s failed (%s)" % (action[0], outcome[1]))
         self.model.apply_outcome(action, outcome, time.time())
+        if action[0] == "read" and outcome[0] == "ok":
+            # get_status carries the stored settings; nothing more is asked of the control layer.
+            self.follow_settings((outcome[1].get("status") or {}).get("settings"))
         showing = self.visible or self._pending_show is not None
         if action[0] == "read":
             self._reading = False
@@ -2395,11 +2588,15 @@ class Popup:
                     self._invalidate()
             return 0
         if message in (WM_SETTINGCHANGE, WM_SYSCOLORCHANGE):
-            contrast = high_contrast()
-            if contrast != self._contrast or message == WM_SYSCOLORCHANGE:
-                self._contrast = contrast
+            # High Contrast, Windows' app mode ("ImmersiveColorSet") or its motion setting may have
+            # changed. The registry is read again whatever the setting's name, which is cheap and
+            # rare; an open window is repainted at once when what it draws with changed.
+            before = (self._contrast, self._theme)
+            self._read_look()
+            if (self._contrast, self._theme) != before or message == WM_SYSCOLORCHANGE:
                 self._invalidate()
-            self._reduced = reduced_motion() or contrast
+            if self.visible:
+                self._frame_theme()
             self._sync_frames()
             return None
         return None

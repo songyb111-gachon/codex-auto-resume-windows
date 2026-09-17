@@ -226,6 +226,13 @@ class DescribeTests(unittest.TestCase):
     def test_published_choices_are_all_accepted(self):
         for choice in self.by_name["retry_timing"]["choices"]:
             self.assertEqual(settings.validate_update({"retry_timing": choice})["retry_timing"], choice)
+        # Every field that publishes choices, so a list a surface draws a picker from can
+        # never offer one its validator refuses.
+        for entry in self.described:
+            for choice in entry.get("choices", ()):
+                with self.subTest(name=entry["name"], choice=choice):
+                    self.assertEqual(settings.validate_update({entry["name"]: choice}),
+                                     {entry["name"]: choice})
 
     def test_exactly_one_master_notification_switch(self):
         masters = [entry["name"] for entry in self.described if entry.get("master")]
@@ -234,6 +241,66 @@ class DescribeTests(unittest.TestCase):
     def test_no_described_field_offers_to_retry_unknown_failures(self):
         for entry in self.described:
             self.assertNotIn("unknown", entry["name"])
+
+
+class ThemeTests(unittest.TestCase):
+    """Light, dark, or whatever the host is using - an ordinary appearance setting.
+
+    "system" is the default because it is the one choice that is right for everybody on
+    the first start: a person whose Windows is dark does not open a white window.
+    """
+
+    def test_the_choices_and_the_default(self):
+        self.assertEqual(settings.THEMES, ("system", "light", "dark"))
+        self.assertEqual(settings.DEFAULTS["theme"], "system")
+        self.assertEqual(settings.defaults()["theme"], settings.DEFAULT_THEME)
+
+    def test_every_choice_is_accepted_as_written(self):
+        for choice in settings.THEMES:
+            with self.subTest(choice):
+                self.assertEqual(settings.validate_update({"theme": choice}), {"theme": choice})
+                self.assertEqual(settings.coerce({"theme": choice})["theme"], choice)
+
+    def test_anything_else_is_refused_on_write_and_is_system_on_read(self):
+        # Not "light": an unreadable theme follows the host, which is what the person had
+        # before they ever chose one.
+        for bad in ("Dark", "DARK", "sepia", "high_contrast", "", " dark", None, True, 0, ["dark"]):
+            with self.subTest(bad=bad):
+                with self.assertRaises(settings.SettingsError) as caught:
+                    settings.validate_update({"theme": bad})
+                self.assertIn("theme", str(caught.exception))
+                self.assertEqual(settings.coerce({"theme": bad})["theme"], "system")
+
+    def test_the_preference_helper_only_ever_answers_a_choice(self):
+        self.assertEqual(settings.theme_preference({"theme": "dark"}), "dark")
+        self.assertEqual(settings.theme_preference({"theme": "light"}), "light")
+        for values in (None, {}, {"theme": "purple"}, {"theme": 1}, "dark"):
+            with self.subTest(values=values):
+                self.assertEqual(settings.theme_preference(values), "system")
+
+    def test_it_is_described_first_in_appearance_with_its_choices(self):
+        described = settings.describe()
+        entry = next(entry for entry in described if entry["name"] == "theme")
+        self.assertEqual(entry, {"name": "theme", "default": "system", "type": "string",
+                                 "choices": ["system", "light", "dark"], "group": "appearance"})
+        appearance = [entry["name"] for entry in described if entry["group"] == "appearance"]
+        self.assertEqual(appearance, ["theme", "reduce_motion"])
+
+    def test_it_round_trips_through_the_file_and_survives_an_unrelated_update(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "settings.json"
+            settings.update(path, {"theme": "dark"})
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["theme"], "dark")
+            settings.update(path, {"reduce_motion": True})
+            self.assertEqual(settings.load(path)["theme"], "dark")
+            # A settings file written before the theme existed reads as "system".
+            path.write_text(json.dumps({"config_version": 2, "reduce_motion": True}), encoding="utf-8")
+            self.assertEqual(settings.load(path)["theme"], "system")
+            # And a hand-edited nonsense value does too, without losing its neighbours.
+            path.write_text(json.dumps({"config_version": 2, "theme": "neon", "max_no_progress": 5}),
+                            encoding="utf-8")
+            loaded = settings.load(path)
+            self.assertEqual((loaded["theme"], loaded["max_no_progress"]), ("system", 5))
 
 
 if __name__ == "__main__":

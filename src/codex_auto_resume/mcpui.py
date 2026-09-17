@@ -25,20 +25,29 @@ continuation settings. Two things about those are structural rather than stylist
 * **The Preview is the watcher's own text.** It asks `preview_recovery_message`, which
   builds the message with the function the watcher sends with. The page never assembles a
   continuation of its own.
+
+v0.6.4 added the Theme setting, which the panel applies to itself - Light or Dark stamp
+`data-theme` on the root, Use system setting stamps nothing and follows Codex - and it
+speaks a newly saved Interface language at once, from every language's words for this page,
+which ship with it. An on/off setting is a switch when it turns something that runs on or
+off and a check box when it picks items of a list, as in the Windows Dashboard.
 """
 from __future__ import annotations
 
 import json
+import re
 
-from . import brand, interface
+from . import brand, interface, l10n
 
 # The page is delivered as one resource, so the style lives in it. Every colour comes
 # from the shared palette, which is what keeps this panel, the settings window and the
 # icon the same product rather than three that happen to ship together.
 _STYLE = r"""
-/* Three states, not two. An explicit choice stamps `data-theme` on the root; the
-   ordinary case stamps nothing and only the media query separates light from dark. A
-   colour whose only definition lives inside the media block is the classic unreadable
+/* Three states, not two. An explicit choice - the Theme setting's Light or Dark - stamps
+   `data-theme` on the root; Use system setting stamps nothing and only the media query,
+   which is Codex's own scheme, separates light from dark. The stamp goes on the root and
+   nowhere else: the `--check-*` aliases are resolved where they are declared, which is here.
+   A colour whose only definition lives inside the media block is the classic unreadable
    panel, so every token is declared here first and only redefined below. */
 :root {
   color-scheme: light dark;
@@ -197,6 +206,32 @@ input.switch:checked::before { transform: translateX(var(--size-knob-travel)); b
 /* A switch carries no text, so it may still fade. */
 input.switch:disabled { opacity: .5; cursor: default; }
 
+/* A switch turns something that runs on or off; a check box picks which items of a list apply -
+   which kinds of interruption may be recovered, which events notify. The box is brand's CHECKBOX
+   through the `--check-*` names css_scale() writes: unchecked, the sunken well a switch sits in;
+   checked, the accent with its mark; disabled, flat on the surface. The mark is brand's tick,
+   clipped out of a layer that covers the whole box, border included. The box sits left of its
+   label, centred on the label's first line however far the label wraps. */
+input.check { appearance: none; -webkit-appearance: none; position: relative; flex: none;
+              width: var(--size-check-size); height: var(--size-check-size);
+              margin: calc((var(--type-body) * var(--lh-body) - var(--size-check-size)) / 2) 0 0;
+              border-radius: var(--radius-check); cursor: pointer;
+              background: var(--check-off-fill); border: var(--size-hairline) solid var(--check-off-edge);
+              box-shadow: var(--check-off-elev);
+              transition: background-color var(--transition), border-color var(--transition); }
+input.check::before { content: ""; position: absolute; inset: calc(-1 * var(--size-hairline));
+                      clip-path: var(--check-mark-shape); background: var(--check-on-mark);
+                      visibility: hidden; }
+input.check:checked { background: var(--check-on-fill); border-color: var(--check-on-edge);
+                      box-shadow: var(--check-on-elev); }
+input.check:checked::before { visibility: visible; }
+input.check:disabled { background: var(--check-off-disabled-fill); border-color: var(--check-off-disabled-edge);
+                       box-shadow: var(--check-off-disabled-elev); cursor: default; }
+input.check:checked:disabled { background: var(--check-on-disabled-fill);
+                               border-color: var(--check-on-disabled-edge);
+                               box-shadow: var(--check-on-disabled-elev); }
+input.check:checked:disabled::before { background: var(--check-on-disabled-mark); }
+
 /* A setting is a row: what it is on the left, the control on the right. When there is no
    room for both, the control moves under its name rather than pushing past the edge. */
 .rows > .setting + .setting, .rows > .setting + .custom, .toggles > .setting,
@@ -204,6 +239,8 @@ input.switch:disabled { opacity: .5; cursor: default; }
 .setting { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
            gap: 6px var(--size-row-gap); padding: var(--size-row-pad); min-width: 0; }
 label.setting { cursor: pointer; }
+.setting.check { flex-wrap: nowrap; justify-content: flex-start; align-items: flex-start;
+                 gap: var(--size-check-gap); }
 .setting-text { flex: 1 1 180px; min-width: 0; display: grid; gap: 2px; }
 .setting-label { font-weight: 500; }
 .setting-control { flex: 0 1 auto; display: flex; min-width: 0; max-width: 100%; margin-left: auto; }
@@ -378,6 +415,16 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
   input.switch:checked::before { background: HighlightText; }
   button[disabled], select:disabled, input:disabled, .segment input:disabled + span {
     color: GrayText; border-color: GrayText; }
+  /* The check box keeps brand's system colours (CHECKBOX_SYSTEM) for the same reason as the knob:
+     left to forced colours, the layer its mark is cut from is painted the page's ground. It opts
+     out, so it takes its own shadow off and draws its own focus ring in a system colour. */
+  input.check { forced-color-adjust: none; background: Canvas; border-color: CanvasText; box-shadow: none; }
+  input.check:checked { background: Highlight; border-color: Highlight; box-shadow: none; }
+  input.check:checked::before { background: HighlightText; }
+  input.check:disabled { background: Canvas; border-color: GrayText; box-shadow: none; }
+  input.check:checked:disabled { background: Canvas; border-color: GrayText; box-shadow: none; }
+  input.check:checked:disabled::before { background: GrayText; }
+  input.switch:focus-visible, input.check:focus-visible { outline-color: Highlight; }
   .segment input:checked + span { forced-color-adjust: none; background: Highlight; color: HighlightText;
                                   border-color: Highlight; box-shadow: none; }
 }
@@ -413,6 +460,9 @@ function initialData() {
 
 var HOST = bridge();
 var DATA = initialData();
+// A stamp the page was served with is a documentation capture's pinned theme, which the stored
+// setting must not undo. Codex is never served one.
+var THEME_PINNED = !!(document.documentElement && document.documentElement.hasAttribute('data-theme-pinned'));
 // Survives a re-render: set before render(), shown by it, then cleared.
 var NOTICE = '';
 var EDITORS = {};
@@ -436,6 +486,14 @@ var PREVIEW_FIELDS = ['interface_language', 'continuation_language', 'continuati
 // does not consult the browser's language: the notifications, the setup output, the
 // standalone window and this page all have to agree, and only one of them can decide.
 var S = window.__CODEX_AUTO_RESUME_STRINGS__ || {};
+// The locale those words are in, and every language's words for this page. Python still
+// decides: a language chosen here is spoken the moment the watcher confirms it was saved, by
+// the rule Python resolves it with, from the words Python shipped - not a page that tells
+// somebody the panel will change language the next time it is opened.
+var LOCALE = window.__CODEX_AUTO_RESUME_LOCALE__ || '';
+var CATALOGS = window.__CODEX_AUTO_RESUME_CATALOGS__ || {};
+// What the save card says once a save has redrawn the page in another language.
+var SAVED = '';
 
 function t(key, fallback) {
   var value = S[key];
@@ -448,6 +506,53 @@ function fill(key, fallback, values) {
     text = text.split('{' + name + '}').join(String(values[name]));
   });
   return text;
+}
+
+// The locale a stored Interface language is spoken in, by the rule Python adopts it with: a
+// language chosen by name is that language, and `system` - or no choice at all - follows
+// Windows, which Python already resolved and sent as `system_language`. '' when the page has no
+// words for the answer, or no answer: then it keeps the words it was served rather than
+// speaking a language nobody chose.
+function localeFor(preference, systemLanguage, catalogs) {
+  catalogs = catalogs || {};
+  var has = function (code) {
+    return typeof code === 'string' && Object.prototype.hasOwnProperty.call(catalogs, code);
+  };
+  if (typeof preference === 'string' && preference && preference !== 'system') {
+    return has(preference) ? preference : '';
+  }
+  return has(systemLanguage) ? systemLanguage : '';
+}
+
+// Speak the stored language. True when the words changed, and so the page has to be drawn again.
+function adoptLanguage(settings) {
+  var locale = localeFor((settings || {}).interface_language, DATA && DATA.system_language, CATALOGS);
+  if (!locale || locale === LOCALE) return false;
+  S = CATALOGS[locale];
+  LOCALE = locale;
+  return true;
+}
+
+// What the stored Theme stamps on the page's root: Light or Dark as chosen, and nothing for Use
+// system setting, which leaves Codex's own scheme in charge. Anything else - a watcher older than
+// the setting, or a value from a newer one - is Use system setting.
+function themeStamp(preference) {
+  return (preference === 'light' || preference === 'dark') ? preference : '';
+}
+
+// On the root, because that is where the theme blocks and the aliases built on them are declared.
+// High Contrast needs nothing here: forced colours replace whichever palette is stamped.
+function applyTheme(root, settings, pinned) {
+  if (!root || pinned) return;
+  var stamp = themeStamp((settings || {}).theme);
+  if (stamp) root.setAttribute('data-theme', stamp);
+  else root.removeAttribute('data-theme');
+}
+
+// The stored appearance and language, applied to the page in place. True when the words changed.
+function adopt(settings) {
+  applyTheme(document.documentElement, settings, THEME_PINNED);
+  return adoptLanguage(settings);
 }
 
 // The one code that is not worth translating, because the sentence beside it says more.
@@ -554,7 +659,11 @@ function setThreadRecovery(threadId, enable) {
 // the Save button cannot even assemble a request that carries it.
 function editable(entry) {
   var groups = ['general', 'recovery', 'limits', 'notifications', 'continuation'];
+  // Of the appearance settings only the theme, which the panel applies to itself. Reduce motion
+  // and the notification-area icon are Windows' own and stay in the Windows Dashboard.
+  var appearance = ['theme'];
   if (!entry || typeof entry.name !== 'string') return false;
+  if (entry.group === 'appearance') return appearance.indexOf(entry.name) >= 0 && !entry.multiline;
   if (groups.indexOf(entry.group) < 0 || entry.multiline) return false;
   return entry.name.indexOf('custom_message') !== 0 || entry.name === 'custom_message_mode';
 }
@@ -567,6 +676,21 @@ function collectChanges(editors, schema) {
     }
   });
   return changes;
+}
+
+// Of the collected changes, the settings every surface is drawn in - the Interface language and
+// the Theme - that still hold what the page was drawn with (or last saved). This page is not told
+// when the Windows Dashboard, another panel or Codex changes either, so sending them back unedited
+// would quietly undo that change, and the Dashboard, which reopens itself in a new language or
+// theme, would reopen in the one it had just left. They go only when chosen here: the rule the
+// Dashboard saves by too. Every other setting is still sent whole, as it always was.
+function unedited(changes, saved) {
+  saved = saved || {};
+  return ['interface_language', 'theme'].filter(function (name) {
+    return Object.prototype.hasOwnProperty.call(changes, name)
+           && Object.prototype.hasOwnProperty.call(saved, name)
+           && changes[name] === saved[name];
+  });
 }
 
 // The Preview request: one kind of interruption, and the unsaved language and style.
@@ -723,6 +847,40 @@ function toggle(entry, onChange) {
   row.appendChild(input);
   EDITORS[entry.name] = function () { return input.checked; };
   return row;
+}
+
+// Which control an on/off setting gets, by what it means rather than by its type. A switch turns
+// something that runs on or off - the notifications master, a conversation's auto-resume. A check
+// box picks which items of a list apply: `recover_<category>`, which kinds of interruption may be
+// recovered, and `notify_<event>`, which events notify under the master switch. The window
+// draws the same setting as the same kind.
+function booleanKind(entry) {
+  if (!entry || entry.master) return 'switch';
+  return /^(recover|notify)_[a-z0-9_]+$/.test(String(entry.name || '')) ? 'check' : 'switch';
+}
+
+// A native check box - no switch role, because it is not one - ahead of its label, inside the
+// label so the whole row toggles it.
+function checkItem(entry) {
+  var row = element('label', 'setting check');
+  var input = element('input', 'check');
+  input.type = 'checkbox';
+  input.checked = !!value(entry.name);
+  input.disabled = !HOST;
+  input.addEventListener('change', function () {
+    DRAFT[entry.name] = input.checked;
+    edited(entry.name);
+  });
+  row.appendChild(input);
+  var text = element('span', 'setting-text');
+  text.appendChild(element('span', 'setting-label', label(entry.name)));
+  row.appendChild(text);
+  EDITORS[entry.name] = function () { return input.checked; };
+  return row;
+}
+
+function onOff(entry, onChange) {
+  return booleanKind(entry) === 'check' ? checkItem(entry) : toggle(entry, onChange);
 }
 
 function numberField(entry) {
@@ -1011,11 +1169,25 @@ function renderGeneral(byName) {
   return node;
 }
 
+// Light, Dark, or whatever Codex itself is showing. Applied when the save is confirmed, not
+// while the choice is still only on screen: the page shows what is stored.
+function renderAppearance(byName) {
+  var entry = byName.theme;
+  if (!entry || !editable(entry)) return null;
+  var node = card(t('group.appearance', 'Appearance'));
+  var rows = element('div', 'rows');
+  rows.appendChild(choiceField(entry, (entry.choices || []).map(function (choice) {
+    return {value: choice, text: t('choice.theme.' + choice, choice)};
+  }), t('help.theme', 'Light or dark for this window, the notification-area popup and the panel in Codex.')).row);
+  node.appendChild(rows);
+  return node;
+}
+
 function renderRecovery(status, schema) {
   var node = card(t('group.recovery', 'Automatic recovery'));
-  // The switch every other switch on this card depends on, first. It acts at once -
+  // The control every check box on this card depends on, first. It acts at once -
   // pausing needs no Save and resuming asks for approval - so it is a button beside what
-  // it will change, rather than one more switch that looks like it waits for Save.
+  // it will change, rather than a switch that looks like it waits for Save.
   var master = element('div', 'master');
   var text = element('div', 'master-text');
   var running = status.watcher_running === true;
@@ -1048,7 +1220,7 @@ function renderRecovery(status, schema) {
   var toggles = element('div', 'toggles');
   schema.forEach(function (entry) {
     if (entry.group === 'recovery' && entry.type === 'boolean' && editable(entry)) {
-      toggles.appendChild(toggle(entry));
+      toggles.appendChild(onOff(entry));
     }
   });
   node.appendChild(toggles);
@@ -1082,7 +1254,7 @@ function renderNotifications(schema) {
       master = toggle(entry, function (on) { events.classList.toggle('quiet', !on); });
       events.classList.toggle('quiet', !value(entry.name));
     } else {
-      events.appendChild(toggle(entry));
+      events.appendChild(onOff(entry));
     }
   });
   if (master) fold.body.appendChild(master);
@@ -1289,11 +1461,13 @@ function render() {
   var page = element('main', 'page');
   root.appendChild(page);
   // State first; then what is waiting, because it is the part that changes; then what is
-  // configured, general to particular; then what the configuration will say.
+  // configured, general to particular; then what the configuration will say; then how the
+  // panel looks, where the Windows Dashboard puts it too.
   var hero = renderHero(status);
   page.appendChild(hero.node);
   [renderPending(DATA.pending), renderGeneral(byName), renderRecovery(status, schema),
-   renderNotifications(schema), renderContinuation(byName), renderPreviewCard()
+   renderNotifications(schema), renderContinuation(byName), renderPreviewCard(),
+   renderAppearance(byName)
   ].forEach(function (section) { if (section) page.appendChild(section); });
   var footer = renderFooter(schema);
   page.appendChild(footer.node);
@@ -1304,6 +1478,12 @@ function render() {
   if (NOTICE) {
     message.textContent = NOTICE;
     NOTICE = '';
+  }
+  if (SAVED) {
+    footer.message.textContent = SAVED;
+    SAVED = '';
+    // The redraw replaced the button that was pressed; keep the keyboard where it was.
+    if (typeof footer.save.focus === 'function') footer.save.focus({preventScroll: true});
   }
 
   refreshPreview();
@@ -1319,13 +1499,28 @@ function render() {
     var before = DATA.settings || {};
     // Only what this panel may write, whatever else a control happens to hold.
     var changes = collectChanges(EDITORS, schema);
+    // Nor the language or theme this page merely shows: either may have changed elsewhere.
+    var kept = unedited(changes, before);
+    kept.forEach(function (name) { delete changes[name]; });
     save.disabled = true;
     footer.message.textContent = t('panel.saving', 'Saving...');
     saveSettings(changes).then(function (payload) {
       DRAFT = {};
       var switched = before.interface_language !== undefined
                      && payload.settings.interface_language !== before.interface_language;
-      footer.message.textContent = switched
+      // One of those did change elsewhere, and its control still shows the old value.
+      var behind = kept.some(function (name) { return payload.settings[name] !== before[name]; });
+      // The confirmed settings, applied at once: the theme in place, and a new language - or a
+      // control left behind by a change made elsewhere - by drawing the page again from them.
+      // Every draft was just saved, so a redraw loses nothing.
+      if (adopt(payload.settings) || behind) {
+        SAVED = t('panel.saved', 'Saved.');
+        render();
+        return;
+      }
+      // Only a language this page has no words for still waits for the next time it opens.
+      var waits = switched && !localeFor(payload.settings.interface_language, DATA.system_language, CATALOGS);
+      footer.message.textContent = waits
         ? t('settings.language_changed', 'Language changed. Anything already open changes the next time it opens.')
         : t('panel.saved', 'Saved.');
       save.disabled = false;
@@ -1373,8 +1568,43 @@ function render() {
   }
 }
 
+// The stored theme and language before anything is drawn: the page may be one Codex kept from an
+// earlier read, and the tool result is what is true now.
+adopt(DATA && DATA.settings);
 render();
 """
+
+
+# Which catalog keys the script can ask for: every key it names, and every key under a prefix it
+# completes at runtime (`t('reason.' + category)`, `S['field.' + name]`). Read from the script
+# itself, so a word added to the page is a word every language ships with it; the tests hold the
+# script to asking only in these two shapes.
+_NAMED_KEY = re.compile(r"\b(?:t|fill|withLanguage)\(\s*'([a-z0-9_.]+)'\s*[,)]")
+_KEY_PREFIX = re.compile(r"\b(?:t|fill)\(\s*'([a-z0-9_.]+\.)'\s*\+|\bS\['([a-z0-9_.]+\.)'\s*\+")
+
+
+def panel_keys() -> tuple:
+    """The keys the script names, and the prefixes it builds keys from: ``(names, prefixes)``."""
+    names = frozenset(_NAMED_KEY.findall(_SCRIPT))
+    prefixes = tuple(sorted({named or indexed for named, indexed in _KEY_PREFIX.findall(_SCRIPT)}))
+    return names, prefixes
+
+
+def panel_catalogs() -> dict:
+    """Every shipped language's words for this page, and only this page's.
+
+    So a language chosen in the panel is spoken as soon as the save is confirmed, rather than
+    the next time Codex opens the panel. Each catalog is English with that language layered
+    over it, exactly as `l10n.catalog` gives it to every other surface.
+    """
+    names, prefixes = panel_keys()
+    return {locale: {key: text for key, text in l10n.catalog(locale).items()
+                     if key in names or key.startswith(prefixes)}
+            for locale in l10n.LOCALES}
+
+
+def _script_json(value) -> str:
+    return json.dumps(value, ensure_ascii=False, default=str).replace("<", "\\u003c")
 
 
 def settings_page(data=None, theme=None) -> str:
@@ -1388,21 +1618,27 @@ def settings_page(data=None, theme=None) -> str:
     # tool result, but the page still has to know what to call them - and the panel must
     # not choose the language for itself. A product that speaks Korean in its
     # notifications and English in its settings panel has picked the worst of both, so
-    # the language is resolved once, in Python, and handed here.
-    catalog = "<script>window.__CODEX_AUTO_RESUME_STRINGS__=%s;</script>" % json.dumps(
-        interface.catalog(), ensure_ascii=False).replace("<", "\\u003c")
+    # the language is resolved once, in Python, and handed here - with every other
+    # language's words for this page beside it, for the moment the stored choice changes.
+    locale = interface.language()
+    catalog = "<script>window.__CODEX_AUTO_RESUME_STRINGS__=%s;</script>" % _script_json(
+        l10n.catalog(locale))
+    catalogs = ("<script>window.__CODEX_AUTO_RESUME_LOCALE__=%s;"
+                "window.__CODEX_AUTO_RESUME_CATALOGS__=%s;</script>"
+                % (_script_json(locale), _script_json(panel_catalogs())))
     seed = ""
     if data is not None:
-        seed = "<script>window.__CODEX_AUTO_RESUME__=%s;</script>" % json.dumps(
-            data, ensure_ascii=False, default=str).replace("<", "\\u003c")
-    # `theme` pins the colour scheme instead of following the host. Codex never passes
-    # it - inside Codex the panel follows the host, which is the point - and the
-    # documentation capture does, because a screenshot whose theme depends on whichever
-    # machine ran the build is not a deterministic artefact.
-    root = "<html>" if theme not in ("light", "dark") else '<html data-theme="%s">' % theme
+        seed = "<script>window.__CODEX_AUTO_RESUME__=%s;</script>" % _script_json(data)
+    # `theme` pins the colour scheme instead of following the host or the stored Theme.
+    # Codex never passes it - inside Codex the panel follows the Theme setting, and with
+    # Use system setting the host - and the documentation capture does, because a
+    # screenshot whose theme depends on whichever machine ran the build is not a
+    # deterministic artefact. `data-theme-pinned` tells the script to leave it alone.
+    root = ("<html>" if theme not in ("light", "dark")
+            else '<html data-theme="%s" data-theme-pinned="">' % theme)
     return (
         "<!doctype html>" + root + "<head><meta charset=\"utf-8\">"
         "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
         "<title>Codex Auto Resume</title><style>%s</style></head>"
-        "<body><div id=\"root\"></div>%s%s<script>%s</script></body></html>"
-        % (_STYLE, catalog, seed, _SCRIPT))
+        "<body><div id=\"root\"></div>%s%s%s<script>%s</script></body></html>"
+        % (_STYLE, catalog, catalogs, seed, _SCRIPT))

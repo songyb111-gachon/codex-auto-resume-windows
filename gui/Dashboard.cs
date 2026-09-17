@@ -492,7 +492,7 @@ namespace CodexAutoResume
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = e.Graphics;
-            Color ground = Parent != null ? Parent.BackColor : Palette.Surface;
+            Color ground = Parent != null ? Parent.BackColor : Palette.Card;
             g.Clear(ground);
             if (rows.Count == 0)
             {
@@ -595,16 +595,11 @@ namespace CodexAutoResume
         // ----------------------------------------------------------------- chrome
         private void BuildDashboard()
         {
-            // `--page=<name>` opens on that page; `--settings` is the older spelling.
-            foreach (string argument in Environment.GetCommandLineArgs())
-            {
-                if (argument == "--settings") firstPage = "settings";
-                else if (argument.StartsWith("--page=", StringComparison.Ordinal))
-                    firstPage = argument.Substring(7);
-                // Which section the Settings page opens on; anything unknown is General.
-                else if (argument.StartsWith("--section=", StringComparison.Ordinal))
-                    currentSection = argument.Substring(10);
-            }
+            // `--page=<name>` opens on that page (`--settings` is the older spelling) and `--section=<name>`
+            // on that Settings section; each is checked against the pages and sections there are
+            // (ParseArguments), and anything else opens the Overview and General.
+            if (request.Page != null) firstPage = request.Page;
+            if (request.Section != null) currentSection = request.Section;
 
             nav.Dock = DockStyle.Top;
             nav.Padding = Pad(12, 0, 14, 0);
@@ -805,7 +800,7 @@ namespace CodexAutoResume
             // Opaque, in the card's own colour. See-through, every repaint of the grid and of each
             // label in it asked the card to paint its background again, shadow and all: 23 card
             // backgrounds for one Overview, and 1.4 s the first time Statistics was shown.
-            grid.BackColor = Surface;
+            grid.BackColor = Card;
             card.Controls.Add(grid);
             return grid;
         }
@@ -860,7 +855,7 @@ namespace CodexAutoResume
             list.HideSelection = false;
             list.Dock = DockStyle.Fill;
             list.BorderStyle = BorderStyle.None;
-            list.BackColor = Surface;
+            list.BackColor = Card;
             list.ForeColor = Ink;
             list.AccessibleName = accessibleName;
             // Rows tall enough for a state chip at any scaling. A ListView takes its row height
@@ -1014,7 +1009,7 @@ namespace CodexAutoResume
 
         private void DrawHeader(object sender, DrawListViewColumnHeaderEventArgs e)
         {
-            using (var brush = new SolidBrush(Surface)) e.Graphics.FillRectangle(brush, e.Bounds);
+            using (var brush = new SolidBrush(Card)) e.Graphics.FillRectangle(brush, e.Bounds);
             using (var brush = new SolidBrush(Line))
                 e.Graphics.FillRectangle(brush, e.Bounds.Left, e.Bounds.Bottom - Soft.Hairline, e.Bounds.Width, Soft.Hairline);
             var bounds = new Rectangle(e.Bounds.X + Px(10), e.Bounds.Y, Math.Max(0, e.Bounds.Width - Px(14)), e.Bounds.Height);
@@ -1030,7 +1025,7 @@ namespace CodexAutoResume
             // Rows on the card's surface with a full hairline between them, as the panel's setting
             // rows have; the chosen row is pressed into the inset colour. High Contrast keeps
             // Highlight for it.
-            Color back = !selected ? Surface : Palette.Contrast ? Palette.AccentSoft : Palette.Inset;
+            Color back = !selected ? Card : Palette.Contrast ? Palette.AccentSoft : Palette.Inset;
             using (var brush = new SolidBrush(back)) e.Graphics.FillRectangle(brush, e.Bounds);
             using (var brush = new SolidBrush(Line))
                 e.Graphics.FillRectangle(brush, e.Bounds.Left, e.Bounds.Bottom - Soft.Hairline, e.Bounds.Width, Soft.Hairline);
@@ -1160,7 +1155,7 @@ namespace CodexAutoResume
         {
             Control heading = card.Controls[0];
             var head = new SoftStack();
-            head.BackColor = Surface;
+            head.BackColor = Card;
             head.ColumnCount = 2;
             head.RowCount = 1;
             head.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
@@ -1342,7 +1337,7 @@ namespace CodexAutoResume
             explainList.Font = Font;
             explainList.AccessibleName = S("explain.title", "Why it is waiting");
             var gates = new SoftPage();
-            gates.BackColor = Surface;
+            gates.BackColor = Card;
             gates.Dock = DockStyle.Fill;
             gates.Margin = new Padding(0);
             // A little room between the results and the bar when it shows; the card's padding is past it.
@@ -1471,7 +1466,7 @@ namespace CodexAutoResume
             chart = new OutcomeChart();
             chart.Dock = DockStyle.Top;
             chart.Height = Px(220);
-            chart.BackColor = Surface;
+            chart.BackColor = Card;
             chart.BarColor = Accent;
             chart.TextColor = Ink;
             chart.EmptyText = S("stats.none", "Nothing yet");
@@ -1541,6 +1536,12 @@ namespace CodexAutoResume
         // ------------------------------------------------------------------ clock
         private void StartClock()
         {
+            // Started again, the same clock: after a reopen whose new window never came up (FinishReopen).
+            if (clock != null)
+            {
+                clock.Start();
+                return;
+            }
             clock = new Timer();
             clock.Interval = 1000;
             clock.Tick += delegate
@@ -1557,6 +1558,8 @@ namespace CodexAutoResume
                     RefreshNow();
                     if (currentPage == "statistics") LoadStatistics();
                 }
+                // A language or theme changed elsewhere, or edits put back under a pending reopen.
+                TickReopen();
             };
             clock.Start();
         }
@@ -2642,6 +2645,9 @@ namespace CodexAutoResume
                 dialog.Text = S("timeline.title", "Timeline") + " - " + Conversation(row);
                 dialog.Font = Font;
                 dialog.BackColor = Canvas;
+                dialog.ForeColor = Ink;
+                // In the window's theme, title bar and all.
+                Soft.TitleBar(dialog);
                 dialog.StartPosition = FormStartPosition.CenterParent;
                 dialog.ClientSize = new Size(Px(640), Px(420));
                 dialog.MinimizeBox = false;
@@ -2668,6 +2674,7 @@ namespace CodexAutoResume
                     }
                 }
                 var padding = new Panel();
+                padding.BackColor = Canvas;
                 padding.Dock = DockStyle.Fill;
                 padding.Padding = Pad(12, 12, 12, 12);
                 // On the soft scroll bar, as the lists in the window are (see SoftListHost).

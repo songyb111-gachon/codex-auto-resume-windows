@@ -13,6 +13,7 @@ stylesheet is a failure and not a thing someone notices in a screenshot later.
 from __future__ import annotations
 
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -90,6 +91,205 @@ class PaletteTests(unittest.TestCase):
         # here and say so, rather than quietly using it for text.
         self.assertLess(brand.contrast(brand.LIGHT["active"], brand.LIGHT["surface"]), 4.5)
         self.assertIn("fill-only", brand.__doc__.lower().replace("fill only", "fill-only"))
+
+
+class ThemeTests(unittest.TestCase):
+    """v0.6.4: the window and the popup draw dark too, on every ground the panel draws on, so the
+    dark palette is held to the same readability as the light one wherever the window puts text."""
+
+    def grounds(self, theme):
+        tokens = brand.palette(theme)
+        return {"surface": tokens["surface"], "canvas": tokens["canvas"], "raised": tokens["raised"],
+                "inset": tokens["inset"], "card": brand.card_ground(theme),
+                "accent_soft": tokens["accent_soft"]}
+
+    def test_text_is_readable_on_every_ground_in_both_themes(self):
+        for theme in brand.THEMES:
+            tokens = brand.palette(theme)
+            for ground, value in self.grounds(theme).items():
+                with self.subTest(theme=theme, ground=ground):
+                    self.assertGreaterEqual(brand.contrast(tokens["ink"], value), 7.0)
+                    self.assertGreaterEqual(brand.contrast(tokens["muted"], value), 4.5)
+                    self.assertGreaterEqual(brand.contrast(tokens["accent"], value), 4.5)
+
+    def test_state_words_are_readable_on_a_card_in_both_themes(self):
+        for theme in brand.THEMES:
+            tokens = brand.palette(theme)
+            for state in ("success", "waiting", "warning", "danger", "paused"):
+                for ground in ("surface", "raised", "card"):
+                    with self.subTest(theme=theme, state=state, ground=ground):
+                        self.assertGreaterEqual(
+                            brand.contrast(tokens[state], self.grounds(theme)[ground]), 4.5)
+
+    def test_the_focus_ring_stands_off_every_ground_it_is_drawn_on(self):
+        # A ring is not text: 3:1, the boundary of a control.
+        for theme in brand.THEMES:
+            tokens = brand.palette(theme)
+            for ground, value in self.grounds(theme).items():
+                if ground == "accent_soft":
+                    continue
+                with self.subTest(theme=theme, ground=ground):
+                    self.assertGreaterEqual(brand.contrast(tokens["focus"], value), 3.0)
+
+    def test_a_theme_is_named_light_or_dark_and_system_is_resolved_before(self):
+        self.assertEqual(brand.THEMES, ("light", "dark"))
+        self.assertIs(brand.palette("light"), brand.LIGHT)
+        self.assertIs(brand.palette("dark"), brand.DARK)
+        self.assertIs(brand.palette(brand.DARK), brand.DARK)
+        self.assertEqual(brand.theme_name(brand.LIGHT), "light")
+        for wrong in ("system", "", None, "Dark"):
+            with self.assertRaises(ValueError):
+                brand.palette(wrong)
+
+    def test_shadows_and_the_status_colour_come_by_theme(self):
+        for theme in brand.THEMES:
+            for recipe in ("card", "control", "inset"):
+                self.assertIs(brand.shadows(recipe, theme), brand.SHADOWS[theme][recipe])
+            for state in ("monitoring", "attention", "failed", "paused", "idle", "unknown"):
+                self.assertEqual(brand.status_colour(state, theme),
+                                 brand.palette(theme)[brand.status_fill(state)])
+        self.assertEqual(brand.status_colour("monitoring", "dark"), "#35B5CC")
+
+    def test_the_card_ground_is_the_panels_color_mix(self):
+        self.assertEqual(brand.card_ground("light"), brand.LIGHT["surface"])
+        self.assertEqual(brand.card_ground("dark"), "#1B212C")
+        self.assertIn("--card-ground: var(--surface);", brand.css_elevation("light"))
+        self.assertIn("--card-ground: color-mix(in srgb, var(--raised) 22%, var(--surface));",
+                      brand.css_elevation("dark"))
+        # No channel lands near a half, so CSS's rounding and brand.mix's cannot disagree.
+        for theme in brand.THEMES:
+            tokens, lift = brand.palette(theme), brand.CARD_LIFT[theme]
+            for low, high in zip(brand.rgb(tokens["surface"]), brand.rgb(tokens["raised"])):
+                exact = low + (high - low) * lift
+                self.assertGreater(abs(exact - math.floor(exact) - 0.5), 0.05)
+
+    def test_dark_card_light_falls_inside_and_its_drops_outside(self):
+        ground, card = brand.DARK["canvas"], brand.card_ground("dark")
+        # Outside, only the two drops: straight above the card nothing but the drops' blur.
+        outside = brand.elevation_colour("card", "top", 0.5, "canvas", "dark")
+        by_hand = [float(part) for part in brand.rgb(ground)]
+        for shadow in reversed(brand.shadows("card", "dark")):
+            if not shadow.inset:
+                alpha = brand.shadow_alpha(shadow, 0.5, "top")
+                by_hand = [p + (t - p) * alpha for p, t in zip(by_hand, brand.rgb(brand.DARK[shadow.token]))]
+        self.assertEqual(outside, tuple(by_hand))
+        # Inside, the one-pixel top light and nothing else.
+        light = brand.shadows("card", "dark")[-1]
+        self.assertTrue(light.inset)
+        inside = brand.elevation_colour("card", "top", 0.5, card, "dark", inside=True)
+        expected = brand.mix(card, brand.DARK["shadow_light"], light.alpha)
+        self.assertEqual(tuple(int(round(part)) for part in inside), brand.rgb(expected))
+        self.assertEqual(brand.elevation_colour("card", "top", 1.5, card, "dark", inside=True),
+                         tuple(float(part) for part in brand.rgb(card)))
+        # Light is unchanged: its recipes are all outside or all inside.
+        self.assertEqual(brand.elevation_colour("inset", "top", 0.25, "inset"),
+                         brand.elevation_colour("inset", "top", 0.25, "inset", inside=True))
+
+
+class CheckBoxTests(unittest.TestCase):
+    """v0.6.4's check box: the switch's material, sized to sit with the switch and the body text,
+    and readable - unchecked included - in both themes and in High Contrast."""
+
+    def test_its_size_is_the_knob_in_a_hairline_frame_and_fits_a_line_of_text(self):
+        layout = brand.LAYOUT
+        self.assertEqual(layout["check_size"], layout["knob"] + 2 * layout["hairline"])
+        self.assertLessEqual(layout["check_size"], layout["switch_height"])
+        self.assertLessEqual(layout["check_size"],
+                             brand.TYPE_SCALE["body"] * brand.LINE_HEIGHT["body"])
+        self.assertLess(brand.RADII["check"], layout["check_size"] / 3.0)
+        self.assertGreater(layout["check_gap"], 0)
+        self.assertEqual(layout["check_stroke"], 2)
+
+    def test_the_table_names_tokens_both_themes_have(self):
+        self.assertEqual(set(brand.CHECKBOX), {"off", "on", "off_disabled", "on_disabled"})
+        self.assertEqual(set(brand.CHECKBOX_SYSTEM), set(brand.CHECKBOX))
+        for state, entry in brand.CHECKBOX.items():
+            for part in ("fill", "edge", "mark"):
+                if entry[part] is not None:
+                    self.assertIn(entry[part], brand.LIGHT, (state, part))
+            self.assertEqual(entry["mark"] is not None, state.startswith("on"))
+        for state, entry in brand.CHECKBOX_SYSTEM.items():
+            for part in ("fill", "edge", "mark"):
+                if entry[part] is not None:
+                    self.assertIn(entry[part], brand.SYSTEM_CSS, (state, part))
+            self.assertEqual(entry["mark"] is not None, state.startswith("on"))
+
+    def test_unchecked_is_the_well_and_checked_is_the_accent_with_its_mark(self):
+        for theme in brand.THEMES:
+            tokens = brand.palette(theme)
+            self.assertEqual(brand.check_box(False, True, theme),
+                             {"fill": tokens["inset"], "edge": tokens["muted"], "mark": None, "well": True})
+            self.assertEqual(brand.check_box(True, True, theme),
+                             {"fill": tokens["accent"], "edge": tokens["accent"],
+                              "mark": tokens["on_accent"], "well": False})
+            for checked in (False, True):
+                disabled = brand.check_box(checked, False, theme)
+                self.assertEqual((disabled["fill"], disabled["edge"], disabled["well"]),
+                                 (tokens["surface"], tokens["line"], False))
+                self.assertEqual(disabled["mark"], tokens["muted"] if checked else None)
+        self.assertEqual(brand.check_box_state(True, False), "on_disabled")
+        self.assertEqual(brand.check_box_system(True, True),
+                         {"fill": "Highlight", "edge": "Highlight", "mark": "HighlightText"})
+        self.assertEqual(brand.css_system("WindowText"), "CanvasText")
+
+    def test_every_state_can_be_seen_in_both_themes(self):
+        for theme in brand.THEMES:
+            tokens = brand.palette(theme)
+            grounds = (tokens["surface"], tokens["raised"], tokens["canvas"], brand.card_ground(theme))
+            off, on = brand.check_box(False, True, theme), brand.check_box(True, True, theme)
+            for ground in grounds:
+                with self.subTest(theme=theme, ground=ground):
+                    # An empty box is found by its edge, a checked one by its fill: 3:1 each.
+                    self.assertGreaterEqual(brand.contrast(off["edge"], ground), 3.0)
+                    self.assertGreaterEqual(brand.contrast(on["fill"], ground), 3.0)
+                    self.assertGreaterEqual(brand.contrast(tokens["focus"], ground), 3.0)
+            self.assertGreaterEqual(brand.contrast(off["edge"], off["fill"]), 3.0)
+            self.assertGreaterEqual(brand.contrast(on["mark"], on["fill"]), 4.5)
+            disabled = brand.check_box(True, False, theme)
+            self.assertGreaterEqual(brand.contrast(disabled["mark"], disabled["fill"]), 4.5)
+
+    def test_the_mark_is_a_mitred_tick_centred_in_the_box(self):
+        (x0, y0), (x1, y1), (x2, y2) = brand.CHECK_MARK
+        self.assertAlmostEqual(abs(x1 - x0), abs(y1 - y0))            # 45 degrees
+        self.assertAlmostEqual(abs(x2 - x1), abs(y2 - y1))
+        self.assertAlmostEqual((x1 - x0) * (x2 - x1) + (y1 - y0) * (y2 - y1), 0.0)   # a right angle
+        self.assertAlmostEqual(math.hypot(x2 - x1, y2 - y1), 2 * math.hypot(x1 - x0, y1 - y0))
+        outline = brand.check_mark_outline()
+        self.assertEqual(len(outline), 6)
+        size, hairline = brand.LAYOUT["check_size"], brand.LAYOUT["hairline"]
+        xs, ys = [x for x, _ in outline], [y for _, y in outline]
+        self.assertAlmostEqual((min(xs) + max(xs)) / 2, size / 2.0)
+        self.assertLess(abs((min(ys) + max(ys)) / 2 - size / 2.0), 0.25)
+        for x, y in outline:
+            self.assertTrue(hairline + 1 < x < size - hairline - 1, x)
+            self.assertTrue(hairline + 1 < y < size - hairline - 1, y)
+        # Filling the outline is stroking the centre line: stroke times the arms' lengths (a mitred
+        # right angle adds a square outside and takes the same square away inside).
+        area = abs(sum(ax * by - bx * ay for (ax, ay), (bx, by)
+                       in zip(outline, outline[1:] + outline[:1]))) / 2
+        arms = math.hypot(x1 - x0, y1 - y0) + math.hypot(x2 - x1, y2 - y1)
+        self.assertAlmostEqual(area, brand.LAYOUT["check_stroke"] * arms)
+        self.assertEqual(brand.check_mark(2.0, 10, 20)[1], (10 + 2 * x1, 20 + 2 * y1))
+        self.assertEqual(brand.check_mark_outline(2.0, 10, 20)[0],
+                         (10 + 2 * outline[0][0], 20 + 2 * outline[0][1]))
+
+    def test_the_stylesheet_gets_the_check_box_under_names_the_panel_can_use(self):
+        scale = brand.css_scale()
+        for text in ("--size-check-size: 18px;", "--size-check-gap: 10px;", "--size-check-stroke: 2px;",
+                     "--radius-check: 5px;", "--check-off-fill: var(--inset);",
+                     "--check-off-edge: var(--muted);", "--check-off-elev: var(--elev-inset);",
+                     "--check-on-fill: var(--accent);", "--check-on-mark: var(--on-accent);",
+                     "--check-on-elev: none;", "--check-on-disabled-mark: var(--muted);",
+                     "--check-mark-shape: polygon("):
+            self.assertIn(text, scale)
+        colours = set(re.findall(r"(--[a-z-]+)\s*:", brand.css_variables(brand.LIGHT)))
+        for name in re.findall(r"var\((--[a-z-]+)\)", brand.css_check_box()):
+            self.assertTrue(name in colours or name.startswith("--elev-"), name)
+        shape = re.search(r"--check-mark-shape: polygon\(([^)]*)\);", scale).group(1)
+        points = [tuple(float(part[:-2]) for part in pair.split()) for pair in shape.split(", ")]
+        for have, want in zip(points, brand.check_mark_outline()):
+            self.assertAlmostEqual(have[0], want[0], places=3)
+            self.assertAlmostEqual(have[1], want[1], places=3)
 
 
 def png_content(data):
@@ -533,6 +733,32 @@ class GeneratedWindowTokenTests(unittest.TestCase):
                      "internal static Color StatusFill(", "internal static Color StatusSystem("):
             self.assertIn(text, self.source)
 
+    def test_brand_cs_has_a_dark_twin_with_the_same_names(self):
+        """Every theme-dependent name in Brand is declared again, once, in Brand.Dark."""
+        head, _, dark = self.source.partition("        internal static class Dark\n")
+        self.assertTrue(dark, "Brand.cs declares no Brand.Dark")
+        twins = [name for name, _, _ in make_brand.FIELDS] + [name for name, _, _ in make_brand.DERIVED]
+        for name in twins:
+            pattern = r"internal static readonly Color %s\s*=" % name
+            self.assertEqual(len(re.findall(pattern, head)), 1, name)
+            self.assertEqual(len(re.findall(pattern, dark)), 1, name)
+        for signature in ("internal static Color StatusFill(string state)",
+                          "internal static Color CheckFill(bool on, bool enabled)",
+                          "internal static Color CheckEdge(bool on, bool enabled)",
+                          "internal static bool CheckMark(bool on, bool enabled, out Color mark)",
+                          "internal static int ElevationCount(string recipe)",
+                          "internal static bool ElevationShadow(string recipe, int index,"):
+            self.assertEqual(head.count(signature), 1, signature)
+            self.assertEqual(dark.count(signature), 1, signature)
+        for side in ("Left", "Top", "Right", "Bottom"):
+            for recipe in ("Card", "Control", "Inset"):
+                self.assertIn("internal const int Elev%sReach%s = " % (recipe, side), dark)
+        # What does not change with the theme lives in Brand alone.
+        for name in ("CheckWell(", "CheckSystemFill(", "CheckSystemEdge(", "CheckSystemMark(",
+                     "StatusSystem(", "Glow(", "CheckMarkCornerX", "CheckSize", "RadiusCheck"):
+            self.assertIn(name, head)
+            self.assertNotIn(name, dark)
+
 
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
 POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
@@ -571,6 +797,49 @@ foreach ($state in (ConvertFrom-Json $env:CAR_STATES)) {
 }
 foreach ($field in $brand.GetFields($flags)) {
     if ($field.IsLiteral -and $field.FieldType -ne [string]) { 'const|' + $field.Name + '|' + (Text $field.GetRawConstantValue()) }
+}
+function Argb([object]$value) { return ('{0:X8}' -f $value.ToArgb()) }
+$dark = $assembly.GetType('CodexAutoResume.Brand+Dark', $true)
+foreach ($pair in @(@('light', $brand), @('dark', $dark))) {
+    $theme = $pair[0]
+    $type = $pair[1]
+    foreach ($field in $type.GetFields($flags)) {
+        if ($field.FieldType.FullName -eq 'System.Drawing.Color') { 'colour|' + $theme + '|' + $field.Name + '|' + (Argb $field.GetValue($null)) }
+        elseif ($theme -eq 'dark' -and $field.IsLiteral) { 'darkconst|' + $field.Name + '|' + (Text $field.GetRawConstantValue()) }
+    }
+    $themeFill = $type.GetMethod('StatusFill', $flags)
+    foreach ($state in (ConvertFrom-Json $env:CAR_STATES)) {
+        'themefill|' + $theme + '|' + [string]$state + '|' + (Argb $themeFill.Invoke($null, [object[]]@([string]$state)))
+    }
+    $count = $type.GetMethod('ElevationCount', $flags)
+    $shadow = $type.GetMethod('ElevationShadow', $flags)
+    foreach ($recipe in @('card', 'control', 'inset', 'page')) {
+        'count|' + $theme + '|' + $recipe + '|' + [int]$count.Invoke($null, [object[]]@($recipe))
+        foreach ($index in 0..3) {
+            $call = [object[]]@($recipe, [int]$index, $null, $null, $null, $null, $null, $null)
+            $shown = [bool]$shadow.Invoke($null, $call)
+            'shadow|' + $theme + '|' + $recipe + '|' + $index + '|' + $shown + '|' + (Text $call[2]) + '|' + (Text $call[3]) + '|' + (Text $call[4]) + '|' + (Text $call[5]) + '|' + [bool]$call[6] + '|' + (Argb $call[7])
+        }
+    }
+    foreach ($on in @($false, $true)) {
+        foreach ($enabled in @($false, $true)) {
+            $fill = $type.GetMethod('CheckFill', $flags).Invoke($null, [object[]]@($on, $enabled))
+            $edge = $type.GetMethod('CheckEdge', $flags).Invoke($null, [object[]]@($on, $enabled))
+            $call = [object[]]@($on, $enabled, $null)
+            $marked = [bool]$type.GetMethod('CheckMark', $flags).Invoke($null, $call)
+            'check|' + $theme + '|' + $on + '|' + $enabled + '|' + (Argb $fill) + '|' + (Argb $edge) + '|' + $marked + '|' + (Argb $call[2])
+        }
+    }
+}
+foreach ($on in @($false, $true)) {
+    foreach ($enabled in @($false, $true)) {
+        $fill = $brand.GetMethod('CheckSystemFill', $flags).Invoke($null, [object[]]@($on, $enabled))
+        $edge = $brand.GetMethod('CheckSystemEdge', $flags).Invoke($null, [object[]]@($on, $enabled))
+        $call = [object[]]@($on, $enabled, $null)
+        $marked = [bool]$brand.GetMethod('CheckSystemMark', $flags).Invoke($null, $call)
+        $well = [bool]$brand.GetMethod('CheckWell', $flags).Invoke($null, [object[]]@($on, $enabled))
+        'checksystem|' + $on + '|' + $enabled + '|' + $fill.Name + '|' + $edge.Name + '|' + $marked + '|' + $(if ($marked) { $call[2].Name } else { '' }) + '|' + $well
+    }
 }
 """
 
@@ -655,13 +924,72 @@ class GeneratedStatusLightTests(unittest.TestCase):
                 self.assertEqual(systems[state], brand.status_system(state))
 
     def test_every_generated_constant_reads_back_as_brand_py_wrote_it(self):
-        constants = dict(self.records.get("const", []))
-        expected = [item for _, items in make_brand.sections() for item in items]
-        self.assertTrue(expected)
-        for name, _, value in expected:
-            with self.subTest(name):
-                self.assertIn(name, constants)
-                self.assertAlmostEqual(float(constants[name]), value, delta=1e-6 * max(1.0, abs(value)))
+        for kind, sections in (("const", make_brand.sections()), ("darkconst", make_brand.dark_sections())):
+            constants = dict(self.records.get(kind, []))
+            expected = [item for _, items in sections for item in items]
+            self.assertTrue(expected)
+            self.assertEqual(set(constants), {name for name, _, _ in expected})
+            for name, _, value in expected:
+                with self.subTest(kind=kind, name=name):
+                    self.assertIn(name, constants)
+                    self.assertAlmostEqual(float(constants[name]), value, delta=1e-6 * max(1.0, abs(value)))
+
+    def test_both_themes_colours_read_back_as_the_palette(self):
+        colours = {}
+        for theme, name, value in self.records.get("colour", []):
+            colours.setdefault(theme, {})[name] = value
+        for theme in brand.THEMES:
+            tokens = brand.palette(theme)
+            expected = {name: tokens[token] for name, token, _ in make_brand.FIELDS}
+            expected.update({name: function(theme) for name, function, _ in make_brand.DERIVED})
+            with self.subTest(theme=theme):
+                self.assertEqual({name: "#" + value[-6:] for name, value in colours[theme].items()}, expected)
+                self.assertTrue(all(value.startswith("FF") for value in colours[theme].values()))
+
+    def test_each_theme_fills_the_dot_from_its_own_palette(self):
+        rows = self.records.get("themefill", [])
+        self.assertEqual(len(rows), 2 * len(self.STATES))
+        for theme, state, value in rows:
+            with self.subTest(theme=theme, state=state):
+                self.assertEqual("#" + value[-6:], brand.status_colour(state, theme))
+
+    def test_each_theme_elevation_is_brand_shadows(self):
+        counts = {(theme, recipe): int(value) for theme, recipe, value in self.records.get("count", [])}
+        rows = self.records.get("shadow", [])
+        self.assertEqual(len(rows), 2 * 4 * 4)
+        for theme, recipe, index, shown, dx, dy, blur, alpha, inset, tone in rows:
+            listed = brand.SHADOWS[theme].get(recipe, ())
+            index = int(index)
+            with self.subTest(theme=theme, recipe=recipe, index=index):
+                self.assertEqual(counts[(theme, recipe)], len(listed))
+                self.assertEqual(shown == "True", index < len(listed))
+                if index < len(listed):
+                    shadow = listed[index]
+                    self.assertEqual((float(dx), float(dy), float(blur)), (shadow.dx, shadow.dy, shadow.blur))
+                    self.assertEqual(float(alpha), shadow.alpha)          # a double: exactly as written
+                    self.assertEqual(inset == "True", shadow.inset)
+                    self.assertEqual("#" + tone[-6:], brand.palette(theme)[shadow.token])
+
+    def test_each_theme_check_box_is_brand_check_box(self):
+        rows = self.records.get("check", [])
+        self.assertEqual(len(rows), 2 * 4)
+        for theme, on, enabled, fill, edge, marked, mark in rows:
+            expected = brand.check_box(on == "True", enabled == "True", theme)
+            with self.subTest(theme=theme, on=on, enabled=enabled):
+                self.assertEqual("#" + fill[-6:], expected["fill"])
+                self.assertEqual("#" + edge[-6:], expected["edge"])
+                self.assertEqual(marked == "True", expected["mark"] is not None)
+                if expected["mark"] is not None:
+                    self.assertEqual("#" + mark[-6:], expected["mark"])
+        rows = self.records.get("checksystem", [])
+        self.assertEqual(len(rows), 4)
+        for on, enabled, fill, edge, marked, mark, well in rows:
+            expected = brand.check_box_system(on == "True", enabled == "True")
+            with self.subTest(on=on, enabled=enabled):
+                self.assertEqual((fill, edge), (expected["fill"], expected["edge"]))
+                self.assertEqual(mark or None, expected["mark"])
+                self.assertEqual(marked == "True", expected["mark"] is not None)
+                self.assertEqual(well == "True", brand.check_box(on == "True", enabled == "True")["well"])
 
 
 class RetiredColourTests(unittest.TestCase):
