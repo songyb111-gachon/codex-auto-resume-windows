@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.6.4 — One look in light and dark, a quieter status light, and a window that opens at once
+## v0.6.4 — One look in light and dark, a quieter status light, and a window that arrives ready
 
 A design and speed release. Recovery decides exactly what it decided in v0.6.3: the same
 classifier, the same gates, the same one watcher that is the only thing allowed to send. The one
@@ -128,9 +128,13 @@ new setting, **Theme**, changes how the product looks and nothing it does.
   Windows' own scroll bar. It shows only while there is more than fits, darkens a step under the
   pointer, glides unless motion is reduced, brings a control the keyboard moves to into view, and
   is drawn in system colours in High Contrast.
-- It is faster. Measured at 150% scaling on an empty installation during development: the first painted header went from 1.46-1.54 s to 0.44-0.45 s, later page switches from a median of about
-  100 ms (at most 203 ms) to 22 ms (at most 59 ms), the Continuation message section from 222-241 ms
-  to 74-82 ms, and the bridge's status check from 341 ms to 168 ms.
+- It waits until it has a page to show, and it gets there sooner. Measured at 150% scaling on an
+  empty installation during development, inside the window: the first painted header went from
+  1.46-1.54 s to 0.44-0.45 s, later page switches from a median of about 100 ms (at most 203 ms)
+  to 22 ms (at most 59 ms), the Continuation message section from 222-241 ms to 74-82 ms, and the
+  bridge's status check from 341 ms to 168 ms. Measured from outside on a real installation with
+  real history, the window is on screen about 0.3 s later than v0.6.3's empty frame was - and
+  holds a page people can use about 3 s sooner. The Evidence section gives the numbers.
 - To get there, pages and Settings sections are built when they are first shown, a page that
   was refreshed in the last two seconds is not asked again, and the window keeps its interface
   text in `config\strings-cache.json`, beside the settings. That file is used only when the product version,
@@ -155,7 +159,37 @@ new setting, **Theme**, changes how the product looks and nothing it does.
 
 ### Evidence
 
-<EVIDENCE>
+Everything below was run on the release candidate built from this tree, on one Windows 11 machine
+(24H2 build 26200, 3840 x 2160 at 150%, Korean system language, dark app mode).
+
+- **The suite.** 1,820 tests, no failures, under Python 3.13 (710 s, 8 skipped) and 3.12 (715 s,
+  7 skipped) here, and green on GitHub's Windows runners for 3.12, 3.13, 3.14 and 3.15. The skips
+  are the six opt-in live checks, the pin check that waits for the tag, and, on 3.13 here, the
+  workflow parser that wants PyYAML.
+- **The window, built twice.** Two builds of `CodexAutoResumeSettings.exe` from the same sources are
+  byte-identical, and `build/normalize_pe.py` accepts both.
+- **Clipping.** The layout audit builds the window hidden in all nine languages at 100, 125, 150,
+  175 and 200 per cent, in every watcher state, and reports anything cut off, any pinned button away
+  from its corner, any text under one, and an Overview that scrolls. It reports nothing.
+- **Installed over v0.6.3 on this machine.** The installer answered *Updated. Your settings and
+  pending recoveries were kept.*; `config\settings.json` was byte-identical afterwards, the watcher
+  kept running, and the plugin manifest read 0.6.4. The installed MCP server introduced itself as
+  0.6.4 with its seventeen tools, previewed a continuation in Korean, and still refused to let
+  `update_settings` write a Custom message.
+- **A theme change, on the real window.** Settings > Appearance > Theme from *Use system setting* to
+  *Light*, then Save: the window closed and came back by itself in light, on the same page, at the
+  same size and place. Setting it back returned it to dark.
+- **The popup, from a real click.** Clicking the notification-area icon opened the popup in dark:
+  the state line, the three counts, the empty-state note and its two buttons, 564 x 438 device px.
+- **First-window timing, from outside.** Process start until the window is on screen, then until it
+  has drawn its page, no input sent, warm, on a copy of a real installation: v0.6.3 830-1035 ms and
+  5.1-7.6 s; v0.6.4 1.2-1.3 s and 1.8-2.0 s. Inside v0.6.4 the largest costs are the process's first
+  font (215 ms on this machine's 610 font files), building and laying out the Overview (600 ms) and
+  Windows showing the finished window (333 ms).
+
+Not verified, and not claimed: High Contrast on a real system (it is rendered and asserted, never
+switched on here), a real Codex interruption recovered by this build, any machine but this one, and
+any scaling but 150 per cent.
 
 ## v0.6.3 — Nine languages, your own words, and a window that shows it is alive
 
