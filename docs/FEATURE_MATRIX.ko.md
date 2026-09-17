@@ -64,10 +64,10 @@
   그런 테스트는 기능이 없으면 스스로 건너뜁니다. 건너뛴 테스트는 아무것도 증명하지 않으므로,
   건너뛸 가능성이 있는 곳은 네 번째 칸에 적었습니다.
 
-  실행 기록이다. 2026-09-14, 이 문서를 쓴 Windows 11 기계에서
-  `PYTHONPATH="src;tests" python -m unittest discover -s tests`가 v0.6.3 나무를 돌렸고,
-  **1508개가 실패 없이** 통과했다. Python 3.13에서는 570초에 여덟 개를, Python 3.12에서는
-  579초에 일곱 개를 건너뛰었다. 두 번 모두 건너뛴 것 가운데 여섯은
+  실행 기록이다. 2026-09-17, 이 문서를 쓴 Windows 11 기계에서
+  `PYTHONPATH="src;tests" python -m unittest discover -s tests`가 이 문서가 설명하는 나무를 돌렸고,
+  **1820개가 실패 없이** 통과했다. Python 3.13에서는 710초에 여덟 개를, Python 3.12에서는
+  715초에 일곱 개를 건너뛰었다. 두 번 모두 건너뛴 것 가운데 여섯은
   `tests/test_integration_live.py`의 선택 참여 라이브 검사로, `CODEX_AR_LIVE=1` 없이는 돌지 않겠다고
   스스로 물러난 것이고, 하나는 `tests/test_convergence.py`에서 태그된 현재 버전의 해시가 고정되어
   있는지 보는 검사로, 그 버전에 태그가 붙기 전까지는 건너뛴다. 3.13에서만 건너뛴 여덟 번째는

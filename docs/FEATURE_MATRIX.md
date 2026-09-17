@@ -68,10 +68,10 @@ real Codex recovery. Read each citation and its limits separately.
   facility**, and those tests skip themselves where the facility is absent. A skipped test
   proves nothing, so the fourth column says where a skip is likely.
 
-  For the record: on 2026-09-14, on the Windows 11 machine this document was written on,
-  `PYTHONPATH="src;tests" python -m unittest discover -s tests` ran the v0.6.3 tree -
-  **1508 tests, with no failures** - under Python 3.13 in 570 seconds with eight skipped,
-  and under Python 3.12 in 579 seconds with seven skipped. On both, six of the skips were
+  For the record: on 2026-09-17, on the Windows 11 machine this document was written on,
+  `PYTHONPATH="src;tests" python -m unittest discover -s tests` ran the tree this document describes -
+  **1820 tests, with no failures** - under Python 3.13 in 710 seconds with eight skipped,
+  and under Python 3.12 in 715 seconds with seven skipped. On both, six of the skips were
   the opt-in live checks in `tests/test_integration_live.py`, each declining to run without
   `CODEX_AR_LIVE=1`, and one was `tests/test_convergence.py`'s check that a tagged current
   version is pinned, which skips until that version is tagged. The eighth, on 3.13 only, was
