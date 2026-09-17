@@ -771,7 +771,7 @@ class SourceRuleTests(unittest.TestCase):
                 self.assertIn("Ground.PaintBehind(this", self.controls[start:end])
 
     def test_the_grounds_are_buffered_and_opaque(self):
-        for name in ("SoftStack", "SoftPage", "SoftFlow", "SoftCard", "ChoiceGroup"):
+        for name in ("SoftStack", "SoftRows", "SoftPage", "SoftFlow", "SoftCard", "ChoiceGroup"):
             start = self.controls.index("internal sealed class %s " % name)
             body = self.controls[start:self.controls.index("\n    }\n", start)]
             with self.subTest(name):

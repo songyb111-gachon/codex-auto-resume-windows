@@ -836,6 +836,15 @@ namespace CodexAutoResume
             return Pad(column == 0 ? 0 : half, 0, column == 0 ? half : 0, lastRow ? 0 : Brand.PageGap);
         }
 
+        /// The gap around a card in a grid whose rows share the page's height (SoftRows): between the columns as
+        /// GridGap has it, and between the rows half of the page gap under the one and half over the other, so
+        /// rows of one height are cards of one height.
+        private Padding RowGap(int column, int row)
+        {
+            int half = Brand.PageGap / 2;
+            return Pad(column == 0 ? 0 : half, row == 0 ? 0 : half, column == 0 ? half : 0, row == 0 ? half : 0);
+        }
+
         private FlowLayoutPanel ButtonRow()
         {
             var row = new SoftFlow();
@@ -1090,30 +1099,37 @@ namespace CodexAutoResume
         private Control BuildOverview()
         {
             Panel page = Page();
-            TableLayoutPanel grid = Grid(2);
+            // Two rows of two cards that share the page's whole height (SoftRows): the cards reach from under the
+            // tabs to above the footer, rows of one height, whatever height the window has.
+            var grid = new SoftRows(2, 2);
 
             TableLayoutPanel now = MakeCard(S("overview.now", "Right now"));
-            now.Margin = GridGap(0, false);
+            now.Margin = RowGap(0, 0);
             TableLayoutPanel facts = Facts(now);
-            // Automatic recovery last, on the line of the button that pauses and resumes it, and the watcher and
-            // the engine first, above the button, where their longest words - "ne répond pas", "nicht unterstützt",
-            // "no se está ejecutando" - have the card's whole width. Beside the button, in French, "non pris en
-            // charge" took two more lines or the button under the facts, and the Overview scrolled (v0.6.4,
-            // measured: no order with automatic recovery first fitted every state in every language).
+            // Automatic recovery first, what the button pauses and resumes, then the watcher, the engine and the last
+            // check. At 600 px no order with automatic recovery first fitted every state in every language: beside
+            // the button, in French, "non pris en charge" took two more lines or the button under the facts, and the
+            // Overview scrolled, so for a while it came last. With the rows sharing the page (SoftRows) the button
+            // stands under the facts, whose longest words - "ne répond pas", "nicht unterstützt", "no se está
+            // ejecutando" - have the card's whole width in every language at every scaling and state (v0.6.4,
+            // measured: tests/test_gui_layout.py). It costs French in a window shorter than the opening size, where
+            // the rows no longer share the page alike: Right now needs 15 to 20 px more there than with automatic
+            // recovery last, and the Overview scrolls below 584 to 615 px rather than 569 to 595 (OpeningHeight).
+            nowRecovery = Fact(facts, S("overview.recovery", "Automatic recovery"));
             nowWatcher = Fact(facts, S("diag.watcher", "Watcher"));
             nowEngine = Fact(facts, S("overview.engine", "Codex engine"));
             nowLastCheck = Fact(facts, S("overview.last_check", "Last check"));
-            nowRecovery = Fact(facts, S("overview.recovery", "Automatic recovery"));
             toggleButton = MakeButton(S("action.pause", "Pause recovery"), false, delegate { TogglePause(); });
-            // The names give way before the button does: "Automatische Wiederherstellung" beside "Wiederherstellung
+            // Where the card has no room under its facts - a window shorter than the Overview needs - the names give
+            // way before the button does: at 600 px "Automatische Wiederherstellung" beside "Wiederherstellung
             // pausieren" left the last facts under the button in German, and a button under the facts made the
-            // Overview taller than its window.
+            // Overview taller than its window. A card with the room keeps them whole (SoftPin.Arrange).
             SoftPin nowBlock = PinTo(now, toggleButton);
             nowBlock.Wraps = facts;
             ReserveNowWords(nowBlock);
 
             TableLayoutPanel waiting = MakeCard(S("overview.waiting", "Waiting"));
-            waiting.Margin = GridGap(1, false);
+            waiting.Margin = RowGap(1, 0);
             waitingLine = Value("-");
             // The count as the page's figure: its size as it has always been, the panel's weight.
             waitingLine.Font = Soft.RoleFont("figure");
@@ -1127,7 +1143,7 @@ namespace CodexAutoResume
             PinTo(waiting, MakeButton(S("nav.pending", "Pending"), false, delegate { ShowPage("pending"); }));
 
             TableLayoutPanel week = MakeCard(S("overview.week", "Last 7 days"));
-            week.Margin = GridGap(0, true);
+            week.Margin = RowGap(0, 1);
             TableLayoutPanel weekFacts = Facts(week);
             weekDetected = Fact(weekFacts, S("overview.detected", "Interruptions"));
             weekSent = Fact(weekFacts, S("overview.sent", "Continuations sent"));
@@ -1138,7 +1154,7 @@ namespace CodexAutoResume
             // The last few recoveries that finished, so the page answers "did it work" as
             // well as "is it working" without a trip to the History page.
             TableLayoutPanel recent = MakeCard(S("overview.recent", "Recently finished"));
-            recent.Margin = GridGap(1, true);
+            recent.Margin = RowGap(1, 1);
             recentGrid = Facts(recent);
             recentEmpty = Value(S("history.empty", "No recoveries yet"));
             recentEmpty.ForeColor = Secondary;
@@ -1190,7 +1206,7 @@ namespace CodexAutoResume
             block.Dock = DockStyle.Fill;
             card.Controls.Add(block);
             // The heading as tall as it is, and the block down to the card's inner bottom edge, however
-            // tall the card beside it makes this one.
+            // tall the card beside it makes this one and however much of the page its row is given (SoftRows).
             card.RowStyles.Clear();
             card.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             card.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));

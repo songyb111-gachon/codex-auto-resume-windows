@@ -87,10 +87,11 @@ new setting, **Theme**, changes how the product looks and nothing it does.
   the bottom right of their Overview cards rather than at the left under the cards' content, and
   **Start watcher** sits at the bottom right of the header. **History** stands under the finished
   conversations when their outcomes reach the card's edge.
-- **Right now** lists the watcher, the Codex engine and the last check first, and automatic
-  recovery last, on the line of the button that pauses and resumes it. The card is laid out for
-  the longest words it can show, so it does not move when the watcher's state changes or its last
-  check grows older, and the Overview still fits the window whatever state the watcher is in.
+- **Right now** keeps its order - automatic recovery, the watcher, the Codex engine, the last
+  check - with the button that pauses and resumes recovery under them at the card's bottom right.
+  The card is laid out for the longest words it can show, so it does not move when the watcher's
+  state changes or its last check grows older, and the Overview still fits the window whatever
+  state the watcher is in.
 - In the popup, each task's switch has moved to the right end of its row, level with the last line
   of its label however far the label wraps, and the label wraps in the room left of it.
 - In the panel, the **Pause recovery** or **Resume recovery** button at the top of the Automatic
@@ -110,9 +111,17 @@ new setting, **Theme**, changes how the product looks and nothing it does.
 
 ### The window
 
-- It opens at 1000 × 600 instead of growing to fit the longest Settings section: wide enough for
-  the Overview to fit without scrolling in all nine languages at scalings from 100% to 200%, and
-  still inside a 1920 × 1080 screen at 150%. A Settings section taller than the window scrolls.
+- It opens at 1000 × 632 instead of growing to fit the longest Settings section: as tall as fits
+  a 1920 × 1080 screen at 150% with the taskbar, less a few pixels, and a size the Overview fits
+  without scrolling in all nine languages at scalings from 100% to 200%. A Settings section taller
+  than the window scrolls. On a screen with less room, it opens no larger than the screen's work
+  area.
+- The Overview's four cards share the height of the page: its two rows reach from under the tabs
+  to just above the footer, both rows are the same height and so are the cards in each, so the
+  cards are taller and no empty band is left above the footer. What a card says stays at its top,
+  and a card's button moves down with its bottom-right corner. In a window too short for rows of
+  one height, each row keeps what its own cards need, and the Overview scrolls only when they need
+  more than the window has.
 - On Pending, **Why it is waiting** is as tall as the list beside it and scrolls inside its own
   card, so the page does not.
 - Pages, Settings sections and lists scroll on a soft bar made of the same material instead of
