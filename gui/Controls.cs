@@ -122,6 +122,28 @@ namespace CodexAutoResume
             return (GetWindowLong(control.Handle, GWL_STYLE) & WS_VISIBLE) != 0;
         }
 
+        private static readonly System.Reflection.MethodInfo OwnState =
+            typeof(Control).GetMethod("GetState", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+        /// Whether a control was told to be visible, which is whether layout makes room for it -
+        /// whatever its parents are, and with or without a window.
+        internal static bool OwnVisible(Control control)
+        {
+            return OwnState == null ? control.Visible : (bool)OwnState.Invoke(control, new object[] { 2 });
+        }
+
+        /// Hands a turn of the wheel that `control` would not use to the nearest page around it that
+        /// can still scroll that way. True when one did.
+        internal static bool PassWheel(Control control, int delta)
+        {
+            for (Control c = control == null ? null : control.Parent; c != null; c = c.Parent)
+            {
+                var page = c as SoftPage;
+                if (page != null && page.Wheel(delta)) return true;
+            }
+            return false;
+        }
+
         internal static Color Mix(Color from, Color to, double amount)
         {
             amount = Math.Max(0, Math.Min(1, amount));
@@ -889,9 +911,12 @@ namespace CodexAutoResume
             return control.BackColor.A < 255 || control.BackColor.ToArgb() == Colour(control.Parent).ToArgb();
         }
 
-        /// Whether a control is a page that is showing a scroll bar.
+        /// Whether a control is a page that is showing a scroll bar: the soft one (SoftPage), or
+        /// Windows' own on any other scrolling panel.
         internal static bool Scrolling(Control control)
         {
+            var page = control as SoftPage;
+            if (page != null) return page.Overflowing;
             var scroller = control as ScrollableControl;
             return scroller != null && scroller.AutoScroll &&
                    (scroller.VerticalScroll.Visible || scroller.HorizontalScroll.Visible);
@@ -1098,10 +1123,33 @@ namespace CodexAutoResume
         }
     }
 
-    /// A page that is a ground (see Ground): double-buffered and opaque, and it may scroll.
-    internal sealed class SoftPage : Panel, ISoftGround
+    /// A page that is a ground (see Ground): double-buffered and opaque. A page that `Scrolls` moves
+    /// what it holds up and down when that is taller than the page, on the soft scroll bar - never
+    /// on Windows' own.
+    ///
+    /// Windows draws its bar in the page's frame, in the system's grey, and nothing a window does to
+    /// it makes it the window's material. So the page keeps its own offset. Its DisplayRectangle -
+    /// the rectangle WinForms lays every docked and anchored child out in - starts that far above its
+    /// top, and while there is more than fits it is narrower by the bar's gutter, so nothing is drawn
+    /// under the bar. How tall what it holds is:
+    ///   * a child docked to the top or the bottom counts at its height;
+    ///   * a child that fills counts at no more than its MinimumSize, so a page a list fills -
+    ///     Pending, History - scrolls only when the rest of it no longer fits at all;
+    ///   * a child placed where it is counts to its bottom.
+    /// The wheel scrolls it over anything in it that does not take the wheel for itself (a drop-down
+    /// or a number hands it on: Soft.PassWheel), and a control the keyboard moves to is scrolled into
+    /// view, as Windows' own scrolling panel does.
+    internal sealed class SoftPage : Panel, ISoftGround, ISoftScroller
     {
+        // Whether the lift of what it holds may cross out of it follows whether it is scrolling
+        // (Ground.SeeThrough), so when that changes the grounds around it are painted again.
         private bool scrolling;
+        private bool scrolls, overflow;
+        private int offset, extent, glideTarget;
+        private SoftScrollBar bar;
+        private Timer glide;
+        private EventHandler entered;
+        private ControlEventHandler added, removed;
 
         internal SoftPage()
         {
@@ -1110,21 +1158,512 @@ namespace CodexAutoResume
             BackColor = Palette.Canvas;
         }
 
+        /// Whether it scrolls what it holds up and down. Turned on once, when the page is built.
+        internal bool Scrolls
+        {
+            get { return scrolls; }
+            set
+            {
+                if (!value || scrolls) return;
+                bar = new SoftScrollBar(this, this);
+                glide = new Timer();
+                glide.Interval = SoftBar.GlideInterval;
+                glide.Tick += delegate { Glide(); };
+                entered = delegate(object sender, EventArgs e) { Entered(sender as Control); };
+                added = delegate(object sender, ControlEventArgs e) { Follow(e.Control); };
+                removed = delegate(object sender, ControlEventArgs e) { Unfollow(e.Control); };
+                scrolls = true;
+                ControlAdded += added;
+                ControlRemoved += removed;
+                foreach (Control child in Controls) Follow(child);
+                PerformLayout();
+            }
+        }
+
+        /// Whether it holds more than fits, so the bar is showing.
+        internal bool Overflowing { get { return scrolls && overflow; } }
+
+        /// How far down it is scrolled, in pixels.
+        internal int Offset { get { return offset; } }
+
+        /// How tall what it holds is, its padding included, in pixels.
+        internal int Extent { get { return extent; } }
+
+        internal SoftScrollBar Bar { get { return bar; } }
+
+        int ISoftScroller.Extent { get { return extent; } }
+        int ISoftScroller.Viewport { get { return ClientSize.Height; } }
+        int ISoftScroller.Offset { get { return offset; } }
+        void ISoftScroller.ScrollTo(int target) { ScrollTo(target, false); }
+        void ISoftScroller.Page(int direction)
+        {
+            ScrollTo(offset + direction * SoftBar.PageStep(ClientSize.Height, Soft.Px(SoftBar.Line)), false);
+        }
+
+        public override Rectangle DisplayRectangle
+        {
+            get
+            {
+                if (!scrolls) return base.DisplayRectangle;
+                Size client = ClientSize;
+                int gutter = overflow ? SoftBar.Gutter : 0;
+                return new Rectangle(Padding.Left, Padding.Top - offset,
+                                     Math.Max(0, client.Width - Padding.Horizontal - gutter),
+                                     Math.Max(0, Math.Max(client.Height, extent) - Padding.Vertical));
+            }
+        }
+
         protected override void OnPaintBackground(PaintEventArgs e)
         {
             Ground.Paint(this, e);
+            if (Overflowing) bar.Paint(e.Graphics);
         }
 
-        // Whether the lift of what it holds may cross out of it follows whether it is scrolling
-        // (Ground.SeeThrough), so when that changes the grounds around it are painted again.
         protected override void OnLayout(LayoutEventArgs levent)
         {
             base.OnLayout(levent);
+            if (scrolls) Settle(levent);
             bool now = Ground.Scrolling(this);
             if (now == scrolling) return;
             scrolling = now;
             Form form = FindForm();
             if (form != null && form.IsHandleCreated) form.Invalidate(true);
+        }
+
+        // Measures what it holds and lays it out again until that agrees with the offset and the bar:
+        // the gutter narrows what fills the width, which can only make it taller, so it settles in two
+        // passes at most once the bar has appeared or gone.
+        private void Settle(LayoutEventArgs levent)
+        {
+            for (int pass = 0; pass < 4; pass++)
+            {
+                int measured = Measure();
+                int viewport = ClientSize.Height;
+                bool over = viewport > 0 && measured > viewport;
+                int clamped = over ? Math.Max(0, Math.Min(measured - viewport, offset)) : 0;
+                if (measured == extent && over == overflow && clamped == offset) break;
+                extent = measured;
+                overflow = over;
+                offset = clamped;
+                base.OnLayout(levent);
+            }
+            if (glideTarget > offset && !overflow) glideTarget = offset;
+            int margin = Soft.Px(SoftBar.TrackMargin);
+            bar.Track = overflow
+                ? new Rectangle(ClientSize.Width - margin - Soft.Px(SoftBar.TrackWidth), margin,
+                                Soft.Px(SoftBar.TrackWidth), Math.Max(0, ClientSize.Height - 2 * margin))
+                : Rectangle.Empty;
+        }
+
+        private int Measure()
+        {
+            Rectangle display = DisplayRectangle;
+            int stacked = 0, placed = 0;
+            foreach (Control child in Controls)
+            {
+                if (!Soft.OwnVisible(child)) continue;
+                if (child.Dock == DockStyle.Top || child.Dock == DockStyle.Bottom) stacked += child.Height;
+                else if (child.Dock == DockStyle.Fill) stacked += Math.Max(0, child.MinimumSize.Height);
+                else if (child.Dock == DockStyle.None) placed = Math.Max(placed, child.Bottom - display.Top);
+            }
+            return Padding.Vertical + Math.Max(stacked, placed);
+        }
+
+        /// Scrolls to `target` pixels down, as far as there is to scroll. With `animate` it glides
+        /// there, unless motion is reduced or it is not on screen; otherwise it is there at once.
+        internal void ScrollTo(int target, bool animate)
+        {
+            if (!scrolls) return;
+            int range = overflow ? Math.Max(0, extent - ClientSize.Height) : 0;
+            target = Math.Max(0, Math.Min(range, target));
+            glideTarget = target;
+            if (animate && !Soft.ReduceMotion && IsHandleCreated && Soft.Shown(this))
+            {
+                if (!glide.Enabled) glide.Start();
+                return;
+            }
+            glide.Stop();
+            MoveTo(target);
+        }
+
+        /// Whether it is gliding toward an offset rather than standing at one.
+        internal bool Gliding { get { return glide != null && glide.Enabled; } }
+
+        private void MoveTo(int value)
+        {
+            if (value == offset) return;
+            offset = value;
+            // The children move with their pixels; the page's own ground - its padding, the shadows
+            // in it, the bar - is painted again.
+            PerformLayout();
+            Invalidate(false);
+        }
+
+        private void Glide()
+        {
+            int next = SoftBar.GlideStep(offset, glideTarget);
+            MoveTo(next);
+            if (next == glideTarget || !Soft.Shown(this)) glide.Stop();
+        }
+
+        /// Scrolls by one turn of the wheel, `delta` as Windows reports it. False when there is
+        /// nothing to scroll that way, so the turn goes on to whatever holds the page.
+        internal bool Wheel(int delta)
+        {
+            if (!Overflowing) return false;
+            int from = Gliding ? glideTarget : offset;
+            int step = SoftBar.WheelStep(delta, SystemInformation.MouseWheelScrollLines, Soft.Px(SoftBar.Line), ClientSize.Height);
+            int target = Math.Max(0, Math.Min(extent - ClientSize.Height, from + step));
+            if (target == from) return false;
+            ScrollTo(target, true);
+            return true;
+        }
+
+        // A turn over the page, or over a child that did not take it: Windows hands a wheel message a
+        // window does not use to its parent, so this sees both.
+        protected override void OnMouseWheel(MouseEventArgs e)
+        {
+            base.OnMouseWheel(e);
+            var handled = e as HandledMouseEventArgs;
+            if (handled != null && handled.Handled) return;
+            if (Wheel(e.Delta) && handled != null) handled.Handled = true;
+        }
+
+        /// Scrolls just far enough that `control`, somewhere in the page, is in view with a little of
+        /// the page around it - or its top, when it is taller than the page.
+        internal void Reveal(Control control)
+        {
+            if (!Overflowing || control == null) return;
+            int top = 0;
+            Control c = control;
+            for (; c != null && c != this; c = c.Parent) top += c.Top;
+            if (c == null) return;
+            top += offset;
+            ScrollTo(SoftBar.IntoView(offset, top, top + control.Height, ClientSize.Height,
+                                      Soft.Px(SoftBar.RevealRoom), extent), false);
+        }
+
+        // Focus arriving anywhere in the page. From the keyboard only: a click on a control half out of
+        // view is where the pointer is, and scrolling it away from under the pointer loses the click.
+        // Enter is raised for each container on the way down as well, so what is revealed is the
+        // control the window's focus is actually on.
+        private void Entered(Control control)
+        {
+            if (!Overflowing || Control.MouseButtons != MouseButtons.None) return;
+            Form form = FindForm();
+            Control active = form != null ? form.ActiveControl : null;
+            for (var container = active as ContainerControl; container != null && container.ActiveControl != null;
+                 container = active as ContainerControl)
+                active = container.ActiveControl;
+            Reveal(active != null && Contains(active) ? active : control);
+        }
+
+        private void Follow(Control control)
+        {
+            if (control == null) return;
+            control.Enter += entered;
+            control.ControlAdded += added;
+            control.ControlRemoved += removed;
+            foreach (Control child in control.Controls) Follow(child);
+        }
+
+        private void Unfollow(Control control)
+        {
+            if (control == null) return;
+            control.Enter -= entered;
+            control.ControlAdded -= added;
+            control.ControlRemoved -= removed;
+            foreach (Control child in control.Controls) Unfollow(child);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && glide != null) { glide.Stop(); glide.Dispose(); }
+            base.Dispose(disposing);
+        }
+    }
+
+    /// What the soft scroll bar scrolls: a page of controls, or a list's rows.
+    internal interface ISoftScroller
+    {
+        /// How long all of it is, how much shows at once, and how far along the view is - in one
+        /// unit: pixels for a page, rows for a list.
+        int Extent { get; }
+        int Viewport { get; }
+        int Offset { get; }
+
+        void ScrollTo(int offset);
+
+        /// A page toward the start (-1) or the end (1).
+        void Page(int direction);
+    }
+
+    /// The soft scroll bar's measurements and drawing: a thin well - the inset recipe, with its hairline -
+    /// and in it a raised pill, the control recipe's material and lift, as the panel's switch holds its
+    /// knob. Sizes are logical pixels.
+    ///
+    /// 12 across: thin beside the cards, and still a target as wide as a check box's mark; the whole
+    /// gutter, 18 across, answers the pointer. The pill is 8 across, inside a 2-pixel groove, and never
+    /// shorter than 32. Under the pointer and while it is dragged its edge darkens a step and a step
+    /// more. In High Contrast the well is Window with a WindowFrame edge and the pill GrayText, or
+    /// Highlight under the pointer and while dragged, with no shadow at all.
+    internal static class SoftBar
+    {
+        internal const int TrackWidth = 12;
+        internal const int ThumbInset = 2;
+        internal const int TrackMargin = 3;
+        internal const int MinThumb = 32;
+        /// A wheel line: three of them are 99 px, what the panel's page moves for one notch.
+        internal const int Line = 33;
+        /// The room kept around a control scrolled into view.
+        internal const int RevealRoom = 16;
+        internal const int GlideInterval = 15;
+
+        /// The strip a page keeps free for the bar while it shows, in device pixels.
+        internal static int Gutter
+        {
+            get { return Soft.Px(TrackWidth + 2 * TrackMargin); }
+        }
+
+        /// Where the thumb starts along a track `track` long, and how long it is, for `extent` of which
+        /// `viewport` shows, scrolled `offset` along. Proportional, never under `minimum`.
+        internal static void Thumb(int track, int extent, int viewport, int offset, int minimum, out int start, out int length)
+        {
+            start = 0;
+            length = Math.Max(0, track);
+            if (track <= 0 || extent <= viewport || viewport <= 0) return;
+            length = (int)Math.Round((double)track * viewport / extent);
+            length = Math.Min(track, Math.Max(Math.Min(minimum, track), length));
+            int range = extent - viewport;
+            start = (int)Math.Round((double)(track - length) * Math.Max(0, Math.Min(range, offset)) / range);
+        }
+
+        /// The offset a thumb `length` long standing at `start` along the track stands for.
+        internal static int OffsetAt(int track, int extent, int viewport, int length, int start)
+        {
+            int travel = track - length, range = extent - viewport;
+            if (travel <= 0 || range <= 0) return 0;
+            return (int)Math.Round((double)range * Math.Max(0, Math.Min(travel, start)) / travel);
+        }
+
+        /// How far one wheel message scrolls: `lines` lines of `line` for each notch of 120, or pages
+        /// when Windows is set to scroll a screen at a time (`lines` below zero). A turn up is negative.
+        internal static int WheelStep(int delta, int lines, int line, int viewport)
+        {
+            double amount = lines < 0 ? PageStep(viewport, line) : (double)lines * line;
+            return -(int)Math.Round(delta * amount / 120.0);
+        }
+
+        /// A page: what shows, less a line kept in view from the page before.
+        internal static int PageStep(int viewport, int line)
+        {
+            return Math.Max(Math.Max(1, line), viewport - line);
+        }
+
+        /// The offset that shows `top` to `bottom` of the content with `margin` around it, moving as
+        /// little as it can; the top when it is taller than what shows.
+        internal static int IntoView(int offset, int top, int bottom, int viewport, int margin, int extent)
+        {
+            int target = offset;
+            if (bottom - top + 2 * margin > viewport || top - margin < offset) target = top - margin;
+            else if (bottom + margin > offset + viewport) target = bottom + margin - viewport;
+            return Math.Max(0, Math.Min(Math.Max(0, extent - viewport), target));
+        }
+
+        /// One frame of a glide from `from` toward `to`: a third of the way, and the rest at the end.
+        internal static int GlideStep(int from, int to)
+        {
+            int left = to - from;
+            if (Math.Abs(left) <= 2) return to;
+            int step = (int)Math.Round(left * 0.35);
+            return from + (step == 0 ? Math.Sign(left) : step);
+        }
+
+        // States: 0 resting, 1 under the pointer, 2 dragged.
+        internal static Color TrackFill(bool contrast) { return contrast ? SystemColors.Window : Brand.Inset; }
+        internal static Color TrackEdge(bool contrast) { return contrast ? SystemColors.WindowFrame : Brand.Line; }
+
+        internal static Color ThumbFill(int state, bool contrast)
+        {
+            if (contrast) return state == 0 ? SystemColors.GrayText : SystemColors.Highlight;
+            return Brand.Raised;
+        }
+
+        internal static Color ThumbEdge(int state, bool contrast)
+        {
+            if (contrast) return ThumbFill(state, true);
+            return state == 2 ? Soft.Mix(Brand.Line, Brand.Muted, 0.6)
+                 : state == 1 ? Soft.Mix(Brand.Line, Brand.Muted, 0.35) : Brand.Line;
+        }
+
+        internal static void Draw(Graphics g, Rectangle track, Rectangle thumb, int state)
+        {
+            if (track.Width <= 0 || track.Height <= 0) return;
+            bool contrast = Palette.Contrast;
+            float radius = track.Width / 2f;
+            Soft.Body(g, track, radius, TrackFill(contrast), TrackEdge(contrast), !contrast);
+            if (thumb.Width <= 0 || thumb.Height <= 0) return;
+            float knob = thumb.Width / 2f;
+            if (!contrast)
+            {
+                // The pill's lift, kept in the groove: it rests in the well rather than floating over
+                // the page, and its shadow never covers the well's own edge.
+                int hairline = Soft.Hairline;
+                Rectangle groove = Rectangle.Inflate(track, -hairline, -hairline);
+                GraphicsState saved = g.Save();
+                using (GraphicsPath path = Soft.Rounded(groove, Math.Max(0f, radius - hairline)))
+                    g.SetClip(path, CombineMode.Intersect);
+                Elevation.StampOuter(g, thumb, "control", knob, groove);
+                g.Restore(saved);
+            }
+            Soft.Body(g, thumb, knob, ThumbFill(state, contrast), ThumbEdge(state, contrast), false);
+        }
+    }
+
+    /// The soft scroll bar's behaviour, on the control it is drawn in: dragging the thumb, a press on
+    /// the track paging toward the pointer and repeating while held, and the step darker edge under the
+    /// pointer. It is no window of its own - the host paints it (Paint) in a strip nothing else covers -
+    /// so there is nothing to focus and nothing between the host and its children.
+    internal sealed class SoftScrollBar
+    {
+        private readonly Control host;
+        private readonly ISoftScroller scroller;
+        private readonly Timer repeat = new Timer();
+        private Rectangle track;
+        private bool hover, dragging;
+        private int grab, pointer, direction;
+
+        internal SoftScrollBar(Control host, ISoftScroller scroller)
+        {
+            this.host = host;
+            this.scroller = scroller;
+            host.MouseDown += OnMouseDown;
+            host.MouseMove += OnMouseMove;
+            host.MouseUp += OnMouseUp;
+            host.MouseLeave += delegate { if (!dragging) Hover(false); };
+            host.MouseCaptureChanged += delegate { if (!host.Capture) Release(); };
+            repeat.Tick += delegate { repeat.Interval = 50; Page(); };
+            host.Disposed += delegate { repeat.Dispose(); };
+        }
+
+        /// The track, in the host's coordinates; empty while there is nothing to scroll.
+        internal Rectangle Track
+        {
+            get { return track; }
+            set
+            {
+                if (track == value) return;
+                Invalidate();
+                track = value;
+                if (track.IsEmpty) { hover = false; Release(); }
+                Invalidate();
+            }
+        }
+
+        /// What answers the pointer: the track and the margins either side of it.
+        internal Rectangle HitArea
+        {
+            get
+            {
+                if (track.IsEmpty) return Rectangle.Empty;
+                int margin = Soft.Px(SoftBar.TrackMargin);
+                return Rectangle.Inflate(track, margin, margin);
+            }
+        }
+
+        internal Rectangle Thumb
+        {
+            get
+            {
+                if (track.IsEmpty) return Rectangle.Empty;
+                int inset = Soft.Px(SoftBar.ThumbInset), start, length;
+                SoftBar.Thumb(track.Height - 2 * inset, scroller.Extent, scroller.Viewport, scroller.Offset,
+                              Soft.Px(SoftBar.MinThumb), out start, out length);
+                return new Rectangle(track.X + inset, track.Y + inset + start, Math.Max(0, track.Width - 2 * inset), length);
+            }
+        }
+
+        /// 0 resting, 1 under the pointer, 2 dragged.
+        internal int State { get { return dragging ? 2 : hover ? 1 : 0; } }
+
+        internal void Paint(Graphics g)
+        {
+            if (!track.IsEmpty) SoftBar.Draw(g, track, Thumb, State);
+        }
+
+        internal void Invalidate()
+        {
+            if (!track.IsEmpty && host.IsHandleCreated) host.Invalidate(HitArea, false);
+        }
+
+        private void OnMouseDown(object sender, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left || !HitArea.Contains(e.Location)) return;
+            Rectangle thumb = Thumb;
+            host.Capture = true;
+            if (e.Y >= thumb.Top && e.Y < thumb.Bottom)
+            {
+                dragging = true;
+                grab = e.Y - thumb.Top;
+                Invalidate();
+                return;
+            }
+            pointer = e.Y;
+            direction = e.Y < thumb.Top ? -1 : 1;
+            Page();
+            // Windows' own delay before a held press repeats, then a page every 50 ms.
+            repeat.Interval = (SystemInformation.KeyboardDelay + 1) * 250;
+            repeat.Start();
+        }
+
+        private void OnMouseMove(object sender, MouseEventArgs e)
+        {
+            if (dragging)
+            {
+                int inset = Soft.Px(SoftBar.ThumbInset);
+                Rectangle thumb = Thumb;
+                scroller.ScrollTo(SoftBar.OffsetAt(track.Height - 2 * inset, scroller.Extent, scroller.Viewport, thumb.Height,
+                                                   e.Y - grab - track.Y - inset));
+                Invalidate();
+                return;
+            }
+            if (repeat.Enabled) pointer = e.Y;
+            Hover(HitArea.Contains(e.Location));
+        }
+
+        private void OnMouseUp(object sender, MouseEventArgs e)
+        {
+            Release();
+            host.Capture = false;
+            Hover(HitArea.Contains(e.Location));
+        }
+
+        // A page toward where the track was pressed, until the thumb has reached the pointer.
+        private void Page()
+        {
+            Rectangle thumb = Thumb;
+            if (thumb.IsEmpty || (direction < 0 ? thumb.Top <= pointer : thumb.Bottom > pointer))
+            {
+                repeat.Stop();
+                return;
+            }
+            scroller.Page(direction);
+            Invalidate();
+        }
+
+        private void Release()
+        {
+            repeat.Stop();
+            if (!dragging) return;
+            dragging = false;
+            Invalidate();
+        }
+
+        private void Hover(bool over)
+        {
+            if (hover == over) return;
+            hover = over;
+            Invalidate();
         }
     }
 
@@ -1925,9 +2464,215 @@ namespace CodexAutoResume
     /// refresh does not flicker.
     internal sealed class SoftList : ListView
     {
+        private const int WM_SIZE = 0x0005;
+        private const int WM_PAINT = 0x000F;
+        private const int WM_STYLECHANGED = 0x007D;
+        private const int WM_KEYDOWN = 0x0100;
+        private const int WM_VSCROLL = 0x0115;
+        private const int WM_MOUSEWHEEL = 0x020A;
+
         internal SoftList()
         {
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+        }
+
+        /// After anything that can move or resize what the list shows - a scroll, a key, a resize, its
+        /// scroll bar coming or going, and every paint, which follows all of those.
+        internal event EventHandler ScrollChanged;
+
+        protected override void WndProc(ref Message m)
+        {
+            base.WndProc(ref m);
+            if (ScrollChanged != null && (m.Msg == WM_PAINT || m.Msg == WM_VSCROLL || m.Msg == WM_MOUSEWHEEL ||
+                                          m.Msg == WM_KEYDOWN || m.Msg == WM_SIZE || m.Msg == WM_STYLECHANGED))
+                ScrollChanged(this, EventArgs.Empty);
+        }
+    }
+
+    /// The strip a SoftListHost shows its list through: exactly as wide as the list's rows, so the
+    /// list's own scroll bar, beside them, is outside it.
+    internal sealed class ListClip : Panel
+    {
+        internal ListClip()
+        {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint, true);
+            TabStop = false;
+        }
+    }
+
+    /// A list with the soft scroll bar in place of its own.
+    ///
+    /// The list stays a whole native ListView - its keyboard selection, its wheel, its header, its
+    /// owner-drawn rows and what a screen reader is told are all Windows' - and it keeps its own scroll
+    /// bar. The host only hides that bar: the list stands in a ListClip exactly as wide as its rows, and
+    /// is itself wider by the bar, so the bar lies outside the clip, where a child window is never drawn.
+    /// Its rows' width, and so every column (SettingsForm.FitColumns), is what it always was. While it
+    /// has more rows than show, the clip is narrower by the gutter, and the host draws the soft bar
+    /// there from the list's own scroll position (GetScrollInfo, in rows). Dragging, paging and the
+    /// wheel over the bar are sent to the list as the scrolling it already understands (LVM_SCROLL,
+    /// WM_VSCROLL), and the bar follows whatever the list does itself (SoftList.ScrollChanged).
+    internal sealed class SoftListHost : Panel, ISoftScroller
+    {
+        [StructLayout(LayoutKind.Sequential)]
+        private struct ScrollInfo
+        {
+            public int Size, Mask, Min, Max, Page, Position, TrackPosition;
+        }
+
+        [DllImport("user32.dll")]
+        private static extern bool GetScrollInfo(IntPtr window, int bar, ref ScrollInfo info);
+
+        [DllImport("user32.dll")]
+        private static extern int GetWindowLong(IntPtr window, int index);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
+
+        private const int SB_VERT = 1;
+        private const int SIF_ALL = 0x17;
+        private const int GWL_STYLE = -16;
+        private const int WS_VSCROLL = 0x00200000;
+        private const int WM_VSCROLL = 0x0115;
+        private const int SB_PAGEUP = 2;
+        private const int SB_PAGEDOWN = 3;
+        private const int LVM_SCROLL = 0x1014;
+
+        internal readonly ListView List;
+        private readonly ListClip clip = new ListClip();
+        private readonly SoftScrollBar bar;
+        private ScrollInfo scroll;
+        private bool native, queued;
+
+        internal SoftListHost(ListView list)
+        {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                     ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+            List = list;
+            // Before anything is added: adding lays the host out, and laying out places the bar.
+            bar = new SoftScrollBar(this, this);
+            BackColor = list.BackColor;
+            clip.BackColor = list.BackColor;
+            list.Dock = DockStyle.None;
+            list.Margin = new Padding(0);
+            clip.Controls.Add(list);
+            Controls.Add(clip);
+            var soft = list as SoftList;
+            if (soft != null) soft.ScrollChanged += delegate { Changed(); };
+            list.HandleCreated += delegate { Changed(); };
+        }
+
+        internal SoftScrollBar Bar { get { return bar; } }
+
+        /// Whether the list has more rows than show, so the soft bar is showing.
+        internal bool Overflowing { get { return native; } }
+
+        internal ListClip Clip { get { return clip; } }
+
+        int ISoftScroller.Extent { get { return Math.Max(0, scroll.Max - scroll.Min + 1); } }
+        int ISoftScroller.Viewport { get { return Math.Max(1, scroll.Page); } }
+        int ISoftScroller.Offset { get { return Math.Max(0, scroll.Position - scroll.Min); } }
+
+        void ISoftScroller.ScrollTo(int target)
+        {
+            if (!List.IsHandleCreated || List.Items.Count == 0) return;
+            Read();
+            var self = (ISoftScroller)this;
+            target = Math.Max(0, Math.Min(Math.Max(0, self.Extent - self.Viewport), target));
+            int rows = target - self.Offset, row = List.GetItemRect(0).Height;
+            if (rows == 0 || row <= 0) return;
+            SendMessage(List.Handle, LVM_SCROLL, IntPtr.Zero, new IntPtr(rows * row));
+            Sync();
+        }
+
+        void ISoftScroller.Page(int direction)
+        {
+            if (!List.IsHandleCreated) return;
+            SendMessage(List.Handle, WM_VSCROLL, new IntPtr(direction < 0 ? SB_PAGEUP : SB_PAGEDOWN), IntPtr.Zero);
+            Sync();
+        }
+
+        private bool NativeBar
+        {
+            get { return List.IsHandleCreated && (GetWindowLong(List.Handle, GWL_STYLE) & WS_VSCROLL) != 0; }
+        }
+
+        private void Read()
+        {
+            var info = new ScrollInfo();
+            info.Size = Marshal.SizeOf(typeof(ScrollInfo));
+            info.Mask = SIF_ALL;
+            if (List.IsHandleCreated && GetScrollInfo(List.Handle, SB_VERT, ref info)) scroll = info;
+            else scroll = new ScrollInfo();
+        }
+
+        protected override void OnLayout(LayoutEventArgs levent)
+        {
+            base.OnLayout(levent);
+            native = NativeBar;
+            int rows = Math.Max(0, Width - (native ? SoftBar.Gutter : 0));
+            // The list's own bar is as wide as the list is wider than its rows; before it has one,
+            // Windows' measure of a scroll bar.
+            int beside = native ? Math.Max(0, List.Width - List.ClientSize.Width) : 0;
+            if (native && beside == 0) beside = SystemInformation.VerticalScrollBarWidth;
+            clip.SetBounds(0, 0, rows, Height);
+            List.SetBounds(0, 0, rows + beside, Height);
+            Read();
+            bar.Track = native ? TrackBounds() : Rectangle.Empty;
+        }
+
+        // Beside the rows: from under the column headings to the bottom.
+        private Rectangle TrackBounds()
+        {
+            int margin = Soft.Px(SoftBar.TrackMargin);
+            int top = List.Items.Count > 0 && List.View == View.Details ? Math.Max(0, List.GetItemRect(List.TopItem != null ? List.TopItem.Index : 0).Top) : 0;
+            return new Rectangle(Width - margin - Soft.Px(SoftBar.TrackWidth), top + margin, Soft.Px(SoftBar.TrackWidth),
+                                 Math.Max(0, Height - top - 2 * margin));
+        }
+
+        // Called from inside the list's own messages, so what it changes waits until they are done.
+        private void Changed()
+        {
+            if (queued || !IsHandleCreated) return;
+            queued = true;
+            BeginInvoke(new MethodInvoker(delegate { queued = false; Sync(); }));
+        }
+
+        /// Brings the soft bar in step with the list: laid out again when the list's own bar came or went,
+        /// painted again when its position or length changed.
+        internal void Sync()
+        {
+            if (IsDisposed || !List.IsHandleCreated) return;
+            if (NativeBar != native)
+            {
+                PerformLayout();
+                Invalidate();
+                return;
+            }
+            ScrollInfo before = scroll;
+            Read();
+            Rectangle track = native ? TrackBounds() : Rectangle.Empty;
+            if (before.Position != scroll.Position || before.Max != scroll.Max || before.Page != scroll.Page || track != bar.Track)
+            {
+                bar.Track = track;
+                bar.Invalidate();
+            }
+        }
+
+        protected override void OnMouseWheel(MouseEventArgs e)
+        {
+            base.OnMouseWheel(e);
+            if (!native) return;
+            var self = (ISoftScroller)this;
+            int rows = SoftBar.WheelStep(e.Delta, SystemInformation.MouseWheelScrollLines, 1, self.Viewport);
+            if (rows != 0) self.ScrollTo(self.Offset + rows);
+            var handled = e as HandledMouseEventArgs;
+            if (handled != null) handled.Handled = true;
+        }
+
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            using (var brush = new SolidBrush(BackColor)) e.Graphics.FillRectangle(brush, e.ClipRectangle);
+            if (native) bar.Paint(e.Graphics);
         }
     }
 

@@ -23,15 +23,17 @@ language at five scalings, which is what a later edit would break.
 """
 from __future__ import annotations
 
+import copy
 import json
 import os
 from pathlib import Path
 import re
 import subprocess
 import tempfile
+import time
 import unittest
 
-from codex_auto_resume import brand, l10n, settings
+from codex_auto_resume import brand, l10n, machine, settings
 
 ROOT = Path(__file__).resolve().parents[1]
 SETTINGS = ROOT / "gui" / "SettingsApp.cs"
@@ -368,6 +370,58 @@ def card_room(scale: float) -> tuple:
     return tuple(room)
 
 
+def fullest_snapshot(now: float) -> dict:
+    """A dashboard reply with the most the pages ever show, in the shape `controlcli dashboard`
+    answers: the watcher running, two recoveries waiting - one for hours - and one running in Codex,
+    each with the checks the watcher recorded, and four finished conversations with long names. A
+    table measures a label at its column's width, and a long name used to wrap the Overview past the
+    bottom of the window."""
+    gates = {name: [machine.PASS, "ok"] for name in machine.GATES}
+    gates["schedule"] = [machine.WAIT, "waiting_reset"]
+    for name in ("thread_available", "no_newer_user_work", "usage"):
+        gates[name] = [machine.UNKNOWN, "not_checked"]
+
+    def pending(index, code, category, eligible, name):
+        return {"interruption_id": ("%x" % index) * 64, "thread_id": "%08d-0000-7000-8000-000000000000" % index,
+                "name": name, "state": code, "code": code, "category": category, "overlays": [],
+                "eligible_at": eligible, "reset_at": eligible, "detected_at": now - 1500,
+                "recovery_attempts": 2, "thread_enabled": True, "gates": gates, "gates_at": now - 40}
+
+    def finished(index, code, category, name, hours):
+        return {"interruption_id": ("%x" % index) * 64, "thread_id": "%08d-0000-7000-8000-000000000000" % index,
+                "name": name, "state": code, "code": code, "category": category, "overlays": [],
+                "eligible_at": None, "detected_at": now - hours * 3600 - 600, "outcome_at": now - hours * 3600,
+                "recovery_attempts": 1, "thread_enabled": True}
+
+    waiting = [pending(1, "waiting_reset", "usage_limit", now + 9 * 3600, "payments-api-retry-and-idempotency-review"),
+               pending(2, "scheduled", "network_transient", now + 50 * 60, "migrate-the-docs-site-to-the-new-theme"),
+               pending(3, "turn_running", "server_5xx", None, "flaky-integration-tests-in-the-sync-service")]
+    history = [finished(4, "recovered", "usage_limit", "payments-api-retry-and-idempotency-review", 2),
+               finished(5, "stopped_by_user", "network_transient", "migrate-the-docs-site-to-the-new-theme", 8),
+               finished(6, "no_progress", "server_5xx", "flaky-integration-tests-in-the-sync-service", 26),
+               finished(7, "submission_unknown", "stream_interrupted", "release-notes-and-changelog-for-the-next-version", 50)]
+    return {"ok": True,
+            "status": {"version": "0.6.4", "enabled": True, "watcher_running": True, "upgrade_pending": False,
+                       "startup_enabled": True, "pending": len(waiting),
+                       "watcher": {"running": True, "ticking": True, "engine_state": "verified", "last_tick_at": now}},
+            "week": {"interruptions_detected": 128, "continuations_submitted": 117, "pending": len(waiting),
+                     "outcomes": {"recovered": 96}, "success_rate": 0.82},
+            "pending": waiting, "history": waiting + history}
+
+
+def finished_while_open(snapshot: dict, now: float) -> dict:
+    """The next read while the Overview is on screen: a recovery that has just finished, at the top of
+    History, so Recently finished is rebuilt on a page that is already laid out."""
+    later = copy.deepcopy(snapshot)
+    fresh = copy.deepcopy(snapshot["history"][-1])
+    fresh.update(interruption_id="8" * 64, thread_id="00000008-0000-7000-8000-000000000000",
+                 name="a-conversation-that-finished-while-the-window-was-open", code="recovered", state="recovered",
+                 outcome_at=now - 20 * 60, detected_at=now - 30 * 60)
+    waiting = len(snapshot["pending"])
+    later["history"] = snapshot["history"][:waiting] + [fresh] + snapshot["history"][waiting:]
+    return later
+
+
 class WindowCompositionTests(unittest.TestCase):
     """v0.6.4's window: v0.6.2's proportions, the panel's material, and the speed it lost."""
 
@@ -380,9 +434,19 @@ class WindowCompositionTests(unittest.TestCase):
         start = source.index(signature)
         return source[start:source.index("\n        }\n", start)]
 
-    def test_the_window_opens_at_the_proportions_of_v062_and_does_not_grow(self):
-        self.assertIn("ClientSize = new Size(Px(860), Px(600));", self.window)
+    def test_the_window_opens_at_a_size_the_overview_fits_and_does_not_grow(self):
+        """1000 by 600: the Overview whole in every language at every scaling (LayoutAuditTests
+        holds the page to it), and the window still inside a 1920 by 1080 screen at 150%."""
+        self.assertIn("ClientSize = new Size(Px(OpeningWidth), Px(OpeningHeight));", self.window)
+        width = int(re.search(r"internal const int OpeningWidth = (\d+);", self.window).group(1))
+        height = int(re.search(r"internal const int OpeningHeight = (\d+);", self.window).group(1))
+        self.assertEqual((width, height), (1000, 600))
+        # The work area of 1920 by 1080 at 150% with the taskbar, and the frame Windows 11 gives the
+        # window there, in device pixels (measured with GetWindowRect: 22 across, 56 down).
+        self.assertLessEqual(round(width * 1.5) + 22, 1920)
+        self.assertLessEqual(round(height * 1.5) + 56, 1080 - 72)
         self.assertIn("MinimumSize = new Size(Px(800), Px(420));", self.window)
+        self.assertIn("KeepOnScreen();", self.window)
         self.assertNotIn("FitToContent", self.window + self.dashboard,
                          "growing to the tallest section laid everything out twice before the first paint")
 
@@ -474,7 +538,69 @@ class WindowCompositionTests(unittest.TestCase):
         self.assertIn("if (Scrolling(control)) return false;", see_through,
                       "a scrolled card must not leave its shadow outside the page")
         scrolling = self.method(controls, "internal static bool Scrolling(")
+        self.assertIn("if (page != null) return page.Overflowing;", scrolling,
+                      "the soft scroll bar is the page's own, so the page says when it shows")
         self.assertIn("scroller.VerticalScroll.Visible || scroller.HorizontalScroll.Visible", scrolling)
+        self.assertIn("page.Scrolls = true;", self.method(self.dashboard, "private Panel Page("))
+
+    def test_nothing_in_the_window_scrolls_on_windows_own_bar(self):
+        """Every page, the Settings section page and the gate list scroll on the soft bar (SoftPage),
+        and every list on its own clipped away behind it (SoftListHost)."""
+        for name, source in (("SettingsApp.cs", self.window), ("Dashboard.cs", self.dashboard)):
+            with self.subTest(name):
+                self.assertNotRegex(source, r"\.AutoScroll\s*=\s*true")
+        self.assertIn("sectionScroll.Scrolls = true;", self.window)
+        self.assertIn("private readonly SoftPage sectionScroll", self.window)
+        self.assertIn("sectionScroll.ScrollTo(0, false);", self.method(self.window, "private void ShowSection("))
+        self.assertNotIn("AutoScrollPosition", self.window + self.dashboard)
+        self.assertIn("int width = page - SoftBar.Gutter;", self.method(self.window, "private void FitSections("))
+        self.assertIn("new SoftListHost(list)", self.method(self.dashboard, "private Control ListCard("))
+        self.assertIn("new SoftListHost(view)", self.method(self.dashboard, "private void OpenTimeline("))
+        wheel = self.method(self.window, "private static void IgnoreWheel(")
+        self.assertIn("handled.Handled = true;", wheel, "the drop-down must not change under the wheel")
+        self.assertIn("Soft.PassWheel(sender as Control, e.Delta);", wheel, "and the page must still scroll over it")
+
+    def test_why_it_is_waiting_scrolls_inside_its_card_and_never_the_page(self):
+        pending = self.method(self.dashboard, "private Control BuildPending(")
+        explain = pending[pending.index('MakeCard(S("explain.title"'):pending.index("var split = new SoftStack();")]
+        self.assertIn("explain.Dock = DockStyle.Fill;", explain, "as tall as the list's card in the same row")
+        self.assertIn("explain.AutoSize = false;", explain)
+        self.assertIn("gates.Scrolls = true;", explain)
+        self.assertIn("explainList.Dock = DockStyle.Top;", explain, "the checks are as tall as they are, inside the scroller")
+        self.assertIn("explain.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));", explain,
+                      "the scroller takes what the heading and the time leave")
+        controls = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
+        measure = self.method(controls, "private int Measure(")
+        self.assertIn("else if (child.Dock == DockStyle.Fill) stacked += Math.Max(0, child.MinimumSize.Height);", measure,
+                      "a filling child - the list and the explanation - counts at its minimum, so it gives way")
+
+    def test_the_overview_leads_with_each_cards_action_beside_its_heading(self):
+        overview = self.method(self.dashboard, "private Control BuildOverview(")
+        self.assertEqual(overview.count("HeadWith("), 4, "every Overview card has the head row, so their facts line up")
+        self.assertNotIn("Pad(0, 12, 0, 0)", overview, "a button under a card's content made the page taller than the window")
+        head = self.method(self.dashboard, "private void HeadWith(")
+        self.assertIn("head.MinimumSize = new Size(0, Px(Brand.ButtonHeight));", head)
+        self.assertIn("head.Margin = Pad(0, 0, 0, Brand.CardFirstGap);", head)
+        facts = self.method(self.dashboard, "private TableLayoutPanel Facts(")
+        self.assertIn("grid.Margin = new Padding(0);", facts, "the default 3 px margin never scaled")
+        recent = self.method(self.dashboard, "private void FillRecent(")
+        self.assertIn("new LineLabel()", recent, "a long conversation name wrapped the Overview past the window")
+
+    def test_recently_finished_fits_its_names_after_every_outcome_and_age_is_written(self):
+        """What each outcome says, age and all, decides what the names are left. Fitted inside the
+        rebuild, before the ages were written, rows rebuilt on a laid-out Overview cut every outcome
+        (LayoutAuditTests measures it)."""
+        recent = self.method(self.dashboard, "private void FillRecent(")
+        self.assertEqual(recent.count("FitRecentNames();"), 1)
+        fit = recent.index("FitRecentNames();")
+        rebuild = recent.index("if (key != recentShown)")
+        rebuilt = recent.index("\n            }\n", rebuild)
+        self.assertGreater(fit, recent.index('Ago(Number(row, "outcome_at"))'),
+                           "the names are fitted before the ages are written")
+        self.assertGreater(fit, rebuilt, "the names are fitted only when the rows are rebuilt")
+        self.assertLess(recent.index("recentGrid.SuspendLayout();"), rebuild)
+        self.assertLess(fit, recent.index("recentGrid.ResumeLayout(true);"),
+                        "the writes and the fit are one layout, not one per label")
 
     def test_a_stopped_watcher_is_grey_before_there_is_a_snapshot_too(self):
         status = self.method(self.window, "private void ApplyStatus(")
@@ -515,6 +641,11 @@ PROBE = r"""
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
+# As the window's own Main does before its first control. Without it every label measured its text
+# with GDI+, 5 px a line taller at 150% than the window draws it, and the Overview measured 687 px
+# of window where a capture of the real one showed 646 (v0.6.4).
+[Windows.Forms.Application]::EnableVisualStyles()
+[Windows.Forms.Application]::SetCompatibleTextRenderingDefault($false)
 $assembly = [Reflection.Assembly]::LoadFile($env:CAR_EXE)
 $static = [Reflection.BindingFlags]'Static,NonPublic,Public'
 $form = $assembly.GetType('CodexAutoResume.SettingsForm', $true)
@@ -524,18 +655,24 @@ $work = [string]$env:CAR_WORK
 $utf8 = New-Object Text.UTF8Encoding $false
 $schema = [IO.File]::ReadAllText((Join-Path $work 'schema.json'), $utf8)
 $current = [IO.File]::ReadAllText((Join-Path $work 'settings.json'), $utf8)
-$out = @{ audit = @{}; canary = ''; cache = @{} }
+# The most the pages ever show (fullest_snapshot).
+$snapshot = [IO.File]::ReadAllText((Join-Path $work 'snapshot.json'), $utf8)
+$out = @{ audit = @{}; canary = ''; cramped = ''; cache = @{} }
 foreach ($locale in (ConvertFrom-Json $env:CAR_LOCALES)) {
     $catalog = [IO.File]::ReadAllText((Join-Path $work ('strings-' + $locale + '.json')), $utf8)
     $out.audit[$locale] = @{}
     foreach ($scale in (ConvertFrom-Json $env:CAR_SCALES)) {
         $key = ([double]$scale).ToString('0.00', [Globalization.CultureInfo]::InvariantCulture)
-        $out.audit[$locale][$key] = [string]$audit.Invoke($null, [object[]]@($schema, $current, $catalog, [double]$scale))
+        $out.audit[$locale][$key] = [string]$audit.Invoke($null, [object[]]@($schema, $current, $catalog, $snapshot, [double]$scale))
     }
 }
 # A label that cannot fit, so an empty report means the audit looked rather than that it saw nothing.
 $canary = [IO.File]::ReadAllText((Join-Path $work 'strings-canary.json'), $utf8)
-$out.canary = [string]$audit.Invoke($null, [object[]]@($schema, $current, $canary, [double]1.0))
+$out.canary = [string]$audit.Invoke($null, [object[]]@($schema, $current, $canary, $snapshot, [double]1.0))
+# An Overview that cannot fit - a waiting count as tall as a paragraph - so a quiet report on scrolling is
+# the audit measuring, not the page never being asked.
+$cramped = [IO.File]::ReadAllText((Join-Path $work 'strings-cramped.json'), $utf8)
+$out.cramped = [string]$audit.Invoke($null, [object[]]@($schema, $current, $cramped, $snapshot, [double]1.0))
 
 # The strings cache, in an installation laid out as the real one is.
 $cache = $assembly.GetType('CodexAutoResume.StringsCache', $true)
@@ -652,7 +789,7 @@ function New-Window([bool]$auditing) {
     $form.GetField('auditing', $instance).SetValue($window, $auditing)
     $window.TopLevel = $false
     $window.MinimumSize = [Drawing.Size]::Empty
-    $window.ClientSize = New-Object Drawing.Size 860, 600
+    $window.ClientSize = New-Object Drawing.Size ([int]$form.GetField('OpeningWidth', $static).GetValue($null)), ([int]$form.GetField('OpeningHeight', $static).GetValue($null))
     return $window
 }
 $out.window = @{}
@@ -709,6 +846,47 @@ Start-Sleep -Milliseconds 2200
 Invoke-Window $window 'ShowPage' @('diagnostics')
 $out.window.snapshot = @($freshReads, [bool](Get-Field $window 'refreshing'), [bool]($age.ElapsedMilliseconds -ge 2000))
 $window.Dispose()
+
+# Recently finished, filled again on an Overview already laid out: a recovery finishes while the window
+# is open (finished_while_open), the rows are rebuilt, and the card's width does not change. At this
+# machine's scale and its opening size, as the window opens.
+$materialise = $form.GetMethod('Materialise', $static)
+$systemScale = [double]$form.GetField('SystemScale', $static).GetValue($null)
+function Read-Snapshot([string]$name) { return $parse.Invoke($null, [object[]]@([IO.File]::ReadAllText((Join-Path $work $name), $utf8))) }
+function Get-Recent($window) {
+    $grid = Get-Field $window 'recentGrid'
+    $state = @{ shown = @(); cut = @(); first = 0 }
+    foreach ($control in $grid.Controls) {
+        if ($null -eq $control.Tag) { continue }
+        $wanted = [int]$control.GetPreferredSize([Drawing.Size]::Empty).Width
+        $state.shown += [string]$control.Text
+        if ($wanted -gt $control.Width + 1) { $state.cut += ([string]$control.Text + ' is ' + $control.Width + ' of ' + $wanted) }
+    }
+    # Which rows these are: a rebuilt card holds new labels.
+    if ($grid.Controls.Count -gt 0) { $state.first = [Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($grid.Controls[0]) }
+    return $state
+}
+$out.recent = @{}
+foreach ($locale in (ConvertFrom-Json $env:CAR_LOCALES)) {
+    $catalogValue = $parse.Invoke($null, [object[]]@([IO.File]::ReadAllText((Join-Path $work ('strings-' + $locale + '.json')), $utf8)))
+    $once = $bridgeType.GetConstructors($instance)[0].Invoke([object[]]@($nowhere))
+    $bridge = $persistentType.GetConstructors($instance)[0].Invoke([object[]]@($nowhere, $once))
+    $window = $three.Invoke([object[]]@($bridge, $catalogValue, [Drawing.SystemFonts]::MessageBoxFont))
+    $form.GetField('auditing', $instance).SetValue($window, $true)
+    $window.TopLevel = $false
+    $window.MinimumSize = [Drawing.Size]::Empty
+    $window.ClientSize = New-Object Drawing.Size ([int][Math]::Round([int]$form.GetField('OpeningWidth', $static).GetValue($null) * $systemScale)), ([int][Math]::Round([int]$form.GetField('OpeningHeight', $static).GetValue($null) * $systemScale))
+    Invoke-Window $window 'ApplySnapshot' @((Read-Snapshot 'snapshot.json'))
+    Invoke-Window $window 'ShowPage' @('overview')
+    $null = $materialise.Invoke($null, [object[]]@($window))
+    $window.PerformLayout()
+    $opened = Get-Recent $window
+    Invoke-Window $window 'ApplySnapshot' @((Read-Snapshot 'snapshot-later.json'))
+    $window.PerformLayout()
+    $rebuilt = Get-Recent $window
+    $out.recent[$locale] = @{ opened = $opened; rebuilt = $rebuilt }
+    $window.Dispose()
+}
 [IO.File]::WriteAllText((Join-Path $work 'result.json'), ($out | ConvertTo-Json -Depth 6 -Compress), $utf8)
 """
 
@@ -756,6 +934,13 @@ class LayoutAuditTests(unittest.TestCase):
                 json.dumps(reply(locale, l10n.catalog(locale)), ensure_ascii=False), encoding="utf-8")
         canary = dict(l10n.catalog("en"), **{"field.theme": "W" * 400})
         (work / "strings-canary.json").write_text(json.dumps(reply("en", canary)), encoding="utf-8")
+        cramped = dict(l10n.catalog("en"), **{"overview.waiting_count": " ".join(["{n} waiting"] * 60)})
+        (work / "strings-cramped.json").write_text(json.dumps(reply("en", cramped)), encoding="utf-8")
+        now = time.time()
+        fullest = fullest_snapshot(now)
+        (work / "snapshot.json").write_text(json.dumps(fullest, ensure_ascii=False), encoding="utf-8")
+        (work / "snapshot-later.json").write_text(json.dumps(finished_while_open(fullest, now), ensure_ascii=False),
+                                                  encoding="utf-8")
         install = work / "install"
         (install / "config").mkdir(parents=True)
         (install / "config" / "settings.json").write_text('{"interface_language": "system"}', encoding="utf-8")
@@ -792,6 +977,30 @@ class LayoutAuditTests(unittest.TestCase):
     def test_the_audit_finds_what_does_not_fit(self):
         self.assertIn("Label'WWWW", self.answer["canary"],
                       "a 400-character label went unreported, so an empty report proves nothing")
+
+    def test_the_audit_finds_an_overview_that_would_scroll(self):
+        """The fullest Overview in every language at every scaling is in the first test's empty
+        reports; this is the same measurement shown a page that cannot fit."""
+        self.assertIn("overview :: the page scrolls", self.answer["cramped"],
+                      "a waiting count sixty lines long did not make the Overview scroll, so no report of it proves nothing")
+        self.assertNotIn("pending :: the page scrolls", self.answer["cramped"])
+
+    def test_recently_finished_stays_whole_when_a_recovery_finishes_with_the_overview_open(self):
+        """The audit fills the Overview before the page has its width, and the width arriving fits
+        the names again. A recovery that finishes while the window is open rebuilds the rows on a
+        page already laid out, where the width does not change: fitted before the ages were written,
+        the names kept the room of the outcomes alone, and in every language measured each outcome
+        and its age ended in an ellipsis until the window was resized (v0.6.4)."""
+        recent = self.answer["recent"]
+        self.assertEqual(sorted(recent), sorted(l10n.LOCALES))
+        for locale in l10n.LOCALES:
+            opened, rebuilt = recent[locale]["opened"], recent[locale]["rebuilt"]
+            with self.subTest(locale=locale):
+                self.assertEqual(len(opened["shown"]), 4, "the fullest snapshot shows four finished conversations")
+                self.assertEqual(opened["cut"], [])
+                self.assertNotEqual(rebuilt["first"], opened["first"], "the rows were not rebuilt, so nothing was asked")
+                self.assertEqual(len(rebuilt["shown"]), 4)
+                self.assertEqual(rebuilt["cut"], [], "an outcome and its age are cut once the rows were rebuilt")
 
     def test_the_strings_cache_is_used_only_for_the_installation_as_it_was(self):
         cache = self.answer["cache"]

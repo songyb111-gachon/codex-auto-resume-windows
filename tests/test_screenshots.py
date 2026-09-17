@@ -272,10 +272,8 @@ class PixelTests(unittest.TestCase):
     this checks the result.
     """
 
-    ACTIVE = (0x06, 0xB6, 0xD4)   # Brand.Active - the state dot while monitoring or recovering
-    WAITING = (0x1A, 0x5F, 0xA8)  # Brand.Waiting - the state dot while something waits
-    LINE = (0xD3, 0xDC, 0xE7)     # Brand.Line - the hairlines under the header, over the footer
-    SURFACE = (0xF6, 0xF8, 0xFB)  # Brand.Surface - the cards the pages are laid out on
+    ACTIVE = (0x06, 0xB6, 0xD4)   # Brand.Active - the state light whenever the watcher is running
+    SURFACE = (0xF6, 0xF8, 0xFB)  # Brand.Surface - the cards: the header, the pages and the footer
 
     def test_every_window_screenshot_shows_its_cards(self):
         """The pages are cards on the window's ground. A capture that lost them - erased and
@@ -287,15 +285,17 @@ class PixelTests(unittest.TestCase):
                 self.assertGreater(surface, width * height * 0.15,
                                    "%s shows almost no card surface" % name)
 
-    def test_every_window_screenshot_has_both_hairlines(self):
-        """One capture in four lost the header's rule the same way the dot was lost."""
+    def test_every_window_screenshot_has_its_header_and_footer_cards(self):
+        """Since v0.6.4 the header and the footer are cards floating on the canvas; until then they
+        were bands ruled off with a hairline, and one capture in four lost the header's rule the
+        same way the dot was lost. A capture that loses a card shows canvas where it belongs."""
         for name in WINDOW_SHOTS:
             width, height, rows = read_png(ROOT / name)
-            ruled = [y for y, row in enumerate(rows)
-                     if sum(1 for pixel in row if pixel == self.LINE) > width * 0.9]
+            carded = [y for y, row in enumerate(rows)
+                      if sum(1 for pixel in row if pixel == self.SURFACE) > width * 0.8]
             with self.subTest(name):
-                self.assertTrue(any(y < height // 4 for y in ruled), "no rule under the header")
-                self.assertTrue(any(y > height * 3 // 4 for y in ruled), "no rule over the footer")
+                self.assertTrue(any(y < height // 6 for y in carded), "no header card")
+                self.assertTrue(any(y > height * 5 // 6 for y in carded), "no footer card")
 
     def test_every_window_screenshot_shows_the_state_dot(self):
         for name in WINDOW_SHOTS:
@@ -303,8 +303,7 @@ class PixelTests(unittest.TestCase):
             header = rows[:height * 15 // 100]
             left = width // 8
             near = sum(1 for row in header for pixel in row[:left]
-                       if any(all(abs(a - b) <= 24 for a, b in zip(pixel, colour))
-                              for colour in (self.ACTIVE, self.WAITING)))
+                       if all(abs(a - b) <= 24 for a, b in zip(pixel, self.ACTIVE)))
             with self.subTest(name):
                 self.assertGreater(near, 40, "the header's state dot is missing from %s" % name)
 
