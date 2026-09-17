@@ -140,18 +140,11 @@ SPACING = {"xs": 4, "s": 8, "m": 12, "l": 16, "xl": 24, "xxl": 32}
 # The notification-area popup's type sizes. The panel sets its own (TYPE_SCALE, below) and
 # the settings window keeps the system message font, so this table is the popup's alone.
 TYPE = {"title": 20, "heading": 14, "body": 12, "small": 11}
-# A raised surface: a soft shadow offset down and right, a highlight up and left. Small
-# on purpose - exaggerated embossing is the thing that makes soft interfaces unreadable.
-# These are the v0.6.3 scalars the popup's layered card still reads; SHADOWS, below, is the
-# panel's exact recipe, and replaces them once nothing reads them.
-ELEVATION = {"raised_blur": 14, "raised_offset": 4, "inset_blur": 6, "inset_offset": 2,
-             "shadow_opacity": 0.55}
-# Motion is a state, not decoration. Monitoring breathes slowly; a single attention pulse
-# is quicker and happens once; nothing blinks. Every recurring motion stops when a
-# person has asked Windows to reduce motion.
-MOTION = {"breathe_ms": 2400, "attention_ms": 1200, "transition_ms": 160}
-# The v0.6.3 halo, kept until its last reader moves to GLOW (below).
-HALO = {"min_opacity": 0.12, "max_opacity": 0.34, "radius": 9}
+# Motion is a state, not decoration: the state light's glow is GLOW (below), and every
+# recurring motion stops when a person has asked Windows to reduce motion. What is left here
+# is the panel's control transitions. The shadows that were scalars here until v0.6.4 are
+# SHADOWS, the panel's exact recipes.
+MOTION = {"transition_ms": 160}
 
 
 # ------------------------------------------------------------ v0.6.4: the panel, as data
@@ -330,11 +323,11 @@ def padding(key: str) -> tuple:
 def css_scale() -> str:
     """The scale as CSS custom properties, for the panel's stylesheet.
 
-    The attention pulse is `--pulse`, not `--attention`: the palette already emits
-    `--attention` as a colour on the same `:root`, and two custom properties with one name
-    do not raise anything - the later declaration wins, the dark theme re-declares the
-    colour, and an animation handed a colour for its duration simply does not run. The glow's
-    properties are `--glow-*` for the same reason.
+    The glow's properties are all `--glow-*`, so the attention pulse's duration is
+    `--glow-attention-ms` and never `--attention`: the palette already emits `--attention` as
+    a colour on the same `:root`, and two custom properties with one name do not raise
+    anything - the later declaration wins, the dark theme re-declares the colour, and an
+    animation handed a colour for its duration simply does not run.
 
     `--type-*` is the panel's own type scale (TYPE_SCALE); the popup's TYPE is not a
     stylesheet's business. The glow's stops are written for the panel's dot, as lengths along
@@ -350,11 +343,7 @@ def css_scale() -> str:
         values = value if isinstance(value, tuple) else (value,)
         parts.append("--size-%s: %s;" % (name.replace("_", "-"),
                                           " ".join(_css_length(part) for part in values)))
-    parts.append("--breathe: %dms;" % MOTION["breathe_ms"])
-    parts.append("--pulse: %dms;" % MOTION["attention_ms"])
     parts.append("--transition: %dms;" % MOTION["transition_ms"])
-    parts.append("--halo-min: %s;" % HALO["min_opacity"])
-    parts.append("--halo-max: %s;" % HALO["max_opacity"])
     dot = STATUS_DOT["panel"]
     parts.append("--glow-reach: %s;" % _css_length(GLOW["reach"]))
     for name, fraction in (("edge", 0.0), ("near", GLOW["near_at"]), ("far", GLOW["far_at"]),

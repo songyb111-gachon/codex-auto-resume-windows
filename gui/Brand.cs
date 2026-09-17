@@ -58,17 +58,7 @@ namespace CodexAutoResume
         internal const int TypeHeading = 14;
         internal const int TypeBody = 12;
         internal const int TypeSmall = 11;
-        internal const int RaisedBlur = 14;
-        internal const int RaisedOffset = 4;
-        internal const int InsetBlur = 6;
-        internal const int InsetOffset = 2;
-        internal const int BreatheMs = 2400;
-        internal const int AttentionMs = 1200;
         internal const int TransitionMs = 160;
-        internal const int HaloRadius = 9;
-        internal const float ShadowOpacity = 0.55f;
-        internal const float HaloMin = 0.12f;
-        internal const float HaloMax = 0.34f;
 
         internal const string HexAccent = "#1257B8";
         internal const string HexBrand = "#1257B8";

@@ -405,9 +405,10 @@ class StyleTests(unittest.TestCase):
                      "--glow-outer", "--glow-near-mix", "--glow-far-mix", "--glow-still",
                      "--glow-monitoring-ms", "--glow-recovering-ms", "--glow-attention-ms"):
             self.assertIn("var(%s)" % name, mcpui._STYLE)
-        # v0.6.3's halo numbers, which the glow replaced.
+        # v0.6.3's halo numbers, which the glow replaced, are neither used nor emitted.
         for name in ("--breathe", "--pulse", "--halo-min", "--halo-max"):
             self.assertNotIn("var(%s)" % name, mcpui._STYLE)
+            self.assertNotIn(name + ":", brand.css_scale())
 
     def test_every_token_is_declared_on_the_bare_root_before_any_theme_block(self):
         root = css_block(mcpui._STYLE, ":root {")

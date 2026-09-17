@@ -366,6 +366,16 @@ default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
 - `config/settings.json` — your settings, including the interface and continuation languages
   and, from v0.6.3, any Custom message you write in the Dashboard: the message for every
   interruption and any per-kind ones, each at most 2,000 characters, stored exactly as typed;
+- `config/strings-cache.json` — written by the Dashboard window so it can show its first screen
+  without waiting for the Python side: the interface text in the language it resolved, the stored
+  Interface language and the language Windows prefers, and the key that says whether the copy is
+  still good - the window's version, the installation's full path (which normally includes your
+  Windows user name), SHA-256 digests of the interface catalogs, the language modules and
+  `settings.json` (a digest of it, not its contents), the values of `CODEX_AUTO_RESUME_LANG`,
+  `LC_ALL`, `LC_MESSAGES` and `LANG`, and your Windows display languages. Nothing in it is about
+  your conversations, and it holds no Custom message text. The window uses it only while that key
+  still matches and writes a new one otherwise; deleting it only makes the next opening a little
+  slower. `Uninstall.cmd` with `-Purge` removes it with the rest of `config/`;
 - `logs/` — `auto-resume.log`, what the watcher did, by reason code and conversation UUID;
   `errors.log`, the Python traceback when something goes wrong; and `launcher.log`, a line
   per launch (and why, if one failed).

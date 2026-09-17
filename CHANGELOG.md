@@ -1,5 +1,59 @@
 # Changelog
 
+## v0.6.4 — One look, a quieter light, and a window that opens at once
+
+A design and speed release. Recovery decides exactly what it decided in v0.6.3: the same
+classifier, the same gates, the same one watcher that is the only thing allowed to send.
+
+### One design
+
+- The Dashboard and the notification-area popup now use the materials of the panel in Codex:
+  the same raised cards and sunken fields, the same soft shadows, corner radii and controls.
+  Check boxes are switches, state chips have no border, buttons stand out and sink when
+  pressed. The text sizes, the Dashboard's pages and Settings sections, and the popup's layout
+  are unchanged, and so are the notification-area icon and its badge.
+- The Dashboard's header and footer are floating cards, and the page tabs sit on the canvas.
+- High Contrast: the popup follows it now too - system colours, no shadows, no motion - and
+  the panel has a forced-colors style, so its lights, switch knobs and select arrows no longer
+  disappear.
+
+### The status light
+
+- While the watcher is running and recovery is on, the light is cyan again - the colour it had
+  before v0.6.3 - whether the watcher is watching, waiting, checking a task or recovering; the
+  word beside it says which. It glows softly and breathes slowly.
+- A paused or stopped watcher shows the same grey as before, with no glow. A stopped watcher
+  is grey again rather than amber; amber is for a running watcher that needs you.
+- Reduce motion, Windows' animation setting and High Contrast still hold it still.
+
+### The window
+
+- It opens at v0.6.2's size, 860 × 600, instead of growing to fit the longest Settings
+  section; a Settings section taller than the window scrolls.
+- It is faster. Measured at 150% scaling on an empty installation during development: the first painted header went from 1.46-1.54 s to 0.44-0.45 s, later page switches from a median of about
+  100 ms (at most 203 ms) to 22 ms (at most 59 ms), the Continuation message section from 222-241 ms
+  to 74-82 ms, and the bridge's status check from 341 ms to 168 ms.
+- To get there, pages and Settings sections are built when they are first shown, a page that
+  was refreshed in the last two seconds is not asked again, and the window keeps its interface
+  text in `config\strings-cache.json`, beside the settings. That file is used only when the product version,
+  the stored interface language and the Windows language all still match; otherwise the window
+  asks, as it always did, before it shows a word.
+- The bridge's status check no longer loads the watcher to find out whether one is running.
+
+### Fixed
+
+- **Combo boxes lost their bottom edge.** Continuation language, Preview for, Use the message
+  for, Message for, Retry timing and the Statistics period were drawn with the bottom border
+  cut off. A settings row measured its height before the window's font reached it, and the box
+  grew afterwards. Rows now measure again when the box or the font changes, and a test builds
+  the window at five scalings in all nine languages and reports anything cut off.
+- In the panel, a primary button pressed from the keyboard showed white text on a light
+  field, and disabled controls used half-transparent text; they now use readable muted text.
+
+### Evidence
+
+<EVIDENCE>
+
 ## v0.6.3 — Nine languages, your own words, and a window that shows it is alive
 
 A feature and design release. Recovery itself decides exactly what it decided in v0.6.2:

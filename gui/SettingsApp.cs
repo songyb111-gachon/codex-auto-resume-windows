@@ -383,7 +383,7 @@ namespace CodexAutoResume
         private static readonly string[] SectionOrder = { "general", "recovery", "continuation", "appearance", "advanced" };
         private readonly Dictionary<string, TableLayoutPanel> sections = new Dictionary<string, TableLayoutPanel>();
         private readonly Dictionary<string, NavButton> sectionButtons = new Dictionary<string, NavButton>();
-        private readonly Panel sectionScroll = new SoftPage();
+        private readonly SoftPage sectionScroll = new SoftPage();
         private string currentSection = "general";
         // The schema and settings as read, until the Settings editors are built from them
         // (BuildEditorsLater); null once they have been.
@@ -489,6 +489,22 @@ namespace CodexAutoResume
         private static readonly double SystemScale = MeasureDpiScale();
         private static double dpiScale = SystemScale;
 
+        /// The window's opening client size, in logical pixels.
+        ///
+        /// The height is what the Overview needs with the most it ever shows - three lines under
+        /// Waiting, four finished conversations with long names - and room for a system font whose
+        /// lines run a pixel taller than this one's. Measured built and never shown, text drawn as this
+        /// window draws it, in all nine languages from 100% to 200%: 564 to 576 px, the same in every
+        /// language (tests/test_gui_layout.py holds the page to it). The window then fits a 1920 by
+        /// 1080 screen at 150% - a work area of 1280 by 672 logical pixels, of which the frame takes 38 -
+        /// with 52 device pixels to spare, and it is as tall as v0.6.2's.
+        ///
+        /// The width is where the Pending list draws "waiting for the usage reset" and "Usage limit"
+        /// whole beside "Why it is waiting" at its full 256 px: 933 to 946 in English, 813 to 817 in
+        /// Korean.
+        internal const int OpeningWidth = 1000;
+        internal const int OpeningHeight = 600;
+
         /// The display's scale. Read-only to the window; only LayoutAudit stands another
         /// scale in, to measure a layout at a scaling this machine is not set to.
         internal static double DpiScale
@@ -581,11 +597,13 @@ namespace CodexAutoResume
             BackColor = Canvas;
             StartPosition = FormStartPosition.CenterScreen;
             AutoScaleMode = AutoScaleMode.Font;
-            // The proportions of v0.6.2. Every page is laid out to fit this at every scaling and in
-            // every language - tests/test_gui_layout.py measures it - and a Settings section taller
-            // than the page scrolls. v0.6.3 grew the window to its tallest section instead, which
-            // cost a second layout of everything before the first screen was painted.
-            ClientSize = new Size(Px(860), Px(600));
+            // The page the window opens on, the Overview, is whole at this size without scrolling, in
+            // every language at every scaling and with the most it ever shows - tests/test_gui_layout.py
+            // measures it - and the window, frame and all, still fits a 1920 by 1080 screen at 150%.
+            // A Settings section taller than the page scrolls. v0.6.3 grew the window to its tallest
+            // section instead, which cost a second layout of everything before the first screen was
+            // painted. See OpeningWidth.
+            ClientSize = new Size(Px(OpeningWidth), Px(OpeningHeight));
             // Wide enough that the two columns always hold their content. Allowing a
             // narrower window buys nothing: the labels start truncating mid-word, which
             // looks broken rather than compact.
@@ -714,7 +732,8 @@ namespace CodexAutoResume
             }
 
             sectionScroll.Dock = DockStyle.Fill;
-            sectionScroll.AutoScroll = true;
+            // On the soft scroll bar (see SoftPage), which keeps the section's own cards' material.
+            sectionScroll.Scrolls = true;
             sectionScroll.Margin = new Padding(0);
             sectionScroll.SizeChanged += delegate { FitSections(); };
             columns.Controls.Add(list, 0, 0);
@@ -722,7 +741,7 @@ namespace CodexAutoResume
             FitSections();
         }
 
-        /// Every section as wide as the page less a vertical scroll bar, whether or not one is
+        /// Every section as wide as the page less the scroll bar's gutter, whether or not the bar is
         /// showing, so a section's width changes only when the window's does.
         ///
         /// Docked, a section took whatever width the page had, and the page had less of it whenever
@@ -734,7 +753,7 @@ namespace CodexAutoResume
         {
             int page = sectionScroll.Width > 0 ? sectionScroll.Width
                      : ClientSize.Width - columns.Padding.Horizontal - Px(244);
-            int width = page - SystemInformation.VerticalScrollBarWidth;
+            int width = page - SoftBar.Gutter;
             if (width <= Px(160)) return;
             foreach (TableLayoutPanel stack in sections.Values)
             {
@@ -801,7 +820,7 @@ namespace CodexAutoResume
                 section.ResumeLayout(true);
                 sectionScroll.ResumeLayout(false);
                 sectionScroll.PerformLayout();
-                sectionScroll.AutoScrollPosition = new Point(0, 0);
+                sectionScroll.ScrollTo(0, false);
             }
             finally
             {
@@ -1045,11 +1064,13 @@ namespace CodexAutoResume
         {
             // Scrolling the page with the pointer over a spin box or a drop-down would
             // otherwise change the setting under the cursor - silently, and usually all
-            // the way to a limit. The wheel belongs to the page, not to the editor.
+            // the way to a limit. The wheel belongs to the page, not to the editor, so the
+            // turn is handed to the page (a turn marked handled goes no further by itself).
             control.MouseWheel += delegate(object sender, MouseEventArgs e)
             {
                 var handled = e as HandledMouseEventArgs;
                 if (handled != null) handled.Handled = true;
+                Soft.PassWheel(sender as Control, e.Delta);
             };
         }
 
@@ -2072,18 +2093,20 @@ namespace CodexAutoResume
         /// `stringsJson`: one line each, and an empty string when there is none.
         ///
         /// The window is built as it opens, at its opening size, with the Custom message and its
-        /// per-kind editor showing, and every page and every Settings section is laid out in turn.
-        /// It is never shown - it is not even a top-level window - and nothing is sent to it.
-        /// Another scaling is stood in for this machine's by scaling DpiScale and the fonts
-        /// together, which matched a real 144-DPI window to the pixel when the v0.6.4 clipping was
-        /// measured. Reported are:
-        ///   * a control that reaches past a container that does not scroll;
+        /// per-kind editor showing, and every page and every Settings section is laid out in turn -
+        /// filled from `snapshotJson`, a dashboard reply, when one is given. It is never shown - it
+        /// is not even a top-level window - and nothing is sent to it. Another scaling is stood in
+        /// for this machine's by scaling DpiScale and the fonts together, which matched a real
+        /// 144-DPI window to the pixel when the v0.6.4 clipping was measured. Reported are:
+        ///   * a control that reaches past a container that does not scroll, or past the side of a
+        ///     page that scrolls up and down;
         ///   * a page that would scroll sideways;
+        ///   * the Overview, Pending or History scrolling at all (AuditScrolling);
         ///   * a drop-down that is not one field high;
         ///   * text, a list's columns or other content that needs more room than it is drawn in,
         ///     and a status light too small for its glow.
         /// tests/test_gui_layout.py runs it in every language at five scalings.
-        internal static string LayoutAudit(string schemaJson, string settingsJson, string stringsJson, double scale)
+        internal static string LayoutAudit(string schemaJson, string settingsJson, string stringsJson, string snapshotJson, double scale)
         {
             var findings = new List<string>();
             System.Reflection.FieldInfo fallback = typeof(Control).GetField("defaultFont",
@@ -2103,6 +2126,7 @@ namespace CodexAutoResume
                 var catalog = Json.Parse(stringsJson) as Dictionary<string, object>;
                 var schema = Json.Parse(schemaJson) as List<object>;
                 var current = Json.Parse(settingsJson) as Dictionary<string, object>;
+                var snapshot = string.IsNullOrEmpty(snapshotJson) ? null : Json.Parse(snapshotJson) as Dictionary<string, object>;
                 // A bridge rooted where nothing is: anything that still asked it would fail at once.
                 string nowhere = Path.Combine(Path.GetTempPath(), "codex-auto-resume-layout-audit-" + Guid.NewGuid().ToString("N"));
                 using (var form = new SettingsForm(new PersistentBridge(nowhere, new Bridge(nowhere)), catalog, windowFont))
@@ -2112,14 +2136,17 @@ namespace CodexAutoResume
                     // screen it would open on neither clamps its size nor ever shows it.
                     form.TopLevel = false;
                     form.MinimumSize = Size.Empty;
-                    form.ClientSize = new Size(form.Px(860), form.Px(600));
+                    form.ClientSize = new Size(form.Px(OpeningWidth), form.Px(OpeningHeight));
                     form.BuildEditors(schema, current);
+                    // Held by the window, so each page is filled from it as the page is built (PageFor).
+                    if (snapshot != null) form.ApplySnapshot(snapshot);
                     foreach (string page in PageOrder)
                     {
                         form.ShowPage(page);
                         if (page != "settings")
                         {
                             form.Audit(page, findings);
+                            form.AuditScrolling(page, findings);
                             continue;
                         }
                         foreach (string section in SectionOrder)
@@ -2164,11 +2191,25 @@ namespace CodexAutoResume
             }
         }
 
+        /// The pages that never scroll at the opening size: the Overview, which the window opens on, and
+        /// the two lists, whose cards give way to the window's height instead of the page.
+        private void AuditScrolling(string page, List<string> findings)
+        {
+            if (page != "overview" && page != "pending" && page != "history") return;
+            Control built;
+            var scroller = pages.TryGetValue(page, out built) ? built as SoftPage : null;
+            if (scroller != null && scroller.Overflowing)
+                findings.Add(page + " :: the page scrolls, " + scroller.Extent + " high in " + scroller.ClientSize.Height);
+        }
+
         private void Walk(Control parent, string path, List<string> findings)
         {
             var scroller = parent as ScrollableControl;
-            bool scrolls = scroller != null && scroller.AutoScroll;
-            if (scrolls && scroller.HorizontalScroll.Visible)
+            var page = parent as SoftPage;
+            bool native = scroller != null && scroller.AutoScroll;
+            // A list's clip is narrower than the list by the list's own scroll bar, on purpose (SoftListHost).
+            bool scrolls = native || (page != null && page.Scrolls) || parent is ListClip;
+            if (native && scroller.HorizontalScroll.Visible)
                 findings.Add(path + " :: scrolls sideways, " + scroller.DisplayRectangle.Width + " wide in " + scroller.ClientSize.Width);
             foreach (Control child in parent.Controls)
             {
@@ -2179,6 +2220,13 @@ namespace CodexAutoResume
                     Size client = parent.ClientSize;
                     if (child.Left < 0 || child.Top < 0 || child.Right > client.Width || child.Bottom > client.Height)
                         findings.Add(place + " :: is cut off, " + child.Bounds + " in " + client);
+                }
+                else if (page != null && page.Scrolls)
+                {
+                    // Up and down it scrolls; sideways it must hold what it holds, clear of the bar.
+                    Rectangle room = page.DisplayRectangle;
+                    if (child.Left < room.Left || child.Right > room.Right)
+                        findings.Add(place + " :: reaches past the side of its page, " + child.Bounds + " in " + room);
                 }
                 var combo = child as SoftCombo;
                 if (combo != null && combo.Height != SoftCombo.FieldHeight)

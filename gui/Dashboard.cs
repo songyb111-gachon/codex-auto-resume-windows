@@ -325,6 +325,43 @@ namespace CodexAutoResume
         }
     }
 
+    /// A line of text that stays one line - a conversation's name, how its recovery ended - and
+    /// ends in an ellipsis where it does not fit.
+    ///
+    /// A table asks a label for its size at the width of its column, and a plain label answers
+    /// with as many lines as the text wraps to: four long conversation names took the Overview to
+    /// 713 px of window at 150%, and 729 in German (measured, 900 px wide). The whole text is still
+    /// the label's name for a screen reader; only what is drawn is cut.
+    internal sealed class LineLabel : Label
+    {
+        internal LineLabel()
+        {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint, true);
+            AutoSize = true;
+            AutoEllipsis = true;
+            // A conversation is called whatever its owner called it, ampersands included.
+            UseMnemonic = false;
+        }
+
+        public override Size GetPreferredSize(Size proposedSize)
+        {
+            Size line = TextRenderer.MeasureText(string.IsNullOrEmpty(Text) ? " " : Text, Font, new Size(int.MaxValue, int.MaxValue),
+                                                 TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
+            int width = line.Width + Padding.Horizontal;
+            if (MaximumSize.Width > 0) width = Math.Min(width, MaximumSize.Width);
+            if (proposedSize.Width > 1 && proposedSize.Width < width) width = proposedSize.Width;
+            return new Size(width, line.Height + Padding.Vertical);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var bounds = new Rectangle(Padding.Left, Padding.Top, Math.Max(0, Width - Padding.Horizontal), Math.Max(0, Height - Padding.Vertical));
+            TextRenderer.DrawText(e.Graphics, Text, Font, bounds, ForeColor,
+                                  TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix |
+                                  TextFormatFlags.Left | TextFormatFlags.Top);
+        }
+    }
+
     /// A small bar chart of how recoveries ended, drawn to the same scale for every bar.
     internal sealed class OutcomeChart : Panel
     {
@@ -709,10 +746,10 @@ namespace CodexAutoResume
         {
             var page = new SoftPage();
             page.Dock = DockStyle.Fill;
-            // A page scrolls, so it is the edge of the shadows on it (see Ground): the cards'
-            // lift is kept inside its padding.
+            // A page may scroll, and while it does it is the edge of the shadows on it (see Ground):
+            // the cards' lift is kept inside its padding.
             page.Padding = CardRoom();
-            page.AutoScroll = true;
+            page.Scrolls = true;
             return page;
         }
 
@@ -762,6 +799,9 @@ namespace CodexAutoResume
             grid.AutoSize = true;
             grid.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             grid.Dock = DockStyle.Fill;
+            // None of its own: the default is 3 px that never scaled, which set every fact 3 px in
+            // from the card's heading and added 6 px to each card of the Overview.
+            grid.Margin = new Padding(0);
             // Opaque, in the card's own colour. See-through, every repaint of the grid and of each
             // label in it asked the card to paint its background again, shadow and all: 23 card
             // backgrounds for one Overview, and 1.4 s the first time Statistics was shown.
@@ -858,12 +898,43 @@ namespace CodexAutoResume
             // Every column first gets its heading, whole, in the list's font; what is left is shared
             // in the declared proportions. Shared out alone, the proportions cut "Next check",
             // "Attempts" and "Auto-resume" short in a window of v0.6.2's width.
+            //
+            // Then each column keeps room for the widest thing it holds: every column but the
+            // conversation's first, and the conversation's from what they leave - a name may be as long
+            // as its owner made it, and a state or a kind cut short says nothing. From the headings
+            // alone, a status needed the window 1,239 px wide before "waiting for the usage reset" was
+            // drawn whole (measured, 150%), because its column only ever had its share of what the
+            // headings left.
             var floor = new int[weights.Length];
-            int floors = 0;
+            int floors = 0, others = 0, wanted = 0;
+            int[] cells;
+            cellWidths.TryGetValue(list, out cells);
+            var want = new int[weights.Length];
             for (int i = 0; i < weights.Length; i++)
             {
                 floor[i] = HeadingWidth(list, i);
                 floors += floor[i];
+                want[i] = cells != null && i < cells.Length ? Math.Max(floor[i], cells[i]) : floor[i];
+                if (i > 0) others += want[i];
+                if (i > 0) wanted += want[i] - floor[i];
+            }
+            if (floor[0] + others <= available)
+            {
+                for (int i = 1; i < weights.Length; i++) floor[i] = want[i];
+                floor[0] = Math.Max(floor[0], Math.Min(want[0], available - others));
+                floors = floor[0] + others;
+            }
+            else if (floors < available && wanted > 0)
+            {
+                // Not room for all of that: each of those columns is given the same part of what it
+                // wants past its heading, so none is cut to its heading while another is drawn whole.
+                int more = floor[0];
+                for (int i = 1; i < weights.Length; i++)
+                {
+                    floor[i] += (int)Math.Floor((want[i] - floor[i]) * (double)(available - floors) / wanted);
+                    more += floor[i];
+                }
+                floors = more;
             }
             int spare = Math.Max(0, available - floors);
             int used = 0;
@@ -874,6 +945,34 @@ namespace CodexAutoResume
                 if (list.Columns[i].Width != width) list.Columns[i].Width = width;
                 used += width;
             }
+        }
+
+        // The widest cell of each column, as DrawCell draws it, measured when a list's rows change
+        // (MeasureCells) - not on every resize, which for a long history was every cell again.
+        private readonly Dictionary<ListView, int[]> cellWidths = new Dictionary<ListView, int[]>();
+
+        /// Measures the widest cell of every column, and fits the columns again.
+        private void MeasureCells(ListView list)
+        {
+            var widths = new int[list.Columns.Count];
+            var unbounded = new Size(int.MaxValue, int.MaxValue);
+            int rows = 0;
+            foreach (ListViewItem item in list.Items)
+            {
+                // Enough to know the widths by; a history of thousands is not measured whole.
+                if (++rows > 200) break;
+                for (int c = 0; c < widths.Length && c < item.SubItems.Count; c++)
+                {
+                    string text = item.SubItems[c].Text;
+                    int width = c == 1 ? Soft.ChipSize(text, list.Font).Width
+                              : list == pendingList && c == ResumeColumn ? Px(Brand.SwitchWidth + 2)
+                              : TextRenderer.MeasureText(text, list.Font, unbounded, TextFormatFlags.SingleLine).Width;
+                    // DrawCell's inset: 10 before, 4 after.
+                    widths[c] = Math.Max(widths[c], width + Px(14));
+                }
+            }
+            cellWidths[list] = widths;
+            FitColumns(list);
         }
 
         /// How wide a column must be for its heading to be drawn whole: the heading in the list's
@@ -905,8 +1004,11 @@ namespace CodexAutoResume
             // Its body is the whole control; the page it stands on draws its lift (see SoftCard).
             card.Padding = Pad(8, 8, 8, 8);
             card.Margin = new Padding(0);
-            list.Margin = new Padding(0);
-            card.Controls.Add(list, 0, 0);
+            // The list scrolls on the soft bar, not its own (see SoftListHost).
+            var host = new SoftListHost(list);
+            host.Dock = DockStyle.Fill;
+            host.Margin = new Padding(0);
+            card.Controls.Add(host, 0, 0);
             return card;
         }
 
@@ -1002,8 +1104,7 @@ namespace CodexAutoResume
             nowEngine = Fact(facts, S("overview.engine", "Codex engine"));
             nowLastCheck = Fact(facts, S("overview.last_check", "Last check"));
             toggleButton = MakeButton(S("action.pause", "Pause recovery"), false, delegate { TogglePause(); });
-            toggleButton.Margin = Pad(0, 12, 0, 0);
-            now.Controls.Add(toggleButton);
+            HeadWith(now, toggleButton);
 
             TableLayoutPanel waiting = MakeCard(S("overview.waiting", "Waiting"));
             waiting.Margin = GridGap(1, false);
@@ -1017,12 +1118,11 @@ namespace CodexAutoResume
             waiting.Controls.Add(waitingLine);
             waiting.Controls.Add(nextLine);
             waiting.Controls.Add(runningLine);
-            var show = MakeButton(S("nav.pending", "Pending"), false, delegate { ShowPage("pending"); });
-            show.Margin = Pad(0, 12, 0, 0);
-            waiting.Controls.Add(show);
+            HeadWith(waiting, MakeButton(S("nav.pending", "Pending"), false, delegate { ShowPage("pending"); }));
 
             TableLayoutPanel week = MakeCard(S("overview.week", "Last 7 days"));
             week.Margin = GridGap(0, true);
+            HeadWith(week, null);
             TableLayoutPanel weekFacts = Facts(week);
             weekDetected = Fact(weekFacts, S("overview.detected", "Interruptions"));
             weekSent = Fact(weekFacts, S("overview.sent", "Continuations sent"));
@@ -1037,9 +1137,8 @@ namespace CodexAutoResume
             recentEmpty = Value(S("history.empty", "No recoveries yet"));
             recentEmpty.ForeColor = Secondary;
             recent.Controls.Add(recentEmpty);
-            var all = MakeButton(S("nav.history", "History"), false, delegate { ShowPage("history"); });
-            all.Margin = Pad(0, 12, 0, 0);
-            recent.Controls.Add(all);
+            HeadWith(recent, MakeButton(S("nav.history", "History"), false, delegate { ShowPage("history"); }));
+            recentGrid.SizeChanged += delegate { FitRecentNames(); };
 
             grid.Controls.Add(now, 0, 0);
             grid.Controls.Add(waiting, 1, 0);
@@ -1047,6 +1146,58 @@ namespace CodexAutoResume
             grid.Controls.Add(recent, 1, 1);
             page.Controls.Add(grid);
             return page;
+        }
+
+        /// A card's heading with what the card leads to beside it, as the panel's card head has it:
+        /// the heading at the left, the button at the right, the card's gap between them. Every
+        /// Overview card has this row, one button high whether it holds a button or not, so the
+        /// facts in two cards side by side start on one line.
+        ///
+        /// Under the card's content the button cost its card a button and a gap more, and the page
+        /// was then taller than a window that fits a 1920 by 1080 screen at 150%: 646 px of window
+        /// with the screenshots' conversations (measured), where that screen leaves 634.
+        private void HeadWith(TableLayoutPanel card, Button button)
+        {
+            Control heading = card.Controls[0];
+            var head = new SoftStack();
+            head.BackColor = Surface;
+            head.ColumnCount = 2;
+            head.RowCount = 1;
+            head.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            head.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            head.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            head.AutoSize = true;
+            head.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            head.Dock = DockStyle.Fill;
+            head.MinimumSize = new Size(0, Px(Brand.ButtonHeight));
+            // The panel's gap between a card's head and the first thing under it.
+            head.Margin = Pad(0, 0, 0, Brand.CardFirstGap);
+            heading.Margin = new Padding(0);
+            heading.Anchor = AnchorStyles.Left;
+            card.Controls.Remove(heading);
+            head.Controls.Add(heading, 0, 0);
+            if (button != null)
+            {
+                button.Anchor = AnchorStyles.Right;
+                button.Margin = Pad(Brand.CardHeadGap, 0, 0, 0);
+                head.Controls.Add(button, 1, 0);
+            }
+            card.Controls.Add(head);
+            card.Controls.SetChildIndex(head, 0);
+        }
+
+        /// The longest a finished conversation's name is drawn in Recently finished: what how each one
+        /// ended leaves of the card, so the outcome and its age are whole and a long name gives way -
+        /// down to 80 px, past which the outcome gives way too. Again whenever the outcomes and their ages
+        /// are written (FillRecent) and whenever the card's width changes.
+        private void FitRecentNames()
+        {
+            int widest = 0;
+            foreach (Control control in recentGrid.Controls)
+                if (control.Tag != null) widest = Math.Max(widest, control.GetPreferredSize(Size.Empty).Width + control.Margin.Horizontal);
+            int room = Math.Max(Px(80), recentGrid.ClientSize.Width - widest - Px(18));
+            foreach (Control control in recentGrid.Controls)
+                if (control.Tag == null && control.MaximumSize.Width != room) control.MaximumSize = new Size(room, 0);
         }
 
         private const int RecentRows = 4;
@@ -1068,22 +1219,26 @@ namespace CodexAutoResume
                 signature.Append(Str(row, "interruption_id")).Append(Str(row, "code"))
                          .Append(Conversation(row)).Append('|');
             string key = signature.ToString();
+            recentGrid.SuspendLayout();
             if (key != recentShown)
             {
                 recentShown = key;
-                recentGrid.SuspendLayout();
                 recentGrid.Controls.Clear();
                 foreach (var row in rows)
                 {
-                    var name = Value(Conversation(row));
+                    // One line each, whatever the names are (see LineLabel).
+                    var name = new LineLabel();
+                    name.Text = Conversation(row);
                     name.ForeColor = Secondary;
                     name.Margin = Pad(0, 3, 18, 3);
-                    var outcome = Value(CodeLabel(row));
+                    var outcome = new LineLabel();
+                    outcome.Text = CodeLabel(row);
+                    outcome.ForeColor = Ink;
+                    outcome.Margin = Pad(0, 3, 0, 3);
                     outcome.Tag = row;
                     recentGrid.Controls.Add(name);
                     recentGrid.Controls.Add(outcome);
                 }
-                recentGrid.ResumeLayout(true);
                 recentEmpty.Text = S("history.empty", "No recoveries yet");
                 recentEmpty.Visible = rows.Count == 0;
             }
@@ -1093,6 +1248,12 @@ namespace CodexAutoResume
                 var row = control.Tag as Dictionary<string, object>;
                 if (row != null) control.Text = CodeLabel(row) + "  ·  " + Ago(Number(row, "outcome_at"));
             }
+            // Fitted to what each outcome now says, age and all. Fitted while the outcomes held no age, rows
+            // rebuilt on a page already laid out gave the names the outcomes' room, and the grid - its width
+            // unchanged - never fitted them again: every outcome ended in an ellipsis until the window was
+            // resized (v0.6.4, measured). Unchanged, it changes nothing and nothing is laid out.
+            FitRecentNames();
+            recentGrid.ResumeLayout(true);
         }
 
         private void ClearRecent(string reason)
@@ -1166,19 +1327,32 @@ namespace CodexAutoResume
                 e.Handled = true;
             };
 
+            // As tall as the list's card beside it, always: its checks scroll inside it, on the soft bar,
+            // below its heading. It used to scroll as a whole and ask the page for its full height, and
+            // thirteen checks made the whole Pending page scroll, list and buttons with it.
             TableLayoutPanel explain = MakeCard(S("explain.title", "Why it is waiting"));
             explain.Dock = DockStyle.Fill;
             explain.AutoSize = false;
-            explain.AutoScroll = true;
             explain.Margin = Pad(Brand.PageGap, 0, 0, 0);
             explainAsOf = Value("");
             explainAsOf.ForeColor = Secondary;
             explain.Controls.Add(explainAsOf);
             explainList = new GateList();
-            explainList.Dock = DockStyle.Fill;
+            explainList.Dock = DockStyle.Top;
             explainList.Font = Font;
             explainList.AccessibleName = S("explain.title", "Why it is waiting");
-            explain.Controls.Add(explainList);
+            var gates = new SoftPage();
+            gates.BackColor = Surface;
+            gates.Dock = DockStyle.Fill;
+            gates.Margin = new Padding(0);
+            // A little room between the results and the bar when it shows; the card's padding is past it.
+            gates.Padding = Pad(0, 0, 6, 0);
+            gates.Controls.Add(explainList);
+            gates.Scrolls = true;
+            explain.Controls.Add(gates);
+            explain.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            explain.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            explain.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
 
             // The list and why its task waits, side by side with the panel's gap between them. A
             // table rather than two docked cards: docking ignores margins, and the gap is one. The
@@ -1840,6 +2014,7 @@ namespace CodexAutoResume
                     }
                 }
                 Preselect(list);
+                MeasureCells(list);
             }
             finally
             {
@@ -2495,7 +2670,10 @@ namespace CodexAutoResume
                 var padding = new Panel();
                 padding.Dock = DockStyle.Fill;
                 padding.Padding = Pad(12, 12, 12, 12);
-                padding.Controls.Add(view);
+                // On the soft scroll bar, as the lists in the window are (see SoftListHost).
+                var host = new SoftListHost(view);
+                host.Dock = DockStyle.Fill;
+                padding.Controls.Add(host);
                 dialog.Controls.Add(padding);
                 var close = MakeButton(S("action.close", "Close"), true, delegate { dialog.Close(); });
                 var buttons = ButtonRow();

@@ -109,18 +109,7 @@ def sections():
     for prefix, table in (("Radius", brand.RADII), ("Space", brand.SPACING), ("Type", brand.TYPE)):
         for name, value in table.items():
             scale.append((prefix + _camel(name), "int", int(value)))
-    for name, value in (("RaisedBlur", brand.ELEVATION["raised_blur"]),
-                        ("RaisedOffset", brand.ELEVATION["raised_offset"]),
-                        ("InsetBlur", brand.ELEVATION["inset_blur"]),
-                        ("InsetOffset", brand.ELEVATION["inset_offset"]),
-                        ("BreatheMs", brand.MOTION["breathe_ms"]),
-                        ("AttentionMs", brand.MOTION["attention_ms"]),
-                        ("TransitionMs", brand.MOTION["transition_ms"]),
-                        ("HaloRadius", brand.HALO["radius"])):
-        scale.append((name, "int", int(value)))
-    scale.append(("ShadowOpacity", "float", brand.ELEVATION["shadow_opacity"]))
-    scale.append(("HaloMin", "float", brand.HALO["min_opacity"]))
-    scale.append(("HaloMax", "float", brand.HALO["max_opacity"]))
+    scale.append(("TransitionMs", "int", int(brand.MOTION["transition_ms"])))
 
     layout = []
     for key, value in brand.LAYOUT.items():
