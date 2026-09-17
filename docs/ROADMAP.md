@@ -1,407 +1,407 @@
-# Codex Auto Resume roadmap: v0.6.4 → v0.6.10
+# Codex Auto Resume 로드맵: v0.6.3 이후부터 v0.6.10까지
 
-This is the current development direction for Codex Auto Resume after v0.6.3.
+> 🌐 한국어 문서입니다. English version: [`main` 브랜치의 docs/ROADMAP.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/ROADMAP.md)
 
-This is a **planned roadmap, not a promise**. Details may change as Codex evolves or as testing
-reveals better or safer implementation paths.
+v0.6.3 이후 Codex Auto Resume가 나아가려는 개발 방향입니다.
 
-The overall direction is:
+이 문서는 **계획한 로드맵이지 약속이 아닙니다**. Codex가 달라지거나, 테스트하다가 더 낫거나 더
+안전한 구현 방법이 보이면 세부 사항은 바뀔 수 있습니다.
 
-**finish the UI → clean up Python → add compatibility intelligence → add optional advanced
-recovery → stabilize Python → replace the core with Rust → make it Rust-native → stabilize Rust**
+전체 방향은 다음과 같습니다.
 
-The default recovery behavior will remain conservative throughout this process.
+**UI 마무리 → Python 정리 → 호환성 판단 추가 → 선택해서 켜는 고급 복구 추가 → Python 안정화 →
+코어를 Rust로 교체 → Rust다운 구조로 재편 → Rust 안정화**
 
----
-
-## v0.6.3 — Released ✅
-
-v0.6.3 was the major feature and UX expansion release.
-
-It added, among other things:
-
-- nine interface languages,
-- separate interface and continuation-message languages,
-- reason-aware continuation messages,
-- Minimal / Standard / Detailed / Custom message styles,
-- global and per-reason Custom messages,
-- richer Dashboard and Tray controls,
-- improved notifications,
-- broader Python CI coverage.
-
-The recovery safety model remained deliberately conservative.
+이 과정 내내 기본 복구 동작은 보수적으로 유지합니다.
 
 ---
 
-## v0.6.4 — Design consistency, neumorphic refinement, and responsiveness 🚧
+## v0.6.3 — 출시됨 ✅
 
-**Currently in development.**
+v0.6.3은 기능과 사용 경험을 크게 넓힌 릴리스였습니다.
 
-v0.6.4 focuses on finishing the UI introduced in v0.6.3 rather than expanding the recovery
-engine.
+무엇보다 다음을 더했습니다.
 
-Current work is centered around three areas:
+- 아홉 개의 화면 언어
+- 화면 언어와 이어서 하기 메시지 언어의 분리
+- 중단 이유에 맞춘 이어서 하기 메시지
+- 간단히 / 기본 / 자세히 / 직접 입력 메시지 스타일
+- 모든 이유에 쓰는 직접 입력 메시지와 이유별 직접 입력 메시지
+- 더 풍부해진 대시보드와 알림 영역 컨트롤
+- 나아진 알림
+- 더 넓어진 Python CI 범위
 
-- **Fixing parts of the UI that do not yet fit the intended soft-neumorphic design**
-  - cards, controls, selection states, hierarchy, spacing, shadows, and surfaces
-  - keeping the style restrained and usable rather than decorative
-
-- **Unifying the Settings / Dashboard, Tray, and MCP interfaces**
-  - shared typography
-  - shared spacing and proportions
-  - shared controls and state indicators
-  - one consistent visual language across the application
-
-- **Removing UI lag**
-  - improving startup and first-screen responsiveness
-  - reducing unnecessary UI-thread work
-  - reducing navigation, redraw, Tray, and Settings delays
-
-Additional work includes:
-
-- layout and proportion fixes,
-- DPI and display scaling,
-- CJK and long translated strings,
-- hover / focus / selected / disabled states,
-- restrained status animations,
-- light and dark themes that follow Windows by default, with a choice in Settings,
-- switches and check boxes chosen by the kind of setting,
-- buttons and switches at the right of a card or row pinned to its bottom-right corner,
-- language and theme changes applied at once, with the window reopening itself where it has to.
-
-Recovery-engine changes should remain minimal unless directly required by this work.
-
-### Work in progress
-
-The screenshots in the repository show the v0.6.4 design as it stands, and **may still change
-before release**.
-
-#### Dashboard — Overview
-
-<img src="images/dashboard-overview.png" alt="The Dashboard's Overview page" width="680">
-
-#### Dashboard — Pending
-
-<img src="images/dashboard-pending.png" alt="The Dashboard's Pending page" width="680">
-
-#### Notification-area popup
-
-<img src="images/tray-popup.png" alt="The notification-area popup" width="360">
-
-#### Settings — Korean
-
-<img src="images/settings-window-ko.png" alt="The Dashboard's Settings page in Korean" width="680">
-
-The final design may still change in spacing, proportions, typography, controls, shadows, and
-individual components before release.
+복구의 안전 모델은 일부러 보수적으로 두었습니다.
 
 ---
 
-## v0.6.5 — Python modularization + Codex Compatibility Registry
+## v0.6.3 다음 릴리스 — 디자인 일관성, 뉴모피즘 다듬기, 반응성 🚧
 
-v0.6.5 is planned as the major structural cleanup of the Python implementation.
+**지금 개발 중입니다.**
 
-Main goals:
+이 릴리스는 복구 엔진을 넓히기보다 v0.6.3에서 선보인 UI를 마무리하는 데 집중합니다.
 
-- split oversized modules,
-- separate responsibilities more clearly,
-- clarify boundaries between engine, state, store, adapters, and control layers,
-- remove duplication,
-- strengthen typed contracts,
-- isolate more pure/testable logic,
-- prepare clean boundaries for the later Rust migration.
+지금의 작업은 세 영역에 모여 있습니다.
 
-Bugs discovered during this refactor will be fixed with regression tests, but this release is
-**not intended to be the full repository-wide bug hunt**.
+- **의도한 부드러운 뉴모피즘 디자인에 아직 맞지 않는 UI 고치기**
+  - 카드, 컨트롤, 선택 상태, 위계, 간격, 그림자, 표면
+  - 꾸미기보다 절제되고 쓰기 편한 스타일 지키기
 
-### Codex Compatibility Registry
+- **설정·대시보드, 알림 영역, MCP 인터페이스를 하나로 맞추기**
+  - 같은 타이포그래피
+  - 같은 간격과 비율
+  - 같은 컨트롤과 상태 표시
+  - 애플리케이션 전체에 걸친 하나의 일관된 시각 언어
 
-This release is also planned to introduce explicit Codex compatibility states:
+- **UI 지연 없애기**
+  - 시작과 첫 화면의 반응 속도 높이기
+  - 불필요한 UI 스레드 작업 줄이기
+  - 페이지 이동, 다시 그리기, 알림 영역, 설정의 지연 줄이기
 
-- **VERIFIED** — maintainer-tested
-- **COMPATIBLE** — local structural checks pass, but not yet formally verified
-- **INCOMPATIBLE** — known unsafe or incompatible
-- **UNKNOWN** — compatibility cannot be established
+그 밖의 작업은 다음과 같습니다.
 
-Where useful, compatibility should be tracked per capability rather than only per whole Codex
-version.
+- 레이아웃과 비율 바로잡기
+- DPI와 화면 배율
+- CJK 문자와 긴 번역 문구
+- 마우스를 올렸을 때 / 포커스 / 선택 / 비활성 상태
+- 절제된 상태 애니메이션
+- 기본으로 Windows를 따르고 설정에서 고를 수도 있는 밝은 테마와 어두운 테마
+- 설정의 종류에 따라 고른 스위치와 체크박스
+- 카드나 행의 오른쪽 아래 모서리에 고정한 단추와 스위치
+- 곧바로 적용되는 언어와 테마 변경, 그리고 그래야 하는 곳에서는 스스로 다시 열리는 창
 
-For example:
+이 작업에 직접 필요하지 않다면 복구 엔진은 되도록 바꾸지 않습니다.
+
+### 작업 중인 모습
+
+저장소에 있는 스크린샷은 개발 중인 이 릴리스의 디자인을 지금 모습 그대로 보여 주며, **출시 전에
+달라질 수 있습니다**.
+
+#### 대시보드 — 개요
+
+<img src="images/dashboard-overview-ko.png" alt="대시보드의 개요 페이지" width="680">
+
+#### 대시보드 — 대기 중
+
+<img src="images/dashboard-pending-ko.png" alt="대시보드의 대기 중 페이지" width="680">
+
+#### 알림 영역 팝업
+
+<img src="images/tray-popup-ko.png" alt="알림 영역 팝업" width="360">
+
+#### 설정 — 한국어
+
+<img src="images/settings-window-ko.png" alt="한국어로 표시된 대시보드의 설정 페이지" width="680">
+
+최종 디자인은 출시 전까지 간격, 비율, 타이포그래피, 컨트롤, 그림자, 개별 구성 요소에서 아직 바뀔 수
+있습니다.
+
+---
+
+## v0.6.5 — Python 모듈화 + Codex 호환성 레지스트리
+
+v0.6.5는 Python 구현의 구조를 크게 정리하는 릴리스로 계획하고 있습니다.
+
+주요 목표:
+
+- 너무 커진 모듈 나누기
+- 책임을 더 분명하게 가르기
+- 엔진, 상태, 저장소, 어댑터, 제어 계층 사이의 경계 분명히 하기
+- 중복 없애기
+- 타입이 정해진 계약 강화하기
+- 순수하고 테스트하기 쉬운 로직을 더 많이 떼어 내기
+- 뒤에 올 Rust 이전을 위해 깔끔한 경계 마련하기
+
+이 리팩터링 중에 발견한 버그는 회귀 테스트와 함께 고치지만, 이 릴리스는 **저장소 전체를 샅샅이
+뒤지는 버그 찾기를 목표로 하지 않습니다**.
+
+### Codex 호환성 레지스트리
+
+이 릴리스에서는 Codex 호환성 상태도 명시적으로 도입할 계획입니다.
+
+- **VERIFIED** — 메인테이너가 직접 테스트함
+- **COMPATIBLE** — 로컬 구조 검사는 통과했지만 아직 정식으로 검증하지 않음
+- **INCOMPATIBLE** — 안전하지 않거나 호환되지 않는다고 알려짐
+- **UNKNOWN** — 호환성을 확인할 수 없음
+
+쓸모가 있는 곳에서는 호환성을 Codex 버전 전체 단위로만 따지지 않고 기능 단위로도 추적합니다.
+
+예를 들면 다음과 같습니다.
 
 ```text
 Codex x.y.z
 
-Usage-limit detection   ✓ Verified
-Exact-thread recovery   ✓ Verified
-Recovery-turn tracking  ✓ Verified
-Empty-response recovery ? Unverified
-notLoaded recovery      — Unsupported
+사용량 한도 감지        ✓ 검증됨
+정확한 스레드 복구      ✓ 검증됨
+복구 턴 추적            ✓ 검증됨
+빈 응답 복구            ? 미검증
+notLoaded 복구          — 지원 안 함
 ```
 
-Remote compatibility data must **never override failed local safety checks**.
+원격 호환성 데이터는 **실패한 로컬 안전 검사를 절대 뒤집지 못합니다**.
 
-If the registry cannot be reached, the intended fallback is:
+레지스트리에 연결할 수 없을 때 의도한 대체 순서는 다음과 같습니다.
 
 ```text
-validated cache
+검증된 캐시
     ↓
-local structural checks
+로컬 구조 검사
     ↓
-UNKNOWN / fail closed if still uncertain
+그래도 불확실하면 UNKNOWN / 보내지 않고 멈춤(fail closed)
 ```
 
-No telemetry is required for this system.
+이 체계에는 텔레메트리가 필요하지 않습니다.
 
 ---
 
-## v0.6.6 — Advanced / Experimental recovery capabilities
+## v0.6.6 — 고급 / 실험적 복구 기능
 
-The existing conservative behavior will remain the default.
+지금의 보수적인 동작은 계속 기본값으로 남습니다.
 
-v0.6.6 is planned to revisit recovery capabilities that were previously excluded because they
-required weaker assumptions, insufficient evidence, or unsupported Codex behavior.
+v0.6.6에서는 더 약한 가정이 필요하거나, 근거가 부족하거나, Codex가 지원하지 않는 동작에 기대야 해서
+그동안 빼 두었던 복구 기능을 다시 살펴볼 계획입니다.
 
-Potential candidates include:
+후보는 다음과 같습니다.
 
-- notLoaded recovery,
-- empty-response recovery,
-- Goal-like continuation,
-- subagent recovery,
-- additional recoverable failure categories,
-- broader recovery behavior where newer Codex capabilities make it safe enough.
+- notLoaded 복구
+- 빈 응답 복구
+- Goal과 비슷한 이어서 하기
+- 하위 에이전트 복구
+- 복구할 수 있는 장애 종류 추가
+- 새로운 Codex 기능 덕분에 충분히 안전해진 곳에서의 더 넓은 복구 동작
 
-These are **candidates, not guaranteed features**.
+이것들은 **후보일 뿐, 반드시 들어간다고 보장하는 기능이 아닙니다**.
 
-Each capability should be independently classified where practical:
+가능하면 기능마다 따로 분류합니다.
 
-- Conservative
-- Advanced
-- Experimental
-- Unsupported
+- Conservative(보수적)
+- Advanced(고급)
+- Experimental(실험적)
+- Unsupported(지원 안 함)
 
-Per-feature opt-in is preferred over one global "unsafe mode".
+모든 것을 한꺼번에 여는 "안전하지 않은 모드" 하나보다, 기능마다 직접 골라서 켜는 방식을 택합니다.
 
-Availability should integrate with the Compatibility Registry introduced in v0.6.5.
+기능을 쓸 수 있는지는 v0.6.5에서 도입하는 호환성 레지스트리와 맞물려 정해집니다.
 
-The principle remains:
+원칙은 그대로입니다.
 
-> Keep the safe default small, while giving informed users more control when they explicitly
-> choose it.
-
----
-
-## v0.6.7 — Final Python audit and stabilization
-
-v0.6.7 is planned as the final comprehensive audit of the Python implementation.
-
-Unlike v0.6.5, this release is intentionally a broad bug hunt.
-
-Expected areas include:
-
-- state machine behavior,
-- race conditions and concurrency,
-- retry and recovery-chain accounting,
-- SQLite and schema migration,
-- crash and restart behavior,
-- installer / update / repair / uninstall,
-- MCP / Tray / Dashboard / CLI,
-- Windows process lifecycle,
-- sleep / resume,
-- malformed, stale, or corrupted state,
-- fault injection,
-- real Codex integration,
-- Advanced / Experimental recovery paths.
-
-Confirmed bugs should receive regression tests.
-
-The resulting behavior becomes the:
-
-> **final Python reference implementation**
-
-for the Rust migration.
+> 안전한 기본값은 작게 유지하고, 내용을 알고 명시적으로 선택한 사용자에게는 더 많은 제어권을
+> 줍니다.
 
 ---
 
-## v0.6.8 — Complete Rust core replacement
+## v0.6.7 — Python 최종 감사와 안정화
 
-v0.6.8 is planned to replace the production Python core with Rust.
+v0.6.7은 Python 구현을 마지막으로 종합 감사하는 릴리스로 계획하고 있습니다.
 
-The migration may happen incrementally during development, but the release itself is intended
-to switch to the completed Rust core rather than ship a long-lived mixed Python/Rust product.
+v0.6.5와 달리 이 릴리스는 일부러 넓게 버그를 찾습니다.
 
-The rule is:
+살펴볼 영역은 다음과 같습니다.
 
-> **Replace the implementation, not the behavior.**
+- 상태 기계 동작
+- 경합 조건과 동시성
+- 재시도와 연쇄 복구 횟수 계산
+- SQLite와 스키마 마이그레이션
+- 충돌과 재시작 때의 동작
+- 설치 / 업데이트 / 설치 고치기 / 제거
+- MCP / 알림 영역 / 대시보드 / CLI
+- Windows 프로세스 수명 주기
+- 절전 / 절전 해제
+- 형식이 잘못되었거나, 낡았거나, 손상된 상태
+- 결함 주입
+- 실제 Codex와의 연동
+- 고급 / 실험적 복구 경로
 
-The Rust implementation should reproduce v0.6.7 as closely as practical.
+확인된 버그에는 회귀 테스트를 붙입니다.
 
-Goals include:
+그렇게 다듬어진 동작이 Rust 이전의 기준이 되는
 
-- Python/Rust differential testing,
-- existing database compatibility,
-- existing settings compatibility,
-- preservation of Conservative and Advanced behavior,
-- preservation of Compatibility Registry semantics,
-- preservation of exact-thread and fail-closed safety guarantees,
-- removal of the production Python core/runtime when ready.
+> **최종 Python 참조 구현**
 
-The Windows UI is **not** planned to move to Rust.
+이 됩니다.
 
-The intended stack is:
+---
+
+## v0.6.8 — Rust 코어로 완전히 교체
+
+v0.6.8에서는 제품에 들어가는 Python 코어를 Rust로 바꿀 계획입니다.
+
+개발하는 동안에는 조금씩 옮길 수 있지만, 릴리스 자체는 Python과 Rust가 오래 섞인 제품을 내놓는 대신
+완성된 Rust 코어로 한 번에 넘어가는 것을 목표로 합니다.
+
+규칙은 하나입니다.
+
+> **동작이 아니라 구현을 바꾼다.**
+
+Rust 구현은 v0.6.7의 동작을 현실적으로 가능한 한 그대로 재현해야 합니다.
+
+목표:
+
+- Python/Rust 차등 테스트
+- 기존 데이터베이스와의 호환
+- 기존 설정과의 호환
+- Conservative와 Advanced 동작 보존
+- 호환성 레지스트리의 의미 보존
+- 정확한 스레드와 실패하면 닫힘(fail closed)이라는 안전 보장 보존
+- 준비가 되면 제품에서 Python 코어와 런타임 제거
+
+Windows UI는 Rust로 옮길 **계획이 없습니다**.
+
+의도한 구성은 다음과 같습니다.
 
 ```text
 C# / .NET
-- Dashboard
-- Settings
-- Tray
-- Notifications
-- Native Windows UI
+- 대시보드
+- 설정
+- 알림 영역
+- 알림
+- 네이티브 Windows UI
 
         │
         ▼
 
 Rust
-- Watcher
-- Recovery engine
-- Classifier / Policy
-- State machine
-- Scheduler / Reconciliation
-- Persistence
-- Codex adapters
-- Control / MCP backend
+- 워처
+- 복구 엔진
+- 분류기 / 정책
+- 상태 기계
+- 스케줄러 / 상태 맞추기
+- 영속 저장
+- Codex 어댑터
+- 제어 / MCP 백엔드
 ```
 
-PowerShell may remain as a thin layer for bootstrap, installation, updating, or similar Windows
-deployment work.
+PowerShell은 부트스트랩, 설치, 업데이트 같은 Windows 배포 작업을 맡는 얇은 계층으로 남을 수
+있습니다.
 
 ---
 
-## v0.6.9 — Rust-native restructuring and optimization
+## v0.6.9 — Rust다운 구조 재편과 최적화
 
-v0.6.8 will prioritize behavioral parity.
+v0.6.8은 동작을 똑같이 맞추는 것을 먼저 챙깁니다.
 
-That may leave some Python-shaped architecture inside the first Rust implementation.
+그래서 첫 Rust 구현에는 Python 모양 그대로인 구조가 어느 정도 남을 수 있습니다.
 
-v0.6.9 is planned to make the codebase more naturally Rust-oriented.
+v0.6.9에서는 코드베이스를 더 자연스럽게 Rust다운 모습으로 바꿀 계획입니다.
 
-Potential work includes:
+해 볼 만한 작업:
 
-- ownership-oriented data flow,
-- stronger enums and newtypes,
-- clearer error types,
-- improved concurrency architecture,
-- cleaner module / crate boundaries,
-- removing unnecessary cloning and serialization,
-- cleaner SQLite / IPC / process abstractions,
-- removal of Python-era structural assumptions,
-- startup, memory, and performance improvements.
+- 소유권 중심의 데이터 흐름
+- 더 강한 enum과 newtype
+- 더 분명한 오류 타입
+- 더 나은 동시성 구조
+- 더 깔끔한 모듈 / crate 경계
+- 불필요한 복제와 직렬화 없애기
+- 더 깔끔한 SQLite / IPC / 프로세스 추상화
+- Python 시절 구조에서 온 가정 걷어 내기
+- 시작 속도, 메모리, 성능 개선
 
-Bugs found during this restructuring will be fixed with regression tests.
+이 재편 중에 발견한 버그는 회귀 테스트와 함께 고칩니다.
 
-This is not intended to be the final full-system bug hunt.
-
----
-
-## v0.6.10 — Final Rust audit and stabilization
-
-v0.6.10 is planned as the final comprehensive stabilization pass.
-
-Expected focus includes:
-
-- race conditions and deadlocks,
-- panic paths,
-- thread / handle / memory / resource leaks,
-- process lifecycle,
-- SQLite transaction behavior,
-- IPC and control protocol,
-- long-running watcher stability,
-- restart and sleep / resume,
-- Explorer restart,
-- installer / update / repair / uninstall,
-- malformed or corrupted state,
-- Compatibility Registry cache/offline/failure behavior,
-- Advanced / Experimental capabilities,
-- real Codex recovery,
-- fuzz or property testing where useful.
-
-The intended result is the:
-
-> **final stable Rust baseline**
-
-for the project.
+시스템 전체를 대상으로 하는 마지막 버그 찾기는 이 릴리스의 목표가 아닙니다.
 
 ---
 
-## Long-term direction
+## v0.6.10 — Rust 최종 감사와 안정화
 
-The intended final stack is:
+v0.6.10은 마지막 종합 안정화 작업으로 계획하고 있습니다.
 
-- **Rust** — recovery core and backend
-- **C# / .NET** — native Windows UI
-- **minimal PowerShell** — deployment-related work where it remains useful
+중점적으로 볼 것은 다음과 같습니다.
 
-There is currently **no planned v0.7.0 feature cycle**.
+- 경합 조건과 교착 상태
+- panic 경로
+- 스레드 / 핸들 / 메모리 / 리소스 누수
+- 프로세스 수명 주기
+- SQLite 트랜잭션 동작
+- IPC와 제어 프로토콜
+- 오래 실행되는 워처의 안정성
+- 재시작과 절전 / 절전 해제
+- 탐색기(Explorer) 재시작
+- 설치 / 업데이트 / 설치 고치기 / 제거
+- 형식이 잘못되었거나 손상된 상태
+- 호환성 레지스트리의 캐시 / 오프라인 / 실패 시 동작
+- 고급 / 실험적 기능
+- 실제 Codex 복구
+- 쓸모가 있는 곳에서는 퍼징이나 속성 기반 테스트
 
-After v0.6.10, the project is expected to move primarily into maintenance:
+그 결과가 이 프로젝트의
 
-- Codex compatibility updates,
-- Compatibility Registry updates,
-- bug fixes,
-- security fixes,
-- changes required by future Codex behavior.
+> **최종 안정 Rust 기준선**
+
+이 됩니다.
 
 ---
 
-## Summary
+## 장기 방향
+
+의도한 최종 구성은 다음과 같습니다.
+
+- **Rust** — 복구 코어와 백엔드
+- **C# / .NET** — 네이티브 Windows UI
+- **최소한의 PowerShell** — 여전히 쓸모 있는 배포 관련 작업
+
+지금은 **v0.7.0 기능 개발 주기를 계획하고 있지 않습니다**.
+
+v0.6.10 이후에는 주로 유지 보수 단계로 넘어갈 것으로 봅니다.
+
+- Codex 호환성 업데이트
+- 호환성 레지스트리 업데이트
+- 버그 수정
+- 보안 수정
+- 앞으로 Codex 동작이 바뀌면서 필요해지는 변경
+
+---
+
+## 요약
 
 ```text
-v0.6.3  ✅ Released
-Feature / UX expansion
+v0.6.3  ✅ 출시됨
+기능 / UX 확장
 
         ↓
 
-v0.6.4  🚧 In progress
-UI design consistency
-Soft-neumorphic refinement
-Settings / Tray / MCP unification
-UI lag reduction
+다음 릴리스  🚧 개발 중
+UI 디자인 일관성
+부드러운 뉴모피즘 다듬기
+설정 / 알림 영역 / MCP 통일
+UI 지연 줄이기
 
         ↓
 
 v0.6.5
-Python modularization
-+ Codex Compatibility Registry
+Python 모듈화
++ Codex 호환성 레지스트리
 
         ↓
 
 v0.6.6
-Advanced / Experimental recovery capabilities
+고급 / 실험적 복구 기능
 
         ↓
 
 v0.6.7
-Final Python audit and stabilization
-→ freeze Python reference behavior
+Python 최종 감사와 안정화
+→ Python 참조 동작 고정
 
         ↓
 
 v0.6.8
-Complete Rust core replacement
+Rust 코어로 완전히 교체
 
         ↓
 
 v0.6.9
-Rust-native restructuring and optimization
+Rust다운 구조 재편과 최적화
 
         ↓
 
 v0.6.10
-Final Rust audit and stabilization
-→ final stable Rust baseline
+Rust 최종 감사와 안정화
+→ 최종 안정 Rust 기준선
 
         ↓
 
-Maintenance
+유지 보수
 ```
 
-This document records the current direction while v0.6.4 is still in development.
+이 문서는 v0.6.3 다음 릴리스가 아직 개발 중인 지금의 방향을 기록합니다.
