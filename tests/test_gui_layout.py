@@ -295,6 +295,26 @@ class FooterTests(unittest.TestCase):
         self.assertLess(add, height,
                         "measuring before the children are added measures nothing")
 
+    def test_the_reopen_note_is_measured_in_the_width_the_window_gives_it(self):
+        """The card grows to hold the reopen note, and the width it measures the note in must be the
+        one the note is about to get - worked out from the window's own width - not the width the card
+        was last laid out at. Showing the note is what asks for the height, and a window just made
+        narrower has not always laid the card out at its new width by then; measured at the card's old
+        width the note was given two lines where it takes four, and the layout a taller card asks for
+        from inside the layout that is running is dropped when that one ends. On CI's fonts that cut the
+        note off in Spanish, German and French from 150% up (v0.6.4; LayoutAuditTests measures both
+        orders now)."""
+        start = self.source.index("private int NoteWidth(Control row)")
+        width = self.source[start:self.source.index("\n        }\n", start)]
+        self.assertIn("DisplayRectangle.Width", width,
+                      "the note's room follows the window's width, which is never a layout behind")
+        self.assertNotIn("savebar.ClientSize", width,
+                         "the card's own width is the width it was last laid out at")
+        self.assertIn("footer.PerformLayout();", self.method,
+                      "a card left short by a layout that was already running is laid out again")
+        self.assertIn("Resize += follow;", self.method,
+                      "and that is asked for once the window's own layout is over")
+
 
 class NumericInsetTests(unittest.TestCase):
     """The number in a Limits field is set in from the border, and by the border's rules.
@@ -830,18 +850,21 @@ $schema = [IO.File]::ReadAllText((Join-Path $work 'schema.json'), $utf8)
 $current = [IO.File]::ReadAllText((Join-Path $work 'settings.json'), $utf8)
 # The most the pages ever show (fullest_snapshot).
 $snapshot = [IO.File]::ReadAllText((Join-Path $work 'snapshot.json'), $utf8)
-$out = @{ audit = @{}; pins = @{}; shortest = @{}; canary = ''; cramped = ''; cache = @{} }
+$out = @{ audit = @{}; pins = @{}; notes = @{}; shortest = @{}; canary = ''; cramped = ''; cache = @{} }
 $auditedPins = $form.GetField('AuditedPins', $static)
+$auditedNotes = $form.GetField('AuditedNotes', $static)
 $auditedShortest = @('AuditedShortest', 'AuditedAlike', 'AuditedWraps' | ForEach-Object { $form.GetField($_, $static) })
 foreach ($locale in (ConvertFrom-Json $env:CAR_LOCALES)) {
     $catalog = [IO.File]::ReadAllText((Join-Path $work ('strings-' + $locale + '.json')), $utf8)
     $out.audit[$locale] = @{}
     $out.pins[$locale] = @{}
+    $out.notes[$locale] = @{}
     $out.shortest[$locale] = @{}
     foreach ($scale in (ConvertFrom-Json $env:CAR_SCALES)) {
         $key = ([double]$scale).ToString('0.00', [Globalization.CultureInfo]::InvariantCulture)
         $out.audit[$locale][$key] = [string]$audit.Invoke($null, [object[]]@($schema, $current, $catalog, $snapshot, [double]$scale))
         $out.pins[$locale][$key] = [int]$auditedPins.GetValue($null)
+        $out.notes[$locale][$key] = if ($null -eq $auditedNotes) { -1 } else { [int]$auditedNotes.GetValue($null) }
         $out.shortest[$locale][$key] = @($auditedShortest | ForEach-Object { if ($null -eq $_) { -1 } else { [int]$_.GetValue($null) } })
     }
 }
@@ -1342,6 +1365,25 @@ class LayoutAuditTests(unittest.TestCase):
                       "a 400-character label went unreported, so an empty report proves nothing")
         self.assertIn("reopen note at ", self.answer["canary"],
                       "a note sixty sentences long went unreported, so a quiet report on the note proves nothing")
+        self.assertIn("shown before the window was laid out", self.answer["canary"],
+                      "the note shown before the window's new width reached the save card went unreported, "
+                      "so a quiet report on that order proves nothing")
+
+    def test_the_save_card_holds_the_reopen_note_whichever_order_the_window_came_to_its_width(self):
+        """The card's height is worked out when the note is shown, and a window that has just been made
+        narrower has not always laid the card out at its new width by then. Measured at the width the card
+        still had, the note was given the room two of its lines need where four fit in the width it really
+        gets - and the layout the taller card asks for, asked for from inside the layout that is running,
+        is dropped when that one ends (Control.PerformLayout), so the card stayed short. Every window on
+        this machine laid the card out first and measured the same note right; CI's fonts made it four
+        lines instead of two, and the audit there reported Spanish, German and French cut off from 150% up
+        (v0.6.4). The audit now measures both widths in both orders - the findings are in the first test's
+        reports - and this holds it to having measured all four."""
+        self.assertEqual(sorted(self.answer["notes"]), sorted(l10n.LOCALES))
+        for locale in l10n.LOCALES:
+            for scale in SCALES:
+                with self.subTest(locale=locale, scale=scale):
+                    self.assertEqual(self.answer["notes"][locale]["%.2f" % scale], 4)
 
     def test_every_pinned_button_is_at_its_bottom_right_and_over_no_text(self):
         """The Overview's three card buttons, the Custom messages' two Clear buttons and the header's Start
