@@ -192,6 +192,52 @@ RANGES = {
 }
 
 
+# What each published type accepts on a write. A number takes an integer - JSON has one
+# numeric type, and a person who types 6 into a box that measures hours has given a
+# number - and nothing takes a boolean but a boolean, because `bool` is an `int` in
+# Python and is not one in JSON, so a tick box is not a count.
+_ACCEPTED_TYPES = {"boolean": (bool,), "integer": (int,), "number": (int, float),
+                   "string": (str,)}
+
+
+def field_type(name: str) -> str:
+    """The JSON type this field's values have: "boolean", "integer", "number" or "string".
+
+    One derivation, read by `describe()` - and therefore by the MCP schema and by every
+    window's editor - and by `validate_update`. What the schema will not offer, the
+    validator will not take.
+    """
+    default = FIELDS[name][0]
+    return ("boolean" if isinstance(default, bool)
+            else "integer" if isinstance(default, int)
+            else "number" if isinstance(default, float)
+            else "string")
+
+
+def _right_type(name: str, value) -> bool:
+    """Whether `value` is of this field's type, asked before anything looks at the value."""
+    if value is None:
+        # `null` empties a field that can have no value - the Codex path, and each custom
+        # message. Every other field has one, and null is not it.
+        return FIELDS[name][0] is None
+    if isinstance(value, bool):
+        return field_type(name) == "boolean"
+    return isinstance(value, _ACCEPTED_TYPES[field_type(name)])
+
+
+def _refuse(name: str, value):
+    """Raise the refusal for one field, in that field's own words where it has any."""
+    explain = EXPLAIN.get(name)
+    if explain is not None and value is not None:
+        # The field's own validator says what is wrong with it. A range is
+        # self-explanatory; free text is not.
+        try:
+            explain(value)
+        except ValueError as exc:
+            raise SettingsError(str(exc)) from None
+    raise SettingsError("invalid value for %s" % name)
+
+
 def defaults() -> dict:
     return dict(DEFAULTS)
 
@@ -224,17 +270,18 @@ def validate_update(changes) -> dict:
     clean = {}
     for name, value in changes.items():
         default, coercer = FIELDS[name]
+        # The type first, and only then the value. A coercer answers a value it does not
+        # like with the field's default, and this used to decide by comparing that answer
+        # with the value supplied - so a wrong type that happened to equal the default was
+        # read as "unchanged" and written. Which wrong types those were depended on the
+        # default, so `{"reduce_motion": 0}` was taken and `{"notifications": 0}` refused,
+        # and `{"max_no_progress": 3.0}` was taken and 5.0 refused. Asking the type first
+        # closes it for every field at once and leaves the range check exactly as it was.
+        if not _right_type(name, value):
+            _refuse(name, value)
         coerced = coercer(value, default)
         if coerced != value and not (name == "codex_exe" and value is None):
-            explain = EXPLAIN.get(name)
-            if explain is not None and value is not None:
-                # The field's own validator says what is wrong with it. A range is
-                # self-explanatory; free text is not.
-                try:
-                    explain(value)
-                except ValueError as exc:
-                    raise SettingsError(str(exc)) from None
-            raise SettingsError("invalid value for %s" % name)
+            _refuse(name, value)
         clean[name] = coerced
     return clean
 
@@ -339,11 +386,7 @@ def describe() -> list:
     """
     described = []
     for name, (default, _coerce) in FIELDS.items():
-        entry = {"name": name, "default": default,
-                 "type": "boolean" if isinstance(default, bool)
-                         else "integer" if isinstance(default, int)
-                         else "number" if isinstance(default, float)
-                         else "string"}
+        entry = {"name": name, "default": default, "type": field_type(name)}
         if name in RANGES:
             entry.update(RANGES[name])
         if name.startswith("recover_"):

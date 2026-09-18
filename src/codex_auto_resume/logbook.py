@@ -13,6 +13,8 @@ from pathlib import Path
 import re
 import sys
 
+from . import machine
+
 LOGGER_NAME = "codex_auto_resume"
 MAX_BYTES = 1_000_000
 BACKUP_COUNT = 5
@@ -111,9 +113,19 @@ def _safe_detail(detail) -> str:
 
 
 def render(thread_id, code, reason, detail=None) -> str:
-    template = _MESSAGES.get((code, reason)) or _MESSAGES.get((code, None))
+    """One line for one transition or event, with the reason for it whenever there is one.
+
+    A (state, reason) pair that has been given words keeps them: those words say the
+    reason better than its code would, and appending the code beside them would read like
+    two reasons. Everything else - a general message for the state, or no message at all -
+    gets the reason added, because a line that says only what a record became sends its
+    reader back to the source for why.
+    """
+    template = _MESSAGES.get((code, reason))
     if template is None:
-        template = str(code) + (" ({reason})" if reason else "")
+        template = _MESSAGES.get((code, None), str(code))
+        if reason and "{reason}" not in template:
+            template += " ({reason})"
     safe_detail = _safe_detail(detail)
     values = {
         "detail": safe_detail,
@@ -128,10 +140,13 @@ def render(thread_id, code, reason, detail=None) -> str:
     return "\n".join(prefix + line for line in text.split("\n"))
 
 
-STATE_CODES = frozenset({
-    "waiting_reset", "waiting_poll", "waiting_for_app", "waiting_for_loaded_thread", "waiting_for_usage",
-    "waiting_retry", "submitting", "queued", "submission_unknown", "superseded", "failed", "cancelled", "resumed",
-})
+# Which of the engine's two logging shapes a code is: a state transition, whose second
+# argument is the reason for it, or an event, whose second argument is a detail. This was
+# a hand-written list of 13 names and the state machine has 27, so for the other 14 -
+# every outcome of a recovery turn among them - the reason arrived in the detail slot,
+# where no template prints it, and the line came out as the bare state name. Derived from
+# the state machine now, so a state added there is a state here on the same commit.
+STATE_CODES = frozenset(machine.STATES)
 
 
 class EngineLog:

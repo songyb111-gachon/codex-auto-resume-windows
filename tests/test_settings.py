@@ -303,5 +303,136 @@ class ThemeTests(unittest.TestCase):
             self.assertEqual((loaded["theme"], loaded["max_no_progress"]), ("system", 5))
 
 
+class WrongTypeTests(unittest.TestCase):
+    """A value of the wrong type is refused, whatever it happens to equal.
+
+    `validate_update` decided by comparing the coerced result with the value supplied:
+    `if coerced != value: raise`. A coercer answers a value it does not like with the
+    field's *default*, so whenever a wrong-typed value happened to equal that default the
+    comparison saw nothing wrong and the write went through. The effect was per-field,
+    because the default decides: `{"reduce_motion": 0}` was accepted (its default is
+    False, and False == 0 in Python) while `{"notifications": 0}` was refused (its default
+    is True); `{"max_no_progress": 3.0}` was accepted and `{"max_no_progress": 5.0}`
+    refused. The same defect, opposite answers, and nothing outside could predict which.
+
+    The table below is every field crossed with a value of every type the field does not
+    publish - both the half whose coerced result equals the value supplied and the half
+    whose does not - so neither can regress on its own. The published type is
+    `describe()`'s, which is what the MCP schema and every window's editor are built from:
+    what the schema will not offer, the validator will not take.
+    """
+
+    # One or two values of each JSON type, plus the two that are not JSON at all.
+    OTHER = {"boolean": [True, False],
+             "integer": [2, 7],
+             "number": [2.5, 7.5],
+             "string": ["", "7", "true"],
+             "array": [[]],
+             "object": [{}]}
+    # What each published type accepts. A number takes an integer - JSON has one numeric
+    # type, and a person who types 6 into a box that measures hours has given a number -
+    # and nothing takes a boolean but a boolean, because `bool` is an `int` in Python and
+    # is not one in JSON.
+    ACCEPTS = {"boolean": {"boolean"}, "integer": {"integer"},
+               "number": {"integer", "number"}, "string": {"string"}}
+
+    def twins(self, entry):
+        """The wrong-typed values that used to slip through for this field.
+
+        The defect's signature: another type, and equal to the field's default anyway. A
+        switch has two (0 and 0.0, or 1 and 1.0), a count has one (its default written as
+        a float), and nothing of another type equals a string, an hour count of 6.0 or the
+        `null` of a field that has no value - which is why the other half of the table
+        matters just as much.
+        """
+        default = entry["default"]
+        if isinstance(default, bool):
+            return [int(default), float(default)]
+        if isinstance(default, int):
+            return [float(default)]
+        return []
+
+    def candidates(self, entry):
+        """(type name, value) for everything this field should refuse."""
+        found = [(kind, value) for kind in sorted(self.OTHER) for value in self.OTHER[kind]]
+        for value in self.twins(entry):
+            found.append(("integer" if isinstance(value, int) else "number", value))
+        return [(kind, value) for kind, value in found
+                if kind not in self.ACCEPTS[entry["type"]]]
+
+    def test_a_value_of_a_type_the_schema_does_not_publish_is_refused(self):
+        for entry in settings.describe():
+            for kind, value in self.candidates(entry):
+                with self.subTest(name=entry["name"], kind=kind, value=repr(value)):
+                    with self.assertRaises(settings.SettingsError) as caught:
+                        settings.validate_update({entry["name"]: value})
+                    # The refusal names the field, because a Save sends many at once -
+                    # unless the field has words of its own, which the custom messages do
+                    # and which say more than the field name would.
+                    if entry["name"] not in settings.EXPLAIN:
+                        self.assertIn(entry["name"], str(caught.exception))
+
+    def test_the_table_holds_both_halves_of_the_defect(self):
+        """Without the first half this file would pass against the code that had the bug.
+
+        `slipped` is the set of fields with a wrong-typed value whose coerced result
+        equals the value supplied - the ones the old rule let through. It has to be
+        exactly the switches and the counts, and it has to be non-empty, or the table
+        above has quietly stopped exercising the defect.
+        """
+        slipped, refused = set(), set()
+        for entry in settings.describe():
+            default, coercer = settings.FIELDS[entry["name"]]
+            for _kind, value in self.candidates(entry):
+                side = slipped if coercer(value, default) == value else refused
+                side.add(entry["name"])
+        described = {entry["name"] for entry in settings.describe()}
+        self.assertEqual(slipped, {entry["name"] for entry in settings.describe()
+                                   if entry["type"] in ("boolean", "integer")})
+        self.assertEqual(refused, described)
+        self.assertTrue(slipped)
+
+    def test_the_values_the_design_pass_named(self):
+        # Stated one by one as well as by table, because these are the sentences the
+        # report will be read against.
+        for change in ({"reduce_motion": 0}, {"notifications": 0}, {"show_tray": 1},
+                       {"max_no_progress": 3.0}, {"max_no_progress": 5.0},
+                       {"max_recovery_attempts": 4.0}, {"max_chain_continuations": 6.0}):
+            with self.subTest(change=change):
+                with self.assertRaises(settings.SettingsError):
+                    settings.validate_update(change)
+
+    def test_every_default_is_still_accepted_as_a_write(self):
+        # The strongest statement that nothing was tightened past the schema: the whole
+        # field set, written at once, in the types the product itself uses.
+        self.assertEqual(settings.validate_update(settings.defaults()), settings.defaults())
+
+    def test_an_integer_is_still_a_number(self):
+        # What every window's spin box sends for the one field measured in hours.
+        self.assertEqual(settings.validate_update({"detection_lookback_hours": 6}),
+                         {"detection_lookback_hours": 6.0})
+        self.assertEqual(settings.validate_update({"detection_lookback_hours": 6.5}),
+                         {"detection_lookback_hours": 6.5})
+
+    def test_clearing_is_allowed_exactly_where_it_was_allowed(self):
+        # `null` is how a field that can have no value is emptied - the Codex path, and
+        # each custom message. Every other field has a value, and null is not one.
+        for name in sorted(settings.FIELDS):
+            default, _coerce = settings.FIELDS[name]
+            with self.subTest(name=name):
+                if default is None:
+                    self.assertEqual(settings.validate_update({name: None}), {name: None})
+                else:
+                    with self.assertRaises(settings.SettingsError):
+                        settings.validate_update({name: None})
+
+    def test_a_reading_still_falls_back_instead_of_refusing(self):
+        # `coerce` is the file path and it is unchanged: a hand-edited settings.json with
+        # a wrong type still starts the watcher on defaults rather than stopping it.
+        for name, value in (("reduce_motion", 0), ("notifications", 0), ("max_no_progress", 3.0)):
+            with self.subTest(name=name):
+                self.assertEqual(settings.coerce({name: value})[name], settings.DEFAULTS[name])
+
+
 if __name__ == "__main__":
     unittest.main()
