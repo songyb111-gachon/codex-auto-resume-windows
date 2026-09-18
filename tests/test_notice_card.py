@@ -691,6 +691,64 @@ class ActivateTests(unittest.TestCase):
         control.assert_not_called()
         self.assertEqual(control.method_calls, [])
 
+    def test_every_press_leaves_one_line_in_the_log_with_its_reason(self):
+        """What the toast's buttons leave in the log (cli.cmd_activate), a card's buttons leave too - who
+        cancelled which conversation, and why a cancel did not happen - so the log does not lose the
+        record once most cancels come from the card. The reason is a code or an exception's type:
+        never an exception's text."""
+        secret = "a prompt's words"
+
+        def control(result=None, error=None):
+            made = MagicMock()
+            made.cancel_interruption.return_value = result
+            made.cancel_interruption.side_effect = error
+            return made
+
+        def refusal(code):
+            return type("ControlError", (Exception,), {"code": code})(secret)
+
+        def boom(page):
+            raise OSError(secret)
+
+        cancel, pending = notify.cancel_uri(INTERRUPTION), notify.open_uri("pending")
+        cases = (
+            ("opened", pending, {"open_dashboard": lambda page: True}, "dashboard opened from a notification card"),
+            ("not_installed", pending, {"open_dashboard": lambda page: False}, "Dashboard is not installed here"),
+            ("failed", pending, {"open_dashboard": boom}, "(OSError)"),
+            ("cancelled", cancel, {"control": control({"thread_id": THREAD, "changed": True})},
+             "thread %s: cancelled from a notification card" % THREAD),
+            ("cancelled", cancel, {"control": control({"thread_id": THREAD, "changed": False})},
+             "thread %s: " % THREAD),
+            ("refused", cancel, {"control": control(error=refusal("no_such_interruption"))}, "(no_such_interruption)"),
+            ("refused", cancel, {"control": control(error=refusal("state_busy"))}, "(state_busy)"),
+            ("failed", cancel, {"control": control(error=RuntimeError(secret))}, "(RuntimeError)"),
+            ("ignored", "codex-auto-resume:cancel?i=zz", {"control": control()}, "ignored"),
+        )
+        for outcome, uri, handlers, words in cases:
+            with self.subTest(outcome=outcome, words=words):
+                lines = []
+                self.assertEqual(notifier.activate(uri, log=lines.append, **handlers), outcome)
+                self.assertEqual(len(lines), 1, lines)
+                self.assertIn("notification card", lines[0])
+                self.assertIn(words, lines[0])
+                self.assertNotIn(secret, lines[0])
+        # A cancel that changed nothing does not say it cancelled.
+        lines = []
+        notifier.activate(cancel, control=control({"thread_id": THREAD, "changed": False}), log=lines.append)
+        self.assertNotIn("cancelled from", lines[0])
+
+    def test_a_log_that_breaks_changes_nothing_a_press_does(self):
+        def broken(line):
+            raise OSError("disk full")
+        control = MagicMock()
+        control.cancel_interruption.return_value = {"thread_id": THREAD, "changed": True}
+        announced = []
+        self.assertEqual(notifier.activate(notify.cancel_uri(INTERRUPTION), control=control,
+                                           announce=announced.append, log=broken), "cancelled")
+        self.assertEqual([notice.kind for notice in announced], ["cancelled"])
+        self.assertEqual(notifier.activate(notify.open_uri("pending"), open_dashboard=lambda page: True,
+                                           log=broken), "opened")
+
 
 # ============================================================================ motion
 class MotionTests(unittest.TestCase):
@@ -708,7 +766,11 @@ class MotionTests(unittest.TestCase):
             self.assertGreaterEqual(frame.depth, previous.depth)
             previous = frame
         self.assertEqual(notice_card.entrance(notice_card.ENTRANCE_MS * notice_card.ALPHA_SHARE).alpha, 1.0)
-        self.assertEqual((notice_card.SCALE_FROM, notice_card.RISE), (0.98, 16))
+        # As tuned on a real screen: solid within the first half, and still rising softly after it.
+        self.assertEqual((notice_card.SCALE_FROM, notice_card.RISE), (0.98, 20))
+        self.assertLessEqual(notice_card.ALPHA_SHARE, 0.5)
+        solid = notice_card.entrance(notice_card.ENTRANCE_MS * notice_card.ALPHA_SHARE)
+        self.assertGreater(solid.offset, 0.1 * notice_card.RISE, "the rise goes on once the card is solid")
 
     def test_the_curve_is_the_brands_ease_out(self):
         for step in range(11):
@@ -1466,7 +1528,7 @@ class WindowsTests(unittest.TestCase):
         card = stack.show(notice)
         self.assertIsNotNone(card)
         self.assertEqual(outcomes, [], "on screen but not yet visible: nothing is decided")
-        self.now = notice_card.ENTRANCE_MS * 0.4
+        self.now = notice_card.ENTRANCE_MS * notice_card.ALPHA_SHARE * 0.5
         stack._tick()
         self.assertEqual(outcomes, [], "half faded in is not seen")
         self.now = notice_card.ENTRANCE_MS
@@ -1585,7 +1647,8 @@ class WindowsTests(unittest.TestCase):
         # today's toast. The two that stayed were the cards' to show.
         for self.now in range(30, 1000, 16):
             stack._tick()
-        self.assertEqual([(notice.key, shown) for notice, shown in outcomes],
+        # Which ends first depends only on how long a fade takes; each ends once, one way.
+        self.assertEqual(sorted((notice.key, shown) for notice, shown in outcomes),
                          [("t0", False), ("t1", True), ("t2", True)])
 
     def test_cards_leave_nothing_behind(self):

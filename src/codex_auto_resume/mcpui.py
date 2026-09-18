@@ -41,6 +41,8 @@ select, keys and screen readers included. The select stays underneath as the val
 And controls move when they change, on brand's one time and one curve: a switch's knob glides and
 its track cross-fades, a check box fades its fill and mark, a list rises into place - none of it
 with less motion or in High Contrast, and a switch that asks first moves once it is answered.
+It also shows the Codex Compatibility Registry as the Dashboard's Diagnostics page does, folded and
+read-only (`renderCompatibility`): codes in, words out, and no way to refresh the data from here.
 """
 from __future__ import annotations
 
@@ -412,6 +414,21 @@ details.inner > summary { padding: 12px 0; border-radius: var(--radius-small); }
 details.inner > summary h3 { font-size: var(--type-body); font-weight: 600; }
 details.inner > .fold-body { padding-bottom: 2px; }
 details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
+/* What a folded card says while it is folded - the Codex compatibility card's overall word - rides
+   beside its chevron, at the right of the title. */
+.fold-end { display: flex; flex: none; align-items: center; gap: var(--space-s); }
+
+/* The Codex compatibility card (v0.6.5): the parts the product relies on, as settings rows are drawn
+   - a hairline between each two, the state as a chip at the end of the row - as the window's
+   Diagnostics page lists them too. One column: at the panel's width two columns wrapped most names
+   onto a second line, where the window's wider page keeps them on one. Read-only. */
+.compat-meta { margin-top: var(--space-xs); }
+.compat-rows { list-style: none; padding: 0; margin: var(--space-s) 0 0; grid-template-columns: minmax(0, 1fr); }
+.compat-rows .setting { flex-wrap: nowrap; }
+.compat-state { flex: none; }
+.compat-legend { display: grid; gap: var(--space-xs); margin-top: var(--space-m); }
+.compat .callout { margin: var(--space-m) 0 0; }
+.compat-refresh { margin-top: var(--space-m); }
 
 /* What is waiting, as soft rows rather than a table. Wide content wraps inside its row;
    the panel itself never scrolls sideways. */
@@ -907,15 +924,23 @@ function card(title, extra) {
   return node;
 }
 
-// A section whose body folds away. Whether it is open survives a redraw.
-function folding(key, title, openByDefault, kind) {
+// A section whose body folds away. Whether it is open survives a redraw. `aside`, when given, is what
+// the section says while it is folded - beside the chevron, at the right of the title.
+function folding(key, title, openByDefault, kind, aside) {
   var node = element('details', kind === 'inner' ? 'fold inner' : 'card fold');
   node.open = Object.prototype.hasOwnProperty.call(OPEN, key) ? OPEN[key] : openByDefault;
   var summary = element('summary');
   summary.appendChild(element(kind === 'inner' ? 'h3' : 'h2', null, title));
   var chevron = element('span', 'chevron');
   chevron.setAttribute('aria-hidden', 'true');
-  summary.appendChild(chevron);
+  if (aside) {
+    var end = element('span', 'fold-end');
+    end.appendChild(aside);
+    end.appendChild(chevron);
+    summary.appendChild(end);
+  } else {
+    summary.appendChild(chevron);
+  }
   node.appendChild(summary);
   node.addEventListener('toggle', function () { OPEN[key] = node.open; });
   var body = element('div', 'fold-body');
@@ -1624,6 +1649,129 @@ function changeThread(row, shown, enable, controls) {
   });
 }
 
+// The Codex Compatibility Registry (v0.6.5), read-only, as the Windows Dashboard's Diagnostics page shows
+// it: for the Codex engine on this machine, which of the things this product does can be relied on, in
+// the registry's four words - each with what it means - with when that was checked and which data was in
+// force. Folded until it is opened; folded, its chip says the headline.
+//
+// What reaches this page is codes only (the status reply's `watcher.compatibility`): the state and the
+// reason of each part, where the data came from and its sequence number, what the watcher acts on, the
+// refreshed data's standing, one time - no version string, no path and no word from a registry document.
+// And nothing here refreshes the data: a refresh is a request to GitHub, and neither a model nor this
+// page may make one. The person is told where they can.
+var COMPAT_STATES = ['VERIFIED', 'COMPATIBLE', 'INCOMPATIBLE', 'UNKNOWN'];
+// The refreshed data's standings that are more than "in force", each said as the window's card says it:
+// expired or dated ahead, its restrictions apply and its trust does not; the others, the bundled data applies.
+var COMPAT_CAVEATS = ['expired', 'from_the_future', 'rejected', 'superseded', 'from_newer_product'];
+// The parts, in the registry's own order. The four it does not offer yet are left out, as they are in
+// the window and on the command line.
+var COMPAT_ORDER = ['engine_present', 'exact_thread_recovery', 'usage_limit_detection', 'usage_reset_hint',
+                    'usage_probe', 'thread_eligibility', 'loaded_state_detection', 'recovery_turn_tracking',
+                    'queue_withdraw', 'outcome_observation', 'transient_classification', 'projection_freshness',
+                    'empty_response_recovery', 'not_loaded_recovery', 'goal_continuation', 'subagent_recovery'];
+
+// A registry state from either word a view carries one in - a part's state, or the overall's coarse word.
+// Anything else is UNKNOWN, as the registry reads it.
+function compatState(word) {
+  if (word === 'VERIFIED' || word === 'verified') return 'VERIFIED';
+  if (word === 'COMPATIBLE' || word === 'structurally_compatible') return 'COMPATIBLE';
+  if (word === 'INCOMPATIBLE' || word === 'incompatible') return 'INCOMPATIBLE';
+  return 'UNKNOWN';
+}
+
+// A state's chip: green for what can be relied on, red for what cannot, grey for what is not known - as
+// the window draws its checks. Always beside the word.
+function compatTone(state) {
+  return state === 'INCOMPATIBLE' ? 'danger' : state === 'UNKNOWN' ? 'paused' : 'success';
+}
+
+// A moment as a clock shows it, and its date when that is not today. Written out, as nextCheck writes a
+// time, rather than in the browser's own format and language.
+function clockTime(at) {
+  if (typeof at !== 'number' || !isFinite(at)) return '-';
+  var when = new Date(at * 1000);
+  if (isNaN(when.getTime())) return '-';
+  var pad = function (number) { return (number < 10 ? '0' : '') + number; };
+  var time = pad(when.getHours()) + ':' + pad(when.getMinutes());
+  var now = new Date();
+  if (when.getFullYear() === now.getFullYear() && when.getMonth() === now.getMonth() &&
+      when.getDate() === now.getDate()) return time;
+  return when.getFullYear() + '-' + pad(when.getMonth() + 1) + '-' + pad(when.getDate()) + ' ' + time;
+}
+
+function renderCompatibility(status) {
+  var view = status && status.watcher && status.watcher.compatibility;
+  if (!view || typeof view !== 'object') return null;
+  var overall = compatState(view.overall);
+  var chip = element('span', 'chip ' + compatTone(overall), t('compat.state.' + overall, overall.toLowerCase()));
+  var fold = folding('compat', t('compat.title', 'Codex compatibility'), false, null, chip);
+  fold.node.className += ' compat';
+  var body = fold.body;
+  // A report that cannot be used makes every part unknown, for that one reason: said once, not listed. It
+  // says nothing about the data in force either, which is '-' then, as in the window - never 'none'.
+  var usable = view.status === 'ok';
+  var source = (view.source === 'cache' || view.source === 'bundled') ? view.source : 'none';
+  // Which data, by its sequence number when there is data and a number: the window's words for both.
+  var data = t('compat.source.' + source, source);
+  var sequence = view.sequence;
+  if (source !== 'none' && typeof sequence === 'number' && isFinite(sequence) && sequence >= 0 &&
+      Math.floor(sequence) === sequence) {
+    data = fill('compat.source_sequence', '{source}, #{sequence}', {source: data, sequence: sequence});
+  }
+  var meta = element('div', 'prow-meta compat-meta');
+  [[t('compat.checked', 'Checked'), typeof view.checked_at === 'number' ? clockTime(view.checked_at) : t('time.never', 'never')],
+   [t('compat.data', 'Data in force'), usable ? data : '-']
+  ].forEach(function (pair) {
+    var fact = element('span', null, pair[0] + ' ');
+    fact.appendChild(element('b', null, pair[1]));
+    meta.appendChild(fact);
+  });
+  body.appendChild(meta);
+  // What the view cannot vouch for, as the window's card says it and in its order: why a report cannot be
+  // used; else a watcher still acting on what it found when it started, which the window tells a person
+  // to restart - from the window, which this page names; and refreshed data that is not simply in force.
+  var notices = [];
+  if (!usable) {
+    notices.push(t('compat.status.' + (typeof view.status === 'string' ? view.status : 'invalid'),
+      t('compat.status.invalid', 'The last check could not be read, so nothing in it is relied on.')));
+  }
+  if (usable && typeof view.acting === 'string' && view.acting !== view.overall) {
+    notices.push(t('panel.compat_acting_differs',
+      'The watcher is still acting on what it found when it started. Stop it and start it again on the Diagnostics page of the Codex Auto Resume window to check again.'));
+  }
+  if (usable && COMPAT_CAVEATS.indexOf(view.cache) >= 0) {
+    notices.push(t('compat.cache.' + view.cache, view.cache.replace(/_/g, ' ')));
+  }
+  notices.forEach(function (text) { body.appendChild(element('p', 'callout', text)); });
+  // The words shown, explained - not for a report that cannot be used, which is unknown for the one reason
+  // the callout gives, and which the legend's reason would contradict.
+  var shown = usable ? [overall] : [];
+  var capabilities = (usable && view.capabilities && typeof view.capabilities === 'object') ? view.capabilities : {};
+  var rows = element('ul', 'toggles compat-rows');
+  rows.setAttribute('aria-label', t('compat.title', 'Codex compatibility'));
+  COMPAT_ORDER.forEach(function (name) {
+    var entry = capabilities[name];
+    if (!entry || typeof entry !== 'object' || entry.reason === 'not_implemented') return;
+    var state = compatState(entry.state);
+    if (shown.indexOf(state) < 0) shown.push(state);
+    var row = element('li', 'setting');
+    var text = element('div', 'setting-text');
+    text.appendChild(element('span', 'setting-label', t('compat.capability.' + name, name.replace(/_/g, ' '))));
+    row.appendChild(text);
+    row.appendChild(element('span', 'chip compat-state ' + compatTone(state), t('compat.state.' + state, state.toLowerCase())));
+    rows.appendChild(row);
+  });
+  if (rows.children.length) body.appendChild(rows);
+  var legend = element('div', 'compat-legend');
+  COMPAT_STATES.forEach(function (state) {
+    if (shown.indexOf(state) >= 0) legend.appendChild(element('p', 'help', t('compat.meaning.' + state, state)));
+  });
+  if (legend.children.length) body.appendChild(legend);
+  body.appendChild(element('p', 'help compat-refresh', t('panel.compat_refresh',
+    'This data changes only when you ask: with Refresh compatibility data on the Diagnostics page of the Codex Auto Resume window, or with Check for updates.')));
+  return fold.node;
+}
+
 function renderGeneral(byName) {
   var entry = byName.interface_language;
   if (!entry) return null;
@@ -1958,12 +2106,12 @@ function render() {
 
   var page = element('main', 'page');
   root.appendChild(page);
-  // State first; then what is waiting, because it is the part that changes; then what is
-  // configured, general to particular; then what the configuration will say; then how the
-  // panel looks, where the Windows Dashboard puts it too.
+  // State first; then what is waiting, because it is the part that changes; then whether this
+  // Codex can be relied on, folded; then what is configured, general to particular; then what
+  // the configuration will say; then how the panel looks, where the Windows Dashboard puts it too.
   var hero = renderHero(status);
   page.appendChild(hero.node);
-  [renderPending(DATA.pending), renderGeneral(byName), renderRecovery(status, schema),
+  [renderPending(DATA.pending), renderCompatibility(status), renderGeneral(byName), renderRecovery(status, schema),
    renderNotifications(schema), renderContinuation(byName), renderPreviewCard(),
    renderAppearance(byName)
   ].forEach(function (section) { if (section) page.appendChild(section); });

@@ -68,7 +68,10 @@ ABM_GETTASKBARPOS = 5
 ABE_LEFT, ABE_TOP, ABE_RIGHT, ABE_BOTTOM = 0, 1, 2, 3
 TIMER_FRAME, TIMER_WAIT = 1, 2
 PIXEL_FORMAT_32BPP_PARGB = 0x000E200B
-INTERPOLATION_HIGH_QUALITY_BILINEAR, PIXEL_OFFSET_HALF, COMPOSITING_HIGH_QUALITY = 6, 4, 2
+# Compositing is GDI+'s high-speed blend, as the popup's painter blends: its high-quality one is
+# gamma-corrected, and at 200% it made one entrance frame cost 35 ms instead of 9 - on the real
+# screen the card sat faint for a tenth of a second and then jumped to full strength.
+INTERPOLATION_HIGH_QUALITY_BILINEAR, PIXEL_OFFSET_HALF, COMPOSITING_HIGH_SPEED = 6, 4, 1
 UNIT_PIXEL = 2
 
 _DLLS = {}
@@ -331,7 +334,7 @@ class _Surface:
             raise OSError("GdipGetImageGraphicsContext failed (%d)" % status)
         _made(1)
         self.gp.GdipSetPixelOffsetMode(self.graphics, PIXEL_OFFSET_HALF)
-        self.gp.GdipSetCompositingQuality(self.graphics, COMPOSITING_HIGH_QUALITY)
+        self.gp.GdipSetCompositingQuality(self.graphics, COMPOSITING_HIGH_SPEED)
 
     def __enter__(self):
         return self
@@ -674,18 +677,20 @@ class CardStack:
     # ---- showing
     def show(self, notice, *, where=None, drawn=None):
         """Put one notice on screen as the newest card. Returns the Card, or None if it failed."""
-        now = self.clock()
         try:
             self._acquire_gdiplus()
             where = where or self.locate()
             drawn = drawn or self.appearance()
-            card = Card(self, notice, now_ms=now, where=where, drawn=drawn)
+            card = Card(self, notice, now_ms=self.clock(), where=where, drawn=drawn)
         except Exception as exc:
             self.log("notification card unavailable (%s)" % type(exc).__name__)
             if not self.cards:
                 self._release_gdiplus()
             self._complete(notice, False)
             return None
+        # Its life starts now that it is drawn: its first frame is the first frame of its entrance.
+        now = self.clock()
+        card.motion.restart(now)
         try:
             self.admit(card, now, where)
         except Exception as exc:

@@ -28,7 +28,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from codex_auto_resume import (brand, continuation, control, l10n, machine,  # noqa: E402
+from codex_auto_resume import (brand, compat, continuation, control, l10n, machine,  # noqa: E402
                                mcpserver, mcpui, reasons)
 from codex_auto_resume import settings as policy                              # noqa: E402
 
@@ -354,6 +354,15 @@ class CatalogTests(unittest.TestCase):
         "choice.": tuple(policy.RETRY_TIMING),
         "code.": tuple(machine.PUBLIC_CODES),
         "error.": tuple(control.ERROR_CODES),
+        # v0.6.5, the Codex compatibility card: every part the registry names, its four states and what
+        # each means, why a report cannot be used, and where the data in force came from.
+        "compat.capability.": tuple(compat.CAPABILITIES),
+        "compat.state.": compat.STATES,
+        "compat.meaning.": compat.STATES,
+        "compat.status.": tuple(status for status in compat.VIEW_STATUSES if status != "ok"),
+        "compat.source.": compat.DATA_SOURCES,
+        # The refreshed data's standings that are more than "in force", said as the window says them.
+        "compat.cache.": tuple(state for state in compat.CACHE_STATES if state not in ("absent", "ok")),
     }
 
     def test_every_key_the_script_names_exists_in_english(self):

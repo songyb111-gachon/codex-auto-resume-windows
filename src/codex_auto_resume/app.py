@@ -11,7 +11,7 @@ import time
 import traceback
 import uuid
 
-from . import compatio, config, messages, notify, settings as policy
+from . import compatio, config, messages, notifier, settings as policy
 from .engine import Engine
 from .logbook import LOGGER_NAME, EngineLog, setup_logging
 from .source import LocalSource
@@ -107,8 +107,14 @@ class App:
         # Interface language the user stored, which is `system` until they choose.
         from . import l10n, tray_popup
         l10n.set_preference(self.settings.get("interface_language"))
-        tray_popup.set_reduce_motion(self.settings.get("reduce_motion"))
+        # Reduce motion and, since v0.6.5, the Theme: the notification card is drawn in it before
+        # anybody has opened the popup, which is where the icon used to take it up first.
+        tray_popup.adopt_settings(self.settings)
         self._tray = None
+        # v0.6.5: notices on their way to the notification card on the icon's thread. Nothing is
+        # attached until the icon's thread hosts the card; until then, and whenever it cannot,
+        # every notification is today's toast (notifier.deliver).
+        self._inbox = notifier.Inbox()
         self._codex_exe_override = codex_exe or self.settings.get("codex_exe")
         self.codex_home = Path(codex_home).resolve() if codex_home else config.codex_home()
         # Fixed at construction, so what the lock protects cannot move under a running
@@ -244,7 +250,7 @@ class App:
         self.settings = values
         engine.apply_policy(values)
         from . import tray_popup
-        tray_popup.set_reduce_motion(values.get("reduce_motion"))
+        tray_popup.adopt_settings(values)
         if values.get("interface_language") != previous:
             from . import interface, l10n
             l10n.set_preference(values.get("interface_language"))
@@ -256,7 +262,7 @@ class App:
         return True
 
     def _notifier(self, source):
-        """Turn an engine lifecycle event into a Windows notification.
+        """Turn an engine lifecycle event into a notification: the card, or a Windows toast.
 
         Two things are deliberately decided here rather than in the engine. The labels
         - a task's title, its project - are looked up at notification time, so the
@@ -264,6 +270,12 @@ class App:
         exact thread UUID. And whether an event is shown at all is read from the
         settings on every event, so turning notifications off takes effect at once
         instead of at the next restart.
+
+        Since v0.6.5 the event is built into one Notice (notifier.build: the same mapping,
+        event for event, that was written out here until then) and shown by exactly one
+        route (notifier.deliver): the product's card beside the notification area when the
+        icon's thread hosts it and Windows says a notification may pop, else today's toast,
+        byte for byte. This runs on the Toasts thread, never on the tick path.
         """
         def announce(event, detail):
             if not policy.notification_enabled(self.settings, event):
@@ -273,26 +285,29 @@ class App:
                 identity = source.identity(thread_id)
             except Exception:
                 identity = None     # an unnamed task is still worth announcing
-            state = detail.get("state")
-            if event == "interruption":
-                return notify.scheduled(thread_id, detail.get("interruption_id"),
-                                        detail.get("reset_at"),
-                                        detail.get("category") or "usage_limit", identity)
-            if event == "starting":
-                return notify.starting(thread_id, identity)
-            if event == "result":
-                if state in ("turn_started", "resumed"):
-                    return notify.resumed(thread_id, identity)
-                # A failed attempt is final, and an uncertain submission is never resent:
-                # neither is ever described as something that will be retried.
-                return notify.attempt_failed(thread_id, identity,
-                                             certain=state != "submission_unknown")
-            if event == "stopped":
-                reason = ("no_progress" if state == "no_progress_exhausted"
-                          else "attempts" if state == "retry_budget_exhausted" else None)
-                return notify.stopped(thread_id, identity, reason=reason)
-            return False
+            notice = notifier.build(event, detail, identity)
+            if notice is None:
+                return False
+            return notifier.deliver(notice, inbox=self._inbox,
+                                    setting=self.settings.get(notifier.CARD_SETTING, True) is True)[1]
         return announce
+
+    def _notice_action(self, uri):
+        """A card's button, on a worker thread: what its toast button would do, done in process.
+
+        Only an open URI for one of the window's pages, or a cancel of one exact interruption
+        through the control layer with the toast's actor; everything else is ignored
+        (notifier.activate). What a cancel says afterwards goes out the way any notice does, and
+        what the press did - or why it did nothing - is one line in this log, as the toast's is.
+        """
+        from . import tray
+        from .control import Control
+        return notifier.activate(uri, control=Control(self.paths),
+                                 open_dashboard=lambda page: tray.open_dashboard(self.paths.home, page),
+                                 announce=lambda notice: notifier.deliver(
+                                     notice, inbox=self._inbox,
+                                     setting=self.settings.get(notifier.CARD_SETTING, True) is True),
+                                 log=self.logger.info)
 
     def mutex(self, timeout: float = 0.0) -> Mutex:
         return Mutex(str(self.paths.state_dir), timeout=timeout)
@@ -557,13 +572,19 @@ class App:
             names = self.source()
         except Exception:
             names = None
+        # The notification card lives on the icon's thread too (notice_window.CardStack): the
+        # icon attaches the inbox once it hosts the card, a button on a card comes back to
+        # `_notice_action` on a worker thread, and every notice the card took is ended once by
+        # notifier.complete - its silent history copy, or today's toast if it was never seen.
         icon_tray = tray.Tray(icon_path=icon, strings=interface.catalog(),
                               on_open=lambda: tray.open_dashboard(home), on_toggle=toggle,
                               on_pending=lambda: tray.open_dashboard(home, "pending"),
                               on_stop=lambda: StopEvent(str(self.paths.state_dir)).signal(),
                               control=Control(self.paths), pending_source=names,
                               on_dashboard=lambda: tray.open_dashboard(home, "pending"),
-                              log=self.logger.info)
+                              log=self.logger.info, inbox=self._inbox,
+                              on_notice_action=self._notice_action,
+                              on_notice_complete=notifier.complete)
         if not icon_tray.start():
             return None
         self._tray = icon_tray

@@ -2968,7 +2968,9 @@ namespace CodexAutoResume
         ///
         /// The window is built as it opens, at its opening size, with the Custom message and its
         /// per-kind editor showing, and every page and every Settings section is laid out in turn -
-        /// filled from `snapshotJson`, a dashboard reply, when one is given. It is never shown - it
+        /// filled from `snapshotJson`, a dashboard reply, when one is given, and the Diagnostics
+        /// page's Codex compatibility card from the registry view the reply carries under
+        /// `compatibility`, with the longest answer a refresh gives beside its button. It is never shown - it
         /// is not even a top-level window - and nothing is sent to it. Another scaling is stood in
         /// for this machine's by scaling DpiScale and the fonts together, which matched a real
         /// 144-DPI window to the pixel when the v0.6.4 clipping was measured. Reported are:
@@ -3036,6 +3038,18 @@ namespace CodexAutoResume
                     form.BuildEditors(schema, current);
                     // Held by the window, so each page is filled from it as the page is built (PageFor).
                     if (snapshot != null) form.ApplySnapshot(snapshot);
+                    // The Diagnostics page's Codex compatibility card with the most it shows: the view the reply carries
+                    // beside the dashboard's own parts, when it carries one (the bridge answers it on its own, so the card
+                    // keeps it for when it is built), and beside its button the longest answer a refresh can give.
+                    var compatibility = snapshot == null ? null : Map(snapshot, "compatibility");
+                    if (compatibility != null) form.ApplyCompatibility(compatibility, false);
+                    string longest = "";
+                    foreach (string outcome in new[] { "refreshed", "refused", "unavailable", "incomplete", "failed", "busy" })
+                    {
+                        string said = form.CompatibilitySaid(outcome, "1234", "unevidenced_verified");
+                        if (said.Length > longest.Length) longest = said;
+                    }
+                    form.SetCompatNote(longest);
                     foreach (string page in PageOrder)
                     {
                         form.ShowPage(page);
