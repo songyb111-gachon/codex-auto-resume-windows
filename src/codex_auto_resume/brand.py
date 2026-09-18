@@ -140,6 +140,23 @@ ICON_BOTTOM = "#0B2545"
 ICON_MARK = "#F2F9FF"
 ICON_ACCENT = "#4FE0F5"
 
+# The mark's shape, in a square whose half-size is 1, x to the right and y up: a rounded-square
+# badge carrying an open ring with a round head at its leading end. Until v0.6.5 these numbers
+# lived in assets/make_icon.py. The notification-area icon now draws its motion frames from them
+# inside the watcher, so they live with the code that runs, and make_icon.py imports them: one
+# geometry and one rasteriser for the .ico, the logos, the vector master and the icon's frames.
+ICON_SHAPE = {
+    "ring_inner": 0.34, "ring_outer": 0.53,
+    # Counter-clockwise from the near end of the gap round to its far end: a 290 degree sweep
+    # leaving a 70 degree opening at the top. The head sits at the far end, leading the ring.
+    "arc_start": 125.0, "arc_end": 55.0,
+    "head_radius": 0.155,
+    "corner_large": 0.30, "corner_small": 0.24,
+    # Below this size the corner radius drops: a 30% round on a 16 pixel square eats the mark.
+    "corner_threshold": 32,
+}
+ICON_SUPERSAMPLE = 4
+
 
 # ------------------------------------------------------------------- scale
 # Everything that is not a colour, in device-independent pixels at 96 DPI. The window
@@ -152,9 +169,17 @@ SPACING = {"xs": 4, "s": 8, "m": 12, "l": 16, "xl": 24, "xxl": 32}
 TYPE = {"title": 20, "heading": 14, "body": 12, "small": 11}
 # Motion is a state, not decoration: the state light's glow is GLOW (below), and every
 # recurring motion stops when a person has asked Windows to reduce motion. What is left here
-# is the panel's control transitions. The shadows that were scalars here until v0.6.4 are
+# is the controls' transitions. The shadows that were scalars here until v0.6.4 are
 # SHADOWS, the panel's exact recipes.
-MOTION = {"transition_ms": 160}
+#
+# v0.6.5: a switch glides when it changes - its knob slides and its track cross-fades - on every
+# surface, in `transition_ms`, on one curve: `ease`, a CSS cubic-bezier's four control numbers.
+# It is an ease-out (easeOutCubic): the knob leaves at once and settles, so a switch answers the
+# click the moment it is confirmed and still comes to rest softly. The panel writes it as
+# `--transition-ease`, the window reads Brand.TransitionEase*, the popup calls ease(). A change
+# that waits for a confirmation starts only once it is confirmed; nothing slides under Reduce
+# motion, Windows' animation setting or High Contrast.
+MOTION = {"transition_ms": 160, "ease": (0.33, 1.0, 0.68, 1.0)}
 
 
 # ------------------------------------------------------------ v0.6.4: the panel, as data
@@ -332,28 +357,41 @@ STATUS_FILL = {"monitoring": "active", "waiting": "active", "checking": "active"
 STATUS_SYSTEM = {"monitoring": "Highlight", "waiting": "Highlight", "checking": "Highlight",
                  "recovering": "Highlight", "attention": "WindowText", "failed": "WindowText",
                  "paused": "GrayText", "idle": "GrayText"}
-# The glow. It is a radial falloff around the dot, never a disc with an edge: its alpha is the
-# frame's opacity times 1 at the dot's edge, NEAR_ALPHA at NEAR_AT of the way out, FAR_ALPHA
-# at FAR_AT, and 0 at `reach` CSS px past the edge (times the display scale, and times the
-# frame's scale). Breathing is a raised cosine - a sine with no corner at either end - with a
-# low amplitude and a slow cycle, so it reads as a light that is on rather than one that blinks.
+# The glow. It is a radial falloff around the dot, never a hard disc: its alpha is the frame's
+# opacity times 1 at the dot's edge, NEAR_ALPHA at NEAR_AT of the way out, FAR_ALPHA at FAR_AT,
+# and 0 at `reach` CSS px past the edge (times the display scale, and times the frame's scale).
+# Breathing is a raised cosine - a sine with no corner at either end - on a cycle of a few
+# seconds, so it reads as a light that is on rather than one that blinks.
 #
-# The numbers were checked by eye before they were kept: monitoring at four phases, waiting,
-# checking, recovering and attention, beside the v0.6.3 halo, at 100% and 200% on the light
-# surface and canvas. The falloff shows no edge at either scale; monitoring's trough leaves the
-# dot nearly bare and its peak is a soft ring about as wide as the dot; recovering and the one
-# attention pulse read stronger without flashing. The flat v0.6.3 disc beside them looked like
-# a sticker, which is what this replaces.
+# v0.6.5: the v0.6.4 light was too quiet to be seen. Its breath ran from .14 to .30 of a falloff
+# that was already down to a fifth at seven tenths of its reach, so at normal viewing distance the
+# dot looked still and the glow looked like a smudge. Five sets of numbers were rendered with each
+# surface's own model - the window's, the popup's and the panel's dot, light and dark, at 100% and
+# 150%, as frame strips and as animations side by side - and this one was kept ("soft ring"):
+#
+#   * a wider breath: the trough leaves the dot almost bare (.12) and the peak (.58) is plainly lit;
+#   * more swing: the glow's radius travels from .82 to 1.08 of its reach, so the light grows as it
+#     brightens instead of only fading in place;
+#   * a slightly shorter cycle, 3.2 s for monitoring and 2 s while recovering;
+#   * a clearer ring at the peak: the falloff holds near half strength across most of the reach
+#     (.58 at .45 of it, .50 at .78) and then fades over the last fifth, so the brightest frame
+#     reads as a lit ring around the dot with a soft but definite edge. It never dips and rises
+#     again - a gap between the dot and a ring read as a target, which is an alarm's shape.
+#
+# Still a light that is on, not one that blinks: a raised cosine with no corner at either end,
+# the same easing on every surface, and nothing at all under Reduce motion, Windows' animation
+# setting or High Contrast. The largest glow reaches 12.96 CSS px from the window's dot centre,
+# inside the 28 px column the window keeps for it at every scaling.
 GLOW = {
     "reach": 7,
-    "near_at": 0.35, "near_alpha": 0.55,
-    "far_at": 0.70, "far_alpha": 0.20,
-    "monitoring_ms": 3600, "monitoring_low": 0.14, "monitoring_high": 0.30,
-    "monitoring_scale_low": 0.94, "monitoring_scale_high": 1.00,
-    "recovering_ms": 2200, "recovering_low": 0.18, "recovering_high": 0.38,
-    "recovering_scale_low": 0.96, "recovering_scale_high": 1.04,
-    "still": 0.20,                  # waiting and checking, and attention once it has pulsed
-    "attention_ms": 1400, "attention_peak": 0.42,
+    "near_at": 0.45, "near_alpha": 0.58,
+    "far_at": 0.78, "far_alpha": 0.50,
+    "monitoring_ms": 3200, "monitoring_low": 0.12, "monitoring_high": 0.58,
+    "monitoring_scale_low": 0.82, "monitoring_scale_high": 1.08,
+    "recovering_ms": 2000, "recovering_low": 0.20, "recovering_high": 0.70,
+    "recovering_scale_low": 0.88, "recovering_scale_high": 1.08,
+    "still": 0.30,                  # waiting and checking, and attention once it has pulsed
+    "attention_ms": 1400, "attention_peak": 0.72,
     # Checking also turns the arc every surface already drew: `arc_gap` past the dot's edge,
     # `arc_width` wide, `arc_sweep` degrees long, in `active` at `arc_alpha`. With motion
     # reduced it holds at `arc_still_at` degrees.
@@ -412,6 +450,7 @@ def css_scale() -> str:
         parts.append("--size-%s: %s;" % (name.replace("_", "-"),
                                           " ".join(_css_length(part) for part in values)))
     parts.append("--transition: %dms;" % MOTION["transition_ms"])
+    parts.append("--transition-ease: %s;" % css_ease())
     dot = STATUS_DOT["panel"]
     parts.append("--glow-reach: %s;" % _css_length(GLOW["reach"]))
     for name, fraction in (("edge", 0.0), ("near", GLOW["near_at"]), ("far", GLOW["far_at"]),
@@ -432,6 +471,54 @@ def css_scale() -> str:
     parts.append("--glow-arc-mix: %s%%;" % _number(GLOW["arc_alpha"] * 100))
     parts.append(css_check_box())
     return " ".join(parts)
+
+
+def css_ease() -> str:
+    """MOTION's curve as CSS writes it: cubic-bezier(0.33, 1, 0.68, 1)."""
+    return "cubic-bezier(%s)" % ", ".join(_number(value) for value in MOTION["ease"])
+
+
+def _bezier(a, b, t):
+    """One coordinate of a CSS cubic-bezier from (0, 0) to (1, 1) through control values a and b."""
+    return ((1.0 - 3.0 * b + 3.0 * a) * t + (3.0 * b - 6.0 * a)) * t * t + 3.0 * a * t
+
+
+def _bezier_slope(a, b, t):
+    return 3.0 * (1.0 - 3.0 * b + 3.0 * a) * t * t + 2.0 * (3.0 * b - 6.0 * a) * t + 3.0 * a
+
+
+def ease(progress: float) -> float:
+    """How far a transition has come, 0 to 1, after `progress` of its time: MOTION's curve.
+
+    CSS's cubic-bezier, solved the way browsers solve it - a few Newton steps on the curve's x,
+    then halving if they do not settle - so the window (Brand.Ease), the popup and the panel's
+    stylesheet move a switch along the same path. Anything outside 0..1 is held at its end.
+    """
+    if not progress > 0.0:
+        return 0.0
+    if progress >= 1.0:
+        return 1.0
+    x1, y1, x2, y2 = MOTION["ease"]
+    t = progress
+    for _ in range(8):
+        error = _bezier(x1, x2, t) - progress
+        if abs(error) < 1e-7:
+            return _bezier(y1, y2, t)
+        slope = _bezier_slope(x1, x2, t)
+        if abs(slope) < 1e-6:
+            break
+        t = min(1.0, max(0.0, t - error / slope))
+    low, high, t = 0.0, 1.0, progress
+    for _ in range(40):
+        value = _bezier(x1, x2, t)
+        if abs(value - progress) < 1e-7:
+            break
+        if value < progress:
+            low = t
+        else:
+            high = t
+        t = (low + high) / 2.0
+    return _bezier(y1, y2, t)
 
 
 def css_check_box() -> str:
@@ -780,3 +867,127 @@ def css_variables(theme: dict) -> str:
     """
     return " ".join("--%s: %s;" % (name.replace("_", "-"), value)
                     for name, value in theme.items())
+
+
+# ------------------------------------------------------------------- the mark, rasterised
+# Deterministic and standard-library only, so a release build and the watcher draw identical
+# pixels on any machine. A pixel is ICON_SUPERSAMPLE squared samples; each sample is the head,
+# the ring, or the badge's vertical gradient, and the pixel is their integer average with an
+# alpha of how many fell on the badge. assets/make_icon.py writes the .ico, the logos and the
+# vector master from here; tray.py composes the notification-area icon's motion frames from here.
+
+def icon_rounded_square(x, y, radius):
+    """Signed distance to a rounded square centred on (0, 0) with half-size 1; negative inside.
+
+    A distance rather than a boolean because the dark logo needs to know how close to the edge
+    it is, to draw a rim there.
+    """
+    half = 1.0 - radius
+    dx = max(abs(x) - half, 0.0)
+    dy = max(abs(y) - half, 0.0)
+    if abs(x) > 1.0 or abs(y) > 1.0:
+        return 1.0
+    return math.hypot(dx, dy) - radius
+
+
+def icon_ring_arc(x, y, inner, outer, start, end):
+    """True inside an annulus sector, angles in radians measured counter-clockwise."""
+    distance = math.hypot(x, y)
+    if not (inner <= distance <= outer):
+        return False
+    angle = math.atan2(y, x) % (2 * math.pi)
+    start %= 2 * math.pi
+    end %= 2 * math.pi
+    if start <= end:
+        return start <= angle <= end
+    return angle >= start or angle <= end
+
+
+def icon_head_centre(angle=None):
+    """The head's centre on the stroke's centre line, at `angle` degrees (the sweep's end by default)."""
+    middle = (ICON_SHAPE["ring_inner"] + ICON_SHAPE["ring_outer"]) / 2.0
+    radians = math.radians(ICON_SHAPE["arc_end"] if angle is None else angle)
+    return (middle * math.cos(radians), middle * math.sin(radians))
+
+
+def icon_head_box(size, angle=None):
+    """The pixels (left, top, right, bottom) a head at `angle` can touch in a `size` icon."""
+    x, y = icon_head_centre(angle)
+    reach = ICON_SHAPE["head_radius"]
+    return (max(0, int(math.floor((x - reach + 1.0) / 2.0 * size))),
+            max(0, int(math.floor((1.0 - (y + reach)) / 2.0 * size))),
+            min(size, int(math.ceil((x + reach + 1.0) / 2.0 * size))),
+            min(size, int(math.ceil((1.0 - (y - reach)) / 2.0 * size))))
+
+
+def icon_samples(size, rim=0.0, *, head_angle=None, head=True, box=None):
+    """The mark's samples, pixel by pixel: rows of (covered, heads, red, green, blue).
+
+    `covered` is how many of a pixel's samples fall on the badge, `heads` how many of those are
+    the head, and red, green and blue the summed colour of the others - the ring, the badge's
+    gradient, or the rim. Kept apart so the head can be given any colour afterwards
+    (icon_pixel) with exactly the arithmetic a whole render uses. `head=False` leaves the head
+    out altogether; `box` limits the work to (left, top, right, bottom).
+    """
+    shape = ICON_SHAPE
+    steps = ICON_SUPERSAMPLE
+    scale = size * steps
+    radius = shape["corner_large"] if size >= shape["corner_threshold"] else shape["corner_small"]
+    top_colour, bottom_colour, mark = rgb(ICON_TOP), rgb(ICON_BOTTOM), rgb(ICON_MARK)
+    inner, outer = shape["ring_inner"], shape["ring_outer"]
+    start, end = math.radians(shape["arc_start"]), math.radians(shape["arc_end"])
+    head_x, head_y = icon_head_centre(head_angle)
+    head_radius = shape["head_radius"]
+    left, top, right, bottom = box if box is not None else (0, 0, size, size)
+    rows = []
+    for py in range(top, bottom):
+        row = []
+        for px in range(left, right):
+            covered = heads = red = green = blue = 0
+            for sy in range(steps):
+                fy = (py * steps + sy + 0.5) / scale * 2.0 - 1.0
+                for sx in range(steps):
+                    fx = (px * steps + sx + 0.5) / scale * 2.0 - 1.0
+                    distance = icon_rounded_square(fx, fy, radius)
+                    if distance > 0.0:
+                        continue
+                    covered += 1
+                    if head and math.hypot(fx - head_x, -fy - head_y) <= head_radius:
+                        heads += 1
+                        continue
+                    if icon_ring_arc(fx, -fy, inner, outer, start, end):
+                        colour = mark
+                    elif rim and distance >= -rim:
+                        colour = top_colour
+                    else:
+                        position = (fy + 1.0) / 2.0
+                        colour = tuple(round(x + (y - x) * position) for x, y in zip(top_colour, bottom_colour))
+                    red += colour[0]
+                    green += colour[1]
+                    blue += colour[2]
+            row.append((covered, heads, red, green, blue))
+        rows.append(row)
+    return rows
+
+
+def icon_pixel(sample, head_colour) -> tuple:
+    """One (red, green, blue, alpha) pixel from icon_samples, with the head in `head_colour`."""
+    covered, heads, red, green, blue = sample
+    if covered == 0:
+        return (0, 0, 0, 0)
+    return ((red + heads * head_colour[0]) // covered, (green + heads * head_colour[1]) // covered,
+            (blue + heads * head_colour[2]) // covered,
+            covered * 255 // (ICON_SUPERSAMPLE * ICON_SUPERSAMPLE))
+
+
+def icon_render(size: int, rim: float = 0.0) -> bytes:
+    """Raw RGBA bytes for one square icon: the mark exactly as the .ico and the logos carry it.
+
+    `rim` draws a hairline of the badge's own top colour just inside the edge, as a fraction of
+    the half-size. The deep blue badge has plenty of contrast on a light page and almost none on
+    a near-black one, so the dark logo lifts itself off the ground rather than relying on a
+    ground it cannot see.
+    """
+    head = rgb(ICON_ACCENT)
+    return b"".join(bytes(part for sample in row for part in icon_pixel(sample, head))
+                    for row in icon_samples(size, rim))

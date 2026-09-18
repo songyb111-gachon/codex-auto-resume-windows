@@ -506,6 +506,47 @@ def animates(state, since_entered_ms=0, *, reduced=False) -> bool:
     return brand.glow_moves(state, since_entered_ms, reduced=reduced)
 
 
+# v0.6.5: a task's switch glides when it changes - the knob slides end to end and the track
+# cross-fades between the grey well and the accent - in brand's one transition time, on brand's
+# one curve, as the window's and the panel's switches do. A glide is (started_ms, from, to), the
+# ends being how far on the switch is: 0 off, 1 on. It starts only when a switch the window has
+# already drawn is drawn the other way - which, for a change somebody asked for here, is when the
+# control layer has confirmed it: the press only fades the switch while the answer is awaited, so
+# it never moves and snaps back. With motion reduced, in High Contrast, while the window is hidden
+# and on the frame that opens it, a change is simply drawn in its new place.
+def glide_amount(glide, now_ms) -> tuple:
+    """(how far on the switch is, whether the glide is over) at `now_ms`, eased."""
+    started, begin, end = glide
+    progress = (now_ms - started) / float(brand.MOTION["transition_ms"])
+    if progress >= 1.0:
+        return end, True
+    return begin + (end - begin) * brand.ease(progress), False
+
+
+def next_glides(seen, previous, glides, now_ms, *, animate=True) -> dict:
+    """The glides running after a switch table `seen` ({target: checked}) replaced `previous`.
+
+    A glide still heading where its switch is drawn keeps going; a switch drawn the other way
+    from before starts one from wherever it is now - its end, or partway through a glide it is
+    turning back from. `animate` False stops every glide where it would have ended; no `previous`
+    (the window has just opened) starts none; a switch no longer drawn loses its glide.
+    """
+    if not animate:
+        return {}
+    running = {}
+    for target, checked in seen.items():
+        end = 1.0 if checked else 0.0
+        glide = glides.get(target)
+        if glide is not None and glide[2] == end:
+            running[target] = glide
+            continue
+        if previous is None or target not in previous or bool(previous[target]) == bool(checked):
+            continue
+        begin = glide_amount(glide, now_ms)[0] if glide is not None else 1.0 - end
+        running[target] = (now_ms, begin, end)
+    return running
+
+
 # ---------------------------------------------------------------------------- the badge
 def composite_badge(pixels, width, height, colour) -> None:
     """Draw a state dot into an icon's pixels, in place.
@@ -1685,18 +1726,25 @@ class Renderer:
         self.use(locale, scale)
         return layout(vm, scale, self.measure)
 
-    def draw(self, vm, plan, *, frame=None, hover=None, pressed=None, focus=None):
-        """One whole frame into the canvas. Returns the canvas."""
+    def draw(self, vm, plan, *, frame=None, hover=None, pressed=None, focus=None, glides=None):
+        """One whole frame into the canvas. Returns the canvas.
+
+        `glides` is {switch target: how far on, 0 to 1} for the switches part way through a
+        glide: those are left out of the cached ground and drawn over it where they are now.
+        """
         width, height = plan["size"]
         scale = plan["scale"]
         canvas = self.canvas
         canvas.ensure(width, height)
-        self._ground(plan, pressed)
+        glides = glides or {}
+        self._ground(plan, pressed, glides)
         busy = {item["target"] for item in plan["items"] if item.get("busy")}
         with _Painter(canvas) as paint:
             for item in plan["items"]:
                 if item["kind"] == "button":
                     self._button(paint, item, scale, hover, pressed)
+                elif item["kind"] == "switch" and item["target"] in glides:
+                    self._switch(paint, item, scale, on=glides[item["target"]])
         self._text(canvas.dc, plan, busy)
         if focus is not None:
             with _Painter(canvas) as paint:
@@ -1762,13 +1810,14 @@ class Renderer:
         """A button stands on the card unless it is pressed or busy."""
         return not item["busy"] and pressed != item["target"]
 
-    def _ground(self, plan, pressed):
+    def _ground(self, plan, pressed, glides=()):
         """Everything but the text, the buttons' faces and the halo: drawn once, then copied.
 
         The canvas, the card and its lift, the task rows, rules, chips, notes and switches, and
         the lift under each button. None of it changes on a one-second tick, so a tick costs a
         memory copy; hovering changes only a face. A press takes a button's lift away, so a
-        press is part of the key, and so is the theme every colour in it comes from.
+        press is part of the key, and so is the theme every colour in it comes from. A switch in
+        the middle of a glide is left out - its row's tile shows there - and drawn over the copy.
         """
         canvas, scale = self.canvas, plan["scale"]
         self._use_scale(scale)
@@ -1779,7 +1828,7 @@ class Renderer:
                 parts.append((kind, item["rect"], item["primary"], self._lifted(item, pressed)))
             elif kind not in ("text", "focusable", "halo"):
                 parts.append((kind, item["rect"], item.get("radius"), item.get("tone"), item.get("checked"),
-                              item.get("busy")))
+                              item.get("busy"), kind == "switch" and item["target"] in glides))
         key = (plan["size"], scale, self._theme(), self._system_key(), tuple(parts))
         if self._ground_key == key and self._ground_pixels is not None:
             C.memmove(canvas.bits, self._ground_pixels, len(self._ground_pixels))
@@ -1787,6 +1836,8 @@ class Renderer:
         with _Painter(canvas) as paint:
             paint.fill_round((0, 0, canvas.width, canvas.height), 0, self._argb("canvas"))
             for item in plan["items"]:
+                if item["kind"] == "switch" and item["target"] in glides:
+                    continue
                 self._ground_item(paint, item, scale, pressed)
         self._ground_pixels = canvas.pixels()
         self._ground_key = key
@@ -1893,24 +1944,34 @@ class Renderer:
         the bottom right; in dark, one soft shade along the inside of the top."""
         self._inner(paint, "inset", rect, radius, scale)
 
-    def _switch(self, paint, item, scale):
-        """The panel's switch: a well with a quiet knob when off, the accent with a white knob when on."""
+    def _switch(self, paint, item, scale, on=None):
+        """The panel's switch: a well with a quiet knob when off, the accent with a white knob when on.
+
+        `on` is how far on it is drawn, for a glide: the knob that far along its travel, the accent
+        faded in over the well by as much, and the knob's colour that far from off's to on's. None
+        draws it where it stands.
+        """
         left, top, right, bottom = rect = item["rect"]
         radius = (bottom - top) / 2.0
         faded = 0.5 if item["busy"] else 1.0              # busy: halfway into the row it sits on
         knob = int(round(brand.LAYOUT["knob"] * scale))
         knob_left = left + int(round(brand.LAYOUT["knob_inset"] * scale))
-        if item["checked"]:
-            paint.fill_round(rect, radius, self._argb("accent", faded))
-            knob_left += int(round(brand.LAYOUT["knob_travel"] * scale))
-            knob_token = "on_accent"
-        else:
+        amount = (1.0 if item["checked"] else 0.0) if on is None else max(0.0, min(1.0, float(on)))
+        off_knob = "ink" if self.contrast else "muted"
+        if amount < 1.0:
             paint.fill_round(rect, radius, self._argb("inset", faded))
             if not item["busy"]:
                 self._well(paint, rect, radius, scale)
             paint.stroke_round(rect, radius, self._argb("line", faded), max(1.0, round(scale)))
-            knob_token = "ink" if self.contrast else "muted"
-        paint.fill_circle(knob_left + knob / 2.0, (top + bottom) / 2.0, knob / 2.0, self._argb(knob_token, faded))
+        if amount > 0.0:
+            paint.fill_round(rect, radius, self._argb("accent", faded * amount))
+        knob_left += int(round(brand.LAYOUT["knob_travel"] * scale)) * amount
+        if amount in (0.0, 1.0):
+            colour = self._argb("on_accent" if amount else off_knob, faded)
+        else:
+            start, end = self._rgb(off_knob), self._rgb("on_accent")
+            colour = _pack(tuple(int(round(a + (b - a) * amount)) for a, b in zip(start, end)), faded)
+        paint.fill_circle(knob_left + knob / 2.0, (top + bottom) / 2.0, knob / 2.0, colour)
 
     def _button(self, paint, item, scale, hover, pressed):
         """A button's face. Its lift is in the ground; pressed, it sinks into a well instead."""
@@ -2135,6 +2196,8 @@ class Popup:
         self._strings = None
         self._static_dirty = True        # anything but the halo changed since the last frame
         self._origin = None
+        self._switches = None            # {target: checked} as last laid out while on screen
+        self._glides = {}                # {target: (started_ms, from, to)}: switches on the move
 
     # ------------------------------------------------------------------ lifecycle
     def create(self):
@@ -2182,6 +2245,7 @@ class Popup:
         self._plan = self._vm = None
         self._static_dirty = True
         self._framed_dark = None
+        self._switches, self._glides = None, {}
         if self._class:
             user32.UnregisterClassW(self._class, _dll("kernel32").GetModuleHandleW(None))
             self._class = None
@@ -2244,6 +2308,8 @@ class Popup:
             self.hidden_at = time.monotonic()
         self.hover = self.pressed = self.focus = None
         self._painted_plan = None
+        # A change made while it is closed is simply there when it opens again.
+        self._switches, self._glides = None, {}
 
     # ------------------------------------------------------------------- appearance
     def _read_look(self):
@@ -2389,7 +2455,28 @@ class Popup:
         plan = self._renderer.layout(vm, self.dpi / 96.0, self.locale)
         self._vm, self._plan = vm, plan
         self._static_dirty = True
+        self._follow_switches(plan)
         return plan
+
+    def _follow_switches(self, plan):
+        """Start a glide for each switch now drawn the other way from the last layout on screen."""
+        seen = {item["target"]: bool(item["checked"]) for item in plan["items"] if item["kind"] == "switch"}
+        previous = self._switches if self.visible else None
+        self._glides = next_glides(seen, previous, self._glides, time.monotonic() * 1000.0,
+                                   animate=self.visible and not self._reduced)
+        self._switches = seen if self.visible else None
+
+    def _glide_amounts(self):
+        """{target: how far on} for the switches still gliding; finished glides are let go."""
+        now = time.monotonic() * 1000.0
+        amounts = {}
+        for target, glide in list(self._glides.items()):
+            amount, done = glide_amount(glide, now)
+            if done:
+                del self._glides[target]
+            else:
+                amounts[target] = amount
+        return amounts
 
     def _update(self, now=None):
         if self.hwnd is None or self._renderer is None:
@@ -2412,7 +2499,8 @@ class Popup:
     def _sync_frames(self):
         user32 = _dll("user32")
         wanted = (self.visible and self._vm is not None
-                  and animates(self._vm["state"], self._since_state_ms(), reduced=self._reduced))
+                  and (bool(self._glides)
+                       or animates(self._vm["state"], self._since_state_ms(), reduced=self._reduced)))
         if wanted and not self._frame_running:
             user32.SetTimer(self.hwnd, TIMER_FRAME, FRAME_MS, None)
             self._frame_running = True
@@ -2436,10 +2524,15 @@ class Popup:
             # The halo band saved with the last whole frame is in the old colours.
             self._renderer.theme, self._renderer.contrast = look
             self._static_dirty = True
+        if self._glides:
+            # A switch on the move is drawn over the ground every frame, and the frame after its
+            # glide ends draws it back into the ground where it has come to rest.
+            self._static_dirty = True
         if self._static_dirty or self._renderer.halo_plan is not self._plan:
             self._static_dirty = False
             return self._renderer.draw(self._vm, self._plan, frame=self.frame(), hover=self.hover,
-                                       pressed=self.pressed, focus=self.focus if self.keyboard else None)
+                                       pressed=self.pressed, focus=self.focus if self.keyboard else None,
+                                       glides=self._glide_amounts())
         return self._renderer.draw_halo(self._plan, self.frame())
 
     def _invalidate(self):
@@ -2531,6 +2624,7 @@ class Popup:
             return 1
         if message == WM_TIMER:
             if wparam == TIMER_FRAME:
+                # A glide redraws the frame whole (render() sees it); the halo alone is a band.
                 self._sync_frames()
                 user32.InvalidateRect(hwnd, None, False)
             elif wparam == TIMER_TICK:

@@ -61,6 +61,10 @@ namespace CodexAutoResume
         internal const int TypeBody = 12;
         internal const int TypeSmall = 11;
         internal const int TransitionMs = 160;
+        internal const double TransitionEaseX1 = 0.33;
+        internal const double TransitionEaseY1 = 1;
+        internal const double TransitionEaseX2 = 0.68;
+        internal const double TransitionEaseY2 = 1;
 
         internal const string HexAccent = "#1257B8";
         internal const string HexBrand = "#1257B8";
@@ -198,25 +202,25 @@ namespace CodexAutoResume
         // The status light (brand.STATUS_DOT, brand.GLOW): the dot keeps its size, and the glow's
         // numbers are the popup's and the panel's too.
         internal const double StatusDotRadius = 5;
-        internal const double GlowExtent = 12.48;
+        internal const double GlowExtent = 12.96;
         internal const double GlowReach = 7;
-        internal const double GlowNearAt = 0.35;
-        internal const double GlowNearAlpha = 0.55;
-        internal const double GlowFarAt = 0.7;
-        internal const double GlowFarAlpha = 0.2;
-        internal const double GlowMonitoringMs = 3600;
-        internal const double GlowMonitoringLow = 0.14;
-        internal const double GlowMonitoringHigh = 0.3;
-        internal const double GlowMonitoringScaleLow = 0.94;
-        internal const double GlowMonitoringScaleHigh = 1;
-        internal const double GlowRecoveringMs = 2200;
-        internal const double GlowRecoveringLow = 0.18;
-        internal const double GlowRecoveringHigh = 0.38;
-        internal const double GlowRecoveringScaleLow = 0.96;
-        internal const double GlowRecoveringScaleHigh = 1.04;
-        internal const double GlowStill = 0.2;
+        internal const double GlowNearAt = 0.45;
+        internal const double GlowNearAlpha = 0.58;
+        internal const double GlowFarAt = 0.78;
+        internal const double GlowFarAlpha = 0.5;
+        internal const double GlowMonitoringMs = 3200;
+        internal const double GlowMonitoringLow = 0.12;
+        internal const double GlowMonitoringHigh = 0.58;
+        internal const double GlowMonitoringScaleLow = 0.82;
+        internal const double GlowMonitoringScaleHigh = 1.08;
+        internal const double GlowRecoveringMs = 2000;
+        internal const double GlowRecoveringLow = 0.2;
+        internal const double GlowRecoveringHigh = 0.7;
+        internal const double GlowRecoveringScaleLow = 0.88;
+        internal const double GlowRecoveringScaleHigh = 1.08;
+        internal const double GlowStill = 0.3;
         internal const double GlowAttentionMs = 1400;
-        internal const double GlowAttentionPeak = 0.42;
+        internal const double GlowAttentionPeak = 0.72;
         internal const double GlowArcMs = 1600;
         internal const double GlowArcAlpha = 0.55;
         internal const double GlowArcGap = 3;
@@ -316,6 +320,43 @@ namespace CodexAutoResume
         private static double Breath(double elapsedMs, double cycleMs)
         {
             return 0.5 - 0.5 * Math.Cos(2 * Math.PI * (elapsedMs % cycleMs) / cycleMs);
+        }
+
+        /// How far a transition has come, 0 to 1, after `progress` of TransitionMs: brand.ease(), the
+        /// CSS cubic-bezier TransitionEaseX1, Y1, X2, Y2. Held at 0 before the start and 1 after the end.
+        internal static double Ease(double progress)
+        {
+            if (!(progress > 0)) return 0;
+            if (progress >= 1) return 1;
+            double t = progress;
+            for (int i = 0; i < 8; i++)
+            {
+                double error = Bezier(TransitionEaseX1, TransitionEaseX2, t) - progress;
+                if (Math.Abs(error) < 1e-7) return Bezier(TransitionEaseY1, TransitionEaseY2, t);
+                double slope = BezierSlope(TransitionEaseX1, TransitionEaseX2, t);
+                if (Math.Abs(slope) < 1e-6) break;
+                t = Math.Min(1.0, Math.Max(0.0, t - error / slope));
+            }
+            double low = 0, high = 1;
+            t = progress;
+            for (int i = 0; i < 40; i++)
+            {
+                double value = Bezier(TransitionEaseX1, TransitionEaseX2, t);
+                if (Math.Abs(value - progress) < 1e-7) break;
+                if (value < progress) low = t; else high = t;
+                t = (low + high) / 2.0;
+            }
+            return Bezier(TransitionEaseY1, TransitionEaseY2, t);
+        }
+
+        private static double Bezier(double a, double b, double t)
+        {
+            return ((1.0 - 3.0 * b + 3.0 * a) * t + (3.0 * b - 6.0 * a)) * t * t + 3.0 * a * t;
+        }
+
+        private static double BezierSlope(double a, double b, double t)
+        {
+            return 3.0 * (1.0 - 3.0 * b + 3.0 * a) * t * t + 2.0 * (3.0 * b - 6.0 * a) * t + 3.0 * a;
         }
 
         /// The check box's fill (brand.CHECKBOX): the well unchecked, the accent checked, the surface

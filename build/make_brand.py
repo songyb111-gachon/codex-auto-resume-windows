@@ -122,6 +122,8 @@ def sections():
         for name, value in table.items():
             scale.append((prefix + _camel(name), "int", int(value)))
     scale.append(("TransitionMs", "int", int(brand.MOTION["transition_ms"])))
+    for part, value in zip(("X1", "Y1", "X2", "Y2"), brand.MOTION["ease"]):
+        scale.append(("TransitionEase" + part, "double", value))
 
     layout = []
     for key, value in brand.LAYOUT.items():
@@ -328,7 +330,52 @@ def methods() -> str:
         "            return 0.5 - 0.5 * Math.Cos(2 * Math.PI * (elapsedMs % cycleMs) / cycleMs);\n",
         "        }\n",
     ]
+    lines += ["\n"] + ease_method()
     return "".join(lines)
+
+
+def ease_method() -> list:
+    """brand.ease() in C#: how far a transition has come after `progress` of its time, on the
+    TransitionEase curve - the same Newton steps, then halving, so a switch glides along one path
+    in the window, the popup and the panel."""
+    return [
+        "        /// How far a transition has come, 0 to 1, after `progress` of TransitionMs: brand.ease(), the\n",
+        "        /// CSS cubic-bezier TransitionEaseX1, Y1, X2, Y2. Held at 0 before the start and 1 after the end.\n",
+        "        internal static double Ease(double progress)\n",
+        "        {\n",
+        "            if (!(progress > 0)) return 0;\n",
+        "            if (progress >= 1) return 1;\n",
+        "            double t = progress;\n",
+        "            for (int i = 0; i < 8; i++)\n",
+        "            {\n",
+        "                double error = Bezier(TransitionEaseX1, TransitionEaseX2, t) - progress;\n",
+        "                if (Math.Abs(error) < 1e-7) return Bezier(TransitionEaseY1, TransitionEaseY2, t);\n",
+        "                double slope = BezierSlope(TransitionEaseX1, TransitionEaseX2, t);\n",
+        "                if (Math.Abs(slope) < 1e-6) break;\n",
+        "                t = Math.Min(1.0, Math.Max(0.0, t - error / slope));\n",
+        "            }\n",
+        "            double low = 0, high = 1;\n",
+        "            t = progress;\n",
+        "            for (int i = 0; i < 40; i++)\n",
+        "            {\n",
+        "                double value = Bezier(TransitionEaseX1, TransitionEaseX2, t);\n",
+        "                if (Math.Abs(value - progress) < 1e-7) break;\n",
+        "                if (value < progress) low = t; else high = t;\n",
+        "                t = (low + high) / 2.0;\n",
+        "            }\n",
+        "            return Bezier(TransitionEaseY1, TransitionEaseY2, t);\n",
+        "        }\n",
+        "\n",
+        "        private static double Bezier(double a, double b, double t)\n",
+        "        {\n",
+        "            return ((1.0 - 3.0 * b + 3.0 * a) * t + (3.0 * b - 6.0 * a)) * t * t + 3.0 * a * t;\n",
+        "        }\n",
+        "\n",
+        "        private static double BezierSlope(double a, double b, double t)\n",
+        "        {\n",
+        "            return 3.0 * (1.0 - 3.0 * b + 3.0 * a) * t * t + 2.0 * (3.0 * b - 6.0 * a) * t + 3.0 * a;\n",
+        "        }\n",
+    ]
 
 
 def theme_methods(theme: str) -> str:

@@ -495,16 +495,18 @@ class MaterialTests(unittest.TestCase):
 
     def test_a_disabled_control_says_so_in_muted_text_not_in_opacity(self):
         # Saying nothing about opacity is not saying 1. The browser's own stylesheet fades a
-        # disabled select to 0.7, `appearance: none` or not, and muted text at 0.7 is about 3:1 in
-        # light. So the fields say 1, and each control is measured at the opacity it resolves to,
-        # composited over the card it stands on, in light and in both ways of being dark.
-        browser = {"select:disabled": "0.7"}
+        # disabled field to 0.7, and muted text at 0.7 is about 3:1 in light. So the fields say 1,
+        # and each control is measured at the opacity it resolves to, composited over the card it
+        # stands on, in light and in both ways of being dark. Since v0.6.5 a drop-down's field is
+        # the page's own combobox (the select behind it is never shown), disabled by aria-disabled.
+        combo = '.combo-box[aria-disabled="true"]'
+        browser = {"input[type=number]:disabled": "0.7"}
         themes = (ROOT_TOKENS,) + tuple(
             dict(ROOT_TOKENS, **declarations) for context, selectors, declarations in RULES
             if (context, selectors) in (("@media (prefers-color-scheme: dark)", (':root:not([data-theme="light"])',)),
                                         ("", (':root[data-theme="dark"]',))))
         self.assertEqual(len(themes), 3)
-        for selector in ("button[disabled]", "select:disabled", "input[type=number]:disabled",
+        for selector in ("button[disabled]", combo, "input[type=number]:disabled",
                          ".segment input:disabled + span"):
             with self.subTest(selector):
                 self.assertEqual(declared(selector, "color"), "var(--muted)")
@@ -517,7 +519,7 @@ class MaterialTests(unittest.TestCase):
                     text = brand.mix(card, painted("var(--muted)", tokens), opacity)
                     well = brand.mix(card, painted(ground, tokens), opacity)
                     self.assertGreaterEqual(brand.contrast(text, well), 4.5, (tokens["--muted"], opacity))
-                if selector in ("select:disabled", "input[type=number]:disabled"):
+                if selector in (combo, "input[type=number]:disabled"):
                     self.assertEqual(declared(selector, "opacity"), "1")
                 else:
                     self.assertIn(declared(selector, "opacity"), (None, "1"))
@@ -544,7 +546,8 @@ class MaterialTests(unittest.TestCase):
                 (".savebar", "padding", "var(--size-savebar-pad)"), (".setting", "padding", "var(--size-row-pad)"),
                 (".prow", "padding", "var(--size-tile-pad)"), (".master", "padding", "var(--size-tile-pad)"),
                 ("button", "min-height", "var(--size-button-height)"), ("button", "padding", "var(--size-button-pad)"),
-                ("select", "min-height", "var(--size-field-height)"), ("select", "padding", "var(--size-select-pad)"),
+                (".combo-box", "min-height", "var(--size-field-height)"),
+                (".combo-box", "padding", "var(--size-select-pad)"),
                 ("input[type=number]", "width", "var(--size-number-width)"),
                 ("input.switch", "width", "var(--size-switch-width)"),
                 ("input.switch", "height", "var(--size-switch-height)"),
@@ -714,7 +717,7 @@ class StatusLightTests(unittest.TestCase):
             self.assertEqual(declared(selector, "forced-color-adjust", FORCED), "none", selector)
         # A rule that opts out of forced colours keeps its shadow unless it takes it off itself.
         for selector in (".card", ".savebar", "button", "select", "input", ".segment span", ".bubble",
-                         ".segment input:checked + span"):
+                         ".segment input:checked + span", ".combo-box", ".combo-list", ".combo-option"):
             self.assertEqual(declared(selector, "box-shadow", FORCED), "none", selector)
 
 

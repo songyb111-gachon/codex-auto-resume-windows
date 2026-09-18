@@ -38,6 +38,15 @@ floating beside it.
 `assets/brand/icon.svg` is generated here from the same constants the rasteriser uses,
 so there is one geometry, not a drawing and a copy of it. `tests/test_brand.py`
 regenerates it and compares, which is what makes that claim checkable.
+
+## Where the geometry lives (v0.6.5)
+
+The nine numbers and the rasteriser moved into `codex_auto_resume.brand` (`ICON_SHAPE`,
+`icon_render`), because the notification-area icon now draws its motion frames from them
+inside the watcher. This script imports them under the names it always used, and writes
+exactly the bytes it wrote before. `--frames <dir>` renders the icon's motion as a contact
+sheet - every head position and breathing level at 16/20/24/32 px on a light and a dark
+taskbar, with and without a badge - which is the desk check for that motion.
 """
 from __future__ import annotations
 
@@ -51,121 +60,40 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from codex_auto_resume import brand      # noqa: E402
 
 SIZES = (16, 20, 24, 32, 40, 48, 64, 128, 256)
-SUPERSAMPLE = 4
+SUPERSAMPLE = brand.ICON_SUPERSAMPLE
 
 BADGE_TOP = brand.rgb(brand.ICON_TOP)
 BADGE_BOTTOM = brand.rgb(brand.ICON_BOTTOM)
 MARK = brand.rgb(brand.ICON_MARK)
 HEAD = brand.rgb(brand.ICON_ACCENT)
 
-# The mark's geometry, in a square whose half-size is 1. These nine numbers are the
-# entire design; the SVG master and every PNG are computed from them.
-RING_INNER = 0.34
-RING_OUTER = 0.53
-# Counter-clockwise from the near end of the gap round to its far end: a 290 degree
-# sweep leaving a 70 degree opening at the top.
-ARC_START = 125.0
-ARC_END = 55.0
-HEAD_RADIUS = 0.155
-CORNER_LARGE = 0.30
-CORNER_SMALL = 0.24
-# Below this the corner radius drops: a 30% round on a 16 pixel square eats the mark.
-CORNER_THRESHOLD = 32
+# The mark's geometry, in a square whose half-size is 1: brand.ICON_SHAPE, under the names
+# this script has always given it. These nine numbers are the entire design; the SVG master,
+# every PNG and the notification-area icon's frames are computed from them.
+RING_INNER = brand.ICON_SHAPE["ring_inner"]
+RING_OUTER = brand.ICON_SHAPE["ring_outer"]
+ARC_START = brand.ICON_SHAPE["arc_start"]
+ARC_END = brand.ICON_SHAPE["arc_end"]
+HEAD_RADIUS = brand.ICON_SHAPE["head_radius"]
+CORNER_LARGE = brand.ICON_SHAPE["corner_large"]
+CORNER_SMALL = brand.ICON_SHAPE["corner_small"]
+CORNER_THRESHOLD = brand.ICON_SHAPE["corner_threshold"]
 # The plugin card's logo pair, and how wide the dark one's rim is as a fraction of the
 # badge's half-size: about three pixels at this size, which reads as an edge and not as
 # a border.
 LOGO_SIZE = 512
 LOGO_RIM = 0.012
 
-
-def _mix(a, b, t):
-    return tuple(round(x + (y - x) * t) for x, y in zip(a, b))
-
-
-def _rounded_square(x, y, radius):
-    """Signed distance to a rounded square centred on (0,0) with half-size 1.
-
-    Negative inside, zero on the edge. A distance rather than a boolean because the
-    dark logo needs to know how close to the edge it is, to draw a rim there.
-    """
-    half = 1.0 - radius
-    dx = max(abs(x) - half, 0.0)
-    dy = max(abs(y) - half, 0.0)
-    if abs(x) > 1.0 or abs(y) > 1.0:
-        return 1.0
-    return math.hypot(dx, dy) - radius
-
-
-def _ring_arc(x, y, inner, outer, start, end):
-    """True inside an annulus sector, angles in radians measured counter-clockwise."""
-    distance = math.hypot(x, y)
-    if not (inner <= distance <= outer):
-        return False
-    angle = math.atan2(y, x) % (2 * math.pi)
-    start %= 2 * math.pi
-    end %= 2 * math.pi
-    if start <= end:
-        return start <= angle <= end
-    return angle >= start or angle <= end
-
-
-def _head_centre():
-    """On the stroke's centre line, at the leading end of the sweep."""
-    middle = (RING_INNER + RING_OUTER) / 2.0
-    angle = math.radians(ARC_END)
-    return (middle * math.cos(angle), middle * math.sin(angle))
-
-
-HEAD_CENTRE = _head_centre()
-
-
-def _mark_hit(x, y):
-    """Returns the mark colour at a point, or None for the badge behind it."""
-    if math.hypot(x - HEAD_CENTRE[0], y - HEAD_CENTRE[1]) <= HEAD_RADIUS:
-        return HEAD
-    if _ring_arc(x, y, RING_INNER, RING_OUTER, math.radians(ARC_START), math.radians(ARC_END)):
-        return MARK
-    return None
+HEAD_CENTRE = brand.icon_head_centre()
 
 
 def render(size: int, rim: float = 0.0) -> bytes:
-    """Return raw RGBA bytes for one square icon of the given size.
+    """Return raw RGBA bytes for one square icon of the given size (brand.icon_render).
 
     `rim` draws a hairline of the badge's own top colour just inside the edge, as a
-    fraction of the half-size. The deep blue badge has plenty of contrast on a light
-    page and almost none on a near-black one, so the dark logo lifts itself off the
-    ground rather than relying on a ground it cannot see.
+    fraction of the half-size, for the dark logo.
     """
-    scale = size * SUPERSAMPLE
-    radius = CORNER_LARGE if size >= CORNER_THRESHOLD else CORNER_SMALL
-    rows = []
-    for py in range(size):
-        row = bytearray()
-        for px in range(size):
-            r = g = b = a = 0
-            for sy in range(SUPERSAMPLE):
-                for sx in range(SUPERSAMPLE):
-                    fx = (px * SUPERSAMPLE + sx + 0.5) / scale * 2.0 - 1.0
-                    fy = (py * SUPERSAMPLE + sy + 0.5) / scale * 2.0 - 1.0
-                    distance = _rounded_square(fx, fy, radius)
-                    if distance > 0.0:
-                        continue
-                    badge = _mix(BADGE_TOP, BADGE_BOTTOM, (fy + 1.0) / 2.0)
-                    if rim and distance >= -rim:
-                        badge = BADGE_TOP
-                    colour = _mark_hit(fx, -fy) or badge
-                    r += colour[0]
-                    g += colour[1]
-                    b += colour[2]
-                    a += 255
-            samples = SUPERSAMPLE * SUPERSAMPLE
-            if a == 0:
-                row += b"\x00\x00\x00\x00"
-            else:
-                covered = a // 255
-                row += bytes((r // covered, g // covered, b // covered, a // samples))
-        rows.append(bytes(row))
-    return b"".join(rows)
+    return brand.icon_render(size, rim)
 
 
 def png_rgba(width: int, height: int, pixels: bytes) -> bytes:
@@ -261,7 +189,88 @@ def svg() -> str:
     ))
 
 
+# --- the icon's motion, as a contact sheet ----------------------------------------------
+
+FRAME_SIZES = (16, 20, 24, 32)
+# Windows 11's taskbar in its light and its dark mode, near enough to judge an icon against.
+TASKBARS = {"light": "#EEF0F3", "dark": "#1F1F1F"}
+
+
+def frame_rows(frames):
+    """The frames a person should look at, as (what, [BGRA frames]): the breath, a turn, the
+    recovering turn under its badge, and each recoloured state at rest and through its pulse."""
+    from codex_auto_resume import tray
+    top = tray.ICON_MOTION["levels"] - 1
+    accent = tray.icon_head_colour("watching")
+    breath = list(range(top, -1, -1)) + list(range(1, top + 1))
+    rows = [("watching: the breath", [frames.compose(0, tray.icon_level_colour(accent, level))
+                                      for level in breath]),
+            ("watching: one turn", [frames.compose(position, accent)
+                                    for position in range(tray.ICON_MOTION["positions"])])]
+    active = brand.rgb(brand.LIGHT["active"])
+    step = tray.ICON_MOTION["turn_frame_ms"]
+    rows.append(("recovering, badged", [
+        frames.compose(*_recovering(tray, elapsed), active) for elapsed in range(0, brand.GLOW["arc_ms"], step)]))
+    for state, badge in (("idle", "paused"), ("attention", "attention"), ("failed", None)):
+        colour = tray.icon_head_colour(state)
+        row = [frames.compose(0, colour, brand.rgb(brand.LIGHT[badge]) if badge else None),
+               frames.compose(0, colour)]
+        row += [frames.compose(0, tray.icon_level_colour(colour, level)) for level in breath]
+        rows.append((state, row))
+    return rows
+
+
+def _recovering(tray, elapsed):
+    position, level = tray.icon_frame("recovering", elapsed)
+    return position, tray.icon_level_colour(tray.icon_head_colour("recovering"), level)
+
+
+def contact_sheet(out: Path) -> Path:
+    """Every frame at FRAME_SIZES on a light and a dark taskbar, as one PNG in `out`."""
+    from codex_auto_resume import tray
+    pad = 4
+    blocks = []
+    for size in FRAME_SIZES:
+        frames = tray.IconFrames(size)
+        rows = frame_rows(frames)
+        for ground in TASKBARS.values():
+            blocks.append((size, brand.rgb(ground), rows))
+    cell = max(FRAME_SIZES) + 2 * pad
+    columns = max(len(row) for _, _, rows in blocks for _, row in rows)
+    width = columns * cell
+    height = sum(len(rows) * cell for _, _, rows in blocks)
+    canvas = bytearray(b"\xff" * (width * height * 4))
+    top = 0
+    for size, ground, rows in blocks:
+        for _, row in rows:
+            for column, pixels in enumerate(row):
+                left = column * cell
+                for y in range(cell):
+                    for x in range(cell):
+                        colour = ground
+                        fx, fy = x - pad, y - pad
+                        if 0 <= fx < size and 0 <= fy < size:
+                            index = (fy * size + fx) * 4
+                            alpha = pixels[index + 3] / 255.0
+                            source = (pixels[index + 2], pixels[index + 1], pixels[index])
+                            colour = tuple(int(round(g + (s - g) * alpha)) for g, s in zip(ground, source))
+                        at = ((top + y) * width + left + x) * 4
+                        canvas[at:at + 4] = bytes(colour) + b"\xff"
+            top += cell
+    out.mkdir(parents=True, exist_ok=True)
+    target = out / "icon-motion-frames.png"
+    target.write_bytes(png_rgba(width, height, bytes(canvas)))
+    return target
+
+
 def main(argv=None) -> int:
+    argv = list(argv or [])
+    if argv[:1] == ["--frames"]:
+        if len(argv) < 2:
+            print("usage: make_icon.py --frames <dir>")
+            return 2
+        print("wrote %s" % contact_sheet(Path(argv[1])))
+        return 0
     out = Path(argv[0]) if argv else Path(__file__).resolve().parent
     out.mkdir(parents=True, exist_ok=True)
     images = []

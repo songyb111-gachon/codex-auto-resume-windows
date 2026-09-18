@@ -447,7 +447,7 @@ class LayoutTests(unittest.TestCase):
 
 # ------------------------------------------------------------------------------- motion
 class MotionTests(unittest.TestCase):
-    """The glow is brand's status light, frame for frame, and it moves as v0.6.4 decided."""
+    """The glow is brand's status light, frame for frame, and it moves as v0.6.5 decided."""
     GLOW = brand.GLOW
     STILL = brand.GLOW["still"]
     MOMENTS = (0, 1, 97, 350, 550, 700, 900, 1100, 1399, 1400, 1600, 1800, 2200, 2700, 3599, 3600, 5000, 12345.6)
@@ -520,10 +520,52 @@ class MotionTests(unittest.TestCase):
                 self.assertEqual(len(frames), 1)
         self.assertEqual(popup.halo("monitoring", 900, reduced=True),
                          {"opacity": brand.glow_rest("monitoring"), "scale": 1.0, "arc": None})
-        self.assertAlmostEqual(brand.glow_rest("monitoring"), 0.22)
+        self.assertAlmostEqual(brand.glow_rest("monitoring"), 0.35)            # v0.6.5: .12 to .58
         self.assertEqual(popup.halo("waiting", 900, reduced=True)["opacity"], self.STILL)
         # Checking keeps its arc, still: with waiting and checking the same cyan, it is the difference.
         self.assertEqual(popup.halo("checking", 900, reduced=True)["arc"], self.GLOW["arc_still_at"])
+
+
+class SwitchGlideTests(unittest.TestCase):
+    """v0.6.5: a task's switch glides between its ends in brand's transition time, on brand's curve."""
+    T = ("check", "a" * 64)
+    U = ("check", "b" * 64)
+    MS = brand.MOTION["transition_ms"]
+
+    def test_a_glide_runs_its_ends_in_the_transition_time_on_the_brand_curve(self):
+        glide = (1000.0, 0.0, 1.0)
+        self.assertEqual(popup.glide_amount(glide, 1000.0), (0.0, False))
+        for elapsed in (16, 40, 80, 120, 159):
+            amount, done = popup.glide_amount(glide, 1000.0 + elapsed)
+            self.assertFalse(done)
+            self.assertAlmostEqual(amount, brand.ease(elapsed / float(self.MS)))
+        self.assertEqual(popup.glide_amount(glide, 1000.0 + self.MS), (1.0, True))
+        self.assertEqual(popup.glide_amount(glide, 99999.0), (1.0, True))
+        back = (0.0, 1.0, 0.0)
+        self.assertAlmostEqual(popup.glide_amount(back, 40)[0], 1.0 - brand.ease(40 / float(self.MS)))
+
+    def test_only_a_switch_drawn_the_other_way_starts_one(self):
+        self.assertEqual(popup.next_glides({self.T: True}, None, {}, 0.0), {})            # just opened
+        self.assertEqual(popup.next_glides({self.T: True}, {self.T: True}, {}, 0.0), {})  # unchanged
+        self.assertEqual(popup.next_glides({self.T: True}, {}, {}, 0.0), {})              # new row
+        self.assertEqual(popup.next_glides({self.T: True}, {self.T: False}, {}, 500.0),
+                         {self.T: (500.0, 0.0, 1.0)})
+        self.assertEqual(popup.next_glides({self.T: False, self.U: True}, {self.T: True, self.U: True}, {}, 7.0),
+                         {self.T: (7.0, 1.0, 0.0)})
+
+    def test_a_glide_keeps_going_turns_back_from_where_it_is_and_ends_with_its_row(self):
+        running = {self.T: (0.0, 0.0, 1.0)}
+        self.assertEqual(popup.next_glides({self.T: True}, {self.T: True}, running, 60.0), running)
+        turned = popup.next_glides({self.T: False}, {self.T: True}, running, 60.0)
+        self.assertEqual(turned[self.T][0], 60.0)
+        self.assertAlmostEqual(turned[self.T][1], brand.ease(60 / float(self.MS)))
+        self.assertEqual(turned[self.T][2], 0.0)
+        self.assertEqual(popup.next_glides({}, {self.T: True}, running, 60.0), {})
+
+    def test_reduced_motion_high_contrast_and_a_hidden_window_move_nothing(self):
+        running = {self.T: (0.0, 0.0, 1.0)}
+        self.assertEqual(popup.next_glides({self.T: True}, {self.T: False}, {}, 0.0, animate=False), {})
+        self.assertEqual(popup.next_glides({self.T: True}, {self.T: True}, running, 60.0, animate=False), {})
 
 
 class StatusLightTests(unittest.TestCase):
@@ -1331,6 +1373,115 @@ class WindowsTests(unittest.TestCase):
         finally:
             window.destroy()
 
+    def still_window(self, **options):
+        """A popup with nothing in flight - waiting, no glow that moves - shown off screen, with
+        motion allowed whatever this machine's own animation setting is."""
+        patcher = unittest.mock.patch.object(popup, "reduced_motion", lambda: False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        window = popup.Popup(control=FakeControl(self.ROWS[:3], **options), strings=EN)
+        window.create()
+        window.model.apply_outcome(("read",), popup.perform(("read",), window.control), time.time())
+        window.show(activate=False, origin=(-32000, -32000))
+        self.pump(0.2)
+        if window._contrast:                      # High Contrast still holds everything still
+            window.destroy()
+            self.skipTest("High Contrast is on: nothing glides")
+        window._reduced = False
+        self.assertEqual(window._vm["state"], "waiting")
+        self.assertFalse(window._frame_running)
+        return window
+
+    def test_a_switch_glides_only_once_its_change_is_confirmed_and_then_the_timer_stops(self):
+        window = self.still_window()
+        target = ("check", "b" * 64)
+        try:
+            self.assertTrue(window._switches[target])
+            window._activate(target)
+            # Asked, not yet answered: faded where it was, not moving.
+            self.assertEqual(window._glides, {})
+            self.assertTrue(next(item for item in window._plan["items"]
+                                 if item["kind"] == "switch" and item["target"] == target)["busy"])
+            deadline = time.monotonic() + 3
+            while target not in window._glides and time.monotonic() < deadline:
+                self.pump(0.005)
+            self.assertIn(target, window._glides)
+            started, begin, end = window._glides[target]
+            self.assertEqual((begin, end), (1.0, 0.0))
+            self.assertTrue(window._frame_running)
+            deadline = time.monotonic() + 2
+            while (window._glides or window._frame_running) and time.monotonic() < deadline:
+                self.pump(0.02)
+            self.assertEqual(window._glides, {})
+            self.assertFalse(window._frame_running, "a timer is left running with nothing moving")
+            self.assertFalse(window._switches[target])
+        finally:
+            window.destroy()
+
+    def test_a_refused_change_never_moves_the_switch(self):
+        window = self.still_window(refuse="already_finished")
+        target = ("check", "b" * 64)
+        try:
+            window._activate(target)
+            deadline = time.monotonic() + 3
+            while window.model.notice_key is None and time.monotonic() < deadline:
+                self.pump(0.01)
+                self.assertEqual(window._glides, {})
+            self.assertEqual(window.model.notice_key, "popup.stale")
+            self.pump(0.2)
+            self.assertEqual(window._glides, {})
+            self.assertTrue(window._switches[target])
+        finally:
+            window.destroy()
+
+    def test_with_motion_reduced_a_confirmed_change_is_simply_drawn_there(self):
+        window = self.still_window()
+        window._reduced = True                    # Reduce motion, Windows' animation setting or High Contrast
+        target = ("check", "b" * 64)
+        try:
+            window._activate(target)
+            deadline = time.monotonic() + 3
+            while window._switches.get(target) is not False and time.monotonic() < deadline:
+                self.pump(0.01)
+                self.assertEqual(window._glides, {})
+            self.assertIs(window._switches[target], False)
+            self.assertFalse(window._frame_running)
+        finally:
+            window.destroy()
+
+    def test_a_glide_s_ends_are_the_switch_as_it_is_drawn_at_rest(self):
+        renderer = popup.Renderer()
+        try:
+            for theme in ("light", "dark"):
+                renderer.theme = theme
+                vm = popup.view_model(self.ROWS, STATUS, EN, NOW)
+                plan = renderer.layout(vm, 1.25, "en")
+                switches = [item for item in plan["items"] if item["kind"] == "switch"]
+                rest = renderer.draw(vm, plan).pixels()
+                ends = {item["target"]: 1.0 if item["checked"] else 0.0 for item in switches}
+                with self.subTest(theme=theme):
+                    self.assertEqual(renderer.draw(vm, plan, glides=ends).pixels(), rest)
+                    # Halfway, the knob is halfway along its travel and the track between its looks.
+                    on = next(item for item in switches if item["checked"])
+                    middle = renderer.draw(vm, plan, glides={on["target"]: 0.5}).pixels()
+                    self.assertNotEqual(middle, rest)
+                    left, top, right, bottom = on["rect"]
+                    width = plan["size"][0]
+                    knob = round(brand.LAYOUT["knob"] * 1.25)
+                    start = left + round(brand.LAYOUT["knob_inset"] * 1.25)
+                    travel = round(brand.LAYOUT["knob_travel"] * 1.25)
+                    centre = int(start + travel * 0.5 + knob / 2.0)
+                    y = (top + bottom) // 2
+                    index = (y * width + centre) * 4
+                    knob_colour = tuple(middle[index + 2 - part] for part in range(3))
+                    tokens = brand.palette(theme)
+                    off, lit = brand.rgb(tokens["muted"]), brand.rgb(tokens["on_accent"])
+                    expected = tuple(int(round(a + (b - a) * 0.5)) for a, b in zip(off, lit))
+                    for got, want in zip(knob_colour, expected):
+                        self.assertLessEqual(abs(got - want), 2, (knob_colour, expected))
+        finally:
+            renderer.close()
+
     def test_a_closed_popup_does_not_hold_the_badge_on_attention(self):
         import ctypes
         from types import SimpleNamespace
@@ -1366,15 +1517,23 @@ class WindowsTests(unittest.TestCase):
         self.assertTrue(icon.start())
         try:
             icon.update({"enabled": True, "waiting": 2, "running": 0, "next_at": time.time() + 60})
-            deadline = time.monotonic() + 3
-            while icon._badge_token != "waiting" and time.monotonic() < deadline:
+            deadline = time.monotonic() + 5
+
+            def badged_frame():
+                key = icon._frame_key
+                return bool(icon._frame_icon) and key is not None and key[2] == "waiting"
+            while not badged_frame() and time.monotonic() < deadline:
                 time.sleep(0.05)
             self.assertEqual(icon._badge_token, "waiting")
-            self.assertTrue(icon._badge)
+            # Since v0.6.5 the icon is shown as a composed frame carrying the badge, and the badged
+            # copy of the .ico it was shown as until its frame table was built has been let go.
+            self.assertTrue(badged_frame())
+            self.assertIsNone(icon._badge)
         finally:
             icon.stop()
         self.assertFalse(icon._thread.is_alive())
         self.assertIsNone(icon._badge)
+        self.assertIsNone(icon._frame_icon)
 
     def cycle_and_measure(self, action, rounds=50):
         action()                                       # warm caches: fonts, GDI+, classes, shadow images
