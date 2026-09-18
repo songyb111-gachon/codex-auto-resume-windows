@@ -96,6 +96,25 @@ class ShippedCatalogTests(unittest.TestCase):
                 self.assertIn(table["choice.theme.system"], table["help.theme"])
 
 
+class NotificationCardWordsTests(unittest.TestCase):
+    def test_the_card_setting_has_its_label_and_help_in_every_language(self):
+        english = l10n._read(l10n.DEFAULT)
+        for key in ("field.notification_card", "help.notification_card"):
+            self.assertTrue(english[key].strip())
+            for locale in l10n.available():
+                table = l10n._read(locale)
+                with self.subTest(locale=locale, key=key):
+                    self.assertTrue(table[key].strip())
+                    if locale != l10n.DEFAULT:
+                        self.assertNotEqual(table[key], english[key], "translated, not copied")
+        # The help names the product's own neighbour, the notification area, in each language's own
+        # words - the words the icon's label already uses.
+        for locale in l10n.available():
+            table = l10n._read(locale)
+            with self.subTest(locale=locale):
+                self.assertIn("Windows", table["help.notification_card"])
+
+
 class LoaderTests(unittest.TestCase):
     def setUp(self):
         self.saved_cache = dict(l10n._CACHE)

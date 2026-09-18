@@ -160,9 +160,69 @@ class BackendTests(unittest.TestCase):
             run.assert_not_called()
 
     def test_verified_engine_version_is_trusted(self):
-        backend = self.compat(w.VERIFIED_VERSIONS[0])
-        self.assertEqual(backend.engine_version, w.VERIFIED_VERSIONS[0])
+        """A version the registry verifies is labelled so - once its checks have passed."""
+        with patch.object(w, "verified_versions", return_value=("codex-cli 0.153.4",)):
+            backend = self.compat("codex-cli 0.153.4")
+        self.assertEqual(backend.engine_version, "codex-cli 0.153.4")
         self.assertTrue(backend.engine_verified)
+
+    def test_a_verified_version_still_has_to_offer_the_queue_flags(self):
+        """The pin used to skip the interface probe. A failed local check always wins now:
+        no registry entry, bundled or fetched, can vouch for a build whose `codex queue` no
+        longer takes the flags this tool drives."""
+        with patch.object(w, "verified_versions", return_value=("codex-cli 0.153.4",)):
+            for kwargs in ({"queue_help_ok": False}, {"queue_rc": 2}):
+                with self.subTest(**kwargs), self.assertRaises(w.AdapterError) as caught:
+                    self.compat("codex-cli 0.153.4", **kwargs)
+                self.assertEqual(str(caught.exception), "unsupported_codex_version")
+
+    def test_the_bundled_registry_verifies_no_version_yet(self):
+        """The evidence rule: nothing is VERIFIED until a recording states its version."""
+        w._VERIFIED = None
+        self.addCleanup(setattr, w, "_VERIFIED", None)
+        self.assertEqual(w.verified_versions(), ())
+        backend = self.compat("codex-cli 0.153.4")
+        self.assertFalse(backend.engine_verified)
+
+    def test_engine_checks_say_which_check_failed_and_never_raise(self):
+        exe = Path(self.LOCAL_APPDATA) / "OpenAI" / "Codex" / "bin" / "abcdef0123456789" / "codex.exe"
+        with patch.dict(w.os.environ, {"LOCALAPPDATA": self.LOCAL_APPDATA}):
+            outside = w.Backend(Path("state"), Path("C:\\elsewhere\\codex.exe")).engine_checks()
+            self.assertEqual((outside["official_location"], outside["version_runs"], outside["queue_flags"]),
+                             (w.FAIL, w.UNAVAILABLE, w.UNAVAILABLE))
+            with patch.object(w.Path, "stat", side_effect=OSError("gone")):
+                vanished = w.Backend(Path("state"), exe).engine_checks()
+            self.assertEqual((vanished["official_location"], vanished["version_runs"]),
+                             (w.PASS, w.UNAVAILABLE))
+            with patch.object(w.Path, "stat", return_value=MagicMock(st_size=1, st_mtime_ns=1)), \
+                 patch.object(w.S, "run", side_effect=subprocess.TimeoutExpired("codex", 10)):
+                slow = w.Backend(Path("state"), exe)
+                checks = slow.engine_checks()
+            self.assertEqual(checks["version_runs"], w.UNAVAILABLE)
+            self.assertIsNone(slow.engine_version, "nothing unproven is accepted")
+            with self.assertRaises(w.AdapterError) as caught:
+                with patch.object(w.Path, "stat", return_value=MagicMock(st_size=1, st_mtime_ns=1)), \
+                     patch.object(w.S, "run", side_effect=OSError("no process")):
+                    w.Backend(Path("state"), exe)._compatible()
+            self.assertEqual(str(caught.exception), "codex_binary_unavailable")
+
+    def test_an_accepted_binary_is_not_probed_again_until_it_changes(self):
+        backend = self.compat("codex-cli 0.199.0")
+        with patch.dict(w.os.environ, {"LOCALAPPDATA": self.LOCAL_APPDATA}), \
+             patch.object(w.Path, "stat", return_value=MagicMock(st_size=1, st_mtime_ns=1)), \
+             patch.object(w.S, "run") as run:
+            checks = backend.engine_checks()
+            backend._compatible()
+        run.assert_not_called()
+        self.assertEqual(checks["version"], "codex-cli 0.199.0")
+        self.assertEqual(checks["signature"], (1, 1))
+        self.assertEqual(backend.last_checks()["queue_flags"], w.PASS)
+
+    def test_the_protocol_allowlist_is_the_constant_the_registry_checks(self):
+        self.assertEqual(w.PROTOCOL_METHODS,
+                         ("initialize", "account/rateLimits/read", "thread/queue/delete"))
+        with self.assertRaises(w.AdapterError):
+            w.Protocol(self.backend).call("thread/start")
 
     def test_updated_engine_is_accepted_when_the_queue_interface_survives(self):
         # An app update must not silently disable auto-resume, but it is flagged.

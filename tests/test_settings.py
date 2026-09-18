@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from codex_auto_resume import failures, settings
 
@@ -202,8 +203,14 @@ class DescribeTests(unittest.TestCase):
         self.by_name = {entry["name"]: entry for entry in self.described}
 
     def test_describes_every_field_exactly_once(self):
-        self.assertEqual(sorted(self.by_name), sorted(settings.FIELDS))
-        self.assertEqual(len(self.described), len(settings.FIELDS))
+        # Every field but those held back until something reads them (NOT_YET_OFFERED): a
+        # surface draws whatever is described, and a switch that changes nothing must not be drawn.
+        offered = set(settings.FIELDS) - settings.NOT_YET_OFFERED
+        self.assertEqual(sorted(self.by_name), sorted(offered))
+        self.assertEqual(len(self.described), len(offered))
+        self.assertLessEqual(settings.NOT_YET_OFFERED, set(settings.FIELDS), "held back, not unknown")
+        with patch.object(settings, "NOT_YET_OFFERED", frozenset()):
+            self.assertEqual(sorted(entry["name"] for entry in settings.describe()), sorted(settings.FIELDS))
 
     def test_every_entry_carries_a_group_the_interfaces_understand(self):
         # "windows" holds desktop preferences - the notification-area icon - shown in
@@ -301,6 +308,63 @@ class ThemeTests(unittest.TestCase):
                             encoding="utf-8")
             loaded = settings.load(path)
             self.assertEqual((loaded["theme"], loaded["max_no_progress"]), ("system", 5))
+
+
+class NotificationCardTests(unittest.TestCase):
+    """v0.6.5: the card is a desktop preference beside the icon, on unless somebody turns it off."""
+
+    def test_it_is_on_by_default_and_a_true_or_false(self):
+        self.assertIs(settings.DEFAULTS["notification_card"], True)
+        self.assertEqual(settings.field_type("notification_card"), "boolean")
+
+    def test_it_is_described_in_the_windows_group_right_after_the_icon(self):
+        with patch.object(settings, "NOT_YET_OFFERED", frozenset()):
+            described = settings.describe()
+        names = [entry["name"] for entry in described]
+        self.assertEqual(names.index("notification_card"), names.index("show_tray") + 1)
+        entry = described[names.index("notification_card")]
+        self.assertEqual(entry["group"], "windows")
+        self.assertNotIn("master", entry)
+
+    def test_until_something_draws_the_card_no_surface_offers_the_switch(self):
+        """Nothing reads it until the icon's thread hosts the card (tests/test_notice_card.py
+        SettingTests holds the two together), so describe() - which the Dashboard, the panel and
+        the MCP schema are all drawn from - leaves it out. The value itself is kept and checked."""
+        self.assertIn("notification_card", settings.NOT_YET_OFFERED)
+        self.assertNotIn("notification_card", [entry["name"] for entry in settings.describe()])
+        self.assertIs(settings.defaults()["notification_card"], True)
+        self.assertEqual(settings.validate_update({"notification_card": False}), {"notification_card": False})
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "settings.json"
+            settings.update(path, {"notification_card": False})
+            settings.update(path, {"show_tray": True})
+            self.assertIs(settings.load(path)["notification_card"], False, "kept across other saves")
+
+    def test_writes_take_a_boolean_and_nothing_else(self):
+        self.assertEqual(settings.validate_update({"notification_card": False}), {"notification_card": False})
+        for value in (0, 1, "false", None, [], {}):
+            with self.subTest(value=value):
+                with self.assertRaises(settings.SettingsError):
+                    settings.validate_update({"notification_card": value})
+
+    def test_a_hand_edited_file_falls_back_to_on(self):
+        for value in (0, "off", None, 2):
+            with self.subTest(value=value):
+                self.assertIs(settings.coerce({"notification_card": value})["notification_card"], True)
+        self.assertIs(settings.coerce({"notification_card": False})["notification_card"], False)
+
+    def test_turning_it_off_silences_nothing(self):
+        # Where a notification is drawn is not whether there is one.
+        values = dict(settings.defaults(), notification_card=False)
+        for event in settings.NOTIFICATION_EVENTS:
+            self.assertTrue(settings.notification_enabled(values, event), event)
+
+    def test_it_round_trips_through_the_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "settings.json"
+            settings.update(path, {"notification_card": False})
+            self.assertIs(settings.load(path)["notification_card"], False)
+            self.assertIs(json.loads(path.read_text(encoding="utf-8"))["notification_card"], False)
 
 
 class WrongTypeTests(unittest.TestCase):

@@ -48,6 +48,13 @@ PYTHON_SHA256 = "d1f04d990aee1253d8569e8e5104e30fa9f5fa830899f14843448872d936a2c
 # Everything the installed product needs, and nothing else. Listed explicitly rather
 # than filtered, so a stray file in the working tree cannot reach a release.
 APP_TREES = ("src", "scripts", "skills", ".codex-plugin", ".agents", "assets")
+# Data files inside those trees that the product reads at run time. The trees are copied by
+# walking them, so nothing would notice one going missing until a user's machine did: the
+# bundled Compatibility Registry baseline would silently become "missing", and every
+# capability would fall back to the local checks alone. Checked after the copy, and the
+# baseline is also parsed by the validator that will read it, so a build cannot ship data
+# the product would refuse.
+REQUIRED_APP_FILES = ("src/codex_auto_resume/data/codex_compat.json",)
 # Built, not copied from the working tree: see build/make_gui.ps1.
 GUI_EXE = "CodexAutoResumeSettings.exe"
 # Codex only accepts a plugin MCP command that is a bare executable name or a path
@@ -117,6 +124,22 @@ def collect_app(stage: Path) -> int:
             shutil.copyfile(source, app / name)
             copied += 1
     return copied
+
+
+def check_app_files(stage: Path) -> None:
+    """Every required data file is in the payload, and the registry baseline validates."""
+    app = stage / "payload" / "app"
+    for name in REQUIRED_APP_FILES:
+        if not (app / name).is_file():
+            raise SystemExit("missing %s in the payload" % name)
+    source = str(ROOT / "src")
+    if source not in sys.path:
+        sys.path.insert(0, source)
+    from codex_auto_resume import compat
+    try:
+        compat.parse_document((app / REQUIRED_APP_FILES[0]).read_bytes())
+    except compat.DocumentError as exc:
+        raise SystemExit("the bundled compatibility data does not validate: %s" % exc.code)
 
 
 def collect_runtime(stage: Path, archive: Path) -> int:
@@ -229,6 +252,7 @@ def main(argv=None) -> int:
     archive = fetch_runtime()
     runtime_files = collect_runtime(stage, archive)
     app_files = collect_app(stage)
+    check_app_files(stage)
     gui_files = collect_gui(stage)
     launcher_files = collect_launchers(stage)
     declare_mcp_server(stage)
