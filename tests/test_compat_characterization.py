@@ -20,6 +20,7 @@ result - PASS - and every decision after it are the same.
 """
 from __future__ import annotations
 
+import ctypes
 import os
 from pathlib import Path
 import sys
@@ -85,7 +86,15 @@ class Fixture:
         self.case = case
         self.folder = tempfile.TemporaryDirectory()
         case.addCleanup(self.folder.cleanup)
-        root = Path(self.folder.name)
+        # The folder's final path, never the spelling TEMP gave it. The product's location
+        # check (E1) accepts a binary only if its path - resolved, by discovery and by the
+        # Backend - sits under %LOCALAPPDATA% exactly as the variable is written. GitHub's
+        # runner spells TEMP with an 8.3 short name (its account folder as RUNNER~1),
+        # which resolve() expands, so a fake %LOCALAPPDATA% spelt the TEMP way put the fake
+        # engine outside its own official location: unsupported_codex_location there, a
+        # pass on any machine whose TEMP happens to be spelt canonically. The rule stays as
+        # it is; the fixture meets it.
+        root = self.root = Path(self.folder.name).resolve()
         self.local = root / "local"
         self.exe = self.local / "OpenAI" / "Codex" / "bin" / "abcdef0123456789" / "codex.exe"
         if binary:
@@ -95,11 +104,20 @@ class Fixture:
         self.home = CodexHome(root / "codex-home")
         self.paths = config.Paths(root / "car-home")
         self.paths.ensure()
-        environment = {"LOCALAPPDATA": str(self.local), "CODEX_HOME": str(self.home.root)}
+        # Every per-user root the product resolves - all of them from the environment - is
+        # redirected into this folder, so nothing can fall back to the machine's own Codex
+        # (%LOCALAPPDATA%\OpenAI, %USERPROFILE%\.codex) or this tool's own installation,
+        # whatever is installed on the machine running the tests.
+        self.profile = root / "profile"
+        roaming = self.profile / "AppData" / "Roaming"
+        roaming.mkdir(parents=True)
+        environment = {"LOCALAPPDATA": str(self.local), "CODEX_HOME": str(self.home.root),
+                       "USERPROFILE": str(self.profile), "APPDATA": str(roaming)}
         guard = patch.dict(os.environ, environment)
         guard.start()
         case.addCleanup(guard.stop)
-        os.environ.pop(config.ENV_CODEX_EXE, None)
+        for name in (config.ENV_CODEX_EXE, config.ENV_HOME):
+            os.environ.pop(name, None)
         runner = patch.object(windows.S, "run", side_effect=self.codex.run)
         runner.start()
         case.addCleanup(runner.stop)
@@ -258,6 +276,58 @@ class EngineGateCharacterizationTests(unittest.TestCase):
         self.assertEqual(row["last_error"], "projection_table_missing")
         self.assertEqual(machine.decode_gates(row["gate_eval"])["engine_compatible"],
                          ("BLOCK", "projection_table_missing"))
+
+
+class FixtureHermeticityTests(unittest.TestCase):
+    """The fixture decides the same on every machine: it never sees the machine's own Codex
+    or this tool's own installation, and its fake engine meets the product's location rule
+    however TEMP happens to be spelt."""
+
+    def test_discovery_sees_only_the_fixtures_own_engine(self):
+        fixture = Fixture(self)
+        self.assertEqual(config.candidate_codex_exes(), [fixture.exe])
+        for path in (config.codex_bin_dir(), config.codex_home(), Path.home(),
+                     Path(os.environ["APPDATA"]), fixture.app.lock_dir):
+            self.assertTrue(path.resolve().is_relative_to(fixture.root), path)
+
+    def other_spellings(self) -> dict:
+        """Second spellings of one scratch folder: its 8.3 short name - how GitHub's runner
+        spells TEMP, with its account folder as RUNNER~1 - and a junction to it."""
+        base = tempfile.TemporaryDirectory()
+        self.addCleanup(base.cleanup)
+        real = Path(base.name).resolve() / "a-folder-with-a-long-name"
+        real.mkdir()
+        found = {}
+        kernel32 = getattr(getattr(ctypes, "windll", None), "kernel32", None)
+        if kernel32 is not None:
+            buffer = ctypes.create_unicode_buffer(32768)
+            if (kernel32.GetShortPathNameW(str(real), buffer, len(buffer))
+                    and os.path.normcase(buffer.value) != os.path.normcase(str(real))):
+                found["short name"] = buffer.value
+        try:
+            import _winapi
+            alias = real.parent / "junction"
+            _winapi.CreateJunction(str(real), str(alias))
+        except (ImportError, AttributeError, OSError):
+            pass
+        else:
+            self.addCleanup(os.rmdir, alias)          # the junction itself, never its target
+            found["junction"] = str(alias)
+        return found
+
+    def test_the_fake_engine_is_official_however_temp_is_spelt(self):
+        spellings = self.other_spellings()
+        if not spellings:
+            self.skipTest("this volume offers no second spelling of a folder")
+        for kind, spelt in spellings.items():
+            with self.subTest(kind):
+                with patch.object(tempfile, "tempdir", spelt):
+                    fixture = Fixture(self)
+                self.assertEqual(Path(os.environ["LOCALAPPDATA"]), fixture.local)
+                backend = fixture.backend()
+                self.assertEqual(backend.codex_exe, fixture.exe)
+                self.assertEqual(backend.engine_version, "codex-cli 0.153.4")
+                self.assertEqual(fixture.app.engine_state(), "structurally_compatible")
 
 
 if __name__ == "__main__":
