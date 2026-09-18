@@ -25,7 +25,7 @@ import sys
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 from codex_auto_resume import config, control, controlcli, settings
 from codex_auto_resume.store import Store, StoreError
@@ -568,6 +568,97 @@ class BridgeTests(ControlTestCase):
         parser = controlcli.build_parser()
         offered = set([action for action in parser._actions if action.dest == "command"][0].choices)
         self.assertEqual(set(controlcli.PLAIN + controlcli.WITH_ARGUMENT) | {"serve"}, offered)
+
+
+class SwitchFlagTests(ControlTestCase):
+    """The two switches the bridge carries, and the one word that governs both.
+
+    `enabled` was read as `bool(payload.get("enabled"))`, and `bool` says yes to every
+    non-empty string. `{"enabled": "false"}` - what a front end sends the moment it
+    stringifies a boolean, and what a hand-written request looks like - therefore turned
+    automatic recovery *on*. The same line governed `startup`, where on means writing this
+    product's entry into the Run key, so a request that meant "off" registered a watcher
+    at sign-in instead; that is how a real machine's autostart entry was overwritten
+    during v0.6.5's design pass. A missing flag was the same accident pointing the other
+    way: `bool(None)` is False, so a request that said nothing switched recovery off.
+
+    The wire carries JSON. JSON has `true` and `false`, and nothing here has any business
+    guessing what a string meant, so the four commands that take a flag take a boolean or
+    a refusal - by name, with the code every front end already has words for.
+    """
+
+    # Every command whose argument carries `enabled`. The two that write a switch, and
+    # the two per-record ones that already refused a non-boolean, so the rule is one rule.
+    FLAG_COMMANDS = ("enabled", "startup", "thread-enabled", "interruption-recovery")
+    # Values a caller might send instead of a boolean. The first four are the ones that
+    # `bool()` turned into True, and "false" is the one that meant the opposite.
+    NOT_BOOLEANS = ("false", "true", "0", "no", "", 0, 1, 0.0, 1.0, None, [], {}, "False")
+
+    def dispatch(self, command, payload=None):
+        return controlcli.dispatch(self.control, command, payload or {})
+
+    def test_every_flag_command_refuses_a_value_that_is_not_a_boolean(self):
+        for command in self.FLAG_COMMANDS:
+            for value in self.NOT_BOOLEANS:
+                with self.subTest(command=command, value=repr(value)):
+                    reply = self.dispatch(command, {"enabled": value, "thread_id": THREAD,
+                                                    "interruption_id": KEY})
+                    self.assertIs(reply["ok"], False, reply)
+                    self.assertEqual(reply["error"], "enabled must be true or false")
+                    self.assertEqual(reply["error_code"], "invalid_enabled")
+
+    def test_a_missing_flag_is_refused_rather_than_read_as_off(self):
+        for command in self.FLAG_COMMANDS:
+            with self.subTest(command=command):
+                reply = self.dispatch(command, {"thread_id": THREAD, "interruption_id": KEY})
+                self.assertIs(reply["ok"], False, reply)
+                self.assertEqual(reply["error_code"], "invalid_enabled")
+
+    def test_the_string_false_does_not_turn_automation_on(self):
+        # The defect, stated as the thing a user would have seen: they paused recovery,
+        # something sent the word rather than the value, and the product resumed.
+        self.assertIs(self.dispatch("enabled", {"enabled": False})["ok"], True)
+        self.assertIs(self.control.get_status()["enabled"], False)
+        self.assertIs(self.dispatch("enabled", {"enabled": "false"})["ok"], False)
+        self.assertIs(self.control.get_status()["enabled"], False)
+        self.assertIs(self.dispatch("enabled", {"enabled": "true"})["ok"], False)
+        self.assertIs(self.control.get_status()["enabled"], False)
+
+    def test_a_string_never_reaches_the_autostart_writer(self):
+        # `startup` is the one command in this table that writes outside our own home.
+        # The refusal has to happen in the bridge, before the registry layer is asked for
+        # anything at all - so this asserts on the call that was never made.
+        with patch.object(control.Control, "set_startup_enabled", return_value=True) as writer:
+            for value in self.NOT_BOOLEANS:
+                with self.subTest(value=repr(value)):
+                    reply = self.dispatch("startup", {"enabled": value})
+                    self.assertIs(reply["ok"], False, reply)
+            self.assertEqual(writer.call_args_list, [])
+
+    def test_a_real_boolean_still_reaches_the_control_layer(self):
+        for wanted in (True, False):
+            with self.subTest(enabled=wanted):
+                with patch.object(control.Control, "set_startup_enabled",
+                                  return_value=wanted) as writer:
+                    reply = self.dispatch("startup", {"enabled": wanted})
+                self.assertIs(reply["ok"], True, reply)
+                self.assertIs(reply["startup_enabled"], wanted)
+                self.assertEqual(writer.call_args_list, [call(wanted)])
+                reply = self.dispatch("enabled", {"enabled": wanted})
+                self.assertIs(reply["ok"], True, reply)
+                self.assertIs(self.control.get_status()["enabled"], wanted)
+
+    def test_what_the_window_actually_sends_is_accepted_verbatim(self):
+        # The exact argument bytes the two windows build: `Dashboard.cs` for the pause
+        # switch, `SettingsApp.cs` for run at sign-in. Parsed the way the bridge parses
+        # them, so the test fails if either the wire or this rule moves.
+        for raw, wanted in (('{"enabled":true}', True), ('{"enabled":false}', False)):
+            with self.subTest(raw=raw):
+                payload = controlcli._payload(raw)
+                self.assertIs(payload["enabled"], wanted)
+                reply = self.dispatch("enabled", payload)
+                self.assertIs(reply["ok"], True, reply)
+                self.assertIs(self.control.get_status()["enabled"], wanted)
 
 
 class ErrorCodeTests(ControlTestCase):

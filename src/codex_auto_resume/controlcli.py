@@ -151,6 +151,28 @@ def _days(payload):
     return days
 
 
+def _flag(payload):
+    """The `enabled` field of a switch request: a real boolean, or a refusal.
+
+    This was `bool(payload.get("enabled"))`, and `bool` says yes to every non-empty
+    string. `{"enabled": "false"}` therefore turned automatic recovery *on*, and the same
+    line governed `startup`, where on means writing this product's entry into the Run key
+    - so a request that meant "off" registered a watcher at sign-in instead. A missing
+    field was the same accident the other way round: `bool(None)` is False, and a request
+    that said nothing switched recovery off.
+
+    The wire is JSON and JSON has `true` and `false`, which is exactly what both windows
+    send. Nothing here has to guess what a string meant, so anything that is not a boolean
+    is refused by name, with the code the front ends already have words for
+    (`error.invalid_enabled`, in all nine catalogs) - the same sentence and the same code
+    the control layer raises when it is called directly.
+    """
+    enabled = payload.get("enabled")
+    if not isinstance(enabled, bool):
+        raise ControlError("enabled must be true or false", code="invalid_enabled")
+    return enabled
+
+
 def _labels():
     """Display names for conversations, read-only from Codex's own state.
 
@@ -224,9 +246,9 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
         if command == "update":
             return {"ok": True, "settings": control.update_settings(payload)}
         if command == "enabled":
-            return {"ok": True, "result": control.set_enabled(bool(payload.get("enabled")))}
+            return {"ok": True, "result": control.set_enabled(_flag(payload))}
         if command == "startup":
-            return {"ok": True, "startup_enabled": control.set_startup_enabled(bool(payload.get("enabled")))}
+            return {"ok": True, "startup_enabled": control.set_startup_enabled(_flag(payload))}
         if command == "cancel":
             return {"ok": True, "result": control.cancel_interruption(payload.get("interruption_id"))}
         if command == "reset-budget":
@@ -238,10 +260,8 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
         if command == "statistics":
             return {"ok": True, "result": control.statistics(_days(payload))}
         if command == "thread-enabled":
-            enabled = payload.get("enabled")
-            if not isinstance(enabled, bool):
-                raise ControlError("enabled must be true or false")
-            return {"ok": True, "result": control.set_thread_enabled(payload.get("thread_id"), enabled)}
+            return {"ok": True, "result": control.set_thread_enabled(payload.get("thread_id"),
+                                                                     _flag(payload))}
         if command == "cancel-thread":
             return {"ok": True, "result": control.cancel_thread(payload.get("thread_id"))}
         if command == "preview-continuation":
@@ -249,11 +269,8 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
             return {"ok": True, "result": control.preview_continuation(payload.get("category"),
                                                                        changes)}
         if command == "interruption-recovery":
-            enabled = payload.get("enabled")
-            if not isinstance(enabled, bool):
-                raise ControlError("enabled must be true or false")
             return {"ok": True, "result": control.set_interruption_recovery(
-                payload.get("interruption_id"), payload.get("thread_id"), enabled)}
+                payload.get("interruption_id"), payload.get("thread_id"), _flag(payload))}
         if command == "cancel-all":
             return {"ok": True, "result": control.cancel_all_pending(actor="gui")}
         if command == "diagnostics":
