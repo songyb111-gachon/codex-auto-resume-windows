@@ -27,7 +27,7 @@ import time
 import unittest
 from unittest.mock import call, patch
 
-from codex_auto_resume import config, control, controlcli, settings
+from codex_auto_resume import config, control, controlcli, settings, startup
 from codex_auto_resume.store import Store, StoreError
 from codex_auto_resume.windows import AdapterError, Mutex
 
@@ -58,12 +58,21 @@ class ControlTestCase(unittest.TestCase):
         # this layer; both are patched so the tests describe the layer, not the machine.
         self.running = patch.object(control.Control, "watcher_running", return_value=False)
         self.startup = patch.object(control.Control, "startup_enabled", return_value=False)
+        # The reader alone was not enough: the writer stayed live, so a bridge that ever
+        # read a flag with bool() again - or the old bridge, run to see a fix fail first -
+        # wrote this checkout into the real Run key (RegistryIsolationTests). Every registry
+        # call the startup layer makes, read or write, goes to a key-tree fake instead.
+        from test_cli import FakeWinreg
+        self.registry = FakeWinreg()
+        self.winreg = patch.object(startup, "_winreg", return_value=self.registry)
+        self.winreg.start()
         self.running.start()
         self.startup.start()
 
     def tearDown(self):
         self.startup.stop()
         self.running.stop()
+        self.winreg.stop()
         self.temporary.cleanup()
 
     def register(self, **kwargs):
@@ -466,6 +475,13 @@ class BridgeTests(ControlTestCase):
             "preview-continuation", "interruption-recovery", "cancel-all",
             # Writes a redacted local file the user chose; it sends nothing anywhere.
             "diagnostics",
+            # v0.6.5, the Compatibility Registry. A read of the report (or a live check that
+            # runs `codex --version` and `codex queue --help`, as `doctor` does); an import
+            # that validates one registry document into the local cache; and the Diagnostics
+            # refresh, which runs this installation's own bootstrap to fetch that document.
+            # None of them sends anything to a conversation, and registry data can only ever
+            # restrict what the watcher does - never widen it.
+            "compatibility", "compat-import", "compat-refresh",
             # A read of several of the above at once, and the long-lived form of this
             # same command table - not a command of its own.
             "dashboard", "serve"]))
@@ -659,6 +675,36 @@ class SwitchFlagTests(ControlTestCase):
                 reply = self.dispatch("enabled", payload)
                 self.assertIs(reply["ok"], True, reply)
                 self.assertIs(self.control.get_status()["enabled"], wanted)
+
+
+class RegistryIsolationTests(ControlTestCase):
+    """No test built on ControlTestCase can reach the real Run key, whatever it calls.
+
+    SwitchFlagTests send `startup` through the bridge with every value `bool()` used to say
+    yes to. On today's bridge the refusal comes first, so the writer is never asked. On a
+    bridge that regressed - or on the old one, which is exactly what a reviewer runs to see
+    those tests fail first - each of those values becomes `set_startup_enabled(True)`, and
+    that wrote this checkout's entry into the real HKCU Run key, pointing at a temporary
+    home deleted a moment later: the 2026-09-18 incident again. Patching the reader alone
+    left the writer live, so the whole class now talks to a key-tree fake instead.
+    """
+
+    def test_the_registry_every_control_test_reaches_is_a_fake(self):
+        # Asked, not used: nothing is written, so this is safe to run before the guard exists.
+        from test_cli import FakeWinreg
+        self.assertIsInstance(startup._winreg(), FakeWinreg)
+
+    def test_a_bridge_that_regressed_to_bool_writes_only_into_the_fake(self):
+        from test_cli import FakeWinreg
+        # The guard first: without it, what follows would be the incident, so stop here.
+        self.assertIsInstance(startup._winreg(), FakeWinreg)
+        regressed = lambda payload: bool(payload.get("enabled"))  # noqa: E731 - the old line
+        with patch.object(controlcli, "_flag", regressed):
+            reply = controlcli.dispatch(self.control, "startup", {"enabled": "false"})
+        # The old defect, reproduced on purpose: "false" turned autostart on - in the fake.
+        self.assertIs(reply["ok"], True, reply)
+        value, _kind = self.registry.values[startup.VALUE_NAME]
+        self.assertTrue(startup.belongs_to(value, self.home), value)
 
 
 class ErrorCodeTests(ControlTestCase):

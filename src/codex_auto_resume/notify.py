@@ -10,6 +10,11 @@ never change whether a resume happens.
 
 Nothing about the interrupted work is disclosed. The toast contains only a shortened
 conversation id and a local time - never prompt text, error text or account data.
+
+Since v0.6.5 every toast's content is built by a pure function (`*_content`), so the same
+lines can also be drawn as the product's own notification card (`notifier.py`,
+`notice_card.py`). When the card is shown the toast is still raised, `silent=True`, so
+Windows keeps it in its notification center for history, without a banner or a sound.
 """
 from __future__ import annotations
 
@@ -43,6 +48,7 @@ $ErrorActionPreference = 'Stop'
 $doc = New-Object Windows.Data.Xml.Dom.XmlDocument
 $doc.LoadXml($env:CODEX_AUTO_RESUME_ARG_XML)
 $toast = New-Object Windows.UI.Notifications.ToastNotification $doc
+if ($env:CODEX_AUTO_RESUME_ARG_SILENT -eq '1') { $toast.SuppressPopup = $true }
 [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($env:CODEX_AUTO_RESUME_ARG_AUMID).Show($toast)
 """
 
@@ -117,7 +123,7 @@ def parse_open_uri(uri: str) -> str | None:
 MAX_TOAST_ACTIONS = 5
 
 
-def _toast_xml(title, body, button=None, uri=None, extra=(), more=()) -> str:
+def _toast_xml(title, body, button=None, uri=None, extra=(), more=(), silent=False) -> str:
     # Imported when a toast is built, not when this module is: `xml.sax` brings about
     # ninety modules with it, `urllib.request`, `http.client`, `email` and `ssl` among
     # them, and every process that imports the watcher paid for them whether or not it
@@ -136,23 +142,35 @@ def _toast_xml(title, body, button=None, uri=None, extra=(), more=()) -> str:
     # lose a line to the platform limit.
     lines = [line for line in ([title] + list(extra) + [body]) if line][:MAX_TOAST_LINES]
     text = "".join("<text>%s</text>" % escape(line) for line in lines)
+    # The history copy (`silent`) makes no sound. Without it the document is byte for byte
+    # what it was before v0.6.5; tests/test_notice_card.py holds every toast to a golden.
+    audio = '<audio silent="true"/>' if silent else ""
     return ('<toast duration="long"><visual><binding template="ToastGeneric">'
-            '%s</binding></visual>%s</toast>' % (text, actions))
+            '%s</binding></visual>%s%s</toast>' % (text, audio, actions))
 
 
 def show(title: str, body: str, *, button: str | None = None, uri: str | None = None,
-         extra=(), more=()) -> bool:
+         extra=(), more=(), silent: bool = False) -> bool:
     """Best effort. Returns True only when PowerShell reported success.
 
     The toast document travels as an environment variable into a constant script, never
     as script text: a title is whatever Codex named the conversation and a project is a
     folder name, and neither may be able to change what PowerShell runs. See pwsh.py.
+
+    `silent=True` is the copy kept for history while the notification card is on screen:
+    Windows files it straight into its notification center (`SuppressPopup`) and it plays
+    no sound (`<audio silent="true"/>`). Checked on Windows 11 build 26200: a toast with
+    SuppressPopup set is in `ToastNotificationManager.History` a moment after `Show`. The
+    default is exactly the toast this function always raised.
     """
     if pwsh.executable() is None:
         return False
+    values = {"XML": _toast_xml(title, body, button, uri, extra, more, silent=silent is True),
+              "AUMID": aumid()}
+    if silent is True:
+        values["SILENT"] = "1"
     try:
-        code = pwsh.run(_SCRIPT, {"XML": _toast_xml(title, body, button, uri, extra, more),
-                                  "AUMID": aumid()}, timeout=TIMEOUT_SECONDS)
+        code = pwsh.run(_SCRIPT, values, timeout=TIMEOUT_SECONDS)
     except (OSError, subprocess.SubprocessError, pwsh.PowerShellError):
         return False
     return code == 0
@@ -204,13 +222,27 @@ def _origin_line(identity, used: str, thread_id: str) -> str:
     return (secondary + "  ·  " + thread) if secondary else thread
 
 
-def scheduled(thread_id: str, interruption_id: str, reset_at: float | None,
-              category: str = "usage_limit", identity=None) -> bool:
-    """Announce that this conversation will be recovered, and offer to opt out.
+def _content(title, body, *, button=None, uri=None, extra=(), more=()) -> dict:
+    """What one toast says, as the arguments `show` takes. Only what was given is kept, so
+    `show_content` passes `show` exactly the keywords each toast always passed."""
+    content = {"title": title, "body": body}
+    for name, value in (("button", button), ("uri", uri), ("extra", list(extra)), ("more", list(more))):
+        if value:
+            content[name] = value
+    return content
 
-    Wording follows the failure category: a usage limit waits for a reset, everything
-    else is simply retried. Both carry the same single cancel button.
-    """
+
+def show_content(content: dict, *, silent: bool = False) -> bool:
+    """Raise the toast one of the `*_content` functions describes."""
+    options = {name: content[name] for name in ("button", "uri", "extra", "more") if name in content}
+    if silent is True:
+        options["silent"] = True
+    return show(content["title"], content["body"], **options)
+
+
+def scheduled_content(thread_id: str, interruption_id: str, reset_at: float | None,
+                      category: str = "usage_limit", identity=None) -> dict:
+    """The detection toast's content. See `scheduled`."""
     usage = category == "usage_limit"
     title = headline(identity)
     if usage:
@@ -227,15 +259,29 @@ def scheduled(thread_id: str, interruption_id: str, reset_at: float | None,
         button = messages.text("toast_button_no_retry")
     # Order matters: the reason must come before the identifiers, because a line that
     # does not fit is lost and losing the reason makes the notification pointless.
-    return show(title, _origin_line(identity, title, thread_id),
-                button=button, uri=cancel_uri(interruption_id), extra=[body],
-                more=[(messages.text("toast_button_open"), open_uri("pending"))])
+    return _content(title, _origin_line(identity, title, thread_id),
+                    button=button, uri=cancel_uri(interruption_id), extra=[body],
+                    more=[(messages.text("toast_button_open"), open_uri("pending"))])
+
+
+def scheduled(thread_id: str, interruption_id: str, reset_at: float | None,
+              category: str = "usage_limit", identity=None) -> bool:
+    """Announce that this conversation will be recovered, and offer to opt out.
+
+    Wording follows the failure category: a usage limit waits for a reset, everything
+    else is simply retried. Both carry the same single cancel button.
+    """
+    return show_content(scheduled_content(thread_id, interruption_id, reset_at, category, identity))
+
+
+def cancelled_content(thread_id: str) -> dict:
+    return _content(messages.text("toast_cancelled_title"),
+                    messages.text("toast_thread").format(uuid=thread_id),
+                    extra=[messages.text("toast_cancelled_body")])
 
 
 def cancelled(thread_id: str) -> bool:
-    return show(messages.text("toast_cancelled_title"),
-                messages.text("toast_thread").format(uuid=thread_id),
-                extra=[messages.text("toast_cancelled_body")])
+    return show_content(cancelled_content(thread_id))
 
 
 # --------------------------------------------------------------- lifecycle toasts
@@ -244,18 +290,32 @@ def cancelled(thread_id: str) -> bool:
 # a message, never an attempt. Only the detection toast carries a button, because
 # cancelling is the one action that fails in the safe direction.
 
+def starting_content(thread_id: str, identity=None) -> dict:
+    return _content(headline(identity),
+                    _origin_line(identity, headline(identity), thread_id),
+                    extra=[messages.text("toast_starting_body")])
+
+
 def starting(thread_id: str, identity=None) -> bool:
     """The moment a continuation is actually being sent."""
-    return show(headline(identity),
-                _origin_line(identity, headline(identity), thread_id),
-                extra=[messages.text("toast_starting_body")])
+    return show_content(starting_content(thread_id, identity))
+
+
+def resumed_content(thread_id: str, identity=None) -> dict:
+    return _content(messages.text("toast_resumed_title"),
+                    _origin_line(identity, messages.text("toast_resumed_title"), thread_id),
+                    extra=[messages.text("toast_resumed_body")])
 
 
 def resumed(thread_id: str, identity=None) -> bool:
     """Delivery was proven, not assumed: the engine only reaches this after a receipt."""
-    return show(messages.text("toast_resumed_title"),
-                _origin_line(identity, messages.text("toast_resumed_title"), thread_id),
-                extra=[messages.text("toast_resumed_body")])
+    return show_content(resumed_content(thread_id, identity))
+
+
+def attempt_failed_content(thread_id: str, identity=None, *, certain: bool = True) -> dict:
+    title = messages.text("toast_failed_title") if certain else messages.text("toast_unknown_title")
+    body = messages.text("toast_failed_body") if certain else messages.text("toast_unknown_body")
+    return _content(title, _origin_line(identity, title, thread_id), extra=[body])
 
 
 def attempt_failed(thread_id: str, identity=None, *, certain: bool = True) -> bool:
@@ -265,15 +325,17 @@ def attempt_failed(thread_id: str, identity=None, *, certain: bool = True) -> bo
     never resent - but they mean different things to the person reading them: one did
     not arrive, the other may have. Telling them the wrong one is worse than silence.
     """
-    title = messages.text("toast_failed_title") if certain else messages.text("toast_unknown_title")
-    body = messages.text("toast_failed_body") if certain else messages.text("toast_unknown_body")
-    return show(title, _origin_line(identity, title, thread_id), extra=[body])
+    return show_content(attempt_failed_content(thread_id, identity, certain=certain))
 
 
-def stopped(thread_id: str, identity=None, *, reason: str | None = None) -> bool:
-    """Recovery has stopped for good, and why in one line."""
+def stopped_content(thread_id: str, identity=None, *, reason: str | None = None) -> dict:
     title = messages.text("toast_exhausted_title")
     body = (messages.text("toast_no_progress_body") if reason == "no_progress"
             else messages.text("toast_exhausted_body") if reason == "attempts"
             else messages.text("toast_stopped_body"))
-    return show(title, _origin_line(identity, title, thread_id), extra=[body])
+    return _content(title, _origin_line(identity, title, thread_id), extra=[body])
+
+
+def stopped(thread_id: str, identity=None, *, reason: str | None = None) -> bool:
+    """Recovery has stopped for good, and why in one line."""
+    return show_content(stopped_content(thread_id, identity, reason=reason))

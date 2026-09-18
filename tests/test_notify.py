@@ -213,6 +213,35 @@ class ToastPayloadTests(unittest.TestCase):
         self.assertNotIn("{", body)
 
 
+@unittest.skipUnless(pwsh.executable(), "Windows PowerShell is not available")
+class SilentScriptTests(unittest.TestCase):
+    """v0.6.5: the history copy kept while the notification card is on screen.
+
+    The real script, run as far as the line that decides - no toast is raised: the part that
+    would show it is cut off, and the probe writes down what `SuppressPopup` became.
+    """
+
+    PROBE = (notify._SCRIPT.split("[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier")[0]
+             + "\n[System.IO.File]::WriteAllText($env:CODEX_AUTO_RESUME_ARG_OUT, [string]$toast.SuppressPopup)\n")
+
+    def suppressed(self, values):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder) / "suppress.txt"
+            code = pwsh.run(self.PROBE, dict(values, OUT=out, AUMID="x"), timeout=60)
+            self.assertEqual(code, 0)
+            return out.read_text(encoding="utf-8").strip()
+
+    def test_the_probe_stops_before_anything_is_shown(self):
+        self.assertNotIn("CreateToastNotifier", self.PROBE)
+        self.assertNotIn(".Show(", self.PROBE)
+
+    def test_suppress_popup_is_set_exactly_when_the_copy_is_silent(self):
+        self.assertEqual(self.suppressed({"XML": notify._toast_xml("t", "b", silent=True), "SILENT": "1"}), "True")
+        self.assertEqual(self.suppressed({"XML": notify._toast_xml("t", "b")}), "False")
+        self.assertEqual(self.suppressed({"XML": notify._toast_xml("t", "b"), "SILENT": "yes"}), "False")
+
+
 class ImportCostTests(unittest.TestCase):
     def test_importing_the_module_does_not_load_xml_sax(self):
         """`xml.sax` brings `urllib.request`, `http.client`, `email` and `ssl` with it.

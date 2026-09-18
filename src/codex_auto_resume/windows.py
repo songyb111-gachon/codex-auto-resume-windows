@@ -21,13 +21,36 @@ import time
 import uuid
 
 NO_WINDOW = 0x08000000 if os.name == "nt" else 0
-# Engine versions this tool was actually verified against end to end.
-VERIFIED_VERSIONS = ("codex-cli 0.153.4",)
-VERSION = VERIFIED_VERSIONS[0]
 # A Codex update bumps the version string, which alone must not disable auto-resume.
-# Instead of requiring equality, an unrecognised version has to prove it still offers
-# the exact interface this tool drives. Anything that cannot prove it is refused.
+# Every build - a verified one included - has to prove it still offers the exact interface
+# this tool drives. Anything that cannot prove it is refused: a failed local check always
+# wins, whatever the Compatibility Registry says about the version.
 REQUIRED_QUEUE_FLAGS = ("--thread", "--message")
+# The only App Server methods the finite helper may call.
+PROTOCOL_METHODS = ("initialize", "account/rateLimits/read", "thread/queue/delete")
+# The local-check vocabulary of the Compatibility Registry (compat.RESULTS), spelled here so
+# the adapter does not import the registry to describe its own probes.
+PASS, FAIL, UNAVAILABLE = "PASS", "FAIL", "UNAVAILABLE"
+_VERIFIED = None
+
+
+def verified_versions() -> tuple:
+    """Engine versions the bundled Compatibility Registry marks VERIFIED for sending.
+
+    This used to be a constant naming codex-cli 0.153.4. The registry replaced it, and its
+    evidence rule - a VERIFIED entry cites a recording that states the version it was made
+    on - leaves it empty until such a recording exists. Nothing is "verified" by its version
+    string alone, and nothing about recovery depends on it: an unverified build that passes
+    the checks is COMPATIBLE, which is what the gate has always accepted.
+    """
+    global _VERIFIED
+    if _VERIFIED is None:
+        try:
+            from . import compatio
+            _VERIFIED = tuple(compatio.bundled_verified_versions())
+        except Exception:
+            _VERIFIED = ()
+    return _VERIFIED
 
 
 class AdapterError(RuntimeError):
@@ -136,6 +159,22 @@ def resource_users(path):
         raise AdapterError("resource_inventory_unstable")
     finally:
         rm.RmEndSession(session)
+
+
+def restart_manager_available() -> bool:
+    """Whether the Restart Manager functions `resource_users` calls can be resolved.
+
+    A structural check for the Compatibility Registry: it loads the library and looks the
+    four functions up, and starts no session and registers no resource.
+    """
+    if os.name != "nt":
+        return False
+    try:
+        rm = C.WinDLL("rstrtmgr", use_last_error=True)
+        return all(hasattr(rm, name) for name in
+                   ("RmStartSession", "RmRegisterResources", "RmGetList", "RmEndSession"))
+    except OSError:
+        return False
 
 
 _INVENTORY_PS = r"""
@@ -597,7 +636,7 @@ class Protocol:
             return
 
     def call(self, method, params=None):
-        if method not in ("initialize", "account/rateLimits/read", "thread/queue/delete"):
+        if method not in PROTOCOL_METHODS:
             raise AdapterError("protocol_method_not_allowed")
         self.sequence += 1
         sequence = self.sequence
@@ -645,6 +684,7 @@ class Backend:
         self.codex_home = Path(codex_home).resolve()
         self.codex_exe = Path(codex_exe).resolve()
         self._version_signature = None
+        self._last_checks = None
         self.engine_version = None
         self.engine_verified = False
 
@@ -671,34 +711,84 @@ class Backend:
         text = result.stdout
         return all(flag in text for flag in REQUIRED_QUEUE_FLAGS)
 
-    def _compatible(self):
+    def engine_checks(self) -> dict:
+        """The engine's three structural checks, as the Compatibility Registry reads them.
+
+        E1 `official_location` - the binary sits at the official, content-addressed path;
+        E2 `version_runs` - `codex --version` runs and exits 0;
+        E4 `queue_flags` - `codex queue --help` exits 0 and offers --thread and --message.
+
+        Each is PASS, FAIL (it ran and said no) or UNAVAILABLE (it could not run - the
+        binary vanished, a process failed to start or timed out). Returns them with the
+        version and the binary's (size, mtime_ns) signature they were made on. Never raises
+        for a process or file failure; that is what UNAVAILABLE is for.
+
+        Probes run only when the signature differs from the last accepted one, exactly as
+        `_compatible()` always did, and a full PASS is what `_compatible()` accepts - so the
+        registry and the adapter can never disagree about the binary in use.
+        """
         local = Path(os.environ.get("LOCALAPPDATA", "")) / "OpenAI/Codex/bin"
         expected = re.compile(re.escape(str(local)) + r"\\[0-9a-f]+\\codex\.exe", re.I)
+        checks = {"official_location": FAIL, "version_runs": UNAVAILABLE,
+                  "queue_flags": UNAVAILABLE, "version": None, "signature": None}
         if not expected.fullmatch(str(self.codex_exe)):
-            raise AdapterError("unsupported_codex_location")
+            self._last_checks = checks
+            return dict(checks)
+        checks["official_location"] = PASS
         try:
             stat = self.codex_exe.stat()
-            signature = (stat.st_size, stat.st_mtime_ns)
-            if signature == self._version_signature:
-                return
+        except OSError:
+            self._last_checks = checks
+            return dict(checks)
+        signature = (stat.st_size, stat.st_mtime_ns)
+        checks["signature"] = signature
+        if signature == self._version_signature:
+            checks.update(version_runs=PASS, queue_flags=PASS, version=self.engine_version)
+            self._last_checks = checks
+            return dict(checks)
+        try:
             result = S.run([str(self.codex_exe), "--version"], stdout=S.PIPE, stderr=S.DEVNULL,
                            text=True, encoding="utf-8", timeout=10, creationflags=NO_WINDOW,
                            shell=False, env=self._environment())
-            if result.returncode != 0:
-                raise AdapterError("codex_binary_unavailable")
-            version = result.stdout.strip()
-            if version in VERIFIED_VERSIONS:
-                self.engine_version, self.engine_verified = version, True
-            elif self._queue_interface_ok():
-                # Structurally compatible but not a version we have exercised end to end.
-                # Allowed so an app update does not silently stop auto-resume, and every
-                # send is still proven afterwards by the per-interruption marker.
-                self.engine_version, self.engine_verified = version, False
-            else:
-                raise AdapterError("unsupported_codex_version")
-            self._version_signature = signature
         except (OSError, S.SubprocessError):
-            raise AdapterError("codex_binary_unavailable") from None
+            self._last_checks = checks
+            return dict(checks)
+        if result.returncode != 0:
+            self._last_checks = checks
+            return dict(checks)
+        version = result.stdout.strip()
+        checks.update(version_runs=PASS, version=version)
+        try:
+            flags = self._queue_interface_ok()
+        except (OSError, S.SubprocessError):
+            self._last_checks = checks
+            return dict(checks)
+        if not flags:
+            checks["queue_flags"] = FAIL
+            self._last_checks = checks
+            return dict(checks)
+        checks["queue_flags"] = PASS
+        # Accepted: every build, the ones the registry calls verified included, has now
+        # shown it still offers the interface this tool drives. Delivery is still proven per
+        # interruption, by the marker, before anything is called resumed.
+        self.engine_version = version
+        self.engine_verified = version in verified_versions()
+        self._version_signature = signature
+        self._last_checks = checks
+        return dict(checks)
+
+    def last_checks(self):
+        """The result of the most recent `engine_checks()`, or None before the first."""
+        return dict(self._last_checks) if self._last_checks is not None else None
+
+    def _compatible(self):
+        checks = self.engine_checks()
+        if checks["official_location"] != PASS:
+            raise AdapterError("unsupported_codex_location")
+        if checks["version_runs"] != PASS or checks["queue_flags"] == UNAVAILABLE:
+            raise AdapterError("codex_binary_unavailable")
+        if checks["queue_flags"] != PASS:
+            raise AdapterError("unsupported_codex_version")
 
     def app_identity(self):
         try:

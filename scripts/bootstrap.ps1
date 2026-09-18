@@ -62,6 +62,28 @@
       the version inside the archive - is verified for an update too, and it goes through
       the same installer, which keeps the state and the decisions already on the machine.
 
+    Refreshing the Codex compatibility data
+      Only on request, at exactly two moments: -Compatibility (the Diagnostics page's
+      refresh button), and an update check that reached github.com (-CheckOnly or -Update).
+      Nothing here polls, and the watcher never asks.
+
+      One GET to one constant URL with no query string - the registry file on the main
+      branch of this repository, at raw.githubusercontent.com and at no other host. Nothing
+      about this machine is in the request; in particular the local Codex version is not,
+      which is why the whole document is fetched and matched locally. The body lands in a
+      temporary file this script deletes, and it is never parsed or run here: it is handed
+      to the installation's own Python validator (`controlcli compat-import`), which is the
+      only thing that writes it anywhere, and refuses anything malformed, older than what
+      is already in force, or meant for a newer product. The data can only ever restrict
+      what the watcher does. A refresh that fails leaves everything as it was, and it never
+      changes what the update check answers.
+
+      It says so before it asks: the host is named on the output, update check or not, so a
+      second address is never contacted silently. And when it rides on an update check it
+      gets only what is left of the time the settings window waits for that check
+      ($CheckBudgetSeconds below), so it can make the check neither late nor "running" -
+      with too little left it is not attempted, and the data already in force still applies.
+
     Run: powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1
          Add -Force to reinstall a version that is already present.
          Add -ArchivePath <zip> to install a file you already have. It is checked
@@ -69,6 +91,7 @@
          contents checks apply, because there is no sidecar to fetch for a local file.
          Add -CheckOnly to ask whether a newer release exists and install nothing.
          Add -Update to install one if there is.
+         Add -Compatibility to refresh the Codex compatibility data and nothing else.
 #>
 [CmdletBinding()]
 param(
@@ -76,14 +99,42 @@ param(
     [switch]$NoStartup,
     [string]$ArchivePath,
     [switch]$CheckOnly,
-    [switch]$Update
+    [switch]$Update,
+    [switch]$Compatibility
 )
+
+# Started before anything else runs, so an update check can tell how much of its caller's
+# patience is left for the compatibility refresh that rides on it ($CheckBudgetSeconds).
+$ScriptClock = [Diagnostics.Stopwatch]::StartNew()
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
 
 $PluginRoot = Split-Path -Parent $PSScriptRoot
 $AllowedHosts = @('github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com')
+
+# The Codex compatibility data's one address: a constant, with no query string and nothing
+# about this machine in it. It is the bundled registry file, as it stands on main, where
+# every change is a reviewed commit the tests validated before it could be served. Its host
+# is allowed for this fetch alone - the archive's list above does not grow.
+$CompatibilityUrl = 'https://raw.githubusercontent.com/songyb111-gachon/codex-auto-resume-windows/main/src/codex_auto_resume/data/codex_compat.json'
+$CompatibilityHosts = @('raw.githubusercontent.com')
+# The validator's own cap. A larger download is refused before Python is started.
+$CompatibilityMaxBytes = 262144
+
+# The refresh that rides on an update check shares that check's time. The settings window
+# waits 120 s for -CheckOnly (gui/Dashboard.cs, CheckMilliseconds) and calls anything slower
+# "running", and the update answer is printed after the refresh - so the refresh must be
+# over, or never started, well inside that, whatever the network does. The HEAD to
+# github.com alone can take its 60 s plus a name lookup, which -TimeoutSec does not count.
+# The refresh gets what is left of $CheckBudgetSeconds after allowing for a lookup of its
+# own and the validator's start, at most $CompatibilityCheckTimeoutMax, and is not attempted
+# when that is under $CompatibilityCheckTimeoutMin. -Compatibility alone keeps 60 s.
+$CheckBudgetSeconds = 90
+$LookupAllowanceSeconds = 15
+$ValidatorAllowanceSeconds = 10
+$CompatibilityCheckTimeoutMax = 30
+$CompatibilityCheckTimeoutMin = 5
 
 # What -CheckOnly and -Update answer with. Four codes, because there are four answers and
 # a caller that has to tell them apart should not have to read prose to do it. "Could not
@@ -94,6 +145,10 @@ $ExitCurrent     = 0
 $ExitAvailable   = 10
 $ExitLocalNewer  = 11
 $ExitUnavailable = 12
+# -Compatibility answers with its own line, `compatibility: refreshed <sequence>`,
+# `compatibility: refused <reason>` or `compatibility: unavailable`, and exits 0, 13 or 12.
+# Refused is its own answer: the data arrived and the validator would not have it.
+$ExitCompatibilityRefused = 13
 
 function Step { param([string]$Text) Write-Host ('  ' + $Text) }
 function Ok   { param([string]$Text) Write-Host ('  [ok] ' + $Text) }
@@ -178,12 +233,15 @@ function Get-FinalUri {
 }
 
 function Assert-TrustedHost {
-    param($Response, [string]$What)
+    # The hosts a download may have come from are the caller's: the archive's three by
+    # default, and the compatibility data's one for that fetch alone, so allowing a host for
+    # one download never widens what may serve another.
+    param($Response, [string]$What, [string[]]$Hosts = $AllowedHosts)
     $final = Get-FinalUri -Response $Response
     if ($null -eq $final) {
         throw ($What + ': this PowerShell does not report where the download came from, so it was refused.')
     }
-    if ($final.Scheme -ne 'https' -or ($AllowedHosts -notcontains $final.Host)) {
+    if ($final.Scheme -ne 'https' -or ($Hosts -notcontains $final.Host)) {
         throw ($What + ' was redirected to a host this installer does not trust: ' + $final.Host)
     }
 }
@@ -250,12 +308,97 @@ function Get-NewestPublishedVersion {
 }
 
 function Get-Remote {
-    param([string]$Uri, [string]$OutFile, [string]$What)
+    param([string]$Uri, [string]$OutFile, [string]$What, [string[]]$Hosts = $AllowedHosts,
+          [int]$TimeoutSec = 300)
     # -UseBasicParsing keeps this working on a Windows with no Internet Explorer engine,
     # which is every current one.
     $response = Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing -PassThru `
-                                 -MaximumRedirection 5 -TimeoutSec 300
-    Assert-TrustedHost -Response $response -What $What
+                                 -MaximumRedirection 5 -TimeoutSec $TimeoutSec
+    Assert-TrustedHost -Response $response -What $What -Hosts $Hosts
+}
+
+function Get-CompatibilityTimeout {
+    <#
+        The seconds the refresh that rides on an update check may wait for its download,
+        given how long this script has already run: what is left of $CheckBudgetSeconds
+        after a name lookup and the validator's start, at most $CompatibilityCheckTimeoutMax
+        - and 0, meaning do not try, when that is under $CompatibilityCheckTimeoutMin.
+    #>
+    param([double]$Elapsed)
+    $left = $CheckBudgetSeconds - $Elapsed - $LookupAllowanceSeconds - $ValidatorAllowanceSeconds
+    $seconds = [int][Math]::Floor([Math]::Min([double]$CompatibilityCheckTimeoutMax, $left))
+    if ($seconds -lt $CompatibilityCheckTimeoutMin) { return 0 }
+    return $seconds
+}
+
+function Update-CompatibilityData {
+    <#
+        Fetch the Codex compatibility data from its one address and hand it to the
+        installation's Python validator - the only thing that writes it anywhere.
+
+        Returns the answer for the `compatibility:` line - 'refreshed <sequence>',
+        'refused <reason>' or 'unavailable' - and never throws: a refresh that could not
+        happen is an answer, and it must never change what an update check answers.
+        Nothing is downloaded where there is no installation to validate it with, or with
+        -TimeoutSec 0 (no time left), and the host is named on the output before it is asked.
+    #>
+    param([string]$Home_, [string]$Python, [string]$Source, [int]$TimeoutSec = 60)
+    if (-not $Python) { $Python = Join-Path $Home_ 'runtime\python.exe' }
+    if (-not $Source) { $Source = Join-Path $Home_ 'app\src' }
+    if (-not (Test-Path -LiteralPath $Python) -or
+        -not (Test-Path -LiteralPath (Join-Path $Source 'codex_auto_resume\controlcli.py'))) {
+        Step 'There is no installation here to check the Codex compatibility data with, so it was not asked for.'
+        return 'unavailable'
+    }
+    if ($TimeoutSec -le 0) {
+        Step 'Too little of the update check''s time is left to ask for the Codex compatibility data;'
+        Step 'it was not asked for, and the data already in force still applies.'
+        return 'unavailable'
+    }
+    Step 'Asking raw.githubusercontent.com for the Codex compatibility data. Nothing is uploaded,'
+    Step 'and nothing is kept unless this installation''s validator accepts it.'
+    $folder = Join-Path ([IO.Path]::GetTempPath()) ('codex-auto-resume-compat-' + [Guid]::NewGuid().ToString('N'))
+    try {
+        try {
+            [Net.ServicePointManager]::SecurityProtocol =
+                [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+        } catch {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        }
+        New-Item -ItemType Directory -Force -Path $folder | Out-Null
+        $file = Join-Path $folder 'codex_compat.json'
+        try {
+            Get-Remote -Uri $CompatibilityUrl -OutFile $file -What 'The compatibility data' `
+                       -Hosts $CompatibilityHosts -TimeoutSec $TimeoutSec
+        } catch { return 'unavailable' }
+        if (-not (Test-Path -LiteralPath $file)) { return 'unavailable' }
+        if ((Get-Item -LiteralPath $file).Length -gt $CompatibilityMaxBytes) { return 'refused too_large' }
+        # The bridge's own entry, as the settings window starts it; the path travels as its
+        # own argument, which survives a non-ASCII profile directory.
+        $code = 'import sys;sys.path.insert(0,sys.argv[1]);from codex_auto_resume.controlcli import main;sys.exit(main(sys.argv[2:]))'
+        $ErrorActionPreference = 'Continue'
+        $printed = @(& $Python -c $code $Source --home $Home_ compat-import --file $file --origin main)
+        $line = @($printed | Where-Object { $_ -and ([string]$_).Trim() }) | Select-Object -Last 1
+        if (-not $line) { return 'unavailable' }
+        $reply = ([string]$line) | ConvertFrom-Json
+        if ($reply.ok -ne $true) { return 'unavailable' }
+        $result = $reply.result
+        if ($result.imported -eq $true) { return ('refreshed ' + [string][int]$result.sequence) }
+        $reason = [string]$result.reason
+        if ($reason -notmatch '^[a-z_]{1,40}$') { $reason = 'invalid_field' }
+        return ('refused ' + $reason)
+    } catch {
+        return 'unavailable'
+    } finally {
+        Remove-Item -Recurse -Force -LiteralPath $folder -ErrorAction SilentlyContinue
+    }
+}
+
+function Get-CompatibilityExit {
+    param([string]$Answer)
+    if ($Answer -like 'refreshed *') { return 0 }
+    if ($Answer -like 'refused *') { return $ExitCompatibilityRefused }
+    return $ExitUnavailable
 }
 
 function Test-Archive {
@@ -342,6 +485,21 @@ if ([string]::IsNullOrWhiteSpace($installHome)) {
 
 $installed = Get-InstalledVersion -Home_ $installHome
 
+# ------------------------------------------------- the Codex compatibility data only
+if ($Compatibility) {
+    if ($CheckOnly -or $Update -or $ArchivePath -or $Force) {
+        Fail 'Use -Compatibility on its own: it refreshes data and installs nothing.'
+        Write-Host 'compatibility: unavailable'
+        exit $ExitUnavailable
+    }
+    $answer = Update-CompatibilityData -Home_ $installHome
+    Write-Host ('compatibility: ' + $answer)
+    if ($answer -like 'refreshed *') { Ok 'The compatibility data is up to date.' }
+    elseif ($answer -like 'refused *') { Step 'The data was refused; what was in force before still is.' }
+    else { Step 'Nothing was changed. The data already in force still applies.' }
+    exit (Get-CompatibilityExit $answer)
+}
+
 # ------------------------------------------------------- is there a newer release?
 if ($CheckOnly -and $Update) {
     Fail 'Use -CheckOnly or -Update, not both.'
@@ -371,6 +529,11 @@ if ($CheckOnly -or $Update) {
         exit $ExitUnavailable
     }
     $order = Compare-ProductVersion -Left $newest -Right $current
+    # The second of the two moments the Codex compatibility data is refreshed: a person
+    # asked, and github.com answered. Its own line, never a different update answer - and
+    # never a late one: it gets only what is left of the time the window waits for this.
+    $compatibilityTimeout = Get-CompatibilityTimeout -Elapsed $ScriptClock.Elapsed.TotalSeconds
+    Write-Host ('compatibility: ' + (Update-CompatibilityData -Home_ $installHome -TimeoutSec $compatibilityTimeout))
     if ($order -lt 0) {
         Ok ('This is v' + $current + ', which is ahead of the newest published release, v' + $newest + '.')
         Write-Host ('update: newer-local ' + $current + ' ' + $newest)

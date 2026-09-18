@@ -146,8 +146,12 @@ class CliTests(unittest.TestCase):
         self.home = Path(self.temp.name) / "home"
         self.addCleanup(self.temp.cleanup)
         self.addCleanup(_reset_logging)
-        # Point official-binary discovery at an empty directory so no Codex process is ever spawned.
+        # Point official-binary discovery at an empty directory so no Codex process is ever
+        # spawned - and name this test's own Codex home, because `run --once` reaches the
+        # Compatibility Registry's evaluator, which reads the home's schema even with no
+        # engine. Unset, CODEX_HOME is %USERPROFILE%\.codex: the real one.
         self.env = patch.dict(os.environ, {"LOCALAPPDATA": str(Path(self.temp.name) / "no-codex"),
+                                           "CODEX_HOME": str(Path(self.temp.name) / "codex"),
                                            config.ENV_HOME: str(self.home)})
         self.env.start()
         self.addCleanup(self.env.stop)
@@ -262,6 +266,28 @@ class CliTests(unittest.TestCase):
         self.assertIn("initialising Codex adapter failed", text)
         self.assertIn("no submission was made", text)
         self.assertTrue((self.home / "logs" / "errors.log").is_file())
+
+    def test_the_watcher_loop_reads_only_this_tests_codex_home(self):
+        """`run --once` reaches the Compatibility Registry's evaluator even with no engine,
+        and it reads the Codex home's schema. With CODEX_HOME unset that home is the real
+        %USERPROFILE%\\.codex, so this class names its own - and the read is replaced by a
+        recorder here, so even a mistake in the environment opens nothing."""
+        from codex_auto_resume import compatio
+        homes = []
+
+        def record(source):
+            homes.append(os.path.normcase(str(source.home)))
+            return {name: "UNAVAILABLE" for name in ("state_schema", "history_schema", "queue_schema",
+                                                     "projection_table", "sessions_directory",
+                                                     "lock_directory")}
+        self.cli("enable")
+        with patch.object(compatio, "source_checks", side_effect=record):
+            code, _, _ = self.cli("run", "--once")
+        self.assertEqual(code, 1)
+        self.assertTrue(homes, "the loop evaluated compatibility")
+        scratch = os.path.normcase(str(Path(self.temp.name).resolve()))
+        for home in homes:
+            self.assertTrue(home.startswith(scratch + os.sep), home)
 
     def test_uninstall_removes_only_owned_files(self):
         self.cli("install")
@@ -483,7 +509,10 @@ class WatcherLoopTests(unittest.TestCase):
         self.addCleanup(temp.cleanup)
         self.addCleanup(_reset_logging)
         home = Path(temp.name)
-        with patch.dict(os.environ, {"LOCALAPPDATA": str(home / "none")}):
+        # The Codex home and the engine directory are the test's own: the compatibility
+        # check that runs every tick reads Codex's schema, and it must read this one.
+        scratch = {"LOCALAPPDATA": str(home / "none"), "CODEX_HOME": str(home / "codex")}
+        with patch.dict(os.environ, scratch):
             app = App(config.Paths(home), console=False)
         ticks = []
         attempts = {"n": 0}
@@ -501,7 +530,8 @@ class WatcherLoopTests(unittest.TestCase):
         stops = iter([False, False, False, True])
         # Without a wake event the loop waits on the stop event alone, which is what
         # this test drives. No notification-area icon is started inside a test run.
-        with patch.object(App, "engine", side_effect=flaky_engine), \
+        with patch.dict(os.environ, scratch), \
+             patch.object(App, "engine", side_effect=flaky_engine), \
              patch.object(App, "wake_event", side_effect=AdapterError("unavailable")), \
              patch.object(App, "_start_tray", return_value=None), \
              patch.object(App, "mutex"), patch.object(App, "stop_event") as stop_event:
@@ -510,6 +540,9 @@ class WatcherLoopTests(unittest.TestCase):
         self.assertEqual(code, 0, "the watcher survived the transient failures")
         self.assertGreaterEqual(attempts["n"], 3, "engine construction was retried")
         self.assertTrue(ticks, "it eventually ticked once the adapter recovered")
+        # With no engine the watcher still says why, and says it without guessing.
+        self.assertTrue(app.paths.compat_report_file.is_file())
+        self.assertEqual(app.engine_state(), "unknown")
 
     def test_poll_interval_survives_store_read_failure(self):
         temp = tempfile.TemporaryDirectory()
@@ -751,6 +784,12 @@ class DoctorProtocolCheckTests(unittest.TestCase):
         # and Windows will not delete a directory while a handle is still open in it.
         self.addCleanup(_reset_logging)
         self.home = Path(self.temp.name)
+        # doctor looks at the Codex home (its writer-lock directory, and the compatibility
+        # check) and lists the engine directory: both are this test's own, never the real ones.
+        scratch = patch.dict(os.environ, {"LOCALAPPDATA": str(self.home / "no-codex"),
+                                          "CODEX_HOME": str(self.home / "codex")})
+        scratch.start()
+        self.addCleanup(scratch.stop)
 
     def doctor(self, registered):
         from codex_auto_resume import cli

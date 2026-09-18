@@ -378,10 +378,13 @@ class BootstrapTests(unittest.TestCase):
         version that is fetched, but not to anywhere a caller chooses: the resolver takes
         it from a redirect under this repository and rebuilds it out of three integers,
         which `tests/test_update_check.py` exercises against the shipped function.
+        -Compatibility (v0.6.5) is a switch too: the compatibility data's address is one
+        constant, and nothing a caller passes reaches it.
         """
         parameters = re.search(r"param\((.*?)\n\)", self.text, re.S).group(1)
         self.assertEqual(set(re.findall(r"\$(\w+)", parameters)),
-                         {"Force", "NoStartup", "ArchivePath", "CheckOnly", "Update"})
+                         {"Force", "NoStartup", "ArchivePath", "CheckOnly", "Update",
+                          "Compatibility"})
         values = [name for name in re.findall(r"\[(\w+)\]\$(\w+)", parameters)]
         self.assertEqual([name for kind, name in values if kind != "switch"], ["ArchivePath"])
         # And the one value never reaches the URL the archive is fetched from.
@@ -413,6 +416,10 @@ class BootstrapTests(unittest.TestCase):
 
     def test_the_four_answers_have_four_codes(self):
         codes = dict(re.findall(r"\$(Exit\w+)\s*=\s*(\d+)", self.text))
+        # -Compatibility (v0.6.5) answers refreshed / unavailable with the same 0 and 12,
+        # and has one answer of its own - the data arrived and was refused - on its own code.
+        refused = codes.pop("ExitCompatibilityRefused")
+        self.assertNotIn(refused, codes.values(), "the refresh's own answer shares a code")
         self.assertEqual(set(codes), {"ExitCurrent", "ExitAvailable", "ExitLocalNewer",
                                       "ExitUnavailable"})
         self.assertEqual(len(set(codes.values())), 4, "two answers share a code")

@@ -79,6 +79,25 @@ def main():
         code, out = run([str(python), str(entry), "--home", str(home), "pending"], env=environment)
         check("pending answers", code == 0, out)
 
+        # The Compatibility Registry's bundled baseline, read by the bundled interpreter the
+        # way the product reads it. No engine directory exists here, so no Codex process is
+        # started: this proves the data shipped and validates, not what any engine is.
+        registry = payload / "app" / "src" / "codex_auto_resume" / "data" / "codex_compat.json"
+        check("the bundled compatibility data is in the payload", registry.is_file())
+        isolated = dict(environment, LOCALAPPDATA=str(workspace / "no-engines"))
+        code, out = run([str(python), str(entry), "--home", str(home), "--quiet", "compat",
+                         "--live", "--json"], env=isolated)
+        try:
+            view = json.loads(out[out.index("{"):])
+        except ValueError:
+            view = {}
+        capabilities = view.get("capabilities") or {}
+        check("the bundled interpreter accepts the bundled compatibility data",
+              code == 0 and (view.get("data") or {}).get("bundled") == "ok", out)
+        check("the bundled compatibility data verifies nothing without evidence",
+              bool(capabilities) and all(entry.get("state") != "VERIFIED"
+                                         for entry in capabilities.values()), out)
+
         code, out = run([str(python), str(entry), "--home", str(home), "--quiet", "uninstall"],
                         env=environment)
         check("uninstall", code == 0, out)

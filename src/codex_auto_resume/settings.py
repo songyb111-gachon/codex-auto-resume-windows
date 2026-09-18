@@ -108,6 +108,11 @@ FIELDS = {
     "notifications": (True, _boolean),
     # The watcher's notification-area icon. Showing it changes nothing about recovery.
     "show_tray": (True, _boolean),
+    # v0.6.5: notifications drawn as the product's own card beside the notification area, with a
+    # silent copy in Windows' notification center; off, every notification is Windows' own toast
+    # as before. It chooses where a notification is drawn, never whether there is one: that is
+    # `notifications` and `notify_<event>`. It changes nothing about recovery.
+    "notification_card": (True, _boolean),
     # First in Appearance, so it comes before Reduce motion wherever the schema is listed.
     # Changes nothing but colours; the notification-area icon and its badge stay as they are.
     "theme": (DEFAULT_THEME, lambda v, d: _choice(v, d, THEMES)),
@@ -378,14 +383,26 @@ def update(path: Path, changes: dict) -> dict:
     return save(path, dict(load(path), **clean))
 
 
+# Fields that exist - stored, validated, defaulted - but that no surface offers yet, because
+# nothing reads them yet. `describe()` leaves them out, and the Dashboard, the panel and the MCP
+# schema are all drawn from it, so none of them shows a switch that would change nothing.
+# `notification_card` is read once the watcher hands notices to the notifier (app.py) and the
+# icon's thread hosts the card (tray.py); that wiring takes the name out of here, and
+# tests/test_notice_card.py (SettingTests) fails until both happen together.
+NOT_YET_OFFERED = frozenset({"notification_card"})
+
+
 def describe() -> list:
     """Machine-readable schema for the settings interfaces.
 
     The user interfaces render themselves from this, so a field added here appears in
-    every front end at once instead of being wired up three times.
+    every front end at once instead of being wired up three times. A field in
+    NOT_YET_OFFERED is not described: it has no front end until something reads it.
     """
     described = []
     for name, (default, _coerce) in FIELDS.items():
+        if name in NOT_YET_OFFERED:
+            continue
         entry = {"name": name, "default": default, "type": field_type(name)}
         if name in RANGES:
             entry.update(RANGES[name])
@@ -400,9 +417,11 @@ def describe() -> list:
             # which it colours too. Reduce motion is only offered in the window: the panel
             # in Codex follows the host's own reduced-motion preference.
             entry["group"] = "appearance"
-        elif name == "show_tray":
+        elif name in ("show_tray", "notification_card"):
             # A desktop preference, beside "run at sign-in" - not a notification, and
-            # not something the notifications switch governs.
+            # not something the notifications switch governs. The card only chooses how a
+            # notification looks on this desktop, so it lives here too, and like the icon it is
+            # outside what the Codex panel and MCP may change (mcpserver.USER_GROUPS).
             entry["group"] = "windows"
         elif name in ("max_recovery_attempts", "max_no_progress", "max_chain_continuations",
                       "retry_timing"):

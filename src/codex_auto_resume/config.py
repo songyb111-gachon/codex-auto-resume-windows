@@ -29,6 +29,11 @@ class Paths:
         self.state_dir = self.home / "config"
         self.logs_dir = self.home / "logs"
         self.settings_file = self.state_dir / "settings.json"
+        # The Compatibility Registry's two files, both content-free. The report is derived
+        # and has one writer, the watcher; the cache holds registry data a person asked
+        # for, written only by the validator that imports it.
+        self.compat_report_file = self.state_dir / "compatibility.json"
+        self.compat_cache_file = self.state_dir / "compat-cache.json"
         self.log_file = self.logs_dir / "auto-resume.log"
         self.error_log = self.logs_dir / "errors.log"
         self.entry_script = PROJECT_ROOT / "src" / "auto_resume.py"
@@ -136,10 +141,12 @@ class Paths:
     def owned_state_files(self) -> list[Path]:
         if not self.owns(self.state_dir):
             return []
-        names = ["state.sqlite", "state.sqlite-journal", "state.sqlite-wal", "state.sqlite-shm", "settings.json"]
+        names = ["state.sqlite", "state.sqlite-journal", "state.sqlite-wal", "state.sqlite-shm", "settings.json",
+                 "compatibility.json", "compat-cache.json"]
         files = [self.state_dir / name for name in names]
-        files += [p for p in sorted(self.state_dir.glob("settings.*.tmp"))
-                  if not p.is_symlink() and self.confined(p)]
+        for pattern in ("settings.*.tmp", "compatibility.*.tmp", "compat-cache.*.tmp"):
+            files += [p for p in sorted(self.state_dir.glob(pattern))
+                      if not p.is_symlink() and self.confined(p)]
         return files + [self.state_dir / OWNER_MARKER]
 
     def owned_log_files(self) -> list[Path]:
@@ -216,18 +223,26 @@ def discover_codex_exe(explicit: str | os.PathLike | None, compatible) -> Path:
     if not candidates:
         raise ConfigError("No official Codex desktop engine found under %LOCALAPPDATA%\\OpenAI\\Codex\\bin")
     usable = []
+    failed = set()
     for candidate in candidates:
         try:
             compatible(candidate)
-        except Exception:
+        except Exception as exc:
+            # Only a reason code is kept - `AdapterError` carries nothing else - and anything
+            # that is not shaped like one is not repeated.
+            reason = str(exc)
+            failed.add(reason if re.fullmatch(r"[a-z_]{1,48}", reason) else "check_failed")
             continue
         usable.append(candidate)
-    if len(usable) != 1:
-        # Late import: report the pin that is actually in force, so bumping the pin
-        # cannot leave this message quoting a stale version.
-        from .windows import VERSION
-        raise ConfigError("No codex.exe matching the verified engine pin (%s); "
-                          "re-verify against the new version, then pass --codex-exe explicitly" % VERSION)
+    if len(usable) > 1:
+        raise ConfigError("%d official codex.exe builds pass the engine checks, so which one "
+                          "to drive is ambiguous; pass --codex-exe explicitly" % len(usable))
+    if not usable:
+        # The check that failed, not a version pin: no version has been required to match
+        # since v0.2.0, and the registry that replaced the pin never requires one either.
+        raise ConfigError("No official codex.exe passed the engine checks (%s); the official "
+                          "location, `codex --version` and `codex queue` offering --thread and "
+                          "--message are required" % ", ".join(sorted(failed)))
     return usable[0]
 
 
