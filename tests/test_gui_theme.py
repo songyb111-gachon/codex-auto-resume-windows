@@ -390,7 +390,7 @@ function New-Window {
     $formType.GetField('auditing', $instance).SetValue($window, $true)
     $window.TopLevel = $false
     $window.MinimumSize = [Drawing.Size]::Empty
-    # The opening size, read from the window: 1000 by 632 since the Overview's rows share the page (it was 600).
+    # The opening size, read from the window: 1000 by 664 since v0.6.5 (632 in v0.6.4, 600 before).
     $window.ClientSize = [Drawing.Size]::new([int]$formType.GetField('OpeningWidth', $static).GetValue($null), [int]$formType.GetField('OpeningHeight', $static).GetValue($null))
     return $window
 }

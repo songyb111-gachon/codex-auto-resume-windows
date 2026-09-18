@@ -460,7 +460,20 @@ def overview_states(now: float) -> list:
             ["a stopped watcher", watcher(True, False, True, "unknown", 3 * 86400)],
             ["a watcher in an unknown state", watcher(True, None, True, "structurally_compatible", None)],
             ["nothing waiting, History unreadable", idle],
-            ["Pending unreadable", unreadable]]
+            ["Pending unreadable", unreadable],
+            ["a first installation", first_installation(now)]]
+
+
+def first_installation(now: float) -> dict:
+    """A dashboard reply as a first installation gives it: the watcher running, nothing waiting, nothing finished and
+    an empty week. Recently finished holds one line, so the Overview's second row needs less than its first."""
+    reply = fullest_snapshot(now)
+    reply["status"]["pending"] = 0
+    reply["week"] = {"interruptions_detected": 0, "continuations_submitted": 0, "pending": 0, "outcomes": {},
+                     "success_rate": None}
+    reply["pending"] = []
+    reply["history"] = []
+    return reply
 
 
 def finished_while_open(snapshot: dict, now: float) -> dict:
@@ -489,22 +502,23 @@ class WindowCompositionTests(unittest.TestCase):
         return source[start:source.index("\n        }\n", start)]
 
     def test_the_window_opens_at_a_size_the_overview_fits_and_does_not_grow(self):
-        """1000 by 632: the Overview whole in every language at every scaling (LayoutAuditTests
-        holds the page to it), and the window the tallest that still fits a 1920 by 1080 screen at
-        150%, less a few pixels. It was 600 high until the Overview's rows shared the page's height
-        (SoftRows): the person found its cards too wide and too short, and the height the window can
-        have is what makes them taller."""
+        """1000 by 664 (v0.6.5): the Overview whole in every language at every scaling, each card a little
+        taller than what it holds and the page's rhythm under the last row (LayoutAuditTests holds the page to
+        it). With the buttons at the cards' bottom left, in rows of their own, the rows need a window of 624 to
+        635 px; 664 is 626 - what they need at 100% - with the scale's medium step in every card and the page's
+        gap under them. It is taller than a 1920 by 1080 screen at 150% has room for, where KeepOnScreen makes it
+        as tall as the work area and the Overview still fits (LayoutAuditTests measures the shortest window)."""
         self.assertIn("ClientSize = new Size(Px(OpeningWidth), Px(OpeningHeight));", self.window)
         width = int(re.search(r"internal const int OpeningWidth = (\d+);", self.window).group(1))
         height = int(re.search(r"internal const int OpeningHeight = (\d+);", self.window).group(1))
-        self.assertEqual((width, height), (1000, 632))
+        self.assertEqual((width, height), (1000, 664))
         # The work area of 1920 by 1080 at 150% with the taskbar (72 device pixels), and the frame Windows
         # 11 gives the window there, in device pixels: 22 across, 56 down (measured with GetWindowRect,
         # and AdjustWindowRectExForDpi at 144 DPI answers the same).
         self.assertLessEqual(round(width * 1.5) + 22, 1920)
-        spare = (1080 - 72) - (round(height * 1.5) + 56)
-        self.assertGreaterEqual(spare, 0, "the window no longer fits a 1920 by 1080 screen at 150%")
-        self.assertLessEqual(spare, 6, "a few pixels to spare, not a band the Overview's cards could have")
+        self.assertGreater(round(height * 1.5) + 56, 1080 - 72, "it fits there now; the reasoning above is out of date")
+        self.assertIn("ClientSize = new Size(Math.Max(Px(340), Math.Min(ClientSize.Width, screen.Width - frameWidth)),",
+                      self.method(self.window, "private void KeepOnScreen("), "a smaller screen makes the window smaller")
         self.assertIn("MinimumSize = new Size(Px(800), Px(420));", self.window)
         self.assertIn("KeepOnScreen();", self.window)
         self.assertNotIn("FitToContent", self.window + self.dashboard,
@@ -615,7 +629,7 @@ class WindowCompositionTests(unittest.TestCase):
         self.assertNotIn("AutoScrollPosition", self.window + self.dashboard)
         self.assertIn("int width = page - SoftBar.Gutter;", self.method(self.window, "private void FitSections("))
         self.assertIn("new SoftListHost(list)", self.method(self.dashboard, "private Control ListCard("))
-        self.assertIn("new SoftListHost(view)", self.method(self.dashboard, "private void OpenTimeline("))
+        self.assertIn("new SoftListHost(view)", self.method(self.dashboard, "private Form BuildTimeline("))
         wheel = self.method(self.window, "private static void IgnoreWheel(")
         self.assertIn("handled.Handled = true;", wheel, "the drop-down must not change under the wheel")
         self.assertIn("Soft.PassWheel(sender as Control, e.Delta);", wheel, "and the page must still scroll over it")
@@ -634,88 +648,75 @@ class WindowCompositionTests(unittest.TestCase):
         self.assertIn("else if (child.Dock == DockStyle.Fill) stacked += Math.Max(0, child.MinimumSize.Height);", measure,
                       "a filling child - the list and the explanation - counts at its minimum, so it gives way")
 
-    def test_the_overview_pins_each_cards_action_to_the_cards_bottom_right(self):
-        """v0.6.4, as the person asked: a card's heading at the top left and the button it leads to at its
-        bottom right - beside the last lines where they leave room, under them where they do not, and never
-        over text (LayoutAuditTests measures every language at every scaling). It replaces the row that put
-        the button beside the heading."""
+    def test_the_overview_leads_to_each_cards_button_from_its_bottom_left(self):
+        """v0.6.5, as the person asked: the first screen's buttons at the bottom LEFT of their cards, as v0.6.2 had
+        them - a card's heading at the top left, what it holds under it, and the button it leads to in a row of its
+        own under the last line, the scale's medium step clear of it, at the bottom of whatever height the card is
+        given. It replaces v0.6.4's button pinned to the bottom right beside the last lines (SoftPin). LayoutAuditTests
+        holds every button to its corner, over no text and clear of it, in every language at every scaling."""
         overview = self.method(self.dashboard, "private Control BuildOverview(")
-        self.assertEqual(overview.count("PinTo("), 4, "every Overview card has the same gap under its heading, so their facts line up")
-        self.assertNotIn("HeadWith(", self.dashboard, "a card's button no longer sits beside its heading")
-        self.assertIn("SoftPin nowBlock = PinTo(now, toggleButton);", overview)
-        self.assertIn("nowBlock.Wraps = facts;", overview,
-                      "the names of the facts give way before the button drops under them: dropped in German, it "
-                      "made the Overview taller than its window")
-        self.assertIn("ReserveNowWords(nowBlock);", overview)
-        self.assertIn("PinTo(week, null);", overview)
-        pin = self.method(self.dashboard, "private SoftPin PinTo(")
-        self.assertIn("heading.Margin = Pad(0, 0, 0, Brand.CardFirstGap);", pin)
-        self.assertIn("card.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));", pin,
-                      "the block reaches the card's inner bottom edge however tall the card beside it makes this one")
-        self.assertIn("Pinned(button, card);", pin, "LayoutAudit holds the button to its card's corner")
-        controls = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
-        block = controls[controls.index("internal sealed class SoftPin"):controls.index("internal static class NativePaint")]
-        self.assertNotIn("SetChildIndex", block,
-                         "the content above the button in the z-order, so a screen reader reaches it first")
-        self.assertLess(block.index("Controls.Add(body);"), block.index("Controls.Add(pin);"))
-        self.assertIn("region.Exclude(place);", block, "and the button shows through a hole in the content's window")
-        self.assertIn("body.TabIndex = 0;", block)
-        self.assertIn("pin.TabIndex = 1;", block, "read and reached by Tab after what the card says")
-        self.assertIn("place = new Rectangle(width - size.Width, Math.Max(0, ClientSize.Height - size.Height), size.Width, size.Height);",
-                      block)
-        self.assertIn("Soft.Px(Brand.CardHeadGap)", block, "text stops the card's head gap short of the button")
-        self.assertIn("Soft.Px(Brand.CardFirstGap)", block, "and a button under text is the first gap below it")
-        planned = block[block.index("private int Plan("):block.index("private Size PinSize(")]
-        self.assertNotRegex(planned, r"(?<!Padding)(?<!Margin)(?<!AnchorStyles)\.(?:Left|Top|Bounds|Location)\b",
-                            "a height read from where the content was last laid out answered for a width the table "
-                            "only asked about, and a card at 150% stayed three times as tall as its facts")
-        self.assertIn("var card = Parent as SoftCard;", block,
-                      "asked how wide it would be, the block answers the width of the card being measured")
-        card = controls[controls.index("internal sealed class SoftCard"):controls.index("internal sealed class SoftPin")]
-        self.assertIn("Measuring = proposedSize.Width > 1 && proposedSize.Width < 0x100000 ? proposedSize.Width : 0;", card)
-        self.assertIn("page.Unsettle();", block, "a block given less than it needs has its page lay it out once more")
+        self.assertEqual(overview.count("Lead("), 4, "every Overview card has the same gap under its heading, so their facts line up")
+        self.assertNotIn("PinTo(", self.dashboard)
+        self.assertNotIn("SoftPin", self.dashboard.replace("(SoftPin)", ""), "nothing on the Overview is pinned to the right any more")
+        self.assertIn("Lead(now, toggleButton);", overview)
+        self.assertIn("Lead(week, null);", overview)
+        lead = self.method(self.dashboard, "private void Lead(")
+        self.assertIn("heading.Margin = Pad(0, 0, 0, Brand.CardFirstGap);", lead)
+        self.assertIn("button.Anchor = AnchorStyles.Left | AnchorStyles.Bottom;", lead)
+        self.assertIn("button.Margin = Pad(0, LeadGap, 0, 0);", lead)
+        self.assertLess(lead.index("card.Controls.Add(button);"), lead.index("card.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));"),
+                        "the button's row takes what the card has past its content, and the button stands at its bottom")
+        self.assertIn("card.RowStyles.Add(new RowStyle(SizeType.AutoSize));", lead, "what the card holds stays at its top")
+        self.assertIn("led[button] = card;", lead, "LayoutAudit holds the button to its card's bottom-left corner")
+        self.assertIn("internal const int LeadGap = Brand.SpaceM;", self.dashboard,
+                      "the scale's medium step: SpaceL made the Overview taller than a 1920 by 1080 screen at 150%")
+        self.assertNotIn("card.Padding", lead, "the Overview's cards keep the padding every card has (brand card_pad)")
         facts = self.method(self.dashboard, "private TableLayoutPanel Facts(")
         self.assertIn("grid.Margin = new Padding(0);", facts, "the default 3 px margin never scaled")
-        self.assertIn("var grid = new SoftStack();", facts, "a ground, so a button pinned beside the facts keeps its lift")
+        self.assertIn("var grid = new SoftStack();", facts, "a ground, so a button's lift is drawn on it")
         recent = self.method(self.dashboard, "private void FillRecent(")
         self.assertIn("new LineLabel()", recent, "a long conversation name wrapped the Overview past the window")
 
-    def test_the_overviews_rows_share_the_whole_height_of_the_page(self):
-        """v0.6.4, as the person asked: the Overview's cards were too wide and too short, over an empty band above
-        the footer. Its two rows share the page's whole height - rows of one height, cards of one height in a row,
-        what a card holds at its top and its button down in its corner. A page too short for rows alike gives each
-        row what its own cards need and the rest to the shorter, and scrolls only when it is shorter than that, as
-        before. LayoutAuditTests measures every language at every scaling and state, that no band is left, and the
-        shortest window the Overview fits."""
+    def test_the_overviews_rows_hold_their_cards_and_keep_the_pages_rhythm_under_them(self):
+        """v0.6.5, as the person asked: white space is part of the design. v0.6.4 stretched the Overview's cards down
+        the whole page, and what they held floated at their tops. Now the rows are alike - each as tall as the tallest
+        needs and a little more, never more than comfort allows - and under the last row the page keeps its own
+        padding, the mirror of the padding over the first row, as every page keeps under its last card: the review
+        found the Overview's gap above the footer 41 px where Pending's and History's is 27, and 87 on a first
+        installation, whose short second row was left short over a band (OverviewHeights, whose cases
+        LayoutAuditTests runs). What a taller window has past comfort stays as space under the rows. Every spacing is a
+        step of brand's scale."""
         overview = self.method(self.dashboard, "private Control BuildOverview(")
-        self.assertIn("var grid = new SoftRows(2, 2);", overview)
-        self.assertNotIn("Grid(2)", overview, "a grid as tall as its cards leaves the band under them")
+        self.assertIn("var grid = new SoftStack();", overview)
+        self.assertNotIn("new SoftRows(", overview, "rows that share the whole page are what left the cards emptier than their content")
+        self.assertIn("grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 0f));", overview)
+        self.assertIn("grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));", overview, "a row of space under the cards")
+        self.assertIn("grid.AutoSize = true;", overview,
+                      "a table that does not size itself tells its page nothing, and a card that grew would not scroll it")
+        self.assertIn("page.Layout += delegate { FitOverview(scroller, grid); };", overview,
+                      "fitted before the page lays the grid out, every time it does")
         for margin in ("now.Margin = RowGap(0, 0);", "waiting.Margin = RowGap(1, 0);",
                        "week.Margin = RowGap(0, 1);", "recent.Margin = RowGap(1, 1);"):
             with self.subTest(margin):
                 self.assertIn(margin, overview)
-        gap = self.method(self.dashboard, "private Padding RowGap(")
-        self.assertIn("row == 0 ? 0 : half", gap, "half the page gap over the second row")
-        self.assertIn("row == 0 ? half : 0", gap, "and half under the first, so rows of one height are cards of one height")
+        fit = self.method(self.dashboard, "private void FitOverview(")
+        self.assertIn("OverviewHeights(needs, room, rest, Px(OverviewComfort))", fit)
+        self.assertIn("int room = page.ClientSize.Height - page.Padding.Top;", fit)
+        self.assertIn("int rest = page.Padding.Bottom;", fit, "under the last row, the page's own padding, as on every page")
+        self.assertIn("grid.MinimumSize = new Size(0, total);", fit, "the page counts the rows at what they need, and scrolls past that")
+        self.assertIn("grid.SuspendLayout();", fit)
+        self.assertIn("grid.ResumeLayout(true);", fit, "one layout of the grid for every row that changed")
+        self.assertNotIn("OverviewRest", self.dashboard + self.window,
+                         "no space of its own under the rows, past the padding every page keeps under its last card")
+        self.assertIn("internal const int OverviewComfort = Brand.SpaceXl;", self.dashboard)
         controls = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
-        rows = controls[controls.index("internal sealed class SoftRows"):controls.index("internal sealed class SoftPage")]
-        self.assertIn("Dock = DockStyle.Fill;", rows)
-        self.assertIn("AutoSize = true;", rows,
-                      "a table that does not size itself tells its page nothing, and a card that grew would not scroll it")
-        self.assertNotIn("PerformLayout(", rows, "asked from inside its own layout, the page's new size never reached the cards")
-        self.assertIn("RowStyles.Add(new RowStyle(SizeType.Percent, 100f / rows));", rows, "every row the same share to start with")
-        self.assertIn("float[] shares = Shares(RowNeeds(display.Width), display.Height);", rows,
-                      "the rows' shares follow what their cards need and the room, at every layout")
-        self.assertIn("foreach (int need in RowNeeds(width)) total += need;", rows,
-                      "the page scrolls only where the rows' own tallest cards do not fit: counted with every row as tall as "
-                      "the tallest, the Overview scrolled in any window from 598 to 617 px high, where v0.6.3's fitted")
         measure = self.method(controls, "private int Measure(")
-        self.assertIn("((SoftRows)child).Needed(display.Width)", measure, "the page scrolls when the rows need more than it has")
-        arrange = self.method(controls, "private void Arrange(")
-        self.assertIn("if (limit > 0 && whole <= ClientSize.Height)", arrange,
-                      "the names of Right now wrap only where the card has no room for them whole")
+        self.assertIn("else if (child.Dock == DockStyle.Fill) stacked += Math.Max(0, child.MinimumSize.Height);", measure,
+                      "the page counts a grid that fills it at its MinimumSize")
         audit = self.method(self.window, "private void AuditRows(")
+        self.assertIn("leaves only", audit)
         self.assertIn("leaves an empty band", audit)
+        self.assertIn("floats", audit)
         self.assertIn("page.ClientSize.Height - page.Padding.Bottom - bottom", audit)
         self.assertIn("form.AuditRows(page, true, findings);", self.window)
         self.assertIn("form.AuditNames(page, findings);", self.window)
@@ -723,36 +724,41 @@ class WindowCompositionTests(unittest.TestCase):
         state = self.method(self.window, "private void AuditState(")
         self.assertIn("AuditRows(where, true, findings);", state)
         self.assertIn("AuditNames(where, findings);", state)
+        self.assertIn("AuditLead(where, pair.Key, pair.Value, Px(LeadGap), findings);", state)
 
-    def test_right_now_is_planned_for_every_word_its_facts_and_its_button_are_given(self):
-        """Right now is laid out for the widest words each fact and the button are ever given (SoftPin.Reserve), so it
-        neither scrolls the Overview nor moves as the watcher's state changes or its last check ages. Automatic recovery
-        comes first again, as before v0.6.4 put it last on the button's line: with the rows sharing the page (SoftRows)
-        the button stands under the facts in every language, and LayoutAuditTests measures it at every scaling in every
-        state - no scrolling, no move, nothing under the button."""
-        overview = self.method(self.dashboard, "private Control BuildOverview(")
-        order = [overview.index(name + " = Fact(facts,") for name in ("nowRecovery", "nowWatcher", "nowEngine", "nowLastCheck")]
-        self.assertEqual(order, sorted(order), "automatic recovery, then the watcher, the engine and the last check")
-        reserve = self.method(self.dashboard, "private void ReserveNowWords(")
-        applied = self.method(self.dashboard, "private void ApplySnapshot(")
-        applied = applied[:applied.index("if (diagVersion != null)")]
-        for key in sorted(set(re.findall(r'S\("((?:overview|diag)\.[a-z_]+)"', applied))):
-            with self.subTest(key=key):
-                self.assertIn('S("%s"' % key, reserve, "a word Right now is given that it is not planned for")
-        for state in ("verified", "structurally_compatible", "incompatible", "unknown"):
-            with self.subTest(engine=state):
-                self.assertIn('S("engine.%s"' % state, reserve)
-        self.assertIn('S("engine." + engine, engine)', applied, "the engine's word is the one its state is looked up by")
-        for age in ("Age(0)", "Age(59)", "Age(59 * 60)", "Age(23 * 3600)", "Age(999 * 86400)", 'S("time.never", "never")'):
-            with self.subTest(age=age):
-                self.assertIn(age, reserve, "the widest word of each unit Age writes")
-        toggle = self.method(self.dashboard, "private void UpdateToggle(")
-        for key in re.findall(r'S\("(action\.[a-z_]+)"', toggle):
-            with self.subTest(key=key):
-                self.assertIn('block.Reserve(toggleButton, ', reserve)
-                self.assertIn('S("%s"' % key, reserve[reserve.index("block.Reserve(toggleButton, "):])
-        self.assertIn('"unknown"', self.method(self.dashboard, "private void MarkUnavailable("))
-        self.assertIn('string unknown = S("diag.unknown", "unknown");', reserve)
+    def test_the_lists_columns_share_the_lists_width(self):
+        """v0.6.5 (the person, with a screenshot): a white native horizontal bar under the Pending list, on a dark card.
+        The columns had their headings whole whatever the list's width. Now, as the list narrows, what gives way in turn
+        is a conversation's name past its heading, the cells past a readable width, the headings past what their columns
+        hold (the widest first), and last the cells, down to the least a column can show - each ending in an ellipsis -
+        and the last column fills what the others leave (ColumnFloors), in Pending, History and the Timeline dialog
+        alike. LayoutAuditTests holds every list to its width at the opening size, with rows and without, and at the
+        window's narrowest; tests/test_gui_v065_window.py holds the order to its cases and to the review's German list."""
+        fit = self.method(self.dashboard, "private void FitColumns(")
+        self.assertIn("int[] floor = ColumnFloors(heading, cells, least, Px(ReadableCells), available);", fit)
+        self.assertIn("int width = i == weights.Length - 1 ? Math.Max(floor[i], available - used)", fit, "the last column fills")
+        floors = self.method(self.dashboard, "internal static int[] ColumnFloors(")
+        self.assertIn("int need = Math.Max(least[i], i == 0 ? Math.Min(cell, heading[0]) : cell);", floors,
+                      "a conversation's name holds only as much as its heading, past which it gives way first")
+        self.assertIn("hold[i] = Math.Max(least[i], Math.Min(need, readable));", floors)
+        self.assertIn("keep[i] = Math.Max(heading[i], hold[i]);", floors, "every heading whole before any gives way")
+        capped = self.method(self.dashboard, "private static int Capped(")
+        self.assertIn("Math.Max(hold[i], Math.Min(keep[i], cap))", capped,
+                      "the headings give way first, the widest first, never below what the column holds")
+        self.assertIn("Math.Max(least[i], Math.Min(hold[i], cap))", capped, "then the widest cells, never below the least")
+        least = self.method(self.dashboard, "private int LeastWidth(")
+        self.assertIn("Px(Brand.SwitchWidth + 2) + Px(14)", least, "the Auto-resume switch is never cut")
+        measure = self.method(self.dashboard, "private void MeasureCells(")
+        self.assertIn("CountdownText(item.Tag as Dictionary<string, object>, Now())", measure,
+                      "the countdown measured as the clock writes it, not as the last tick left it")
+        for draw in ("private void DrawHeader(", "private void DrawCell("):
+            with self.subTest(draw):
+                self.assertIn("TextFormatFlags.EndEllipsis", self.method(self.dashboard, draw))
+        self.assertIn("MeasureCells(view);", self.method(self.dashboard, "private Form BuildTimeline("))
+        self.assertIn("MeasureCells(list);", self.method(self.dashboard, "private void ShowUnreadableList("),
+                      "a list emptied because it cannot be read keeps no room for cells it no longer has")
+        self.assertIn('form.AuditLists(page + " with no rows", findings);', self.window)
+        self.assertIn("form.AuditTimeline(snapshot, findings);", self.window)
 
     def test_a_page_shows_its_bar_by_what_fits_without_it_and_not_by_what_showed_before(self):
         controls = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
@@ -763,9 +769,6 @@ class WindowCompositionTests(unittest.TestCase):
         move = self.method(page, "private void MoveTo(")
         self.assertIn("moving = true;", move, "scrolling moves what the page holds and lays nothing out twice")
         self.assertIn("finally { moving = false; }", move)
-        invalidate = self.method(controls, "internal static void Invalidate(Control container, Rectangle band)")
-        self.assertIn("block.InvalidateUnder(band);", invalidate,
-                      "a pinned button's ring and lift are repainted on the content windows under them")
 
     def test_every_button_at_the_right_of_a_card_or_row_is_pinned_to_its_bottom_right(self):
         """The header's Start button and the Clear buttons under the Custom messages are at the right of a card
@@ -850,31 +853,34 @@ $schema = [IO.File]::ReadAllText((Join-Path $work 'schema.json'), $utf8)
 $current = [IO.File]::ReadAllText((Join-Path $work 'settings.json'), $utf8)
 # The most the pages ever show (fullest_snapshot).
 $snapshot = [IO.File]::ReadAllText((Join-Path $work 'snapshot.json'), $utf8)
-$out = @{ audit = @{}; pins = @{}; notes = @{}; shortest = @{}; canary = ''; cramped = ''; cache = @{} }
+$out = @{ audit = @{}; pins = @{}; lists = @{}; notes = @{}; shortest = @{}; canary = ''; cramped = ''; cache = @{} }
 $auditedPins = $form.GetField('AuditedPins', $static)
+$auditedLists = $form.GetField('AuditedLists', $static)
 $auditedNotes = $form.GetField('AuditedNotes', $static)
 $auditedShortest = @('AuditedShortest', 'AuditedAlike', 'AuditedWraps' | ForEach-Object { $form.GetField($_, $static) })
 foreach ($locale in (ConvertFrom-Json $env:CAR_LOCALES)) {
     $catalog = [IO.File]::ReadAllText((Join-Path $work ('strings-' + $locale + '.json')), $utf8)
     $out.audit[$locale] = @{}
     $out.pins[$locale] = @{}
+    $out.lists[$locale] = @{}
     $out.notes[$locale] = @{}
     $out.shortest[$locale] = @{}
     foreach ($scale in (ConvertFrom-Json $env:CAR_SCALES)) {
         $key = ([double]$scale).ToString('0.00', [Globalization.CultureInfo]::InvariantCulture)
         $out.audit[$locale][$key] = [string]$audit.Invoke($null, [object[]]@($schema, $current, $catalog, $snapshot, [double]$scale))
         $out.pins[$locale][$key] = [int]$auditedPins.GetValue($null)
+        $out.lists[$locale][$key] = if ($null -eq $auditedLists) { -1 } else { [int]$auditedLists.GetValue($null) }
         $out.notes[$locale][$key] = if ($null -eq $auditedNotes) { -1 } else { [int]$auditedNotes.GetValue($null) }
         $out.shortest[$locale][$key] = @($auditedShortest | ForEach-Object { if ($null -eq $_) { -1 } else { [int]$_.GetValue($null) } })
     }
 }
-# How a grid whose rows share the page gives each row its share (SoftRows.Shares), for the rows' needs and the room.
-$sharesOf = $assembly.GetType('CodexAutoResume.SoftRows', $true).GetMethod('Shares', $static)
-$out.shares = @()
-foreach ($case in (ConvertFrom-Json ([IO.File]::ReadAllText((Join-Path $work 'shares.json'), $utf8)))) {
-    if ($null -eq $sharesOf) { $out.shares += ,'SoftRows has no Shares'; continue }
-    $given = $sharesOf.Invoke($null, [object[]]@([int[]]@($case[0] | ForEach-Object { [int]$_ }), [int]$case[1]))
-    $out.shares += ,@($given | ForEach-Object { [double]$_ })
+# How tall the Overview's rows are (SettingsForm.OverviewHeights), for the rows' needs, the room, the rhythm and comfort.
+$heightsOf = $form.GetMethod('OverviewHeights', $static)
+$out.heights = @()
+foreach ($case in (ConvertFrom-Json ([IO.File]::ReadAllText((Join-Path $work 'heights.json'), $utf8)))) {
+    if ($null -eq $heightsOf) { $out.heights += ,'SettingsForm has no OverviewHeights'; continue }
+    $given = $heightsOf.Invoke($null, [object[]]@([int[]]@($case[0] | ForEach-Object { [int]$_ }), [int]$case[1], [int]$case[2], [int]$case[3]))
+    $out.heights += ,@($given | ForEach-Object { [int]$_ })
 }
 # The Overview as the watcher's state changes under it (overview_states), opened on a watcher in trouble.
 $statesAudit = $form.GetMethod('OverviewStatesAudit', $static)
@@ -896,8 +902,8 @@ foreach ($locale in (ConvertFrom-Json $env:CAR_LOCALES)) {
 # report on the states is the audit measuring.
 $english = [IO.File]::ReadAllText((Join-Path $work 'strings-en.json'), $utf8)
 $out.statesCanary = [string]$statesAudit.Invoke($null, [object[]]@($english, [IO.File]::ReadAllText((Join-Path $work 'states-canary.json'), $utf8), [double]1.0))
-# An engine state one line longer than any the window has a word for: Right now needs a line more, and its card, given
-# its share of the page, keeps its size and the page does not scroll - so only the height it needs shows the move.
+# An engine state one line longer than any the window has a word for: Right now needs a line more, and the page does
+# not scroll - so the move shows in the height it needs.
 $out.statesLineCanary = [string]$statesAudit.Invoke($null, [object[]]@($english, [IO.File]::ReadAllText((Join-Path $work 'states-line-canary.json'), $utf8), [double]1.0))
 # A button that is neither in its card's corner nor clear of the card's text, so a quiet report on pins is the
 # audit measuring them.
@@ -916,6 +922,33 @@ $pinCard.Controls.Add($stray)
 $pinFindings = New-Object 'System.Collections.Generic.List[string]'
 $null = $form.GetMethod('AuditPin', $static).Invoke($null, [object[]]@('canary', $stray.PSObject.BaseObject, $pinCard.PSObject.BaseObject, $pinFindings.PSObject.BaseObject))
 $out.pinCanary = ($pinFindings -join "`n")
+# The same button held to the bottom LEFT, as an Overview card's is (AuditLead), and a line of text just above a button
+# that is in its corner, so a quiet report on the Overview's buttons is the audit measuring them.
+$leadFindings = New-Object 'System.Collections.Generic.List[string]'
+$null = $form.GetMethod('AuditLead', $static).Invoke($null, [object[]]@('canary', $stray.PSObject.BaseObject, $pinCard.PSObject.BaseObject, [int]12, $leadFindings.PSObject.BaseObject))
+$crowd = New-Object Windows.Forms.Panel
+$crowd.Padding = New-Object Windows.Forms.Padding 10
+$crowd.Size = New-Object Drawing.Size 300, 120
+$above = New-Object Windows.Forms.Label
+$above.AutoSize = $false
+$above.Text = 'above'
+$above.Bounds = New-Object Drawing.Rectangle 10, 62, 280, 14
+$cornered = New-Object Windows.Forms.Button
+$cornered.Text = 'cornered'
+$cornered.Bounds = New-Object Drawing.Rectangle 10, 76, 120, 34
+$crowd.Controls.Add($above)
+$crowd.Controls.Add($cornered)
+$null = $form.GetMethod('AuditLead', $static).Invoke($null, [object[]]@('crowded', $cornered.PSObject.BaseObject, $crowd.PSObject.BaseObject, [int]12, $leadFindings.PSObject.BaseObject))
+$out.leadCanary = ($leadFindings -join "`n")
+# A list whose columns are wider than it is (AuditList), so a quiet report on the lists is the audit measuring them.
+$wide = New-Object Windows.Forms.ListView
+$wide.View = [Windows.Forms.View]::Details
+$wide.Size = New-Object Drawing.Size 300, 120
+$null = $wide.Columns.Add('one', 200)
+$null = $wide.Columns.Add('two', 200)
+$listFindings = New-Object 'System.Collections.Generic.List[string]'
+$null = $form.GetMethod('AuditList', $static).Invoke($null, [object[]]@('canary', $wide.PSObject.BaseObject, $listFindings.PSObject.BaseObject))
+$out.listCanary = ($listFindings -join "`n")
 # A label that cannot fit, so an empty report means the audit looked rather than that it saw nothing.
 $canary = [IO.File]::ReadAllText((Join-Path $work 'strings-canary.json'), $utf8)
 $out.canary = [string]$audit.Invoke($null, [object[]]@($schema, $current, $canary, $snapshot, [double]1.0))
@@ -1138,9 +1171,10 @@ foreach ($locale in (ConvertFrom-Json $env:CAR_LOCALES)) {
     $window.Dispose()
 }
 
-# Each Overview card's button, over the content it is pinned beside: the windows under its lift and focus ring, whether
-# a change of the button's state repaints them, and the order of the block's windows - the order Windows hands a
-# screen reader. At this machine's scale, in English, never shown: a window has a handle without being on screen.
+# Each Overview card's button (Lead): the windows of its card under its lift and focus ring, and the order of the card's
+# windows - the order Windows hands a screen reader. In a window as tall as the rows need, where every button is as close
+# under what its card holds as it ever comes, at this machine's scale, in English, never shown: a window has a handle
+# without being on screen.
 Add-Type -Namespace LayoutProbe -Name Native -MemberDefinition @'
 [DllImport("user32.dll")] public static extern System.IntPtr GetWindow(System.IntPtr window, uint command);
 '@
@@ -1160,73 +1194,133 @@ Invoke-Window $window 'ShowPage' @('overview')
 $null = $materialise.Invoke($null, [object[]]@($window))
 $window.PerformLayout()
 $overview = (Get-Field $window 'pages')['overview']
-# The window as tall as the page needs and no taller. At the opening size the rows share more than that (SoftRows), and a
-# block given more than it needs has its button under its content, clear of every window a ring could cross; as tall as
-# it needs, the tallest row's blocks are as short as they go, their buttons beside or just under what they hold.
 $pageExtent = [int]$overview.GetType().GetProperty('Extent', $instance).GetValue($overview)
 $window.ClientSize = New-Object Drawing.Size $window.ClientSize.Width, ($window.ClientSize.Height - [Math]::Max(0, $overview.ClientSize.Height - $pageExtent))
 $null = $materialise.Invoke($null, [object[]]@($window))
 $window.PerformLayout()
 $out.liftsAt = @([int]$overview.ClientSize.Height, $pageExtent, [bool]$overview.GetType().GetProperty('Overflowing', $instance).GetValue($overview))
 $out.lifts = @()
-$script:repainted = @{}
-foreach ($pair in (Get-Field $window 'pinned').GetEnumerator()) {
+foreach ($pair in (Get-Field $window 'led').GetEnumerator()) {
     $button = $pair.Key
-    $onOverview = $false
-    for ($c = $button; $null -ne $c; $c = $c.Parent) { if ($c -eq $overview) { $onOverview = $true } }
-    if (-not $onOverview) { continue }
-    $block = $button.Parent
+    $card = $pair.Value
     $band = [Drawing.Rectangle]$bandOf.Invoke($null, [object[]]@($button, 'control'))
     $under = New-Object Collections.ArrayList
-    Get-Under $block 0 0 $band $button $under
-    $script:repainted.Clear()
-    foreach ($entry in $under) {
-        $entry[0].add_Invalidated([Windows.Forms.InvalidateEventHandler]{
-            param($sender, $e)
-            $script:repainted[[Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($sender)] = $e.InvalidRect
-        })
-    }
-    # A change of state that moves nothing: the lift goes, and comes back.
-    $button.Enabled = $false
-    $button.Enabled = $true
+    Get-Under $card 0 0 $band $button $under
     $names = @()
-    $covered = @()
-    foreach ($entry in $under) {
-        $names += ($entry[0].GetType().Name + ' ' + $entry[1])
-        $rect = $script:repainted[[Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($entry[0])]
-        $wanted = [Drawing.Rectangle]::Intersect($band, $entry[1])
-        $wanted.Offset(-$entry[1].X, -$entry[1].Y)
-        $covered += [bool]($null -ne $rect -and ([Drawing.Rectangle]$rect).Contains($wanted))
-    }
+    foreach ($entry in $under) { $names += ($entry[0].GetType().Name + ' ' + $entry[1]) }
     $order = @()
-    for ($h = [LayoutProbe.Native]::GetWindow($block.Handle, 5); $h -ne [IntPtr]::Zero; $h = [LayoutProbe.Native]::GetWindow($h, 2)) {
+    for ($h = [LayoutProbe.Native]::GetWindow($card.Handle, 5); $h -ne [IntPtr]::Zero; $h = [LayoutProbe.Native]::GetWindow($h, 2)) {
         $order += [Windows.Forms.Control]::FromHandle($h).GetType().Name
     }
-    $body = @($block.Controls | Where-Object { $_ -ne $button })[0]
-    $overlaps = $body.Bounds.IntersectsWith($button.Bounds)
-    $middle = New-Object Drawing.Point ($button.Left + [int]($button.Width / 2) - $body.Left), ($button.Top + [int]($button.Height / 2) - $body.Top)
-    $beside = New-Object Drawing.Point ($button.Left - 1 - $body.Left), ($button.Top + [int]($button.Height / 2) - $body.Top)
-    $region = $body.Region
-    $out.lifts += ,@{ text = [string]$button.Text; under = $names; repainted = $covered; order = $order; overlaps = [bool]$overlaps
-                      buttonShows = [bool]($null -ne $region -and -not $region.IsVisible($middle));
-                      contentShows = [bool]($null -eq $region -or $region.IsVisible($beside)) }
+    $tabs = @($card.Controls | Where-Object { Test-Own $_ } | Sort-Object TabIndex | ForEach-Object { $_.GetType().Name })
+    $out.lifts += ,@{ text = [string]$button.Text; parent = [string]$button.Parent.GetType().Name; under = $names; order = $order; tabs = $tabs }
 }
 $window.Dispose()
 
-# An Overview whose grid is as tall as its cards, as it was before its rows shared the page's height, so a quiet report
-# on the band above the footer is the audit measuring. At this machine's scale and the opening size, in English.
+# The Overview laid out otherwise than FitOverview lays it out, so a quiet report on its rows is the audit measuring:
+# its rows 20 px taller each than FitOverview made them, reaching into the page's padding under them; its rows as they
+# were, in a window 120 px taller (a band); and its rows sharing a window 240 px taller (cards that float). At this
+# machine's scale, in English, from the opening size.
+function Get-RowsCanary([int]$taller, [bool]$fill, [int]$grow) {
+    $window = New-Window $true
+    Invoke-Window $window 'ApplySnapshot' @((Read-Snapshot 'snapshot.json'))
+    Invoke-Window $window 'ShowPage' @('overview')
+    $null = $materialise.Invoke($null, [object[]]@($window))
+    $window.PerformLayout()
+    $form.GetField('fitOverview', $instance).SetValue($window, $false)
+    $grid = Get-Field $window 'overviewGrid'
+    if ($fill) {
+        for ($i = 0; $i -lt 2; $i++) { $grid.RowStyles[$i].SizeType = [Windows.Forms.SizeType]::Percent; $grid.RowStyles[$i].Height = 50 }
+        $grid.RowStyles[2].SizeType = [Windows.Forms.SizeType]::Absolute
+        $grid.RowStyles[2].Height = 0
+    }
+    for ($i = 0; $i -lt 2 -and $grow -ne 0; $i++) { $grid.RowStyles[$i].Height = $grid.RowStyles[$i].Height + $grow }
+    $window.ClientSize = New-Object Drawing.Size $window.ClientSize.Width, ($window.ClientSize.Height + $taller)
+    $null = $materialise.Invoke($null, [object[]]@($window))
+    $window.PerformLayout()
+    $findings = New-Object 'System.Collections.Generic.List[string]'
+    Invoke-Window $window 'AuditRows' @('rows canary', $true, $findings.PSObject.BaseObject)
+    $window.Dispose()
+    return ($findings -join "`n")
+}
+$out.rowsCanary = @{ grown = (Get-RowsCanary 0 $false 20); band = (Get-RowsCanary 120 $false 0); floats = (Get-RowsCanary 240 $true 0) }
+
+# The space under each page's last card, down to the page's edge, at the opening size: the Overview's with the fullest
+# reply and as a first installation shows it, and Pending's and History's. One rhythm, so the footer stays where it is
+# as the tabs change; the review found the Overview's 41 px where the others' is 27, and 87 on a first installation.
+function Get-Lowest($container, [int]$top) {
+    $lowest = 0
+    foreach ($child in $container.Controls) {
+        if (-not (Test-Own $child)) { continue }
+        if ($child.GetType().Name -eq 'SoftCard' -or $child -is [Windows.Forms.Button]) { $lowest = [Math]::Max($lowest, $top + $child.Bottom) }
+        else { $lowest = [Math]::Max($lowest, (Get-Lowest $child ($top + $child.Top))) }
+    }
+    return $lowest
+}
+$out.gaps = @{}
+foreach ($case in @(@('overview', 'snapshot.json'), @('overview', 'snapshot-first.json'), @('pending', 'snapshot.json'), @('history', 'snapshot.json'))) {
+    $window = New-Window $true
+    $window.ClientSize = New-Object Drawing.Size ([int][Math]::Round([int]$form.GetField('OpeningWidth', $static).GetValue($null) * $systemScale)), ([int][Math]::Round([int]$form.GetField('OpeningHeight', $static).GetValue($null) * $systemScale))
+    Invoke-Window $window 'ApplySnapshot' @((Read-Snapshot $case[1]))
+    Invoke-Window $window 'ShowPage' @($case[0])
+    $null = $materialise.Invoke($null, [object[]]@($window))
+    $window.PerformLayout()
+    $page = (Get-Field $window 'pages')[$case[0]]
+    $out.gaps[$case[0] + ' ' + $case[1]] = @([int]($page.ClientSize.Height - (Get-Lowest $page 0)), [int]$page.Padding.Top, [int]$page.Padding.Bottom,
+                                             [bool]$page.GetType().GetProperty('Overflowing', $instance).GetValue($page))
+    $window.Dispose()
+}
+
+# A name of Right now that wraps, so a quiet report on names is the audit measuring them.
 $window = New-Window $true
 Invoke-Window $window 'ApplySnapshot' @((Read-Snapshot 'snapshot.json'))
 Invoke-Window $window 'ShowPage' @('overview')
-$grid = @((Get-Field $window 'pages')['overview'].Controls)[0]
-$grid.Dock = [Windows.Forms.DockStyle]::Top
-$grid.AutoSize = $true
+$first = (Get-Field $window 'nowFacts').Controls[0]
+$first.MaximumSize = New-Object Drawing.Size 40, 0
 $null = $materialise.Invoke($null, [object[]]@($window))
 $window.PerformLayout()
-$bandFindings = New-Object 'System.Collections.Generic.List[string]'
-Invoke-Window $window 'AuditRows' @('band canary', $true, $bandFindings.PSObject.BaseObject)
-$out.bandCanary = ($bandFindings -join "`n")
+$nameFindings = New-Object 'System.Collections.Generic.List[string]'
+Invoke-Window $window 'AuditNames' @('names canary', $nameFindings.PSObject.BaseObject)
+$out.namesCanary = ($nameFindings -join "`n")
 $window.Dispose()
+
+# Pending and History in the narrowest window there is - 800 wide, the window's MinimumSize - with the fullest reply and
+# with no rows, in every language at 100% and 200%: their columns share the list's width (FitColumns, ColumnFloors).
+$out.narrow = @{}
+$empty = $form.GetMethod('WithoutRows', $static).Invoke($null, [object[]]@((Read-Snapshot 'snapshot.json')))
+$listOf = @{ pending = 'pendingList'; history = 'historyList' }
+foreach ($scale in @(1.0, 2.0)) {
+    $form.GetField('dpiScale', $static).SetValue($null, [double]$scale)
+    $factor = [single]($scale / $systemScale)
+    $box = [Drawing.SystemFonts]::MessageBoxFont
+    [Drawing.Font]$font = New-Object Drawing.Font $box.FontFamily, ($box.SizeInPoints * $factor), $box.Style, ([Drawing.GraphicsUnit]::Point)
+    foreach ($locale in (ConvertFrom-Json $env:CAR_LOCALES)) {
+        $catalogValue = $parse.Invoke($null, [object[]]@([IO.File]::ReadAllText((Join-Path $work ('strings-' + $locale + '.json')), $utf8)))
+        $once = $bridgeType.GetConstructors($instance)[0].Invoke([object[]]@($nowhere))
+        $bridge = $persistentType.GetConstructors($instance)[0].Invoke([object[]]@($nowhere, $once))
+        $window = $three.Invoke([object[]]@($bridge, $catalogValue, $font.PSObject.BaseObject))
+        $form.GetField('auditing', $instance).SetValue($window, $true)
+        $window.TopLevel = $false
+        $window.MinimumSize = [Drawing.Size]::Empty
+        $window.ClientSize = New-Object Drawing.Size ([int][Math]::Round(800 * $scale)), ([int][Math]::Round([int]$form.GetField('OpeningHeight', $static).GetValue($null) * $scale))
+        $found = @()
+        foreach ($reply in @((Read-Snapshot 'snapshot.json'), $empty)) {
+            Invoke-Window $window 'ApplySnapshot' @($reply)
+            foreach ($page in @('pending', 'history')) {
+                Invoke-Window $window 'ShowPage' @($page)
+                $null = $materialise.Invoke($null, [object[]]@($window))
+                $window.PerformLayout()
+                $list = Get-Field $window $listOf[$page]
+                $total = 0
+                foreach ($column in $list.Columns) { $total += $column.Width }
+                if ($total -gt $list.ClientSize.Width) { $found += ($page + ' ' + $total + ' in ' + $list.ClientSize.Width) }
+            }
+        }
+        $out.narrow[$locale + ' ' + $scale] = $found
+        $window.Dispose()
+    }
+}
+$form.GetField('dpiScale', $static).SetValue($null, $systemScale)
 
 # A card that grows on an Overview already laid out, as a refresh grows one: the page is told, measures its rows again
 # and scrolls, and the card is laid out as tall as it now needs.
@@ -1251,19 +1345,18 @@ $window.Dispose()
 
 SCALES = (1.0, 1.25, 1.5, 1.75, 2.0)
 
-# SoftRows.Shares: ((each row's need, the room), the weights its rows' percent styles are given).
-SHARES = (
-    (([141, 178], 427), [50.0, 50.0]),   # room for every row as tall as the tallest: rows alike
-    (([141, 178], 356), [50.0, 50.0]),
-    (([141, 178], 355), [177.0, 178.0]),  # a pixel less: the taller keeps what it needs, the shorter has the rest
-    (([141, 178], 340), [162.0, 178.0]),
-    (([178, 141], 340), [178.0, 162.0]),  # whichever row it is
-    (([141, 178], 319), [141.0, 178.0]),  # no more than they need: each row what it needs
-    (([141, 178], 300), [141.0, 178.0]),  # less, as a page that scrolls is laid out on the way: in proportion
-    (([100, 50, 20], 200), [100.0, 50.0, 50.0]),
-    (([100, 20, 20], 161), [100.0, 31.0, 30.0]),  # in whole pixels that add up to the room
-    (([100, 90, 20], 250), [100.0, 90.0, 60.0]),  # none given less than it needs
-    (([0, 0], 100), [50.0, 50.0]),
+# SettingsForm.OverviewHeights: ((each row's need, the room from the first row's top to the page's edge, the page's
+# padding under the last row, comfort), each row's height).
+HEIGHTS = (
+    (([194, 194], 443, 17, 24), [213, 213]),      # the opening size at 100%: the page's padding under them, the rest shared
+    (([194, 148], 443, 17, 24), [213, 213]),      # a first installation: its short row as tall as the other, no band under it
+    (([194, 184], 443, 17, 24), [213, 213]),
+    (([194, 194], 800, 17, 24), [218, 218]),      # a taller window: comfort at most, the rest is space under the rows
+    (([194, 148], 800, 17, 24), [218, 218]),
+    (([194, 148], 377, 17, 24), [194, 166]),      # no room for them alike: what the page has raises the shorter row
+    (([194, 194], 400, 17, 24), [194, 194]),      # less than they need: what they need, and the page scrolls
+    (([100, 50, 20], 300, 10, 30), [100, 95, 95]),  # the shortest rows raised first, toward the tallest
+    (([0, 0], 100, 14, 24), [24, 24]),
 )
 
 
@@ -1317,6 +1410,7 @@ class LayoutAuditTests(unittest.TestCase):
         (work / "snapshot.json").write_text(json.dumps(fullest, ensure_ascii=False), encoding="utf-8")
         (work / "snapshot-later.json").write_text(json.dumps(finished_while_open(fullest, now), ensure_ascii=False),
                                                   encoding="utf-8")
+        (work / "snapshot-first.json").write_text(json.dumps(first_installation(now), ensure_ascii=False), encoding="utf-8")
         (work / "states.json").write_text(json.dumps(overview_states(now), ensure_ascii=False), encoding="utf-8")
         unheard = copy.deepcopy(fullest)
         unheard["status"]["watcher"]["engine_state"] = " ".join(["a-state-this-window-has-no-word-for"] * 12)
@@ -1326,7 +1420,7 @@ class LayoutAuditTests(unittest.TestCase):
         longer["status"]["watcher"]["engine_state"] = " ".join(["a-state-this-window-has-no-word-for"] * 2)
         (work / "states-line-canary.json").write_text(
             json.dumps([["the fullest", fullest], ["an engine state a line longer", longer]]), encoding="utf-8")
-        (work / "shares.json").write_text(json.dumps([case for case, _ in SHARES]), encoding="utf-8")
+        (work / "heights.json").write_text(json.dumps([case for case, _ in HEIGHTS]), encoding="utf-8")
         install = work / "install"
         (install / "config").mkdir(parents=True)
         (install / "config" / "settings.json").write_text('{"interface_language": "system"}', encoding="utf-8")
@@ -1385,10 +1479,10 @@ class LayoutAuditTests(unittest.TestCase):
                 with self.subTest(locale=locale, scale=scale):
                     self.assertEqual(self.answer["notes"][locale]["%.2f" % scale], 4)
 
-    def test_every_pinned_button_is_at_its_bottom_right_and_over_no_text(self):
-        """The Overview's three card buttons, the Custom messages' two Clear buttons and the header's Start
-        button, in every language at every scaling: each within a pixel of its card's or row's inner bottom-right
-        corner and over no line of text in it (their findings are in the first test's reports). This holds the
+    def test_every_button_is_in_its_corner_and_over_no_text(self):
+        """The Overview's three card buttons at their cards' bottom LEFT, clear of the text above them (AuditLead), and
+        the header's Start button and the Custom messages' two Clear buttons at their card's or row's bottom right
+        (AuditPin), in every language at every scaling (their findings are in the first test's reports). This holds the
         audit to having looked at all six."""
         self.assertEqual(sorted(self.answer["pins"]), sorted(l10n.LOCALES))
         for locale in l10n.LOCALES:
@@ -1400,6 +1494,33 @@ class LayoutAuditTests(unittest.TestCase):
         canary = self.answer["pinCanary"]
         self.assertIn("canary/Button'stray' :: is not at the bottom right of its Panel", canary)
         self.assertIn("canary/Button'stray' :: covers Label'covered'", canary)
+        lead = self.answer["leadCanary"]
+        self.assertIn("canary/Button'stray' :: is not at the bottom left of its Panel", lead)
+        self.assertIn("canary/Button'stray' :: covers Label'covered'", lead)
+        self.assertIn("crowded/Button'cornered' :: has less than 12 px above it to Label'above'", lead,
+                      "a line of text just above a button in its corner went unreported")
+        self.assertNotIn("crowded/Button'cornered' :: is not at the bottom left", lead)
+
+    def test_no_list_scrolls_sideways_at_the_opening_size(self):
+        """v0.6.5 (the person, with a screenshot): Windows' white horizontal bar under the Pending list. Pending and
+        History with the fullest reply and with no rows, and the Timeline dialog's list, in every language at every
+        scaling: their columns share their width (their findings are in the first test's reports). This holds the
+        audit to having looked at all five, and a list whose columns are wider than it is to being reported."""
+        self.assertEqual(sorted(self.answer["lists"]), sorted(l10n.LOCALES))
+        for locale in l10n.LOCALES:
+            for scale in SCALES:
+                with self.subTest(locale=locale, scale=scale):
+                    self.assertEqual(self.answer["lists"][locale]["%.2f" % scale], 5)
+        self.assertIn("canary :: scrolls sideways at the opening size, its columns 400 wide in ", self.answer["listCanary"])
+
+    def test_the_lists_share_their_width_in_the_narrowest_window_too(self):
+        """At the window's MinimumSize, 800 wide, Pending's headings no longer fit in several languages: the widest
+        give way first, ending in an ellipsis, and no column is cut below the least it can show (ColumnFloors). v0.6.4 left
+        the columns their headings whole there, wider than the list."""
+        self.assertEqual(len(self.answer["narrow"]), 2 * len(l10n.LOCALES))
+        for key, found in sorted(self.answer["narrow"].items()):
+            with self.subTest(key):
+                self.assertEqual(found, [], "columns wider than their list")
 
     def test_the_overview_neither_scrolls_nor_moves_whatever_state_the_watcher_is_in(self):
         """Opened on a watcher in trouble with recovery paused, then refreshed through the fullest reply, a stopped
@@ -1422,46 +1543,40 @@ class LayoutAuditTests(unittest.TestCase):
         self.assertIn("overview (an unheard-of engine) :: Right now is laid out", self.answer["statesCanary"],
                       "an engine state as long as a paragraph moved nothing, so a quiet report on the states proves nothing")
 
-    def test_the_state_audit_finds_a_line_of_right_now_that_moved_in_a_card_that_kept_its_size(self):
-        """Right now's card is as tall as its share of the page (SoftRows), so a state whose words take one more line,
-        and still fit, leaves the block its size and the page unscrolled: only the height the block needs shows that
-        a line moved. The paragraph-long engine state above scrolls the page and grows the block, which its size alone
-        reports; this is the move only the height it needs can report."""
+    def test_the_state_audit_finds_a_line_of_right_now_that_moved(self):
+        """A state whose words take one more line in Right now, and still fit, makes the card need a line more; the rows
+        are then given what they need again, and the page does not scroll, so the height the card needs is what shows
+        the move - and the paragraph-long engine state above scrolls the page, which its size alone reports."""
         report = self.answer["statesLineCanary"]
         self.assertNotIn("the page scrolls", report, "the longer state scrolled the page, so it is not the move this measures")
         found = re.search(r"overview \(an engine state a line longer\) :: Right now is laid out (\{[^}]*\}), needing (\d+), "
                           r"where it was (\{[^}]*\}), needing (\d+)", report)
         self.assertIsNotNone(found, "a line more in Right now went unreported, so a quiet report on a move proves nothing:\n" + report)
-        self.assertEqual(found.group(1), found.group(3), "the block changed size, which its size alone reports")
         self.assertGreater(int(found.group(2)), int(found.group(4)))
 
-    def test_a_pinned_buttons_lift_and_focus_ring_are_repainted_on_the_content_under_them(self):
-        """The ring and the lift run outside the button, over the content it is pinned beside, whose windows draw
-        that part of them in their own backgrounds (Ground). A change of the button's state - focus, a press, being
-        disabled while an action runs, Pause becoming Resume - must repaint those windows too: repainting only the
-        block behind them left the ring without its top and left edges, and old pieces of it behind. Measured in a
-        window as tall as the page needs: at the opening size the rows share more (SoftRows), and every button
-        stood clear of the content, so nothing was checked."""
+    def test_no_window_of_a_card_lies_under_its_buttons_lift_or_focus_ring(self):
+        """A button in a row of its own under what its card holds, the scale's medium step clear of it, has no window
+        but its card's under its lift and focus ring - the card draws them, and repaints them when the button changes
+        (Ground). v0.6.4's buttons lay beside the content, whose windows had to draw and repaint parts of both (SoftPin).
+        Measured in a window as tall as the rows need, where each button is as close under what its card holds as it
+        ever comes."""
         height, extent, overflowing = self.answer["liftsAt"]
         self.assertEqual((height, overflowing), (extent, False), "the window is not as tall as the page needs")
         lifts = self.answer["lifts"]
         self.assertEqual(sorted(lift["text"] for lift in lifts), ["History", "Pause recovery", "Pending"])
-        self.assertGreater(sum(len(lift["under"]) for lift in lifts), 0, "no window lies under any ring, so none was checked")
         for lift in lifts:
             with self.subTest(lift["text"]):
-                self.assertEqual(lift["repainted"], [True] * len(lift["under"]),
-                                 "not repainted where the ring and the lift cross them: %s" % lift["under"])
+                self.assertEqual(lift["parent"], "SoftCard", "the button stands in its card, not in a block beside the content")
+                self.assertEqual(lift["under"], [], "a window of the card under the button's lift or ring")
 
-    def test_a_screen_reader_reaches_a_cards_content_before_its_pinned_button(self):
-        """Windows hands a screen reader a block's windows top of the z-order first. The content is on top and read
-        first, as it is seen and as Tab reaches it; the button shows through a hole in the content's window the
-        button's size, so the content never paints over it."""
+    def test_a_screen_reader_reaches_a_cards_content_before_its_button(self):
+        """Windows hands a screen reader a card's windows top of the z-order first, and Tab reaches them by TabIndex: the
+        heading and what the card holds first, as they are seen, and the button last."""
         for lift in self.answer["lifts"]:
             with self.subTest(lift["text"]):
-                self.assertEqual(lift["order"], ["SoftStack", "SoftButton"])
-                if lift["overlaps"]:
-                    self.assertTrue(lift["buttonShows"], "the content's window covers the button")
-                self.assertTrue(lift["contentShows"], "the content's window is cut away beside the button")
+                self.assertEqual(lift["order"][-1], "SoftButton")
+                self.assertEqual(lift["order"].count("SoftButton"), 1)
+                self.assertEqual(lift["tabs"][-1], "SoftButton")
 
     def test_the_audit_finds_an_overview_that_would_scroll(self):
         """The fullest Overview in every language at every scaling is in the first test's empty
@@ -1470,22 +1585,41 @@ class LayoutAuditTests(unittest.TestCase):
                       "a waiting count sixty lines long did not make the Overview scroll, so no report of it proves nothing")
         self.assertNotIn("pending :: the page scrolls", self.answer["cramped"])
 
-    def test_the_audit_finds_an_overview_that_leaves_a_band_above_the_footer(self):
-        """The Overview's rows share the page's height, so in every language at every scaling and in every state its
-        last cards end where the page keeps room for their lift (the first test's and the state test's empty reports);
-        this is the same measurement shown the grid as tall as its cards, as it was before, with the band under them
-        that the person found."""
-        self.assertIn("band canary :: leaves an empty band", self.answer["bandCanary"],
-                      "a grid as tall as its cards went unreported, so no report of a band proves nothing")
+    def test_the_audit_finds_an_overview_laid_out_otherwise(self):
+        """The Overview's rows are as FitOverview gives them in every language at every scaling and in every state (the
+        first test's and the state test's empty reports); this is the same measurement shown them laid out otherwise:
+        rows taller than the page leaves them, reaching into its padding; as they were in a window 120 px taller, over
+        an empty band; and sharing a much taller window, every card floating."""
+        canary = self.answer["rowsCanary"]
+        self.assertIn("rows canary :: leaves only ", canary["grown"],
+                      "rows reaching into the page's padding went unreported, so a quiet report on the space under them "
+                      "proves nothing")
+        self.assertIn("rows canary :: leaves an empty band", canary["band"],
+                      "a band under rows that could be taller went unreported")
+        self.assertIn(":: floats: ", canary["floats"], "cards stretched far past what they hold went unreported")
+
+    def test_the_footer_keeps_its_place_as_the_tabs_change(self):
+        """The review: under the Overview's last row 41 px of canvas above the save card at 200% where Pending and History
+        leave 27, and 87 on a first installation - the footer's gap jumped as the tabs changed, three times the gap between
+        the cards. Now every page leaves its own padding under its last card, the mirror of the padding over its first,
+        with the fullest reply and as a first installation shows the Overview."""
+        gaps = self.answer["gaps"]
+        self.assertEqual(len(gaps), 4)
+        pending = gaps["pending snapshot.json"]
+        for key, (gap, top, bottom, overflowing) in sorted(gaps.items()):
+            with self.subTest(key):
+                self.assertFalse(overflowing, "the page scrolls")
+                self.assertLessEqual(abs(gap - bottom), 1, "under the last card, anything but the page's own padding")
+                self.assertLessEqual(abs(bottom - top), 1, "the padding under the last card mirrors the padding over the first")
+                self.assertLessEqual(abs(gap - pending[0]), 1, "a gap above the footer other than Pending's")
 
     def test_the_overview_scrolls_only_in_a_window_shorter_than_its_rows_own_tallest_cards(self):
-        """The rows share the page alike only where every row can be as tall as the tallest card. In a shorter window
-        - KeepOnScreen gives one 601 px high on a 1920 by 1200 screen at 175% - each row keeps what its own cards need
-        and the shorter row has the rest (SoftRows.Shares). With every row as tall as the tallest from the start, the
-        Overview scrolled in any window from 598 to 617 px high where v0.6.3's fitted, in every language (v0.6.4,
-        measured). SettingsForm.AuditShortest measures the window as tall as the rows' own tallest cards, taken from
-        the cards, in every language at every scaling: the page does not scroll there, leaves no band, cuts off no card
-        and nothing in one, and puts every button in its corner over no text - and a pixel shorter it scrolls."""
+        """In a window shorter than the opening size the space under the rows goes first, then the rows' part, and the
+        page scrolls only once the rows themselves do not fit (OverviewHeights). SettingsForm.AuditShortest measures the
+        window as tall as the rows' own tallest cards, taken from the cards, in every language at every scaling: the
+        page does not scroll there, leaves no space under the rows, cuts off no card and nothing in one, and puts every
+        button in its corner over no text - and a pixel shorter it scrolls. And that window fits a 1920 by 1080 screen at
+        150%, whose work area leaves the window 952 device pixels, where KeepOnScreen makes it that tall."""
         for locale in l10n.LOCALES:
             for scale in SCALES:
                 key = "%.2f" % scale
@@ -1493,26 +1627,26 @@ class LayoutAuditTests(unittest.TestCase):
                 report = self.answer["audit"][locale][key]
                 with self.subTest(locale=locale, scale=scale):
                     self.assertGreater(shortest, 0, "the shortest window was not measured")
-                    self.assertLess(shortest, alike, "rows alike fit there too, so it measured nothing the shares decide")
+                    self.assertLessEqual(shortest, alike)
                     lines = [line for line in report.splitlines() if "the shortest window" in line]
                     self.assertEqual(lines, [], "\n" + "\n".join(lines[:20]))
+            with self.subTest(locale=locale, screen="1920 by 1080 at 150%"):
+                self.assertLessEqual(self.answer["shortest"][locale]["1.50"][0], 952)
 
-    def test_rows_that_share_the_page_are_alike_where_they_can_be_and_never_given_less_than_they_need(self):
-        """SoftRows.Shares, the weights the Overview's rows are laid out by: alike when every row can be as tall as the
-        tallest card, each row what it needs when the page has no more, and between the two the taller rows keep what
-        they need and the others share the rest in whole pixels - none given less than it needs."""
-        self.assertEqual(len(self.answer["shares"]), len(SHARES))
-        for (case, expected), given in zip(SHARES, self.answer["shares"]):
+    def test_the_overviews_rows_are_as_tall_as_their_cards_and_a_little_more(self):
+        """SettingsForm.OverviewHeights, the heights the Overview's rows are given: alike, each as tall as the tallest
+        needs and an even share of what the page has past that and its padding, never more than comfort; where the page
+        has no room for them alike, each what it needs and the shortest raised toward the tallest; less than they need,
+        what they need, and the page scrolls."""
+        self.assertEqual(len(self.answer["heights"]), len(HEIGHTS))
+        for (case, expected), given in zip(HEIGHTS, self.answer["heights"]):
             with self.subTest(needs=case[0], room=case[1]):
                 self.assertEqual(given, expected)
 
-    def test_right_now_keeps_its_names_whole_where_its_card_has_room(self):
-        """The names of Right now give way only to keep its card as short as its facts go: a block given more height
-        keeps them whole (SoftPin.Arrange). At the opening size every card has that room, so no name wraps in any
-        language at any scaling (SettingsForm.AuditNames, in the first test's reports) or in any state (the state
-        test's). In the shortest window the Overview fits (AuditShortest) German's names do wrap, so the check sees a
-        name that wraps. With the rule removed, every German name wrapped at the opening size, and French ones up to
-        175%, and nothing else reported it (v0.6.4, measured)."""
+    def test_right_now_keeps_its_names_whole(self):
+        """The button stands under Right now's facts, so their names have the card's whole width and never wrap - at the
+        opening size in every language at every scaling (SettingsForm.AuditNames, in the first test's reports), in every
+        state (the state test's) and in the shortest window the Overview fits. The check sees a name that wraps."""
         for locale in l10n.LOCALES:
             for scale in SCALES:
                 key = "%.2f" % scale
@@ -1520,10 +1654,9 @@ class LayoutAuditTests(unittest.TestCase):
                     lines = [line for line in self.answer["audit"][locale][key].splitlines() + self.answer["states"][locale][key].splitlines()
                              if " :: wraps, " in line]
                     self.assertEqual(lines, [], "\n" + "\n".join(lines[:20]))
-        for scale in SCALES:
-            with self.subTest(locale="de", scale=scale):
-                self.assertGreater(self.answer["shortest"]["de"]["%.2f" % scale][2], 0,
-                                   "no German name wrapped in the shortest window, so a quiet report on names proves nothing")
+                    self.assertEqual(self.answer["shortest"][locale][key][2], 0, "a name wrapped in the shortest window")
+        self.assertIn("names canary/Label", self.answer["namesCanary"])
+        self.assertIn(" :: wraps, ", self.answer["namesCanary"], "a name that wraps went unreported, so a quiet report proves nothing")
 
     def test_a_card_that_grows_on_an_overview_already_laid_out_scrolls_the_page_and_is_laid_out_whole(self):
         """The rows are given the page's height, so nothing but the page can make them taller: a card that grows as a

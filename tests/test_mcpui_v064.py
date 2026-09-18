@@ -104,6 +104,11 @@ El.prototype.removeAttribute = function (n) { delete this.attributes[n]; };
 El.prototype.focus = function () { document.activeElement = this; };
 El.prototype.addEventListener = function (type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); };
 El.prototype.fire = function (type) { var self = this; (this.listeners[type] || []).forEach(function (fn) { fn({target: self}); }); };
+// What a drop-down's list does when an item is picked: it fires the select's own `change`.
+El.prototype.dispatchEvent = function (event) {
+  (this.listeners[event.type] || []).forEach(function (fn) { fn(event); });
+  return !event.defaultPrevented;
+};
 El.prototype.all = function (test) {
   var found = [];
   (function walk(node) { node.children.forEach(function (c) { if (test(c)) found.push(c); walk(c); }); })(this);
@@ -453,9 +458,11 @@ class ThemeTests(unittest.TestCase):
     def test_the_appearance_card_offers_the_three_choices_in_the_panels_words(self):
         observed = run_page(say("""(function () {
           var select = byId('car-theme');
-          var card = select.parentNode.parentNode.parentNode.parentNode;
+          // select -> its drop-down -> the row's control -> the row -> the rows -> the card
+          var row = select.parentNode.parentNode.parentNode;
+          var card = row.parentNode.parentNode;
           return {options: select.options.map(function (o) { return [o.value, o.textContent, !!o.selected]; }),
-                  title: card.children[0].textContent, help: select.parentNode.parentNode.textContent,
+                  title: card.children[0].textContent, help: row.textContent,
                   last: ROOT_NODE.children[0].children.slice(-2)[0] === card,
                   editors: Object.keys(collectChanges(EDITORS, DATA.schema))};
         })()"""), data=snapshot(theme="dark"))

@@ -573,6 +573,8 @@ namespace CodexAutoResume
         private Label explainAsOf;
         // The Pending list's Auto-resume column, a check box for the task on its row.
         private const int ResumeColumn = 5;
+        // The Pending list's Next check column, which the clock writes (UpdateCountdowns).
+        private const int CountdownColumn = 3;
         // The note that belongs to no single record: what Cancel all did.
         private const string BulkNote = "*";
         // The watcher's safety checks, in the order it evaluates them (machine.GATES).
@@ -836,9 +838,9 @@ namespace CodexAutoResume
             return Pad(column == 0 ? 0 : half, 0, column == 0 ? half : 0, lastRow ? 0 : Brand.PageGap);
         }
 
-        /// The gap around a card in a grid whose rows share the page's height (SoftRows): between the columns as
-        /// GridGap has it, and between the rows half of the page gap under the one and half over the other, so
-        /// rows of one height are cards of one height.
+        /// The gap around a card in the Overview's grid, whose rows FitOverview sizes: between the columns as GridGap
+        /// has it, and between the rows half of the page gap under the one and half over the other, so rows of one
+        /// height are cards of one height.
         private Padding RowGap(int column, int row)
         {
             int half = Brand.PageGap / 2;
@@ -900,47 +902,21 @@ namespace CodexAutoResume
             // All of it: the header control paints whatever the columns leave in plain white.
             int available = list.ClientSize.Width;
             if (available < Px(160) || total <= 0) return;
-            // Every column first gets its heading, whole, in the list's font; what is left is shared
-            // in the declared proportions. Shared out alone, the proportions cut "Next check",
-            // "Attempts" and "Auto-resume" short in a window of v0.6.2's width.
-            //
-            // Then each column keeps room for the widest thing it holds: every column but the
-            // conversation's first, and the conversation's from what they leave - a name may be as long
-            // as its owner made it, and a state or a kind cut short says nothing. From the headings
-            // alone, a status needed the window 1,239 px wide before "waiting for the usage reset" was
-            // drawn whole (measured, 150%), because its column only ever had its share of what the
-            // headings left.
-            var floor = new int[weights.Length];
-            int floors = 0, others = 0, wanted = 0;
+            // Each column's heading, the widest cell under it and the least it is drawn at; how wide each is then
+            // follows what the list has room for (ColumnFloors), and what is left past that is shared in the declared
+            // proportions.
             int[] cells;
             cellWidths.TryGetValue(list, out cells);
-            var want = new int[weights.Length];
+            var heading = new int[weights.Length];
+            var least = new int[weights.Length];
             for (int i = 0; i < weights.Length; i++)
             {
-                floor[i] = HeadingWidth(list, i);
-                floors += floor[i];
-                want[i] = cells != null && i < cells.Length ? Math.Max(floor[i], cells[i]) : floor[i];
-                if (i > 0) others += want[i];
-                if (i > 0) wanted += want[i] - floor[i];
+                heading[i] = HeadingWidth(list, i);
+                least[i] = LeastWidth(list, i);
             }
-            if (floor[0] + others <= available)
-            {
-                for (int i = 1; i < weights.Length; i++) floor[i] = want[i];
-                floor[0] = Math.Max(floor[0], Math.Min(want[0], available - others));
-                floors = floor[0] + others;
-            }
-            else if (floors < available && wanted > 0)
-            {
-                // Not room for all of that: each of those columns is given the same part of what it
-                // wants past its heading, so none is cut to its heading while another is drawn whole.
-                int more = floor[0];
-                for (int i = 1; i < weights.Length; i++)
-                {
-                    floor[i] += (int)Math.Floor((want[i] - floor[i]) * (double)(available - floors) / wanted);
-                    more += floor[i];
-                }
-                floors = more;
-            }
+            int[] floor = ColumnFloors(heading, cells, least, Px(ReadableCells), available);
+            int floors = 0;
+            foreach (int width in floor) floors += width;
             int spare = Math.Max(0, available - floors);
             int used = 0;
             for (int i = 0; i < weights.Length; i++)
@@ -950,6 +926,108 @@ namespace CodexAutoResume
                 if (list.Columns[i].Width != width) list.Columns[i].Width = width;
                 used += width;
             }
+        }
+
+        /// How much of what a column holds is kept before a heading gives way (ColumnFloors): about a dozen characters,
+        /// with the cell's inset - twice the least a column is drawn at (LeastWidth).
+        internal const int ReadableCells = 96;
+
+        /// The least each of a list's columns is given, `available` wide (v0.6.5): `heading` each heading's width whole,
+        /// `cells` each column's widest cell (null before any was measured), `least` the least each is drawn at
+        /// (LeastWidth), `readable` how much of what a column holds is kept before a heading gives way (ReadableCells).
+        /// What the list has past their total is shared in the declared proportions (FitColumns).
+        ///
+        /// As the list narrows, what gives way, in turn:
+        ///   * a conversation's name past its heading: every other column keeps its heading and its widest cell whole,
+        ///     and the conversation's has what they leave - a name may be as long as its owner made it, and a state or a
+        ///     kind cut short says nothing. From the headings alone, a status needed the window 1,239 px wide before
+        ///     "waiting for the usage reset" was drawn whole (measured, 150%);
+        ///   * cells past a readable width: every heading stays whole - "Next check", "Attempts" and "Auto-resume" were
+        ///     cut short in a window of v0.6.2's width - and every column keeps what it holds up to `readable`; each is
+        ///     given the same part of what it wants past that;
+        ///   * headings wider than what their column holds, the widest first, each down to the next widest, never below
+        ///     what the column holds, readable;
+        ///   * last, the cells, the widest first, never below the least. Only a list narrower than every column's least
+        ///     is wider than its card, and scrolls sideways on the soft bar (SoftListHost).
+        /// A heading and the cells under it that no longer fit end in an ellipsis (DrawHeader, DrawCell). The columns kept
+        /// every heading whole whatever the list's width until v0.6.5, so a list narrower than its headings - a window
+        /// made narrower than it opens - was wider than its card, with Windows' own white bar under the rows; then the
+        /// headings alone gave way, and the review found the German Pending list 800 px wide at 200% with "Status" and
+        /// "Art" at three or four letters of what they hold while "Versuche" kept 70 px for a single digit and the
+        /// switch's column 100 for its 40 px switch. Widest first rather than in proportion, so a time or a count - which
+        /// says nothing cut - stays whole while a long state or name ends in an ellipsis.
+        internal static int[] ColumnFloors(int[] heading, int[] cells, int[] least, int readable, int available)
+        {
+            int count = heading.Length, others = 0, keeps = 0, holds = 0, wanted = 0;
+            var full = new int[count];
+            var hold = new int[count];
+            var keep = new int[count];
+            for (int i = 0; i < count; i++)
+            {
+                int cell = cells != null && i < cells.Length ? cells[i] : 0;
+                // A conversation's name holds only as much as its heading, past which it gives way first.
+                int need = Math.Max(least[i], i == 0 ? Math.Min(cell, heading[0]) : cell);
+                full[i] = Math.Max(heading[i], i == 0 ? cell : need);
+                hold[i] = Math.Max(least[i], Math.Min(need, readable));
+                keep[i] = Math.Max(heading[i], hold[i]);
+                if (i > 0)
+                {
+                    others += full[i];
+                    wanted += full[i] - keep[i];
+                }
+                keeps += keep[i];
+                holds += hold[i];
+            }
+            var widths = new int[count];
+            if (count == 0) return widths;
+            if (heading[0] + others <= available)
+            {
+                for (int i = 1; i < count; i++) widths[i] = full[i];
+                widths[0] = Math.Max(heading[0], Math.Min(full[0], available - others));
+                return widths;
+            }
+            if (keeps <= available)
+            {
+                widths[0] = keep[0];
+                for (int i = 1; i < count; i++)
+                    widths[i] = keep[i] + (wanted > 0 ? (int)Math.Floor((full[i] - keep[i]) * (double)(available - keeps) / wanted) : 0);
+                return widths;
+            }
+            bool headings = holds <= available;
+            int top = 0;
+            for (int i = 0; i < count; i++) top = Math.Max(top, headings ? keep[i] : hold[i]);
+            // The widest a heading, or else a cell, may stay: the largest cap under which the columns fit.
+            int low = 0, high = top;
+            while (low < high)
+            {
+                int cap = (low + high + 1) / 2;
+                if (Capped(keep, hold, least, cap, headings, null) <= available) low = cap;
+                else high = cap - 1;
+            }
+            Capped(keep, hold, least, low, headings, widths);
+            return widths;
+        }
+
+        // The columns' total with every heading (`headings`: each column between what it holds and its heading), or else
+        // every cell (between the least and what it holds), held to `cap`; each width into `widths` when it is given.
+        private static int Capped(int[] keep, int[] hold, int[] least, int cap, bool headings, int[] widths)
+        {
+            int total = 0;
+            for (int i = 0; i < keep.Length; i++)
+            {
+                int width = headings ? Math.Max(hold[i], Math.Min(keep[i], cap)) : Math.Max(least[i], Math.Min(hold[i], cap));
+                if (widths != null) widths[i] = width;
+                total += width;
+            }
+            return total;
+        }
+
+        /// The narrowest a column is drawn: an ellipsis and a letter or two of its heading - DrawHeader's inset and
+        /// 34 px - or, for Pending's Auto-resume column, its switch whole (DrawResumeBox) with DrawCell's inset.
+        private int LeastWidth(ListView list, int column)
+        {
+            if (list == pendingList && column == ResumeColumn) return Px(Brand.SwitchWidth + 2) + Px(14);
+            return Px(48);
         }
 
         // The widest cell of each column, as DrawCell draws it, measured when a list's rows change
@@ -968,8 +1046,12 @@ namespace CodexAutoResume
                 if (++rows > 200) break;
                 for (int c = 0; c < widths.Length && c < item.SubItems.Count; c++)
                 {
-                    string text = item.SubItems[c].Text;
-                    int width = c == 1 ? Soft.ChipSize(text, list.Font).Width
+                    // The countdown as the clock writes it now: the cell holds only what the last tick wrote, and nothing
+                    // yet in a row just added, so a list's first fit left the column no room for its time (v0.6.5).
+                    string text = list == pendingList && c == CountdownColumn ? CountdownText(item.Tag as Dictionary<string, object>, Now())
+                                : item.SubItems[c].Text;
+                    // A state chip where DrawCell draws one: the second column of a row that has its record.
+                    int width = c == 1 && item.Tag is Dictionary<string, object> ? Soft.ChipSize(text, list.Font).Width
                               : list == pendingList && c == ResumeColumn ? Px(Brand.SwitchWidth + 2)
                               : TextRenderer.MeasureText(text, list.Font, unbounded, TextFormatFlags.SingleLine).Width;
                     // DrawCell's inset: 10 before, 4 after.
@@ -1049,7 +1131,7 @@ namespace CodexAutoResume
             if (e.ColumnIndex == 1 && row != null)
                 Soft.Chip(e.Graphics, cell, text, list.Font, Palette.Contrast && selected ? ink : ToneFor(row), back);
             else if (list == pendingList && e.ColumnIndex == ResumeColumn && row != null)
-                DrawResumeBox(e.Graphics, cell, ThreadOn(row), back);
+                DrawResumeBox(e.Graphics, cell, row, back);
             else
                 TextRenderer.DrawText(e.Graphics, text, list.Font, cell, e.ColumnIndex == 0 ? ink : quiet,
                                       TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
@@ -1061,12 +1143,79 @@ namespace CodexAutoResume
         }
 
         /// The Auto-resume box, drawn as the switch every other on-or-off setting in the window is,
-        /// on the row's own ground.
-        private void DrawResumeBox(Graphics g, Rectangle cell, bool on, Color ground)
+        /// on the row's own ground: where its record says, or part-way there while it glides
+        /// (FollowResumeSwitches).
+        private void DrawResumeBox(Graphics g, Rectangle cell, Dictionary<string, object> row, Color ground)
         {
             int width = Px(Brand.SwitchWidth), height = Px(Brand.SwitchHeight);
             var track = new Rectangle(cell.X + Px(2), cell.Y + (cell.Height - height) / 2, width, height);
-            Soft.Switch(g, track, on, true, ground);
+            double on = ThreadOn(row) ? 1.0 : 0.0;
+            Transition glide;
+            string id = Str(row, "interruption_id");
+            if (id != null && resumeGlides.TryGetValue(id, out glide) && glide.Running) on = glide.Value;
+            Soft.SwitchAt(g, track, on, true, ground);
+        }
+
+        // Pending's Auto-resume switches (v0.6.5): each row's as it was last drawn, by its record's id, and the glide of
+        // each that has moved.
+        private readonly Dictionary<string, bool> resumeShown = new Dictionary<string, bool>();
+        private readonly Dictionary<string, Transition> resumeGlides = new Dictionary<string, Transition>();
+
+        /// Every Auto-resume switch in Pending, after its rows were written (v0.6.5). The switch never moves when it is
+        /// pressed: the press sends the change, and the list is read again once the control layer has answered
+        /// (ToggleAutoResume, Send). A switch already on screen that its record now says is the other way then glides
+        /// there - brand's one transition on its one curve, the knob sliding and the track cross-fading, as the popup's
+        /// and the panel's switch for the same conversation do - repainting only its own cell each frame (ResumeCell),
+        /// with no layout and no timer once it has arrived. A change refused leaves the record as it was, and nothing
+        /// moves. A row that appears is drawn as it is; with motion reduced, or Pending not on screen, the switch is
+        /// where its record says at once.
+        private void FollowResumeSwitches()
+        {
+            bool animate = Motion.Allowed(pendingList);
+            var present = new HashSet<string>();
+            foreach (ListViewItem item in pendingList.Items)
+            {
+                var row = item.Tag as Dictionary<string, object>;
+                string id = Str(row, "interruption_id");
+                if (id == null || !present.Add(id)) continue;
+                bool on = ThreadOn(row), was;
+                bool known = resumeShown.TryGetValue(id, out was);
+                resumeShown[id] = on;
+                Transition glide;
+                resumeGlides.TryGetValue(id, out glide);
+                if (!known || (was == on && (glide == null || glide.Target == (on ? 1.0 : 0.0)))) continue;
+                if (glide == null)
+                {
+                    if (!animate) continue;
+                    glide = new Transition(pendingList, was ? 1.0 : 0.0);
+                    string key = id;
+                    glide.Where = delegate { return ResumeCell(key); };
+                    resumeGlides[id] = glide;
+                }
+                glide.To(on ? 1.0 : 0.0, animate);
+            }
+            foreach (string id in new List<string>(resumeShown.Keys))
+            {
+                if (present.Contains(id)) continue;
+                resumeShown.Remove(id);
+                Transition glide;
+                if (resumeGlides.TryGetValue(id, out glide))
+                {
+                    glide.Dispose();
+                    resumeGlides.Remove(id);
+                }
+            }
+        }
+
+        /// Where the Auto-resume switch of the row for `id` is in Pending's list now, or nothing when that row is not
+        /// there: the cell a glide repaints, found again each frame, so a list that scrolls meanwhile is followed.
+        private Rectangle ResumeCell(string id)
+        {
+            if (pendingList == null || pendingList.IsDisposed) return Rectangle.Empty;
+            foreach (ListViewItem item in pendingList.Items)
+                if (Str(item.Tag as Dictionary<string, object>, "interruption_id") == id && item.SubItems.Count > ResumeColumn)
+                    return item.SubItems[ResumeColumn].Bounds;
+            return Rectangle.Empty;
         }
 
         /// The colour a record's state word is drawn in. Always beside the word itself.
@@ -1099,34 +1248,35 @@ namespace CodexAutoResume
         private Control BuildOverview()
         {
             Panel page = Page();
-            // Two rows of two cards that share the page's whole height (SoftRows): the cards reach from under the
-            // tabs to above the footer, rows of one height, whatever height the window has.
-            var grid = new SoftRows(2, 2);
+            // Two rows of two cards, and under them a row of space. How tall each is follows what the cards hold and the
+            // page's height (FitOverview). A ground, so the cards' lift is drawn on it. AutoSize, though the page decides
+            // its size: a table answers its parent's layout from its own only when it sizes itself, and WinForms then
+            // lays the parent out once the table's own layout has finished - so a card that grows on a page already laid
+            // out has the page fit the rows again, and scroll (as SoftRows did in v0.6.4).
+            var grid = new SoftStack();
+            grid.Dock = DockStyle.Fill;
+            grid.AutoSize = true;
+            grid.Margin = new Padding(0);
+            grid.ColumnCount = 2;
+            grid.RowCount = OverviewRows + 1;
+            for (int i = 0; i < 2; i++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+            for (int i = 0; i < OverviewRows; i++) grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 0f));
+            grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
 
             TableLayoutPanel now = MakeCard(S("overview.now", "Right now"));
             now.Margin = RowGap(0, 0);
             TableLayoutPanel facts = Facts(now);
             // Automatic recovery first, what the button pauses and resumes, then the watcher, the engine and the last
-            // check. At 600 px no order with automatic recovery first fitted every state in every language: beside
-            // the button, in French, "non pris en charge" took two more lines or the button under the facts, and the
-            // Overview scrolled, so for a while it came last. With the rows sharing the page (SoftRows) the button
-            // stands under the facts, whose longest words - "ne répond pas", "nicht unterstützt", "no se está
-            // ejecutando" - have the card's whole width in every language at every scaling and state (v0.6.4,
-            // measured: tests/test_gui_layout.py). It costs French in a window shorter than the opening size, where
-            // the rows no longer share the page alike: Right now needs 15 to 20 px more there than with automatic
-            // recovery last, and the Overview scrolls below 584 to 615 px rather than 569 to 595 (OpeningHeight).
+            // check. The button stands under the facts, so they have the card's whole width - "ne répond pas",
+            // "nicht unterstützt", "no se está ejecutando" among them - in every language at every scaling and state
+            // (tests/test_gui_layout.py).
             nowRecovery = Fact(facts, S("overview.recovery", "Automatic recovery"));
             nowWatcher = Fact(facts, S("diag.watcher", "Watcher"));
             nowEngine = Fact(facts, S("overview.engine", "Codex engine"));
             nowLastCheck = Fact(facts, S("overview.last_check", "Last check"));
+            nowFacts = facts;
             toggleButton = MakeButton(S("action.pause", "Pause recovery"), false, delegate { TogglePause(); });
-            // Where the card has no room under its facts - a window shorter than the Overview needs - the names give
-            // way before the button does: at 600 px "Automatische Wiederherstellung" beside "Wiederherstellung
-            // pausieren" left the last facts under the button in German, and a button under the facts made the
-            // Overview taller than its window. A card with the room keeps them whole (SoftPin.Arrange).
-            SoftPin nowBlock = PinTo(now, toggleButton);
-            nowBlock.Wraps = facts;
-            ReserveNowWords(nowBlock);
+            Lead(now, toggleButton);
 
             TableLayoutPanel waiting = MakeCard(S("overview.waiting", "Waiting"));
             waiting.Margin = RowGap(1, 0);
@@ -1140,7 +1290,7 @@ namespace CodexAutoResume
             waiting.Controls.Add(waitingLine);
             waiting.Controls.Add(nextLine);
             waiting.Controls.Add(runningLine);
-            PinTo(waiting, MakeButton(S("nav.pending", "Pending"), false, delegate { ShowPage("pending"); }));
+            Lead(waiting, MakeButton(S("nav.pending", "Pending"), false, delegate { ShowPage("pending"); }));
 
             TableLayoutPanel week = MakeCard(S("overview.week", "Last 7 days"));
             week.Margin = RowGap(0, 1);
@@ -1149,7 +1299,7 @@ namespace CodexAutoResume
             weekSent = Fact(weekFacts, S("overview.sent", "Continuations sent"));
             weekRecovered = Fact(weekFacts, S("overview.recovered", "Recovered"));
             weekSuccess = Fact(weekFacts, S("overview.success", "Success rate"));
-            PinTo(week, null);
+            Lead(week, null);
 
             // The last few recoveries that finished, so the page answers "did it work" as
             // well as "is it working" without a trip to the History page.
@@ -1159,7 +1309,7 @@ namespace CodexAutoResume
             recentEmpty = Value(S("history.empty", "No recoveries yet"));
             recentEmpty.ForeColor = Secondary;
             recent.Controls.Add(recentEmpty);
-            PinTo(recent, MakeButton(S("nav.history", "History"), false, delegate { ShowPage("history"); }));
+            Lead(recent, MakeButton(S("nav.history", "History"), false, delegate { ShowPage("history"); }));
             recentGrid.SizeChanged += delegate { FitRecentNames(); };
 
             grid.Controls.Add(now, 0, 0);
@@ -1167,55 +1317,165 @@ namespace CodexAutoResume
             grid.Controls.Add(week, 0, 1);
             grid.Controls.Add(recent, 1, 1);
             page.Controls.Add(grid);
+            overviewGrid = grid;
+            // Before the page lays the grid out, every time it does: the rows follow the page's height and what the
+            // cards hold (FitOverview).
+            var scroller = (SoftPage)page;
+            page.Layout += delegate { FitOverview(scroller, grid); };
             return page;
         }
 
-        /// An Overview card as the person asked for it in v0.6.4: its heading at the top left, what it
-        /// holds under the heading, and what the card leads to pinned to the card's bottom right
-        /// (SoftPin) - beside the last lines where they leave room, under them where they do not. Every
-        /// Overview card has the panel's first gap under its heading, button or not, so the facts in two
-        /// cards side by side start on one line.
+        // The Overview's rows of cards.
+        private const int OverviewRows = 2;
+
+        // The Overview's proportions (v0.6.5), every one a step of brand's scale. Chosen from renders of the window at
+        // 632, 648 and 664 px high, with card padding of 16 by 18 and 16 by 24, in English and Korean, light and dark,
+        // full and as a first installation shows it, side by side (SettingsForm.OpeningHeight says why 664).
+        //
+        // Under the last row the page keeps its own padding (CardRoom), the mirror of the padding over the first row, as
+        // every page keeps under its last card - so the gap above the footer stays where it is as the tabs change.
+        //
+        // The most a row is given past what the tallest row needs. A little more room than the content needs reads as a
+        // card at ease; past this it reads as content floating in an empty card, and the rest is space under the rows.
+        internal const int OverviewComfort = Brand.SpaceXl;
+        // The clear space above a card's button: the largest step of the scale with which the Overview still fits a
+        // 1920 by 1080 screen at 150% (SpaceL needed 637 px of window there, where the screen leaves 634).
+        internal const int LeadGap = Brand.SpaceM;
+
+        private TableLayoutPanel overviewGrid;
+        private TableLayoutPanel nowFacts;
+        // Whether the page fits the Overview's rows (FitOverview). Only tests/test_gui_layout.py turns it off, to show the
+        // audit a page laid out otherwise.
+        private bool fitOverview = true;
+
+        /// An Overview card as v0.6.2 had it and as the person asked for it again in v0.6.5: its heading at the top
+        /// left, what it holds under the heading, and the button it leads to at its bottom LEFT, in a row of its own
+        /// under the last line. The row takes whatever height the card is given past what it holds, and the button
+        /// stands at the row's bottom, so a card stretched beside a taller one keeps its button in its corner and its
+        /// content at its top. Every Overview card has the panel's first gap under its heading, button or not, so the
+        /// facts in two cards side by side start on one line. A card that leads nowhere (`button` null) keeps its
+        /// content where it is.
         ///
-        /// Before, the button sat beside the heading in a row one button high, because a button in a row
-        /// of its own under every card's content made the page taller than a window that fits a 1920 by
-        /// 1080 screen at 150%. Pinned, the heading takes only its own height, and a button takes a row
-        /// of its own only in a card whose lines reach its column - Recently finished, whose outcomes run
-        /// to the card's edge - so the page still fits (SettingsForm.OpeningHeight). A card that leads
-        /// nowhere (`button` null) keeps its content where it is, and has no block.
-        private SoftPin PinTo(TableLayoutPanel card, Button button)
+        /// v0.6.4 pinned the button to the bottom RIGHT, beside the last lines where they left room (SoftPin); the
+        /// person found the first screen better with v0.6.2's buttons at the left, where the eye comes down the card
+        /// and finds them - and a button under the content never makes a name wrap for its sake.
+        private void Lead(TableLayoutPanel card, Button button)
         {
             Control heading = card.Controls[0];
             heading.Margin = Pad(0, 0, 0, Brand.CardFirstGap);
-            if (button == null) return null;
-            // A ground in the card's colour, as the card's rows are: the button's lift reaches over it.
-            var body = new SoftStack();
-            body.BackColor = Card;
-            body.ColumnCount = 1;
-            body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            body.GrowStyle = TableLayoutPanelGrowStyle.AddRows;
-            body.AutoSize = true;
-            body.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            var content = new List<Control>();
-            for (int i = 1; i < card.Controls.Count; i++) content.Add(card.Controls[i]);
-            foreach (Control control in content)
-            {
-                card.Controls.Remove(control);
-                body.Controls.Add(control);
-            }
-            var block = new SoftPin(body, button);
-            block.Dock = DockStyle.Fill;
-            card.Controls.Add(block);
-            // The heading as tall as it is, and the block down to the card's inner bottom edge, however
-            // tall the card beside it makes this one and however much of the page its row is given (SoftRows).
             card.RowStyles.Clear();
-            card.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            for (int i = 0; i < card.Controls.Count; i++) card.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            if (button == null) return;
+            // Clear of the last line by the scale's medium step, never less, and at the bottom of what is left.
+            button.Anchor = AnchorStyles.Left | AnchorStyles.Bottom;
+            button.Margin = Pad(0, LeadGap, 0, 0);
+            card.Controls.Add(button);
             card.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-            Pinned(button, card);
-            return block;
+            led[button] = card;
         }
 
-        // Every control pinned to the bottom right of a block - a card, the header, a row - and that
-        // block, for LayoutAudit to hold each to its corner.
+        // Every control led to from the bottom left of an Overview card (Lead), and that card, for LayoutAudit to hold
+        // each to its corner.
+        private readonly Dictionary<Control, Control> led = new Dictionary<Control, Control>();
+
+        /// What each of the Overview's rows needs `width` wide, margins and all: its tallest card as a table measures
+        /// it, at the narrower column's width.
+        private static int[] OverviewRowNeeds(TableLayoutPanel grid, int width)
+        {
+            var needs = new int[OverviewRows];
+            int column = Math.Max(1, (width - grid.Padding.Horizontal) / Math.Max(1, grid.ColumnCount));
+            foreach (Control child in grid.Controls)
+            {
+                if (!Soft.OwnVisible(child)) continue;
+                int row = grid.GetPositionFromControl(child).Row;
+                if (row < 0 || row >= needs.Length) continue;
+                int room = Math.Max(1, column - child.Margin.Horizontal);
+                int height = child.AutoSize ? child.GetPreferredSize(new Size(room, 0)).Height : child.Height;
+                needs[row] = Math.Max(needs[row], height + child.Margin.Vertical);
+            }
+            return needs;
+        }
+
+        /// The Overview's rows and the space under them (v0.6.5). The person found v0.6.4's cards, stretched down the
+        /// whole page, emptier than they should be, with what they held floating at their tops - "white space is part
+        /// of the design". Now every card is as tall as the tallest row needs, and a little more, and what a taller
+        /// window has past that is space under the last row, not a band inside every card (OverviewHeights). Under the
+        /// last row the page keeps its own padding, as every page keeps under its last card: v0.6.5 first kept the gap
+        /// between cards there as well, inside that padding, and the review found 41 px above the footer where Pending
+        /// and History leave 27 - and 87 on a first installation, whose short second row was left short over a band.
+        /// Worked out before the page lays the grid out (its Layout event), at the width the grid is about to be given;
+        /// the grid's MinimumSize is what the rows need, which is how tall the page counts it (SoftPage), so the page
+        /// scrolls only when the rows themselves do not fit.
+        private void FitOverview(SoftPage page, TableLayoutPanel grid)
+        {
+            int width = page.DisplayRectangle.Width;
+            // From the first row's top to the page's edge, and the page's own padding under the last row.
+            int room = page.ClientSize.Height - page.Padding.Top;
+            int rest = page.Padding.Bottom;
+            if (!fitOverview || width <= 0 || room - rest <= 0) return;
+            int[] needs = OverviewRowNeeds(grid, width);
+            int[] heights = OverviewHeights(needs, room, rest, Px(OverviewComfort));
+            int total = 0;
+            foreach (int need in needs) total += need;
+            bool changed = grid.MinimumSize.Height != total;
+            for (int i = 0; i < heights.Length && !changed; i++)
+                changed = grid.RowStyles[i].SizeType != SizeType.Absolute || (int)grid.RowStyles[i].Height != heights[i];
+            if (!changed) return;
+            // One layout of the grid for all of it, at the size it has; the page then gives it its new one.
+            grid.SuspendLayout();
+            if (grid.MinimumSize.Height != total) grid.MinimumSize = new Size(0, total);
+            for (int i = 0; i < heights.Length; i++)
+            {
+                grid.RowStyles[i].SizeType = SizeType.Absolute;
+                grid.RowStyles[i].Height = heights[i];
+            }
+            grid.ResumeLayout(true);
+        }
+
+        /// How tall each of the Overview's rows is, for rows that need `needs` (margins and all), `room` from the first
+        /// row's top to the page's edge, with `rest` - the page's own padding - kept under the last row (v0.6.5):
+        ///   * the rows are alike, each as tall as the tallest needs and an even share of what is left past that, never
+        ///     more than `comfort`: a grid of cards of one height, the gap under it the page's own, and in a taller window
+        ///     what is left past comfort is space under the rows rather than every card stretching until what it holds
+        ///     floats. A card's room does not follow how little the other row holds - Right now stays where it is when
+        ///     History cannot be read, or when a first installation has nothing finished yet. v0.6.5 first left such a
+        ///     short row short, over a band 87 px high above the footer;
+        ///   * where the page has no room for every row as tall as the tallest, each row what it needs, and what the page
+        ///     has past that raises the shortest rows toward the tallest;
+        ///   * where it has less than they need, the rows what they need, and the page scrolls.
+        /// In whole pixels.
+        internal static int[] OverviewHeights(int[] needs, int room, int rest, int comfort)
+        {
+            int rows = needs.Length, total = 0, tallest = 0;
+            foreach (int need in needs)
+            {
+                total += need;
+                tallest = Math.Max(tallest, need);
+            }
+            var heights = new int[rows];
+            if (rows == 0) return heights;
+            int free = room - rest;
+            if (free >= rows * tallest)
+            {
+                int part = Math.Min(comfort, (free - rows * tallest) / rows);
+                for (int i = 0; i < rows; i++) heights[i] = tallest + part;
+                return heights;
+            }
+            for (int i = 0; i < rows; i++) heights[i] = needs[i];
+            // A pixel at a time to the shortest row, the first of those alike: fewer than the rows' difference in all.
+            for (int left = free - total; left > 0; left--)
+            {
+                int shortest = 0;
+                for (int i = 1; i < rows; i++)
+                    if (heights[i] < heights[shortest]) shortest = i;
+                if (heights[shortest] >= tallest) break;
+                heights[shortest]++;
+            }
+            return heights;
+        }
+
+        // Every control pinned to the bottom right of a block - the header, a row - and that block, for LayoutAudit to
+        // hold each to its corner.
         private readonly Dictionary<Control, Control> pinned = new Dictionary<Control, Control>();
 
         private void Pinned(Control control, Control block)
@@ -1805,24 +2065,6 @@ namespace CodexAutoResume
             return value == null || Equals(value, true);
         }
 
-        /// Right now planned for every word its facts and its button are ever given - by ApplySnapshot, and
-        /// "unknown" by MarkUnavailable - so it is laid out the same in every state the watcher is in and at
-        /// every age of its last check (SoftPin.Reserve). The ages are the widest of each unit Age writes.
-        /// Planned for the words on screen, a refresh that changed "just now" to "3 min ago" wrapped the
-        /// French names, and the Overview opened on a watcher in trouble scrolled (v0.6.4, measured).
-        private void ReserveNowWords(SoftPin block)
-        {
-            string unknown = S("diag.unknown", "unknown");
-            block.Reserve(nowRecovery, S("overview.on", "on"), S("overview.off", "paused"), unknown);
-            block.Reserve(nowWatcher, S("diag.running", "running"), S("diag.not_running", "not running"),
-                          S("diag.not_responding", "not responding"), unknown);
-            block.Reserve(nowEngine, S("engine.verified", "verified"), S("engine.structurally_compatible", "structurally_compatible"),
-                          S("engine.incompatible", "incompatible"), S("engine.unknown", "unknown"), unknown);
-            block.Reserve(nowLastCheck, S("time.never", "never"), Age(0), Age(59), Age(59 * 60), Age(23 * 3600),
-                          Age(999 * 86400), unknown);
-            block.Reserve(toggleButton, S("action.pause", "Pause recovery"), S("action.resume", "Resume recovery"));
-        }
-
         // ------------------------------------------------------------ snapshot use
         private void ApplySnapshot(Dictionary<string, object> reply)
         {
@@ -1889,7 +2131,7 @@ namespace CodexAutoResume
             }
             if (pendingList != null)
             {
-                if (Unreadable(reply, "pending")) ShowUnreadable(pendingList, pendingEmpty, unreadable);
+                if (Unreadable(reply, "pending")) ShowUnreadableList(pendingList, pendingEmpty, unreadable);
                 else
                 {
                     FillList(pendingList, Items(reply, "pending"), true);
@@ -1900,7 +2142,7 @@ namespace CodexAutoResume
             bool historyUnreadable = Unreadable(reply, "history");
             if (historyList != null)
             {
-                if (historyUnreadable) ShowUnreadable(historyList, historyEmpty, unreadable);
+                if (historyUnreadable) ShowUnreadableList(historyList, historyEmpty, unreadable);
                 else
                 {
                     FillList(historyList, Items(reply, "history"), false);
@@ -1944,6 +2186,15 @@ namespace CodexAutoResume
             empty.Visible = true;
         }
 
+        /// The same, and the columns fitted again: with no rows there are no cells to keep room for, and the columns
+        /// share the list's width by their headings (FitColumns).
+        private void ShowUnreadableList(ListView list, Label empty, string reason)
+        {
+            ShowUnreadable(list, empty, reason);
+            MeasureCells(list);
+            if (list == pendingList) FollowResumeSwitches();
+        }
+
         private void MarkUnavailable()
         {
             // The same unavailable state the header shows when the status cannot be read,
@@ -1963,8 +2214,8 @@ namespace CodexAutoResume
                                             diagWatcher, diagEngine, diagLastCheck, diagRecovery })
                 if (label != null) label.Text = unknown;
             string unreadable = S("pending.unavailable", "This cannot be read right now");
-            if (pendingList != null) ShowUnreadable(pendingList, pendingEmpty, unreadable);
-            if (historyList != null) ShowUnreadable(historyList, historyEmpty, unreadable);
+            if (pendingList != null) ShowUnreadableList(pendingList, pendingEmpty, unreadable);
+            if (historyList != null) ShowUnreadableList(historyList, historyEmpty, unreadable);
             if (recentGrid != null) ClearRecent(unreadable);
             if (waitingLine != null)
             {
@@ -2090,6 +2341,7 @@ namespace CodexAutoResume
                 }
                 Preselect(list);
                 MeasureCells(list);
+                if (list == pendingList) FollowResumeSwitches();
             }
             finally
             {
@@ -2163,11 +2415,17 @@ namespace CodexAutoResume
             if (pendingList == null) return;
             foreach (ListViewItem item in pendingList.Items)
             {
-                var row = item.Tag as Dictionary<string, object>;
-                double eligible = Number(row, "eligible_at");
-                string text = eligible <= 0 ? "" : eligible <= now ? S("pending.due", "due now") : Countdown(eligible - now);
-                if (item.SubItems[3].Text != text) item.SubItems[3].Text = text;
+                string text = CountdownText(item.Tag as Dictionary<string, object>, now);
+                if (item.SubItems[CountdownColumn].Text != text) item.SubItems[CountdownColumn].Text = text;
             }
+        }
+
+        /// What a waiting row's Next check says at `now`: how long until it is checked, that it is due, or nothing for a
+        /// row that is not waiting.
+        private string CountdownText(Dictionary<string, object> row, double now)
+        {
+            double eligible = Number(row, "eligible_at");
+            return eligible <= 0 ? "" : eligible <= now ? S("pending.due", "due now") : Countdown(eligible - now);
         }
 
         private static Dictionary<string, object> Selected(ListView list)
@@ -2712,8 +2970,15 @@ namespace CodexAutoResume
 
         private void OpenTimeline(Dictionary<string, object> row, List<object> events)
         {
-            using (var dialog = new Form())
+            using (Form dialog = BuildTimeline(row, events)) dialog.ShowDialog(this);
+        }
+
+        /// The Timeline dialog for `row`'s `events`, built and not shown - OpenTimeline shows it, LayoutAudit
+        /// measures it.
+        private Form BuildTimeline(Dictionary<string, object> row, List<object> events)
+        {
             {
+                var dialog = new Form();
                 dialog.Text = S("timeline.title", "Timeline") + " - " + Conversation(row);
                 dialog.Font = Font;
                 dialog.BackColor = Canvas;
@@ -2745,6 +3010,8 @@ namespace CodexAutoResume
                         view.Items.Add(line);
                     }
                 }
+                // Each column's widest cell, so the columns share the dialog's width by what they hold (FitColumns).
+                MeasureCells(view);
                 var padding = new Panel();
                 padding.BackColor = Canvas;
                 padding.Dock = DockStyle.Fill;
@@ -2769,9 +3036,13 @@ namespace CodexAutoResume
                 {
                     if (e.KeyCode == Keys.Escape) { e.Handled = true; dialog.Close(); }
                 };
-                dialog.ShowDialog(this);
+                timelineList = view;
+                return dialog;
             }
         }
+
+        // The last Timeline dialog's list, for LayoutAudit.
+        private ListView timelineList;
 
         private void ExportDiagnostics()
         {
