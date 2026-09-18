@@ -1,6 +1,6 @@
-# Codex Auto Resume roadmap: v0.6.4 → v0.6.10
+# Codex Auto Resume roadmap: v0.6.5 → v0.6.10
 
-This is the current development direction for Codex Auto Resume after v0.6.3.
+This is the current development direction for Codex Auto Resume after v0.6.4.
 
 This is a **planned roadmap, not a promise**. Details may change as Codex evolves or as testing
 reveals better or safer implementation paths.
@@ -33,48 +33,25 @@ The recovery safety model remained deliberately conservative.
 
 ---
 
-## v0.6.4 — Design consistency, neumorphic refinement, and responsiveness 🚧
+## v0.6.4 — Design consistency, neumorphic refinement, and responsiveness ✅
 
-**Currently in development.**
+**Released.**
 
-v0.6.4 focuses on finishing the UI introduced in v0.6.3 rather than expanding the recovery
-engine.
+v0.6.4 finished the UI introduced in v0.6.3 rather than expanding the recovery engine:
 
-Current work is centered around three areas:
-
-- **Fixing parts of the UI that do not yet fit the intended soft-neumorphic design**
-  - cards, controls, selection states, hierarchy, spacing, shadows, and surfaces
-  - keeping the style restrained and usable rather than decorative
-
-- **Unifying the Settings / Dashboard, Tray, and MCP interfaces**
-  - shared typography
-  - shared spacing and proportions
-  - shared controls and state indicators
-  - one consistent visual language across the application
-
-- **Removing UI lag**
-  - improving startup and first-screen responsiveness
-  - reducing unnecessary UI-thread work
-  - reducing navigation, redraw, Tray, and Settings delays
-
-Additional work includes:
-
-- layout and proportion fixes,
-- DPI and display scaling,
-- CJK and long translated strings,
-- hover / focus / selected / disabled states,
-- restrained status animations,
+- one neumorphic design across the Dashboard and Settings window, the notification-area popup
+  and the panel in Codex, taken from the panel,
 - light and dark themes that follow Windows by default, with a choice in Settings,
-- switches and check boxes chosen by the kind of setting,
-- buttons and switches at the right of a card or row pinned to its bottom-right corner,
-- language and theme changes applied at once, with the window reopening itself where it has to.
+- a window that opens at 1000 × 632 with a first screen that never scrolls,
+- soft scroll bars in place of Windows' own,
+- switches for things that run, check boxes for picking items from a list,
+- language and theme changes applied at once, with the window reopening itself where it has to,
+- page switches from about 100 ms to about 22 ms, and a usable window about 3 seconds sooner,
+- the status light back in its pre-v0.6.3 colour, with a gentle glow.
 
-Recovery-engine changes should remain minimal unless directly required by this work.
+Recovery decides exactly what it decided in v0.6.3.
 
-### Work in progress
-
-The screenshots in the repository show the v0.6.4 design as it stands, and **may still change
-before release**.
+### Screenshots
 
 #### Dashboard — Overview
 
@@ -92,12 +69,11 @@ before release**.
 
 <img src="images/settings-window-ko.png" alt="The Dashboard's Settings page in Korean" width="680">
 
-The final design may still change in spacing, proportions, typography, controls, shadows, and
-individual components before release.
-
 ---
 
 ## v0.6.5 — Python modularization + Codex Compatibility Registry
+
+**Next. Being built on the `dev` branch.**
 
 v0.6.5 is planned as the major structural cleanup of the Python implementation.
 
@@ -152,6 +128,27 @@ UNKNOWN / fail closed if still uncertain
 
 No telemetry is required for this system.
 
+### Also planned for v0.6.5
+
+Interface work that came out of using v0.6.4:
+
+- a status light you can actually see breathing,
+- motion on the notification-area icon itself: a slow breathe with an occasional slow turn while
+  watching, and a turning arc while a recovery is being sent,
+- a notification card in the product's own design, with a silent copy in Action Center, and
+  Windows' own notification wherever a card must not appear (a locked session, a full-screen
+  app, Do Not Disturb, a running screen reader),
+- real depth inside the notification-area popup,
+- the first screen's card buttons back at the bottom-left, with its proportions redone,
+- drop-down lists drawn in the same neumorphic material as the cards, in the window and in the panel,
+- switches that glide when they change,
+- lists that never overflow sideways,
+- three fixes found while planning the refactor.
+
+The Compatibility Registry's data ships inside each release and is refreshed only when you ask -
+from Diagnostics, or when you check for updates. There is no background traffic. The first
+release that carries it lists no capability as VERIFIED: that state needs recorded evidence.
+
 ---
 
 ## v0.6.6 — Advanced / Experimental recovery capabilities
@@ -187,6 +184,13 @@ The principle remains:
 
 > Keep the safe default small, while giving informed users more control when they explicitly
 > choose it.
+
+### Also planned for v0.6.6
+
+- a design audit of the panel in Codex, the app and the notification-area popup, side by side in
+  light and dark, fixing everything that does not yet look like one product,
+- a choice of appearance: today's design, the same without motion, v0.6.2's plainer look (with
+  today's status light), and a fully plain one - each in light and dark.
 
 ---
 
@@ -360,22 +364,24 @@ Feature / UX expansion
 
         ↓
 
-v0.6.4  🚧 In progress
+v0.6.4  ✅ Released
 UI design consistency
-Soft-neumorphic refinement
+Light and dark themes
 Settings / Tray / MCP unification
 UI lag reduction
 
         ↓
 
-v0.6.5
+v0.6.5  (next, on the dev branch)
 Python modularization
 + Codex Compatibility Registry
++ icon motion, notification card, UI polish
 
         ↓
 
 v0.6.6
 Advanced / Experimental recovery capabilities
++ design audit, a choice of appearance
 
         ↓
 
@@ -404,4 +410,4 @@ Final Rust audit and stabilization
 Maintenance
 ```
 
-This document records the current direction while v0.6.4 is still in development.
+This document records the current direction; v0.6.5 is being built on the `dev` branch.

@@ -387,8 +387,20 @@ class RoadmapTests(unittest.TestCase):
         after = [version for version in ahead if version_key(version) > version_key(config.version())]
         if not after:
             self.skipTest("the roadmap plans nothing after the manifest's version")
+        if IN_DEVELOPMENT not in {mark for _, mark in roadmap_marks(self.english)}:
+            # Between releases. From v0.6.5 the work happens on the dev branch and main holds what
+            # was released, so main's roadmap marks the manifest's own release out and nothing in
+            # development. A bump is then caught by the rule above - the new version has no mark -
+            # provided the roadmap has not already marked the next release.
+            self.assertNotIn(after[0], {version for version, _ in roadmap_marks(self.english)},
+                             "the next release carries a mark before the manifest reaches it")
+            return
         self.assertTrue(stale_marks(self.english, after[0]),
                         "a manifest one release ahead should find the in-development mark stale")
+
+    def test_at_most_one_release_is_in_development(self):
+        marked = [version for version, mark in roadmap_marks(self.english) if mark == IN_DEVELOPMENT]
+        self.assertLessEqual(len(set(marked)), 1, "more than one release is marked in development")
 
     def test_the_korean_roadmap_marks_what_the_english_one_marks(self):
         self.assertEqual([mark for _, mark in roadmap_marks(self.korean)],
