@@ -47,16 +47,21 @@ WIDTH = tray_popup.WIDTH                       # the popup's width, so the two a
 CARD_WIDTH = WIDTH - 2 * brand.SPACING["m"]    # the card itself: exactly the popup's card
 MAX_CARDS = 3
 FRAME_MS = 16                                  # frames only while something moves
-ENTRANCE_MS = 280
+# The entrance, as tuned on a real screen (2880x1800 at 200%, light and dark, over a busy dark
+# desktop): the card is solid within about a third of the entrance and then keeps rising softly
+# to rest. With the fade spread over most of it (280 ms, 16 dip, fade done at 60%), a light card
+# crossing a dark desktop read as a grey slab with the text beneath showing through for several
+# frames, and the rise was over before the eye found the card.
+ENTRANCE_MS = 340
 EXIT_MS = 220
 SLIDE_MS = 280
 SWAP_MS = 130                                  # a card replaced by a newer one about the same task
 STACK_DELAY_MS = 120                           # a newcomer waits this long for the stack to make room
 HOLD_MS = 6000                                 # at least; Windows' own duration if it is longer
 HOVER_GRACE_MS = 1500                          # after the pointer leaves, at least this is left
-RISE = 16                                      # dip the card rises through as it enters
+RISE = 20                                      # dip the card rises through as it enters
 SCALE_FROM = 0.98
-ALPHA_SHARE = 0.6                              # the fade is complete this far into the entrance
+ALPHA_SHARE = 0.35                             # the fade is complete this far into the entrance
 # The shadow at the start of the entrance, as a fraction of the settled one: nearer and fainter,
 # so the card seems to lift off the desktop as it arrives.
 DEPTH_START = {"offset": 0.35, "blur": 0.55, "alpha": 0.30}
@@ -283,6 +288,15 @@ class CardMotion:
         self.final = False
         self.position = position
         self._slide = None
+
+    def restart(self, now_ms) -> None:
+        """Begin the card's life at `now_ms` - the entrance, or the hold when reduced - rather than
+        when its motion was made. Its host calls it once the card is drawn and ready to show, so
+        the time spent drawing it (tens of milliseconds at 200%) never eats into the entrance."""
+        if self.phase in ("enter", "hold") and not self.final:
+            self.phase = "hold" if self.reduced else "enter"
+            self.since = now_ms
+            self.hold_left = self.hold_ms
 
     def delay(self, ms) -> None:
         """Start the entrance `ms` later (it stays invisible until then)."""

@@ -386,10 +386,10 @@ def update(path: Path, changes: dict) -> dict:
 # Fields that exist - stored, validated, defaulted - but that no surface offers yet, because
 # nothing reads them yet. `describe()` leaves them out, and the Dashboard, the panel and the MCP
 # schema are all drawn from it, so none of them shows a switch that would change nothing.
-# `notification_card` is read once the watcher hands notices to the notifier (app.py) and the
-# icon's thread hosts the card (tray.py); that wiring takes the name out of here, and
-# tests/test_notice_card.py (SettingTests) fails until both happen together.
-NOT_YET_OFFERED = frozenset({"notification_card"})
+# Empty since v0.6.5: `notification_card` waited here until the watcher handed notices to the
+# notifier (app.py) and the icon's thread hosted the card (tray.py); tests/test_notice_card.py
+# (SettingTests) holds the name here exactly while that wiring is missing.
+NOT_YET_OFFERED = frozenset()
 
 
 def describe() -> list:

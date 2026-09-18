@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import collections
 from dataclasses import dataclass
+import re
 import threading
 
 from . import l10n, messages, notice_presence, notify, reasons
@@ -277,7 +278,7 @@ def complete(notice, card_shown, *, show=notify.show_content) -> bool:
 
 
 # ------------------------------------------------------------------------- the buttons
-def activate(uri, *, control=None, open_dashboard=None, announce=None) -> str:
+def activate(uri, *, control=None, open_dashboard=None, announce=None, log=None) -> str:
     """Do what a card button's URI asks, in process. Returns what happened, as one word.
 
     "opened" / "not_installed"  an open URI: `open_dashboard(page)` for one of the window's pages
@@ -287,24 +288,52 @@ def activate(uri, *, control=None, open_dashboard=None, announce=None) -> str:
 
     Called on a worker thread by the card's host: cancelling may wait for a busy store. After a
     cancel, `announce(notice)` is given the notice `notify.cancelled` would have raised.
+
+    Every press leaves exactly one line through `log`, as the toast's buttons do (cli.cmd_activate):
+    which conversation was cancelled from a card, or why nothing was - a refusal's code or an
+    exception's type, never its text. The card retires either way, so the log is the only record.
     """
+    def say(line):
+        if log is not None:
+            try:
+                log(line)
+            except Exception:
+                pass                        # a log that cannot be written changes nothing a press does
+
     page = notify.parse_open_uri(uri)
     if page is not None:
         if open_dashboard is None:
+            say("notification card: the Dashboard is not installed here")
             return "not_installed"
         try:
-            return "opened" if open_dashboard(page) else "not_installed"
-        except Exception:
+            opened = open_dashboard(page)
+        except Exception as exc:
+            say("notification card: opening the Dashboard failed (%s)" % type(exc).__name__)
             return "failed"
+        say("dashboard opened from a notification card" if opened
+            else "notification card: the Dashboard is not installed here")
+        return "opened" if opened else "not_installed"
     interruption_id = notify.parse_cancel_uri(uri)
     if interruption_id is None or control is None:
+        say("notification card: a button was ignored (%s)" % ("malformed or unsupported URI"
+                                                               if interruption_id is None else "no control layer"))
         return "ignored"
     try:
         result = control.cancel_interruption(interruption_id, actor="toast")
     except Exception as exc:
         code = getattr(exc, "code", None)
-        return "refused" if isinstance(code, str) and code else "failed"
+        if isinstance(code, str) and code:
+            # The control layer's codes are identifiers; anything else is not written out.
+            say("notification card: the cancel was refused (%s)"
+                % (code if re.fullmatch(r"[a-z][a-z0-9_]{0,47}", code) else "unrecognised code"))
+            return "refused"
+        say("notification card: the cancel failed (%s)" % type(exc).__name__)
+        return "failed"
     thread_id = (result or {}).get("thread_id")
+    if (result or {}).get("changed", True) is False:
+        say("thread %s: a notification card's cancel changed nothing; it had already finished" % thread_id)
+    else:
+        say("thread %s: cancelled from a notification card" % thread_id)
     if announce is not None and thread_id:
         try:
             announce(build_cancelled(thread_id))

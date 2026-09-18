@@ -318,20 +318,19 @@ class NotificationCardTests(unittest.TestCase):
         self.assertEqual(settings.field_type("notification_card"), "boolean")
 
     def test_it_is_described_in_the_windows_group_right_after_the_icon(self):
-        with patch.object(settings, "NOT_YET_OFFERED", frozenset()):
-            described = settings.describe()
+        described = settings.describe()
         names = [entry["name"] for entry in described]
         self.assertEqual(names.index("notification_card"), names.index("show_tray") + 1)
         entry = described[names.index("notification_card")]
         self.assertEqual(entry["group"], "windows")
         self.assertNotIn("master", entry)
 
-    def test_until_something_draws_the_card_no_surface_offers_the_switch(self):
-        """Nothing reads it until the icon's thread hosts the card (tests/test_notice_card.py
-        SettingTests holds the two together), so describe() - which the Dashboard, the panel and
-        the MCP schema are all drawn from - leaves it out. The value itself is kept and checked."""
-        self.assertIn("notification_card", settings.NOT_YET_OFFERED)
-        self.assertNotIn("notification_card", [entry["name"] for entry in settings.describe()])
+    def test_now_that_the_icon_draws_the_card_the_switch_is_offered(self):
+        """The watcher hands notices to the notifier and the icon's thread hosts the card (tests/
+        test_notice_card.py SettingTests holds the two together), so describe() - which the
+        Dashboard draws from - offers the switch. The value is kept across other saves and checked."""
+        self.assertNotIn("notification_card", settings.NOT_YET_OFFERED)
+        self.assertIn("notification_card", [entry["name"] for entry in settings.describe()])
         self.assertIs(settings.defaults()["notification_card"], True)
         self.assertEqual(settings.validate_update({"notification_card": False}), {"notification_card": False})
         with tempfile.TemporaryDirectory() as folder:
@@ -365,6 +364,28 @@ class NotificationCardTests(unittest.TestCase):
             settings.update(path, {"notification_card": False})
             self.assertIs(settings.load(path)["notification_card"], False)
             self.assertIs(json.loads(path.read_text(encoding="utf-8"))["notification_card"], False)
+
+
+class OfferedWithItsHelpTests(unittest.TestCase):
+    """A setting that describe() offers, and whose catalogs carry a help line for it, is drawn in the
+    Dashboard with that line under it. describe() is what puts a switch in the window, so emptying
+    NOT_YET_OFFERED is what put the card's switch there - and the card's help line is where a person
+    learns that Do not disturb, full screen, a screen reader, a locked or a remote session bring
+    Windows' own notification back instead (PLAN v2 B-D7: the user is to be told)."""
+
+    def test_every_offered_setting_with_a_help_line_is_drawn_with_it(self):
+        from codex_auto_resume import l10n
+        window = (Path(__file__).resolve().parents[1] / "gui" / "SettingsApp.cs").read_text(encoding="utf-8")
+        helps = l10n.catalog("en")
+        missing = []
+        for entry in settings.describe():
+            key = "help." + entry["name"]
+            if key in helps and ('"%s"' % key) not in window:
+                missing.append(key)
+        self.assertEqual(missing, [], "gui/SettingsApp.cs draws these switches without the help line the "
+                                      "catalogs have for them; beside `if (name == \"reduce_motion\")` add "
+                                      "`if (name == \"notification_card\") host.Controls.Add(HelpText(S("
+                                      "\"help.notification_card\", ...)));`")
 
 
 class WrongTypeTests(unittest.TestCase):

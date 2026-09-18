@@ -761,7 +761,7 @@ class DarkRendererTests(unittest.TestCase):
                     plan = self.renderer.layout(vm, scale, locale)
                     canvas = self.renderer.draw(vm, plan, frame=popup.halo(vm["state"], 0))
                     pixels, width = canvas.pixels(), plan["size"][0]
-                    tile = brand.rgb(brand.palette(theme)["raised"])
+                    tile = brand.rgb(popup.tile_ground(theme))       # v0.6.5: the tile's own ground
 
                     def blank(y, x0, x1):
                         """Whether a run of pixels on line `y` is the tile's own colour and nothing else."""

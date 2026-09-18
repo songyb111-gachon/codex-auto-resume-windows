@@ -89,6 +89,49 @@ BADGE = {"monitoring": None, "waiting": "waiting", "checking": "waiting", "recov
 # card's surface, as the panel mixes it, whatever the chip sits on.
 CHIP_ALPHA = 0.12
 
+# v0.6.5: depth inside the card (requirement 11). Until then everything on the popup's card was
+# flat - a tile was a lighter fill and a hairline - so the card looked neumorphic and its inside
+# did not. Now what stands on the card is raised and what holds a value is sunken:
+#
+#   a task tile    lifts off the card: a soft drop under it and a light top edge;
+#   the counts     sit in a well, as the panel's fields do (brand's `inset` fill and recipe);
+#   an empty list  says so from a well too, and so does a failed read;
+#   a button       sinks into a well while it is pressed (brand's `control` and `inset`), and a
+#                  switch's track is a well - both as they were, now on a surface that has depth.
+#
+# The panel is the reference, so a tile is made of brand's own recipes and grounds only - no
+# number of the popup's own. The card's recipe does not transfer (at its 14 px blur a tile eight
+# pixels from the next would share one grey smear with it); the control recipe does, at a tile's
+# scale, and it is the lift the panel already puts on what stands on its cards (buttons, segments):
+#
+#   light  brand's control lift: a short drop down and right, the white highlight up and left;
+#   dark   a drop alone is invisible on a dark card at this size, so dark is the panel's dark
+#          recipe: brand's control drop, the one-pixel top light of brand's dark card inside the
+#          hairline, and `raised` for a ground - a step brighter than the card's own, the step the
+#          panel's rows stand on.
+#
+# A tile's ground is `raised` in both themes, as the panel's rows and every resting button are: a
+# ground of the tile's own put the tiles a step above 'Pause recovery' in dark, so the button looked
+# sunk below them. When the panel's rows take the same lift, this belongs in brand.SHADOWS.
+# High Contrast draws none of it: system colours, hairlines, no shadow. Nothing here moves.
+DEPTH = {
+    "light": {"tile": brand.shadows("control", "light")},
+    "dark": {"tile": brand.shadows("control", "dark")
+             + tuple(shadow for shadow in brand.shadows("card", "dark") if shadow.inset)},
+}
+
+
+def recipe_shadows(recipe, theme="light") -> tuple:
+    """A recipe's shadows in `theme`: the tile's (DEPTH, made of brand's) or brand's own (brand.SHADOWS)."""
+    theme = brand.theme_name(theme)
+    own = DEPTH.get(theme, {}).get(recipe)
+    return own if own is not None else brand.shadows(recipe, theme)
+
+
+def tile_ground(theme="light") -> str:
+    """A task tile's ground: brand's `raised`, as the panel's rows and a resting button stand on."""
+    return brand.palette(theme)["raised"]
+
 
 def say(strings, key, **fields) -> str:
     """One string from the catalog the icon was given, English underneath it.
@@ -744,6 +787,48 @@ def vocabulary(language) -> dict:
 
 
 # ------------------------------------------------------------------------------- layout
+def _breaks_anywhere(char) -> bool:
+    """A character a line may break before or after: Chinese and Japanese are set without spaces."""
+    code = ord(char)
+    return 0x2E80 <= code <= 0x9FFF or 0xF900 <= code <= 0xFAFF or 0xFF00 <= code <= 0xFFEF
+
+
+def unbroken(text):
+    """The pieces of a label no line may break inside: its words, and in a run of Chinese or Japanese
+    each character (Korean is set with spaces, and Renderer.lines breaks it only there)."""
+    pieces = []
+    for word in str(text).split():
+        if any(_breaks_anywhere(char) for char in word):
+            pieces.extend(word)
+        else:
+            pieces.append(word)
+    return pieces or [""]
+
+
+def share_columns(available, needs) -> list:
+    """Widths for columns side by side in `available` pixels, one per need.
+
+    Equal shares while every need fits in one; otherwise each column that needs more is given what
+    it needs and the others share what is left alike, repeatedly, until the rest all fit. Only if
+    the needs themselves do not fit are they cut down together, each by the same fraction, rather
+    than one column taking all of the shortfall.
+    """
+    count = len(needs)
+    needs = [max(0, int(need)) for need in needs]
+    total = sum(needs)
+    if total > available:
+        return [available * need // total for need in needs]
+    fixed = {}
+    while len(fixed) < count:
+        free = [index for index in range(count) if index not in fixed]
+        share = (available - sum(fixed.values())) // len(free)
+        wider = [index for index in free if needs[index] > share]
+        if not wider:
+            return [fixed.get(index, share) for index in range(count)]
+        fixed.update((index, needs[index]) for index in wider)
+    return needs
+
+
 def layout(vm, scale, measure, width=WIDTH) -> dict:
     """Every rectangle the window draws, in device pixels, and the height it needs.
 
@@ -786,23 +871,38 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
          STATE_INK.get(vm["state"], "ink"), wrap=True)
     y += header_h + px(space["m"])
 
-    # Summary: waiting, recovering, next check.
-    items.append({"kind": "rule", "rect": (left, y, right, y + max(1, px(1)))})
-    y += px(space["m"])
+    # Summary: waiting, recovering, next check - three values read off a field, so since v0.6.5
+    # they sit in one sunken well, as the panel's fields do, with a hairline between them. The
+    # well's padding comes out of the columns, and an equal third is then narrower than a long word
+    # ('Wiederherstellung'), which DrawText would cut in two: a column whose longest word or value
+    # needs more is given it, and the others share what is left (share_columns).
+    well_top = y
+    well_pad = px(space["m"])
+    y += well_pad
     gutter = px(space["m"])
-    column = (inner - 2 * gutter) // 3
-    label_h = max(measure("label", label, column, True)[1] for label, _ in vm["counts"])
-    value_h = max(measure("value", value, column, False)[1] for _, value in vm["counts"])
-    for index, (label, value) in enumerate(vm["counts"]):
-        x = left + index * (column + gutter)
+    available = inner - 2 * well_pad - 2 * gutter
+    needs = [max([measure("label", piece, available, False)[0] for piece in unbroken(label)]
+                 + [measure("value", value, available, False)[0]]) for label, value in vm["counts"]]
+    columns = share_columns(available, needs)
+    label_h = max(measure("label", label, column, True)[1] for (label, _), column in zip(vm["counts"], columns))
+    value_h = max(measure("value", value, column, False)[1] for (_, value), column in zip(vm["counts"], columns))
+    counts = []
+    x = left + well_pad
+    for index, ((label, value), column) in enumerate(zip(vm["counts"], columns)):
         if index:
             rule_x = x - gutter // 2
-            items.append({"kind": "rule", "rect": (rule_x, y + px(2), rule_x + max(1, px(1)),
-                                                   y + label_h + value_h)})
-        text((x, y, x + column, y + label_h), "label", label, "muted", wrap=True)
-        text((x, y + label_h + px(2), x + column, y + label_h + px(2) + value_h), "value", value, "ink")
-    y += label_h + px(2) + value_h + px(space["m"])
-    items.append({"kind": "rule", "rect": (left, y, right, y + max(1, px(1)))})
+            counts.append({"kind": "rule", "rect": (rule_x, y + px(2), rule_x + max(1, px(1)),
+                                                    y + label_h + value_h)})
+        counts.append({"kind": "text", "rect": (x, y, x + column, y + label_h), "role": "label", "text": label,
+                       "colour": "muted", "wrap": True, "align": "left", "target": None})
+        counts.append({"kind": "text", "rect": (x, y + label_h + px(2), x + column,
+                                                y + label_h + px(2) + value_h),
+                       "role": "value", "text": value, "colour": "ink", "wrap": False, "align": "left",
+                       "target": None})
+        x += column + gutter
+    y += label_h + px(2) + value_h + well_pad
+    items.append({"kind": "well", "rect": (left, well_top, right, y)})
+    items.extend(counts)
     y += px(space["m"])
 
     # The tasks, most urgent first.
@@ -873,9 +973,10 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
 
     quiet = vm["error"] or vm["empty"]
     if quiet:
+        # Nothing to list is said from a well: an empty field, not a tile with nothing on it.
         _, quiet_h = measure("body", quiet, inner - 2 * pad, True)
         block = quiet_h + 2 * pad
-        items.append({"kind": "panel", "rect": (left, y, right, y + block)})
+        items.append({"kind": "well", "rect": (left, y, right, y + block)})
         text((left + pad, y + pad, right - pad, y + pad + quiet_h), "body", quiet, "muted",
              wrap=True, align="center")
         y += block + px(space["s"])
@@ -1833,12 +1934,21 @@ class Renderer:
         if self._ground_key == key and self._ground_pixels is not None:
             C.memmove(canvas.bits, self._ground_pixels, len(self._ground_pixels))
             return
+        drawn = [item for item in plan["items"] if not (item["kind"] == "switch" and item["target"] in glides)]
         with _Painter(canvas) as paint:
             paint.fill_round((0, 0, canvas.width, canvas.height), 0, self._argb("canvas"))
-            for item in plan["items"]:
-                if item["kind"] == "switch" and item["target"] in glides:
-                    continue
-                self._ground_item(paint, item, scale, pressed)
+            # The card, then every tile's lift, then everything that stands on the card: a tile's
+            # shadow falls on the card, and never over a tile drawn before it - the highlight above
+            # the second tile would otherwise lie across the bottom edge of the first.
+            for item in drawn:
+                if item["kind"] == "card":
+                    self._ground_item(paint, item, scale, pressed)
+            for item in drawn:
+                if item["kind"] == "panel":
+                    self._lift(paint, "tile", item["rect"], brand.RADII["control"] * scale, scale)
+            for item in drawn:
+                if item["kind"] != "card":
+                    self._ground_item(paint, item, scale, pressed)
         self._ground_pixels = canvas.pixels()
         self._ground_key = key
 
@@ -1856,10 +1966,21 @@ class Renderer:
             self._inner(paint, "card", rect, radius, scale)
             paint.stroke_round(rect, radius, self._argb("line"), hairline)
         elif kind == "panel":
-            # A task row is a tile, as in the panel: raised, a hairline, and no shadow of its own.
-            radius = brand.RADII["control"] * scale
-            paint.fill_round(item["rect"], radius, self._argb("raised"))
-            paint.stroke_round(item["rect"], radius, self._argb("line"), hairline)
+            # A task row is a tile, raised off the card (DEPTH): its lift is already under it (see
+            # _ground), then its ground - `raised`, a step brighter than the card's in dark - its top
+            # light and the hairline, which stays because a shadow alone is not an edge for everybody.
+            rect, radius = item["rect"], brand.RADII["control"] * scale
+            ground = self._argb("raised") if self.contrast else _pack(brand.rgb(tile_ground(self._theme())))
+            paint.fill_round(rect, radius, ground)
+            self._inner(paint, "tile", rect, radius, scale)
+            paint.stroke_round(rect, radius, self._argb("line"), hairline)
+        elif kind == "well":
+            # A value's field, sunken as the panel's are: the inset fill, the inset recipe inside the
+            # border, and the hairline.
+            rect, radius = item["rect"], brand.RADII["control"] * scale
+            paint.fill_round(rect, radius, self._argb("inset"))
+            self._well(paint, rect, radius, scale)
+            paint.stroke_round(rect, radius, self._argb("line"), hairline)
         elif kind == "rule":
             paint.fill_round(item["rect"], 0, self._argb("line"))
         elif kind in ("chip", "note"):
@@ -1913,7 +2034,7 @@ class Renderer:
         if self.contrast:
             return
         left, top, right, bottom = (int(value) for value in rect)
-        for shadow in reversed(brand.shadows(recipe, self._theme())):
+        for shadow in reversed(recipe_shadows(recipe, self._theme())):
             if shadow.inset:
                 continue
             image = self._image(lift_coverage(right - left, bottom - top, radius, shadow.blur * scale), shadow)
@@ -1926,7 +2047,7 @@ class Renderer:
         """A recipe's inset shadows inside a body's border, over its fill, as CSS paints them."""
         if self.contrast:
             return
-        inset = [shadow for shadow in reversed(brand.shadows(recipe, self._theme())) if shadow.inset]
+        inset = [shadow for shadow in reversed(recipe_shadows(recipe, self._theme())) if shadow.inset]
         if not inset:
             return
         border = int(max(1.0, round(scale)))

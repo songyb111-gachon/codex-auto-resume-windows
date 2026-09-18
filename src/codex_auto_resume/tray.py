@@ -23,6 +23,11 @@ is grey and still; a problem is its colour, pulses once and holds. Frames are co
 table built off this thread, swapped with NIM_MODIFY a few times a second, and nothing moves
 under Reduce motion, Windows' animation setting, High Contrast or battery saver, while the session
 is locked or while the icon sits in the overflow flyout.
+
+Since v0.6.5 this thread also hosts the notification card (`notice_window.CardStack`), as it hosts
+the popup: given the notifier's inbox, the icon attaches it once its window exists, so a notice
+from the watcher's notifications thread becomes the product's card beside the notification area;
+with no icon, or a card that cannot be made here, every notification is today's toast.
 """
 from __future__ import annotations
 
@@ -459,7 +464,8 @@ class Tray:
     """One icon, one hidden window, one thread - and, once clicked, one popup on it."""
 
     def __init__(self, *, icon_path=None, strings=None, on_open=None, on_toggle=None, on_stop=None,
-                 on_pending=None, log=None, control=None, pending_source=None, on_dashboard=None):
+                 on_pending=None, log=None, control=None, pending_source=None, on_dashboard=None,
+                 inbox=None, on_notice_action=None, on_notice_complete=None):
         self.icon_path = Path(icon_path) if icon_path else None
         self.strings = strings or {}
         self.on_open, self.on_toggle, self.on_stop = on_open, on_toggle, on_stop
@@ -509,6 +515,15 @@ class Tray:
         self._session_away = False
         self._session_watch = False
         self._motion_read_failed = False    # said once until the settings file can be read again
+        # v0.6.5: the notification card. With an inbox, this thread hosts the cards once its window
+        # exists (notice_window.CardStack attaches itself to the inbox); a card's button calls
+        # `on_notice_action(uri)` and each notice the stack took is ended by
+        # `on_notice_complete(notice, shown)`, both on worker threads. No inbox, or a stack that
+        # could not be made: no card, and every notification stays today's toast.
+        self.inbox = inbox
+        self.on_notice_action = on_notice_action
+        self.on_notice_complete = on_notice_complete
+        self._cards = None
 
     # ----------------------------------------------------------------- public
     def start(self) -> bool:
@@ -602,11 +617,48 @@ class Tray:
         self._shown_icon = self._icon
         self._notify(NIM_ADD)
         self._set_version()
+        self._host_cards()
         user32.SetTimer(self._hwnd, TIMER_TICK, 1000, None)
         self._watch_session()
         if self._icon_owned:
             # Only for our own mark: a missing .ico keeps Windows' generic icon, unmoved.
             self._build_frames_later(user32.GetSystemMetrics(SM_CXSMICON))
+
+    # ------------------------------------------------------------- the notification card
+    def _host_cards(self):
+        """Host the notification card on this thread, if this icon was given an inbox.
+
+        A stack that cannot be made costs the card only: the inbox stays detached, and the
+        notifier raises today's toast for everything, as it does with no icon at all.
+        """
+        if self.inbox is None:
+            return
+        try:
+            from . import notice_window, tray_popup
+            self._cards = notice_window.CardStack(on_action=self.on_notice_action,
+                                                  on_complete=self.on_notice_complete, log=self.log,
+                                                  anchor=lambda: tray_popup.icon_rect(self._hwnd, 1),
+                                                  inbox=self.inbox, appearance=self._card_look).create()
+        except Exception as exc:
+            self._cards = None
+            self.log("notification card unavailable (%s)" % type(exc).__name__)
+
+    def _card_look(self):
+        """How the next card is drawn: the Theme and Reduce motion stored now, as the popup and the
+        menu take them up when they open (`_adopt_settings`), then Windows' own answers."""
+        from . import notice_window
+        self._adopt_settings()
+        return notice_window.look()
+
+    def _drop_cards(self):
+        """Take the cards down with the icon. The stack lets go of the inbox first, so a notice
+        from now on is today's toast, and ends every notice it held (notice_window.CardStack)."""
+        cards, self._cards = self._cards, None
+        if cards is not None:
+            try:
+                cards.destroy()
+            except Exception as exc:
+                self.log("notification card cleanup failed (%s)" % type(exc).__name__)
 
     def _load_icon(self):
         user32 = _dll("user32")
@@ -1080,6 +1132,7 @@ class Tray:
                     except Exception:
                         pass
                     self._session_watch = False
+                self._drop_cards()
                 popup, self._popup = self._popup, None
                 if popup is not None:
                     try:

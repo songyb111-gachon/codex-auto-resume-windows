@@ -426,7 +426,30 @@ def fullest_snapshot(now: float) -> dict:
                        "watcher": {"running": True, "ticking": True, "engine_state": "verified", "last_tick_at": now}},
             "week": {"interruptions_detected": 128, "continuations_submitted": 117, "pending": len(waiting),
                      "outcomes": {"recovered": 96}, "success_rate": 0.82},
-            "pending": waiting, "history": waiting + history}
+            "pending": waiting, "history": waiting + history,
+            # Answered by the bridge's own `compatibility` command, not by `dashboard`: LayoutAudit hands it to the
+            # Diagnostics page's card, so the card is measured at its fullest (fullest_compatibility).
+            "compatibility": fullest_compatibility(now)}
+
+
+def fullest_compatibility(now: float) -> dict:
+    """A Compatibility Registry view, as the bridge's `compatibility` command answers, with the most the Diagnostics
+    page's card shows: every part the registry offers, in each of its four states, a long engine version, refreshed
+    data that has expired, and a watcher still acting on what it found when it started - every line the card adds."""
+    from codex_auto_resume import compat
+    capabilities = {}
+    for index, (name, (checks, tier)) in enumerate(compat.CAPABILITIES.items()):
+        state = ("VERIFIED", "COMPATIBLE", "INCOMPATIBLE", "UNKNOWN")[index % 4] if checks else "UNKNOWN"
+        capabilities[name] = {"state": state, "source": "cache" if state in ("VERIFIED", "INCOMPATIBLE") else "local",
+                              "tier": tier,
+                              "reason": {"VERIFIED": "registry_verified", "COMPATIBLE": "local_checks_passed",
+                                         "INCOMPATIBLE": "registry_incompatible",
+                                         "UNKNOWN": "local_check_unavailable"}[state] if checks else "not_implemented"}
+    return {"status": "ok", "overall": "incompatible", "acting": "structurally_compatible", "checked_at": now - 90,
+            "live": False, "engine": {"found": True, "version": "codex-cli 0.155.0-alpha.123456789.987654321"},
+            "data": {"bundled": "ok", "bundled_sequence": 1, "cache": "expired", "cache_sequence": 123456,
+                     "cache_origin": "main", "fetched_at": now - 200 * 86400, "source": "cache", "expired": True},
+            "checks": {name: "PASS" for name in compat.CHECKS}, "capabilities": capabilities}
 
 
 def overview_states(now: float) -> list:
@@ -1401,7 +1424,9 @@ class LayoutAuditTests(unittest.TestCase):
                 json.dumps(reply(locale, l10n.catalog(locale)), ensure_ascii=False), encoding="utf-8")
         # And a reopen note no save card could hold, which the audit shows at the window's narrowest.
         canary = dict(l10n.catalog("en"), **{"field.theme": "W" * 400,
-                                              "note.reopen_pending": " ".join(["The window reopens."] * 60)})
+                                              "note.reopen_pending": " ".join(["The window reopens."] * 60),
+                                              # The Diagnostics page's compatibility card, measured too.
+                                              "compat.source.cache": "V" * 400})
         (work / "strings-canary.json").write_text(json.dumps(reply("en", canary)), encoding="utf-8")
         cramped = dict(l10n.catalog("en"), **{"overview.waiting_count": " ".join(["{n} waiting"] * 60)})
         (work / "strings-cramped.json").write_text(json.dumps(reply("en", cramped)), encoding="utf-8")
@@ -1462,6 +1487,9 @@ class LayoutAuditTests(unittest.TestCase):
         self.assertIn("shown before the window was laid out", self.answer["canary"],
                       "the note shown before the window's new width reached the save card went unreported, "
                       "so a quiet report on that order proves nothing")
+        self.assertRegex(self.answer["canary"], r"diagnostics/.*Label'VVVV",
+                         "the compatibility card's data in force, 400 characters wide, went unreported, so a quiet "
+                         "report on the card proves nothing")
 
     def test_the_save_card_holds_the_reopen_note_whichever_order_the_window_came_to_its_width(self):
         """The card's height is worked out when the note is shown, and a window that has just been made
