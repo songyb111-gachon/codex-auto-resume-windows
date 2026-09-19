@@ -164,6 +164,9 @@ class FramingTests(unittest.TestCase):
         self.assertEqual(wiregolden._framed('{"ok": true, "text": "한국어"}\n', "t"),
                          [{"ok": True, "text": "한국어"}])
         self.assertEqual(wiregolden._framed("", "t"), [])
+        # A line separator inside a value is written as itself and splits nothing on the wire.
+        self.assertEqual(wiregolden._framed('{"text": "a\u2028b"}\n{"ok": false}\n', "t"),
+                         [{"text": "a\u2028b"}, {"ok": False}])
 
     def test_any_other_writing_of_the_same_value_is_a_wire_change(self):
         for written in ('{"ok":true}\n',                        # other separators
