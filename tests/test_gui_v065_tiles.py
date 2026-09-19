@@ -95,7 +95,10 @@ foreach ($scale in (ConvertFrom-Json $env:CAR_SCALES)) {
         $frame.ShowInTaskbar = $false
         $frame.StartPosition = 'Manual'
         $frame.Location = New-Object Drawing.Point -30000, -30000
-        $frame.ClientSize = New-Object Drawing.Size ([int][Math]::Round([int]$form.GetField('OpeningWidth', $static).GetValue($null) * $scale)), ([int][Math]::Round([int]$form.GetField('OpeningHeight', $static).GetValue($null) * $scale))
+        # A top-level form is held to the screen's size, and a CI runner's screen is smaller than the
+        # window at 200%; the window inside is not, so it is given the opening size itself.
+        $opening = New-Object Drawing.Size ([int][Math]::Round([int]$form.GetField('OpeningWidth', $static).GetValue($null) * $scale)), ([int][Math]::Round([int]$form.GetField('OpeningHeight', $static).GetValue($null) * $scale))
+        $frame.ClientSize = $opening
         $once = $bridgeType.GetConstructors($instance)[0].Invoke([object[]]@($nowhere))
         $bridge = $persistentType.GetConstructors($instance)[0].Invoke([object[]]@($nowhere, $once))
         $window = $three.Invoke([object[]]@($bridge, (Read-Json 'strings-en.json'), $font.PSObject.BaseObject))
@@ -104,7 +107,7 @@ foreach ($scale in (ConvertFrom-Json $env:CAR_SCALES)) {
         $window.FormBorderStyle = 'None'
         $window.MinimumSize = [Drawing.Size]::Empty
         $window.Location = [Drawing.Point]::Empty
-        $window.ClientSize = $frame.ClientSize
+        $window.ClientSize = $opening
         $frame.Controls.Add($window)
         Invoke-Window $window 'ApplySnapshot' @((Read-Json 'snapshot.json'))
         $null = Invoke-Window $window 'ShowPage' @('pending')

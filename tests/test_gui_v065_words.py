@@ -122,14 +122,17 @@ $frame.FormBorderStyle = 'None'
 $frame.ShowInTaskbar = $false
 $frame.StartPosition = 'Manual'
 $frame.Location = New-Object Drawing.Point -30000, -30000
-$frame.ClientSize = New-Object Drawing.Size ([int][Math]::Round(1000 * $scale)), ([int][Math]::Round(664 * $scale))
+# A top-level form is held to the screen's size, and a CI runner's screen is smaller than the window at
+# 200%; the window inside is not, so it is given the opening size itself.
+$opening = New-Object Drawing.Size ([int][Math]::Round(1000 * $scale)), ([int][Math]::Round(664 * $scale))
+$frame.ClientSize = $opening
 $window = $three.Invoke([object[]]@($bridge, (Read-Json 'strings-ko.json'), $font.PSObject.BaseObject))
 $form.GetField('auditing', $instance).SetValue($window, $true)
 $window.TopLevel = $false
 $window.FormBorderStyle = 'None'
 $window.MinimumSize = [Drawing.Size]::Empty
 $window.Location = [Drawing.Point]::Empty
-$window.ClientSize = $frame.ClientSize
+$window.ClientSize = $opening
 $frame.Controls.Add($window)
 Invoke-Window $window 'ApplySnapshot' @((Read-Json 'snapshot.json'))
 # Parsed here, not through Read-Json: a function's list comes back unrolled into an array.
