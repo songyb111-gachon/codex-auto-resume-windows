@@ -9,7 +9,7 @@ settings surfaces were English no matter what language the rest of the product s
 So there is one catalog, here, and both surfaces are handed the resolved language's
 strings rather than choosing for themselves:
 
-    messages.language()          decides once, from the Windows preferred UI languages
+    l10n.current()               decides once, from the Windows preferred UI languages
         |
         +-- controlcli `strings` -> the standalone window, over the bridge it already uses
         +-- mcpui.settings_page  -> the Codex panel, embedded in the page it already seeds
@@ -27,7 +27,7 @@ attach to them normally.
 """
 from __future__ import annotations
 
-from . import l10n, messages
+from . import l10n
 
 # Ordinary UI vocabulary. The `field.*` keys are the settings schema's own names, so a
 # setting added to `settings.py` needs a line here and nowhere else; a missing one shows

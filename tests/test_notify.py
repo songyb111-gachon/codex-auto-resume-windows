@@ -14,7 +14,7 @@ import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
-from codex_auto_resume import cli, l10n, messages, notify, pwsh, startup
+from codex_auto_resume import cli, l10n, notify, pwsh, startup
 from codex_auto_resume.store import Store
 
 THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
@@ -117,21 +117,21 @@ class ToastPayloadTests(unittest.TestCase):
         # version of this test passed only on a machine whose Windows display language
         # is Korean, and failed everywhere else - including on CI, where it said the
         # three-line layout had regressed when nothing had.
-        expected = messages.text("toast_usage_at").format(
+        expected = l10n.message("toast_usage_at").format(
             time=notify._local_time(1788645827.0))
         self.assertEqual(lines[1], expected)
 
     def test_the_toast_speaks_whatever_language_is_in_force(self):
         from xml.etree import ElementTree
 
-        for language in messages.SUPPORTED:
+        for language in l10n.LOCALES:
             with self.subTest(language=language):
                 with patch.object(l10n, "preferred_languages", return_value=[language]),                      patch.object(pwsh, "executable", return_value="powershell.exe"),                      patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
                     notify.scheduled(THREAD, INTERRUPTION, None, "usage_limit", {"name": "A task"})
                 lines = [node.text for node in
                          ElementTree.fromstring(self._embedded_xml(run.call_args))
                          .findall("./visual/binding/text")]
-                self.assertEqual(lines[1], messages.MESSAGES[language]["toast_usage_soon"])
+                self.assertEqual(lines[1], l10n.messages(language)["toast_usage_soon"])
                 self.assertLessEqual(len(lines), notify.MAX_TOAST_LINES)
 
     def test_the_reason_and_the_uuid_both_survive_the_line_limit(self):
@@ -148,7 +148,7 @@ class ToastPayloadTests(unittest.TestCase):
                 self.assertLessEqual(len(lines), notify.MAX_TOAST_LINES)
                 self.assertIn(THREAD, rendered)                       # identity always shown
                 expected = "toast_usage_soon" if category == "usage_limit" else "toast_transient"
-                self.assertIn(messages.text(expected), rendered)      # and always the reason
+                self.assertIn(l10n.message(expected), rendered)      # and always the reason
 
     def test_the_embedded_document_is_still_valid_xml(self):
         # Regression: the XML was once escaped as if it were an XML *attribute*, which
@@ -452,11 +452,11 @@ class NotificationSettingTests(unittest.TestCase):
         # Compared as sets rather than a hand-kept list: a string added to one language
         # and forgotten in the other is exactly the kind of omission nobody notices
         # until a Korean user gets a KeyError instead of a notification.
-        catalogues = [set(messages.MESSAGES[code]) for code in messages.SUPPORTED]
+        catalogues = [set(l10n.messages(code)) for code in l10n.LOCALES]
         for keys in catalogues[1:]:
             self.assertEqual(keys, catalogues[0])
-        for code in messages.SUPPORTED:
-            for key, value in messages.MESSAGES[code].items():
+        for code in l10n.LOCALES:
+            for key, value in l10n.messages(code).items():
                 self.assertTrue(value.strip(), (code, key))
 
 

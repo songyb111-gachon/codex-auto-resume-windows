@@ -31,14 +31,14 @@ if _HERE not in sys.path:
     sys.path.insert(0, _HERE)        # srcscan lives next to this file
 
 import srcscan  # noqa: E402
-from codex_auto_resume import control, controlcli, interface, mcpui, messages   # noqa: E402
+from codex_auto_resume import control, controlcli, interface, l10n, mcpui   # noqa: E402
 
 
 def env(*tags, override=None):
     """An environment with no Windows probe and no override unless one is given."""
     environ = {}
     if override is not None:
-        environ[messages.ENV_LANG] = override
+        environ[l10n.ENV_LANG] = override
     if tags:
         environ["LANG"] = tags[0].replace("-", "_")
     return environ
@@ -51,12 +51,11 @@ class DecisionTests(unittest.TestCase):
         # `preferred_languages` reads the Windows API first; on a developer machine that
         # would answer for the developer rather than for the case under test, so the tag
         # list is injected directly.
-        from codex_auto_resume import l10n
         original = l10n._windows_preferred
         l10n._windows_preferred = lambda: list(tags)
         try:
-            environ = {} if override is None else {messages.ENV_LANG: override}
-            return messages.language(environ)
+            environ = {} if override is None else {l10n.ENV_LANG: override}
+            return l10n.current(environ)
         finally:
             l10n._windows_preferred = original
 
@@ -231,7 +230,7 @@ class CatalogTests(unittest.TestCase):
                     self.assertTrue(value.strip(), "empty string")
 
     def test_the_languages_match_the_message_catalog(self):
-        self.assertEqual(set(interface.STRINGS), set(messages.MESSAGES),
+        self.assertEqual(set(interface.STRINGS), {code for code in l10n.LOCALES if l10n.messages(code)},
                          "a language the product speaks in one catalog and not the other")
 
     def test_placeholders_survive_translation(self):
@@ -280,11 +279,11 @@ class ReachTests(unittest.TestCase):
 
     def surfaces(self, language):
         """What each surface resolves to, for one environment."""
-        environ = {messages.ENV_LANG: language}
+        environ = {l10n.ENV_LANG: language}
         window = json.loads(_capture(["--home", "x", "strings"], environ))
         panel = mcpui.settings_page(theme="light")
         return {
-            "toast": messages.text("setup_done", environ),
+            "toast": l10n.message("setup_done", environ),
             "catalog": interface.catalog(environ),
             "window_language": window["language"],
             "window_strings": window["strings"],
@@ -295,15 +294,15 @@ class ReachTests(unittest.TestCase):
         for language in ("en", "ko"):
             with self.subTest(language):
                 import os
-                original = os.environ.get(messages.ENV_LANG)
-                os.environ[messages.ENV_LANG] = language
+                original = os.environ.get(l10n.ENV_LANG)
+                os.environ[l10n.ENV_LANG] = language
                 try:
                     surfaces = self.surfaces(language)
                 finally:
                     if original is None:
-                        os.environ.pop(messages.ENV_LANG, None)
+                        os.environ.pop(l10n.ENV_LANG, None)
                     else:
-                        os.environ[messages.ENV_LANG] = original
+                        os.environ[l10n.ENV_LANG] = original
 
                 expected = interface.STRINGS[language]
                 self.assertEqual(surfaces["window_language"], language)
@@ -315,7 +314,7 @@ class ReachTests(unittest.TestCase):
                 marker = expected["status.watching"]
                 self.assertIn(marker, surfaces["panel"],
                               "the panel's embedded catalog is in the wrong language")
-                self.assertEqual(surfaces["toast"], messages.MESSAGES[language]["setup_done"])
+                self.assertEqual(surfaces["toast"], l10n.messages(language)["setup_done"])
 
     def test_the_two_languages_actually_differ(self):
         """A guard against the catalogs being accidentally identical."""

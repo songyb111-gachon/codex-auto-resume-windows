@@ -489,7 +489,7 @@ does not have.
 **Where the words live.** One JSON catalog per language, in `src/codex_auto_resume/locales/`.
 English is the source, and every other catalog is a layer over it, so a key a translation has not
 reached yet shows in English rather than as a blank or an error; the loader refuses a catalog
-with a duplicated key. `messages.py` and `interface.py` read their strings from these catalogs
+with a duplicated key. `l10n.py` and `interface.py` read their strings from these catalogs
 rather than keeping tables of their own. Each translation is tracked against the English it was
 made from: `build/l10n.py` records, for every translated key, a digest of the English sentence
 in `build/l10n/<locale>.basis.json`, so a sentence changed in English shows as stale in every

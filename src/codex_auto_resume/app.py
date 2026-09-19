@@ -11,7 +11,7 @@ import time
 import traceback
 import uuid
 
-from . import compatio, config, messages, notifier, settings as policy
+from . import compatio, config, l10n, notifier, settings as policy
 from .engine import Engine
 from .logbook import LOGGER_NAME, EngineLog, setup_logging
 from .source import LocalSource
@@ -215,7 +215,7 @@ class App:
     def engine(self, store: Store, *, dispatch_lock=None) -> Engine:
         source = self.source()
         kwargs = {"log": EngineLog(self.logger), "notify": Toasts(self._notifier(source), self.logger),
-                  "language": messages.language(), "engine_state": self.engine_state,
+                  "language": l10n.current(), "engine_state": self.engine_state,
                   "home_lock": lambda: self._home_lock is not None and self._home_lock.held}
         if dispatch_lock is not None:
             kwargs["dispatch_lock"] = dispatch_lock

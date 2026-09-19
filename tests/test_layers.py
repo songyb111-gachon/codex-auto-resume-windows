@@ -53,7 +53,7 @@ def _q(name):
 # Every module, placed. A new module has to be given a layer here before anything else.
 LAYER = {_q(name): layer for layer, names in {
     "domain": ("failures", "reasons", "machine"),
-    "policy": ("", "settings", "continuation", "l10n", "interface", "messages", "config", "logbook"),
+    "policy": ("", "settings", "continuation", "l10n", "interface", "config", "logbook"),
     "adapters": ("store", "source", "windows", "compat", "compatio", "startup", "shortcut", "pwsh",
                  "notify", "notice_presence"),
     "engine": ("engine",),
@@ -72,8 +72,7 @@ UI = {_q(name) for name in ("tray", "tray_popup", "brand", "notice_card", "notic
 MCP = {_q("mcpserver"), _q("mcpui"), _q("mcp")}
 # What the UI may reach: the control layer, the public status mapping (machine, until it is
 # split into domain/), the i18n layer and the brand - and itself.
-UI_MAY_IMPORT = {_q("control"), _q("machine"), _q("domain.public"), _q("l10n"), _q("interface"),
-                 _q("messages")} | UI
+UI_MAY_IMPORT = {_q("control"), _q("machine"), _q("domain.public"), _q("l10n"), _q("interface")} | UI
 PURE_STDLIB = {"__future__", "abc", "collections", "dataclasses", "decimal", "enum", "fractions", "functools",
                "hashlib", "itertools", "json", "math", "numbers", "operator", "re", "string", "textwrap",
                "types", "typing", "uuid"}
@@ -113,7 +112,7 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
     ("", "config"): ("cost", "__version__ is resolved on demand, so importing the package reads no manifest"),
     ("app", "control"): ("cost", "only a card's button and the icon's thread use the control layer"),
     ("app", "interface"): ("cost", "the icon's catalogue, when the icon starts or the language changes"),
-    ("app", "l10n"): ("redundant", "messages loads it; kept beside the two places that set the Interface language"),
+    ("app", "l10n"): ("redundant", "imported at the top as well; kept beside the two places that set the Interface language"),
     ("app", "tray"): ("cost", "the notification-area icon, only in a watcher that shows one"),
     ("app", "tray_popup"): ("cost", "the popup's theme and motion, adopted only by a running watcher"),
     ("cli", "control"): ("cost", "the diagnostics command is the only one that goes through control"),
@@ -139,7 +138,6 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
     ("mcpserver", "config"): ("redundant", "main() finds the installed home; control has loaded it"),
     ("mcpserver", "l10n"): ("redundant", "the panel's language; settings has loaded it"),
     ("mcpserver", "mcpui"): ("cost", "the panel's page, only when Codex reads the resource"),
-    ("notify", "l10n"): ("redundant", "a reason's label in a toast; messages has loaded it"),
     ("notify", "reasons"): ("cost", "a reason's label, for a transient toast only"),
     ("notify", "startup"): ("cost", "the AUMID only: startup owns every per-user registration, and a "
                                     "process that only formats a message should not load it"),

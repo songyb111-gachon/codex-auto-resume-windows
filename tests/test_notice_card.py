@@ -35,7 +35,7 @@ import types
 import unittest
 from unittest.mock import MagicMock, patch
 
-from codex_auto_resume import (brand, l10n, messages, notice_card, notice_presence, notifier, notify,
+from codex_auto_resume import (brand, l10n, notice_card, notice_presence, notifier, notify,
                                pwsh, reasons, settings, tray_popup)
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -530,7 +530,7 @@ class NoticeTests(unittest.TestCase):
                 self.assertEqual(notice.origin, content["body"])
                 if event == "interruption" and (detail.get("category") or "usage_limit") != "usage_limit":
                     # The chip names the reason, so the line is the toast's line without its label.
-                    self.assertEqual(notice.line, messages.text("toast_transient"))
+                    self.assertEqual(notice.line, l10n.message("toast_transient"))
                     self.assertTrue(content["extra"][0].endswith(notice.line))
                     self.assertTrue(content["extra"][0].startswith(notice.chip))
                 else:
@@ -540,7 +540,7 @@ class NoticeTests(unittest.TestCase):
         for category in ("usage_limit", "server_5xx", "network_transient", "timeout"):
             with self.subTest(category=category):
                 notice = build("interruption", {"interruption_id": INTERRUPTION, "category": category})
-                self.assertEqual(notice.chip, l10n.text(reasons.label_key(category), messages.language()))
+                self.assertEqual(notice.chip, l10n.text(reasons.label_key(category), l10n.current()))
                 self.assertIn(notice.chip_tone, brand.LIGHT)
         self.assertIsNone(build("starting", {}).chip)
 
@@ -1238,7 +1238,7 @@ class SafetyTests(unittest.TestCase):
 
     def test_the_notifier_draws_nothing(self):
         package, _ = self.imports("notifier.py")
-        self.assertLessEqual(package, {"l10n", "messages", "notice_presence", "notify", "reasons"})
+        self.assertLessEqual(package, {"l10n", "notice_presence", "notify", "reasons"})
 
     def test_no_new_module_raises_powershell_itself(self):
         for name in self.CARD + ("notifier.py", "notice_presence.py"):

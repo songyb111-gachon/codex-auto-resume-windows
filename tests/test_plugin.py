@@ -15,7 +15,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from codex_auto_resume import l10n, messages, shortcut, startup
+from codex_auto_resume import l10n, shortcut, startup
 
 _HERE = str(Path(__file__).resolve().parent)
 if _HERE not in sys.path:
@@ -154,7 +154,7 @@ class LocaleTests(unittest.TestCase):
                         {"LANG": "ru_RU.UTF-8"}, {"LC_ALL": "sv-SE"},
                         {"LC_MESSAGES": "it_IT.UTF-8"}):
             with self.subTest(environ=environ), patch.object(l10n, "_windows_preferred", return_value=[]):
-                self.assertEqual(messages.language(environ), "en")
+                self.assertEqual(l10n.current(environ), "en")
 
     def test_a_posix_locale_for_a_shipped_language_is_honoured(self):
         """The POSIX variables are a fallback, and they still say something real."""
@@ -163,30 +163,30 @@ class LocaleTests(unittest.TestCase):
                                   ({"LANG": "pt_BR.UTF-8"}, "pt-BR"),
                                   ({"LANG": "zh_TW.UTF-8"}, "zh-TW")):
             with self.subTest(environ=environ), patch.object(l10n, "_windows_preferred", return_value=[]):
-                self.assertEqual(messages.language(environ), expected)
+                self.assertEqual(l10n.current(environ), expected)
 
     def test_korean_only_when_it_is_the_most_preferred_language(self):
         with patch.object(l10n, "_windows_preferred", return_value=["ko-KR", "en-US"]):
-            self.assertEqual(messages.language({}), "ko")
+            self.assertEqual(l10n.current({}), "ko")
         # Korean merely present, but not preferred, is not an explicit request for Korean.
         with patch.object(l10n, "_windows_preferred", return_value=["en-US", "ko-KR"]):
-            self.assertEqual(messages.language({}), "en")
+            self.assertEqual(l10n.current({}), "en")
 
     def test_explicit_override_wins(self):
         with patch.object(l10n, "_windows_preferred", return_value=["ko-KR"]):
-            self.assertEqual(messages.language({messages.ENV_LANG: "en"}), "en")
+            self.assertEqual(l10n.current({l10n.ENV_LANG: "en"}), "en")
 
     def test_every_key_exists_in_every_language(self):
-        english = set(messages.MESSAGES["en"])
-        for code in messages.SUPPORTED:
-            self.assertEqual(set(messages.MESSAGES[code]), english, code)
+        english = set(l10n.messages("en"))
+        for code in l10n.LOCALES:
+            self.assertEqual(set(l10n.messages(code)), english, code)
 
     def test_a_failing_probe_falls_back_to_english_not_a_guess(self):
         with patch.object(l10n, "_windows_preferred", side_effect=OSError("no api")):
             with self.assertRaises(OSError):
-                messages.language({})    # the probe itself is guarded inside l10n._windows_preferred
+                l10n.current({})    # the probe itself is guarded inside l10n._windows_preferred
         with patch.object(l10n, "_windows_preferred", return_value=[]):
-            self.assertEqual(messages.language({}), "en")
+            self.assertEqual(l10n.current({}), "en")
 
 
 class AutostartOwnershipTests(unittest.TestCase):
@@ -290,7 +290,7 @@ class BridgeTests(unittest.TestCase):
     def setUp(self):
         # Pin the language so assertions and captured output do not depend on the
         # machine's Windows display language.
-        language = patch.object(messages, "language", return_value="en")
+        language = patch.object(l10n, "current", return_value="en")
         language.start()
         self.addCleanup(language.stop)
         quiet = contextlib.redirect_stdout(io.StringIO())
@@ -515,7 +515,7 @@ class BridgeTests(unittest.TestCase):
         self.assertIn("install", commands)          # the rest of the repair still runs
         self.assertFalse(enabled, "a repair must not switch a paused installation back on")
         install.assert_not_called()                 # there was no entry of ours to repair
-        self.assertNotIn(messages.text("setup_autostart"), text)
+        self.assertNotIn(l10n.message("setup_autostart"), text)
 
     def test_keep_state_repairs_an_autostart_that_is_already_ours(self):
         # Ours, but stale: registered with a different interpreter.
@@ -526,7 +526,7 @@ class BridgeTests(unittest.TestCase):
         self.assertNotIn("enable", commands)
         self.assertFalse(enabled)
         install.assert_called_once_with(self.bridge.watcher_command(self.home))
-        self.assertIn(messages.text("setup_autostart"), text)
+        self.assertIn(l10n.message("setup_autostart"), text)
 
     def test_without_keep_state_setup_still_enables_and_registers(self):
         code, install, commands, enabled, text = self.setup_paused(["setup"], None)
@@ -534,7 +534,7 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(commands, ["install", "enable"])
         self.assertTrue(enabled)
         install.assert_called_once_with(self.bridge.watcher_command(self.home))
-        self.assertIn(messages.text("setup_autostart"), text)
+        self.assertIn(l10n.message("setup_autostart"), text)
 
 
 class ReleaseNotesTests(unittest.TestCase):
@@ -702,10 +702,9 @@ class PythonFloorTests(unittest.TestCase):
         self.assertEqual(self.bridge.MIN_PYTHON, self.lowest_tested())
 
     def test_the_message_names_the_same_version(self):
-        from codex_auto_resume import messages
         wanted = "%d.%d" % self.bridge.MIN_PYTHON
-        for code in messages.SUPPORTED:
-            self.assertIn(wanted, messages.MESSAGES[code]["python_missing"], code)
+        for code in l10n.LOCALES:
+            self.assertIn(wanted, l10n.messages(code)["python_missing"], code)
 
     def test_the_skill_does_not_send_anyone_looking_for_a_python(self):
         """It used to, and that is what produced a second installation.
