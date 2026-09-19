@@ -6130,8 +6130,8 @@ namespace CodexAutoResume
     /// Theme.ContrastOn), under battery saver, or while the window is not shown; the states then differ by colour only.
     /// Windows is asked only while the state has something to move, once a second (Sync, on the window's clock), so the
     /// motion is back within a second of the last reason going. With nothing moving there is no timer at all. Every
-    /// icon made is destroyed once the window holds the next; the timer stops as the window starts closing, and at the
-    /// end the window has its own icons back and nothing of the mark's is left.
+    /// icon made is destroyed once the window holds the next; the timer stops once the window has closed (FormClosed,
+    /// or its handle going), and then the window has its own icons back and nothing of the mark's is left.
     internal sealed class TaskbarMark : IDisposable
     {
         [DllImport("user32.dll")]
@@ -6189,7 +6189,9 @@ namespace CodexAutoResume
             this.owner = owner;
             Clock = delegate { return watch.Elapsed.TotalMilliseconds; };
             timer.Tick += delegate { Animate(); };
-            owner.FormClosing += delegate { Stop(); };
+            // Stopped once the window has closed, not as it is asked to: WinForms raises FormClosing for Windows'
+            // WM_QUERYENDSESSION too, and a shutdown another program calls off (WM_ENDSESSION, FALSE) - or a Restart
+            // Manager query that ends nothing - leaves the window open, with a button that would never move again.
             owner.FormClosed += delegate { Dispose(); };
             owner.HandleDestroyed += delegate { Forget(); };
             owner.Disposed += delegate { Dispose(); };
@@ -6373,7 +6375,7 @@ namespace CodexAutoResume
             return SendMessage(owner.Handle, message, (IntPtr)which, icon);
         }
 
-        /// The window is closing: no frame from here on, and no timer.
+        /// The window has closed: no frame from here on, and no timer.
         internal void Stop()
         {
             closing = true;

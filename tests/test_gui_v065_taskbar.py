@@ -166,6 +166,8 @@ public static class Icons {
     [DllImport("user32.dll")] static extern uint GetGuiResources(IntPtr process, uint flags);
     public static IntPtr Big(Form form) { return SendMessage(form.Handle, 0x7F, (IntPtr)1, IntPtr.Zero); }
     public static IntPtr Small(Form form) { return SendMessage(form.Handle, 0x7F, (IntPtr)0, IntPtr.Zero); }
+    // A message to the probe's own window, as Windows sends it.
+    public static long Send(Form form, int message, int wParam, int lParam) { return (long)SendMessage(form.Handle, message, (IntPtr)wParam, (IntPtr)lParam); }
     // An icon's colour bitmap, top-down BGRA, as Windows holds it; the copies GetIconInfo makes are deleted.
     public static byte[] Pixels(IntPtr icon) {
         IconInfo info;
@@ -437,10 +439,36 @@ for ($i = 0; $i -lt 360; $i++) {
 }
 $out.leak = @{ at = $leak; baseline = $baseline; before = $before; distinct = 0 }
 
-# Closing: the timer stops as the window starts to close, and the window ends with its own icons and nothing of the mark's.
+# A shutdown or restart that another program calls off, and a Restart Manager query that ends nothing: Windows asks
+# (WM_QUERYENDSESSION, which WinForms raises FormClosing for) and then says the session goes on (WM_ENDSESSION, FALSE).
+# The window stays open, and its button keeps following it - a pause turns it grey - and moving.
+$out.sessionEnd = @()
+foreach ($why in @(0, 1)) {                              # a shutdown; ENDSESSION_CLOSEAPP
+    [ProbeClock]::Now = 550000 + $why * 10000
+    $null = $follow.Invoke($mark, [object[]]@('monitoring'))
+    $entry = @{ why = $why; before = (Moving $mark) }
+    $entry.answer = [Icons]::Send($window, 0x11, 0, $why)
+    $null = [Icons]::Send($window, 0x16, 0, $why)
+    Pump 30
+    $entry.open = [bool]($window.IsHandleCreated -and -not $window.IsDisposed -and $window.Visible)
+    $entry.stopping = [bool](Field $mark 'closing')
+    $entry.moving = (Moving $mark)
+    [ProbeClock]::Now = 551000 + $why * 10000
+    $null = $follow.Invoke($mark, [object[]]@('paused'))
+    $entry.state = (StateOf $mark)
+    $entry.walk = (Walk $mark $window (551000 + $why * 10000) (0..5 | ForEach-Object { $_ * 100 }))
+    $entry.rest = (Expected $table 'idle' 0 5000 $false).pixels
+    $null = $follow.Invoke($mark, [object[]]@('recovering'))
+    $entry.again = @{ state = (StateOf $mark); moving = (Moving $mark) }
+    $out.sessionEnd += ,$entry
+}
+
+# Closing: while the window is asked to close, and the close can still be called off, it carries on; once the window has
+# closed the timer is stopped, and the window ends with its own icons and nothing of the mark's.
 $closing = @{}
-$window.add_FormClosing({ $closing.moving = (Moving $mark); $closing.stopping = [bool](Field $mark 'closing') })
-$window.add_FormClosed({ $closing.big = [int64][Icons]::Big($window); $closing.small = [int64][Icons]::Small($window) })
+$window.add_FormClosing({ $closing.asked = (Moving $mark); $closing.askedStopping = [bool](Field $mark 'closing') })
+$window.add_FormClosed({ $closing.moving = (Moving $mark); $closing.stopping = [bool](Field $mark 'closing')
+                         $closing.big = [int64][Icons]::Big($window); $closing.small = [int64][Icons]::Small($window) })
 $window.Close()
 Pump 50
 $closing.disposed = [bool](Field $mark 'disposed')
@@ -747,9 +775,29 @@ class TaskbarMarkTests(unittest.TestCase):
                 # The frame on show and the second small handle, and nothing else.
                 self.assertLessEqual(early[index] - leak["baseline"][index], 6)
 
+    def test_a_shutdown_called_off_leaves_the_button_following_the_window(self):
+        """WinForms raises FormClosing for WM_QUERYENDSESSION too. A shutdown another program calls off, or a Restart
+        Manager query that ends nothing, leaves the window open (WM_ENDSESSION, FALSE): a mark that had stopped for
+        good there kept its last frame, and ignored every state after, for the rest of the window's life."""
+        entries = self.answer["sessionEnd"]
+        self.assertEqual([entry["why"] for entry in entries], [0, 1])
+        for entry in entries:
+            with self.subTest(lparam=entry["why"]):
+                self.assertTrue(entry["before"])
+                self.assertEqual(entry["answer"], 1, "the window lets the session end")
+                self.assertTrue(entry["open"], "and it goes on: the window is still open")
+                self.assertFalse(entry["stopping"])
+                self.assertTrue(entry["moving"], "the button still moves")
+                self.assertEqual(entry["state"], "idle", "and follows the window: a pause is grey")
+                self.assertEqual({row[2] for row in entry["walk"]}, {entry["rest"]})
+                self.assertEqual(entry["again"], {"state": "recovering", "moving": True})
+                self.small_is_still(entry["walk"])
+
     def test_closing_stops_the_timer_and_leaves_the_window_its_own_icons_and_nothing_of_the_mark_s(self):
         closing = self.answer["closing"]
-        self.assertFalse(closing["moving"], "no timer once the window starts closing")
+        self.assertTrue(closing["asked"], "while the close can still be called off, the button carries on")
+        self.assertFalse(closing["askedStopping"])
+        self.assertFalse(closing["moving"], "no timer once the window has closed")
         self.assertTrue(closing["stopping"])
         self.assertEqual(closing["big"], self.answer["own"]["big"])
         self.assertEqual(closing["small"], self.answer["own"]["small"])
