@@ -320,8 +320,8 @@ namespace CodexAutoResume
     /// A line of text straight on the canvas beside a card.
     ///
     /// It paints the ground behind it, lifts included. A plain label paints a flat patch of its
-    /// background colour, and the card below "Nothing is waiting" - a line on the ground until
-    /// v0.6.5 - had no light along its top edge where the label covered it.
+    /// background colour, and the card below "Nothing is waiting" had no light along its top edge
+    /// where the label covered it.
     internal sealed class GroundLabel : Label
     {
         internal GroundLabel()
@@ -924,132 +924,6 @@ namespace CodexAutoResume
 
         private readonly Dictionary<ListView, int[]> columnWeights = new Dictionary<ListView, int[]>();
 
-        // ---------------------------------------------------------------- rows as tiles
-        // v0.6.5: a conversation is a tile raised off its card on every surface - the popup's task tiles, the panel's
-        // rows - so the window's lists of conversations, Pending's and History's, draw each row as one (DrawTile): brand's
-        // control lift under it, `raised` for a ground with the dark card's top light in dark (Soft.Tile), and the chosen
-        // row pressed into a well, as a chosen choice card is. The Timeline's events and Why it is waiting's checks stay
-        // rows with a hairline between them, as the panel's settings and compatibility rows are: nothing to pick there.
-        private readonly HashSet<ListView> tiled = new HashSet<ListView>();
-
-        // A row's tile is as tall as a row was until v0.6.5 - a button's height, its chip and switch 6 px from its edges -
-        // and under it brand's gap between tiles, the popup's and the panel's (tile_gap), where its lift falls. Nothing
-        // over it: each tile starts where its row does, so the gap is the one under the tile before, and the first stands
-        // right under the headings, which draw the part of its lift that reaches up into them (DrawHeader). Split over
-        // and under, the last tile's drop was cut off where the list's own ground starts, under its row. Beside it,
-        // inside the list, the small step, where its lift falls on either side: a list is the only painter of what lies
-        // inside it.
-        private const int RowTileHeight = Brand.ButtonHeight;
-        private const int RowTileBelow = Brand.TileGap;
-        private const int RowTileSide = Brand.SpaceS;
-
-        /// Draws `list`'s rows as tiles (DrawTile): each row as tall as its tile and the gap under it - a pixel less
-        /// asked of the image list, which is all a ListView takes a row's height from and which it makes a pixel
-        /// taller (measured, at every scaling): asked for the whole, the gap was 9 px, not brand's 8.
-        private void TileRows(ListView list)
-        {
-            tiled.Add(list);
-            list.SmallImageList.ImageSize = new Size(1, Math.Max(16, Math.Min(255, Px(RowTileHeight + RowTileBelow) - 1)));
-            // A row chosen or let go gains or loses its lift, which in light reaches past its own row: Windows repaints
-            // that row alone, so the rows beside it are repainted as far as it reaches - and the headings, over the
-            // first row shown.
-            list.ItemSelectionChanged += delegate(object sender, ListViewItemSelectionChangedEventArgs e)
-            {
-                if (e.Item == null || !list.IsHandleCreated) return;
-                list.Invalidate(Rectangle.Inflate(e.Item.Bounds, 0, Px(RowTileBelow)));
-                if (e.Item == list.TopItem) Headings(list);
-            };
-            // The first row shown changes as the list scrolls, and with it the lift over it, which the headings draw.
-            var soft = list as SoftList;
-            int shown = -1;
-            if (soft != null)
-                soft.ScrollChanged += delegate
-                {
-                    ListViewItem top = list.Items.Count > 0 ? list.TopItem : null;
-                    int now = top != null ? top.Index : -1;
-                    if (now == shown) return;
-                    shown = now;
-                    Headings(list);
-                };
-        }
-
-        [System.Runtime.InteropServices.DllImport("user32.dll")]
-        private static extern bool InvalidateRect(IntPtr window, IntPtr rectangle, bool erase);
-
-        private const int LVM_GETHEADER = 0x101F;
-
-        /// Paints `list`'s column headings again.
-        private static void Headings(ListView list)
-        {
-            if (!list.IsHandleCreated) return;
-            IntPtr header = SendMessage(list.Handle, LVM_GETHEADER, IntPtr.Zero, IntPtr.Zero);
-            if (header != IntPtr.Zero) InvalidateRect(header, IntPtr.Zero, false);
-        }
-
-        /// How much further in than a list of rows a list of tiles sets what its first column holds, and how much further
-        /// from its end what its last column holds stops: inside the tile, past the room beside it and brand's padding
-        /// of a tile, where a row's cells start 10 px in and stop 4 px short (DrawCell, DrawHeader).
-        private int TileBefore(ListView list, int column)
-        {
-            return column == 0 && tiled.Contains(list) ? Px(RowTileSide + Brand.TilePadLeft - 10) : 0;
-        }
-
-        private int TileAfter(ListView list, int column)
-        {
-            return column == list.Columns.Count - 1 && tiled.Contains(list) ? Px(RowTileSide + Brand.TilePadRight - 4) : 0;
-        }
-
-        /// The tile of `item` in `list`, in the list's coordinates: across every column, the room beside it kept, at the
-        /// top of its row and as tall as the row less brand's gap under it - a button's height, as the row was asked
-        /// for (TileRows), and the gap exactly brand's whatever a ListView adds to a row.
-        private Rectangle RowTile(ListView list, ListViewItem item)
-        {
-            Rectangle row = item.Bounds;
-            int width = 0;
-            foreach (ColumnHeader column in list.Columns) width += column.Width;
-            int side = Px(RowTileSide);
-            return new Rectangle(row.X + side, row.Y, Math.Max(0, width - 2 * side), Math.Max(0, row.Height - Px(RowTileBelow)));
-        }
-
-        /// A cell of a tiled row: the card behind it, the lifts of the row's tile and of its neighbours' that reach into
-        /// the cell - a row's tile throws its shadow into the gap under it, and the one below lights the gap over it - and
-        /// then the part of the tile that lies in the cell. A chosen row is pressed into a well and has no lift; in High
-        /// Contrast a tile is system colours, Highlight when chosen, with no shadow. The tile's ground, which what the
-        /// cell holds is drawn on.
-        private Color DrawTile(ListView list, DrawListViewSubItemEventArgs e)
-        {
-            Graphics g = e.Graphics;
-            GraphicsState state = g.Save();
-            g.IntersectClip(e.Bounds);
-            using (var brush = new SolidBrush(Card)) g.FillRectangle(brush, e.Bounds);
-            float radius = Soft.PxF(Brand.RadiusControl);
-            for (int i = Math.Max(0, e.ItemIndex - 1); i <= e.ItemIndex + 1 && i < list.Items.Count; i++)
-            {
-                ListViewItem item = i == e.ItemIndex ? e.Item : list.Items[i];
-                if (!item.Selected) Elevation.StampOuter(g, RowTile(list, item), Soft.TileLift, radius, e.Bounds);
-            }
-            Rectangle tile = RowTile(list, e.Item);
-            bool selected = e.Item.Selected;
-            Color fill;
-            if (Palette.Contrast)
-            {
-                fill = selected ? Palette.AccentSoft : Palette.Raised;
-                Soft.Body(g, tile, radius, fill, selected ? fill : Palette.Line, false);
-            }
-            else if (selected)
-            {
-                fill = Palette.Inset;
-                Soft.Body(g, tile, radius, fill, Palette.Line, true);
-            }
-            else
-            {
-                fill = Palette.Raised;
-                Soft.Tile(g, tile, radius, fill);
-            }
-            g.Restore(state);
-            return fill;
-        }
-
         private void FitColumns(ListView list)
         {
             int[] weights;
@@ -1180,12 +1054,11 @@ namespace CodexAutoResume
         }
 
         /// The narrowest a column is drawn: an ellipsis and a letter or two of its heading - DrawHeader's inset and
-        /// 34 px - or, for Pending's Auto-resume column, its switch whole (DrawResumeBox) with DrawCell's inset; in a list
-        /// of tiles, the first and the last column inside the tile as well (TileBefore, TileAfter).
+        /// 34 px - or, for Pending's Auto-resume column, its switch whole (DrawResumeBox) with DrawCell's inset.
         private int LeastWidth(ListView list, int column)
         {
-            if (list == pendingList && column == ResumeColumn) return Px(Brand.SwitchWidth + 2) + Px(14) + TileAfter(list, column);
-            return Px(48) + TileBefore(list, column) + TileAfter(list, column);
+            if (list == pendingList && column == ResumeColumn) return Px(Brand.SwitchWidth + 2) + Px(14);
+            return Px(48);
         }
 
         // The widest cell of each column, as DrawCell draws it, measured when a list's rows change
@@ -1212,8 +1085,8 @@ namespace CodexAutoResume
                     int width = c == 1 && item.Tag is Dictionary<string, object> ? Soft.ChipSize(text, list.Font).Width
                               : list == pendingList && c == ResumeColumn ? Px(Brand.SwitchWidth + 2)
                               : TextRenderer.MeasureText(text, list.Font, unbounded, TextFormatFlags.SingleLine).Width;
-                    // DrawCell's inset: 10 before, 4 after - and in a list of tiles, the first and last inside the tile.
-                    widths[c] = Math.Max(widths[c], width + Px(14) + TileBefore(list, c) + TileAfter(list, c));
+                    // DrawCell's inset: 10 before, 4 after.
+                    widths[c] = Math.Max(widths[c], width + Px(14));
                 }
             }
             cellWidths[list] = widths;
@@ -1221,13 +1094,12 @@ namespace CodexAutoResume
         }
 
         /// How wide a column must be for its heading to be drawn whole: the heading in the list's
-        /// font, DrawHeader's inset around it, and never less than 48 px - in a list of tiles, over the tile's
-        /// text (TileBefore, TileAfter).
+        /// font, DrawHeader's inset around it, and never less than 48 px.
         private int HeadingWidth(ListView list, int column)
         {
             int heading = TextRenderer.MeasureText(list.Columns[column].Text, list.Font, new Size(int.MaxValue, int.MaxValue),
                                                    TextFormatFlags.SingleLine).Width;
-            return Math.Max(Px(48), heading + Px(14)) + TileBefore(list, column) + TileAfter(list, column);
+            return Math.Max(Px(48), heading + Px(14));
         }
 
         /// How wide a list must be for every heading to be drawn whole.
@@ -1238,9 +1110,8 @@ namespace CodexAutoResume
             return total;
         }
 
-        /// A list on its own card, filling it - and `empty`, which says why it has no rows, in a well under its
-        /// headings where its first tile would stand (EmptyWell, SoftListHost.ShowWhenEmpty).
-        private Control ListCard(ListView list, Label empty)
+        /// A list on its own card, filling it.
+        private Control ListCard(ListView list)
         {
             var card = new SoftCard();
             card.Dock = DockStyle.Fill;
@@ -1255,73 +1126,34 @@ namespace CodexAutoResume
             var host = new SoftListHost(list);
             host.Dock = DockStyle.Fill;
             host.Margin = new Padding(0);
-            if (empty != null) host.ShowWhenEmpty(empty, Px(RowTileSide));
             card.Controls.Add(host, 0, 0);
             return card;
         }
 
         private void DrawHeader(object sender, DrawListViewColumnHeaderEventArgs e)
         {
-            var list = (ListView)sender;
             using (var brush = new SolidBrush(Card)) e.Graphics.FillRectangle(brush, e.Bounds);
-            // A list of rows closes its headings with a hairline, as each row is closed; a list of tiles has none - its
-            // headings stand over the tiles, which are their own edges, or over the well that says there are none
-            // (SoftListHost.Empty). The first tile shown starts right under them, and the part of its lift that reaches
-            // up into them is theirs to draw: the header is a window of its own, over the list's rows, at the list's
-            // top and at the left of its first column however far the list is scrolled sideways.
-            if (!tiled.Contains(list))
-                using (var brush = new SolidBrush(Line))
-                    e.Graphics.FillRectangle(brush, e.Bounds.Left, e.Bounds.Bottom - Soft.Hairline, e.Bounds.Width, Soft.Hairline);
-            else
-            {
-                ListViewItem top = list.Items.Count > 0 ? list.TopItem : null;
-                if (top != null && !top.Selected)
-                {
-                    Rectangle tile = RowTile(list, top);
-                    tile.Offset(-top.Bounds.X, 0);
-                    GraphicsState state = e.Graphics.Save();
-                    e.Graphics.IntersectClip(e.Bounds);
-                    Elevation.StampOuter(e.Graphics, tile, Soft.TileLift, Soft.PxF(Brand.RadiusControl), e.Bounds);
-                    e.Graphics.Restore(state);
-                }
-            }
-            int before = TileBefore(list, e.ColumnIndex), after = TileAfter(list, e.ColumnIndex);
-            var bounds = new Rectangle(e.Bounds.X + Px(10) + before, e.Bounds.Y, Math.Max(0, e.Bounds.Width - Px(14) - before - after), e.Bounds.Height);
-            // Auto-resume's heading ends where the switches under it end (DrawResumeBox), with no padding of its own.
-            TextFormatFlags end = list == pendingList && e.ColumnIndex == ResumeColumn
-                                ? TextFormatFlags.Right | TextFormatFlags.NoPadding : TextFormatFlags.Left;
+            using (var brush = new SolidBrush(Line))
+                e.Graphics.FillRectangle(brush, e.Bounds.Left, e.Bounds.Bottom - Soft.Hairline, e.Bounds.Width, Soft.Hairline);
+            var bounds = new Rectangle(e.Bounds.X + Px(10), e.Bounds.Y, Math.Max(0, e.Bounds.Width - Px(14)), e.Bounds.Height);
             TextRenderer.DrawText(e.Graphics, e.Header.Text, e.Font, bounds, Secondary,
-                                  TextFormatFlags.VerticalCenter | end | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
+                                  TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
+                                  TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
         }
 
         private void DrawCell(object sender, DrawListViewSubItemEventArgs e)
         {
             var list = (ListView)sender;
             bool selected = e.Item.Selected;
-            bool tiles = tiled.Contains(list);
-            Color back;
-            Rectangle area = e.Bounds;
-            if (tiles)
-            {
-                // A conversation: a tile raised off the card, pressed into a well when chosen (DrawTile), and what it
-                // holds set inside the tile.
-                back = DrawTile(list, e);
-                Rectangle tile = RowTile(list, e.Item);
-                area = new Rectangle(e.Bounds.X, tile.Y, e.Bounds.Width, tile.Height);
-            }
-            else
-            {
-                // Rows on the card's surface with a full hairline between them, as the panel's setting
-                // rows have; the chosen row is pressed into the inset colour. High Contrast keeps
-                // Highlight for it.
-                back = !selected ? Card : Palette.Contrast ? Palette.AccentSoft : Palette.Inset;
-                using (var brush = new SolidBrush(back)) e.Graphics.FillRectangle(brush, e.Bounds);
-                using (var brush = new SolidBrush(Line))
-                    e.Graphics.FillRectangle(brush, e.Bounds.Left, e.Bounds.Bottom - Soft.Hairline, e.Bounds.Width, Soft.Hairline);
-            }
+            // Rows on the card's surface with a full hairline between them, as the panel's setting
+            // rows have; the chosen row is pressed into the inset colour. High Contrast keeps
+            // Highlight for it.
+            Color back = !selected ? Card : Palette.Contrast ? Palette.AccentSoft : Palette.Inset;
+            using (var brush = new SolidBrush(back)) e.Graphics.FillRectangle(brush, e.Bounds);
+            using (var brush = new SolidBrush(Line))
+                e.Graphics.FillRectangle(brush, e.Bounds.Left, e.Bounds.Bottom - Soft.Hairline, e.Bounds.Width, Soft.Hairline);
             var row = e.Item.Tag as Dictionary<string, object>;
-            int before = TileBefore(list, e.ColumnIndex), after = TileAfter(list, e.ColumnIndex);
-            var cell = new Rectangle(area.X + Px(10) + before, area.Y, Math.Max(0, area.Width - Px(14) - before - after), area.Height);
+            var cell = new Rectangle(e.Bounds.X + Px(10), e.Bounds.Y, Math.Max(0, e.Bounds.Width - Px(14)), e.Bounds.Height);
             string text = e.SubItem == null ? "" : e.SubItem.Text;
             Color ink = Palette.Contrast && selected ? SystemColors.HighlightText : Ink;
             // The quieter columns and the focus mark too: in High Contrast a selected row is
@@ -1336,25 +1168,18 @@ namespace CodexAutoResume
                                       TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
                                       TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
             if (e.ColumnIndex == 0 && selected && list.Focused)
-            {
-                // The keyboard's mark at the chosen row's left end - inside its tile, in a list of tiles.
-                Rectangle marked = tiles ? RowTile(list, e.Item) : e.Item.Bounds;
-                int inset = tiles ? Px(Brand.SpaceXs + 1) : Px(2);
                 using (var pen = new Pen(Palette.Contrast ? ink : Palette.Focus, Soft.PxF(2)))
-                    e.Graphics.DrawLine(pen, marked.Left + inset, marked.Top + Px(6), marked.Left + inset, marked.Bottom - Px(6));
-            }
+                    e.Graphics.DrawLine(pen, e.Item.Bounds.Left + Px(2), e.Item.Bounds.Top + Px(6),
+                                        e.Item.Bounds.Left + Px(2), e.Item.Bounds.Bottom - Px(6));
         }
 
         /// The Auto-resume box, drawn as the switch every other on-or-off setting in the window is,
         /// on the row's own ground: where its record says, or part-way there while it glides
-        /// (FollowResumeSwitches). At the end of `cell`, which in a tile is brand's padding of a tile
-        /// from its right edge (TileAfter): the switch closes the tile, as it closes the popup's task
-        /// tiles and the panel's rows, however wide the window makes its column. Its heading stands over
-        /// it, at the same end (DrawHeader).
+        /// (FollowResumeSwitches).
         private void DrawResumeBox(Graphics g, Rectangle cell, Dictionary<string, object> row, Color ground)
         {
             int width = Px(Brand.SwitchWidth), height = Px(Brand.SwitchHeight);
-            var track = new Rectangle(cell.Right - width, cell.Y + (cell.Height - height) / 2, width, height);
+            var track = new Rectangle(cell.X + Px(2), cell.Y + (cell.Height - height) / 2, width, height);
             double on = ThreadOn(row) ? 1.0 : 0.0;
             Transition glide;
             string id = Str(row, "interruption_id");
@@ -1790,11 +1615,10 @@ namespace CodexAutoResume
                                Col(S("pending.col_next", "Next check"), 84),
                                Col(S("pending.col_attempts", "Attempts"), 70),
                                Col(S("pending.col_resume", "Auto-resume"), 100));
-            TileRows(pendingList);
-            // Nothing waiting is said from a well in the list's card, where the first tile would stand, as the popup
-            // says it (EmptyWell): until v0.6.5 a line over the card, whose headings then floated over nothing.
-            pendingEmpty = new EmptyWell();
-            pendingEmpty.Text = S("pending.empty", "Nothing is waiting");
+            pendingEmpty = GroundText(S("pending.empty", "Nothing is waiting"));
+            pendingEmpty.ForeColor = Secondary;
+            pendingEmpty.Dock = DockStyle.Top;
+            pendingEmpty.Padding = Pad(8, 0, 0, 10);
 
             FlowLayoutPanel row = ButtonRow();
             retryButton = MakeButton(S("action.retry_now", "Retry now"), true, delegate { RetryNow(); });
@@ -1881,7 +1705,7 @@ namespace CodexAutoResume
             split.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             split.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, Px(Brand.PageGap + 256)));
             split.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-            Control listCard = ListCard(pendingList, pendingEmpty);
+            Control listCard = ListCard(pendingList);
             split.Controls.Add(listCard, 0, 0);
             split.Controls.Add(explain, 1, 0);
             // The explanation gives way, down to 200 px, when the list's column headings need the
@@ -1896,6 +1720,7 @@ namespace CodexAutoResume
             pendingList.FontChanged += share;
 
             page.Controls.Add(split);
+            page.Controls.Add(pendingEmpty);
             page.Controls.Add(row);
             UpdatePendingButtons();
             ShowExplain();
@@ -1912,10 +1737,11 @@ namespace CodexAutoResume
                                Col(S("pending.col_category", "Kind"), 130),
                                Col(S("history.col_detected", "Detected"), 130),
                                Col(S("history.col_finished", "Finished"), 130));
-            TileRows(historyList);
             historyList.SelectedIndexChanged += delegate { if (!filling) UpdateHistoryButtons(); };
-            historyEmpty = new EmptyWell();
-            historyEmpty.Text = S("history.empty", "No recoveries yet");
+            historyEmpty = GroundText(S("history.empty", "No recoveries yet"));
+            historyEmpty.ForeColor = Secondary;
+            historyEmpty.Dock = DockStyle.Top;
+            historyEmpty.Padding = Pad(8, 0, 0, 10);
 
             FlowLayoutPanel row = ButtonRow();
             historyTimeline = MakeButton(S("action.timeline", "Timeline"), false, delegate { ShowTimeline(historyList); });
@@ -1933,7 +1759,8 @@ namespace CodexAutoResume
             }
             historyNote = Note();
             row.Controls.Add(historyNote);
-            page.Controls.Add(ListCard(historyList, historyEmpty));
+            page.Controls.Add(ListCard(historyList));
+            page.Controls.Add(historyEmpty);
             page.Controls.Add(row);
             UpdateHistoryButtons();
             return page;

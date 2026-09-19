@@ -567,10 +567,18 @@ class CardTests(unittest.TestCase):
 
     def test_a_card_updated_while_another_page_shows_keeps_no_line_it_no_longer_has(self):
         """Visible answers false for every label on a page that is not on screen, so the card asks for its own."""
-        card = self.card("whileHidden")
+        card = dict(self.card("whileHidden"))
         self.assertFalse(card["noticeShown"])
         self.assertEqual(card["notice"], "")
-        self.assertEqual(card, self.card("ok"))
+        ok = dict(self.card("ok"))
+        # How long ago the report was made is said as each card is looked at, and the probe looks at the two seconds
+        # apart - minutes on a loaded machine ("12s ago", then "39s ago"): that both say it is held, not that they say
+        # the same.
+        before, after = ENGLISH["time.ago"].split("{time}")
+        for said in (card.pop("checked"), ok.pop("checked")):
+            self.assertTrue(said == ENGLISH["time.just_now"] or (said.startswith(before) and said.endswith(after)
+                                                                  and len(said) > len(before + after)), said)
+        self.assertEqual(card, ok)
 
     def test_a_report_that_cannot_be_used_says_why_and_lists_nothing(self):
         for name in ("absent", "engine_changed"):
