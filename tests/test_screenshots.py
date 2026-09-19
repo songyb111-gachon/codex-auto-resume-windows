@@ -186,8 +186,8 @@ class ManifestTests(unittest.TestCase):
             self.assertIn("<bridge envelope:%s>" % locale, self.manifest["inputs"])
 
         import codexsim
-        from codex_auto_resume import (config, continuation, control, controlcli, l10n, machine,
-                                       settings, startup, windows)
+        from codex_auto_resume import (compatio, config, continuation, control, controlcli, l10n,
+                                       machine, settings, startup, windows)
         from codex_auto_resume.source import LocalSource
         from codex_auto_resume.store import Store
 
@@ -244,6 +244,10 @@ class ManifestTests(unittest.TestCase):
                 lambda: patch.object(codexsim.CodexHome, "add_thread",
                                      lambda sim, thread, *, name=None, **rest: real_add_thread(
                                          sim, thread, name=(name or "").upper(), **rest)),
+            "compatio.py - the local checks behind the Diagnostics card":
+                lambda: changed(compatio, "source_checks", lambda checks: dict(checks, queue_schema="FAIL")),
+            "data/codex_compat.json - the registry data in force":
+                lambda: patch.object(compatio, "load_bundled", return_value=(None, "missing")),
         }
         if os.name == "nt":
             # Not acquired, so nothing holds it and the probe finds it free.
@@ -662,6 +666,44 @@ class EnvelopeTests(unittest.TestCase):
         names = {row["name"] for row in self.reply("dashboard")["pending"]}
         self.assertEqual(names, {"example-project", "example-service"},
                          "the names come from the synthetic Codex home, never the user's")
+
+    def test_the_diagnostics_card_reads_the_report_the_watcher_writes(self):
+        """Not "not checked yet", and no word the product cannot say. The Diagnostics card reads the
+        report the watcher's own evaluator writes for the synthetic Codex home, still bound to the
+        engine on disk; the status line says the word that evaluation gave; and the panel and the
+        popup say the same, because they are drawn from the same state."""
+        from codex_auto_resume import compat, compatio
+        generator = self.generator
+        view = self.reply("compatibility")["compatibility"]
+        watcher = self.reply("status")["status"]["watcher"]
+        self.assertEqual((view["status"], view["live"]), ("ok", False), "the card would say why it cannot be used")
+        self.assertEqual(view["checked_at"], generator.ENVELOPE_NOW - 40)
+        self.assertEqual(view["engine"], {"found": True, "version": generator.CODEX_VERSION})
+        bundled, _state = compatio.load_bundled()
+        self.assertEqual((view["data"]["source"], view["data"]["bundled_sequence"], view["data"]["cache"]),
+                         ("bundled", bundled["sequence"], "absent"))
+        # The word the gate reads for this build with the bundled data - "verified" only if that
+        # data verifies it - in the report, the heartbeat and the popup alike.
+        self.assertEqual(view["overall"], generator.engine_word())
+        self.assertEqual(view["acting"], generator.engine_word())
+        self.assertEqual(watcher["engine_state"], generator.engine_word())
+        self.assertEqual(generator.popup_status()["watcher"]["engine_state"], generator.engine_word())
+        # Every local check the synthetic home and the stand-in engine can pass, passed.
+        self.assertEqual(sorted(name for name, result in view["checks"].items() if result != "PASS"),
+                         ["lock_directory"], "the synthetic home has no writer-lock directory")
+        # Each part the card lists, with its state: the bundled data's entry for this build shows.
+        listed = {name: entry for name, entry in view["capabilities"].items()
+                  if entry["reason"] != "not_implemented"}
+        self.assertGreater(len(listed), 1)
+        restricted, _source, _why = compat.evidence_for("not_loaded_recovery", generator.CODEX_VERSION,
+                                                        [("bundled", bundled, True)])
+        if restricted == compat.INCOMPATIBLE:
+            self.assertEqual((listed["not_loaded_recovery"]["state"], listed["not_loaded_recovery"]["reason"]),
+                             (compat.INCOMPATIBLE, "registry_incompatible"))
+        # The panel's card: the MCP server's summary of the same report, at the same moment.
+        panel = generator.sample_panel_data()["status"]["watcher"]
+        self.assertEqual(panel["compatibility"], compat.mcp_view(view))
+        self.assertEqual(panel["engine_state"], watcher["engine_state"])
 
     def test_the_reads_are_the_ones_the_window_makes(self):
         """Only questions the window's own code asks, and each photographed page's."""
