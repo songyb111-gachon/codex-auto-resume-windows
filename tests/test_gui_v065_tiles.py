@@ -133,6 +133,12 @@ foreach ($scale in (ConvertFrom-Json $env:CAR_SCALES)) {
             # Two columns of pixels from the top of the list to below the third tile: one down the tiles' right padding, where
             # nothing is drawn in them, for their grounds; one down their middle, clear of their rounded corners, for their
             # edges and the gaps between them.
+            if ($tiles[1][0] + $tiles[1][2] -gt $bitmap.Width) {
+                throw ('DIAG tile past the list: scale=' + $scale + ' system=' + $systemScale + ' theme=' + $theme + ' list=' + $list.Width + 'x' + $list.Height +
+                       ' client=' + $list.ClientSize.Width + ' window=' + $window.ClientSize.Width + 'x' + $window.ClientSize.Height + ' frame=' + $frame.ClientSize.Width +
+                       ' tiles=' + (($tiles | ForEach-Object { $_ -join ',' }) -join ' | ') + ' rows=' + (($rows | ForEach-Object { $_ -join ',' }) -join ' | ') +
+                       ' columns=' + (($list.Columns | ForEach-Object { $_.Width }) -join ',') + ' screen=' + [Windows.Forms.Screen]::PrimaryScreen.WorkingArea + ' font=' + $font.Name + ' ' + $font.Size)
+            }
             $x = $tiles[1][0] + $tiles[1][2] - [int][Math]::Round(6 * $scale)
             $middle = $tiles[1][0] + [int]($tiles[1][2] / 2)
             $down = @(); $across = @()
