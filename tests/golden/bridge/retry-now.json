@@ -1,0 +1,59 @@
+{
+  "command": "retry-now",
+  "cases": [
+    {
+      "case": "a usage limit whose reset is still ahead",
+      "argument": {
+        "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777"
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+          "state": "waiting_reset",
+          "eligible_at": 1800002540.0,
+          "woke": false,
+          "note": "the usage reset is at a later time; the watcher checks then, and every safety check still applies"
+        }
+      }
+    },
+    {
+      "case": "a backoff brought forward",
+      "argument": {
+        "interruption_id": "8888888888888888888888888888888888888888888888888888888888888888"
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "interruption_id": "8888888888888888888888888888888888888888888888888888888888888888",
+          "state": "waiting_backoff",
+          "eligible_at": 1800000000.0,
+          "woke": false,
+          "note": "the watcher checks at its next poll; every safety check still applies"
+        }
+      }
+    },
+    {
+      "case": "a recovered one has already finished",
+      "argument": {
+        "interruption_id": "6666666666666666666666666666666666666666666666666666666666666666"
+      },
+      "reply": {
+        "ok": false,
+        "error": "that recovery has already finished",
+        "error_code": "already_finished"
+      }
+    },
+    {
+      "case": "no such interruption",
+      "argument": {
+        "interruption_id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "reply": {
+        "ok": false,
+        "error": "no such interruption",
+        "error_code": "no_such_interruption"
+      }
+    }
+  ]
+}

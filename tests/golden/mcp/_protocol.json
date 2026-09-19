@@ -1,0 +1,355 @@
+{
+  "cases": [
+    {
+      "case": "initialize",
+      "request": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+          "protocolVersion": "2025-06-18"
+        }
+      },
+      "responses": [
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {
+              "tools": {
+                "listChanged": false
+              },
+              "resources": {
+                "subscribe": false,
+                "listChanged": false
+              }
+            },
+            "serverInfo": {
+              "name": "codex-auto-resume",
+              "version": "<version>"
+            },
+            "instructions": "Manage Codex Auto Resume, which recovers the exact Codex task an interruption stopped. Use open_settings when the user wants to see or change how it behaves. Identify a pending recovery only by the exact interruption id from list_pending; never by title, project or recency. There is no way to retry an unclassified failure or to force a send, and asking for one is not an oversight to work around."
+          }
+        }
+      ]
+    },
+    {
+      "case": "initialize, asking for a protocol it does not speak",
+      "request": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+          "protocolVersion": "1999-01-01"
+        }
+      },
+      "responses": [
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {
+              "tools": {
+                "listChanged": false
+              },
+              "resources": {
+                "subscribe": false,
+                "listChanged": false
+              }
+            },
+            "serverInfo": {
+              "name": "codex-auto-resume",
+              "version": "<version>"
+            },
+            "instructions": "Manage Codex Auto Resume, which recovers the exact Codex task an interruption stopped. Use open_settings when the user wants to see or change how it behaves. Identify a pending recovery only by the exact interruption id from list_pending; never by title, project or recency. There is no way to retry an unclassified failure or to force a send, and asking for one is not an oversight to work around."
+          }
+        }
+      ]
+    },
+    {
+      "case": "ping",
+      "request": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "ping"
+      },
+      "responses": [
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {}
+        }
+      ]
+    },
+    {
+      "case": "resources/list",
+      "request": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "resources/list"
+      },
+      "responses": [
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "resources": [
+              {
+                "uri": "ui://codex-auto-resume/settings",
+                "name": "Codex Auto Resume settings",
+                "description": "The settings panel shown by open_settings.",
+                "mimeType": "text/html+skybridge"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "case": "resources/templates/list",
+      "request": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "resources/templates/list"
+      },
+      "responses": [
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "resourceTemplates": []
+          }
+        }
+      ]
+    },
+    {
+      "case": "prompts/list",
+      "request": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "prompts/list"
+      },
+      "responses": [
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "prompts": []
+          }
+        }
+      ]
+    },
+    {
+      "case": "a resource that does not exist",
+      "request": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "resources/read",
+        "params": {
+          "uri": "ui://elsewhere"
+        }
+      },
+      "responses": [
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "code": -32602,
+            "message": "unknown resource"
+          }
+        }
+      ]
+    },
+    {
+      "case": "a tool that does not exist",
+      "request": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {
+          "name": "send_message"
+        }
+      },
+      "responses": [
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "code": -32602,
+            "message": "unknown tool"
+          }
+        }
+      ]
+    },
+    {
+      "case": "arguments that are not an object",
+      "request": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {
+          "name": "get_status",
+          "arguments": []
+        }
+      },
+      "responses": [
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "isError": true,
+            "content": [
+              {
+                "type": "text",
+                "text": "arguments must be an object"
+              }
+            ],
+            "structuredContent": {
+              "error_code": "request_failed"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "case": "an argument the tool does not take",
+      "request": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {
+          "name": "get_status",
+          "arguments": {
+            "force": true
+          }
+        }
+      },
+      "responses": [
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "isError": true,
+            "content": [
+              {
+                "type": "text",
+                "text": "unrecognized tool arguments"
+              }
+            ],
+            "structuredContent": {
+              "error_code": "request_failed"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "case": "params that are not an object",
+      "request": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/list",
+        "params": []
+      },
+      "responses": [
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "code": -32602,
+            "message": "params must be an object"
+          }
+        }
+      ]
+    },
+    {
+      "case": "a method that does not exist",
+      "request": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/run"
+      },
+      "responses": [
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "code": -32601,
+            "message": "unknown method: tools/run"
+          }
+        }
+      ]
+    },
+    {
+      "case": "not JSON-RPC 2.0",
+      "request": {
+        "jsonrpc": "1.0",
+        "id": 1,
+        "method": "ping"
+      },
+      "responses": [
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "code": -32600,
+            "message": "invalid JSON-RPC request"
+          }
+        }
+      ]
+    },
+    {
+      "case": "a notification is not answered",
+      "request": {
+        "jsonrpc": "2.0",
+        "method": "notifications/initialized"
+      },
+      "responses": []
+    },
+    {
+      "case": "a batch",
+      "request": [
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "method": "ping"
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 2,
+          "method": "prompts/list"
+        }
+      ],
+      "responses": [
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {}
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 2,
+          "result": {
+            "prompts": []
+          }
+        }
+      ]
+    },
+    {
+      "case": "a line that is not JSON",
+      "request": "{not json",
+      "responses": [
+        {
+          "jsonrpc": "2.0",
+          "id": null,
+          "error": {
+            "code": -32700,
+            "message": "invalid JSON"
+          }
+        }
+      ]
+    }
+  ]
+}

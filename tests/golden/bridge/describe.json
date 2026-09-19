@@ -1,0 +1,305 @@
+{
+  "command": "describe",
+  "cases": [
+    {
+      "case": "the settings schema the Settings page is built from",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "schema": [
+          {
+            "name": "max_recovery_attempts",
+            "default": 4,
+            "type": "integer",
+            "min": 1,
+            "max": 20,
+            "group": "limits"
+          },
+          {
+            "name": "max_no_progress",
+            "default": 3,
+            "type": "integer",
+            "min": 1,
+            "max": 10,
+            "group": "limits"
+          },
+          {
+            "name": "max_chain_continuations",
+            "default": 6,
+            "type": "integer",
+            "min": 1,
+            "max": 10,
+            "group": "limits"
+          },
+          {
+            "name": "retry_timing",
+            "default": "normal",
+            "type": "string",
+            "choices": [
+              "conservative",
+              "normal",
+              "aggressive"
+            ],
+            "group": "limits"
+          },
+          {
+            "name": "detection_lookback_hours",
+            "default": 6.0,
+            "type": "number",
+            "min": 0.0,
+            "max": 168.0,
+            "group": "advanced"
+          },
+          {
+            "name": "notifications",
+            "default": true,
+            "type": "boolean",
+            "group": "notifications",
+            "master": true
+          },
+          {
+            "name": "show_tray",
+            "default": true,
+            "type": "boolean",
+            "group": "windows"
+          },
+          {
+            "name": "notification_card",
+            "default": true,
+            "type": "boolean",
+            "group": "windows"
+          },
+          {
+            "name": "theme",
+            "default": "system",
+            "type": "string",
+            "choices": [
+              "system",
+              "light",
+              "dark"
+            ],
+            "group": "appearance"
+          },
+          {
+            "name": "reduce_motion",
+            "default": false,
+            "type": "boolean",
+            "group": "appearance"
+          },
+          {
+            "name": "codex_exe",
+            "default": null,
+            "type": "string",
+            "group": "advanced"
+          },
+          {
+            "name": "recover_usage_limit",
+            "default": true,
+            "type": "boolean",
+            "group": "recovery",
+            "category": "usage_limit"
+          },
+          {
+            "name": "recover_network_transient",
+            "default": true,
+            "type": "boolean",
+            "group": "recovery",
+            "category": "network_transient"
+          },
+          {
+            "name": "recover_timeout",
+            "default": true,
+            "type": "boolean",
+            "group": "recovery",
+            "category": "timeout"
+          },
+          {
+            "name": "recover_rate_limit_transient",
+            "default": true,
+            "type": "boolean",
+            "group": "recovery",
+            "category": "rate_limit_transient"
+          },
+          {
+            "name": "recover_server_5xx",
+            "default": true,
+            "type": "boolean",
+            "group": "recovery",
+            "category": "server_5xx"
+          },
+          {
+            "name": "recover_stream_interrupted",
+            "default": true,
+            "type": "boolean",
+            "group": "recovery",
+            "category": "stream_interrupted"
+          },
+          {
+            "name": "recover_auth_service_transient",
+            "default": true,
+            "type": "boolean",
+            "group": "recovery",
+            "category": "auth_service_transient"
+          },
+          {
+            "name": "notify_interruption",
+            "default": true,
+            "type": "boolean",
+            "group": "notifications",
+            "master": false
+          },
+          {
+            "name": "notify_starting",
+            "default": true,
+            "type": "boolean",
+            "group": "notifications",
+            "master": false
+          },
+          {
+            "name": "notify_result",
+            "default": true,
+            "type": "boolean",
+            "group": "notifications",
+            "master": false
+          },
+          {
+            "name": "notify_stopped",
+            "default": true,
+            "type": "boolean",
+            "group": "notifications",
+            "master": false
+          },
+          {
+            "name": "interface_language",
+            "default": "system",
+            "type": "string",
+            "choices": [
+              "system",
+              "en",
+              "ko",
+              "ja",
+              "zh-CN",
+              "zh-TW",
+              "es",
+              "de",
+              "fr",
+              "pt-BR"
+            ],
+            "group": "general"
+          },
+          {
+            "name": "continuation_language",
+            "default": "follow",
+            "type": "string",
+            "choices": [
+              "follow",
+              "en",
+              "ko",
+              "ja",
+              "zh-CN",
+              "zh-TW",
+              "es",
+              "de",
+              "fr",
+              "pt-BR"
+            ],
+            "group": "continuation"
+          },
+          {
+            "name": "continuation_style",
+            "default": "standard",
+            "type": "string",
+            "choices": [
+              "minimal",
+              "standard",
+              "detailed",
+              "custom"
+            ],
+            "group": "continuation"
+          },
+          {
+            "name": "custom_message_mode",
+            "default": "global",
+            "type": "string",
+            "choices": [
+              "global",
+              "per_reason"
+            ],
+            "group": "continuation"
+          },
+          {
+            "name": "custom_message",
+            "default": null,
+            "type": "string",
+            "group": "continuation",
+            "multiline": true,
+            "max_length": 2000
+          },
+          {
+            "name": "custom_message_usage_limit",
+            "default": null,
+            "type": "string",
+            "group": "continuation",
+            "multiline": true,
+            "max_length": 2000,
+            "category": "usage_limit"
+          },
+          {
+            "name": "custom_message_rate_limit_transient",
+            "default": null,
+            "type": "string",
+            "group": "continuation",
+            "multiline": true,
+            "max_length": 2000,
+            "category": "rate_limit_transient"
+          },
+          {
+            "name": "custom_message_network_transient",
+            "default": null,
+            "type": "string",
+            "group": "continuation",
+            "multiline": true,
+            "max_length": 2000,
+            "category": "network_transient"
+          },
+          {
+            "name": "custom_message_timeout",
+            "default": null,
+            "type": "string",
+            "group": "continuation",
+            "multiline": true,
+            "max_length": 2000,
+            "category": "timeout"
+          },
+          {
+            "name": "custom_message_server_5xx",
+            "default": null,
+            "type": "string",
+            "group": "continuation",
+            "multiline": true,
+            "max_length": 2000,
+            "category": "server_5xx"
+          },
+          {
+            "name": "custom_message_stream_interrupted",
+            "default": null,
+            "type": "string",
+            "group": "continuation",
+            "multiline": true,
+            "max_length": 2000,
+            "category": "stream_interrupted"
+          },
+          {
+            "name": "custom_message_auth_service_transient",
+            "default": null,
+            "type": "string",
+            "group": "continuation",
+            "multiline": true,
+            "max_length": 2000,
+            "category": "auth_service_transient"
+          }
+        ]
+      }
+    }
+  ]
+}

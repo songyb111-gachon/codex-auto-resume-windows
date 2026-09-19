@@ -1,0 +1,75 @@
+{
+  "tool": "cancel_recovery",
+  "cases": [
+    {
+      "case": "a waiting recovery cancelled",
+      "arguments": {
+        "interruption_id": "8888888888888888888888888888888888888888888888888888888888888888"
+      },
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "Cancelled."
+            }
+          ],
+          "structuredContent": {
+            "interruption_id": "8888888888888888888888888888888888888888888888888888888888888888",
+            "thread_id": "22222222-2222-7222-8222-222222222222",
+            "state": "cancelled",
+            "changed": true,
+            "effects": {
+              "8888888888888888888888888888888888888888888888888888888888888888": "cancelled"
+            },
+            "message": "cancelled"
+          }
+        }
+      }
+    },
+    {
+      "case": "no such interruption",
+      "arguments": {
+        "interruption_id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "isError": true,
+          "content": [
+            {
+              "type": "text",
+              "text": "no such interruption"
+            }
+          ],
+          "structuredContent": {
+            "error_code": "no_such_interruption"
+          }
+        }
+      }
+    },
+    {
+      "case": "the id is required",
+      "arguments": {},
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "isError": true,
+          "content": [
+            {
+              "type": "text",
+              "text": "missing required tool arguments"
+            }
+          ],
+          "structuredContent": {
+            "error_code": "request_failed"
+          }
+        }
+      }
+    }
+  ]
+}

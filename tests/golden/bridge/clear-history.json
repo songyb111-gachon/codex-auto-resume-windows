@@ -1,0 +1,27 @@
+{
+  "command": "clear-history",
+  "cases": [
+    {
+      "case": "finished recoveries hidden",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "hidden": 7,
+          "kept": 2
+        }
+      }
+    },
+    {
+      "case": "nothing left to hide",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "hidden": 0,
+          "kept": 2
+        }
+      }
+    }
+  ]
+}

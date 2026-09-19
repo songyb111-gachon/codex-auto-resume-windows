@@ -1,0 +1,28 @@
+{
+  "command": "cancel-thread",
+  "cases": [
+    {
+      "case": "a conversation switched off and what it had waiting cancelled",
+      "argument": {
+        "thread_id": "22222222-2222-7222-8222-222222222222"
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "thread_id": "22222222-2222-7222-8222-222222222222"
+        }
+      }
+    },
+    {
+      "case": "not a conversation id",
+      "argument": {
+        "thread_id": "not-a-uuid"
+      },
+      "reply": {
+        "ok": false,
+        "error": "thread id must be a canonical UUID",
+        "error_code": "invalid_thread_id"
+      }
+    }
+  ]
+}

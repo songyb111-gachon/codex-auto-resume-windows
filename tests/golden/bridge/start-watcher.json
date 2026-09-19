@@ -1,0 +1,31 @@
+{
+  "command": "start-watcher",
+  "cases": [
+    {
+      "case": "a watcher already holds the mutex",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "started": false,
+          "confirmed": true,
+          "state": "already-running",
+          "reason": "already running"
+        }
+      }
+    },
+    {
+      "case": "launched with no watcher running, and it stopped again straight away",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "confirmed": false,
+          "state": "exited",
+          "reason": "exited",
+          "started": true
+        }
+      }
+    }
+  ]
+}

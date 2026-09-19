@@ -1,0 +1,48 @@
+{
+  "tool": "disable_conversation_recovery",
+  "cases": [
+    {
+      "case": "one conversation switched off",
+      "arguments": {
+        "thread_id": "11111111-1111-7111-8111-111111111111"
+      },
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "Automatic recovery is off for that conversation."
+            }
+          ],
+          "structuredContent": {
+            "thread_id": "11111111-1111-7111-8111-111111111111"
+          }
+        }
+      }
+    },
+    {
+      "case": "not a conversation id",
+      "arguments": {
+        "thread_id": "not-a-uuid"
+      },
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "isError": true,
+          "content": [
+            {
+              "type": "text",
+              "text": "thread id must be a canonical UUID"
+            }
+          ],
+          "structuredContent": {
+            "error_code": "invalid_thread_id"
+          }
+        }
+      }
+    }
+  ]
+}

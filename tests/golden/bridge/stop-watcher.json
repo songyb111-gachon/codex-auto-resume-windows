@@ -1,0 +1,31 @@
+{
+  "command": "stop-watcher",
+  "cases": [
+    {
+      "case": "no watcher is running",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "stopped": false,
+          "signalled": false,
+          "state": "not-running",
+          "reason": "not-running"
+        }
+      }
+    },
+    {
+      "case": "the watcher does not let go before the wait is over",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "stopped": false,
+          "state": "still-finishing",
+          "reason": "still-finishing",
+          "signalled": false
+        }
+      }
+    }
+  ]
+}

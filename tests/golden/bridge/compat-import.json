@@ -1,0 +1,91 @@
+{
+  "command": "compat-import",
+  "cases": [
+    {
+      "case": "a valid document becomes the cache",
+      "argument": {
+        "path": "<scratch>\\downloads\\codex_compat.json",
+        "origin": "file"
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "imported": true,
+          "reason": null,
+          "sequence": 2,
+          "cache": "ok",
+          "woke_watcher": false
+        }
+      }
+    },
+    {
+      "case": "an older document is a rollback",
+      "argument": {
+        "path": "<scratch>\\downloads\\older.json"
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "imported": false,
+          "reason": "rollback",
+          "sequence": 1,
+          "cache": null,
+          "woke_watcher": false
+        }
+      }
+    },
+    {
+      "case": "a document that fails validation",
+      "argument": {
+        "path": "<scratch>\\downloads\\broken.json"
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "imported": false,
+          "reason": "unknown_format",
+          "sequence": null,
+          "cache": null,
+          "woke_watcher": false
+        }
+      }
+    },
+    {
+      "case": "a file that is not .json",
+      "argument": {
+        "path": "<scratch>\\downloads\\registry.txt"
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "imported": false,
+          "reason": "not_a_json_file",
+          "sequence": null,
+          "cache": null,
+          "woke_watcher": false
+        }
+      }
+    },
+    {
+      "case": "no file named",
+      "argument": {},
+      "reply": {
+        "ok": false,
+        "error": "choose a .json file to import",
+        "error_code": "request_failed"
+      }
+    },
+    {
+      "case": "an origin that is neither main nor file",
+      "argument": {
+        "path": "<scratch>\\downloads\\codex_compat.json",
+        "origin": "web"
+      },
+      "reply": {
+        "ok": false,
+        "error": "origin must be main or file",
+        "error_code": "request_failed"
+      }
+    }
+  ]
+}

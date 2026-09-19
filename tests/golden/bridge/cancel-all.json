@@ -1,0 +1,31 @@
+{
+  "command": "cancel-all",
+  "cases": [
+    {
+      "case": "every pending recovery cancelled",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "requested": 2,
+          "cancelled": 2,
+          "already_finished": 0,
+          "failed": 0
+        }
+      }
+    },
+    {
+      "case": "nothing left to cancel",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "requested": 0,
+          "cancelled": 0,
+          "already_finished": 0,
+          "failed": 0
+        }
+      }
+    }
+  ]
+}
