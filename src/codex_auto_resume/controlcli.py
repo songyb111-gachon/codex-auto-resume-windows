@@ -151,11 +151,17 @@ def _argument(raw, stream):
         raise ControlError("argument must be JSON") from None
 
 
-def _days(payload):
+# How many days a statistics request may cover. The MCP tool publishes the same two numbers.
+DAYS = (1, 3650)
+
+
+def statistics_days(payload):
+    """A statistics request's `days`: absent, or a number from 1 to 3650. The one check of it,
+    for the bridge and the MCP server alike."""
     days = payload.get("days")
     if days is not None and (isinstance(days, bool) or not isinstance(days, (int, float))
-                             or not 1 <= days <= 3650):
-        raise ControlError("days must be a number from 1 to 3650")
+                             or not DAYS[0] <= days <= DAYS[1]):
+        raise ControlError("days must be a number from %d to %d" % DAYS)
     return days
 
 
@@ -335,7 +341,7 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
         if command == "timeline":
             return {"ok": True, "result": control.timeline(payload.get("interruption_id"))}
         if command == "statistics":
-            return {"ok": True, "result": control.statistics(_days(payload))}
+            return {"ok": True, "result": control.statistics(statistics_days(payload))}
         if command == "thread-enabled":
             return {"ok": True, "result": control.set_thread_enabled(payload.get("thread_id"),
                                                                      _flag(payload))}
