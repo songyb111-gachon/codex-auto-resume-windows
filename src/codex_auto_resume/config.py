@@ -16,11 +16,13 @@ PLUGIN_MANIFEST = Path(".codex-plugin") / "plugin.json"
 # Today it is two above this module; five leaves room for this file to move two packages
 # deeper, which is more than any planned layout does.
 ROOT_SEARCH_LEVELS = 5
+# The top-level package this module belongs to: an installation's `src/` holds it.
+_PACKAGE = __name__.partition(".")[0]
 
 
-def _project_root(module: Path, levels: int = ROOT_SEARCH_LEVELS) -> Path:
+def _project_root(module: Path, levels: int = ROOT_SEARCH_LEVELS, package: str = _PACKAGE) -> Path:
     """The installation root: the nearest directory above `module` that holds the plugin
-    manifest and whose `src/` holds `module`.
+    manifest and whose `src/<package>/` holds `module`.
 
     This was `parents[2]`, a count that is only true while this file sits exactly one package
     below `src/`. Moved a level down, it named `src/` instead: the manifest was not found,
@@ -28,13 +30,15 @@ def _project_root(module: Path, levels: int = ROOT_SEARCH_LEVELS) -> Path:
     the default home and the entry script in the wrong place - without one test failing for
     the reason. Searching for the manifest finds the same directory wherever the module is.
 
-    The second condition keeps the search to this installation: a directory further up that
-    happens to hold some other plugin's manifest has no `src/` above this file, so it is never
-    taken for ours. When nothing qualifies - a copy of the sources without a manifest - the
-    answer is the old one, `parents[2]`, exactly as before.
+    The second condition keeps the search to this installation. The root is the directory
+    whose `src/` holds this package, so a directory further up that holds some other plugin's
+    manifest is never taken for ours - not even one with a `src/` of its own somewhere above
+    this file, as a copy of the sources kept inside another project's `src/` has. When nothing
+    qualifies - a copy of the sources without a manifest - the answer is the old one,
+    `parents[2]`, exactly as before.
     """
     for candidate in module.parents[:levels]:
-        if (candidate / "src") in module.parents and (candidate / PLUGIN_MANIFEST).is_file():
+        if (candidate / "src" / package) in module.parents and (candidate / PLUGIN_MANIFEST).is_file():
             return candidate
     return module.parents[2]
 
