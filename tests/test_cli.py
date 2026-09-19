@@ -6,6 +6,7 @@ import io
 import logging
 import os
 from pathlib import Path
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -543,6 +544,53 @@ class WatcherLoopTests(unittest.TestCase):
         # With no engine the watcher still says why, and says it without guessing.
         self.assertTrue(app.paths.compat_report_file.is_file())
         self.assertEqual(app.engine_state(), "unknown")
+
+    def test_a_row_from_a_newer_version_hands_the_watcher_over(self):
+        """A newer version that changed the state under a running watcher leaves rows this
+        one cannot read. The watcher exits with EXIT_SCHEMA_NEWER, so the launcher starts
+        the installed version, and only for that: any other store failure in a tick is
+        recorded and the watcher carries on."""
+        from codex_auto_resume.app import EXIT_OK, EXIT_SCHEMA_NEWER
+        from codex_auto_resume.store import StateFromNewerVersion
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.addCleanup(_reset_logging)
+        home = Path(temp.name)
+        scratch = {"LOCALAPPDATA": str(home / "none"), "CODEX_HOME": str(home / "codex")}
+        with patch.dict(os.environ, scratch):
+            app = App(config.Paths(home), console=False)
+
+        def newer_rows(store):
+            store.register({"thread_id": THREAD, "turn_id": "0a1b2c3d-0002-7000-8000-000000000002",
+                            "completed_at": 110.0, "started_at": 105.0, "ordinal": 2,
+                            "interruption_id": "a" * 64, "reset_at": 150.0,
+                            "limit_type": "codex.primary", "uncertain": True}, 111.0)
+            with contextlib.closing(sqlite3.connect(app.paths.state_dir / "state.sqlite")) as db:
+                db.execute("ALTER TABLE interruptions ADD COLUMN from_a_newer_version TEXT")
+                db.commit()
+            store.all_records()
+
+        def other_failure(store):
+            raise StoreError("State transaction failed")
+
+        def newer_state(store):
+            raise StateFromNewerVersion("newer schema")
+
+        for tick, expected in ((newer_rows, EXIT_SCHEMA_NEWER), (other_failure, EXIT_OK),
+                               (newer_state, EXIT_SCHEMA_NEWER)):
+            with self.subTest(tick=tick.__name__):
+                for leftover in app.paths.state_dir.glob("state.sqlite*"):
+                    leftover.unlink()
+
+                def engine(store, **kwargs):
+                    return type("Engine", (), {"tick": lambda self_inner: tick(store)})()
+
+                with patch.dict(os.environ, scratch), \
+                     patch.object(App, "engine", side_effect=engine), \
+                     patch.object(App, "wake_event", side_effect=AdapterError("unavailable")), \
+                     patch.object(App, "_start_tray", return_value=None), \
+                     patch.object(App, "mutex"), patch.object(App, "stop_event"):
+                    self.assertEqual(app.run(once=True), expected)
 
     def test_poll_interval_survives_store_read_failure(self):
         temp = tempfile.TemporaryDirectory()

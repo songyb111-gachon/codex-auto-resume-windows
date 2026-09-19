@@ -421,6 +421,19 @@ class StoreTests(_StoreCase):
         self.assertNotIsInstance(caught.exception, StateFromNewerVersion)
         self.assertEqual((self.root / "state.sqlite").read_bytes(), b"not a sqlite file")
 
+    def test_a_row_with_a_column_this_version_does_not_know_is_a_record_schema_error(self):
+        """What a watcher reads when a newer version has changed the state under it: its
+        rows carry a column this version never wrote. The read fails closed, and the error is
+        the one the watcher hands over on rather than a corruption."""
+        self.store.register(failure(), 111)
+        self.db.execute("ALTER TABLE interruptions ADD COLUMN from_a_newer_version TEXT")
+        for read in (lambda: self.store.get("a" * 64), self.store.all_records, self.store.pending,
+                     lambda: self.store.history(include_hidden=True)):
+            with self.subTest(read=read), self.assertRaises(StoreError) as caught:
+                read()
+            self.assertEqual(str(caught.exception), "Invalid record schema")
+            self.assertNotIsInstance(caught.exception, StateFromNewerVersion)
+
     def test_newer_schema_and_unknown_record_state_fail_closed(self):
         self.store.register(failure(), 111)
         self.store.close()
