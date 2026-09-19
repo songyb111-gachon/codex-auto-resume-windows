@@ -20,6 +20,7 @@ from pathlib import Path
 import sys
 import tempfile
 import time
+import types
 import unittest
 import unittest.mock
 
@@ -510,12 +511,17 @@ class ObserveTests(unittest.TestCase):
     """What the one-second tick asks Windows, and when it asks at all."""
 
     def observe(self, snapshot, *, reduced=False, contrast=False, saver=False, rect=(0, 0, 16, 16),
-                locked=False):
+                locked=False, overflowed=False):
         icon = tray.Tray(strings={})
         icon._hwnd = 12345
         icon._frames = object.__new__(tray.IconFrames)
         icon._session_locked = locked
         asked = []
+
+        def overflow():
+            asked.append("overflow")
+            return overflowed
+        icon._placement = types.SimpleNamespace(overflowed=overflow)      # never this machine's registry
 
         def rect_of(hwnd, uid=1):
             asked.append("rect")
@@ -534,12 +540,25 @@ class ObserveTests(unittest.TestCase):
         self.assertIn("rect", asked)
 
     def test_each_reason_holds_it_still(self):
-        for options in ({"reduced": True}, {"contrast": True}, {"saver": True}, {"locked": True}, {"rect": None}):
+        for options in ({"reduced": True}, {"contrast": True}, {"saver": True}, {"locked": True},
+                        {"overflowed": True}, {"rect": None}):
             with self.subTest(options):
                 icon, asked = self.observe({"enabled": True}, **options)
                 self.assertFalse(icon._motion_allowed)
-                if "rect" not in options:
+                if "rect" not in options and "overflowed" not in options:
                     self.assertNotIn("rect", asked)        # the shell is not asked once something holds it
+                    self.assertNotIn("overflow", asked)    # nor is Windows' setting for this icon read
+
+    def test_windows_own_setting_for_the_icon_is_what_says_it_is_in_the_overflow_area(self):
+        """Windows 11 (build 26200) gives an icon in the overflow flyout the overflow button's rectangle rather than
+        nothing, so `icon_rect` cannot see it there: the icon moved where nobody could see it, at explorer.exe's cost.
+        Windows' own setting for the icon is asked first, and the shell only if that does not hold it still."""
+        icon, asked = self.observe({"enabled": True}, overflowed=True)
+        self.assertFalse(icon._motion_allowed)
+        self.assertEqual([step for step in asked if step in ("overflow", "rect")], ["overflow"])
+        icon, asked = self.observe({"enabled": True}, overflowed=None)     # Windows does not say: the rule as it was
+        self.assertTrue(icon._motion_allowed)
+        self.assertEqual([step for step in asked if step in ("overflow", "rect")], ["overflow", "rect"])
 
     def test_a_still_state_asks_windows_nothing(self):
         icon, asked = self.observe({"enabled": False})
@@ -599,6 +618,7 @@ class StoredReduceMotionTests(unittest.TestCase):
     def tick(self, snapshot=None):
         """The motion half of one tick. Windows' animations on, no High Contrast, no battery saver
         and the icon on the taskbar: the product's own Reduce motion is all that can hold it."""
+        self.icon._placement = types.SimpleNamespace(overflowed=lambda: False)   # never this machine's registry
         with unittest.mock.patch.object(popup, "reduced_motion", lambda: popup._reduce_motion_setting), \
                 unittest.mock.patch.object(popup, "high_contrast", lambda: False), \
                 unittest.mock.patch.object(tray, "battery_saver", lambda: False), \
@@ -654,6 +674,155 @@ class StoredReduceMotionTests(unittest.TestCase):
         self.control.get_settings = read
         self.assertTrue(self.tick(), "the file, readable again, says motion is allowed")
         self.assertEqual(len(self.logged), 1)
+
+
+class FakeRegistry:
+    """HKEY_CURRENT_USER as `IconPlacement` reads it: {key path: {value name: value}}, and what was read."""
+
+    def __init__(self, keys, fail=None):
+        # The dict itself, not a copy: a test that changes a setting under the placement changes what it reads.
+        self.keys, self.fail, self.reads = keys, fail, []
+
+    def subkeys(self, path):
+        self.reads.append(("subkeys", path))
+        if self.fail == "subkeys":
+            raise OSError("no such key")
+        if path not in self.keys and not any(name.startswith(path + "\\") for name in self.keys):
+            raise FileNotFoundError(path)
+        return sorted(name[len(path) + 1:] for name in self.keys
+                      if name.startswith(path + "\\") and "\\" not in name[len(path) + 1:])
+
+    def value(self, path, name):
+        self.reads.append(("value", path, name))
+        if self.fail == "value":
+            raise OSError("cannot read")
+        return self.keys.get(path, {}).get(name)
+
+
+class PlacementTests(unittest.TestCase):
+    """Whether Windows keeps this icon in the overflow flyout, read from Windows' own setting for it.
+
+    `Shell_NotifyIconGetRect` cannot answer it: on Windows 11 (build 26200) an icon in the overflow flyout is given
+    the overflow button's rectangle, so the icon animated where nobody saw it and explorer.exe paid for every frame.
+    Windows writes what it did with each icon under its own per-user key (`tray.NOTIFY_ICON_SETTINGS`), one key per
+    icon, and `IsPromoted` is 1 for an icon it shows on the taskbar. Only a fake registry is read here, never this
+    machine's.
+    """
+
+    EXE = r"C:\Users\a\.codex-auto-resume\runtime\pythonw.exe"
+    SETTINGS = tray.NOTIFY_ICON_SETTINGS
+    CHEVRON = tray.TRAY_NOTIFY
+
+    def entry(self, promoted=None, path=None, uid=1, **extra):
+        value = {"ExecutablePath": self.EXE if path is None else path, "UID": uid}
+        if promoted is not None:
+            value["IsPromoted"] = promoted
+        value.update(extra)
+        return value
+
+    def placement(self, keys, executable=None, fail=None, folders=None):
+        reader = FakeRegistry(keys, fail=fail)
+        return tray.IconPlacement(executable or self.EXE, reader=reader,
+                                  folders=folders or (lambda guid: None)), reader
+
+    def test_an_icon_windows_shows_on_the_taskbar_is_not_in_the_overflow_area(self):
+        placement, _ = self.placement({self.SETTINGS + r"\17": self.entry(1)})
+        self.assertIs(placement.overflowed(), False)
+
+    def test_an_icon_windows_has_not_promoted_is(self):
+        for promoted in (0, None):
+            with self.subTest(promoted=promoted):
+                placement, _ = self.placement({self.SETTINGS + r"\17": self.entry(promoted)})
+                self.assertIs(placement.overflowed(), True)
+
+    def test_an_icon_windows_says_nothing_about_leaves_the_rule_as_it_was(self):
+        for keys in ({}, {self.SETTINGS + r"\17": self.entry(0, path=r"C:\Python313\pythonw.exe")},
+                     {self.SETTINGS + r"\17": self.entry(0, uid=2)},
+                     {self.SETTINGS + r"\17": self.entry(0, IconGuid="{1a2b}")}):
+            with self.subTest(keys=sorted(keys.values(), key=repr)):
+                placement, _ = self.placement(keys)
+                self.assertIsNone(placement.overflowed())
+
+    def test_a_registry_that_cannot_be_read_leaves_the_rule_as_it_was(self):
+        for fail in ("subkeys", "value"):
+            with self.subTest(fail=fail):
+                placement, _ = self.placement({self.SETTINGS + r"\17": self.entry(0)}, fail=fail)
+                self.assertIsNone(placement.overflowed())
+
+    def test_the_path_is_read_as_windows_writes_it(self):
+        """Windows writes a path under a known folder as that folder's GUID; case and separators are its own."""
+        guid = "{6D809377-6AF0-444B-8957-A3773F02200E}"
+        keys = {self.SETTINGS + r"\17": self.entry(0, path=guid + r"\Python313\pythonw.exe")}
+        folders = {guid: r"C:\Program Files"}.get
+        placement, _ = self.placement(keys, executable=r"C:\PROGRAM FILES\Python313\pythonw.exe", folders=folders)
+        self.assertIs(placement.overflowed(), True)
+        placement, _ = self.placement(keys, executable=r"C:\Program Files (x86)\Python313\pythonw.exe",
+                                      folders=folders)
+        self.assertIsNone(placement.overflowed(), "another folder's Python is another icon")
+        placement, _ = self.placement(keys, executable=r"C:\Program Files\Python313\pythonw.exe",
+                                      folders=lambda name: None)
+        self.assertIsNone(placement.overflowed(), "a folder Windows will not name is nothing to go on")
+
+    def test_with_the_overflow_flyout_turned_off_every_icon_is_on_the_taskbar(self):
+        keys = {self.SETTINGS + r"\17": self.entry(0), self.CHEVRON: {"SystemTrayChevronVisibility": 0}}
+        placement, reader = self.placement(keys)
+        self.assertIs(placement.overflowed(), False)
+        self.assertEqual([step for step in reader.reads if step[0] == "subkeys"], [])
+        keys[self.CHEVRON] = {"SystemTrayChevronVisibility": 1}
+        placement, _ = self.placement(keys)
+        self.assertIs(placement.overflowed(), True)
+
+    def test_the_entry_is_found_once_and_read_again_every_tick(self):
+        keys = {self.SETTINGS + r"\17": self.entry(0)}
+        placement, reader = self.placement(keys)
+        self.assertIs(placement.overflowed(), True)
+        searches = len([step for step in reader.reads if step[0] == "subkeys"])
+        self.assertEqual(searches, 1)
+        for _ in range(5):
+            self.assertIs(placement.overflowed(), True)
+        self.assertEqual(len([step for step in reader.reads if step[0] == "subkeys"]), searches)
+        # The setting changed under it - somebody dragged the icon onto the taskbar - and the next tick sees it.
+        keys[self.SETTINGS + r"\17"]["IsPromoted"] = 1
+        self.assertIs(placement.overflowed(), False)
+
+    def test_an_icon_windows_has_not_written_yet_is_looked_for_again_but_not_every_tick(self):
+        keys = {}
+        clock = [1000.0]
+        placement, reader = self.placement(keys)
+        placement.clock = lambda: clock[0]
+        self.assertIsNone(placement.overflowed())
+        self.assertIsNone(placement.overflowed())
+        self.assertEqual(len([step for step in reader.reads if step[0] == "subkeys"]), 1)
+        clock[0] += tray.IconPlacement.LOOK_AGAIN_S
+        keys[self.SETTINGS + r"\17"] = self.entry(0)            # the shell wrote the icon's settings
+        self.assertIs(placement.overflowed(), True)
+        self.assertEqual(len([step for step in reader.reads if step[0] == "subkeys"]), 2)
+
+    def test_an_entry_that_goes_is_looked_for_again(self):
+        keys = {self.SETTINGS + r"\17": self.entry(0)}
+        clock = [1000.0]
+        placement, reader = self.placement(keys)
+        placement.clock = lambda: clock[0]
+        self.assertIs(placement.overflowed(), True)
+        keys.pop(self.SETTINGS + r"\17")
+        clock[0] += tray.IconPlacement.LOOK_AGAIN_S
+        self.assertIsNone(placement.overflowed())
+        keys[self.SETTINGS + r"\21"] = self.entry(1)            # written again, and promoted this time
+        clock[0] += tray.IconPlacement.LOOK_AGAIN_S
+        self.assertIs(placement.overflowed(), False)
+
+    def test_one_promoted_entry_among_this_icon_s_is_enough(self):
+        placement, _ = self.placement({self.SETTINGS + r"\17": self.entry(0),
+                                       self.SETTINGS + r"\21": self.entry(1)})
+        self.assertIs(placement.overflowed(), False)
+
+    @unittest.skipUnless(os.name == "nt", "the registry is Windows'")
+    def test_this_machine_answers_without_writing_anything(self):
+        """The real reader, on this machine: whatever it says, it is a bool or None and nothing was written."""
+        placement = tray.IconPlacement()
+        answer = placement.overflowed()
+        self.assertIn(answer, (True, False, None))
+        self.assertTrue(tray.process_image().lower().endswith(".exe"))
 
 
 @unittest.skipUnless(os.name == "nt", "icon handles are Windows'")

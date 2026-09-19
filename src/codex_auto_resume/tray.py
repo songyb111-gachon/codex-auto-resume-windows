@@ -22,7 +22,9 @@ turns once, clockwise, round the ring; while a continuation is being sent it kee
 paused, it is grey and still; a problem is its colour, pulses once and holds. Frames are composed
 from a table built off this thread, swapped with NIM_MODIFY up to ICON_MOTION's rates, and nothing
 moves under Reduce motion, Windows' animation setting, High Contrast or battery saver, while the
-session is locked or while the icon sits in the overflow flyout.
+session is locked, or while Windows' own settings for the icon say it sits in the overflow flyout
+(IconPlacement: on Windows 11 the shell gives such an icon the overflow button's rectangle, so its
+rectangle cannot tell).
 
 Since v0.6.5 this thread also hosts the notification card (`notice_window.CardStack`), as it hosts
 the popup: given the notifier's inbox, the icon attaches it once its window exists, so a notice
@@ -367,6 +369,143 @@ def icon_frame_ms(state, elapsed_ms, since_entered_ms=None, *, reduced=False):
     return None
 
 
+# Where Windows keeps what it did with each notification-area icon, per user: one key per icon, holding the path of
+# the program that added it, the icon's uID, and `IsPromoted` 1 for an icon Windows shows on the taskbar. An icon
+# Windows has not promoted is in the overflow flyout, where nobody sees it move. `Shell_NotifyIconGetRect` cannot be
+# asked instead: on Windows 11 (build 26200) it gives such an icon the overflow button's own rectangle rather than
+# nothing, and the icon moved unseen at explorer.exe's cost, which is what this reads for. `TRAY_NOTIFY`'s
+# `SystemTrayChevronVisibility` is 0 where the flyout is turned off and every icon is on the taskbar.
+#
+# Read only, and only about this process's own icon: nothing here writes a registry value, and nothing it reads is
+# stored or sent (PRIVACY.md, "Notifications").
+NOTIFY_ICON_SETTINGS = r"Control Panel\NotifyIconSettings"
+TRAY_NOTIFY = r"Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\TrayNotify"
+
+
+def process_image() -> str:
+    """This process's program, as Windows writes it in an icon's settings."""
+    if os.name == "nt":
+        try:
+            buffer = C.create_unicode_buffer(32768)
+            if _dll("kernel32").GetModuleFileNameW(None, buffer, len(buffer)):
+                return buffer.value
+        except Exception:
+            pass
+    return sys.executable
+
+
+def known_folder(guid: str):
+    """The folder Windows means by a known-folder GUID, or None where it will not say."""
+    try:
+        shell32, ole32 = _dll("shell32"), _dll("ole32")
+        folder = GUID()
+        if ole32.CLSIDFromString(guid, C.byref(folder)) != 0:
+            return None
+        path = C.c_wchar_p()
+        if shell32.SHGetKnownFolderPath(C.byref(folder), 0, None, C.byref(path)) != 0:
+            return None
+        try:
+            return path.value
+        finally:
+            ole32.CoTaskMemFree(path)
+    except Exception:
+        return None
+
+
+class CurrentUserKeys:
+    """HKEY_CURRENT_USER, read only: the names of a key's subkeys, and one value of a key."""
+
+    def subkeys(self, path: str) -> list:
+        import winreg                                    # noqa: WPS433 - Windows-only module
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path, 0, winreg.KEY_READ) as key:
+            return [winreg.EnumKey(key, index) for index in range(winreg.QueryInfoKey(key)[0])]
+
+    def value(self, path: str, name: str):
+        import winreg                                    # noqa: WPS433 - Windows-only module
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path, 0, winreg.KEY_READ) as key:
+                return winreg.QueryValueEx(key, name)[0]
+        except FileNotFoundError:
+            return None
+
+
+class IconPlacement:
+    """Whether Windows keeps this process's icon in the overflow flyout, from Windows' own settings for it.
+
+    The entries for this icon - this program's path and this uID - are looked for once and then read on each tick,
+    so a person dragging the icon onto the taskbar, or off it, is seen within a second. An icon Windows has not
+    written settings for yet is looked for again, but no oftener than LOOK_AGAIN_S; anything else it will not answer
+    - Windows 10, which keeps no such key, a key that cannot be read - leaves the rule as it was.
+    """
+
+    LOOK_AGAIN_S = 30.0
+
+    def __init__(self, executable=None, uid=1, *, reader=None, folders=None, clock=time.monotonic):
+        self.executable = _same_path(executable if executable is not None else process_image())
+        self.uid = int(uid)
+        self.clock = clock
+        self._reader = reader if reader is not None else CurrentUserKeys()
+        self._folders = folders if folders is not None else known_folder
+        self._entries = []          # the settings keys of this icon, once they have been found
+        self._looked = None         # when they were last looked for
+
+    def overflowed(self):
+        """True while Windows says the icon is in the overflow flyout, False while it says the icon is on the
+        taskbar or shows every icon, None where Windows does not say."""
+        try:
+            if self._reader.value(TRAY_NOTIFY, "SystemTrayChevronVisibility") == 0:
+                return False                             # no flyout at all: every icon is on the taskbar
+            promoted = self._promoted()
+            if promoted is None:
+                now = self.clock()
+                if self._looked is not None and now - self._looked < self.LOOK_AGAIN_S:
+                    return None
+                self._looked = now
+                self._entries = self._find()
+                promoted = self._promoted()
+            return None if promoted is None else not promoted
+        except Exception:
+            return None
+
+    def _promoted(self):
+        """True where Windows shows one of this icon's entries on the taskbar, False where it shows none of them,
+        None where there is no entry of this icon's left to say."""
+        answer = None
+        for path in self._entries:
+            if self._reader.value(path, "ExecutablePath") is None:
+                return None                              # the entry is gone: look for it again
+            answer = bool(self._reader.value(path, "IsPromoted")) or bool(answer)
+        return answer
+
+    def _find(self):
+        """The settings keys this icon's own: the same program, the same uID, and no GUID of their own."""
+        found = []
+        for name in self._reader.subkeys(NOTIFY_ICON_SETTINGS):
+            path = NOTIFY_ICON_SETTINGS + "\\" + name
+            if self._reader.value(path, "IconGuid") is not None or self._reader.value(path, "UID") != self.uid:
+                continue
+            stored = self._reader.value(path, "ExecutablePath")
+            if isinstance(stored, str) and self._ours(stored):
+                found.append(path)
+        return found
+
+    def _ours(self, stored: str) -> bool:
+        """Whether a settings entry's path is this program's. Windows writes a path under a known folder as that
+        folder's GUID and the rest of the path."""
+        if stored.startswith("{") and "}" in stored:
+            guid, _, rest = stored.partition("}")
+            folder = self._folders(guid + "}")
+            if folder is None:
+                return False
+            stored = folder + rest
+        return _same_path(stored) == self.executable
+
+
+def _same_path(value: str) -> str:
+    """A path as it is compared: Windows' own case and separators."""
+    return os.path.normcase(os.path.normpath(value))
+
+
 def icon_motion_allowed(*, reduced=False, contrast=False, battery_saver=False, locked=False, hidden=False,
                         frames=True) -> bool:
     """Whether the icon may move at all. Any one reason holds it still: Reduce motion (the setting
@@ -515,6 +654,7 @@ class Tray:
         self._session_away = False
         self._session_watch = False
         self._motion_read_failed = False    # said once until the settings file can be read again
+        self._placement = None              # IconPlacement once the icon has something to move
         # v0.6.5: the notification card. With an inbox, this thread hosts the cards once its window
         # exists (notice_window.CardStack attaches itself to the inbox); a card's button calls
         # `on_notice_action(uri)` and each notice the stack took is ended by
@@ -787,8 +927,16 @@ class Tray:
                                           locked=self._session_locked or self._session_away,
                                           frames=bool(self._frames))
             if allowed:
-                allowed = tray_popup.icon_rect(self._hwnd, 1) is not None
+                allowed = not self._overflowed() and tray_popup.icon_rect(self._hwnd, 1) is not None
         self._motion_allowed = allowed
+
+    def _overflowed(self) -> bool:
+        """Whether Windows says the icon is in the overflow flyout, where nobody would see it move. Its own setting
+        for the icon, because Windows 11 gives an icon there the overflow button's rectangle and `icon_rect` cannot
+        tell (IconPlacement); where Windows does not say, the rectangle decides as it did before."""
+        if self._placement is None:
+            self._placement = IconPlacement()
+        return self._placement.overflowed() is True
 
     def _frame_for(self, now):
         """Show the frame this moment wants. Returns (changed, [icons to destroy once shown])."""
