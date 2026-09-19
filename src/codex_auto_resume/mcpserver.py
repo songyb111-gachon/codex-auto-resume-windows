@@ -86,7 +86,7 @@ def settings_schema() -> dict:
         # and style only choose among texts this product ships or the user wrote; the text
         # itself is written in the Windows Dashboard, where the person typing it is the
         # person it will speak for.
-        if name.startswith("custom_message") and name != "custom_message_mode":
+        if policy.is_custom_text(name):
             continue
         described = {"boolean": {"type": "boolean"},
                      "integer": {"type": "integer"},

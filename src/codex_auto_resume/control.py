@@ -672,7 +672,7 @@ class Control:
                 problem = "unknown setting: %s" % ", ".join(unknown)
                 raise ControlError(problem, code="request_failed")
             for name, value in changes.items():
-                is_text = name.startswith("custom_message") and name != "custom_message_mode"
+                is_text = settings.is_custom_text(name)
                 if is_text and value is not None and not (isinstance(value, str) and not value.strip()):
                     try:
                         continuation.validate_custom(value)
