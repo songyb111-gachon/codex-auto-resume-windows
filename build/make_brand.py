@@ -537,8 +537,11 @@ def dark_class() -> str:
 # frames, and TaskbarMark in gui/Controls.cs shows them; tests/test_gui_v065_taskbar.py calls both
 # and holds them to tray.py's.
 #
-# The big icon's sizes from 100% to 200% in quarter steps: Windows makes it SM_CXICON, 32 px at 96 dpi.
-MARK_SIZES = (32, 40, 48, 56, 64)
+# The .ico's own entries the window's big icon is from 100% to 300%. The window makes it with new Icon(path), which
+# takes the file's entry nearest SM_CXICON (32 px at 96 dpi) and scales none: 175% (56) is the 48 px entry, and
+# 225% to 300% (72 to 96) the 64 px one. From 350% it is the 128 px entry, with no frames: the button keeps the
+# window's own icon there. tests/test_gui_v065_taskbar.py asks System.Drawing which entry each scale gets.
+MARK_SIZES = (32, 40, 48, 64)
 # The frames' base64, this many characters to a line.
 MARK_LINE = 100
 # What a head pixel's entry starts with (mark_frames).
@@ -651,7 +654,8 @@ def mark_class() -> str:
         "\n",
         "        /// The notification-area icon's motion on the window's taskbar button (v0.6.5), from\n",
         "        /// codex_auto_resume.tray: the icon's five states and the one each status light is drawn as, its\n",
-        "        /// rhythms, and its frames at every size the window's big icon has. TaskbarMark shows them.\n",
+        "        /// rhythms, and its frames at each .ico entry the window's big icon is up to 300%. TaskbarMark\n",
+        "        /// shows them.\n",
         "        internal static class Mark\n",
         "        {\n",
         "            // tray.ICON_MOTION. The icon also reads four of brand.GLOW's rhythms, which Brand declares:\n",
