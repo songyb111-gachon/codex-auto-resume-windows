@@ -32,7 +32,10 @@ Two things it deliberately does NOT do:
   which is not a thing a documentation build may do. The records the Dashboard shows are
   synthetic, written into the scratch installation's own store (see `seed_window_state`),
   and the conversation names come from a synthetic Codex home the window is pointed at -
-  never from the user's.
+  never from the user's. The compatibility report the Diagnostics page reads is the one the
+  watcher's own evaluator writes, made against that home and a stand-in `codex.exe` under the
+  scratch installation's own LOCALAPPDATA, which answers the engine checks' two questions and
+  is never run (see `seed_compatibility`).
 * It does not edit an image. If a screenshot is wrong, the source that produced it is
   wrong.
 """
@@ -192,7 +195,7 @@ def sample_panel_data() -> dict:
     from unittest.mock import patch
 
     from codex_auto_resume import control as control_module
-    from codex_auto_resume import l10n, reasons
+    from codex_auto_resume import l10n, mcpserver, reasons
     from codex_auto_resume.store import Store
 
     # The panel shows a conversation by its first segment, so three ids from the same
@@ -208,7 +211,9 @@ def sample_panel_data() -> dict:
     # - but shaped like something a person would recognise as their own task.
     names = ("example-project", "example-service")
     with tempfile.TemporaryDirectory() as name:
-        paths = config.Paths(Path(name))
+        workspace = Path(name)
+        codex, local = workspace / "codex", workspace / "LocalAppData"
+        paths = config.Paths(workspace / "home")
         paths.ensure()
         with Store(paths.state_dir) as store:
             # On, as in the picture's headline: a scratch store starts paused, and every row
@@ -222,12 +227,26 @@ def sample_panel_data() -> dict:
                     "ordinal": 2, "interruption_id": chr(ord("a") + index) * 64,
                     "reset_at": 150.0 + index * 600, "limit_type": "codex.primary",
                     "uncertain": False, "category": category}, 100.0 + index)
+        # What the window's Diagnostics page and the popup are shown too: the report the
+        # watcher's evaluator writes for the synthetic Codex home, and the heartbeat carrying
+        # the word it gave - so the panel's compatibility card is the same card, read at the
+        # same pinned moment.
+        synthetic_codex(codex)
+        word = seed_compatibility(paths.home, codex, local, POPUP_NOW)
+        write_heartbeat(paths, POPUP_NOW, word)
         surface = control_module.Control(paths)
         # A watcher is running in the picture, so the rows are described as they are when
-        # one is - without "watcher not running" beside a headline that says it is.
-        with patch.object(control_module.Control, "watcher_running", return_value=True):
+        # one is - without "watcher not running" beside a headline that says it is. The
+        # status is the MCP server's own, which adds the compatibility summary the panel's card
+        # is drawn from; read with the clock pinned, the stand-in engine where readers look for
+        # it, and the registry read as a scratch installation's, never written.
+        with patch.object(control_module.Control, "watcher_running", return_value=True), \
+                patch.object(time, "time", return_value=POPUP_NOW), \
+                patch.dict(os.environ, {"LOCALAPPDATA": str(local.resolve())}), \
+                _registry_stand_in():
+            os.environ.pop(config.ENV_CODEX_EXE, None)
             waiting = surface.list_pending()
-            status = surface.get_status()
+            status = mcpserver.Server(surface, io.StringIO(), io.StringIO())._status()
     # A name is what a person recognises the work by. It reaches a real row from the
     # identity the watcher recorded, which a scratch store has no way to have; without it
     # the panel falls back to the first segment of the thread id and the picture shows a
@@ -273,14 +292,9 @@ def seed_window_state(home: Path, codex: Path, now: float) -> None:
     would see their own project. `tests/codexsim.py` builds it: the columns of a real
     Codex installation, with nothing of the user's in them.
     """
-    sys.path.insert(0, str(ROOT / "tests"))
-    try:
-        from codexsim import CodexHome
-    finally:
-        sys.path.pop(0)
     from codex_auto_resume.store import Store
 
-    sim = CodexHome(codex)
+    sim = synthetic_codex(codex)
     for thread, name in zip(WINDOW_THREADS, WINDOW_NAMES):
         sim.add_thread(thread, name=name)
     paths = config.Paths(home)
@@ -332,6 +346,148 @@ def seed_window_state(home: Path, codex: Path, now: float) -> None:
             for name in ("thread_available", "no_newer_user_work", "usage"):
                 vector[name] = machine.gate(machine.UNKNOWN, machine.NOT_CHECKED)
             store.record_gates("%x" % index * 64, vector, now - 40)
+
+
+def synthetic_codex(codex: Path):
+    """The synthetic Codex home `tests/codexsim.py` builds at `codex`: its three databases and
+    its rollout directory, with no conversation in them yet."""
+    sys.path.insert(0, str(ROOT / "tests"))
+    try:
+        from codexsim import CodexHome
+    finally:
+        sys.path.pop(0)
+    return CodexHome(codex)
+
+
+# The Codex the pictures describe, as `codex --version` names it: the build the synthetic home's
+# tables are taken from, and the one the bundled registry data has its one entry for - so the
+# Diagnostics card shows that entry's restriction as an installation on this build shows it.
+CODEX_VERSION = "codex-cli 0.153.4"
+# The content-addressed folder the official installer puts a build in; any hexadecimal name is
+# one. From the fixture family, like every other identifier here.
+CODEX_BUILD = "0a1b2c3d"
+# All the engine checks read of `codex queue --help`: that it still offers the two flags sent.
+CODEX_QUEUE_HELP = "Usage: codex queue --thread <THREAD_ID> --message <MESSAGE>\n"
+
+
+class ProcessRefused(BaseException):
+    """Raised by the stand-in for Codex's processes on anything but the two questions it answers.
+
+    A `BaseException`, as `RegistryWriteRefused` is: the engine checks turn a failed process into
+    UNAVAILABLE, which would only have changed the picture. This stops the generator instead.
+    """
+
+
+class _CodexProcesses:
+    """`subprocess` as `windows.Backend` sees it while the report is made.
+
+    The stand-in engine answers the two questions the engine checks put to the official binary -
+    `--version` and `queue --help` - as that build answers them, and nothing is ever started.
+    """
+
+    def __init__(self, exe: Path):
+        self.exe = exe
+
+    def __getattr__(self, name):
+        return getattr(subprocess, name)
+
+    def run(self, argv, **_options):
+        argv = [str(part) for part in argv]
+        if argv and Path(argv[0]) == self.exe:
+            if argv[1:] == ["--version"]:
+                return subprocess.CompletedProcess(argv, 0, CODEX_VERSION + "\n")
+            if argv[1:] == ["queue", "--help"]:
+                return subprocess.CompletedProcess(argv, 0, CODEX_QUEUE_HELP)
+        raise ProcessRefused("the screenshot's Codex answers two questions and starts nothing: %r"
+                             % argv[1:])
+
+
+def place_codex(local: Path, at: float) -> Path:
+    """A stand-in `codex.exe` where the official installer puts one, under `local`: the scratch
+    installation's own LOCALAPPDATA, never the user's. It is never run (`_CodexProcesses`); it is
+    there because a report is bound to the engine on disk - its path and its size and time, which
+    are pinned to `at` - and every reader looks for it where discovery does."""
+    exe = local / "OpenAI" / "Codex" / "bin" / CODEX_BUILD / "codex.exe"
+    exe.parent.mkdir(parents=True, exist_ok=True)
+    exe.write_bytes(b"A stand-in for codex.exe in a screenshot's scratch installation; never run.\n")
+    os.utime(exe, ns=(int(at) * 1_000_000_000,) * 2)
+    return exe.resolve()
+
+
+def _checked_as_on_windows(backend) -> dict:
+    """`windows.Backend.engine_checks` for the stand-in, off Windows: what it answers on Windows,
+    where the official location is a Windows path. Only so the envelope can be recomputed off
+    Windows, as `_watcher_mutex_held` answers the mutex probe there; the pictures are made on it."""
+    status = backend.codex_exe.stat()
+    backend.engine_version = CODEX_VERSION
+    return {"official_location": "PASS", "version_runs": "PASS", "queue_flags": "PASS",
+            "version": CODEX_VERSION, "signature": (status.st_size, status.st_mtime_ns)}
+
+
+def engine_word() -> str:
+    """The word the watcher's gate reads, and its heartbeat stores, for CODEX_VERSION once it
+    passed its checks, with the bundled registry data in force - for the popup, which is drawn
+    from a status rather than an installation. `seed_compatibility` checks that the watcher's
+    own evaluation gives the same word."""
+    from codex_auto_resume import compat, compatio
+    bundled, _state = compatio.load_bundled()
+    return compat.accepted_word(CODEX_VERSION, [("bundled", bundled, True)])
+
+
+def seed_compatibility(home: Path, codex: Path, local: Path, now: float) -> str:
+    """The compatibility report the Diagnostics card is photographed showing, written the way a
+    watcher's tick writes it; returns the word the watcher's gate reads, which its heartbeat stores.
+
+    It is the product's code throughout. Discovery finds the engine where the official installer
+    puts one (`compatio.discover`, the watcher's own way), `windows.Backend` checks it, and
+    `compatio.Evaluator` - the watcher's side - adds the synthetic Codex home's schema, the APIs
+    and the bundled registry data in force, and writes `config/compatibility.json`. Only the
+    engine is a stand-in (`place_codex`), and it answers only its checks' two questions.
+
+    So the card says what an installation on CODEX_VERSION says: every part its local checks
+    establish is Compatible, since the bundled data verifies no build; not-loaded recovery is
+    Incompatible, from the bundled data's entry for this build; and loaded-state detection is
+    Unknown, because the synthetic home has no writer-lock directory for its check to find.
+
+    Checked forty seconds before `now`, on the tick that recorded the waiting rows' gates, and
+    read back as every reader reads it - validated, fresh and still bound to the engine on disk -
+    so the generator stops rather than photograph a card that says Codex changed.
+    """
+    from unittest.mock import patch
+
+    from codex_auto_resume import compatio, windows
+    local.mkdir(parents=True, exist_ok=True)
+    exe = place_codex(local, now - 6 * 24 * 3600)
+    paths = config.Paths(home)
+    with ExitStack() as stack:
+        stack.enter_context(patch.dict(os.environ, {"LOCALAPPDATA": str(local.resolve())}))
+        os.environ.pop(config.ENV_CODEX_EXE, None)
+        stack.enter_context(patch.object(windows, "S", _CodexProcesses(exe)))
+        if os.name != "nt":
+            stack.enter_context(patch.object(windows.Backend, "engine_checks", _checked_as_on_windows))
+            stack.enter_context(patch.object(windows, "restart_manager_available", return_value=True))
+        backend, discovery = compatio.discover(codex)
+        if backend is None:
+            raise RuntimeError("the stand-in Codex engine was not accepted: %r" % sorted(
+                (result or {}).get("official_location") for result in discovery.values()))
+        word = compatio.Evaluator(paths, codex, clock=lambda: now - 40).tick(backend, discovery)
+        view = compatio.read_view(paths, now=now)
+    if view["status"] != "ok":
+        raise RuntimeError("the compatibility report reads as %r, not as written" % view["status"])
+    if word != engine_word():
+        raise RuntimeError("the watcher's evaluation says %r, the popup %r" % (word, engine_word()))
+    return word
+
+
+def write_heartbeat(paths, now: float, engine_state: str) -> None:
+    """The watcher's heartbeat as the capture's mutex holder writes it (HOLD_MUTEX), with the
+    process id and the clock pinned: a tick a second ago, from a watcher started ninety minutes
+    ago, carrying the word its compatibility check gave."""
+    from codex_auto_resume.store import Store
+    with Store(paths.state_dir) as store:
+        store.heartbeat(now - 1, pid=ENVELOPE_PID, session_id="screenshot",
+                        started_at=now - 5400, ok=True, engine_state=engine_state,
+                        code_version=config.version())
 
 
 # ------------------------------------------------------------------------- panel
@@ -457,8 +613,13 @@ def panel_html(theme=None) -> str:
 # same every time.
 POPUP_SCALE = 2.0
 POPUP_NOW = 1_800_000_000.0
-POPUP_STATUS = {"enabled": True, "watcher_running": True,
-                "watcher": {"running": True, "ticking": True, "engine_state": "verified"}}
+
+
+def popup_status() -> dict:
+    """What the popup is told about the watcher: running, ticking, and the word its heartbeat
+    carries for the sample's Codex - the word the window's status card and the panel show."""
+    return {"enabled": True, "watcher_running": True,
+            "watcher": {"running": True, "ticking": True, "engine_state": engine_word()}}
 
 
 def popup_rows() -> list:
@@ -477,7 +638,7 @@ def popup_view(locale: str):
     from codex_auto_resume import interface, tray_popup
     strings = interface.STRINGS[locale]
     model = tray_popup.PopupModel(strings)
-    model.apply_outcome(("read",), ("ok", {"rows": popup_rows(), "status": POPUP_STATUS}), POPUP_NOW)
+    model.apply_outcome(("read",), ("ok", {"rows": popup_rows(), "status": popup_status()}), POPUP_NOW)
     return strings, model.view(POPUP_NOW)
 
 
@@ -840,7 +1001,8 @@ def scratch_installation(workspace: Path) -> Path:
 
 # Holds the watcher's mutex and writes the watcher's heartbeat once a second - the two
 # things the window reads to say a watcher is running and checking - and nothing else. No
-# engine, no source, no Codex.
+# engine, no source, no Codex. The heartbeat carries the word the watcher's compatibility
+# check gave for the scratch installation (`seed_compatibility`), as a real watcher's does.
 HOLD_MUTEX = """
 import os, sys, time
 sys.path.insert(0, sys.argv[1])
@@ -855,7 +1017,7 @@ with App(paths, console=False, enable_logging=False).mutex(timeout=0):
     while time.time() - started < float(sys.argv[3]):
         with Store(paths.state_dir) as store:
             store.heartbeat(time.time(), pid=os.getpid(), session_id="screenshot",
-                            started_at=started - 5400, ok=True, engine_state="verified",
+                            started_at=started - 5400, ok=True, engine_state=sys.argv[4],
                             code_version=config.version())
         time.sleep(1)
 """
@@ -882,15 +1044,21 @@ def render_window(targets: dict) -> dict:
     with tempfile.TemporaryDirectory() as name:
         workspace = Path(name)
         home = scratch_installation(workspace)
-        codex = workspace / "codex"
-        seed_window_state(home, codex, time.time())
+        codex, local = workspace / "codex", workspace / "LocalAppData"
+        now = time.time()
+        seed_window_state(home, codex, now)
+        word = seed_compatibility(home, codex, local, now)
         # The window reads conversation names from Codex's own state, found through
         # CODEX_HOME - pointed here at the synthetic one, so a capture can never show,
-        # or even open, the user's.
-        environment = dict(os.environ, CODEX_HOME=str(codex))
+        # or even open, the user's. It finds the Codex engine the compatibility report is
+        # bound to under LOCALAPPDATA, pointed at the scratch installation's own for the
+        # same reason; and the product's own overrides are unset, as for the envelope.
+        environment = dict(os.environ, CODEX_HOME=str(codex), LOCALAPPDATA=str(local.resolve()))
+        for override in (config.ENV_HOME, config.ENV_CODEX_EXE):
+            environment.pop(override, None)
         holder = subprocess.Popen(
             [str(home / "runtime" / "python.exe"), "-c", HOLD_MUTEX,
-             str(home / "app" / "src"), str(home), str(40 + 20 * len(targets))],
+             str(home / "app" / "src"), str(home), str(40 + 20 * len(targets)), word],
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
         try:
             if (holder.stdout.readline() or "").strip() != "held":
@@ -924,9 +1092,10 @@ def render_window(targets: dict) -> dict:
 #
 # `window_envelopes` builds the installation `render_window` builds - the stored settings in
 # the pinned theme, the Dashboard's records written by the product's own store, the
-# synthetic Codex home the names come from, the watcher's mutex held and its heartbeat
-# written, recovery switched on through the bridge - and asks the bridge, through the same
-# `serve` loop the window keeps open, what the window asks to draw the photographed pages.
+# synthetic Codex home the names come from, the compatibility report the watcher's evaluator
+# writes for it, the watcher's mutex held and its heartbeat written, recovery switched on
+# through the bridge - and asks the bridge, through the same `serve` loop the window keeps
+# open, what the window asks to draw the photographed pages.
 # The canonical text of the answers is the envelope; its hash is the manifest entry.
 #
 # It has to come out the same on every machine and every run, and the answers carry four
@@ -935,8 +1104,9 @@ def render_window(targets: dict) -> dict:
 #
 # * the clock. The records are seeded at ENVELOPE_NOW and the bridge answers with `time.time`
 #   reading ENVELOPE_NOW, so every countdown, age, "checking" and the week the Statistics
-#   figures cover come out the same. A clock time formatted for a person is formatted in
-#   UTC rather than the machine's zone;
+#   figures cover come out the same; the compatibility report is checked forty seconds
+#   before it, and the engine file it is bound to dated six days before. A clock time
+#   formatted for a person is formatted in UTC rather than the machine's zone;
 # * paths. The scratch installation, the checkout, the temporary directory and the user's
 #   profile are rewritten to `<scratch>`, `<checkout>`, `<temp>` and `<profile>` wherever
 #   they appear in an answer, in every spelling (resolved or not, either slash, any case);
@@ -945,8 +1115,12 @@ def render_window(targets: dict) -> dict:
 # * the machine. The language is the locale being rendered, set the way the generator sets
 #   it for every surface; the Run key and the notification registration read as they read
 #   for any scratch installation, "nothing registered", from a stand-in that refuses every
-#   write; CODEX_HOME points at the synthetic home, and the product's own overrides
-#   (CODEX_AUTO_RESUME_HOME, CODEX_AUTO_RESUME_CODEX_EXE) are unset.
+#   write; CODEX_HOME points at the synthetic home and LOCALAPPDATA at the scratch
+#   installation's own, where the stand-in Codex engine is, so the engine the report
+#   describes is found - and no other; the product's own overrides (CODEX_AUTO_RESUME_HOME,
+#   CODEX_AUTO_RESUME_CODEX_EXE) are unset. The report itself reaches the window as the
+#   reader's view, which carries no path: the digest of the engine's path and the engine's
+#   size and time bind the report on disk and are never part of an answer.
 #
 # Nothing here starts a watcher, a window or a process, writes the registry, or reads the
 # user's own Codex home or installation.
@@ -1122,19 +1296,20 @@ def window_envelopes(locales) -> dict:
     from unittest.mock import patch
 
     from codex_auto_resume import control, controlcli
-    from codex_auto_resume.store import Store
 
     envelopes = {}
     with tempfile.TemporaryDirectory() as name, ExitStack() as stack:
         workspace = Path(name)
-        home, codex = workspace / "home", workspace / "codex"
+        home, codex, local = workspace / "home", workspace / "codex", workspace / "LocalAppData"
         # The part of `scratch_installation` the bridge reads: the settings it stores. The
         # interpreter and the compiled window are not read by any answer.
         write_settings(home)
         seed_window_state(home, codex, ENVELOPE_NOW)
+        word = seed_compatibility(home, codex, local, ENVELOPE_NOW)
         paths = config.Paths(home)
         # Put back whole when the envelope is done, including the two removed here.
-        stack.enter_context(patch.dict(os.environ, {"CODEX_HOME": str(codex)}))
+        stack.enter_context(patch.dict(os.environ, {"CODEX_HOME": str(codex),
+                                                    "LOCALAPPDATA": str(local.resolve())}))
         for override in (config.ENV_HOME, config.ENV_CODEX_EXE):
             os.environ.pop(override, None)
         stack.enter_context(patch.object(time, "time", return_value=ENVELOPE_NOW))
@@ -1143,10 +1318,7 @@ def window_envelopes(locales) -> dict:
                 ENVELOPE_NOW if seconds is None else seconds)))
         stack.enter_context(_registry_stand_in())
         stack.enter_context(_watcher_mutex_held(paths))
-        with Store(paths.state_dir) as store:
-            store.heartbeat(ENVELOPE_NOW - 1, pid=ENVELOPE_PID, session_id="screenshot",
-                            started_at=ENVELOPE_NOW - 5400, ok=True, engine_state="verified",
-                            code_version=config.version())
+        write_heartbeat(paths, ENVELOPE_NOW, word)
         surface = control.Control(paths)
 
         def ask(command, argument=None):
