@@ -52,7 +52,7 @@
     "<panel render:de>": "f175f2969e41924d92a0f30babc2e4ece6c09158d2bdb6df38f57ac54d8bc177",
     "<popup render:de>": "b5a2b5564b795f7584656c1c779cac31ecd3cb6c3ba5d9ba5b01875bd35b1b00",
     "<card render:de>": "30846b31156905cdf0615c9e74b1a3da90eebfecadaf08605e20648056318625",
-    "<icon motion>": "41a43f02e46b9c765f3f0c5117f5401b14e60200fd40f490e41f492a6e2c7a0b"
+    "<icon motion>": "08244c468e2a2b7ebfd2380a3eb73a82850a14dece321b827fbc78035e10b117"
   },
   "images": {
     "assets/screenshot-panel.png": {
@@ -280,7 +280,7 @@
       "size": "1522x1052"
     },
     "docs/images/icon-motion.gif": {
-      "sha256": "b20d386b7819b624666f55914089f21a6bd2952da2fdb1b5139520aca2952131",
+      "sha256": "cfd75f561ffecaf38f890a1fcd5b9379418b36f14e62a394d9d91de3d7c732a0",
       "size": "288x144"
     }
   }

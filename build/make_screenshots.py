@@ -1228,6 +1228,9 @@ ICON_MOTION_LIGHTS = (("watching", "monitoring"), ("recovering", "recovering"), 
                       ("idle", "paused"))
 # Windows 11's taskbar in its light and its dark mode, as assets/make_icon.py's contact sheet has them.
 ICON_MOTION_GROUNDS = (("light", "#EEF0F3"), ("dark", "#1F1F1F"))
+# The shortest a picture is held, in hundredths of a second. Browsers - Chromium, Firefox and Safari alike - show a
+# picture of 10 ms or less for 100 ms, so moments of the states closer than this are one picture: the later one's.
+ICON_MOTION_SHORTEST = 2
 # What the GIF draws with, followed from these to everything they use (`icon_drawing`).
 ICON_ROOTS = (("tray", "IconFrames"), ("tray", "icon_frame"), ("tray", "icon_frame_ms"), ("tray", "icon_head_colour"),
               ("tray", "icon_level_colour"), ("tray", "ICON_FOR_LIGHT"), ("tray_popup", "BADGE"),
@@ -1322,7 +1325,8 @@ def icon_motion_frames() -> dict:
 
     `frames` is [(delay in hundredths of a second, palette indices, {state: (position, level)})], each picture held
     until the next frame of any state is due, on the hundredth of a second a GIF counts in, and `moments` the ms into
-    the stretch each is the picture of. The pictures are the
+    the stretch each is the picture of. Frames of the states due less than ICON_MOTION_SHORTEST apart are one
+    picture, of the later moment, which a browser then shows for as long as the GIF says. The pictures are the
     icon's own frames at 48 px (`_icon_cell`); a GIF holds 256 colours and these hold more - the badge's gradient
     and the ring's edges on two grounds - so they share at most 255 (`_median_cut`, weighted by how much of the GIF
     each colour covers), and the last index is kept for "as before"."""
@@ -1335,13 +1339,14 @@ def icon_motion_frames() -> dict:
     timelines = [icon_timeline(state, start if state == "watching" else 0.0, end if state == "watching" else length)
                  for state, _ in ICON_MOTION_LIGHTS]
     total = int(round(length / 10.0))
-    ticks = []                                  # (hundredth, moment): the last moment of each hundredth
+    shortest = ICON_MOTION_SHORTEST
+    ticks = []                                  # (hundredth, moment): a picture, and the last moment it stands for
     for at in sorted({at for timeline in timelines for at, _, _ in timeline}):
         hundredth = int(round(at / 10.0))
-        if hundredth >= total:
-            break                               # shown as the GIF starts again, which is that moment
-        if ticks and ticks[-1][0] == hundredth:
-            ticks[-1] = (hundredth, at)
+        if hundredth > total - shortest:
+            break                               # too close to the GIF starting again, which is the end's moment
+        if ticks and hundredth - ticks[-1][0] < shortest:
+            ticks[-1] = (ticks[-1][0], at)      # too soon after the picture before: that picture shows it
         else:
             ticks.append((hundredth, at))
     shown = []
@@ -1553,7 +1558,8 @@ def icon_drawing(package=None) -> str:
 def icon_render_input(drawing: str | None = None) -> str:
     """The GIF's manifest entry: what it pictures, and what draws it. `drawing` is `icon_drawing()` when known."""
     shown = {"states": [list(pair) for pair in ICON_MOTION_LIGHTS], "grounds": [list(pair) for pair in ICON_MOTION_GROUNDS],
-             "size": ICON_MOTION_SIZE, "pad": ICON_MOTION_PAD, "stretch": list(icon_motion_stretch())}
+             "size": ICON_MOTION_SIZE, "pad": ICON_MOTION_PAD, "stretch": list(icon_motion_stretch()),
+             "shortest": ICON_MOTION_SHORTEST}
     if drawing is None:
         drawing = icon_drawing()
     return sha256((json.dumps(shown, sort_keys=True) + drawing).encode("utf-8"))

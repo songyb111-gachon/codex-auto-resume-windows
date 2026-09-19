@@ -1265,6 +1265,44 @@ class IconMotionPictureTests(unittest.TestCase):
         self.assertEqual({position for position, _ in seen["attention"]}, {0})
         self.assertEqual(seen["idle"], {(0, top)})
 
+    @staticmethod
+    def delays(data: bytes) -> list:
+        """Each picture's delay in a GIF, in hundredths of a second, read block by block."""
+        at = 13 + ((3 << ((data[10] & 7) + 1)) if data[10] & 0x80 else 0)
+        found = []
+
+        def skip(at):
+            while data[at]:
+                at += data[at] + 1
+            return at + 1
+
+        while data[at] != 0x3B:
+            if data[at] == 0x21:
+                if data[at + 1] == 0xF9:
+                    found.append(struct.unpack("<H", data[at + 4:at + 6])[0])
+                at = skip(at + 2)
+            elif data[at] == 0x2C:
+                flags = data[at + 9]
+                at += 10 + ((3 << ((flags & 7) + 1)) if flags & 0x80 else 0)
+                at = skip(at + 1)
+            else:
+                raise ValueError("not a GIF block at %d" % at)
+        return found
+
+    def test_no_picture_is_shorter_than_a_browser_shows_it(self):
+        """Browsers - Chromium, Firefox and Safari alike - show a GIF picture of 10 ms or less for 100 ms. The first
+        GIF merged the four states' moments into hundredths of a second, and where watching's and recovering's frames
+        fell 10 ms apart a picture got 10 ms: on GitHub the 9.6 s loop took about 10.95 s, with fifteen stalls, most
+        of them in the turns. So moments closer than ICON_MOTION_SHORTEST are shown as one picture."""
+        g = self.generator
+        start, end = g.icon_motion_stretch()
+        self.assertEqual(g.ICON_MOTION_SHORTEST, 2)
+        made = [delay for delay, _, _ in self.made["frames"]]
+        self.assertGreaterEqual(min(made), g.ICON_MOTION_SHORTEST, sorted(made)[:20])
+        committed = self.delays((ROOT / self.GIF).read_bytes())
+        self.assertEqual(committed, made)
+        self.assertEqual(sum(committed), (end - start) // 10, "the loop is as long as the stretch it shows")
+
     def test_it_loops_without_a_jump(self):
         """The GIF starts again where its stretch ends: the same frame of every state, as watching's loop and a whole
         number of recovering's turns have it."""
@@ -1352,7 +1390,8 @@ class IconMotionPictureTests(unittest.TestCase):
         for what, change in {
                 "the size": lambda: patch.object(g, "ICON_MOTION_SIZE", 32),
                 "a ground": lambda: patch.object(g, "ICON_MOTION_GROUNDS", (("light", "#F3F3F3"), ("dark", "#1F1F1F"))),
-                "the states": lambda: patch.object(g, "ICON_MOTION_LIGHTS", g.ICON_MOTION_LIGHTS[:3])}.items():
+                "the states": lambda: patch.object(g, "ICON_MOTION_LIGHTS", g.ICON_MOTION_LIGHTS[:3]),
+                "the shortest picture": lambda: patch.object(g, "ICON_MOTION_SHORTEST", 3)}.items():
             with self.subTest(what), change():
                 self.assertNotEqual(g.icon_render_input(drawing), before, what + " did not move the entry")
         self.assertEqual(g.icon_render_input(drawing), before)
