@@ -249,8 +249,9 @@ after four breaths it turns once round the ring, clockwise, at full brightness; 
 while it turns. While a recovery is in progress it keeps turning, once every 1.6 seconds, without
 breathing. Paused, it is grey and still; when something needs you it takes that colour, pulses once
 and holds. Nothing moves under Reduce motion, Windows' animation setting, High Contrast or battery
-saver, or while the session is locked. While the settings window is open, its taskbar button moves
-the same way.
+saver, while the session is locked, or while Windows keeps the icon in the overflow area, where
+nobody would see it. While the settings window is open, its taskbar button moves the same way and
+stops for the same reasons.
 
 <img src="docs/images/icon-motion.gif" alt="The notification-area icon's motion, drawn from the icon's own frames, on a light taskbar above and a dark one below. From the left: watching, whose bright head breathes and then turns once round the ring, clockwise, at full brightness; recovering, turning all the time under a cyan badge; needing attention, amber under an amber badge, pulsing once and then still; paused, grey under a grey badge and still" width="288">
 

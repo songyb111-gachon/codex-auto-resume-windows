@@ -234,9 +234,10 @@ deliberately not `brand.py`'s, because every `GLOW` key is generated into the wi
 and the window's taskbar button reads the icon's own from `Brand.Mark`. The README shows the motion
 as a GIF drawn from the icon's own frames (`docs/images/icon-motion.gif`, made by
 `build/make_screenshots.py`). It holds still under Reduce motion, Windows' animation setting, High
-Contrast, battery saver, a locked session, and while Windows says it sits in the overflow area -
-which Windows 11 build 26200 does not: it gives such an icon the overflow button's place, and there
-the icon moves unseen.
+Contrast, battery saver, a locked session, and while Windows' own settings for the icon say it sits
+in the overflow area (`tray.IconPlacement`, which reads them and writes nothing): the icon's
+rectangle cannot say, because Windows 11 build 26200 gives an icon in the overflow area the overflow
+button's own rectangle rather than none, and the icon moved there unseen.
 
 ## Light, dark and High Contrast
 
