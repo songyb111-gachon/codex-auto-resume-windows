@@ -1,11 +1,19 @@
 """Safety tests: never launch Codex, send queues, inspect auth or control the app."""
+import ast
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
 import subprocess
+import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
 from codex_auto_resume import windows as w
+
+_HERE = str(Path(__file__).resolve().parent)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)        # srcscan lives next to this file
+
+import srcscan  # noqa: E402
 
 THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
 QUEUE = "0a1b2c3d-0003-7000-8000-000000000003"
@@ -106,11 +114,15 @@ class BackendTests(unittest.TestCase):
 
     def test_tool_never_acquires_the_apps_writer_lock(self):
         # Hard invariant: no byte-lock API may exist anywhere in the adapter, because
-        # acquiring a momentarily free range would break the app's own try_lock.
-        source = Path(w.__file__).read_text(encoding="utf-8")
+        # acquiring a momentarily free range would break the app's own try_lock. Anywhere in
+        # the package, in fact, so the adapter being split cannot move one out of sight.
         for forbidden in ("LockFileEx", "UnlockFileEx", "writer_lock_state"):
-            self.assertNotIn(forbidden + "(", source)
+            self.assertEqual(srcscan.holders(forbidden + "("), set(), forbidden)
         self.assertFalse(hasattr(w, "writer_lock_state"))
+        defined = [srcscan.relative(path) for path, tree in srcscan.package_asts().items()
+                   for node in ast.walk(tree)
+                   if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "writer_lock_state"]
+        self.assertEqual(defined, [])
 
     def test_app_path_uses_native_program_files_under_wow64(self):
         # 32-bit Python sees ProgramFiles=(x86); ProgramW6432 holds the native path.

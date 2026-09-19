@@ -3,7 +3,7 @@ name: tests
 on:
   push:
     # `dev` is where the work happens and where red is expected; main stays green.
-    branches: [main, dev]
+    branches: [main, dev, refactor]
   pull_request:
   workflow_dispatch:
 

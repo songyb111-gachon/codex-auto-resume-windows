@@ -1,0 +1,16 @@
+# Commits `git blame` looks through: pure moves, where lines went verbatim from one file into
+# another and nothing about them changed. Listing one here lets blame credit each moved line
+# to the commit that last really changed it, rather than to the move.
+#
+# One full commit hash per line, under a comment naming what moved, for example:
+#
+#     # store.py:1071-1309 -> store/claims.py, verbatim
+#     <the move commit's full hash>
+#
+# Only pure moves belong here. A commit that also edits what it moves is never listed: its
+# edits are exactly what blame should show. Moves are added by a later commit, once the
+# move's hash is final.
+#
+# GitHub's blame view reads this file by itself. For `git blame` in a clone, run once:
+#
+#     git config blame.ignoreRevsFile .git-blame-ignore-revs
