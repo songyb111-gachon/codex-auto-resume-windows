@@ -3,8 +3,9 @@
 This document describes what the tool is allowed to touch, how that is enforced, how releases are
 built and can be checked, how it was reviewed, and what was actually found and fixed.
 
-The newest published release is v0.6.2. Historical differences below name the release they
-apply to. Unreleased source changes do not change any published release's bytes.
+This document describes the version this source tree builds, the one its
+`.codex-plugin/plugin.json` names. Historical differences below name the release they apply to.
+Unreleased source changes do not change any published release's bytes.
 
 ## Reporting
 
@@ -13,8 +14,9 @@ If you find a security issue, please open an issue on this repository.
 This project operates no service of its own - no server, no endpoint, no telemetry - so there is no
 vendor backend to notify. The only service the code this project ships contacts is GitHub
 (github.com, and the GitHub storage hosts it redirects release downloads to), when setup downloads
-a release. The Codex processes it starts talk to OpenAI with your existing sign-in, as Codex does
-(see *No network code in the recovery runtime* below). A finding in GitHub or in Codex itself
+a release and when you press *Check for updates*, and, from v0.6.5, raw.githubusercontent.com, when
+you ask for the compatibility data refresh. The Codex processes it starts talk to OpenAI with your
+existing sign-in, as Codex does (see *No network code in the recovery runtime* below). A finding in GitHub or in Codex itself
 belongs to that vendor's own reporting process, not here.
 
 ## What it touches
@@ -45,14 +47,21 @@ display it, and Windows keeps them in its notification history.
 
 - Files in its own `config/` and `logs/` directories, including the copy of the state file it
   takes before the first watcher of a new version upgrades the schema, and before
-  `downgrade-state` rewrites it (`state.vN-backup-*.sqlite`), kept for forensics.
+  `downgrade-state` rewrites it (`state.vN-backup-*.sqlite`), kept for forensics. From v0.6.5
+  that includes two compatibility files, each with one writer: `config/compatibility.json`, the
+  watcher's report, written atomically under the lock the watcher already holds; and
+  `config/compat-cache.json`, the Codex compatibility data a person asked for, written only by the
+  validator (`controlcli compat-import`) and only after a document passed it.
 - One continuation message to one exact thread, through the official `codex queue` CLI. Its
   text is this product's message in the language and style you chose or, from v0.6.3, the
   Custom message you wrote in the Dashboard (see *The Custom message is written in the
   Dashboard, and nowhere else* below).
 - When that message has to be withdrawn, `thread/queue/delete` requests to the official Codex App
   Server for that exact queued item, repeated if the withdrawal cannot be confirmed.
-- The notifications it raises, which Windows keeps in its notification history.
+- The notifications it raises, which Windows keeps in its notification history. From v0.6.5 a
+  notification can instead be drawn as the product's own card beside the notification area - two
+  windows of its own that never take the focus - followed, once the card has been seen, by the same
+  toast raised silently into that history.
 - When you switch **Run at Windows sign-in** on or off in the window, its single `Run`
   value is written or removed.
 - Only when you ask for it, one diagnostics JSON file at a path you choose, from **Export
@@ -110,7 +119,8 @@ this plugin's tools, or ask Codex to run its commands, inside a conversation, wh
 include your Windows user name) becomes part of that conversation, which Codex sends to OpenAI
 like any tool output. `get_status` also carries the engine path (`codex_exe`) if you have set
 one, and in v0.5.7 the install path, which contains your Windows user name; from v0.6.0, it no
-longer includes the install path.
+longer includes the install path. From v0.6.5 it also carries the Codex compatibility summary,
+as codes only - no version string, no path, no free text.
 
   There is no telemetry, and no update check runs unless you press the button for it: from
   v0.6.0 *Check for updates* makes one HEAD request to this repository's `releases/latest`
@@ -119,6 +129,19 @@ longer includes the install path.
   refused, and the version is rebuilt from its three numbers before it can reach a download
   URL. This tool sends nothing to its developer; there is no
   service of the developer's to send it to.
+
+  No compatibility refresh runs unless you ask for it either. From v0.6.5 the Codex
+  compatibility data refresh happens at exactly two moments: *Refresh compatibility data* on the
+  Diagnostics page (`scripts/bootstrap.ps1 -Compatibility`), and a *Check for updates* that
+  github.com answered, whether or not an update exists - and even then only while enough of the
+  check's time is left, so it never makes the update answer late or changes it. It is the
+  bootstrap again, never the watcher, and no MCP tool can start it. It makes one HTTPS `GET` to
+  one constant URL - this repository's `src/codex_auto_resume/data/codex_compat.json` on `main`,
+  at raw.githubusercontent.com - with no query string and nothing about the machine in it; a
+  download that ends on any other host is refused, and one over 256 KiB is refused before the
+  validator is started. The body goes to a temporary file the bootstrap deletes afterwards, and is
+  never parsed or run by PowerShell: it is handed to this installation's own Python validator,
+  which is described under *Compatibility data can only restrict* below.
 - **No shell, and no values in script text.** No Python code uses `shell=True`, `os.system`, `eval`
   or `exec`, and every Python subprocess gets an argument list. Windows PowerShell runs the
   installer, the uninstaller and the plugin's setup script; the Python runtime uses it to list
@@ -146,11 +169,13 @@ longer includes the install path.
   identifiers are discarded at parse time. From the usage response, only numeric usage windows,
   reset times and the limit bucket's name are kept; from an error, only its category.
   A few lines outside the table record local facts: the main log records the state directory's
-  path, which contains your Windows user name, and, for an engine this tool was not verified
-  against, that engine's version string. Tracebacks go only to a separate error log (`errors.log`),
-  and the main log records the exception class name only.
-- **Fail closed.** Unknown loaded state, unknown usage, an unavailable probe, or a corrupted state file
-  results in waiting or refusing, never in sending.
+  path, which contains your Windows user name, and the engine's version string - in v0.6.4 and
+  earlier only for an engine this tool was not verified against, from v0.6.5 for every engine,
+  beside the Compatibility Registry's codes for it. Tracebacks go only to a separate error log
+  (`errors.log`), and the main log records the exception class name only.
+- **Fail closed.** Unknown loaded state, unknown usage, an unavailable probe, a corrupted state file
+  or, from v0.6.5, a compatibility evaluation that could not run results in waiting or refusing,
+  never in sending.
 - **No duplicate resume.** The interruption is durably reserved (SQLite, `synchronous=FULL`,
   `BEGIN IMMEDIATE`) before any external process can accept a message. If the result of a send is
   ambiguous, the record enters `submission_unknown` and is never resent. The watcher keeps checking
@@ -229,7 +254,11 @@ longer includes the install path.
   new in v0.6.3 for the **Open Dashboard** button, names one page from a fixed list -
   Overview, Pending, History, Statistics, Diagnostics or Settings - and opens it. It changes no
   state and cannot cause a send, so a page that knows the scheme can at worst open a window.
-  Anything else is logged as unsupported and ignored.
+  Anything else is logged as unsupported and ignored. From v0.6.5 the notification card's
+  buttons are the toast's buttons, as data, and a press is handled inside the watcher rather than
+  through the handler - parsed by the same two parsers, with the same two outcomes: one exact
+  interruption cancelled through the control layer, or one of the window's own pages opened. The
+  card imports nothing that can send, and the tests hold it to that.
 - **Front ends ask; the watcher alone sends.** New in v0.6.3. The **Auto-resume** switch
   beside each task, on the Pending page and in the notification-area popup, carries the exact
   interruption id and conversation id of the row it was drawn in. When the click arrives, the
@@ -244,6 +273,29 @@ longer includes the install path.
   Codex. **Cancel all** on the Pending page cancels every pending recovery one exact record
   at a time. Cancelling is the only action offered in bulk, because it can only reduce what
   the tool does; there is deliberately no bulk retry.
+- **Compatibility data can only restrict.** New in v0.6.5. The Codex Compatibility Registry's
+  data ships in the release and can be refreshed from this repository on request (above), so data
+  from outside the release reaches a decision the watcher makes - and it is built so that it can
+  only make that decision more careful. A failed local check always wins: nothing a document says
+  turns it into anything but incompatible. A document can mark a capability incompatible, for an
+  exact Codex version or a range, and then the watcher sends nothing while that data is in force;
+  it can mark one verified only for an exact version, citing an evidence file, and only where the
+  local checks already pass - which changes the word shown and not what is sent. A check that
+  could not run stays unknown whatever the data claims, and unknown sends nothing. The validator,
+  `controlcli compat-import`, is the only writer of `config/compat-cache.json`: it refuses whole a
+  document of an unknown format, a malformed or oversized one, one with a duplicate key or a
+  number that is not finite, a range that tries to grant trust, one that says it needs a signature
+  (the slot is reserved and nothing verifies one yet), one older than the data already in force or
+  than the bundled data, one dated more than a day ahead of this computer's clock, and one meant
+  for a newer version of this product; a refusal leaves the cache exactly as it was. The cache is validated again on every
+  read. Refreshed data past its expiry, or dated ahead of a clock that was set back, keeps its
+  restrictions and loses its trust, so no clock can lift a restriction. Every reason that reaches
+  a person or a model is a code from a closed list, never text from a document. The watcher's report,
+  `config/compatibility.json`, is bound to the Codex executable it describes by a digest of its
+  path and its size and time, and every reader refuses one that is damaged, too old or about a
+  binary that has since changed. The MCP server can read a summary of it, as codes only, and cannot
+  refresh or import anything. And a failing evaluation fails closed: the gate reads unknown, and
+  nothing is sent on the strength of a check that did not run.
 
 ## Destructive-operation safety
 
@@ -511,6 +563,26 @@ v0.6.0 the installer, and Repair in the window, run setup with `--keep-state` wh
 the program directory is already there: the pause is left alone, and the sign-in entry is
 re-registered only where the one registered is already this installation's.
 
+Found while planning v0.6.5, fixed in v0.6.5 (v0.6.4 still has each of these):
+
+- **Text sent as a switch's value turned the switch on.** The window's bridge read the
+  `enabled` value of its switch commands with a plain truth test, so any non-empty string counted
+  as on: `{"enabled": "false"}` switched automatic recovery on, and for Run at Windows sign-in
+  wrote this product's value under the current user's `Run` key; a request with no value switched
+  them off. The settings window always sends a real `true` or `false`, so its own switches were
+  never affected; a request made some other way could be. Anything but a boolean is now refused,
+  with the control layer's own code, before the control layer is asked.
+- **A settings value of the wrong type was accepted whenever it equalled the default.** An update
+  was compared with what it coerced to, and coercion answers a value it does not like with the
+  field's default - so `{"reduce_motion": 0}` and `{"notifications": 1}` were accepted while
+  `{"notifications": 0}` was refused. The type the settings schema publishes is now checked
+  first, for every field, and a wrong one is refused whatever it equals.
+- **The release job checked fewer entries than an installed bootstrap requires of an update.**
+  It did not check `.codex-plugin/plugin.json`, `scripts/plugin_setup.py` or the icon at the
+  payload's root, so an archive missing one could have been published and then refused by every
+  installed copy. It now checks everything the bootstrap requires, and tests hold the two lists to
+  each other in both directions and to what published bootstraps require.
+
 ## Residual risks
 
 - The blocking usage bucket cannot always be identified from history with certainty, so live
@@ -559,4 +631,12 @@ publishes from v0.6.0 on has not been verified. - A Custom message is sent as wr
 Codex reads it as your own words. The checks above decide which values it may contain and
 that it cannot change what is recovered; they do not judge what it asks Codex to do. Any
 program running under your Windows account can also edit `config/settings.json`, as it can
-your other files; the placeholder and length checks still apply to what it writes.
+your other files; the placeholder and length checks still apply to what it writes. - The Codex
+compatibility data a refresh fetches is not signed. It comes over HTTPS from this repository's
+`main` branch, so anyone who can change that branch can change what the next refresh on every
+machine receives. What such data could do is bounded by the rules under *Compatibility data can
+only restrict*: at worst it marks a Codex build incompatible and recovery stops for that build
+until the data changes again - unfinished work left unresumed, never a message sent that the
+local checks would refuse. A document that requires a signature is refused whole until something
+verifies one. Any program running under your Windows account can also write
+`config/compat-cache.json`; it is validated on every read, and the same rules apply to it.
