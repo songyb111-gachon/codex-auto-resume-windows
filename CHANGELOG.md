@@ -3,8 +3,10 @@
 ## v0.6.5 — A light you can see, notifications in the product's own card, and a Codex Compatibility Registry
 
 A design and safety release. With the compatibility data this release ships, recovery decides
-exactly what it decided in v0.6.4: the same classifier, the same gates, the same one watcher that is
-the only thing allowed to send. What changed is how much of it you can see - a status light and an
+what it decided in v0.6.4: the same classifier, the same gates, the same one watcher that is the
+only thing allowed to send. The one difference is a check: codex-cli 0.153.4, which v0.6.4 trusted
+by its version, now has to show that `codex queue` still takes a conversation and a message, as
+every other build always had to (below). What changed is how much of it you can see - a status light and an
 icon that visibly move, notifications drawn in the product's own design, controls that answer as
 they change - and a Codex Compatibility Registry, whose data can only ever make the watcher more
 careful. The one new setting, **Show notifications as a card beside the notification area**, is on
