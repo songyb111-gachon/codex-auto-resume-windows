@@ -17,42 +17,6 @@ from . import continuation as _message, failures, l10n, machine, messages, setti
 from .machine import OBSERVING, TERMINAL, WAITING
 from .source import detect
 
-# Sent into the exact conversation that stopped. One text per kind of stop, in the
-# language the Codex app itself is using.
-CONTINUATIONS = {
-    ("ko", "usage"): (
-        "사용량 제한으로 중단된 이전 작업을 계속 진행해. 먼저 현재 스레드 컨텍스트와 "
-        "실제 저장소/파일 상태를 확인하고, 이미 완료된 작업은 반복하지 말고 원래 목표를 "
-        "계속 수행해. 기존 Goal이 있다면 그 상태와 목표를 유지해."),
-    ("ko", "transient"): (
-        "일시적인 연결 또는 서비스 오류로 중단된 이전 작업을 계속 진행해. 먼저 현재 스레드 "
-        "컨텍스트와 실제 저장소/파일 상태를 확인하고, 이미 완료된 작업은 반복하지 말고 원래 "
-        "목표를 계속 수행해. 기존 Goal이 있다면 그 상태와 목표를 유지해."),
-    ("en", "usage"): (
-        "Continue the previous task, which stopped because of a usage limit. First check the "
-        "current thread context and the actual repository and file state, do not repeat work "
-        "that is already done, and keep working toward the original goal. If there is an "
-        "existing Goal, keep its status and objective."),
-    ("en", "transient"): (
-        "Continue the previous task, which stopped because of a temporary connection or service "
-        "error. First check the current thread context and the actual repository and file state, "
-        "do not repeat work that is already done, and keep working toward the original goal. If "
-        "there is an existing Goal, keep its status and objective."),
-}
-CONTINUATION = CONTINUATIONS[("ko", "usage")]
-
-
-def continuation(category, language="en") -> str:
-    """The text for one interruption, in one language, in the default style.
-
-    Kept as the narrow entry point the older callers already use. The message itself
-    now comes from `continuation.py`, which is the only place one is built - the same
-    function the settings Preview calls, so a preview and a send cannot drift.
-    """
-    return _message.build(category, locale=l10n.resolve(language),
-                          style=_message.DEFAULT_STYLE)
-
-
 UNSENT = WAITING
 # Everything that may be sitting in Codex's queue, or may have just left it.
 WATCHED = frozenset({"submitting", "queued", "withdrawn_unconfirmed", "submission_unknown"})
