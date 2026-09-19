@@ -52,9 +52,32 @@ for ($i = 0; $i -lt 20 -and -not $copied; $i++) {
 if (-not $copied) { throw 'Could not replace the installed settings window.' }
 
 # Keep the deployed application source in step with the working tree, so the window is
-# rendered from the schema being edited rather than the last released one.
-Copy-Item (Join-Path $Root 'src\codex_auto_resume\*.py') `
-          (Join-Path $installed 'app\src\codex_auto_resume') -Force
+# rendered from the schema being edited rather than the last released one: every module at
+# every depth, and the bundled data (data\*.json). Replaced, not merged - a module the tree
+# has deleted, or moved into a subpackage, must not linger in the deployed copy, where it
+# would still import and would shadow the new one. The catalogs (locales\) are left as
+# installed, as they always have been.
+$package  = (Resolve-Path -LiteralPath (Join-Path $Root 'src\codex_auto_resume')).Path
+$deployed = Join-Path $installed 'app\src\codex_auto_resume'
+if (Test-Path -LiteralPath $deployed) {
+    Get-ChildItem -LiteralPath $deployed -Recurse -File -Filter '*.py' | Remove-Item -Force
+    Get-ChildItem -LiteralPath $deployed -Recurse -Directory -Filter '__pycache__' |
+        Remove-Item -Recurse -Force
+    $deployedData = Join-Path $deployed 'data'
+    if (Test-Path -LiteralPath $deployedData) {
+        Get-ChildItem -LiteralPath $deployedData -File -Filter '*.json' | Remove-Item -Force
+    }
+}
+$packageData = Join-Path $package 'data'
+Get-ChildItem -LiteralPath $package -Recurse -File |
+    Where-Object { $_.FullName -notmatch '\\__pycache__\\' -and
+                   ($_.Extension -eq '.py' -or
+                    ($_.Extension -eq '.json' -and $_.DirectoryName -eq $packageData)) } |
+    ForEach-Object {
+        $destination = Join-Path $deployed $_.FullName.Substring($package.Length).TrimStart('\')
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
+        Copy-Item -LiteralPath $_.FullName -Destination $destination -Force
+    }
 
 Start-Process $target
 Start-Sleep -Seconds 4
