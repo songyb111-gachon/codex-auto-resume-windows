@@ -194,8 +194,6 @@ class ProcessTests(unittest.TestCase):
         "codex_auto_resume/tray.py": "opens the settings window from the icon",
         "codex_auto_resume/notify.py": "catches SubprocessError from pwsh.run",
         "codex_auto_resume/shortcut.py": "catches SubprocessError from pwsh.run",
-        "codex_auto_resume/cli.py": "imported and unused (a dead import; step 2 removes it)",
-        "codex_auto_resume/startup.py": "imported and unused (a dead import; step 2 removes it)",
     }
 
     def test_subprocess_is_imported_only_by_the_adapters_listed(self):

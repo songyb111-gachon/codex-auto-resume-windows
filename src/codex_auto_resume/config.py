@@ -6,7 +6,6 @@ import logging
 import os
 from pathlib import Path
 import re
-import tempfile
 
 # The plugin manifest, relative to the installation it describes. It is the one place the
 # product version is written, and the one file every layout has at its root: a checkout, the
