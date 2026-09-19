@@ -1231,6 +1231,44 @@ class WindowsTests(unittest.TestCase):
         finally:
             renderer.close()
 
+    def test_the_glow_grows_out_from_under_the_dot_as_far_as_its_spread_and_draws_back_in(self):
+        """The drawn glow reaches brand.glow_radius of each frame's spread, not the peak's: it grows from under the dot
+        to 3 px past it and recedes the same way ("the glow grows from nothing ... reaching 3 CSS px"). A glow drawn at
+        its full size whatever the spread, only fading in, passed every test until this one: the others draw only the
+        peak and the darkest frame. At 300%, so a pixel is a third of a CSS px; the glow's last pixels are faint, so
+        what is seen ends within 2 device px inside the circle drawn."""
+        renderer = popup.Renderer()
+        try:
+            scale, cycle = 3.0, brand.GLOW["monitoring_ms"]
+            dot = brand.STATUS_DOT["popup"]
+            vm = popup.view_model(self.ROWS, STATUS, EN, NOW)
+            plan = renderer.layout(vm, scale, "en")
+            renderer.draw(vm, plan, frame=popup.halo("monitoring", 0))           # the whole frame, then its halo
+            halo = next(item for item in plan["items"] if item["kind"] == "halo")
+            cx, cy, width = int(halo["cx"]), int(halo["cy"]), plan["size"][0]
+            surface = brand.rgb(brand.LIGHT["surface"])
+            reached = []
+            # Through the bloom (65% to 85% of the cycle) and the withdrawal (85% to 100%).
+            for fraction in (0.68, 0.70, 0.72, 0.75, 0.78, 0.80, 0.85, 0.88, 0.90, 0.93, 0.96):
+                frame = popup.halo("monitoring", cycle * fraction)
+                pixels = renderer.draw_halo(plan, frame).pixels()
+                seen = max(distance for distance in range(0, int(halo["radius"]) + 8)
+                           if tuple(pixels[(cy * width + cx + distance) * 4 + channel] for channel in (2, 1, 0))
+                           != surface)
+                drawn = brand.glow_radius(dot, frame["spread"]) * scale
+                reached.append((fraction, frame["spread"], seen))
+                with self.subTest(fraction=fraction, spread=round(frame["spread"], 3)):
+                    self.assertGreater(frame["opacity"], 0.0)
+                    self.assertLessEqual(seen, drawn, "the glow reaches past its spread's radius")
+                    self.assertGreaterEqual(seen, drawn - 2, "the glow stops short of its spread's radius")
+            growing = [seen for fraction, _, seen in reached if fraction <= 0.85]
+            receding = [seen for fraction, _, seen in reached if fraction >= 0.85]
+            self.assertEqual(growing, sorted(growing))
+            self.assertEqual(receding, sorted(receding, reverse=True))
+            self.assertGreaterEqual(growing[-1] - growing[0], 2 * scale, reached)
+        finally:
+            renderer.close()
+
     def test_a_paused_dot_is_grey_with_no_glow(self):
         renderer = popup.Renderer()
         try:

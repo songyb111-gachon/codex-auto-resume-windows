@@ -35,6 +35,12 @@ SINCE = (-1.0, 0.0, 350.0, 700.0, 1000.0, 1190.0, 1399.0, 1400.0, 9000.0)
 BODIES = {"card": (240, 160, 32), "control": (160, 34, 16), "inset": (280, 35, 0)}
 GROUND = {"card": "canvas", "control": "surface", "inset": "inset"}
 FONTS = (9.0, 12.0)
+# The window's light drawn at 300%: moments of monitoring's cycle, as fractions of it - its darkest, the rise's end,
+# the bloom (65% to 85%) and the withdrawal (85% to 100%).
+LIGHT_SCALE = 3.0
+LIGHT_SIDE = 96
+LIGHT_FRACTIONS = (0.25, 0.60, 0.68, 0.70, 0.72, 0.75, 0.78, 0.80, 0.85, 0.88, 0.90, 0.93, 0.96)
+LIGHT_MOMENTS = tuple(brand.GLOW["monitoring_ms"] * fraction for fraction in LIGHT_FRACTIONS)
 
 PROBE = r"""
 $ErrorActionPreference = 'Stop'
@@ -147,6 +153,41 @@ $out.other.contrast = [bool]$palette.GetField('Contrast', $static).GetValue($nul
 $out.other.hover = $palette.GetField('AccentHover', $static).GetValue($null).ToArgb()
 $out.other.pressed = $palette.GetField('AccentPressed', $static).GetValue($null).ToArgb()
 
+# The light as the window draws it, at 300% and at moments the probe chooses: the dot's own clock stopped and the
+# moment it entered its state set back. Motion is not reduced whatever this machine says: no product setting, and no
+# answer from Windows (Soft.ReduceMotion is then false). Only the dot is drawn, into a bitmap; nothing is shown.
+$settingsType = $assembly.GetType('CodexAutoResume.SettingsForm', $true)
+$softType = $assembly.GetType('CodexAutoResume.Soft', $true)
+$scaleField = $settingsType.GetField('dpiScale', $static)
+$animatesField = $softType.GetField('WindowsAnimates', $static)
+$reduceField = $softType.GetField('ReduceMotionSetting', $static)
+$saved = @($scaleField.GetValue($null), $animatesField.GetValue($null), $reduceField.GetValue($null))
+$scaleField.SetValue($null, [double]$env:CAR_LIGHT_SCALE)
+$animatesField.SetValue($null, $null)
+$reduceField.SetValue($null, $false)
+$side = [int]$env:CAR_LIGHT_SIDE
+$light = [Activator]::CreateInstance($halo, $true)
+$light.Size = New-Object System.Drawing.Size $side, $side
+$halo.GetProperty('State', $instance).SetValue($light, 'monitoring', $null)
+$clock = $halo.GetField('clock', $instance).GetValue($light)
+$clock.Stop()
+$stopped = $clock.Elapsed.TotalMilliseconds
+$entered = $halo.GetField('enteredAt', $instance)
+$out.drawn = @{ side = $side; frames = @() }
+foreach ($ms in (ConvertFrom-Json $env:CAR_LIGHT_MOMENTS)) {
+    $entered.SetValue($light, [double]($stopped - [double]$ms))
+    $bitmap = New-Object System.Drawing.Bitmap $side, $side
+    $light.DrawToBitmap($bitmap, (New-Object System.Drawing.Rectangle 0, 0, $side, $side))
+    $row = [int[]]::new($side)
+    for ($x = 0; $x -lt $side; $x++) { $row[$x] = $bitmap.GetPixel($x, [int][Math]::Floor($side / 2)).ToArgb() }
+    $bitmap.Dispose()
+    $out.drawn.frames += ,@([double]$ms, $row)
+}
+$light.Dispose()
+$scaleField.SetValue($null, $saved[0])
+$animatesField.SetValue($null, $saved[1])
+$reduceField.SetValue($null, $saved[2])
+
 $out | ConvertTo-Json -Depth 8 -Compress
 """
 
@@ -184,7 +225,9 @@ class MaterialTests(unittest.TestCase):
             env=dict(os.environ, CAR_EXE=str(exe), CAR_SCALES=json.dumps(SCALES),
                      CAR_RECIPES=json.dumps(RECIPES), CAR_BODIES=json.dumps(BODIES),
                      CAR_STATES=json.dumps(STATES), CAR_ELAPSED=json.dumps(ELAPSED),
-                     CAR_SINCE=json.dumps(SINCE), CAR_FONTS=json.dumps(FONTS)))
+                     CAR_SINCE=json.dumps(SINCE), CAR_FONTS=json.dumps(FONTS),
+                     CAR_LIGHT_SCALE=repr(LIGHT_SCALE), CAR_LIGHT_SIDE=str(LIGHT_SIDE),
+                     CAR_LIGHT_MOMENTS=json.dumps(LIGHT_MOMENTS)))
         cls.answer = (json.loads(cls.result.stdout)
                       if cls.result.returncode == 0 and cls.result.stdout.strip() else {})
 
@@ -279,6 +322,46 @@ class MaterialTests(unittest.TestCase):
                 self.assertAlmostEqual(dim, frame["dim"], delta=1e-9)
                 self.assertAlmostEqual(spread, frame["spread"], delta=1e-9)
                 self.assertAlmostEqual(arc, -1 if frame["arc"] is None else frame["arc"], delta=1e-9)
+
+    def test_the_drawn_glow_grows_out_from_under_the_dot_as_far_as_its_spread_and_the_dot_dims(self):
+        """What HaloDot.OnPaint draws, not only the numbers it is given: the glow reaches brand.glow_radius of each
+        frame's spread - growing from under the dot to 3 px past it and drawing back in, as the user's rule has it -
+        and the dot itself is its colour 60% of the way toward the card at its darkest, full once lit. A glow drawn at
+        its full radius whatever the spread, only fading in, and a dot never dimmed, passed every test before this
+        one but a reading of the source. At 300%; the glow's last pixels are faint, so what is seen ends within 2
+        device px inside the circle drawn."""
+        drawn = self.answer["drawn"]
+        side = drawn["side"]
+        centre = side // 2
+        dot = brand.STATUS_DOT["window"]
+        frames = {round(ms, 3): row for ms, row in drawn["frames"]}
+        self.assertEqual(len(frames), len(LIGHT_MOMENTS))
+        colour = brand.LIGHT[brand.status_fill("monitoring")]
+        reached = []
+        for fraction, ms in zip(LIGHT_FRACTIONS, LIGHT_MOMENTS):
+            row = frames[round(ms, 3)]
+            ground = channels(row[0])
+            frame = brand.glow("monitoring", ms, ms)
+            seen = max(distance for distance in range(side - centre) if channels(row[centre + distance]) != ground)
+            lit = channels(row[centre])
+            with self.subTest(fraction=fraction, spread=round(frame["spread"], 3), dim=round(frame["dim"], 3)):
+                want = brand.rgb(brand.mix(colour, "#%02X%02X%02X" % ground, frame["dim"]))
+                for part, expected in zip(lit, want):
+                    self.assertLessEqual(abs(part - expected), 2, (lit, want))
+                if frame["spread"] == 0:
+                    self.assertLessEqual(seen, dot * LIGHT_SCALE + 1, "no glow before the dot is lit")
+                    continue
+                radius = brand.glow_radius(dot, frame["spread"]) * LIGHT_SCALE
+                self.assertLessEqual(seen, radius, "the glow reaches past its spread's radius")
+                self.assertGreaterEqual(seen, radius - 2, "the glow stops short of its spread's radius")
+                reached.append((fraction, seen))
+        self.assertEqual(frames[round(LIGHT_MOMENTS[0], 3)][0], frames[round(LIGHT_MOMENTS[-1], 3)][0])
+        self.assertGreater(brand.glow("monitoring", LIGHT_MOMENTS[0], LIGHT_MOMENTS[0])["dim"], 0.5)
+        growing = [seen for fraction, seen in reached if fraction <= 0.85]
+        receding = [seen for fraction, seen in reached if fraction >= 0.85]
+        self.assertEqual(growing, sorted(growing))
+        self.assertEqual(receding, sorted(receding, reverse=True))
+        self.assertGreaterEqual(growing[-1] - growing[0], 2 * LIGHT_SCALE, reached)
 
     def test_the_dot_is_brands_colour_for_every_state(self):
         """Cyan for every running state, the greys unchanged for a pause and for a watcher that
