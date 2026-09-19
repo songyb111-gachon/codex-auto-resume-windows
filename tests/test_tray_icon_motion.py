@@ -115,11 +115,19 @@ class StateTests(unittest.TestCase):
                 self.assertGreaterEqual(brand.contrast(colour, ground), 2.5)
 
     def test_the_icon_s_numbers_are_its_own_and_not_in_brand_glow(self):
-        """Every GLOW key is generated into the window's Brand.cs; no window draws these."""
+        """Every GLOW key is generated into the window's status light (Brand.cs), which draws none of these. Since
+        v0.6.5 the window's taskbar button wears this icon's motion, and reads them from Brand.Mark alone."""
         self.assertFalse(set(MOTION) & set(brand.GLOW))
         source = (ROOT / "gui" / "Brand.cs").read_text(encoding="utf-8")
+        light, _, mark = source.partition("        internal static class Mark\n")
+        self.assertTrue(mark, "Brand.cs declares no Brand.Mark")
         for name in ("TurnEvery", "TurnMs", "BreatheFrame", "TurnFrame", "IconMotion"):
-            self.assertNotIn(name, source)
+            self.assertNotIn(name, light)
+        for declared in ("internal const double TurnEveryMs = 30000;", "internal const double TurnMs = 2400;",
+                         "internal const int BreatheFrameMs = 300;", "internal const int TurnFrameMs = 200;",
+                         "internal const int Positions = 24;", "internal const int Levels = 9;",
+                         "internal const double Dim = 0.6;"):
+            self.assertIn(declared, mark)
         self.assertEqual((EVERY, TURN), (30000, 2400))
         self.assertEqual((MOTION["breathe_frame_ms"], MOTION["turn_frame_ms"]), (300, 200))
 
