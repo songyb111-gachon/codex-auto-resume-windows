@@ -1411,10 +1411,7 @@ class Store:
                 return False, "possibly_sent"
             if row["budget_resets"] >= max_resets:
                 return False, "reset_limit"
-            if is_usage(row):
-                target = "waiting_reset" if row["reset_at"] is not None and row["reset_at"] > now else "waiting_poll"
-            else:
-                target = "waiting_backoff"
+            target = machine.waiting_state(row, now)
             connection.execute(
                 "UPDATE interruptions SET state=?, recovery_attempts=0, no_progress_count=0, "
                 "retry_count=0, chain_continuations=0, budget_resets=budget_resets+1, "

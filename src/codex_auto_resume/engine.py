@@ -214,11 +214,8 @@ class Engine:
             self.log(row.get("thread_id"), "notification_failed", event)
 
     def waiting_state(self, row) -> str:
-        """The wait a record returns to when it goes back to waiting."""
-        if row["category"] == failures.USAGE_LIMIT:
-            reset = row.get("reset_at")
-            return "waiting_reset" if reset is not None and reset > self.clock() else "waiting_poll"
-        return "waiting_backoff"
+        """The wait a record returns to when it goes back to waiting now."""
+        return machine.waiting_state(row, self.clock())
 
     def valid_interruption(self, row):
         latest = self.source.latest(row["thread_id"])
