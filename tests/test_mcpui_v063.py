@@ -418,11 +418,14 @@ class StyleTests(unittest.TestCase):
         self.assertEqual(scale & colours, set())
         self.assertIn(brand.css_scale(), mcpui._STYLE)
         for name in ("--transition", "--glow-reach", "--glow-edge", "--glow-near", "--glow-far",
-                     "--glow-outer", "--glow-near-mix", "--glow-far-mix", "--glow-still",
-                     "--glow-monitoring-ms", "--glow-recovering-ms", "--glow-attention-ms"):
+                     "--glow-outer", "--glow-edge-mix", "--glow-near-mix", "--glow-far-mix", "--glow-peak",
+                     "--glow-from", "--glow-dot-low", "--glow-monitoring-ms", "--glow-recovering-ms",
+                     "--glow-attention-ms"):
             self.assertIn("var(%s)" % name, mcpui._STYLE)
-        # v0.6.3's halo numbers, which the glow replaced, are neither used nor emitted.
-        for name in ("--breathe", "--pulse", "--halo-min", "--halo-max"):
+        # v0.6.3's halo numbers, which the glow replaced, and the first v0.6.5 cut's breathing glow, which
+        # the blink replaced, are neither used nor emitted.
+        for name in ("--breathe", "--pulse", "--halo-min", "--halo-max", "--glow-still", "--glow-attention-peak",
+                     "--glow-monitoring-low", "--glow-monitoring-rest", "--glow-recovering-scale-high"):
             self.assertNotIn("var(%s)" % name, mcpui._STYLE)
             self.assertNotIn(name + ":", brand.css_scale())
 
@@ -583,10 +586,14 @@ class MaterialTests(unittest.TestCase):
 
 
 class StatusLightTests(unittest.TestCase):
-    """The light: a flat dot in brand's colour for its state, and brand's glow around it."""
+    """The light: a flat dot in brand's colour for its state, blinking on brand's cycle, and brand's glow."""
 
     def static_opacity(self, state):
         return number(declared(".halo.%s::before" % state, "opacity") or declared(".halo::before", "opacity"))
+
+    def glows(self, state):
+        """Whether any of brand's frames for the state ever shows a glow."""
+        return any((brand.glow(state, ms, ms) or {}).get("opacity", 0) > 0 for ms in range(0, 3200, 20))
 
     def test_the_light_is_a_flat_dot_of_the_size_it_always_had(self):
         self.assertEqual(declared(".halo", "width"), "%dpx" % (2 * brand.STATUS_DOT["panel"]))
@@ -619,8 +626,11 @@ class StatusLightTests(unittest.TestCase):
                    for context, selectors, declarations in RULES
                    if context == "" and declarations.get("content") == '""'
                    for selector in selectors if selector.startswith(".halo.") and selector.endswith("::before")}
-        self.assertEqual(glowing, {state for state in LIGHT_STATES if brand.glow(state, 0) is not None})
-        self.assertNotIn("paused", glowing)
+        self.assertEqual(glowing, {state for state in LIGHT_STATES if self.glows(state)})
+        self.assertEqual(glowing, {"monitoring", "recovering", "attention"})
+        # Between its moments a glow is not there at all: nothing is lit round a still dot.
+        self.assertEqual(self.static_opacity("monitoring"), 0.0)
+        self.assertEqual(declared(".halo::before", "transform"), "scale(var(--glow-from))")
 
     def test_the_glow_falls_off_as_brand_says_with_no_edge(self):
         before = ".halo::before"
@@ -641,13 +651,14 @@ class StatusLightTests(unittest.TestCase):
         self.assertEqual(parts[0], "circle closest-side")
         # closest-side of a box `reach` wider than the dot on every side.
         outer = dot + brand.GLOW["reach"]
-        observed = [(0.0, 1.0)]
+        observed = []
         for stop in parts[1:]:
             colour, position = stop.rsplit(" ", 1)
             mixed = re.fullmatch(r"color-mix\(in srgb, var\(--halo-color\) (.+), transparent\)", colour)
             alpha = (1.0 if colour == "var(--halo-color)" else 0.0 if colour == "transparent"
                      else number(mixed.group(1), "%") / 100)
             observed.append((number(position, "px") / outer, alpha))
+        observed.insert(0, (0.0, observed[0][1]))          # a gradient holds its first colour to the centre
         expected = brand.glow_stops(dot)
         self.assertEqual(len(observed), len(expected))
         for (at, alpha), (want_at, want_alpha) in zip(observed, expected):
@@ -682,49 +693,64 @@ class StatusLightTests(unittest.TestCase):
                 return low + (high - low) * eased, small + (large - small) * eased
         raise AssertionError(progress)
 
-    def test_the_glow_breathes_on_brands_curve(self):
-        # Sampled over two cycles against brand.glow(), which the window and the popup draw too.
-        # The easing is a Bezier, so it is a half-cosine only to within a small error.
+    def light(self, state, elapsed, once=False):
+        """The dot's opacity, the glow's opacity and the glow's scale the stylesheet draws at `elapsed`."""
+        suffix = ".once" if once else ""
+        dot = self.animation(".halo.%s%s" % (state, suffix))
+        glow = self.animation(".halo.%s%s::before" % (state, suffix))
+        for animation in (dot, glow):
+            self.assertEqual(animation[3], "1" if once else "infinite")
+            self.assertEqual(animation[1], brand.GLOW[("attention" if once else state) + "_ms"])
+        return self.frame(dot, elapsed)[0], self.frame(glow, elapsed)[0], self.frame(glow, elapsed)[1]
+
+    def assertBrands(self, drawn, frame):
+        dot = number(declared(".halo", "width"), "px") / 2
+        self.assertAlmostEqual(drawn[0], 1 - frame["dim"], delta=0.002)
+        self.assertAlmostEqual(drawn[1], frame["opacity"], delta=0.002)
+        self.assertAlmostEqual(drawn[2], brand.glow_radius(dot, frame["spread"]) / brand.glow_extent(dot), delta=0.002)
+
+    def test_the_light_runs_brands_cycle_on_brands_curve(self):
+        # Sampled over two cycles against brand.glow(), which the window and the popup draw too: the dot's
+        # opacity over the card is its dimming, and the glow's opacity and scale are its spread. The easing is
+        # a Bezier, so each phase is a half-cosine only to within a small error.
         for state in ("monitoring", "recovering"):
-            animation = self.animation(".halo.%s::before" % state)
-            self.assertEqual(animation[3], "infinite")
-            self.assertEqual(animation[1], brand.GLOW[state + "_ms"])
-            for step in range(97):
-                elapsed = animation[1] * 2 * step / 96
+            cycle = brand.GLOW[state + "_ms"]
+            for step in range(193):
+                elapsed = cycle * 2 * step / 192
                 with self.subTest(state=state, elapsed=elapsed):
-                    opacity, scale = self.frame(animation, elapsed)
-                    expected = brand.glow(state, elapsed)
-                    self.assertAlmostEqual(opacity, expected["opacity"], delta=0.002)
-                    self.assertAlmostEqual(scale, expected["scale"], delta=0.002)
+                    self.assertBrands(self.light(state, elapsed), brand.glow(state, elapsed))
 
-    def test_a_problem_pulses_once_on_brands_curve_and_then_holds(self):
-        animation = self.animation(".halo.attention.once::before")
-        self.assertEqual(animation[3], "1")
-        self.assertEqual(animation[1], brand.GLOW["attention_ms"])
-        for step in range(49):
-            since = animation[1] * step / 48
-            expected = brand.glow("attention", 0, since_entered_ms=since if step < 48 else None)
-            opacity, scale = self.frame(animation, min(since, animation[1] - 1e-9))
-            self.assertAlmostEqual(opacity, expected["opacity"], delta=0.002)
-            self.assertEqual(scale, expected["scale"])
-        self.assertAlmostEqual(self.static_opacity("attention"), brand.glow("attention", 0)["opacity"])
+    def test_a_problem_runs_the_cycle_once_and_then_holds_lit(self):
+        pulse = brand.GLOW["attention_ms"]
+        for step in range(97):
+            since = pulse * step / 96
+            with self.subTest(since=since):
+                self.assertBrands(self.light("attention", min(since, pulse - 1e-9), once=True),
+                                  brand.glow("attention", 0, since_entered_ms=since if step < 96 else None))
+        # Once it has run, what is left is the still light: the dot at full strength, no glow.
+        self.assertIsNone(declared(".halo.attention", "animation"))
+        self.assertIsNone(declared(".halo", "opacity"))
+        self.assertEqual(self.static_opacity("attention"), brand.glow("attention", 0)["opacity"])
 
-    def test_waiting_holds_still(self):
+    def test_waiting_and_checking_hold_lit_with_no_glow(self):
         for state in ("waiting", "checking"):
             with self.subTest(state):
+                self.assertIsNone(declared(".halo.%s" % state, "animation"))
                 self.assertIsNone(declared(".halo.%s::before" % state, "animation"))
-                self.assertAlmostEqual(self.static_opacity(state), brand.glow(state, 1234)["opacity"])
+                self.assertIsNone(declared(".halo.%s::before" % state, "content"))
+                self.assertEqual(brand.glow(state, 1234)["opacity"], 0.0)
+                self.assertEqual(brand.glow(state, 1234)["dim"], 0.0)
 
-    def test_with_less_motion_every_glow_holds_at_brands_rest(self):
-        # Reduced motion removes the animations; what is left is each state's own opacity.
-        self.assertEqual(declared(".halo::before", "transform", REDUCED), "none")
+    def test_with_less_motion_every_light_holds_lit_with_no_glow(self):
+        # Reduced motion removes the animations; what is left is the dot at full strength and no glow at all.
+        self.assertEqual(declared(".halo::before", "display", REDUCED), "none")
+        self.assertIsNone(declared(".halo", "opacity"))
         for state in LIGHT_STATES:
             frame = brand.glow(state, 5000, since_entered_ms=0, reduced=True)
             if frame is None:
                 continue
             with self.subTest(state):
-                self.assertAlmostEqual(self.static_opacity(state), frame["opacity"])
-                self.assertEqual(frame["scale"], 1.0)
+                self.assertEqual((frame["dim"], frame["opacity"], frame["spread"]), (0.0, 0.0, 0.0))
 
     def test_high_contrast_draws_a_solid_system_colour_and_no_glow(self):
         # CSS names Windows' text colour CanvasText.

@@ -128,6 +128,17 @@ class StateTests(unittest.TestCase):
                 colour = "#%02X%02X%02X" % tray.icon_head_colour(state)
                 self.assertGreaterEqual(brand.contrast(colour, ground), 2.5)
 
+    def test_the_status_light_blinks_as_far_as_the_head_breathes(self):
+        """The user asked for the light to blink "아이콘에서 깜빡이는 이런 느낌": the light's dot dims as far toward its
+        ground as the head dims toward the badge, on the same rhythms, and both rest at full brightness. The light
+        spreads a little once lit; the icon never does ("no glow on icons ever")."""
+        self.assertEqual(brand.GLOW["dot_dim"], MOTION["dim"])
+        self.assertEqual(brand.glow("monitoring", 0)["dim"], 0.0)
+        self.assertEqual(tray.icon_frame("watching", 0)[1], TOP)
+        self.assertAlmostEqual(max(brand.glow("monitoring", ms)["dim"] for ms in range(0, SLOT, 10)), MOTION["dim"])
+        self.assertNotIn("spread", MOTION)
+        self.assertNotIn("peak", MOTION)
+
     def test_the_icon_s_numbers_are_its_own_and_not_in_brand_glow(self):
         """Every GLOW key is generated into the window's status light (Brand.cs), which draws none of these. Since
         v0.6.5 the window's taskbar button wears this icon's motion, and reads them from Brand.Mark alone."""

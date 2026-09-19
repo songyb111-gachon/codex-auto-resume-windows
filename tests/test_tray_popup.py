@@ -453,67 +453,71 @@ class LayoutTests(unittest.TestCase):
 
 # ------------------------------------------------------------------------------- motion
 class MotionTests(unittest.TestCase):
-    """The glow is brand's status light, frame for frame, and it moves as v0.6.5 decided."""
+    """The light is brand's status light, frame for frame, and it moves as v0.6.5 decided: the dot blinks as the
+    icon's head does, and only once it is lit does a small glow spread and draw back in."""
     GLOW = brand.GLOW
-    STILL = brand.GLOW["still"]
-    MOMENTS = (0, 1, 97, 350, 550, 700, 900, 1100, 1399, 1400, 1600, 1800, 2200, 2700, 3599, 3600, 5000, 12345.6)
+    STILL = {"dim": 0.0, "opacity": 0.0, "spread": 0.0, "arc": None}
+    MOMENTS = (0, 1, 97, 350, 550, 700, 800, 900, 1100, 1399, 1400, 1600, 1800, 2080, 2200, 2700, 2720, 3599,
+               3600, 5000, 12345.6)
 
     def test_every_frame_is_the_brand_status_light(self):
         for state in popup.STATES + ("idle", "failed", "unknown"):
             with self.subTest(state):
                 for elapsed in self.MOMENTS:
-                    for since in (None, -1, 0, 350, 700, 1399, 1400, 9999):
+                    for since in (None, -1, 0, 350, 700, 1190, 1399, 1400, 9999):
                         for reduced in (False, True):
                             self.assertEqual(popup.halo(state, elapsed, since, reduced=reduced),
                                              brand.glow(state, elapsed, since, reduced=reduced))
                             self.assertEqual(popup.animates(state, since, reduced=reduced),
                                              brand.glow_moves(state, since, reduced=reduced))
 
-    def test_monitoring_breathes_slowly_and_low(self):
-        cycle, low, high = self.GLOW["monitoring_ms"], self.GLOW["monitoring_low"], self.GLOW["monitoring_high"]
-        self.assertAlmostEqual(popup.halo("monitoring", 0)["opacity"], low)
-        self.assertAlmostEqual(popup.halo("monitoring", cycle / 2)["opacity"], high)
-        self.assertAlmostEqual(popup.halo("monitoring", cycle)["opacity"], low)
-        for elapsed in range(0, cycle, 97):
+    def test_monitoring_dims_and_only_once_lit_spreads_a_little(self):
+        cycle = self.GLOW["monitoring_ms"]
+        self.assertEqual(popup.halo("monitoring", 0), self.STILL)
+        self.assertAlmostEqual(popup.halo("monitoring", cycle * 0.25)["dim"], self.GLOW["dot_dim"])
+        peak = popup.halo("monitoring", cycle * 0.85)
+        self.assertEqual(peak["dim"], 0.0)
+        self.assertAlmostEqual(peak["opacity"], self.GLOW["peak"])
+        self.assertAlmostEqual(brand.glow_radius(brand.STATUS_DOT["popup"], peak["spread"]),
+                               brand.STATUS_DOT["popup"] + 3)
+        for elapsed in range(0, cycle, 7):
             frame = popup.halo("monitoring", elapsed)
-            self.assertTrue(low - 1e-9 <= frame["opacity"] <= high + 1e-9)
-            self.assertTrue(self.GLOW["monitoring_scale_low"] - 1e-9 <= frame["scale"]
-                            <= self.GLOW["monitoring_scale_high"] + 1e-9)
+            self.assertTrue(frame["dim"] == 0.0 or frame["spread"] == 0.0, elapsed)
             self.assertIsNone(frame["arc"])
         self.assertTrue(popup.animates("monitoring"))
 
-    def test_waiting_is_a_still_soft_glow(self):
+    def test_waiting_holds_lit_with_no_glow(self):
         frames = {tuple(sorted(popup.halo("waiting", elapsed).items())) for elapsed in range(0, 5000, 333)}
-        self.assertEqual(frames, {(("arc", None), ("opacity", self.STILL), ("scale", 1.0))})
+        self.assertEqual(frames, {tuple(sorted(self.STILL.items()))})
         self.assertFalse(popup.animates("waiting"))
 
-    def test_checking_turns_a_small_arc_over_a_still_glow(self):
+    def test_checking_turns_a_small_arc_round_a_lit_dot(self):
         first, later = popup.halo("checking", 0), popup.halo("checking", self.GLOW["arc_ms"] / 4)
         self.assertAlmostEqual(later["arc"] - first["arc"], 90.0)
-        self.assertEqual((first["opacity"], later["opacity"]), (self.STILL, self.STILL))
+        for frame in (first, later):
+            self.assertEqual((frame["dim"], frame["opacity"], frame["spread"]), (0.0, 0.0, 0.0))
         self.assertTrue(popup.animates("checking"))
 
-    def test_recovering_breathes_brighter_and_quicker_than_monitoring(self):
-        recovering = max(popup.halo("recovering", elapsed)["opacity"]
-                         for elapsed in range(0, self.GLOW["recovering_ms"], 10))
-        monitoring = max(popup.halo("monitoring", elapsed)["opacity"]
-                         for elapsed in range(0, self.GLOW["monitoring_ms"], 10))
-        self.assertGreater(recovering, monitoring)
-        self.assertLess(self.GLOW["recovering_ms"], self.GLOW["monitoring_ms"])
-        self.assertAlmostEqual(popup.halo("recovering", 0)["opacity"],
-                               popup.halo("recovering", self.GLOW["recovering_ms"])["opacity"])
+    def test_recovering_runs_the_same_cycle_quicker(self):
+        cycle = self.GLOW["recovering_ms"]
+        self.assertLess(cycle, self.GLOW["monitoring_ms"])
+        self.assertEqual(popup.halo("recovering", 0), self.STILL)
+        self.assertEqual(popup.halo("recovering", cycle), self.STILL)
+        self.assertAlmostEqual(popup.halo("recovering", cycle * 0.25)["dim"], self.GLOW["dot_dim"])
+        self.assertAlmostEqual(popup.halo("recovering", cycle * 0.85)["opacity"], self.GLOW["peak"])
 
     def test_paused_has_no_glow_and_nothing_moves(self):
         self.assertIsNone(popup.halo("paused", 1234))
         self.assertIsNone(popup.halo("paused", 1234, reduced=True))
         self.assertFalse(popup.animates("paused"))
 
-    def test_attention_glows_up_once_when_it_arrives_and_then_holds_still(self):
+    def test_attention_runs_the_cycle_once_when_it_arrives_and_then_holds_lit(self):
         pulse = self.GLOW["attention_ms"]
-        self.assertAlmostEqual(popup.halo("attention", 0, since_entered_ms=pulse / 2)["opacity"],
-                               self.GLOW["attention_peak"])
-        self.assertAlmostEqual(popup.halo("attention", 0, since_entered_ms=pulse * 3)["opacity"], self.STILL)
-        self.assertAlmostEqual(popup.halo("attention", 0)["opacity"], self.STILL)
+        self.assertAlmostEqual(popup.halo("attention", 0, since_entered_ms=pulse * 0.25)["dim"], self.GLOW["dot_dim"])
+        self.assertAlmostEqual(popup.halo("attention", 0, since_entered_ms=pulse * 0.85)["opacity"],
+                               self.GLOW["peak"])
+        self.assertEqual(popup.halo("attention", 0, since_entered_ms=pulse * 3), self.STILL)
+        self.assertEqual(popup.halo("attention", 0), self.STILL)
         self.assertTrue(popup.animates("attention", pulse / 2))
         self.assertFalse(popup.animates("attention", pulse + 1))
 
@@ -522,14 +526,25 @@ class MotionTests(unittest.TestCase):
             with self.subTest(state):
                 self.assertFalse(popup.animates(state, 0, reduced=True))
                 frames = {repr(popup.halo(state, elapsed, since_entered_ms=elapsed, reduced=True))
-                          for elapsed in (0, 400, 1200, 2400, 9999)}
+                          for elapsed in (0, 400, 800, 1200, 2400, 2720, 9999)}
                 self.assertEqual(len(frames), 1)
-        self.assertEqual(popup.halo("monitoring", 900, reduced=True),
-                         {"opacity": brand.glow_rest("monitoring"), "scale": 1.0, "arc": None})
-        self.assertAlmostEqual(brand.glow_rest("monitoring"), 0.35)            # v0.6.5: .12 to .58
-        self.assertEqual(popup.halo("waiting", 900, reduced=True)["opacity"], self.STILL)
+        # Lit, with no glow: the dot at its full colour and nothing round it.
+        self.assertEqual(popup.halo("monitoring", 800, reduced=True), self.STILL)
+        self.assertEqual(popup.halo("recovering", 1700, reduced=True), self.STILL)
+        self.assertEqual(popup.halo("waiting", 900, reduced=True), self.STILL)
         # Checking keeps its arc, still: with waiting and checking the same cyan, it is the difference.
         self.assertEqual(popup.halo("checking", 900, reduced=True)["arc"], self.GLOW["arc_still_at"])
+
+    def test_the_cycle_starts_with_the_state(self):
+        """As the window's does: a light that starts moving leaves the still light, with no jump."""
+        shown = object.__new__(popup.Popup)
+        shown._vm, shown._reduced, shown._state_since = {"state": "monitoring"}, False, 100.0
+        with unittest.mock.patch.object(popup.time, "monotonic", return_value=100.0):
+            self.assertEqual(shown.frame(), self.STILL)
+        with unittest.mock.patch.object(popup.time, "monotonic", return_value=100.8):
+            self.assertAlmostEqual(shown.frame()["dim"], self.GLOW["dot_dim"])
+        with unittest.mock.patch.object(popup.time, "monotonic", return_value=102.72):
+            self.assertAlmostEqual(shown.frame()["opacity"], self.GLOW["peak"])
 
 
 class SwitchGlideTests(unittest.TestCase):
@@ -1163,7 +1178,8 @@ class WindowsTests(unittest.TestCase):
         try:
             vm = popup.view_model(self.ROWS, STATUS, EN, NOW)
             plan = renderer.layout(vm, 1.0, "en")
-            canvas = renderer.draw(vm, plan, frame=popup.halo(vm["state"], 0))
+            peak = brand.GLOW["monitoring_ms"] * 0.85         # the glow at its peak, the dot fully lit
+            canvas = renderer.draw(vm, plan, frame=popup.halo("monitoring", peak))
             pixels = canvas.pixels()
             width = plan["size"][0]
 
@@ -1194,13 +1210,24 @@ class WindowsTests(unittest.TestCase):
             off = next(item for item in plan["items"] if item["kind"] == "switch" and not item["checked"])
             left, top, right, bottom = off["rect"]
             self.assertLess(sum(pixel(left + 25, top + 2)), sum(pixel(left + 25, (top + bottom) // 2)) - 10)
-            # The dot is flat and cyan, with a soft glow round it that has faded before the words.
+            # The dot is flat and cyan, with a small glow round it at its peak - 3 px past its edge and no
+            # further - that has faded long before the words.
             halo = next(item for item in plan["items"] if item["kind"] == "halo")
             cx, cy = int(halo["cx"]), int(halo["cy"])
-            self.assertEqual(pixel(cx, cy), brand.rgb(brand.LIGHT[brand.status_fill(vm["state"])]))
+            active = brand.rgb(brand.LIGHT[brand.status_fill(vm["state"])])
+            self.assertEqual(pixel(cx, cy), active)
             self.assertEqual(brand.status_fill(vm["state"]), "active")
-            self.assertLess(pixel(cx + 7, cy)[0], surface[0] - 8)
-            self.assertEqual(pixel(cx + 13, cy), surface)
+            self.assertLess(pixel(cx + 5, cy)[0], surface[0] - 8)
+            for distance in (9, 13):
+                self.assertEqual(pixel(cx + distance, cy), surface)
+            # At its darkest the dot is 60% of the way to the card, with nothing round it.
+            renderer.draw_halo(plan, popup.halo("monitoring", brand.GLOW["monitoring_ms"] * 0.25))
+            pixels = canvas.pixels()
+            dimmed = brand.rgb(brand.mix(brand.LIGHT["active"], brand.LIGHT["surface"], brand.GLOW["dot_dim"]))
+            for part, want in zip(pixel(cx, cy), dimmed):
+                self.assertLessEqual(abs(part - want), 2, (pixel(cx, cy), dimmed))
+            for distance in (6, 7, 9):
+                self.assertEqual(pixel(cx + distance, cy), surface)
         finally:
             renderer.close()
 

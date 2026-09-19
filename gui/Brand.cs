@@ -202,28 +202,26 @@ namespace CodexAutoResume
         internal const int ElevInsetReachRight = 0;
         internal const int ElevInsetReachBottom = 0;
 
-        // The status light (brand.STATUS_DOT, brand.GLOW): the dot keeps its size, and the glow's
-        // numbers are the popup's and the panel's too.
+        // The status light (brand.STATUS_DOT, brand.GLOW): the dot keeps its size, and its cycle - fall,
+        // rise, bloom and withdraw, as fractions of it - and the glow's numbers are the popup's and the
+        // panel's too.
         internal const double StatusDotRadius = 5;
-        internal const double GlowExtent = 12.96;
-        internal const double GlowReach = 7;
-        internal const double GlowNearAt = 0.45;
+        internal const double GlowExtent = 8;
+        internal const double GlowFall = 0.25;
+        internal const double GlowRise = 0.4;
+        internal const double GlowBloom = 0.2;
+        internal const double GlowWithdraw = 0.15;
+        internal const double GlowDotDim = 0.6;
+        internal const double GlowPeak = 0.34;
+        internal const double GlowReach = 3;
+        internal const double GlowEdgeAlpha = 0.67;
+        internal const double GlowNearAt = 0.14;
         internal const double GlowNearAlpha = 0.58;
-        internal const double GlowFarAt = 0.78;
+        internal const double GlowFarAt = 0.66;
         internal const double GlowFarAlpha = 0.5;
         internal const double GlowMonitoringMs = 3200;
-        internal const double GlowMonitoringLow = 0.12;
-        internal const double GlowMonitoringHigh = 0.58;
-        internal const double GlowMonitoringScaleLow = 0.82;
-        internal const double GlowMonitoringScaleHigh = 1.08;
         internal const double GlowRecoveringMs = 2000;
-        internal const double GlowRecoveringLow = 0.2;
-        internal const double GlowRecoveringHigh = 0.7;
-        internal const double GlowRecoveringScaleLow = 0.88;
-        internal const double GlowRecoveringScaleHigh = 1.08;
-        internal const double GlowStill = 0.3;
         internal const double GlowAttentionMs = 1400;
-        internal const double GlowAttentionPeak = 0.72;
         internal const double GlowArcMs = 1600;
         internal const double GlowArcAlpha = 0.55;
         internal const double GlowArcGap = 3;
@@ -259,40 +257,32 @@ namespace CodexAutoResume
             return SystemColors.GrayText;
         }
 
-        /// The glow around the status dot for one frame, or false when the state has none.
-        /// brand.glow() in C#: `arc` is the checking arc's start angle in degrees, or -1, and a
-        /// negative or NaN sinceEnteredMs means the state's one pulse is over. The caller draws
-        /// no glow in High Contrast.
+        /// The status light for one frame, or false when the light is off: brand.glow() in C#. `dim` is
+        /// how far the dot is drawn from its colour toward the ground under it, `opacity` multiplies the
+        /// glow's falloff, `spread` is how far out the glow is - 0 none, 1 GlowReach past the dot's edge -
+        /// and `arc` is the checking arc's start angle in degrees, or -1. A negative or NaN sinceEnteredMs
+        /// means the state's one pulse is over. The caller neither dims the dot nor draws a glow in High
+        /// Contrast.
         internal static bool Glow(string state, double elapsedMs, double sinceEnteredMs, bool reduced,
-                                  out double opacity, out double scale, out double arc)
+                                  out double dim, out double opacity, out double spread, out double arc)
         {
+            dim = 0;
             opacity = 0;
-            scale = 1;
+            spread = 0;
             arc = -1;
             if (state == "monitoring")
-                return Breathe(elapsedMs, reduced, GlowMonitoringMs, GlowMonitoringLow, GlowMonitoringHigh,
-                               GlowMonitoringScaleLow, GlowMonitoringScaleHigh, out opacity, out scale);
+                return reduced || Light(elapsedMs % GlowMonitoringMs / GlowMonitoringMs, out dim, out opacity, out spread);
             if (state == "recovering")
-                return Breathe(elapsedMs, reduced, GlowRecoveringMs, GlowRecoveringLow, GlowRecoveringHigh,
-                               GlowRecoveringScaleLow, GlowRecoveringScaleHigh, out opacity, out scale);
-            if (state == "waiting")
-            {
-                opacity = GlowStill;
-                return true;
-            }
+                return reduced || Light(elapsedMs % GlowRecoveringMs / GlowRecoveringMs, out dim, out opacity, out spread);
+            if (state == "waiting") return true;
             if (state == "checking")
             {
-                opacity = GlowStill;
                 arc = reduced ? GlowArcStillAt : elapsedMs % GlowArcMs / GlowArcMs * 360.0;
                 return true;
             }
             if (state == "attention" || state == "failed")
-            {
-                opacity = GlowStill;
-                if (!reduced && sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs)
-                    opacity = GlowStill + (GlowAttentionPeak - GlowStill) * Breath(sinceEnteredMs, GlowAttentionMs);
-                return true;
-            }
+                return reduced || !(sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs)
+                       || Light(sinceEnteredMs / GlowAttentionMs, out dim, out opacity, out spread);
             return false;
         }
 
@@ -304,19 +294,25 @@ namespace CodexAutoResume
             return (state == "attention" || state == "failed") && sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs;
         }
 
-        private static bool Breathe(double elapsedMs, bool reduced, double cycleMs, double low, double high,
-                                    double small, double large, out double opacity, out double scale)
+        /// The light at `fraction` of GLOW's cycle (brand.glow_phase): the dot dims and comes back
+        /// with no glow, and only then, lit, the glow spreads and draws back in, each phase eased as
+        /// half a raised cosine.
+        private static bool Light(double fraction, out double dim, out double opacity, out double spread)
         {
-            if (reduced)
-            {
-                opacity = (low + high) / 2;
-                scale = 1;
-                return true;
-            }
-            double wave = Breath(elapsedMs, cycleMs);
-            opacity = low + (high - low) * wave;
-            scale = small + (large - small) * wave;
+            dim = 0;
+            spread = 0;
+            if (fraction < GlowFall) dim = GlowDotDim * Eased(fraction / GlowFall);
+            else if ((fraction -= GlowFall) < GlowRise) dim = GlowDotDim * (1.0 - Eased(fraction / GlowRise));
+            else if ((fraction -= GlowRise) < GlowBloom) spread = Eased(fraction / GlowBloom);
+            else spread = 1.0 - Eased((fraction - GlowBloom) / GlowWithdraw);
+            opacity = GlowPeak * spread;
             return true;
+        }
+
+        /// Half a raised cosine: 0 at 0, 1 at 1, with no corner at either end.
+        private static double Eased(double progress)
+        {
+            return 0.5 - 0.5 * Math.Cos(Math.PI * Math.Min(1.0, Math.Max(0.0, progress)));
         }
 
         /// 0 at the start of a cycle, 1 halfway, 0 again: a raised cosine.

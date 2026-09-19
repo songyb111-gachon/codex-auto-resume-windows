@@ -28,8 +28,9 @@ RECIPES = ("card", "control", "inset")
 SIDES = ("left", "top", "right", "bottom")
 STATES = ("monitoring", "waiting", "checking", "recovering", "attention", "failed", "paused", "idle",
           "stopped", "")
-ELAPSED = (0.0, 250.0, 900.0, 1100.0, 1799.0, 1800.0, 2700.0, 3600.0, 5000.0, 12345.6)
-SINCE = (-1.0, 0.0, 350.0, 700.0, 1399.0, 1400.0, 9000.0)
+ELAPSED = (0.0, 250.0, 800.0, 900.0, 1100.0, 1799.0, 1800.0, 2080.0, 2400.0, 2700.0, 2720.0, 3000.0, 3600.0,
+           5000.0, 12345.6)
+SINCE = (-1.0, 0.0, 350.0, 700.0, 1000.0, 1190.0, 1399.0, 1400.0, 9000.0)
 # recipe -> (width, height, margin) in CSS px; drawn at each scale
 BODIES = {"card": (240, 160, 32), "control": (160, 34, 16), "inset": (280, 35, 0)}
 GROUND = {"card": "canvas", "control": "surface", "inset": "inset"}
@@ -53,11 +54,12 @@ $profile = $elevation.GetMethod('Profile', $static)
 $render = $elevation.GetMethod('Render', $static)
 $reach = $elevation.GetMethod('Reach', $static, $null, [Type[]]@([string], [double]), $null)
 $opacity = $halo.GetMethod('HaloOpacity', $static)
-$scaleOf = $halo.GetMethod('HaloScale', $static)
+$dimOf = $halo.GetMethod('HaloDim', $static)
+$spreadOf = $halo.GetMethod('HaloSpread', $static)
 $arcOf = $halo.GetMethod('HaloArc', $static)
 $colour = $halo.GetMethod('DotColour', $static, $null, [Type[]]@([string], [bool]), $null)
 foreach ($pair in @(@('Profile', $profile), @('Render', $render), @('Reach', $reach), @('HaloOpacity', $opacity),
-                    @('HaloScale', $scaleOf), @('HaloArc', $arcOf), @('DotColour', $colour))) {
+                    @('HaloDim', $dimOf), @('HaloSpread', $spreadOf), @('HaloArc', $arcOf), @('DotColour', $colour))) {
     if (-not $pair[1]) { throw ('missing ' + $pair[0]) }
 }
 
@@ -106,8 +108,8 @@ foreach ($state in (ConvertFrom-Json $env:CAR_STATES)) {
             foreach ($reduced in @($false, $true)) {
                 $call = [object[]]@([string]$state, [double]$elapsed, [double]$since, [bool]$reduced)
                 $out.glow += ,@([string]$state, [double]$elapsed, [double]$since, [bool]$reduced,
-                                [double]$opacity.Invoke($null, $call), [double]$scaleOf.Invoke($null, $call),
-                                [double]$arcOf.Invoke($null, $call))
+                                [double]$opacity.Invoke($null, $call), [double]$dimOf.Invoke($null, $call),
+                                [double]$spreadOf.Invoke($null, $call), [double]$arcOf.Invoke($null, $call))
             }
         }
     }
@@ -267,14 +269,15 @@ class MaterialTests(unittest.TestCase):
 
     def test_the_glow_is_brands_for_every_state_and_moment(self):
         self.assertEqual(len(self.answer["glow"]), len(STATES) * len(ELAPSED) * len(SINCE) * 2)
-        for state, elapsed, since, reduced, opacity, scale, arc in self.answer["glow"]:
+        for state, elapsed, since, reduced, opacity, dim, spread, arc in self.answer["glow"]:
             frame = brand.glow(state, elapsed, since if since >= 0 else None, reduced=reduced)
             with self.subTest(state=state, elapsed=elapsed, since=since, reduced=reduced):
                 if frame is None:
-                    self.assertEqual((opacity, scale, arc), (0, 0, -1))
+                    self.assertEqual((opacity, dim, spread, arc), (0, 0, 0, -1))
                     continue
                 self.assertAlmostEqual(opacity, frame["opacity"], delta=1e-9)
-                self.assertAlmostEqual(scale, frame["scale"], delta=1e-9)
+                self.assertAlmostEqual(dim, frame["dim"], delta=1e-9)
+                self.assertAlmostEqual(spread, frame["spread"], delta=1e-9)
                 self.assertAlmostEqual(arc, -1 if frame["arc"] is None else frame["arc"], delta=1e-9)
 
     def test_the_dot_is_brands_colour_for_every_state(self):
@@ -777,9 +780,11 @@ class SourceRuleTests(unittest.TestCase):
 
     def test_the_status_light_is_a_flat_dot_and_its_glow_is_off_in_high_contrast(self):
         paint = self.body("protected override void OnPaint(PaintEventArgs e)\n        {\n            Graphics g = e.Graphics;\n            g.Clear(")
-        self.assertIn("using (var brush = new SolidBrush(colour)) g.FillEllipse(", paint,
+        self.assertIn("using (var brush = new SolidBrush(fill)) g.FillEllipse(", paint,
                       "the dot is one solid colour")
         self.assertIn("!Palette.Contrast", paint[:paint.index("Glow(g")], "no glow in High Contrast")
+        self.assertIn("Color fill = lit && dim > 0 && !Palette.Contrast ? Soft.WithAlpha(colour, 1 - dim) : colour;",
+                      paint, "the dot dims toward the card it was cleared to, and never in High Contrast")
         halo = self.controls[self.controls.index("internal sealed class HaloDot"):]
         self.assertNotIn("Palette.Waiting", halo, "waiting is drawn in the running cyan, not blue")
         self.assertIn("Brand.Glow(", halo)

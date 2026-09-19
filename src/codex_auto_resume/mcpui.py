@@ -69,8 +69,8 @@ _STYLE = r"""
   @ELEVATION_LIGHT@
   @TILE_LIGHT@
   @SCALE@
-  /* The glow's easing: a half-cosine, to within 0.002 of its phase, so a breath the stylesheet
-     draws is the same curve brand.glow() gives the window and the popup. */
+  /* The light's easing: half a raised cosine, to within 0.002 of each phase, so the cycle the
+     stylesheet draws is the same curve brand.glow() gives the window and the popup. */
   --glow-ease: cubic-bezier(.37, 0, .63, 1);
   /* Every transition on the page takes brand's time and brand's one curve, --transition and
      --transition-ease (MOTION, in the scale above): an ease-out, so a switch's knob, a check box's
@@ -139,47 +139,38 @@ button, select, input { font: inherit; }
 .hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .hero-actions > * { margin-top: 6px; }
 
-/* The status light: a flat dot, and a glow that says it is alive. The dot is the brand's
-   `active` cyan whenever the watcher runs with recovery on, whatever it is doing; the word
-   beside it and the motion tell those states apart. A light that is off - stopped, not known
-   to be running, or paused - keeps the grey it always had and has no glow at all, and amber is
-   for a watcher that runs and is not well.
+/* The status light: a flat dot that blinks the way the notification-area icon's head does. The
+   dot is the brand's `active` cyan whenever the watcher runs with recovery on, whatever it is
+   doing; the word beside it and the motion tell those states apart. A light that is off -
+   stopped, not known to be running, or paused - keeps the grey it always had and never moves,
+   and amber is for a watcher that runs and is not well.
 
-   The glow is a falloff, never a disc with an edge, and its numbers are brand's GLOW, the
-   ones the window and the notification-area popup draw with. Monitoring breathes slowly and
-   low; recovering a little quicker and brighter; waiting holds still; a problem pulses once,
-   when it is first shown, and then holds - nothing here blinks for attention it already has. */
+   The motion is brand's GLOW, the cycle the window and the notification-area popup draw: the
+   dot dims toward the card and comes back with nothing spreading (glow-dot), and only then, lit,
+   a small glow spreads from its edge and draws back in (glow-spread) - a falloff, never a disc
+   with an edge. Monitoring runs it slowly and recovering faster; a problem runs it once, when it
+   is first shown, and then holds lit; waiting and checking hold lit with no glow - nothing here
+   blinks for attention it already has. */
 .halo { --halo-color: var(--idle); position: relative; flex: none; width: 12px; height: 12px;
         border-radius: 50%; background: var(--halo-color); }
 .halo::before { content: none; position: absolute; inset: calc(-1 * var(--glow-reach));
-                border-radius: 50%; pointer-events: none; opacity: var(--glow-still);
+                border-radius: 50%; pointer-events: none; opacity: 0; transform: scale(var(--glow-from));
                 background: radial-gradient(circle closest-side,
-                  var(--halo-color) var(--glow-edge),
+                  color-mix(in srgb, var(--halo-color) var(--glow-edge-mix), transparent) var(--glow-edge),
                   color-mix(in srgb, var(--halo-color) var(--glow-near-mix), transparent) var(--glow-near),
                   color-mix(in srgb, var(--halo-color) var(--glow-far-mix), transparent) var(--glow-far),
                   transparent var(--glow-outer)); }
 .halo.monitoring, .halo.waiting, .halo.checking, .halo.recovering { --halo-color: var(--active); }
 .halo.attention { --halo-color: var(--attention); }
 .halo.paused { --halo-color: var(--paused); }
-.halo.monitoring::before, .halo.waiting::before, .halo.checking::before, .halo.recovering::before,
-.halo.attention::before { content: ""; }
-.halo.monitoring::before { opacity: var(--glow-monitoring-rest);
-                           animation: glow-monitoring var(--glow-monitoring-ms) var(--glow-ease) infinite; }
-.halo.recovering::before { opacity: var(--glow-recovering-rest);
-                           animation: glow-recovering var(--glow-recovering-ms) var(--glow-ease) infinite; }
-.halo.attention.once::before { animation: glow-attention var(--glow-attention-ms) var(--glow-ease) 1; }
-@keyframes glow-monitoring {
-  0%, 100% { opacity: var(--glow-monitoring-low); transform: scale(var(--glow-monitoring-scale-low)); }
-  50% { opacity: var(--glow-monitoring-high); transform: scale(var(--glow-monitoring-scale-high)); }
-}
-@keyframes glow-recovering {
-  0%, 100% { opacity: var(--glow-recovering-low); transform: scale(var(--glow-recovering-scale-low)); }
-  50% { opacity: var(--glow-recovering-high); transform: scale(var(--glow-recovering-scale-high)); }
-}
-@keyframes glow-attention {
-  0%, 100% { opacity: var(--glow-still); }
-  50% { opacity: var(--glow-attention-peak); }
-}
+.halo.monitoring::before, .halo.recovering::before, .halo.attention::before { content: ""; }
+.halo.monitoring { animation: glow-dot var(--glow-monitoring-ms) var(--glow-ease) infinite; }
+.halo.monitoring::before { animation: glow-spread var(--glow-monitoring-ms) var(--glow-ease) infinite; }
+.halo.recovering { animation: glow-dot var(--glow-recovering-ms) var(--glow-ease) infinite; }
+.halo.recovering::before { animation: glow-spread var(--glow-recovering-ms) var(--glow-ease) infinite; }
+.halo.attention.once { animation: glow-dot var(--glow-attention-ms) var(--glow-ease) 1; }
+.halo.attention.once::before { animation: glow-spread var(--glow-attention-ms) var(--glow-ease) 1; }
+@GLOW_KEYFRAMES@
 
 /* Controls rest on the card; values sit in wells. */
 button { min-height: var(--size-button-height); padding: var(--size-button-pad);
@@ -540,12 +531,11 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
   .segmented { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* A person who asked Windows for less motion gets none: every glow holds still at its resting
-   strength - the opacity each state's rule above already sets - nothing slides, a switch or a
-   check box simply changes, and a list simply appears. */
+/* A person who asked Windows for less motion gets none: every light holds lit with no glow,
+   nothing slides, a switch or a check box simply changes, and a list simply appears. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
-  .halo::before { transform: none; }
+  .halo::before { display: none; }
 }
 
 /* Windows High Contrast. The browser puts the person's system colours in place of the palette
@@ -625,6 +615,7 @@ _STYLE = (_STYLE.replace("@LIGHT@", brand.css_variables(brand.LIGHT))
                 .replace("@TILE_LIGHT@", tile_elevation("light"))
                 .replace("@TILE_DARK@", tile_elevation("dark"))
                 .replace("@SCALE@", brand.css_scale())
+                .replace("@GLOW_KEYFRAMES@", brand.css_glow_keyframes())
                 # Where a drop-down's words start, in its field and in its list: the field's own padding.
                 .replace("@SELECT_PAD_LEFT@", "%gpx" % brand.padding("select_pad")[3]))
 
