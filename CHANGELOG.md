@@ -1,5 +1,230 @@
 # Changelog
 
+## v0.6.5 — A light you can see, notifications in the product's own card, and a Codex Compatibility Registry
+
+A design and safety release. With the compatibility data this release ships, recovery decides
+exactly what it decided in v0.6.4: the same classifier, the same gates, the same one watcher that is
+the only thing allowed to send. What changed is how much of it you can see - a status light and an
+icon that visibly move, notifications drawn in the product's own design, controls that answer as
+they change - and a Codex Compatibility Registry, whose data can only ever make the watcher more
+careful. The one new setting, **Show notifications as a card beside the notification area**, is on
+by default and changes where a notification appears, never whether there is one or what it says.
+
+### The status light
+
+- v0.6.4's light was too quiet to be seen. While the watcher is watching, its glow now rises from
+  almost nothing to plainly lit and back every 3.2 s - opacity 0.12 to 0.58 - and grows from 82% to
+  108% of its reach as it brightens, so at its brightest it reads as a soft ring around the dot.
+  While a recovery is being sent it breathes faster: 0.20 to 0.70 every 2 s.
+- Waiting and checking hold at 0.30, and a problem pulses once, to 0.72 over 1.4 s, then holds. The
+  colours, the words beside the light and its size are unchanged, and it is the same light in the
+  Dashboard, the popup and the panel.
+- Reduce motion and Windows' animation setting still hold it still, and High Contrast still draws a
+  solid dot with no glow.
+
+### The notification-area icon moves
+
+- While the watcher is watching, the bright head of the mark breathes on the status light's 3.2 s
+  rhythm - dimming toward the badge's deep blue and back - and about every 30 seconds it travels
+  once, slowly, round the ring.
+- While a recovery is in progress - a continuation being sent, or the turn it started still being
+  followed - the head keeps travelling round the ring, a turn every 1.6 s, on the quicker breath.
+- Paused, the head is grey and still. When something needs you it turns amber - the danger colour
+  for a failure - pulses once and holds.
+- It holds still under Reduce motion, Windows' animation setting, High Contrast and battery saver,
+  while the session is locked, and while the icon sits in the overflow area where nobody sees it.
+  At rest it is exactly the icon it has always been; the badge and the shape are unchanged.
+
+### Notifications in the product's own card
+
+- A notification now appears as a card in the product's own design beside the notification area:
+  the popup's card, with the product's name, a status light and, for a detected interruption, the
+  kind of interruption on a chip. It says exactly what the Windows notification says - the same
+  three lines, in the Interface language - and offers exactly its buttons: **Don't resume** and
+  **Open Dashboard** for a detected interruption, none for anything else. A button does what the
+  notification's button does, and nothing more: it cancels that one recovery or opens that one page.
+- The card rises out of the corner the notification area is in, fading in and growing from 98% to
+  full size in about a third of a second, and never takes the keyboard focus. It stays at least 6
+  seconds - longer if Windows is set to keep notifications longer - and while the pointer is over
+  it, then fades. Up to three stack, the newest nearest the corner, and a newer card about the same
+  conversation replaces the older one. Under Reduce motion, Windows' animation setting, battery
+  saver or High Contrast it appears and disappears in place.
+- Once the card has been on screen, the same Windows notification is added to Windows'
+  notification center silently, with no banner and no sound, so the history is what it always was.
+  If a card cannot be drawn, Windows' own notification is raised instead.
+- Windows' own notification, exactly as before, is used whenever a card must not show: the setting
+  is off; the notification-area icon is off; Do not disturb or Focus is on; an app is full screen or
+  presenting; the session is locked or remote; a screen reader is running, because Windows'
+  notification is announced and a card that never takes the focus is not; or Codex Auto Resume's
+  notifications are switched off in Windows' Settings, in which case Windows shows nothing, as it
+  always did.
+- The setting is under Settings > General > Windows in the Dashboard, beside the notification-area
+  icon, with a line saying what it does. Codex cannot change it.
+- Which events notify and their wording did not change: the **Notifications** switch and the event
+  check boxes still decide whether there is a notification at all.
+
+### Depth in the popup
+
+- What stands on the popup's card is now raised and what holds a value is sunken: each waiting
+  task is a tile lifted off the card - a soft drop and highlight in light; in dark, a faint drop and
+  a one-pixel light along its top edge on a slightly brighter ground - the three counts sit in one
+  sunken well with a hairline between them, "nothing waiting" and a failed read are said from a well
+  too, and a button sinks into a well while it is pressed. High Contrast draws none of it.
+- In the panel in Codex, each waiting conversation's row and the Automatic recovery switch's tile
+  are lifted the same way.
+- The Dashboard's Pending and History lists stay flat rows with a hairline between them, as in
+  v0.6.4.
+- A count's label is never cut inside a word: a column whose longest word needs more room gets it.
+
+### The window's first screen
+
+- The Overview's **Pause recovery** or **Resume recovery**, **Pending** and **History** are back at
+  the bottom left of their cards, in a row of their own under what the card says, as in v0.6.2. The
+  header's **Start watcher** and the Custom messages' **Clear** buttons stay at the bottom right.
+- The window opens at 1000 × 664 instead of 1000 × 632. The Overview's rows are as tall as their
+  cards need and a little more, never more than 24 px past it, with the page's own 14 px gap under
+  the last row rather than cards stretched to the footer. On a screen whose work area is shorter -
+  1920 × 1080 at 150% with the taskbar, for one - it opens as tall as the work area, and the
+  Overview still fits there in every language.
+
+### Lists, drop-down lists and switches
+
+- Lists in the window no longer overflow sideways at ordinary sizes. As a list narrows, a
+  conversation's name gives way first, then what a column holds past a readable width, then
+  headings wider than what they head, the widest first, and last the cells, the widest first; what
+  no longer fits ends in an ellipsis, so a time or a count stays whole while a long name or state is
+  shortened. Only a list narrower than its columns can shrink to scrolls sideways, on the window's
+  own soft bar; Windows' white horizontal bar no longer shows.
+- Drop-down lists are drawn by the product, in the window and in the panel: a card of the cards'
+  own material floating under the field with the soft shadow, its items pills - the chosen one
+  sunken, the one under the pointer raised, the one the keyboard is on ringed. It opens where there
+  is room, shows up to twelve rows and scrolls the rest, rises into place unless motion is reduced,
+  and is drawn in system colours with no shadow in High Contrast. The keys are Windows': it opens on
+  a click, F4, Alt+Up, Alt+Down or Space, the arrows, Home, End, Page Up and Page Down move, typing
+  finds the next item that starts with what was typed, Enter or Tab takes an item and Escape closes
+  it unchanged. A screen reader hears it as a combo box with its choice and the item the keyboard is
+  on. In dark the open list is dark: v0.6.4 left it in Windows' light frame.
+- Switches glide when they change - the knob slides and the track cross-fades in 160 ms, on one
+  ease-out curve - in the window, the popup and the panel, and check boxes fade in the window and
+  the panel. A switch whose change has to be confirmed first - by you, or by the watcher - moves once,
+  when it is confirmed, and never slides and snaps back. Nothing moves under Reduce motion, Windows'
+  animation setting or High Contrast.
+
+### Words
+
+- The panel in Codex keeps Korean words whole when it wraps a line, and Japanese phrases; the
+  window breaks Korean lines only at spaces, where Windows used to break them inside a word.
+- The popup and the notification card set Latin text in Windows' UI font, as the window and the
+  panel do.
+- Everything new is in all nine languages.
+
+### Codex Compatibility Registry
+
+- For the Codex engine on this machine, the product now says which of the things it does can be
+  relied on, in four words: **verified** - the maintainer tested this exact Codex version, with
+  recorded evidence; **compatible** - the checks on this computer pass, and nobody has verified this
+  exact version; **incompatible** - a check on this computer failed, or the compatibility data says
+  this version does not work; **unknown** - it could not be established, because a check could not
+  run. It is on a new **Codex compatibility** card on the Diagnostics page, read-only in a card in
+  the panel, in `status` and `doctor`, in a new `compat` command, and in the diagnostics export.
+- The watcher does the checking as it runs: the checks the engine it drives has already passed,
+  the column names of Codex's databases (never a row), the folders recovery reads and the Windows
+  interface that tells whether a conversation is open. It writes what it found to
+  `config\compatibility.json`. Everything that shows it checks the file again as it reads it, and
+  shows unknown, saying why, for one that is damaged, too old, or about a Codex binary that has
+  since changed.
+- The data ships inside the release. The data this release ships marks no capability verified: a
+  verified entry has to cite a recording made on that exact Codex version, and none of the
+  repository's recordings says which version it was made on yet. So every capability is decided by
+  the checks on this computer - compatible where they pass - which is what the product did before
+  the registry existed. Its one restriction, for codex-cli 0.153.4, is on recovering a conversation
+  that is not open in the app, which this product does not do.
+- The one build v0.6.4 called verified, codex-cli 0.153.4, is now shown as compatible, and like
+  every other build it has to show that `codex queue` still offers `--thread` and `--message` before
+  anything is sent to it; v0.6.4 skipped that check for it.
+- The data is refreshed only when you ask: **Refresh compatibility data** on the Diagnostics card,
+  or **Check for updates** once github.com has answered it, whether or not an update exists. The
+  update check skips the refresh when github.com could not be reached and when too little of its
+  time is left, and its answer about updates is the same either way. Nothing polls, the watcher
+  never asks, and neither the panel nor Codex can ask. A refresh is one HTTPS GET to one fixed
+  address on raw.githubusercontent.com - this repository's own data file on its main branch - with
+  no query string and nothing about this machine in it.
+- What arrives is handed to this installation's own validator, which keeps it, as
+  `config\compat-cache.json`, only if it is compatibility data this version can read and no older
+  than what is in force; anything else is refused, and a refresh that fails or is refused changes
+  nothing. The card says what happened: refreshed with the data's number, refused and why, could
+  not be fetched, or busy while an installation or a repair is running.
+- Refreshed data can only make the watcher more careful. It can mark a Codex version incompatible,
+  and then nothing is sent while it is in force. It can mark something verified only for an exact
+  version whose checks on this computer already pass, which changes the word and not what is sent.
+  A check that fails on this computer always wins. Refreshed data past its expiry, about 90 days,
+  keeps its restrictions and loses its verifications.
+- Codex sees a summary: `get_status`, and `open_settings` with it, now carries the compatibility
+  summary as codes only - the overall result and the one the watcher acts on, whether the report
+  could be used, which data is in force and its number, the refreshed data's standing, when it was
+  checked, and each capability's state and reason. No version string, no path, no free text. No
+  tool can refresh or import the data.
+
+### Fixed
+
+- **`"enabled": "false"` turned automatic recovery on.** The window's bridge read its switches'
+  value with a plain truth test, so any non-empty text counted as yes: a request carrying `"false"`
+  switched recovery on and, for Run at Windows sign-in, wrote this product's sign-in autostart value;
+  a request with no value switched them off. The settings window always sends a real true or false,
+  so its own switches were not affected. Anything else is now refused, with the message and code
+  the control layer gives.
+- **Settings accepted or refused a value of the wrong type depending on the default.** An update
+  was compared with what it coerced to, so `{"notifications": 1}` was accepted and
+  `{"notifications": 0}` refused, and `{"reduce_motion": 0}` was accepted. A value is now checked
+  for the type the settings schema publishes first and refused if it is the wrong one, whatever it
+  equals. A settings file with such a value is still read as the default rather than refused.
+- **The log left out the reason for 14 of the 27 states a recovery can be in**, every outcome of a
+  recovery turn among them, and wrote the bare state name. Every state line now carries its reason
+  code, and still codes only.
+- **The release job did not check three things every installed copy requires of an update**:
+  `.codex-plugin/plugin.json`, `scripts/plugin_setup.py` and the icon at the payload's root. An
+  archive missing one would have been published and then refused by every installed copy. It checks
+  all ten entries now, and tests hold its list to what the bootstrap requires in both directions.
+- **A damaged plugin manifest passed as version "unknown", with nothing said.** The installation's
+  root is now found by its manifest rather than by counting folders, and a manifest that is there
+  but cannot be read logs a warning saying why, once, before the version reads unknown. A missing
+  manifest still reads unknown quietly.
+
+### Groundwork for splitting the Python code
+
+Nothing a user sees. Every safety scan in the tests now reads the whole package, recursively, so
+moving code into a subpackage can never take it out of a check's sight; the package's layers, each
+module's size and its structural invariants are held by tests; and the screenshot checks are keyed
+on what the window is shown rather than on which files changed. The split itself, and the golden
+replies, gathered rules and typed contracts that come before it, are v0.6.6.
+
+### Documents
+
+- `PRIVACY.md` and `SECURITY.md` describe the compatibility refresh - when it happens, its one
+  address, what is and is not sent, which file holds what and who writes it - the summary
+  `get_status` carries, and the notification card. The feature matrix, the brand document and the
+  roadmap describe the rest.
+
+### Evidence
+
+TO FILL: what was run, on which build, on which machine (Windows build, screen, scaling, language,
+app mode).
+
+- **The suite.** TO FILL
+- **The window, built twice.** TO FILL
+- **Clipping.** TO FILL
+- **Installed over v0.6.4.** TO FILL
+- **The compatibility card and its refresh, for real.** TO FILL
+- **Check for updates, and the refresh that rides on it.** TO FILL
+- **The notification card, on a real desktop.** TO FILL
+- **Windows' own notification where a card must not show.** TO FILL
+- **The icon's motion.** TO FILL
+- **The status light.** TO FILL
+- **Drop-down lists, switches and a screen reader.** TO FILL
+- **Korean and Latin text.** TO FILL
+
+Not verified, and not claimed: TO FILL
+
 ## v0.6.4 — One look in light and dark, a quieter status light, and a window that arrives ready
 
 A design and speed release. Recovery decides exactly what it decided in v0.6.3: the same
