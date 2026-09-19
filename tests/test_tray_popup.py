@@ -954,13 +954,21 @@ class FontTests(unittest.TestCase):
         if not powershell.is_file():
             self.skipTest("no Windows PowerShell to ask Windows Forms")
         import subprocess
+        # .NET names a family in the current UI culture, which a process started without a
+        # console may not share with Windows' own setting ('Malgun Gothic' or '맑은 고딕'), so
+        # the window's font is every name its family answers to: as the window sees it, in the
+        # installed UI language, and the language-neutral one.
         script = ("Add-Type -AssemblyName System.Drawing; "
-                  "([int[]][char[]][Drawing.SystemFonts]::MessageBoxFont.Name) -join ','")
+                  "$f = [Drawing.SystemFonts]::MessageBoxFont; "
+                  "$names = @($f.Name, $f.FontFamily.GetName([Globalization.CultureInfo]::InstalledUICulture.LCID), "
+                  "$f.FontFamily.GetName(0)); "
+                  "($names | ForEach-Object { ([int[]][char[]]$_) -join ',' }) -join ';'")
         done = subprocess.run([str(powershell), "-NoProfile", "-NonInteractive", "-Command", script],
                               capture_output=True, text=True, timeout=120)
         self.assertEqual(done.returncode, 0, done.stderr)
-        window = "".join(chr(int(point)) for point in done.stdout.strip().split(","))
-        self.assertEqual(face, window)
+        window = {"".join(chr(int(point)) for point in name.split(","))
+                  for name in done.stdout.strip().split(";") if name}
+        self.assertIn(face, window)
 
     @unittest.skipUnless(os.name == "nt", "GDI")
     def test_english_is_drawn_in_that_font(self):
