@@ -31,6 +31,12 @@ from codex_auto_resume import config, control, controlcli, settings, startup
 from codex_auto_resume.store import Store, StoreError
 from codex_auto_resume.windows import AdapterError, Mutex
 
+_HERE = str(Path(__file__).resolve().parent)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)        # srcscan lives next to this file
+
+import srcscan  # noqa: E402
+
 SRC = str(Path(__file__).resolve().parents[1] / "src")
 THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
 TURN = "0a1b2c3d-0002-7000-8000-000000000002"
@@ -342,10 +348,28 @@ class NotARecoveryEngineTests(ControlTestCase):
             self.assertFalse(any(word in name for word in forbidden), name)
 
     def test_the_module_never_imports_the_engine_or_the_source(self):
-        text = Path(control.__file__).read_text(encoding="utf-8")
-        for module in ("engine", "source", "messages"):
-            self.assertNotIn("from .%s import" % module, text)
-            self.assertNotIn("from . import %s" % module, text)
+        # Every file of the control layer, however many it becomes.
+        for path in srcscan.files_of("codex_auto_resume.control"):
+            text = srcscan.read(path)
+            for module in ("engine", "source", "messages"):
+                with self.subTest(file=srcscan.relative(path), module=module):
+                    self.assertNotIn("from .%s import" % module, text)
+                    self.assertNotIn("from . import %s" % module, text)
+        # And the whole package, however the import is spelled and wherever a control function
+        # has moved to: the modules that import any of the three are exactly the ones that
+        # always have, and control is not one of them.
+        importers = {}
+        for path in srcscan.package_files():
+            for entry in srcscan.imports(path):
+                if entry.target in ("codex_auto_resume.engine", "codex_auto_resume.source",
+                                    "codex_auto_resume.messages"):
+                    importers.setdefault(entry.target.rsplit(".", 1)[1], set()).add(srcscan.relative(path))
+        package = "codex_auto_resume/%s.py"
+        self.assertEqual(importers, {
+            "engine": {package % "app"},
+            "source": {package % name for name in ("app", "compatio", "controlcli", "engine")},
+            "messages": {package % name for name in ("app", "engine", "interface", "notifier", "notify")},
+        }, "the set of modules that reach the engine, the source or the messages has changed")
 
 
 class BridgeTests(ControlTestCase):
@@ -730,24 +754,41 @@ class ErrorCodeTests(ControlTestCase):
 
         Some of these fire only for a store a version ahead, or for a record that vanished
         between two statements. They are still refusals a Korean window has to have words
-        for, and walking the module is the only way to be sure of every one of them.
+        for, and walking the source is the only way to be sure of every one of them. The
+        walk covers the whole package, so a refusal that moves out of control.py is still
+        read wherever it lands.
         """
-        source = Path(control.__file__).read_text(encoding="utf-8")
-        raises = [node for node in ast.walk(ast.parse(source))
-                  if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "ControlError"]
-        self.assertGreaterEqual(len(raises), 20, "the walk found no refusals; the shape changed")
-        for node in raises:
-            with self.subTest(line=node.lineno):
+        raises = []
+        for path, tree in srcscan.package_asts().items():
+            raises += [(srcscan.relative(path), node) for node in ast.walk(tree)
+                       if isinstance(node, ast.Call) and "ControlError" in (getattr(node.func, "id", None),
+                                                                            getattr(node.func, "attr", None))]
+        coded = [(where, node) for where, node in raises if any(keyword.arg == "code" for keyword in node.keywords)]
+        self.assertGreaterEqual(len(coded), 20, "the walk found no refusals; the shape changed")
+        # The bridge's and the MCP server's own framing refusals - a malformed request, turned
+        # away before any control call - take the fallback code by leaving it out. Nothing else
+        # may: every other refusal names its code, and these are the only files that do not.
+        self.assertEqual({where for where, node in raises if (where, node) not in coded},
+                         {"codex_auto_resume/controlcli.py", "codex_auto_resume/mcpserver.py"},
+                         "a refusal outside the two front ends' framing carries no code")
+        named = set()
+        for where, node in coded:
+            with self.subTest(file=where, line=node.lineno):
                 keywords = {keyword.arg: keyword.value for keyword in node.keywords}
-                self.assertIn("code", keywords, "this refusal carries no code")
                 value = keywords["code"]
                 if isinstance(value, ast.Constant):
                     self.assertIn(value.value, control.ERROR_CODES, "not in the closed set")
+                    named.add(value.value)
                 else:
                     # The two table-driven refusals. Their whole vocabulary is the tables'
                     # own, checked in the next test and driven through a real store in
                     # tests/test_control_v3.py.
                     self.assertEqual(getattr(value, "id", None), "code")
+        # And the closed set is exactly what the package raises: every code a refusal names,
+        # every code the refusal tables hold, and the fallback - nothing unused, nothing extra.
+        tables = {code for name, table in vars(control).items() if name.startswith("_REFUSALS_")
+                  for _, code in table.values()}
+        self.assertEqual(named | tables | {control.FALLBACK_CODE}, set(control.ERROR_CODES))
 
     def test_the_refusal_tables_invent_no_code_of_their_own(self):
         tables = {name: table for name, table in vars(control).items()
@@ -1115,9 +1156,19 @@ class StopWatcherTests(ControlTestCase):
             self.assertEqual(killer.call_count, 0, name)
 
     def test_the_layer_holds_no_way_to_end_a_process(self):
-        text = Path(control.__file__).read_text(encoding="utf-8")
-        for call in ("os.kill", "taskkill", "TerminateProcess", ".terminate(", ".kill("):
-            self.assertNotIn(call, text, call)
+        # Asked of every file in the package: the one place anything is ended is the Codex
+        # adapter stopping its own finite helper (a `codex queue` that outlived its timeout,
+        # an App Server it started), so a way to end a process appearing in any other file -
+        # a control function moved there included - fails here.
+        own_helper = {"codex_auto_resume/windows.py"}
+        for call, holders in (("os.kill", set()), ("taskkill", set()), ("TerminateProcess", set()),
+                              (".terminate(", own_helper), (".kill(", own_helper)):
+            with self.subTest(call):
+                self.assertEqual(srcscan.holders(call), holders, call)
+        for path in srcscan.files_of("codex_auto_resume.control"):
+            text = srcscan.read(path)
+            for call in ("os.kill", "taskkill", "TerminateProcess", ".terminate(", ".kill("):
+                self.assertNotIn(call, text, call)
 
     def test_every_reply_is_content_free(self):
         # Four words and two flags. No path, no interruption id, no exception text, in any
