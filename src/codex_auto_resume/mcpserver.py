@@ -704,8 +704,8 @@ def main(argv=None) -> int:
     home = args.home or config.installed_home()
     # Line buffering keeps a reply from sitting in a buffer while the client waits.
     try:
-        sys.stdout.reconfigure(encoding="utf-8", newline="\n")
-        sys.stdin.reconfigure(encoding="utf-8")
+        controlcli.use_utf8(sys.stdout)
+        controlcli.use_utf8(sys.stdin, newline=None)
     except AttributeError:
         pass
     return Server(Control(home)).serve()
