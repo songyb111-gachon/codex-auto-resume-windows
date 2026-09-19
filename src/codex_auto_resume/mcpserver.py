@@ -28,7 +28,7 @@ import json
 import math
 import sys
 
-from . import config, l10n, settings as policy
+from . import config, controlcli, l10n, settings as policy
 from .control import Control, ControlError
 
 PROTOCOL_VERSION = "2025-06-18"
@@ -279,7 +279,8 @@ TOOLS = [
         "description": "Counts of interruptions and how their recoveries ended, and "
                        "median waits, over the last N days or all time. Content-free.",
         "inputSchema": {"type": "object",
-                        "properties": {"days": {"type": "number", "minimum": 1, "maximum": 3650}},
+                        "properties": {"days": {"type": "number", "minimum": controlcli.DAYS[0],
+                                                "maximum": controlcli.DAYS[1]}},
                         "additionalProperties": False},
         "annotations": {"readOnlyHint": True, "destructiveHint": False,
                         "idempotentHint": True, "openWorldHint": False},
@@ -647,11 +648,7 @@ class Server:
                            "sent; every check still applies.", result)
 
     def _tool_get_recovery_statistics(self, arguments) -> dict:
-        days = arguments.get("days")
-        if days is not None and (isinstance(days, bool) or not isinstance(days, (int, float))
-                                 or not 1 <= days <= 3650):
-            raise ControlError("days must be a number from 1 to 3650")
-        result = self.control.statistics(days)
+        result = self.control.statistics(controlcli.statistics_days(arguments))
         rate = result.get("success_rate")
         return self._reply("%d interruptions, %d continuations sent, %d recovered; success rate %s." % (
             result["interruptions_detected"], result["continuations_submitted"],
