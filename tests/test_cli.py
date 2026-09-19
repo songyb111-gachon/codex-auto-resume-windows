@@ -719,6 +719,36 @@ class DiscoveryTests(unittest.TestCase):
                 with self.assertRaises(config.ConfigError):
                     config.discover_codex_exe(str(bin_dir / "missing.exe"), lambda p: None)
 
+    def test_a_refusal_names_the_checks_that_failed_and_no_version(self):
+        """When no build passes, the message says which engine check refused each one, by
+        its reason code, and repeats nothing else an exception said. It names no version:
+        none has been required to match since v0.2.0, and the Compatibility Registry that
+        replaced the pin never requires one either. A build named explicitly is refused by
+        its check's own error, which is the check's code."""
+        refusals = {"aaaa": AdapterError("unsupported_codex_location"),
+                    "bbbb": AdapterError("codex_binary_unavailable"),
+                    "cccc": RuntimeError("C:\\Users\\someone\\codex.exe could not be read")}
+
+        def refuse(path):
+            raise refusals[path.parent.name]
+
+        with tempfile.TemporaryDirectory() as temp:
+            bin_dir = Path(temp) / "OpenAI" / "Codex" / "bin"
+            for name in refusals:
+                (bin_dir / name).mkdir(parents=True)
+                (bin_dir / name / "codex.exe").write_bytes(b"")
+            with patch.dict(os.environ, {"LOCALAPPDATA": temp}, clear=False):
+                with self.assertRaises(config.ConfigError) as caught:
+                    config.discover_codex_exe(None, refuse)
+                with self.assertRaises(AdapterError) as named:
+                    config.discover_codex_exe(str(bin_dir / "bbbb" / "codex.exe"), refuse)
+        message = str(caught.exception)
+        self.assertIn("(check_failed, codex_binary_unavailable, unsupported_codex_location)", message)
+        self.assertIn("`codex --version`", message)
+        self.assertNotIn("someone", message)
+        self.assertNotRegex(message, r"\d+\.\d+", "a version pin in the refusal")
+        self.assertEqual(str(named.exception), "codex_binary_unavailable")
+
 
 class EntryPointTests(unittest.TestCase):
     """The documented command has to work with the interpreter that actually ships.
