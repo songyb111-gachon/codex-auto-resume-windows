@@ -65,6 +65,11 @@ COLOURS = (brand.rgb(brand.ICON_ACCENT), tray.icon_head_colour("idle"), tray.ico
 NOW = 1_800_000_000.0
 
 
+def for_light(light):
+    """The tray icon's state for a status-light word (tray.ICON_FOR_LIGHT); anything else is idle."""
+    return tray.ICON_FOR_LIGHT.get(light, "idle")
+
+
 def window_cases():
     """Every kind of status the window's header light is decided from (SettingsForm.Activity), with what the tray's
     own rule makes of the same watcher: a tick snapshot and its attention, or - for a watcher that is not running,
@@ -565,7 +570,7 @@ class TaskbarMarkTests(unittest.TestCase):
         self.assertEqual(list(lights), list(LIGHTS))
         for light in LIGHTS:
             with self.subTest(light=light):
-                self.assertEqual(lights[light], tray.icon_state_for_light(light))
+                self.assertEqual(lights[light], for_light(light))
         self.assertEqual({lights[light] for light in brand.STATUS_FILL}, set(tray.ICON_STATES))
 
     def test_every_status_the_window_can_see_is_the_tray_icon_s_state_for_the_same_watcher(self):
@@ -577,7 +582,7 @@ class TaskbarMarkTests(unittest.TestCase):
                 got_light, got_icon = rows[name]
                 self.assertEqual(got_light, light, "the window's light for this status")
                 if tray_side is None:
-                    expected = tray.icon_state_for_light(light)       # no watcher, no tray icon: its rule for the light
+                    expected = for_light(light)       # no watcher, no tray icon: its rule for the light
                 else:
                     snapshot, attention = tray_side
                     expected = tray.icon_state(snapshot, attention=attention)
@@ -767,7 +772,7 @@ class TaskbarMarkTests(unittest.TestCase):
             with self.subTest(snapshot=name):
                 dot, state, _ = rows[name]
                 self.assertEqual(dot, light)
-                self.assertEqual(state, tray.icon_state_for_light(light))
+                self.assertEqual(state, for_light(light))
 
     def test_the_window_makes_its_mark_only_with_its_own_icon_and_asks_it_again_every_second(self):
         settings = (GUI / "SettingsApp.cs").read_text(encoding="utf-8")

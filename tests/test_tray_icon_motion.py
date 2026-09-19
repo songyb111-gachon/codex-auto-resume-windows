@@ -26,6 +26,11 @@ TOP = MOTION["levels"] - 1
 EVERY, TURN = MOTION["turn_every_ms"], MOTION["turn_ms"]
 
 
+def for_light(light):
+    """The icon's state for a status-light word, as the window's taskbar button has it (Brand.Mark.IconState)."""
+    return tray.ICON_FOR_LIGHT.get(light, "idle")
+
+
 # ------------------------------------------------------------------------------ the states
 class StateTests(unittest.TestCase):
     def test_the_icon_has_five_states_each_a_brand_status_light_state(self):
@@ -79,10 +84,10 @@ class StateTests(unittest.TestCase):
         self.assertEqual(set(tray.ICON_FOR_LIGHT.values()), set(tray.ICON_STATES))
         for state, light in tray.ICON_BRAND_STATE.items():
             with self.subTest(state=state):
-                self.assertEqual(tray.icon_state_for_light(light), state)
+                self.assertEqual(for_light(light), state)
         for unknown in ("", None, "stopped", "watching", "Monitoring"):
             with self.subTest(unknown=unknown):
-                self.assertEqual(tray.icon_state_for_light(unknown), "idle")
+                self.assertEqual(for_light(unknown), "idle")
         now = 1000.0
         snapshots = [{}, None, {"enabled": True, "waiting": 0, "running": 0, "next_at": None},
                      {"enabled": True, "waiting": 3, "running": 0, "next_at": now + 100},
@@ -94,7 +99,7 @@ class StateTests(unittest.TestCase):
                 for failed in (False, True):
                     light = "failed" if failed else popup.snapshot_activity(snapshot, now, attention=attention)
                     with self.subTest(snapshot=snapshot, attention=attention, failed=failed, light=light):
-                        self.assertEqual(tray.icon_state_for_light(light),
+                        self.assertEqual(for_light(light),
                                          tray.icon_state(snapshot, attention=attention, failed=failed))
 
     def test_the_head_is_the_mark_s_accent_while_running_and_the_state_s_colour_otherwise(self):

@@ -231,22 +231,14 @@ def prefer_app_mode(mode) -> bool:
 # recovering_ms (recovering's breath), arc_ms (recovering's turn) and attention_ms (the one
 # pulse). The glow's reach, stops, opacities, scales and the arc's look are the windows' and are
 # ignored here. Its own numbers are ICON_MOTION's, deliberately not in brand.GLOW: every GLOW key
-# is generated into the window's status light (Brand.cs), which draws none of these.
-#
-# The window's taskbar button wears the same motion while the window is open (v0.6.5): the
-# window's big icon, which is what Windows draws the button from, is this icon's frames at the
-# big icon's size. build/make_brand.py generates the rule below, these numbers and the frames
-# themselves - IconFrames' own pixels, not a second drawing - into Brand.Mark in gui/Brand.cs.
+# is the windows' status light's; the window's taskbar button reads these from Brand.Mark instead.
 ICON_STATES = ("watching", "recovering", "idle", "attention", "failed")
 # The icon's state as a brand status-light state: its colour and its rhythm. Every value is a
 # key of brand.STATUS_FILL; anything unknown is idle grey, as brand.status_fill is.
 ICON_BRAND_STATE = {"watching": "monitoring", "recovering": "recovering", "idle": "idle",
                     "attention": "attention", "failed": "failed"}
-# The same rule read from the other side, for the window: it knows the state its header's status
-# light shows, not the tick's snapshot. Every running state is watching, a continuation in Codex is
-# recovering, a pause and a watcher that is not running are idle, and a problem keeps its own.
-# Every key of brand.STATUS_FILL is here, anything else is idle, and icon_state is this applied to
-# the popup's word for the same snapshot (tests/test_tray_icon_motion.py holds the two equal).
+# The icon's state for each status-light word: the popup's for a snapshot (icon_state), and the window's
+# header light's, for its taskbar button (Brand.Mark.IconState, build/make_brand.py). Anything else is idle.
 ICON_FOR_LIGHT = {"monitoring": "watching", "waiting": "watching", "checking": "watching",
                   "recovering": "recovering", "paused": "idle", "idle": "idle",
                   "attention": "attention", "failed": "failed"}
@@ -271,31 +263,21 @@ ICON_HEAD_PALETTE = {"idle": "light", "attention": "dark", "danger": "dark"}
 
 
 def icon_state(snapshot, *, attention=False, failed=False) -> str:
-    """The icon's state from the tick's snapshot: one of ICON_STATES.
+    """The icon's state from the tick's snapshot: one of ICON_STATES, ICON_FOR_LIGHT of the popup's word.
 
     `attention` is what the badge already uses (the open popup says nothing can recover until a
     person acts); `failed` is a failure the watcher reports. Neither is ever inferred here.
     """
     if failed:
         return "failed"
-    if attention:
-        return "attention"
-    snapshot = snapshot or {}
-    if snapshot and not snapshot.get("enabled", True):
-        return "idle"
-    if snapshot.get("running"):
-        return "recovering"
-    return "watching"
+    from . import tray_popup
+    word = tray_popup.snapshot_activity(snapshot, time.time(), attention=attention)
+    return ICON_FOR_LIGHT.get(word, "idle")
 
 
 def icon_brand_state(state) -> str:
     """The brand status-light state an icon state is drawn as; anything unknown is idle."""
     return ICON_BRAND_STATE.get(state, "idle")
-
-
-def icon_state_for_light(light) -> str:
-    """The icon's state for a status-light state (ICON_FOR_LIGHT); anything unknown is idle."""
-    return ICON_FOR_LIGHT.get(light, "idle")
 
 
 def icon_head_colour(state) -> tuple:
@@ -402,7 +384,7 @@ class IconFrames:
     colour with the arithmetic a whole render uses. Position 0 in the accent is therefore the .ico's
     own image at that size, byte for byte. A frame is that, the head's colour at a breathing level,
     and the badge composited last exactly as tray_popup.badge_icon does it. Top-down BGRA with
-    straight alpha, as icon bitmaps are.
+    straight alpha, as icon bitmaps are. `ground` and `heads` go into the window's Brand.Mark as they are.
     """
 
     def __init__(self, size):
@@ -416,36 +398,24 @@ class IconFrames:
                 red, green, blue, alpha = brand.icon_pixel(sample, (0, 0, 0))
                 index = (y * size + x) * 4
                 base[index:index + 4] = bytes((blue, green, red, alpha))
-        self._base = bytes(base)
-        self._heads = []
+        self.ground = bytes(base)
+        self.heads = []
         for position in range(positions):
             angle = brand.ICON_SHAPE["arc_end"] + 360.0 * position / positions
             box = brand.icon_head_box(size, angle)
-            self._heads.append((box, brand.icon_samples(size, head_angle=angle, box=box)))
+            self.heads.append((box, brand.icon_samples(size, head_angle=angle, box=box)))
         self._cache = {}
-
-    @property
-    def ground(self) -> bytes:
-        """The mark without its head, top-down BGRA: what every frame starts from."""
-        return self._base
-
-    @property
-    def heads(self) -> tuple:
-        """Per head position, ((left, top, right, bottom), rows of icon_samples) for the pixels the head
-        can touch there: what compose draws over the ground. build/make_brand.py writes these into the
-        window's Brand.Mark, so its taskbar button is composed from exactly these samples."""
-        return tuple(self._heads)
 
     def compose(self, position, head, badge=None) -> bytes:
         """One frame: the head at `position` in `head` (red, green, blue), and the badge's dot in
         `badge` (red, green, blue) or none."""
-        key = (int(position) % len(self._heads), tuple(head), tuple(badge) if badge else None)
+        key = (int(position) % len(self.heads), tuple(head), tuple(badge) if badge else None)
         cached = self._cache.get(key)
         if cached is not None:
             return cached
         size = self.size
-        pixels = bytearray(self._base)
-        (left, top, _, _), rows = self._heads[key[0]]
+        pixels = bytearray(self.ground)
+        (left, top, _, _), rows = self.heads[key[0]]
         for y, row in enumerate(rows):
             for x, sample in enumerate(row):
                 red, green, blue, alpha = brand.icon_pixel(sample, key[1])
