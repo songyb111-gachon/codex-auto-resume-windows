@@ -12,26 +12,47 @@ wrong. Reading the version out of a PNG is the other tempting approach and is wo
 turns a hard question into a flaky one, and it would still miss a layout change that moved
 a control.
 
-Two kinds of input, and the difference matters:
+Three kinds of input, and the difference matters:
 
 * The **panel** is hashed by the markup it renders. That cannot fall behind - the version,
   the settings schema, the fields a pending row carries and the palette all reach the HTML
   wherever in the package they live - and editing a comment cannot fire it.
-* The **window** is a compiled application, so its inputs are a list, and a list is exactly
-  what went wrong the first time: seven files named, five that change the picture missed.
-  It is as short as it can be, and a comment in `SettingsApp.cs` will fire this check
-  unnecessarily. That cost is real and it is the smaller one.
+* The **window** is a compiled application, so the files it is compiled from are a list,
+  and a list is exactly what went wrong the first time: seven files named, five that change
+  the picture missed. It is as short as it can be, and a comment in `SettingsApp.cs` will
+  fire this check unnecessarily. That cost is real and it is the smaller one. Everything
+  the window shows arrives over the bridge, though, and that half is hashed the way the
+  panel is: by what the bridge answers the window (`<bridge envelope:*>`), not by the
+  fifteen package files it was until v0.6.5 - so moving code inside the package cannot fire
+  it, and a changed word, row, figure, name or status cannot slip past it.
+* The **popup** is hashed by the view it draws and by the definitions that draw it, pooled
+  by name across its modules and the palette's - and across the definitions they import by
+  name from anywhere else, wherever those live - so moving one between modules cannot fire
+  it and changing one does.
 
 So this fires whenever something the picture is drawn from changed - not, as an earlier
 version of this paragraph claimed, exactly when the picture stopped being true.
 """
 from __future__ import annotations
 
+import ast
+from contextlib import ExitStack
 import hashlib
 import json
+import os
 from pathlib import Path
+import re
 import struct
+import sys
+import tempfile
 import unittest
+from unittest.mock import patch
+
+_HERE = str(Path(__file__).resolve().parent)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)        # srcscan lives next to this file
+
+import srcscan  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "assets" / "screenshots.json"
@@ -136,31 +157,105 @@ class ManifestTests(unittest.TestCase):
     def test_the_window_inputs_include_what_the_dashboard_is_computed_by(self):
         """The window's list went stale once already, by missing files like these.
 
-        The Dashboard computes its figures, rows, names, headline and footer from the
-        package at capture time, so each of these can change the picture without the
-        layout changing at all. Nothing can prove a compiled window's list complete; this
-        stops a file that is known to matter from falling off it again.
+        Its compiled half is still a list, so every C# file `make_gui.ps1` compiles into the
+        window is on it, beside what the compiler is handed and the scripts that capture it.
+
+        Its Python half is the bridge envelope. A missing file cannot happen there, but a
+        missing question can - so each thing the Dashboard's figures, rows, names, headline and
+        footer are computed from is changed here, one at a time, and must move the envelope.
+        Each change is named for the file this list used to name for it, so nothing that list
+        guarded is guarded less: it is guarded by what it computes, wherever that code lives.
         """
-        inputs = set(self.generator().WINDOW_INPUTS)
-        expected = (
-            "src/codex_auto_resume/store.py",
-            "src/codex_auto_resume/source.py",
-            "src/codex_auto_resume/config.py",
-            "src/codex_auto_resume/messages.py",
-            "src/codex_auto_resume/windows.py",
-            "src/codex_auto_resume/startup.py",
-            "src/codex_auto_resume/control.py",
-            "src/codex_auto_resume/controlcli.py",
-            "src/codex_auto_resume/machine.py",
-            "src/codex_auto_resume/interface.py",
-            "gui/Dashboard.cs",
-            "gui/SettingsApp.cs",
-            "tests/codexsim.py",
-        )
-        missing = [name for name in expected if name not in inputs]
-        self.assertEqual(missing, [],
-                         "the window is computed from these, so a change to one of them "
+        generator = self.generator()
+        inputs = set(generator.WINDOW_INPUTS)
+        build = (ROOT / "build" / "make_gui.ps1").read_text(encoding="utf-8")
+        window = re.search(r"Build -Name 'CodexAutoResumeSettings\.exe'.*?-Sources @\(([^\n]*)", build, re.S)
+        compiled = {"gui/" + name for name in re.findall(r"gui\\([A-Za-z]+\.cs)", window.group(1))}
+        self.assertIn("gui/Dashboard.cs", compiled)
+        self.assertIn("gui/SettingsApp.cs", compiled)
+        expected = compiled | {"gui/app.manifest", "assets/codex-auto-resume.ico",
+                               ".codex-plugin/plugin.json", "build/capture_window.ps1",
+                               "build/make_gui.ps1", "build/make_screenshots.py"}
+        self.assertEqual(sorted(expected - inputs), [],
+                         "the window is compiled from these, so a change to one of them "
                          "must mark the screenshots stale")
+        self.assertEqual(sorted(name for name in inputs if name.startswith(("src/", "tests/"))), [],
+                         "what the package computes reaches the window through the bridge, and is "
+                         "hashed there; a file listed here would fire on every move")
+        for locale in generator.LOCALES + generator.EXTRA_LOCALES:
+            self.assertIn("<bridge envelope:%s>" % locale, self.manifest["inputs"])
+
+        import codexsim
+        from codex_auto_resume import (config, continuation, control, controlcli, l10n, machine,
+                                       settings, startup, windows)
+        from codex_auto_resume.source import LocalSource
+        from codex_auto_resume.store import Store
+
+        def changed(owner, name, change):
+            real = getattr(owner, name)
+            return patch.object(owner, name, lambda *args, **kwargs: change(real(*args, **kwargs)))
+
+        def several(*patches):
+            def enter():
+                stack = ExitStack()
+                for each in patches:
+                    stack.enter_context(each())
+                return stack
+            return enter
+
+        real_add_thread = codexsim.CodexHome.add_thread
+        nowhere = Path(tempfile.gettempdir()) / "no-codex-home-for-the-envelope"
+        perturbations = {
+            "store.py - the Statistics figures":
+                lambda: changed(Store, "statistics", lambda figures: dict(
+                    figures, interruptions_detected=figures["interruptions_detected"] + 1)),
+            "store.py - the pending rows":
+                lambda: changed(Store, "pending", lambda rows: rows[:-1]),
+            "store.py - the order of the history":
+                lambda: changed(Store, "history", lambda rows: list(reversed(rows))),
+            "store.py - the heartbeat behind 'checking'":
+                lambda: changed(Store, "watcher_status", lambda status: dict(
+                    status, last_tick_at=status["last_tick_at"] - 3600)),
+            "source.py - the conversation names, via LocalSource.identity":
+                lambda: changed(LocalSource, "identity", lambda found: dict(found, name="renamed")),
+            "config.py - the version it reads":
+                lambda: patch.object(config, "version", return_value="9.9.9"),
+            "config.py - the Codex home the names are read from":
+                lambda: patch.object(config, "codex_home", return_value=nowhere),
+            "locales/*.json, l10n.py, interface.py - a word of the window":
+                lambda: changed(l10n, "catalog", lambda words: dict(
+                    words, **{"nav.pending": words["nav.pending"] + "!"})),
+            "messages.py - which language the window is resolved to":
+                lambda: patch.object(l10n, "resolve", return_value="ko"),
+            "startup.py - the start-at-sign-in value":
+                several(lambda: patch.object(startup, "current_value", return_value="registered"),
+                        lambda: patch.object(startup, "belongs_to", return_value=True)),
+            "control.py - what a row carries":
+                lambda: changed(control, "describe_record", lambda row: dict(row, budget_resets_left=0)),
+            "machine.py - which public status a row shows":
+                lambda: changed(machine, "public_code", lambda code: "failed_retryable"),
+            "controlcli.py - the envelope the window unpacks":
+                lambda: changed(controlcli, "dispatch", lambda reply: dict(reply, extra=True)),
+            "settings.py - the schema that decides which rows exist":
+                lambda: changed(settings, "describe", lambda fields: fields[:-1]),
+            "continuation.py, reasons.py - the Settings page's Preview":
+                lambda: changed(continuation, "for_settings", lambda text: text + " Thanks."),
+            "tests/codexsim.py - the synthetic Codex home the names come from":
+                lambda: patch.object(codexsim.CodexHome, "add_thread",
+                                     lambda sim, thread, *, name=None, **rest: real_add_thread(
+                                         sim, thread, name=(name or "").upper(), **rest)),
+        }
+        if os.name == "nt":
+            # Not acquired, so nothing holds it and the probe finds it free.
+            perturbations["windows.py - the mutex that decides 'watching'"] = several(
+                lambda: patch.object(windows.Mutex, "__enter__", lambda mutex: mutex),
+                lambda: patch.object(windows.Mutex, "__exit__", lambda mutex, *unused: None))
+        before = generator.bridge_envelope("en")
+        for what, change in perturbations.items():
+            with self.subTest(what), change():
+                self.assertNotEqual(generator.bridge_envelope("en"), before,
+                                    "%s changes the window without moving its manifest entry" % what)
+        self.assertEqual(generator.bridge_envelope("en"), before)
 
     def test_the_committed_images_are_the_ones_the_manifest_describes(self):
         wrong = [name for name, recorded in self.manifest["images"].items()
@@ -470,6 +565,404 @@ class ContentTests(unittest.TestCase):
             sys.path.pop(0)
             sys.path.pop(0)
 
+
+def generator():
+    """`build/make_screenshots.py`, imported the way the manifest tests import it."""
+    sys.path.insert(0, str(ROOT / "build"))
+    try:
+        import make_screenshots
+        return make_screenshots
+    finally:
+        sys.path.pop(0)
+
+
+def strings_in(value):
+    """Every string in a parsed JSON value, keys included."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            yield key
+            yield from strings_in(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from strings_in(item)
+
+
+class EnvelopeTests(unittest.TestCase):
+    """What the window is shown, as a manifest input: the same tree gives the same text anywhere.
+
+    The envelope stands in the manifest for fifteen of the package's files, so it has to be as
+    reproducible as their bytes were: recorded on one machine, recomputed on a CI runner in
+    another language, time zone, code page and temporary directory, on three Pythons. The
+    generator pins the clock, the paths, the process id and the machine's answers; these check
+    that the pins hold, and that nothing it does can reach the real registry.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.generator = generator()
+        cls.envelope = cls.generator.bridge_envelope("en")
+        cls.lines = [json.loads(line) for line in cls.envelope.splitlines()]
+
+    def reply(self, command):
+        return next(line["reply"] for line in self.lines if line["command"] == command)
+
+    def test_the_envelope_is_the_same_from_another_root_temp_profile_and_clock(self):
+        """A second scratch installation, under a temporary directory whose name has a space and
+        non-ASCII letters, another profile directory, the product's own overrides set to values
+        that would change the answer if anything read them, and the real clock a year on."""
+        import time
+        with tempfile.TemporaryDirectory() as scratch:
+            temp, profile = Path(scratch) / "다른 임시 é", Path(scratch) / "profile ü"
+            temp.mkdir()
+            profile.mkdir()
+            elsewhere = {"TEMP": str(temp), "TMP": str(temp), "USERPROFILE": str(profile),
+                         "CODEX_AUTO_RESUME_LANG": "fr",
+                         "CODEX_AUTO_RESUME_HOME": str(Path(scratch) / "another-home"),
+                         "CODEX_AUTO_RESUME_CODEX_EXE": str(Path(scratch) / "codex.exe"),
+                         "CODEX_HOME": str(Path(scratch) / "another-codex")}
+            with patch.dict(os.environ, elsewhere), patch.object(tempfile, "tempdir", str(temp)), \
+                    patch.object(time, "time", return_value=time.time() + 365 * 86400):
+                again = self.generator.bridge_envelope("en")
+        self.assertEqual(again, self.envelope)
+
+    def test_the_envelope_names_no_path_of_this_machine(self):
+        spellings = set()
+        for directory in (ROOT, Path(tempfile.gettempdir()), Path.home()):
+            for path in (directory, directory.resolve()):
+                spellings.update((str(path).lower(), path.as_posix().lower()))
+        texts = [text.lower() for line in self.lines for text in strings_in(line)]
+        for spelling in spellings:
+            with self.subTest(spelling):
+                self.assertEqual([text for text in texts if spelling in text], [])
+
+    def test_a_path_in_an_answer_is_written_as_its_placeholder(self):
+        """None of today's answers carries a path; the day one does, it is rewritten, not hashed."""
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch)
+            spellings = self.generator._spellings(("<scratch>", root / "work"), ("<temp>", root))
+            answer = {"log": str(root / "work" / "home" / "auto-resume.log"),
+                      "other": (root / "elsewhere").as_posix().upper(), "count": 3,
+                      "rows": [str(root / "work")]}
+            self.assertEqual(self.generator._canonical(answer, spellings),
+                             {"log": "<scratch>" + os.sep + "home" + os.sep + "auto-resume.log",
+                              "other": "<temp>/ELSEWHERE", "count": 3, "rows": ["<scratch>"]})
+
+    def test_the_pinned_values_are_the_ones_the_answers_carry(self):
+        status = self.reply("status")["status"]
+        self.assertEqual(status["watcher"]["pid"], self.generator.ENVELOPE_PID)
+        self.assertEqual(status["watcher"]["last_tick_at"], self.generator.ENVELOPE_NOW - 1)
+        # What the capture shows: a watcher running and checking, recovery on, not registered.
+        self.assertEqual((status["watcher_running"], status["watcher"]["ticking"], status["enabled"],
+                          status["startup_enabled"]), (True, True, True, False))
+        self.assertEqual(self.reply("strings")["language"], "en")
+        self.assertEqual(self.reply("strings")["system_language"], "en",
+                         "the language Windows asks for is the locale being rendered, not this machine's")
+        names = {row["name"] for row in self.reply("dashboard")["pending"]}
+        self.assertEqual(names, {"example-project", "example-service"},
+                         "the names come from the synthetic Codex home, never the user's")
+
+    def test_the_reads_are_the_ones_the_window_makes(self):
+        """Only questions the window's own code asks, and each photographed page's."""
+        window = "".join((ROOT / "gui" / name).read_text(encoding="utf-8")
+                         for name in ("Dashboard.cs", "SettingsApp.cs"))
+        asked = set(re.findall(r'\b(?:Call|CallAsync|CallOnce|Send)\("([a-z-]+)"', window))
+        commands = [line["command"] for line in self.lines]
+        self.assertEqual(commands, ["strings", "describe", "settings", "status", "dashboard",
+                                    "statistics", "compatibility", "preview-continuation"])
+        self.assertEqual(sorted(set(commands) - asked), [])
+        # The Statistics page opens on the first period its list offers.
+        first = re.search(r'period\.Items\.Add\(new Choice\("(\d*)"', window).group(1)
+        self.assertEqual(dict(self.generator.WINDOW_READS)["statistics"], {"days": int(first)})
+        # The Preview is for the first reason of the schema, which is the Settings page's first.
+        preview = next(line for line in self.lines if line["command"] == "preview-continuation")
+        first_reason = next(field["category"] for field in self.reply("describe")["schema"]
+                            if field["name"].startswith("custom_message_") and field.get("category"))
+        self.assertEqual(preview["argument"]["category"], first_reason)
+        self.assertEqual(preview["reply"]["result"]["category"], first_reason)
+
+    def test_the_registry_reads_as_unregistered_and_refuses_every_write(self):
+        """Checked on the stand-in itself. Nothing here calls a function that could write the real
+        registry if the stand-in were not in place."""
+        stand_in = self.generator._NoRegistration()
+        with self.assertRaises(FileNotFoundError):
+            stand_in.OpenKey(stand_in.HKEY_CURRENT_USER, "Software", 0, stand_in.KEY_READ)
+        for writer in ("CreateKeyEx", "CreateKey", "SetValueEx", "SetValue", "DeleteValue", "DeleteKey"):
+            with self.subTest(writer), self.assertRaises(self.generator.RegistryWriteRefused):
+                getattr(stand_in, writer)(stand_in.HKEY_CURRENT_USER, "Software")
+        self.assertFalse(issubclass(self.generator.RegistryWriteRefused, Exception),
+                         "the bridge turns an Exception into a polite refusal, which would hide it")
+        from codex_auto_resume import startup
+        with self.generator._registry_stand_in():
+            import winreg
+            self.assertIs(type(winreg), self.generator._NoRegistration)
+            if os.name == "nt":
+                self.assertIs(type(startup._winreg()), self.generator._NoRegistration)
+                self.assertIsNone(startup.current_value())
+        self.assertIsNot(type(sys.modules.get("winreg")), self.generator._NoRegistration)
+
+
+class PopupDrawingTests(unittest.TestCase):
+    """What draws the popup, keyed so that a move is invisible and an edit is not.
+
+    v0.6.5 moves the popup into `ui/popup/`, the palette into `ui/brand/`, and the Win32
+    structures and DLL cache the popup shares with the icon into `win/dll.py`. The popup's
+    manifest entry hashes the definitions of its modules pooled by name rather than their
+    files, and follows what they import by name to wherever it is defined, so the moves
+    leave it where it is while any real change still moves it.
+    """
+
+    POPUP = (
+        '"""The popup."""\n'
+        "import os\n"
+        "from . import brand\n"
+        "\n"
+        "WIDTH = 320  # the card\n"
+        "\n"
+        "def layout(view):\n"
+        '    """Where everything goes."""\n'
+        "    from .brand import ACCENT\n"
+        "    return {'size': (WIDTH, 40), 'accent': ACCENT, 'rows': len(view)}\n"
+        "\n"
+        "class Renderer:\n"
+        "    def draw(self, plan):\n"
+        "        return [brand.SURFACE] * plan['rows']\n"
+        "\n"
+        "if os.name == 'nt':\n"
+        "    import ctypes\n"
+        "    class RECT(ctypes.Structure):\n"
+        "        _fields_ = [('left', ctypes.c_long)]\n"
+        "    def monitor():\n"
+        "        return RECT()\n")
+    BRAND = ('"""The palette."""\n'
+             "ACCENT = '#06B6D4'\n"
+             "SURFACE = '#F6F8FB'\n")
+
+    @classmethod
+    def setUpClass(cls):
+        cls.generator = generator()
+
+    def digest(self, files):
+        with tempfile.TemporaryDirectory() as root:
+            for name, text in files.items():
+                path = Path(root) / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(text, encoding="utf-8")
+            return self.generator.popup_drawing(root)
+
+    @staticmethod
+    def cut(text, *names):
+        """`text` without its top-level statements that bind `names`, and those statements."""
+        tree = ast.parse(text)
+        lines = text.splitlines(keepends=True)
+        spans = []
+        for node in tree.body:
+            bound = {node.name} if isinstance(node, (ast.FunctionDef, ast.ClassDef)) else {
+                target.id for target in getattr(node, "targets", []) if isinstance(target, ast.Name)}
+            if bound & set(names):
+                start = min([node.lineno] + [item.lineno for item in getattr(node, "decorator_list", [])])
+                spans.append((start - 1, node.end_lineno))
+        assert len(spans) == len(names), (names, spans)
+        kept = [line for number, line in enumerate(lines) if not any(a <= number < b for a, b in spans)]
+        taken = ["".join(lines[a:b]) + "\n\n" for a, b in spans]
+        return "".join(kept), "".join(taken)
+
+    def test_the_patterns_cover_the_popup_the_palette_and_the_packages_they_move_into(self):
+        with tempfile.TemporaryDirectory() as root:
+            for name in ("tray_popup.py", "brand.py", "ui/popup/layout.py", "ui/popup/win/rect.py",
+                         "ui/brand/tokens.py", "ui/tray/icon.py", "tray.py", "notice_card.py"):
+                (Path(root) / name).parent.mkdir(parents=True, exist_ok=True)
+                (Path(root) / name).write_text("X = 1\n", encoding="utf-8")
+            covered = [path.relative_to(root).as_posix()
+                       for path in self.generator.popup_code_files(root)]
+        self.assertEqual(covered, ["brand.py", "tray_popup.py", "ui/brand/tokens.py",
+                                   "ui/popup/layout.py", "ui/popup/win/rect.py"])
+
+    def test_today_the_patterns_find_every_tracked_popup_and_palette_module(self):
+        package = ROOT / "src" / "codex_auto_resume"
+        found = [path.relative_to(package).as_posix()
+                 for path in self.generator.popup_code_files(package)]
+        tracked = sorted(srcscan.relative(path).split("/", 1)[1] for path in srcscan.package_files()
+                         if re.fullmatch(r"codex_auto_resume/(tray_popup|brand|ui/(popup|brand)/.+)\.py",
+                                         srcscan.relative(path)))
+        self.assertEqual(found, tracked)
+        self.assertIn("tray_popup.py", found)
+        self.assertIn("brand.py", found)
+
+    def test_moving_definitions_between_modules_leaves_the_digest(self):
+        before = self.digest({"tray_popup.py": self.POPUP, "brand.py": self.BRAND})
+        # layout() and half of the guarded block into ui/popup/, a token into ui/brand/, each
+        # with the imports that follow it, and the order of what is left changed.
+        moved = {
+            "tray_popup.py": (
+                "import os\n"
+                "from . import brand\n"
+                "from .ui.popup.layout import WIDTH, layout\n"
+                "class Renderer:\n"
+                "    def draw(self, plan):\n"
+                "        return [brand.SURFACE] * plan['rows']\n"
+                "if os.name == 'nt':\n"
+                "    from .ui.popup.win import RECT\n"
+                "    def monitor():\n"
+                "        return RECT()\n"),
+            "brand.py": "from .ui.brand.tokens import ACCENT\nSURFACE = '#F6F8FB'  # moved later\n",
+            "ui/brand/tokens.py": '"""Tokens."""\nACCENT = \'#06B6D4\'\n',
+            "ui/popup/layout.py": (
+                "WIDTH = 320\n"
+                "def layout(view):\n"
+                '    """Where everything goes, now in its own module."""\n'
+                "    from ..brand.tokens import ACCENT\n"
+                "    return {'size': (WIDTH, 40), 'accent': ACCENT, 'rows': len(view)}\n"),
+            "ui/popup/win.py": (
+                "import ctypes\n"
+                "import os\n"
+                "if os.name == 'nt':\n"
+                "    class RECT(ctypes.Structure):\n"
+                "        _fields_ = [('left', ctypes.c_long)]\n"),
+        }
+        self.assertEqual(self.digest(moved), before)
+
+    def test_a_change_to_drawing_code_or_a_token_moves_the_digest(self):
+        before = self.digest({"tray_popup.py": self.POPUP, "brand.py": self.BRAND})
+        changes = {
+            "a token": ("brand.py", "#06B6D4", "#0891B2"),
+            "a number in the layout": ("tray_popup.py", "(WIDTH, 40)", "(WIDTH, 44)"),
+            "a line of drawing code": ("tray_popup.py", "* plan['rows']", "* (plan['rows'] + 1)"),
+            "a guard": ("tray_popup.py", "os.name == 'nt'", "os.name != 'nt'"),
+            "a new definition": ("brand.py", "SURFACE =", "BORDER = '#E2E8F0'\nSURFACE ="),
+            "a renamed definition": ("tray_popup.py", "def monitor", "def primary_monitor"),
+        }
+        for what, (name, old, new) in changes.items():
+            files = {"tray_popup.py": self.POPUP, "brand.py": self.BRAND}
+            self.assertIn(old, files[name])
+            files[name] = files[name].replace(old, new, 1)
+            with self.subTest(what):
+                self.assertNotEqual(self.digest(files), before, what + " did not move the digest")
+
+    def test_moving_a_real_definition_of_the_palette_leaves_the_digest(self):
+        """The same on the real modules: the palette's last function moved into `ui/brand/` and
+        imported back leaves it; one real colour token changed does not."""
+        package = ROOT / "src" / "codex_auto_resume"
+        popup = (package / "tray_popup.py").read_text(encoding="utf-8")
+        brand = (package / "brand.py").read_text(encoding="utf-8")
+        before = self.digest({"tray_popup.py": popup, "brand.py": brand})
+        tree = ast.parse(brand)
+        last = [node for node in tree.body if isinstance(node, ast.FunctionDef)][-1]
+        lines = brand.splitlines(keepends=True)
+        start = min([last.lineno] + [decorator.lineno for decorator in last.decorator_list]) - 1
+        cut = "".join(lines[start:last.end_lineno])
+        left = "".join(lines[:start] + lines[last.end_lineno:]) + "from .ui.brand.moved import %s\n" % last.name
+        moved = {"tray_popup.py": popup, "brand.py": left,
+                 "ui/brand/moved.py": "from ...brand import *  # noqa\n\n" + cut}
+        self.assertEqual(self.digest(moved), before)
+        token = next(node for node in tree.body if isinstance(node, ast.Assign)
+                     and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)
+                     and re.fullmatch(r"#[0-9A-Fa-f]{6}", node.value.value))
+        lines[token.lineno - 1] = lines[token.lineno - 1].replace(token.value.value, "#123456", 1)
+        recoloured = "".join(lines)
+        self.assertNotEqual(recoloured, brand)
+        self.assertNotEqual(self.digest({"tray_popup.py": popup, "brand.py": recoloured}), before)
+
+    TRAY = ('"""The icon."""\n'
+            "import ctypes\n"
+            "\n"
+            "class GUID(ctypes.Structure):\n"
+            "    _fields_ = [('Data1', ctypes.c_ulong)]\n"
+            "\n"
+            "def countdown(seconds):\n"
+            "    return '%ds' % seconds\n"
+            "\n"
+            "def tooltip(snapshot):\n"
+            "    return 'Codex Auto Resume'\n")
+    POPUP_WITH_THE_ICON = (
+        "import ctypes\n"
+        "from . import brand\n"
+        "from .tray import GUID, countdown\n"
+        "\n"
+        "_DLLS = {}\n"
+        "\n"
+        "def _dll(name):\n"
+        "    if name not in _DLLS:\n"
+        "        _DLLS[name] = ctypes.WinDLL(name)\n"
+        "    return _DLLS[name]\n"
+        "\n"
+        "def label(seconds):\n"
+        "    return countdown(seconds) + brand.SURFACE\n"
+        "\n"
+        "def register():\n"
+        "    return _dll('user32'), GUID()\n")
+
+    def test_what_the_popup_imports_by_name_is_followed_wherever_it_lives(self):
+        """`win/dll.py` is not one of the popup's modules, and should not be: it will hold the
+        icon's and the card's structures too. What the popup takes from it by name is in the
+        key all the same, so moving the popup's DLL cache there, or the icon's structure,
+        leaves the key; and a change to what the popup takes from the icon moves it."""
+        files = {"tray_popup.py": self.POPUP_WITH_THE_ICON, "brand.py": self.BRAND, "tray.py": self.TRAY}
+        before = self.digest(files)
+        popup, cache = self.cut(self.POPUP_WITH_THE_ICON, "_DLLS", "_dll")
+        tray, guid = self.cut(self.TRAY, "GUID")
+        layouts = {}
+        for importer in ("tray", "win.dll"):            # re-exported by the icon, or imported directly
+            layouts[importer] = {
+                "tray_popup.py": popup.replace("from .tray import GUID, countdown",
+                                               "from .%s import GUID\nfrom .tray import countdown\n"
+                                               "from .win.dll import _dll" % importer),
+                "brand.py": self.BRAND,
+                "tray.py": "from .win.dll import GUID\n" + tray,
+                "win/__init__.py": "",
+                "win/dll.py": "import ctypes\n\n" + guid + cache,
+            }
+            with self.subTest(importer):
+                self.assertEqual(self.digest(layouts[importer]), before)
+        moved = layouts["win.dll"]
+        for what, (name, old, new) in {
+                "the countdown the popup shows": ("tray.py", "'%ds' % seconds", "'%d s' % seconds"),
+                "the cache the popup's DLL handle fills": ("win/dll.py", "_DLLS = {}", "_DLLS = dict()"),
+                "a structure the popup registers": ("win/dll.py", "c_ulong", "c_uint")}.items():
+            changed = dict(moved)
+            self.assertIn(old, changed[name])
+            changed[name] = changed[name].replace(old, new, 1)
+            with self.subTest(what):
+                self.assertNotEqual(self.digest(changed), before, what + " did not move the digest")
+        changed = dict(moved, **{"tray.py": moved["tray.py"].replace("'Codex Auto Resume'", "'Codex'")})
+        self.assertNotEqual(changed["tray.py"], moved["tray.py"])
+        self.assertEqual(self.digest(changed), before, "the icon's own tooltip is not the popup's drawing")
+
+    def test_folding_the_real_dll_caches_and_structures_into_win_leaves_the_digest(self):
+        """Step 9 on the real modules: the popup's private DLL cache and the Win32 structures
+        it takes from the icon move into `win/dll.py`, each importer taking them back by name.
+        The key is the same; a change to the icon's real countdown is not."""
+        package = ROOT / "src" / "codex_auto_resume"
+        real = {name: (package / name).read_text(encoding="utf-8") for name in ("tray_popup.py", "brand.py", "tray.py")}
+        imported = [entry.split(" | ")[0] for entry in self.generator.imported_definitions(
+            package, self.generator.popup_code_files(package))]
+        self.assertIn("countdown", imported)
+        self.assertIn("GUID", imported)
+        before = self.digest(real)
+        popup, cache = self.cut(real["tray_popup.py"], "_DLLS", "_dll")
+        tray, structures = self.cut(real["tray.py"], "LRESULT", "WNDPROC", "WNDCLASSW", "GUID")
+        imports = "from .tray import GUID, LRESULT, WNDCLASSW, WNDPROC"
+        self.assertIn(imports, popup)
+        moved = {
+            "tray_popup.py": popup.replace(imports, imports.replace(".tray", ".win.dll")) + "\nfrom .win.dll import _dll\n",
+            "brand.py": real["brand.py"],
+            "tray.py": tray + "\nfrom .win.dll import GUID, LRESULT, WNDCLASSW, WNDPROC\n",
+            "win/__init__.py": "",
+            "win/dll.py": "import ctypes as C\nfrom ctypes import wintypes as W\n\n" + structures + cache,
+        }
+        self.assertEqual(self.digest(moved), before)
+        recounted = dict(real, **{"tray.py": real["tray.py"].replace('"%ds" % secs', '"%d s" % secs', 1)})
+        self.assertNotEqual(recounted["tray.py"], real["tray.py"])
+        self.assertNotEqual(self.digest(recounted), before)
+
+    def test_the_spelling_of_a_tree_does_not_depend_on_the_python(self):
+        """3.13 changed `ast.dump`'s default to leave empty fields out; the digest leaves them out
+        on every version, so a field a later Python adds with an empty default changes nothing."""
+        spelled = self.generator._canonical_ast(ast.parse("def f(a, *, b=1):\n    return a\n"))
+        self.assertNotIn("=[]", spelled)
+        self.assertNotIn("=None", spelled)
+        self.assertNotIn("lineno", spelled)
 
 if __name__ == "__main__":
     unittest.main()

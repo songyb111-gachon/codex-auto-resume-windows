@@ -38,22 +38,27 @@ Two things it deliberately does NOT do:
 """
 from __future__ import annotations
 
+import ast
+from contextlib import ExitStack, contextmanager
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "build"))
 
-from codex_auto_resume import config, mcpui, messages               # noqa: E402
+from codex_auto_resume import config, l10n, mcpui                   # noqa: E402
 from codex_auto_resume import settings as policy                    # noqa: E402
 
 ASSETS = ROOT / "assets"
@@ -67,68 +72,47 @@ PANEL = ASSETS / "screenshot-panel.png"
 SETTINGS = ASSETS / "screenshot-settings.png"
 COPIES = {PANEL: DOCS / "settings-panel.png", SETTINGS: DOCS / "settings-window.png"}
 
-# What the *window* is rendered from. It is a compiled Windows application, so there is
-# no way to look at its output without running it, and its inputs have to be listed.
+# What the *window* is rendered from, in two halves.
 #
-# Listing is how this went wrong the first time: the tuple named seven files and missed
-# five more that visibly change the pictures - the title-bar icon, the store fields behind
-# every pending row, the control layer that decides what a row carries, the DPI manifest
-# and the capture script itself. The panel no longer relies on a list at all (see below);
-# this one stays as short as it can be. Nothing can check it against what the compiled
-# window actually reads, so tests/test_screenshots.py checks the part that can be named:
-# that every file the Dashboard's figures, rows and names are computed by is on it. A file
-# missing from that test is a file this list can miss again.
+# The compiled half is files, hashed byte for byte (line endings aside): a compiled Windows
+# application has no output to look at without running it. Listing is how this went wrong
+# the first time - the tuple named seven files and missed five more that visibly change the
+# pictures: the title-bar icon, the store fields behind every pending row, the control layer
+# that decides what a row carries, the DPI manifest and the capture script itself.
+#
+# The Python half is not a list of files any more. The window renders no text of its own:
+# every label, every value, every row and the whole status line arrive over the bridge as
+# JSON, so what the Python side contributes to a picture is exactly what the bridge answers
+# the window. `window_envelopes` below asks the bridge the window's own questions, against
+# the same kind of scratch installation the capture uses, and the manifest records a hash of
+# the answers (`<bridge envelope:{locale}>`). Until v0.6.5 this list held fifteen of the
+# package's modules and `tests/codexsim.py` instead, so moving a function between two files
+# - the whole of the v0.6.5 modularisation - marked every picture stale and cost a
+# re-render on Windows with Edge and a compiled window, while a comment edit in any of them
+# did the same. A hash of the answers moves when a word, a row field, a figure, a name or
+# the status moves, wherever in the package that is decided, and at no other time.
+#
+# tests/test_screenshots.py checks both halves: that the C# the window is compiled from is
+# on this list, and that each thing the Dashboard's figures, rows and names are computed
+# from - the store, the source of the names, the version, the catalogs, the mutex, the Run
+# key, the control layer, the state machine, the synthetic Codex home - moves the envelope
+# when it changes what it computes.
 WINDOW_INPUTS = (
-    ".codex-plugin/plugin.json",          # the version in the footer
+    ".codex-plugin/plugin.json",          # the version in the footer, and the version resource
     "gui/SettingsApp.cs",                 # the window's layout and wording
     "gui/Dashboard.cs",                   # the Dashboard pages
     "gui/Controls.cs",                    # the soft controls both are drawn with
     "gui/Brand.cs",                       # its palette
     "gui/app.manifest",                   # its DPI awareness, and so its size
     "assets/codex-auto-resume.ico",       # the mark in the title bar, which is captured
-    "src/codex_auto_resume/settings.py",  # the schema that decides which rows exist
-    # The window renders no text of its own. Every label, every value and the whole
-    # status line arrive over the bridge as JSON, so the read path is a render input as
-    # surely as the layout is: `controlcli` shapes the envelope the window unpacks, and
-    # `watcher_running` in `app.py` is what decides the headline, the dot and whether the
-    # Start button is in the picture at all.
-    "src/codex_auto_resume/controlcli.py",
-    "src/codex_auto_resume/app.py",
-    # Every word of the window, in both languages, is the interface catalog; what a row
-    # carries and which public status it shows are decided by the control layer and the
-    # state machine.
-    "src/codex_auto_resume/interface.py",
-    "src/codex_auto_resume/l10n.py",
-    "src/codex_auto_resume/locales/en.json",
-    "src/codex_auto_resume/locales/ko.json",
-    "src/codex_auto_resume/locales/ja.json",
-    "src/codex_auto_resume/locales/zh-CN.json",
-    "src/codex_auto_resume/locales/zh-TW.json",
-    "src/codex_auto_resume/locales/es.json",
-    "src/codex_auto_resume/locales/de.json",
-    "src/codex_auto_resume/locales/fr.json",
-    "src/codex_auto_resume/locales/pt-BR.json",
-    # The Settings page's Preview is the continuation the watcher would send.
-    "src/codex_auto_resume/continuation.py",
-    "src/codex_auto_resume/reasons.py",
-    "src/codex_auto_resume/control.py",
-    "src/codex_auto_resume/machine.py",
-    # The Dashboard computes its figures from the local records rather than reading them
-    # from a caption, so each of these changes a number, a row or a word in the picture.
-    # statistics, history order, pending rows, and the heartbeat behind 'checking'
-    "src/codex_auto_resume/store.py",
-    "src/codex_auto_resume/source.py",    # conversation names, via LocalSource.identity
-    "src/codex_auto_resume/config.py",    # Paths, codex_home and the version it reads
-    "src/codex_auto_resume/messages.py",  # which language the window is resolved to
-    "src/codex_auto_resume/windows.py",   # the mutex that decides 'watching'
-    "src/codex_auto_resume/startup.py",   # the start-at-sign-in value
-    "tests/codexsim.py",                  # the synthetic Codex home the names come from
     "build/capture_window.ps1",           # how much of the window is captured
     # Whether the icon and the DPI manifest are compiled into the binary at all, and
     # which sources go into it. The two entries above it are only inputs because this
     # file passes them to the compiler.
     "build/make_gui.ps1",
-    "build/make_screenshots.py",          # the sample installation it is run against
+    # The sample installation the window is run against, the questions the envelope asks
+    # and how its answers are pinned.
+    "build/make_screenshots.py",
 )
 
 # Rendered at half size and captured at twice the device scale, so the committed image is
@@ -529,6 +513,302 @@ def render_popup(target: Path, locale: str) -> None:
         renderer.close()
 
 
+# What draws the popup, whichever file it is in.
+#
+# The popup's pixels are the view it is given and the code that draws it. The view is hashed
+# as JSON. The code was hashed as two files, `tray_popup.py` and `brand.py`, which made every
+# comment a reason to re-render - and made moving the renderer into `ui/popup/` and the
+# palette into `ui/brand/`, which v0.6.5 does, a `FileNotFoundError` inside `render_inputs`.
+#
+# It is hashed now as what those modules define. Every top-level definition of every module
+# `POPUP_CODE` matches - a function, a class, a constant, a token - is keyed by its name,
+# with comments, docstrings and import statements left out, and the modules are pooled. So a
+# definition moved from one module to another, with the imports that follow it, hashes the
+# same; a changed line of drawing code, a changed token, a new definition or a removed one
+# does not. The patterns already cover the two packages the modules are moving into, so the
+# day they exist nothing here has to be remembered.
+#
+# The popup also draws with definitions it imports by name from the rest of the package -
+# the icon's countdown, and the Win32 structures and DLL cache the split moves into `win/` -
+# and those are pooled too, found by following the import to whichever module holds the
+# definition today (`imported_definitions`). So moving one out of the popup's modules into
+# `win/dll.py`, or from `tray.py` into it, with the import that brings it back, hashes the
+# same as well, without `win/` having to be one of the patterns - which would pool the rest
+# of that package, the icon's and the card's structures, into the popup's key.
+POPUP_CODE = ("tray_popup.py", "brand.py", "ui/popup/**/*.py", "ui/brand/**/*.py")
+
+
+def popup_code_files(package=None) -> list:
+    """Every module `POPUP_CODE` matches under the package, in a stable order."""
+    package = Path(package) if package is not None else ROOT / "src" / "codex_auto_resume"
+    found = set()
+    for pattern in POPUP_CODE:
+        found.update(path for path in package.glob(pattern)
+                     if path.is_file() and "__pycache__" not in path.parts)
+    return sorted(found, key=lambda path: path.relative_to(package).as_posix())
+
+
+def _is_docstring(statement) -> bool:
+    return (isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Constant)
+            and isinstance(statement.value.value, str))
+
+
+def _without_imports_or_docstrings(node):
+    """A copy of `node` with every import statement, at any depth, and every docstring gone.
+
+    A move rewrites the imports that follow the code - `from .brand import X` becomes
+    `from ..brand.tokens import X`, inside a function as readily as at the top - and changes
+    nothing else, so the imports are exactly the part a move-proof digest must not see.
+    """
+    import copy
+    node = copy.deepcopy(node)
+    for inner in ast.walk(node):
+        for field in ("body", "orelse", "finalbody"):
+            block = getattr(inner, field, None)
+            if not isinstance(block, list) or not all(isinstance(item, ast.stmt) for item in block):
+                continue
+            kept = [item for item in block if not isinstance(item, (ast.Import, ast.ImportFrom))]
+            if (field == "body" and kept and _is_docstring(kept[0])
+                    and isinstance(inner, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))):
+                kept = kept[1:]
+            if block and not kept:
+                kept = [ast.Pass()]
+            setattr(inner, field, kept)
+    return node
+
+
+def _canonical_ast(node) -> str:
+    """One spelling of a syntax tree on every Python the suite runs on.
+
+    Not `ast.dump`: 3.13 stopped printing empty lists and `None` fields by default, so the
+    same code dumped differently on 3.12, and a field a later Python adds with an empty
+    default would do it again. Omitting empty values in both is what keeps one digest true
+    on every interpreter CI runs, and a recorded digest recomputable on any of them.
+    """
+    if isinstance(node, ast.AST):
+        fields = ["%s=%s" % (name, _canonical_ast(value)) for name, value in ast.iter_fields(node)
+                  if value is not None and value != []]
+        return "%s(%s)" % (type(node).__name__, ", ".join(fields))
+    if isinstance(node, list):
+        return "[%s]" % ", ".join(_canonical_ast(item) for item in node)
+    return repr(node)
+
+
+def _statements(body, guards=()):
+    """(guards, statement) for each definition in a module body, imports and docstrings aside.
+
+    A top-level `if` - `if os.name == "nt":` around the Win32 structures - is looked into, and
+    each definition inside it carries the condition, so splitting one guarded block between
+    two modules keeps every definition's key.
+    """
+    for node in body:
+        if isinstance(node, (ast.Import, ast.ImportFrom)) or _is_docstring(node):
+            continue
+        if isinstance(node, ast.If):
+            test = _canonical_ast(node.test)
+            yield from _statements(node.body, guards + ("if " + test,))
+            yield from _statements(node.orelse, guards + ("not " + test,))
+            continue
+        yield guards, node
+
+
+def _entry(guards, node) -> str:
+    """`guard | ... | name | tree`: one definition, as the digest keys it."""
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        name = node.name
+    elif isinstance(node, ast.Assign):
+        name = ",".join(_canonical_ast(target) for target in node.targets)
+    elif isinstance(node, (ast.AnnAssign, ast.AugAssign)):
+        name = _canonical_ast(node.target)
+    else:
+        name = "<%s>" % type(node).__name__
+    return " | ".join(guards + (name, _canonical_ast(_without_imports_or_docstrings(node))))
+
+
+def _definitions(body, guards=()):
+    """`guard | ... | name | tree` for each definition in a module body (see `_statements`)."""
+    for statement_guards, node in _statements(body, guards):
+        yield _entry(statement_guards, node)
+
+
+def _bound(node) -> set:
+    """The names a top-level statement binds: a definition's own name, or every name it
+    assigns - without looking inside the functions and classes it defines."""
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        return {node.name}
+    names, pending = set(), [node]
+    while pending:
+        inner = pending.pop()
+        if isinstance(inner, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names.add(inner.name)
+            continue
+        if isinstance(inner, ast.Lambda):
+            continue
+        if isinstance(inner, ast.Name) and isinstance(inner.ctx, ast.Store):
+            names.add(inner.id)
+        pending.extend(ast.iter_child_nodes(inner))
+    return names
+
+
+class _Module:
+    """One module of the package, read for what it defines and imports at its top level."""
+
+    def __init__(self, dotted: str, path: Path, index: dict, package_name: str):
+        self.dotted, self.index, self.package_name = dotted, index, package_name
+        self.is_package = path.name == "__init__.py"
+        self.tree = ast.parse(path.read_text(encoding="utf-8"))
+        self.defines, self.imports, self.stars = {}, {}, []
+        for guards, node in _statements(self.tree.body):
+            for name in _bound(node):
+                self.defines.setdefault(name, []).append((guards, node))
+        pending = list(self.tree.body)
+        while pending:                      # module level: into `if` and `try`, never a function
+            node = pending.pop()
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+                continue
+            if isinstance(node, ast.ImportFrom):
+                for alias in node.names:
+                    for target, name in self.named(node, alias):
+                        if name == "*":
+                            self.stars.append(target)
+                        else:
+                            self.imports[alias.asname or alias.name] = (target, name)
+            pending.extend(ast.iter_child_nodes(node))
+
+    def target(self, node):
+        """The module an import names, dotted from the package; None outside the package."""
+        if node.level:
+            parts = self.dotted.split(".") if self.dotted else []
+            if not self.is_package:
+                parts = parts[:-1]
+            if node.level > 1:
+                parts = parts[:len(parts) - (node.level - 1)]
+            return ".".join(part for part in (".".join(parts), node.module) if part)
+        module = node.module or ""
+        if module == self.package_name:
+            return ""
+        if module.startswith(self.package_name + "."):
+            return module[len(self.package_name) + 1:]
+        return None
+
+    def named(self, node, alias=None):
+        """(module, name) for each name an import takes from a module of the package - not
+        the modules it takes (`from . import brand`), which bring no definition by name."""
+        target = self.target(node)
+        if target is None:
+            return []
+        found = []
+        for each in ([alias] if alias is not None else node.names):
+            submodule = (target + "." + each.name) if target else each.name
+            if each.name != "*" and submodule in self.index:
+                continue
+            found.append((target, each.name))
+        return found
+
+
+def _module_index(package: Path) -> dict:
+    """Dotted name within the package (`ui.popup.layout`, "" for the package) -> its file."""
+    index = {}
+    for path in package.rglob("*.py"):
+        if "__pycache__" in path.parts:
+            continue
+        parts = list(path.relative_to(package).with_suffix("").parts)
+        if parts[-1] == "__init__":
+            parts.pop()
+        index[".".join(parts)] = path
+    return index
+
+
+def imported_definitions(package, files) -> list:
+    """The entries of every definition `files` import by name from the rest of `package`,
+    wherever it is defined, and of what those definitions use in turn.
+
+    `from .tray import countdown` in the popup brings `tray.countdown`; `from .tray import
+    GUID`, once `tray.py` itself only re-exports it from `win/dll.py`, brings `GUID` from
+    there. A definition takes with it the names of its own module it refers to - `_dll`
+    brings the `_DLLS` cache it fills - and whatever it imports by name. A definition in one
+    of `files` is pooled with them and is not followed again. A module reached as a whole
+    (`from . import tray`, then `tray.countdown`) is not followed: the popup does not do that.
+    """
+    package = Path(package)
+    index = _module_index(package)
+    own = {dotted for dotted, path in index.items()
+           if any(path.resolve() == Path(name).resolve() for name in files)}
+    read = {}
+
+    def module(dotted):
+        if dotted not in read:
+            read[dotted] = (_Module(dotted, index[dotted], index, package.name)
+                            if dotted in index else None)
+        return read[dotted]
+
+    pending = []
+    for dotted in sorted(own):
+        reader = module(dotted)
+        for node in ast.walk(reader.tree):            # function-level imports draw too
+            if isinstance(node, ast.ImportFrom):
+                pending.extend(reader.named(node))
+    asked, taken, entries = set(), set(), []
+    while pending:
+        dotted, name = pending.pop()
+        if (dotted, name) in asked or dotted in own:
+            continue
+        asked.add((dotted, name))
+        reader = module(dotted)
+        if reader is None:
+            continue
+        if name == "*":
+            pending.extend((dotted, public) for public in reader.defines if not public.startswith("_"))
+        elif name in reader.defines:
+            for guards, node in reader.defines[name]:
+                if (dotted, id(node)) in taken:
+                    continue
+                taken.add((dotted, id(node)))
+                entries.append(_entry(guards, node))
+                for inner in ast.walk(node):
+                    if isinstance(inner, ast.Name):
+                        pending.append((dotted, inner.id))
+                    elif isinstance(inner, ast.ImportFrom):
+                        pending.extend(reader.named(inner))
+        elif name in reader.imports:
+            pending.append(reader.imports[name])
+        else:
+            pending.extend((star, name) for star in reader.stars)
+    return entries
+
+
+def code_digest(files, imported=()) -> str:
+    """The definitions of `files`, pooled with `imported` entries, keyed by name and hashed.
+
+    Independent of which of the files a definition lives in, of the order the definitions
+    come in, and of comments, docstrings and import statements; dependent on everything else.
+    """
+    entries = list(imported)
+    for path in files:
+        tree = ast.parse(Path(path).read_text(encoding="utf-8"))
+        entries.extend(_definitions(tree.body))
+    return sha256("\n".join(sorted(entries)).encode("utf-8"))
+
+
+def popup_drawing(package=None) -> str:
+    """The digest of what draws the popup: the definitions of the modules `POPUP_CODE`
+    matches, and of everything they import by name from the rest of the package."""
+    package = Path(package) if package is not None else ROOT / "src" / "codex_auto_resume"
+    files = popup_code_files(package)
+    return code_digest(files, imported_definitions(package, files))
+
+
+def popup_render_input(locale: str, drawing: str | None = None) -> str:
+    """The popup's manifest entry for one locale: what it is shown, and what draws it.
+
+    `drawing` is `popup_drawing()`, passed in when it is already known.
+    """
+    _strings, view = popup_view(locale)
+    if drawing is None:
+        drawing = popup_drawing()
+    return sha256((json.dumps(view, sort_keys=True, default=str) + drawing).encode("utf-8"))
+
+
 def scratch_installation(workspace: Path) -> Path:
     """An installation made out of the working tree, so the picture is of this code."""
     import make_release
@@ -639,6 +919,285 @@ def render_window(targets: dict) -> dict:
     return {page: dimensions(target) for page, target in targets.items()}
 
 
+# ------------------------------------------------------------ what the window is shown
+# The window's Python half, as the window receives it (see WINDOW_INPUTS).
+#
+# `window_envelopes` builds the installation `render_window` builds - the stored settings in
+# the pinned theme, the Dashboard's records written by the product's own store, the
+# synthetic Codex home the names come from, the watcher's mutex held and its heartbeat
+# written, recovery switched on through the bridge - and asks the bridge, through the same
+# `serve` loop the window keeps open, what the window asks to draw the photographed pages.
+# The canonical text of the answers is the envelope; its hash is the manifest entry.
+#
+# It has to come out the same on every machine and every run, and the answers carry four
+# things that would not. Each is pinned or rewritten, never dropped, so the envelope still
+# moves when the thing itself does:
+#
+# * the clock. The records are seeded at ENVELOPE_NOW and the bridge answers with `time.time`
+#   reading ENVELOPE_NOW, so every countdown, age, "checking" and the week the Statistics
+#   figures cover come out the same. A clock time formatted for a person is formatted in
+#   UTC rather than the machine's zone;
+# * paths. The scratch installation, the checkout, the temporary directory and the user's
+#   profile are rewritten to `<scratch>`, `<checkout>`, `<temp>` and `<profile>` wherever
+#   they appear in an answer, in every spelling (resolved or not, either slash, any case);
+# * the process id. The capture's mutex holder writes its own into the heartbeat; the
+#   envelope writes ENVELOPE_PID;
+# * the machine. The language is the locale being rendered, set the way the generator sets
+#   it for every surface; the Run key and the notification registration read as they read
+#   for any scratch installation, "nothing registered", from a stand-in that refuses every
+#   write; CODEX_HOME points at the synthetic home, and the product's own overrides
+#   (CODEX_AUTO_RESUME_HOME, CODEX_AUTO_RESUME_CODEX_EXE) are unset.
+#
+# Nothing here starts a watcher, a window or a process, writes the registry, or reads the
+# user's own Codex home or installation.
+ENVELOPE_NOW = POPUP_NOW
+ENVELOPE_PID = 4242
+# The reads that paint the photographed pages, as the window names them: its words
+# (`SettingsApp.AskStrings`), the Settings page's schema and values, the status line, the
+# Dashboard's one-round-trip snapshot (Overview, Pending, History), the Statistics page at
+# the period it opens on, the Diagnostics page's compatibility report, and the Settings
+# page's Preview - which is built from the first two answers, see `preview_request`.
+WINDOW_READS = (("strings", None), ("describe", None), ("settings", None), ("status", None),
+                ("dashboard", None), ("statistics", {"days": 7}), ("compatibility", None))
+
+
+def preview_request(schema: list, stored: dict):
+    """The Preview the Settings page asks for when it opens, as `SettingsApp.RunPreview` builds it.
+
+    For the first reason in the schema's order (`reasonOrder`), with the form's values: every
+    field as stored, a blank message box as "not set", and Standard when no style is chosen.
+    """
+    order = [field.get("category") for field in schema
+             if str(field.get("name", "")).startswith("custom_message_") and field.get("category")]
+    if not order:
+        return None
+
+    def text(value):
+        plain = (value or "").replace("\r\n", "\n")
+        return plain if plain.strip() else None
+
+    changes = {"interface_language": stored.get("interface_language"),
+               "continuation_language": stored.get("continuation_language"),
+               "continuation_style": stored.get("continuation_style") or "standard",
+               "custom_message_mode": stored.get("custom_message_mode"),
+               "custom_message": text(stored.get("custom_message"))}
+    for category in order:
+        changes["custom_message_" + category] = text(stored.get("custom_message_" + category))
+    return ("preview-continuation", {"category": order[0], "changes": changes})
+
+
+class RegistryWriteRefused(BaseException):
+    """Raised by the envelope's stand-in registry on any write.
+
+    A `BaseException`, not an `Exception`, on purpose: the bridge turns every `Exception` into
+    a polite refusal on the wire, and a refusal would only have changed a hash. This stops
+    the generator and the test instead.
+    """
+
+
+class _NoRegistration:
+    """`winreg` as a scratch installation finds it: nothing registered, and nothing writable.
+
+    Every read answers "not found", which is what the real registry answers for a home that
+    was never installed - on every machine, whatever the developer's own installation has
+    registered. Every write raises: the envelope must never be able to touch the Run key,
+    the protocol handler or the notification identity, whatever a later bridge command does.
+    """
+    HKEY_CURRENT_USER = object()
+    KEY_READ = KEY_SET_VALUE = KEY_WRITE = KEY_ALL_ACCESS = 0
+    REG_SZ = 1
+
+    @staticmethod
+    def OpenKey(*_args, **_kwargs):                      # noqa: N802 - winreg's own name
+        raise FileNotFoundError("not registered")
+
+    def __getattr__(self, name):
+        if name.startswith("__"):
+            raise AttributeError(name)
+
+        def refused(*_args, **_kwargs):
+            raise RegistryWriteRefused("the screenshot envelope never writes the registry (%s)" % name)
+        return refused
+
+
+@contextmanager
+def _registry_stand_in():
+    """`import winreg`, wherever in the package it happens, finds `_NoRegistration` meanwhile.
+
+    Only that one entry of `sys.modules` is replaced and put back: restoring a whole copy of
+    `sys.modules` would also drop every module first imported in between, and the next import
+    of one of them would make a second copy of it.
+    """
+    missing = object()
+    saved = sys.modules.get("winreg", missing)
+    sys.modules["winreg"] = _NoRegistration()
+    try:
+        yield
+    finally:
+        if saved is missing:
+            sys.modules.pop("winreg", None)
+        else:
+            sys.modules["winreg"] = saved
+
+
+@contextmanager
+def _watcher_mutex_held(paths):
+    """Hold the watcher's single-instance mutex for `paths`, as the capture's holder does.
+
+    From another thread: a Windows mutex is re-entrant for the thread that owns it, so a
+    probe from the owning thread would be granted it and report no watcher. The name is
+    derived from the scratch state directory, so this can never be the user's own watcher's.
+    Off Windows there is no mutex to hold and the probe is answered as the held one answers.
+    """
+    from unittest.mock import patch
+
+    from codex_auto_resume import control
+    if os.name != "nt":
+        with patch.object(control.Control, "watcher_running", return_value=True):
+            yield
+        return
+    from codex_auto_resume.windows import Mutex
+    held, done, failure = threading.Event(), threading.Event(), []
+
+    def hold():
+        try:
+            with Mutex(str(paths.state_dir), timeout=0.0):
+                held.set()
+                done.wait(120)
+        except Exception as exc:                        # noqa: BLE001 - re-raised below
+            failure.append(exc)
+            held.set()
+
+    holder = threading.Thread(target=hold, name="screenshot-mutex", daemon=True)
+    holder.start()
+    held.wait(30)
+    try:
+        if failure or not held.is_set():
+            raise RuntimeError("could not hold the watcher mutex for the envelope: %r" % failure)
+        yield
+    finally:
+        done.set()
+        holder.join(30)
+
+
+def _spellings(*pairs) -> list:
+    """(pattern, placeholder) for every way each directory can be written, longest first."""
+    found = {}
+    for placeholder, directory in pairs:
+        if not directory:
+            continue
+        path = Path(directory)
+        variants = {str(path), path.as_posix()}
+        try:
+            resolved = path.resolve()
+            variants.update((str(resolved), resolved.as_posix()))
+        except OSError:
+            pass
+        for variant in variants:
+            if len(variant) > 3:                         # never a bare drive or root
+                found.setdefault(variant, placeholder)
+    return [(re.compile(re.escape(text), re.IGNORECASE), placeholder)
+            for text, placeholder in sorted(found.items(), key=lambda item: -len(item[0]))]
+
+
+def _canonical(value, spellings):
+    if isinstance(value, str):
+        for pattern, placeholder in spellings:
+            value = pattern.sub(lambda _match, text=placeholder: text, value)
+        return value
+    if isinstance(value, dict):
+        return {key: _canonical(item, spellings) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_canonical(item, spellings) for item in value]
+    return value
+
+
+def window_envelopes(locales) -> dict:
+    """Locale -> the canonical text of what the bridge tells the window, one line per read.
+
+    Each line is the request and its reply as the reply crossed the wire: keys in the order
+    the bridge wrote them, because the window lists some objects in that order (the
+    Statistics page's kinds of interruption), with only the pinned values above rewritten.
+    """
+    from unittest.mock import patch
+
+    from codex_auto_resume import control, controlcli
+    from codex_auto_resume.store import Store
+
+    envelopes = {}
+    with tempfile.TemporaryDirectory() as name, ExitStack() as stack:
+        workspace = Path(name)
+        home, codex = workspace / "home", workspace / "codex"
+        # The part of `scratch_installation` the bridge reads: the settings it stores. The
+        # interpreter and the compiled window are not read by any answer.
+        write_settings(home)
+        seed_window_state(home, codex, ENVELOPE_NOW)
+        paths = config.Paths(home)
+        # Put back whole when the envelope is done, including the two removed here.
+        stack.enter_context(patch.dict(os.environ, {"CODEX_HOME": str(codex)}))
+        for override in (config.ENV_HOME, config.ENV_CODEX_EXE):
+            os.environ.pop(override, None)
+        stack.enter_context(patch.object(time, "time", return_value=ENVELOPE_NOW))
+        stack.enter_context(patch.object(
+            time, "localtime", side_effect=lambda seconds=None: time.gmtime(
+                ENVELOPE_NOW if seconds is None else seconds)))
+        stack.enter_context(_registry_stand_in())
+        stack.enter_context(_watcher_mutex_held(paths))
+        with Store(paths.state_dir) as store:
+            store.heartbeat(ENVELOPE_NOW - 1, pid=ENVELOPE_PID, session_id="screenshot",
+                            started_at=ENVELOPE_NOW - 5400, ok=True, engine_state="verified",
+                            code_version=config.version())
+        surface = control.Control(paths)
+
+        def ask(command, argument=None):
+            sent = json.dumps({"id": 1, "command": command, "argument": argument})
+            answer = io.StringIO()
+            controlcli.serve(surface, io.StringIO(sent + "\n"), answer)
+            return json.loads(answer.getvalue())["reply"]
+
+        # Switched on through the bridge before anything is read, as `render_window` does.
+        switched = ask("enabled", {"enabled": True})
+        if not switched.get("ok"):
+            raise RuntimeError("the scratch installation could not be switched on: %r" % switched)
+        spellings = _spellings(("<scratch>", workspace), ("<checkout>", ROOT),
+                               ("<temp>", tempfile.gettempdir()), ("<profile>", Path.home()))
+        previous = l10n.preference()
+        try:
+            for locale in locales:
+                os.environ[l10n.ENV_LANG] = locale
+                lines, replies = [], {}
+                for command, argument in WINDOW_READS:
+                    replies[command] = ask(command, argument)
+                    lines.append((command, argument, replies[command]))
+                preview = preview_request((replies["describe"] or {}).get("schema") or [],
+                                          (replies["settings"] or {}).get("settings") or {})
+                if preview is not None:
+                    lines.append(preview + (ask(*preview),))
+                # The photographed pages show a product that works. A read that failed here
+                # would be photographed failing too, so it stops the generator instead.
+                failed = [command for command, _argument, reply in lines
+                          if not reply.get("ok") or any(key.endswith("_error") for key in reply)]
+                if failed:
+                    raise RuntimeError("the bridge could not answer %s for the envelope" % failed)
+                envelopes[locale] = "\n".join(
+                    json.dumps({"command": command, "argument": argument,
+                                "reply": _canonical(reply, spellings)},
+                               ensure_ascii=False, separators=(",", ":"))
+                    for command, argument, reply in lines) + "\n"
+        finally:
+            l10n.set_preference(previous)
+    return envelopes
+
+
+def bridge_envelope(locale: str) -> str:
+    """One locale's envelope, for reading. From the repository root,
+
+        python -X utf8 -c "import sys; sys.path.insert(0, 'build'); import make_screenshots as m; print(m.bridge_envelope('en'))"
+
+    prints exactly what a changed `<bridge envelope:en>` entry was taken over."""
+    return window_envelopes((locale,))[locale]
+
+
 # ---------------------------------------------------------------------- manifest
 def render_inputs() -> dict:
     """What each image is rendered from, hashed.
@@ -652,10 +1211,13 @@ def render_inputs() -> dict:
     contributor who fixes a typo is not handed a red suite and a regeneration that needs
     Windows, Edge, a compiled settings window and a network fetch.
 
-    The window gets no such handle - it is a compiled application, and running it is the
-    only way to see its output - so its inputs are listed above, and a comment in
-    `SettingsApp.cs` will fire this check unnecessarily. That is a real cost and it is
-    the smaller one: the alternative is not noticing that the picture is wrong.
+    The window's Python half and the popup are keyed the same way since v0.6.5: the window
+    by what the bridge answers it (`<bridge envelope:*>`, see `window_envelopes`), the popup
+    by the view it draws and a digest of the definitions that draw it (`popup_render_input`).
+    Only the compiled window has no such handle - running it is the only way to see its
+    output - so its files are listed in WINDOW_INPUTS, and a comment in `SettingsApp.cs`
+    will still fire this check unnecessarily. That is a real cost and it is the smaller one:
+    the alternative is not noticing that the picture is wrong.
     """
     inputs = {name: input_digest(ROOT / name) for name in WINDOW_INPUTS}
     # One entry per locale, each rendered with that locale pinned.
@@ -665,23 +1227,21 @@ def render_inputs() -> dict:
     # an English CI runner recomputed the English one and called the screenshots stale.
     # It is the same failure as hashing raw bytes for a file whose line endings the
     # checkout decides - the input has to be pinned, not observed.
+    envelopes = window_envelopes(LOCALES + EXTRA_LOCALES)
+    drawing = popup_drawing()
     for locale in LOCALES + EXTRA_LOCALES:
-        previous = os.environ.get(messages.ENV_LANG)
-        os.environ[messages.ENV_LANG] = locale
+        inputs["<bridge envelope:%s>" % locale] = sha256(envelopes[locale].encode("utf-8"))
+        previous = os.environ.get(l10n.ENV_LANG)
+        os.environ[l10n.ENV_LANG] = locale
         try:
             inputs["<panel render:%s>" % locale] = sha256(
                 panel_html(theme=THEME).encode("utf-8"))
-            # The popup's pixels depend on the view it draws and on the code that draws it.
-            _strings, view = popup_view(locale)
-            inputs["<popup render:%s>" % locale] = sha256(
-                (json.dumps(view, sort_keys=True, default=str)
-                 + input_digest(ROOT / "src" / "codex_auto_resume" / "tray_popup.py")
-                 + input_digest(ROOT / "src" / "codex_auto_resume" / "brand.py")).encode("utf-8"))
+            inputs["<popup render:%s>" % locale] = popup_render_input(locale, drawing)
         finally:
             if previous is None:
-                os.environ.pop(messages.ENV_LANG, None)
+                os.environ.pop(l10n.ENV_LANG, None)
             else:
-                os.environ[messages.ENV_LANG] = previous
+                os.environ[l10n.ENV_LANG] = previous
     return inputs
 
 
@@ -783,7 +1343,7 @@ def main(argv=None) -> int:
         # The engine resolves the language from the environment, so the environment is
         # what the generator sets. Nothing here passes a language into a renderer: the
         # screenshots go through exactly the path a user's machine goes through.
-        os.environ[messages.ENV_LANG] = locale
+        os.environ[l10n.ENV_LANG] = locale
         pairs = paths_for(locale)
         panel = next(iter(pairs))
         render_panel(panel)
@@ -794,7 +1354,7 @@ def main(argv=None) -> int:
         copies.update(pairs)
     extras = []
     for locale in LOCALES + EXTRA_LOCALES:
-        os.environ[messages.ENV_LANG] = locale
+        os.environ[l10n.ENV_LANG] = locale
         tag = "" if locale == "en" else "-" + locale
         popup = DOCS / ("tray-popup%s.png" % tag)
         render_popup(popup, locale)
@@ -809,7 +1369,7 @@ def main(argv=None) -> int:
             for page, size in render_window(targets).items():
                 print("  %s  %s" % (targets[page].relative_to(ROOT), size))
             extras.extend(targets.values())
-    os.environ.pop(messages.ENV_LANG, None)
+    os.environ.pop(l10n.ENV_LANG, None)
 
     for source, copy in copies.items():
         shutil.copyfile(source, copy)

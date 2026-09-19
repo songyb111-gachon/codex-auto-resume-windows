@@ -27,6 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tests"))
 
+import srcscan                                                             # noqa: E402
 from codex_auto_resume import brand, l10n, mcpui                          # noqa: E402
 from codex_auto_resume import settings as policy                          # noqa: E402
 from test_mcpui_v063 import (FORCED, REDUCED, RULES, ROOT_TOKENS, SUPPORTS_MIX,  # noqa: E402
@@ -834,6 +835,10 @@ class MotionStyleTests(unittest.TestCase):
         source = (ROOT / "src" / "codex_auto_resume" / "mcpui.py").read_text(encoding="utf-8")
         self.assertNotIn("--transition-ease:", source)
         self.assertNotIn("--transition:", source)
+        # Brand is the one file of the package that writes either token, so the panel's style
+        # cannot move to a module of its own and start writing a curve there.
+        for token in ("--transition-ease:", "--transition:"):
+            self.assertEqual(srcscan.holders(token), {"codex_auto_resume/brand.py"}, token)
         # An ease-out: it leaves at once and settles, and it is the path brand.ease() gives the
         # window and the popup.
         for step in range(101):

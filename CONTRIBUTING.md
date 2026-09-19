@@ -334,13 +334,27 @@ They are pinned to light. The product follows the reader's Windows and Codex the
 runtime; the pictures do not, so that a gallery looks like one product and a build on a
 machine in dark mode produces the same bytes as a build on one in light mode.
 
-`assets/screenshots.json` records a digest of every input each image was rendered from —
-the window's three sources, its palette, its DPI manifest, the plugin manifest, the icon, the
-capture and build scripts, the rendered panel markup, and the engine modules the window's
-figures and rows are computed from. `WINDOW_INPUTS` in `build/make_screenshots.py` is the
-list. Change one and `tests/test_screenshots.py` fails telling you to re-run the generator.
-It is the mechanism that stops a screenshot describing a version of the product that no
-longer exists.
+`assets/screenshots.json` records a digest of every input each image was rendered from.
+The window is recorded in two halves. One is the files it is compiled from — its three
+sources, its palette, its DPI manifest, the plugin manifest, the icon, and the capture and
+build scripts; `WINDOW_INPUTS` in `build/make_screenshots.py` is that list. The other is what
+the bridge tells it: the generator asks the bridge the window's own questions against a
+scratch installation, with the clock, the paths and the machine's answers pinned, and records
+a hash of the replies (`<bridge envelope:*>`). The panel is recorded as its rendered markup,
+and the popup as the view it draws plus a digest of the code that draws it, pooled by
+definition name across the popup's modules and the palette's, and across what those import by
+name from the rest of the package, wherever it is defined. So moving code from one module
+to another leaves the manifest alone, while a change to anything a picture shows — a word, a
+row, a figure, a status, a colour — does not. Change one and `tests/test_screenshots.py`
+fails telling you to re-run the generator. It is the mechanism that stops a screenshot
+describing a version of the product that no longer exists.
+
+To see what a `<bridge envelope:*>` entry is made of, run this from the repository root; it
+prints the questions and the replies the digest is taken over:
+
+```
+python -X utf8 -c "import sys; sys.path.insert(0, 'build'); import make_screenshots as m; print(m.bridge_envelope('en'))"
+```
 
 **One image is not generated: `docs/images/notification.png`.** It is a real Windows toast,
 raised by the product and drawn by the shell, so it takes the machine's theme and cannot be
@@ -401,8 +415,60 @@ fail without it:
 If you are unsure whether a change crosses one of those lines, open an issue first and say
 what you are trying to achieve — there is usually a way to get there that keeps the property.
 
+## How the code is layered
+
+The Python package is built in layers, and its imports point one way: down or sideways,
+never up.
+
+- **Domain** — the rules with no side effects: how a failure is classified (`failures.py`),
+  which reasons are recoverable (`reasons.py`), and how a stored state becomes what a person is
+  shown (`machine.py`). The standard library only, and only the parts of it that touch no
+  clock, file or process.
+- **Policy and translation** — the settings schema, the continuation builder, the catalogs,
+  paths and the product version, and the log.
+- **Adapters** — everything that touches the outside: the store, Codex's files and processes,
+  Windows (the registry, the Start menu shortcut, PowerShell, notifications), and the
+  compatibility registry.
+- **The engine** — decides and schedules. It reaches Codex and the store through what it is
+  given rather than by importing them.
+- **Control** — the one layer a front end calls.
+- **Front ends** — the command line, the bridge the settings window talks to, the MCP server
+  and its panel, the watcher's runtime, the notification-area icon, its popup and the card.
+
+`tests/test_layers.py` places every module in one of these, and fails an import that points
+up, a module with no layer, and an import cycle. Where the code does not match the map yet,
+the test lists the real exceptions, and each one fails the test once it is gone, so those
+lists only shrink. A rule about a module holds for everything inside it once it is a package,
+and for the packages the split creates (`codex/`, `win/`, `ui/`, `mcp/`) before they exist, so
+moving code under a new name does not take it out of a rule. The same file lists every import
+made inside a function, with its reason; a new one needs a line there. `tests/test_sizes.py`
+gives every module a budget of 700 lines, and holds each module already over it to exactly the
+length it has now: a commit that shrinks one lowers its ceiling, so it cannot grow back.
+
+A test that asserts something about the source itself — that only the watcher sends, that the
+popup reaches nothing that can submit, that no module builds its own PowerShell command —
+reads it through `tests/srcscan.py`: every tracked `.py` file under `src/`, at any depth, and
+for each import also the package `__init__.py` files Python runs to reach its target. Do
+not read one module by name, or glob one directory, to assert that something is absent: when
+the code moves, a test like that keeps passing and stops checking. `tests/test_srcscan.py`
+refuses both shapes, and fails when a `.py` file under `src/` is not tracked, because an
+untracked module is invisible to every scan while the suite still runs it.
+
+Some paths are contracts with programs outside the package and do not move:
+`src/auto_resume.py` (it is in users' sign-in entries) and `src/codex_auto_resume/cli.py` (an
+older launcher, already installed in a user's home, looks for both), and the module names
+the settings window, the MCP launcher, the bootstrap and the release check call.
+`tests/test_structural_invariants.py` pins them.
+
 ## Commit and pull requests
 
 - One change per commit, with a message that says what changed and why.
 - Run the full suite before pushing.
 - If you fixed something a user could hit, add the regression test in the same commit.
+- A commit that only moves code — lines moved verbatim into another file, nothing else
+  changed — is listed in `.git-blame-ignore-revs` by a later commit, so that `git blame`
+  credits each line to the change that last really touched it. Run this once in your clone:
+
+  ```bash
+  git config blame.ignoreRevsFile .git-blame-ignore-revs
+  ```

@@ -15,11 +15,17 @@ import hashlib
 import os
 from pathlib import Path
 import re
+import sys
 import time
 import unittest
 import unittest.mock
 
-from codex_auto_resume import brand, control, interface, l10n, tray, tray_popup as popup
+_HERE = str(Path(__file__).resolve().parent)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)        # srcscan lives next to this file
+
+import srcscan  # noqa: E402
+from codex_auto_resume import brand, control, interface, l10n, tray, tray_popup as popup  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "src" / "codex_auto_resume" / "tray_popup.py"
@@ -994,63 +1000,116 @@ class FontTests(unittest.TestCase):
 
 
 # ----------------------------------------------------------------------------- safety
+# The popup's modules: tray_popup.py today, and every module under ui/popup/ once the
+# v0.6.5 split makes it a package. The envelope below is asserted over all of them at once
+# (PLAN-v2 M1): one popup module may import another, and everything else any of them imports
+# is held to one allowlist - so code moved out of tray_popup.py either lands in a module this
+# still reads, or in one the popup has to import from, which the allowlist refuses.
+POPUP_MODULES = ("codex_auto_resume.tray_popup", "codex_auto_resume.ui.popup")
+
+
+def is_popup_module(name):
+    return any(name == root or name.startswith(root + ".") for root in POPUP_MODULES)
+
+
+def envelope():
+    """The popup's modules, and every package above one of them that importing it runs.
+
+    Python runs `ui/__init__.py` before any module of `ui/popup/`, so whatever that file
+    imports is loaded with the popup, and it is read with the popup's own source. The
+    package's root `__init__.py` is the one left out: it runs before every module of the
+    package, and test_layers holds it to the policy layer, which reaches nothing that can
+    submit."""
+    own = {srcscan.module_name(path) for path in srcscan.files_of(*POPUP_MODULES)}
+    return own | {package for name in own for package in srcscan.ancestors(name) if package != srcscan.PACKAGE}
+
+
 class SafetyTests(unittest.TestCase):
-    """What this window can reach is what its source says it can reach."""
+    """What this window can reach is what its source says it can reach - all of its source,
+    however many files that becomes."""
 
     def setUp(self):
-        self.text = SOURCE.read_text(encoding="utf-8")
-        self.tree = ast.parse(self.text)
+        self.modules = envelope()
+        self.files = [srcscan.modules()[name] for name in sorted(self.modules)]
+        self.trees = {path: srcscan.package_asts()[path] for path in self.files}
+        self.texts = {path: srcscan.read(path) for path in self.files}
+
+    def test_the_envelope_is_the_popup_and_only_the_popup(self):
+        # It reads the module these tests drive...
+        self.assertIn(Path(popup.__file__).resolve(), {path.resolve() for path in self.files})
+        # ...and the exemption for "another popup module" reaches no further than the popup's
+        # own modules and the packages Python runs to load them: a sibling that merely shares
+        # the prefix is outside it, and so is held to the allowlist like any other import.
+        for name in self.modules:
+            with self.subTest(name):
+                self.assertTrue(is_popup_module(name) or any(
+                    is_popup_module(inner) and name in srcscan.ancestors(inner) for inner in self.modules))
+        self.assertNotIn(srcscan.PACKAGE, self.modules)
+        self.assertTrue(is_popup_module("codex_auto_resume.ui.popup.layout"))
+        for outside in ("codex_auto_resume.tray_popup_theme", "codex_auto_resume.ui.popups",
+                        "codex_auto_resume.ui", "codex_auto_resume.tray"):
+            self.assertFalse(is_popup_module(outside), outside)
 
     def test_it_imports_nothing_that_can_submit(self):
         package, stdlib = set(), set()
-        for node in ast.walk(self.tree):
-            if isinstance(node, ast.ImportFrom):
-                if node.level:
-                    names = [node.module] if node.module else [alias.name for alias in node.names]
-                    package.update(names)
-                else:
-                    stdlib.add(node.module)
-            elif isinstance(node, ast.Import):
-                stdlib.update(alias.name for alias in node.names)
-        self.assertLessEqual(package, {"brand", "l10n", "machine", "reasons", "tray"})
+        for path in self.files:
+            for entry in srcscan.imports(path):
+                if not entry.internal:
+                    stdlib.add(entry.target)
+                elif entry.target not in self.modules and not is_popup_module(entry.target):
+                    package.add(entry.target)
+        self.assertLessEqual(package, {"codex_auto_resume." + name
+                                       for name in ("brand", "l10n", "machine", "reasons", "tray")})
         for forbidden in ("engine", "backend", "windows", "store", "source", "app", "continuation",
                           "notify", "control", "controlcli", "mcpserver"):
-            self.assertNotIn(forbidden, package)
+            for name in package:
+                self.assertNotIn(forbidden, name.split(".")[1:], name)
         self.assertLessEqual(stdlib, {"__future__", "ctypes", "ctypes.wintypes", "itertools", "math", "os",
                                       "threading", "time"})
 
     def test_no_name_in_it_sends_submits_or_queues(self):
         names = set()
-        for node in ast.walk(self.tree):
-            if isinstance(node, ast.Name):
-                names.add(node.id)
-            elif isinstance(node, ast.Attribute):
-                names.add(node.attr)
-            elif isinstance(node, (ast.FunctionDef, ast.ClassDef)):
-                names.add(node.name)
-            elif isinstance(node, ast.alias):
-                names.add(node.asname or node.name)
+        for tree in self.trees.values():
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Name):
+                    names.add(node.id)
+                elif isinstance(node, ast.Attribute):
+                    names.add(node.attr)
+                elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    names.add(node.name)
+                elif isinstance(node, ast.alias):
+                    names.add(node.asname or node.name)
+                elif isinstance(node, ast.arg):
+                    names.add(node.arg)
+                elif isinstance(node, ast.keyword) and node.arg:
+                    names.add(node.arg)
         offenders = sorted(name for name in names
                            if re.search(r"send|submit|queue|dispatch|backend|engine", name, re.I))
         self.assertEqual(offenders, [])
 
     def test_it_asks_the_control_layer_for_exactly_four_things(self):
         called = set()
-        for node in ast.walk(self.tree):
-            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                    and isinstance(node.func.value, ast.Name) and node.func.value.id == "control"):
-                called.add(node.func.attr)
+        for tree in self.trees.values():
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                        and isinstance(node.func.value, ast.Name) and node.func.value.id == "control"):
+                    called.add(node.func.attr)
         self.assertEqual(called, set(popup.CONTROL_CALLS))
 
     def test_it_drives_nobody_else_s_window_and_opens_no_connection(self):
         forbidden = re.compile(r"\bSendInput\b|\bkeybd_event\b|\bmouse_event\b|\bSetCursorPos\b|"
                                r"\bPrintWindow\b|\bBitBlt\b|\bFindWindow\w*\b|\bsubprocess\b|\bsocket\b|"
                                r"\burllib\b|\bAccessibleObjectFromWindow\b|\bUIAutomation\w*\b")
-        self.assertEqual(forbidden.findall(self.text), [])
+        for path, text in self.texts.items():
+            with self.subTest(srcscan.relative(path)):
+                self.assertEqual(forbidden.findall(text), [])
 
     def test_every_colour_is_a_brand_token(self):
-        self.assertEqual(re.findall(r"#[0-9A-Fa-f]{6}\b", self.text), [])
-        used = set(re.findall(r"(?:argb|colorref)\(\"([a-z_]+)\"", self.text))
+        used = set()
+        for path, text in self.texts.items():
+            with self.subTest(srcscan.relative(path)):
+                self.assertEqual(re.findall(r"#[0-9A-Fa-f]{6}\b", text), [])
+            used |= set(re.findall(r"(?:argb|colorref)\(\"([a-z_]+)\"", text))
         tables = set(popup.DOT_FILL.values()) | set(popup.STATE_INK.values()) | {
             token for token in popup.BADGE.values() if token}
         for token in used | tables | {"waiting", "warning", "paused"}:

@@ -10,11 +10,18 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 
 from codex_auto_resume import l10n
+
+_HERE = str(Path(__file__).resolve().parent)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)        # srcscan lives next to this file
+
+import srcscan  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -227,8 +234,14 @@ class PreferenceTests(unittest.TestCase):
 
 class NoNetworkTests(unittest.TestCase):
     def test_localization_reaches_no_network(self):
-        for relative in ("src/codex_auto_resume/l10n.py", "src/codex_auto_resume/continuation.py",
-                         "src/codex_auto_resume/reasons.py", "build/l10n.py"):
+        # "Reaches" as the imports do: the three localization modules and every module of this
+        # product they import, lazily or not - so a split, or a helper they start to use, is
+        # read too (a root that no longer exists is a KeyError, not a pass). The build tool is
+        # outside the package and is named.
+        reached = srcscan.closure("codex_auto_resume.l10n", "codex_auto_resume.continuation",
+                                  "codex_auto_resume.reasons")
+        files = ["src/" + srcscan.relative(srcscan.modules()[module]) for module in sorted(reached)]
+        for relative in files + ["build/l10n.py"]:
             source = (ROOT / relative).read_text(encoding="utf-8")
             for word in ("urllib", "http.client", "socket", "requests", "https://"):
                 with self.subTest(file=relative, word=word):

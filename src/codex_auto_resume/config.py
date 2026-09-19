@@ -2,12 +2,48 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
 import re
 import tempfile
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# The plugin manifest, relative to the installation it describes. It is the one place the
+# product version is written, and the one file every layout has at its root: a checkout, the
+# installed `app/` directory, the release archive's payload and Codex's plugin cache.
+PLUGIN_MANIFEST = Path(".codex-plugin") / "plugin.json"
+# How many directories, starting with this module's own, are looked at for the manifest.
+# Today it is two above this module; five leaves room for this file to move two packages
+# deeper, which is more than any planned layout does.
+ROOT_SEARCH_LEVELS = 5
+# The top-level package this module belongs to: an installation's `src/` holds it.
+_PACKAGE = __name__.partition(".")[0]
+
+
+def _project_root(module: Path, levels: int = ROOT_SEARCH_LEVELS, package: str = _PACKAGE) -> Path:
+    """The installation root: the nearest directory above `module` that holds the plugin
+    manifest and whose `src/<package>/` holds `module`.
+
+    This was `parents[2]`, a count that is only true while this file sits exactly one package
+    below `src/`. Moved a level down, it named `src/` instead: the manifest was not found,
+    `version()` swallowed the error and said "unknown" everywhere at once, and `Paths` put
+    the default home and the entry script in the wrong place - without one test failing for
+    the reason. Searching for the manifest finds the same directory wherever the module is.
+
+    The second condition keeps the search to this installation. The root is the directory
+    whose `src/` holds this package, so a directory further up that holds some other plugin's
+    manifest is never taken for ours - not even one with a `src/` of its own somewhere above
+    this file, as a copy of the sources kept inside another project's `src/` has. When nothing
+    qualifies - a copy of the sources without a manifest - the answer is the old one,
+    `parents[2]`, exactly as before.
+    """
+    for candidate in module.parents[:levels]:
+        if (candidate / "src" / package) in module.parents and (candidate / PLUGIN_MANIFEST).is_file():
+            return candidate
+    return module.parents[2]
+
+
+PROJECT_ROOT = _project_root(Path(__file__).resolve())
 ENV_HOME = "CODEX_AUTO_RESUME_HOME"
 ENV_CODEX_EXE = "CODEX_AUTO_RESUME_CODEX_EXE"
 # Provenance marker: uninstall deletes ONLY inside a directory this tool created.
@@ -161,21 +197,67 @@ class Paths:
         return result + [self.logs_dir / OWNER_MARKER]
 
 
+def read_version(manifest: Path) -> str:
+    """The version a plugin manifest declares, or `ConfigError` saying why it cannot be read.
+
+    Strict: the file must be readable, JSON, an object, and carry a non-empty string
+    `version`. The reason is one of a closed set of sentences and never quotes the file.
+    """
+    try:
+        # utf-8-sig, not utf-8: a manifest saved by a Windows editor carries a BOM,
+        # `json.loads` rejects it, and every version-bearing surface in the product
+        # would then quietly say "unknown" together.
+        raw = Path(manifest).read_text(encoding="utf-8-sig")
+    except FileNotFoundError:
+        raise ConfigError("the plugin manifest is missing") from None
+    except (OSError, ValueError):
+        # ValueError: bytes that are not UTF-8.
+        raise ConfigError("the plugin manifest could not be read") from None
+    try:
+        document = json.loads(raw)
+    except (ValueError, RecursionError):
+        raise ConfigError("the plugin manifest is not JSON") from None
+    if not isinstance(document, dict):
+        raise ConfigError("the plugin manifest is not a JSON object") from None
+    declared = document.get("version")
+    if not isinstance(declared, str) or not declared.strip():
+        raise ConfigError("the plugin manifest has no version string") from None
+    return declared
+
+
+# Each reason `version()` has logged in this process, so a watcher asking every tick says it once.
+_reported: set = set()
+
+
 def version() -> str:
     """The product version, read from the plugin manifest.
 
     The manifest is the one place the version is written: the release archive is named
     from it, the release workflow refuses a tag that disagrees with it, and everything
     that displays a version reads it from here.
+
+    "unknown" in two cases, which used to be one. No manifest at the installation root is
+    a copy of the sources with nothing to report, and says so quietly, as it always has. A
+    manifest that is there but cannot be read as one - unreadable, not JSON, not an object,
+    no version string - is a damaged installation, and it no longer passes silently: the
+    reason from `read_version` is logged as a warning, once per process (into the watcher's
+    log when one is set up, and to stderr otherwise), before the answer. The answer itself
+    stays "unknown" rather than an exception, because the watcher writes this into its
+    heartbeat every tick and several front ends show it, and a broken version string must
+    never be the thing that stops recovery or a status read. `read_version` is the strict
+    form, for anything that must not settle for "unknown".
     """
-    manifest = PROJECT_ROOT / ".codex-plugin" / "plugin.json"
+    manifest = PROJECT_ROOT / PLUGIN_MANIFEST
+    if not manifest.exists():
+        return "unknown"
     try:
-        # utf-8-sig, not utf-8: a manifest saved by a Windows editor carries a BOM,
-        # `json.loads` rejects it, and every version-bearing surface in the product
-        # would then quietly say "unknown" together.
-        return str(json.loads(manifest.read_text(encoding="utf-8-sig")).get("version")
-                   or "unknown")
-    except (OSError, ValueError):
+        return read_version(manifest)
+    except ConfigError as exc:
+        reason = str(exc)
+        if reason not in _reported:
+            _reported.add(reason)
+            logging.getLogger(__name__).warning("%s; the product version is shown as unknown",
+                                                reason)
         return "unknown"
 
 
