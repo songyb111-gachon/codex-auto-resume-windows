@@ -416,6 +416,15 @@ Python 패키지는 계층으로 짜여 있고, import는 한 방향으로만 �
 옮겨도 이 파일들은 하나도 달라지지 않아야 합니다. 답을 바꾸려는 변경은
 `python -X utf8 tests/wiregolden.py --write`로 파일들을 다시 만들고, 그 diff도 변경과 함께 리뷰합니다.
 
+어떤 규칙은 일부러 한곳에만 둡니다. 레코드가 어느 대기 상태로 돌아가는지, 클레임 하나가 예산을 얼마나
+쓰는지, 레코드가 Codex의 대기열에 들어 있을 수 있는지, 명령이 상태를 어떻게 여는지, 어느 설정이
+사용자가 직접 쓴 글인지 같은 것들입니다. `tests/test_single_rules.py`는 호출하는 곳마다 각 규칙에서
+무엇을 받는지 고정하고, 패키지 어디에든 같은 규칙의 두 번째 구현이 생기면 실패합니다. 규칙을 다시
+쓰지 말고 이미 있는 것을 부르세요. `machine.waiting_state`, `machine.may_be_queued`,
+`openstate.open_state`, `settings.is_custom_text`, 그리고 그 테스트가 이름을 대는 나머지입니다. JSON을
+쓰는 곳은 모두 `allow_nan=False`를 넘기고 `default`는 넘기지 않으며, `tests/test_json_writers.py`가
+이를 검사합니다. JSON이 아닌 값은 글로 적어 보낼 것이 아니라, 그 값을 만드는 곳에서 고칠 버그입니다.
+
 ## 커밋과 pull request
 
 - 커밋 하나에 변경 하나, 그리고 무엇이 왜 바뀌었는지 말하는 메시지.
