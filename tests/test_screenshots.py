@@ -12,15 +12,22 @@ wrong. Reading the version out of a PNG is the other tempting approach and is wo
 turns a hard question into a flaky one, and it would still miss a layout change that moved
 a control.
 
-Two kinds of input, and the difference matters:
+Three kinds of input, and the difference matters:
 
 * The **panel** is hashed by the markup it renders. That cannot fall behind - the version,
   the settings schema, the fields a pending row carries and the palette all reach the HTML
   wherever in the package they live - and editing a comment cannot fire it.
-* The **window** is a compiled application, so its inputs are a list, and a list is exactly
-  what went wrong the first time: seven files named, five that change the picture missed.
-  It is as short as it can be, and a comment in `SettingsApp.cs` will fire this check
-  unnecessarily. That cost is real and it is the smaller one.
+* The **window** is a compiled application, so the files it is compiled from are a list,
+  and a list is exactly what went wrong the first time: seven files named, five that change
+  the picture missed. It is as short as it can be, and a comment in `SettingsApp.cs` will
+  fire this check unnecessarily. That cost is real and it is the smaller one. Everything
+  the window shows arrives over the bridge, though, and that half is hashed the way the
+  panel is: by what the bridge answers the window (`<bridge envelope:*>`), not by the
+  fifteen package files it was until v0.6.5 - so moving code inside the package cannot fire
+  it, and a changed word, row, figure, name or status cannot slip past it.
+* The **popup** is hashed by the view it draws and by the definitions that draw it, pooled
+  by name across its modules and the palette's, so moving one between modules cannot fire
+  it and changing one does.
 
 So this fires whenever something the picture is drawn from changed - not, as an earlier
 version of this paragraph claimed, exactly when the picture stopped being true.
@@ -28,6 +35,7 @@ version of this paragraph claimed, exactly when the picture stopped being true.
 from __future__ import annotations
 
 import ast
+from contextlib import ExitStack
 import hashlib
 import json
 import os
@@ -148,31 +156,105 @@ class ManifestTests(unittest.TestCase):
     def test_the_window_inputs_include_what_the_dashboard_is_computed_by(self):
         """The window's list went stale once already, by missing files like these.
 
-        The Dashboard computes its figures, rows, names, headline and footer from the
-        package at capture time, so each of these can change the picture without the
-        layout changing at all. Nothing can prove a compiled window's list complete; this
-        stops a file that is known to matter from falling off it again.
+        Its compiled half is still a list, so every C# file `make_gui.ps1` compiles into the
+        window is on it, beside what the compiler is handed and the scripts that capture it.
+
+        Its Python half is the bridge envelope. A missing file cannot happen there, but a
+        missing question can - so each thing the Dashboard's figures, rows, names, headline and
+        footer are computed from is changed here, one at a time, and must move the envelope.
+        Each change is named for the file this list used to name for it, so nothing that list
+        guarded is guarded less: it is guarded by what it computes, wherever that code lives.
         """
-        inputs = set(self.generator().WINDOW_INPUTS)
-        expected = (
-            "src/codex_auto_resume/store.py",
-            "src/codex_auto_resume/source.py",
-            "src/codex_auto_resume/config.py",
-            "src/codex_auto_resume/messages.py",
-            "src/codex_auto_resume/windows.py",
-            "src/codex_auto_resume/startup.py",
-            "src/codex_auto_resume/control.py",
-            "src/codex_auto_resume/controlcli.py",
-            "src/codex_auto_resume/machine.py",
-            "src/codex_auto_resume/interface.py",
-            "gui/Dashboard.cs",
-            "gui/SettingsApp.cs",
-            "tests/codexsim.py",
-        )
-        missing = [name for name in expected if name not in inputs]
-        self.assertEqual(missing, [],
-                         "the window is computed from these, so a change to one of them "
+        generator = self.generator()
+        inputs = set(generator.WINDOW_INPUTS)
+        build = (ROOT / "build" / "make_gui.ps1").read_text(encoding="utf-8")
+        window = re.search(r"Build -Name 'CodexAutoResumeSettings\.exe'.*?-Sources @\(([^\n]*)", build, re.S)
+        compiled = {"gui/" + name for name in re.findall(r"gui\\([A-Za-z]+\.cs)", window.group(1))}
+        self.assertIn("gui/Dashboard.cs", compiled)
+        self.assertIn("gui/SettingsApp.cs", compiled)
+        expected = compiled | {"gui/app.manifest", "assets/codex-auto-resume.ico",
+                               ".codex-plugin/plugin.json", "build/capture_window.ps1",
+                               "build/make_gui.ps1", "build/make_screenshots.py"}
+        self.assertEqual(sorted(expected - inputs), [],
+                         "the window is compiled from these, so a change to one of them "
                          "must mark the screenshots stale")
+        self.assertEqual(sorted(name for name in inputs if name.startswith(("src/", "tests/"))), [],
+                         "what the package computes reaches the window through the bridge, and is "
+                         "hashed there; a file listed here would fire on every move")
+        for locale in generator.LOCALES + generator.EXTRA_LOCALES:
+            self.assertIn("<bridge envelope:%s>" % locale, self.manifest["inputs"])
+
+        import codexsim
+        from codex_auto_resume import (config, continuation, control, controlcli, l10n, machine,
+                                       settings, startup, windows)
+        from codex_auto_resume.source import LocalSource
+        from codex_auto_resume.store import Store
+
+        def changed(owner, name, change):
+            real = getattr(owner, name)
+            return patch.object(owner, name, lambda *args, **kwargs: change(real(*args, **kwargs)))
+
+        def several(*patches):
+            def enter():
+                stack = ExitStack()
+                for each in patches:
+                    stack.enter_context(each())
+                return stack
+            return enter
+
+        real_add_thread = codexsim.CodexHome.add_thread
+        nowhere = Path(tempfile.gettempdir()) / "no-codex-home-for-the-envelope"
+        perturbations = {
+            "store.py - the Statistics figures":
+                lambda: changed(Store, "statistics", lambda figures: dict(
+                    figures, interruptions_detected=figures["interruptions_detected"] + 1)),
+            "store.py - the pending rows":
+                lambda: changed(Store, "pending", lambda rows: rows[:-1]),
+            "store.py - the order of the history":
+                lambda: changed(Store, "history", lambda rows: list(reversed(rows))),
+            "store.py - the heartbeat behind 'checking'":
+                lambda: changed(Store, "watcher_status", lambda status: dict(
+                    status, last_tick_at=status["last_tick_at"] - 3600)),
+            "source.py - the conversation names, via LocalSource.identity":
+                lambda: changed(LocalSource, "identity", lambda found: dict(found, name="renamed")),
+            "config.py - the version it reads":
+                lambda: patch.object(config, "version", return_value="9.9.9"),
+            "config.py - the Codex home the names are read from":
+                lambda: patch.object(config, "codex_home", return_value=nowhere),
+            "locales/*.json, l10n.py, interface.py - a word of the window":
+                lambda: changed(l10n, "catalog", lambda words: dict(
+                    words, **{"nav.pending": words["nav.pending"] + "!"})),
+            "messages.py - which language the window is resolved to":
+                lambda: patch.object(l10n, "resolve", return_value="ko"),
+            "startup.py - the start-at-sign-in value":
+                several(lambda: patch.object(startup, "current_value", return_value="registered"),
+                        lambda: patch.object(startup, "belongs_to", return_value=True)),
+            "control.py - what a row carries":
+                lambda: changed(control, "describe_record", lambda row: dict(row, budget_resets_left=0)),
+            "machine.py - which public status a row shows":
+                lambda: changed(machine, "public_code", lambda code: "failed_retryable"),
+            "controlcli.py - the envelope the window unpacks":
+                lambda: changed(controlcli, "dispatch", lambda reply: dict(reply, extra=True)),
+            "settings.py - the schema that decides which rows exist":
+                lambda: changed(settings, "describe", lambda fields: fields[:-1]),
+            "continuation.py, reasons.py - the Settings page's Preview":
+                lambda: changed(continuation, "for_settings", lambda text: text + " Thanks."),
+            "tests/codexsim.py - the synthetic Codex home the names come from":
+                lambda: patch.object(codexsim.CodexHome, "add_thread",
+                                     lambda sim, thread, *, name=None, **rest: real_add_thread(
+                                         sim, thread, name=(name or "").upper(), **rest)),
+        }
+        if os.name == "nt":
+            # Not acquired, so nothing holds it and the probe finds it free.
+            perturbations["windows.py - the mutex that decides 'watching'"] = several(
+                lambda: patch.object(windows.Mutex, "__enter__", lambda mutex: mutex),
+                lambda: patch.object(windows.Mutex, "__exit__", lambda mutex, *unused: None))
+        before = generator.bridge_envelope("en")
+        for what, change in perturbations.items():
+            with self.subTest(what), change():
+                self.assertNotEqual(generator.bridge_envelope("en"), before,
+                                    "%s changes the window without moving its manifest entry" % what)
+        self.assertEqual(generator.bridge_envelope("en"), before)
 
     def test_the_committed_images_are_the_ones_the_manifest_describes(self):
         wrong = [name for name, recorded in self.manifest["images"].items()

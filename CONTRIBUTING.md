@@ -334,13 +334,26 @@ They are pinned to light. The product follows the reader's Windows and Codex the
 runtime; the pictures do not, so that a gallery looks like one product and a build on a
 machine in dark mode produces the same bytes as a build on one in light mode.
 
-`assets/screenshots.json` records a digest of every input each image was rendered from —
-the window's three sources, its palette, its DPI manifest, the plugin manifest, the icon, the
-capture and build scripts, the rendered panel markup, and the engine modules the window's
-figures and rows are computed from. `WINDOW_INPUTS` in `build/make_screenshots.py` is the
-list. Change one and `tests/test_screenshots.py` fails telling you to re-run the generator.
-It is the mechanism that stops a screenshot describing a version of the product that no
-longer exists.
+`assets/screenshots.json` records a digest of every input each image was rendered from.
+The window is recorded in two halves. One is the files it is compiled from — its three
+sources, its palette, its DPI manifest, the plugin manifest, the icon, and the capture and
+build scripts; `WINDOW_INPUTS` in `build/make_screenshots.py` is that list. The other is what
+the bridge tells it: the generator asks the bridge the window's own questions against a
+scratch installation, with the clock, the paths and the machine's answers pinned, and records
+a hash of the replies (`<bridge envelope:*>`). The panel is recorded as its rendered markup,
+and the popup as the view it draws plus a digest of the code that draws it, pooled by
+definition name across the popup's modules and the palette's. So moving code from one module
+to another leaves the manifest alone, while a change to anything a picture shows — a word, a
+row, a figure, a status, a colour — does not. Change one and `tests/test_screenshots.py`
+fails telling you to re-run the generator. It is the mechanism that stops a screenshot
+describing a version of the product that no longer exists.
+
+To see what a `<bridge envelope:*>` entry is made of, run this from the repository root; it
+prints the questions and the replies the digest is taken over:
+
+```
+python -X utf8 -c "import sys; sys.path.insert(0, 'build'); import make_screenshots as m; print(m.bridge_envelope('en'))"
+```
 
 **One image is not generated: `docs/images/notification.png`.** It is a real Windows toast,
 raised by the product and drawn by the shell, so it takes the machine's theme and cannot be
