@@ -5769,21 +5769,13 @@ namespace CodexAutoResume
             set
             {
                 string next = string.IsNullOrEmpty(value) ? "idle" : value;
-                if (next != state)
-                {
-                    state = next;
-                    enteredAt = clock.Elapsed.TotalMilliseconds;
-                    Invalidate();
-                    Sync();
-                }
-                EventHandler told = StateSet;
-                if (told != null) told(this, EventArgs.Empty);
+                if (next == state) return;
+                state = next;
+                enteredAt = clock.Elapsed.TotalMilliseconds;
+                Invalidate();
+                Sync();
             }
         }
-
-        /// Raised each time the light is told its state, the same one or another: the window's taskbar
-        /// button follows it (TaskbarMark). A light that starts idle and is told idle has been told.
-        internal event EventHandler StateSet;
 
         /// How far the largest glow reaches from the dot's centre, in device pixels: the room a
         /// column holding the light keeps on each side of it.
@@ -6120,9 +6112,10 @@ namespace CodexAutoResume
     /// again with the other of two handles to one image (Refresh): the title bar keeps every pixel, and the button
     /// takes the frame within a frame's time.
     ///
-    /// The state is the notification-area icon's for the header light's (Brand.Mark.IconState, tray.ICON_FOR_LIGHT),
-    /// the rhythms are its (Brand.Mark.Frame and FrameMs, tray.icon_frame and icon_frame_ms), and the frames are its
-    /// own pixels at the size the window gives Windows its big icon (MarkFrames). At rest - watching or recovering with
+    /// The state is the notification-area icon's for the watcher the window read (SettingsForm.TrayActivity, told
+    /// wherever the header light is, and mapped by Brand.Mark.IconState, tray.ICON_FOR_LIGHT), the rhythms are its
+    /// (Brand.Mark.Frame and FrameMs, tray.icon_frame and icon_frame_ms), and the frames are its own pixels at the size
+    /// of the window's big icon (MarkFrames). At rest - watching or recovering with
     /// nothing moving - the big icon is the window's own again, the icon it had before v0.6.5; paused or with the
     /// watcher stopped it is grey, a problem its colour. No badge: the header says the rest.
     ///
@@ -6172,7 +6165,7 @@ namespace CodexAutoResume
         private readonly System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
         /// The motion's clock in ms: breaths and turns count from the mark's start. A probe stands its own in.
         internal Func<double> Clock;
-        private string state;               // the icon state, null until the header light is first told one
+        private string state;               // the icon state, null until the window first tells it one
         private double enteredAt;           // when it was entered, on Clock
         private bool allowed;               // whether it may move, as Sync last found
         private int interval = -1;          // the frame timer's interval while it runs
@@ -6209,8 +6202,8 @@ namespace CodexAutoResume
             get { return timer.Enabled; }
         }
 
-        /// The icon's state for a status light's (Brand.Mark.IconState), from now on. The same state again changes
-        /// nothing: a breath or a pulse carries on.
+        /// The icon's state for a status-light word (Brand.Mark.IconState) - the window's is SettingsForm.TrayActivity's
+        /// - from now on. The same state again changes nothing: a breath or a pulse carries on.
         internal void Follow(string light)
         {
             string next = Brand.Mark.IconState(light);

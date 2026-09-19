@@ -75,8 +75,9 @@ class StateTests(unittest.TestCase):
                 self.assertEqual(tray.icon_state(snapshot, **options), expected)
 
     def test_the_rule_read_from_a_status_light_is_the_tick_s_rule(self):
-        """The window's taskbar button knows its header light's state, not the tick's snapshot: ICON_FOR_LIGHT is
-        icon_state read from that side, for every snapshot the tick can produce and every light there is."""
+        """The window's taskbar button is told a word for what the window read (SettingsForm.TrayActivity), not the
+        tick's snapshot: ICON_FOR_LIGHT is icon_state read from that side, for every snapshot the tick can produce and
+        every light there is."""
         self.assertEqual(tray.ICON_FOR_LIGHT, {
             "monitoring": "watching", "waiting": "watching", "checking": "watching", "recovering": "recovering",
             "paused": "idle", "idle": "idle", "attention": "attention", "failed": "failed"})

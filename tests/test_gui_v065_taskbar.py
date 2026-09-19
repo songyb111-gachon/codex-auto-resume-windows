@@ -8,9 +8,14 @@ while the window is open ("윈도우 아래 앱 켜있을때 아이콘도 트레
     icon alone never reached the button. So TaskbarMark (gui/Controls.cs) sets each frame as the big icon and then
     sets the small icon again with the other of two handles to one image. The small icon - the title bar's, which the
     documentation screenshots capture - never changes by a pixel;
-  * the state is the tray icon's for the header light's: Brand.Mark.IconState is tray.ICON_FOR_LIGHT, which
-    tests/test_tray_icon_motion.py holds equal to tray.icon_state, and here it is held equal across every status the
-    window can see, through the window's own Activity, and through the window itself (its light tells the mark);
+  * the state is the tray icon's for the same watcher. The window reads what the icon's popup reads (get_status and
+    list_pending), and SettingsForm.TrayActivity makes of it the word tray.icon_state makes its state from, which
+    Brand.Mark.IconState maps as tray.ICON_FOR_LIGHT does: the icon as it is with its popup open, since the window,
+    like the open popup, reads the watcher now. That is held equal to tray.py's own code - snapshot_from,
+    popup_attention over a PopupModel, icon_state - for every kind of watcher and of pending record the window can
+    read, from the control layer's own describe_record; and the window itself tells its mark so. Where no icon of this
+    version can be showing - no watcher running, or an older one still owning the state - the button is the header
+    light's;
   * the rhythms are the tray's (Brand.Mark.Frame and FrameMs against tray.icon_frame and icon_frame_ms), and the
     frames are the tray's own pixels: MarkFrames composes, from what build/make_brand.py generated, exactly what
     tray.IconFrames composes, at each of the .ico's entries the big icon is from 100% to 300% (32, 40, 48 and 64 px);
@@ -37,9 +42,10 @@ import subprocess
 import sys
 import tempfile
 import time
+import types
 import unittest
 
-from codex_auto_resume import brand, l10n, tray
+from codex_auto_resume import brand, control, l10n, machine, tray, tray_popup
 
 from test_gui_layout import fullest_snapshot
 
@@ -73,41 +79,140 @@ def for_light(light):
     return tray.ICON_FOR_LIGHT.get(light, "idle")
 
 
+# ------------------------------------------------------------------ one watcher, as the window and the tray read it
+def stored(index, state, now=NOW, **changes):
+    """A pending record as the store keeps it: what control.describe_record and tray.snapshot_from read."""
+    value = {"interruption_id": "%064x" % index, "thread_id": "%08d-0000-7000-8000-000000000000" % index,
+             "state": state, "category": "usage_limit", "detected_at": now - 900, "reset_at": None,
+             "next_retry_at": None, "recovery_attempts": 1, "no_progress_count": 0, "chain_continuations": 0,
+             "chain_origin_id": None, "parent_interruption_id": None, "budget_resets": 0, "cancel_requested": 0,
+             "recovery_turn_status": None, "user_joined": 0, "after_user_work": 0, "outcome_at": None,
+             "first_queued_at": None, "gate_eval": None, "gate_eval_at": None, "last_error": None, "queue_id": None}
+    value.update(changes)
+    return value
+
+
+def pending_kinds(now=NOW):
+    """One record of every kind store.pending() returns: each stored state that is not final, and the two whose public
+    code is more than their state's - a retry that never reached Codex's queue, a claim already in it."""
+    kinds = [stored(index + 1, state, now, next_retry_at=now + 600)
+             for index, state in enumerate(sorted(machine.WAITING))]
+    kinds.append(stored(20, "waiting_retry", now, last_error="queue_process_not_started", next_retry_at=now + 60))
+    kinds.append(stored(21, "submitting", now))
+    kinds.append(stored(22, "submitting", now, queue_id="queue-entry"))
+    kinds += [stored(30 + index, state, now)
+              for index, state in enumerate(sorted(machine.IN_FLIGHT | machine.OBSERVING))]
+    return kinds
+
+
+# What the control layer knows of the watcher (Control._watcher), in each case the window can see.
+WATCHERS = {
+    "watching": {"running": True, "ticking": True, "engine_state": "verified"},
+    "a compatible engine": {"running": True, "ticking": True, "engine_state": "structurally_compatible"},
+    "no heartbeat yet": {"running": True, "ticking": None, "engine_state": "unknown"},
+    "not ticking": {"running": True, "ticking": False, "engine_state": "verified"},
+    "an incompatible engine": {"running": True, "ticking": True, "engine_state": "incompatible"},
+    "not running": {"running": False, "ticking": None, "engine_state": "unknown"},
+    "not known to run": {"running": None, "ticking": None, "engine_state": "unknown"},
+}
+
+
+class WatcherStore:
+    """The watcher's store, as tray.snapshot_from reads it."""
+
+    def __init__(self, records, enabled):
+        self.records, self.enabled = records, enabled
+
+    def pending(self):
+        return [dict(record) for record in self.records]
+
+    def settings(self):
+        return {"enabled": self.enabled}
+
+
+def tray_icon(status, rows, records, enabled, popup_open, now=NOW):
+    """The notification-area icon's state for one watcher, by tray.py's own code, as Tray._observe makes it: the tick's
+    snapshot of the store (snapshot_from), and whether its popup, open or not, says a person must act (popup_attention
+    over a PopupModel that read the same get_status and list_pending the window reads)."""
+    snapshot = tray.snapshot_from(WatcherStore(records, enabled), now)
+    model = tray_popup.PopupModel()
+    model.status, model.rows = copy.deepcopy(status), copy.deepcopy(rows)
+    popup = types.SimpleNamespace(visible=popup_open, attention=model.attention)
+    return tray.icon_state(snapshot, attention=tray.popup_attention(popup), failed=snapshot.get("failed") is True)
+
+
+def watcher_case(name, records, *, watcher, enabled=True, listed=True, upgrade=False, disabled=(), now=NOW,
+                 listed_with=None):
+    """One watcher: what the window reads of it - control.get_status and control.list_pending, as the bridge's dashboard
+    reply carries them, each row from control.describe_record - and, where a watcher of this version runs and so has an
+    icon, that icon's state with its popup closed and open (tray_icon). A list that could not be read is None, and the
+    open popup is then given the status alone, as the window has it. An older watcher that still owns the state
+    (upgrade_pending) is read as get_status reads it - no codes - and its records are not listed. `listed_with` is the
+    watcher as list_pending found it, a moment after get_status, where the two differ."""
+    watcher = dict(watcher, last_tick_at=now - 5)
+    listed_with = watcher if listed_with is None else dict(listed_with, last_tick_at=now - 5)
+    codes = {}
+    if not upgrade:
+        for record in records:
+            code = machine.public_code(record)
+            codes[code] = codes.get(code, 0) + 1
+    status = {"version": "0.6.5", "enabled": enabled, "watcher_running": watcher["running"], "watcher": watcher,
+              "upgrade_pending": upgrade, "startup_enabled": True, "pending": len(records), "codes": codes}
+    rows = None
+    if listed and not upgrade:
+        rows = []
+        for record in records:
+            on = record["thread_id"] not in disabled
+            row = control.describe_record(record, enabled=enabled, thread_enabled=on, watcher=listed_with)
+            row.update({"thread_enabled": on, "name": None, "project": None, "cwd_basename": None})
+            rows.append(row)
+    icon = None
+    if watcher["running"] is True and not upgrade:
+        icon = tuple(tray_icon(status, rows, records, enabled, opened, now) for opened in (False, True))
+    return {"name": name, "status": status, "rows": rows, "tray": icon}
+
+
+def button_for(case):
+    """The taskbar button's state for one watcher: the tray icon's with its popup open - the window reads the watcher
+    now, as the open popup does. Where no icon of this version can be showing, the header light's: grey with no
+    watcher running or none known to, and needing a person while an older watcher still owns the state."""
+    if case["tray"] is not None:
+        return case["tray"][1]
+    status = case["status"]
+    return "attention" if status["upgrade_pending"] and status["watcher_running"] is True else "idle"
+
+
 def window_cases():
-    """Every kind of status the window's header light is decided from (SettingsForm.Activity), with what the tray's
-    own rule makes of the same watcher: a tick snapshot and its attention, or - for a watcher that is not running,
-    which has no tray icon at all - the light alone."""
-    def status(**changes):
-        value = {"watcher_running": True, "enabled": True, "upgrade_pending": False, "pending": 0,
-                 "watcher": {"running": True, "ticking": True}}
-        value.update(changes)
-        return value
-
-    def row(code, eligible=None):
-        return {"code": code, "eligible_at": eligible}
-
-    waiting, due = row("waiting_for_reset", NOW + 600), row("waiting_for_retry", NOW - 5)
-    cases = [
-        ("not running", status(watcher_running=False), [], "idle", None),
-        ("not known to run", status(watcher_running=None), [], "idle", None),
-        ("an unfinished upgrade", status(upgrade_pending=True), [waiting], "attention", ({"enabled": True}, True)),
-        ("not ticking", status(watcher={"running": True, "ticking": False}), [], "attention", ({}, True)),
-        ("paused", status(enabled=False), [waiting], "paused", ({"enabled": False, "waiting": 1}, False)),
-        ("paused while one runs", status(enabled=False), [row("turn_running")], "paused",
-         ({"enabled": False, "running": 1}, False)),
-        ("paused with an upgrade", status(enabled=False, upgrade_pending=True), [], "attention",
-         ({"enabled": False}, True)),
-        ("nothing to do", status(), [], "monitoring", ({"enabled": True, "waiting": 0, "running": 0}, False)),
-        ("waiting", status(pending=1), [waiting], "waiting",
-         ({"enabled": True, "waiting": 1, "next_at": NOW + 600}, False)),
-        ("due", status(pending=2), [waiting, due], "checking",
-         ({"enabled": True, "waiting": 2, "next_at": NOW - 5}, False)),
-        ("list unreadable, some waiting", status(pending=2), None, "waiting", ({"enabled": True, "waiting": 2}, False)),
-        ("list unreadable, none waiting", status(pending=0), None, "monitoring", ({"enabled": True}, False)),
-    ]
-    for code in ("submission_claimed", "submitted", "turn_running", "turn_finishing"):
-        cases.append(("recovering: " + code, status(pending=2), [waiting, row(code)], "recovering",
-                      ({"enabled": True, "waiting": 1, "running": 1}, False)))
+    """Every kind of watcher the window can read: each of WATCHERS, recovery on and paused, listed and not, with nothing
+    pending, some waiting, one due, one of every pending kind beside a waiting one, a switched-off conversation and a
+    cancel asked for; and an older watcher that still owns the state, running or not."""
+    waiting = stored(90, "waiting_reset", next_retry_at=NOW + 600)
+    due = stored(91, "waiting_poll", next_retry_at=NOW - 5)
+    sets = [("nothing pending", [], ()), ("one waiting", [waiting], ()), ("one due", [waiting, due], ())]
+    sets += [("one %s (%s)" % (machine.public_code(kind), kind["state"]), [waiting, kind], ())
+             for kind in pending_kinds()]
+    sets += [("a switched-off conversation", [waiting], (waiting["thread_id"],)),
+             ("a cancel asked for", [stored(92, "turn_started", cancel_requested=1)], ())]
+    cases = []
+    for watcher_name, watcher in WATCHERS.items():
+        for enabled in (True, False):
+            for set_name, records, disabled in sets:
+                for listed in (True, False):
+                    name = "%s, %s, %s, %s" % (watcher_name, "on" if enabled else "paused", set_name,
+                                               "listed" if listed else "unlisted")
+                    cases.append(watcher_case(name, records, watcher=watcher, enabled=enabled, listed=listed,
+                                              disabled=disabled))
+    for watcher_name in ("watching", "not running"):
+        for enabled in (True, False):
+            name = "an older watcher owns the state, %s, %s" % (watcher_name, "on" if enabled else "paused")
+            cases.append(watcher_case(name, [waiting], watcher=WATCHERS[watcher_name], enabled=enabled, upgrade=True))
+    # The list read a moment after the status, the watcher changed between: its records carry what the status does not
+    # yet say (tray_popup.ATTENTION_OVERLAYS), which the open popup reads as a person needing to act.
+    for watcher_name in ("an incompatible engine", "not running", "not ticking"):
+        for enabled in (True, False):
+            name = "watching, then %s, %s, one waiting, listed" % (watcher_name, "on" if enabled else "paused")
+            cases.append(watcher_case(name, [waiting], watcher=WATCHERS["watching"], enabled=enabled,
+                                      listed_with=WATCHERS[watcher_name]))
     return cases
 
 
@@ -221,14 +326,17 @@ $iconState = $rule.GetMethod('IconState', $static)
 $out.lights = @()
 foreach ($light in (ConvertFrom-Json $env:CAR_LIGHTS)) { $out.lights += ,@([string]$light, [string]$iconState.Invoke($null, [object[]]@([string]$light))) }
 $out.nullLight = [string]$iconState.Invoke($null, [object[]]@($null))
+# Each watcher the window can read, as the bridge answers it: its header light (Activity), and its taskbar button's word
+# (TrayActivity) and state.
 $activity = $form.GetMethod('Activity', $static)
+$trayActivity = $form.GetMethod('TrayActivity', $static)
 $out.window = @()
-foreach ($case in (ConvertFrom-Json $env:CAR_CASES)) {
-    $status = $parse.Invoke($null, [object[]]@([string]$case.status))
-    $pending = $null
-    if ($case.pending -ne $null) { $pending = $parse.Invoke($null, [object[]]@([string]$case.pending)) }
+foreach ($case in (Read-Json 'cases.json')) {
+    $status = $case['status']
+    $pending = $case['rows']
     $light = [string]$activity.Invoke($null, [object[]]@($status, $pending, [double]$env:CAR_NOW))
-    $out.window += ,@([string]$case.name, $light, [string]$iconState.Invoke($null, [object[]]@($light)))
+    $word = [string]$trayActivity.Invoke($null, [object[]]@($status, $pending, [double]$env:CAR_NOW))
+    $out.window += ,@([string]$case['name'], $light, $word, [string]$iconState.Invoke($null, [object[]]@($word)))
 }
 $frame = $rule.GetMethod('Frame', $static)
 $frameMs = $rule.GetMethod('FrameMs', $static)
@@ -499,7 +607,7 @@ $closing.resources = [Icons]::Resources()
 $closing.baseline = $baseline
 $out.closing = $closing
 
-# The window itself: its header light tells the mark, and a window LayoutAudit builds makes none of its own.
+# The window itself: what it reads tells the mark, and a window LayoutAudit builds makes none of its own.
 $nowhere = [string](Join-Path $work 'nowhere')
 $bridgeType = $assembly.GetType('CodexAutoResume.Bridge', $true)
 $persistentType = $assembly.GetType('CodexAutoResume.PersistentBridge', $true)
@@ -546,22 +654,21 @@ class TaskbarMarkTests(unittest.TestCase):
         reply = {"ok": True, "language": "en", "strings": l10n.catalog("en"), "endonyms": dict(l10n.ENDONYMS),
                  "preference": "en", "system_language": "en"}
         (work / "strings-en.json").write_text(json.dumps(reply, ensure_ascii=False), encoding="utf-8")
-        cls.snapshots = cls.window_snapshots(time.time())
+        cls.snapshots, cls.snapshot_cases = cls.window_snapshots(time.time())
         for name, snapshot in cls.snapshots.items():
             (work / (name + ".json")).write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
         cls.cases = window_cases()
+        (work / "cases.json").write_text(json.dumps([{"name": case["name"], "status": case["status"],
+                                                      "rows": case["rows"]} for case in cls.cases]), encoding="utf-8")
         probe = work / "taskbar.ps1"
         probe.write_text(PROBE, encoding="utf-8")
-        cases = [{"name": name, "status": json.dumps(status),
-                  "pending": None if pending is None else json.dumps(pending)}
-                 for name, status, pending, _, _ in cls.cases]
         cls.result = subprocess.run(
             [str(POWERSHELL), "-STA", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(probe)],
             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=900,
             env=dict(os.environ, CAR_EXE=str(exe), CAR_WORK=str(work), CAR_ICO=str(ICO), CAR_NOW=repr(NOW),
                      CAR_LIGHTS=json.dumps(LIGHTS), CAR_STATES=json.dumps(STATES), CAR_MOMENTS=json.dumps(MOMENTS),
                      CAR_SINCE=json.dumps(SINCE), CAR_SIZES=json.dumps(PROBE_SIZES), CAR_BIG_SIZES=json.dumps(BIG_SIZES),
-                     CAR_COLOURS=json.dumps([list(colour) for colour in COLOURS]), CAR_CASES=json.dumps(cases),
+                     CAR_COLOURS=json.dumps([list(colour) for colour in COLOURS]),
                      CAR_SNAPSHOTS=json.dumps(list(cls.snapshots))))
         answer = work / "result.json"
         cls.answer = (json.loads(answer.read_text(encoding="utf-8-sig"))
@@ -569,30 +676,37 @@ class TaskbarMarkTests(unittest.TestCase):
 
     @staticmethod
     def window_snapshots(now):
-        """Dashboard replies whose status and list put the header light in each state it has."""
+        """Dashboard replies for watchers the window can see - each the control layer's own shapes (watcher_case) in the
+        fullest reply the pages are drawn from - and the watchers themselves. Among them the last review's: a record
+        being withdrawn, an older watcher owning the state, a watcher not ticking and an incompatible engine."""
         fullest = fullest_snapshot(now)
-        waiting = [row for row in fullest["pending"] if row.get("eligible_at")][:1]
-        if not waiting:
-            raise AssertionError("the fullest snapshot has no waiting row")
-
-        def reply(pending, **status):
+        watching = WATCHERS["watching"]
+        waiting = stored(90, "waiting_reset", now, next_retry_at=now + 3600)
+        due = stored(91, "waiting_poll", now, next_retry_at=now - 60)
+        kinds = {record["state"]: record for record in pending_kinds(now) if record["state"] != "submitting"}
+        watchers = [
+            ("monitoring", [], watching, {}), ("waiting", [waiting], watching, {}),
+            ("checking", [waiting, due], watching, {}), ("recovering", [waiting, kinds["turn_started"]], watching, {}),
+            ("withdrawing", [kinds["withdrawn_unconfirmed"]], watching, {}),
+            ("paused", [waiting], watching, {"enabled": False}), ("stopped", [], WATCHERS["not running"], {}),
+            ("an older watcher", [waiting], watching, {"upgrade": True}),
+            ("not ticking", [waiting], WATCHERS["not ticking"], {}),
+            ("incompatible", [waiting], WATCHERS["an incompatible engine"], {}),
+            ("unlisted, one sent", [waiting, kinds["queued"]], watching, {"listed": False}),
+            ("again", [waiting], watching, {}),
+        ]
+        replies, cases = {}, {}
+        for name, records, watcher, options in watchers:
+            case = watcher_case(name, records, watcher=watcher, now=now, **options)
             value = copy.deepcopy(fullest)
-            value["pending"] = copy.deepcopy(pending)
-            value["status"].update(status)
-            value["status"]["pending"] = len(pending)
-            return value
-
-        future = copy.deepcopy(waiting[0])
-        future["eligible_at"] = now + 3600
-        due = copy.deepcopy(waiting[0])
-        due["eligible_at"] = now - 60
-        running = copy.deepcopy(waiting[0])
-        running["code"] = running["state"] = "turn_running"
-        running["eligible_at"] = None
-        return {"monitoring": reply([]), "waiting": reply([future]), "checking": reply([future, due]),
-                "recovering": reply([future, running]), "paused": reply([future], enabled=False),
-                "stopped": reply([], watcher_running=False), "attention": reply([future], upgrade_pending=True),
-                "again": reply([future])}
+            value["status"].update(copy.deepcopy(case["status"]))
+            if case["rows"] is None:
+                del value["pending"]
+                value["pending_error"] = "The pending list could not be read"
+            else:
+                value["pending"] = copy.deepcopy(case["rows"])
+            replies[name], cases[name] = value, case
+        return replies, cases
 
     @classmethod
     def tearDownClass(cls):
@@ -612,23 +726,68 @@ class TaskbarMarkTests(unittest.TestCase):
                 self.assertEqual(lights[light], for_light(light))
         self.assertEqual({lights[light] for light in brand.STATUS_FILL}, set(tray.ICON_STATES))
 
-    def test_every_status_the_window_can_see_is_the_tray_icon_s_state_for_the_same_watcher(self):
-        rows = {name: (light, icon) for name, light, icon in self.answer["window"]}
+    def test_the_cases_are_every_kind_of_pending_record_and_every_watcher(self):
+        kinds = pending_kinds()
+        self.assertEqual({kind["state"] for kind in kinds}, machine.STATES - machine.TERMINAL)
+        codes = {machine.public_code(kind) for kind in kinds}
+        self.assertEqual(codes, set(machine.WAITING_CODES) | {"submission_claimed", "submitted", "withdrawing",
+                                                               "turn_running", "turn_finishing"})
+        self.assertEqual(len({case["name"] for case in self.cases}), len(self.cases))
+        icons = {case["tray"] for case in self.cases if case["tray"] is not None}
+        self.assertEqual({opened for _, opened in icons}, {"watching", "recovering", "idle", "attention"})
+
+    def test_every_watcher_the_window_can_see_is_the_tray_icon_s_state_for_it(self):
+        """The icon's state by tray.py's own code, not a snapshot or an attention written here: the last round's test
+        wrote the tray's side by hand, and the button, which followed the header light, parted from the icon for an
+        upgrade, a watcher not ticking, an incompatible engine, a record held for one, and a record being withdrawn."""
+        rows = {name: (light, word, icon) for name, light, word, icon in self.answer["window"]}
         self.assertEqual(len(rows), len(self.cases))
-        seen = set()
-        for name, _, _, light, tray_side in self.cases:
+        for case in self.cases:
+            with self.subTest(case=case["name"]):
+                light, word, icon = rows[case["name"]]
+                self.assertEqual(icon, for_light(word))
+                self.assertEqual(icon, button_for(case))
+                if case["tray"] is None:
+                    self.assertEqual(icon, for_light(light), "no icon of this version: the header light's")
+
+    def test_the_button_is_the_icon_with_its_popup_closed_except_where_the_open_popup_says_attention(self):
+        """The icon reads whether a person must act only while its popup is open (tray.popup_attention); the window
+        reads the watcher now, as the open popup does. So that is the one way the button can part from the icon with
+        its popup closed - and it does, for the watchers the window's header light says need a person too."""
+        parted = []
+        for case in self.cases:
+            if case["tray"] is None:
+                continue
+            closed, opened = case["tray"]
+            with self.subTest(case=case["name"]):
+                if opened != closed:
+                    self.assertEqual(opened, "attention")
+                    parted.append(case["name"])
+        self.assertTrue(parted)
+        for name in parted:
+            self.assertTrue(name.startswith(("not ticking,", "an incompatible engine,", "watching, then ")), name)
+
+    def test_the_last_review_s_watchers(self):
+        rows = {name: (light, icon) for name, light, _, icon in self.answer["window"]}
+        expected = {
+            "watching, on, one withdrawing (withdrawn_unconfirmed), listed": "recovering",
+            "watching, on, one withdrawing (withdrawn_unconfirmed), unlisted": "recovering",
+            "an older watcher owns the state, watching, on": "attention",
+            "an older watcher owns the state, not running, on": "idle",
+            "not ticking, on, nothing pending, listed": "attention",
+            "not ticking, paused, one waiting, unlisted": "attention",
+            "an incompatible engine, on, nothing pending, listed": "attention",
+            "an incompatible engine, on, one waiting, listed": "attention",
+            "not running, on, one submitted (queued), listed": "idle",
+            "not known to run, on, one waiting, listed": "idle",
+            "watching, paused, one turn_running (turn_started), listed": "idle",
+        }
+        for name, icon in expected.items():
             with self.subTest(case=name):
-                got_light, got_icon = rows[name]
-                self.assertEqual(got_light, light, "the window's light for this status")
-                if tray_side is None:
-                    expected = for_light(light)       # no watcher, no tray icon: its rule for the light
-                else:
-                    snapshot, attention = tray_side
-                    expected = tray.icon_state(snapshot, attention=attention)
-                self.assertEqual(got_icon, expected)
-                seen.add(got_light)
-        # Every light the window's Activity gives was exercised.
-        self.assertEqual(seen, {"idle", "attention", "paused", "monitoring", "waiting", "checking", "recovering"})
+                self.assertEqual(rows[name][1], icon)
+        # The header light is the window's own and is unchanged: an older watcher needs a person, no watcher is grey.
+        self.assertEqual(rows["an older watcher owns the state, watching, on"][0], "attention")
+        self.assertEqual(rows["not running, on, one submitted (queued), listed"][0], "idle")
 
     # ---------------------------------------------------------------- the rhythm: the tray's own
     def test_every_frame_and_interval_is_the_tray_icon_s(self):
@@ -840,31 +999,44 @@ class TaskbarMarkTests(unittest.TestCase):
                 self.assertLessEqual(closing["resources"][index], closing["baseline"][index])
 
     # ---------------------------------------------------------------- the window
-    def test_the_window_s_header_light_tells_the_mark(self):
+    def test_what_the_window_reads_tells_the_mark_the_tray_icon_s_state_for_that_watcher(self):
         self.assertTrue(self.answer["audited"], "a window LayoutAudit builds has no mark of its own")
         rows = {name: (dot, state, big) for name, dot, state, big in self.answer["wired"]}
-        expected = {"monitoring": "monitoring", "waiting": "waiting", "checking": "checking",
-                    "recovering": "recovering", "paused": "paused", "stopped": "idle", "attention": "attention",
-                    "again": "waiting"}
-        for name, light in expected.items():
+        self.assertEqual(list(rows), list(self.snapshots))
+        for name, case in self.snapshot_cases.items():
             with self.subTest(snapshot=name):
-                dot, state, _ = rows[name]
-                self.assertEqual(dot, light)
-                self.assertEqual(state, for_light(light))
+                self.assertEqual(rows[name][1], button_for(case))
+        self.assertEqual({name: rows[name][1] for name in ("withdrawing", "an older watcher", "not ticking",
+                                                           "incompatible", "unlisted, one sent", "stopped")},
+                         {"withdrawing": "recovering", "an older watcher": "attention", "not ticking": "attention",
+                          "incompatible": "attention", "unlisted, one sent": "recovering", "stopped": "idle"})
+        # The header light is the window's own rule, as it was.
+        lights = {"monitoring": "monitoring", "waiting": "waiting", "checking": "checking", "recovering": "recovering",
+                  "paused": "paused", "stopped": "idle", "an older watcher": "attention", "not ticking": "attention",
+                  "again": "waiting"}
+        for name, light in lights.items():
+            with self.subTest(light=name):
+                self.assertEqual(rows[name][0], light)
 
     def test_the_window_makes_its_mark_only_with_its_own_icon_and_asks_it_again_every_second(self):
         settings = (GUI / "SettingsApp.cs").read_text(encoding="utf-8")
         dashboard = (GUI / "Dashboard.cs").read_text(encoding="utf-8")
+        controls = (GUI / "Controls.cs").read_text(encoding="utf-8")
         block = settings[settings.index('string icon = Path.Combine(root, "codex-auto-resume.ico");'):]
         block = block[:block.index("catch (Exception)")]
         self.assertIn("Icon = new Icon(icon);", block)
         self.assertIn("if (catalog == null) taskbar = new TaskbarMark(this);", block)
         self.assertEqual(len(re.findall(r"new TaskbarMark\(", settings + dashboard)), 1)
-        self.assertIn("stateDot.StateSet += delegate { if (taskbar != null) taskbar.Follow(stateDot.State); };",
-                      settings)
         tick = dashboard[dashboard.index("clock.Tick += delegate"):]
         tick = tick[:tick.index("clock.Start();")]
         self.assertIn("if (taskbar != null) taskbar.Sync();", tick)
+        # Told what the window read wherever its header light is: the light itself tells the button nothing.
+        self.assertNotIn("StateSet", settings + dashboard + controls)
+        lights = re.findall(r"stateDot\.State = [^;]*;\s*\n\s*(\S[^\n]*)", settings + dashboard, re.S)
+        self.assertEqual(len(lights), 4)
+        for following in lights:
+            with self.subTest(line=following):
+                self.assertTrue(following.startswith("TellTaskbar("), following)
 
 
 if __name__ == "__main__":
