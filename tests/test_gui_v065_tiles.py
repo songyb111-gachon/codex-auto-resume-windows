@@ -45,10 +45,17 @@ Add-Type -AssemblyName System.Windows.Forms
 [Windows.Forms.Application]::EnableVisualStyles()
 [Windows.Forms.Application]::SetCompatibleTextRenderingDefault($false)
 Add-Type -ReferencedAssemblies System.Windows.Forms, System.Drawing -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 public class QuietForm : Form {
     protected override bool ShowWithoutActivation { get { return true; } }
     protected override CreateParams CreateParams { get { CreateParams cp = base.CreateParams; cp.ExStyle |= 0x08000000 | 0x80; return cp; } }
+}
+public static class Placer {
+    [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr hWnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
+    // SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE: Windows holds only top-level windows to the screen's size.
+    public static void Size(Control child, int width, int height) { SetWindowPos(child.Handle, IntPtr.Zero, 0, 0, width, height, 0x0002 | 0x0004 | 0x0010); }
 }
 '@
 $assembly = [Reflection.Assembly]::LoadFile($env:CAR_EXE)
@@ -95,8 +102,9 @@ foreach ($scale in (ConvertFrom-Json $env:CAR_SCALES)) {
         $frame.ShowInTaskbar = $false
         $frame.StartPosition = 'Manual'
         $frame.Location = New-Object Drawing.Point -30000, -30000
-        # A top-level form is held to the screen's size, and a CI runner's screen is smaller than the
-        # window at 200%; the window inside is not, so it is given the opening size itself.
+        # Every Form is held to the screen's size (MaxWindowTrackSize), and at 150% and 200% the opening
+        # size is larger than a CI runner's screen - larger than many - so the window inside is sized by
+        # Windows itself once it is a child, which nothing clamps.
         $opening = New-Object Drawing.Size ([int][Math]::Round([int]$form.GetField('OpeningWidth', $static).GetValue($null) * $scale)), ([int][Math]::Round([int]$form.GetField('OpeningHeight', $static).GetValue($null) * $scale))
         $frame.ClientSize = $opening
         $once = $bridgeType.GetConstructors($instance)[0].Invoke([object[]]@($nowhere))
@@ -109,11 +117,14 @@ foreach ($scale in (ConvertFrom-Json $env:CAR_SCALES)) {
         $window.Location = [Drawing.Point]::Empty
         $window.ClientSize = $opening
         $frame.Controls.Add($window)
+        [Placer]::Size($window, $opening.Width, $opening.Height)
+        if ($window.ClientSize -ne $opening) { throw ('the window is ' + $window.ClientSize + ', not its opening size ' + $opening) }
         Invoke-Window $window 'ApplySnapshot' @((Read-Json 'snapshot.json'))
         $null = Invoke-Window $window 'ShowPage' @('pending')
         $window.Visible = $true
         $frame.Show()
         Pump 100
+        if ($window.ClientSize -ne $opening) { throw ('the window became ' + $window.ClientSize + ', not its opening size ' + $opening) }
         $entry = @{ card = (Colour 'Card'); raised = (Colour 'Raised'); inset = (Colour 'Inset'); line = (Colour 'Line')
                     chosen = (Colour 'AccentSoft') }
         foreach ($name in @('pendingList', 'historyList')) {
@@ -133,14 +144,13 @@ foreach ($scale in (ConvertFrom-Json $env:CAR_SCALES)) {
             # Two columns of pixels from the top of the list to below the third tile: one down the tiles' right padding, where
             # nothing is drawn in them, for their grounds; one down their middle, clear of their rounded corners, for their
             # edges and the gaps between them.
-            if ($tiles[1][0] + $tiles[1][2] -gt $bitmap.Width) {
-                throw ('DIAG tile past the list: scale=' + $scale + ' system=' + $systemScale + ' theme=' + $theme + ' list=' + $list.Width + 'x' + $list.Height +
-                       ' client=' + $list.ClientSize.Width + ' window=' + $window.ClientSize.Width + 'x' + $window.ClientSize.Height + ' frame=' + $frame.ClientSize.Width +
-                       ' tiles=' + (($tiles | ForEach-Object { $_ -join ',' }) -join ' | ') + ' rows=' + (($rows | ForEach-Object { $_ -join ',' }) -join ' | ') +
-                       ' columns=' + (($list.Columns | ForEach-Object { $_.Width }) -join ',') + ' screen=' + [Windows.Forms.Screen]::PrimaryScreen.WorkingArea + ' font=' + $font.Name + ' ' + $font.Size)
-            }
             $x = $tiles[1][0] + $tiles[1][2] - [int][Math]::Round(6 * $scale)
             $middle = $tiles[1][0] + [int]($tiles[1][2] / 2)
+            # Over the first tile, a column no heading's letters reach: the end of the wide Status column, whose heading is
+            # one short word. (A tile's middle can fall on a heading, and at 200% its letters come within 10 px of the tile.)
+            $clear = [int]$list.Columns[0].Width + [int]$list.Columns[1].Width - [int][Math]::Round(6 * $scale)
+            $above = @()
+            for ($y = 0; $y -lt $tiles[0][1] + $tiles[0][3]; $y++) { $above += [int]$bitmap.GetPixel($clear, $y).ToArgb() }
             $down = @(); $across = @()
             for ($y = 0; $y -lt [Math]::Min($bitmap.Height, $tiles[2][1] + $tiles[2][3] + [int][Math]::Round(20 * $scale)); $y++) {
                 $down += [int]$bitmap.GetPixel($x, $y).ToArgb()
@@ -158,9 +168,9 @@ foreach ($scale in (ConvertFrom-Json $env:CAR_SCALES)) {
             $bitmap = New-Object Drawing.Bitmap $list.Width, $list.Height
             $list.DrawToBitmap($bitmap, (New-Object Drawing.Rectangle 0, 0, $list.Width, $list.Height))
             $free = @()
-            for ($y = 0; $y -lt $tiles[0][1] + $tiles[0][3]; $y++) { $free += [int]$bitmap.GetPixel($middle, $y).ToArgb() }
+            for ($y = 0; $y -lt $tiles[0][1] + $tiles[0][3]; $y++) { $free += [int]$bitmap.GetPixel($clear, $y).ToArgb() }
             $bitmap.Dispose()
-            $entry[$name] = @{ tiles = $tiles; rows = $rows; down = $down; middle = $across; through = $through; free = $free
+            $entry[$name] = @{ tiles = $tiles; rows = $rows; down = $down; middle = $across; through = $through; free = $free; above = $above
                                columns = @($list.Columns | ForEach-Object { [int]$_.Width }); client = @($list.ClientSize.Width, $list.ClientSize.Height) }
         }
         # Nothing to list: the well under the headings, where the first tile stood.
@@ -348,7 +358,7 @@ class TileTests(unittest.TestCase):
                 card = self.drawn["light"]["card"]
                 band = range(y - self.px(brand.SPACING["s"]), y)
                 self.assertTrue(any(found["free"][k] != card for k in band), "the lift over a raised first tile")
-                self.assertTrue(all(found["middle"][k] == card for k in band), "none over a chosen one")
+                self.assertTrue(all(found["above"][k] == card for k in band), "none over a chosen one")
                 for k in band:
                     with self.subTest(d=y - k):
                         self.assertTrue(near(found["free"][k], card, 3), "brand's lift, faint over its top edge")
