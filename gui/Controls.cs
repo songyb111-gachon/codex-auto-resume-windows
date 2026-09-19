@@ -114,7 +114,21 @@ namespace CodexAutoResume
         /// The theme this machine gives a preference right now.
         internal static string Current(string preference)
         {
-            return Resolve(preference, AppsUseLightTheme(), HighContrast());
+            return Resolve(preference, AppsUseLightTheme(), ContrastOn());
+        }
+
+        /// Whether High Contrast is on as the window reads it - for Current, and for Palette's first theme:
+        /// Windows, asked now (HighContrast). The window never sets it. It is the one input a probe stands its
+        /// own answer in, so what follows from it is tested alike on every machine - on one with High Contrast
+        /// on, every step of a theme change was skipped - and never by changing Windows' own setting. Null
+        /// reads as Windows.
+        internal static Func<bool> HighContrastOn = HighContrast;
+
+        /// High Contrast as the window reads it (HighContrastOn).
+        internal static bool ContrastOn()
+        {
+            Func<bool> on = HighContrastOn;
+            return on != null ? on() : HighContrast();
         }
 
         /// Whether High Contrast is on, asked of Windows now. Not SystemInformation.HighContrast: .NET keeps
@@ -219,7 +233,7 @@ namespace CodexAutoResume
 
         static Palette()
         {
-            Adopt(CodexAutoResume.Theme.HighContrast() ? CodexAutoResume.Theme.Contrast : CodexAutoResume.Theme.Light);
+            Adopt(CodexAutoResume.Theme.ContrastOn() ? CodexAutoResume.Theme.Contrast : CodexAutoResume.Theme.Light);
         }
 
         /// Draws everything from here on in `theme`: "light", "dark" or "contrast". Anything else is light.
@@ -278,6 +292,26 @@ namespace CodexAutoResume
         /// This product's own "Reduce motion" setting, adopted when the settings are read.
         internal static bool ReduceMotionSetting;
 
+        /// Windows' "Animation effects" switch as ReduceMotion reads it: Windows, asked each time
+        /// (WindowsAnimationEffects). The window never sets it. It is the one input a probe stands its own
+        /// answer in, so motion is tested alike on every machine - GitHub's Windows runner has the switch
+        /// off, and there every glide was immediate and the tests of the glide failed or were skipped -
+        /// and never by changing Windows' own setting. Null reads as a Windows that could not be asked.
+        internal static Func<bool> WindowsAnimates = WindowsAnimationEffects;
+
+        /// Windows' "Animation effects" switch (SPI_GETCLIENTAREAANIMATION), asked now: true while it is on,
+        /// and when Windows cannot be asked.
+        internal static bool WindowsAnimationEffects()
+        {
+            try
+            {
+                bool animate = true;
+                if (SystemParametersInfo(SPI_GETCLIENTAREAANIMATION, 0, ref animate, 0)) return animate;
+            }
+            catch (Exception) { }
+            return true;
+        }
+
         /// Whether anything may move. Windows' "Animation effects" switch, this product's own
         /// setting, and High Contrast each turn motion off; nothing turns it back on.
         internal static bool ReduceMotion
@@ -285,10 +319,10 @@ namespace CodexAutoResume
             get
             {
                 if (ReduceMotionSetting || Palette.Contrast) return true;
+                Func<bool> animates = WindowsAnimates;
                 try
                 {
-                    bool animate = true;
-                    if (SystemParametersInfo(SPI_GETCLIENTAREAANIMATION, 0, ref animate, 0)) return !animate;
+                    return animates != null && !animates();
                 }
                 catch (Exception) { }
                 return false;
@@ -381,6 +415,26 @@ namespace CodexAutoResume
         {
             Body(g, face, radius, fill, edge, inset ? "inset" : null);
         }
+
+        /// A tile raised off a card - a conversation in Pending's and History's lists - as the popup's task
+        /// tiles and the panel's rows are since v0.6.5, from brand's recipes only: brand's control lift under
+        /// it, which whatever paints its ground stamps (TileLift, Elevation.StampOuter), then `fill`, in dark
+        /// the dark card's one-pixel top light inside the hairline, and the hairline. A drop alone is lost on
+        /// a dark ground at a tile's size, so dark takes the panel's dark recipe - the top light and a ground
+        /// a step brighter than the card's (`raised`) - and light is the control lift alone, as the popup's
+        /// DEPTH has them. High Contrast: system colours, and no shadow at all. Only a conversation is a
+        /// tile: a button, a segment and a choice card rest on the control lift with no top light, on every
+        /// surface.
+        internal static void Tile(Graphics g, Rectangle face, float radius, Color fill)
+        {
+            Body(g, face, radius, fill, Palette.Line, Palette.Dark ? TileLight : null);
+        }
+
+        /// The elevation recipe under a tile (Tile).
+        internal const string TileLift = "control";
+
+        /// The elevation recipe whose inset shadows are a tile's top light in dark (Tile): the dark card's.
+        internal const string TileLight = "card";
 
         /// The same, with the inset shadows of the elevation recipe `inner` between the fill and the
         /// hairline: a well's ("inset"), or in dark a card's one-pixel top light ("card"). Null for none.
@@ -675,6 +729,106 @@ namespace CodexAutoResume
                                   TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
                                   TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
             return width;
+        }
+
+        // ------------------------------------------------------------------ lines
+
+        /// Whether `text` has Korean in it, whose words Windows' own wrapping splits (Wrap).
+        internal static bool SplitsWords(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return false;
+            foreach (char c in text)
+                if ((c >= '\uAC00' && c <= '\uD7AF') || (c >= '\u1100' && c <= '\u11FF') || (c >= '\u3130' && c <= '\u318F') ||
+                    (c >= '\uA960' && c <= '\uA97F') || (c >= '\uD7B0' && c <= '\uD7FF'))
+                    return true;
+            return false;
+        }
+
+        /// A character a line may end before or after: Chinese and Japanese are set without spaces - the ranges of
+        /// tray_popup's _breaks_anywhere.
+        private static bool BreaksAnywhere(char c)
+        {
+            return (c >= '\u2E80' && c <= '\u9FFF') || (c >= '\uF900' && c <= '\uFAFF') || (c >= '\uFF00' && c <= '\uFFEF');
+        }
+
+        private static bool Space(char c)
+        {
+            return c == ' ' || c == '\t' || c == '\u3000';
+        }
+
+        private static readonly Dictionary<string, string> wrapped = new Dictionary<string, string>();
+
+        /// `text` broken into the lines it is drawn in, `width` wide in `font` as TextRenderer draws it with `format`
+        /// (v0.6.5): a line ends at a space, and in a run of Chinese or Japanese between any two characters - never
+        /// inside a Korean word. Windows' own wrapping breaks Korean between any two syllables, and was the only one
+        /// of the three surfaces that split a word across two lines (the review found 'is locked or' cut
+        /// after its first syllable in the notification card's help line); the popup breaks it at its
+        /// spaces (tray_popup.unbroken) and the panel keeps its words whole (word-break: keep-all). So text with
+        /// Korean in it comes back with a line break where each line ends, and Windows, given the same format and
+        /// width, has nothing left to break; a word wider than the whole line is left on a line of its own, for
+        /// Windows to break where it must, as the panel's overflow-wrap does. Anything without Korean comes back as
+        /// it is, and Windows breaks it as it always has - Chinese and Japanese between characters, as the popup does.
+        /// Measure and draw what this returns, never the text itself, or the two disagree.
+        internal static string Wrap(string text, Font font, int width, TextFormatFlags format)
+        {
+            if (!SplitsWords(text) || font == null || width <= 0 || width >= 1000000) return text;
+            string key = width.ToString() + "|" + ((int)format).ToString() + "|" + font.Name + "|" +
+                         font.SizeInPoints.ToString("R", System.Globalization.CultureInfo.InvariantCulture) + "|" +
+                         ((int)font.Style).ToString() + "|" + text;
+            string found;
+            if (wrapped.TryGetValue(key, out found)) return found;
+            // One line as Windows measures it before it wraps: the same prefix and padding, on one line.
+            TextFormatFlags line = (format & (TextFormatFlags.NoPrefix | TextFormatFlags.HidePrefix | TextFormatFlags.PrefixOnly |
+                                              TextFormatFlags.NoPadding | TextFormatFlags.LeftAndRightPadding |
+                                              TextFormatFlags.RightToLeft)) | TextFormatFlags.SingleLine;
+            var lines = new StringBuilder();
+            string[] paragraphs = text.Replace("\r\n", "\n").Split('\n');
+            for (int p = 0; p < paragraphs.Length; p++)
+            {
+                if (p > 0) lines.Append('\n');
+                WrapParagraph(paragraphs[p], font, width, line, lines);
+            }
+            string result = lines.ToString();
+            if (wrapped.Count > 512) wrapped.Clear();
+            wrapped[key] = result;
+            return result;
+        }
+
+        /// Whether a line of `text` may end at `at`, before its character there.
+        private static bool BreaksAt(string text, int at)
+        {
+            if (at >= text.Length) return true;
+            if (at <= 0 || Space(text[at - 1])) return false;
+            if (Space(text[at])) return true;
+            return BreaksAnywhere(text[at - 1]) || BreaksAnywhere(text[at]);
+        }
+
+        // One paragraph onto `lines`, a line at a time: each as long as fits, ending where a line may end.
+        private static void WrapParagraph(string text, Font font, int width, TextFormatFlags line, StringBuilder lines)
+        {
+            var ended = new List<string>();
+            int start = 0, fits = -1;
+            var unbounded = new Size(int.MaxValue, int.MaxValue);
+            for (int at = 1; at <= text.Length; at++)
+            {
+                if (!BreaksAt(text, at)) continue;
+                string candidate = text.Substring(start, at - start).TrimEnd(' ', '\t', '\u3000');
+                if (candidate.Length == 0) continue;
+                if (TextRenderer.MeasureText(candidate, font, unbounded, line).Width <= width)
+                {
+                    fits = at;
+                    continue;
+                }
+                // Too wide: the line ends where it last fitted - or, a word wider than the whole line, after it.
+                int end = fits > start ? fits : at;
+                ended.Add(text.Substring(start, end - start).TrimEnd(' ', '\t', '\u3000'));
+                start = end;
+                while (start < text.Length && Space(text[start])) start++;
+                fits = -1;
+                at = start;
+            }
+            if (start < text.Length || ended.Count == 0) ended.Add(text.Substring(start));
+            lines.Append(string.Join("\n", ended.ToArray()));
         }
     }
 
@@ -4964,15 +5118,18 @@ namespace CodexAutoResume
             return new Rectangle(left, 0, Math.Max(Soft.Px(80), (int)body.Right - left - Soft.Px(12)), 0);
         }
 
+        // The title and the help wrap in the text column, Korean between its words (Soft.Wrap).
+        private const TextFormatFlags Words = TextFormatFlags.WordBreak | TextFormatFlags.Left;
+
         internal int HeightFor(int width)
         {
             int textWidth = TextColumn(width).Width;
             Font title = TitleFont;
-            int top = TextRenderer.MeasureText(Text ?? "", title, new Size(textWidth, int.MaxValue),
-                                               TextFormatFlags.WordBreak).Height;
+            int top = TextRenderer.MeasureText(Soft.Wrap(Text ?? "", title, textWidth, Words), title, new Size(textWidth, int.MaxValue),
+                                               Words).Height;
             int help = string.IsNullOrEmpty(Help) ? 0
-                     : TextRenderer.MeasureText(Help, Font, new Size(textWidth, int.MaxValue),
-                                                TextFormatFlags.WordBreak).Height + Soft.Px(2);
+                     : TextRenderer.MeasureText(Soft.Wrap(Help, Font, textWidth, Words), Font, new Size(textWidth, int.MaxValue),
+                                                Words).Height + Soft.Px(2);
             return Soft.Px(12) + top + help + Soft.Px(12);
         }
 
@@ -5000,6 +5157,8 @@ namespace CodexAutoResume
             // and help in WindowText were under 1.5:1.
             bool onHighlight = Checked && Palette.Contrast;
             Color fill = onHighlight ? Palette.AccentSoft : Checked ? Palette.Inset : hover ? Palette.Surface : Palette.Raised;
+            // Resting, raised as a button and as the panel's segment for the same setting are - no top light in dark:
+            // that is a conversation's tile (Soft.Tile), and a choice among several is not one. Chosen, a well.
             Soft.Body(g, ClientRectangle, radius, fill, Checked ? Palette.Accent : Palette.Line, Checked && !Palette.Contrast);
             // The radio mark, so the card still says "one of these" without its colour.
             float mark = Soft.PxF(16);
@@ -5018,15 +5177,16 @@ namespace CodexAutoResume
             Rectangle column = TextColumn(Width);
             int left = column.X, textWidth = column.Width;
             Font title = TitleFont;
-            Size top = TextRenderer.MeasureText(Text ?? "", title, new Size(textWidth, int.MaxValue), TextFormatFlags.WordBreak);
-            TextRenderer.DrawText(g, Text, title, new Rectangle(left, (int)body.Y + Soft.Px(10), textWidth, top.Height),
+            string heading = Soft.Wrap(Text ?? "", title, textWidth, Words);
+            Size top = TextRenderer.MeasureText(heading, title, new Size(textWidth, int.MaxValue), Words);
+            TextRenderer.DrawText(g, heading, title, new Rectangle(left, (int)body.Y + Soft.Px(10), textWidth, top.Height),
                                   onHighlight ? SystemColors.HighlightText : Checked ? Palette.Accent : Palette.Ink,
-                                  TextFormatFlags.WordBreak | TextFormatFlags.Left);
+                                  Words);
             if (!string.IsNullOrEmpty(Help))
-                TextRenderer.DrawText(g, Help, Font,
+                TextRenderer.DrawText(g, Soft.Wrap(Help, Font, textWidth, Words), Font,
                                       new Rectangle(left, (int)body.Y + Soft.Px(12) + top.Height, textWidth, Height),
                                       onHighlight ? SystemColors.HighlightText : Palette.Secondary,
-                                      TextFormatFlags.WordBreak | TextFormatFlags.Left);
+                                      Words);
         }
     }
 
@@ -5193,21 +5353,140 @@ namespace CodexAutoResume
         {
             int width = proposedSize.Width > Soft.Px(160) && proposedSize.Width < 20000 ? proposedSize.Width
                       : Width > Soft.Px(160) ? Width : Soft.Px(460);
-            int textHeight = TextRenderer.MeasureText(text.Length == 0 ? " " : text, Font,
-                                                      new Size(width - Soft.Px(28), int.MaxValue),
-                                                      TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl).Height;
+            string shown = text.Length == 0 ? " " : text;
+            int room = width - Soft.Px(28);
+            int textHeight = TextRenderer.MeasureText(Soft.Wrap(shown, Font, room, Words), Font, new Size(room, int.MaxValue),
+                                                      Words).Height;
             return new Size(width, textHeight + Soft.Px(24));
         }
+
+        // The message wraps in the well, Korean between its words (Soft.Wrap).
+        private const TextFormatFlags Words = TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl | TextFormatFlags.Left;
 
         protected override void OnPaint(PaintEventArgs e)
         {
             float radius = Soft.PxF(Brand.RadiusControl);
             Ground.PaintBehind(this, e.Graphics, ClientRectangle, radius);
             Soft.InsetWell(e.Graphics, ClientRectangle, radius, false);
-            TextRenderer.DrawText(e.Graphics, text, Font,
-                                  new Rectangle(Soft.Px(Brand.WellPadLeft), Soft.Px(Brand.WellPadTop),
-                                                Math.Max(0, Width - Soft.Px(Brand.WellPadLeft + Brand.WellPadRight)), Height),
-                                  Palette.Ink, TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl | TextFormatFlags.Left);
+            int room = Math.Max(0, Width - Soft.Px(Brand.WellPadLeft + Brand.WellPadRight));
+            TextRenderer.DrawText(e.Graphics, Soft.Wrap(text, Font, room, Words), Font,
+                                  new Rectangle(Soft.Px(Brand.WellPadLeft), Soft.Px(Brand.WellPadTop), room, Height),
+                                  Palette.Ink, Words);
+        }
+    }
+
+    /// A label whose lines end where the popup's and the panel's do (Soft.Wrap): Korean between its words,
+    /// never inside one - a help line, a note, a value. Text without Korean is measured and drawn by Label
+    /// itself, exactly as before; with Korean, as Label would draw it, only broken where a line may end.
+    internal class WrapLabel : Label
+    {
+        /// How Label draws its text (ControlPaint.CreateTextFormatFlags): wrapped as a text box, in its
+        /// alignment, with an ellipsis if it ends in one and its mnemonic as it is set.
+        internal TextFormatFlags Format
+        {
+            get
+            {
+                TextFormatFlags flags = TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl;
+                const ContentAlignment middle = ContentAlignment.MiddleLeft | ContentAlignment.MiddleCenter | ContentAlignment.MiddleRight;
+                const ContentAlignment bottom = ContentAlignment.BottomLeft | ContentAlignment.BottomCenter | ContentAlignment.BottomRight;
+                const ContentAlignment centre = ContentAlignment.TopCenter | ContentAlignment.MiddleCenter | ContentAlignment.BottomCenter;
+                const ContentAlignment right = ContentAlignment.TopRight | ContentAlignment.MiddleRight | ContentAlignment.BottomRight;
+                if ((TextAlign & middle) != 0) flags |= TextFormatFlags.VerticalCenter;
+                else if ((TextAlign & bottom) != 0) flags |= TextFormatFlags.Bottom;
+                if ((TextAlign & centre) != 0) flags |= TextFormatFlags.HorizontalCenter;
+                else if ((TextAlign & right) != 0) flags |= TextFormatFlags.Right;
+                if (AutoEllipsis) flags |= TextFormatFlags.EndEllipsis;
+                if (!UseMnemonic) flags |= TextFormatFlags.NoPrefix;
+                else if (!ShowKeyboardCues) flags |= TextFormatFlags.HidePrefix;
+                return flags;
+            }
+        }
+
+        /// Its text in the lines it is drawn in `width` wide inside its padding (Soft.Wrap).
+        internal string Lines(int width)
+        {
+            return Soft.Wrap(Text, Font, width, Format);
+        }
+
+        public override Size GetPreferredSize(Size proposedSize)
+        {
+            if (!Soft.SplitsWords(Text)) return base.GetPreferredSize(proposedSize);
+            // As Label answers - a width of 0 or 1 is none - measured in the lines it is drawn in.
+            int width = proposedSize.Width > 1 ? proposedSize.Width : int.MaxValue;
+            if (MaximumSize.Width > 0) width = Math.Min(width, MaximumSize.Width);
+            int inner = width == int.MaxValue ? int.MaxValue : Math.Max(1, width - Padding.Horizontal);
+            Size text = TextRenderer.MeasureText(Lines(inner), Font, new Size(inner, int.MaxValue), Format);
+            var size = new Size(text.Width + Padding.Horizontal, text.Height + Padding.Vertical);
+            if (MaximumSize.Width > 0) size.Width = Math.Min(size.Width, MaximumSize.Width);
+            if (MaximumSize.Height > 0) size.Height = Math.Min(size.Height, MaximumSize.Height);
+            return new Size(Math.Max(size.Width, MinimumSize.Width), Math.Max(size.Height, MinimumSize.Height));
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            if (!Soft.SplitsWords(Text))
+            {
+                base.OnPaint(e);
+                return;
+            }
+            var face = new Rectangle(Padding.Left, Padding.Top, Math.Max(0, ClientSize.Width - Padding.Horizontal),
+                                     Math.Max(0, ClientSize.Height - Padding.Vertical));
+            // Label's disabled ink (TextRenderer.DisabledTextColor), High Contrast as the window reads it.
+            Color ink = Enabled ? ForeColor
+                      : Palette.Contrast ? SystemColors.GrayText
+                      : BackColor.GetBrightness() < SystemColors.Control.GetBrightness() ? ControlPaint.Dark(BackColor)
+                      : SystemColors.ControlDark;
+            TextRenderer.DrawText(e.Graphics, Lines(face.Width), Font, face, ink, Format);
+        }
+    }
+
+    /// What a list of tiles says when it has none - nothing waiting, no recoveries yet, or that it cannot be
+    /// read - from a sunken well where its first tile would stand, as the popup says it since v0.6.5: an empty
+    /// field, not a line beside an empty card whose headings float over nothing. The inset fill, the inset
+    /// shadow and the hairline (Soft.InsetWell), its words centred in the popup's padding of it, in the quieter
+    /// ink, and as tall as they are at the width its host gives it (SoftListHost.ShowWhenEmpty). High Contrast:
+    /// system colours and no shadow.
+    internal sealed class EmptyWell : Label
+    {
+        private const TextFormatFlags Words = TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl |
+                                              TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPrefix;
+
+        internal EmptyWell()
+        {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                     ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+            AutoSize = false;
+            UseMnemonic = false;
+            TextAlign = ContentAlignment.MiddleCenter;
+        }
+
+        // The popup's padding of its empty well: brand's large step all round.
+        private static int Pad { get { return Soft.Px(Brand.SpaceL); } }
+
+        /// Its words' room, `width` wide.
+        private static int Room(int width)
+        {
+            return Math.Max(1, width - 2 * Pad);
+        }
+
+        public override Size GetPreferredSize(Size proposedSize)
+        {
+            int width = proposedSize.Width > 1 ? proposedSize.Width : Width;
+            string text = string.IsNullOrEmpty(Text) ? " " : Text;
+            int height = TextRenderer.MeasureText(Soft.Wrap(text, Font, Room(width), Words), Font,
+                                                  new Size(Room(width), int.MaxValue), Words).Height;
+            return new Size(width, height + 2 * Pad);
+        }
+
+        protected override void OnPaintBackground(PaintEventArgs e) { }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            float radius = Soft.PxF(Brand.RadiusControl);
+            Ground.PaintBehind(this, e.Graphics, ClientRectangle, radius);
+            Soft.InsetWell(e.Graphics, ClientRectangle, radius, false);
+            var room = new Rectangle(Pad, Pad, Room(Width), Math.Max(0, Height - 2 * Pad));
+            TextRenderer.DrawText(e.Graphics, Soft.Wrap(Text, Font, room.Width, Words), Font, room, Palette.Secondary, Words);
         }
     }
 
@@ -5290,6 +5569,16 @@ namespace CodexAutoResume
         [DllImport("user32.dll")]
         private static extern IntPtr SendMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
 
+        [StructLayout(LayoutKind.Sequential)]
+        private struct WindowRect
+        {
+            public int Left, Top, Right, Bottom;
+        }
+
+        [DllImport("user32.dll")]
+        private static extern bool GetWindowRect(IntPtr window, out WindowRect rect);
+
+        private const int LVM_GETHEADER = 0x101F;
         private const int SB_HORZ = 0;
         private const int SB_VERT = 1;
         private const int SIF_ALL = 0x17;
@@ -5332,6 +5621,49 @@ namespace CodexAutoResume
         }
 
         internal SoftScrollBar Bar { get { return bar; } }
+
+        private Control empty;
+        private int emptySide;
+
+        /// Shows `control` - an EmptyWell, which its owner shows while the list has no rows and hides again
+        /// - in the list, right under its column headings, where its first row would stand: across the
+        /// rows' width less `side` on each side, the room a tile keeps beside it, and as tall as it asks to
+        /// be at that width. A child of the list, as its headings are, rather than a window over it: the
+        /// list paints around its children, and a picture of the window (DrawToBitmap) draws a window's
+        /// children after it but overlapping siblings in the wrong order, so a well lying over the list's
+        /// clip was drawn under it. Placed again once the list's messages are done (Changed, Sync) when its
+        /// words, its showing or the list's font change - never from inside them: a list whose window is
+        /// being made has its rows only after its HandleCreated, and the host's layout asks for them.
+        internal void ShowWhenEmpty(Control control, int side)
+        {
+            empty = control;
+            emptySide = side;
+            List.Controls.Add(control);
+            control.TextChanged += delegate { Changed(); };
+            control.VisibleChanged += delegate { Changed(); };
+            List.FontChanged += delegate { Changed(); };
+        }
+
+        /// The control shown while the list has no rows (ShowWhenEmpty), if any.
+        internal Control Empty { get { return empty; } }
+
+        /// Where the list's column headings end, in its coordinates.
+        private int HeadingsBottom()
+        {
+            if (!List.IsHandleCreated || List.View != View.Details || List.HeaderStyle == ColumnHeaderStyle.None) return 0;
+            IntPtr header = SendMessage(List.Handle, LVM_GETHEADER, IntPtr.Zero, IntPtr.Zero);
+            WindowRect rect;
+            if (header == IntPtr.Zero || !GetWindowRect(header, out rect) || rect.Bottom <= rect.Top) return 0;
+            return Math.Max(0, List.PointToClient(new Point(rect.Left, rect.Bottom)).Y);
+        }
+
+        private void PlaceEmpty()
+        {
+            if (empty == null) return;
+            int width = Math.Max(0, clip.Width - 2 * emptySide);
+            int height = empty.GetPreferredSize(new Size(Math.Max(2, width), 0)).Height;
+            empty.SetBounds(emptySide, HeadingsBottom(), width, height);
+        }
 
         /// The soft bar along the bottom, scrolling the list sideways; its Track is empty while the
         /// columns fit.
@@ -5447,6 +5779,7 @@ namespace CodexAutoResume
             if (nativeAcross && below == 0) below = SystemInformation.HorizontalScrollBarHeight;
             clip.SetBounds(0, 0, rows, tall);
             List.SetBounds(0, 0, rows + beside, tall + below);
+            PlaceEmpty();
             Read();
             bar.Track = native ? TrackBounds() : Rectangle.Empty;
             acrossBar.Track = nativeAcross ? AcrossBounds() : Rectangle.Empty;
@@ -5484,6 +5817,7 @@ namespace CodexAutoResume
         internal void Sync()
         {
             if (IsDisposed || !List.IsHandleCreated) return;
+            if (empty != null && empty.Visible) PlaceEmpty();
             if (NativeBar != native || NativeAcross != nativeAcross)
             {
                 PerformLayout();

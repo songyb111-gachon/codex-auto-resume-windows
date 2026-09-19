@@ -536,9 +536,11 @@ class Server:
     def _status(self) -> dict:
         """The shared status, plus the Compatibility Registry's summary under `watcher`.
 
-        Read-only, and codes only: the coarse state, whether the report could be used, where
-        its data came from, when it was checked, and each capability's state and reason from
-        closed sets. No version string, no path and no free text - this reply is part of what
+        Read-only, and codes only: the coarse state and the one the watcher acts on, whether the
+        report could be used, where its data came from and its sequence number, the refreshed
+        data's standing, when it was checked, and each capability's state and reason from
+        closed sets - what the window's Diagnostics card shows, so the settings panel's card can
+        say the same. No version string, no path and no free text - this reply is part of what
         Codex sends on - and there is deliberately no tool that refreshes or imports registry
         data, so nothing a model reads can make this machine talk to GitHub.
         """

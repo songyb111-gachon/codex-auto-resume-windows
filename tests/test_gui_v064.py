@@ -62,6 +62,8 @@ foreach ($pair in @(@('Profile', $profile), @('Render', $render), @('Reach', $re
 }
 
 $out = @{ profile = @{}; render = @{}; reach = @{}; glow = @(); colour = @{}; system = @{}; combo = @(); other = @{} }
+# The light theme, whatever this machine's: under High Contrast the palette's first theme was system colours.
+$null = $palette.GetMethod('Adopt', $static).Invoke($null, [object[]]@('light'))
 $bodies = ConvertFrom-Json $env:CAR_BODIES
 foreach ($scale in (ConvertFrom-Json $env:CAR_SCALES)) {
     $key = ([double]$scale).ToString('0.0', [Globalization.CultureInfo]::InvariantCulture)
@@ -318,8 +320,7 @@ class MaterialTests(unittest.TestCase):
         self.assertEqual(self.answer["other"]["room"], 0)
 
     def test_the_primary_button_states_are_brands(self):
-        if self.answer["other"]["contrast"]:
-            self.skipTest("High Contrast is on; the palette is system colours")
+        self.assertFalse(self.answer["other"]["contrast"], "the probe adopts the light theme, whatever this machine's")
         self.assertEqual(self.answer["other"]["hover"], argb(brand.LIGHT["accent_hover"]))
         self.assertEqual(self.answer["other"]["pressed"], argb(brand.LIGHT["accent_pressed"]))
 
@@ -344,6 +345,14 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -Namespace ScrollProbe -Name Native -MemberDefinition @'
 [DllImport("user32.dll")] public static extern System.IntPtr SendMessage(System.IntPtr window, int message, System.IntPtr wParam, System.IntPtr lParam);
 [DllImport("user32.dll")] public static extern int GetWindowLong(System.IntPtr window, int index);
+'@
+# An answer for the window's input from Windows' animation switch (Soft.WindowsAnimates), compiled, so it holds on any thread.
+Add-Type -TypeDefinition @'
+public static class Said {
+    public static bool Yes() { return true; }
+    public static bool No() { return false; }
+    public static System.Func<bool> Answer(bool yes) { return yes ? new System.Func<bool>(Yes) : new System.Func<bool>(No); }
+}
 '@
 $assembly = [Reflection.Assembly]::LoadFile($env:CAR_EXE)
 $static = [Reflection.BindingFlags]'Static,NonPublic,Public'
@@ -495,7 +504,12 @@ $reveal.PerformLayout()
 $null = $onEnter.Invoke($late, [object[]]@([EventArgs]::Empty))
 $out.reveal = @($below, $above, [int](Get-Member2 $reveal 'Offset'))
 
-# Motion: a glide when motion is allowed and the page is on a window, none when it is reduced.
+# Motion: a glide when motion is allowed and the page is on a window, none when it is reduced - by the product's setting
+# or by Windows' "Animation effects". Both of Windows' inputs are the probe's own answers, not this machine's: the light
+# theme (High Contrast holds everything still) and the animation switch on, then off (as GitHub's runner has it).
+$null = $assembly.GetType('CodexAutoResume.Palette', $true).GetMethod('Adopt', $static).Invoke($null, [object[]]@('light'))
+$animates = $softType.GetField('WindowsAnimates', $static)
+$animates.SetValue($null, [Said]::Answer($true))
 $reduce.SetValue($null, $false)
 $moving = New-Page 1000
 $null = $moving[0].Handle
@@ -507,6 +521,13 @@ $null = Invoke-Member2 $moving[0] 'ScrollTo' @([int]0, $false)
 $reduce.SetValue($null, $true)
 $null = Invoke-Member2 $moving[0] 'ScrollTo' @([int]200, $true)
 $out.motion.still = @([bool](Get-Member2 $moving[0] 'Gliding'), [int](Get-Member2 $moving[0] 'Offset'))
+$null = Invoke-Member2 $moving[0] 'ScrollTo' @([int]0, $false)
+$reduce.SetValue($null, $false)
+$animates.SetValue($null, [Said]::Answer($false))
+$null = Invoke-Member2 $moving[0] 'ScrollTo' @([int]200, $true)
+$out.motion.windows = @([bool](Get-Member2 $moving[0] 'Gliding'), [int](Get-Member2 $moving[0] 'Offset'))
+$animates.SetValue($null, [Said]::Answer($true))
+$reduce.SetValue($null, $true)
 
 # A list of sixty rows in a host 300 by 200, with windows and never shown.
 $list = [Activator]::CreateInstance($listType, $true)
@@ -689,10 +710,13 @@ class SoftScrollTests(unittest.TestCase):
         self.assertEqual(late, min(1050 - 400, 1040 + room - 400), "a button added after the page was built")
 
     def test_nothing_glides_when_motion_is_reduced(self):
+        """The same on every machine: Windows' animation switch is the probe's own answer (Soft.WindowsAnimates), so
+        GitHub's runner, which has it off, sees the glide too - and sees none with the switch answered off."""
         motion = self.answer["motion"]
         self.assertEqual(motion["still"], [False, 200], "with motion reduced the page is there at once")
-        if motion["reduced"] or not motion["shown"]:
-            self.skipTest("Windows' animation effects are off here, so every scroll is immediate")
+        self.assertEqual(motion["windows"], [False, 200], "with Windows' animation effects off, there at once too")
+        self.assertFalse(motion["reduced"], "motion was reduced with Windows' switch answered 'on'")
+        self.assertTrue(motion["shown"], "the page is on a window")
         self.assertEqual(motion["allowed"], [True, 0], "with motion allowed the page glides there")
 
     def test_high_contrast_draws_the_bar_in_system_colours(self):

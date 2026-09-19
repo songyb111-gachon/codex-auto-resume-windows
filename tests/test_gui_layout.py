@@ -1683,7 +1683,8 @@ class LayoutAuditTests(unittest.TestCase):
                              if " :: wraps, " in line]
                     self.assertEqual(lines, [], "\n" + "\n".join(lines[:20]))
                     self.assertEqual(self.answer["shortest"][locale][key][2], 0, "a name wrapped in the shortest window")
-        self.assertIn("names canary/Label", self.answer["namesCanary"])
+        # A fact's name is a WrapLabel since v0.6.5 (Value), which breaks Korean between its words.
+        self.assertIn("names canary/WrapLabel", self.answer["namesCanary"])
         self.assertIn(" :: wraps, ", self.answer["namesCanary"], "a name that wraps went unreported, so a quiet report proves nothing")
 
     def test_a_card_that_grows_on_an_overview_already_laid_out_scrolls_the_page_and_is_laid_out_whole(self):

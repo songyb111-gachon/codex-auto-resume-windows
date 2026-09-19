@@ -172,22 +172,45 @@ def locale_of(strings) -> str:
 
 _SCRIPT_FACES = {"ko": "Malgun Gothic", "ja": "Yu Gothic UI", "zh-CN": "Microsoft YaHei UI",
                  "zh-TW": "Microsoft JhengHei UI"}
+_ON_EVERY_WINDOWS = "Segoe UI"
+_ASK_WINDOWS = object()
 
 
-def font_faces(locale) -> tuple:
-    """The typefaces to try for a locale, best first. The last one is on every Windows."""
-    return (_SCRIPT_FACES.get(locale, "Segoe UI Variable Text"), "Segoe UI")
+def font_faces(locale, system=_ASK_WINDOWS) -> tuple:
+    """The typefaces to try for a locale, best first. The last one is on every Windows.
+
+    A script with a face of its own (Korean, Japanese, Chinese) is set in that face. Every
+    other language follows the panel's type stack - `system-ui`, then "Segoe UI Variable
+    Text", then "Segoe UI" - where `system-ui` is Windows' UI font: the message font the
+    window is drawn in (SystemFonts.MessageBoxFont), which `message_face` asks Windows for.
+    So English on a Korean Windows is Malgun Gothic here too, as it is in the window and the
+    panel, and Segoe UI on an English one. `system` stands in Windows' answer; None or ""
+    means Windows could not be asked, and the stack goes on to its next choices.
+    """
+    if locale in _SCRIPT_FACES:
+        return (_SCRIPT_FACES[locale], _ON_EVERY_WINDOWS)
+    first = message_face() if system is _ASK_WINDOWS else system
+    faces = []
+    for face in (first, "Segoe UI Variable Text"):
+        if not isinstance(face, str) or not face.strip():
+            continue                                   # no answer: the stack's next choice
+        if face.lower() == _ON_EVERY_WINDOWS.lower():
+            break                                      # Windows' UI font is the last resort itself
+        if face.lower() not in [known.lower() for known in faces]:
+            faces.append(face)
+    return tuple(faces) + (_ON_EVERY_WINDOWS,)
 
 
-def font_candidates(locale, weight) -> tuple:
+def font_candidates(locale, weight, system=_ASK_WINDOWS) -> tuple:
     """(face, weight) pairs to try for one font role, best first.
 
     GDI has no semibold inside a family it lists as regular: Segoe UI Variable Text asked
     for weight 600 answers with its bold. The semibold instances are families of their
     own and are asked for at their regular weight. Malgun Gothic and the Chinese UI faces
-    have no semibold at all, so their emphasis is their bold.
+    have no semibold at all, so their emphasis is their bold - the window's own rule
+    (Soft.Weighted: a Segoe UI face's semibold family, the face's bold otherwise).
     """
-    faces = font_faces(locale)
+    faces = font_faces(locale, system)
     if weight < 600:
         return tuple((face, 400) for face in faces)
     if locale == "ja":
@@ -195,7 +218,11 @@ def font_candidates(locale, weight) -> tuple:
                 ("Segoe UI", 600))
     if locale in _SCRIPT_FACES:
         return ((faces[0], 700), ("Segoe UI Semibold", 400), ("Segoe UI", 600))
-    return (("Segoe UI Variable Text Semibold", 400), ("Segoe UI Semibold", 400), ("Segoe UI", 600))
+    heavy = []
+    for face in faces[:-1]:
+        segoe = face.lower().startswith("segoe ui") and not face.lower().endswith("semibold")
+        heavy.append((face + " Semibold", 400) if segoe else (face, 700))
+    return tuple(heavy) + (("Segoe UI Semibold", 400), ("Segoe UI", 600))
 
 
 def is_waiting(row) -> bool:
@@ -1063,6 +1090,7 @@ MONITOR_DEFAULTTONEAREST = 2
 TME_LEAVE = 0x2
 SPI_GETCLIENTAREAANIMATION = 0x1042
 SPI_GETHIGHCONTRAST, HCF_HIGHCONTRASTON = 0x0042, 0x1
+SPI_GETNONCLIENTMETRICS = 0x0029
 DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND = 33, 2
 # Windows 11 draws a hairline round a rounded popup in the app mode's colour unless told the
 # window is dark; 20 since Windows 10 20H1, 19 on the builds before it.
@@ -1158,6 +1186,21 @@ if os.name == "nt":
 
     class HIGHCONTRASTW(C.Structure):
         _fields_ = [("cbSize", W.UINT), ("dwFlags", W.DWORD), ("lpszDefaultScheme", W.LPWSTR)]
+
+    class LOGFONTW(C.Structure):
+        _fields_ = [("lfHeight", W.LONG), ("lfWidth", W.LONG), ("lfEscapement", W.LONG),
+                    ("lfOrientation", W.LONG), ("lfWeight", W.LONG), ("lfItalic", W.BYTE),
+                    ("lfUnderline", W.BYTE), ("lfStrikeOut", W.BYTE), ("lfCharSet", W.BYTE),
+                    ("lfOutPrecision", W.BYTE), ("lfClipPrecision", W.BYTE), ("lfQuality", W.BYTE),
+                    ("lfPitchAndFamily", W.BYTE), ("lfFaceName", W.WCHAR * 32)]
+
+    class NONCLIENTMETRICSW(C.Structure):
+        _fields_ = [("cbSize", W.UINT), ("iBorderWidth", C.c_int), ("iScrollWidth", C.c_int),
+                    ("iScrollHeight", C.c_int), ("iCaptionWidth", C.c_int), ("iCaptionHeight", C.c_int),
+                    ("lfCaptionFont", LOGFONTW), ("iSmCaptionWidth", C.c_int), ("iSmCaptionHeight", C.c_int),
+                    ("lfSmCaptionFont", LOGFONTW), ("iMenuWidth", C.c_int), ("iMenuHeight", C.c_int),
+                    ("lfMenuFont", LOGFONTW), ("lfStatusFont", LOGFONTW), ("lfMessageFont", LOGFONTW),
+                    ("iPaddedBorderWidth", C.c_int)]
 
 
 def _signature(function, result, *arguments):
@@ -1355,6 +1398,29 @@ def high_contrast() -> bool:
         return bool(info.dwFlags & HCF_HIGHCONTRASTON)
     except Exception:
         return False
+
+
+def message_face():
+    """The face of Windows' message font, or None when Windows cannot be asked.
+
+    The window's every font is a variant of this one (SystemFonts.MessageBoxFont reads the
+    same field), and the panel's `system-ui` resolves to it, so text set in it here is set in
+    the face the other two surfaces use: Segoe UI on an English Windows, Malgun Gothic -
+    by its Korean name - on a Korean one. Asked each time fonts are made; nothing is cached.
+    """
+    if os.name != "nt":
+        return None
+    try:
+        _declare()
+        metrics = NONCLIENTMETRICSW()
+        metrics.cbSize = C.sizeof(NONCLIENTMETRICSW)
+        if not _dll("user32").SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, metrics.cbSize,
+                                                    C.byref(metrics), 0):
+            return None
+        face = metrics.lfMessageFont.lfFaceName
+        return face if face and face.strip() else None
+    except Exception:
+        return None
 
 
 def system_rgb(name) -> tuple:
@@ -1727,9 +1793,10 @@ class _Fonts:
         self.key = (locale, scale)
         self.handles = {}
         self.faces = {}
+        system = message_face()                  # once for every role, so they cannot disagree
         try:
             for role, (_, weight) in ROLES.items():
-                candidates = font_candidates(locale, weight)
+                candidates = font_candidates(locale, weight, system)
                 face, actual = next(((name, value) for name, value in candidates if _face_exists(dc, name)),
                                     candidates[-1])
                 height = -max(1, int(round(role_size(role, locale) * scale)))

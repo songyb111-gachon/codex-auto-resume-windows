@@ -489,12 +489,47 @@ class ViewTests(unittest.TestCase):
 
     def test_what_a_model_may_read_is_codes_only(self):
         summary = compat.mcp_view(compat.view_of(a_report()))
-        self.assertEqual(set(summary), {"status", "overall", "source", "checked_at", "capabilities"})
+        self.assertEqual(set(summary), {"status", "overall", "acting", "source", "sequence", "cache",
+                                        "checked_at", "capabilities"})
+        self.assertEqual((summary["acting"], summary["source"], summary["sequence"], summary["cache"]),
+                         ("structurally_compatible", "bundled", 1, "absent"))
+        # Only codes from their closed vocabularies, and a sequence only as a whole number.
+        odd = dict(compat.view_of(a_report()), acting="whatever")
+        odd["data"] = dict(odd["data"], source="cache", cache="nonsense", cache_sequence=True)
+        self.assertEqual(tuple(compat.mcp_view(odd)[key] for key in ("acting", "sequence", "cache")),
+                         (None, None, None))
         text = json.dumps(summary)
         self.assertNotIn("codex-cli", text, "not even the version string")
         for entry in summary["capabilities"].values():
             self.assertEqual(set(entry), {"state", "reason"})
         self.assertEqual(compat.mcp_view(None)["overall"], "unknown")
+
+    def test_the_number_a_model_reads_is_the_one_of_the_data_in_force(self):
+        """As the window's card reads it: the refreshed data's number while that is in force, the bundled
+        data's while that is, and none without data - and a view whose data is not even a mapping is
+        still a summary, never an exception in the status reply."""
+        refreshed = {"bundled": "ok", "bundled_sequence": 1, "cache": "expired", "cache_sequence": 6,
+                     "cache_origin": "main", "fetched_at": NOW, "source": "cache", "expired": True}
+        summary = compat.mcp_view(compat.view_of(a_report(data=refreshed, acting="incompatible")))
+        self.assertEqual((summary["source"], summary["sequence"], summary["cache"], summary["acting"]),
+                         ("cache", 6, "expired", "incompatible"))
+        self.assertEqual(summary["overall"], "structurally_compatible",
+                         "what the watcher acts on is carried beside the report's word, not instead of it")
+        bundled = compat.mcp_view(compat.view_of(a_report(data=dict(refreshed, source="bundled"))))
+        self.assertEqual((bundled["source"], bundled["sequence"]), ("bundled", 1))
+        nothing = compat.mcp_view(dict(compat.view_of(a_report()),
+                                       data=dict(refreshed, source="none", bundled_sequence=1)))
+        self.assertEqual((nothing["source"], nothing["sequence"]), ("none", None))
+        for count in (-1, 2.0, "6", None):
+            with self.subTest(count=count):
+                odd = dict(compat.view_of(a_report()), data=dict(refreshed, cache_sequence=count))
+                self.assertIsNone(compat.mcp_view(odd)["sequence"])
+        for data in (None, [], "cache", 6):
+            with self.subTest(data=data):
+                odd = compat.mcp_view(dict(compat.view_of(a_report()), data=data))
+                self.assertEqual((odd["source"], odd["sequence"], odd["cache"]), ("none", None, None))
+        unusable = compat.mcp_view(compat.unusable_view("stale", data=refreshed))
+        self.assertEqual((unusable["status"], unusable["overall"], unusable["acting"]), ("stale", "unknown", None))
 
 
 class PermitTests(unittest.TestCase):

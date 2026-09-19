@@ -874,23 +874,106 @@ class BadgeTests(unittest.TestCase):
         self.assertEqual(digest.hexdigest(), "5b39ad98edd39a1426d1cf24e4ac9a83c4bdc9199e5c625ad80c50fd63855494")
 
 
+MALGUN_LOCALIZED = "\ub9d1\uc740 \uace0\ub515"       # Malgun Gothic's name on a Korean Windows
+LATIN = ("en", "de", "fr", "es", "pt-BR")
+
+
 class FontTests(unittest.TestCase):
     def test_each_script_has_its_own_face(self):
-        self.assertEqual(popup.font_faces("ko")[0], "Malgun Gothic")
-        self.assertEqual(popup.font_faces("ja")[0], "Yu Gothic UI")
-        self.assertEqual(popup.font_faces("zh-CN")[0], "Microsoft YaHei UI")
-        self.assertEqual(popup.font_faces("zh-TW")[0], "Microsoft JhengHei UI")
-        for locale in ("en", "de", "fr", "es", "pt-BR"):
-            self.assertEqual(popup.font_faces(locale)[0], "Segoe UI Variable Text")
-        for locale in l10n.LOCALES:
-            self.assertEqual(popup.font_faces(locale)[-1], "Segoe UI")
-            for weight in (400, 600):
-                self.assertEqual(popup.font_candidates(locale, weight)[-1][0], "Segoe UI")
+        for system in (None, "Segoe UI", MALGUN_LOCALIZED, "Yu Gothic UI"):
+            self.assertEqual(popup.font_faces("ko", system)[0], "Malgun Gothic")
+            self.assertEqual(popup.font_faces("ja", system)[0], "Yu Gothic UI")
+            self.assertEqual(popup.font_faces("zh-CN", system)[0], "Microsoft YaHei UI")
+            self.assertEqual(popup.font_faces("zh-TW", system)[0], "Microsoft JhengHei UI")
+            for locale in l10n.LOCALES:
+                self.assertEqual(popup.font_faces(locale, system)[-1], "Segoe UI")
+                for weight in (400, 600):
+                    self.assertEqual(popup.font_candidates(locale, weight, system)[-1][0], "Segoe UI")
+
+    def test_every_other_language_is_set_in_windows_own_ui_font_first(self):
+        """The panel's type stack, read the way GDI can read it. The panel asks for `system-ui`,
+        then "Segoe UI Variable Text", then "Segoe UI"; `system-ui` is Windows' UI font, the
+        message font the window itself is drawn in (SystemFonts.MessageBoxFont). On a Korean
+        Windows that is Malgun Gothic, so English in the popup and the card must be Malgun Gothic
+        too, not Segoe UI Variable Text beside a window and a panel that are not."""
+        for locale in LATIN:
+            self.assertEqual(popup.font_faces(locale, MALGUN_LOCALIZED),
+                             (MALGUN_LOCALIZED, "Segoe UI Variable Text", "Segoe UI"))
+            self.assertEqual(popup.font_faces(locale, "Segoe UI"), ("Segoe UI",))
+            self.assertEqual(popup.font_faces(locale, "segoe ui"), ("Segoe UI",))
+            self.assertEqual(popup.font_faces(locale, "Segoe UI Variable Text"),
+                             ("Segoe UI Variable Text", "Segoe UI"))
+            # Windows could not be asked: the panel's next choices, as before.
+            for nothing in (None, ""):
+                self.assertEqual(popup.font_faces(locale, nothing), ("Segoe UI Variable Text", "Segoe UI"))
+        with unittest.mock.patch.object(popup, "message_face", return_value=MALGUN_LOCALIZED):
+            self.assertEqual(popup.font_faces("en")[0], MALGUN_LOCALIZED)
+            self.assertEqual(popup.font_faces("ko")[0], "Malgun Gothic")
 
     def test_semibold_is_asked_for_by_name_where_gdi_would_otherwise_embolden(self):
-        self.assertEqual(popup.font_candidates("en", 600)[0], ("Segoe UI Variable Text Semibold", 400))
-        self.assertEqual(popup.font_candidates("ja", 600)[0], ("Yu Gothic UI Semibold", 400))
-        self.assertEqual(popup.font_candidates("ko", 600)[0], ("Malgun Gothic", 700))
+        self.assertEqual(popup.font_candidates("en", 600, None)[0], ("Segoe UI Variable Text Semibold", 400))
+        self.assertEqual(popup.font_candidates("ja", 600, None)[0], ("Yu Gothic UI Semibold", 400))
+        self.assertEqual(popup.font_candidates("ko", 600, None)[0], ("Malgun Gothic", 700))
+
+    def test_emphasis_follows_the_windows_own_rule(self):
+        """Soft.Weighted in gui/Controls.cs: a Segoe UI face's own semibold family, the face's
+        bold otherwise (Malgun Gothic and the other UI faces have no semibold)."""
+        self.assertEqual(popup.font_candidates("en", 600, "Segoe UI"),
+                         (("Segoe UI Semibold", 400), ("Segoe UI", 600)))
+        self.assertEqual(popup.font_candidates("en", 600, MALGUN_LOCALIZED),
+                         ((MALGUN_LOCALIZED, 700), ("Segoe UI Variable Text Semibold", 400),
+                          ("Segoe UI Semibold", 400), ("Segoe UI", 600)))
+        self.assertEqual(popup.font_candidates("en", 600, None),
+                         (("Segoe UI Variable Text Semibold", 400), ("Segoe UI Semibold", 400), ("Segoe UI", 600)))
+        self.assertEqual(popup.font_candidates("de", 400, MALGUN_LOCALIZED),
+                         ((MALGUN_LOCALIZED, 400), ("Segoe UI Variable Text", 400), ("Segoe UI", 400)))
+        self.assertIn('family.StartsWith("Segoe UI", StringComparison.Ordinal) && '
+                      '!family.EndsWith("Semibold", StringComparison.Ordinal)',
+                      (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8"))
+
+    def test_the_three_surfaces_start_from_the_same_face(self):
+        """One product: the window's every font is a variant of Windows' message font, the panel's
+        stack starts with `system-ui`, which resolves to it, and the popup asks Windows for it.
+        Putting "Segoe UI" ahead of `system-ui` in the panel would part the panel from the window
+        on every Windows whose UI font is not Segoe UI - a Korean one among them."""
+        from codex_auto_resume import mcpui
+        controls = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
+        self.assertIn("if (baseFont == null) baseFont = SystemFonts.MessageBoxFont;", controls)
+        stack = re.search(r"--font:\s*([^;]+);", mcpui._STYLE).group(1)
+        self.assertEqual(stack.split(",")[0].strip(), "system-ui")
+        panel = [face.strip().strip('"') for face in stack.split(",")[1:3]]
+        self.assertEqual(popup.font_faces("en", MALGUN_LOCALIZED)[1:], tuple(panel))
+        self.assertIn("SPI_GETNONCLIENTMETRICS", SOURCE.read_text(encoding="utf-8"))
+
+    @unittest.skipUnless(os.name == "nt", "asks Windows")
+    def test_the_popup_asks_windows_for_the_font_the_window_is_drawn_in(self):
+        face = popup.message_face()
+        self.assertTrue(face)
+        powershell = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
+                      / "WindowsPowerShell" / "v1.0" / "powershell.exe")
+        if not powershell.is_file():
+            self.skipTest("no Windows PowerShell to ask Windows Forms")
+        import subprocess
+        script = ("Add-Type -AssemblyName System.Drawing; "
+                  "([int[]][char[]][Drawing.SystemFonts]::MessageBoxFont.Name) -join ','")
+        done = subprocess.run([str(powershell), "-NoProfile", "-NonInteractive", "-Command", script],
+                              capture_output=True, text=True, timeout=120)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        window = "".join(chr(int(point)) for point in done.stdout.strip().split(","))
+        self.assertEqual(face, window)
+
+    @unittest.skipUnless(os.name == "nt", "GDI")
+    def test_english_is_drawn_in_that_font(self):
+        face = popup.message_face()
+        renderer = popup.Renderer()
+        try:
+            renderer.use("en", 1.0)
+            self.assertEqual(renderer.fonts.faces["body"], face)
+            self.assertIn(renderer.fonts.faces["name"], (face, face + " Semibold"))
+            renderer.use("ko", 1.0)
+            self.assertEqual(renderer.fonts.faces["body"], "Malgun Gothic")
+        finally:
+            renderer.close()
 
     def test_the_vocabulary_tells_which_language_it_is(self):
         for locale in l10n.LOCALES:

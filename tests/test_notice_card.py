@@ -268,13 +268,37 @@ class PolicyTests(unittest.TestCase):
         self.assertIn(found[0], notice_presence.NOTIFICATION_MODES + (None,))
         self.assertIn(found[1], notice_presence.APP_SETTINGS + (None,))
 
+    IDENTITY = "CodexAutoResume.Watcher"      # asked about, never registered or changed by asking
+
     @unittest.skipUnless(os.name == "nt", "WinRT")
     def test_the_app_setting_probe_reads_windows_answer_again_and_again(self):
         """Every call brings COM up and down again and releases what it made: a hundred calls in
         a row answer the same, and the thread's own apartment is left as it was found."""
-        answers = {notice_presence.app_notifications("CodexAutoResume.Watcher") for _ in range(100)}
-        self.assertEqual(len(answers), 1)
-        self.assertIn(answers.pop(), notice_presence.APP_SETTINGS)
+        import ctypes
+        found = {}
+
+        def probe():
+            # A thread of its own, with no COM on it: afterwards there must still be none.
+            found["answers"] = [notice_presence.app_notifications(self.IDENTITY) for _ in range(100)]
+            ole32 = ctypes.WinDLL("ole32")
+            ole32.CoInitializeEx.restype = ctypes.c_long
+            ole32.CoInitializeEx.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+            found["after"] = ole32.CoInitializeEx(None, 2)       # S_OK only on a thread without COM
+            if found["after"] in (0, 1):
+                ole32.CoUninitialize()
+
+        thread = threading.Thread(target=probe)
+        thread.start()
+        thread.join(60)
+        answers = found["answers"]
+        self.assertEqual(len(set(answers)), 1, sorted(set(answers), key=repr))
+        # Windows' own answer, or none at all: a Windows where the watcher's identity was never
+        # registered (a CI runner's) gives no answer, and must give none every time - the card is
+        # then kept away and the toast decides, as card_allowed's own tests pin. Checked on every
+        # machine rather than skipped where the answer is None, so the hundred-call round and the
+        # apartment check run everywhere.
+        self.assertIn(answers[0], notice_presence.APP_SETTINGS + (None,))
+        self.assertEqual(found["after"], 0, "the probe left COM up on a thread that did not have it")
 
 
 class _Host:

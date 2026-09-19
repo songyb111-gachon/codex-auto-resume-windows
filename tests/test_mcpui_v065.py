@@ -1025,5 +1025,123 @@ class ScriptTests(unittest.TestCase):
             self.assertNotRegex(mcpui._STYLE.replace(scale, ""), re.escape(name) + r"\s*:")
 
 
+# ------------------------------------------------------------------------------------ tiles
+try:
+    from codex_auto_resume import tray_popup
+except Exception:                                                         # pragma: no cover - not Windows
+    tray_popup = None
+
+# Where each theme's variables are declared, as test_mcpui_v063 finds them.
+THEME_BLOCKS = {("", (":root",)): "light", ("", (':root[data-theme="light"]',)): "light",
+                ("", (':root[data-theme="dark"]',)): "dark",
+                ("@media (prefers-color-scheme: dark)", (':root:not([data-theme="light"])',)): "dark"}
+TILES = (".prow", ".master")
+
+
+class TileLiftTests(unittest.TestCase):
+    """A tile on a card - a waiting task's row, the master switch's - stands on it as the popup's task tiles
+    do since they gained depth: the three surfaces are one product, so what one gains the others wear too."""
+
+    def test_the_panels_tiles_are_raised_as_the_popups_are(self):
+        for selector in TILES:
+            with self.subTest(selector):
+                self.assertEqual((declared(selector, "background"), declared(selector, "border"),
+                                  declared(selector, "box-shadow")),
+                                 ("var(--raised)", "1px solid var(--line)", "var(--elev-tile)"))
+                self.assertEqual(declared(selector, "box-shadow", FORCED), "none",
+                                 "High Contrast: system colours and hairlines, no shadow")
+        # Only the tiles: nothing else on the page changed its lift.
+        wearing = sorted(selector for _, selectors, declarations in RULES
+                         for selector in selectors if "var(--elev-tile)" in declarations.get("box-shadow", ""))
+        self.assertEqual(wearing, sorted(TILES))
+
+    def test_the_lift_is_declared_for_each_theme_from_brand(self):
+        found = {}
+        for context, selectors, declarations in RULES:
+            theme = THEME_BLOCKS.get((context, selectors))
+            if theme:
+                found[(context, selectors)] = declarations.get("--elev-tile")
+                self.assertEqual("--elev-tile: %s;" % declarations.get("--elev-tile"), mcpui.tile_elevation(theme))
+        self.assertEqual(len(found), len(THEME_BLOCKS), "every theme block declares it")
+        # Written the way brand writes its own recipes, word for word - so it is brand's lift, not the page's.
+        for theme in ("light", "dark"):
+            for recipe in brand.SHADOWS[theme]:
+                with self.subTest(theme=theme, recipe=recipe):
+                    written = ", ".join(mcpui.css_shadow(shadow) for shadow in brand.shadows(recipe, theme))
+                    self.assertIn("--elev-%s: %s;" % (recipe, written), brand.css_elevation(theme))
+
+    @unittest.skipUnless(tray_popup, "the popup draws only on Windows")
+    def test_it_is_the_popups_task_tile_shadow_for_shadow(self):
+        for theme in ("light", "dark"):
+            with self.subTest(theme):
+                control = re.search(r"--elev-control: ([^;]+);", brand.css_elevation(theme)).group(1)
+                tile = re.fullmatch(r"--elev-tile: (.+);", mcpui.tile_elevation(theme)).group(1)
+                self.assertEqual(tile.replace("var(--elev-control)", control),
+                                 ", ".join(mcpui.css_shadow(shadow)
+                                           for shadow in tray_popup.recipe_shadows("tile", theme)))
+                self.assertEqual(tray_popup.tile_ground(theme), brand.palette(theme)["raised"],
+                                 "and on the same ground as the panel's tiles, `raised`")
+        # Dark carries the card's one-pixel top light inside the hairline; light has none to carry.
+        self.assertIn("inset ", mcpui.tile_elevation("dark"))
+        self.assertNotIn("inset ", mcpui.tile_elevation("light"))
+
+
+# ------------------------------------------------------------------------------------ line breaks
+AUTO_PHRASE = "@supports (word-break: auto-phrase)"
+
+
+class LineBreakStyleTests(unittest.TestCase):
+    """A line breaks between words, never inside one: Korean at its spaces ('진단', never '진/단'), Japanese
+    between phrases where the engine knows them, Chinese between characters as it is set; Latin as ever."""
+
+    def test_korean_keeps_its_words_whole_and_japanese_its_phrases(self):
+        self.assertEqual(declared(":root:lang(ko)", "word-break"), "keep-all")
+        self.assertEqual(declared(":root:lang(ja)", "word-break", AUTO_PHRASE), "auto-phrase")
+        # Not keep-all for Japanese or Chinese, which have no spaces: that broke them only at their commas and
+        # stops and left lines half empty. An engine without phrases breaks Japanese as it always did.
+        for locale in ("ja", "zh"):
+            self.assertIsNone(declared(":root:lang(%s)" % locale, "word-break"), locale)
+        self.assertIsNone(declared(":root:lang(zh)", "word-break", AUTO_PHRASE))
+        # A word longer than its whole line still breaks rather than running past the edge.
+        for locale in ("ko", "ja", "zh"):
+            self.assertEqual(declared(":root:lang(%s)" % locale, "overflow-wrap"), "anywhere", locale)
+
+    def test_nothing_else_changes_how_lines_break(self):
+        breaking = sorted((context, selector) for context, selectors, declarations in RULES
+                          for selector in selectors if "word-break" in declarations)
+        self.assertEqual(breaking, [("", ":root:lang(ko)"), (AUTO_PHRASE, ":root:lang(ja)")])
+        rooted = [selector for _, selectors, declarations in RULES for selector in selectors
+                  if "overflow-wrap" in declarations and selector.startswith(":root")]
+        self.assertEqual(sorted(rooted), [":root:lang(ja)", ":root:lang(ko)", ":root:lang(zh)"],
+                         "only the three languages' roots; Latin pages keep the browser's own wrapping")
+
+
+@unittest.skipUnless(NODE, "needs Node to run the panel's own code")
+class PageLanguageTests(unittest.TestCase):
+    """The rules above read the page's language off its root, which says the language the words are in."""
+
+    def test_the_root_says_the_language_the_page_speaks(self):
+        for locale in ("en", "ko", "ja", "zh-CN", "zh-TW"):
+            with self.subTest(locale):
+                self.assertEqual(page(say("document.documentElement.getAttribute('lang')"),
+                                      data=snapshot(interface_language=locale), locale=locale), locale)
+
+    def test_a_language_saved_elsewhere_is_said_on_the_root_once_the_page_speaks_it(self):
+        observed = page("""
+          window.__STORED__ = Object.assign({}, window.__STORED__, {interface_language: 'ko'});
+          var before = document.documentElement.getAttribute('lang');
+          var box = ROOT_NODE.all(function (n) { return n.className === 'check'; })[0];
+          box.checked = !box.checked;
+          box.fire('change');
+          saveButton().onclick();
+          await settle();
+          """ + say("{before: before, after: document.documentElement.getAttribute('lang'), locale: LOCALE}"))
+        self.assertEqual(observed, {"before": "en", "after": "ko", "locale": "ko"})
+
+    def test_a_page_with_no_locale_names_none(self):
+        self.assertIsNone(page("LOCALE = ''; render();" + say("document.documentElement.getAttribute('lang')"),
+                               root_attributes={"lang": "fr"}))
+
+
 if __name__ == "__main__":
     unittest.main()

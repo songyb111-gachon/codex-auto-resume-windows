@@ -65,6 +65,33 @@ def documentation_gaps(texts) -> list:
     for name in ("PRIVACY.ko.md", "SECURITY.ko.md"):
         if REFRESH_HOST not in texts.get(name, ""):
             gaps.append("%s does not name %s" % (name, REFRESH_HOST))
+    gaps.extend(status_disclosure_gaps(texts))
+    return gaps
+
+
+def status_item(text):
+    """The list item PRIVACY.md (or its Korean pair) gives `get_status`, or None: from its
+    bullet to the next bullet or the blank line that ends the list."""
+    found = re.search(r"^- [^\n]*`get_status`.*?(?=^- |^[ \t]*$)", text or "", re.M | re.S)
+    return found.group(0) if found else None
+
+
+def status_disclosure_gaps(texts) -> list:
+    """What PRIVACY.md and PRIVACY.ko.md owe the compatibility summary `get_status` carries.
+
+    `get_status` (and `open_settings`, which returns the same status) puts compat.mcp_view's
+    summary into the Codex conversation, which Codex sends on. The item that says what
+    `get_status` returns must name the summary and say it is codes only. Shape-based, and in
+    either language, because the generated `ko` branch holds Korean under the English name."""
+    gaps = []
+    for name in ("PRIVACY.md", "PRIVACY.ko.md"):
+        item = status_item(texts.get(name, ""))
+        if item is None:
+            gaps.append("%s has no item saying what get_status returns" % name)
+        elif not re.search(r"(?i)compatibility|호환", item):
+            gaps.append("%s: get_status's item does not name the compatibility summary" % name)
+        elif not re.search(r"(?i)\bcodes\b|코드", item):
+            gaps.append("%s: get_status's item does not say the summary is codes only" % name)
     return gaps
 
 
@@ -284,8 +311,10 @@ class McpTests(unittest.TestCase):
         self.fixture.backend()
         status = self.call("get_status")["structuredContent"]
         summary = status["watcher"]["compatibility"]
-        self.assertEqual(set(summary), {"status", "overall", "source", "checked_at", "capabilities"})
+        self.assertEqual(set(summary), {"status", "overall", "acting", "source", "sequence", "cache",
+                                        "checked_at", "capabilities"})
         self.assertEqual((summary["status"], summary["overall"]), ("ok", "structurally_compatible"))
+        self.assertEqual((summary["source"], summary["sequence"]), ("bundled", 1))
         text = json.dumps(summary)
         for leak in ("codex-cli", str(self.fixture.exe), compatio.path_digest(self.fixture.exe),
                      str(self.fixture.paths.home)):
@@ -381,17 +410,51 @@ class PrivacyTests(unittest.TestCase):
                                       "It is a HEAD request, so no page is read.",
                         "SECURITY.md": "No update check runs unless you press the button.",
                         "PRIVACY.ko.md": "", "SECURITY.ko.md": ""}
-        self.assertEqual(len(documentation_gaps(undocumented)), 7)
+        self.assertEqual(len(documentation_gaps(undocumented)), 9)
         documented = {
             "PRIVACY.md": "Pressing *Check for updates* asks github.com, and then fetches the Codex "
                           "compatibility data from raw.githubusercontent.com - only when you press "
                           "it. The result is kept in config/compat-cache.json, and the watcher "
-                          "writes config/compatibility.json.",
+                          "writes config/compatibility.json.\n\n"
+                          "- from `get_status`: the version and, as codes only, the Codex "
+                          "compatibility summary;\n",
             "SECURITY.md": "No update check and no compatibility refresh runs unless you press "
                            "the button; the data comes from raw.githubusercontent.com.",
-            "PRIVACY.ko.md": "raw.githubusercontent.com compat-cache.json",
+            "PRIVACY.ko.md": "raw.githubusercontent.com compat-cache.json\n\n"
+                             "- `get_status`: 버전, 그리고 코드로만 된 Codex 호환성 요약;\n",
             "SECURITY.ko.md": "raw.githubusercontent.com"}
         self.assertEqual(documentation_gaps(documented), [])
+
+    def test_the_status_rule_reads_the_get_status_item_and_nothing_else(self):
+        item = ("- from `get_status`: the version, and the Codex compatibility summary as codes;\n"
+                "  a second line of the same item;\n")
+        text = "Tools: `get_status`, `list_pending` and more.\n\n" + item + "- from `list_pending`: rows.\n"
+        self.assertEqual(status_item(text), item)
+        self.assertEqual(status_disclosure_gaps({"PRIVACY.md": text, "PRIVACY.ko.md": text}), [])
+        # The summary named anywhere but in get_status's own item does not count.
+        elsewhere = ("- from `get_status`: the version and your settings;\n"
+                     "- from `list_pending`: the compatibility summary, codes only;\n")
+        self.assertEqual(status_disclosure_gaps({"PRIVACY.md": elsewhere, "PRIVACY.ko.md": item}),
+                         ["PRIVACY.md: get_status's item does not name the compatibility summary"])
+        unqualified = "- from `get_status`: the version and the compatibility summary;\n"
+        self.assertEqual(status_disclosure_gaps({"PRIVACY.md": unqualified, "PRIVACY.ko.md": item}),
+                         ["PRIVACY.md: get_status's item does not say the summary is codes only"])
+        self.assertEqual(status_disclosure_gaps({"PRIVACY.md": item}),
+                         ["PRIVACY.ko.md has no item saying what get_status returns"])
+
+    def test_privacy_names_the_compatibility_summary_get_status_returns(self):
+        """Binding now, not at the version bump: get_status has carried compat.mcp_view's summary
+        since it was written (v0.6.5's registry work), and every call puts it into a conversation
+        Codex sends to OpenAI, so the document that lists what get_status returns must say so for
+        as long as the code does. A Korean pair that exists must say it too."""
+        summary = compat.mcp_view(compat.unusable_view("absent"))
+        self.assertTrue({"status", "overall", "acting", "source", "sequence", "cache", "checked_at",
+                         "capabilities"} >= set(summary))
+        texts = {name: (ROOT / name).read_text(encoding="utf-8")
+                 for name in ("PRIVACY.md", "PRIVACY.ko.md") if (ROOT / name).is_file()}
+        self.assertIn("PRIVACY.md", texts)
+        texts.setdefault("PRIVACY.ko.md", texts["PRIVACY.md"])
+        self.assertEqual(status_disclosure_gaps(texts), [])
 
     def test_the_documents_name_the_refresh_before_it_ships(self):
         """The refresh is a request PRIVACY.md does not describe yet: it still says the

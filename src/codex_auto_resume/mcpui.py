@@ -43,6 +43,8 @@ its track cross-fades, a check box fades its fill and mark, a list rises into pl
 with less motion or in High Contrast, and a switch that asks first moves once it is answered.
 It also shows the Codex Compatibility Registry as the Dashboard's Diagnostics page does, folded and
 read-only (`renderCompatibility`): codes in, words out, and no way to refresh the data from here.
+Its tiles - a waiting task, the master switch - stand on their cards as the popup's task tiles do
+(`tile_elevation`), and a line of Korean breaks between words and one of Japanese between phrases.
 """
 from __future__ import annotations
 
@@ -65,6 +67,7 @@ _STYLE = r"""
   color-scheme: light dark;
   @LIGHT@
   @ELEVATION_LIGHT@
+  @TILE_LIGHT@
   @SCALE@
   /* The glow's easing: a half-cosine, to within 0.002 of its phase, so a breath the stylesheet
      draws is the same curve brand.glow() gives the window and the popup. */
@@ -78,13 +81,25 @@ _STYLE = r"""
   --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { color-scheme: dark; @DARK@ @ELEVATION_DARK@ }
+  :root:not([data-theme="light"]) { color-scheme: dark; @DARK@ @ELEVATION_DARK@ @TILE_DARK@ }
 }
-:root[data-theme="dark"] { color-scheme: dark; @DARK@ @ELEVATION_DARK@ }
-:root[data-theme="light"] { color-scheme: light; @LIGHT@ @ELEVATION_LIGHT@ }
+:root[data-theme="dark"] { color-scheme: dark; @DARK@ @ELEVATION_DARK@ @TILE_DARK@ }
+:root[data-theme="light"] { color-scheme: light; @LIGHT@ @ELEVATION_LIGHT@ @TILE_LIGHT@ }
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
+/* A line breaks between words, never inside one, in the languages that set lines without hyphens.
+   Korean puts spaces between its words, so it breaks only there ('진단', never '진/단'). Japanese has
+   no spaces: keeping all its characters together would break it only at its commas and stops and
+   leave lines half empty, so it breaks between phrases where the engine knows them (auto-phrase) and
+   as before where it does not. Chinese is set breaking between any two characters, as it always was.
+   In all three a word longer than its whole line still breaks rather than run past the edge. The root
+   carries the page's language (applyLanguage); Latin text is set as it always was. */
+:root:lang(ko) { word-break: keep-all; }
+@supports (word-break: auto-phrase) {
+  :root:lang(ja) { word-break: auto-phrase; }
+}
+:root:lang(ko), :root:lang(ja), :root:lang(zh) { overflow-wrap: anywhere; }
 body { margin: 0; padding: var(--size-page-pad); background: var(--canvas); color: var(--ink);
        font: var(--type-body)/var(--lh-body) var(--font); -webkit-font-smoothing: antialiased; }
 h1, h2, h3, p, ul { margin: 0; }
@@ -365,9 +380,12 @@ label.setting { cursor: pointer; }
 .toggles .setting { flex-wrap: nowrap; }
 .toggles.quiet .setting-label { color: var(--muted); }
 
+/* A tile - the master switch's here, a waiting task's below - stands on its card as the popup's task
+   tiles do: the `raised` ground, the hairline, and --elev-tile, which is brand's control lift and, in
+   dark, where a drop alone does not show at a tile's size, the dark card's one-pixel top light. */
 .master { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 10px 0 6px;
           padding: var(--size-tile-pad); background: var(--raised); border: 1px solid var(--line);
-          border-radius: var(--radius-control); }
+          border-radius: var(--radius-control); box-shadow: var(--elev-tile); }
 /* What the tile says - the state, and under it what the last press answered - is one block, and
    the button is pinned to the tile's bottom-right beside it (see .setting). */
 .master-body { flex: 1 1 200px; display: grid; gap: 4px; min-width: 0; }
@@ -435,7 +453,7 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
 .prows { list-style: none; padding: 0; display: grid; gap: var(--size-tile-gap); }
 .prow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-width: 0;
         padding: var(--size-tile-pad); background: var(--raised); border: 1px solid var(--line);
-        border-radius: var(--radius-control); }
+        border-radius: var(--radius-control); box-shadow: var(--elev-tile); }
 .prow-main { flex: 1 1 220px; min-width: 0; display: grid; gap: 3px; }
 .prow-title { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
 .prow-name { font-weight: 600; min-width: 0; max-width: 100%; overflow: hidden;
@@ -542,7 +560,7 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
 @media (forced-colors: active) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
   .card, .savebar, button, select, input, .segment span, .bubble,
-  .combo-box, .combo-list, .combo-option { box-shadow: none; }
+  .combo-box, .combo-list, .combo-option, .master, .prow { box-shadow: none; }
   .halo, .dot, .halo.paused, .dot.paused { forced-color-adjust: none; background: GrayText; }
   .halo.monitoring, .halo.waiting, .halo.checking, .halo.recovering, .dot.on { background: Highlight; }
   .halo.attention { background: CanvasText; }
@@ -580,6 +598,23 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
 }
 """
 
+
+def css_shadow(shadow) -> str:
+    """One of brand's Shadows as CSS, word for word as brand.css_elevation writes it."""
+    return "%s%s %s %s color-mix(in srgb, var(--%s) %d%%, transparent)" % (
+        "inset " if shadow.inset else "", brand._css_length(shadow.dx), brand._css_length(shadow.dy),
+        brand._css_length(shadow.blur), shadow.token.replace("_", "-"), int(round(shadow.alpha * 100)))
+
+
+def tile_elevation(theme) -> str:
+    """`--elev-tile` for one theme: how a tile - a waiting task's row, the master switch's - stands on
+    its card. It is the popup's raised task tile (tray_popup.DEPTH), made of brand's recipes the same
+    way: brand's control lift and, where brand's card has one (dark), the card's inset top light, the
+    one-pixel edge a drop alone cannot give a tile on a dark card at this size."""
+    top_light = [shadow for shadow in brand.shadows("card", theme) if shadow.inset]
+    return "--elev-tile: %s;" % ", ".join(["var(--elev-control)"] + [css_shadow(shadow) for shadow in top_light])
+
+
 # Resolved once, at import: the palette is a build-time fact, not a per-request one. The lift
 # of a surface is brand's SHADOWS written as CSS - the recipe the window and the popup paint
 # from - so this page states no shadow of its own.
@@ -587,6 +622,8 @@ _STYLE = (_STYLE.replace("@LIGHT@", brand.css_variables(brand.LIGHT))
                 .replace("@DARK@", brand.css_variables(brand.DARK))
                 .replace("@ELEVATION_LIGHT@", brand.css_elevation("light"))
                 .replace("@ELEVATION_DARK@", brand.css_elevation("dark"))
+                .replace("@TILE_LIGHT@", tile_elevation("light"))
+                .replace("@TILE_DARK@", tile_elevation("dark"))
                 .replace("@SCALE@", brand.css_scale())
                 # Where a drop-down's words start, in its field and in its list: the field's own padding.
                 .replace("@SELECT_PAD_LEFT@", "%gpx" % brand.padding("select_pad")[3]))
@@ -707,6 +744,16 @@ function applyTheme(root, settings, pinned) {
   var stamp = themeStamp((settings || {}).theme);
   if (stamp) root.setAttribute('data-theme', stamp);
   else root.removeAttribute('data-theme');
+}
+
+// The language the words are in, on the root: the stylesheet breaks a line of Korean between words and
+// one of Japanese between phrases by it, and a screen reader reads each language in its own voice. Set on
+// every draw (render), because a saved Interface language draws the page again in that language; none
+// when the page has no locale to name.
+function applyLanguage(root, locale) {
+  if (!root || typeof root.setAttribute !== 'function') return;
+  if (typeof locale === 'string' && locale) root.setAttribute('lang', locale);
+  else root.removeAttribute('lang');
 }
 
 // The stored appearance and language, applied to the page in place. True when the words changed.
@@ -2086,6 +2133,7 @@ function glide() {
 }
 
 function render() {
+  applyLanguage(document.documentElement, LOCALE);
   var root = document.getElementById('root');
   root.textContent = '';
   EDITORS = {};
