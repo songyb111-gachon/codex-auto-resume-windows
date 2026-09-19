@@ -1,0 +1,101 @@
+"""The scanner every structural test reads the product's source through (`tests/srcscan.py`).
+
+The structural tests assert absences - no second sender, no automation, no network, nothing
+in the popup that can submit - and an absence is only as good as the list of files it was
+looked for in. These hold that list to the package as it is on disk: every module, at any
+depth, tracked; and they keep the suite from growing a new test that names one file again.
+"""
+from __future__ import annotations
+
+import ast
+import inspect
+from pathlib import Path
+import pkgutil
+import sys
+import unittest
+
+_HERE = str(Path(__file__).resolve().parent)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)        # srcscan lives next to this file
+
+import srcscan  # noqa: E402
+import codex_auto_resume  # noqa: E402
+from codex_auto_resume import engine, tray, tray_popup, windows  # noqa: E402
+
+
+class ListingTests(unittest.TestCase):
+    def test_every_python_file_under_src_is_tracked(self):
+        """The scans list the package with `git ls-files`, so a module that exists but was
+        never added is invisible to every one of them - to the privacy scan, the
+        no-automation scan and the popup's envelope alike - while the suite, which imports
+        from disk, runs it as if nothing were wrong. `git add` it, or delete it."""
+        tracked = {path.resolve() for path in srcscan.package_files()}
+        untracked = [srcscan.relative(path) for path in srcscan.on_disk() if path.resolve() not in tracked]
+        self.assertEqual(untracked, [], "on disk under src/ but not tracked, so no structural test reads it")
+
+    def test_the_listing_is_every_file_at_every_depth(self):
+        listed = {srcscan.relative(path) for path in srcscan.package_files()}
+        self.assertEqual(listed, {srcscan.relative(path) for path in srcscan.on_disk()})
+        self.assertIn("auto_resume.py", listed)
+        self.assertIn("codex_auto_resume/__init__.py", listed)
+        self.assertGreater(len(listed), 30, "the listing itself looks wrong")
+
+    def test_every_module_python_can_import_is_listed(self):
+        importable = {srcscan.PACKAGE} | {
+            info.name for info in pkgutil.walk_packages(codex_auto_resume.__path__, srcscan.PACKAGE + ".")}
+        self.assertEqual(importable - set(srcscan.modules()), set())
+
+    def test_the_listing_is_the_one_python_imports(self):
+        """The scans read the tree the tests import, not some other copy on the path."""
+        self.assertEqual(Path(codex_auto_resume.__file__).resolve(),
+                         srcscan.modules()[srcscan.PACKAGE].resolve())
+        self.assertEqual(srcscan.module_name(srcscan.SRC / "codex_auto_resume" / "cli.py"), "codex_auto_resume.cli")
+        self.assertEqual(srcscan.files_of("codex_auto_resume.tray_popup"),
+                         [srcscan.modules()["codex_auto_resume.tray_popup"]])
+
+
+class TreeTests(unittest.TestCase):
+    def test_qualified_names_are_the_ones_python_gives(self):
+        for module in (engine, windows, tray_popup):
+            with self.subTest(module.__name__):
+                tree = srcscan.package_asts()[srcscan.modules()[module.__name__]]
+                found = {name for node, name in srcscan.qualnames(tree).items()
+                         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))}
+                defined = set()
+                for _, value in inspect.getmembers(module):
+                    if getattr(value, "__module__", None) != module.__name__:
+                        continue
+                    if inspect.isfunction(value):
+                        defined.add(value.__qualname__)
+                    elif inspect.isclass(value):
+                        defined.add(value.__qualname__)
+                        defined.update(member.__qualname__ for _, member in inspect.getmembers(value, inspect.isfunction)
+                                       if member.__module__ == module.__name__)
+                self.assertTrue(defined)
+                self.assertLessEqual(defined, found)
+                if module is engine:
+                    self.assertIn("Engine.dispatch", found)
+
+    def test_a_node_belongs_to_the_function_around_it(self):
+        tree = ast.parse("def outer():\n    def inner():\n        call()\n    return inner\n"
+                         "class C:\n    def m(self):\n        other()\n")
+        names = srcscan.qualnames(tree)
+        calls = {node.func.id: names[node] for node in ast.walk(tree)
+                 if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)}
+        self.assertEqual(calls, {"call": "outer.<locals>.inner", "other": "C.m"})
+
+    def test_imports_resolve_to_modules_and_say_when_they_run(self):
+        popup = {(entry.target, entry.lazy) for entry in srcscan.imports(srcscan.modules()[tray_popup.__name__])}
+        self.assertIn(("codex_auto_resume.tray", False), popup)          # from .tray import countdown
+        self.assertIn(("codex_auto_resume.brand", False), popup)         # from . import brand, ...
+        self.assertIn(("ctypes", False), popup)
+        icon = {(entry.target, entry.lazy) for entry in srcscan.imports(srcscan.modules()[tray.__name__])}
+        self.assertIn(("codex_auto_resume.tray_popup", True), icon)      # inside a function
+        self.assertNotIn(("codex_auto_resume", False), icon, "`from . import x` names x, not the package")
+        self.assertIn("codex_auto_resume.cli", srcscan.import_graph()["auto_resume"])
+        self.assertIn("codex_auto_resume.tray_popup", srcscan.closure("codex_auto_resume.tray"))
+        self.assertNotIn("codex_auto_resume.tray_popup", srcscan.closure("codex_auto_resume.tray", lazy=False))
+
+
+if __name__ == "__main__":
+    unittest.main()
