@@ -239,8 +239,11 @@ class IconHostTests(unittest.TestCase):
         settings.update(stored, {"theme": "dark", "reduce_motion": True})
         control = types.SimpleNamespace(get_settings=lambda: settings.load(stored), settings_path=lambda: stored)
         icon = tray.Tray(strings={}, control=control)
+        # Windows' own animation switch answers "on" here, as on a desktop (GitHub's runner has it off); the
+        # stored Reduce motion is what this test is about.
         with patch.object(tray_popup, "apps_use_light_theme", lambda: True), \
                 patch.object(tray_popup, "high_contrast", lambda: False), \
+                patch.object(tray_popup, "reduced_motion", lambda: bool(tray_popup._reduce_motion_setting)), \
                 patch.object(notice_presence, "battery_saver", lambda: False):
             look = icon._card_look()
             self.assertEqual(look, {"theme": "dark", "contrast": False, "reduced": True})
