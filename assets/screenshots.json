@@ -27,22 +27,22 @@
     "assets/codex-auto-resume.ico": "45c3f3a0d02d78f9be0b80532eedc2f524cd7ebe1056007dacdb286ca743bd52",
     "build/capture_window.ps1": "91f681d9e247bfb4aa626d8ed3c030dd5fd666076503dc37fb596d41bb95e292",
     "build/make_gui.ps1": "aca0568d94929b418822dbdb9c857c538744653bf641094218e131ceea40be84",
-    "build/make_screenshots.py": "1536279ecd6535895ef084a5edf0094b5cba24b351d92a629448aa02fbfff59a",
+    "build/make_screenshots.py": "edf0236255355cb18ffbe557072fa28593f75d2c9e2178ddd775687b39defb5b",
     "<bridge envelope:en>": "4e67dcc9fe2e42c1d4fda52ae31820b13c96acb9a0af6f569f845465753350c2",
     "<panel render:en>": "6d02618d1517335ffaa6aa783b3ccffefa4074e09c3210f01e41f7afe09cce41",
-    "<popup render:en>": "51ae2cf9cea6e15c7f125cdb7d0dbf3d3e0ecd7f271edea81cfd2c95d66cdec7",
+    "<popup render:en>": "40e01b81e1f39b003d3907a6a2dc45d31f8c7794b60040b221e228a52ee46e42",
     "<bridge envelope:ko>": "bc3f999b0cde173484fd06d4198c51f9010a2f6688810713f8a75976d2114b70",
     "<panel render:ko>": "fbc3732f16cfb4107980d709ecf2dfa64aa486902ae6730ff4693f38d219d7c8",
-    "<popup render:ko>": "693f6b3c3d4041d3c6c484436199e1b640277a7a9b86ed62e5e66ddf1ed81f62",
+    "<popup render:ko>": "084edbcf980c9e53f14819c6fad114277efc6f58bc744044949809927cfbaf01",
     "<bridge envelope:ja>": "1279ae45db12c9785689495b3de2a20dc35e1ffc06ed4f66702c05dc002b71d1",
     "<panel render:ja>": "97311738e3e1ca3e737efb1109c3e9825ffb39c87da066adc478e527b42e66d5",
-    "<popup render:ja>": "946389daeefbddcce920ad7a48394344281073ab1fbdf073596ceaf37b8df222",
+    "<popup render:ja>": "1da75c8dcf365e60dcafe1545192980fb795d7a41c078ca20fdcd5423ded01ce",
     "<bridge envelope:zh-CN>": "941e4e9a05924dd4f4a74e4171b35e83438916011f99209b56b58daa5e45d941",
     "<panel render:zh-CN>": "79fba897c26e71b27e62fafdb2604801458bd16226f441ab936842e9b532dab6",
-    "<popup render:zh-CN>": "97cb25c87a511a0944eb1770a36a96ced448060b1ceb2179a6ee071f518a4eb4",
+    "<popup render:zh-CN>": "9b40910222df401a23323bc9c54492699caa88080383945dff142fa7839643ae",
     "<bridge envelope:de>": "cffe5e00111c2f2a778e019c68d8f6bffc16c94e47b24013cfad702980fb9df5",
     "<panel render:de>": "1e588ceade397573ec45f9e38e4d882c37a633fe481d0d52c10ee13318a0758a",
-    "<popup render:de>": "1f9a15bbe407bfa903733a5b6b7cdca18d804825c33f517edd3b1c9b05b586b6"
+    "<popup render:de>": "b5a2b5564b795f7584656c1c779cac31ecd3cb6c3ba5d9ba5b01875bd35b1b00"
   },
   "images": {
     "assets/screenshot-panel.png": {
