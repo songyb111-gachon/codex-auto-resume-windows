@@ -503,6 +503,9 @@ namespace CodexAutoResume
         private readonly Label detail = new Label();
         private readonly Label versionText = new Label();
         private readonly HaloDot stateDot = new HaloDot();
+        // v0.6.5: the notification-area icon's motion on the taskbar button (TaskbarMark), following stateDot; null in
+        // a window LayoutAudit builds, and without the product's own icon.
+        private TaskbarMark taskbar;
         private Button startButton, closeButton;
 
         // The interface vocabulary, in the language the engine resolved. Fetched once,
@@ -709,9 +712,17 @@ namespace CodexAutoResume
             try
             {
                 string icon = Path.Combine(root, "codex-auto-resume.ico");
-                if (File.Exists(icon)) Icon = new Icon(icon);
+                if (File.Exists(icon))
+                {
+                    Icon = new Icon(icon);
+                    // With our own mark, and never in a window LayoutAudit builds: the taskbar button moves as the
+                    // notification-area icon does while the window is open (TaskbarMark).
+                    if (catalog == null) taskbar = new TaskbarMark(this);
+                }
             }
             catch (Exception) { /* an icon is decoration; never fail the window over it */ }
+            // The button's state is the icon's for the header light's, told each time the light is.
+            stateDot.StateSet += delegate { if (taskbar != null) taskbar.Follow(stateDot.State); };
             if (asking != null)
             {
                 Dictionary<string, object> reply = asking.Result;

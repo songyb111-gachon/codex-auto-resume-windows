@@ -2365,6 +2365,9 @@ namespace CodexAutoResume
             {
                 ticks++;
                 UpdateCountdowns();
+                // The taskbar button asks again whether it may move - a Reduce motion saved, Windows' animation
+                // effects, High Contrast or battery saver turned on or off - within a second of it (TaskbarMark.Sync).
+                if (taskbar != null) taskbar.Sync();
                 // Every second too, so a usage reset that passes while a row stays selected
                 // makes Retry now available without waiting for the next read.
                 UpdatePendingButtons();
