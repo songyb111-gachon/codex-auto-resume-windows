@@ -22,6 +22,13 @@ exists fails the test, so the lists only shrink as the split lands.
 Every import is read from the source through srcscan, including the ones inside functions:
 a lazy import is still an edge, and a cycle through one is still a cycle the day someone
 moves it to the top of a file.
+
+A role - the store, Codex's readers, Windows, the UI, the MCP server - is a set of module
+names, and a module belongs to it when it is one of them *or lies inside one of them*. So
+`store` covers `store/claims.py` the day `store.py` becomes a package, and the packages the
+split creates (`codex/`, `win/`, `ui/`, `mcp/`) are in their roles before they exist. Matched
+by exact name instead, the engine could import `codex.history` once `source.py` had moved
+there, and the edge would drop off the exception list while it still existed.
 """
 from __future__ import annotations
 
@@ -55,15 +62,18 @@ LAYER = {_q(name): layer for layer, names in {
               "notice_card", "notice_window", "notifier"),
 }.items() for name in names}
 
-# The roles the target rules speak of, in today's modules.
+# The roles the target rules speak of: today's modules, and the packages the split moves them
+# into (PLANNED, which need not exist yet). Each name covers itself and everything inside it.
+PLANNED = {_q(name) for name in ("codex", "win", "ui", "mcp", "domain.public")}
 STORE = {_q("store")}
-CODEX = {_q("source"), _q("windows")}                      # Codex's files and processes
-WIN = {_q(name) for name in ("windows", "startup", "shortcut", "pwsh", "notify", "notice_presence")}
-UI = {_q(name) for name in ("tray", "tray_popup", "brand", "notice_card", "notice_window")}
-MCP = {_q("mcpserver"), _q("mcpui")}
+CODEX = {_q("source"), _q("windows"), _q("codex")}         # Codex's files and processes
+WIN = {_q(name) for name in ("windows", "startup", "shortcut", "pwsh", "notify", "notice_presence", "win")}
+UI = {_q(name) for name in ("tray", "tray_popup", "brand", "notice_card", "notice_window", "ui")}
+MCP = {_q("mcpserver"), _q("mcpui"), _q("mcp")}
 # What the UI may reach: the control layer, the public status mapping (machine, until it is
 # split into domain/), the i18n layer and the brand - and itself.
-UI_MAY_IMPORT = {_q("control"), _q("machine"), _q("l10n"), _q("interface"), _q("messages")} | UI
+UI_MAY_IMPORT = {_q("control"), _q("machine"), _q("domain.public"), _q("l10n"), _q("interface"),
+                 _q("messages")} | UI
 PURE_STDLIB = {"__future__", "abc", "collections", "dataclasses", "decimal", "enum", "fractions", "functools",
                "hashlib", "itertools", "json", "math", "numbers", "operator", "re", "string", "textwrap",
                "types", "typing", "uuid"}
@@ -142,6 +152,19 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
 }.items()}
 
 
+def within(name, roles):
+    """True when `name` is one of `roles` or a module inside one of them.
+
+    `codex_auto_resume.store.claims` is within `store`; `codex_auto_resume.sourcery` is not
+    within `source`."""
+    return any(name == role or name.startswith(role + ".") for role in roles)
+
+
+def members(roles):
+    """Today's modules that lie within `roles`: the modules, and every module of a package."""
+    return {module for module in srcscan.modules() if within(module, roles)}
+
+
 def edges(*, lazy):
     """(importer, imported) -> the lines, for this product's imports; lazy or not as asked."""
     found = {}
@@ -194,7 +217,23 @@ class LayerTests(unittest.TestCase):
         self.assertEqual(sorted(modules - set(LAYER)), [], "place the new module in a layer")
         self.assertEqual(sorted(set(LAYER) - modules), [], "the table names a module that is gone")
         for name in STORE | CODEX | WIN | UI | MCP | UI_MAY_IMPORT:
-            self.assertIn(name, modules)
+            with self.subTest(name):
+                self.assertTrue(name in modules or name in PLANNED,
+                                "a role names a module that is neither here nor planned")
+
+    def test_a_role_covers_the_package_its_modules_move_into(self):
+        """The shapes the split produces, each in the role the flat module had."""
+        for moved, role in (("store.claims", STORE), ("codex.history", CODEX), ("codex", CODEX),
+                            ("win.dll", WIN), ("ui.popup.layout", UI), ("ui", UI),
+                            ("mcp.panel", MCP), ("control.commands", UI_MAY_IMPORT),
+                            ("domain.public", UI_MAY_IMPORT)):
+            with self.subTest(moved):
+                self.assertTrue(within(_q(moved), role))
+        for outside, role in (("sourcery", CODEX), ("stores", STORE), ("window", WIN),
+                              ("uix", UI), ("mcpx", MCP), ("domain.ids", UI_MAY_IMPORT)):
+            with self.subTest(outside):
+                self.assertFalse(within(_q(outside), role))
+        self.assertEqual(members(UI) & members(MCP), set())
 
     def test_imports_point_down_or_sideways(self):
         upward, unplaced = [], set()
@@ -217,31 +256,37 @@ class LayerTests(unittest.TestCase):
                     else:
                         self.assertIn(entry.target.split(".")[0], PURE_STDLIB, "no clock, no I/O, no ctypes")
 
+    def assert_exceptions(self, found, exceptions):
+        found, listed = {short(pair) for pair in found}, {short(pair) for pair in exceptions}
+        self.assertEqual(sorted(found - listed), [], "a new edge that breaks the rule")
+        self.assertEqual(sorted(listed - found), [], "an exception has gone: delete it")
+
     def test_the_engine_names_no_store_codex_or_windows(self):
-        engine = {name for name, layer in LAYER.items() if layer == "engine"}
+        engine = {name for name, layer in LAYER.items() if layer == "engine"} | members({_q("engine")})
         found = set()
         for module in sorted(engine):
             for entry in srcscan.imports(srcscan.modules()[module]):
                 if entry.target.split(".")[0] in ("sqlite3", "ctypes", "subprocess"):
                     self.fail("%s imports %s" % (module, entry.target))
-                if entry.target in STORE | CODEX | WIN:
+                if within(entry.target, STORE | CODEX | WIN):
                     found.add((module, entry.target))
-        self.assertEqual(found, set(ENGINE_EXCEPTIONS), "an exception has gone (delete it) or a new edge appeared")
+        self.assert_exceptions(found, ENGINE_EXCEPTIONS)
 
     def test_the_ui_imports_only_control_the_public_domain_i18n_and_brand(self):
         found = set()
-        for module in sorted(UI):
+        for module in sorted(members(UI)):
             for entry in srcscan.imports(srcscan.modules()[module]):
-                if entry.internal and entry.target not in UI_MAY_IMPORT:
+                if entry.internal and not within(entry.target, UI_MAY_IMPORT):
                     found.add((module, entry.target))
-        self.assertEqual({short(pair) for pair in found}, {short(pair) for pair in UI_EXCEPTIONS},
-                         "an exception has gone (delete it) or a new edge appeared")
+        self.assert_exceptions(found, UI_EXCEPTIONS)
 
     def test_neither_the_mcp_server_nor_the_ui_imports_codex(self):
-        for module in sorted(MCP | UI):
+        importers = members(MCP | UI)
+        self.assertLessEqual({_q("tray_popup"), _q("mcpui"), _q("mcpserver")}, importers)
+        for module in sorted(importers):
             for entry in srcscan.imports(srcscan.modules()[module]):
                 with self.subTest(module=module, imports=entry.target):
-                    self.assertNotIn(entry.target, CODEX)
+                    self.assertFalse(within(entry.target, CODEX), "the UI and the MCP server never read Codex")
 
 
 class CycleTests(unittest.TestCase):
