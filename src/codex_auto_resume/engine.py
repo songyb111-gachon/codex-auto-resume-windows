@@ -13,7 +13,7 @@ takes it back the moment anything makes it the wrong thing to run.
 from contextlib import nullcontext
 import time
 
-from . import continuation as _message, failures, l10n, machine, messages, settings as policy
+from . import continuation as _message, failures, l10n, machine, settings as policy
 from .machine import OBSERVING, TERMINAL, WAITING
 from .source import detect
 

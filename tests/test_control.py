@@ -353,16 +353,21 @@ class NotARecoveryEngineTests(ControlTestCase):
         control_files = srcscan.files_of("codex_auto_resume.control")
         for path in control_files:
             text = srcscan.read(path)
-            for module in ("engine", "source", "messages"):
+            for module in ("engine", "source"):
                 with self.subTest(file=srcscan.relative(path), module=module):
                     self.assertEqual(re.findall(r"(?m)^[ \t]*from \.+%s\b.*" % module, text), [])
                     self.assertEqual(re.findall(r"(?m)^[ \t]*from \.+ import .*\b%s\b.*" % module, text), [])
+            # The plugin's own sentences, which a `messages` module served until it was folded
+            # into l10n, are the front ends' words and never the control layer's.
+            with self.subTest(file=srcscan.relative(path), module="l10n.message"):
+                self.assertEqual(re.findall(r"\bl10n\.messages?\(", text), [])
+                self.assertEqual(re.findall(r"(?m)^[ \t]*from \.+l10n import .*\bmessages?\b.*", text), [])
         # And the whole package, however the import is spelled and wherever a control function
-        # has moved to: the modules that import any of the three - or anything inside one of
+        # has moved to: the modules that import either - or anything inside one of
         # them, once it is a package (`engine.dispatch`) - are exactly the ones that always
         # have, and control is not one of them. A package's own modules importing each other
         # are not counted.
-        guarded = {name: "codex_auto_resume." + name for name in ("engine", "source", "messages")}
+        guarded = {name: "codex_auto_resume." + name for name in ("engine", "source")}
 
         def within(name, root):
             return name == root or name.startswith(root + ".")
@@ -382,8 +387,7 @@ class NotARecoveryEngineTests(ControlTestCase):
         self.assertEqual(importers, {
             "engine": {package % "app"},
             "source": {package % name for name in ("app", "compatio", "controlcli", "engine")},
-            "messages": {package % name for name in ("app", "engine", "interface", "notifier", "notify")},
-        }, "the set of modules that reach the engine, the source or the messages has changed")
+        }, "the set of modules that reach the engine or the source has changed")
 
 
 class BridgeTests(ControlTestCase):
