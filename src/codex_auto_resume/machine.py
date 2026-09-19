@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import json
 
+from .failures import USAGE_LIMIT
+
 # ----------------------------------------------------------------------- stored states
 WAITING = frozenset({
     "waiting_reset", "waiting_poll", "waiting_for_app", "waiting_for_loaded_thread",
@@ -104,6 +106,20 @@ def plain_move_allowed(old: str, new: str) -> bool:
     if old == new:
         return True
     return new in PLAIN_MOVES.get(old, frozenset())
+
+
+def waiting_state(record: dict, now: float) -> str:
+    """The wait a record goes back to when it returns to waiting at `now`.
+
+    A usage limit waits for a stored reset that is still ahead, and polls once it has passed
+    - from the very moment it is reached; every other failure backs off. The engine sends a
+    record back here after a send that never started or a withdrawal, and a restored budget
+    comes back here too: one rule, so a change to it cannot leave either on the old one.
+    """
+    if record.get("category") == USAGE_LIMIT:
+        reset = record.get("reset_at")
+        return "waiting_reset" if reset is not None and reset > now else "waiting_poll"
+    return "waiting_backoff"
 
 
 # ---------------------------------------------------------------------------- reasons
