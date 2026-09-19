@@ -327,11 +327,12 @@ class StoreTests(_StoreCase):
         self.assertFalse(self.store.reserve(key, 200))
 
     def test_cancel_only_target_thread_and_keep_sent_for_reconciliation(self):
-        """The thread-wide cancel is `cancel_thread`; `cancel` stays as its v0.5 name."""
-        self.assertEqual(Store.cancel, Store.cancel_thread)
+        """The thread-wide cancel is `cancel_thread`. Its v0.5 name, `cancel`, is gone: nothing but
+        the tests still called it."""
+        self.assertFalse(hasattr(Store, "cancel"))
         self.store.register(failure(), 111)
         self.store.register(failure("b" * 64, OTHER), 111)
-        self.store.cancel(THREAD, 115)
+        self.store.cancel_thread(THREAD, 115)
         self.assertFalse(self.store.thread_enabled(THREAD))
         self.assertEqual(self.store.get("a" * 64)["state"], "cancelled")
         self.assertEqual(len(self.store.pending()), 1)
