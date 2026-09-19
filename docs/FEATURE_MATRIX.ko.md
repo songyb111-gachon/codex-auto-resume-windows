@@ -222,8 +222,9 @@
 | 기능 | 근거 등급 | 뒷받침하는 것 | 아직 없는 것 |
 | --- | --- | --- | --- |
 | 여섯 쪽 - 개요, 대기 중, 기록, 통계, 진단, 설정 | REAL WINDOWS TESTED | `gui/Dashboard.cs`가 여섯 쪽을 모두 만들고, 여섯 쪽 모두 `build/capture_window.ps1`로 144 DPI에서 영어와 한국어로 찍혀 있다. `docs/images/dashboard-overview.png`, `dashboard-pending.png`, `dashboard-history.png`, `dashboard-statistics.png`, `dashboard-diagnostics.png`, `settings-window.png`이고, 개요·대기 중·설정 쪽은 일본어, 간체 중국어, 독일어로도 찍혀 있다(`dashboard-overview-ja.png` 등). `assets/screenshots.json`에 고정되고 `tests/test_screenshots.py:ManifestTests`(5개)가 확인한다 | 한 쪽을 한 크기에서 한 벌의 합성 레코드로 찍은 것이다. 그림은 쪽이 그려진다는 것을 보일 뿐, 사람이 그것을 쓰는 모습을 보이지는 않는다. 창을 그리는 입력이 바뀌면 그림을 다시 만들므로(다음 줄), 그림은 지금의 소스가 그리는 창을 예시 자료로 보여 준다. 마우스를 올린 모습, 키보드 초점, 고대비, 상태 불빛의 움직임은 어느 그림에도 없고, 설정 그림은 이어서 하기 메시지 부분이다. |
-| 스크린샷은 최신이다. 그것을 만든 입력이 바뀌면 스위트가 실패한다 | UNIT TESTED | `tests/test_screenshots.py:ManifestTests.test_every_render_input_is_unchanged_since_the_images_were_made`, `test_the_committed_images_are_the_ones_the_manifest_describes`, `test_the_window_inputs_include_what_the_dashboard_is_computed_by`, `test_the_recorded_version_is_the_current_version`. `ContentTests.test_the_sample_version_comes_from_the_manifest`는 그림이 보여 주는 버전이 플러그인 매니페스트를 따르게 하고, `ContentTests.test_every_surface_is_drawn_in_the_pinned_theme`는 그림을 만드는 기계가 어떤 테마를 쓰든 창, 팝업, 패널의 그림을 밝은 테마로 묶어 둔다 | 매니페스트는 그림을 만든 버전을 적고, 그것이 현재 버전이 아니면 스위트가 실패한다. 최신 그림이라도 한 크기에서 예시 자료를 찍은 그림일 뿐이다. **어두운 테마를 보여 주는 커밋된 그림은 없다.** |
+| 스크린샷은 최신이다. 그것을 만든 입력이 바뀌면 스위트가 실패한다 | UNIT TESTED | `tests/test_screenshots.py:ManifestTests.test_every_render_input_is_unchanged_since_the_images_were_made`, `test_the_committed_images_are_the_ones_the_manifest_describes`, `test_the_window_inputs_include_what_the_dashboard_is_computed_by`, `test_the_recorded_version_is_the_current_version`. `ContentTests.test_the_sample_version_comes_from_the_manifest`는 그림이 보여 주는 버전이 플러그인 매니페스트를 따르게 하고, `ContentTests.test_every_surface_is_drawn_in_the_pinned_theme`는 그림을 만드는 기계가 어떤 테마를 쓰든 창, 팝업, 패널의 그림을 밝은 테마로 묶어 둔다 | 매니페스트는 그림을 만든 버전을 적고, 그것이 현재 버전이 아니면 스위트가 실패한다. 최신 그림이라도 한 크기에서 예시 자료를 찍은 그림일 뿐이다. **어두운 테마로 그린 그림은 알림 카드뿐이다.** 창, 팝업, 패널을 어두운 테마로 보여 주는 커밋된 그림은 없다. |
 | 스크린샷의 예시 자료에는 실제 식별자가 없다 | UNIT TESTED | `tests/test_screenshots.py:ContentTests.test_the_window_sample_carries_no_real_identifier`, `test_the_sample_data_carries_no_real_identifier` | - |
+| 그림에 실린 알림은 제품이 실제로 보여 주는 카드다. 워처 자신의 빌더가 예시 자료의 대화에서 사용량 한도에 대해 만드는 알림을 카탈로그의 말 그대로 담아, 카드 자신의 코드가 화면 밖에서 영어와 한국어는 밝은 테마와 어두운 테마로, 일본어, 간체 중국어, 독일어는 밝은 테마로 그린다. 그림마다 `<card render:*>` 아래에 고정되고, 이 항목은 카드가 하는 말이나 카드를 그리는 코드가 바뀌면 움직이지만 그 코드를 옮기거나 기계가 달라져도 움직이지 않는다 | REAL WINDOWS TESTED, 화면 밖에서 그린 그림으로 | `docs/images/notification-card.png`, `docs/images/notification-card-dark.png`와 그 ko, ja, zh-CN, de 짝이 `assets/screenshots.json`에 있다. `tests/test_screenshots.py:CardPictureTests`(7개) | 민무늬 바탕 위에 멈춰 있는 카드를 한 배율로 그린 것이다. 나타나는 모습, 쌓이는 모습, 실제 배경 화면이나 옆의 작업 표시줄은 없다. 카드가 나타나면 안 되는 곳에서 대신 뜨는 Windows 자체 알림은 그림으로 싣지 않았다. |
 | 창은 오래 사는 브리지 프로세스 하나와, 요청 하나에 JSON 한 줄로 이야기한다 | UNIT TESTED | `tests/test_gui_layout.py:PersistentBridgeTests.test_the_serve_command_line_answers_a_request`가 창이 만드는 바로 그 명령줄을 돌려 실제 응답을 요구한다. `tests/test_control.py:BridgeTests.test_serve_answers_every_line_with_exactly_one_line`, `test_serve_framing_edge_cases_each_get_the_answer_they_should`, `test_serve_cannot_reach_anything_the_one_shot_form_cannot` | 컴파일된 창 쪽 클라이언트는 한 번도 구동되지 않는다. |
 | 개요 전체가 한 번의 왕복으로 오고, 각 조각은 따로 실패한다 | UNIT TESTED | `tests/test_control.py:BridgeTests.test_a_dashboard_part_that_fails_costs_only_that_part` | 브리지에서 확인한 것이다. 실패한 조각을 창이 제대로 그리는지는 확인하지 않는다. |
 | 브리지는 워처를 import하지 않고 `status`에 답하며, 워처 뮤텍스에 대한 그 확인은 워처 자신의 확인과 같은 답 - 실행 중 아님, 실행 중, 알 수 없음 - 을 낸다 | REAL WINDOWS TESTED | `tests/test_control.py:BridgeImportTests`(2개)가 진짜 브리지를 한 번 쓰는 형태와 계속 도는 형태로, 빈 Codex 홈을 상대로 하위 프로세스에서 돌려, 실제로 확인을 했는지와 `app`, `notify`, `tray_popup`, `xml.sax`를 하나도 불러오지 않았는지를 요구한다. `WatcherProbeTests`(3개)는 뮤텍스가 비었을 때, 다른 프로세스가 쥐었을 때와 그 프로세스가 사라진 뒤, 뮤텍스 호출을 일부러 실패시켰을 때 두 확인에 모두 묻는다. `tests/test_notify.py:ImportCostTests.test_importing_the_module_does_not_load_xml_sax`도 있고, `ToastPayloadTests.test_the_escaping_itself_has_not_moved`는 알림의 이스케이프가 그 import를 옮기기 전과 같기를 요구한다 | Windows가 아니면 건너뛴다. 브리지의 확인은 이제 워처 확인의 사본이고, 둘을 맞춰 두는 것은 이 테스트들뿐이다. 알 수 없음은 누가 먼저 만든 객체가 아니라 뮤텍스 호출을 바꿔 쳐서 만든다. 변경 기록의 상태 확인 341ms에서 168ms는 개발 중에 빈 상태 디렉터리를 상대로 잰 것이고, 시간을 재는 테스트는 없다. |
@@ -360,7 +361,7 @@
 
 | 기능 | 근거 등급 | 뒷받침하는 것 | 아직 없는 것 |
 | --- | --- | --- | --- |
-| 알림은 PowerShell이 아니라 이 제품 자신의 이름으로 올라온다 | UNIT TESTED, 옆에 실제 캡처가 있음 | `tests/test_notify.py:NotificationIdentityTests`(4개). `docs/images/notification.png`은 이 제품이 올린 실제 Windows 알림을 찍은 것이다 | 그 그림은 `assets/screenshots.json`에 **고정되어 있지 않아서**, 낡아도 아무것도 실패하지 않는다. 매니페스트에 넣으면 해결된다. |
+| 알림은 PowerShell이 아니라 이 제품 자신의 이름으로 올라온다 | UNIT TESTED | `tests/test_notify.py:NotificationIdentityTests`(4개) | 실제 토스트를 찍은 캡처는 커밋되어 있지 않다. README가 v0.6.4까지 보여 주던 캡처는 아무것도 알아채지 못한 채 낡아 있었고(대시보드 열기가 생기기 전에 찍었고, 어떤 매니페스트도 고정하지 않았다) 삭제했다. 지금 README가 그림으로 싣는 알림은 제품의 카드이고, 토스트가 아니다. |
 | 알림이 실제로 그려지는 것은 시작 메뉴 바로 가기가 같은 AppUserModelID를 싣고 있기 때문이다 | REAL WINDOWS TESTED | `tests/test_surface_properties.py:ShortcutTests`(5개)가 `APPDATA`를 임시 폴더로 돌린 뒤 진짜 `shortcut.install`을 돌리고, 셸 자신의 바로 가기 객체로 대상과 설명을 다시 읽고, 파일의 바이트에서 AppUserModelID를 찾아내며, 알림을 보내는 쪽이 같은 id를 쓰는지 확인한다. `src/codex_auto_resume/shortcut.py`가 Windows 11에서 잰 것을 적고 있다. 바로 가기가 없으면 플랫폼은 알림을 받아들이고 전달했다고 기록까지 하면서 그리지만 않는다 | id를 `IPropertyStore`가 아니라 파일에서 읽고, 실제 알림을 띄워 본 적은 없다. |
 | 바로 가기의 값들은 스크립트 안이 아니라 스크립트 옆으로 간다 | UNIT TESTED | `tests/test_pwsh.py:NoValueInScriptTests.test_the_shortcut_values_travel_out_of_band`가 `subprocess.run`을 가짜로 바꿔 `shortcut.install`을 구동하고, PowerShell에 넘어간 `-EncodedCommand`를 디코딩해 그것이 손대지 않은 `shortcut._MAKER`이기를 요구한다. 어포스트로피가 들어간 설치 경로는 환경 변수 쪽에서 나온다. `test_every_pwsh_run_call_passes_a_module_constant`가 `shortcut.py`를 두 호출자 중 하나로 이름 짓는다 | 그 테스트에서 PowerShell은 돌지 않고 파일도 쓰이지 않는다. **`shortcut.uninstall`은 어디에서도 구동되지 않는다.** 우리 폴더의 우리 이름만 지우고 심볼릭 링크는 거절한다는 것은 검토했을 뿐 시험하지 않았다. |
 | 이름 등록이 없어도 알림은 막히지 않는다 | UNIT TESTED | `tests/test_notify.py:NotificationIdentityTests.test_an_unregistered_identity_still_sends`. 그 클래스의 docstring이 Windows 11에서 미등록 상태로도 전달되는 것을 재 봤다고 적고 있다 | 그 측정은 적혀 있을 뿐 산출물로 남아 있지 않다. |
@@ -515,10 +516,10 @@ v0.6.4 다음 릴리스에서 새로 생겼습니다. 답하는 것은 좁습니
 | 창의 속도 | UNIT TESTED, 소스 모양으로 | 설치된 빌드에서 첫 머리글이 그려질 때까지와 쪽·설정 부분 전환을 잰 계측 결과를 `docs/evidence/` 아래에 남기기. |
 | 창, 팝업, 패널의 고대비 | UNIT TESTED, 고대비를 강제로 켜고 | 실제 고대비 테마에서 셋을 하나씩 보고, [LIVE_ACCEPTANCE.ko.md](LIVE_ACCEPTANCE.ko.md)를 돌리며 메모하기. |
 | 언어나 테마가 바뀐 뒤 스스로 다시 열리는 창 | REAL WINDOWS TESTED, 창 자신의 판단으로, 넘겨주기는 돌리지 않고 | 창에서 새 테마를 저장하고, 저장하지 않은 변경이 있는 채 패널에서 언어를 바꾸고, 창을 연 채 Windows의 앱 모드를 바꾸는 과정을 기록한 실제 점검. |
-| 실제 화면의 어두운 테마 | REAL WINDOWS TESTED, 다시 읽은 색과 픽셀로, 그림 없이 | 어두운 테마의 창과 팝업을 한 장씩 캡처하고, Codex의 어두운 테마에서 패널을 보기. |
+| 실제 화면의 어두운 테마 | REAL WINDOWS TESTED, 다시 읽은 색과 픽셀로, 그림은 알림 카드만 | 어두운 테마의 창과 팝업을 한 장씩 캡처하고, Codex의 어두운 테마에서 패널을 보기. |
 | 어두운 오른쪽 클릭 메뉴 | UNIT TESTED, 가짜 uxtheme을 상대로 | Windows 11과 Windows 10에서 진짜 아이콘의 메뉴를 어두운 테마로 보고, [LIVE_ACCEPTANCE.ko.md](LIVE_ACCEPTANCE.ko.md)를 돌리며 메모하기. |
 | 라이브 인수 절차 | UNVERIFIED | 누군가 실제 기계에서 [LIVE_ACCEPTANCE.ko.md](LIVE_ACCEPTANCE.ko.md)의 절차를 돌리고, 그 결과 파일을 `docs/evidence/live/` 아래에 커밋하기. |
-| 실제 화면의 알림 카드 | REAL WINDOWS TESTED, 사람의 눈 밖에서 | 실제 배경 화면 위, 실제 작업 표시줄 옆에서 카드가 나타나고 쌓이고 사라지는 것과 알림 센터의 조용한 사본을 사람이 지켜보고, [LIVE_ACCEPTANCE.ko.md](LIVE_ACCEPTANCE.ko.md)를 실행하며 적어 두는 것. |
+| 실제 화면의 알림 카드 | REAL WINDOWS TESTED, 사람의 눈 밖에서, 그리고 화면 밖에서 그린 그림으로(`docs/images/notification-card.png`와 그 짝) | 실제 배경 화면 위, 실제 작업 표시줄 옆에서 카드가 나타나고 쌓이고 사라지는 것과 알림 센터의 조용한 사본을 사람이 지켜보고, [LIVE_ACCEPTANCE.ko.md](LIVE_ACCEPTANCE.ko.md)를 실행하며 적어 두는 것. |
 | GitHub를 상대로 한 호환성 데이터 새로 받기 | REAL WINDOWS TESTED, 내려받기를 대신 세워 두고 | 실제 설치본에서 호환성 데이터 새로 받기를 한 번, 업데이트 확인을 한 번 누르고, 그 답과 써진 캐시를 기록하는 것. |
 | 아이콘의 움직임 | UNIT TESTED | 실제 작업 표시줄에서 아이콘이 숨 쉬고 도는 것과, 움직임 줄이기에서 멈춰 있는 것을 녹화하는 것. |
 | Codex 안에서 본 것이 무엇이든 | - | 이 제품이 Codex 안에서 일하는 것을 지켜본 사람이 없다. 누군가 지켜보고 저장소가 그것을 기록하기 전까지, 이 문서의 어떤 항목도 REAL CODEX VISUALLY TESTED라고 말할 수 없다. |
@@ -532,8 +533,8 @@ v0.6.4 다음 릴리스에서 새로 생겼습니다. 답하는 것은 좁습니
 
 가장 얇은 쪽은 표면입니다. 창의 여섯 쪽은 진짜 코드이고 컴파일된 창에서 찍은 그림이 있지만 밝은
 테마뿐이며, 어두운 테마와 창이 스스로 다시 열리는 일은 창 자신의 코드로 구동할 뿐 누가 지켜본 적이
-없습니다. 알림 영역 아이콘과 팝업은 몇 개의 테스트에서 화면 밖에 진짜로 만들어졌다 사라지고, 팝업
-그림은 팝업 자신의 렌더러가 그린 것이며, 아이콘을 보여 주는 것은 없습니다. Codex 패널은 Codex가 한
+없습니다. 알림 영역 아이콘과 팝업은 몇 개의 테스트에서 화면 밖에 진짜로 만들어졌다 사라지고, 팝업과
+알림 카드의 그림은 저마다 자신의 코드가 그린 것이며, 아이콘을 보여 주는 것은 없습니다. Codex 패널은 Codex가 한
 번도 불러온 적이 없고, 요청 함수와 테마와 언어 바꾸기가 Node에서 돌 뿐입니다. 표면이 제어 계층과 이야기하는 곳에서는, 제어 계층은 잘 시험되어
 있고 표면 쪽 절반은 대개 그렇지 않습니다.
 

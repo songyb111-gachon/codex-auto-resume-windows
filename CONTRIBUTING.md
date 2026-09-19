@@ -332,7 +332,9 @@ downloads the pinned embeddable Python into `build/cache/`.
 
 They are pinned to light. The product follows the reader's Windows and Codex themes at
 runtime; the pictures do not, so that a gallery looks like one product and a build on a
-machine in dark mode produces the same bytes as a build on one in light mode.
+machine in dark mode produces the same bytes as a build on one in light mode. The notification
+card is the one exception: it floats over whatever desktop the reader has, so it is pictured in
+both themes, each picture named for its theme and drawn in it.
 
 `assets/screenshots.json` records a digest of every input each image was rendered from.
 The window is recorded in two halves. One is the files it is compiled from — its three
@@ -356,22 +358,25 @@ prints the questions and the replies the digest is taken over:
 python -X utf8 -c "import sys; sys.path.insert(0, 'build'); import make_screenshots as m; print(m.bridge_envelope('en'))"
 ```
 
-**One image is not generated: `docs/images/notification.png`.** It is a real Windows toast,
-raised by the product and drawn by the shell, so it takes the machine's theme and cannot be
-pinned — it is dark in a gallery that is otherwise light. Faking it in HTML would produce a
-picture that is not a screenshot, which is worse. To retake it on a machine already in light
-mode, raise one with example data and capture the banner:
+**The notification card is rendered, not photographed.** The generator draws it off-screen
+the way `tests/test_notice_card.py` does — a `notice_window.Card` with no windows, painted by
+the popup's renderer, with its floating shadow over the theme's canvas — from the notice the
+watcher's own builder makes for the sample's usage limit, with the reset time read on a clock
+pinned to UTC. `<card render:*>` records what it says and a digest of the code that draws it,
+pooled the way the popup's is, across the card's modules, the package they move into and the
+popup's renderer and palette. To make only those pictures and their manifest entries, which
+needs neither Edge nor the window:
 
-```bash
-python -c "import time; from codex_auto_resume import notify; notify.scheduled('00000000-0000-4000-8000-000000000000', 'example', time.time()+3600, 'usage_limit', {'name': 'example-project', 'project': 'example'})"
+```
+python build/make_screenshots.py --cards
 ```
 
-Use that nil-style UUID and those labels. Never photograph a real conversation: the toast
-shows a thread identifier, and a screenshot of a real one publishes it permanently.
-
-Note that Windows may add the notification without showing a banner — Do Not Disturb, or
-banners turned off for this app in Settings → Notifications. It then lands in the Action
-Center only, and there is nothing on screen to capture.
+Windows' own notification, which appears instead wherever a card must not, is not pictured. The
+shell draws it in the machine's theme, so a capture cannot be pinned, and the one this
+repository carried until v0.6.5 had fallen behind the product — no Open Dashboard button, the
+old identifier line — before anything noticed. If you photograph one for an issue, never
+photograph a real conversation: it shows the conversation's identifier, and a screenshot of a
+real one publishes it permanently.
 
 ## Fixtures and privacy
 

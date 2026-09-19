@@ -19,9 +19,11 @@ recorded input hashes against the working tree and fails when the sources moved 
 images did not. That is the part that could not be done by remembering.
 
     python build/make_screenshots.py
+    python build/make_screenshots.py --cards     # only the notification card's pictures
 
 Run it from a checkout, on Windows, with the settings window built. It writes the
-canonical assets and copies them to `docs/images/`.
+canonical assets and copies them to `docs/images/`. The popup and the notification card are
+drawn off-screen by their own renderers and need neither the window nor Edge.
 
 Two things it deliberately does NOT do:
 
@@ -703,14 +705,19 @@ def render_popup(target: Path, locale: str) -> None:
 POPUP_CODE = ("tray_popup.py", "brand.py", "ui/popup/**/*.py", "ui/brand/**/*.py")
 
 
-def popup_code_files(package=None) -> list:
-    """Every module `POPUP_CODE` matches under the package, in a stable order."""
+def code_files(patterns, package=None) -> list:
+    """Every module `patterns` match under the package, in a stable order."""
     package = Path(package) if package is not None else ROOT / "src" / "codex_auto_resume"
     found = set()
-    for pattern in POPUP_CODE:
+    for pattern in patterns:
         found.update(path for path in package.glob(pattern)
                      if path.is_file() and "__pycache__" not in path.parts)
     return sorted(found, key=lambda path: path.relative_to(package).as_posix())
+
+
+def popup_code_files(package=None) -> list:
+    """Every module `POPUP_CODE` matches under the package, in a stable order."""
+    return code_files(POPUP_CODE, package)
 
 
 def _is_docstring(statement) -> bool:
@@ -972,6 +979,224 @@ def popup_render_input(locale: str, drawing: str | None = None) -> str:
     if drawing is None:
         drawing = popup_drawing()
     return sha256((json.dumps(view, sort_keys=True, default=str) + drawing).encode("utf-8"))
+
+
+# ------------------------------------------------------------ the notification card
+# Since v0.6.5 a notification appears as the product's own card beside the notification area
+# (`notice_card.py`, `notice_window.py`), and as Windows' toast only where a card must not be
+# shown. The README went on showing a capture of that toast taken before Open Dashboard existed,
+# and nothing pinned it, so nothing noticed.
+#
+# The card is drawn here the way `tests/test_notice_card.py` draws it: a `notice_window.Card`
+# with no windows - laid out by `notice_card.layout`, painted by the popup's own renderer at the
+# popup pictures' scale, with its floating shadow - settled, and laid over the theme's canvas,
+# the ground the popup pictures stand on. No window is made and nothing reaches the screen.
+#
+# What it says is what the watcher would say, built by the builder the watcher uses
+# (`notifier.build`) from the catalogs: a usage limit detected on the Dashboard sample's first
+# conversation - its synthetic id, and the name the synthetic Codex home gives it, which is all
+# `LocalSource.identity` finds there - resetting when the popup's row for it says. The reset
+# time is the one word a machine would change, since the toast writes it in local time, so it is
+# read here on a clock pinned to UTC.
+CARD_SCALE = POPUP_SCALE
+CARD_RESET_AT = POPUP_NOW + 2540            # popup_rows()'s usage limit, on the same conversation
+CARD_INTERRUPTION = "1" * 64                # its interruption: in a button's URI, never drawn
+# Both themes for the two README languages; the popup's documentation languages in the pinned
+# theme, as the popup is drawn.
+CARD_THEMES = ("light", "dark")
+# Canonical asset name and documentation copy name; a dark picture adds "-dark" before the
+# locale's tag.
+CARD_NAMES = ("screenshot-notification", "notification-card")
+
+# What draws the card, whichever file it is in: its own two modules, the package v0.6.6 moves
+# them into, and the popup's renderer and palette it is painted with. Keyed exactly as the
+# popup is (see POPUP_CODE): definitions pooled by name, what they import by name followed to
+# wherever it is defined.
+CARD_CODE = ("notice_card.py", "notice_window.py", "ui/card/**/*.py") + POPUP_CODE
+
+
+def card_themes(locale: str) -> tuple:
+    return CARD_THEMES if locale in LOCALES else (THEME,)
+
+
+def card_paths(locale: str) -> dict:
+    """theme -> (canonical asset or None, documentation copy), for one locale's card pictures.
+
+    The README languages' go into assets/ with a copy in docs/images/, as the window's do; the
+    documentation languages' only into docs/images/, as the popup's do."""
+    tag = "" if locale == "en" else "-" + locale
+    found = {}
+    for theme in card_themes(locale):
+        shade = "" if theme == "light" else "-" + theme
+        asset = ASSETS / ("%s%s%s.png" % (CARD_NAMES[0], shade, tag)) if locale in LOCALES else None
+        found[theme] = (asset, DOCS / ("%s%s%s.png" % (CARD_NAMES[1], shade, tag)))
+    return found
+
+
+def card_identity() -> dict:
+    """What `LocalSource.identity` finds for the sample's first conversation in the synthetic
+    Codex home: its name, and no project or working directory, which that home does not have."""
+    return {"name": WINDOW_NAMES[0], "project": None, "cwd_basename": None}
+
+
+def _utc_time(when: float) -> str:
+    return time.strftime("%H:%M", time.gmtime(when))
+
+
+def card_notice(locale: str):
+    """The Notice the watcher builds for the sample's usage limit, in `locale`."""
+    from codex_auto_resume import notifier, notify
+    previous, local_time = l10n.preference(), notify._local_time
+    l10n.set_preference(locale)                 # the stored Interface language, as the watcher's
+    notify._local_time = _utc_time
+    try:
+        return notifier.build("interruption", {"thread_id": WINDOW_THREADS[0],
+                                               "interruption_id": CARD_INTERRUPTION,
+                                               "reset_at": CARD_RESET_AT, "category": "usage_limit"},
+                              card_identity())
+    finally:
+        notify._local_time = local_time
+        l10n.set_preference(previous)
+
+
+def card_view(locale: str) -> dict:
+    """What the card says, as `notice_card.view` gives it to the layout."""
+    from codex_auto_resume import notice_card
+    return notice_card.view(card_notice(locale))
+
+
+def card_code_files(package=None) -> list:
+    """Every module `CARD_CODE` matches under the package, in a stable order."""
+    return code_files(CARD_CODE, package)
+
+
+def card_drawing(package=None) -> str:
+    """The digest of what draws the card: the definitions of the modules `CARD_CODE` matches,
+    and of everything they import by name from the rest of the package."""
+    package = Path(package) if package is not None else ROOT / "src" / "codex_auto_resume"
+    files = card_code_files(package)
+    return code_digest(files, imported_definitions(package, files))
+
+
+def card_render_input(locale: str, drawing: str | None = None) -> str:
+    """The card's manifest entry for one locale: what it says, the themes and scale it is
+    pictured at, and what draws it. `drawing` is `card_drawing()` when already known."""
+    shown = {"view": card_view(locale), "themes": list(card_themes(locale)), "scale": CARD_SCALE}
+    if drawing is None:
+        drawing = card_drawing()
+    return sha256((json.dumps(shown, sort_keys=True, default=str) + drawing).encode("utf-8"))
+
+
+class _NoStack:
+    """What a Card asks of its stack when it has no windows: how long it holds - which moves no
+    pixel, and is not read from Windows' setting here - and the windows it would list."""
+
+    def __init__(self):
+        self.windows = {}
+
+    def hold(self):
+        from codex_auto_resume import notice_card
+        return float(notice_card.HOLD_MS)
+
+
+def _over(ground: bytearray, ground_width: int, layer: bytes, width: int, height: int,
+          left: int, top: int) -> None:
+    """Premultiplied BGRA `layer` over the opaque BGRA `ground`, its top-left at (left, top)."""
+    for y in range(height):
+        row = layer[y * width * 4:(y + 1) * width * 4]
+        base = ((top + y) * ground_width + left) * 4
+        for x in range(width):
+            alpha = row[x * 4 + 3]
+            if alpha == 0:
+                continue
+            at = base + x * 4
+            if alpha == 255:
+                ground[at:at + 3] = row[x * 4:x * 4 + 3]
+                continue
+            keep = 255 - alpha
+            for channel in range(3):
+                ground[at + channel] = min(255, row[x * 4 + channel]
+                                           + (ground[at + channel] * keep + 127) // 255)
+
+
+def card_pixels(locale: str, theme: str):
+    """(width, height, BGRA): the settled card and its floating shadow over the theme's canvas."""
+    from codex_auto_resume import brand, notice_card, notice_window, tray_popup
+    where = {"dpi": int(round(96 * CARD_SCALE)), "work": (0, 0, 0, 0), "monitor": (0, 0, 0, 0),
+             "anchor": None}
+    drawn = {"theme": theme, "contrast": False, "reduced": False}
+    tray_popup._gdiplus_acquire()
+    try:
+        card = notice_window.Card(_NoStack(), card_notice(locale), now_ms=0, where=where, drawn=drawn,
+                                  windows=False)
+        try:
+            frame = card.paint(notice_card.ENTRANCE_MS)["frame"]     # at rest: whole, full depth
+            if frame != notice_card.SETTLED:
+                raise RuntimeError("the card is not at rest: %r" % (frame,))
+            (width, height), margin = card.size, card.margin
+            body, shadow = card.body.pixels(), card.shadow.pixels()
+        finally:
+            card.close()
+    finally:
+        tray_popup._gdiplus_release()
+    # The ground reaches as far as the deeper theme's shadow in both, so a light and a dark
+    # picture of the same card are the same size and can stand side by side.
+    pad = max(notice_card.shadow_margin(notice_card.float_shadows(each), CARD_SCALE)
+              for each in CARD_THEMES)
+    red, green, blue = brand.rgb(brand.palette(theme)["canvas"])
+    full_width, full_height = width + 2 * pad, height + 2 * pad
+    ground = bytearray(bytes((blue, green, red, 255)) * (full_width * full_height))
+    if margin:
+        _over(ground, full_width, shadow, width + 2 * margin, height + 2 * margin,
+              pad - margin, pad - margin)
+    _over(ground, full_width, body, width, height, pad, pad)
+    return full_width, full_height, bytes(ground)
+
+
+def render_card(target: Path, locale: str, theme: str) -> None:
+    width, height, pixels = card_pixels(locale, theme)
+    write_png(target, width, height, pixels)
+
+
+def _card_files() -> list:
+    """Every card picture the set holds, canonical assets first."""
+    pairs = [pair for locale in LOCALES + EXTRA_LOCALES for pair in card_paths(locale).values()]
+    return [asset for asset, _copy in pairs if asset is not None] + [copy for _asset, copy in pairs]
+
+
+def render_cards() -> list:
+    """Only the notification card's pictures: render them, copy them and pin them.
+
+    For a change that moves only the card, and for looking at it: no Edge, no compiled window
+    and no scratch installation, only Windows' GDI+. Every other entry in the manifest is left
+    as it was, so this is no substitute for a whole run when anything else moved.
+
+        python build/make_screenshots.py --cards
+    """
+    for locale in LOCALES + EXTRA_LOCALES:
+        for theme, (asset, copy) in card_paths(locale).items():
+            render_card(asset or copy, locale, theme)
+            if asset is not None:
+                shutil.copyfile(asset, copy)
+            print("  %s  %s" % ((asset or copy).relative_to(ROOT), dimensions(asset or copy)))
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    drawing = card_drawing()
+    for locale in LOCALES + EXTRA_LOCALES:
+        manifest["inputs"]["<card render:%s>" % locale] = card_render_input(locale, drawing)
+    ordered = {}
+    for key, value in manifest.items():                 # where a whole run writes it
+        if key != "card_themes":
+            ordered[key] = value
+        if key == "theme":
+            ordered["card_themes"] = list(CARD_THEMES)
+    manifest = ordered
+    files = _card_files()
+    for path in files:
+        manifest["images"][str(path.relative_to(ROOT)).replace("\\", "/")] = {
+            "sha256": sha256(path.read_bytes()), "size": dimensions(path)}
+    MANIFEST.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print("manifest       : %s (the card's entries only)" % MANIFEST.relative_to(ROOT))
+    return files
 
 
 def scratch_installation(workspace: Path) -> Path:
@@ -1387,9 +1612,10 @@ def render_inputs() -> dict:
     contributor who fixes a typo is not handed a red suite and a regeneration that needs
     Windows, Edge, a compiled settings window and a network fetch.
 
-    The window's Python half and the popup are keyed the same way since v0.6.5: the window
-    by what the bridge answers it (`<bridge envelope:*>`, see `window_envelopes`), the popup
-    by the view it draws and a digest of the definitions that draw it (`popup_render_input`).
+    The window's Python half, the popup and the notification card are keyed the same way since
+    v0.6.5: the window by what the bridge answers it (`<bridge envelope:*>`, see
+    `window_envelopes`), the popup and the card by the view each draws and a digest of the
+    definitions that draw it (`popup_render_input`, `card_render_input`).
     Only the compiled window has no such handle - running it is the only way to see its
     output - so its files are listed in WINDOW_INPUTS, and a comment in `SettingsApp.cs`
     will still fire this check unnecessarily. That is a real cost and it is the smaller one:
@@ -1405,6 +1631,7 @@ def render_inputs() -> dict:
     # checkout decides - the input has to be pinned, not observed.
     envelopes = window_envelopes(LOCALES + EXTRA_LOCALES)
     drawing = popup_drawing()
+    card = card_drawing()
     for locale in LOCALES + EXTRA_LOCALES:
         inputs["<bridge envelope:%s>" % locale] = sha256(envelopes[locale].encode("utf-8"))
         previous = os.environ.get(l10n.ENV_LANG)
@@ -1413,6 +1640,7 @@ def render_inputs() -> dict:
             inputs["<panel render:%s>" % locale] = sha256(
                 panel_html(theme=THEME).encode("utf-8"))
             inputs["<popup render:%s>" % locale] = popup_render_input(locale, drawing)
+            inputs["<card render:%s>" % locale] = card_render_input(locale, card)
         finally:
             if previous is None:
                 os.environ.pop(l10n.ENV_LANG, None)
@@ -1467,7 +1695,9 @@ def system_dpi() -> int:
 # pictures are pinned, and only so that a build on a machine in dark mode produces the same
 # bytes as a build on a machine in light mode. Each surface is told in its own way: the panel
 # is served with the theme pinned, the popup's renderer is set to it, and the window's scratch
-# installation stores it as the Theme setting (`sample_settings`).
+# installation stores it as the Theme setting (`sample_settings`). The notification card is the
+# one surface pictured in both (CARD_THEMES), each picture named for its theme and drawn in it:
+# it floats over whatever desktop the reader has, so both are what a reader may see.
 THEME = "light"
 LOCALES = ("en", "ko")
 # Three more languages, documentation only: the Dashboard's main pages, the panel and the
@@ -1510,6 +1740,9 @@ def window_targets(locale: str) -> dict:
 def main(argv=None) -> int:
     ASSETS.mkdir(parents=True, exist_ok=True)
     DOCS.mkdir(parents=True, exist_ok=True)
+    if list(sys.argv[1:] if argv is None else argv) == ["--cards"]:
+        render_cards()
+        return 0
 
     print("version        : %s" % config.version())
     print("theme          : %s" % THEME)
@@ -1536,6 +1769,13 @@ def main(argv=None) -> int:
         render_popup(popup, locale)
         extras.append(popup)
         print("  %s  %s" % (popup.relative_to(ROOT), dimensions(popup)))
+        for theme, (asset, copy) in card_paths(locale).items():
+            render_card(asset or copy, locale, theme)
+            if asset is not None:
+                copies[asset] = copy
+            else:
+                extras.append(copy)
+            print("  %s  %s" % ((asset or copy).relative_to(ROOT), dimensions(asset or copy)))
         if locale in EXTRA_LOCALES:
             panel = DOCS / ("settings-panel%s.png" % tag)
             render_panel(panel)
@@ -1560,6 +1800,7 @@ def main(argv=None) -> int:
         ],
         "version": config.version(),
         "theme": THEME,
+        "card_themes": list(CARD_THEMES),
         "locales": list(LOCALES),
         "documentation_locales": list(EXTRA_LOCALES),
         "system_dpi": system_dpi(),

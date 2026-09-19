@@ -206,6 +206,11 @@ replies, gathered rules and typed contracts that come before it, are v0.6.6.
   address, what is and is not sent, which file holds what and who writes it - the summary
   `get_status` carries, and the notification card. The feature matrix, the brand document and the
   roadmap describe the rest.
+- The README pictures a notification as the card it now is, in the light and the dark theme, in
+  place of a capture of Windows' notification taken before Open Dashboard existed, which no
+  manifest pinned. The card's pictures are drawn off-screen by the card's own code and pinned as
+  the popup's are, so a change to what the card says or how it is drawn fails the suite until they
+  are made again. The old capture is gone.
 
 ### Evidence
 

@@ -169,13 +169,18 @@ Afterwards, change anything from **Start Menu → Codex Auto Resume**, or by ask
 
 ## What it looks like
 
-When a task is interrupted, Windows tells you — as **Codex Auto Resume**, not as whatever
-process happened to raise it. Doing nothing resumes. **Don't resume** only ever cancels, and
-**Open Dashboard** only opens the Dashboard's Pending page. The picture below was taken before
-**Open Dashboard** was added and before the identifier line said "Conversation";
-[The notification](#the-notification) shows what it says now.
+When a task is interrupted, a card in the product's own design appears beside the notification
+area, as **Codex Auto Resume**: which task stopped, why, and exactly which conversation it is.
+Doing nothing resumes. **Don't resume** only ever cancels, and **Open Dashboard** only opens the
+Dashboard's Pending page. Where a card must not be shown — the session is locked or remote, an
+app is full screen, Do not disturb or Focus is on, a screen reader is running, or the card or the
+notification-area icon is switched off — Windows' own notification appears instead, with the same
+words and the same two buttons; once a card has been seen, a silent copy of it goes to Windows'
+notification center, so the history is the same either way. Below is the card as the product
+draws it, in the light and the dark theme, rendered off-screen from sample data;
+[The notification](#the-notification) says what each line is.
 
-<img src="docs/images/notification.png" alt="A Windows notification from Codex Auto Resume saying a usage limit was reached and the task will resume after the reset, with a Don't resume button" width="470">
+<img src="docs/images/notification-card.png" alt="The notification card in the light theme: Codex Auto Resume with a cyan status light and a Usage limit chip, the task example-project, the line Codex usage limit reached. This task will resume at 08:42., the conversation's exact identifier, and the buttons Don't resume and Open Dashboard" width="388"> <img src="docs/images/notification-card-dark.png" alt="The same notification card in the dark theme" width="388">
 
 Inside Codex, ask to *open auto resume settings* and the panel shows what is waiting and lets
 you change most of it, in sections for General, Recovery, Notifications, Continuation message
@@ -204,9 +209,9 @@ Appearance, stops those animations, and Windows' own animation setting is always
 Contrast mode drops the shadows and tints, whatever the theme. It is a native window; there is no
 local web server and nothing opens in a browser.
 
-The pictures on this page are captured from a scratch installation holding synthetic records, in
-the light theme. They show what the windows look like; they do not show a real recovery, and they
-are not evidence that one was observed in Codex.
+The window pictures on this page are captured from a scratch installation holding synthetic
+records, in the light theme. They show what the windows look like; they do not show a real
+recovery, and they are not evidence that one was observed in Codex.
 
 <img src="docs/images/dashboard-overview.png" alt="The Codex Auto Resume Dashboard overview: automatic recovery on, the watcher running and the Codex engine verified, two recoveries waiting with the next check in a minute and a half, the last seven days' interruptions, continuations sent, recoveries and success rate, and the four most recently finished recoveries" width="680">
 
