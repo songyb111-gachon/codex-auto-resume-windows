@@ -38,8 +38,8 @@ v0.6.0).
 | **Identity** | the exact conversation UUID only — never `--last`, never "the most recent one", never a title or a folder name |
 | **Configure it** | a Windows window from the Start Menu — from v0.6.0, a Dashboard whose settings are one of its six pages — a settings panel inside Codex, or the command line |
 | **Languages** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) — in the Dashboard, the notification-area popup, Windows notifications, the panel inside Codex and the continuation message sent to Codex. It follows Windows unless you choose one; see [Languages](#languages) |
-| **Tells you** | Windows notifications when a task is interrupted, when recovery starts, how it went, and when it gives up. While the watcher runs it also shows a notification-area icon, whose tooltip says whether recovery is paused, how many recoveries are waiting, how many are running in Codex, and how long until the next check |
-| **Privacy** | no telemetry, no analytics, no automatic update check, never reads your credentials. *Check for updates* in the window asks GitHub which release is newest, and only when you press it. The watcher has no network code; the usage check, the resumed turn and what the plugin's tools and commands return in a conversation go to OpenAI through Codex, as Codex's traffic always does; setup downloads the release from GitHub; and the v0.5.7 installer has Codex refresh every Git marketplace you have configured (naming only this one is new in v0.6.0) |
+| **Tells you** | Notifications when a task is interrupted, when recovery starts, how it went, and when it gives up - from v0.6.5 as a card of the product's own beside the notification area, with Windows' own notification wherever a card must not show. While the watcher runs it also shows a notification-area icon, whose tooltip says whether recovery is paused, how many recoveries are waiting, how many are running in Codex, and how long until the next check |
+| **Privacy** | no telemetry, no analytics, no automatic update check, never reads your credentials. *Check for updates* in the window asks GitHub which release is newest, and only when you press it; it and *Refresh compatibility data* also fetch the Codex compatibility data from raw.githubusercontent.com, sending nothing about your machine. The watcher has no network code; the usage check, the resumed turn and what the plugin's tools and commands return in a conversation go to OpenAI through Codex, as Codex's traffic always does; setup downloads the release from GitHub; and the v0.5.7 installer has Codex refresh every Git marketplace you have configured (naming only this one is new in v0.6.0) |
 
 > **One honest limitation, up front.** Codex has to currently have that conversation open for a
 > recovery to be delivered. If the app restarted since, open the conversation once and recovery
@@ -518,6 +518,7 @@ records. `stop` asks a running watcher process to exit.
 | `uninstall` | Remove autostart and owned state/logs (`--keep-logs`, `--keep-state`). |
 | `diagnostics` | Write one redacted diagnostics file, to read before you share it (`--out`). |
 | `downgrade-state --to 2` | Rewrite the state file for a v0.5 release; stop the watcher first. |
+| `compat` | What the Codex Compatibility Registry says about this Codex, from the watcher's last report (`--live` to check now and write nothing, `--json`, `--import FILE` to validate a data file and keep it only if it passes). |
 
 Global options: `--home` (where this tool keeps its own state), `--codex-exe`, `--codex-home`, `--quiet`.
 
@@ -526,7 +527,14 @@ By default, failures up to 6 hours old at the moment you run `enable` are still 
 
 ## The notification
 
-When the watcher records an interruption, Windows shows one notification naming the task.
+When the watcher records an interruption, it shows one notification naming the task. From
+v0.6.5 it appears as a card in the product's own design beside the notification area, with the
+same words and the same buttons as Windows' notification, and the same notification is added to
+Windows' notification center silently once the card has been seen. Windows' own notification is
+shown instead whenever a card must not be: with **Show notifications as a card beside the
+notification area** off (Settings > General > Windows), with Do not disturb or Focus on, over a
+full-screen app, on a locked or remote session, while a screen reader runs, or when the
+notification-area icon is off.
 
 ```
 Payment retry refactor
@@ -788,9 +796,10 @@ Design rules enforced in code:
   table as reason codes, timestamps and identifiers, with any other detail masked, so no prompt
   text, Codex error text or account identifier is written through it. The main log also records
   its own state directory, a path that, at the default location, contains your Windows user name,
-  and the version string of an engine this tool has not been verified against. Tracebacks go to a
-  separate rotating `errors.log`, which also contains local paths. The launcher writes its own
-  exception messages to `logs\launcher.log`.
+  and the engine's version string - through v0.6.4 only for an engine this tool had not been
+  verified against, from v0.6.5 for every engine, beside the Compatibility Registry's codes for it.
+  Tracebacks go to a separate rotating `errors.log`, which also contains local paths. The launcher
+  writes its own exception messages to `logs\launcher.log`.
 - **Settings are policy only.** No setting can switch off a safety property; see
   [Settings](#settings).
 - **Never used:** GUI automation, mouse or keyboard simulation, OCR, screen scraping, accessibility-API
@@ -798,10 +807,10 @@ Design rules enforced in code:
 
 ## Privacy
 
-Nothing is sent to this project: there is no telemetry, analytics, crash reporting or update
-check, and no server of this project's to receive them. The tool itself transmits none of your
-prompts, the assistant's replies, tool input or output, file contents, account identifiers,
-credentials or error text anywhere. The recovery runtime (`src/`, `scripts/*.py`) imports no
+Nothing is sent to this project: there is no telemetry, analytics, crash reporting, automatic
+update check or automatic compatibility refresh, and no server of this project's to receive
+them. The tool itself transmits none of your prompts, the assistant's replies, tool input or
+output, file contents, account identifiers, credentials or error text anywhere. The recovery runtime (`src/`, `scripts/*.py`) imports no
 networking module, and a test fails if an import line in a tracked Python file under `src/` or
 `scripts/` names one of the common networking modules (`socket`, `ssl`, `http`,
 `urllib.request` and others).
@@ -826,6 +835,13 @@ to wherever your other Git marketplaces are hosted:
   request, as with any download. Downloading the archive yourself is the same GitHub download;
   after that, `Install.cmd` downloads nothing itself, but it does ask Codex to refresh
   marketplaces (next item).
+- **GitHub, when you ask.** *Check for updates* on the Diagnostics page asks github.com which
+  release is newest, with one `HEAD` request that reads no page. From v0.6.5, *Refresh
+  compatibility data* on the same page - and a *Check for updates* that github.com answered -
+  fetches the Codex compatibility data with one `GET` to one fixed address on
+  raw.githubusercontent.com, with nothing about your machine in it; this installation's own
+  validator keeps it only if it is valid, and it can only make the watcher more careful. Neither
+  happens unless you ask for it.
 - **Marketplace hosts, while an installer runs.** v0.6.0 names only
   `codex-auto-resume-windows`; if an earlier Git registration survives the local repoint,
   Codex fetches it from wherever it points. Installers through v0.5.7 instead ask Codex to

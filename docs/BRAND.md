@@ -34,6 +34,14 @@ Windows or the **Theme** setting asks for it. And it added the two controls the 
 yet share: a check box, for picking the items of a list, and a soft scroll bar for the window's
 pages and lists.
 
+v0.6.5 let the material move and gave the popup depth. The state light breathes widely enough to
+be seen, the notification-area icon moves in its own smaller language, switches glide and check
+boxes fade on one curve (`MOTION`), what stands on the popup's card is raised and what holds a
+value is sunken, and the drop-down's open list is drawn in the cards' material rather than by
+Windows. A notification can appear as the popup's own card beside the notification area. The
+mark's geometry moved into `brand.py` (`ICON_SHAPE`), because the watcher now draws the icon's
+frames from it.
+
 ## Where a colour comes from
 
 `src/codex_auto_resume/brand.py` and nowhere else — and since v0.6.3, every size, radius and
@@ -43,8 +51,8 @@ duration as well.
 | --- | --- |
 | The Codex panel | `mcpui.py` builds its `:root` block at import from `brand.LIGHT` and `brand.DARK`, `brand.css_scale()` - which also writes the check box's colours for each of its states - and `brand.css_elevation()`, which writes the shadow recipes of both themes as CSS. |
 | The Dashboard | `build/make_brand.py` generates `gui/Brand.cs`: every light token as a `Color`, and in the nested class `Brand.Dark` the dark twin of everything that changes with the theme, under the same name; the scale, the layout sizes, the shadow recipes and the state light's numbers as constants; and the per-state rules of the state light, the shadows and the check box as small generated methods. `gui/Controls.cs` adopts one theme before its first control is made and reads the brand's colours through one `Tokens` class, the only place a light colour and its dark twin are read; its `Palette` class is also the one place High Contrast is honoured. The generated file is committed, so a contributor with no Python can still read what the window will look like. |
-| The notification-area popup | `tray_popup.py` imports `brand` and draws with `brand.palette(theme)`, `brand.card_ground(theme)`, `brand.shadows(recipe, theme)`, the scale and `brand.glow()` directly, in the theme it resolved when it opened. |
-| The icon | `assets/make_icon.py` imports the four icon colours directly. |
+| The notification-area popup | `tray_popup.py` imports `brand` and draws with `brand.palette(theme)`, `brand.card_ground(theme)`, `brand.shadows(recipe, theme)`, the scale, `brand.glow()` and `brand.ease()` directly, in the theme it resolved when it opened. The notification card is the popup's card, drawn by the popup's own renderer. |
+| The icon | `assets/make_icon.py` imports the four icon colours and `brand.ICON_SHAPE`, and rasterises with `brand.icon_render()`; the notification-area icon's motion frames come from the same geometry and rasteriser inside the watcher (`tray.py`). |
 | The plugin card | `.codex-plugin/plugin.json` carries `brandColor`, checked against `brand.BRAND`. |
 
 `tests/test_brand.py` regenerates both generated files and compares, so a hand-edit fails
@@ -119,13 +127,16 @@ window and a card in Codex round their corners by the same amount.
 | `LAYOUT` | button 34 high, field 35, switch 40 × 22, check box 18 with 10 to its label, chip 22, card padding 16 × 18, page gap 14, and the rest | The sizes of the shared control recipes, taken from the panel. |
 | `SHADOWS` | light card: offset (4, 4), blur 14, `shadow_dark` at 0.55, and offset (−4, −4), blur 14, `shadow_light` at 0.90; control: the same at offset 2, blur 6; inset: offset 2, blur 6, inside the edge. Dark card: offset (0, 1), blur 2, `shadow_dark` at 0.70, offset (0, 6), blur 18, at 0.35, and a one-pixel `shadow_light` line at 0.45 inside the top edge; control: offset (0, 1), blur 2, at 0.60; inset: the same inside the edge, at 0.55 | A lifted card, a raised control and a well. Small on purpose: exaggerated embossing is what makes soft interfaces unreadable. |
 | `STATUS_DOT`, `STATUS_FILL`, `GLOW` | dot radius: window 5, popup 4.5, panel 6; the glow reaches 7 beyond the dot | The state light: its size, its colour for each state, and its glow. |
-| `MOTION` | transition 160 ms | Control transitions in the panel. |
+| `MOTION` | transition 160 ms on one curve, `ease` = cubic-bezier(0.33, 1, 0.68, 1), an ease-out | A switch's glide and a check box's fade on every surface, and the rise of an open drop-down list. |
+| `ICON_SHAPE` | ring 0.34 to 0.53 of the half-size; sweep from 125° round to 55°, leaving a 70° opening at the top; head radius 0.155; corners 0.30, or 0.24 below 32 px; 4 × 4 samples a pixel (`ICON_SUPERSAMPLE`) | The mark's geometry, in a square whose half-size is 1. |
 
 The window gets these as constants in `gui/Brand.cs` - `RadiusCard`, `SpaceM`, `TypeBody`,
 `ButtonHeight`, `FieldHeight`, the shadow recipes and the glow's numbers - and multiplies them
 by its own scale factor. The popup reads the same tables from `brand.py`. The panel gets CSS
 custom properties from `brand.css_scale()`: `--radius-*`, `--space-*`, `--type-*`, `--lh-*`,
-`--size-*`, `--glow-*` and `--transition`.
+`--size-*`, `--glow-*`, `--transition` and `--transition-ease`. The curve is solved the way
+browsers solve a cubic-bezier - `brand.ease()` in the popup, `Brand.Ease` in the window - so all
+three surfaces move a switch along the same path.
 
 The attention pulse's duration is `--glow-attention-ms`, never `--attention`, because the
 palette already declares `--attention` as a colour on the same `:root`. Two custom properties
@@ -146,26 +157,63 @@ rather than guessing it from the recipe's name.
 ## Motion is a state
 
 The state light says whether the watcher is alive, in the Dashboard's header, at the top of the
-popup and at the top of the panel. It is a flat dot with a soft glow around it, and the glow is
-the only thing that moves. `brand.glow()` defines it once, and all three surfaces are tested
+popup and at the top of the panel, and since v0.6.5 it says what a notification card is about.
+It is a flat dot with a soft glow around it, and the glow is the only thing that moves. `brand.glow()` defines it once, and all three surfaces are tested
 against that one function:
 
 | State | Colour | Glow |
 | --- | --- | --- |
-| Monitoring | `active` | Breathes slowly: opacity 0.14 to 0.30 over 3.6 s, the glow growing from 94% to its full size |
-| Waiting | `active` | Still, at 0.20 |
-| Checking a task that has come due | `active` | Still, at 0.20, with a thin arc turning once every 1.6 s (in the Dashboard and the popup) |
-| Recovering | `active` | Breathes a little faster: 0.18 to 0.38 over 2.2 s |
-| Needs a person | `attention` | One soft pulse from 0.20 to 0.42 and back over 1.4 s, then still |
+| Monitoring | `active` | Breathes: opacity 0.12 to 0.58 over 3.2 s, the glow growing from 82% to 108% of its size as it brightens |
+| Waiting | `active` | Still, at 0.30 |
+| Checking a task that has come due | `active` | Still, at 0.30, with a thin arc turning once every 1.6 s (in the Dashboard and the popup) |
+| Recovering | `active` | Breathes faster and brighter: 0.20 to 0.70 over 2 s, growing from 88% to 108% |
+| Needs a person, failed | `attention`, `danger` | One pulse from 0.30 to 0.72 and back over 1.4 s, then still at 0.30 |
 | Paused, stopped | `paused`, `idle` | None |
 
-The glow fades out over 7 pixels beyond the dot, with no edge anywhere. Nothing blinks, and the
-light always has its word beside it.
+The glow reaches 7 pixels beyond the dot and is a falloff, never a disc: it holds near half
+strength across most of that reach - 0.58 at 0.45 of it, 0.50 at 0.78 - and fades to nothing over
+the last fifth, so at its peak the light reads as a lit ring around the dot with a soft but
+definite edge, and it never dips and rises again, because a gap between a dot and a ring reads as a
+target. The breath is a raised cosine, with no corner at either end. v0.6.4's numbers - 0.14 to
+0.30 over 3.6 s, on a falloff down to a fifth at seven tenths of its reach - were too quiet to be
+seen at a normal distance; v0.6.5's set was chosen from five, rendered with each surface's own
+model in both themes at 100% and 150%. The largest glow reaches 12.96 pixels from the window's dot
+centre, inside the 28-pixel column the window keeps for it at every scaling. Nothing blinks, and
+the light always has its word beside it.
 
 All of it stops on request. The Dashboard and the popup stop every animation when **Reduce
 motion** is on (Settings > Appearance) or when Windows' own animation-effects switch is off, and
 the Dashboard also stops it in High Contrast. The panel follows the host's
-`prefers-reduced-motion` instead, which is why the setting is not offered there.
+`prefers-reduced-motion` instead, which is why the setting is not offered there. The
+notification-area icon and the notification card stop under battery saver as well.
+
+### Controls move, briefly
+
+A switch glides when it changes - the knob slides and the track cross-fades between the grey well
+and the accent - and a check box fades its fill and its mark, in `MOTION`'s 160 ms on its one
+curve. The curve is an ease-out (easeOutCubic, `cubic-bezier(0.33, 1, 0.68, 1)`): the knob
+leaves at once and settles, so a switch answers the moment a change is confirmed and still comes
+to rest softly. A change that waits for a confirmation - the panel's per-conversation switch asks
+you first; the Pending page's switch and the popup's wait for the control layer - moves once, when
+it is confirmed, and never slides and snaps back. At rest a switch and a box are exactly what they
+were before, and nothing slides under Reduce motion, Windows' animation setting or High Contrast.
+
+### The icon's motion
+
+The notification-area icon is sixteen pixels across and glanced at, so it does not copy the
+six-state light; it speaks a smaller language with the mark it already has. The head - the bright
+dot at the leading end of the ring - is what moves. While the watcher watches it breathes, dimming
+toward the badge's deep blue and back on `GLOW`'s monitoring rhythm, and now and then travels once,
+slowly, round its own ring; while a recovery is in progress it keeps travelling, a turn per `GLOW`'s
+arc rhythm, on the recovering breath; paused it is grey and still; a problem is its colour, one
+pulse on `GLOW`'s attention rhythm, then held. The motion adds no shape and no colour: the frames
+are the mark itself, drawn from `ICON_SHAPE` by the same rasteriser as the `.ico`, with the head
+moved and recoloured, and at rest the icon is exactly the icon it has always been. Of `GLOW` the
+icon reads those four rhythms and nothing else. Its own few numbers - how often a watching icon
+turns, the head's positions, the breath's brightness steps - are `tray.py`'s `ICON_MOTION`,
+deliberately not `brand.py`'s, because every `GLOW` key is generated into the window and no window
+draws the icon. It holds still under Reduce motion, Windows' animation setting, High Contrast,
+battery saver, a locked session, and while it sits in the overflow area.
 
 ## Light, dark and High Contrast
 
@@ -174,8 +222,11 @@ Dashboard and the popup, *Use system setting* means the app mode Windows is set 
 `AppsUseLightTheme` value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`,
 where 0 is dark and a missing value is light. For the panel it means Codex's own theme: the page
 carries no theme of its own and follows `prefers-color-scheme`, while *Light* and *Dark* stamp its
-root with `data-theme`. The notification-area icon and its badge are drawn in the light palette
-whatever the setting says; they sit on the taskbar, not on any of the three surfaces.
+root with `data-theme`. The notification-area icon and its badge do not change with the setting;
+they sit on the taskbar, not on any of the three surfaces. When the icon's head takes a state's
+colour it is the one made to read on the icon's own deep-blue badge: the dark palette's
+`attention` and `danger`, and the light palette's `idle` grey, whose dark value all but vanishes
+into the badge.
 
 Dark is the panel's dark theme on all three surfaces, from one set of numbers: `DARK`, the dark
 shadow recipes and the dark card ground. The window adopts its theme once, before its first
@@ -184,8 +235,9 @@ light colour; its title bar goes dark through `DWMWA_USE_IMMERSIVE_DARK_MODE`, a
 own scroll bars through Windows' dark style. The window builds its colours when it opens, so a
 changed theme reopens it rather than repainting it. The popup resolves its theme each time it
 opens, and while it is dark the watcher asks Windows for dark context menus too. What Windows
-draws itself stays Windows' own: message boxes, the file dialog, a text box's context menu, the
-frame of an open drop-down list, and notifications.
+draws itself stays Windows' own: message boxes, the file dialog, a text box's context menu, and
+Windows' own notifications. Since v0.6.5 the open drop-down list and the notification card are
+ours, so both are dark in dark.
 
 The Dashboard was light-only until v0.6.4, and that was a measurement rather than an opinion. A
 probe built for v0.5.6 painted a card, a spin box, a drop-down, a check box and a button in the
@@ -249,6 +301,60 @@ the pointer, with no shadow. A list's own scroll bar is clipped away behind the 
 is the Dashboard's alone: the popup does not scroll, and the panel scrolls in the page Codex shows
 it in.
 
+Since v0.6.5 the same holds across a list's bottom. A list's columns share its width at every
+ordinary size, what cannot fit ending in an ellipsis, so a list overflows sideways only in a window
+narrower than its columns can shrink to; then, and only then, the soft bar lies along its bottom,
+and Windows' own horizontal bar - which showed white on a dark card - is clipped away too.
+
+## Depth in the popup
+
+v0.6.5 gave the inside of the popup's card the depth its outside had. What stands on the card is
+raised and what holds a value is sunken, and every part of it is one of `brand.py`'s recipes -
+the popup adds no number of its own:
+
+| What | How it is drawn |
+| --- | --- |
+| A waiting task | A tile on `raised`, the ground the panel's rows and a resting button stand on, with a `line` hairline. Light: `SHADOWS["light"]["control"]`, a short drop down and right and the white highlight up and left. Dark, where a drop alone does not show at a tile's size: the dark `control` drop plus the one-pixel top light of the dark `card` recipe, inside the hairline. |
+| The three counts | One well - the `inset` fill with the `inset` recipe inside its border - with a hairline between the counts. |
+| Nothing to list, and a failed read | Said from a well, as an empty field is. |
+| A button | Stands with the `control` lift, and sinks into a well (`inset`) while it is pressed. |
+| A switch that is off | A well on its raised tile, as the panel's is. |
+
+The card's own recipe does not transfer: at its 14-pixel blur a tile eight pixels from the next
+would share one grey smear with it, where the `control` recipe keeps each tile its own. The panel's
+tiles - a waiting conversation's row and the Automatic recovery switch's - take the same lift
+(`--elev-tile`), and so does the notification card's tile. The Dashboard's Pending and History
+lists stay flat rows closed by a hairline, the chosen row filled softly: raised tiles were tried
+there during v0.6.5 and taken out again, because the flat rows read better. High Contrast draws
+none of it - system colours, hairlines, no shadow.
+
+## The drop-down list
+
+Closed, a drop-down is a well a value sits in, as in v0.6.4: `LAYOUT`'s `field_height` of 35 with
+`select_pad`, and the chevron a `muted` wedge `chevron_width` 10 by `chevron_height` 5, set
+`chevron_right` 13 from the well's inside edge. Since v0.6.5 the list it opens is drawn by the
+product too, in the window and in the panel, where it used to be Windows' - square corners, a thin
+grey border, no shadow, a flat blue band, and light even in dark:
+
+- **The list is a card.** The cards' own ground (`card_ground`), their `RADII` corner and hairline
+  and, in dark, their one-pixel top light, lifted by the `card` recipe of `SHADOWS`, whose shadow
+  spills outside it over whatever is behind. It floats just under the field, its words starting
+  under the field's own, and opens above instead where the screen has no room below.
+- **The items are pills**, set in the field's font with the field's padding, `SPACING`'s `xs`
+  apart. The item chosen now is a sunken pill - a well with the `inset` recipe - with its words in
+  `accent`; the item under the pointer rises with the `control` lift; the item the keyboard is on
+  has the focus ring every control has (`focus`, `focus_width`, `focus_offset`).
+- **It moves once.** It fades in and rises `SPACING`'s `xs` into place over `MOTION`'s time on its
+  curve, and closes at once; with motion reduced it is simply there.
+- **High Contrast** draws it in system colours with no shadow anywhere: in the window a `Window`
+  card with a `WindowFrame` edge, the chosen item in `Highlight` with `HighlightText` and the item
+  under the pointer with a `Highlight` edge.
+
+Under the paint it is still the drop-down it was: the keys are Windows' - it opens on a click, F4,
+Alt+Down, Alt+Up or Space, the arrows, Home, End, Page Up and Page Down move, typing finds, Enter
+or Tab takes an item, Escape closes it as it was - the focus never leaves the field, and a screen
+reader hears a combo box with its choice and the item the keyboard is on.
+
 ## The mark
 
 A rounded-square badge in deep blue carrying an open ring with a bright head at its leading
@@ -256,8 +362,10 @@ end. The ring is the wait; the gap at the top is the interruption; the cyan head
 moment it resumes.
 
 `assets/brand/icon.svg` is the vector master and `assets/codex-auto-resume.ico` the Windows
-raster set, both generated from the same nine numbers in `assets/make_icon.py` — one
-geometry, not a drawing and a copy of it.
+raster set, both generated by `assets/make_icon.py` from the same numbers — one geometry, not a
+drawing and a copy of it. Until v0.6.5 those numbers lived in `make_icon.py`; now they are
+`brand.ICON_SHAPE`, with the rasteriser beside them (`brand.icon_render()`), because the watcher
+draws the notification-area icon's motion frames from them, and `make_icon.py` imports them.
 
 **Why this shape and not the other three.** Four concepts were built and rendered at all
 nine icon sizes on both a light and a dark ground; `build/icon_concepts.py` still renders
@@ -303,10 +411,12 @@ the ring rather than floating beside it.
   lift on all three surfaces, so the eye reads a list of sections rather than a pile of boxes.
 - **A standard control underneath.** In the Dashboard a button is still a `Button`, a switch and
   a check box are each a `CheckBox` drawn as one, and a drop-down is a `ComboBox` whose closed face
-  we draw; only the painting is ours, so the keyboard, focus and screen readers behave as they
-  always did. In the panel a check box is an `<input type="checkbox">` and a switch the same input
-  with `role="switch"`. The soft scroll bar is the one part with no standard control under it, and
-  it takes no focus: the keyboard goes to what it scrolls, which comes into view.
+  and, since v0.6.5, open list we draw; only the painting is ours, so the keyboard, focus and screen
+  readers behave as they always did, and the list answers every way Windows' list could be opened
+  and every question a screen reader asks it. In the panel a check box is an
+  `<input type="checkbox">`, a switch the same input with `role="switch"`, and a drop-down a
+  combobox over a hidden `<select>`. The soft scroll bar is the one part with no standard control
+  under it, and it takes no focus: the keyboard goes to what it scrolls, which comes into view.
 
 ## Redrawing anything
 
