@@ -226,6 +226,17 @@ class EntryPointTests(unittest.TestCase):
                               "the caller no longer names it this way; update this table with it")
                 self.assertTrue(callable(getattr(importlib.import_module(module), name, None)))
 
+    def test_the_messages_shim_answers_the_older_setup_scripts(self):
+        """Every release up to v0.6.4 ships a scripts/plugin_setup.py that imports
+        `codex_auto_resume.messages` and calls `messages.text(key)`, and the uninstaller's
+        tests run v0.5.3's against this package. The sentences live in l10n now; `messages`
+        is a one-line shim, and nothing in the package imports it."""
+        from codex_auto_resume import l10n, messages
+        self.assertIs(messages.text, l10n.message)
+        importers = {srcscan.relative(path) for path in srcscan.package_files()
+                     if any(entry.target == "codex_auto_resume.messages" for entry in srcscan.imports(path))}
+        self.assertEqual(importers, set())
+
     def test_the_bridge_still_answers_to_serve(self):
         """The window starts the bridge as `... controlcli main serve` and talks to it for as
         long as it is open."""

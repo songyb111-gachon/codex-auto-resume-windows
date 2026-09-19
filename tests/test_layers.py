@@ -53,7 +53,7 @@ def _q(name):
 # Every module, placed. A new module has to be given a layer here before anything else.
 LAYER = {_q(name): layer for layer, names in {
     "domain": ("failures", "reasons", "machine"),
-    "policy": ("", "settings", "continuation", "l10n", "interface", "config", "logbook"),
+    "policy": ("", "settings", "continuation", "l10n", "messages", "interface", "config", "logbook"),
     "adapters": ("store", "openstate", "source", "windows", "compat", "compatio", "startup", "shortcut",
                  "pwsh", "notify", "notice_presence"),
     "engine": ("engine",),
