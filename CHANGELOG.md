@@ -59,8 +59,8 @@ by default and changes where a notification appears, never whether there is one 
 - While the settings window is open, its taskbar button moves the same way, with the same rhythms
   and frames. Its state is the icon's for the same watcher, as the icon has it while the popup is
   open: the window, like the popup, reads the watcher as it is now. It holds still under the same
-  settings, while the session is locked or disconnected - which it asks Windows on its own second,
-  as the icon hears it - and while the window is hidden. The title bar's icon does not move, and at
+  settings, while the session is locked or disconnected - which it asks Windows once a second, where
+  the icon hears Windows say it - and while the window is hidden. The title bar's icon does not move, and at
   rest the button is the icon it has always been.
 
 ### Notifications in the product's own card
