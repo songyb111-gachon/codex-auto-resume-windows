@@ -416,26 +416,6 @@ namespace CodexAutoResume
             Body(g, face, radius, fill, edge, inset ? "inset" : null);
         }
 
-        /// A tile raised off a card - a conversation in Pending's and History's lists - as the popup's task
-        /// tiles and the panel's rows are since v0.6.5, from brand's recipes only: brand's control lift under
-        /// it, which whatever paints its ground stamps (TileLift, Elevation.StampOuter), then `fill`, in dark
-        /// the dark card's one-pixel top light inside the hairline, and the hairline. A drop alone is lost on
-        /// a dark ground at a tile's size, so dark takes the panel's dark recipe - the top light and a ground
-        /// a step brighter than the card's (`raised`) - and light is the control lift alone, as the popup's
-        /// DEPTH has them. High Contrast: system colours, and no shadow at all. Only a conversation is a
-        /// tile: a button, a segment and a choice card rest on the control lift with no top light, on every
-        /// surface.
-        internal static void Tile(Graphics g, Rectangle face, float radius, Color fill)
-        {
-            Body(g, face, radius, fill, Palette.Line, Palette.Dark ? TileLight : null);
-        }
-
-        /// The elevation recipe under a tile (Tile).
-        internal const string TileLift = "control";
-
-        /// The elevation recipe whose inset shadows are a tile's top light in dark (Tile): the dark card's.
-        internal const string TileLight = "card";
-
         /// The same, with the inset shadows of the elevation recipe `inner` between the fill and the
         /// hairline: a well's ("inset"), or in dark a card's one-pixel top light ("card"). Null for none.
         internal static void Body(Graphics g, Rectangle face, float radius, Color fill, Color edge, string inner)
@@ -5157,8 +5137,8 @@ namespace CodexAutoResume
             // and help in WindowText were under 1.5:1.
             bool onHighlight = Checked && Palette.Contrast;
             Color fill = onHighlight ? Palette.AccentSoft : Checked ? Palette.Inset : hover ? Palette.Surface : Palette.Raised;
-            // Resting, raised as a button and as the panel's segment for the same setting are - no top light in dark:
-            // that is a conversation's tile (Soft.Tile), and a choice among several is not one. Chosen, a well.
+            // Resting, raised as a button and as the panel's segment for the same setting are - no top light in
+            // dark. Chosen, a well.
             Soft.Body(g, ClientRectangle, radius, fill, Checked ? Palette.Accent : Palette.Line, Checked && !Palette.Contrast);
             // The radio mark, so the card still says "one of these" without its colour.
             float mark = Soft.PxF(16);
@@ -5440,56 +5420,6 @@ namespace CodexAutoResume
         }
     }
 
-    /// What a list of tiles says when it has none - nothing waiting, no recoveries yet, or that it cannot be
-    /// read - from a sunken well where its first tile would stand, as the popup says it since v0.6.5: an empty
-    /// field, not a line beside an empty card whose headings float over nothing. The inset fill, the inset
-    /// shadow and the hairline (Soft.InsetWell), its words centred in the popup's padding of it, in the quieter
-    /// ink, and as tall as they are at the width its host gives it (SoftListHost.ShowWhenEmpty). High Contrast:
-    /// system colours and no shadow.
-    internal sealed class EmptyWell : Label
-    {
-        private const TextFormatFlags Words = TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl |
-                                              TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPrefix;
-
-        internal EmptyWell()
-        {
-            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
-                     ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
-            AutoSize = false;
-            UseMnemonic = false;
-            TextAlign = ContentAlignment.MiddleCenter;
-        }
-
-        // The popup's padding of its empty well: brand's large step all round.
-        private static int Pad { get { return Soft.Px(Brand.SpaceL); } }
-
-        /// Its words' room, `width` wide.
-        private static int Room(int width)
-        {
-            return Math.Max(1, width - 2 * Pad);
-        }
-
-        public override Size GetPreferredSize(Size proposedSize)
-        {
-            int width = proposedSize.Width > 1 ? proposedSize.Width : Width;
-            string text = string.IsNullOrEmpty(Text) ? " " : Text;
-            int height = TextRenderer.MeasureText(Soft.Wrap(text, Font, Room(width), Words), Font,
-                                                  new Size(Room(width), int.MaxValue), Words).Height;
-            return new Size(width, height + 2 * Pad);
-        }
-
-        protected override void OnPaintBackground(PaintEventArgs e) { }
-
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            float radius = Soft.PxF(Brand.RadiusControl);
-            Ground.PaintBehind(this, e.Graphics, ClientRectangle, radius);
-            Soft.InsetWell(e.Graphics, ClientRectangle, radius, false);
-            var room = new Rectangle(Pad, Pad, Room(Width), Math.Max(0, Height - 2 * Pad));
-            TextRenderer.DrawText(e.Graphics, Soft.Wrap(Text, Font, room.Width, Words), Font, room, Palette.Secondary, Words);
-        }
-    }
-
     /// A list whose rows are drawn by the page that owns it, double-buffered so a five-second
     /// refresh does not flicker.
     internal sealed class SoftList : ListView
@@ -5569,16 +5499,6 @@ namespace CodexAutoResume
         [DllImport("user32.dll")]
         private static extern IntPtr SendMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
 
-        [StructLayout(LayoutKind.Sequential)]
-        private struct WindowRect
-        {
-            public int Left, Top, Right, Bottom;
-        }
-
-        [DllImport("user32.dll")]
-        private static extern bool GetWindowRect(IntPtr window, out WindowRect rect);
-
-        private const int LVM_GETHEADER = 0x101F;
         private const int SB_HORZ = 0;
         private const int SB_VERT = 1;
         private const int SIF_ALL = 0x17;
@@ -5621,49 +5541,6 @@ namespace CodexAutoResume
         }
 
         internal SoftScrollBar Bar { get { return bar; } }
-
-        private Control empty;
-        private int emptySide;
-
-        /// Shows `control` - an EmptyWell, which its owner shows while the list has no rows and hides again
-        /// - in the list, right under its column headings, where its first row would stand: across the
-        /// rows' width less `side` on each side, the room a tile keeps beside it, and as tall as it asks to
-        /// be at that width. A child of the list, as its headings are, rather than a window over it: the
-        /// list paints around its children, and a picture of the window (DrawToBitmap) draws a window's
-        /// children after it but overlapping siblings in the wrong order, so a well lying over the list's
-        /// clip was drawn under it. Placed again once the list's messages are done (Changed, Sync) when its
-        /// words, its showing or the list's font change - never from inside them: a list whose window is
-        /// being made has its rows only after its HandleCreated, and the host's layout asks for them.
-        internal void ShowWhenEmpty(Control control, int side)
-        {
-            empty = control;
-            emptySide = side;
-            List.Controls.Add(control);
-            control.TextChanged += delegate { Changed(); };
-            control.VisibleChanged += delegate { Changed(); };
-            List.FontChanged += delegate { Changed(); };
-        }
-
-        /// The control shown while the list has no rows (ShowWhenEmpty), if any.
-        internal Control Empty { get { return empty; } }
-
-        /// Where the list's column headings end, in its coordinates.
-        private int HeadingsBottom()
-        {
-            if (!List.IsHandleCreated || List.View != View.Details || List.HeaderStyle == ColumnHeaderStyle.None) return 0;
-            IntPtr header = SendMessage(List.Handle, LVM_GETHEADER, IntPtr.Zero, IntPtr.Zero);
-            WindowRect rect;
-            if (header == IntPtr.Zero || !GetWindowRect(header, out rect) || rect.Bottom <= rect.Top) return 0;
-            return Math.Max(0, List.PointToClient(new Point(rect.Left, rect.Bottom)).Y);
-        }
-
-        private void PlaceEmpty()
-        {
-            if (empty == null) return;
-            int width = Math.Max(0, clip.Width - 2 * emptySide);
-            int height = empty.GetPreferredSize(new Size(Math.Max(2, width), 0)).Height;
-            empty.SetBounds(emptySide, HeadingsBottom(), width, height);
-        }
 
         /// The soft bar along the bottom, scrolling the list sideways; its Track is empty while the
         /// columns fit.
@@ -5779,7 +5656,6 @@ namespace CodexAutoResume
             if (nativeAcross && below == 0) below = SystemInformation.HorizontalScrollBarHeight;
             clip.SetBounds(0, 0, rows, tall);
             List.SetBounds(0, 0, rows + beside, tall + below);
-            PlaceEmpty();
             Read();
             bar.Track = native ? TrackBounds() : Rectangle.Empty;
             acrossBar.Track = nativeAcross ? AcrossBounds() : Rectangle.Empty;
@@ -5817,7 +5693,6 @@ namespace CodexAutoResume
         internal void Sync()
         {
             if (IsDisposed || !List.IsHandleCreated) return;
-            if (empty != null && empty.Visible) PlaceEmpty();
             if (NativeBar != native || NativeAcross != nativeAcross)
             {
                 PerformLayout();

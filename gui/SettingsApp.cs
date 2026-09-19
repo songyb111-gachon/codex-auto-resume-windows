@@ -3597,9 +3597,8 @@ namespace CodexAutoResume
             TextFormatFlags format = TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl;
             if (!label.UseMnemonic) format |= TextFormatFlags.NoPrefix;
             int room = Math.Max(1, label.ClientSize.Width - label.Padding.Horizontal);
-            // In the lines it is drawn in (WrapLabel: Korean between its words); a well is its own measure.
+            // In the lines it is drawn in (WrapLabel: Korean between its words).
             var wrap = label as WrapLabel;
-            if (label is EmptyWell) return bounds;
             Size text = TextRenderer.MeasureText(wrap != null ? wrap.Lines(room) : label.Text, label.Font, new Size(room, int.MaxValue), format);
             int width = Math.Min(text.Width + label.Padding.Horizontal, bounds.Width);
             int height = Math.Min(text.Height + label.Padding.Vertical, bounds.Height);
@@ -3690,8 +3689,6 @@ namespace CodexAutoResume
             if (quote != null) return Needs(quote.GetPreferredSize(new Size(c.Width, 0)).Height, c.Height);
             var gates = c as GateList;
             if (gates != null) return inScroller ? null : Needs(gates.GetPreferredSize(new Size(c.Width, 0)).Height, c.Height);
-            var well = c as EmptyWell;
-            if (well != null) return Needs(well.GetPreferredSize(new Size(c.Width, 0)).Height, c.Height);
             var list = c as ListView;
             if (list != null) return ColumnsFit(list);
             if (string.IsNullOrEmpty(c.Text) || c is TextBoxBase || c is ComboBox || c is UpDownBase) return null;
