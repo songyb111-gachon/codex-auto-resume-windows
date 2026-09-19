@@ -34,8 +34,8 @@ Windows or the **Theme** setting asks for it. And it added the two controls the 
 yet share: a check box, for picking the items of a list, and a soft scroll bar for the window's
 pages and lists.
 
-v0.6.5 let the material move and gave the popup depth. The state light breathes widely enough to
-be seen, the notification-area icon moves in its own smaller language, switches glide and check
+v0.6.5 let the material move and gave the popup depth. The state light blinks as the icon's head
+does and spreads a little once it is lit, the notification-area icon moves in its own smaller language, switches glide and check
 boxes fade on one curve (`MOTION`), what stands on the popup's card is raised and what holds a
 value is sunken, and the drop-down's open list is drawn in the cards' material rather than by
 Windows. A notification can appear as the popup's own card beside the notification area. The
@@ -126,7 +126,7 @@ window and a card in Codex round their corners by the same amount.
 | `TYPE_SCALE`, `LINE_HEIGHT`, `TYPE_ROLES` | display 21, title 15, body 14, small 12.5, mono 13 | The panel's type. The native surfaces keep `TYPE`: a notification-area popup and a fixed-size window read better with smaller text than a panel inside Codex. |
 | `LAYOUT` | button 34 high, field 35, switch 40 × 22, check box 18 with 10 to its label, chip 22, card padding 16 × 18, page gap 14, and the rest | The sizes of the shared control recipes, taken from the panel. |
 | `SHADOWS` | light card: offset (4, 4), blur 14, `shadow_dark` at 0.55, and offset (−4, −4), blur 14, `shadow_light` at 0.90; control: the same at offset 2, blur 6; inset: offset 2, blur 6, inside the edge. Dark card: offset (0, 1), blur 2, `shadow_dark` at 0.70, offset (0, 6), blur 18, at 0.35, and a one-pixel `shadow_light` line at 0.45 inside the top edge; control: offset (0, 1), blur 2, at 0.60; inset: the same inside the edge, at 0.55 | A lifted card, a raised control and a well. Small on purpose: exaggerated embossing is what makes soft interfaces unreadable. |
-| `STATUS_DOT`, `STATUS_FILL`, `GLOW` | dot radius: window 5, popup 4.5, panel 6; the glow reaches 7 beyond the dot | The state light: its size, its colour for each state, and its glow. |
+| `STATUS_DOT`, `STATUS_FILL`, `GLOW` | dot radius: window 5, popup 4.5, panel 6; a cycle of fall 25%, rise 40%, bloom 20% and withdraw 15%; the dot dims 60% of the way toward its ground; the glow reaches 3 beyond the dot, at opacity 0.34 | The state light: its size, its colour for each state, its blink and its glow. |
 | `MOTION` | transition 160 ms on one curve, `ease` = cubic-bezier(0.33, 1, 0.68, 1), an ease-out | A switch's glide and a check box's fade on every surface, and the rise of an open drop-down list. |
 | `ICON_SHAPE` | ring 0.34 to 0.53 of the half-size; sweep from 125° round to 55°, leaving a 70° opening at the top; head radius 0.155; corners 0.30, or 0.24 below 32 px; 4 × 4 samples a pixel (`ICON_SUPERSAMPLE`) | The mark's geometry, in a square whose half-size is 1. |
 
@@ -158,32 +158,47 @@ rather than guessing it from the recipe's name.
 
 The state light says whether the watcher is alive, in the Dashboard's header, at the top of the
 popup and at the top of the panel, and since v0.6.5 it says what a notification card is about.
-It is a flat dot with a soft glow around it, and the glow is the only thing that moves. `brand.glow()` defines it once, and all three surfaces are tested
-against that one function:
+It is a flat dot that blinks the way the notification-area icon's head does, with a small glow
+that spreads only once the dot is fully lit. `brand.glow()` defines it once - its numbers are
+`GLOW`, generated into the window's `gui/Brand.cs` and the panel's stylesheet - and every surface
+is tested against that one function. One cycle has four phases, each eased as half a raised
+cosine, so nothing has a corner:
 
-| State | Colour | Glow |
+1. **Fall**, a quarter of the cycle: the dot dims to 60% of the way from its colour toward the
+   ground it sits on, as far as the icon's head dims toward its badge. Nothing spreads.
+2. **Rise**, 40%: the dot comes back to its full colour. Still nothing spreads.
+3. **Bloom**, 20%: lit, a glow grows from nothing to opacity 0.34, reaching 3 pixels past the
+   dot's edge.
+4. **Withdraw**, 15%: the glow draws back into the dot, which stays lit.
+
+A cycle begins where a still light rests - lit, with no glow - so a light that starts moving leaves
+it with no jump, as each of the icon's breaths begins and ends at full brightness.
+
+| State | Colour | Light |
 | --- | --- | --- |
-| Monitoring | `active` | Breathes: opacity 0.12 to 0.58 over 3.2 s, the glow growing from 82% to 108% of its size as it brightens |
-| Waiting | `active` | Still, at 0.30 |
-| Checking a task that has come due | `active` | Still, at 0.30, with a thin arc turning once every 1.6 s (in the Dashboard and the popup) |
-| Recovering | `active` | Breathes faster and brighter: 0.20 to 0.70 over 2 s, growing from 88% to 108% |
-| Needs a person, failed | `attention`, `danger` | One pulse from 0.30 to 0.72 and back over 1.4 s, then still at 0.30 |
-| Paused, stopped | `paused`, `idle` | None |
+| Monitoring | `active` | The cycle, every 3.2 s |
+| Waiting | `active` | Lit and still, with no glow |
+| Checking a task that has come due | `active` | Lit, with no glow, and a thin arc turning once every 1.6 s (in the Dashboard and the popup) |
+| Recovering | `active` | The cycle, every 2 s |
+| Needs a person, failed | `attention`, `danger` | The cycle once, over 1.4 s, when it is first shown; then lit and still, with no glow |
+| Paused, stopped | `paused`, `idle` | A grey dot that never moves |
 
-The glow reaches 7 pixels beyond the dot and is a falloff, never a disc: it holds near half
-strength across most of that reach - 0.58 at 0.45 of it, 0.50 at 0.78 - and fades to nothing over
-the last fifth, so at its peak the light reads as a lit ring around the dot with a soft but
-definite edge, and it never dips and rises again, because a gap between a dot and a ring reads as a
-target. The breath is a raised cosine, with no corner at either end. v0.6.4's numbers - 0.14 to
-0.30 over 3.6 s, on a falloff down to a fifth at seven tenths of its reach - were too quiet to be
-seen at a normal distance; v0.6.5's set was chosen from five, rendered with each surface's own
-model in both themes at 100% and 150%. The largest glow reaches 12.96 pixels from the window's dot
-centre, inside the 28-pixel column the window keeps for it at every scaling. Nothing blinks, and
-the light always has its word beside it.
+The user chose this light (2026-09-19). The first v0.6.5 cut made v0.6.4's too-quiet light visible
+by breathing a glow - opacity 0.12 to 0.58, reaching 7 pixels past a dot that never changed - and
+the answer was that the blink wanted was the icon's: from darkest to brightest nothing should
+spread, from brightest a slight spread, and less of it. Previews at +2, +3 and +4 pixels were
+rendered, light and dark, and +3 was kept. The glow is a falloff, never a disc: at its peak its
+alpha is 0.34 times 0.67 at the dot's edge, 0.58 at 0.14 of the reach, 0.50 at 0.66 and nothing at
+3 pixels, in straight lines between, so it holds near half strength and then fades; it never dips
+and rises again, because a gap between a dot and a ring reads as a target. A smaller spread is the
+same falloff drawn smaller about the centre, so the glow grows out from under the dot. The largest
+reaches 8 pixels from the window's dot centre, well inside the 28-pixel column the window keeps
+for it at every scaling. The notification card is drawn once and holds still, so it shows the still
+light. The light always has its word beside it.
 
 All of it stops on request. The Dashboard and the popup stop every animation when **Reduce
 motion** is on (Settings > Appearance) or when Windows' own animation-effects switch is off, and
-the Dashboard also stops it in High Contrast. The panel follows the host's
+the Dashboard also stops it in High Contrast; a light that holds still is lit, with no glow. The panel follows the host's
 `prefers-reduced-motion` instead, which is why the setting is not offered there. The
 notification-area icon and the notification card stop under battery saver as well.
 
