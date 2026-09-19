@@ -26,7 +26,8 @@ from codex_auto_resume import store as store_module
 from codex_auto_resume.machine import (
     CLAIMED, EXHAUSTED, IN_FLIGHT, OBSERVING, OUTCOMES, PLAIN_MOVES, STATES, TERMINAL, WAITING,
 )
-from codex_auto_resume.store import StateFromNewerVersion, Store, StoreError, UpgradePending
+from codex_auto_resume.store import (RecordSchemaMismatch, StateFromNewerVersion, Store, StoreError,
+                                     UpgradePending)
 
 
 THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
@@ -432,6 +433,7 @@ class StoreTests(_StoreCase):
             with self.subTest(read=read), self.assertRaises(StoreError) as caught:
                 read()
             self.assertEqual(str(caught.exception), "Invalid record schema")
+            self.assertIsInstance(caught.exception, RecordSchemaMismatch)
             self.assertNotIsInstance(caught.exception, StateFromNewerVersion)
 
     def test_newer_schema_and_unknown_record_state_fail_closed(self):
