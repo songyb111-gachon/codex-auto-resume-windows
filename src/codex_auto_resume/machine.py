@@ -266,6 +266,12 @@ def public_reason(record: dict):
     return reason_code(record.get("last_error"))
 
 
+# The settings window's pages, in the order it shows them: the ones a notification's button
+# or the icon may open it on. A closed list, because the page is spliced into a command line -
+# nothing else may ever reach it, whatever a caller passes.
+PAGES = ("overview", "pending", "history", "statistics", "diagnostics", "settings")
+
+
 # ----------------------------------------------------------------------------- overlays
 OVERLAYS = ("cancel_pending", "paused", "thread_disabled", "compatibility_blocked",
             "engine_unavailable", "watcher_not_ticking")

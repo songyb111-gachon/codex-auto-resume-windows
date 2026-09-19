@@ -21,7 +21,7 @@ from __future__ import annotations
 import subprocess
 import time
 
-from . import l10n, pwsh
+from . import l10n, machine, pwsh
 
 SCHEME = "codex-auto-resume"
 # The toast is sent under our own AppUserModelID, so Windows attributes it to
@@ -113,10 +113,9 @@ def parse_open_uri(uri: str) -> str | None:
     if len(values) != 1:
         return None
     page = values[0].strip().lower()
-    # The same closed list the icon uses, spelled out here so this module does not have to
-    # import the icon's window code to validate a string.
-    return page if page in ("overview", "pending", "history", "statistics", "diagnostics",
-                            "settings") else None
+    # The same closed list the icon uses, from where both can read it without importing the
+    # other's window code.
+    return page if page in machine.PAGES else None
 
 
 # Windows shows at most five buttons on a toast. This product never needs more than two.

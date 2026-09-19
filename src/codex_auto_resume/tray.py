@@ -41,7 +41,7 @@ import sys
 import threading
 import time
 
-from . import brand
+from . import brand, machine
 
 WM_DESTROY = 0x0002
 WM_CLOSE = 0x0010
@@ -1163,7 +1163,6 @@ class Tray:
 
 def snapshot_from(store, now: float) -> dict:
     """What the icon shows, from our own store only: no Codex read, no content."""
-    from . import machine
     waiting, running, due = 0, 0, []
     for row in store.pending():
         if row["state"] in machine.WAITING:
@@ -1177,9 +1176,9 @@ def snapshot_from(store, now: float) -> dict:
             "next_at": min(due) if due else None}
 
 
-# The pages the window will open on. A closed list, because the value is spliced into a
-# command line: nothing else may ever reach it, whatever a caller passes.
-PAGES = ("overview", "pending", "history", "statistics", "diagnostics", "settings")
+# The pages the window will open on, from the one closed list (machine.PAGES): the value is
+# spliced into a command line, so nothing else may ever reach it, whatever a caller passes.
+PAGES = machine.PAGES
 
 
 def open_dashboard(home: Path, page: str = None) -> bool:
