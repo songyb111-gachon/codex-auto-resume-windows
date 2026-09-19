@@ -13,6 +13,7 @@ mechanically against every file that ships, which is worth more than a sentence.
 """
 from __future__ import annotations
 
+import ast
 import os
 from pathlib import Path
 import re
@@ -24,6 +25,11 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+_HERE = str(Path(__file__).resolve().parent)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)        # srcscan lives next to this file
+
+import srcscan  # noqa: E402
 
 WINDOWS = os.name == "nt"
 POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
@@ -401,10 +407,17 @@ class JournalIsWriteOnlyTests(unittest.TestCase):
     """
 
     def test_the_engine_never_reads_the_journal(self):
-        for name in ("engine.py", "app.py", "source.py", "failures.py"):
-            text = (ROOT / "src" / "codex_auto_resume" / name).read_text(encoding="utf-8")
-            with self.subTest(name):
-                self.assertNotIn(".events(", text,
+        # Asked of every tracked file but the two readers named below - so of the engine, the
+        # runtime, the source and the classifier however they are split, and of any module a
+        # decision is moved to.
+        for name in ("engine", "app", "source", "failures"):
+            self.assertTrue(srcscan.files_of("codex_auto_resume." + name), name)
+        readers = {"codex_auto_resume/control.py", "codex_auto_resume/diagnostics.py"}
+        for path in srcscan.package_files():
+            if srcscan.relative(path) in readers:
+                continue
+            with self.subTest(srcscan.relative(path)):
+                self.assertNotIn(".events(", srcscan.read(path),
                                  "a decision would now depend on the journal")
 
     def test_only_the_timeline_and_the_export_read_it(self):
@@ -424,6 +437,15 @@ class JournalIsWriteOnlyTests(unittest.TestCase):
         self.assertEqual(control.count(".events("), 1)
         timeline = control[control.index("def timeline"):]
         self.assertIn(".events(", timeline[:timeline.index("\n    def ")])
+        # By qualified name, across the package: the timeline and the diagnostics export are
+        # the only two functions that call it, wherever either of them lives.
+        callers = set()
+        for tree in srcscan.package_asts().values():
+            names = srcscan.qualnames(tree)
+            callers.update(names[node] for node in ast.walk(tree)
+                           if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                           and node.func.attr == "events")
+        self.assertEqual(callers, {"Control.timeline", "collect"})
 
 
 @unittest.skipUnless(WINDOWS and POWERSHELL.is_file(), "the shortcut is a Windows .lnk")

@@ -29,6 +29,7 @@ if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
 from codexsim import BASE, USAGE_ERROR, CodexHome, SimBackend, new_id, transient_error  # noqa: E402
+import srcscan  # noqa: E402
 
 from codex_auto_resume import machine  # noqa: E402
 from codex_auto_resume.control import Control  # noqa: E402
@@ -1146,16 +1147,23 @@ class T29T30PublicCodeTests(Base):
             self.assertEqual(machine.eligible_at(record), BASE + 10)
 
     def test_T29_the_mapping_module_imports_no_settings(self):
-        tree = ast.parse(Path(machine.__file__).read_text(encoding="utf-8"))
-        imported = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                imported.update(alias.name for alias in node.names)
-            elif isinstance(node, ast.ImportFrom):
-                imported.add(node.module or "")
-                imported.update(alias.name for alias in node.names)
-        for forbidden in ("settings", "config", "store", "engine", "source"):
-            self.assertFalse(any(forbidden in name.split(".") for name in imported), imported)
+        # The mapping module and every module of this product it reaches, lazily or not: a
+        # mapping split into several modules, or one that hands part of its work to a new
+        # helper, is still held to it.
+        reached = srcscan.closure(machine.__name__)
+        self.assertIn(machine.__name__, reached)
+        for module in sorted(reached):
+            tree = srcscan.package_asts()[srcscan.modules()[module]]
+            imported = set()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    imported.update(alias.name for alias in node.names)
+                elif isinstance(node, ast.ImportFrom):
+                    imported.add(node.module or "")
+                    imported.update(alias.name for alias in node.names)
+            for forbidden in ("settings", "config", "store", "engine", "source"):
+                with self.subTest(module=module, forbidden=forbidden):
+                    self.assertFalse(any(forbidden in name.split(".") for name in imported), imported)
 
     def test_T29_the_code_does_not_change_with_the_attempt_budget(self):
         """The engine that produced a record can be re-configured; the record's code

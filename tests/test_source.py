@@ -14,10 +14,10 @@ from codex_auto_resume.source import LocalSource, SourceError, detect, normalize
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import codexsim  # noqa: E402  (a real Codex home; lives next to this file)
+import srcscan  # noqa: E402  (the package's own source, every tracked file)
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE_FILE = ROOT / "src" / "codex_auto_resume" / "source.py"
 FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "usage-limit.json").read_text(encoding="utf-8"))
 TID = FIXTURE["database_failure"]["thread_id"]
 TURN = FIXTURE["database_failure"]["turn_id"]
@@ -823,11 +823,13 @@ def _split_top_level(text):
 
 
 def _sql_strings():
-    tree = ast.parse(SOURCE_FILE.read_text(encoding="utf-8"))
-    for node in ast.walk(tree):
-        if (isinstance(node, ast.Constant) and isinstance(node.value, str)
-                and re.match(r"\s*(SELECT|WITH)\b", node.value, re.IGNORECASE)):
-            yield node.lineno, node.value
+    """Every SQL literal in every tracked module, as ("path:line", text): the queries over
+    Codex's rows stay checked wherever they move, and a query written somewhere new is
+    checked the day it is written."""
+    for path, tree in srcscan.package_asts().items():
+        for node, value in srcscan.string_constants(tree):
+            if re.match(r"\s*(SELECT|WITH)\b", value, re.IGNORECASE):
+                yield "%s:%d" % (srcscan.relative(path), node.lineno), value
 
 
 CONTENT_COLUMNS = ("item_json", "payload_json")
@@ -864,7 +866,7 @@ class StaticQueryTests(unittest.TestCase):
                     with self.subTest(line=line, column=column):
                         self.assertRegex(
                             own_where, r"instr\(\s*(?:\w+\.)?%s\s*,\s*\?\s*\)\s*>\s*0" % column,
-                            "line %d returns %s without the marker bound" % (line, column))
+                            "%s returns %s without the marker bound" % (line, column))
             if re.search(r"instr\s*\([^()]*\)\s*=\s*0", sql, re.IGNORECASE):
                 foreign_queries += 1
                 for columns, _ in _selects(sql):
@@ -873,11 +875,19 @@ class StaticQueryTests(unittest.TestCase):
                     for part in _split_top_level(visible):
                         with self.subTest(line=line, column=part):
                             self.assertTrue(SAFE_COLUMN.fullmatch(part),
-                                            "line %d returns %r over rows that are not ours; only "
+                                            "%s returns %r over rows that are not ours; only "
                                             "counts, booleans or ids may leave SQL" % (line, part))
         # Not vacuous: the marker query and the queue query both exist and were checked.
         self.assertEqual({column for _, column in content_queries}, set(CONTENT_COLUMNS))
         self.assertGreaterEqual(foreign_queries, 2)
+
+    def test_T11_only_the_source_queries_codex_s_items(self):
+        """The tables that hold message text are read from one module. A second module that
+        queries them is a second place a query could lose its marker bound - checked above
+        wherever it is, and named here so it cannot arrive unnoticed."""
+        readers = {line.split(":")[0] for line, sql in _sql_strings()
+                   if re.search(r"\b(thread_items|queued_items)\b", sql)}
+        self.assertEqual(readers, {"codex_auto_resume/source.py"})
 
     def test_T11_checker_catches_an_unbounded_query(self):
         """The static checker itself: a bound that sits only in a sub-query does not
