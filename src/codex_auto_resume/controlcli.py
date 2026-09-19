@@ -76,17 +76,28 @@ STDIN_ARGUMENT = "-"
 GENERIC_ERROR = "the request could not be completed"
 
 
-def _use_utf8() -> None:
-    """State the protocol's encoding, whatever the machine's code page is.
+def use_utf8(stream, newline=chr(10)) -> None:
+    """Say UTF-8 on one of this process's streams: the one place a front end's wire states
+    its encoding, for the bridge and the MCP server alike.
 
-    `reconfigure` wins over `PYTHONIOENCODING` because it happens at runtime, which is
-    the point: the contract belongs to the protocol, not to the environment that started
-    it. Guarded because a replaced stream - a test's StringIO, a pytest capture - has no
-    `reconfigure`, and the protocol is a string protocol at that level anyway.
+    `reconfigure` wins over `PYTHONIOENCODING` because it happens at runtime, which is the
+    point: the contract belongs to the protocol, not to the environment that started it.
+    `newline=None` leaves the stream's own line handling as it is. What `reconfigure` raises
+    is raised; each caller decides what it tolerates.
+    """
+    stream.reconfigure(encoding="utf-8", **({} if newline is None else {"newline": newline}))
+
+
+def _use_utf8() -> None:
+    """State the protocol's encoding on both streams, whatever the machine's code page is.
+
+    Guarded stream by stream, because a replaced stream - a test's StringIO, a pytest
+    capture - has no `reconfigure`, and the protocol is a string protocol at that level
+    anyway.
     """
     for stream in (sys.stdout, sys.stdin):
         try:
-            stream.reconfigure(encoding="utf-8", newline=chr(10))
+            use_utf8(stream)
         except (AttributeError, ValueError, OSError):
             pass
 

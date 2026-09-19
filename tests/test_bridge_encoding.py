@@ -120,14 +120,36 @@ class WireEncodingTests(unittest.TestCase):
         self.assertEqual(payload["settings"]["custom_message"], message)
 
     def test_the_window_and_the_panel_agree_on_the_encoding(self):
-        """Both callers redirect these streams; only one of them used to say so."""
-        control = (ROOT / "src" / "codex_auto_resume" / "controlcli.py").read_text(encoding="utf-8")
-        server = (ROOT / "src" / "codex_auto_resume" / "mcpserver.py").read_text(encoding="utf-8")
-        for name, body in (("controlcli", control), ("mcpserver", server)):
+        """Both callers redirect these streams; only one of them used to say so.
+
+        Asked of what each front end's main does rather than of its text: both now say it
+        through one helper, so the words are in one file, and what has to hold is that each
+        main states UTF-8 on its output and its input before it answers anything."""
+        import io
+        from unittest.mock import patch
+        from codex_auto_resume import controlcli, mcpserver
+
+        class Stream(io.StringIO):
+            def __init__(self):
+                super().__init__()
+                self.encodings = []
+
+            def reconfigure(self, **arguments):
+                self.encodings.append(arguments.get("encoding"))
+
+        mains = {"controlcli": lambda: controlcli.main(["--home", "nowhere", "status"]),
+                 "mcpserver": lambda: mcpserver.main(["--home", "nowhere"])}
+        for name, run in mains.items():
             with self.subTest(name):
-                self.assertIn('encoding="utf-8"', body,
-                              "a redirected stream on Windows takes the ANSI code page "
-                              "unless the protocol states otherwise")
+                out, into = Stream(), Stream()
+                with patch.object(sys, "stdout", out), patch.object(sys, "stdin", into), \
+                        patch.object(controlcli, "Control"), patch.object(mcpserver, "Control"), \
+                        patch.object(controlcli, "dispatch", return_value={"ok": True}), \
+                        patch.object(mcpserver, "Server"):
+                    run()
+                self.assertEqual((out.encodings, into.encodings), (["utf-8"], ["utf-8"]),
+                                 "a redirected stream on Windows takes the ANSI code page "
+                                 "unless the protocol states otherwise")
 
     def test_the_settings_window_decodes_what_the_bridge_encodes(self):
         """The other half of the contract, in the caller that reads it."""
