@@ -27,6 +27,16 @@ import srcscan  # noqa: E402
 
 ROOT = srcscan.ROOT
 SPAWNERS = {"Popen", "run", "call", "check_call", "check_output"}
+# Everything in the standard library, or in Win32 through ctypes, that starts a process.
+PROCESS_STARTERS = SPAWNERS | {
+    "system", "popen", "startfile", "spawnl", "spawnle", "spawnlp", "spawnlpe", "spawnv", "spawnve",
+    "spawnvp", "spawnvpe", "execl", "execle", "execlp", "execlpe", "execv", "execve", "execvp", "execvpe",
+    "posix_spawn", "posix_spawnp", "create_subprocess_exec", "create_subprocess_shell",
+    "ShellExecuteW", "ShellExecuteExW", "CreateProcessW"}
+QUEUE_WORD = re.compile(r"\bqueue\b")
+# The message flag as an argument: a token on its own, or after `queue` in a command line.
+# "`codex queue` still offers --thread/--message" is a sentence, and does not match.
+MESSAGE_ARGUMENT = re.compile(r"^\s*--message\s*$|\bqueue\s+(?:\S+\s+)*?--message\b")
 
 
 def calls(predicate):
@@ -42,6 +52,59 @@ def calls(predicate):
 
 def constants(node):
     return {value for _, value in srcscan.string_constants(node)}
+
+
+def docstrings(tree):
+    return {id(node.body[0].value) for node in ast.walk(tree)
+            if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+            and node.body and isinstance(node.body[0], ast.Expr)
+            and isinstance(node.body[0].value, ast.Constant) and isinstance(node.body[0].value.value, str)}
+
+
+def spelled(tree):
+    """(node, text) for every string a tree spells, docstrings aside: a literal; an f-string,
+    with each replacement field as {}; and a chain of pieces joined with +, the same way. A
+    piece of an f-string or of a chain is read as part of it, not again on its own, so an
+    argv spelled as `f"{exe} queue --thread {t} --message {m}"` reads as one command line."""
+    skip, found = docstrings(tree), []
+
+    def piece(node):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        if isinstance(node, ast.JoinedStr):
+            return "".join(piece(value) for value in node.values)
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+            return piece(node.left) + piece(node.right)
+        return "{}"
+
+    def textual(node):
+        if isinstance(node, ast.JoinedStr) or (isinstance(node, ast.Constant) and isinstance(node.value, str)):
+            return True
+        return isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add) and (
+            textual(node.left) or textual(node.right))
+
+    def visit(node):
+        if id(node) in skip:
+            return
+        if textual(node):
+            found.append((node, piece(node)))
+            return
+        for child in ast.iter_child_nodes(node):
+            visit(child)
+
+    visit(tree)
+    return found
+
+
+def scopes(tree):
+    """Qualified name -> the node of that function or class; "" is the module."""
+    names = srcscan.qualnames(tree)
+    return {name: node for node, name in names.items()
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))} | {"": tree}
+
+
+def starts_a_process(node):
+    return isinstance(node, ast.Call) and getattr(node.func, "attr", getattr(node.func, "id", None)) in PROCESS_STARTERS
 
 
 class OneSenderTests(unittest.TestCase):
@@ -70,6 +133,41 @@ class OneSenderTests(unittest.TestCase):
             with self.subTest(where=where, name=name):
                 self.assertTrue("--message" in constants(node) or "--help" in constants(node),
                                 "a process names `queue` without being the send or the help probe")
+
+    def test_every_function_that_starts_a_process_and_names_the_queue_is_known(self):
+        """The spawn above, found by its literal, is only the shape it has today. An argv built
+        in a variable first, or a whole command line in one string, has no `"queue"` inside
+        the call; so every function that starts a process is read whole, and the ones that
+        spell `queue` anywhere - a token, a command line, an f-string - are exactly these."""
+        found = set()
+        for path, tree in srcscan.package_asts().items():
+            names, texts = srcscan.qualnames(tree), spelled(tree)
+            for scope in {names[node] for node in ast.walk(tree) if starts_a_process(node)}:
+                node = scopes(tree)[scope]
+                inside = {id(child) for child in ast.walk(node)} if scope else {
+                    id(child) for child in ast.walk(tree) if names[child] == ""}
+                if any(id(text_node) in inside and QUEUE_WORD.search(text) for text_node, text in texts):
+                    found.add((srcscan.relative(path), scope))
+        self.assertEqual(found, {
+            ("codex_auto_resume/windows.py", "Backend.send"),                  # codex queue --thread --message
+            ("codex_auto_resume/windows.py", "Backend._queue_interface_ok"),   # codex queue --help
+            # An App Server request (`client.call`), not a process: it withdraws a queued message.
+            ("codex_auto_resume/windows.py", "Backend.delete_queue"),
+        })
+
+    def test_the_message_argument_is_spelled_only_where_the_queue_is_run(self):
+        """However the argv reaches the process - built here, in a helper, in a constant -
+        it spells `--message`. The two places that do: the send, and the flags the help probe
+        requires to still exist."""
+        found = set()
+        for path, tree in srcscan.package_asts().items():
+            names = srcscan.qualnames(tree)
+            found |= {(srcscan.relative(path), names[node]) for node, text in spelled(tree)
+                      if MESSAGE_ARGUMENT.search(text)}
+        self.assertEqual(found, {
+            ("codex_auto_resume/windows.py", "Backend.send"),
+            ("codex_auto_resume/windows.py", ""),                               # REQUIRED_QUEUE_FLAGS
+        })
 
     def test_last_is_named_only_to_be_refused(self):
         """Exact conversation identity, never `--last`: the only place the package spells it is
