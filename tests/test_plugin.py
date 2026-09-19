@@ -17,6 +17,12 @@ from unittest.mock import patch
 
 from codex_auto_resume import l10n, messages, shortcut, startup
 
+_HERE = str(Path(__file__).resolve().parent)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)        # srcscan lives next to this file
+
+import srcscan  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / ".codex-plugin" / "plugin.json"
 MARKETPLACE = ROOT / ".agents" / "plugins" / "marketplace.json"
@@ -790,10 +796,12 @@ class VersionConsistencyTests(unittest.TestCase):
 
     def test_no_second_version_literal_is_hiding_in_the_package(self):
         import re
-        for path in sorted((ROOT / "src" / "codex_auto_resume").glob("*.py")):
-            text = path.read_text(encoding="utf-8")
+        # Every tracked module at any depth, the entry script included: a module in a
+        # subpackage would otherwise be the one place a second version could hide.
+        for path in srcscan.package_files():
+            text = srcscan.read(path)
             for match in re.findall(r'__version__\s*=\s*["\']([^"\']+)["\']', text):
-                self.fail("%s hardcodes a version: %s" % (path.name, match))
+                self.fail("%s hardcodes a version: %s" % (srcscan.relative(path), match))
 
     def test_the_changelog_leads_with_this_version(self):
         import re
