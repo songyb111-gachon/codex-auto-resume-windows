@@ -183,7 +183,7 @@ def cmd_pending(args) -> int:
         enabled = {row["thread_id"]: store.thread_enabled(row["thread_id"]) for row in rows}
     views = [dict(_record_view(row), thread_enabled=enabled[row["thread_id"]]) for row in rows]
     if args.json:
-        _print(json.dumps(views, indent=2, ensure_ascii=False))
+        _print(json.dumps(views, indent=2, ensure_ascii=False, allow_nan=False))
         return EXIT_OK
     if not views:
         _print("no pending interruptions")
@@ -410,7 +410,7 @@ def cmd_compat(args) -> int:
     else:
         view = compatio.reader_view(app.paths, settings=app.settings)
     if args.json:
-        _print(json.dumps(view, indent=2, ensure_ascii=False))
+        _print(json.dumps(view, indent=2, ensure_ascii=False, allow_nan=False))
         return EXIT_OK
     _print("compatibility    : %s (%s)" % (view["overall"], "checked now" if view.get("live")
                                              else _view_status(view)))

@@ -610,7 +610,7 @@ class Protocol:
 
     def _write(self, payload):
         with self.write_lock:
-            self.process.stdin.write(json.dumps(payload, ensure_ascii=False) + "\n")
+            self.process.stdin.write(json.dumps(payload, ensure_ascii=False, allow_nan=False) + "\n")
             self.process.stdin.flush()
 
     def _read(self):
