@@ -374,8 +374,9 @@ Python 패키지는 계층으로 짜여 있고, import는 한 방향으로만 �
 절대 향하지 않습니다.
 
 - **도메인** — 부수 효과가 없는 규칙입니다. 실패를 어떻게 분류하는지(`failures.py`), 어떤 이유가 복구
-  가능한지(`reasons.py`), 저장된 상태가 사람에게 무엇으로 보이는지(`machine.py`). 표준 라이브러리만,
-  그중에서도 시계·파일·프로세스에 닿지 않는 부분만 씁니다.
+  가능한지(`reasons.py`), 저장된 상태가 사람에게 무엇으로 보이는지(`machine.py`), 그리고 이것들이
+  옮겨 가고 있는 `domain/` 패키지 - 모든 식별자(`domain/ids.py`)와 닫힌 단어 목록 전부
+  (`domain/vocabulary.py`). 표준 라이브러리만, 그중에서도 시계·파일·프로세스에 닿지 않는 부분만 씁니다.
 - **정책과 번역** — 설정 스키마, continuation 작성기, 카탈로그, 경로와 제품 버전, 로그.
 - **어댑터** — 바깥에 닿는 모든 것입니다. store, Codex의 파일과 프로세스, Windows(레지스트리, 시작
   메뉴 바로 가기, PowerShell, 알림), 호환성 레지스트리.
@@ -424,6 +425,16 @@ Python 패키지는 계층으로 짜여 있고, import는 한 방향으로만 �
 `openstate.open_state`, `settings.is_custom_text`, 그리고 그 테스트가 이름을 대는 나머지입니다. JSON을
 쓰는 곳은 모두 `allow_nan=False`를 넘기고 `default`는 넘기지 않으며, `tests/test_json_writers.py`가
 이를 검사합니다. JSON이 아닌 값은 글로 적어 보낼 것이 아니라, 그 값을 만드는 곳에서 고칠 버그입니다.
+
+식별자를 읽는 것도 그런 규칙 가운데 하나입니다. 대화 ID, 중단 ID, continuation이 지니는 마커,
+클라이언트 ID는 `domain/ids.py`를 통해서만 읽으며, 중단 ID를 계산하는 것도 이 모듈입니다. 두 곳이 서로
+다른 표기를 받아들여야 한다면, 각자 패턴을 따로 두지 않고 파서가 매개변수를 받습니다.
+`tests/test_domain_vectors.py`는 그 ID들과 게이트 벡터, `settings.json`의 정확한 바이트, 그리고 읽는
+곳마다 무엇을 받아들이는지를 고정합니다. 상태, 코드, 이유, 게이트, 분류, 거절, 선택지 같은 닫힌 단어
+목록은 `domain/vocabulary.py`에 목록마다 `StrEnum` 하나로 있습니다. 목록을 쓰던 모듈은 그 목록을 예전
+이름 그대로, enum으로 만들어 둡니다(`machine.STATES = frozenset(RecordState)`). 그래서 단어는 한곳에서만
+더합니다. `tests/test_vocabulary.py`는 모든 목록을 그 멤버에, 모든 멤버를 자기 문자열과 똑같이
+해시되고 비교되고 쓰이는 것에 묶어 둡니다.
 
 ## 커밋과 pull request
 
