@@ -76,10 +76,22 @@ class ProjectRootTests(unittest.TestCase):
                            "other", "other/inner/src", "other/inner")
         self.assertEqual(config._project_root(with_ours), self.root / "other" / "inner")
 
+    def test_a_manifest_above_a_directory_named_src_is_never_taken(self):
+        """A copy of the sources with no manifest of its own, kept somewhere under another
+        plugin's `src/`: that plugin's directory has a `src/` above this file, but not the
+        `src/` this package is in, and its manifest is not ours."""
+        module = layout(self.root, "foreign/src/proj/src/codex_auto_resume/config.py", "foreign")
+        self.assertEqual(config._project_root(module), self.root / "foreign" / "src" / "proj")
+        self.assertEqual(config._project_root(module), module.parents[2], "the old answer")
+
     def test_the_search_is_bounded(self):
-        deep = "src/" + "/".join("level%d" % n for n in range(config.ROOT_SEARCH_LEVELS)) + "/config.py"
-        module = layout(self.root, deep, ".")
-        self.assertEqual(config._project_root(module), module.parents[2])
+        """Two packages deeper than today is found; a third is past the search, and the answer
+        is the old one."""
+        found = layout(self.root / "found", "src/codex_auto_resume/a/b/config.py", ".")
+        self.assertEqual(config._project_root(found), self.root / "found")
+        deep = layout(self.root / "deep", "src/codex_auto_resume/a/b/c/config.py", ".")
+        self.assertEqual(config._project_root(deep), deep.parents[2])
+        self.assertNotEqual(deep.parents[2], self.root / "deep")
 
 
 class VersionTests(unittest.TestCase):
