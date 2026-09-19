@@ -432,7 +432,7 @@ class ContentTests(unittest.TestCase):
     def test_the_images_are_the_size_they_were_recorded_at(self):
         for name, recorded in self.manifest["images"].items():
             raw = (ROOT / name).read_bytes()
-            width, height = struct.unpack(">II", raw[16:24])
+            width, height = struct.unpack("<HH", raw[6:10]) if raw[:6] == b"GIF89a" else struct.unpack(">II", raw[16:24])
             with self.subTest(name):
                 self.assertEqual("%dx%d" % (width, height), recorded["size"])
 
@@ -1189,6 +1189,174 @@ class CardPictureTests(unittest.TestCase):
                                   "SLIDE_MS, HOVER_GRACE_MS, entrance, leaving, ease_out\n\n" + moved),
         })
         self.assertEqual(self.drawing(moved_files), before)
+
+
+class IconMotionPictureTests(unittest.TestCase):
+    """The README's GIF of the notification-area icon's motion (v0.6.5), pinned the way the card's pictures are.
+
+    The user asked for it ("마크다운에 아이콘 GIF 있으면 좋을 거 같아"). It is the icon's own frames at the moments its
+    own timer shows them, drawn by the generator and never by hand, and its manifest entry is keyed by what it
+    pictures and by a digest of the definitions the frames and their schedule are made of - so it goes stale exactly
+    when the motion, its numbers, the mark or its colours change, and not when the icon's menu or the popup does.
+    """
+
+    GIF = "docs/images/icon-motion.gif"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.generator = generator()
+        cls.manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        cls.made = cls.generator.icon_motion_frames()
+
+    def test_the_gif_is_pinned_and_both_readmes_show_it_with_words_for_it(self):
+        self.assertIn("<icon motion>", self.manifest["inputs"])
+        self.assertIn(self.GIF, self.manifest["images"])
+        self.assertEqual(self.manifest["images"][self.GIF]["size"], "%dx%d" % (self.made["width"], self.made["height"]))
+        for name in READMES:
+            if not (ROOT / name).is_file():
+                continue
+            body = (ROOT / name).read_text(encoding="utf-8")
+            with self.subTest(name):
+                found = re.search(r'<img src="%s" alt="([^"]{80,})"' % re.escape(self.GIF), body)
+                self.assertIsNotNone(found, "%s shows the icon's motion, with alt text that says what it shows" % name)
+
+    def test_it_is_small_and_exactly_what_the_generator_writes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "icon-motion.gif"
+            self.generator.render_icon_motion(target)
+            written = target.read_bytes()
+        committed = (ROOT / self.GIF).read_bytes()
+        self.assertEqual(written, committed, "the committed GIF is not the generator's; run build/make_screenshots.py --icon")
+        self.assertLess(len(committed), 300 * 1024)
+        self.assertEqual(committed[:6], b"GIF89a")
+        self.assertIn(b"NETSCAPE2.0\x03\x01\x00\x00", committed, "it loops for ever")
+
+    def test_every_picture_is_the_icon_s_frame_at_that_moment(self):
+        """Watching's last two breaths and its turn, recovering's turns, attention's one pulse and paused, as the
+        icon's rules have them at each picture's moment - never breathing while it turns."""
+        from codex_auto_resume import brand, tray
+        g = self.generator
+        start, end = g.icon_motion_stretch()
+        top = tray.ICON_MOTION["levels"] - 1
+        self.assertEqual((start, end), (2 * brand.GLOW["monitoring_ms"], 5 * brand.GLOW["monitoring_ms"]))
+        frames = self.made["frames"]
+        self.assertEqual(sum(delay for delay, _, _ in frames), (end - start) // 10)
+        self.assertTrue(all(delay > 0 for delay, _, _ in frames))
+        self.assertEqual(len(self.made["moments"]), len(frames))
+        seen = {state: set() for state, _ in g.ICON_MOTION_LIGHTS}
+        for (delay, _, shown), moment in zip(frames, self.made["moments"]):
+            for state, frame in shown.items():
+                seen[state].add(tuple(frame))
+                with self.subTest(state=state, moment=moment):
+                    if frame[0] != 0:
+                        self.assertEqual(frame[1], top, "a head that has left its place is at full brightness")
+                    if state in ("recovering", "idle"):
+                        self.assertEqual(frame[1], top, "recovering never breathes, and paused is still")
+                    if state == "watching" and moment < 2 * brand.GLOW["monitoring_ms"] - 100:
+                        self.assertEqual(frame[0], 0, "no turn while it breathes")
+                    if state == "attention" and moment >= brand.GLOW["attention_ms"] + 100:
+                        self.assertEqual(tuple(frame), (0, top), "one pulse, then it holds")
+        positions = set(range(tray.ICON_MOTION["positions"]))
+        self.assertEqual({position for position, _ in seen["watching"]}, positions, "watching turns once round")
+        self.assertIn((0, 0), seen["watching"], "and breathes to its low")
+        self.assertGreaterEqual(len({position for position, _ in seen["recovering"]}), len(positions) - 2)
+        # A problem's one pulse dims most of the way down: its frames need not land on the lowest level itself.
+        self.assertLessEqual(min(level for _, level in seen["attention"]), top // 8)
+        self.assertEqual({position for position, _ in seen["attention"]}, {0})
+        self.assertEqual(seen["idle"], {(0, top)})
+
+    def test_it_loops_without_a_jump(self):
+        """The GIF starts again where its stretch ends: the same frame of every state, as watching's loop and a whole
+        number of recovering's turns have it."""
+        from codex_auto_resume import tray
+        g = self.generator
+        start, end = g.icon_motion_stretch()
+        first = self.made["frames"][0][2]
+        for state, _ in g.ICON_MOTION_LIGHTS:
+            if state == "attention":
+                continue                        # its pulse is what arriving looks like
+            with self.subTest(state=state):
+                moment = end if state == "watching" else end - start
+                self.assertEqual(tuple(first[state]), tray.icon_frame(state, moment, None))
+
+    def drawing(self, files):
+        with tempfile.TemporaryDirectory() as root:
+            for name, text in files.items():
+                path = Path(root) / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(text, encoding="utf-8")
+            return self.generator.icon_drawing(root)
+
+    def real(self):
+        package = ROOT / "src" / "codex_auto_resume"
+        return {name: (package / name).read_text(encoding="utf-8")
+                for name in ("tray.py", "tray_popup.py", "brand.py", "notice_card.py")}
+
+    def test_the_entry_moves_when_the_motion_or_the_mark_changes_and_not_otherwise(self):
+        from codex_auto_resume import tray
+        real = self.real()
+        before = self.drawing(real)
+        self.assertEqual(before, self.generator.icon_drawing(), "the four modules hold everything the digest reads")
+        turn_ms = '"turn_frame_ms": %d,' % tray.ICON_MOTION["turn_frame_ms"]
+        glow = re.search(r'"monitoring_ms": (\d+)', real["brand.py"])
+        moves = {
+            "the way it turns": ("tray.py", 'ICON_SHAPE["arc_end"] - 360.0 * position', 'ICON_SHAPE["arc_end"] + 360.0 * position'),
+            "the breaths before a turn": ("tray.py", '"breaths": 4,', '"breaths": 3,'),
+            "the frame rate while it turns": ("tray.py", turn_ms, turn_ms.replace(",", "1,")),
+            "the breath's depth": ("tray.py", '"dim": 0.6,', '"dim": 0.5,'),
+            "the breath's rhythm": ("brand.py", glow.group(0), '"monitoring_ms": %d' % (int(glow.group(1)) + 100)),
+            "the mark's accent": ("brand.py", 'ICON_ACCENT = "#4FE0F5"', 'ICON_ACCENT = "#4FE0F6"'),
+            "the badge": ("tray_popup.py", "cut = max(2.5, width * 0.25)", "cut = max(2.5, width * 0.3)"),
+        }
+        for what, (name, old, new) in moves.items():
+            changed = dict(real)
+            self.assertIn(old, changed[name], what)
+            changed[name] = changed[name].replace(old, new, 1)
+            with self.subTest(what):
+                self.assertNotEqual(self.drawing(changed), before, what + " did not move the entry")
+        stays = {
+            "the icon's menu": ("tray.py", "MENU_OPEN, MENU_TOGGLE, MENU_STOP, MENU_PENDING = 1, 2, 3, 4",
+                                "MENU_OPEN, MENU_TOGGLE, MENU_STOP, MENU_PENDING = 1, 2, 3, 5"),
+            "the popup's renderer": ("tray_popup.py", "class Renderer:", "class Renderer:\n    painted = True\n"),
+            "the notification card": ("notice_card.py", "DARK_ENOUGH = 0.05", "DARK_ENOUGH = 0.06"),
+            "a comment on the motion": ("tray.py", "# The badge's own deep blue", "# The badge's deep blue"),
+        }
+        for what, (name, old, new) in stays.items():
+            changed = dict(real)
+            self.assertIn(old, changed[name], what)
+            changed[name] = changed[name].replace(old, new, 1)
+            with self.subTest(what):
+                self.assertEqual(self.drawing(changed), before, what + " moved the entry")
+
+    def test_moving_the_motion_into_a_module_of_its_own_leaves_the_entry(self):
+        """v0.6.6 splits the package; the motion leaving tray.py for its own module, with the imports that follow it,
+        is the same GIF."""
+        real = self.real()
+        before = self.drawing(real)
+        names = ("ICON_MOTION", "_breath_level", "icon_turn", "_pulsing", "icon_frame", "icon_frame_ms", "IconFrames")
+        rest, moved = PopupDrawingTests.cut(real["tray.py"], *names)
+        moved_files = dict(real, **{
+            "tray.py": rest + "\nfrom .ui.tray.motion import %s\n" % ", ".join(names),
+            "ui/__init__.py": "",
+            "ui/tray/__init__.py": '"""The notification-area icon."""\n',
+            "ui/tray/motion.py": ("from __future__ import annotations\nimport math\n"
+                                  "from ... import brand\nfrom ...tray import icon_brand_state\n\n"
+                                  + moved.replace("from . import tray_popup", "from ... import tray_popup")),
+        })
+        self.assertEqual(self.drawing(moved_files), before)
+
+    def test_the_entry_moves_when_what_is_pictured_moves(self):
+        g = self.generator
+        drawing = g.icon_drawing()
+        before = g.icon_render_input(drawing)
+        for what, change in {
+                "the size": lambda: patch.object(g, "ICON_MOTION_SIZE", 32),
+                "a ground": lambda: patch.object(g, "ICON_MOTION_GROUNDS", (("light", "#F3F3F3"), ("dark", "#1F1F1F"))),
+                "the states": lambda: patch.object(g, "ICON_MOTION_LIGHTS", g.ICON_MOTION_LIGHTS[:3])}.items():
+            with self.subTest(what), change():
+                self.assertNotEqual(g.icon_render_input(drawing), before, what + " did not move the entry")
+        self.assertEqual(g.icon_render_input(drawing), before)
+
 
 if __name__ == "__main__":
     unittest.main()
