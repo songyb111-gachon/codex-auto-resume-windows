@@ -1379,9 +1379,6 @@ class Store:
                     self._event(connection, now, "cancel", record=row, from_state=row["state"],
                                 to_state="cancelled", reason="user_cancelled", actor=actor)
 
-    # v0.5 name: the thread-wide cancel.
-    cancel = cancel_thread
-
     def restore_budget(self, interruption_id: str, now: float, **options) -> bool:
         return self.restore_budget_detailed(interruption_id, now, **options)[0]
 
