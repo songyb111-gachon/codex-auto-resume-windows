@@ -38,7 +38,9 @@ Codex Auto Resume는 사용자의 PC에서 실행됩니다. 서버도, 계정도
   매번 쿼리 문자열이 없는 고정된 주소 하나로 보내는 HTTPS `GET` 한 번이며, 그 주소는 이 저장소 main
   브랜치의 데이터 파일
   `raw.githubusercontent.com/songyb111-gachon/codex-auto-resume-windows/main/src/codex_auto_resume/data/codex_compat.json`입니다.
-  리디렉션이 raw.githubusercontent.com이 아닌 곳에서 끝나면 내려받은 것을 거부합니다.
+  리디렉션이 raw.githubusercontent.com이 아닌 곳에서 끝나면 내려받은 것을 거부합니다. 릴리스 다운로드와
+  마찬가지로 이 확인은 다운로드 뒤에 이루어지므로, 리디렉션이 있었다면 파일이 거부되기 전에 그것이 가리킨
+  호스트에도 요청이 전달됩니다.
 
   요청에는 사용자나 이 PC에 관한 것이 아무것도 실리지 않습니다. 설치 식별자도, 사용자의 버전도, 기계
   이름도, 계정도 없고, 사용자가 쓰는 Codex 버전도 없습니다. 그래서 파일 전체를 받아 이 PC에서

@@ -41,7 +41,9 @@ footnote. There are four kinds, and they are genuinely different:
   one HTTPS `GET` to one constant address, with no query string: this repository's own data file on
   its main branch,
   `raw.githubusercontent.com/songyb111-gachon/codex-auto-resume-windows/main/src/codex_auto_resume/data/codex_compat.json`.
-  If a redirect ends anywhere but raw.githubusercontent.com, the download is refused.
+  If a redirect ends anywhere but raw.githubusercontent.com, the download is refused; as for the
+  release download, that check comes after the download, so a redirect would still send the
+  request to the host it pointed at before the file is refused.
 
   Nothing about you or this machine is in the request: no installation id, no version of yours,
   no machine name, no account - and not the Codex version you have, which is why the whole file is
