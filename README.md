@@ -196,10 +196,12 @@ photograph of the Codex window around it:
 The Start Menu opens the Dashboard, a standalone window that works with Codex closed: what the
 watcher is doing, what is waiting and when it is next looked at, what finished and how, the
 last week's numbers, the watcher's health, and the settings. The light in its header shows what
-the watcher is doing. While it is running and recovery is on, the light is cyan with a soft
-glow: it breathes slowly while the watcher watches, holds still while it waits, turns a small arc
-while it checks a task that has come due, and breathes a little faster while it recovers. Paused
-or stopped, it is plain grey; amber with one soft pulse means it needs you. The word beside it
+the watcher is doing. While it is running and recovery is on, the light is cyan and blinks the
+way the notification-area icon does: while the watcher watches, the dot slowly dims and comes back,
+and once it is lit a small glow spreads from it and draws back in; it holds lit while the watcher
+waits, turns a small arc while it checks a task that has come due, and blinks a little faster
+while it recovers. Paused or stopped, it is plain grey; amber, blinking once and then lit, means it
+needs you. The word beside it
 always says which. **Theme**, under Settings > Appearance, draws the window and the popup light or
 dark; its default, *Use system setting*, follows the app mode Windows is set to. When the
 interface language or the theme changes - saved in the window, changed in Codex, or Windows

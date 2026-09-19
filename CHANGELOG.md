@@ -14,15 +14,17 @@ by default and changes where a notification appears, never whether there is one 
 
 ### The status light
 
-- v0.6.4's light was too quiet to be seen. While the watcher is watching, its glow now rises from
-  almost nothing to plainly lit and back every 3.2 s - opacity 0.12 to 0.58 - and grows from 82% to
-  108% of its reach as it brightens, so at its brightest it reads as a soft ring around the dot.
-  While a recovery is being sent it breathes faster: 0.20 to 0.70 every 2 s.
-- Waiting and checking hold at 0.30, and a problem pulses once, to 0.72 over 1.4 s, then holds. The
-  colours, the words beside the light and its size are unchanged, and it is the same light in the
-  Dashboard, the popup and the panel.
-- Reduce motion and Windows' animation setting still hold it still, and High Contrast still draws a
-  solid dot with no glow.
+- v0.6.4's light was too quiet to be seen. It now blinks the way the notification-area icon's head
+  does: while the watcher is watching, every 3.2 s the dot itself dims to 60% of the way toward the
+  card it sits on and comes back, with nothing spreading, and only once it is fully lit does a small
+  glow spread from its edge - opacity 0.34, 3 px past the dot at most - and draw back in. A first cut
+  breathed a glow reaching 7 px round a dot that never changed; this one was chosen after it, from
+  previews at 2, 3 and 4 px. While a recovery is being sent the same cycle runs every 2 s.
+- Waiting and checking hold lit with no glow, and a problem runs the cycle once, over 1.4 s, then
+  holds lit. The colours, the words beside the light and its size are unchanged, and it is the same
+  light in the Dashboard, the popup and the panel; the notification card shows it lit and still.
+- Reduce motion and Windows' animation setting hold it lit and still with no glow, and High Contrast
+  still draws a solid dot with no glow.
 
 ### The notification-area icon moves
 
