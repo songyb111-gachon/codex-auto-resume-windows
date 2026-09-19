@@ -7,6 +7,10 @@
   ],
   "version": "0.6.5",
   "theme": "light",
+  "card_themes": [
+    "light",
+    "dark"
+  ],
   "locales": [
     "en",
     "ko"
@@ -42,7 +46,12 @@
     "<popup render:zh-CN>": "9b40910222df401a23323bc9c54492699caa88080383945dff142fa7839643ae",
     "<bridge envelope:de>": "9e3862d0d3425a54cf89d40a49daa56c7a0f6cb73f735c87ff3e4baae8900b8a",
     "<panel render:de>": "f175f2969e41924d92a0f30babc2e4ece6c09158d2bdb6df38f57ac54d8bc177",
-    "<popup render:de>": "b5a2b5564b795f7584656c1c779cac31ecd3cb6c3ba5d9ba5b01875bd35b1b00"
+    "<popup render:de>": "b5a2b5564b795f7584656c1c779cac31ecd3cb6c3ba5d9ba5b01875bd35b1b00",
+    "<card render:en>": "8dfa3876b46ddc3aa54fb5b9654606bb45cd189573eb1630df99c98f2f94afdc",
+    "<card render:ko>": "0a150f9a372c5efdd8181e88deacf0d6976271d9f9281d82ecb2830b794e1303",
+    "<card render:ja>": "bdde6234664da9697ef0fc06e4f0b95e189aebcc25a58e6be8fb54dc70c2d607",
+    "<card render:zh-CN>": "4542069886c9cadbfab83743210ed99386fc786d1c681fb822793197fce880b1",
+    "<card render:de>": "2bb540d3c8f97c1fc663a930995ca5527757f072f594ae4befad969200cc0be5"
   },
   "images": {
     "assets/screenshot-panel.png": {
@@ -224,6 +233,50 @@
     "docs/images/settings-window-de.png": {
       "sha256": "8fdc119f8f0f8e86221d1c239ee9d8b7b293fcc17865a7af46becb8202b31d3b",
       "size": "1522x1052"
+    },
+    "assets/screenshot-notification.png": {
+      "sha256": "84f1ce251e3f33bf3acf74dc3cc097c898db4c0a1eb0273628462670e4491709",
+      "size": "808x568"
+    },
+    "assets/screenshot-notification-dark.png": {
+      "sha256": "74ce3705a3afca7b587e6266d22b7e031087d22b7f7af8ff85ddddd1a06981ad",
+      "size": "808x568"
+    },
+    "assets/screenshot-notification-ko.png": {
+      "sha256": "dd79c2f7940bfa66b35f4b504c7996f11a98b3fa019f67b432d86e96f3d9f3be",
+      "size": "808x552"
+    },
+    "assets/screenshot-notification-dark-ko.png": {
+      "sha256": "f29959d4dbca3573d40eee6cddea20e9e73d84ebd9e58d7f49c0057f9bbe736a",
+      "size": "808x552"
+    },
+    "docs/images/notification-card.png": {
+      "sha256": "84f1ce251e3f33bf3acf74dc3cc097c898db4c0a1eb0273628462670e4491709",
+      "size": "808x568"
+    },
+    "docs/images/notification-card-dark.png": {
+      "sha256": "74ce3705a3afca7b587e6266d22b7e031087d22b7f7af8ff85ddddd1a06981ad",
+      "size": "808x568"
+    },
+    "docs/images/notification-card-ko.png": {
+      "sha256": "dd79c2f7940bfa66b35f4b504c7996f11a98b3fa019f67b432d86e96f3d9f3be",
+      "size": "808x552"
+    },
+    "docs/images/notification-card-dark-ko.png": {
+      "sha256": "f29959d4dbca3573d40eee6cddea20e9e73d84ebd9e58d7f49c0057f9bbe736a",
+      "size": "808x552"
+    },
+    "docs/images/notification-card-ja.png": {
+      "sha256": "cc31d2485a9f123d39e50a3e4c5b3c188841efc19cdf20ced0b9d1819a55d14a",
+      "size": "808x552"
+    },
+    "docs/images/notification-card-zh-CN.png": {
+      "sha256": "985ecb1dfef3690eae4a692469c3b98bf0aa2adf4435d65c0b398b39800342db",
+      "size": "808x547"
+    },
+    "docs/images/notification-card-de.png": {
+      "sha256": "e0227c1dddeb28bfd8579b5ccde3e08beaeebee086e77c11873a781912f2b11b",
+      "size": "808x568"
     }
   }
 }

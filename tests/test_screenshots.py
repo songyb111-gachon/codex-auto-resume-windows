@@ -29,6 +29,9 @@ Three kinds of input, and the difference matters:
   by name across its modules and the palette's - and across the definitions they import by
   name from anywhere else, wherever those live - so moving one between modules cannot fire
   it and changing one does.
+* The **notification card** is hashed the same way: by what it says, built by the watcher's
+  own builder, and by the definitions that draw it - its own modules, wherever v0.6.6 moves
+  them, pooled with the popup's renderer and palette, which paint it.
 
 So this fires whenever something the picture is drawn from changed - not, as an earlier
 version of this paragraph claimed, exactly when the picture stopped being true.
@@ -76,8 +79,21 @@ COPIES = {
         "assets/screenshot-settings-ko.png": "docs/images/settings-window-ko.png",
     },
 }
-ALL_COPIES = {canonical: copy
-              for pairs in COPIES.values() for canonical, copy in pairs.items()}
+# The notification card (v0.6.5), light and dark, drawn off-screen by the card's own code. Kept
+# apart from COPIES, whose window pictures the pixel checks below read for the window's cards
+# and its state dot.
+CARD_COPIES = {
+    "en": {
+        "assets/screenshot-notification.png": "docs/images/notification-card.png",
+        "assets/screenshot-notification-dark.png": "docs/images/notification-card-dark.png",
+    },
+    "ko": {
+        "assets/screenshot-notification-ko.png": "docs/images/notification-card-ko.png",
+        "assets/screenshot-notification-dark-ko.png": "docs/images/notification-card-dark-ko.png",
+    },
+}
+ALL_COPIES = {canonical: copy for mapping in (COPIES, CARD_COPIES)
+              for pairs in mapping.values() for canonical, copy in pairs.items()}
 
 # What the plugin card ships: the panel Codex shows and the settings window. The card
 # describes the version an install fetches, and that version has no Dashboard, so the
@@ -302,13 +318,13 @@ class CopyTests(unittest.TestCase):
             if not (ROOT / name).is_file():
                 continue
             body = (ROOT / name).read_text(encoding="utf-8")
-            for copy in COPIES[locale].values():
+            for copy in list(COPIES[locale].values()) + list(CARD_COPIES[locale].values()):
                 with self.subTest(name + " -> " + copy):
                     self.assertIn(copy, body, "%s does not show %s" % (name, copy))
-            for other, pairs in COPIES.items():
+            for other in COPIES:
                 if other == locale:
                     continue
-                for wrong in pairs.values():
+                for wrong in list(COPIES[other].values()) + list(CARD_COPIES[other].values()):
                     with self.subTest(name + " must not show " + wrong):
                         self.assertNotIn(wrong, body,
                                          "%s shows the %s screenshots" % (name, other))
@@ -1005,6 +1021,174 @@ class PopupDrawingTests(unittest.TestCase):
         self.assertNotIn("=[]", spelled)
         self.assertNotIn("=None", spelled)
         self.assertNotIn("lineno", spelled)
+
+
+class CardPictureTests(unittest.TestCase):
+    """The notification card's pictures, pinned the way the popup's are.
+
+    Until v0.6.5 the README's notification was a capture of a Windows toast taken before Open
+    Dashboard existed, and nothing pinned it, so nothing noticed that it no longer showed what
+    the product does. The card's pictures are keyed by what the card says - built by the
+    watcher's own builder from the catalogs - and by a digest of the definitions that draw it,
+    pooled by name across its modules, the package they move into and the popup's renderer and
+    palette it is painted with.
+    """
+
+    SYNTHETIC = re.compile(r"^(?:0a1b2c3d-|([0-9a-f])\1{7}-|deadbeef-|12345678-)", re.I)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.generator = generator()
+        cls.manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+
+    def locales(self):
+        return self.generator.LOCALES + self.generator.EXTRA_LOCALES
+
+    def test_every_card_picture_is_pinned_under_its_locales_entry(self):
+        expected = set()
+        for locale in self.locales():
+            with self.subTest(locale=locale):
+                self.assertIn("<card render:%s>" % locale, self.manifest["inputs"])
+            for asset, copy in self.generator.card_paths(locale).values():
+                expected.update(path.relative_to(ROOT).as_posix() for path in (asset, copy) if path)
+        for name in sorted(expected):
+            with self.subTest(name):
+                self.assertIn(name, self.manifest["images"], "a card picture the manifest does not pin")
+        # Both themes in both README languages, each an asset with its documentation copy.
+        for locale, pairs in CARD_COPIES.items():
+            made = {asset.relative_to(ROOT).as_posix(): copy.relative_to(ROOT).as_posix()
+                    for asset, copy in self.generator.card_paths(locale).values()}
+            self.assertEqual(made, pairs)
+        # No picture of a notification is left outside the manifest, as notification.png was.
+        pictured = {path.relative_to(ROOT).as_posix() for folder in ("assets", "docs/images")
+                    for path in (ROOT / folder).glob("*notification*.png")}
+        self.assertEqual(pictured, expected)
+
+    def test_the_card_says_what_the_watcher_would_say(self):
+        """The watcher's builder, the catalogs' words, the sample's conversation - never a real one."""
+        import time
+        from codex_auto_resume import l10n, notice_card, reasons
+        g = self.generator
+        at = time.strftime("%H:%M", time.gmtime(g.CARD_RESET_AT))
+        for locale in self.locales():
+            words = l10n.catalog(locale)
+            view = g.card_view(locale)
+            with self.subTest(locale=locale):
+                self.assertEqual(view["locale"], locale)
+                self.assertEqual(view["title"], g.WINDOW_NAMES[0])
+                self.assertEqual(view["line"], words["msg.toast_usage_at"].replace("{time}", at))
+                self.assertEqual(view["chip"], l10n.text(reasons.label_key("usage_limit"), locale))
+                self.assertEqual(view["origin"], words["msg.toast_thread"].replace("{uuid}", g.WINDOW_THREADS[0]))
+                self.assertEqual([(action["label"], action["primary"]) for action in view["actions"]],
+                                 [(words["msg.toast_button_cancel"], False), (words["msg.toast_button_open"], True)])
+                drawn = " ".join(notice_card.texts(view))
+                self.assertNotIn(g.CARD_INTERRUPTION, drawn, "the capability id stays in the button's URI")
+                for value in re.findall(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}"
+                                        r"-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b", drawn):
+                    self.assertRegex(value, self.SYNTHETIC, "a published picture must not show a real conversation")
+        # The same conversation, resetting at the same moment, as the popup's usage-limit row.
+        row = next(row for row in g.popup_rows() if row["category"] == "usage_limit")
+        self.assertEqual((row["thread_id"], row["name"], row["reset_at"]),
+                         (g.WINDOW_THREADS[0], g.WINDOW_NAMES[0], g.CARD_RESET_AT))
+
+    def test_the_card_entry_is_the_same_on_any_machine(self):
+        """The toast writes the reset in local time and speaks the stored language; neither the
+        machine's clock, its language nor a language already chosen in the process moves it."""
+        import time
+        from codex_auto_resume import l10n, notify
+        before = self.generator.card_render_input("en")
+        preference, local_time = l10n.preference(), notify._local_time
+        elsewhere = lambda seconds=None: time.gmtime((time.time() if seconds is None else seconds) + 9 * 3600)
+        with patch.dict(os.environ, {l10n.ENV_LANG: "ja"}), patch.object(time, "localtime", elsewhere):
+            l10n.set_preference("de")
+            try:
+                self.assertEqual(self.generator.card_render_input("en"), before)
+            finally:
+                l10n.set_preference(preference)
+        self.assertIs(notify._local_time, local_time, "the pinned clock is put back")
+        self.assertEqual(l10n.preference(), preference, "and the language")
+
+    def test_the_card_entry_moves_when_what_it_says_moves(self):
+        from codex_auto_resume import l10n
+        g = self.generator
+        drawing = g.card_drawing()
+        before = g.card_render_input("en", drawing)
+        l10n.catalog("en")
+        changes = {
+            "a catalog word": lambda: patch.dict(l10n._CACHE["en"], {"msg.toast_button_open": "Open the Dashboard"}),
+            "the reset time": lambda: patch.object(g, "CARD_RESET_AT", g.CARD_RESET_AT + 60),
+            "the conversation's name": lambda: patch.object(g, "WINDOW_NAMES", ("example-other",) + g.WINDOW_NAMES[1:]),
+            "a theme pictured": lambda: patch.object(g, "CARD_THEMES", ("light",)),
+        }
+        for what, change in changes.items():
+            with self.subTest(what), change():
+                self.assertNotEqual(g.card_render_input("en", drawing), before, what + " did not move the entry")
+        self.assertEqual(g.card_render_input("en", drawing), before)
+
+    def drawing(self, files):
+        with tempfile.TemporaryDirectory() as root:
+            for name, text in files.items():
+                path = Path(root) / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(text, encoding="utf-8")
+            return self.generator.card_drawing(root)
+
+    def real(self):
+        package = ROOT / "src" / "codex_auto_resume"
+        return {name: (package / name).read_text(encoding="utf-8")
+                for name in ("notice_card.py", "notice_window.py", "tray_popup.py", "brand.py", "tray.py")}
+
+    def test_the_patterns_cover_the_card_the_package_it_moves_into_and_the_popup_it_is_painted_by(self):
+        with tempfile.TemporaryDirectory() as root:
+            for name in ("notice_card.py", "notice_window.py", "notice_presence.py", "notifier.py",
+                         "ui/card/view.py", "ui/card/win/layer.py", "ui/popup/layout.py", "ui/brand/tokens.py",
+                         "tray_popup.py", "brand.py", "tray.py", "ui/tray/icon.py"):
+                (Path(root) / name).parent.mkdir(parents=True, exist_ok=True)
+                (Path(root) / name).write_text("X = 1\n", encoding="utf-8")
+            covered = [path.relative_to(root).as_posix() for path in self.generator.card_code_files(root)]
+        self.assertEqual(covered, ["brand.py", "notice_card.py", "notice_window.py", "tray_popup.py",
+                                   "ui/brand/tokens.py", "ui/card/view.py", "ui/card/win/layer.py",
+                                   "ui/popup/layout.py"])
+        today = [path.relative_to(ROOT / "src" / "codex_auto_resume").as_posix()
+                 for path in self.generator.card_code_files()]
+        for name in ("notice_card.py", "notice_window.py", "tray_popup.py", "brand.py"):
+            self.assertIn(name, today)
+
+    def test_a_change_to_what_draws_the_card_moves_the_digest(self):
+        real = self.real()
+        before = self.drawing(real)
+        self.assertEqual(before, self.generator.card_drawing(),
+                         "the five modules are everything the card's digest reads today")
+        for what, (name, old, new) in {
+                "the card's layout": ("notice_card.py", "button_h = px(32)", "button_h = px(34)"),
+                "the card's own light": ("notice_window.py", "brand.glow(self.vm[\"status\"], 0.0,",
+                                         "brand.glow(self.vm[\"status\"], 0.5,"),
+                "its floating shadow": ("notice_card.py", "DARK_ENOUGH = 0.05", "DARK_ENOUGH = 0.06"),
+                "the popup's renderer it is painted by": ("tray_popup.py", "class Renderer:",
+                                                          "class Renderer:\n    painted = True\n"),
+                "a colour token": ("brand.py", '"canvas":  "#E9EEF4"', '"canvas":  "#E9EEF5"')}.items():
+            changed = dict(real)
+            self.assertIn(old, changed[name], what)
+            changed[name] = changed[name].replace(old, new, 1)
+            with self.subTest(what):
+                self.assertNotEqual(self.drawing(changed), before, what + " did not move the digest")
+
+    def test_moving_the_card_into_ui_card_leaves_the_digest(self):
+        """v0.6.6 moves the card into `ui/card/`: its layout and its motion leave `notice_card.py`
+        for their own modules, with the imports that follow them, and comments change on the way."""
+        real = self.real()
+        before = self.drawing(real)
+        rest, moved = PopupDrawingTests.cut(real["notice_card.py"], "layout", "CardMotion")
+        moved_files = dict(real, **{
+            "notice_card.py": rest.replace("# ----", "# moved: ----") + "\nfrom .ui.card.layout import layout, CardMotion\n",
+            "ui/__init__.py": "",
+            "ui/card/__init__.py": '"""The notification card."""\n',
+            "ui/card/layout.py": ("from __future__ import annotations\n"
+                                  "from ... import brand, tray_popup\n"
+                                  "from ...notice_card import SETTLED, HOLD_MS, EXIT_MS, ENTRANCE_MS, SWAP_MS, "
+                                  "SLIDE_MS, HOVER_GRACE_MS, entrance, leaving, ease_out\n\n" + moved),
+        })
+        self.assertEqual(self.drawing(moved_files), before)
 
 if __name__ == "__main__":
     unittest.main()
