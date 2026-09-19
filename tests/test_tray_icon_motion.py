@@ -704,8 +704,8 @@ class PlacementTests(unittest.TestCase):
 
     `Shell_NotifyIconGetRect` cannot answer it: on Windows 11 (build 26200) an icon in the overflow flyout is given
     the overflow button's rectangle, so the icon animated where nobody saw it and explorer.exe paid for every frame.
-    Windows writes what it did with each icon under its own per-user key (`tray_place.NOTIFY_ICON_SETTINGS`), one key per
-    icon, and `IsPromoted` is 1 for an icon it shows on the taskbar. Only a fake registry is read here, never this
+    Windows writes what it did with each icon under its own per-user key (`tray_place.NOTIFY_ICON_SETTINGS`), one
+    key per icon, and `IsPromoted` is 1 for an icon it shows on the taskbar. Only a fake registry is read here, never this
     machine's.
     """
 
@@ -723,7 +723,7 @@ class PlacementTests(unittest.TestCase):
     def placement(self, keys, executable=None, fail=None, folders=None):
         reader = FakeRegistry(keys, fail=fail)
         return place.IconPlacement(executable or self.EXE, reader=reader,
-                                  folders=folders or (lambda guid: None)), reader
+                                   folders=folders or (lambda guid: None)), reader
 
     def test_an_icon_windows_shows_on_the_taskbar_is_not_in_the_overflow_area(self):
         placement, _ = self.placement({self.SETTINGS + r"\17": self.entry(1)})
