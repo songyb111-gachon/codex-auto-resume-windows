@@ -13,7 +13,7 @@ while the window is open ("윈도우 아래 앱 켜있을때 아이콘도 트레
     window can see, through the window's own Activity, and through the window itself (its light tells the mark);
   * the rhythms are the tray's (Brand.Mark.Frame and FrameMs against tray.icon_frame and icon_frame_ms), and the
     frames are the tray's own pixels: MarkFrames composes, from what build/make_brand.py generated, exactly what
-    tray.IconFrames composes, at every size the big icon has from 100% to 200%;
+    tray.IconFrames composes, at each of the .ico's entries the big icon is from 100% to 300% (32, 40, 48 and 64 px);
   * the big icon changes over time while watching, turning and pulsing, and not at all under Reduce motion, Windows'
     animation effects, High Contrast or battery saver, nor with the window hidden - and moves again when the reason
     goes; with nothing to move there is no timer;
@@ -60,6 +60,9 @@ MOMENTS = (0, 150, 800, 1600, 1799, 2400, 3200, 5000, 9999, 27599, 27600, 28000,
            57700, 59000)
 SINCE = (-1, 0, 300, 700, 1399, 1400, 5000)
 PROBE_SIZES = (16, 24, 32, 40, 48, 56, 64, 72)
+# Windows' display scales, and the big icon's size at each: SM_CXICON, 32 px at 100%.
+SCALES = (100, 125, 150, 175, 200, 225, 250, 300, 350, 400, 450, 500)
+BIG_SIZES = tuple(32 * scale // 100 for scale in SCALES)
 COLOURS = (brand.rgb(brand.ICON_ACCENT), tray.icon_head_colour("idle"), tray.icon_head_colour("attention"),
            tray.icon_head_colour("failed"), (0, 0, 0), (201, 7, 99))
 NOW = 1_800_000_000.0
@@ -273,6 +276,14 @@ foreach ($size in (ConvertFrom-Json $env:CAR_SIZES)) {
     $digest = New-Object Digest
     for ($p = 0; $p -lt $positions; $p++) { foreach ($c in $colours) { $digest.Add([byte[]]$compose.Invoke($table, [object[]]@([int]$p, $c))) } }
     $out.sizes[[string]$size] = $digest.Hex()
+}
+# The .ico entry the window's big icon is at each size Windows asks for. The window makes it with new Icon(path), which
+# is Icon(path, SM_CXICON, SM_CXICON): System.Drawing takes the file's own entry nearest that size and scales none.
+$out.picked = @()
+foreach ($n in (ConvertFrom-Json $env:CAR_BIG_SIZES)) {
+    $icon = New-Object Drawing.Icon -ArgumentList @([string]$env:CAR_ICO, [int]$n, [int]$n)
+    $out.picked += ,@([int]$n, [int]$icon.Width, [int]$icon.Height)
+    $icon.Dispose()
 }
 
 # ------------------------------------------------------------------ the mark on a window of the probe's own
@@ -549,7 +560,7 @@ class TaskbarMarkTests(unittest.TestCase):
             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=900,
             env=dict(os.environ, CAR_EXE=str(exe), CAR_WORK=str(work), CAR_ICO=str(ICO), CAR_NOW=repr(NOW),
                      CAR_LIGHTS=json.dumps(LIGHTS), CAR_STATES=json.dumps(STATES), CAR_MOMENTS=json.dumps(MOMENTS),
-                     CAR_SINCE=json.dumps(SINCE), CAR_SIZES=json.dumps(PROBE_SIZES),
+                     CAR_SINCE=json.dumps(SINCE), CAR_SIZES=json.dumps(PROBE_SIZES), CAR_BIG_SIZES=json.dumps(BIG_SIZES),
                      CAR_COLOURS=json.dumps([list(colour) for colour in COLOURS]), CAR_CASES=json.dumps(cases),
                      CAR_SNAPSHOTS=json.dumps(list(cls.snapshots))))
         answer = work / "result.json"
@@ -650,13 +661,32 @@ class TaskbarMarkTests(unittest.TestCase):
     # ---------------------------------------------------------------- the pixels: the tray's own
     def test_the_frames_are_the_tray_icon_s_own_pixels_at_every_big_icon_size(self):
         sizes = self.answer["sizes"]
-        self.assertEqual(make_brand.MARK_SIZES, (32, 40, 48, 56, 64))
+        self.assertEqual(make_brand.MARK_SIZES, (32, 40, 48, 64))
         for size in PROBE_SIZES:
             with self.subTest(size=size):
                 if size in make_brand.MARK_SIZES:
                     self.assertEqual(sizes[str(size)], tray_frames_digest(size))
                 else:
-                    self.assertEqual(sizes[str(size)], "", "no frames at a size the big icon never has here")
+                    self.assertEqual(sizes[str(size)], "", "no frames at a size the big icon is never")
+
+    def test_there_are_frames_for_each_ico_entry_the_big_icon_is_up_to_300_percent_and_for_no_other_size(self):
+        """The big icon is one of the .ico's own entries, never scaled: 175% (56 px) is its 48 px entry, and 225% to 300%
+        its 64 px one. Frames at 56 px were never shown - about a quarter of Brand.Mark's text - and 225% to 300% do
+        move. From 350% the big icon is the 128 px entry, which has no frames: the button keeps the window's own icon
+        there, and is neither grey nor moving."""
+        picked = {size: (width, height) for size, width, height in self.answer["picked"]}
+        self.assertEqual(sorted(picked), sorted(BIG_SIZES))
+        entries = {width for width, _ in picked.values()}
+        self.assertLessEqual(entries, {16, 20, 24, 32, 40, 48, 64, 128, 256}, "the .ico's own entries")
+        for width, height in picked.values():
+            self.assertEqual(width, height)
+        used = {picked[32 * scale // 100][0] for scale in SCALES if scale <= 300}
+        self.assertEqual(set(make_brand.MARK_SIZES), used)
+        self.assertEqual(picked[56][0], 48)
+        for scale in SCALES:
+            if scale > 300:
+                with self.subTest(scale=scale):
+                    self.assertNotIn(picked[32 * scale // 100][0], make_brand.MARK_SIZES)
 
     def test_the_big_icon_is_windows_own_size_and_there_are_frames_for_it(self):
         self.assertIn(self.answer["ownSize"], make_brand.MARK_SIZES)

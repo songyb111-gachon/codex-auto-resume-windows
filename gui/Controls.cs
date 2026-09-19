@@ -6293,7 +6293,9 @@ namespace CodexAutoResume
             timer.Start();
         }
 
-        /// The frames at the size of the window's own big icon - the size WinForms gives Windows, SM_CXICON - read once.
+        /// The frames at the size of the window's own big icon, read once. That is the .ico entry new Icon(path) took for
+        /// SM_CXICON, never a scaled one: 48 px at 175%, 64 px from 200% to 300%, and from 350% the 128 px entry, which
+        /// has no frames - the button then keeps the window's own icon (build/make_brand.py, MARK_SIZES).
         private MarkFrames Frames()
         {
             if (!framesRead)
