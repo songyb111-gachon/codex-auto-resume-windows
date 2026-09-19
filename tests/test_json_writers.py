@@ -132,18 +132,18 @@ class DiagnosticsTests(unittest.TestCase):
     def test_a_value_that_is_not_json_is_written_redacted_and_the_bundle_is_written(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        odd = Path("C:/Users/tester/secret/state.sqlite")
+        odd = Path("C:/Users/someone/secret/state.sqlite")
 
         def collect(control, *, now=None, redact=None):
             return {"format": "codex-auto-resume-diagnostics/1", "odd": odd}
 
         target = Path(temporary.name) / "d.json"
         with patch.object(diagnostics, "collect", side_effect=collect), \
-                patch.dict(os.environ, {"USERNAME": "tester"}):
+                patch.dict(os.environ, {"USERNAME": "someone"}):
             diagnostics.write(object(), target)
         text = target.read_text(encoding="utf-8")
         self.assertEqual(json.loads(text)["odd"], "<path>")
-        self.assertNotIn("tester", text)
+        self.assertNotIn("someone", text)
 
     def test_a_bundle_that_cannot_be_written_leaves_no_file_behind(self):
         temporary = tempfile.TemporaryDirectory()
