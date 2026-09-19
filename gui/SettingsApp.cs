@@ -2156,13 +2156,11 @@ namespace CodexAutoResume
             // the halo: an alarm pulsed again every five seconds, and an arc jumped to its start.
             // A watcher that is not running, or not known to be, is a light that is off - grey, as
             // it was until v0.6.3; the headline beside it says what is wrong (see Activity).
-            // The taskbar button likewise, by the notification-area icon's rule (TrayActivity).
             if (snapshot == null)
-            {
                 stateDot.State = !Equals(running, true) ? "idle"
                                : !enabled ? "paused" : pending > 0 ? "waiting" : "monitoring";
-                TellTaskbar(status, null, Now());
-            }
+            // The taskbar button likewise, by the notification-area icon's rule (TrayActivity).
+            if (snapshot == null) TellTaskbar(status, null, Now());
             headline.Text = running == null ? S("status.unknown", "Watcher status unknown")
                           : !Equals(running, true) ? S("status.not_running", "Watcher not running")
                           : enabled ? S("status.watching", "Watching for interruptions")

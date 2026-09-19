@@ -1030,13 +1030,26 @@ class TaskbarMarkTests(unittest.TestCase):
         tick = dashboard[dashboard.index("clock.Tick += delegate"):]
         tick = tick[:tick.index("clock.Start();")]
         self.assertIn("if (taskbar != null) taskbar.Sync();", tick)
-        # Told what the window read wherever its header light is: the light itself tells the button nothing.
+        # Told what the window read wherever its header light is told, and as seldom: the light itself tells the
+        # button nothing, and with a snapshot on screen ApplyStatus decides neither (tests/test_gui_v063.py).
         self.assertNotIn("StateSet", settings + dashboard + controls)
-        lights = re.findall(r"stateDot\.State = [^;]*;\s*\n\s*(\S[^\n]*)", settings + dashboard, re.S)
-        self.assertEqual(len(lights), 4)
-        for following in lights:
-            with self.subTest(line=following):
-                self.assertTrue(following.startswith("TellTaskbar("), following)
+        self.assertEqual((settings + dashboard).count("stateDot.State ="), 4)
+
+        def method(source, signature):
+            start = source.index(signature)
+            return source[start:source.index("\n        }\n", start)]
+
+        for source, signature in ((settings, "private void StatusUnavailable("),
+                                  (settings, "private void ApplyStatus("),
+                                  (dashboard, "private void MarkUnavailable("),
+                                  (dashboard, "private void UpdateCountdowns(")):
+            with self.subTest(method=signature):
+                body = method(source, signature)
+                self.assertEqual(body.count("stateDot.State ="), 1)
+                self.assertEqual(body.count("TellTaskbar("), 1)
+                self.assertLess(body.index("stateDot.State ="), body.index("TellTaskbar("))
+        self.assertIn("if (snapshot == null) TellTaskbar(status, null, Now());",
+                      method(settings, "private void ApplyStatus("))
 
 
 if __name__ == "__main__":

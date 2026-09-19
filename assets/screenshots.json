@@ -23,7 +23,7 @@
   "system_dpi": 144,
   "inputs": {
     ".codex-plugin/plugin.json": "665e6ca803a5c680160014eacb13abff050019fe20d1f6a080f7fd4820b914c1",
-    "gui/SettingsApp.cs": "c0788cb1a9367e6960f2dbfdc9b61df4d11b5c2654ca9cd80957033271f3dfc8",
+    "gui/SettingsApp.cs": "9e47db0bc6db2d4f5e2135f8e7de11c499c3eb63d099eb7da93be4a6509c3184",
     "gui/Dashboard.cs": "b838d91f9cf5ba457a244f570c6a316229b0000bd4b63422d0e032d505373957",
     "gui/Controls.cs": "f584f16947aa6e06833c64fa19903b8ea88b5245dd1428389effd6312096332a",
     "gui/Brand.cs": "6b7b9710ab3303d4093dbb6687df775c0b0ff50cf2c13167fa508255ac1c3d9e",
