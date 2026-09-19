@@ -55,6 +55,13 @@ class ConfigError(RuntimeError):
     """Static reason only; never includes file contents."""
 
 
+def installed_home() -> str | None:
+    """The runtime home of an installed copy: the directory above `app/`, which holds its
+    state, settings and logs. None for a checkout, which is its own home (Paths decides).
+    The bridge and the MCP server start with no --home and find theirs here."""
+    return str(PROJECT_ROOT.parent) if PROJECT_ROOT.name == "app" else None
+
+
 class Paths:
     """All files this tool owns live under one root (default: the project directory)."""
 

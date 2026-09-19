@@ -701,10 +701,7 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="codex-auto-resume-mcp", add_help=True)
     parser.add_argument("--home", help="runtime home (default: the installed location)")
     args = parser.parse_args(argv)
-    home = args.home
-    if not home:
-        root = config.PROJECT_ROOT
-        home = str(root.parent) if root.name == "app" else None
+    home = args.home or config.installed_home()
     # Line buffering keeps a reply from sitting in a buffer while the client waits.
     try:
         sys.stdout.reconfigure(encoding="utf-8", newline="\n")

@@ -445,12 +445,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv=None) -> int:
     _use_utf8()
     args = build_parser().parse_args(argv)
-    home = args.home
-    if not home:
-        # The installed layout keeps state one level above the application directory.
-        root = config.PROJECT_ROOT
-        home = str(root.parent) if root.name == "app" else None
-    control = Control(home)
+    control = Control(args.home or config.installed_home())
     if args.command == "serve":
         return serve(control, sys.stdin, sys.stdout)
     try:
