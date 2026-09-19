@@ -49,6 +49,7 @@ from test_store import failure, raw, raw_row  # noqa: E402
 from codex_auto_resume import (cli, control, diagnostics, logbook, machine, mcpserver,  # noqa: E402
                                notify, settings, source, store as store_module, windows)
 from codex_auto_resume.control import ControlError  # noqa: E402
+from codex_auto_resume.domain import ids  # noqa: E402
 from codex_auto_resume.store import Store, StoreError  # noqa: E402
 
 THREAD = "0a1b2c3d-0000-4000-8000-00000000000a"
@@ -112,6 +113,12 @@ class InterruptionIdTests(unittest.TestCase):
                 self.assertEqual(float(completed).hex(), spelled)
                 self.assertEqual(reference(THREAD, TURN, completed, ordinal), expected)
 
+    def test_the_one_implementation_gives_each_failure_its_recorded_id(self):
+        for name, (completed, ordinal, _spelled, expected) in VECTORS.items():
+            with self.subTest(name):
+                self.assertEqual(ids.interruption_id(THREAD, TURN, completed, ordinal), expected)
+                self.assertTrue(ids.is_interruption_id(expected))
+
     def test_a_whole_second_is_one_interruption_whether_it_is_an_int_or_a_float(self):
         self.assertEqual(VECTORS["a whole second, as an int"][3], VECTORS["a whole second, as a float"][3])
         self.assertNotEqual(VECTORS["zero"][3], VECTORS["negative zero"][3])
@@ -139,6 +146,13 @@ class MarkerTests(unittest.TestCase):
                 continue
             accepted.append(text)
         self.assertEqual(accepted, ["[codex-auto-resume:%s]" % KEY])
+
+    def test_the_one_implementation_writes_and_reads_the_same_marker(self):
+        self.assertEqual(ids.marker(KEY), "[codex-auto-resume:%s]" % KEY)
+        self.assertEqual(ids.marker("rec-0001"), "[codex-auto-resume:rec-0001]")
+        self.assertTrue(ids.is_marker(ids.marker(KEY)))
+        self.assertFalse(ids.is_marker(ids.marker("rec-0001")))
+        self.assertTrue(ids.marker(KEY).startswith(ids.MARKER_PREFIX))
 
 
 # --------------------------------------------------------------------------- gate vector
@@ -336,6 +350,18 @@ class ThreadIdTests(unittest.TestCase):
         self.expect(lambda value: logbook.render(value, "loaded", None),
                     lambda name: "thread %s: loaded" % THREAD if name == "canonical" else "loaded")
 
+    def test_the_published_pattern_takes_exactly_what_the_parser_takes(self):
+        """The MCP schema and the diagnostics bundle describe a UUID by a pattern, and every
+        reader parses one with Python's own parser; over every spelling here, and every
+        single-character change to the canonical text, the two agree."""
+        pattern = re.compile(ids.uuid_pattern())
+        spellings = [value for value in UUIDS.values() if isinstance(value, str)]
+        spellings += [THREAD[:at] + character + THREAD[at + 1:] for at in range(len(THREAD))
+                      for character in "0aA-g_ \u0660{"]
+        for text in spellings:
+            with self.subTest(text=text):
+                self.assertEqual(ids.is_uuid(text), pattern.fullmatch(text) is not None)
+
     def test_the_diagnostics_bundle_aliases_any_case_and_leaves_the_rest(self):
         expected = {
             "canonical": "x <thread> y", "capitals": "x <thread> y", "braces": "x {<thread>} y",
@@ -471,8 +497,7 @@ class ClientIdTests(unittest.TestCase):
                 db.close()
         for name, value in CLIENTS.items():
             with self.subTest(name):
-                self.assertEqual(bool(isinstance(value, str) and source.CLIENT_ID_RE.fullmatch(value)),
-                                 name in taken)
+                self.assertEqual(ids.is_client_id(value), name in taken)
                 self.assertEqual(answer(lambda: store_module._validated_record(
                     dict(row, recovery_client_id=value))["recovery_client_id"]),
                     ("ok", value) if name in taken | {"none"}

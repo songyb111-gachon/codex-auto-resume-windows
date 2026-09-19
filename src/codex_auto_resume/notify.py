@@ -22,6 +22,7 @@ import subprocess
 import time
 
 from . import l10n, machine, pwsh
+from .domain import ids
 
 SCHEME = "codex-auto-resume"
 # The toast is sent under our own AppUserModelID, so Windows attributes it to
@@ -39,7 +40,6 @@ def aumid() -> str:
     from .startup import AUMID
     return AUMID
 TIMEOUT_SECONDS = 20
-INTERRUPTION_ID_LENGTH = 64
 
 _SCRIPT = """
 $ErrorActionPreference = 'Stop'
@@ -80,10 +80,7 @@ def parse_cancel_uri(uri: str) -> str | None:
     values = parse_qs(parts.query).get("i") or []
     if len(values) != 1:
         return None
-    candidate = values[0].strip().lower()
-    if len(candidate) != INTERRUPTION_ID_LENGTH or any(c not in "0123456789abcdef" for c in candidate):
-        return None
-    return candidate
+    return ids.read_interruption_id(values[0])
 
 
 def open_uri(page: str = "pending") -> str:

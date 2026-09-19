@@ -19,9 +19,9 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import time
-import uuid
 
 from . import config, continuation, machine, reasons, settings, startup
+from .domain import ids
 from .openstate import UPGRADE_PENDING, open_state
 from .store import (MAX_BUDGET_RESETS, TERMINAL, LegacyStore, StateFromNewerVersion, Store,
                     StoreError, UpgradePending)
@@ -136,21 +136,20 @@ def _refusal(table: dict, detail) -> tuple:
 
 def _identifier(value, name="interruption id") -> str:
     """Interruption ids are opaque lowercase hex. Nothing else addresses a record."""
-    text = str(value or "").strip().lower()
-    if len(text) != 64 or any(character not in "0123456789abcdef" for character in text):
+    key = ids.read_interruption_id(str(value or ""))
+    if key is None:
         raise ControlError("invalid %s" % name, code="invalid_id")
-    return text
+    return key
 
 
 def _thread_id(value) -> str:
-    try:
-        parsed = uuid.UUID(str(value))
-    except (ValueError, AttributeError, TypeError):
-        raise ControlError("thread id must be a canonical UUID",
-                           code="invalid_thread_id") from None
-    if str(parsed) != str(value):
-        raise ControlError("thread id must be lowercase canonical UUID text",
-                           code="invalid_thread_id")
+    """Any value, read as its text, that is a thread id; a UUID written another way is refused
+    with a sentence saying so."""
+    problem = ids.uuid_problem(value, as_text=True)
+    if problem == ids.MALFORMED:
+        raise ControlError("thread id must be a canonical UUID", code="invalid_thread_id")
+    if problem is not None:
+        raise ControlError("thread id must be lowercase canonical UUID text", code="invalid_thread_id")
     return str(value)
 
 

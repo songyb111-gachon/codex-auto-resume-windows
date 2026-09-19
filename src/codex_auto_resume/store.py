@@ -16,20 +16,17 @@ from __future__ import annotations
 from contextlib import contextmanager
 import math
 from pathlib import Path
-import re
 import sqlite3
 import statistics as _statistics
 import time
 from typing import Any, Iterator
-from uuid import UUID
 
 from . import failures, machine
+from .domain import ids
 from .machine import CLAIMED, EXHAUSTED, IN_FLIGHT, OBSERVING, STATES, TERMINAL, WAITING, WATCHED
 
 
 SCHEMA_VERSION = 3
-_KEY = re.compile(r"[A-Za-z0-9_-]{1,128}\Z")
-_CLIENT_ID = re.compile(r"[A-Za-z0-9-]{1,64}\Z")
 
 # Schema 1 and 2 columns, in their original order.
 _V2_COLUMNS = (
@@ -121,14 +118,11 @@ class RecordSchemaMismatch(StoreError):
 
 # ------------------------------------------------------------------------- validators
 def _uuid(value: Any, name: str) -> str:
-    if not isinstance(value, str):
-        raise StoreError(f"Invalid {name}")
-    try:
-        parsed = UUID(value)
-    except ValueError as exc:
-        raise StoreError(f"Invalid {name}") from exc
-    if str(parsed) != value:
+    problem = ids.uuid_problem(value)
+    if problem == ids.NOT_CANONICAL:
         raise StoreError(f"Invalid {name}: canonical UUID required")
+    if problem is not None:
+        raise StoreError(f"Invalid {name}")
     return value
 
 
@@ -171,7 +165,7 @@ def _validated_record(row: dict[str, Any]) -> dict[str, Any]:
     if set(row) != set(_RECORD_COLUMNS):
         raise RecordSchemaMismatch("Invalid record schema")
     key = row["interruption_id"]
-    if not isinstance(key, str) or not _KEY.fullmatch(key):
+    if not ids.is_interruption_id(key, as_stored=True):
         raise StoreError("Invalid interruption_id")
     _uuid(row["thread_id"], "thread_id")
     _uuid(row["turn_id"], "turn_id")
@@ -196,21 +190,19 @@ def _validated_record(row: dict[str, Any]) -> dict[str, Any]:
     _short_text(row["gate_eval"], "gate_eval", 4000, nullable=True)
     if not isinstance(row["state"], str) or row["state"] not in STATES:
         raise StoreError("Unknown record state")
-    if row["marker"] != f"[codex-auto-resume:{key}]":
+    if row["marker"] != ids.marker(key):
         raise StoreError("Invalid record marker")
     for field in ("queue_id", "recovery_turn_id"):
         if row[field] is not None:
             _uuid(row[field], field)
-    if row["recovery_client_id"] is not None and (
-            not isinstance(row["recovery_client_id"], str)
-            or not _CLIENT_ID.fullmatch(row["recovery_client_id"])):
+    if row["recovery_client_id"] is not None and not ids.is_client_id(row["recovery_client_id"]):
         raise StoreError("Invalid recovery_client_id")
     _choice(row["recovery_turn_status"], "recovery_turn_status", machine.TURN_STATUSES)
     _choice(row["withdraw_reason"], "withdraw_reason", machine.WITHDRAW_REASONS)
     parent = row["parent_interruption_id"]
-    if parent is not None and (not isinstance(parent, str) or not _KEY.fullmatch(parent)):
+    if parent is not None and not ids.is_interruption_id(parent, as_stored=True):
         raise StoreError("Invalid parent_interruption_id")
-    if not isinstance(row["chain_origin_id"], str) or not _KEY.fullmatch(row["chain_origin_id"]):
+    if not ids.is_interruption_id(row["chain_origin_id"], as_stored=True):
         raise StoreError("Invalid chain_origin_id")
     state = row["state"]
     if state in CLAIMED | IN_FLIGHT | OBSERVING and row["submitted_at"] is None:
@@ -792,7 +784,7 @@ class Store:
             result.append({
                 "event_id": row["event_id"] if isinstance(row["event_id"], int) else None,
                 "at": _finite(row["at"], 0.0),
-                "interruption_id": key if isinstance(key, str) and _KEY.fullmatch(key) else None,
+                "interruption_id": key if ids.is_interruption_id(key, as_stored=True) else None,
                 "code": machine.event_code(row["code"]),
                 "from_state": row["from_state"] if row["from_state"] in STATES else None,
                 "to_state": row["to_state"] if row["to_state"] in STATES else None,
@@ -905,7 +897,7 @@ class Store:
             **record, "detected_at": now, "state": state, "retry_count": 0,
             "next_retry_at": now if next_retry_at is None else next_retry_at,
             "resumed_at": None, "last_error": None,
-            "marker": f"[codex-auto-resume:{key}]", "queue_id": None,
+            "marker": ids.marker(key), "queue_id": None,
             "submitted_at": None, "attempt_count": 0, "cancel_requested": False,
             "recovery_attempts": 0, "no_progress_count": 0,
             "recovery_turn_id": None, "recovery_client_id": None, "recovery_turn_status": None,
@@ -1237,7 +1229,7 @@ class Store:
         _uuid(recovery_turn_id, "recovery_turn_id")
         if state not in ("turn_started", "handed_over"):
             raise StoreError("Invalid correlation state")
-        client = client_id if isinstance(client_id, str) and _CLIENT_ID.fullmatch(client_id) else None
+        client = client_id if ids.is_client_id(client_id) else None
         with self._transaction() as connection:
             row = self._row(connection, interruption_id)
             if row is None or row["state"] not in WATCHED:

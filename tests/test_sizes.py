@@ -28,17 +28,17 @@ BUDGET = 700
 OVERSIZED = {
     "codex_auto_resume/tray_popup.py": 2946,
     "codex_auto_resume/mcpui.py": 2340,
-    "codex_auto_resume/store.py": 1556,
+    "codex_auto_resume/store.py": 1548,
     "codex_auto_resume/tray.py": 1198,
     "codex_auto_resume/engine.py": 1083,
     "codex_auto_resume/brand.py": 993,
     "codex_auto_resume/notice_window.py": 930,
     "codex_auto_resume/windows.py": 887,
     "codex_auto_resume/compat.py": 858,
-    "codex_auto_resume/control.py": 839,
-    "codex_auto_resume/source.py": 744,
-    "codex_auto_resume/cli.py": 722,
-    "codex_auto_resume/mcpserver.py": 715,
+    "codex_auto_resume/control.py": 838,
+    "codex_auto_resume/source.py": 728,
+    "codex_auto_resume/cli.py": 721,
+    "codex_auto_resume/mcpserver.py": 714,
     "codex_auto_resume/compatio.py": 720,
 }
 

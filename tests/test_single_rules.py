@@ -4,10 +4,11 @@ Before the v0.6.5 split the same rule was written in two, three or four places: 
 a record goes back to, what a claim costs its budgets, whether a record may be sitting in
 Codex's queue, how a per-call command opens the state, which settings are the user's own
 words, what a number of days may be, where an installation keeps its home, how a front end
-states UTF-8, which pages the window opens, and what counts as a plausible time. Two copies
-of a rule are a rule that can be changed in one place and not the other - a budget restored
-onto the old wait, an in-flight record one gate sees and the other does not, Custom text a
-second surface lets a model write.
+states UTF-8, which pages the window opens, and what counts as a plausible time - and, in
+nine modules, how a conversation id, an interruption id, a marker and a client id are read.
+Two copies of a rule are a rule that can be changed in one place and not the other - a budget
+restored onto the old wait, an in-flight record one gate sees and the other does not, Custom
+text a second surface lets a model write, an id one reader takes and another refuses.
 
 The tests here pin what each caller gets, call site by call site, so that gathering a rule
 into one implementation changes nothing any caller can see. They are behaviour, not layout:
@@ -592,9 +593,15 @@ def may_be_queued_shape(node):
             and "submission_unknown" in node.value and "queue_id IS NOT NULL" in node.value)
 
 
+def spells(*needles):
+    """A string constant that holds any of `needles`: a pattern or a word written out."""
+    return lambda node: (isinstance(node, ast.Constant) and isinstance(node.value, str)
+                         and any(needle in node.value for needle in needles))
+
+
 PACKAGE = "codex_auto_resume/"
-# Each rule step 2 gathered, the shape its implementation has, and the one place that has it.
-# A second place is a copy that can drift; moving the rule moves the entry, on purpose.
+# Each rule steps 2 and 3 gathered, the shape its implementation has, and the one place that
+# has it. A second place is a copy that can drift; moving the rule moves the entry, on purpose.
 RULES = {
     "which wait a record goes back to": (
         lambda node: isinstance(node, ast.IfExp) and constant(node.body, "waiting_reset")
@@ -642,6 +649,32 @@ RULES = {
     "a plausible time's bounds": (
         lambda node: constant(node, 253402300799, 946684800, 4102444800),
         {"machine.py": ""}),
+    # Step 3: every identifier is read in domain/ids.py.
+    "parsing a UUID": (
+        calls("UUID"),
+        {"domain/ids.py": "uuid_problem"}),
+    "a UUID's pattern": (
+        lambda node: spells("{8}-")(node) or (isinstance(node, ast.Tuple)
+                                              and [getattr(e, "value", None) for e in node.elts] == [8, 4, 4, 4, 12]),
+        {"domain/ids.py": ""}),
+    "an interruption id's hex digits": (
+        # The registry's evidence digest (compat.HEX64_RE) is spelled alike and is another kind
+        # of thing: the SHA-256 of a document the registry cites, never a record's id.
+        spells("0123456789abcdef", "[0-9a-f]{64}", "[0-9a-fA-F]{64}"),
+        {"domain/ids.py": "", "compat.py": ""}),
+    "an interruption's identity": (
+        lambda node: calls("hex")(node) and isinstance(node.func.value, ast.Call)
+        and getattr(node.func.value.func, "id", None) == "float",
+        {"domain/ids.py": "interruption_id"}),
+    "the marker": (
+        spells("[codex-auto-resume:"),
+        {"domain/ids.py": ""}),
+    "a client id's pattern": (
+        spells("[A-Za-z0-9-]{1,64}"),
+        {"domain/ids.py": ""}),
+    "a stored record key's pattern": (
+        spells("[A-Za-z0-9_-]{1,128}"),
+        {"domain/ids.py": ""}),
 }
 
 
@@ -675,14 +708,24 @@ class OneImplementationTests(unittest.TestCase):
             "how a front end states UTF-8": 'sys.stdout.reconfigure(encoding="utf-8")',
             "the window's pages": 'x = ("overview", "pending", "history", "statistics", "diagnostics", "settings")',
             "a plausible time's bounds": "x = 0 <= v <= 253402300799",
+            "parsing a UUID": "x = str(uuid.UUID(value)) == value",
+            "a UUID's pattern": 'x = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")',
+            "an interruption id's hex digits": 'x = any(c not in "0123456789abcdef" for c in text)',
+            "an interruption's identity": "x = float(identity[2]).hex()",
+            "the marker": 'x = f"[codex-auto-resume:{key}]"',
+            "a client id's pattern": 'x = re.compile(r"[A-Za-z0-9-]{1,64}")',
+            "a stored record key's pattern": 'x = re.compile(r"[A-Za-z0-9_-]{1,128}")',
         }
         self.assertEqual(set(copies), set(RULES))
         copies["the other spelling of whether a record may be in Codex's queue"] = (
             'x = state in S or (state == "submission_unknown" and row["queue_id"] is not None)')
         copies["the same, as SQL"] = "x = 'OR (state=submission_unknown AND queue_id IS NOT NULL)'"
+        copies["an interruption id, as a pattern"] = 'x = re.compile(r"[codex-auto-resume:[0-9a-f]{64}]")'
         for rule, source in copies.items():
             with self.subTest(rule):
-                match = RULES.get(rule, RULES["whether a record may be in Codex's queue"])[0]
+                match = RULES[rule][0] if rule in RULES else RULES[{
+                    "an interruption id, as a pattern": "an interruption id's hex digits"}.get(
+                        rule, "whether a record may be in Codex's queue")][0]
                 self.assertTrue(any(match(node) for node in ast.walk(ast.parse(source))), source)
 
 
