@@ -237,6 +237,14 @@ def is_usage(row: dict) -> bool:
     return row.get("category") == failures.USAGE_LIMIT
 
 
+def _claim_cost(row, refund: bool = False) -> str:
+    """What one claim costs a record's budgets - an attempt, which a usage limit never spends,
+    and a link of its chain - as the SET clause that charges it or gives it back, never below 0."""
+    cost = (("recovery_attempts", 0 if is_usage(row) else 1), ("chain_continuations", 1))
+    template = "%s=max(0, %s-%d)" if refund else "%s=%s+%d"
+    return ", ".join(template % (column, column, amount) for column, amount in cost)
+
+
 # What each schema-3 state means to a schema-2 reader. "resumed" meant "our message was
 # delivered", which is true of every state a correlated turn can be in.
 _DOWNGRADE_STATES = {
@@ -1175,13 +1183,10 @@ class Store:
                         (encoded, now, interruption_id))
                 return False, refusal[0], refusal[1]
             connection.execute(
-                "UPDATE interruptions SET state='submitting', attempt_count=attempt_count+1, "
-                "recovery_attempts=recovery_attempts+?, chain_continuations=chain_continuations+1, "
-                "submitted_at=?, last_claim_at=?, last_error=NULL, "
-                "gate_eval=coalesce(?, gate_eval), gate_eval_at=coalesce(?, gate_eval_at) "
-                "WHERE interruption_id=?",
-                (0 if is_usage(row) else 1, now, now, encoded,
-                 now if encoded is not None else None, interruption_id))
+                "UPDATE interruptions SET state='submitting', attempt_count=attempt_count+1, %s, "
+                "submitted_at=?, last_claim_at=?, last_error=NULL, gate_eval=coalesce(?, gate_eval), "
+                "gate_eval_at=coalesce(?, gate_eval_at) WHERE interruption_id=?" % _claim_cost(row),
+                (now, now, encoded, now if encoded is not None else None, interruption_id))
             self._event(connection, now, "claim", record=row, from_state=row["state"],
                         to_state="submitting")
             return True, None, None
@@ -1214,13 +1219,10 @@ class Store:
                     or row["submitted_at"] is None):
                 return False
             connection.execute(
-                "UPDATE interruptions SET state=?, submitted_at=NULL, last_error=?, next_retry_at=?, "
-                "recovery_attempts=max(0, recovery_attempts-?), "
-                "chain_continuations=max(0, chain_continuations-1), "
+                "UPDATE interruptions SET state=?, submitted_at=NULL, last_error=?, next_retry_at=?, %s, "
                 "cancel_requested=CASE WHEN ?='cancelled' THEN 1 ELSE cancel_requested END "
-                "WHERE interruption_id=?",
-                (target, reason, now if next_retry_at is None else next_retry_at,
-                 0 if is_usage(row) else 1, target, interruption_id))
+                "WHERE interruption_id=?" % _claim_cost(row, refund=True),
+                (target, reason, now if next_retry_at is None else next_retry_at, target, interruption_id))
             self._event(connection, now, "release_claim", record=row, from_state="submitting",
                         to_state=target, reason=reason, actor=actor)
             return True
@@ -1298,11 +1300,9 @@ class Store:
             connection.execute(
                 "UPDATE interruptions SET state=?, submitted_at=NULL, queue_id=NULL, "
                 "withdraw_reason=NULL, withdrawn_at=NULL, withdraw_deleted=0, withdraw_failures=0, "
-                "last_error='released_after_withdrawal', next_retry_at=?, "
-                "recovery_attempts=max(0, recovery_attempts-?), "
-                "chain_continuations=max(0, chain_continuations-1) WHERE interruption_id=?",
-                (target, now if next_retry_at is None else next_retry_at,
-                 0 if is_usage(row) else 1, interruption_id))
+                "last_error='released_after_withdrawal', next_retry_at=?, %s WHERE interruption_id=?"
+                % _claim_cost(row, refund=True), (target, now if next_retry_at is None else next_retry_at,
+                                                  interruption_id))
             self._event(connection, now, "release_withdrawn", record=row,
                         from_state="withdrawn_unconfirmed", to_state=target, reason="paused",
                         flags=machine.FLAG_WITHDRAW_DELETED)
