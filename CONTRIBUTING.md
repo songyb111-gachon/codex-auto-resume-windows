@@ -470,6 +470,16 @@ golden answer carries. Moving code leaves every one of them exactly as it was. A
 means to alter an answer regenerates them with `python -X utf8 tests/wiregolden.py --write`,
 and the diff is reviewed with the change.
 
+Some rules are stated in one place on purpose: which wait a record goes back to, what a claim
+costs its budgets, whether a record may be sitting in Codex's queue, how a command opens the
+state, which settings are the user's own words, and a few more. `tests/test_single_rules.py`
+pins what every caller gets from each of them, and fails when a second implementation of one
+appears anywhere in the package. Call the one that exists - `machine.waiting_state`,
+`machine.may_be_queued`, `openstate.open_state`, `settings.is_custom_text` and the rest the
+test names - rather than writing the rule again. Every JSON writer passes `allow_nan=False`
+and no `default`, which `tests/test_json_writers.py` checks: a value that is not JSON is a bug
+to fix where the value is made, not text to write.
+
 ## Commit and pull requests
 
 - One change per commit, with a message that says what changed and why.
