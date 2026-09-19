@@ -25,7 +25,7 @@
     ".codex-plugin/plugin.json": "665e6ca803a5c680160014eacb13abff050019fe20d1f6a080f7fd4820b914c1",
     "gui/SettingsApp.cs": "2e5a0b8d4ab1fd6b539e12b2610f7b040f30a10d6d22320d1ce852d8ad658a08",
     "gui/Dashboard.cs": "de4d121a5bbef48f6aa7103a11e60696a794540ca2fcb38a5f082579e91d336f",
-    "gui/Controls.cs": "5135c45b7f00c9766e8a81f47d77836dd08a889a04e8883f6aa2adb0296445fa",
+    "gui/Controls.cs": "435de7d7f1f4ebcb060cdac70986262fb3439842e54cff89284f0b93b1211d92",
     "gui/Brand.cs": "bf35cb8d12c697670438624fe36069ebfec44ac9987725038b3c4eb8d450f51b",
     "gui/app.manifest": "db5f16dcf2448fdd7e3812dfdaa6d2da893b92c27a982721d3f04cdc05559870",
     "assets/codex-auto-resume.ico": "45c3f3a0d02d78f9be0b80532eedc2f524cd7ebe1056007dacdb286ca743bd52",
