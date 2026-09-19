@@ -342,7 +342,8 @@ the bridge tells it: the generator asks the bridge the window's own questions ag
 scratch installation, with the clock, the paths and the machine's answers pinned, and records
 a hash of the replies (`<bridge envelope:*>`). The panel is recorded as its rendered markup,
 and the popup as the view it draws plus a digest of the code that draws it, pooled by
-definition name across the popup's modules and the palette's. So moving code from one module
+definition name across the popup's modules and the palette's, and across what those import by
+name from the rest of the package, wherever it is defined. So moving code from one module
 to another leaves the manifest alone, while a change to anything a picture shows — a word, a
 row, a figure, a status, a colour — does not. Change one and `tests/test_screenshots.py`
 fails telling you to re-run the generator. It is the mechanism that stops a screenshot
@@ -437,13 +438,17 @@ never up.
 `tests/test_layers.py` places every module in one of these, and fails an import that points
 up, a module with no layer, and an import cycle. Where the code does not match the map yet,
 the test lists the real exceptions, and each one fails the test once it is gone, so those
-lists only shrink. The same file lists every import made inside a function, with its reason;
-a new one needs a line there. `tests/test_sizes.py` gives every module a budget of 700 lines,
-and holds the modules already over it to the length they have now.
+lists only shrink. A rule about a module holds for everything inside it once it is a package,
+and for the packages the split creates (`codex/`, `win/`, `ui/`, `mcp/`) before they exist, so
+moving code under a new name does not take it out of a rule. The same file lists every import
+made inside a function, with its reason; a new one needs a line there. `tests/test_sizes.py`
+gives every module a budget of 700 lines, and holds each module already over it to exactly the
+length it has now: a commit that shrinks one lowers its ceiling, so it cannot grow back.
 
 A test that asserts something about the source itself — that only the watcher sends, that the
 popup reaches nothing that can submit, that no module builds its own PowerShell command —
-reads it through `tests/srcscan.py`: every tracked `.py` file under `src/`, at any depth. Do
+reads it through `tests/srcscan.py`: every tracked `.py` file under `src/`, at any depth, and
+for each import also the package `__init__.py` files Python runs to reach its target. Do
 not read one module by name, or glob one directory, to assert that something is absent: when
 the code moves, a test like that keeps passing and stops checking. `tests/test_srcscan.py`
 refuses both shapes, and fails when a `.py` file under `src/` is not tracked, because an
