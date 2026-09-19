@@ -109,13 +109,14 @@ MAX_BUDGET_RESETS = 3
 class StoreError(RuntimeError):
     """Invalid or unavailable local state; automatic resumes must stop."""
 
-
 class UpgradePending(StoreError):
     """The state is an older schema and this caller may not migrate it."""
 
-
 class StateFromNewerVersion(StoreError):
     """The state was written by a newer version of this tool. Never a corruption."""
+
+class RecordSchemaMismatch(StoreError):
+    """A row has columns this version never wrote: a newer version changed the state."""
 
 
 # ------------------------------------------------------------------------- validators
@@ -169,7 +170,7 @@ def _choice(value: Any, name: str, allowed) -> Any:
 
 def _validated_record(row: dict[str, Any]) -> dict[str, Any]:
     if set(row) != set(_RECORD_COLUMNS):
-        raise StoreError("Invalid record schema")
+        raise RecordSchemaMismatch("Invalid record schema")
     key = row["interruption_id"]
     if not isinstance(key, str) or not _KEY.fullmatch(key):
         raise StoreError("Invalid interruption_id")
@@ -717,8 +718,7 @@ class Store:
 
     @staticmethod
     def _row(connection, interruption_id) -> dict | None:
-        value = connection.execute(
-            "SELECT * FROM interruptions WHERE interruption_id=?", (interruption_id,)).fetchone()
+        value = connection.execute("SELECT * FROM interruptions WHERE interruption_id=?", (interruption_id,)).fetchone()
         return None if value is None else _validated_record(dict(value))
 
     def _now(self, at) -> float:

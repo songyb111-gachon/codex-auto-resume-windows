@@ -549,7 +549,12 @@ class WatcherLoopTests(unittest.TestCase):
         """A newer version that changed the state under a running watcher leaves rows this
         one cannot read. The watcher exits with EXIT_SCHEMA_NEWER, so the launcher starts
         the installed version, and only for that: any other store failure in a tick is
-        recorded and the watcher carries on."""
+        recorded and the watcher carries on.
+
+        What decides is the error's type. A plain StoreError that merely says "record schema"
+        is an ordinary failure: the watcher used to match those words in the message, which a
+        reworded message, or another error that happened to contain them, would have
+        changed."""
         from codex_auto_resume.app import EXIT_OK, EXIT_SCHEMA_NEWER
         from codex_auto_resume.store import StateFromNewerVersion
         temp = tempfile.TemporaryDirectory()
@@ -576,8 +581,11 @@ class WatcherLoopTests(unittest.TestCase):
         def newer_state(store):
             raise StateFromNewerVersion("newer schema")
 
+        def the_words_alone(store):
+            raise StoreError("Invalid record schema")
+
         for tick, expected in ((newer_rows, EXIT_SCHEMA_NEWER), (other_failure, EXIT_OK),
-                               (newer_state, EXIT_SCHEMA_NEWER)):
+                               (newer_state, EXIT_SCHEMA_NEWER), (the_words_alone, EXIT_OK)):
             with self.subTest(tick=tick.__name__):
                 for leftover in app.paths.state_dir.glob("state.sqlite*"):
                     leftover.unlink()

@@ -15,7 +15,8 @@ from . import compatio, config, l10n, notifier, settings as policy
 from .engine import Engine
 from .logbook import LOGGER_NAME, EngineLog, setup_logging
 from .source import LocalSource
-from .store import SCHEMA_VERSION, StateFromNewerVersion, Store, StoreError, UpgradePending
+from .store import (SCHEMA_VERSION, RecordSchemaMismatch, StateFromNewerVersion, Store, StoreError,
+                    UpgradePending)
 from .windows import AdapterError, Backend, HomeLock, Mutex, StopEvent, WakeEvent, wait_any
 
 EXIT_OK = 0
@@ -518,15 +519,13 @@ class App:
                         last_enabled = enabled
                     engine.tick()
                     ok = True
-                except StateFromNewerVersion:
+                except (StateFromNewerVersion, RecordSchemaMismatch):
+                    # A newer version's state, or its rows met mid-tick: never a corruption,
+                    # and never something this version should keep trying to read.
                     self.logger.info("schema_newer_than_watcher; exiting so the installed version can start")
                     exit_code = EXIT_SCHEMA_NEWER
                     break
-                except StoreError as exc:
-                    if "record schema" in str(exc):
-                        self.logger.info("schema_newer_than_watcher; exiting so the installed version can start")
-                        exit_code = EXIT_SCHEMA_NEWER
-                        break
+                except StoreError:
                     self._record_failure("tick")
                 except Exception:
                     self._record_failure("initialising Codex adapter" if engine is None else "tick")
