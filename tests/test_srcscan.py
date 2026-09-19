@@ -101,7 +101,8 @@ class NoOneFileScanTests(unittest.TestCase):
     """A structural test that names one file stops checking the day the code in it moves, and
     passes while it does. New ones go through srcscan."""
 
-    def tests(self):
+    def suite_modules(self):
+        """Every test module beside this one, parsed. Not named test*, so it is not collected."""
         for path in sorted(Path(_HERE).glob("test_*.py")):
             yield path, ast.parse(path.read_text(encoding="utf-8"))
 
@@ -110,7 +111,7 @@ class NoOneFileScanTests(unittest.TestCase):
         nothing once `control` is a package. Comparing a module's path is fine; reading one
         module's text, or its whole source, to assert something about the code is not."""
         offenders = []
-        for path, tree in self.tests():
+        for path, tree in self.suite_modules():
             modules = set()          # names bound to a module of the package
             for node in ast.walk(tree):
                 if isinstance(node, ast.ImportFrom) and node.module == srcscan.PACKAGE:
@@ -134,7 +135,7 @@ class NoOneFileScanTests(unittest.TestCase):
 
     def test_no_test_globs_the_package_one_directory_deep(self):
         offenders = []
-        for path, tree in self.tests():
+        for path, tree in self.suite_modules():
             text = path.read_text(encoding="utf-8")
             for node in ast.walk(tree):
                 if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
