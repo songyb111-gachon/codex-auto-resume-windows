@@ -688,9 +688,9 @@ class EnvelopeTests(unittest.TestCase):
         self.assertEqual(view["acting"], generator.engine_word())
         self.assertEqual(watcher["engine_state"], generator.engine_word())
         self.assertEqual(generator.popup_status()["watcher"]["engine_state"], generator.engine_word())
-        # Every local check the synthetic home and the stand-in engine can pass, passed.
-        self.assertEqual(sorted(name for name, result in view["checks"].items() if result != "PASS"),
-                         ["lock_directory"], "the synthetic home has no writer-lock directory")
+        # Every local check passed: the synthetic home has what a Codex that has been used has,
+        # the folder of conversation locks included, so the picture shows what such a machine shows.
+        self.assertEqual(sorted(name for name, result in view["checks"].items() if result != "PASS"), [])
         # Each part the card lists, with its state: the bundled data's entry for this build shows.
         listed = {name: entry for name, entry in view["capabilities"].items()
                   if entry["reason"] != "not_implemented"}
