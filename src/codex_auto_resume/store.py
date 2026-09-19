@@ -24,7 +24,7 @@ from typing import Any, Iterator
 from uuid import UUID
 
 from . import failures, machine
-from .machine import CLAIMED, EXHAUSTED, IN_FLIGHT, OBSERVING, STATES, TERMINAL, WAITING
+from .machine import CLAIMED, EXHAUSTED, IN_FLIGHT, OBSERVING, STATES, TERMINAL, WAITING, WATCHED
 
 
 SCHEMA_VERSION = 3
@@ -1240,8 +1240,7 @@ class Store:
         client = client_id if isinstance(client_id, str) and _CLIENT_ID.fullmatch(client_id) else None
         with self._transaction() as connection:
             row = self._row(connection, interruption_id)
-            if row is None or row["state"] not in {"submitting", "queued", "withdrawn_unconfirmed",
-                                                   "submission_unknown"}:
+            if row is None or row["state"] not in WATCHED:
                 return False
             if row["recovery_turn_id"] not in (None, recovery_turn_id):
                 return False
