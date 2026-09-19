@@ -1,0 +1,39 @@
+{
+  "command": "diagnostics",
+  "cases": [
+    {
+      "case": "a bundle written",
+      "argument": {
+        "path": "<scratch>\\diagnostics.json"
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "path": "<scratch>\\diagnostics.json"
+        }
+      }
+    },
+    {
+      "case": "the same name again is refused",
+      "argument": {
+        "path": "<scratch>\\diagnostics.json"
+      },
+      "reply": {
+        "ok": false,
+        "error": "that file already exists; choose a new name",
+        "error_code": "file_exists"
+      }
+    },
+    {
+      "case": "a name that is not .json is refused",
+      "argument": {
+        "path": "<scratch>\\diagnostics.txt"
+      },
+      "reply": {
+        "ok": false,
+        "error": "choose a .json file to write",
+        "error_code": "request_failed"
+      }
+    }
+  ]
+}

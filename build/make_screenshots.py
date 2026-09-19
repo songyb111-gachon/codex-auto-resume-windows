@@ -922,12 +922,13 @@ def render_window(targets: dict) -> dict:
 # ------------------------------------------------------------ what the window is shown
 # The window's Python half, as the window receives it (see WINDOW_INPUTS).
 #
-# `window_envelopes` builds the installation `render_window` builds - the stored settings in
-# the pinned theme, the Dashboard's records written by the product's own store, the
-# synthetic Codex home the names come from, the watcher's mutex held and its heartbeat
-# written, recovery switched on through the bridge - and asks the bridge, through the same
-# `serve` loop the window keeps open, what the window asks to draw the photographed pages.
-# The canonical text of the answers is the envelope; its hash is the manifest entry.
+# `window_envelopes` builds the installation `render_window` builds (`pinned_installation`) -
+# the stored settings in the pinned theme, the Dashboard's records written by the product's
+# own store, the synthetic Codex home the names come from, the watcher's mutex held and its
+# heartbeat written, recovery switched on through the bridge - and asks the bridge, through
+# the same `serve` loop the window keeps open, what the window asks to draw the photographed
+# pages. The canonical text of the answers is the envelope; its hash is the manifest entry.
+# The wire goldens (`tests/wiregolden.py`) ask every other command of the same installation.
 #
 # It has to come out the same on every machine and every run, and the answers carry four
 # things that would not. Each is pinned or rewritten, never dropped, so the envelope still
@@ -1112,27 +1113,50 @@ def _canonical(value, spellings):
     return value
 
 
-def window_envelopes(locales) -> dict:
-    """Locale -> the canonical text of what the bridge tells the window, one line per read.
+def workspace_spellings(workspace: Path) -> list:
+    """The rewriting for an answer given in `workspace`: the four directories above, pinned."""
+    return _spellings(("<scratch>", workspace), ("<checkout>", ROOT),
+                      ("<temp>", tempfile.gettempdir()), ("<profile>", Path.home()))
 
-    Each line is the request and its reply as the reply crossed the wire: keys in the order
-    the bridge wrote them, because the window lists some objects in that order (the
-    Statistics page's kinds of interruption), with only the pinned values above rewritten.
+
+def serve_lines(surface, text: str) -> str:
+    """What `controlcli.serve` - the loop the window keeps open - writes for `text`, as written."""
+    from codex_auto_resume import controlcli
+
+    answer = io.StringIO()
+    controlcli.serve(surface, io.StringIO(text), answer)
+    return answer.getvalue()
+
+
+def ask(surface, command, argument=None) -> dict:
+    """One request through `serve_lines`, and its reply."""
+    sent = json.dumps({"id": 1, "command": command, "argument": argument})
+    return json.loads(serve_lines(surface, sent + "\n"))["reply"]
+
+
+@contextmanager
+def pinned_installation(workspace: Path, *, watching: bool = True):
+    """The installation the envelope asks, built in `workspace`, with the machine pinned.
+
+    Yields the `Control` the bridge answers for, with recovery switched on through the bridge.
+    Everything listed above is pinned for as long as it is open, and put back whole after it,
+    the l10n language preference included. `tests/wiregolden.py` asks its questions of the same
+    installation under the same pins, so the wire goldens and the envelope cannot disagree about
+    what a scratch installation says; `watching=False` leaves the watcher's mutex free.
     """
     from unittest.mock import patch
 
-    from codex_auto_resume import control, controlcli
+    from codex_auto_resume import control
     from codex_auto_resume.store import Store
 
-    envelopes = {}
-    with tempfile.TemporaryDirectory() as name, ExitStack() as stack:
-        workspace = Path(name)
-        home, codex = workspace / "home", workspace / "codex"
-        # The part of `scratch_installation` the bridge reads: the settings it stores. The
-        # interpreter and the compiled window are not read by any answer.
-        write_settings(home)
-        seed_window_state(home, codex, ENVELOPE_NOW)
-        paths = config.Paths(home)
+    home, codex = workspace / "home", workspace / "codex"
+    # The part of `scratch_installation` the bridge reads: the settings it stores. The
+    # interpreter and the compiled window are not read by any answer.
+    write_settings(home)
+    seed_window_state(home, codex, ENVELOPE_NOW)
+    paths = config.Paths(home)
+    previous = l10n.preference()
+    with ExitStack() as stack:
         # Put back whole when the envelope is done, including the two removed here.
         stack.enter_context(patch.dict(os.environ, {"CODEX_HOME": str(codex)}))
         for override in (config.ENV_HOME, config.ENV_CODEX_EXE):
@@ -1142,37 +1166,45 @@ def window_envelopes(locales) -> dict:
             time, "localtime", side_effect=lambda seconds=None: time.gmtime(
                 ENVELOPE_NOW if seconds is None else seconds)))
         stack.enter_context(_registry_stand_in())
-        stack.enter_context(_watcher_mutex_held(paths))
+        if watching:
+            stack.enter_context(_watcher_mutex_held(paths))
         with Store(paths.state_dir) as store:
             store.heartbeat(ENVELOPE_NOW - 1, pid=ENVELOPE_PID, session_id="screenshot",
                             started_at=ENVELOPE_NOW - 5400, ok=True, engine_state="verified",
                             code_version=config.version())
         surface = control.Control(paths)
-
-        def ask(command, argument=None):
-            sent = json.dumps({"id": 1, "command": command, "argument": argument})
-            answer = io.StringIO()
-            controlcli.serve(surface, io.StringIO(sent + "\n"), answer)
-            return json.loads(answer.getvalue())["reply"]
-
         # Switched on through the bridge before anything is read, as `render_window` does.
-        switched = ask("enabled", {"enabled": True})
+        switched = ask(surface, "enabled", {"enabled": True})
         if not switched.get("ok"):
             raise RuntimeError("the scratch installation could not be switched on: %r" % switched)
-        spellings = _spellings(("<scratch>", workspace), ("<checkout>", ROOT),
-                               ("<temp>", tempfile.gettempdir()), ("<profile>", Path.home()))
-        previous = l10n.preference()
         try:
+            yield surface
+        finally:
+            l10n.set_preference(previous)
+
+
+def window_envelopes(locales) -> dict:
+    """Locale -> the canonical text of what the bridge tells the window, one line per read.
+
+    Each line is the request and its reply as the reply crossed the wire: keys in the order
+    the bridge wrote them, because the window lists some objects in that order (the
+    Statistics page's kinds of interruption), with only the pinned values above rewritten.
+    """
+    envelopes = {}
+    with tempfile.TemporaryDirectory() as name:
+        workspace = Path(name)
+        with pinned_installation(workspace) as surface:
+            spellings = workspace_spellings(workspace)
             for locale in locales:
                 os.environ[l10n.ENV_LANG] = locale
                 lines, replies = [], {}
                 for command, argument in WINDOW_READS:
-                    replies[command] = ask(command, argument)
+                    replies[command] = ask(surface, command, argument)
                     lines.append((command, argument, replies[command]))
                 preview = preview_request((replies["describe"] or {}).get("schema") or [],
                                           (replies["settings"] or {}).get("settings") or {})
                 if preview is not None:
-                    lines.append(preview + (ask(*preview),))
+                    lines.append(preview + (ask(surface, *preview),))
                 # The photographed pages show a product that works. A read that failed here
                 # would be photographed failing too, so it stops the generator instead.
                 failed = [command for command, _argument, reply in lines
@@ -1184,8 +1216,6 @@ def window_envelopes(locales) -> dict:
                                 "reply": _canonical(reply, spellings)},
                                ensure_ascii=False, separators=(",", ":"))
                     for command, argument, reply in lines) + "\n"
-        finally:
-            l10n.set_preference(previous)
     return envelopes
 
 

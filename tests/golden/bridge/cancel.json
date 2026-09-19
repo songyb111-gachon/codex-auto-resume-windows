@@ -1,0 +1,65 @@
+{
+  "command": "cancel",
+  "cases": [
+    {
+      "case": "a waiting recovery cancelled",
+      "argument": {
+        "interruption_id": "8888888888888888888888888888888888888888888888888888888888888888"
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "interruption_id": "8888888888888888888888888888888888888888888888888888888888888888",
+          "thread_id": "22222222-2222-7222-8222-222222222222",
+          "state": "cancelled",
+          "changed": true,
+          "effects": {
+            "8888888888888888888888888888888888888888888888888888888888888888": "cancelled"
+          },
+          "message": "cancelled"
+        }
+      }
+    },
+    {
+      "case": "the same one again: already finished",
+      "argument": {
+        "interruption_id": "8888888888888888888888888888888888888888888888888888888888888888"
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "interruption_id": "8888888888888888888888888888888888888888888888888888888888888888",
+          "thread_id": "22222222-2222-7222-8222-222222222222",
+          "state": "cancelled",
+          "changed": false,
+          "effects": {
+            "8888888888888888888888888888888888888888888888888888888888888888": "unchanged"
+          },
+          "message": "already finished; nothing to stop"
+        }
+      }
+    },
+    {
+      "case": "an id that is not one",
+      "argument": {
+        "interruption_id": "not-an-id"
+      },
+      "reply": {
+        "ok": false,
+        "error": "invalid interruption id",
+        "error_code": "invalid_id"
+      }
+    },
+    {
+      "case": "no such interruption",
+      "argument": {
+        "interruption_id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "reply": {
+        "ok": false,
+        "error": "no such interruption",
+        "error_code": "no_such_interruption"
+      }
+    }
+  ]
+}

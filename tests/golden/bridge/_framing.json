@@ -1,0 +1,149 @@
+{
+  "cases": [
+    {
+      "case": "a line that is not JSON",
+      "request": "{not json",
+      "replies": [
+        {
+          "id": null,
+          "reply": {
+            "ok": false,
+            "error": "request must be JSON",
+            "error_code": "request_failed"
+          }
+        }
+      ]
+    },
+    {
+      "case": "a request that is not an object",
+      "request": "[1, 2]",
+      "replies": [
+        {
+          "id": null,
+          "reply": {
+            "ok": false,
+            "error": "request must be a JSON object",
+            "error_code": "request_failed"
+          }
+        }
+      ]
+    },
+    {
+      "case": "an id that is not an integer",
+      "request": "{\"id\": \"1\", \"command\": \"status\"}",
+      "replies": [
+        {
+          "id": "1",
+          "reply": {
+            "ok": false,
+            "error": "id must be an integer",
+            "error_code": "request_failed"
+          }
+        }
+      ]
+    },
+    {
+      "case": "a boolean id",
+      "request": "{\"id\": true, \"command\": \"status\"}",
+      "replies": [
+        {
+          "id": true,
+          "reply": {
+            "ok": false,
+            "error": "id must be an integer",
+            "error_code": "request_failed"
+          }
+        }
+      ]
+    },
+    {
+      "case": "no id: the reply says null",
+      "request": "{\"command\": \"timeline\", \"argument\": {\"interruption_id\": \"x\"}}",
+      "replies": [
+        {
+          "id": null,
+          "reply": {
+            "ok": false,
+            "error": "invalid interruption id",
+            "error_code": "invalid_id"
+          }
+        }
+      ]
+    },
+    {
+      "case": "a command that does not exist",
+      "request": "{\"id\": 2, \"command\": \"format-disk\"}",
+      "replies": [
+        {
+          "id": 2,
+          "reply": {
+            "ok": false,
+            "error": "unknown command",
+            "error_code": "request_failed"
+          }
+        }
+      ]
+    },
+    {
+      "case": "an argument that is not an object",
+      "request": "{\"id\": 3, \"command\": \"timeline\", \"argument\": [7]}",
+      "replies": [
+        {
+          "id": 3,
+          "reply": {
+            "ok": false,
+            "error": "argument must be a JSON object",
+            "error_code": "request_failed"
+          }
+        }
+      ]
+    },
+    {
+      "case": "an argument given as JSON text",
+      "request": "{\"id\": 4, \"command\": \"timeline\", \"argument\": \"{\\\"interruption_id\\\": \\\"x\\\"}\"}",
+      "replies": [
+        {
+          "id": 4,
+          "reply": {
+            "ok": false,
+            "error": "invalid interruption id",
+            "error_code": "invalid_id"
+          }
+        }
+      ]
+    },
+    {
+      "case": "an argument that is JSON text but not JSON",
+      "request": "{\"id\": 5, \"command\": \"timeline\", \"argument\": \"{\"}",
+      "replies": [
+        {
+          "id": 5,
+          "reply": {
+            "ok": false,
+            "error": "argument must be JSON",
+            "error_code": "request_failed"
+          }
+        }
+      ]
+    },
+    {
+      "case": "a byte order mark before the request",
+      "request": "<U+FEFF>{\"id\": 6, \"command\": \"timeline\", \"argument\": {\"interruption_id\": \"x\"}}",
+      "replies": [
+        {
+          "id": 6,
+          "reply": {
+            "ok": false,
+            "error": "invalid interruption id",
+            "error_code": "invalid_id"
+          }
+        }
+      ]
+    },
+    {
+      "case": "a blank line is not answered",
+      "request": "   ",
+      "replies": []
+    }
+  ]
+}

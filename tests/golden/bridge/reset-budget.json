@@ -1,0 +1,52 @@
+{
+  "command": "reset-budget",
+  "cases": [
+    {
+      "case": "an exhausted recovery given its attempts back",
+      "argument": {
+        "interruption_id": "9999999999999999999999999999999999999999999999999999999999999999"
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "interruption_id": "9999999999999999999999999999999999999999999999999999999999999999",
+          "state": "waiting_backoff",
+          "note": "automatic recovery is off for this conversation; switch it on for this recovery to run"
+        }
+      }
+    },
+    {
+      "case": "a recovery still waiting has not been exhausted",
+      "argument": {
+        "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777"
+      },
+      "reply": {
+        "ok": false,
+        "error": "that recovery has not been exhausted",
+        "error_code": "not_exhausted"
+      }
+    },
+    {
+      "case": "a recovered one has already finished",
+      "argument": {
+        "interruption_id": "6666666666666666666666666666666666666666666666666666666666666666"
+      },
+      "reply": {
+        "ok": false,
+        "error": "that recovery has already finished",
+        "error_code": "already_finished"
+      }
+    },
+    {
+      "case": "an id that is not one",
+      "argument": {
+        "interruption_id": 7
+      },
+      "reply": {
+        "ok": false,
+        "error": "invalid interruption id",
+        "error_code": "invalid_id"
+      }
+    }
+  ]
+}

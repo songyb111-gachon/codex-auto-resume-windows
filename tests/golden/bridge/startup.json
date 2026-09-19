@@ -1,0 +1,36 @@
+{
+  "command": "startup",
+  "cases": [
+    {
+      "case": "registered to start at sign-in",
+      "argument": {
+        "enabled": true
+      },
+      "reply": {
+        "ok": true,
+        "startup_enabled": true
+      }
+    },
+    {
+      "case": "unregistered",
+      "argument": {
+        "enabled": false
+      },
+      "reply": {
+        "ok": true,
+        "startup_enabled": false
+      }
+    },
+    {
+      "case": "a string is refused",
+      "argument": {
+        "enabled": "true"
+      },
+      "reply": {
+        "ok": false,
+        "error": "enabled must be true or false",
+        "error_code": "invalid_enabled"
+      }
+    }
+  ]
+}

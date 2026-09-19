@@ -1,0 +1,25 @@
+{
+  "tool": "clear_recovery_history",
+  "cases": [
+    {
+      "case": "finished recoveries hidden",
+      "arguments": {},
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "7 finished recoveries hidden; 2 kept visible because they may still change. Nothing was deleted."
+            }
+          ],
+          "structuredContent": {
+            "hidden": 7,
+            "kept": 2
+          }
+        }
+      }
+    }
+  ]
+}

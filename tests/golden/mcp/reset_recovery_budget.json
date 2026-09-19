@@ -1,0 +1,50 @@
+{
+  "tool": "reset_recovery_budget",
+  "cases": [
+    {
+      "case": "an exhausted recovery given its attempts back",
+      "arguments": {
+        "interruption_id": "9999999999999999999999999999999999999999999999999999999999999999"
+      },
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "Attempts restored; it is waiting again. Nothing was sent. Note: automatic recovery is off for this conversation; switch it on for this recovery to run."
+            }
+          ],
+          "structuredContent": {
+            "interruption_id": "9999999999999999999999999999999999999999999999999999999999999999",
+            "state": "waiting_backoff",
+            "note": "automatic recovery is off for this conversation; switch it on for this recovery to run"
+          }
+        }
+      }
+    },
+    {
+      "case": "a recovery still waiting has not been exhausted",
+      "arguments": {
+        "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777"
+      },
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "isError": true,
+          "content": [
+            {
+              "type": "text",
+              "text": "that recovery has not been exhausted"
+            }
+          ],
+          "structuredContent": {
+            "error_code": "not_exhausted"
+          }
+        }
+      }
+    }
+  ]
+}
