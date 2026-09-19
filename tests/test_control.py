@@ -20,6 +20,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -349,21 +350,34 @@ class NotARecoveryEngineTests(ControlTestCase):
 
     def test_the_module_never_imports_the_engine_or_the_source(self):
         # Every file of the control layer, however many it becomes.
-        for path in srcscan.files_of("codex_auto_resume.control"):
+        control_files = srcscan.files_of("codex_auto_resume.control")
+        for path in control_files:
             text = srcscan.read(path)
             for module in ("engine", "source", "messages"):
                 with self.subTest(file=srcscan.relative(path), module=module):
-                    self.assertNotIn("from .%s import" % module, text)
-                    self.assertNotIn("from . import %s" % module, text)
+                    self.assertEqual(re.findall(r"(?m)^[ \t]*from \.+%s\b.*" % module, text), [])
+                    self.assertEqual(re.findall(r"(?m)^[ \t]*from \.+ import .*\b%s\b.*" % module, text), [])
         # And the whole package, however the import is spelled and wherever a control function
-        # has moved to: the modules that import any of the three are exactly the ones that
-        # always have, and control is not one of them.
+        # has moved to: the modules that import any of the three - or anything inside one of
+        # them, once it is a package (`engine.dispatch`) - are exactly the ones that always
+        # have, and control is not one of them. A package's own modules importing each other
+        # are not counted.
+        guarded = {name: "codex_auto_resume." + name for name in ("engine", "source", "messages")}
+
+        def within(name, root):
+            return name == root or name.startswith(root + ".")
+
         importers = {}
-        for path in srcscan.package_files():
+        for module, path in srcscan.modules().items():
             for entry in srcscan.imports(path):
-                if entry.target in ("codex_auto_resume.engine", "codex_auto_resume.source",
-                                    "codex_auto_resume.messages"):
-                    importers.setdefault(entry.target.rsplit(".", 1)[1], set()).add(srcscan.relative(path))
+                for name, root in guarded.items():
+                    if within(entry.target, root) and not within(module, root):
+                        importers.setdefault(name, set()).add(srcscan.relative(path))
+        control = {srcscan.relative(path) for path in control_files}
+        self.assertIn("codex_auto_resume/control.py", control)
+        for name, found in sorted(importers.items()):
+            with self.subTest(guarded=name):
+                self.assertEqual(sorted(found & control), [], "control imports the %s" % name)
         package = "codex_auto_resume/%s.py"
         self.assertEqual(importers, {
             "engine": {package % "app"},
