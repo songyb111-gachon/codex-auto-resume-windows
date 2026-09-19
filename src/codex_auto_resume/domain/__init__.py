@@ -5,7 +5,8 @@ library only, and only the parts of it that touch no clock, no file and no proce
 it says is the same wherever and whenever it is asked - and it is what a port of the core to
 another language has to say too.
 
-`ids` is every identifier the product reads or writes, with the one parser for each kind.
+`ids` is every identifier the product reads or writes, with the one parser for each kind;
+`vocabulary` is every closed list of words it stores, shows or decides on, one `StrEnum` each.
 
 Nothing is imported here: a caller names the module it uses.
 """
