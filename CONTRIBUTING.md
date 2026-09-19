@@ -460,6 +460,16 @@ older launcher, already installed in a user's home, looks for both), and the mod
 the settings window, the MCP launcher, the bootstrap and the release check call.
 `tests/test_structural_invariants.py` pins them.
 
+What the bridge and the MCP server answer is a contract too: the settings window and the
+panel in Codex read those answers by field name, and nothing else connects them to the Python.
+`tests/golden/` holds one file per bridge command and per MCP tool, made by
+`tests/wiregolden.py` in a scratch installation with the clock, the paths and the machine
+pinned. `tests/test_wire_goldens.py` makes them again on every run and compares them byte for
+byte, and `tests/test_consumer_fields.py` fails when the window or the panel reads a field no
+golden answer carries. Moving code leaves every one of them exactly as it was. A change that
+means to alter an answer regenerates them with `python -X utf8 tests/wiregolden.py --write`,
+and the diff is reviewed with the change.
+
 ## Commit and pull requests
 
 - One change per commit, with a message that says what changed and why.

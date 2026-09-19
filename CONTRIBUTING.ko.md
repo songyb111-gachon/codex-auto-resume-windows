@@ -408,6 +408,14 @@ Python 패키지는 계층으로 짜여 있고, import는 한 방향으로만 �
 런처가 둘 다 찾습니다), 그리고 설정 창, MCP 런처, bootstrap, 릴리스 검사가 부르는 모듈 이름이 그렇습니다.
 `tests/test_structural_invariants.py`가 이것들을 고정합니다.
 
+브리지와 MCP 서버가 돌려주는 답도 약속입니다. 설정 창과 Codex 안의 패널은 그 답을 필드 이름으로
+읽고, 그 이름 말고는 Python과 이어 주는 것이 없습니다. `tests/golden/`에는 브리지 명령마다, MCP
+도구마다 파일이 하나씩 있으며, `tests/wiregolden.py`가 시계·경로·기계를 고정한 임시 설치본에서
+만듭니다. `tests/test_wire_goldens.py`는 실행할 때마다 이 파일들을 다시 만들어 바이트 단위로 비교하고,
+`tests/test_consumer_fields.py`는 창이나 패널이 어느 골든 답에도 없는 필드를 읽으면 실패합니다. 코드를
+옮겨도 이 파일들은 하나도 달라지지 않아야 합니다. 답을 바꾸려는 변경은
+`python -X utf8 tests/wiregolden.py --write`로 파일들을 다시 만들고, 그 diff도 변경과 함께 리뷰합니다.
+
 ## 커밋과 pull request
 
 - 커밋 하나에 변경 하나, 그리고 무엇이 왜 바뀌었는지 말하는 메시지.
