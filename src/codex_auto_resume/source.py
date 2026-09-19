@@ -111,7 +111,7 @@ def detect(row) -> dict | None:
     # Integral epoch values have one canonical representation, int or float.
     identity[2] = float(identity[2]).hex()
     normalized["interruption_id"] = hashlib.sha256(
-        json.dumps(identity, separators=(",", ":")).encode("ascii")).hexdigest()
+        json.dumps(identity, separators=(",", ":"), allow_nan=False).encode("ascii")).hexdigest()
     return normalized
 
 

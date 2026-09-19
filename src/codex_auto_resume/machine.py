@@ -434,7 +434,7 @@ def encode_gates(vector: dict) -> str:
         if result not in GATE_RESULTS:
             result = UNKNOWN
         clean[name] = [result, reason if reason in GATE_REASONS else "other"]
-    return json.dumps(clean, separators=(",", ":"), sort_keys=True)
+    return json.dumps(clean, separators=(",", ":"), sort_keys=True, allow_nan=False)
 
 
 def decode_gates(text) -> dict:

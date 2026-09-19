@@ -79,7 +79,7 @@ def write_json_atomic(path: Path, value, prefix: str) -> None:
                                              suffix=".json.tmp")
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            json.dump(value, stream, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+            json.dump(value, stream, ensure_ascii=False, separators=(",", ":"), sort_keys=True, allow_nan=False)
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, target)
@@ -244,7 +244,7 @@ def import_document(paths, file, *, origin="file", product=None, now=None) -> di
         return refused("rollback", document["sequence"])
     envelope = {"format": compat.CACHE_FORMAT, "fetched_at": float(now), "origin": origin,
                 "document": raw}
-    encoded = json.dumps(envelope, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    encoded = json.dumps(envelope, ensure_ascii=False, separators=(",", ":"), sort_keys=True, allow_nan=False)
     if len(encoded.encode("utf-8")) > compat.MAX_CACHE_BYTES:
         return refused("too_large", document["sequence"])
     try:

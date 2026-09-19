@@ -114,10 +114,37 @@ def _rejected(message: str, code: str = FALLBACK_CODE) -> dict:
     return {"ok": False, "error": message, "error_code": code}
 
 
+# What `json.dumps` raises for something it cannot write as strict JSON: a value that is not
+# JSON, a NaN or an infinity, a structure that refers to itself or nests too deep.
+UNWRITABLE = (TypeError, ValueError, RecursionError)
+
+
+def encode(*candidates) -> str:
+    """The first of `candidates` that can be written as strict JSON, as one line.
+
+    Strict: no NaN and no infinity, which the settings window's parser and serde_json both
+    refuse, and nothing that is not JSON - there is no `default`, so such a value raises
+    rather than reaching a front end as its str(). The bridge and the MCP server write every
+    line through this and pass their own structured refusal as the last candidate, so a
+    reply that cannot be written is still answered and the loop lives. The last candidate is
+    written unguarded: it is the caller's plain refusal, and if even that fails it should.
+    """
+    for candidate in candidates[:-1]:
+        try:
+            return json.dumps(candidate, ensure_ascii=False, allow_nan=False)
+        except UNWRITABLE:
+            continue
+    return json.dumps(candidates[-1], ensure_ascii=False, allow_nan=False)
+
+
 def _emit(payload) -> int:
     """Write one reply object as one line. The one-shot form's only way out."""
-    json.dump(payload, sys.stdout, ensure_ascii=False, default=str)
-    sys.stdout.write("\n")
+    try:
+        line = encode(payload)
+    except UNWRITABLE:
+        payload = _rejected(GENERIC_ERROR)
+        line = encode(payload)
+    sys.stdout.write(line + "\n")
     return 0 if not isinstance(payload, dict) or payload.get("ok", True) else 1
 
 
@@ -428,8 +455,11 @@ def serve(control: Control, stream_in, stream_out) -> int:
             # pipe and a request that is never answered. No detail, for the same reason
             # `dispatch` gives none.
             reply = _rejected(GENERIC_ERROR)
-        json.dump({"id": request_id, "reply": reply}, stream_out, ensure_ascii=False, default=str)
-        stream_out.write("\n")
+        # A reply that cannot be written is answered with the generic refusal, and an id that
+        # cannot be echoed - JSON has no NaN or infinity - is answered as null.
+        refusal = _rejected(GENERIC_ERROR)
+        stream_out.write(encode({"id": request_id, "reply": reply}, {"id": request_id, "reply": refusal},
+                                {"id": None, "reply": reply}, {"id": None, "reply": refusal}) + "\n")
         stream_out.flush()
     return 0
 

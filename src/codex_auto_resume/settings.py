@@ -375,7 +375,7 @@ def save(path: Path, values: dict) -> dict:
     descriptor, temporary = tempfile.mkstemp(dir=str(target.parent), prefix="settings.", suffix=".json.tmp")
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            json.dump(payload, stream, indent=2, sort_keys=True)
+            json.dump(payload, stream, indent=2, sort_keys=True, allow_nan=False)
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, target)

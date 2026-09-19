@@ -60,6 +60,12 @@ class Redactor:
             value = re.sub(re.escape(self._user), "<user>", value, flags=re.IGNORECASE)
         return value
 
+    def unexpected(self, value) -> str:
+        """What the bundle writes for a value that is not JSON - there should be none: its
+        text, redacted like a log line, so a path or a user name in it never reaches the file
+        and an odd value never costs the export."""
+        return self.text(str(value))
+
 
 def _record(row, redact: Redactor) -> dict:
     gates = machine.decode_gates(row.get("gate_eval")) if row.get("gate_eval") else None
@@ -164,9 +170,9 @@ def _compatibility(control) -> dict:
         return {"status": "invalid", "error": type(exc).__name__}
 
 
-def collect(control, *, now=None) -> dict:
+def collect(control, *, now=None, redact=None) -> dict:
     """The whole bundle, redacted. Works with the watcher stopped and Codex closed."""
-    redact = Redactor()
+    redact = redact or Redactor()
     now = time.time() if now is None else now
     bundle = {
         "format": "codex-auto-resume-diagnostics/1",
@@ -218,10 +224,14 @@ def write(control, target: Path) -> Path:
     target = Path(target)
     if target.exists():
         raise FileExistsError("refusing to overwrite %s" % target.name)
-    bundle = collect(control)
+    redact = Redactor()
+    # Written whole or not at all: the text is made before the file is, so a value that
+    # cannot be written leaves no half a bundle behind to block the next attempt's name.
+    text = json.dumps(collect(control, redact=redact), indent=1, ensure_ascii=False, allow_nan=False,
+                      default=redact.unexpected)
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("x", encoding="utf-8") as stream:
-        json.dump(bundle, stream, indent=1, ensure_ascii=False, default=str)
+        stream.write(text)
     return target
 
 

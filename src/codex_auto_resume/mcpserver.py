@@ -383,8 +383,8 @@ class Server:
     def _write(self, payload) -> None:
         if payload is None:
             return
-        json.dump(payload, self.stream_out, ensure_ascii=False, default=str)
-        self.stream_out.write("\n")
+        failed = self._error(payload.get("id"), INTERNAL_ERROR, "the request could not be completed")
+        self.stream_out.write(controlcli.encode(payload, failed, dict(failed, id=None)) + "\n")
         self.stream_out.flush()
 
     def _dispatch(self, message):
