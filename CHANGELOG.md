@@ -36,6 +36,9 @@ by default and changes where a notification appears, never whether there is one 
 - It holds still under Reduce motion, Windows' animation setting, High Contrast and battery saver,
   while the session is locked, and while the icon sits in the overflow area where nobody sees it.
   At rest it is exactly the icon it has always been; the badge and the shape are unchanged.
+- While the settings window is open, its taskbar button moves the same way: the same states,
+  rhythms and frames, held still by the same settings and while the window is hidden. The title
+  bar's icon does not move, and at rest the button is the icon it has always been.
 
 ### Notifications in the product's own card
 
