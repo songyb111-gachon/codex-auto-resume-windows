@@ -135,8 +135,7 @@ def _uuid(value: Any, name: str) -> str:
 def _timestamp(value: Any, name: str, *, nullable: bool = False) -> Any:
     if value is None and nullable:
         return None
-    if (isinstance(value, bool) or not isinstance(value, (int, float))
-            or not math.isfinite(value) or value < 0 or value > 253402300799):
+    if not machine.epoch(value, *machine.EPOCH_STORE):
         raise StoreError(f"Invalid {name}")
     return value
 

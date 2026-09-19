@@ -20,6 +20,8 @@ import threading
 import time
 import uuid
 
+from . import machine
+
 NO_WINDOW = 0x08000000 if os.name == "nt" else 0
 # A Codex update bumps the version string, which alone must not disable auto-resume.
 # Every build - a verified one included - has to prove it still offers the exact interface
@@ -507,10 +509,6 @@ class HomeLock:
             self._fd = None
 
 
-def _epoch(value):
-    return value if type(value) is int and 0 < value <= 4102444800 else None
-
-
 def parse_usage(value):
     """Allowlist numeric usage fields. Never retain account IDs, banners or credits."""
     unknown = {"available": None, "reset_at": None, "limit_type": "unknown", "reason": "usage_snapshot_unknown"}
@@ -543,10 +541,12 @@ def parse_usage(value):
             duration = window.get("windowDurationMins")
             if duration is not None and (type(duration) is not int or duration <= 0):
                 return unknown
-            if window.get("resetsAt") is not None and _epoch(window["resetsAt"]) is None:
+            resets_at = window.get("resetsAt")
+            if resets_at is not None and not machine.epoch(
+                    resets_at, *machine.EPOCH_USAGE, integer=True, exact=True, finite=False):
                 return unknown
             entry = {"bucket": safe_id, "window": slot, "used_percent": used,
-                     "window_minutes": duration, "reset_at": _epoch(window.get("resetsAt"))}
+                     "window_minutes": duration, "reset_at": resets_at}
             windows.append(entry)
             if used >= 100:
                 blocked.append(entry)

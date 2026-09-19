@@ -42,6 +42,8 @@ import math
 import re
 import time
 
+from . import machine
+
 # ------------------------------------------------------------------------------ formats
 FORMAT_PREFIX = "codex-auto-resume-compat/"
 FORMAT_MAJOR = "1"
@@ -67,8 +69,7 @@ REPORT_FUTURE_SECONDS = 300
 RECOMPUTE_SECONDS = 600
 REPORT_MAX_AGE = RECOMPUTE_SECONDS + 3600 + 300
 
-EPOCH_MIN = 946684800          # 2000-01-01, as source.epoch
-EPOCH_MAX = 4102444800         # 2100-01-01
+EPOCH_MIN, EPOCH_MAX = machine.EPOCH_CODEX      # 2000-01-01 to 2100-01-01, as Codex's history
 
 # ------------------------------------------------------------------------------ states
 VERIFIED, COMPATIBLE, INCOMPATIBLE, UNKNOWN = "VERIFIED", "COMPATIBLE", "INCOMPATIBLE", "UNKNOWN"
@@ -317,7 +318,7 @@ def _timestamp(text, *, optional=False):
         value = calendar.timegm(time.strptime(text, "%Y-%m-%dT%H:%M:%SZ"))
     except (ValueError, OverflowError):
         raise DocumentError("invalid_field") from None
-    if not EPOCH_MIN <= value <= EPOCH_MAX:
+    if not machine.epoch(value, EPOCH_MIN, EPOCH_MAX, finite=False):
         raise DocumentError("invalid_field")
     return float(value)
 
@@ -615,11 +616,9 @@ def _finite_number(value):
 
 
 def _epoch_or_none(value):
-    if value is None:
-        return None
-    if not _finite_number(value) or not EPOCH_MIN <= value <= EPOCH_MAX:
+    if value is not None and not machine.epoch(value, EPOCH_MIN, EPOCH_MAX):
         raise ValueError("epoch")
-    return float(value)
+    return None if value is None else float(value)
 
 
 def _small_int_or_none(value):
@@ -710,7 +709,7 @@ def validate_report(value, *, now=None):
         if not isinstance(value, dict) or value.get("format") != REPORT_FORMAT:
             return None
         checked = value.get("checked_at")
-        if not _finite_number(checked) or not EPOCH_MIN <= checked <= EPOCH_MAX:
+        if not machine.epoch(checked, EPOCH_MIN, EPOCH_MAX):
             return None
         if now is not None and checked > now + REPORT_FUTURE_SECONDS:
             return None
