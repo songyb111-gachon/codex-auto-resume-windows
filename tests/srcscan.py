@@ -223,3 +223,15 @@ def string_constants(tree: ast.AST):
     for node in ast.walk(tree):
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
             yield node, node.value
+
+
+# Read the whole package now, while this module is imported - at collection, before any test
+# runs. Several tests stand in a fake `codex` by patching subprocess.run, and others patch
+# Path.is_file; a scan whose first use fell inside one of them would list the sources through
+# the fake. Everything above is cached, so the scans read this snapshot. If git cannot list
+# the sources, the error is raised again, loudly, by the first scan that needs the listing.
+try:
+    package_asts()
+    import_graph()
+except ScanError:
+    pass
