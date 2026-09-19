@@ -7,9 +7,18 @@ recoverable, with no switch and no label, because nothing checked this.
 """
 from __future__ import annotations
 
+import ast
+from pathlib import Path
+import sys
 import unittest
 
-from codex_auto_resume import engine, failures, l10n, reasons, settings
+_HERE = str(Path(__file__).resolve().parent)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)        # srcscan lives next to this file
+
+import srcscan  # noqa: E402
+
+from codex_auto_resume import engine, failures, l10n, reasons, settings  # noqa: E402
 
 
 class RegistryAgreementTests(unittest.TestCase):
@@ -32,9 +41,27 @@ class RegistryAgreementTests(unittest.TestCase):
 
     def test_no_recoverable_category_is_recovered_without_a_switch(self):
         """`Engine.recovers` recovers any category that has no switch. That rule is only
-        safe while every recoverable category has one, so this holds it there."""
+        safe while every recoverable category has one, so this holds it there.
+
+        The rule is followed to wherever it lives rather than read from one function's code
+        object, which a wrapper around a moved rule would no longer show: the one place in the
+        package that lets a category through for being outside CONFIGURABLE_CATEGORIES is
+        found by its shape (a move updates the entry on purpose), and what the engine then
+        decides is asked of it - with every switch off, nothing recoverable is recovered."""
         self.assertLessEqual(set(reasons.RECOVERABLE), set(settings.CONFIGURABLE_CATEGORIES))
-        self.assertIn("CONFIGURABLE_CATEGORIES", engine.Engine.recovers.__code__.co_names)
+        found = set()
+        for path, tree in srcscan.package_asts().items():
+            names = srcscan.qualnames(tree)
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Compare) and any(isinstance(op, ast.NotIn) for op in node.ops)
+                        and any("CONFIGURABLE_CATEGORIES" in ast.unparse(side) for side in node.comparators)):
+                    found.add((srcscan.relative(path), names[node]))
+        self.assertEqual(found, {("codex_auto_resume/engine.py", "Engine.recovers")})
+        switched_off = engine.Engine(None, None, None)
+        switched_off.apply_policy({"recover_" + category: False for category in settings.CONFIGURABLE_CATEGORIES})
+        for category in reasons.RECOVERABLE:
+            with self.subTest(category):
+                self.assertFalse(switched_off.recovers(category))
 
     def test_a_custom_message_field_exists_for_exactly_the_recoverable_categories(self):
         per_reason = {name[len("custom_message_"):] for name in settings.FIELDS
