@@ -58,6 +58,20 @@ V2_STATES = frozenset({
 
 # Anything from a claim onwards may have reached Codex. Every gate treats it so.
 POSSIBLY_SENT = CLAIMED | IN_FLIGHT | OBSERVING | TERMINAL
+# Everything that may be sitting in Codex's queue, or may have just left it: what the watch
+# follows. An uncertain submission is followed whether or not it still owns a queue row.
+WATCHED = CLAIMED | IN_FLIGHT | frozenset({"submission_unknown"})
+
+
+def may_be_queued(state, queue_id) -> bool:
+    """Whether a record may be sitting in Codex's queue right now: claimed, queued, taken back
+    without proof that it never ran, or an uncertain submission that still owns a queue row.
+
+    The store counts these on a conversation before it lets another of its records be
+    claimed, and the engine watches every second while any exists. One rule, so a state
+    added here is added to both.
+    """
+    return state in CLAIMED | IN_FLIGHT or (state == "submission_unknown" and queue_id is not None)
 
 # Moves a plain `Store.update` may make. Everything else is either a dedicated store
 # operation (reserve, release_claim, release_withdrawn, restore_budget and
