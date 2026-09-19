@@ -68,6 +68,8 @@ class DiagnosticsTests(unittest.TestCase):
         self.assertEqual(settings["custom_message_usage_limit"], "<set>")
         self.assertIsNone(settings["custom_message_timeout"])
         self.assertEqual(settings["continuation_style"], "custom")
+        # Which message is used is a choice, not the user's words, and is recorded as it is.
+        self.assertEqual(settings["custom_message_mode"], self.control.get_settings()["custom_message_mode"])
 
     def test_aliases_are_consistent_inside_one_file(self):
         bundle = json.loads(self.bundle_text())
