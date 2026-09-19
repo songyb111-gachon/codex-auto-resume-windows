@@ -20,13 +20,14 @@ while the window is open ("윈도우 아래 앱 켜있을때 아이콘도 트레
     frames are the tray's own pixels: MarkFrames composes, from what build/make_brand.py generated, exactly what
     tray.IconFrames composes, at each of the .ico's entries the big icon is from 100% to 300% (32, 40, 48 and 64 px);
   * the big icon changes over time while watching, turning and pulsing, and not at all under Reduce motion, Windows'
-    animation effects, High Contrast or battery saver, nor with the window hidden - and moves again when the reason
-    goes; with nothing to move there is no timer;
+    animation effects, High Contrast or battery saver, nor while the session is locked or disconnected, nor with the
+    window hidden - and moves again when the reason goes; with nothing to move there is no timer;
   * every icon made is destroyed once the next is held: GDI and USER objects stay level over hundreds of frames, and
     once the window closes the mark has left nothing, its timer included.
 
-Windows' animation switch, High Contrast and battery saver are the probe's own answers (Soft.WindowsAnimates,
-Theme.HighContrastOn, TaskbarMark.BatterySaverOn), so a runner's settings decide nothing, and the mark's clock is the
+Windows' animation switch, High Contrast, battery saver and a locked session are the probe's own answers
+(Soft.WindowsAnimates, Theme.HighContrastOn, TaskbarMark.BatterySaverOn and SessionLockedOn), so a runner's settings and
+its session decide nothing, and the mark's clock is the
 probe's (TaskbarMark.Clock), so each frame is asked for at a moment the probe chooses. The windows are the probe's own,
 far off the screen, shown without activation and without a taskbar button; nothing is sent to any other window.
 """
@@ -368,10 +369,13 @@ foreach ($state in (ConvertFrom-Json $env:CAR_STATES)) {
 }
 $allowed = $markType.GetMethod('MotionAllowed', $static)
 $out.allowed = @()
-foreach ($bits in 0..31) {
-    $flags = @((($bits -band 1) -ne 0), (($bits -band 2) -ne 0), (($bits -band 4) -ne 0), (($bits -band 8) -ne 0), (($bits -band 16) -ne 0))
+foreach ($bits in 0..63) {
+    $flags = @((($bits -band 1) -ne 0), (($bits -band 2) -ne 0), (($bits -band 4) -ne 0), (($bits -band 8) -ne 0), (($bits -band 16) -ne 0),
+               (($bits -band 32) -ne 0))
     $out.allowed += ,@($flags + @([bool]$allowed.Invoke($null, [object[]]$flags)))
 }
+# Windows' own answer for this session, as the mark reads it when no probe stands one in.
+$out.sessionLocked = [bool]$markType.GetMethod('SessionLocked', $static).Invoke($null, @())
 
 # ------------------------------------------------------------------ the frames: the tray's own pixels
 $for = $framesType.GetMethod('For', $static)
@@ -397,14 +401,17 @@ foreach ($n in (ConvertFrom-Json $env:CAR_BIG_SIZES)) {
 }
 
 # ------------------------------------------------------------------ the mark on a window of the probe's own
-# Windows' inputs are the probe's answers: animation effects on, High Contrast off, battery saver off - and the light theme.
+# Windows' inputs are the probe's answers: animation effects on, High Contrast off, battery saver off, the session
+# unlocked - and the light theme.
 $animates = $soft.GetField('WindowsAnimates', $static)
 $contrast = $themeType.GetField('HighContrastOn', $static)
 $saver = $markType.GetField('BatterySaverOn', $static)
+$locked = $markType.GetField('SessionLockedOn', $static)
 $reduce = $soft.GetField('ReduceMotionSetting', $static)
 $animates.SetValue($null, [Said]::Answer($true))
 $contrast.SetValue($null, [Said]::Answer($false))
 $saver.SetValue($null, [Said]::Answer($false))
+$locked.SetValue($null, [Said]::Answer($false))
 $reduce.SetValue($null, $false)
 $null = $palette.GetMethod('Adopt', $static).Invoke($null, [object[]]@('light'))
 $animate = $markType.GetMethod('Animate', $instance)
@@ -490,12 +497,13 @@ $out.watching.timed = @($timed | Select-Object -Unique).Count
 
 # Each reason holds it still, and it moves again when the reason goes.
 $out.held = @{}
-foreach ($reason in @('reduce', 'animation', 'contrast', 'saver', 'hidden')) {
+foreach ($reason in @('reduce', 'animation', 'contrast', 'saver', 'locked', 'hidden')) {
     switch ($reason) {
         'reduce' { $reduce.SetValue($null, $true) }
         'animation' { $animates.SetValue($null, [Said]::Answer($false)) }
         'contrast' { $contrast.SetValue($null, [Said]::Answer($true)) }
         'saver' { $saver.SetValue($null, [Said]::Answer($true)) }
+        'locked' { $locked.SetValue($null, [Said]::Answer($true)) }
         'hidden' { $window.Hide() }
     }
     [ProbeClock]::Now = 200000
@@ -516,6 +524,7 @@ foreach ($reason in @('reduce', 'animation', 'contrast', 'saver', 'hidden')) {
         'animation' { $animates.SetValue($null, [Said]::Answer($true)) }
         'contrast' { $contrast.SetValue($null, [Said]::Answer($false)) }
         'saver' { $saver.SetValue($null, [Said]::Answer($false)) }
+        'locked' { $locked.SetValue($null, [Said]::Answer($false)) }
         'hidden' { $window.Show(); Pump 30 }
     }
     [ProbeClock]::Now = 201600
@@ -813,11 +822,40 @@ class TaskbarMarkTests(unittest.TestCase):
                 self.assertEqual(tuple(colour), tray.icon_level_colour(tray.icon_head_colour(state), level))
 
     def test_any_one_reason_holds_it_still(self):
+        """The icon's own rule (tray.icon_motion_allowed), a window that is not shown standing where the icon has
+        the overflow flyout: the two surfaces stop for the same reasons, a locked session among them."""
         rows = self.answer["allowed"]
-        self.assertEqual(len(rows), 32)
-        for reduced, contrast, saver, shown, frames, allowed in rows:
-            with self.subTest(reduced=reduced, contrast=contrast, saver=saver, shown=shown, frames=frames):
-                self.assertEqual(allowed, shown and frames and not (reduced or contrast or saver))
+        self.assertEqual(len(rows), 64)
+        for reduced, contrast, saver, locked, shown, frames, allowed in rows:
+            with self.subTest(reduced=reduced, contrast=contrast, saver=saver, locked=locked, shown=shown, frames=frames):
+                self.assertEqual(allowed, shown and frames and not (reduced or contrast or saver or locked))
+                self.assertEqual(allowed, tray.icon_motion_allowed(reduced=reduced, contrast=contrast,
+                                                                   battery_saver=saver, locked=locked,
+                                                                   hidden=not shown, frames=frames))
+
+    def test_the_session_is_windows_own_answer_read_where_windows_writes_it(self):
+        """The user's rule holds the icon and the button alike still while the session is locked; the review found the
+        button went on moving - and explorer.exe on redrawing it - behind the lock screen. TaskbarMark.SessionLocked
+        asks Windows (WTSQuerySessionInformation, WTSSessionInfoEx). Read here as well, with the session's id, which
+        the mark does not read, showing the fields are where both read them."""
+        import ctypes
+        from ctypes import wintypes
+        wts, kernel32 = ctypes.WinDLL("wtsapi32"), ctypes.WinDLL("kernel32")
+        wts.WTSQuerySessionInformationW.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.c_int,
+                                                    ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(wintypes.DWORD)]
+        wts.WTSQuerySessionInformationW.restype = wintypes.BOOL
+        wts.WTSFreeMemory.argtypes = [ctypes.c_void_p]
+        buffer, size = ctypes.c_void_p(), wintypes.DWORD()
+        self.assertTrue(wts.WTSQuerySessionInformationW(None, 0xFFFFFFFF, 25, ctypes.byref(buffer),
+                                                        ctypes.byref(size)))
+        try:
+            level, _, session, state, flags = (ctypes.c_int32 * 5).from_address(buffer.value)
+        finally:
+            wts.WTSFreeMemory(buffer)
+        mine = wintypes.DWORD()
+        self.assertTrue(kernel32.ProcessIdToSessionId(os.getpid(), ctypes.byref(mine)))
+        self.assertEqual((level, session), (1, mine.value))
+        self.assertEqual(self.answer["sessionLocked"], flags == 0 or state == 4)
 
     # ---------------------------------------------------------------- the pixels: the tray's own
     def test_the_frames_are_the_tray_icon_s_own_pixels_at_every_big_icon_size(self):
@@ -940,7 +978,7 @@ class TaskbarMarkTests(unittest.TestCase):
 
     def test_each_reason_holds_it_still_and_it_moves_again_when_the_reason_goes(self):
         own = self.answer["own"]
-        for reason in ("reduce", "animation", "contrast", "saver", "hidden"):
+        for reason in ("reduce", "animation", "contrast", "saver", "locked", "hidden"):
             held = self.answer["held"][reason]
             with self.subTest(reason=reason):
                 self.assertFalse(held["moving"])

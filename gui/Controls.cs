@@ -6133,7 +6133,8 @@ namespace CodexAutoResume
     /// watcher stopped it is grey, a problem its colour. No badge: the header says the rest.
     ///
     /// Nothing moves under this product's Reduce motion, Windows' animation effects or High Contrast (Soft.ReduceMotion,
-    /// Theme.ContrastOn), under battery saver, or while the window is not shown; the states then differ by colour only.
+    /// Theme.ContrastOn), under battery saver, while the session is locked or disconnected, or while the window is not
+    /// shown; the states then differ by colour only.
     /// Windows is asked only while the state has something to move, once a second (Sync, on the window's clock), so the
     /// motion is back within a second of the last reason going. With nothing moving there is no timer at all. Every
     /// icon made is destroyed once the window holds the next; the timer stops once the window has closed (FormClosed,
@@ -6163,6 +6164,16 @@ namespace CodexAutoResume
         [DllImport("kernel32.dll")]
         private static extern bool GetSystemPowerStatus(out PowerStatus status);
 
+        [DllImport("wtsapi32.dll", CharSet = CharSet.Unicode)]
+        private static extern bool WTSQuerySessionInformationW(IntPtr server, int session, int infoClass, out IntPtr buffer, out int bytes);
+
+        [DllImport("wtsapi32.dll")]
+        private static extern void WTSFreeMemory(IntPtr memory);
+
+        private const int WTS_CURRENT_SESSION = -1;
+        private const int WTSSessionInfoEx = 25;
+        private const int WTSDisconnected = 4;
+        private const int WTS_SESSIONSTATE_LOCK = 0;
         private const int WM_GETICON = 0x007F;
         private const int WM_SETICON = 0x0080;
         private const int ICON_SMALL = 0;
@@ -6172,6 +6183,11 @@ namespace CodexAutoResume
         /// it. Like Soft.WindowsAnimates and Theme.HighContrastOn it is an input a probe stands its own answer in, so the
         /// mark is tested alike on every machine and never by changing Windows' own setting.
         internal static Func<bool> BatterySaverOn = BatterySaver;
+
+        /// Whether this session is locked or disconnected, as the mark reads it: Windows, asked now (SessionLocked). As
+        /// the notification-area icon stops while nobody can see it (tray._session_changed), so does the button; and
+        /// like BatterySaverOn it is an input a probe stands its own answer in - a runner's session decides nothing.
+        internal static Func<bool> SessionLockedOn = SessionLocked;
 
         private readonly Form owner;
         private readonly Timer timer = new Timer();
@@ -6239,15 +6255,16 @@ namespace CodexAutoResume
 
         /// Whether anything may move. Any one reason holds it still: this product's Reduce motion, Windows' animation
         /// effects or High Contrast (Soft.ReduceMotion, which High Contrast's palette is part of, and Theme.ContrastOn),
-        /// battery saver, a window that is not shown - with no taskbar button - or no frames at its big icon's size.
-        internal static bool MotionAllowed(bool reduced, bool contrast, bool batterySaver, bool shown, bool frames)
+        /// battery saver, a locked or disconnected session, a window that is not shown - with no taskbar button - or no
+        /// frames at its big icon's size.
+        internal static bool MotionAllowed(bool reduced, bool contrast, bool batterySaver, bool locked, bool shown, bool frames)
         {
-            return shown && frames && !(reduced || contrast || batterySaver);
+            return shown && frames && !(reduced || contrast || batterySaver || locked);
         }
 
         private bool MayMove()
         {
-            bool contrast, saver;
+            bool contrast, saver, locked;
             try { contrast = Theme.ContrastOn(); }
             catch (Exception) { contrast = false; }
             try
@@ -6256,7 +6273,34 @@ namespace CodexAutoResume
                 saver = on != null && on();
             }
             catch (Exception) { saver = false; }
-            return MotionAllowed(Soft.ReduceMotion, contrast, saver, owner.Visible && owner.IsHandleCreated, Frames() != null);
+            try
+            {
+                Func<bool> away = SessionLockedOn;
+                locked = away != null && away();
+            }
+            catch (Exception) { locked = false; }
+            return MotionAllowed(Soft.ReduceMotion, contrast, saver, locked, owner.Visible && owner.IsHandleCreated, Frames() != null);
+        }
+
+        /// Whether this session is locked (WTSINFOEX's SessionFlags) or disconnected (its SessionState), asked now; false
+        /// where Windows cannot say. WTSINFOEXW is the level, then - 8-aligned, for the logon times it carries - the
+        /// session's id, its state and its flags; Windows 10 and 11 report the lock the right way round.
+        internal static bool SessionLocked()
+        {
+            IntPtr buffer = IntPtr.Zero;
+            try
+            {
+                int bytes;
+                if (!WTSQuerySessionInformationW(IntPtr.Zero, WTS_CURRENT_SESSION, WTSSessionInfoEx, out buffer, out bytes)
+                    || buffer == IntPtr.Zero || bytes < 20 || Marshal.ReadInt32(buffer, 0) != 1)
+                    return false;
+                return Marshal.ReadInt32(buffer, 16) == WTS_SESSIONSTATE_LOCK || Marshal.ReadInt32(buffer, 12) == WTSDisconnected;
+            }
+            catch (Exception) { return false; }
+            finally
+            {
+                if (buffer != IntPtr.Zero) WTSFreeMemory(buffer);
+            }
         }
 
         /// Windows' battery saver (energy saver), asked now; false where Windows cannot say.
