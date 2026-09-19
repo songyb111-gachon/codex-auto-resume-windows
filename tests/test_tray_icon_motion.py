@@ -24,7 +24,7 @@ import types
 import unittest
 import unittest.mock
 
-from codex_auto_resume import brand, control, tray, tray_popup as popup
+from codex_auto_resume import brand, control, tray, tray_place as place, tray_popup as popup
 
 ROOT = Path(__file__).resolve().parents[1]
 MOTION = tray.ICON_MOTION
@@ -704,14 +704,14 @@ class PlacementTests(unittest.TestCase):
 
     `Shell_NotifyIconGetRect` cannot answer it: on Windows 11 (build 26200) an icon in the overflow flyout is given
     the overflow button's rectangle, so the icon animated where nobody saw it and explorer.exe paid for every frame.
-    Windows writes what it did with each icon under its own per-user key (`tray.NOTIFY_ICON_SETTINGS`), one key per
+    Windows writes what it did with each icon under its own per-user key (`tray_place.NOTIFY_ICON_SETTINGS`), one key per
     icon, and `IsPromoted` is 1 for an icon it shows on the taskbar. Only a fake registry is read here, never this
     machine's.
     """
 
     EXE = r"C:\Users\a\.codex-auto-resume\runtime\pythonw.exe"
-    SETTINGS = tray.NOTIFY_ICON_SETTINGS
-    CHEVRON = tray.TRAY_NOTIFY
+    SETTINGS = place.NOTIFY_ICON_SETTINGS
+    CHEVRON = place.TRAY_NOTIFY
 
     def entry(self, promoted=None, path=None, uid=1, **extra):
         value = {"ExecutablePath": self.EXE if path is None else path, "UID": uid}
@@ -722,7 +722,7 @@ class PlacementTests(unittest.TestCase):
 
     def placement(self, keys, executable=None, fail=None, folders=None):
         reader = FakeRegistry(keys, fail=fail)
-        return tray.IconPlacement(executable or self.EXE, reader=reader,
+        return place.IconPlacement(executable or self.EXE, reader=reader,
                                   folders=folders or (lambda guid: None)), reader
 
     def test_an_icon_windows_shows_on_the_taskbar_is_not_in_the_overflow_area(self):
@@ -793,7 +793,7 @@ class PlacementTests(unittest.TestCase):
         self.assertIsNone(placement.overflowed())
         self.assertIsNone(placement.overflowed())
         self.assertEqual(len([step for step in reader.reads if step[0] == "subkeys"]), 1)
-        clock[0] += tray.IconPlacement.LOOK_AGAIN_S
+        clock[0] += place.IconPlacement.LOOK_AGAIN_S
         keys[self.SETTINGS + r"\17"] = self.entry(0)            # the shell wrote the icon's settings
         self.assertIs(placement.overflowed(), True)
         self.assertEqual(len([step for step in reader.reads if step[0] == "subkeys"]), 2)
@@ -805,10 +805,10 @@ class PlacementTests(unittest.TestCase):
         placement.clock = lambda: clock[0]
         self.assertIs(placement.overflowed(), True)
         keys.pop(self.SETTINGS + r"\17")
-        clock[0] += tray.IconPlacement.LOOK_AGAIN_S
+        clock[0] += place.IconPlacement.LOOK_AGAIN_S
         self.assertIsNone(placement.overflowed())
         keys[self.SETTINGS + r"\21"] = self.entry(1)            # written again, and promoted this time
-        clock[0] += tray.IconPlacement.LOOK_AGAIN_S
+        clock[0] += place.IconPlacement.LOOK_AGAIN_S
         self.assertIs(placement.overflowed(), False)
 
     def test_one_promoted_entry_among_this_icon_s_is_enough(self):
@@ -819,10 +819,10 @@ class PlacementTests(unittest.TestCase):
     @unittest.skipUnless(os.name == "nt", "the registry is Windows'")
     def test_this_machine_answers_without_writing_anything(self):
         """The real reader, on this machine: whatever it says, it is a bool or None and nothing was written."""
-        placement = tray.IconPlacement()
+        placement = place.IconPlacement()
         answer = placement.overflowed()
         self.assertIn(answer, (True, False, None))
-        self.assertTrue(tray.process_image().lower().endswith(".exe"))
+        self.assertTrue(place.process_image().lower().endswith(".exe"))
 
 
 @unittest.skipUnless(os.name == "nt", "icon handles are Windows'")
