@@ -26,7 +26,8 @@ Three kinds of input, and the difference matters:
   fifteen package files it was until v0.6.5 - so moving code inside the package cannot fire
   it, and a changed word, row, figure, name or status cannot slip past it.
 * The **popup** is hashed by the view it draws and by the definitions that draw it, pooled
-  by name across its modules and the palette's, so moving one between modules cannot fire
+  by name across its modules and the palette's - and across the definitions they import by
+  name from anywhere else, wherever those live - so moving one between modules cannot fire
   it and changing one does.
 
 So this fires whenever something the picture is drawn from changed - not, as an earlier
@@ -705,9 +706,11 @@ class EnvelopeTests(unittest.TestCase):
 class PopupDrawingTests(unittest.TestCase):
     """What draws the popup, keyed so that a move is invisible and an edit is not.
 
-    v0.6.5 moves the popup into `ui/popup/` and the palette into `ui/brand/`. The popup's
-    manifest entry hashes the definitions of those modules pooled by name rather than their
-    files, so the moves leave it where it is while any real change still moves it.
+    v0.6.5 moves the popup into `ui/popup/`, the palette into `ui/brand/`, and the Win32
+    structures and DLL cache the popup shares with the icon into `win/dll.py`. The popup's
+    manifest entry hashes the definitions of its modules pooled by name rather than their
+    files, and follows what they import by name to wherever it is defined, so the moves
+    leave it where it is while any real change still moves it.
     """
 
     POPUP = (
@@ -746,7 +749,24 @@ class PopupDrawingTests(unittest.TestCase):
                 path = Path(root) / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(text, encoding="utf-8")
-            return self.generator.code_digest(self.generator.popup_code_files(root))
+            return self.generator.popup_drawing(root)
+
+    @staticmethod
+    def cut(text, *names):
+        """`text` without its top-level statements that bind `names`, and those statements."""
+        tree = ast.parse(text)
+        lines = text.splitlines(keepends=True)
+        spans = []
+        for node in tree.body:
+            bound = {node.name} if isinstance(node, (ast.FunctionDef, ast.ClassDef)) else {
+                target.id for target in getattr(node, "targets", []) if isinstance(target, ast.Name)}
+            if bound & set(names):
+                start = min([node.lineno] + [item.lineno for item in getattr(node, "decorator_list", [])])
+                spans.append((start - 1, node.end_lineno))
+        assert len(spans) == len(names), (names, spans)
+        kept = [line for number, line in enumerate(lines) if not any(a <= number < b for a, b in spans)]
+        taken = ["".join(lines[a:b]) + "\n\n" for a, b in spans]
+        return "".join(kept), "".join(taken)
 
     def test_the_patterns_cover_the_popup_the_palette_and_the_packages_they_move_into(self):
         with tempfile.TemporaryDirectory() as root:
@@ -843,6 +863,98 @@ class PopupDrawingTests(unittest.TestCase):
         recoloured = "".join(lines)
         self.assertNotEqual(recoloured, brand)
         self.assertNotEqual(self.digest({"tray_popup.py": popup, "brand.py": recoloured}), before)
+
+    TRAY = ('"""The icon."""\n'
+            "import ctypes\n"
+            "\n"
+            "class GUID(ctypes.Structure):\n"
+            "    _fields_ = [('Data1', ctypes.c_ulong)]\n"
+            "\n"
+            "def countdown(seconds):\n"
+            "    return '%ds' % seconds\n"
+            "\n"
+            "def tooltip(snapshot):\n"
+            "    return 'Codex Auto Resume'\n")
+    POPUP_WITH_THE_ICON = (
+        "import ctypes\n"
+        "from . import brand\n"
+        "from .tray import GUID, countdown\n"
+        "\n"
+        "_DLLS = {}\n"
+        "\n"
+        "def _dll(name):\n"
+        "    if name not in _DLLS:\n"
+        "        _DLLS[name] = ctypes.WinDLL(name)\n"
+        "    return _DLLS[name]\n"
+        "\n"
+        "def label(seconds):\n"
+        "    return countdown(seconds) + brand.SURFACE\n"
+        "\n"
+        "def register():\n"
+        "    return _dll('user32'), GUID()\n")
+
+    def test_what_the_popup_imports_by_name_is_followed_wherever_it_lives(self):
+        """`win/dll.py` is not one of the popup's modules, and should not be: it will hold the
+        icon's and the card's structures too. What the popup takes from it by name is in the
+        key all the same, so moving the popup's DLL cache there, or the icon's structure,
+        leaves the key; and a change to what the popup takes from the icon moves it."""
+        files = {"tray_popup.py": self.POPUP_WITH_THE_ICON, "brand.py": self.BRAND, "tray.py": self.TRAY}
+        before = self.digest(files)
+        popup, cache = self.cut(self.POPUP_WITH_THE_ICON, "_DLLS", "_dll")
+        tray, guid = self.cut(self.TRAY, "GUID")
+        layouts = {}
+        for importer in ("tray", "win.dll"):            # re-exported by the icon, or imported directly
+            layouts[importer] = {
+                "tray_popup.py": popup.replace("from .tray import GUID, countdown",
+                                               "from .%s import GUID\nfrom .tray import countdown\n"
+                                               "from .win.dll import _dll" % importer),
+                "brand.py": self.BRAND,
+                "tray.py": "from .win.dll import GUID\n" + tray,
+                "win/__init__.py": "",
+                "win/dll.py": "import ctypes\n\n" + guid + cache,
+            }
+            with self.subTest(importer):
+                self.assertEqual(self.digest(layouts[importer]), before)
+        moved = layouts["win.dll"]
+        for what, (name, old, new) in {
+                "the countdown the popup shows": ("tray.py", "'%ds' % seconds", "'%d s' % seconds"),
+                "the cache the popup's DLL handle fills": ("win/dll.py", "_DLLS = {}", "_DLLS = dict()"),
+                "a structure the popup registers": ("win/dll.py", "c_ulong", "c_uint")}.items():
+            changed = dict(moved)
+            self.assertIn(old, changed[name])
+            changed[name] = changed[name].replace(old, new, 1)
+            with self.subTest(what):
+                self.assertNotEqual(self.digest(changed), before, what + " did not move the digest")
+        changed = dict(moved, **{"tray.py": moved["tray.py"].replace("'Codex Auto Resume'", "'Codex'")})
+        self.assertNotEqual(changed["tray.py"], moved["tray.py"])
+        self.assertEqual(self.digest(changed), before, "the icon's own tooltip is not the popup's drawing")
+
+    def test_folding_the_real_dll_caches_and_structures_into_win_leaves_the_digest(self):
+        """Step 9 on the real modules: the popup's private DLL cache and the Win32 structures
+        it takes from the icon move into `win/dll.py`, each importer taking them back by name.
+        The key is the same; a change to the icon's real countdown is not."""
+        package = ROOT / "src" / "codex_auto_resume"
+        real = {name: (package / name).read_text(encoding="utf-8") for name in ("tray_popup.py", "brand.py", "tray.py")}
+        imported = [entry.split(" | ")[0] for entry in self.generator.imported_definitions(
+            package, self.generator.popup_code_files(package))]
+        self.assertIn("countdown", imported)
+        self.assertIn("GUID", imported)
+        before = self.digest(real)
+        popup, cache = self.cut(real["tray_popup.py"], "_DLLS", "_dll")
+        tray, structures = self.cut(real["tray.py"], "LRESULT", "WNDPROC", "WNDCLASSW", "GUID")
+        imports = "from .tray import GUID, LRESULT, WNDCLASSW, WNDPROC"
+        self.assertIn(imports, popup)
+        moved = {
+            "tray_popup.py": popup.replace(imports, imports.replace(".tray", ".win.dll")) + "\nfrom .win.dll import _dll\n",
+            "brand.py": real["brand.py"],
+            "tray.py": tray + "\nfrom .win.dll import GUID, LRESULT, WNDCLASSW, WNDPROC\n",
+            "win/__init__.py": "",
+            "win/dll.py": "import ctypes as C\nfrom ctypes import wintypes as W\n\n" + structures + cache,
+        }
+        self.assertEqual(self.digest(moved), before)
+        recounted = dict(real, **{"tray.py": real["tray.py"].replace('"%ds" % secs', '"%d s" % secs', 1)})
+        self.assertNotEqual(recounted["tray.py"], real["tray.py"])
+        self.assertNotEqual(self.digest(recounted), before)
 
     def test_the_spelling_of_a_tree_does_not_depend_on_the_python(self):
         """3.13 changed `ast.dump`'s default to leave empty fields out; the digest leaves them out

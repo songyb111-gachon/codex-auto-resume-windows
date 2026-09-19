@@ -527,6 +527,14 @@ def render_popup(target: Path, locale: str) -> None:
 # same; a changed line of drawing code, a changed token, a new definition or a removed one
 # does not. The patterns already cover the two packages the modules are moving into, so the
 # day they exist nothing here has to be remembered.
+#
+# The popup also draws with definitions it imports by name from the rest of the package -
+# the icon's countdown, and the Win32 structures and DLL cache the split moves into `win/` -
+# and those are pooled too, found by following the import to whichever module holds the
+# definition today (`imported_definitions`). So moving one out of the popup's modules into
+# `win/dll.py`, or from `tray.py` into it, with the import that brings it back, hashes the
+# same as well, without `win/` having to be one of the patterns - which would pool the rest
+# of that package, the icon's and the card's structures, into the popup's key.
 POPUP_CODE = ("tray_popup.py", "brand.py", "ui/popup/**/*.py", "ui/brand/**/*.py")
 
 
@@ -586,8 +594,8 @@ def _canonical_ast(node) -> str:
     return repr(node)
 
 
-def _definitions(body, guards=()):
-    """`guard | ... | name | tree` for each definition in a module body.
+def _statements(body, guards=()):
+    """(guards, statement) for each definition in a module body, imports and docstrings aside.
 
     A top-level `if` - `if os.name == "nt":` around the Win32 structures - is looked into, and
     each definition inside it carries the condition, so splitting one guarded block between
@@ -598,41 +606,206 @@ def _definitions(body, guards=()):
             continue
         if isinstance(node, ast.If):
             test = _canonical_ast(node.test)
-            yield from _definitions(node.body, guards + ("if " + test,))
-            yield from _definitions(node.orelse, guards + ("not " + test,))
+            yield from _statements(node.body, guards + ("if " + test,))
+            yield from _statements(node.orelse, guards + ("not " + test,))
             continue
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            name = node.name
-        elif isinstance(node, ast.Assign):
-            name = ",".join(_canonical_ast(target) for target in node.targets)
-        elif isinstance(node, (ast.AnnAssign, ast.AugAssign)):
-            name = _canonical_ast(node.target)
+        yield guards, node
+
+
+def _entry(guards, node) -> str:
+    """`guard | ... | name | tree`: one definition, as the digest keys it."""
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        name = node.name
+    elif isinstance(node, ast.Assign):
+        name = ",".join(_canonical_ast(target) for target in node.targets)
+    elif isinstance(node, (ast.AnnAssign, ast.AugAssign)):
+        name = _canonical_ast(node.target)
+    else:
+        name = "<%s>" % type(node).__name__
+    return " | ".join(guards + (name, _canonical_ast(_without_imports_or_docstrings(node))))
+
+
+def _definitions(body, guards=()):
+    """`guard | ... | name | tree` for each definition in a module body (see `_statements`)."""
+    for statement_guards, node in _statements(body, guards):
+        yield _entry(statement_guards, node)
+
+
+def _bound(node) -> set:
+    """The names a top-level statement binds: a definition's own name, or every name it
+    assigns - without looking inside the functions and classes it defines."""
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        return {node.name}
+    names, pending = set(), [node]
+    while pending:
+        inner = pending.pop()
+        if isinstance(inner, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names.add(inner.name)
+            continue
+        if isinstance(inner, ast.Lambda):
+            continue
+        if isinstance(inner, ast.Name) and isinstance(inner.ctx, ast.Store):
+            names.add(inner.id)
+        pending.extend(ast.iter_child_nodes(inner))
+    return names
+
+
+class _Module:
+    """One module of the package, read for what it defines and imports at its top level."""
+
+    def __init__(self, dotted: str, path: Path, index: dict, package_name: str):
+        self.dotted, self.index, self.package_name = dotted, index, package_name
+        self.is_package = path.name == "__init__.py"
+        self.tree = ast.parse(path.read_text(encoding="utf-8"))
+        self.defines, self.imports, self.stars = {}, {}, []
+        for guards, node in _statements(self.tree.body):
+            for name in _bound(node):
+                self.defines.setdefault(name, []).append((guards, node))
+        pending = list(self.tree.body)
+        while pending:                      # module level: into `if` and `try`, never a function
+            node = pending.pop()
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+                continue
+            if isinstance(node, ast.ImportFrom):
+                for alias in node.names:
+                    for target, name in self.named(node, alias):
+                        if name == "*":
+                            self.stars.append(target)
+                        else:
+                            self.imports[alias.asname or alias.name] = (target, name)
+            pending.extend(ast.iter_child_nodes(node))
+
+    def target(self, node):
+        """The module an import names, dotted from the package; None outside the package."""
+        if node.level:
+            parts = self.dotted.split(".") if self.dotted else []
+            if not self.is_package:
+                parts = parts[:-1]
+            if node.level > 1:
+                parts = parts[:len(parts) - (node.level - 1)]
+            return ".".join(part for part in (".".join(parts), node.module) if part)
+        module = node.module or ""
+        if module == self.package_name:
+            return ""
+        if module.startswith(self.package_name + "."):
+            return module[len(self.package_name) + 1:]
+        return None
+
+    def named(self, node, alias=None):
+        """(module, name) for each name an import takes from a module of the package - not
+        the modules it takes (`from . import brand`), which bring no definition by name."""
+        target = self.target(node)
+        if target is None:
+            return []
+        found = []
+        for each in ([alias] if alias is not None else node.names):
+            submodule = (target + "." + each.name) if target else each.name
+            if each.name != "*" and submodule in self.index:
+                continue
+            found.append((target, each.name))
+        return found
+
+
+def _module_index(package: Path) -> dict:
+    """Dotted name within the package (`ui.popup.layout`, "" for the package) -> its file."""
+    index = {}
+    for path in package.rglob("*.py"):
+        if "__pycache__" in path.parts:
+            continue
+        parts = list(path.relative_to(package).with_suffix("").parts)
+        if parts[-1] == "__init__":
+            parts.pop()
+        index[".".join(parts)] = path
+    return index
+
+
+def imported_definitions(package, files) -> list:
+    """The entries of every definition `files` import by name from the rest of `package`,
+    wherever it is defined, and of what those definitions use in turn.
+
+    `from .tray import countdown` in the popup brings `tray.countdown`; `from .tray import
+    GUID`, once `tray.py` itself only re-exports it from `win/dll.py`, brings `GUID` from
+    there. A definition takes with it the names of its own module it refers to - `_dll`
+    brings the `_DLLS` cache it fills - and whatever it imports by name. A definition in one
+    of `files` is pooled with them and is not followed again. A module reached as a whole
+    (`from . import tray`, then `tray.countdown`) is not followed: the popup does not do that.
+    """
+    package = Path(package)
+    index = _module_index(package)
+    own = {dotted for dotted, path in index.items()
+           if any(path.resolve() == Path(name).resolve() for name in files)}
+    read = {}
+
+    def module(dotted):
+        if dotted not in read:
+            read[dotted] = (_Module(dotted, index[dotted], index, package.name)
+                            if dotted in index else None)
+        return read[dotted]
+
+    pending = []
+    for dotted in sorted(own):
+        reader = module(dotted)
+        for node in ast.walk(reader.tree):            # function-level imports draw too
+            if isinstance(node, ast.ImportFrom):
+                pending.extend(reader.named(node))
+    asked, taken, entries = set(), set(), []
+    while pending:
+        dotted, name = pending.pop()
+        if (dotted, name) in asked or dotted in own:
+            continue
+        asked.add((dotted, name))
+        reader = module(dotted)
+        if reader is None:
+            continue
+        if name == "*":
+            pending.extend((dotted, public) for public in reader.defines if not public.startswith("_"))
+        elif name in reader.defines:
+            for guards, node in reader.defines[name]:
+                if (dotted, id(node)) in taken:
+                    continue
+                taken.add((dotted, id(node)))
+                entries.append(_entry(guards, node))
+                for inner in ast.walk(node):
+                    if isinstance(inner, ast.Name):
+                        pending.append((dotted, inner.id))
+                    elif isinstance(inner, ast.ImportFrom):
+                        pending.extend(reader.named(inner))
+        elif name in reader.imports:
+            pending.append(reader.imports[name])
         else:
-            name = "<%s>" % type(node).__name__
-        yield " | ".join(guards + (name, _canonical_ast(_without_imports_or_docstrings(node))))
+            pending.extend((star, name) for star in reader.stars)
+    return entries
 
 
-def code_digest(files) -> str:
-    """The definitions of `files`, pooled, keyed by name and hashed.
+def code_digest(files, imported=()) -> str:
+    """The definitions of `files`, pooled with `imported` entries, keyed by name and hashed.
 
     Independent of which of the files a definition lives in, of the order the definitions
     come in, and of comments, docstrings and import statements; dependent on everything else.
     """
-    entries = []
+    entries = list(imported)
     for path in files:
         tree = ast.parse(Path(path).read_text(encoding="utf-8"))
         entries.extend(_definitions(tree.body))
     return sha256("\n".join(sorted(entries)).encode("utf-8"))
 
 
+def popup_drawing(package=None) -> str:
+    """The digest of what draws the popup: the definitions of the modules `POPUP_CODE`
+    matches, and of everything they import by name from the rest of the package."""
+    package = Path(package) if package is not None else ROOT / "src" / "codex_auto_resume"
+    files = popup_code_files(package)
+    return code_digest(files, imported_definitions(package, files))
+
+
 def popup_render_input(locale: str, drawing: str | None = None) -> str:
     """The popup's manifest entry for one locale: what it is shown, and what draws it.
 
-    `drawing` is `code_digest(popup_code_files())`, passed in when it is already known.
+    `drawing` is `popup_drawing()`, passed in when it is already known.
     """
     _strings, view = popup_view(locale)
     if drawing is None:
-        drawing = code_digest(popup_code_files())
+        drawing = popup_drawing()
     return sha256((json.dumps(view, sort_keys=True, default=str) + drawing).encode("utf-8"))
 
 
@@ -1055,7 +1228,7 @@ def render_inputs() -> dict:
     # It is the same failure as hashing raw bytes for a file whose line endings the
     # checkout decides - the input has to be pinned, not observed.
     envelopes = window_envelopes(LOCALES + EXTRA_LOCALES)
-    drawing = code_digest(popup_code_files())
+    drawing = popup_drawing()
     for locale in LOCALES + EXTRA_LOCALES:
         inputs["<bridge envelope:%s>" % locale] = sha256(envelopes[locale].encode("utf-8"))
         previous = os.environ.get(l10n.ENV_LANG)
