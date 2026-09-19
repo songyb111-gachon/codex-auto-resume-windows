@@ -639,8 +639,8 @@ def _mark_colour(rgb) -> str:
 def mark_class() -> str:
     """Brand.Mark: the notification-area icon's motion, as the window's taskbar button shows it."""
     motion = tray.ICON_MOTION
-    if tray.icon_state_for_light("an unknown state") != "idle":
-        raise ValueError("the generated rule falls back to idle")
+    if set(tray.ICON_FOR_LIGHT) != set(brand.STATUS_FILL):
+        raise ValueError("every status light has an icon state, and anything else is idle")
     unknown = tray.icon_head_colour("an unknown state")
     breathers = [state for state in tray.ICON_STATES if tray.icon_brand_state(state) in brand.GLOW_BREATHES]
     pulses = [state for state in tray.ICON_STATES if tray.icon_brand_state(state) in brand.GLOW_PULSES]
