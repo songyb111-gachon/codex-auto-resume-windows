@@ -96,6 +96,27 @@ class TreeTests(unittest.TestCase):
         self.assertIn("codex_auto_resume.tray_popup", srcscan.closure("codex_auto_resume.tray"))
         self.assertNotIn("codex_auto_resume.tray_popup", srcscan.closure("codex_auto_resume.tray", lazy=False))
 
+    def test_an_import_loads_the_packages_above_what_it_names(self):
+        """Importing `ui.popup.layout` runs `ui/__init__.py` first, whatever the statement
+        spells, so what that file imports is reached as well - except by a module already
+        inside `ui/`, for which it has run before."""
+        known = {"p", "p.tray_popup", "p.ui", "p.ui.popup", "p.ui.popup.layout", "p.ui.card", "p.ui.card.view"}
+        for importer, loaded in (("p.tray_popup", ["p.ui", "p.ui.popup"]),
+                                 ("p.ui.card.view", ["p.ui.popup"]),
+                                 ("p.ui", ["p.ui.popup"]),
+                                 ("p.ui.popup", []),
+                                 ("outside", ["p", "p.ui", "p.ui.popup"])):
+            with self.subTest(importer):
+                self.assertEqual(srcscan.implied_packages("p.ui.popup.layout", importer, known), loaded)
+        self.assertEqual(srcscan.implied_packages("p.tray_popup", "p.ui.card.view", known), [])
+        self.assertEqual(srcscan.ancestors("p.ui.popup.layout", {"p", "p.ui.popup"}), ["p", "p.ui.popup"])
+        # On the tree as it is: the entry script is the one module outside the package, and
+        # the package's own __init__.py is what it loads without naming it.
+        implied = [(entry.target, entry.lazy, entry.internal)
+                   for path in srcscan.package_files() for entry in srcscan.imports(path) if entry.implied]
+        self.assertEqual(implied, [(srcscan.PACKAGE, False, True)])
+        self.assertIn(srcscan.PACKAGE, srcscan.import_graph()["auto_resume"])
+
 
 class NoOneFileScanTests(unittest.TestCase):
     """A structural test that names one file stops checking the day the code in it moves, and

@@ -1012,12 +1012,25 @@ def is_popup_module(name):
     return any(name == root or name.startswith(root + ".") for root in POPUP_MODULES)
 
 
+def envelope():
+    """The popup's modules, and every package above one of them that importing it runs.
+
+    Python runs `ui/__init__.py` before any module of `ui/popup/`, so whatever that file
+    imports is loaded with the popup, and it is read with the popup's own source. The
+    package's root `__init__.py` is the one left out: it runs before every module of the
+    package, and test_layers holds it to the policy layer, which reaches nothing that can
+    submit."""
+    own = {srcscan.module_name(path) for path in srcscan.files_of(*POPUP_MODULES)}
+    return own | {package for name in own for package in srcscan.ancestors(name) if package != srcscan.PACKAGE}
+
+
 class SafetyTests(unittest.TestCase):
     """What this window can reach is what its source says it can reach - all of its source,
     however many files that becomes."""
 
     def setUp(self):
-        self.files = srcscan.files_of(*POPUP_MODULES)
+        self.modules = envelope()
+        self.files = [srcscan.modules()[name] for name in sorted(self.modules)]
         self.trees = {path: srcscan.package_asts()[path] for path in self.files}
         self.texts = {path: srcscan.read(path) for path in self.files}
 
@@ -1025,9 +1038,13 @@ class SafetyTests(unittest.TestCase):
         # It reads the module these tests drive...
         self.assertIn(Path(popup.__file__).resolve(), {path.resolve() for path in self.files})
         # ...and the exemption for "another popup module" reaches no further than the popup's
-        # own modules: a sibling that merely shares the prefix is outside it, and so is held to
-        # the allowlist like any other import.
-        self.assertTrue(all(is_popup_module(srcscan.module_name(path)) for path in self.files))
+        # own modules and the packages Python runs to load them: a sibling that merely shares
+        # the prefix is outside it, and so is held to the allowlist like any other import.
+        for name in self.modules:
+            with self.subTest(name):
+                self.assertTrue(is_popup_module(name) or any(
+                    is_popup_module(inner) and name in srcscan.ancestors(inner) for inner in self.modules))
+        self.assertNotIn(srcscan.PACKAGE, self.modules)
         self.assertTrue(is_popup_module("codex_auto_resume.ui.popup.layout"))
         for outside in ("codex_auto_resume.tray_popup_theme", "codex_auto_resume.ui.popups",
                         "codex_auto_resume.ui", "codex_auto_resume.tray"):
@@ -1039,7 +1056,7 @@ class SafetyTests(unittest.TestCase):
             for entry in srcscan.imports(path):
                 if not entry.internal:
                     stdlib.add(entry.target)
-                elif not is_popup_module(entry.target):
+                elif entry.target not in self.modules and not is_popup_module(entry.target):
                     package.add(entry.target)
         self.assertLessEqual(package, {"codex_auto_resume." + name
                                        for name in ("brand", "l10n", "machine", "reasons", "tray")})
