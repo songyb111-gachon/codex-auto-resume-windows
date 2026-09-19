@@ -51,7 +51,8 @@
     "<bridge envelope:de>": "9e3862d0d3425a54cf89d40a49daa56c7a0f6cb73f735c87ff3e4baae8900b8a",
     "<panel render:de>": "f175f2969e41924d92a0f30babc2e4ece6c09158d2bdb6df38f57ac54d8bc177",
     "<popup render:de>": "b5a2b5564b795f7584656c1c779cac31ecd3cb6c3ba5d9ba5b01875bd35b1b00",
-    "<card render:de>": "2bb540d3c8f97c1fc663a930995ca5527757f072f594ae4befad969200cc0be5"
+    "<card render:de>": "2bb540d3c8f97c1fc663a930995ca5527757f072f594ae4befad969200cc0be5",
+    "<icon motion>": "1ca9b5e553ab96262ceae16e00cd27ffba533491509b76a98da5e364646939e1"
   },
   "images": {
     "assets/screenshot-panel.png": {
@@ -277,6 +278,10 @@
     "docs/images/settings-window-de.png": {
       "sha256": "8fdc119f8f0f8e86221d1c239ee9d8b7b293fcc17865a7af46becb8202b31d3b",
       "size": "1522x1052"
+    },
+    "docs/images/icon-motion.gif": {
+      "sha256": "b20d386b7819b624666f55914089f21a6bd2952da2fdb1b5139520aca2952131",
+      "size": "288x144"
     }
   }
 }

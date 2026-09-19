@@ -20,10 +20,12 @@ images did not. That is the part that could not be done by remembering.
 
     python build/make_screenshots.py
     python build/make_screenshots.py --cards     # only the notification card's pictures
+    python build/make_screenshots.py --icon      # only the icon's motion, as a GIF
 
 Run it from a checkout, on Windows, with the settings window built. It writes the
 canonical assets and copies them to `docs/images/`. The popup and the notification card are
-drawn off-screen by their own renderers and need neither the window nor Edge.
+drawn off-screen by their own renderers and need neither the window nor Edge; the icon's
+motion is drawn from the icon's own frames and needs nothing of Windows at all.
 
 Two things it deliberately does NOT do:
 
@@ -151,8 +153,10 @@ def sha256(data: bytes) -> str:
 
 
 def dimensions(path: Path) -> str:
-    raw = path.read_bytes()[16:24]
-    return "%dx%d" % struct.unpack(">II", raw)
+    raw = path.read_bytes()
+    if raw[:6] == b"GIF89a":
+        return "%dx%d" % struct.unpack("<HH", raw[6:10])
+    return "%dx%d" % struct.unpack(">II", raw[16:24])
 
 
 # --------------------------------------------------------------------- sample data
@@ -1199,6 +1203,378 @@ def render_cards() -> list:
     return files
 
 
+# ------------------------------------------------------------ the icon's motion
+# Since v0.6.5 the notification-area icon moves (tray.py, "the icon's motion"), and the README shows how, as an
+# animated GIF. It is drawn here and never by hand: every picture in it is the icon's own frame (tray.IconFrames, with
+# the badge the icon wears in that state, composited as the icon composites it), at the moments the icon's own timer
+# shows one (tray.icon_frame and icon_frame_ms, stepped as the frame timer steps), laid over a light and a dark
+# taskbar. Four states side by side - watching, recovering, needing attention and paused - over one stretch of
+# watching's loop: its last two breaths and its turn. That stretch is a whole number of recovering's turns, so the GIF
+# loops without a jump; attention pulses once at its start, as it does when a problem arrives.
+#
+# Its manifest entry, `<icon motion>`, is keyed as the card's is: what is pictured (the states, their badges, the
+# size, the grounds and the stretch of the loop) and the digest of the code that draws the frames - here the
+# definitions the frame table and the schedule are made of, followed name by name from the few the GIF calls
+# (ICON_ROOTS) to whatever they use, in whichever module that lives (`icon_drawing`). So a change to the motion, its
+# numbers, the mark or its colours marks the GIF stale; a change to the icon's menu or popup does not.
+ICON_MOTION_GIF = DOCS / "icon-motion.gif"
+# The icon at 48 px: the notification-area icon at 300%, and the taskbar button's big icon at 150%, which the .ico
+# carries as an entry of its own.
+ICON_MOTION_SIZE = 48
+ICON_MOTION_PAD = 12
+# The states pictured, each as the status-light word the icon takes it from (tray.ICON_FOR_LIGHT): the word also says
+# which badge the icon wears (tray_popup.BADGE). Watching with nothing waiting wears none.
+ICON_MOTION_LIGHTS = (("watching", "monitoring"), ("recovering", "recovering"), ("attention", "attention"),
+                      ("idle", "paused"))
+# Windows 11's taskbar in its light and its dark mode, as assets/make_icon.py's contact sheet has them.
+ICON_MOTION_GROUNDS = (("light", "#EEF0F3"), ("dark", "#1F1F1F"))
+# What the GIF draws with, followed from these to everything they use (`icon_drawing`).
+ICON_ROOTS = (("tray", "IconFrames"), ("tray", "icon_frame"), ("tray", "icon_frame_ms"), ("tray", "icon_head_colour"),
+              ("tray", "icon_level_colour"), ("tray", "ICON_FOR_LIGHT"), ("tray_popup", "BADGE"),
+              ("tray_popup", "composite_badge"), ("brand", "LIGHT"), ("brand", "rgb"))
+
+
+def icon_motion_stretch() -> tuple:
+    """(start, end) in ms of watching's loop that the GIF shows: its last two breaths and its turn."""
+    from codex_auto_resume import brand, tray
+    slot, breaths = brand.GLOW["monitoring_ms"], tray.ICON_MOTION["breaths"]
+    start, end = slot * max(0, breaths - 2), slot * (breaths + 1)
+    if (end - start) % brand.GLOW["arc_ms"]:
+        raise ValueError("the GIF would jump where it loops: its stretch is not a whole number of turns")
+    return start, end
+
+
+def icon_timeline(state: str, start: float, end: float) -> list:
+    """(ms from `start`, position, level) for each frame the icon's own timer shows in [start, end): stepped from the
+    motion clock's zero, where the state is entered, by the interval each frame asks for (tray.icon_frame_ms). The
+    frame on show at `start` comes first, at 0; a state that stops moving holds its last frame."""
+    from codex_auto_resume import tray
+    shown, at = [], 0.0
+    while at < end:
+        position, level = tray.icon_frame(state, at, at)
+        if at <= start:
+            shown = [(0.0, position, level)]
+        else:
+            shown.append((at - start, position, level))
+        step = tray.icon_frame_ms(state, at, at)
+        if step is None:
+            break
+        at += step
+    return shown
+
+
+def _icon_cell(frames, state: str, word: str, ground: str, position: int, level: int) -> bytes:
+    """One state's picture on one ground, RGB: the icon's own frame - its head at `position` and `level`, its badge
+    for `word` - laid over the ground with its straight alpha, in a cell ICON_MOTION_PAD wider each way."""
+    from codex_auto_resume import brand, tray, tray_popup
+    size, pad = ICON_MOTION_SIZE, ICON_MOTION_PAD
+    cell = size + 2 * pad
+    token = tray_popup.BADGE.get(word)
+    head = tray.icon_level_colour(tray.icon_head_colour(state), level)
+    pixels = frames.compose(position, head, brand.rgb(brand.LIGHT[token]) if token else None)
+    red, green, blue = brand.rgb(dict(ICON_MOTION_GROUNDS)[ground])
+    out = bytearray(bytes((red, green, blue)) * (cell * cell))
+    for y in range(size):
+        for x in range(size):
+            b, g, r, a = pixels[(y * size + x) * 4:(y * size + x) * 4 + 4]
+            at = ((pad + y) * cell + pad + x) * 3
+            for offset, (source, base) in enumerate(((r, red), (g, green), (b, blue))):
+                out[at + offset] = (source * a + base * (255 - a) + 127) // 255
+    return bytes(out)
+
+
+def _median_cut(weights: dict, count: int) -> list:
+    """At most `count` colours standing for `weights` (colour -> weight). The box whose longest side times its weight
+    is largest is split at its weighted median along that side, until there are `count`; each box is then its
+    weighted mean. A colour that outweighs its neighbours - a taskbar ground - ends in a box of its own, exact."""
+    def side(box, channel):
+        return max(colour[channel] for colour in box) - min(colour[channel] for colour in box)
+
+    boxes = [sorted(weights)]
+    while len(boxes) < count:
+        best, score = None, 0
+        for index, box in enumerate(boxes):
+            if len(box) > 1:
+                value = max(side(box, channel) for channel in range(3)) * sum(weights[colour] for colour in box)
+                if value > score:
+                    best, score = index, value
+        if best is None:
+            break
+        box = boxes[best]
+        channel = max(range(3), key=lambda each: (side(box, each), -each))
+        box = sorted(box, key=lambda colour: (colour[channel], colour))
+        total, running, cut = sum(weights[colour] for colour in box), 0, 1
+        for cut in range(1, len(box)):
+            running += weights[box[cut - 1]]
+            if running * 2 >= total:
+                break
+        boxes[best:best + 1] = [box[:cut], box[cut:]]
+    palette = []
+    for box in boxes:
+        total = sum(weights[colour] for colour in box)
+        palette.append(tuple((sum(colour[channel] * weights[colour] for colour in box) + total // 2) // total
+                             for channel in range(3)))
+    return palette
+
+
+def icon_motion_frames() -> dict:
+    """The GIF, before it is encoded: its size, its palette and its pictures.
+
+    `frames` is [(delay in hundredths of a second, palette indices, {state: (position, level)})], each picture held
+    until the next frame of any state is due, on the hundredth of a second a GIF counts in, and `moments` the ms into
+    the stretch each is the picture of. The pictures are the
+    icon's own frames at 48 px (`_icon_cell`); a GIF holds 256 colours and these hold more - the badge's gradient
+    and the ring's edges on two grounds - so they share at most 255 (`_median_cut`, weighted by how much of the GIF
+    each colour covers), and the last index is kept for "as before"."""
+    from codex_auto_resume import tray
+    start, end = icon_motion_stretch()
+    length = end - start
+    for state, word in ICON_MOTION_LIGHTS:
+        if tray.ICON_FOR_LIGHT[word] != state:
+            raise ValueError("%s is not the icon's state for %s" % (state, word))
+    timelines = [icon_timeline(state, start if state == "watching" else 0.0, end if state == "watching" else length)
+                 for state, _ in ICON_MOTION_LIGHTS]
+    total = int(round(length / 10.0))
+    ticks = []                                  # (hundredth, moment): the last moment of each hundredth
+    for at in sorted({at for timeline in timelines for at, _, _ in timeline}):
+        hundredth = int(round(at / 10.0))
+        if hundredth >= total:
+            break                               # shown as the GIF starts again, which is that moment
+        if ticks and ticks[-1][0] == hundredth:
+            ticks[-1] = (hundredth, at)
+        else:
+            ticks.append((hundredth, at))
+    shown = []
+    for index, (hundredth, at) in enumerate(ticks):
+        frame = {state: [each for each in timeline if each[0] <= at][-1][1:]
+                 for (state, _), timeline in zip(ICON_MOTION_LIGHTS, timelines)}
+        following = ticks[index + 1][0] if index + 1 < len(ticks) else total
+        shown.append((following - hundredth, frame))
+    frames = tray.IconFrames(ICON_MOTION_SIZE)
+    cells, counted = {}, {}
+    for _delay, frame in shown:
+        for state, word in ICON_MOTION_LIGHTS:
+            for ground, _ in ICON_MOTION_GROUNDS:
+                key = (state, ground) + tuple(frame[state])
+                if key not in cells:
+                    cells[key] = _icon_cell(frames, state, word, ground, *frame[state])
+                counted[key] = counted.get(key, 0) + 1
+    # Each colour weighs the pixels it covers in the pictures shown, a picture counted once for each frame it is in.
+    weights = {}
+    for key, picture in cells.items():
+        for at in range(0, len(picture), 3):
+            colour = tuple(picture[at:at + 3])
+            weights[colour] = weights.get(colour, 0) + counted[key]
+    palette = _median_cut(weights, 255) if len(weights) > 255 else sorted(weights)
+    nearest = {}
+    for colour in sorted(weights):
+        nearest[colour] = min(range(len(palette)), key=lambda index: (
+            sum((one - other) ** 2 for one, other in zip(colour, palette[index])), index))
+    indexed = {key: bytes(nearest[tuple(picture[at:at + 3])] for at in range(0, len(picture), 3))
+               for key, picture in cells.items()}
+    cell = ICON_MOTION_SIZE + 2 * ICON_MOTION_PAD
+    width, height = len(ICON_MOTION_LIGHTS) * cell, len(ICON_MOTION_GROUNDS) * cell
+    out = []
+    for delay, frame in shown:
+        canvas = bytearray(width * height)
+        for column, (state, _) in enumerate(ICON_MOTION_LIGHTS):
+            for row, (ground, _) in enumerate(ICON_MOTION_GROUNDS):
+                picture = indexed[(state, ground) + tuple(frame[state])]
+                for y in range(cell):
+                    at = (row * cell + y) * width + column * cell
+                    canvas[at:at + cell] = picture[y * cell:(y + 1) * cell]
+        out.append((delay, bytes(canvas), frame))
+    return {"width": width, "height": height, "palette": palette, "frames": out, "moments": [at for _, at in ticks]}
+
+
+def _lzw(indices: bytes, minimum: int) -> bytes:
+    """GIF's variable-length LZW of `indices`, codes packed least significant bit first."""
+    clear, stop = 1 << minimum, (1 << minimum) + 1
+    size, next_code, table = minimum + 1, stop + 1, {}
+    out, bits, count = bytearray(), 0, 0
+
+    def emit(code):
+        nonlocal bits, count
+        bits |= code << count
+        count += size
+        while count >= 8:
+            out.append(bits & 0xFF)
+            bits >>= 8
+            count -= 8
+
+    emit(clear)
+    prefix = indices[0]
+    for index in indices[1:]:
+        key = (prefix << 8) | index
+        code = table.get(key)
+        if code is not None:
+            prefix = code
+            continue
+        emit(prefix)
+        if next_code < 4096:
+            table[key] = next_code
+            next_code += 1
+            if next_code > (1 << size) and size < 12:
+                size += 1
+        else:
+            emit(clear)
+            size, next_code, table = minimum + 1, stop + 1, {}
+        prefix = index
+    emit(prefix)
+    emit(stop)
+    if count:
+        out.append(bits & 0xFF)
+    return bytes(out)
+
+
+# Index 255 of the palette: "as the frame before", transparent over it.
+GIF_SAME = 255
+_EQUAL_TO_MASK = bytes([0xFF] + [0] * 255)            # a zero difference -> 0xFF, any other -> 0
+
+
+def write_gif(path: Path, width: int, height: int, palette: list, frames: list) -> None:
+    """An animated GIF that loops forever, from pictures already in `palette`'s indices (at most 255 colours).
+
+    After the first picture only the rectangle that changed is written, and what did not change in it is GIF_SAME,
+    transparent over the picture before. Nothing here depends on the machine: the same pictures make the same bytes.
+    """
+    if len(palette) > GIF_SAME:
+        raise ValueError("%d colours: more than a GIF palette holds with one kept for transparency" % len(palette))
+    table = b"".join(bytes(colour) for colour in palette) + bytes(3 * (256 - len(palette)))
+    data = bytearray(b"GIF89a" + struct.pack("<HHBBB", width, height, 0xF7, 0, 0) + table)
+    data += b"\x21\xFF\x0BNETSCAPE2.0\x03\x01\x00\x00\x00"           # loop forever
+    previous = None
+    size = width * height
+    for frame in frames:
+        delay, canvas = frame[0], frame[1]
+        if previous is None:
+            left, top, right, bottom, written = 0, 0, width, height, canvas
+        else:
+            # Whole-picture arithmetic on big integers: which bytes differ, and the picture with the rest made SAME.
+            difference = (int.from_bytes(canvas, "big") ^ int.from_bytes(previous, "big")).to_bytes(size, "big")
+            same = int.from_bytes(difference.translate(_EQUAL_TO_MASK), "big")
+            written = ((int.from_bytes(canvas, "big") & ~same) | same).to_bytes(size, "big")
+            rows = [y for y in range(height) if difference[y * width:(y + 1) * width].strip(b"\x00")]
+            if not rows:
+                rows = [0]
+            top, bottom = rows[0], rows[-1] + 1
+            left, right = width, 0
+            for y in rows:
+                line = difference[y * width:(y + 1) * width]
+                if line.strip(b"\x00"):
+                    left = min(left, width - len(line.lstrip(b"\x00")))
+                    right = max(right, len(line.rstrip(b"\x00")))
+            if right <= left:
+                left, right = 0, 1
+        region = b"".join(written[y * width + left:y * width + right] for y in range(top, bottom))
+        disposal = 0x05 if previous is not None else 0x04       # keep what is there; transparency after the first
+        data += b"\x21\xF9\x04" + struct.pack("<BHB", disposal, delay, GIF_SAME) + b"\x00"
+        data += b"\x2C" + struct.pack("<HHHHB", left, top, right - left, bottom - top, 0)
+        packed = _lzw(region, 8)
+        data += b"\x08" + b"".join(bytes((len(packed[at:at + 255]),)) + packed[at:at + 255]
+                                   for at in range(0, len(packed), 255)) + b"\x00"
+        previous = canvas
+    data += b"\x3B"
+    path.write_bytes(bytes(data))
+
+
+def render_icon_motion(target: Path = ICON_MOTION_GIF) -> None:
+    made = icon_motion_frames()
+    write_gif(target, made["width"], made["height"], made["palette"], made["frames"])
+
+
+def _module_aliases(reader, index) -> dict:
+    """Name -> module, for every module of the package `reader`'s module imports whole (`from . import brand`)."""
+    aliases = {}
+    for node in ast.walk(reader.tree):
+        if isinstance(node, ast.ImportFrom):
+            target = reader.target(node)
+            if target is None:
+                continue
+            for alias in node.names:
+                dotted = (target + "." + alias.name) if target else alias.name
+                if dotted in index:
+                    aliases[alias.asname or alias.name] = dotted
+    return aliases
+
+
+def reached_definitions(package, roots) -> list:
+    """The entries of the definitions `roots` - (module, name) pairs - are, and of everything they use in turn: a
+    name of their own module, a name they import, or `module.name` of a module of the package they import whole.
+    Keyed as `code_digest` keys them, so a definition moved to another module, with the import that follows it,
+    is the same entry."""
+    package = Path(package)
+    index = _module_index(package)
+    read, aliases = {}, {}
+
+    def module(dotted):
+        if dotted not in read:
+            read[dotted] = (_Module(dotted, index[dotted], index, package.name) if dotted in index else None)
+            if read[dotted] is not None:
+                aliases[dotted] = _module_aliases(read[dotted], index)
+        return read[dotted]
+
+    pending, asked, taken, entries = list(roots), set(), set(), []
+    while pending:
+        dotted, name = pending.pop()
+        if (dotted, name) in asked:
+            continue
+        asked.add((dotted, name))
+        reader = module(dotted)
+        if reader is None:
+            continue
+        if name in reader.defines:
+            for guards, node in reader.defines[name]:
+                if (dotted, id(node)) in taken:
+                    continue
+                taken.add((dotted, id(node)))
+                entries.append(_entry(guards, node))
+                for inner in ast.walk(node):
+                    if isinstance(inner, ast.Name):
+                        pending.append((dotted, inner.id))
+                    elif (isinstance(inner, ast.Attribute) and isinstance(inner.value, ast.Name)
+                          and inner.value.id in aliases[dotted]):
+                        pending.append((aliases[dotted][inner.value.id], inner.attr))
+                    elif isinstance(inner, ast.ImportFrom):
+                        pending.extend(reader.named(inner))
+        elif name in reader.imports:
+            pending.append(reader.imports[name])
+        else:
+            pending.extend((star, name) for star in reader.stars)
+    return entries
+
+
+def icon_drawing(package=None) -> str:
+    """The digest of what draws the icon's frames and decides when each is shown (ICON_ROOTS, followed)."""
+    package = Path(package) if package is not None else ROOT / "src" / "codex_auto_resume"
+    return sha256("\n".join(sorted(reached_definitions(package, ICON_ROOTS))).encode("utf-8"))
+
+
+def icon_render_input(drawing: str | None = None) -> str:
+    """The GIF's manifest entry: what it pictures, and what draws it. `drawing` is `icon_drawing()` when known."""
+    shown = {"states": [list(pair) for pair in ICON_MOTION_LIGHTS], "grounds": [list(pair) for pair in ICON_MOTION_GROUNDS],
+             "size": ICON_MOTION_SIZE, "pad": ICON_MOTION_PAD, "stretch": list(icon_motion_stretch())}
+    if drawing is None:
+        drawing = icon_drawing()
+    return sha256((json.dumps(shown, sort_keys=True) + drawing).encode("utf-8"))
+
+
+def render_icon_only() -> Path:
+    """Only the icon's GIF: render it and pin it, leaving every other entry of the manifest as it was.
+
+        python build/make_screenshots.py --icon
+    """
+    render_icon_motion(ICON_MOTION_GIF)
+    print("  %s  %s" % (ICON_MOTION_GIF.relative_to(ROOT), dimensions(ICON_MOTION_GIF)))
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    manifest["inputs"]["<icon motion>"] = icon_render_input()
+    manifest["images"][str(ICON_MOTION_GIF.relative_to(ROOT)).replace("\\", "/")] = {
+        "sha256": sha256(ICON_MOTION_GIF.read_bytes()), "size": dimensions(ICON_MOTION_GIF)}
+    MANIFEST.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print("manifest       : %s (the icon's entries only)" % MANIFEST.relative_to(ROOT))
+    return ICON_MOTION_GIF
+
+
 def scratch_installation(workspace: Path) -> Path:
     """An installation made out of the working tree, so the picture is of this code."""
     import make_release
@@ -1615,7 +1991,8 @@ def render_inputs() -> dict:
     The window's Python half, the popup and the notification card are keyed the same way since
     v0.6.5: the window by what the bridge answers it (`<bridge envelope:*>`, see
     `window_envelopes`), the popup and the card by the view each draws and a digest of the
-    definitions that draw it (`popup_render_input`, `card_render_input`).
+    definitions that draw it (`popup_render_input`, `card_render_input`), and the icon's GIF
+    by what it pictures and the definitions its frames are made from (`icon_render_input`).
     Only the compiled window has no such handle - running it is the only way to see its
     output - so its files are listed in WINDOW_INPUTS, and a comment in `SettingsApp.cs`
     will still fire this check unnecessarily. That is a real cost and it is the smaller one:
@@ -1646,6 +2023,7 @@ def render_inputs() -> dict:
                 os.environ.pop(l10n.ENV_LANG, None)
             else:
                 os.environ[l10n.ENV_LANG] = previous
+    inputs["<icon motion>"] = icon_render_input()
     return inputs
 
 
@@ -1743,6 +2121,9 @@ def main(argv=None) -> int:
     if list(sys.argv[1:] if argv is None else argv) == ["--cards"]:
         render_cards()
         return 0
+    if list(sys.argv[1:] if argv is None else argv) == ["--icon"]:
+        render_icon_only()
+        return 0
 
     print("version        : %s" % config.version())
     print("theme          : %s" % THEME)
@@ -1786,6 +2167,9 @@ def main(argv=None) -> int:
                 print("  %s  %s" % (targets[page].relative_to(ROOT), size))
             extras.extend(targets.values())
     os.environ.pop(l10n.ENV_LANG, None)
+    render_icon_motion(ICON_MOTION_GIF)
+    extras.append(ICON_MOTION_GIF)
+    print("  %s  %s" % (ICON_MOTION_GIF.relative_to(ROOT), dimensions(ICON_MOTION_GIF)))
 
     for source, copy in copies.items():
         shutil.copyfile(source, copy)

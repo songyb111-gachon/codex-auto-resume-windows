@@ -241,6 +241,17 @@ process itself, so it appears when one starts and goes when it stops, and it wea
 for the state the watcher is in. Its tooltip says whether recovery is paused, how many recoveries
 are waiting, how many are running in Codex and how long until the next check.
 
+The icon moves, in the mark it already has. While the watcher watches, the head - the bright dot at
+the end of the ring - breathes, dimming toward the badge's deep blue and back every 3.2 seconds, and
+after four breaths it turns once round the ring, clockwise, at full brightness; it never breathes
+while it turns. While a recovery is in progress it keeps turning, once every 1.6 seconds, without
+breathing. Paused, it is grey and still; when something needs you it takes that colour, pulses once
+and holds. Nothing moves under Reduce motion, Windows' animation setting, High Contrast or battery
+saver, or while the session is locked. While the settings window is open, its taskbar button moves
+the same way.
+
+<img src="docs/images/icon-motion.gif" alt="The notification-area icon's motion, drawn from the icon's own frames, on a light taskbar above and a dark one below. From the left: watching, whose bright head breathes and then turns once round the ring, clockwise, at full brightness; recovering, turning all the time under a cyan badge; needing attention, amber under an amber badge, pulsing once and then still; paused, grey under a grey badge and still" width="288">
+
 A single click on the icon opens a small popup beside it, and another click closes it: the
 watcher's state, how many tasks are waiting and recovering, the next check, up to three waiting
 tasks, each with its own switch bound to that task's exact interruption and conversation,
