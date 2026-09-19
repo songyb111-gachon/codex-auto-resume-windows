@@ -511,6 +511,18 @@ class EpochTests(unittest.TestCase):
         self.assertEqual(usage(1700000000)["windows"][0]["reset_at"], 1700000000)
         self.assertIsNone(usage(None)["reset_at"], "no reset time is allowed, and stays none")
 
+    def test_an_int_too_large_to_be_a_float_is_read_as_it_always_was(self):
+        """Also drift, and kept: the callers that ask math.isfinite raise its OverflowError
+        for a whole number past float range, where the App Server's reading only says no."""
+        huge = 2 ** 1100
+        for check in (lambda: store_module._timestamp(huge, "at"), lambda: source.epoch(huge),
+                      lambda: compat._epoch_or_none(huge)):
+            with self.assertRaises(OverflowError):
+                check()
+        self.assertEqual(windows.parse_usage({"rateLimitsByLimitId": {"codex": {"primary": {
+            "usedPercent": 100, "windowDurationMins": 300, "resetsAt": huge}}}})["reason"],
+            "usage_snapshot_unknown")
+
     def test_the_registry_accepts_2000_to_2100(self):
         self.assertEqual(accepted_by(lambda value: value is not None and compat._epoch_or_none(value) is not None),
                          [946684800, 1700000000, 1.7e9, 1700000000.5, 4102444800, Stamp(1700000000)])

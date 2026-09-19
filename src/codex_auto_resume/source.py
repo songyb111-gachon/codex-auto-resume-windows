@@ -14,7 +14,7 @@ import re
 import sqlite3
 import uuid
 
-from . import failures
+from . import failures, machine
 
 
 MAX_SCAN_BYTES = 8 * 1024 * 1024
@@ -48,8 +48,7 @@ def valid_uuid(value) -> bool:
 
 
 def epoch(value) -> bool:
-    return (type(value) in (int, float) and math.isfinite(value)
-            and 946684800 <= value <= 4102444800)
+    return machine.epoch(value, *machine.EPOCH_CODEX, exact=True)
 
 
 def _json(value):

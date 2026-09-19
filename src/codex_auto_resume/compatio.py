@@ -34,7 +34,7 @@ import subprocess
 import tempfile
 import time
 
-from . import compat, config
+from . import compat, config, machine
 from . import source as codex_source
 
 BUNDLED = Path(__file__).resolve().parent / "data" / "codex_compat.json"
@@ -154,8 +154,7 @@ def read_cache(path: Path, *, bundled=None, product=None, now=None) -> dict:
                 or envelope.get("origin") not in compat.CACHE_ORIGINS):
             return _cache_empty("rejected")
         fetched = envelope.get("fetched_at")
-        if (isinstance(fetched, bool) or not isinstance(fetched, (int, float))
-                or not compat.EPOCH_MIN <= fetched <= compat.EPOCH_MAX):
+        if not machine.epoch(fetched, compat.EPOCH_MIN, compat.EPOCH_MAX, finite=False):
             return _cache_empty("rejected")
         document = compat.validate_document(envelope.get("document"))
     except compat.DocumentError:

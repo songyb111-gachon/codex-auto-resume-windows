@@ -20,6 +20,7 @@ Three layers, kept apart on purpose:
 from __future__ import annotations
 
 import json
+import math
 
 from .failures import USAGE_LIMIT
 
@@ -120,6 +121,40 @@ def plain_move_allowed(old: str, new: str) -> bool:
     if old == new:
         return True
     return new in PLAIN_MOVES.get(old, frozenset())
+
+
+# Each caller's window of a plausible time, in seconds since 1970. They do not agree, and
+# that is kept as it is - known drift, for v0.6.8 to settle: see epoch().
+EPOCH_STORE = (0, 253402300799)            # the store: the epoch to the last second of 9999
+EPOCH_CODEX = (946684800, 4102444800)      # Codex's history and the registry: 2000 to 2100
+EPOCH_USAGE = (1, 4102444800)              # the App Server's usage windows: to 2100
+
+
+def epoch(value, low, high, *, integer: bool = False, exact: bool = False,
+          finite: bool = True) -> bool:
+    """Whether `value` is a plausible time: a number of seconds from `low` to `high`, both
+    included, so never a NaN or an infinity. A boolean is never a time; `integer` takes
+    whole seconds only, and `exact` takes `int` and `float` themselves and no subclass.
+    `finite` asks math.isfinite first, as the store, Codex's history and the registry's
+    report always have - which raises OverflowError for an int too large to be a float,
+    where the window alone would only say no.
+
+    The one reading of a time. Its callers bring their own window and their own strictness,
+    because they disagree and unifying them would change what some caller accepts: the store
+    takes anything up to the year 9999 and a subclass of int, Codex's history takes 2000 to
+    2100 and no subclass, the App Server's usage windows take whole seconds only - so a reset
+    Codex reports as 1.7e9 is dropped there and kept by the store. That disagreement is
+    recorded as known drift for v0.6.8, not resolved here.
+    """
+    if type(value) is bool or not isinstance(value, (int, float)):
+        return False
+    if exact and type(value) not in ((int,) if integer else (int, float)):
+        return False
+    if integer and not isinstance(value, int):
+        return False
+    if finite and not math.isfinite(value):
+        return False
+    return low <= value <= high
 
 
 def waiting_state(record: dict, now: float) -> str:
