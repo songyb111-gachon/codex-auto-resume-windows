@@ -237,8 +237,8 @@ ICON_STATES = ("watching", "recovering", "idle", "attention", "failed")
 # key of brand.STATUS_FILL; anything unknown is idle grey, as brand.status_fill is.
 ICON_BRAND_STATE = {"watching": "monitoring", "recovering": "recovering", "idle": "idle",
                     "attention": "attention", "failed": "failed"}
-# The icon's state for each status-light word: the popup's for a snapshot (icon_state), and the window's
-# header light's, for its taskbar button (Brand.Mark.IconState, build/make_brand.py). Anything else is idle.
+# The icon's state for each status-light word: the popup's for a snapshot (icon_state), and the same word for what
+# the settings window read, for its taskbar button (SettingsForm.TrayActivity, Brand.Mark.IconState). Else idle.
 ICON_FOR_LIGHT = {"monitoring": "watching", "waiting": "watching", "checking": "watching",
                   "recovering": "recovering", "paused": "idle", "idle": "idle",
                   "attention": "attention", "failed": "failed"}

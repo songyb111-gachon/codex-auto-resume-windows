@@ -503,8 +503,9 @@ namespace CodexAutoResume
         private readonly Label detail = new Label();
         private readonly Label versionText = new Label();
         private readonly HaloDot stateDot = new HaloDot();
-        // v0.6.5: the notification-area icon's motion on the taskbar button (TaskbarMark), following stateDot; null in
-        // a window LayoutAudit builds, and without the product's own icon.
+        // v0.6.5: the notification-area icon's motion on the taskbar button (TaskbarMark), told the icon's state for what
+        // the window read wherever stateDot is told its own (TellTaskbar); null in a window LayoutAudit builds, and
+        // without the product's own icon.
         private TaskbarMark taskbar;
         private Button startButton, closeButton;
 
@@ -721,8 +722,6 @@ namespace CodexAutoResume
                 }
             }
             catch (Exception) { /* an icon is decoration; never fail the window over it */ }
-            // The button's state is the icon's for the header light's, told each time the light is.
-            stateDot.StateSet += delegate { if (taskbar != null) taskbar.Follow(stateDot.State); };
             if (asking != null)
             {
                 Dictionary<string, object> reply = asking.Result;
@@ -2107,6 +2106,7 @@ namespace CodexAutoResume
         private void StatusUnavailable()
         {
             stateDot.State = "idle";
+            TellTaskbar(null, null, 0);
             headline.Text = S("status.unavailable", "Status unavailable");
             detail.Text = S("status.unavailable_detail", "Settings can still be changed and saved");
             // The version is deliberately left as it was: a failed status read is no
@@ -2156,9 +2156,13 @@ namespace CodexAutoResume
             // the halo: an alarm pulsed again every five seconds, and an arc jumped to its start.
             // A watcher that is not running, or not known to be, is a light that is off - grey, as
             // it was until v0.6.3; the headline beside it says what is wrong (see Activity).
+            // The taskbar button likewise, by the notification-area icon's rule (TrayActivity).
             if (snapshot == null)
+            {
                 stateDot.State = !Equals(running, true) ? "idle"
                                : !enabled ? "paused" : pending > 0 ? "waiting" : "monitoring";
+                TellTaskbar(status, null, Now());
+            }
             headline.Text = running == null ? S("status.unknown", "Watcher status unknown")
                           : !Equals(running, true) ? S("status.not_running", "Watcher not running")
                           : enabled ? S("status.watching", "Watching for interruptions")

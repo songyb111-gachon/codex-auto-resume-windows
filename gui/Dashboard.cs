@@ -2713,6 +2713,7 @@ namespace CodexAutoResume
             snapshot = null;
             shownEnabled = null;
             stateDot.State = "idle";
+            TellTaskbar(null, null, 0);
             headline.Text = S("status.unavailable", "Status unavailable");
             detail.Text = S("status.unavailable_detail", "Settings can still be changed and saved");
             header.Invalidate(true);
@@ -2884,6 +2885,7 @@ namespace CodexAutoResume
             // there is one), and every second, so a task that has just come due shows the watcher
             // checking. Before an unreadable list returns, which leaves Activity the status alone.
             stateDot.State = Activity(status, pending, now);
+            TellTaskbar(status, pending, now);
             if (unreadable)
             {
                 if (waitingLine != null)
@@ -3287,6 +3289,82 @@ namespace CodexAutoResume
             if (recovering) return "recovering";
             if (due) return "checking";
             return waiting ? "waiting" : "monitoring";
+        }
+
+        /// What the notification-area icon shows for the watcher the window read, as the status-light word its state
+        /// is made from (v0.6.5): the taskbar button's, which TaskbarMark maps as the icon does (Brand.Mark.IconState,
+        /// tray.ICON_FOR_LIGHT).
+        ///
+        /// The icon's own rule, not the header light's (Activity), which parts from it for a record being withdrawn,
+        /// an incompatible engine and a list that cannot be read. tray.icon_state is ICON_FOR_LIGHT of
+        /// tray_popup.snapshot_activity: the tick's snapshot of the store (tray.snapshot_from) - a pause, then any
+        /// record sent or being followed, then any waiting - with, while its popup is open, the popup's word that a
+        /// person must act (tray_popup.activity). The window reads what that popup reads, get_status and list_pending,
+        /// and reads it now, so this is the icon with its popup open. With no list the status's counts of the store's
+        /// records by public code say the same (status.codes). Where no icon of this version can be showing, it is the
+        /// header light's word: grey with no watcher running or none known to be, and needing a person while an older
+        /// watcher still owns the state. Pure, so tests/test_gui_v065_taskbar.py holds it to tray.py's own code.
+        internal static string TrayActivity(Dictionary<string, object> status, List<object> pending, double now)
+        {
+            if (status == null || !Equals(Get(status, "watcher_running"), true)) return "idle";
+            if (Equals(Get(status, "upgrade_pending"), true)) return "attention";
+            var watcher = Map(status, "watcher");
+            if (Equals(Get(watcher, "ticking"), false) || Str(watcher, "engine_state") == "incompatible")
+                return "attention";
+            if (pending != null)
+                foreach (object entry in pending)
+                {
+                    var row = entry as Dictionary<string, object>;
+                    // tray_popup.ATTENTION_OVERLAYS: a record held for one of the above, or for a watcher not running.
+                    if (row != null && (HasOverlay(row, "compatibility_blocked") || HasOverlay(row, "engine_unavailable") ||
+                                        HasOverlay(row, "watcher_not_ticking")))
+                        return "attention";
+                }
+            object enabled;
+            if (status.TryGetValue("enabled", out enabled) && (enabled == null || Equals(enabled, false))) return "paused";
+            bool waiting = false, due = false, running = false;
+            if (pending != null)
+                foreach (object entry in pending)
+                {
+                    var row = entry as Dictionary<string, object>;
+                    if (row == null) continue;
+                    if (!WaitingCode(Str(row, "code")))
+                    {
+                        running = true;
+                        continue;
+                    }
+                    waiting = true;
+                    double eligible = Number(row, "eligible_at");
+                    if (eligible > 0 && eligible <= now) due = true;
+                }
+            else
+            {
+                var codes = Map(status, "codes");
+                if (codes != null)
+                    foreach (KeyValuePair<string, object> code in codes)
+                    {
+                        if (!(code.Value is double) || (double)code.Value <= 0) continue;
+                        if (WaitingCode(code.Key)) waiting = true;
+                        else running = true;
+                    }
+            }
+            if (running) return "recovering";
+            if (due) return "checking";
+            return waiting ? "waiting" : "monitoring";
+        }
+
+        /// A pending record's public code that means it waits (machine.WAITING_CODES): every other pending record has
+        /// been sent into Codex, or is being followed or taken back out of it.
+        private static bool WaitingCode(string code)
+        {
+            return code == "waiting_reset" || code == "waiting_usage" || code == "waiting_thread" || code == "scheduled" ||
+                   code == "failed_retryable";
+        }
+
+        /// The taskbar button told what the window read (TrayActivity), wherever the header light is told.
+        private void TellTaskbar(Dictionary<string, object> status, List<object> pending, double now)
+        {
+            if (taskbar != null) taskbar.Follow(TrayActivity(status, pending, now));
         }
 
         /// The selected task's safety checks, as the watcher last recorded them.
