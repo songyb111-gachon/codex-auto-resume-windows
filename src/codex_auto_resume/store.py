@@ -1066,11 +1066,9 @@ class Store:
 
     @staticmethod
     def _others_in_flight(connection, thread_id, exclude) -> int:
-        return connection.execute(
-            "SELECT count(*) FROM interruptions WHERE thread_id=? AND interruption_id<>? AND "
-            "(state IN ('submitting','queued','withdrawn_unconfirmed') OR "
-            "(state='submission_unknown' AND queue_id IS NOT NULL))",
-            (thread_id, exclude)).fetchone()[0]
+        return sum(machine.may_be_queued(state, queue_id) for state, queue_id in connection.execute(
+            "SELECT state, queue_id FROM interruptions WHERE thread_id=? AND interruption_id<>?",
+            (thread_id, exclude)))
 
     def others_in_flight(self, thread_id: str, exclude: str) -> int:
         with self._read() as connection:

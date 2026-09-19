@@ -14,12 +14,10 @@ from contextlib import nullcontext
 import time
 
 from . import continuation as _message, failures, l10n, machine, settings as policy
-from .machine import OBSERVING, TERMINAL, WAITING
+from .machine import OBSERVING, TERMINAL, WAITING, WATCHED
 from .source import detect
 
 UNSENT = WAITING
-# Everything that may be sitting in Codex's queue, or may have just left it.
-WATCHED = frozenset({"submitting", "queued", "withdrawn_unconfirmed", "submission_unknown"})
 # A transient failure waits on a bounded ladder, never on a usage reset. The two
 # policies stay separate on purpose: a usage limit has a real reset timestamp to
 # wait for, a dropped connection has nothing but elapsed time.
@@ -317,7 +315,7 @@ class Engine:
         While that is true the watcher looks every second instead of every poll: the
         window in which a person can start work ahead of our queued item is seconds long.
         """
-        return any(row["state"] != "submission_unknown" or row["queue_id"] is not None
+        return any(machine.may_be_queued(row["state"], row["queue_id"])
                    for row in self.store.records_in(WATCHED))
 
     def watch(self):
