@@ -15,8 +15,8 @@ from . import compatio, config, l10n, notifier, settings as policy
 from .engine import Engine
 from .logbook import LOGGER_NAME, EngineLog, setup_logging
 from .source import LocalSource
-from .store import (SCHEMA_VERSION, RecordSchemaMismatch, StateFromNewerVersion, Store, StoreError,
-                    UpgradePending)
+from .openstate import open_state
+from .store import SCHEMA_VERSION, RecordSchemaMismatch, StateFromNewerVersion, Store, StoreError
 from .windows import AdapterError, Backend, HomeLock, Mutex, StopEvent, WakeEvent, wait_any
 
 EXIT_OK = 0
@@ -37,8 +37,6 @@ WATCH_SECONDS = 1.0
 WAKE_COALESCE_SECONDS = 5.0
 # A store that cannot be opened is retried with a growing wait, up to this.
 OPEN_RETRY_MAX_SECONDS = 60.0
-UPGRADE_PENDING = ("Upgrade pending: an older watcher still owns the state. Use Stop watcher, "
-                   "then Start watcher, or sign out and back in.")
 # What the log says about the engine it just accepted, in the word the gate reads for it -
 # from the registry data in force (compatio.engine_word), the bundled baseline and an
 # imported cache alike, so it never contradicts the compatibility line that follows it.
@@ -132,22 +130,12 @@ class App:
 
     # ------------------------------------------------------------ components
     def open_store(self, *, check: bool = False) -> Store:
-        """Open the state for one command, as any per-call opener must.
+        """Open the state for one command, as any per-call opener must (openstate.open_state).
 
-        An older schema is upgraded only while holding the watcher's mutex, which proves
-        no watcher is running - an older watcher would otherwise be writing rows the
-        upgrade is changing. If a watcher does hold it, it can only be an older one (a
-        current watcher upgrades at start), and the command is refused until it stops.
+        An older schema is upgraded only under the watcher's mutex, and while an older watcher
+        holds it the command is refused (UpgradePending) until that watcher stops.
         """
-        try:
-            return Store(self.paths.state_dir, check=check)
-        except UpgradePending:
-            pass
-        try:
-            with self.mutex(timeout=0.0):
-                return Store(self.paths.state_dir, migrate=True, check=True)
-        except AdapterError:
-            raise UpgradePending(UPGRADE_PENDING) from None
+        return open_state(self.paths.state_dir, legacy="never", check=check)
 
     def backend(self) -> Backend:
         if self._backend is None:

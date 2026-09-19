@@ -22,6 +22,7 @@ import time
 import uuid
 
 from . import config, continuation, machine, reasons, settings, startup
+from .openstate import UPGRADE_PENDING, open_state
 from .store import (MAX_BUDGET_RESETS, TERMINAL, LegacyStore, StateFromNewerVersion, Store,
                     StoreError, UpgradePending)
 from .windows import AdapterError, Mutex, StopEvent, WakeEvent
@@ -49,8 +50,6 @@ CANCEL_RETRY_SECONDS = 30.0
 # A heartbeat older than this, from a watcher that holds the mutex, is not ticking.
 TICK_STALE_SECONDS = 180.0
 
-UPGRADE_PENDING = ("Upgrade pending: an older watcher still owns the state. Use Stop watcher, "
-                   "then Start watcher, or sign out and back in.")
 NEWER_STATE = ("The recovery state was written by a newer version of Codex Auto Resume. "
                "Update this installation; do not delete the state.")
 
@@ -198,6 +197,10 @@ def describe_record(row, *, enabled=True, thread_enabled=True, watcher=None) -> 
     }
 
 
+def _unavailable(exc) -> ControlError:
+    return ControlError("local state is unavailable: %s" % exc, code="store_unavailable")
+
+
 class Control:
     """Bound to one runtime home. Cheap to construct; opens the store per call."""
 
@@ -234,36 +237,21 @@ class Control:
 
     # ------------------------------------------------------------------- state
     def _open(self, *, legacy_ok: bool = False):
-        """The state, opened the way every per-call opener must open it.
+        """The state, opened as every per-call opener opens it (openstate.open_state).
 
-        An older schema is upgraded only while holding the watcher's single-instance
-        mutex, which proves no watcher is using it. If a watcher holds the mutex it is
-        an older one, and until it stops only the actions that reduce automation are
-        offered (`legacy_ok`); everything else says the upgrade is pending.
+        While an older watcher still holds an older state, only the actions that reduce
+        automation are offered its store (`legacy_ok`); everything else says the upgrade is
+        pending. A failed upgrade is reported as the state being unavailable.
         """
         try:
-            return Store(self.paths.state_dir, check=False)
+            return open_state(self.paths.state_dir, legacy="if_reducing", reducing=legacy_ok,
+                              upgrade_failed=_unavailable)
         except UpgradePending:
-            pass
+            raise ControlError(UPGRADE_PENDING, code="upgrade_pending") from None
         except StateFromNewerVersion:
             raise ControlError(NEWER_STATE, code="newer_state") from None
         except StoreError as exc:
-            raise ControlError("local state is unavailable: %s" % exc,
-                               code="store_unavailable") from None
-        try:
-            with Mutex(str(self.paths.state_dir), timeout=0.0):
-                return Store(self.paths.state_dir, migrate=True, check=True)
-        except AdapterError:
-            pass
-        except StoreError as exc:
-            raise ControlError("local state is unavailable: %s" % exc,
-                               code="store_unavailable") from None
-        if legacy_ok:
-            try:
-                return LegacyStore(self.paths.state_dir)
-            except StoreError:
-                pass
-        raise ControlError(UPGRADE_PENDING, code="upgrade_pending")
+            raise _unavailable(exc) from None
 
     def watcher_running(self):
         """True / False / None, where None means the probe itself was unavailable.

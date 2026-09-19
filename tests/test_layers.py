@@ -54,8 +54,8 @@ def _q(name):
 LAYER = {_q(name): layer for layer, names in {
     "domain": ("failures", "reasons", "machine"),
     "policy": ("", "settings", "continuation", "l10n", "interface", "config", "logbook"),
-    "adapters": ("store", "source", "windows", "compat", "compatio", "startup", "shortcut", "pwsh",
-                 "notify", "notice_presence"),
+    "adapters": ("store", "openstate", "source", "windows", "compat", "compatio", "startup", "shortcut",
+                 "pwsh", "notify", "notice_presence"),
     "engine": ("engine",),
     "control": ("control", "diagnostics"),
     "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcpui", "app", "tray", "tray_popup", "brand",
@@ -65,7 +65,7 @@ LAYER = {_q(name): layer for layer, names in {
 # The roles the target rules speak of: today's modules, and the packages the split moves them
 # into (PLANNED, which need not exist yet). Each name covers itself and everything inside it.
 PLANNED = {_q(name) for name in ("codex", "win", "ui", "mcp", "domain.public")}
-STORE = {_q("store")}
+STORE = {_q("store"), _q("openstate")}              # openstate moves into store/ as store/open.py
 CODEX = {_q("source"), _q("windows"), _q("codex")}         # Codex's files and processes
 WIN = {_q(name) for name in ("windows", "startup", "shortcut", "pwsh", "notify", "notice_presence", "win")}
 UI = {_q(name) for name in ("tray", "tray_popup", "brand", "notice_card", "notice_window", "ui")}

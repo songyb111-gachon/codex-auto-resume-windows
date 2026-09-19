@@ -12,7 +12,8 @@ import uuid
 from . import compat, compatio, config, machine, notify, settings, shortcut, startup
 from .app import EXIT_ERROR, EXIT_OK, App
 from .logbook import format_local, tail
-from .store import TERMINAL, LegacyStore, StoreError, UpgradePending, downgrade_to_v2
+from .openstate import open_state
+from .store import TERMINAL, LegacyStore, StoreError, downgrade_to_v2
 from .windows import AdapterError, WakeEvent, resource_users
 
 PROG = "auto_resume"
@@ -116,10 +117,7 @@ def _open_state(app):
     While an older watcher still owns an unmigrated state, these keep working through
     the schema that watcher understands; nothing else does until it stops.
     """
-    try:
-        return app.open_store()
-    except UpgradePending:
-        return LegacyStore(app.paths.state_dir)
+    return open_state(app.paths.state_dir, legacy="always")
 
 
 def cmd_enable(args) -> int:
