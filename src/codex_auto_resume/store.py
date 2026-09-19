@@ -22,7 +22,7 @@ import time
 from typing import Any, Iterator
 
 from . import failures, machine
-from .domain import ids
+from .domain import ids, vocabulary
 from .machine import CLAIMED, EXHAUSTED, IN_FLIGHT, OBSERVING, STATES, TERMINAL, WAITING, WATCHED
 
 
@@ -91,7 +91,7 @@ _MUTABLE = frozenset({
 })
 _NEEDS_RECOVERY_TURN = OBSERVING | {"recovered", "completed_no_progress",
                                     "recovery_turn_failed", "stopped_by_user"}
-ENGINE_STATES = frozenset({"verified", "structurally_compatible", "incompatible", "unknown"})
+ENGINE_STATES = frozenset(vocabulary.EngineState)
 
 # The journal is bounded both ways, and never loses the story of a record still running.
 EVENT_LIMIT = 5000

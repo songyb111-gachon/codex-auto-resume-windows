@@ -167,6 +167,9 @@ class ReasonCode(StrEnum):
     PROGRESS_OBSERVED = "progress_observed"
     NO_PROGRESS_OBSERVED = "no_progress_observed"
     TURN_FAILED = "turn_failed"
+    # A recovery that worked and was interrupted again - usually by the next usage limit, which
+    # Codex records on the turn as a failure. The record is `recovered`, because it was; this
+    # reason is how the journal keeps the distinction that the turn itself did not end cleanly.
     PROGRESS_THEN_TURN_FAILED = "progress_then_turn_failed"
     TURN_INTERRUPTED = "turn_interrupted"
     # a withdrawal's, as WithdrawReason
@@ -475,22 +478,23 @@ class Tier(StrEnum):
 class CompatCheck(StrEnum):
     """Every local structural check, each grounded in the code path that relies on it (compat.CHECKS).
     None of them sends anything, starts `codex app-server`, or writes anywhere."""
-    # windows.Backend.engine_checks: the binary sits at the official, content-addressed
-    # %LOCALAPPDATA%\OpenAI\Codex\bin\<hex>\codex.exe.
+    # E1 windows.Backend.engine_checks: the binary sits at the official, content-addressed
+    #    %LOCALAPPDATA%\OpenAI\Codex\bin\<hex>\codex.exe.
     OFFICIAL_LOCATION = "official_location"
-    # `codex --version` runs and exits 0.
+    # E2 `codex --version` runs and exits 0.
     VERSION_RUNS = "version_runs"
-    # config.discover_codex_exe: exactly one candidate passes (or one was named).
+    # E5 config.discover_codex_exe: exactly one candidate passes (or one was named).
     SINGLE_CANDIDATE = "single_candidate"
-    # `codex queue --help` exits 0 and still offers the two flags windows.Backend.send drives.
+    # E4 `codex queue --help` exits 0 and still offers the two flags the one interface
+    #    windows.Backend.send drives needs.
     QUEUE_FLAGS = "queue_flags"
-    # source.DB_KINDS: the newest generation of each database has every column the read-only
-    # adapter reads. A missing column is a FAIL; no database is UNAVAILABLE.
+    # E6 source.DB_KINDS: the newest generation of each database has every column the
+    #    read-only adapter reads. A missing column is a FAIL; no database is UNAVAILABLE.
     STATE_SCHEMA = "state_schema"
     HISTORY_SCHEMA = "history_schema"
     QUEUE_SCHEMA = "queue_schema"
-    # source.LocalSource.projection: thread_history_projection_state with
-    # next_rollout_byte_offset, which the freshness gate compares with the rollout file.
+    # E7 source.LocalSource.projection: thread_history_projection_state with
+    #    next_rollout_byte_offset, which the freshness gate compares with the rollout file.
     PROJECTION_TABLE = "projection_table"
     # The rollout directory the reset hint and eligibility read (source._rollout_path).
     SESSIONS_DIRECTORY = "sessions_directory"

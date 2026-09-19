@@ -21,6 +21,7 @@ from pathlib import Path
 import tempfile
 
 from . import continuation, failures, l10n, reasons
+from .domain.vocabulary import NotifyEvent, Theme
 
 CONFIG_VERSION = 2
 MAX_SETTINGS_BYTES = 256 * 1024
@@ -46,7 +47,7 @@ CONFIGURABLE_CATEGORIES = (
 )
 
 # Notification events, each independently suppressible.
-NOTIFICATION_EVENTS = ("interruption", "starting", "result", "stopped")
+NOTIFICATION_EVENTS = tuple(NotifyEvent)
 
 # Retry timing presets. Raw ladders are not exposed: a preset cannot produce a zero
 # delay or an unbounded one, which a free-form number could.
@@ -63,7 +64,7 @@ DEFAULT_TIMING = "normal"
 # later change there carries every surface with it. Windows High Contrast outranks all
 # three on every surface; that is an accessibility setting, not a theme.
 THEME_SYSTEM = "system"
-THEMES = (THEME_SYSTEM, "light", "dark")
+THEMES = tuple(Theme)
 DEFAULT_THEME = THEME_SYSTEM
 
 
