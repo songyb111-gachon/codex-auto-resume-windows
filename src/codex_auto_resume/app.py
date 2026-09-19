@@ -105,7 +105,7 @@ class App:
         self.settings = config.load_settings(paths)
         # Everything this process says - the icon, its menu, every notification - is in the
         # Interface language the user stored, which is `system` until they choose.
-        from . import l10n, tray_popup
+        from . import tray_popup
         l10n.set_preference(self.settings.get("interface_language"))
         # Reduce motion and, since v0.6.5, the Theme: the notification card is drawn in it before
         # anybody has opened the popup, which is where the icon used to take it up first.
@@ -252,7 +252,7 @@ class App:
         from . import tray_popup
         tray_popup.adopt_settings(values)
         if values.get("interface_language") != previous:
-            from . import interface, l10n
+            from . import interface
             l10n.set_preference(values.get("interface_language"))
             if self._tray is not None:
                 # The icon's words change with the language. Nothing else about the icon

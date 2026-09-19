@@ -21,7 +21,7 @@ from pathlib import Path
 import time
 import uuid
 
-from . import config, machine, settings, startup
+from . import config, continuation, machine, reasons, settings, startup
 from .store import (MAX_BUDGET_RESETS, TERMINAL, LegacyStore, StateFromNewerVersion, Store,
                     StoreError, UpgradePending)
 from .windows import AdapterError, Mutex, StopEvent, WakeEvent
@@ -667,7 +667,6 @@ class Control:
         The text comes from `continuation.for_settings`, the same function the watcher calls
         when it sends. There is no second rendering of a continuation anywhere.
         """
-        from . import continuation, reasons
         # Malformed requests, which only a front end with a bug can make. Like a value the
         # settings validator refuses, they carry the generic code and say exactly what was
         # wrong in the sentence.

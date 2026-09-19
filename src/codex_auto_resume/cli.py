@@ -12,8 +12,8 @@ import uuid
 from . import compat, compatio, config, machine, notify, settings, shortcut, startup
 from .app import EXIT_ERROR, EXIT_OK, App
 from .logbook import format_local, tail
-from .store import TERMINAL, LegacyStore, StoreError, UpgradePending
-from .windows import AdapterError
+from .store import TERMINAL, LegacyStore, StoreError, UpgradePending, downgrade_to_v2
+from .windows import AdapterError, WakeEvent, resource_users
 
 PROG = "auto_resume"
 
@@ -299,7 +299,6 @@ def cmd_doctor(args) -> int:
     running = app.watcher_running()
     _print("watcher mutex    : %s" % {True: "held by a running watcher", False: "free", None: "unavailable"}[running])
     try:
-        from .windows import resource_users
         lock_dir = app.codex_home / "thread-writer-locks"
         probe = lock_dir / ".coordination.lock"
         if probe.exists():
@@ -400,7 +399,6 @@ def cmd_compat(args) -> int:
         result = compatio.import_document(app.paths, args.import_file, origin="file")
         if result["imported"]:
             try:
-                from .windows import WakeEvent
                 WakeEvent(str(app.paths.state_dir)).signal()
             except Exception:
                 pass
@@ -683,7 +681,6 @@ def cmd_downgrade_state(args) -> int:
     never the way back - it would forget which failures were already cancelled,
     exhausted or possibly sent, and which conversations were switched off.
     """
-    from .store import downgrade_to_v2
     app = _app(args)
     try:
         with app.mutex(timeout=0.0):
