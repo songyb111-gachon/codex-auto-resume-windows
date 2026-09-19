@@ -72,68 +72,47 @@ PANEL = ASSETS / "screenshot-panel.png"
 SETTINGS = ASSETS / "screenshot-settings.png"
 COPIES = {PANEL: DOCS / "settings-panel.png", SETTINGS: DOCS / "settings-window.png"}
 
-# What the *window* is rendered from. It is a compiled Windows application, so there is
-# no way to look at its output without running it, and its inputs have to be listed.
+# What the *window* is rendered from, in two halves.
 #
-# Listing is how this went wrong the first time: the tuple named seven files and missed
-# five more that visibly change the pictures - the title-bar icon, the store fields behind
-# every pending row, the control layer that decides what a row carries, the DPI manifest
-# and the capture script itself. The panel no longer relies on a list at all (see below);
-# this one stays as short as it can be. Nothing can check it against what the compiled
-# window actually reads, so tests/test_screenshots.py checks the part that can be named:
-# that every file the Dashboard's figures, rows and names are computed by is on it. A file
-# missing from that test is a file this list can miss again.
+# The compiled half is files, hashed byte for byte (line endings aside): a compiled Windows
+# application has no output to look at without running it. Listing is how this went wrong
+# the first time - the tuple named seven files and missed five more that visibly change the
+# pictures: the title-bar icon, the store fields behind every pending row, the control layer
+# that decides what a row carries, the DPI manifest and the capture script itself.
+#
+# The Python half is not a list of files any more. The window renders no text of its own:
+# every label, every value, every row and the whole status line arrive over the bridge as
+# JSON, so what the Python side contributes to a picture is exactly what the bridge answers
+# the window. `window_envelopes` below asks the bridge the window's own questions, against
+# the same kind of scratch installation the capture uses, and the manifest records a hash of
+# the answers (`<bridge envelope:{locale}>`). Until v0.6.5 this list held fifteen of the
+# package's modules and `tests/codexsim.py` instead, so moving a function between two files
+# - the whole of the v0.6.5 modularisation - marked every picture stale and cost a
+# re-render on Windows with Edge and a compiled window, while a comment edit in any of them
+# did the same. A hash of the answers moves when a word, a row field, a figure, a name or
+# the status moves, wherever in the package that is decided, and at no other time.
+#
+# tests/test_screenshots.py checks both halves: that the C# the window is compiled from is
+# on this list, and that each thing the Dashboard's figures, rows and names are computed
+# from - the store, the source of the names, the version, the catalogs, the mutex, the Run
+# key, the control layer, the state machine, the synthetic Codex home - moves the envelope
+# when it changes what it computes.
 WINDOW_INPUTS = (
-    ".codex-plugin/plugin.json",          # the version in the footer
+    ".codex-plugin/plugin.json",          # the version in the footer, and the version resource
     "gui/SettingsApp.cs",                 # the window's layout and wording
     "gui/Dashboard.cs",                   # the Dashboard pages
     "gui/Controls.cs",                    # the soft controls both are drawn with
     "gui/Brand.cs",                       # its palette
     "gui/app.manifest",                   # its DPI awareness, and so its size
     "assets/codex-auto-resume.ico",       # the mark in the title bar, which is captured
-    "src/codex_auto_resume/settings.py",  # the schema that decides which rows exist
-    # The window renders no text of its own. Every label, every value and the whole
-    # status line arrive over the bridge as JSON, so the read path is a render input as
-    # surely as the layout is: `controlcli` shapes the envelope the window unpacks, and
-    # `watcher_running` in `app.py` is what decides the headline, the dot and whether the
-    # Start button is in the picture at all.
-    "src/codex_auto_resume/controlcli.py",
-    "src/codex_auto_resume/app.py",
-    # Every word of the window, in both languages, is the interface catalog; what a row
-    # carries and which public status it shows are decided by the control layer and the
-    # state machine.
-    "src/codex_auto_resume/interface.py",
-    "src/codex_auto_resume/l10n.py",
-    "src/codex_auto_resume/locales/en.json",
-    "src/codex_auto_resume/locales/ko.json",
-    "src/codex_auto_resume/locales/ja.json",
-    "src/codex_auto_resume/locales/zh-CN.json",
-    "src/codex_auto_resume/locales/zh-TW.json",
-    "src/codex_auto_resume/locales/es.json",
-    "src/codex_auto_resume/locales/de.json",
-    "src/codex_auto_resume/locales/fr.json",
-    "src/codex_auto_resume/locales/pt-BR.json",
-    # The Settings page's Preview is the continuation the watcher would send.
-    "src/codex_auto_resume/continuation.py",
-    "src/codex_auto_resume/reasons.py",
-    "src/codex_auto_resume/control.py",
-    "src/codex_auto_resume/machine.py",
-    # The Dashboard computes its figures from the local records rather than reading them
-    # from a caption, so each of these changes a number, a row or a word in the picture.
-    # statistics, history order, pending rows, and the heartbeat behind 'checking'
-    "src/codex_auto_resume/store.py",
-    "src/codex_auto_resume/source.py",    # conversation names, via LocalSource.identity
-    "src/codex_auto_resume/config.py",    # Paths, codex_home and the version it reads
-    "src/codex_auto_resume/messages.py",  # which language the window is resolved to
-    "src/codex_auto_resume/windows.py",   # the mutex that decides 'watching'
-    "src/codex_auto_resume/startup.py",   # the start-at-sign-in value
-    "tests/codexsim.py",                  # the synthetic Codex home the names come from
     "build/capture_window.ps1",           # how much of the window is captured
     # Whether the icon and the DPI manifest are compiled into the binary at all, and
     # which sources go into it. The two entries above it are only inputs because this
     # file passes them to the compiler.
     "build/make_gui.ps1",
-    "build/make_screenshots.py",          # the sample installation it is run against
+    # The sample installation the window is run against, the questions the envelope asks
+    # and how its answers are pinned.
+    "build/make_screenshots.py",
 )
 
 # Rendered at half size and captured at twice the device scale, so the committed image is
@@ -1038,8 +1017,11 @@ def window_envelopes(locales) -> dict:
 
 
 def bridge_envelope(locale: str) -> str:
-    """One locale's envelope, for reading: `python -c "import make_screenshots as m;
-    print(m.bridge_envelope('en'))"` shows exactly what a changed manifest entry is about."""
+    """One locale's envelope, for reading. From the repository root,
+
+        python -X utf8 -c "import sys; sys.path.insert(0, 'build'); import make_screenshots as m; print(m.bridge_envelope('en'))"
+
+    prints exactly what a changed `<bridge envelope:en>` entry was taken over."""
     return window_envelopes((locale,))[locale]
 
 
@@ -1056,10 +1038,13 @@ def render_inputs() -> dict:
     contributor who fixes a typo is not handed a red suite and a regeneration that needs
     Windows, Edge, a compiled settings window and a network fetch.
 
-    The window gets no such handle - it is a compiled application, and running it is the
-    only way to see its output - so its inputs are listed above, and a comment in
-    `SettingsApp.cs` will fire this check unnecessarily. That is a real cost and it is
-    the smaller one: the alternative is not noticing that the picture is wrong.
+    The window's Python half and the popup are keyed the same way since v0.6.5: the window
+    by what the bridge answers it (`<bridge envelope:*>`, see `window_envelopes`), the popup
+    by the view it draws and a digest of the definitions that draw it (`popup_render_input`).
+    Only the compiled window has no such handle - running it is the only way to see its
+    output - so its files are listed in WINDOW_INPUTS, and a comment in `SettingsApp.cs`
+    will still fire this check unnecessarily. That is a real cost and it is the smaller one:
+    the alternative is not noticing that the picture is wrong.
     """
     inputs = {name: input_digest(ROOT / name) for name in WINDOW_INPUTS}
     # One entry per locale, each rendered with that locale pinned.
@@ -1069,18 +1054,16 @@ def render_inputs() -> dict:
     # an English CI runner recomputed the English one and called the screenshots stale.
     # It is the same failure as hashing raw bytes for a file whose line endings the
     # checkout decides - the input has to be pinned, not observed.
+    envelopes = window_envelopes(LOCALES + EXTRA_LOCALES)
+    drawing = code_digest(popup_code_files())
     for locale in LOCALES + EXTRA_LOCALES:
+        inputs["<bridge envelope:%s>" % locale] = sha256(envelopes[locale].encode("utf-8"))
         previous = os.environ.get(l10n.ENV_LANG)
         os.environ[l10n.ENV_LANG] = locale
         try:
             inputs["<panel render:%s>" % locale] = sha256(
                 panel_html(theme=THEME).encode("utf-8"))
-            # The popup's pixels depend on the view it draws and on the code that draws it.
-            _strings, view = popup_view(locale)
-            inputs["<popup render:%s>" % locale] = sha256(
-                (json.dumps(view, sort_keys=True, default=str)
-                 + input_digest(ROOT / "src" / "codex_auto_resume" / "tray_popup.py")
-                 + input_digest(ROOT / "src" / "codex_auto_resume" / "brand.py")).encode("utf-8"))
+            inputs["<popup render:%s>" % locale] = popup_render_input(locale, drawing)
         finally:
             if previous is None:
                 os.environ.pop(l10n.ENV_LANG, None)
