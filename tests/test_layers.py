@@ -133,7 +133,6 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
     ("notify", "startup"): ("cost", "the AUMID only: startup owns every per-user registration, and a "
                                     "process that only formats a message should not load it"),
     ("shortcut", "startup"): ("cost", "the default AUMID only, as for notify"),
-    ("tray", "machine"): ("cost", "snapshot_from only"),
     ("tray", "notice_window"): ("cycle", "notice_window takes tray's Win32 structures at load"),
     ("tray", "tray_popup"): ("cycle", "tray_popup takes tray's countdown and Win32 structures at load"),
     ("windows", "compatio"): ("cycle", "VERIFIED_VERSIONS is read from the bundled baseline"),
