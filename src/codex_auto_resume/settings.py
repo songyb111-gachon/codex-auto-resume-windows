@@ -171,13 +171,24 @@ FIELDS["custom_message"] = (None, _custom_message)
 for _category in reasons.RECOVERABLE:
     FIELDS["custom_message_" + _category] = (None, _custom_message)
 
+
+def is_custom_text(name) -> bool:
+    """Whether a settings field holds Custom continuation text: the user's own words, which
+    the watcher sends into their conversations on their behalf.
+
+    The one test of it. The MCP server never offers these fields to a model, the Preview
+    validates them as text, the diagnostics bundle never quotes them, and the settings
+    surfaces draw them as free text. `custom_message_mode` is not one of them: it chooses
+    which message is used.
+    """
+    return name.startswith("custom_message") and name != "custom_message_mode"
+
 # A refusal a person can act on. `validate_update` reports "invalid value for X" for
 # most fields, which is enough when the field is a number with a published range and
 # useless when it is free text: "invalid value for custom_message" does not say that
 # the problem is a placeholder that would have leaked the conversation.
 EXPLAIN = {name: lambda value: continuation.validate_custom(value)
-           for name in FIELDS if name.startswith("custom_message")
-           and name != "custom_message_mode"}
+           for name in FIELDS if is_custom_text(name)}
 
 DEFAULTS = {name: default for name, (default, _coerce) in FIELDS.items()}
 
@@ -430,7 +441,7 @@ def describe() -> list:
             entry["group"] = "general"
         elif name in ("continuation_language", "continuation_style", "custom_message_mode"):
             entry["group"] = "continuation"
-        elif name.startswith("custom_message"):
+        elif is_custom_text(name):
             # Free text. The surfaces need to know that before they draw a one-line box
             # for it, and they need the limit before a person types past it.
             entry["group"] = "continuation"

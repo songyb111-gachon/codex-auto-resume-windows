@@ -28,6 +28,7 @@ import sys
 import time
 
 from . import config, interface, logbook, machine, startup
+from .settings import is_custom_text
 
 UUID_RE = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
 # Record ids are 64 hex characters; the log prints their first 12. Any run of 12 to 64
@@ -183,7 +184,7 @@ def collect(control, *, now=None) -> dict:
     # A Custom message is the user's own writing and may say anything, so the bundle records
     # only whether each one is set. What was sent is not something a bug report needs.
     for name in list(settings):
-        if name.startswith("custom_message") and name != "custom_message_mode":
+        if is_custom_text(name):
             settings[name] = "<set>" if settings.get(name) else None
     bundle["settings"] = settings
     try:
