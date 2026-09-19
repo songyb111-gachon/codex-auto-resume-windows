@@ -28,7 +28,7 @@ BUDGET = 700
 OVERSIZED = {
     "codex_auto_resume/tray_popup.py": 2946,
     "codex_auto_resume/mcpui.py": 2340,
-    "codex_auto_resume/store.py": 1557,
+    "codex_auto_resume/store.py": 1556,
     "codex_auto_resume/tray.py": 1198,
     "codex_auto_resume/engine.py": 1083,
     "codex_auto_resume/brand.py": 993,
