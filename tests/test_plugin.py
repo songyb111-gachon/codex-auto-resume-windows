@@ -619,16 +619,8 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIsNotNone(block, "release.yml's archive check was not found")
         return set(re.findall(r"'([^']+)'", block.group(1)))
 
-    def test_it_checks_everything_this_bootstrap_requires_of_an_archive(self):
-        import re
-        bootstrap = (ROOT / "scripts" / "bootstrap.ps1").read_text(encoding="utf-8")
-        required = re.search(r"\$required = @\((.*?)\)", bootstrap, re.S)
-        root = re.search(r"\$rootFiles = @\((.*?)\)", bootstrap, re.S)
-        wanted = set(re.findall(r"'([^']+)'", required.group(1)))
-        wanted |= {"payload/" + name for name in re.findall(r"'([^']+)'", root.group(1))}
-        self.assertEqual(wanted - self.checked(), set(),
-                         "release.yml would publish an archive the bootstrap refuses to install")
-
+    # That release.yml and this bootstrap name the same entries is test_convergence's
+    # test_required_contents_match_the_release_workflow; this one looks back at the published ones.
     def test_it_checks_everything_a_published_bootstrap_requires(self):
         self.assertEqual(self.PUBLISHED_BOOTSTRAPS_REQUIRE - self.checked(), set(),
                          "an installed bootstrap would refuse this release as an update")

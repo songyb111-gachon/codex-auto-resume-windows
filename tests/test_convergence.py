@@ -445,11 +445,17 @@ class BootstrapTests(unittest.TestCase):
             return set(re.findall(r"'((?:payload|install|Install)[^']*)'",
                                   block[:block.index(")")]))
         mine = entries(self.text, "$required = @(")
+        # The payload root's files are required too, through their own list (Test-Archive).
+        root = self.text[self.text.index("$rootFiles = @("):]
+        mine |= {"payload/" + name for name in re.findall(r"'([^']+)'", root[:root.index(")")])}
         theirs = entries(WORKFLOW.read_text(encoding="utf-8"), "foreach ($required in @(")
         self.assertTrue(theirs, "the release workflow's required list was not found")
         self.assertTrue(theirs.issubset(mine),
                         "the bootstrap accepts an archive the release would reject: "
                         + str(sorted(theirs - mine)))
+        self.assertTrue(mine.issubset(theirs),
+                        "the release would publish an archive the bootstrap refuses: "
+                        + str(sorted(mine - theirs)))
 
 
 class ArgumentQuotingTests(unittest.TestCase):
