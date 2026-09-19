@@ -16,14 +16,21 @@ purpose has its line here changed in the same commit.
 Some vocabularies are not a list anywhere: they are the words a function hands back - what
 the queue says of a send, what a watcher start or stop came to. Those are read from the
 functions themselves, wherever they are.
+
+And every enum is held to the code that spells its words (HOMES), and every member to what
+makes a `StrEnum` safe to put where a plain string was (StrEnumTests): it hashes and compares
+as its value, and JSON, the database and "%s" write it as its value.
 """
 from __future__ import annotations
 
 import ast
+from enum import StrEnum
 import hashlib
 import importlib
+import inspect
 import json
 from pathlib import Path
+import sqlite3
 import sys
 import unittest
 from unittest import mock
@@ -33,6 +40,7 @@ if _HERE not in sys.path:
     sys.path.insert(0, _HERE)        # srcscan lives next to this file
 
 import srcscan  # noqa: E402
+from codex_auto_resume.domain import vocabulary as v  # noqa: E402
 
 # "module.NAME" -> (kind, length, digest), or the text of a single word.
 LISTS = {
@@ -214,6 +222,69 @@ def returned_words(qualname, key):
     return words
 
 
+# Each vocabulary, and where the code spells its words today: a list (a tuple in its order, a
+# set as a set), the keys of a table (in their order), or the words functions return.
+HOMES = {
+    v.RecordState: ("list", "machine.STATES"),
+    v.PublicCode: ("list", "machine.PUBLIC_CODES"),
+    v.WithdrawReason: ("list", "machine.WITHDRAW_REASONS"),
+    v.ReasonCode: ("list", "machine.REASONS"),
+    v.EventCode: ("list", "machine.EVENT_CODES"),
+    v.Actor: ("list", "machine.ACTORS"),
+    v.TurnStatus: ("list", "machine.TURN_STATUSES"),
+    v.Page: ("list", "machine.PAGES"),
+    v.Overlay: ("list", "machine.OVERLAYS"),
+    v.GateName: ("list", "machine.GATES"),
+    v.GateResult: ("list", "machine.GATE_RESULTS"),
+    v.FailureCategory: ("list", "failures.CATEGORIES"),
+    v.EngineState: ("list", "store.ENGINE_STATES", "compat.ENGINE_STATES"),
+    v.WatcherStartState: ("returned", ("Control.start_watcher", "state"), ("await_watcher", "state")),
+    v.WatcherStopState: ("returned", ("Control.stop_watcher", "state"), ("await_stopped", "state")),
+    v.ErrorCode: ("list", "control.ERROR_CODES"),
+    v.ContinuationStyle: ("list", "continuation.STYLES"),
+    v.CustomMode: ("list", "continuation.CUSTOM_MODES"),
+    v.Theme: ("list", "settings.THEMES"),
+    v.RetryTiming: ("keys", "settings.RETRY_TIMING"),
+    v.NotifyEvent: ("list", "settings.NOTIFICATION_EVENTS"),
+    v.Locale: ("list", "l10n.LOCALES"),
+    v.SendOutcome: ("returned", ("Backend.send", "outcome")),
+    v.SendError: ("returned", ("Backend.send", "error_code")),
+    v.LoadedState: ("returned", ("Backend.loaded", None)),
+    v.ActivityState: ("list", "tray_popup.STATES"),
+    v.IconState: ("list", "tray.ICON_STATES"),
+    v.NoticeKind: ("keys", "notifier.STATUS"),
+    v.CompatState: ("list", "compat.STATES"),
+    v.LocalResult: ("list", "compat.RESULTS"),
+    v.Tier: ("list", "compat.TIERS"),
+    v.CompatCheck: ("list", "compat.CHECKS"),
+    v.Capability: ("keys", "compat.CAPABILITIES"),
+    v.ResolutionReason: ("list", "compat.RESOLUTION_REASONS"),
+    v.ViewReason: ("list", "compat.VIEW_REASONS"),
+    v.RegistryReason: ("list", "compat.REGISTRY_REASONS"),
+    v.ImportReason: ("list", "compat.IMPORT_REASONS"),
+    v.PermitReason: ("list", "compat.PERMIT_REASONS"),
+    v.CompatSource: ("list", "compat.SOURCES"),
+    v.BundledState: ("list", "compat.BUNDLED_STATES"),
+    v.CacheState: ("list", "compat.CACHE_STATES"),
+    v.DataSource: ("list", "compat.DATA_SOURCES"),
+    v.ViewStatus: ("list", "compat.VIEW_STATUSES"),
+    v.CacheOrigin: ("list", "compat.CACHE_ORIGINS"),
+    v.RefreshAnswer: ("list", "compatio.REFRESH_ANSWERS"),
+}
+
+
+def enums():
+    """Every vocabulary the module defines."""
+    return [value for value in vars(v).values()
+            if inspect.isclass(value) and issubclass(value, StrEnum) and value is not StrEnum]
+
+
+def members():
+    for cls in enums():
+        for member in cls:
+            yield cls, member
+
+
 class ListTests(unittest.TestCase):
     def test_every_list_has_the_members_it_had(self):
         for name, expected in LISTS.items():
@@ -248,6 +319,131 @@ class ListTests(unittest.TestCase):
                 mock.patch.object(srcscan, "relative", return_value="f.py"):
             self.assertEqual(returned_words("f", "state"), {"a", "b", "c"})
             self.assertEqual(returned_words("f", None), {"d", "e"})
+
+
+class HomeTests(unittest.TestCase):
+    def test_every_vocabulary_has_a_home(self):
+        self.assertEqual(sorted(cls.__name__ for cls in enums()), sorted(cls.__name__ for cls in HOMES))
+
+    def test_every_vocabulary_is_exactly_the_words_its_home_spells(self):
+        for cls, (kind, *homes) in HOMES.items():
+            with self.subTest(cls.__name__):
+                if kind == "returned":
+                    words = set()
+                    for qualname, key in homes:
+                        words |= returned_words(qualname, key)
+                    self.assertEqual(words, set(cls))
+                    continue
+                for home in homes:
+                    value = value_of(home)
+                    if kind == "keys":
+                        self.assertEqual(list(value), list(cls), home)
+                    elif isinstance(value, tuple):
+                        self.assertEqual(value, tuple(cls), home)
+                    else:
+                        self.assertEqual(value, frozenset(cls), home)
+
+    def test_the_words_spelled_beside_a_vocabulary_are_its_members(self):
+        from codex_auto_resume import (compat, continuation, control, failures, l10n, machine, mcpserver,
+                                       settings, source, tray_popup, windows)
+        self.assertLessEqual(set(v.WithdrawReason), set(v.ReasonCode))
+        self.assertEqual(list(compat.COARSE.values()), list(v.EngineState))
+        self.assertEqual(list(mcpserver.Server.START_WORDING), ["running", "already-running", "exited", "unconfirmed"])
+        self.assertEqual(set(mcpserver.Server.START_WORDING), set(v.WatcherStartState))
+        self.assertLessEqual(tray_popup.ATTENTION_OVERLAYS, set(v.Overlay))
+        self.assertEqual(source.KNOWN_STATUSES, set(v.TurnStatus) - {v.TurnStatus.OTHER})
+        self.assertEqual(l10n.CHOICES, (l10n.SYSTEM,) + tuple(v.Locale))
+        self.assertEqual(settings.CONTINUATION_LANGUAGES, (settings.FOLLOW_INTERFACE,) + tuple(v.Locale))
+        for word, cls in ((machine.PASS, v.GateResult), (machine.WAIT, v.GateResult), (machine.BLOCK, v.GateResult),
+                          (machine.UNKNOWN, v.GateResult), (failures.USAGE_LIMIT, v.FailureCategory),
+                          (failures.UNKNOWN, v.FailureCategory), (control.FALLBACK_CODE, v.ErrorCode),
+                          (continuation.DEFAULT_STYLE, v.ContinuationStyle),
+                          (continuation.DEFAULT_CUSTOM_MODE, v.CustomMode), (settings.DEFAULT_THEME, v.Theme),
+                          (settings.DEFAULT_TIMING, v.RetryTiming), (l10n.DEFAULT, v.Locale),
+                          (compat.VERIFIED, v.CompatState), (compat.COMPATIBLE, v.CompatState),
+                          (compat.INCOMPATIBLE, v.CompatState), (compat.UNKNOWN, v.CompatState),
+                          (compat.PASS, v.LocalResult), (compat.FAIL, v.LocalResult),
+                          (compat.UNAVAILABLE, v.LocalResult), (compat.NOT_APPLICABLE, v.LocalResult),
+                          (windows.PASS, v.LocalResult), (windows.FAIL, v.LocalResult),
+                          (windows.UNAVAILABLE, v.LocalResult)):
+            with self.subTest(word=word):
+                self.assertIn(word, frozenset(cls))
+        for subset in (machine.WAITING, machine.CLAIMED, machine.IN_FLIGHT, machine.OBSERVING, machine.OUTCOMES,
+                       machine.EXHAUSTED, machine.TERMINAL, machine.V2_STATES, machine.POSSIBLY_SENT,
+                       machine.WATCHED):
+            self.assertLessEqual(subset, frozenset(v.RecordState))
+        self.assertLessEqual(machine.WAITING_CODES, frozenset(v.PublicCode))
+        self.assertLessEqual(machine.SUPERSEDE_WITHDRAWALS, frozenset(v.WithdrawReason))
+        self.assertLessEqual(set(compat.SEND_GATE), set(v.Capability))
+        self.assertLessEqual(set(compat.RESTRICTING_STATES) | set(compat.TRUSTING_STATES), set(v.CacheState))
+        self.assertEqual(set(compat.REASONS), set(v.ResolutionReason) | set(v.ViewReason))
+        self.assertLessEqual({tier for _checks, tier in compat.CAPABILITIES.values()}, set(v.Tier))
+        self.assertLessEqual({check for checks, _tier in compat.CAPABILITIES.values() for check in checks},
+                             set(v.CompatCheck))
+
+    def test_a_members_name_is_its_value_in_capitals(self):
+        for cls, member in members():
+            with self.subTest(vocabulary=cls.__name__, member=member.value):
+                self.assertEqual(member.name, member.value.upper().replace("-", "_"))
+
+    def test_no_word_is_two_members(self):
+        for cls in enums():
+            with self.subTest(cls.__name__):
+                self.assertEqual(len(cls.__members__), len(cls), "an alias: two names for one word")
+
+
+class StrEnumTests(unittest.TestCase):
+    """What makes a member safe wherever a plain string was: `StrEnum` is `(str, ReprEnum)`, so
+    `str.__hash__`, `str.__eq__`, `str.__str__` and `str.__format__` come before `Enum`'s."""
+
+    def test_a_member_hashes_and_compares_as_its_value(self):
+        for cls, member in members():
+            with self.subTest(vocabulary=cls.__name__, member=member.value):
+                self.assertIs(type(member.value), str)
+                self.assertEqual(hash(member), hash(member.value))
+                self.assertEqual(member, member.value)
+                self.assertIn(member.value, frozenset(cls))
+                self.assertIn(member, frozenset(member.value for member in cls))
+                self.assertEqual({member.value: 1}[member], 1)
+
+    def test_json_writes_a_member_as_its_value(self):
+        for cls, member in members():
+            plain = member.value
+            with self.subTest(vocabulary=cls.__name__, member=plain):
+                self.assertEqual(json.dumps(member), json.dumps(plain))
+                self.assertEqual(json.dumps({member: [member]}), json.dumps({plain: [plain]}))
+                # The pure-Python writer (indent, as settings.save writes) and sorted keys.
+                self.assertEqual(json.dumps({member: member, "~": 1}, indent=2, sort_keys=True),
+                                 json.dumps({plain: plain, "~": 1}, indent=2, sort_keys=True))
+                self.assertEqual(json.dumps([member], ensure_ascii=False, separators=(",", ":")),
+                                 json.dumps([plain], ensure_ascii=False, separators=(",", ":")))
+
+    def test_the_database_binds_a_member_as_its_value(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            connection.execute("CREATE TABLE words (word TEXT)")
+            for cls, member in members():
+                with self.subTest(vocabulary=cls.__name__, member=member.value):
+                    connection.execute("DELETE FROM words")
+                    connection.execute("INSERT INTO words VALUES (?)", (member,))
+                    self.assertEqual(connection.execute("SELECT word, typeof(word), word = ? FROM words",
+                                                        (member.value,)).fetchone(), (member.value, "text", 1))
+                    self.assertIs(type(connection.execute("SELECT word FROM words").fetchone()[0]), str)
+        finally:
+            connection.close()
+
+    def test_formatting_writes_a_member_as_its_value(self):
+        for cls, member in members():
+            plain = member.value
+            with self.subTest(vocabulary=cls.__name__, member=plain):
+                self.assertEqual("%s" % member, plain)
+                self.assertEqual("%s" % (member,), plain)
+                self.assertEqual("{}".format(member), plain)
+                self.assertEqual(f"{member}", plain)
+                self.assertEqual(format(member, ""), plain)
+                self.assertEqual(str(member), plain)
+                self.assertEqual("x." + member, "x." + plain)
+                self.assertIs(type("x." + member), str)
 
 
 if __name__ == "__main__":
