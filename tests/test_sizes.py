@@ -29,7 +29,7 @@ OVERSIZED = {
     "codex_auto_resume/tray_popup.py": 2944,
     "codex_auto_resume/mcpui.py": 2331,
     "codex_auto_resume/store.py": 1566,
-    "codex_auto_resume/tray.py": 1199,
+    "codex_auto_resume/tray.py": 1191,
     "codex_auto_resume/engine.py": 1124,
     "codex_auto_resume/brand.py": 985,
     "codex_auto_resume/notice_window.py": 927,

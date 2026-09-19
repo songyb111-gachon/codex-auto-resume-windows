@@ -223,7 +223,7 @@ attention 맥동의 지속 시간에는 `--attention`이라는 이름을 절대 
 `Brand.Mark`에서 읽기 때문입니다. README는 이 움직임을 아이콘 자신의 프레임으로 그린 GIF로
 보여 줍니다(`docs/images/icon-motion.gif`, `build/make_screenshots.py`가 만듭니다). 움직임
 줄이기, Windows의 애니메이션 설정, 고대비, 배터리 절약 모드에서, 세션이 잠겨 있을 때, 그리고 Windows가
-아이콘에 대해 가진 자신의 설정이 넘침 영역에 있다고 말하는 동안에는 멈춰 있습니다(`tray.IconPlacement`는
+아이콘에 대해 가진 자신의 설정이 넘침 영역에 있다고 말하는 동안에는 멈춰 있습니다(`tray_place.IconPlacement`는
 그 설정을 읽기만 하고 아무것도 쓰지 않습니다). 아이콘의 사각형으로는 알 수 없습니다. Windows 11 빌드
 26200은 넘침 영역의 아이콘에 사각형이 없다고 하지 않고 넘침 단추의 사각형을 주므로, 거기서 아이콘은 보이지
 않는 채로 움직였습니다.
