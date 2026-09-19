@@ -1,0 +1,284 @@
+"""The package's layers, and the one direction its imports point.
+
+    domain          pure rules: failures, reasons, the status mapping
+      |
+    policy, i18n    settings, the continuation builder, catalogs, paths and version, the log
+      |
+    adapters        the store, Codex's files and processes, Windows, the compatibility registry
+      |
+    engine          decides and schedules; reaches Codex and the store through what it is given
+      |
+    control         the one layer a front end calls
+      |
+    front ends      the command line, the bridge, the MCP server and panel, the runtime, the icon,
+                    the popup and the card
+
+A module may import from its own layer or from any layer below it, never from one above.
+The rules below are the v0.6.5 target (the modularization plan, section 3.1). Those that
+already hold are enforced as they stand. Those that do not hold yet are enforced too, with
+the real edges that break them today listed as exceptions - and an exception that no longer
+exists fails the test, so the lists only shrink as the split lands.
+
+Every import is read from the source through srcscan, including the ones inside functions:
+a lazy import is still an edge, and a cycle through one is still a cycle the day someone
+moves it to the top of a file.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+import sys
+import unittest
+
+_HERE = str(Path(__file__).resolve().parent)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)        # srcscan lives next to this file
+
+import srcscan  # noqa: E402
+
+PACKAGE = srcscan.PACKAGE
+ORDER = ("domain", "policy", "adapters", "engine", "control", "front")
+
+
+def _q(name):
+    return PACKAGE if name == "" else "auto_resume" if name == "auto_resume" else PACKAGE + "." + name
+
+
+# Every module, placed. A new module has to be given a layer here before anything else.
+LAYER = {_q(name): layer for layer, names in {
+    "domain": ("failures", "reasons", "machine"),
+    "policy": ("", "settings", "continuation", "l10n", "interface", "messages", "config", "logbook"),
+    "adapters": ("store", "source", "windows", "compat", "compatio", "startup", "shortcut", "pwsh",
+                 "notify", "notice_presence"),
+    "engine": ("engine",),
+    "control": ("control", "diagnostics"),
+    "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcpui", "app", "tray", "tray_popup", "brand",
+              "notice_card", "notice_window", "notifier"),
+}.items() for name in names}
+
+# The roles the target rules speak of, in today's modules.
+STORE = {_q("store")}
+CODEX = {_q("source"), _q("windows")}                      # Codex's files and processes
+WIN = {_q(name) for name in ("windows", "startup", "shortcut", "pwsh", "notify", "notice_presence")}
+UI = {_q(name) for name in ("tray", "tray_popup", "brand", "notice_card", "notice_window")}
+MCP = {_q("mcpserver"), _q("mcpui")}
+# What the UI may reach: the control layer, the public status mapping (machine, until it is
+# split into domain/), the i18n layer and the brand - and itself.
+UI_MAY_IMPORT = {_q("control"), _q("machine"), _q("l10n"), _q("interface"), _q("messages")} | UI
+PURE_STDLIB = {"__future__", "abc", "collections", "dataclasses", "decimal", "enum", "fractions", "functools",
+               "hashlib", "itertools", "json", "math", "numbers", "operator", "re", "string", "textwrap",
+               "types", "typing", "uuid"}
+
+# Target rules that do not hold yet: the real edges that break them. Each fails the test the
+# day it no longer exists, so these only shrink.
+ENGINE_EXCEPTIONS = {
+    (_q("engine"), _q("source")): "source.detect() is imported and called directly rather than reached "
+                                   "through the source the engine is given (engine/ports.py, step 8)",
+}
+UI_EXCEPTIONS = {
+    (_q("tray_popup"), _q("reasons")): "the popup asks the reason registry for a label key, whether a "
+                                       "category is recoverable and whether it has a reset time",
+    (_q("notice_window"), _q("notice_presence")): "the card reads battery saver and the message duration "
+                                                  "from the presence probes, which are Windows adapters",
+}
+
+# Import cycles, which exist only through imports made inside functions. Each is removed by
+# the split (win/dll.py for the icon's shared Win32 structures, compat/ and win/ for the
+# registry and the adapter), and until then is listed here exactly.
+LAZY_CYCLES = {
+    frozenset({_q("windows"), _q("compatio")}):
+        "windows.verified_versions reads the bundled baseline through compatio, and compatio's "
+        "probes read windows",
+    frozenset({_q("tray"), _q("tray_popup"), _q("notice_window"), _q("notice_card")}):
+        "tray_popup and notice_window take tray's Win32 structures (and the popup its countdown) "
+        "at load, and tray opens both inside functions",
+}
+
+# Every import made inside a function, with what it is for. Three kinds, and the test checks
+# each claim against the import graph:
+#   cost       it defers loading a module the importer would not otherwise load;
+#   redundant  the module is loaded with the importer anyway; the import only sits where the
+#              name is used, and could move to the top;
+#   cycle      it closes one of LAZY_CYCLES above.
+LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, imported), (kind, reason) in {
+    ("", "config"): ("cost", "__version__ is resolved on demand, so importing the package reads no manifest"),
+    ("app", "control"): ("cost", "only a card's button and the icon's thread use the control layer"),
+    ("app", "interface"): ("cost", "the icon's catalogue, when the icon starts or the language changes"),
+    ("app", "l10n"): ("redundant", "messages loads it; kept beside the two places that set the Interface language"),
+    ("app", "tray"): ("cost", "the notification-area icon, only in a watcher that shows one"),
+    ("app", "tray_popup"): ("cost", "the popup's theme and motion, adopted only by a running watcher"),
+    ("cli", "control"): ("cost", "the diagnostics command is the only one that goes through control"),
+    ("cli", "diagnostics"): ("cost", "only the diagnostics command writes the export"),
+    ("cli", "store"): ("redundant", "downgrade_to_v2, for downgrade-state only"),
+    ("cli", "tray"): ("cost", "activate opens the settings window through the icon's helper"),
+    ("cli", "windows"): ("redundant", "resource_users for doctor, WakeEvent for compat"),
+    ("compatio", "windows"): ("cycle", "the registry's API and discovery checks read the adapter"),
+    ("config", "settings"): ("cost", "nearly everything imports config; the settings schema, and the "
+                                     "catalogs behind it, load only when settings are read or written"),
+    ("control", "continuation"): ("redundant", "preview_continuation only; settings has loaded it"),
+    ("control", "reasons"): ("redundant", "preview_continuation only; settings has loaded it"),
+    ("controlcli", "compatio"): ("cost", "the three compatibility commands only"),
+    ("controlcli", "diagnostics"): ("cost", "the diagnostics command only"),
+    ("controlcli", "interface"): ("cost", "the strings request only: the window's catalogue"),
+    ("controlcli", "l10n"): ("redundant", "beside interface for the strings request"),
+    ("controlcli", "source"): ("cost", "display labels read from Codex's history; a source that fails "
+                                       "costs the names, never the listing"),
+    ("controlcli", "windows"): ("redundant", "WakeEvent after an import; control has loaded it"),
+    ("diagnostics", "compatio"): ("cost", "the compatibility section of the export only"),
+    ("mcpserver", "compat"): ("cost", "the compatibility summary in get_status only"),
+    ("mcpserver", "compatio"): ("cost", "the compatibility summary in get_status only"),
+    ("mcpserver", "config"): ("redundant", "main() finds the installed home; control has loaded it"),
+    ("mcpserver", "l10n"): ("redundant", "the panel's language; settings has loaded it"),
+    ("mcpserver", "mcpui"): ("cost", "the panel's page, only when Codex reads the resource"),
+    ("notify", "l10n"): ("redundant", "a reason's label in a toast; messages has loaded it"),
+    ("notify", "reasons"): ("cost", "a reason's label, for a transient toast only"),
+    ("notify", "startup"): ("cost", "the AUMID only: startup owns every per-user registration, and a "
+                                    "process that only formats a message should not load it"),
+    ("shortcut", "startup"): ("cost", "the default AUMID only, as for notify"),
+    ("tray", "machine"): ("cost", "snapshot_from only"),
+    ("tray", "notice_window"): ("cycle", "notice_window takes tray's Win32 structures at load"),
+    ("tray", "tray_popup"): ("cycle", "tray_popup takes tray's countdown and Win32 structures at load"),
+    ("windows", "compatio"): ("cycle", "VERIFIED_VERSIONS is read from the bundled baseline"),
+    ("windows", "config"): ("cost", "the product version for the App Server's clientInfo, when a Protocol opens"),
+}.items()}
+
+
+def edges(*, lazy):
+    """(importer, imported) -> the lines, for this product's imports; lazy or not as asked."""
+    found = {}
+    for module, path in srcscan.modules().items():
+        for entry in srcscan.imports(path):
+            if entry.internal and entry.target in srcscan.modules() and entry.target != module \
+                    and entry.lazy == lazy:
+                found.setdefault((module, entry.target), []).append(entry.line)
+    return found
+
+
+def strongly_connected(graph):
+    """The import cycles of a graph, as sets of modules (Tarjan)."""
+    index, low, stack, on_stack, found = {}, {}, [], set(), []
+
+    def visit(node):
+        index[node] = low[node] = len(index)
+        stack.append(node)
+        on_stack.add(node)
+        for other in sorted(graph.get(node, ())):
+            if other not in index:
+                visit(other)
+                low[node] = min(low[node], low[other])
+            elif other in on_stack:
+                low[node] = min(low[node], index[other])
+        if low[node] == index[node]:
+            component = set()
+            while True:
+                other = stack.pop()
+                on_stack.discard(other)
+                component.add(other)
+                if other == node:
+                    break
+            if len(component) > 1:
+                found.append(frozenset(component))
+
+    for node in sorted(graph):
+        if node not in index:
+            visit(node)
+    return found
+
+
+def short(pair):
+    return tuple(name.replace(PACKAGE + ".", "") for name in pair)
+
+
+class LayerTests(unittest.TestCase):
+    def test_every_module_has_a_layer(self):
+        modules = set(srcscan.modules())
+        self.assertEqual(sorted(modules - set(LAYER)), [], "place the new module in a layer")
+        self.assertEqual(sorted(set(LAYER) - modules), [], "the table names a module that is gone")
+        for name in STORE | CODEX | WIN | UI | MCP | UI_MAY_IMPORT:
+            self.assertIn(name, modules)
+
+    def test_imports_point_down_or_sideways(self):
+        upward = []
+        for importer, targets in srcscan.import_graph().items():
+            for imported in targets:
+                if ORDER.index(LAYER[imported]) > ORDER.index(LAYER[importer]):
+                    upward.append("%s (%s) -> %s (%s)" % (importer, LAYER[importer], imported, LAYER[imported]))
+        self.assertEqual(sorted(upward), [])
+
+    def test_the_domain_imports_only_itself_and_the_pure_standard_library(self):
+        domain = {name for name, layer in LAYER.items() if layer == "domain"}
+        for module in sorted(domain):
+            for entry in srcscan.imports(srcscan.modules()[module]):
+                with self.subTest(module=module, imports=entry.target):
+                    if entry.internal:
+                        self.assertIn(entry.target, domain)
+                    else:
+                        self.assertIn(entry.target.split(".")[0], PURE_STDLIB, "no clock, no I/O, no ctypes")
+
+    def test_the_engine_names_no_store_codex_or_windows(self):
+        engine = {name for name, layer in LAYER.items() if layer == "engine"}
+        found = set()
+        for module in sorted(engine):
+            for entry in srcscan.imports(srcscan.modules()[module]):
+                if entry.target.split(".")[0] in ("sqlite3", "ctypes", "subprocess"):
+                    self.fail("%s imports %s" % (module, entry.target))
+                if entry.target in STORE | CODEX | WIN:
+                    found.add((module, entry.target))
+        self.assertEqual(found, set(ENGINE_EXCEPTIONS), "an exception has gone (delete it) or a new edge appeared")
+
+    def test_the_ui_imports_only_control_the_public_domain_i18n_and_brand(self):
+        found = set()
+        for module in sorted(UI):
+            for entry in srcscan.imports(srcscan.modules()[module]):
+                if entry.internal and entry.target not in UI_MAY_IMPORT:
+                    found.add((module, entry.target))
+        self.assertEqual({short(pair) for pair in found}, {short(pair) for pair in UI_EXCEPTIONS},
+                         "an exception has gone (delete it) or a new edge appeared")
+
+    def test_neither_the_mcp_server_nor_the_ui_imports_codex(self):
+        for module in sorted(MCP | UI):
+            for entry in srcscan.imports(srcscan.modules()[module]):
+                with self.subTest(module=module, imports=entry.target):
+                    self.assertNotIn(entry.target, CODEX)
+
+
+class CycleTests(unittest.TestCase):
+    def test_no_cycle_among_the_imports_that_run_at_load(self):
+        graph = srcscan.import_graph(lazy=False)
+        self.assertEqual(strongly_connected(graph), [])
+
+    def test_the_only_cycles_are_the_listed_lazy_ones(self):
+        found = strongly_connected(srcscan.import_graph())
+        self.assertEqual(sorted(sorted(short(cycle)) for cycle in found),
+                         sorted(sorted(short(cycle)) for cycle in LAZY_CYCLES),
+                         "a cycle has gone (delete it) or a new one appeared")
+        for cycle, reason in LAZY_CYCLES.items():
+            self.assertTrue(reason.strip())
+
+
+class LazyImportTests(unittest.TestCase):
+    def test_every_lazy_import_is_listed_with_its_reason(self):
+        found = set(edges(lazy=True))
+        self.assertEqual(sorted(short(pair) for pair in found - set(LAZY_IMPORTS)), [],
+                         "an import inside a function that LAZY_IMPORTS does not list")
+        self.assertEqual(sorted(short(pair) for pair in set(LAZY_IMPORTS) - found), [],
+                         "LAZY_IMPORTS lists an import that is gone")
+        for pair, (kind, reason) in LAZY_IMPORTS.items():
+            self.assertIn(kind, ("cost", "redundant", "cycle"), short(pair))
+            self.assertTrue(reason.strip(), short(pair))
+
+    def test_each_lazy_import_is_the_kind_it_says(self):
+        cycles = [set(cycle) for cycle in LAZY_CYCLES]
+        for (importer, imported), (kind, _) in LAZY_IMPORTS.items():
+            with self.subTest(importer=importer, imported=imported):
+                if imported in srcscan.closure(importer, lazy=False):
+                    actual = "redundant"
+                elif importer in srcscan.closure(imported):
+                    actual = "cycle"
+                    self.assertTrue(any({importer, imported} <= cycle for cycle in cycles))
+                else:
+                    actual = "cost"
+                self.assertEqual(kind, actual)
+
+
+if __name__ == "__main__":
+    unittest.main()
