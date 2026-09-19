@@ -422,8 +422,9 @@ never up.
 
 - **Domain** — the rules with no side effects: how a failure is classified (`failures.py`),
   which reasons are recoverable (`reasons.py`), and how a stored state becomes what a person is
-  shown (`machine.py`). The standard library only, and only the parts of it that touch no
-  clock, file or process.
+  shown (`machine.py`), with the `domain/` package they are moving into: every identifier
+  (`domain/ids.py`) and every closed list of words (`domain/vocabulary.py`). The standard
+  library only, and only the parts of it that touch no clock, file or process.
 - **Policy and translation** — the settings schema, the continuation builder, the catalogs,
   paths and the product version, and the log.
 - **Adapters** — everything that touches the outside: the store, Codex's files and processes,
@@ -479,6 +480,17 @@ appears anywhere in the package. Call the one that exists - `machine.waiting_sta
 test names - rather than writing the rule again. Every JSON writer passes `allow_nan=False`
 and no `default`, which `tests/test_json_writers.py` checks: a value that is not JSON is a bug
 to fix where the value is made, not text to write.
+
+Reading an identifier is one of those rules. A conversation id, an interruption id, the marker
+a continuation carries and a client id are read only through `domain/ids.py`, which also
+computes an interruption's id; where two readers accept different spellings, the parser takes a
+parameter rather than the reader keeping a pattern of its own. `tests/test_domain_vectors.py`
+holds the exact bytes of those ids, the gate vector and `settings.json`, and what each reader
+takes. The closed lists of words - states, codes, reasons, gates, categories, refusals,
+choices - are one `StrEnum` each in `domain/vocabulary.py`. The module that used a list keeps
+it under its old name, made from the enum (`machine.STATES = frozenset(RecordState)`), so a
+word is added in one place; `tests/test_vocabulary.py` holds every list to its members and
+every member to hashing, comparing and being written exactly as its string.
 
 ## Commit and pull requests
 
