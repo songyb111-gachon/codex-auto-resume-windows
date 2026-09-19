@@ -35,8 +35,10 @@ SRC = ROOT / "src"
 PACKAGE = "codex_auto_resume"
 
 # One import statement: the module it names, resolved to an absolute dotted name; its line;
-# whether it runs only when a function is called; and whether it names this product's code.
-Import = namedtuple("Import", "target line lazy internal")
+# whether it runs only when a function is called; whether it names this product's code; and
+# whether the statement does not name it at all, but Python loads it anyway because it is a
+# package above the module the statement does name (`implied`, see `implied_packages`).
+Import = namedtuple("Import", "target line lazy internal implied", defaults=(False,))
 
 
 class ScanError(RuntimeError):
@@ -92,6 +94,26 @@ def module_name(path: Path) -> str:
 def modules() -> dict:
     """Dotted module name -> its file, for every tracked module."""
     return {module_name(path): path for path in _package_files()}
+
+
+def ancestors(name: str, known=None) -> list[str]:
+    """The packages above `name` that are this product's modules, outermost first.
+
+    `codex_auto_resume.ui.popup.layout` -> `codex_auto_resume`, `codex_auto_resume.ui`,
+    `codex_auto_resume.ui.popup`, as far as each exists."""
+    known = modules() if known is None else known
+    parts = name.split(".")
+    return [".".join(parts[:end]) for end in range(1, len(parts)) if ".".join(parts[:end]) in known]
+
+
+def implied_packages(target: str, importer: str, known=None) -> list[str]:
+    """The packages Python runs on its own when `importer` imports `target`.
+
+    Importing `ui.popup.layout` first runs `ui/__init__.py` and `ui/popup/__init__.py`,
+    whatever the statement spells, and whatever those files import is loaded with it. The
+    packages `importer` is itself inside are not among them: they ran before it did."""
+    return [package for package in ancestors(target, known)
+            if package != importer and not importer.startswith(package + ".")]
 
 
 def files_of(*names: str) -> list[Path]:
@@ -169,9 +191,15 @@ def _imports(path: Path) -> tuple:
     def visit(node, lazy):
         for child in ast.iter_child_nodes(node):
             if isinstance(child, (ast.Import, ast.ImportFrom)):
+                named, above = [], []
                 for target in _targets(child, module, is_package):
                     internal = target == PACKAGE or target.startswith(PACKAGE + ".") or target in modules()
+                    named.append(target)
                     found.append(Import(target, child.lineno, lazy, internal))
+                    if internal:
+                        above += [package for package in implied_packages(target, module) if package not in above]
+                found.extend(Import(package, child.lineno, lazy, True, True)
+                             for package in above if package not in named)
             visit(child, lazy or isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)))
 
     visit(_parse(path), False)
@@ -180,7 +208,9 @@ def _imports(path: Path) -> tuple:
 
 def imports(path: Path) -> list:
     """Every import statement in one file, resolved: relative imports become absolute
-    dotted names, and an import inside a function is `lazy`."""
+    dotted names, and an import inside a function is `lazy`. The packages a statement loads
+    without naming them are there too, marked `implied`, so a scan of what a module reaches
+    also reads the `__init__.py` files that run on the way."""
     return list(_imports(path))
 
 
