@@ -550,6 +550,9 @@ class ReadsAreFoundTests(unittest.TestCase):
 
 
 class ConsumerFieldTests(unittest.TestCase):
+    # A failure lists reads by where they are; all of them, not the first 640 characters.
+    maxDiff = None
+
     def setUp(self):
         for directory in ("bridge", "mcp"):
             if not any((GOLDEN / directory).glob("*.json")):
