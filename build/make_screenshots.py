@@ -350,13 +350,17 @@ def seed_window_state(home: Path, codex: Path, now: float) -> None:
 
 def synthetic_codex(codex: Path):
     """The synthetic Codex home `tests/codexsim.py` builds at `codex`: its three databases and
-    its rollout directory, with no conversation in them yet."""
+    its rollout directory, with no conversation in them yet - and the folder of conversation
+    locks every Codex that has opened a conversation has, so the Diagnostics card can tell
+    whether a conversation is open, as it can on a machine that has used Codex."""
     sys.path.insert(0, str(ROOT / "tests"))
     try:
         from codexsim import CodexHome
     finally:
         sys.path.pop(0)
-    return CodexHome(codex)
+    home = CodexHome(codex)
+    (Path(codex) / "thread-writer-locks").mkdir(parents=True, exist_ok=True)
+    return home
 
 
 # The Codex the pictures describe, as `codex --version` names it: the build the synthetic home's
