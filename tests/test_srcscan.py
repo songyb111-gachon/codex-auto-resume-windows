@@ -111,11 +111,18 @@ class TreeTests(unittest.TestCase):
         self.assertEqual(srcscan.implied_packages("p.tray_popup", "p.ui.card.view", known), [])
         self.assertEqual(srcscan.ancestors("p.ui.popup.layout", {"p", "p.ui.popup"}), ["p", "p.ui.popup"])
         # On the tree as it is: the entry script is the one module outside the package, and
-        # the package's own __init__.py is what it loads without naming it.
-        implied = [(entry.target, entry.lazy, entry.internal)
-                   for path in srcscan.package_files() for entry in srcscan.imports(path) if entry.implied]
-        self.assertEqual(implied, [(srcscan.PACKAGE, False, True)])
+        # the package's own __init__.py is what it loads without naming it; and a module
+        # outside `domain/` that imports from it loads `domain/__init__.py` with it.
+        implied = {(srcscan.module_name(path), entry.target, entry.lazy, entry.internal)
+                   for path in srcscan.package_files() for entry in srcscan.imports(path) if entry.implied}
+        domain = srcscan.PACKAGE + ".domain"
+        importers = {module for module, path in srcscan.modules().items() if not module.startswith(domain)
+                     and any(entry.target.startswith(domain + ".") for entry in srcscan.imports(path))}
+        self.assertIn(srcscan.PACKAGE + ".store", importers)
+        self.assertEqual(implied, {("auto_resume", srcscan.PACKAGE, False, True)}
+                         | {(module, domain, False, True) for module in importers})
         self.assertIn(srcscan.PACKAGE, srcscan.import_graph()["auto_resume"])
+        self.assertIn(domain, srcscan.import_graph()[srcscan.PACKAGE + ".store"])
 
 
 class NoOneFileScanTests(unittest.TestCase):

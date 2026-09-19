@@ -18,9 +18,9 @@ import re
 import subprocess as S
 import threading
 import time
-import uuid
 
 from . import machine
+from .domain import ids
 
 NO_WINDOW = 0x08000000 if os.name == "nt" else 0
 # A Codex update bumps the version string, which alone must not disable auto-resume.
@@ -60,7 +60,7 @@ class AdapterError(RuntimeError):
 
 
 def canonical_uuid(value):
-    if not isinstance(value, str) or str(uuid.UUID(value)) != value:
+    if not ids.is_uuid(value):
         raise ValueError("invalid_uuid")
     return value
 

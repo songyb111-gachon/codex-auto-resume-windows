@@ -28,12 +28,14 @@ import sys
 import time
 
 from . import config, interface, logbook, machine, startup
+from .domain import ids
 from .settings import is_custom_text
 
-UUID_RE = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
+# A conversation id wherever a line holds one, in either case.
+UUID_RE = re.compile(r"\b" + ids.uuid_pattern(any_case=True) + r"\b")
 # Record ids are 64 hex characters; the log prints their first 12. Any run of 12 to 64
 # hex characters is aliased: over-redacting a hash is harmless, missing an id is not.
-KEY_RE = re.compile(r"\b[0-9a-f]{12,64}\b")
+KEY_RE = re.compile(r"\b[0-9a-f]{12,%d}\b" % ids.INTERRUPTION_ID_LENGTH)
 PATH_RE = re.compile(r"(?:[A-Za-z]:[\\/]|\\\\\?\\|\\\\)[^\s'\"<>|]*")
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 LOG_LINES = 300

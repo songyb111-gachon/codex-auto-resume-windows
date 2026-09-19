@@ -7,10 +7,10 @@ import os
 from pathlib import Path
 import sys
 import time
-import uuid
 
 from . import compat, compatio, config, machine, notify, settings, shortcut, startup
 from .app import EXIT_ERROR, EXIT_OK, App
+from .domain import ids
 from .logbook import format_local, tail
 from .openstate import open_state
 from .store import TERMINAL, LegacyStore, StoreError, downgrade_to_v2
@@ -24,11 +24,10 @@ class CliError(RuntimeError):
 
 
 def canonical_thread_id(value: str) -> str:
-    try:
-        parsed = uuid.UUID(str(value))
-    except (ValueError, AttributeError, TypeError):
-        raise CliError("thread id must be a canonical UUID (never --last or a name)") from None
-    if str(parsed) != value:
+    problem = ids.uuid_problem(value, as_text=True)
+    if problem == ids.MALFORMED:
+        raise CliError("thread id must be a canonical UUID (never --last or a name)")
+    if problem is not None or str(value) != value:
         raise CliError("thread id must be lowercase canonical UUID text")
     return value
 

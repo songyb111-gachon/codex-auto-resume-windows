@@ -28,8 +28,9 @@ import json
 import math
 import sys
 
-from . import config, controlcli, l10n, settings as policy
+from . import config, controlcli, l10n, reasons as _reasons, settings as policy
 from .control import Control, ControlError
+from .domain import ids
 
 PROTOCOL_VERSION = "2025-06-18"
 SUPPORTED_PROTOCOLS = (PROTOCOL_VERSION, "2025-03-26", "2024-11-05")
@@ -48,7 +49,7 @@ def _identifier_schema(title: str) -> dict:
     return {"type": "string", "title": title,
             "description": "The exact interruption id, as listed by list_pending. "
                            "Never a title, a project name, or 'the most recent one'.",
-            "pattern": "^[0-9a-fA-F]{64}$"}
+            "pattern": ids.INTERRUPTION_ID_SCHEMA}
 
 
 # Settings groups a person can change from a front end. Anything else is not offered to
@@ -254,7 +255,7 @@ TOOLS = [
                        "its later interruptions, and cancel what it has waiting. Only "
                        "ever reduces automation.",
         "inputSchema": {"type": "object",
-                        "properties": {"thread_id": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                        "properties": {"thread_id": {"type": "string", "pattern": ids.THREAD_ID_SCHEMA,
                                               "description": "The conversation's exact thread id from list_pending"}},
                         "required": ["thread_id"], "additionalProperties": False},
         "annotations": {"readOnlyHint": False, "destructiveHint": False,
@@ -267,7 +268,7 @@ TOOLS = [
                        "Nothing is sent by this; every check still applies. This turns "
                        "automation back on, so Codex asks the user first.",
         "inputSchema": {"type": "object",
-                        "properties": {"thread_id": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                        "properties": {"thread_id": {"type": "string", "pattern": ids.THREAD_ID_SCHEMA,
                                               "description": "The conversation's exact thread id from list_pending"}},
                         "required": ["thread_id"], "additionalProperties": False},
         "annotations": {"readOnlyHint": False, "destructiveHint": True,
@@ -308,8 +309,6 @@ TOOLS = [
                         "idempotentHint": True, "openWorldHint": False},
     },
 ]
-
-from . import reasons as _reasons  # noqa: E402 - the Preview tool's schema names them
 
 # Preview, read-only. It sends nothing and saves nothing: it returns the text the watcher
 # would send for one kind of interruption under the current settings, or under a language

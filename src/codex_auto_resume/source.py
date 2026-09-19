@@ -6,22 +6,19 @@ schemas and values fail closed. No prompt/error text escapes this module.
 from __future__ import annotations
 
 from contextlib import contextmanager
-import hashlib
 import json
 import math
 from pathlib import Path, PureWindowsPath
 import re
 import sqlite3
-import uuid
 
 from . import failures, machine
+from .domain import ids
 
 
 MAX_SCAN_BYTES = 8 * 1024 * 1024
 MAX_META_BYTES = 256 * 1024
 MAX_ITEM_BYTES = 1024 * 1024
-MARKER_RE = re.compile(r"\[codex-auto-resume:[0-9a-f]{64}\]\Z")
-CLIENT_ID_RE = re.compile(r"[A-Za-z0-9-]{1,64}\Z")
 KNOWN_STATUSES = {"failed", "completed", "interrupted", "inProgress"}
 # Item types that count as a turn having produced something. Anything Codex adds later
 # does not count until it is added here on purpose.
@@ -36,15 +33,6 @@ def _turn_status(value):
 
 class SourceError(RuntimeError):
     """Safe diagnostic: never include database contents or underlying errors."""
-
-
-def valid_uuid(value) -> bool:
-    if not isinstance(value, str):
-        return False
-    try:
-        return str(uuid.UUID(value)) == value
-    except (ValueError, AttributeError):
-        return False
 
 
 def epoch(value) -> bool:
@@ -67,7 +55,7 @@ def normalize(row) -> dict | None:
     tid, turn = row.get("thread_id"), row.get("turn_id")
     status = row.get("status")
     ordinal = row.get("ordinal", row.get("rollout_ordinal"))
-    if (not valid_uuid(tid) or not valid_uuid(turn)
+    if (not ids.is_uuid(tid) or not ids.is_uuid(turn)
             or not isinstance(status, str) or status not in KNOWN_STATUSES
             or type(ordinal) is not int or ordinal < 0):
         return None
@@ -107,11 +95,8 @@ def detect(row) -> dict | None:
             or not failures.is_recoverable(normalized["category"] or "")
             or normalized["completed_at"] is None):
         return None
-    identity = [normalized[k] for k in ("thread_id", "turn_id", "completed_at", "ordinal")]
-    # Integral epoch values have one canonical representation, int or float.
-    identity[2] = float(identity[2]).hex()
-    normalized["interruption_id"] = hashlib.sha256(
-        json.dumps(identity, separators=(",", ":"), allow_nan=False).encode("ascii")).hexdigest()
+    normalized["interruption_id"] = ids.interruption_id(
+        *(normalized[k] for k in ("thread_id", "turn_id", "completed_at", "ordinal")))
     return normalized
 
 
@@ -231,7 +216,7 @@ class LocalSource:
     def _metadata(self, thread_id: str, strict: bool = False) -> Path | None:
         # strict=True (used by latest()) re-raises transient I/O as SourceError so the
         # engine defers instead of treating an unreadable rollout as "latest turn changed".
-        if not valid_uuid(thread_id):
+        if not ids.is_uuid(thread_id):
             return None
         with self._db("state") as connection:
             row = connection.execute(
@@ -277,7 +262,7 @@ class LocalSource:
         recovery does not matter - a settle must be able to tell, for an archived
         thread too, whether Codex's history has caught up.
         """
-        if not valid_uuid(thread_id):
+        if not ids.is_uuid(thread_id):
             return None
         with self._db("state") as connection:
             row = connection.execute("SELECT rollout_path FROM threads WHERE id=?", (thread_id,)).fetchone()
@@ -290,7 +275,7 @@ class LocalSource:
         return path
 
     def latest(self, thread_id: str) -> dict | None:
-        if not valid_uuid(thread_id) or self._metadata(thread_id, strict=True) is None:
+        if not ids.is_uuid(thread_id) or self._metadata(thread_id, strict=True) is None:
             return None
         with self._db("history") as connection:
             row = connection.execute(
@@ -328,7 +313,7 @@ class LocalSource:
         anyway. Missing columns are not an error: display is optional, detection is not.
         """
         blank = {"name": None, "project": None, "cwd_basename": None}
-        if not valid_uuid(thread_id):
+        if not ids.is_uuid(thread_id):
             return blank
         try:
             with self._db("state") as connection:
@@ -370,7 +355,7 @@ class LocalSource:
         text, tool input or tool output is read.
         """
         empty = {"later_turn": False, "later_completed": False, "assistant_reply": False}
-        if not valid_uuid(thread_id) or type(after_ordinal) is not int:
+        if not ids.is_uuid(thread_id) or type(after_ordinal) is not int:
             return empty
         try:
             with self._db("history") as connection:
@@ -393,7 +378,7 @@ class LocalSource:
 
     def reset_hint(self, thread_id: str, turn_id: str) -> dict:
         unknown = {"reset_at": None, "limit_type": "unknown", "uncertain": True}
-        if not valid_uuid(thread_id) or not valid_uuid(turn_id):
+        if not ids.is_uuid(thread_id) or not ids.is_uuid(turn_id):
             return unknown
         path = self._metadata(thread_id)
         if path is None:
@@ -460,7 +445,7 @@ class LocalSource:
     # ------------------------------------------------------------------------
     @staticmethod
     def _identity(thread_id, marker):
-        if not valid_uuid(thread_id) or not isinstance(marker, str) or not MARKER_RE.fullmatch(marker):
+        if not ids.is_uuid(thread_id) or not ids.is_marker(marker):
             raise SourceError("Invalid delivery identity")
 
     def marker_rows(self, thread_id: str, marker: str) -> list:
@@ -489,13 +474,13 @@ class LocalSource:
             client = payload.get("clientId")
             ordinal = row["rollout_ordinal"]
             found.append({
-                "turn_id": row["turn_id"] if valid_uuid(row["turn_id"]) else None,
+                "turn_id": row["turn_id"] if ids.is_uuid(row["turn_id"]) else None,
                 "ordinal": ordinal if type(ordinal) is int else None,
                 "status": _turn_status(row["status"]),
                 # A row whose turn is not projected yet cannot say who started it.
                 "first_unset": bool(row["first_unset"]) or type(ordinal) is not int,
                 "starts_turn": bool(row["starts_turn"]),
-                "client_id": client if isinstance(client, str) and CLIENT_ID_RE.fullmatch(client) else None,
+                "client_id": client if ids.is_client_id(client) else None,
             })
         return found
 
@@ -509,10 +494,9 @@ class LocalSource:
                 "AND instr(payload_json,?)>0", (thread_id, marker))
             for row in rows:
                 payload = _json(row["payload_json"])
-                if valid_uuid(row["id"]) and _queue_has_marker(payload, marker):
+                if ids.is_uuid(row["id"]) and _queue_has_marker(payload, marker):
                     client = payload["UserInput"].get("client_id")
-                    found.append({"id": row["id"], "client_id": client if isinstance(client, str)
-                                  and CLIENT_ID_RE.fullmatch(client) else None})
+                    found.append({"id": row["id"], "client_id": client if ids.is_client_id(client) else None})
         return found
 
     def queue_row(self, thread_id: str, queue_id: str, marker: str) -> dict:
@@ -522,7 +506,7 @@ class LocalSource:
         content is not returned, only that fact.
         """
         self._identity(thread_id, marker)
-        if not valid_uuid(queue_id):
+        if not ids.is_uuid(queue_id):
             raise SourceError("Invalid queue identity")
         with self._db("queue") as connection:
             row = connection.execute(
@@ -570,7 +554,7 @@ class LocalSource:
                 kind, reason = "foreign", "turn_without_user_item"
             else:
                 kind, reason = "foreign", "later_turn_exists"
-            turns.append({"turn_id": row["turn_id"] if valid_uuid(row["turn_id"]) else None,
+            turns.append({"turn_id": row["turn_id"] if ids.is_uuid(row["turn_id"]) else None,
                           "ordinal": row["rollout_ordinal"], "status": status,
                           "kind": kind, "reason": reason})
         return turns
@@ -583,7 +567,7 @@ class LocalSource:
         message in the turn that is not ours means a person joined it.
         """
         self._identity(thread_id, marker)
-        if not valid_uuid(turn_id):
+        if not ids.is_uuid(turn_id):
             raise SourceError("Invalid turn identity")
         with self._db("history") as connection:
             turn = connection.execute(
@@ -614,7 +598,7 @@ class LocalSource:
 
     def turn_progress(self, thread_id: str, turn_id: str):
         """Whether one turn produced anything: True, False, or None when unreadable."""
-        if not valid_uuid(thread_id) or not valid_uuid(turn_id):
+        if not ids.is_uuid(thread_id) or not ids.is_uuid(turn_id):
             return None
         kinds = tuple(sorted(PROGRESS_ITEM_TYPES))
         try:
@@ -628,9 +612,9 @@ class LocalSource:
 
     def turn_markers(self, thread_id: str, turn_id: str, markers) -> list:
         """Which of these markers appear in a user message of one turn. Booleans only."""
-        if not valid_uuid(thread_id) or not valid_uuid(turn_id):
+        if not ids.is_uuid(thread_id) or not ids.is_uuid(turn_id):
             raise SourceError("Invalid turn identity")
-        wanted = [marker for marker in markers if isinstance(marker, str) and MARKER_RE.fullmatch(marker)]
+        wanted = [marker for marker in markers if ids.is_marker(marker)]
         found = []
         with self._db("history") as connection:
             for marker in wanted:
@@ -666,7 +650,7 @@ class LocalSource:
         the tables this tool reads are not the whole story, so nothing may be decided
         from them. `fresh` is None when it cannot be told.
         """
-        if not valid_uuid(thread_id):
+        if not ids.is_uuid(thread_id):
             return {"table": None, "fresh": None}
         try:
             with self._db("history") as connection:
