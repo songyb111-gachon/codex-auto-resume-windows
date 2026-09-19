@@ -69,6 +69,34 @@ class StateTests(unittest.TestCase):
             with self.subTest(snapshot=snapshot, options=options):
                 self.assertEqual(tray.icon_state(snapshot, **options), expected)
 
+    def test_the_rule_read_from_a_status_light_is_the_tick_s_rule(self):
+        """The window's taskbar button knows its header light's state, not the tick's snapshot: ICON_FOR_LIGHT is
+        icon_state read from that side, for every snapshot the tick can produce and every light there is."""
+        self.assertEqual(tray.ICON_FOR_LIGHT, {
+            "monitoring": "watching", "waiting": "watching", "checking": "watching", "recovering": "recovering",
+            "paused": "idle", "idle": "idle", "attention": "attention", "failed": "failed"})
+        self.assertEqual(set(tray.ICON_FOR_LIGHT), set(brand.STATUS_FILL))
+        self.assertEqual(set(tray.ICON_FOR_LIGHT.values()), set(tray.ICON_STATES))
+        for state, light in tray.ICON_BRAND_STATE.items():
+            with self.subTest(state=state):
+                self.assertEqual(tray.icon_state_for_light(light), state)
+        for unknown in ("", None, "stopped", "watching", "Monitoring"):
+            with self.subTest(unknown=unknown):
+                self.assertEqual(tray.icon_state_for_light(unknown), "idle")
+        now = 1000.0
+        snapshots = [{}, None, {"enabled": True, "waiting": 0, "running": 0, "next_at": None},
+                     {"enabled": True, "waiting": 3, "running": 0, "next_at": now + 100},
+                     {"enabled": True, "waiting": 3, "running": 0, "next_at": now - 1},
+                     {"enabled": True, "waiting": 0, "running": 1}, {"enabled": True, "waiting": 2, "running": 1},
+                     {"enabled": False, "waiting": 2, "running": 0}, {"enabled": False, "running": 1}, {"enabled": False}]
+        for snapshot in snapshots:
+            for attention in (False, True):
+                for failed in (False, True):
+                    light = "failed" if failed else popup.snapshot_activity(snapshot, now, attention=attention)
+                    with self.subTest(snapshot=snapshot, attention=attention, failed=failed, light=light):
+                        self.assertEqual(tray.icon_state_for_light(light),
+                                         tray.icon_state(snapshot, attention=attention, failed=failed))
+
     def test_the_head_is_the_mark_s_accent_while_running_and_the_state_s_colour_otherwise(self):
         accent = brand.rgb(brand.ICON_ACCENT)
         self.assertEqual(tray.icon_head_colour("watching"), accent)
