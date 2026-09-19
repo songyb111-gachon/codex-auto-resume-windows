@@ -17,6 +17,7 @@ about a boundary rather than a look:
 """
 from __future__ import annotations
 
+import ast
 import json
 from pathlib import Path
 import re
@@ -27,6 +28,11 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+_HERE = str(Path(__file__).resolve().parent)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)        # srcscan lives next to this file
+
+import srcscan  # noqa: E402
 
 from codex_auto_resume import (brand, compat, continuation, control, l10n, machine,  # noqa: E402
                                mcpserver, mcpui, reasons)
@@ -478,6 +484,14 @@ class MaterialTests(unittest.TestCase):
     def test_the_lift_is_brands_recipe_and_resolves_to_the_css_v063_wrote(self):
         self.assertFalse(hasattr(mcpui, "_ELEVATION_LIGHT"))
         self.assertFalse(hasattr(mcpui, "_ELEVATION_DARK"))
+        # Nor anywhere else the panel's code could move to: no module binds either name, and
+        # no file of the package spells the old shadow.
+        bound = {target.id for tree in srcscan.package_asts().values() for node in ast.walk(tree)
+                 if isinstance(node, (ast.Assign, ast.AnnAssign))
+                 for target in (node.targets if isinstance(node, ast.Assign) else [node.target])
+                 if isinstance(target, ast.Name)}
+        self.assertFalse({"_ELEVATION_LIGHT", "_ELEVATION_DARK"} & bound)
+        self.assertEqual(srcscan.holders("var(--shadow-dark)"), set())
         source = (ROOT / "src" / "codex_auto_resume" / "mcpui.py").read_text(encoding="utf-8")
         self.assertNotIn("var(--shadow-dark)", source)
         self.assertIn('.replace("@ELEVATION_LIGHT@", brand.css_elevation("light"))', source)

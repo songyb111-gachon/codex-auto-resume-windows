@@ -22,6 +22,7 @@ _HERE = str(Path(__file__).resolve().parent)
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 from test_compat_characterization import FakeCodex, Fixture  # noqa: E402
+import srcscan  # noqa: E402
 from codex_auto_resume import (compat, compatio, config, control, controlcli, diagnostics,  # noqa: E402
                                mcpserver, settings, windows)
 
@@ -325,10 +326,23 @@ class McpTests(unittest.TestCase):
     def test_no_tool_can_refresh_or_import_registry_data(self):
         names = [tool["name"] for tool in mcpserver.TOOLS]
         self.assertFalse([name for name in names if re.search(r"compat|registry|refresh|import|fetch", name)])
-        source = (ROOT / "src" / "codex_auto_resume" / "mcpserver.py").read_text(encoding="utf-8")
-        for forbidden in ("compat-import", "compat-refresh", "run_refresh", "import_document",
-                          "bootstrap.ps1"):
-            self.assertNotIn(forbidden, source)
+        # Every file of the MCP server, however it is split...
+        for path in srcscan.files_of("codex_auto_resume.mcpserver", "codex_auto_resume.mcp"):
+            source = srcscan.read(path)
+            for forbidden in ("compat-import", "compat-refresh", "run_refresh", "import_document",
+                              "bootstrap.ps1"):
+                self.assertNotIn(forbidden, source)
+        # ...and the whole package: each of these words lives exactly where it always has, so a
+        # tool body moved out of mcpserver.py cannot take one with it unseen. (The panel's
+        # `compat-refresh` is the CSS class of a help paragraph, not a command.)
+        package = "codex_auto_resume/%s.py"
+        for forbidden, holders in (("compat-import", {"controlcli"}),
+                                   ("compat-refresh", {"controlcli", "mcpui"}),
+                                   ("run_refresh", {"compatio", "controlcli"}),
+                                   ("import_document", {"cli", "compatio", "controlcli"}),
+                                   ("bootstrap.ps1", {"compatio", "controlcli"})):
+            with self.subTest(forbidden):
+                self.assertEqual(srcscan.holders(forbidden), {package % name for name in holders})
 
     def test_no_experimental_setting_can_ever_be_offered_to_a_model(self):
         """M9, for v0.6.6's opt-ins. The schema is generated from the settings module, so a
@@ -395,15 +409,24 @@ class PrivacyTests(unittest.TestCase):
     def test_the_registry_modules_import_no_networking_module(self):
         pattern = re.compile(r"^\s*(?:import|from)\s+(socket|ssl|http|urllib\.request|requests|"
                              r"httpx|aiohttp|ftplib|webbrowser)\b", re.M)
-        for name in ("compat.py", "compatio.py"):
-            text = (ROOT / "src" / "codex_auto_resume" / name).read_text(encoding="utf-8")
-            self.assertIsNone(pattern.search(text), name)
-            self.assertNotIn("Invoke-WebRequest", text)
+        # The two registry modules and every module of this product they reach, lazily or not:
+        # the registry's code is held to it however it is split and whatever it starts to use.
+        reached = srcscan.closure("codex_auto_resume.compat", "codex_auto_resume.compatio")
+        for module in sorted(reached):
+            text = srcscan.read(srcscan.modules()[module])
+            with self.subTest(module):
+                self.assertIsNone(pattern.search(text), module)
+                self.assertNotIn("Invoke-WebRequest", text)
 
     def test_the_pure_model_touches_no_file_and_no_process(self):
-        text = (ROOT / "src" / "codex_auto_resume" / "compat.py").read_text(encoding="utf-8")
-        for forbidden in ("open(", "subprocess", "import os", "Path(", "sqlite3"):
-            self.assertNotIn(forbidden, text)
+        # The model and everything it reaches: a pure function moved into a helper module, or
+        # a package made of the model, is still read.
+        reached = srcscan.closure("codex_auto_resume.compat")
+        for module in sorted(reached):
+            text = srcscan.read(srcscan.modules()[module])
+            for forbidden in ("open(", "subprocess", "import os", "Path(", "sqlite3"):
+                with self.subTest(module=module, forbidden=forbidden):
+                    self.assertNotIn(forbidden, text)
 
     def test_the_gap_rule_knows_a_documented_refresh_from_an_undocumented_one(self):
         undocumented = {"PRIVACY.md": "Pressing *Check for updates* makes one HTTPS request. "
