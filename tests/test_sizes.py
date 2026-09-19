@@ -3,9 +3,11 @@
 The v0.6.5 split exists because files grew until nobody could hold one in their head - the
 popup reached nearly three thousand lines - and nothing said stop. This does: no module may
 be longer than BUDGET lines. The modules that already are sit in OVERSIZED with today's
-length as a ceiling. One of them growing past its ceiling fails; one of them coming under
-the budget fails too, until it is taken off the list - so the list only shrinks, and a file
-that was split cannot quietly grow back.
+length as a ceiling, and each one is held to exactly that length. Growing past it fails;
+shrinking below it fails too, until the ceiling is lowered to the new length in the same
+commit; coming under the budget fails until it is taken off the list. So the list only
+shrinks, every ceiling only comes down, and a file that was split - even partly - cannot
+quietly grow back to the size it was.
 """
 from __future__ import annotations
 
@@ -21,8 +23,8 @@ import srcscan  # noqa: E402
 
 BUDGET = 700
 
-# Today's length of each module over the budget, as a ceiling. Lower a ceiling when a module
-# shrinks; delete the entry when it is under the budget; never raise one.
+# Today's length of each module over the budget, as a ceiling. Lower a ceiling in the commit
+# that shrinks its module; delete the entry when it is under the budget; never raise one.
 OVERSIZED = {
     "codex_auto_resume/tray_popup.py": 2946,
     "codex_auto_resume/mcpui.py": 2340,
@@ -57,6 +59,17 @@ class SizeTests(unittest.TestCase):
             with self.subTest(name):
                 self.assertIn(name, measured, "the module is gone or moved; take it off OVERSIZED")
                 self.assertLessEqual(measured[name], ceiling, "it grew; it was already over the budget")
+
+    def test_every_ceiling_is_the_length_its_module_has_now(self):
+        """A ceiling left above a module that shrank is room to grow back into: split 1,500 of
+        the popup's 2,946 lines out, leave the ceiling, and a later commit can put them back
+        without a failure."""
+        measured = lengths()
+        for name, ceiling in OVERSIZED.items():
+            with self.subTest(name):
+                self.assertGreaterEqual(measured.get(name, ceiling), ceiling,
+                                        "it shrank to %s lines; lower its ceiling to that in this commit"
+                                        % measured.get(name))
 
     def test_the_list_of_oversized_modules_only_shrinks(self):
         measured = lengths()
