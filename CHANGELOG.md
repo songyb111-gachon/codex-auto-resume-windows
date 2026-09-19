@@ -49,15 +49,19 @@ by default and changes where a notification appears, never whether there is one 
   2 at every rate tried, and was seen redrawn no more than about eight times a second whatever it
   was sent. Turning all the time, while a recovery is in progress, each costs about 2.5 to 3.
 - It holds still under Reduce motion, Windows' animation setting, High Contrast and battery saver,
-  while the session is locked, and while the icon sits in the overflow area where nobody sees it -
-  where Windows says so: Windows 11 build 26200 gives an icon in the overflow area the overflow
-  button's place rather than none, and there it moves unseen. At rest it is exactly the icon it has
-  always been; the badge and the shape are unchanged.
+  while the session is locked, and while the icon sits in the overflow area where nobody sees it.
+  Where the icon is cannot be asked of the shell: Windows 11 build 26200 gives an icon in the
+  overflow area the overflow button's own place rather than none, and the icon moved there unseen,
+  at explorer.exe's cost. What Windows itself wrote about this icon says it instead - its own
+  per-icon setting, read and never written - and an icon it says nothing about is left to the
+  shell's answer, as before. At rest it is exactly the icon it has always been; the badge and the
+  shape are unchanged.
 - While the settings window is open, its taskbar button moves the same way, with the same rhythms
   and frames. Its state is the icon's for the same watcher, as the icon has it while the popup is
   open: the window, like the popup, reads the watcher as it is now. It holds still under the same
-  settings and while the window is hidden. The title bar's icon does not move, and at rest the
-  button is the icon it has always been.
+  settings, while the session is locked or disconnected - which it asks Windows on its own second,
+  as the icon hears it - and while the window is hidden. The title bar's icon does not move, and at
+  rest the button is the icon it has always been.
 
 ### Notifications in the product's own card
 

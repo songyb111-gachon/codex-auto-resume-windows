@@ -538,9 +538,11 @@ presentation, not quiet time), whether Do not disturb or Focus is on, whether no
 this product are switched on in Windows' Settings, whether a screen reader is running, whether the
 session is remote, and whether the desktop taking input is still yours. For how the card and the
 notification-area icon move, it asks whether battery saver is on and how long Windows keeps a
-notification on screen, and it notices when the session is locked or disconnected and whether the
-icon is in the overflow area. It reads these and changes none of them; any answer it cannot get
-means Windows' own toast.
+notification on screen, and it notices when the session is locked or disconnected - which the
+settings window's taskbar button asks Windows outright for this session, so that it stops behind the
+lock screen as the icon does - and whether the icon is in the overflow area, which it reads from the
+settings Windows itself keeps for that icon. It reads these and changes none of them; any answer it
+cannot get means Windows' own toast.
 
 ## Languages
 
