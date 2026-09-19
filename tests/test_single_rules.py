@@ -16,11 +16,13 @@ replaces them.
 """
 from __future__ import annotations
 
+import ast
 from contextlib import closing, contextmanager
 import io
 import math
 import os
 from pathlib import Path
+import re
 import sqlite3
 import sys
 import tempfile
@@ -33,6 +35,7 @@ _HERE = str(Path(__file__).resolve().parent)
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)        # the store and control fixtures live next to this file
 
+import srcscan  # noqa: E402
 from test_control_v3 import detection, legacy_store_module  # noqa: E402
 from test_store import QUEUE, _StoreCase  # noqa: E402
 
@@ -41,7 +44,7 @@ from codex_auto_resume import (cli, compat, config, continuation, control, contr
                                tray, windows)
 from codex_auto_resume.app import App  # noqa: E402
 from codex_auto_resume.engine import Engine  # noqa: E402
-from codex_auto_resume.machine import STATES  # noqa: E402
+from codex_auto_resume.machine import STATES, WATCHED  # noqa: E402
 from codex_auto_resume.store import (LegacyStore, StateFromNewerVersion, Store, StoreError,  # noqa: E402
                                      UpgradePending)
 
@@ -528,6 +531,159 @@ class EpochTests(unittest.TestCase):
                          [946684800, 1700000000, 1.7e9, 1700000000.5, 4102444800, Stamp(1700000000)])
         self.assertIsNone(compat._epoch_or_none(None))
         self.assertIs(type(compat._epoch_or_none(1700000000)), float)
+
+
+# ---------------------------------------------------------------- one implementation each
+def sites(match):
+    """(file, qualified name) of every node in the package that `match` accepts."""
+    found = set()
+    for path, tree in srcscan.package_asts().items():
+        names = srcscan.qualnames(tree)
+        for node in ast.walk(tree):
+            if match(node):
+                found.add((srcscan.relative(path), names.get(node, "")))
+    return found
+
+
+def constant(node, *values):
+    return isinstance(node, ast.Constant) and any(type(node.value) is type(value) and node.value == value
+                                                  for value in values)
+
+
+def compares(node, operator):
+    return any(isinstance(child, ast.Compare) and any(isinstance(op, operator) for op in child.ops)
+               for child in ast.walk(node))
+
+
+def literal(node):
+    """The constants a tuple, list or set literal spells, or None for any other node."""
+    if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+        return {element.value for element in node.elts if isinstance(element, ast.Constant)}
+    return None
+
+
+def calls(name):
+    return lambda node: isinstance(node, ast.Call) and getattr(node.func, "attr", getattr(node.func, "id", None)) == name
+
+
+def names_unknown(node, operator):
+    return (isinstance(node, ast.Compare) and isinstance(node.ops[0], operator)
+            and any(constant(c, "submission_unknown") for c in node.comparators))
+
+
+def owns_a_queue_row(node):
+    return (isinstance(node, ast.Compare) and isinstance(node.ops[0], ast.IsNot)
+            and constant(node.comparators[0], None) and "queue_id" in ast.unparse(node.left))
+
+
+def may_be_queued_shape(node):
+    """"Claimed, queued or taken back - or an uncertain submission that owns a queue row",
+    spelled either way round: `... or (state == unknown and queue_id is not None)` as the
+    store's gate had it, or `state != unknown or queue_id is not None` over the watched
+    states, as the engine's watch did; or as SQL."""
+    if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.Or):
+        if any(isinstance(value, ast.BoolOp) and isinstance(value.op, ast.And)
+               and any(names_unknown(part, ast.Eq) for part in value.values)
+               and any(owns_a_queue_row(part) for part in value.values) for value in node.values):
+            return True
+        return (any(names_unknown(value, ast.NotEq) for value in node.values)
+                and any(owns_a_queue_row(value) for value in node.values))
+    return (isinstance(node, ast.Constant) and isinstance(node.value, str)
+            and "submission_unknown" in node.value and "queue_id IS NOT NULL" in node.value)
+
+
+PACKAGE = "codex_auto_resume/"
+# Each rule step 2 gathered, the shape its implementation has, and the one place that has it.
+# A second place is a copy that can drift; moving the rule moves the entry, on purpose.
+RULES = {
+    "which wait a record goes back to": (
+        lambda node: isinstance(node, ast.IfExp) and constant(node.body, "waiting_reset")
+        and constant(node.orelse, "waiting_poll") and compares(node.test, ast.Gt),
+        {"machine.py": "waiting_state"}),
+    "what a claim costs": (
+        lambda node: isinstance(node, ast.IfExp) and constant(node.body, 0) and constant(node.orelse, 1)
+        and any(calls("is_usage")(child) for child in ast.walk(node.test)),
+        {"store.py": "_claim_cost"}),
+    "a budget counter charged or refunded in SQL by hand": (
+        lambda node: isinstance(node, ast.Constant) and isinstance(node.value, str) and bool(re.search(
+            r"(recovery_attempts|chain_continuations)\s*=\s*(max\(0,\s*)?\1\s*[-+]", node.value)),
+        {}),
+    "whether a record may be in Codex's queue": (
+        may_be_queued_shape,
+        {"machine.py": "may_be_queued"}),
+    "the states the watch follows, written out": (
+        lambda node: literal(node) == set(WATCHED),
+        {}),
+    "opening the state for a command, older store and all": (
+        calls("LegacyStore"),
+        {"openstate.py": "open_state"}),
+    "upgrading the state": (
+        lambda node: calls("Store")(node) and any(keyword.arg == "migrate" and constant(keyword.value, True)
+                                                   for keyword in node.keywords),
+        # The watcher's own opening holds the mutex already and upgrades at start.
+        {"openstate.py": "open_state", "app.py": "App._open_for_watcher"}),
+    "which settings are the user's own words": (
+        lambda node: calls("startswith")(node) and bool(node.args) and isinstance(node.args[0], ast.Constant)
+        and str(node.args[0].value).startswith("custom_message"),
+        {"settings.py": "is_custom_text"}),
+    "how many days a statistics request may cover": (
+        lambda node: constant(node, 3650),
+        {"controlcli.py": ""}),
+    "where an installed copy keeps its home": (
+        lambda node: isinstance(node, ast.Compare) and any(constant(c, "app") for c in node.comparators)
+        and isinstance(node.left, ast.Attribute) and node.left.attr == "name",
+        {"config.py": "installed_home"}),
+    "how a front end states UTF-8": (
+        calls("reconfigure"),
+        {"controlcli.py": "use_utf8"}),
+    "the window's pages": (
+        lambda node: (literal(node) or set()) >= {"overview", "statistics", "diagnostics"},
+        {"machine.py": ""}),
+    "a plausible time's bounds": (
+        lambda node: constant(node, 253402300799, 946684800, 4102444800),
+        {"machine.py": ""}),
+}
+
+
+class OneImplementationTests(unittest.TestCase):
+    """Each rule above has exactly one implementation in the package, found by its shape
+    wherever it is - so a copy written into another module, or back into the one it left, is a
+    failure, and a rule that moves takes its entry here with it."""
+
+    def test_each_rule_has_exactly_one_implementation(self):
+        for rule, (match, expected) in RULES.items():
+            with self.subTest(rule):
+                self.assertEqual(sites(match), {(PACKAGE + where, name) for where, name in expected.items()})
+
+    def test_the_shapes_would_see_a_copy(self):
+        """A copy of each rule, the way the old ones were written, is found by its shape."""
+        copies = {
+            "which wait a record goes back to":
+                'x = "waiting_reset" if row["reset_at"] is not None and row["reset_at"] > now else "waiting_poll"',
+            "what a claim costs": "x = 0 if is_usage(row) else 1",
+            "a budget counter charged or refunded in SQL by hand":
+                'x = "recovery_attempts=max(0, recovery_attempts-?), chain_continuations=chain_continuations+1"',
+            "whether a record may be in Codex's queue":
+                'x = row["state"] != "submission_unknown" or row["queue_id"] is not None',
+            "the states the watch follows, written out":
+                'x = {"submitting", "queued", "withdrawn_unconfirmed", "submission_unknown"}',
+            "opening the state for a command, older store and all": "x = LegacyStore(d)",
+            "upgrading the state": "x = Store(d, migrate=True)",
+            "which settings are the user's own words": 'x = name.startswith("custom_message")',
+            "how many days a statistics request may cover": "x = 1 <= days <= 3650",
+            "where an installed copy keeps its home": 'x = root.parent if root.name == "app" else None',
+            "how a front end states UTF-8": 'sys.stdout.reconfigure(encoding="utf-8")',
+            "the window's pages": 'x = ("overview", "pending", "history", "statistics", "diagnostics", "settings")',
+            "a plausible time's bounds": "x = 0 <= v <= 253402300799",
+        }
+        self.assertEqual(set(copies), set(RULES))
+        copies["the other spelling of whether a record may be in Codex's queue"] = (
+            'x = state in S or (state == "submission_unknown" and row["queue_id"] is not None)')
+        copies["the same, as SQL"] = "x = 'OR (state=submission_unknown AND queue_id IS NOT NULL)'"
+        for rule, source in copies.items():
+            with self.subTest(rule):
+                match = RULES.get(rule, RULES["whether a record may be in Codex's queue"])[0]
+                self.assertTrue(any(match(node) for node in ast.walk(ast.parse(source))), source)
 
 
 if __name__ == "__main__":
