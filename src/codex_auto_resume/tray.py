@@ -231,12 +231,25 @@ def prefer_app_mode(mode) -> bool:
 # recovering_ms (recovering's breath), arc_ms (recovering's turn) and attention_ms (the one
 # pulse). The glow's reach, stops, opacities, scales and the arc's look are the windows' and are
 # ignored here. Its own numbers are ICON_MOTION's, deliberately not in brand.GLOW: every GLOW key
-# is generated into the window's Brand.cs, and no window draws these.
+# is generated into the window's status light (Brand.cs), which draws none of these.
+#
+# The window's taskbar button wears the same motion while the window is open (v0.6.5): the
+# window's big icon, which is what Windows draws the button from, is this icon's frames at the
+# big icon's size. build/make_brand.py generates the rule below, these numbers and the frames
+# themselves - IconFrames' own pixels, not a second drawing - into Brand.Mark in gui/Brand.cs.
 ICON_STATES = ("watching", "recovering", "idle", "attention", "failed")
 # The icon's state as a brand status-light state: its colour and its rhythm. Every value is a
 # key of brand.STATUS_FILL; anything unknown is idle grey, as brand.status_fill is.
 ICON_BRAND_STATE = {"watching": "monitoring", "recovering": "recovering", "idle": "idle",
                     "attention": "attention", "failed": "failed"}
+# The same rule read from the other side, for the window: it knows the state its header's status
+# light shows, not the tick's snapshot. Every running state is watching, a continuation in Codex is
+# recovering, a pause and a watcher that is not running are idle, and a problem keeps its own.
+# Every key of brand.STATUS_FILL is here, anything else is idle, and icon_state is this applied to
+# the popup's word for the same snapshot (tests/test_tray_icon_motion.py holds the two equal).
+ICON_FOR_LIGHT = {"monitoring": "watching", "waiting": "watching", "checking": "watching",
+                  "recovering": "recovering", "paused": "idle", "idle": "idle",
+                  "attention": "attention", "failed": "failed"}
 ICON_MOTION = {
     "turn_every_ms": 30000,   # watching: one slow turn about this often...
     "turn_ms": 2400,          # ...taking this long, eased in and out; recovering turns on arc_ms
@@ -278,6 +291,11 @@ def icon_state(snapshot, *, attention=False, failed=False) -> str:
 def icon_brand_state(state) -> str:
     """The brand status-light state an icon state is drawn as; anything unknown is idle."""
     return ICON_BRAND_STATE.get(state, "idle")
+
+
+def icon_state_for_light(light) -> str:
+    """The icon's state for a status-light state (ICON_FOR_LIGHT); anything unknown is idle."""
+    return ICON_FOR_LIGHT.get(light, "idle")
 
 
 def icon_head_colour(state) -> tuple:
@@ -405,6 +423,18 @@ class IconFrames:
             box = brand.icon_head_box(size, angle)
             self._heads.append((box, brand.icon_samples(size, head_angle=angle, box=box)))
         self._cache = {}
+
+    @property
+    def ground(self) -> bytes:
+        """The mark without its head, top-down BGRA: what every frame starts from."""
+        return self._base
+
+    @property
+    def heads(self) -> tuple:
+        """Per head position, ((left, top, right, bottom), rows of icon_samples) for the pixels the head
+        can touch there: what compose draws over the ground. build/make_brand.py writes these into the
+        window's Brand.Mark, so its taskbar button is composed from exactly these samples."""
+        return tuple(self._heads)
 
     def compose(self, position, head, badge=None) -> bytes:
         """One frame: the head at `position` in `head` (red, green, blue), and the badge's dot in
