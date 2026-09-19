@@ -5,13 +5,12 @@ import argparse
 import json
 import os
 from pathlib import Path
-import subprocess
 import sys
 import time
 import uuid
 
 from . import compat, compatio, config, machine, notify, settings, shortcut, startup
-from .app import EXIT_BUSY, EXIT_ERROR, EXIT_OK, App
+from .app import EXIT_ERROR, EXIT_OK, App
 from .logbook import format_local, tail
 from .store import TERMINAL, LegacyStore, StoreError, UpgradePending
 from .windows import AdapterError
