@@ -197,11 +197,14 @@ class LayerTests(unittest.TestCase):
             self.assertIn(name, modules)
 
     def test_imports_point_down_or_sideways(self):
-        upward = []
+        upward, unplaced = [], set()
         for importer, targets in srcscan.import_graph().items():
             for imported in targets:
-                if ORDER.index(LAYER[imported]) > ORDER.index(LAYER[importer]):
+                if importer not in LAYER or imported not in LAYER:
+                    unplaced.update(name for name in (importer, imported) if name not in LAYER)
+                elif ORDER.index(LAYER[imported]) > ORDER.index(LAYER[importer]):
                     upward.append("%s (%s) -> %s (%s)" % (importer, LAYER[importer], imported, LAYER[imported]))
+        self.assertEqual(sorted(unplaced), [], "place the new module in a layer first")
         self.assertEqual(sorted(upward), [])
 
     def test_the_domain_imports_only_itself_and_the_pure_standard_library(self):
