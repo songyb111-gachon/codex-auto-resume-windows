@@ -466,13 +466,14 @@ def installation(*, watching=True, mcp=False):
 
     with tempfile.TemporaryDirectory() as name, ExitStack() as stack:
         workspace = Path(name)
+        # Before anything is built, so the building cannot start a process either.
+        stack.enter_context(_no_process())
         surface = stack.enter_context(generator.pinned_installation(workspace, watching=watching))
         # Inside the pinned installation's environment, which is put back whole after it.
         os.environ[l10n.ENV_LANG] = "en"
         engines = workspace / "localappdata"
         engines.mkdir()
         os.environ["LOCALAPPDATA"] = str(engines)
-        stack.enter_context(_no_process())
         if mcp:
             from codex_auto_resume import compatio
 
@@ -502,9 +503,11 @@ def _framed(written: str, what: str) -> list:
     if written and not written.endswith("\n"):
         raise WireChanged("%s: the last reply line does not end in a line feed" % what)
     parsed = []
-    for line in written.splitlines(keepends=True):
+    # Split where the wire splits, at line feeds only: `splitlines` would also break a reply at
+    # a U+2028 that `ensure_ascii=False` writes as itself, where neither reader breaks it.
+    for line in written.split("\n")[:-1]:
         value = json.loads(line)
-        if json.dumps(value, ensure_ascii=False) + "\n" != line:
+        if json.dumps(value, ensure_ascii=False) != line:
             raise WireChanged("%s: a reply line is not what json.dumps(reply, ensure_ascii=False) "
                               "writes - the wire's encoding, separators or escaping changed" % what)
         parsed.append(value)
