@@ -35,10 +35,10 @@ OVERSIZED = {
     "codex_auto_resume/notice_window.py": 930,
     "codex_auto_resume/windows.py": 887,
     "codex_auto_resume/compat.py": 859,
-    "codex_auto_resume/control.py": 852,
+    "codex_auto_resume/control.py": 851,
     "codex_auto_resume/source.py": 745,
-    "codex_auto_resume/cli.py": 727,
-    "codex_auto_resume/mcpserver.py": 724,
+    "codex_auto_resume/cli.py": 724,
+    "codex_auto_resume/mcpserver.py": 721,
     "codex_auto_resume/compatio.py": 721,
 }
 

@@ -49,8 +49,9 @@ import json
 from pathlib import Path
 import sys
 
-from . import config
+from . import config, l10n
 from .control import FALLBACK_CODE, Control, ControlError
+from .windows import WakeEvent
 
 # Commands with no argument, and commands that take one JSON object.
 PLAIN = ("status", "settings", "describe", "defaults", "pending", "pending-all", "start-watcher",
@@ -239,7 +240,6 @@ def _compat_import(control: Control, payload: dict) -> dict:
     woke = False
     if result.get("imported"):
         try:
-            from .windows import WakeEvent
             woke = bool(WakeEvent(str(control.paths.state_dir)).signal())
         except Exception:
             woke = False
@@ -278,7 +278,7 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
             # it changes speaks the new one. A window that is already open asked once, when it
             # was built, and keeps that language until it is opened again; its Settings page
             # says so when a new language is saved.
-            from . import interface, l10n
+            from . import interface
             l10n.set_preference(control.get_settings().get("interface_language"))
             return {"ok": True, "language": interface.language(), "strings": interface.catalog(),
                     "preference": l10n.preference(), "system_language": l10n.from_system(),

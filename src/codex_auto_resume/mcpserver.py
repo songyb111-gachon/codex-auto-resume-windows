@@ -28,7 +28,7 @@ import json
 import math
 import sys
 
-from . import settings as policy
+from . import config, l10n, settings as policy
 from .control import Control, ControlError
 
 PROTOCOL_VERSION = "2025-06-18"
@@ -481,7 +481,6 @@ class Server:
         uri = params.get("uri")
         if uri != SETTINGS_UI:
             raise LookupError("unknown resource")
-        from . import l10n
         from .mcpui import settings_page
         l10n.set_preference(self.control.get_settings().get("interface_language"))
         return {"contents": [{"uri": SETTINGS_UI, "mimeType": "text/html+skybridge",
@@ -557,7 +556,6 @@ class Server:
 
     def _snapshot(self) -> dict:
         """Everything the settings panel needs, in one read."""
-        from . import l10n
         settings = self.control.get_settings()
         l10n.set_preference(settings.get("interface_language"))
         return {"status": self._status(),
@@ -708,7 +706,6 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     home = args.home
     if not home:
-        from . import config
         root = config.PROJECT_ROOT
         home = str(root.parent) if root.name == "app" else None
     # Line buffering keeps a reply from sitting in a buffer while the client waits.
