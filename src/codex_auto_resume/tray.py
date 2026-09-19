@@ -17,12 +17,12 @@ Since v0.6.4 the popup and the menu open in the Interface language and the Theme
 the moment they open (`_adopt_settings`), rather than waiting for the watcher's next tick.
 
 Since v0.6.5 the icon itself moves, in its own simpler language than the windows' status light
-(see "the icon's motion" below): while it watches, the mark's head breathes and now and then
-travels once round the ring; while a continuation is being sent it keeps travelling; paused, it
-is grey and still; a problem is its colour, pulses once and holds. Frames are composed from a
-table built off this thread, swapped with NIM_MODIFY a few times a second, and nothing moves
-under Reduce motion, Windows' animation setting, High Contrast or battery saver, while the session
-is locked or while the icon sits in the overflow flyout.
+(see "the icon's motion" below): while it watches, the mark's head breathes four times and then
+turns once, clockwise, round the ring; while a continuation is being sent it keeps turning;
+paused, it is grey and still; a problem is its colour, pulses once and holds. Frames are composed
+from a table built off this thread, swapped with NIM_MODIFY up to ICON_MOTION's rates, and nothing
+moves under Reduce motion, Windows' animation setting, High Contrast or battery saver, while the
+session is locked or while the icon sits in the overflow flyout.
 
 Since v0.6.5 this thread also hosts the notification card (`notice_window.CardStack`), as it hosts
 the popup: given the notifier's inbox, the icon attaches it once its window exists, so a notice
@@ -214,24 +214,26 @@ def prefer_app_mode(mode) -> bool:
 # person glances at it, so it speaks a smaller language - the distinctions it drops (waiting,
 # checking, monitoring) are the ones nobody has to act on:
 #
-#   watching    the watcher runs with recovery on: the head breathes on brand's monitoring
-#               rhythm, and about every half minute it travels once, slowly, round the ring;
-#   recovering  a continuation is being sent or is running in Codex: the head keeps travelling
-#               round, at brand's arc rhythm, on the quicker recovering breath;
+#   watching    the watcher runs with recovery on: a loop of five slots, each one of brand's monitoring breaths
+#               long (3.2 s) - four breaths of the head, then one clockwise turn at full brightness, eased in and out;
+#   recovering  a continuation is being sent or is running in Codex: the head keeps turning
+#               clockwise, a turn per brand's arc rhythm, at full brightness and never breathing;
 #   idle        paused: the head is grey (brand's `idle` fill) and still;
 #   attention   needs a person: amber, one pulse when it arrives, then it holds;
 #   failed      a failure: the danger colour, one pulse, then it holds.
 #
-# The turning mark is the mark's own head going round its own ring - "the ring is the wait, the
-# gap is the interruption, the head is the moment it resumes" - so the motion adds no shape and
-# no colour. Breathing is the head's brightness: at this size there is no room for a halo. The
-# badge in the corner, the mark's shape and the light and dark taskbar handling are unchanged.
+# The user, on a first cut that breathed under a turn every thirty seconds: "회전할 땐 안 깜빡이게 해 / 회전하는
+# 시간도 깜빡임 시간의 배수에 맞춰서 둘이 안 겹치게", and "시계가 나을거 같아서". So the head never breathes while it
+# turns, a turn is one breath long and comes every fifth, both start and end at full brightness - every hand-over
+# is there, with no jump - and it turns clockwise.
 #
-# Of brand.GLOW the icon reads four rhythms and nothing else: monitoring_ms (watching's breath),
-# recovering_ms (recovering's breath), arc_ms (recovering's turn) and attention_ms (the one
-# pulse). The glow's reach, stops, opacities, scales and the arc's look are the windows' and are
-# ignored here. Its own numbers are ICON_MOTION's, deliberately not in brand.GLOW: every GLOW key
-# is the windows' status light's; the window's taskbar button reads these from Brand.Mark instead.
+# The turning mark is the mark's own head going round its own ring - "the ring is the wait, the gap is the
+# interruption, the head is the moment it resumes" - so the motion adds no shape and no colour, and breathing is
+# the head's brightness (no room for a halo at this size). The badge, the shape and the taskbar handling are as ever.
+#
+# Of brand.GLOW the icon reads three rhythms and nothing else: monitoring_ms (watching's breath, and so its slot),
+# arc_ms (recovering's turn) and attention_ms (the one pulse). Its own numbers are ICON_MOTION's, deliberately not
+# in brand.GLOW, every key of which is the windows' status light's; the taskbar button reads them from Brand.Mark.
 ICON_STATES = ("watching", "recovering", "idle", "attention", "failed")
 # The icon's state as a brand status-light state: its colour and its rhythm. Every value is a
 # key of brand.STATUS_FILL; anything unknown is idle grey, as brand.status_fill is.
@@ -243,12 +245,13 @@ ICON_FOR_LIGHT = {"monitoring": "watching", "waiting": "watching", "checking": "
                   "recovering": "recovering", "paused": "idle", "idle": "idle",
                   "attention": "attention", "failed": "failed"}
 ICON_MOTION = {
-    "turn_every_ms": 30000,   # watching: one slow turn about this often...
-    "turn_ms": 2400,          # ...taking this long, eased in and out; recovering turns on arc_ms
-    "breathe_frame_ms": 300,  # a frame about three times a second while only breathing
-    "turn_frame_ms": 200,     # five a second while the head travels
+    "breaths": 4,             # watching: this many breaths, then one turn in a breath's time
+    # Every frame shown costs explorer.exe a redraw: the rates that looked smooth for the least of it (measured),
+    # each just inside a whole number of Windows' 15.625 ms timer ticks, which a timer waits for at the least.
+    "breathe_frame_ms": 156,  # ten ticks: about six frames a second while it breathes or pulses...
+    "turn_frame_ms": 62,      # ...four, sixteen, while it travels: every one of a 1.6 s turn's 24 positions
     "positions": 24,          # head positions round the ring, fifteen degrees apart
-    "levels": 9,              # the breath's brightness steps, a raised cosine sampled nine times
+    "levels": 24,             # the breath's brightness steps: a tint of the head, never a stored frame
     "dim": 0.6,               # at the breath's low the head is this far from its colour toward the badge
     "build_budget_ms": 2000,  # a frame table that takes longer than this is not used
     "cache": 256,             # composed frames kept, per table
@@ -304,50 +307,51 @@ def icon_level_colour(colour, level) -> tuple:
 
 def _breath_level(elapsed_ms, cycle_ms) -> int:
     """Full brightness at the start of a cycle, dimmest halfway, full again: brand's raised cosine
-    turned round, so a breath that starts or stops lands on the icon as it always looked."""
+    turned round, so every breath starts and ends on the icon as it always looked."""
     top = ICON_MOTION["levels"] - 1
     return int(round(top * (1.0 - brand._breath(elapsed_ms, cycle_ms))))
 
 
 def icon_turn(state, elapsed_ms) -> float:
-    """How far round the ring the head has travelled, in degrees from its place, or None at rest.
+    """How far round the ring the head has travelled, clockwise, in degrees, or None when it is not travelling.
 
-    Watching: one turn in the last `turn_ms` of every `turn_every_ms`, eased in and out, so the
-    first comes about half a minute after motion starts rather than every time it starts again.
-    Recovering: continuously, one turn per brand arc_ms, at an even speed.
+    Watching: once in the last of every ICON_MOTION breaths + 1 slots, each a monitoring breath long, eased in and
+    out, the first time after four breaths. Recovering: continuously, one turn per brand arc_ms, evenly.
     """
     if state == "recovering":
         cycle = brand.GLOW["arc_ms"]
         return 360.0 * (elapsed_ms % cycle) / cycle
     if state == "watching":
-        every, length = ICON_MOTION["turn_every_ms"], ICON_MOTION["turn_ms"]
-        into = elapsed_ms % every - (every - length)
+        slot, breaths = brand.GLOW["monitoring_ms"], ICON_MOTION["breaths"]
+        into = elapsed_ms % (slot * (breaths + 1)) - slot * breaths
         if into < 0:
             return None
-        return 360.0 * (0.5 - 0.5 * math.cos(math.pi * min(1.0, into / float(length))))
+        return 360.0 * (0.5 - 0.5 * math.cos(math.pi * into / float(slot)))
     return None
+
+
+def _pulsing(state, since_entered_ms) -> bool:      # a problem's one pulse, still running
+    return (icon_brand_state(state) in brand.GLOW_PULSES and since_entered_ms is not None
+            and 0 <= since_entered_ms < brand.GLOW["attention_ms"])
 
 
 def icon_frame(state, elapsed_ms, since_entered_ms=None, *, reduced=False) -> tuple:
     """(head position, breathing level) for one frame: a pure function of the state and the clock.
 
-    Position 0 is the head in its place, positions counting on round the ring the way the mark
-    leads; the top level is the head's full colour. With motion reduced every state is its rest:
-    the head in its place at full colour, so the states differ by colour only. `since_entered_ms`
-    is how long the state has been shown (None: long enough that its one pulse is over).
+    Position 0 is the head in its place, positions counting on clockwise round the ring; the top
+    level is the head's full colour, which it always has while it travels. With motion reduced
+    every state is its rest: the head in its place at full colour, so the states differ by colour
+    only. `since_entered_ms` is how long the state has been shown (None: its one pulse is over).
     """
     positions, top = ICON_MOTION["positions"], ICON_MOTION["levels"] - 1
     if reduced:
         return (0, top)
-    brand_state = icon_brand_state(state)
-    position = 0
     turn = icon_turn(state, elapsed_ms)
     if turn is not None:
-        position = int(round(turn / (360.0 / positions))) % positions
-    if brand_state in brand.GLOW_BREATHES:
-        return (position, _breath_level(elapsed_ms, brand.GLOW[brand_state + "_ms"]))
-    if brand_state in brand.GLOW_PULSES and since_entered_ms is not None \
-            and 0 <= since_entered_ms < brand.GLOW["attention_ms"]:
+        return (int(round(turn / (360.0 / positions))) % positions, top)
+    if state == "watching":
+        return (0, _breath_level(elapsed_ms, brand.GLOW["monitoring_ms"]))
+    if _pulsing(state, since_entered_ms):
         return (0, _breath_level(since_entered_ms, brand.GLOW["attention_ms"]))
     return (0, top)
 
@@ -356,13 +360,9 @@ def icon_frame_ms(state, elapsed_ms, since_entered_ms=None, *, reduced=False):
     """How soon the next frame is due, in ms, or None when nothing moves (no timer at all)."""
     if reduced:
         return None
-    if state == "recovering":
+    if icon_turn(state, elapsed_ms) is not None:
         return ICON_MOTION["turn_frame_ms"]
-    if state == "watching":
-        return ICON_MOTION["turn_frame_ms"] if icon_turn(state, elapsed_ms) is not None \
-            else ICON_MOTION["breathe_frame_ms"]
-    if icon_brand_state(state) in brand.GLOW_PULSES and since_entered_ms is not None \
-            and 0 <= since_entered_ms < brand.GLOW["attention_ms"]:
+    if state == "watching" or _pulsing(state, since_entered_ms):
         return ICON_MOTION["breathe_frame_ms"]
     return None
 
@@ -401,7 +401,7 @@ class IconFrames:
         self.ground = bytes(base)
         self.heads = []
         for position in range(positions):
-            angle = brand.ICON_SHAPE["arc_end"] + 360.0 * position / positions
+            angle = brand.ICON_SHAPE["arc_end"] - 360.0 * position / positions   # clockwise
             box = brand.icon_head_box(size, angle)
             self.heads.append((box, brand.icon_samples(size, head_angle=angle, box=box)))
         self._cache = {}

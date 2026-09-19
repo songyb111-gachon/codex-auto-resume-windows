@@ -62,8 +62,10 @@ POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
 LIGHTS = ("monitoring", "waiting", "checking", "recovering", "paused", "idle", "attention", "failed", "", "stopped",
           "Monitoring", "watching")
 STATES = tray.ICON_STATES + ("", "paused", "monitoring")
-MOMENTS = (0, 150, 800, 1600, 1799, 2400, 3200, 5000, 9999, 27599, 27600, 28000, 28800, 29400, 29999, 30000, 31234,
-           57700, 59000)
+# Watching's loop is five 3.2 s slots - four breaths, then a turn from 12.8 s to 16 s - so the moments cross each slot's
+# edges, the turn's middle and a second loop; recovering turns every 1.6 s, and a problem's pulse lasts 1.4 s.
+MOMENTS = (0, 150, 800, 1600, 1799, 2400, 3199, 3200, 5000, 9999, 12799, 12800, 12850, 13600, 14400, 15200, 15999,
+           16000, 16050, 28800, 31234, 57700, 59000)
 SINCE = (-1, 0, 300, 700, 1399, 1400, 5000)
 PROBE_SIZES = (16, 24, 32, 40, 48, 56, 64, 72)
 # Windows' display scales, and the big icon's size at each: SM_CXICON, 32 px at 100%.
@@ -460,14 +462,14 @@ $markType.GetField('Clock', $instance).SetValue($mark, [ProbeClock]::Func())
 [ProbeClock]::Now = 0
 $out.before = @{ state = (StateOf $mark); moving = (Moving $mark); look = (Look $window) }
 
-# Watching: breathes, and turns once in the last 2.4 s of every 30 s.
+# Watching: four breaths, then one turn in the fifth 3.2 s slot of every 16 s.
 $null = $follow.Invoke($mark, [object[]]@('monitoring'))
 $out.watching = @{ state = (StateOf $mark); moving = (Moving $mark); interval = [int](Field $mark 'interval')
                    breath = (Walk $mark $window 0 (0..32 | ForEach-Object { $_ * 100 }))
-                   turn = (Walk $mark $window 0 (0..30 | ForEach-Object { 27000 + $_ * 100 })) }
+                   turn = (Walk $mark $window 0 (0..36 | ForEach-Object { 12600 + $_ * 100 })) }
 # Every frame shown is the composed frame the rule asks for at that moment.
 $checks = @()
-foreach ($ms in @(0, 400, 1600, 2800, 27700, 28400, 29100, 29800)) {
+foreach ($ms in @(0, 400, 1600, 2800, 12900, 13600, 14400, 15300)) {
     [ProbeClock]::Now = $ms
     $null = $animate.Invoke($mark, @())
     $want = Expected $table 'watching' $ms $ms $false
@@ -870,14 +872,24 @@ class TaskbarMarkTests(unittest.TestCase):
         self.assertTrue(watching["moving"])
         self.assertEqual(watching["interval"], tray.ICON_MOTION["breathe_frame_ms"])
         breath, turn = watching["breath"], watching["turn"]
-        # The breath: the head's brightness, in its place - many pictures over one 3.2 s cycle, the first the window's
-        # own icon again at full brightness.
-        self.assertGreaterEqual(len({row[2] for row in breath}), tray.ICON_MOTION["levels"] - 2)
+        # The breath: the head's brightness, in its place - a picture for each level the rule asks for over one 3.2 s
+        # slot, the first and the last the window's own icon again at full brightness.
+        self.assertEqual(len({row[2] for row in breath}), len({tray.icon_frame("watching", row[0]) for row in breath}))
+        self.assertGreaterEqual(len({row[2] for row in breath}), 12)
         self.assertEqual(breath[0][1], self.answer["own"]["big"])
+        self.assertEqual(breath[-1][1], self.answer["own"]["big"])
         self.assertTrue(all(row[5] for row in breath))
-        # The turn: the head travels, faster frames while it does.
-        self.assertGreaterEqual(len({row[2] for row in turn}), 15)
+        # The turn: the head travels at full brightness, a picture for each position the rule asks for, with the
+        # quicker frames while it does - and the slot starts and ends on the window's own icon.
+        frames = [tray.icon_frame("watching", row[0]) for row in turn]
+        self.assertEqual({level for (_, level), row in zip(frames, turn) if 12800 <= row[0] < 16000},
+                         {tray.ICON_MOTION["levels"] - 1})
+        self.assertEqual(len({row[2] for row in turn}), len(set(frames)))
+        self.assertGreaterEqual(len({row[2] for row in turn}), 20)
         self.assertIn(tray.ICON_MOTION["turn_frame_ms"], {row[6] for row in turn})
+        for row, frame in zip(turn, frames):
+            if frame == (0, tray.ICON_MOTION["levels"] - 1):
+                self.assertEqual(row[1], self.answer["own"]["big"], "in its place at full brightness: its own icon")
         self.small_is_still(breath + turn)
         for ms, position, level, wanted, shown, handle, own in watching["checks"]:
             with self.subTest(ms=ms):
