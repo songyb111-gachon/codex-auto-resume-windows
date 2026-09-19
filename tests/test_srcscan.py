@@ -97,5 +97,52 @@ class TreeTests(unittest.TestCase):
         self.assertNotIn("codex_auto_resume.tray_popup", srcscan.closure("codex_auto_resume.tray", lazy=False))
 
 
+class NoOneFileScanTests(unittest.TestCase):
+    """A structural test that names one file stops checking the day the code in it moves, and
+    passes while it does. New ones go through srcscan."""
+
+    def tests(self):
+        for path in sorted(Path(_HERE).glob("test_*.py")):
+            yield path, ast.parse(path.read_text(encoding="utf-8"))
+
+    def test_no_test_reads_a_package_module_through_its_file(self):
+        """`Path(control.__file__).read_text()` is the shape that reads an `__init__.py` holding
+        nothing once `control` is a package. Comparing a module's path is fine; reading one
+        module's text, or its whole source, to assert something about the code is not."""
+        offenders = []
+        for path, tree in self.tests():
+            modules = set()          # names bound to a module of the package
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.module == srcscan.PACKAGE:
+                    modules.update(alias.asname or alias.name for alias in node.names)
+                elif isinstance(node, ast.Import):
+                    modules.update(alias.asname for alias in node.names
+                                   if alias.asname and alias.name.startswith(srcscan.PACKAGE + "."))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                reader = getattr(node.func, "attr", getattr(node.func, "id", None))
+                if reader in ("read_text", "read_bytes", "open"):
+                    inside = list(ast.walk(node.func)) + [part for arg in node.args for part in ast.walk(arg)]
+                    if any(isinstance(part, ast.Attribute) and part.attr == "__file__"
+                           and isinstance(part.value, ast.Name) and part.value.id in modules for part in inside):
+                        offenders.append("%s:%d reads a module by its __file__" % (path.name, node.lineno))
+                elif reader in ("getsource", "getsourcelines") and node.args \
+                        and isinstance(node.args[0], ast.Name) and node.args[0].id in modules:
+                    offenders.append("%s:%d reads %s's whole source" % (path.name, node.lineno, node.args[0].id))
+        self.assertEqual(offenders, [], "read the package through srcscan instead")
+
+    def test_no_test_globs_the_package_one_directory_deep(self):
+        offenders = []
+        for path, tree in self.tests():
+            text = path.read_text(encoding="utf-8")
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                        and node.func.attr in ("glob", "iterdir", "listdir")
+                        and srcscan.PACKAGE in (ast.get_source_segment(text, node.func.value) or "")):
+                    offenders.append("%s:%d" % (path.name, node.lineno))
+        self.assertEqual(offenders, [], "a module in a subpackage would escape this scan without failing it")
+
+
 if __name__ == "__main__":
     unittest.main()
