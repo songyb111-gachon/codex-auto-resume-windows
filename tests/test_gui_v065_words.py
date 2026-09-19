@@ -45,10 +45,17 @@ Add-Type -AssemblyName System.Windows.Forms
 [Windows.Forms.Application]::EnableVisualStyles()
 [Windows.Forms.Application]::SetCompatibleTextRenderingDefault($false)
 Add-Type -ReferencedAssemblies System.Windows.Forms, System.Drawing -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 public class QuietForm : Form {
     protected override bool ShowWithoutActivation { get { return true; } }
     protected override CreateParams CreateParams { get { CreateParams cp = base.CreateParams; cp.ExStyle |= 0x08000000 | 0x80; return cp; } }
+}
+public static class Placer {
+    [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr hWnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
+    // SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE: Windows holds only top-level windows to the screen's size.
+    public static void Size(Control child, int width, int height) { SetWindowPos(child.Handle, IntPtr.Zero, 0, 0, width, height, 0x0002 | 0x0004 | 0x0010); }
 }
 '@
 $assembly = [Reflection.Assembly]::LoadFile($env:CAR_EXE)
@@ -122,8 +129,9 @@ $frame.FormBorderStyle = 'None'
 $frame.ShowInTaskbar = $false
 $frame.StartPosition = 'Manual'
 $frame.Location = New-Object Drawing.Point -30000, -30000
-# A top-level form is held to the screen's size, and a CI runner's screen is smaller than the window at
-# 200%; the window inside is not, so it is given the opening size itself.
+# Every Form is held to the screen's size (MaxWindowTrackSize), and at 150% and 200% the opening size is
+# larger than a CI runner's screen - larger than many - so the window inside is sized by Windows itself once
+# it is a child, which nothing clamps.
 $opening = New-Object Drawing.Size ([int][Math]::Round(1000 * $scale)), ([int][Math]::Round(664 * $scale))
 $frame.ClientSize = $opening
 $window = $three.Invoke([object[]]@($bridge, (Read-Json 'strings-ko.json'), $font.PSObject.BaseObject))
@@ -134,6 +142,8 @@ $window.MinimumSize = [Drawing.Size]::Empty
 $window.Location = [Drawing.Point]::Empty
 $window.ClientSize = $opening
 $frame.Controls.Add($window)
+[Placer]::Size($window, $opening.Width, $opening.Height)
+if ($window.ClientSize -ne $opening) { throw ('the window is ' + $window.ClientSize + ', not its opening size ' + $opening) }
 Invoke-Window $window 'ApplySnapshot' @((Read-Json 'snapshot.json'))
 # Parsed here, not through Read-Json: a function's list comes back unrolled into an array.
 $schema = $parse.Invoke($null, [object[]]@([IO.File]::ReadAllText((Join-Path $work 'schema.json'), $utf8)))
