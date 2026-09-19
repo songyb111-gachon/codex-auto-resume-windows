@@ -1,4 +1,4 @@
-# Codex Auto Resume roadmap: v0.6.5 → v0.6.10
+# Codex Auto Resume roadmap: v0.6.5 → v0.6.11
 
 This is the current development direction for Codex Auto Resume after v0.6.4.
 
@@ -7,7 +7,7 @@ reveals better or safer implementation paths.
 
 The overall direction is:
 
-**finish the UI → clean up Python → add compatibility intelligence → add optional advanced
+**finish the UI → add compatibility intelligence → clean up Python → add optional advanced
 recovery → stabilize Python → replace the core with Rust → make it Rust-native → stabilize Rust**
 
 The default recovery behavior will remain conservative throughout this process.
@@ -71,24 +71,12 @@ Recovery decides exactly what it decided in v0.6.3.
 
 ---
 
-## v0.6.5 — Python modularization + Codex Compatibility Registry
+## v0.6.5 — Codex Compatibility Registry, interface polish, and groundwork for the split
 
 **Next. Being built on the `dev` branch.**
 
-v0.6.5 is planned as the major structural cleanup of the Python implementation.
-
-Main goals:
-
-- split oversized modules,
-- separate responsibilities more clearly,
-- clarify boundaries between engine, state, store, adapters, and control layers,
-- remove duplication,
-- strengthen typed contracts,
-- isolate more pure/testable logic,
-- prepare clean boundaries for the later Rust migration.
-
-Bugs discovered during this refactor will be fixed with regression tests, but this release is
-**not intended to be the full repository-wide bug hunt**.
+v0.6.5 carries the Codex Compatibility Registry and the interface work that came out of using
+v0.6.4, and lays the groundwork for splitting the Python implementation, which moves to v0.6.6.
 
 ### Codex Compatibility Registry
 
@@ -128,7 +116,11 @@ UNKNOWN / fail closed if still uncertain
 
 No telemetry is required for this system.
 
-### Also planned for v0.6.5
+The Compatibility Registry's data ships inside each release and is refreshed only when you ask -
+from Diagnostics, or when you check for updates. There is no background traffic. The first
+release that carries it lists no capability as VERIFIED: that state needs recorded evidence.
+
+### Interface
 
 Interface work that came out of using v0.6.4:
 
@@ -142,20 +134,48 @@ Interface work that came out of using v0.6.4:
 - the first screen's card buttons back at the bottom-left, with its proportions redone,
 - drop-down lists drawn in the same neumorphic material as the cards, in the window and in the panel,
 - switches that glide when they change,
-- lists that never overflow sideways,
-- three fixes found while planning the refactor.
+- lists that never overflow sideways.
 
-The Compatibility Registry's data ships inside each release and is refreshed only when you ask -
-from Diagnostics, or when you check for updates. There is no background traffic. The first
-release that carries it lists no capability as VERIFIED: that state needs recorded evidence.
+### Fixes and groundwork for the split
+
+- three fixes found while planning the refactor,
+- tests that keep every safety check reading the whole package, so that moving code can never
+  quietly take it out of a check's sight,
+- screenshot checks keyed on what the window is shown rather than on which files changed,
+- golden copies of the replies the window and the panel in Codex receive, so a split that changes
+  a single byte of them fails,
+- one implementation of rules that were written more than once, shared identifiers and
+  vocabularies, and typed contracts between the layers.
 
 ---
 
-## v0.6.6 — Advanced / Experimental recovery capabilities
+## v0.6.6 — Python modularization
+
+v0.6.6 is planned as the major structural cleanup of the Python implementation. It was the main
+part of v0.6.5 in the earlier plan; v0.6.5 ships its groundwork, and the split itself moves here.
+
+Main goals:
+
+- split oversized modules,
+- separate responsibilities more clearly,
+- clarify boundaries between engine, state, store, adapters, and control layers,
+- remove duplication,
+- strengthen typed contracts,
+- isolate more pure/testable logic,
+- prepare clean boundaries for the later Rust migration.
+
+The window's largest C# files may be split the same way, behind the same kind of safety net.
+
+Bugs discovered during this refactor will be fixed with regression tests, but this release is
+**not intended to be the full repository-wide bug hunt**.
+
+---
+
+## v0.6.7 — Advanced / Experimental recovery capabilities
 
 The existing conservative behavior will remain the default.
 
-v0.6.6 is planned to revisit recovery capabilities that were previously excluded because they
+v0.6.7 is planned to revisit recovery capabilities that were previously excluded because they
 required weaker assumptions, insufficient evidence, or unsupported Codex behavior.
 
 Potential candidates include:
@@ -185,7 +205,7 @@ The principle remains:
 > Keep the safe default small, while giving informed users more control when they explicitly
 > choose it.
 
-### Also planned for v0.6.6
+### Also planned for v0.6.7
 
 - a design audit of the panel in Codex, the app and the notification-area popup, side by side in
   light and dark, fixing everything that does not yet look like one product,
@@ -194,11 +214,11 @@ The principle remains:
 
 ---
 
-## v0.6.7 — Final Python audit and stabilization
+## v0.6.8 — Final Python audit and stabilization
 
-v0.6.7 is planned as the final comprehensive audit of the Python implementation.
+v0.6.8 is planned as the final comprehensive audit of the Python implementation.
 
-Unlike v0.6.5, this release is intentionally a broad bug hunt.
+Unlike v0.6.6, this release is intentionally a broad bug hunt.
 
 Expected areas include:
 
@@ -226,9 +246,9 @@ for the Rust migration.
 
 ---
 
-## v0.6.8 — Complete Rust core replacement
+## v0.6.9 — Complete Rust core replacement
 
-v0.6.8 is planned to replace the production Python core with Rust.
+v0.6.9 is planned to replace the production Python core with Rust.
 
 The migration may happen incrementally during development, but the release itself is intended
 to switch to the completed Rust core rather than ship a long-lived mixed Python/Rust product.
@@ -237,7 +257,7 @@ The rule is:
 
 > **Replace the implementation, not the behavior.**
 
-The Rust implementation should reproduce v0.6.7 as closely as practical.
+The Rust implementation should reproduce v0.6.8 as closely as practical.
 
 Goals include:
 
@@ -280,13 +300,13 @@ deployment work.
 
 ---
 
-## v0.6.9 — Rust-native restructuring and optimization
+## v0.6.10 — Rust-native restructuring and optimization
 
-v0.6.8 will prioritize behavioral parity.
+v0.6.9 will prioritize behavioral parity.
 
 That may leave some Python-shaped architecture inside the first Rust implementation.
 
-v0.6.9 is planned to make the codebase more naturally Rust-oriented.
+v0.6.10 is planned to make the codebase more naturally Rust-oriented.
 
 Potential work includes:
 
@@ -306,9 +326,9 @@ This is not intended to be the final full-system bug hunt.
 
 ---
 
-## v0.6.10 — Final Rust audit and stabilization
+## v0.6.11 — Final Rust audit and stabilization
 
-v0.6.10 is planned as the final comprehensive stabilization pass.
+v0.6.11 is planned as the final comprehensive stabilization pass.
 
 Expected focus includes:
 
@@ -346,7 +366,7 @@ The intended final stack is:
 
 There is currently **no planned v0.7.0 feature cycle**.
 
-After v0.6.10, the project is expected to move primarily into maintenance:
+After v0.6.11, the project is expected to move primarily into maintenance:
 
 - Codex compatibility updates,
 - Compatibility Registry updates,
@@ -373,35 +393,40 @@ UI lag reduction
         ↓
 
 v0.6.5  (next, on the dev branch)
-Python modularization
-+ Codex Compatibility Registry
+Codex Compatibility Registry
 + icon motion, notification card, UI polish
++ groundwork for the Python split
 
         ↓
 
 v0.6.6
+Python modularization
+
+        ↓
+
+v0.6.7
 Advanced / Experimental recovery capabilities
 + design audit, a choice of appearance
 
         ↓
 
-v0.6.7
+v0.6.8
 Final Python audit and stabilization
 → freeze Python reference behavior
 
         ↓
 
-v0.6.8
+v0.6.9
 Complete Rust core replacement
 
         ↓
 
-v0.6.9
+v0.6.10
 Rust-native restructuring and optimization
 
         ↓
 
-v0.6.10
+v0.6.11
 Final Rust audit and stabilization
 → final stable Rust baseline
 
