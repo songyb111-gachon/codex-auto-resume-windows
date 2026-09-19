@@ -109,6 +109,13 @@ public static class Probe {
         return result.ToArray();
     }
 }
+// An answer for the window's input from Windows' animation switch (Soft.WindowsAnimates), compiled, so it holds on
+// any thread.
+public static class Said {
+    public static bool Yes() { return true; }
+    public static bool No() { return false; }
+    public static Func<bool> Answer(bool yes) { return yes ? new Func<bool>(Yes) : new Func<bool>(No); }
+}
 '@
 $assembly = [Reflection.Assembly]::LoadFile($env:CAR_EXE)
 $static = [Reflection.BindingFlags]'Static,NonPublic,Public'
@@ -130,6 +137,11 @@ function Box($r) { return ,@([int]$r.X, [int]$r.Y, [int]$r.Width, [int]$r.Height
 $reduce = $t.Soft.GetField('ReduceMotionSetting', $static)
 $areaField = $t.SoftDropList.GetField('Area', $static)
 $adopt = $t.Palette.GetMethod('Adopt', $static)
+# Windows' two inputs to motion are the probe's own answers, not this machine's: the light theme (High Contrast holds
+# everything still) and the animation switch on - off only where that is what is tested, as GitHub's runner has it.
+$null = $adopt.Invoke($null, [object[]]@('light'))
+$animates = $t.Soft.GetField('WindowsAnimates', $static)
+$animates.SetValue($null, [Said]::Answer($true))
 $out = @{}
 $out.scale = [double]$t.SettingsForm.GetProperty('DpiScale', $static).GetValue($null)
 $out.duration = [int]$t.Motion.GetProperty('Duration', $static).GetValue($null)
@@ -425,6 +437,15 @@ $null = [Probe]::Key($h, $WM_KEYDOWN, 0x73, $false)
 $drop = P $combo 'DropList'
 $out.appear.reduced = @([int](P $drop 'Alpha'), [bool](P $drop 'Appearing'), ((P $drop 'CardOnScreen').Y - (P $drop 'Card').Y))
 $null = [Probe]::Key($h, $WM_KEYDOWN, 0x1B, $false)
+# Windows' "Animation effects" off, the product's own setting not: simply there too.
+$reduce.SetValue($null, $false)
+$animates.SetValue($null, [Said]::Answer($false))
+$null = [Probe]::Key($h, $WM_KEYDOWN, 0x73, $false)
+$drop = P $combo 'DropList'
+$out.appear.windows = @([int](P $drop 'Alpha'), [bool](P $drop 'Appearing'), ((P $drop 'CardOnScreen').Y - (P $drop 'Card').Y))
+$null = [Probe]::Key($h, $WM_KEYDOWN, 0x1B, $false)
+$animates.SetValue($null, [Said]::Answer($true))
+$reduce.SetValue($null, $true)
 
 # High Contrast: no shadow, so no room for one; system colours; the chosen item is Highlight.
 $form.Close(); $form.Dispose()
@@ -514,6 +535,12 @@ $check.Checked = $true
 $out.check.reduced = @([double](P $check 'Progress'), [bool](P $check 'Moving'))
 $check.Checked = $false
 $reduce.SetValue($null, $false)
+# Windows' "Animation effects" off, the product's own setting not: at once too.
+$animates.SetValue($null, [Said]::Answer($false))
+$check.Checked = $true
+$out.check.windows = @([double](P $check 'Progress'), [bool](P $check 'Moving'))
+$check.Checked = $false
+$animates.SetValue($null, [Said]::Answer($true))
 $check.Checked = $true
 $out.check.started = @([double](P $check 'Progress'), [bool](P $check 'Moving'))
 Pump 60
@@ -1034,10 +1061,12 @@ class ControlsTests(unittest.TestCase):
         self.assertNotIn("!!", "".join(uia["events"]))
 
     def test_it_fades_in_and_rises_and_with_motion_reduced_it_is_simply_there(self):
+        """On every machine: Windows' animation switch is the probe's own answer (Soft.WindowsAnimates), so GitHub's
+        runner, which has it off, sees the list rise too - and sees it simply there with the switch answered off."""
         appear = self.answer["appear"]
         self.assertEqual(appear["reduced"], [255, False, 0])
-        if not self.answer["motionAllowed"]:
-            self.skipTest("Windows' animation effects are off here")
+        self.assertEqual(appear["windows"], [255, False, 0], "Windows' animation effects off: simply there")
+        self.assertTrue(self.answer["motionAllowed"], "motion was reduced with Windows' switch answered 'on'")
         alpha, running, rise = appear["first"]
         self.assertTrue(running)
         self.assertLess(alpha, 255)
@@ -1091,10 +1120,10 @@ class ControlsTests(unittest.TestCase):
         check = self.answer["check"]
         self.assertEqual(check["unshown"], [1.0, False], "not on screen: at once")
         self.assertEqual(check["reduced"], [1.0, False], "motion reduced: at once")
+        self.assertEqual(check["windows"], [1.0, False], "Windows' animation effects off: at once")
         self.assertEqual(check["settled"], [0.0, False], "arrived, and its timer stopped")
         self.assertEqual(check["boxSettled"], [1.0, False])
-        if not self.answer["motionAllowed"]:
-            self.skipTest("Windows' animation effects are off here")
+        self.assertTrue(self.answer["motionAllowed"], "motion was reduced with Windows' switch answered 'on'")
         progress, moving = check["started"]
         self.assertTrue(moving)
         self.assertLess(progress, 0.5)

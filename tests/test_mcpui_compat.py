@@ -258,10 +258,32 @@ class FromTheServerTests(unittest.TestCase):
         self.assertEqual(len(seen["rows"]), sum(1 for _, tier in compat.CAPABILITIES.values() if tier != "unsupported"))
         self.assertIn(ENGLISH["compat.source.bundled"], seen["meta"])
         self.assertEqual(seen["callout"], [], "the watcher acts on what the report says, and the data is simply in force")
-        # The data's sequence number, once the server's summary carries it (compat.mcp_view), as the window says it.
-        if "sequence" in view:
-            self.assertIn(ENGLISH["compat.source_sequence"].replace("{source}", ENGLISH["compat.source.bundled"])
-                          .replace("{sequence}", str(view["sequence"])), seen["meta"])
+        # The three codes the window's card also reads travel with it, and the data is said by its number.
+        self.assertTrue({"acting", "cache", "sequence"} <= set(view), sorted(view))
+        self.assertEqual(view["acting"], view["overall"])
+        self.assertIsInstance(view["sequence"], int)
+        self.assertIn(ENGLISH["compat.data"] + " " + ENGLISH["compat.source_sequence"]
+                      .replace("{source}", ENGLISH["compat.source.bundled"])
+                      .replace("{sequence}", str(view["sequence"])), seen["meta"])
+
+    def test_the_card_says_what_the_registry_says_with_nothing_added(self):
+        """A report whose watcher still acts on what it found at its start, on refreshed data that has expired:
+        compat.mcp_view's summary of it, drawn as it is - the number and both caveats, in the window's order and
+        words, in English and in Korean."""
+        from test_compat import NOW, a_report
+        refreshed = {"bundled": "ok", "bundled_sequence": 1, "cache": "expired", "cache_sequence": 12,
+                     "cache_origin": "main", "fetched_at": NOW, "source": "cache", "expired": True}
+        view = compat.mcp_view(compat.view_of(a_report(data=refreshed, acting="incompatible")))
+        for locale in ("en", "ko"):
+            with self.subTest(locale):
+                words = l10n.catalog(locale)
+                seen = page(with_compat(view, interface_language=locale), locale=locale)
+                self.assertIn(words["compat.data"] + " " + words["compat.source_sequence"]
+                              .replace("{source}", words["compat.source.cache"]).replace("{sequence}", "12"),
+                              seen["meta"])
+                self.assertEqual(seen["callout"], [words["panel.compat_acting_differs"], words["compat.cache.expired"]])
+                self.assertEqual(seen["chip"], words["compat.state.COMPATIBLE"],
+                                 "the report's own word leads; what the watcher acts on is the caveat")
 
 
 class NoRefreshTests(unittest.TestCase):

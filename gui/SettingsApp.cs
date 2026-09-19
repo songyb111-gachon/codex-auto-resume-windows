@@ -1199,7 +1199,8 @@ namespace CodexAutoResume
         {
             int width = NoteWidth(row);
             if (width <= 0 || string.IsNullOrEmpty(reopenNote.Text)) return 0;
-            int text = TextRenderer.MeasureText(reopenNote.Text, reopenNote.Font, new Size(width, int.MaxValue), NoteFormat).Height;
+            // In the lines it is drawn in: Korean between its words (WrapLabel).
+            int text = TextRenderer.MeasureText(reopenNote.Lines(width), reopenNote.Font, new Size(width, int.MaxValue), NoteFormat).Height;
             int line = TextRenderer.MeasureText("Ag", reopenNote.Font, new Size(int.MaxValue, int.MaxValue),
                                                 TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix).Height;
             return Math.Min(text, NoteLines * line) + reopenNote.Padding.Vertical;
@@ -1339,7 +1340,8 @@ namespace CodexAutoResume
 
         private Label HelpText(string text)
         {
-            var label = new Label();
+            // Korean broken between its words, as the popup and the panel break it (WrapLabel).
+            var label = new WrapLabel();
             label.AutoSize = true;
             label.MaximumSize = new Size(Px(600), 0);
             // Stretched across its card, so it wraps at the card's width: the window is narrower
@@ -1632,6 +1634,11 @@ namespace CodexAutoResume
                     if (name == "reduce_motion")
                         host.Controls.Add(HelpText(S("help.reduce_motion",
                             "Stops the breathing and pulsing status animations in this window and the notification-area popup. Windows' own Animation effects setting is always honored as well.")));
+                    // When the card gives way to Windows' own notification - Do not disturb, full screen, a screen
+                    // reader, a locked or remote session - is said under its switch, never left to be found out.
+                    if (name == "notification_card")
+                        host.Controls.Add(HelpText(S("help.notification_card",
+                            "Notifications appear as a card beside the notification area and are also kept in Windows' notification center. When this is off - or while Do not disturb is on, an app is full screen, a screen reader is running, or the session is locked or remote - Windows shows its own notification instead.")));
                 }
                 else if (type == "integer")
                 {
@@ -3477,8 +3484,8 @@ namespace CodexAutoResume
             Materialise(this);
             PerformLayout();
             Size room = reopenNote.ClientSize;
-            int needed = TextRenderer.MeasureText(reopenNote.Text, reopenNote.Font,
-                                                  new Size(Math.Max(1, room.Width - reopenNote.Padding.Horizontal), int.MaxValue),
+            int inside = Math.Max(1, room.Width - reopenNote.Padding.Horizontal);
+            int needed = TextRenderer.MeasureText(reopenNote.Lines(inside), reopenNote.Font, new Size(inside, int.MaxValue),
                                                   NoteFormat).Height;
             if (room.Width <= 0 || needed > room.Height - reopenNote.Padding.Vertical)
                 findings.Add("footer/reopen note at " + width + (beforeTheLayout ? ", shown before the window was laid out" : "") +
@@ -3589,8 +3596,11 @@ namespace CodexAutoResume
             if (label == null) return bounds;
             TextFormatFlags format = TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl;
             if (!label.UseMnemonic) format |= TextFormatFlags.NoPrefix;
-            Size text = TextRenderer.MeasureText(label.Text, label.Font,
-                                                 new Size(Math.Max(1, label.ClientSize.Width - label.Padding.Horizontal), int.MaxValue), format);
+            int room = Math.Max(1, label.ClientSize.Width - label.Padding.Horizontal);
+            // In the lines it is drawn in (WrapLabel: Korean between its words); a well is its own measure.
+            var wrap = label as WrapLabel;
+            if (label is EmptyWell) return bounds;
+            Size text = TextRenderer.MeasureText(wrap != null ? wrap.Lines(room) : label.Text, label.Font, new Size(room, int.MaxValue), format);
             int width = Math.Min(text.Width + label.Padding.Horizontal, bounds.Width);
             int height = Math.Min(text.Height + label.Padding.Vertical, bounds.Height);
             int x = bounds.X, y = bounds.Y;
@@ -3680,6 +3690,8 @@ namespace CodexAutoResume
             if (quote != null) return Needs(quote.GetPreferredSize(new Size(c.Width, 0)).Height, c.Height);
             var gates = c as GateList;
             if (gates != null) return inScroller ? null : Needs(gates.GetPreferredSize(new Size(c.Width, 0)).Height, c.Height);
+            var well = c as EmptyWell;
+            if (well != null) return Needs(well.GetPreferredSize(new Size(c.Width, 0)).Height, c.Height);
             var list = c as ListView;
             if (list != null) return ColumnsFit(list);
             if (string.IsNullOrEmpty(c.Text) || c is TextBoxBase || c is ComboBox || c is UpDownBase) return null;

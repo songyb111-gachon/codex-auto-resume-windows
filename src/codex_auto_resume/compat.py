@@ -787,13 +787,25 @@ def view_of(report) -> dict:
 
 
 def mcp_view(view) -> dict:
-    """The compatibility summary a model may read: codes and one timestamp, nothing else -
-    no version string, no path, no free text."""
+    """The compatibility summary a model may read: codes, one small number and one timestamp,
+    nothing else - no version string, no path, no free text. It carries what the window's
+    Diagnostics card shows, so the settings panel can say the same: what the watcher acts on
+    (`acting`, which after Codex changed in place can differ from `overall`), which data is in
+    force by its sequence number, and the refreshed data's standing (`cache`: expired or dated
+    ahead, its restrictions apply and its trust does not)."""
     view = view if isinstance(view, dict) else unusable_view("invalid")
-    data = view.get("data") or {}
+    data = view.get("data") if isinstance(view.get("data"), dict) else {}
+    source = data.get("source") if data.get("source") in DATA_SOURCES else "none"
+    # The number of the data in force, as the window reads it: the refreshed data's while that is
+    # in force, the bundled data's while that is, and none without data.
+    sequence = data.get({"cache": "cache_sequence", "bundled": "bundled_sequence"}.get(source))
     return {"status": view.get("status") if view.get("status") in VIEW_STATUSES else "invalid",
             "overall": view.get("overall") if view.get("overall") in ENGINE_STATES else "unknown",
-            "source": data.get("source") if data.get("source") in DATA_SOURCES else "none",
+            "acting": view.get("acting") if view.get("acting") in ENGINE_STATES else None,
+            "source": source,
+            "sequence": sequence if (isinstance(sequence, int) and not isinstance(sequence, bool)
+                                     and sequence >= 0) else None,
+            "cache": data.get("cache") if data.get("cache") in CACHE_STATES else None,
             "checked_at": view.get("checked_at") if _finite_number(view.get("checked_at")) else None,
             "capabilities": {name: {"state": entry["state"], "reason": entry["reason"]}
                              for name, entry in (view.get("capabilities") or {}).items()

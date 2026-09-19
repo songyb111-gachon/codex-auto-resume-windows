@@ -8,7 +8,12 @@ far off the screen and shown without taking activation. Nothing is sent to any o
   * Pending's Auto-resume switch glides once its change is confirmed, as the popup's and the panel's do
     (requirement 15): a row's switch already on screen that its record now says is the other way moves there on
     brand's one transition, painting only its cell, and its timer stops when it arrives. A row that appears, a page
-    that is not on screen, motion reduced and a change refused move nothing.
+    that is not on screen, motion reduced - by the product's setting or by Windows' "Animation effects" - and a change
+    refused move nothing.
+
+    Whether Windows animates is the product's own input, Soft.WindowsAnimates, which the probe answers itself: GitHub's
+    Windows runner has the switch off, and a probe that took this machine's answer glided nothing there and failed. The
+    probe stands "on" in it to see the glide and "off" to see none, on any machine, and never changes Windows' setting.
   * Where even the columns' headings do not fit a list (a window made as narrow as it goes), the headings give way to
     what the columns hold before the cells do, and then the widest cells first (requirement 12): a column is never
     left room past what it holds while another's cells are cut.
@@ -66,6 +71,12 @@ using System.Windows.Forms;
 public class QuietForm : Form {
     protected override bool ShowWithoutActivation { get { return true; } }
     protected override CreateParams CreateParams { get { CreateParams cp = base.CreateParams; cp.ExStyle |= 0x08000000 | 0x80; return cp; } }
+}
+// An answer for one of the window's inputs from Windows (Soft.WindowsAnimates), compiled, so it holds on any thread.
+public static class Said {
+    public static bool Yes() { return true; }
+    public static bool No() { return false; }
+    public static System.Func<bool> Answer(bool yes) { return yes ? new System.Func<bool>(Yes) : new System.Func<bool>(No); }
 }
 '@
 $assembly = [Reflection.Assembly]::LoadFile($env:CAR_EXE)
@@ -155,6 +166,12 @@ $form.GetField('dpiScale', $static).SetValue($null, $systemScale)
 $null = $palette.GetMethod('Adopt', $static).Invoke($null, [object[]]@('light'))
 $reduce = $soft.GetField('ReduceMotionSetting', $static)
 $reduce.SetValue($null, $false)
+# Windows' "Animation effects" as the window reads it: the probe's own answer, "on", whatever this machine's is - the
+# product's default input recorded first, so a test can hold it to Windows' own.
+$animates = $soft.GetField('WindowsAnimates', $static)
+$windowsAnswer = if ($null -eq $animates) { $null } else { $animates.GetValue($null) }
+$out.seam = @{ found = ($null -ne $animates); default = $(if ($null -ne $windowsAnswer) { [string]$windowsAnswer.Method.Name } else { '' }) }
+if ($null -ne $animates) { $animates.SetValue($null, [Said]::Answer($true)) }
 $out.reducedHere = [bool]$soft.GetProperty('ReduceMotion', $static).GetValue($null)
 $frame = New-Object QuietForm
 $frame.FormBorderStyle = 'None'
@@ -244,6 +261,17 @@ $reduce.SetValue($null, $true)
 Invoke-Window $window 'ApplySnapshot' @($on)
 $out.glide.reduced = @((GlideOf 'Running'), (GlideOf 'Value'))
 $reduce.SetValue($null, $false)
+# Windows' "Animation effects" off, the product's own setting not: there at once too, both ways - as on GitHub's runner.
+$out.glide.windows = @()
+if ($null -ne $animates) {
+    $animates.SetValue($null, [Said]::Answer($false))
+    $out.glide.windowsReduced = [bool]$soft.GetProperty('ReduceMotion', $static).GetValue($null)
+    Invoke-Window $window 'ApplySnapshot' @($off)
+    $out.glide.windows += ,@((GlideOf 'Running'), (GlideOf 'Value'))
+    Invoke-Window $window 'ApplySnapshot' @($on)
+    $out.glide.windows += ,@((GlideOf 'Running'), (GlideOf 'Value'))
+    $animates.SetValue($null, [Said]::Answer($true))
+}
 # Another page on screen: Pending is not seen, so there at once too, and drawn as its record says when it comes back.
 $null = Invoke-Window $window 'ShowPage' @('history')
 Pump 30
@@ -396,9 +424,20 @@ class WindowReviewTests(unittest.TestCase):
         self.assertEqual(glide["hidden"], [False, 0.0], "on a page not on screen it is there at once")
         self.assertTrue(glide["forgotten"], "a row that leaves the list takes its glide with it")
 
+    def test_the_pending_switch_is_immediate_when_windows_reduces_motion(self):
+        """Windows' "Animation effects" off - GitHub's runner, or a person who turned it off - and the product's own
+        setting on: no glide, either way, as with the product's own Reduce motion."""
+        glide = self.answer["glide"]
+        self.assertTrue(glide.get("windowsReduced"), "Windows' animation switch off did not reduce motion")
+        self.assertEqual(glide["windows"], [[False, 0.0], [False, 1.0]], "there at once, off and back on")
+
     def test_the_glide_is_brands_transition(self):
         self.assertEqual(brand.MOTION["transition_ms"], 160)
-        self.assertFalse(self.answer["reducedHere"], "motion was reduced where the probe ran, so it glided nothing")
+        # Seen on any machine: the probe answers the product's input for Windows' switch (Soft.WindowsAnimates) itself;
+        # that what ships there is Windows' own answer is WindowSourceTests'.
+        self.assertTrue(self.answer["seam"]["found"], "the window has no input for Windows' animation switch")
+        self.assertFalse(self.answer["reducedHere"],
+                         "motion was reduced with Windows' switch answered 'on' and the product's setting off")
         samples = self.answer["glide"]["samples"]
         moving = [value for value, running in samples if running]
         self.assertGreater(len(moving), 0)
@@ -434,6 +473,20 @@ class WindowSourceTests(unittest.TestCase):
     def test_nothing_moves_on_a_page_not_on_screen(self):
         allowed = self.method(self.controls, "internal static bool Allowed(Control control)")
         self.assertIn("!control.Visible", allowed, "Soft.Shown sees only the control's own style, not a hidden page's")
+
+    def test_windows_animation_switch_is_one_input_the_window_only_reads(self):
+        """Motion reads Windows' switch through Soft.WindowsAnimates, which ships as Windows' own answer and which
+        nothing in the window sets: a probe's answer there is the only other one it ever has."""
+        self.assertIn("internal static Func<bool> WindowsAnimates = WindowsAnimationEffects;", self.controls)
+        reduced = self.method(self.controls, "internal static bool ReduceMotion\n")
+        self.assertIn("WindowsAnimates", reduced)
+        self.assertNotIn("SystemParametersInfo", reduced, "Windows is asked through the input, not beside it")
+        asked = self.method(self.controls, "internal static bool WindowsAnimationEffects()")
+        self.assertIn("SPI_GETCLIENTAREAANIMATION", asked)
+        window = (ROOT / "gui" / "SettingsApp.cs").read_text(encoding="utf-8")
+        for name, source in (("Controls.cs", self.controls), ("Dashboard.cs", self.dashboard), ("SettingsApp.cs", window)):
+            with self.subTest(name):
+                self.assertEqual(source.count("WindowsAnimates ="), 1 if name == "Controls.cs" else 0)
 
 
 if __name__ == "__main__":

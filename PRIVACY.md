@@ -319,7 +319,12 @@ conversation to OpenAI like any tool output. That is:
 - from `get_status`: the version, whether recovery is on, whether the watcher is running and
   whether sign-in autostart is registered, counts by state, and your settings — which
   include the Codex executable path if you set one and, from v0.6.3, the text of any Custom
-  message you have written (Codex can read it there, not change it). It no longer returns the installation
+  message you have written (Codex can read it there, not change it). From the release after
+  v0.6.4 it also carries the Codex compatibility summary that the Dashboard's Diagnostics page
+  shows, as codes only: the overall result and the one the watcher acts on, whether the
+  compatibility report could be used, where the compatibility data came from and its sequence
+  number, the refreshed data's standing, when the check ran, and each capability's state and
+  reason — no Codex version string, no path and no free text. It no longer returns the installation
   directory's path, which normally includes your Windows user name; v0.5.0 through v0.5.7
   did, and a conversation held with one of them still carries it;
 - from `list_pending`: the pending recoveries, with their conversation ids, interruption ids,
