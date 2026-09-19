@@ -782,15 +782,18 @@ def mark_class() -> str:
         "            {\n",
     ]
     for size in MARK_SIZES:
-        lines.append("                if (size == %d) return Frames%d;\n" % (size, size))
+        lines.append("                if (size == %d) return Frames%d();\n" % (size, size))
     lines += ["                return null;\n", "            }\n"]
+    # Methods, not constants: a string constant is kept twice in the executable - where it is loaded and as
+    # the field's value - and these strings are most of its size.
     for size in MARK_SIZES:
         text = base64.b64encode(mark_frames(size)).decode("ascii")
         chunks = [text[at:at + MARK_LINE] for at in range(0, len(text), MARK_LINE)]
-        lines.append("\n")
-        lines.append("            private const string Frames%d =\n" % size)
+        lines += ["\n", "            private static string Frames%d()\n" % size, "            {\n",
+                  "                return\n"]
         for index, chunk in enumerate(chunks):
-            lines.append('                "%s"%s\n' % (chunk, ";" if index == len(chunks) - 1 else " +"))
+            lines.append('                    "%s"%s\n' % (chunk, ";" if index == len(chunks) - 1 else " +"))
+        lines.append("            }\n")
     lines.append("        }\n")
     return "".join(lines)
 
