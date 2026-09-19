@@ -372,19 +372,16 @@ class _CardRenderer(tray_popup.Renderer if os.name == "nt" else object):
 
     The popup's six states have their fills in `tray_popup.DOT_FILL`; a card can also say that
     an attempt failed, which brand draws in `danger` (brand.STATUS_FILL). Everything else - the
-    glow's falloff, its size, High Contrast's system colour - is the popup's own drawing.
+    dot's dimming, the glow's falloff and its size, High Contrast's system colour - is the
+    popup's own drawing.
     """
 
     def _halo(self, paint, item, scale, frame):
         state = item["state"]
         if self.contrast or state in tray_popup.DOT_FILL:
             return super()._halo(paint, item, scale, frame)
-        dot, fill = brand.STATUS_DOT["popup"], brand.status_fill(state)
-        cx, cy = item["cx"], item["cy"]
-        if frame is not None:
-            paint.glow(cx, cy, brand.glow_radius(dot, frame["scale"]) * scale, brand.glow_stops(dot),
-                       self._rgb(fill), frame["opacity"])
-        paint.fill_circle(cx, cy, dot * scale, self._argb(fill))
+        self._light(paint, item["cx"], item["cy"], brand.STATUS_DOT["popup"], scale,
+                    brand.status_fill(state), frame)
         return None
 
 

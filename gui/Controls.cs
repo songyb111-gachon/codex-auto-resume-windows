@@ -5735,17 +5735,19 @@ namespace CodexAutoResume
         }
     }
 
-    /// The status light: a flat dot whose colour says what the watcher is doing, and a soft glow
-    /// that says it is alive.
+    /// The status light: a flat dot whose colour says what the watcher is doing, and that blinks
+    /// the way the notification-area icon's head does to say it is alive.
     ///
     /// The dot keeps the size it has always had. Every state in which the watcher runs with
     /// recovery on is the brand's cyan, the colour the dot had before v0.6.3; a stopped or
-    /// unknown watcher and a pause keep their greys and have no glow; a watcher that runs but is
-    /// not well is amber, and a failure red. The glow fades out from the dot's edge with no edge
-    /// of its own. Monitoring breathes slowly, recovering a little faster; waiting holds still;
-    /// checking also turns a small arc; a state that needs a person swells once when it is
-    /// entered, then holds. brand.glow() defines every number, for the popup and the panel too.
-    /// With motion reduced nothing moves; in High Contrast the dot is a system colour, unlit.
+    /// unknown watcher and a pause keep their greys and never move; a watcher that runs but is
+    /// not well is amber, and a failure red. Monitoring and recovering run brand's cycle, one
+    /// slowly and one faster: the dot dims toward the card and comes back with nothing spreading,
+    /// and only then, lit, a small glow spreads from its edge and draws back in. Waiting holds
+    /// lit; checking also turns a small arc; a state that needs a person runs the cycle once when
+    /// it is entered, then holds lit. brand.glow() defines every number, for the popup and the
+    /// panel too. With motion reduced nothing moves and the dot holds lit with no glow; in High
+    /// Contrast the dot is a system colour, unlit.
     internal sealed class HaloDot : Control
     {
         private string state = "idle";
@@ -5796,27 +5798,34 @@ namespace CodexAutoResume
             return state == "attention" || state == "failed";
         }
 
-        /// The glow's opacity for one frame, brand.glow()'s "opacity", or 0 when the state has
-        /// no glow. Breathing follows `elapsedMs`; the one pulse follows `sinceEnteredMs`, and a
-        /// negative value means it is over. Pure, so the rule can be checked without drawing.
+        /// The glow's opacity for one frame, brand.glow()'s "opacity", or 0 when there is no glow.
+        /// The cycle follows `elapsedMs`; the one pulse follows `sinceEnteredMs`, and a negative
+        /// value means it is over. Pure, so the rule can be checked without drawing.
         internal static double HaloOpacity(string state, double elapsedMs, double sinceEnteredMs, bool reduced)
         {
-            double opacity, scale, arc;
-            return Brand.Glow(state, elapsedMs, sinceEnteredMs, reduced, out opacity, out scale, out arc) ? opacity : 0;
+            double dim, opacity, spread, arc;
+            return Brand.Glow(state, elapsedMs, sinceEnteredMs, reduced, out dim, out opacity, out spread, out arc) ? opacity : 0;
         }
 
-        /// How much the glow's outer radius is scaled for one frame, or 0 when there is no glow.
-        internal static double HaloScale(string state, double elapsedMs, double sinceEnteredMs, bool reduced)
+        /// How far the dot is drawn from its colour toward the card for one frame, or 0.
+        internal static double HaloDim(string state, double elapsedMs, double sinceEnteredMs, bool reduced)
         {
-            double opacity, scale, arc;
-            return Brand.Glow(state, elapsedMs, sinceEnteredMs, reduced, out opacity, out scale, out arc) ? scale : 0;
+            double dim, opacity, spread, arc;
+            return Brand.Glow(state, elapsedMs, sinceEnteredMs, reduced, out dim, out opacity, out spread, out arc) ? dim : 0;
+        }
+
+        /// How far out the glow is for one frame, 0 to 1 of Brand.GlowReach past the dot's edge.
+        internal static double HaloSpread(string state, double elapsedMs, double sinceEnteredMs, bool reduced)
+        {
+            double dim, opacity, spread, arc;
+            return Brand.Glow(state, elapsedMs, sinceEnteredMs, reduced, out dim, out opacity, out spread, out arc) ? spread : 0;
         }
 
         /// Where the checking arc starts for one frame, in degrees, or -1 when there is none.
         internal static double HaloArc(string state, double elapsedMs, double sinceEnteredMs, bool reduced)
         {
-            double opacity, scale, arc;
-            return Brand.Glow(state, elapsedMs, sinceEnteredMs, reduced, out opacity, out scale, out arc) ? arc : -1;
+            double dim, opacity, spread, arc;
+            return Brand.Glow(state, elapsedMs, sinceEnteredMs, reduced, out dim, out opacity, out spread, out arc) ? arc : -1;
         }
 
         internal static Color DotColour(string state)
@@ -5864,16 +5873,18 @@ namespace CodexAutoResume
             Graphics g = e.Graphics;
             g.Clear(Parent != null ? Ground.Colour(Parent) : Palette.Card);
             double since = clock.Elapsed.TotalMilliseconds - enteredAt;
-            double opacity, scale, arc;
-            bool lit = Brand.Glow(state, since, since, Soft.ReduceMotion, out opacity, out scale, out arc);
+            double dim, opacity, spread, arc;
+            bool lit = Brand.Glow(state, since, since, Soft.ReduceMotion, out dim, out opacity, out spread, out arc);
             Color colour = DotColour(state);
             float cx = Width / 2f, cy = Height / 2f, dot = Soft.PxF(Brand.StatusDotRadius);
             GraphicsState saved = g.Save();
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.PixelOffsetMode = PixelOffsetMode.Half;
             if (lit && opacity > 0 && !Palette.Contrast)
-                Glow(g, cx, cy, (float)(Soft.PxF(Brand.StatusDotRadius + Brand.GlowReach) * scale), colour, opacity);
-            using (var brush = new SolidBrush(colour)) g.FillEllipse(brush, cx - dot, cy - dot, dot * 2, dot * 2);
+                Glow(g, cx, cy, Soft.PxF(Brand.StatusDotRadius + Brand.GlowReach * spread), colour, opacity);
+            // Dimmed, the dot is its colour over the card it was cleared to: that far toward the ground.
+            Color fill = lit && dim > 0 && !Palette.Contrast ? Soft.WithAlpha(colour, 1 - dim) : colour;
+            using (var brush = new SolidBrush(fill)) g.FillEllipse(brush, cx - dot, cy - dot, dot * 2, dot * 2);
             if (lit && arc >= 0)
             {
                 float radius = Soft.PxF(Brand.StatusDotRadius + Brand.GlowArcGap);
@@ -5887,20 +5898,22 @@ namespace CodexAutoResume
             g.Restore(saved);
         }
 
-        /// The glow: the dot's colour at `opacity` from the centre out to the dot's edge, then
-        /// fading through brand.GLOW's stops to nothing at `outer`. A path gradient counts its
-        /// positions from the edge inward, so the stops are written in reverse.
+        /// The glow, brand.glow_stops: the dot's colour at `opacity` times GlowEdgeAlpha from the
+        /// centre out to where the dot's edge is at the peak, then fading through brand.GLOW's stops
+        /// to nothing at `outer`. The stops are fractions of `outer`, so a smaller spread is the same
+        /// falloff drawn smaller. A path gradient counts its positions from the edge inward, so the
+        /// stops are written in reverse.
         private static void Glow(Graphics g, float cx, float cy, float outer, Color colour, double opacity)
         {
             if (outer <= 0) return;
-            double dot = Brand.StatusDotRadius, whole = Brand.StatusDotRadius + Brand.GlowReach;
+            double dot = Brand.StatusDotRadius, whole = Brand.GlowExtent;
             using (var path = new GraphicsPath())
             {
                 path.AddEllipse(cx - outer, cy - outer, outer * 2, outer * 2);
                 using (var brush = new PathGradientBrush(path))
                 {
                     brush.CenterPoint = new PointF(cx, cy);
-                    brush.CenterColor = Soft.WithAlpha(colour, opacity);
+                    brush.CenterColor = Soft.WithAlpha(colour, opacity * Brand.GlowEdgeAlpha);
                     brush.SurroundColors = new[] { Soft.WithAlpha(colour, 0) };
                     var blend = new ColorBlend(5);
                     blend.Positions[0] = 0f;
@@ -5910,9 +5923,9 @@ namespace CodexAutoResume
                     blend.Positions[2] = (float)(1 - (dot + Brand.GlowReach * Brand.GlowNearAt) / whole);
                     blend.Colors[2] = Soft.WithAlpha(colour, opacity * Brand.GlowNearAlpha);
                     blend.Positions[3] = (float)(1 - dot / whole);
-                    blend.Colors[3] = Soft.WithAlpha(colour, opacity);
+                    blend.Colors[3] = Soft.WithAlpha(colour, opacity * Brand.GlowEdgeAlpha);
                     blend.Positions[4] = 1f;
-                    blend.Colors[4] = Soft.WithAlpha(colour, opacity);
+                    blend.Colors[4] = Soft.WithAlpha(colour, opacity * Brand.GlowEdgeAlpha);
                     brush.InterpolationColors = blend;
                     g.FillPath(brush, path);
                 }

@@ -1414,6 +1414,22 @@ class WindowsTests(unittest.TestCase):
         self.assertEqual(alpha, 255)
         self.assertEqual((red, green, blue), brand.rgb(brand.LIGHT["danger"]))
 
+    def test_the_cards_light_is_lit_and_still_with_no_glow(self):
+        """The card is drawn once and never moves its light, so it shows brand's still light whatever its state: the
+        dot at its full colour and nothing round it, as every surface does when its light holds still."""
+        for kind, payload, token in (("interruption", EVENTS[0][1], "active"),
+                                     ("result", {"state": "submission_failed"}, "danger")):
+            with self.subTest(kind):
+                card = self.offscreen(build(kind, payload))
+                card.paint(10_000)
+                halo = next(item for item in card.plan["items"] if item["kind"] == "halo")
+                cx, cy = int(halo["cx"]), int(halo["cy"])
+                blue, green, red, _ = self.pixel(card.body, cx, cy)
+                self.assertEqual((red, green, blue), brand.rgb(brand.LIGHT[token]))
+                ground = self.pixel(card.body, cx + 10, cy)
+                for distance in (6, 7, 8):
+                    self.assertEqual(self.pixel(card.body, cx + distance, cy), ground, distance)
+
     def test_every_scale_and_theme_draws(self):
         for theme, scale in itertools.product(brand.THEMES, (1.0, 1.5, 2.0)):
             with self.subTest(theme=theme, scale=scale):

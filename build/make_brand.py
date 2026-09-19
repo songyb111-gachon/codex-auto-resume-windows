@@ -173,8 +173,9 @@ def sections():
          "        // B is a Gaussian with sigma B/2. The inset recipe is drawn inside the box. Dark's recipes\n"
          "        // are another shape: read both themes through ElevationCount and ElevationShadow.",
          elevation),
-        ("The status light (brand.STATUS_DOT, brand.GLOW): the dot keeps its size, and the glow's\n"
-         "        // numbers are the popup's and the panel's too.",
+        ("The status light (brand.STATUS_DOT, brand.GLOW): the dot keeps its size, and its cycle - fall,\n"
+         "        // rise, bloom and withdraw, as fractions of it - and the glow's numbers are the popup's and the\n"
+         "        // panel's too.",
          light),
         ("The check box's mark (brand.CHECK_MARK): the centre line's start, corner and end in CSS px\n"
          "        // from the box's outer top-left corner, on a CheckSize box. Stroke it CheckStroke wide with\n"
@@ -269,43 +270,37 @@ def methods() -> str:
         lines.append("            if (%s) return SystemColors.%s;\n" % (_condition(states), name))
     lines += ["            return SystemColors.GrayText;\n", "        }\n", "\n"]
     lines += [
-        "        /// The glow around the status dot for one frame, or false when the state has none.\n",
-        "        /// brand.glow() in C#: `arc` is the checking arc's start angle in degrees, or -1, and a\n",
-        "        /// negative or NaN sinceEnteredMs means the state's one pulse is over. The caller draws\n",
-        "        /// no glow in High Contrast.\n",
+        "        /// The status light for one frame, or false when the light is off: brand.glow() in C#. `dim` is\n",
+        "        /// how far the dot is drawn from its colour toward the ground under it, `opacity` multiplies the\n",
+        "        /// glow's falloff, `spread` is how far out the glow is - 0 none, 1 GlowReach past the dot's edge -\n",
+        "        /// and `arc` is the checking arc's start angle in degrees, or -1. A negative or NaN sinceEnteredMs\n",
+        "        /// means the state's one pulse is over. The caller neither dims the dot nor draws a glow in High\n",
+        "        /// Contrast.\n",
         "        internal static bool Glow(string state, double elapsedMs, double sinceEnteredMs, bool reduced,\n",
-        "                                  out double opacity, out double scale, out double arc)\n",
+        "                                  out double dim, out double opacity, out double spread, out double arc)\n",
         "        {\n",
+        "            dim = 0;\n",
         "            opacity = 0;\n",
-        "            scale = 1;\n",
+        "            spread = 0;\n",
         "            arc = -1;\n",
     ]
     for state in brand.GLOW_BREATHES:
         name = _camel(state)
         lines += [
             "            if (%s)\n" % _condition((state,)),
-            "                return Breathe(elapsedMs, reduced, Glow%sMs, Glow%sLow, Glow%sHigh,\n" % (name, name, name),
-            "                               Glow%sScaleLow, Glow%sScaleHigh, out opacity, out scale);\n" % (name, name),
+            "                return reduced || Light(elapsedMs %% Glow%sMs / Glow%sMs, out dim, out opacity, out spread);\n"
+            % (name, name),
         ]
     lines += [
-        '            if (state == "waiting")\n',
-        "            {\n",
-        "                opacity = GlowStill;\n",
-        "                return true;\n",
-        "            }\n",
+        '            if (state == "waiting") return true;\n',
         '            if (state == "checking")\n',
         "            {\n",
-        "                opacity = GlowStill;\n",
         "                arc = reduced ? GlowArcStillAt : elapsedMs % GlowArcMs / GlowArcMs * 360.0;\n",
         "                return true;\n",
         "            }\n",
         "            if (%s)\n" % _condition(brand.GLOW_PULSES),
-        "            {\n",
-        "                opacity = GlowStill;\n",
-        "                if (!reduced && sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs)\n",
-        "                    opacity = GlowStill + (GlowAttentionPeak - GlowStill) * Breath(sinceEnteredMs, GlowAttentionMs);\n",
-        "                return true;\n",
-        "            }\n",
+        "                return reduced || !(sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs)\n",
+        "                       || Light(sinceEnteredMs / GlowAttentionMs, out dim, out opacity, out spread);\n",
         "            return false;\n",
         "        }\n",
         "\n",
@@ -318,20 +313,7 @@ def methods() -> str:
         % _condition(brand.GLOW_PULSES),
         "        }\n",
         "\n",
-        "        private static bool Breathe(double elapsedMs, bool reduced, double cycleMs, double low, double high,\n",
-        "                                    double small, double large, out double opacity, out double scale)\n",
-        "        {\n",
-        "            if (reduced)\n",
-        "            {\n",
-        "                opacity = (low + high) / 2;\n",
-        "                scale = 1;\n",
-        "                return true;\n",
-        "            }\n",
-        "            double wave = Breath(elapsedMs, cycleMs);\n",
-        "            opacity = low + (high - low) * wave;\n",
-        "            scale = small + (large - small) * wave;\n",
-        "            return true;\n",
-        "        }\n",
+    ] + light_method() + [
         "\n",
         "        /// 0 at the start of a cycle, 1 halfway, 0 again: a raised cosine.\n",
         "        private static double Breath(double elapsedMs, double cycleMs)\n",
@@ -342,6 +324,51 @@ def methods() -> str:
     lines += ["\n"] + ease_method()
     return "".join(lines)
 
+
+# What each of brand.GLOW_PHASES does, as a C# statement of its eased progress: the dot dims and
+# comes back with no glow, and only then, lit, the glow spreads and draws back in.
+_PHASE_EFFECTS = {"fall": "dim = GlowDotDim * %s;", "rise": "dim = GlowDotDim * (1.0 - %s);",
+                  "bloom": "spread = %s;", "withdraw": "spread = 1.0 - %s;"}
+
+
+def light_method() -> list:
+    """brand.glow_phase() in C#: the phases in brand.GLOW_PHASES' order, each eased on its own, with
+    the same subtractions in the same order, so the window's light is brand's to the last bit."""
+    phases = brand.GLOW_PHASES
+    if set(phases) != set(_PHASE_EFFECTS) or len(phases) != len(_PHASE_EFFECTS):
+        raise ValueError("Brand.cs knows what fall, rise, bloom and withdraw do, and nothing else")
+    names = ["Glow" + _camel(phase) for phase in phases]
+    lines = [
+        "        /// The light at `fraction` of GLOW's cycle (brand.glow_phase): the dot dims and comes back\n",
+        "        /// with no glow, and only then, lit, the glow spreads and draws back in, each phase eased as\n",
+        "        /// half a raised cosine.\n",
+        "        private static bool Light(double fraction, out double dim, out double opacity, out double spread)\n",
+        "        {\n",
+        "            dim = 0;\n",
+        "            spread = 0;\n",
+    ]
+    for index, (phase, name) in enumerate(zip(phases, names)):
+        if index == 0:
+            lines.append("            if (fraction < %s) %s\n"
+                         % (name, _PHASE_EFFECTS[phase] % ("Eased(fraction / %s)" % name)))
+        elif index < len(phases) - 1:
+            lines.append("            else if ((fraction -= %s) < %s) %s\n"
+                         % (names[index - 1], name, _PHASE_EFFECTS[phase] % ("Eased(fraction / %s)" % name)))
+        else:
+            lines.append("            else %s\n"
+                         % (_PHASE_EFFECTS[phase] % ("Eased((fraction - %s) / %s)" % (names[index - 1], name))))
+    lines += [
+        "            opacity = GlowPeak * spread;\n",
+        "            return true;\n",
+        "        }\n",
+        "\n",
+        "        /// Half a raised cosine: 0 at 0, 1 at 1, with no corner at either end.\n",
+        "        private static double Eased(double progress)\n",
+        "        {\n",
+        "            return 0.5 - 0.5 * Math.Cos(Math.PI * Math.Min(1.0, Math.Max(0.0, progress)));\n",
+        "        }\n",
+    ]
+    return lines
 
 def ease_method() -> list:
     """brand.ease() in C#: how far a transition has come after `progress` of its time, on the

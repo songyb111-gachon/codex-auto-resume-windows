@@ -560,14 +560,9 @@ def next_focus(order, current, backwards=False):
 
 # ------------------------------------------------------------------------------- motion
 def halo(state, elapsed_ms, since_entered_ms=None, *, reduced=False):
-    """The glow around the state dot for one frame, or None when there is none.
-
-    It is brand's status light, the one definition the window and the panel draw too: `opacity`
-    multiplies the glow's soft falloff, `scale` multiplies its outer radius, and `arc` is the
-    start angle of the checking arc in degrees (None when there is no arc). Monitoring breathes
-    slowly and low, waiting holds still, checking turns its arc, recovering breathes a little
-    quicker and brighter, a problem glows up once when it arrives, and a pause has no glow.
-    """
+    """The state dot's light for one frame, or None when it is off: brand's status light, which the window and the
+    panel draw too. `dim` is how far the dot is drawn toward the card, `opacity` multiplies the glow's soft falloff,
+    `spread` is how far out the glow is and `arc` the checking arc's start angle in degrees, or None."""
     return brand.glow(state, elapsed_ms, since_entered_ms, reduced=reduced)
 
 
@@ -2208,14 +2203,18 @@ class Renderer:
             if arc is not None:
                 paint.arc(cx, cy, arc_radius, arc, light["arc_sweep"], colour, arc_width)
             return
-        fill = DOT_FILL.get(state, "idle")
-        if frame is not None:
-            paint.glow(cx, cy, brand.glow_radius(dot, frame["scale"]) * scale, brand.glow_stops(dot),
-                       self._rgb(fill), frame["opacity"])
-        paint.fill_circle(cx, cy, dot * scale, self._argb(fill))
+        self._light(paint, cx, cy, dot, scale, DOT_FILL.get(state, "idle"), frame)
         if arc is not None:
             paint.arc(cx, cy, arc_radius, arc, light["arc_sweep"], self._argb("active", light["arc_alpha"]),
                       arc_width)
+
+    def _light(self, paint, cx, cy, dot, scale, fill, frame):
+        """The dot and its glow for a brand.glow frame (None: off). Dimmed, the dot is its colour over the card."""
+        dim, opacity = (frame["dim"], frame["opacity"]) if frame is not None else (0.0, 0.0)
+        if opacity > 0:
+            paint.glow(cx, cy, brand.glow_radius(dot, frame["spread"]) * scale, brand.glow_stops(dot), self._rgb(fill),
+                       opacity)
+        paint.fill_circle(cx, cy, dot * scale, self._argb(fill, 1.0 - dim))
 
     def _text(self, dc, plan, busy):
         gdi32, user32 = _dll("gdi32"), _dll("user32")
@@ -2374,7 +2373,6 @@ class Popup:
         self._frame_running = False
         self._state = None
         self._state_since = time.monotonic()
-        self._epoch = time.monotonic()
         self._reduced = False
         self._contrast = False
         self._apps_light = None          # Windows' app mode when last asked: True, False or None
@@ -2697,11 +2695,11 @@ class Popup:
             self._frame_running = False
 
     def frame(self):
-        """The halo for this instant."""
+        """The halo for this instant, its cycle starting with its state, as the window's does."""
         if self._vm is None:
             return None
-        return halo(self._vm["state"], (time.monotonic() - self._epoch) * 1000.0,
-                    self._since_state_ms(), reduced=self._reduced)
+        since = self._since_state_ms()
+        return halo(self._vm["state"], since, since, reduced=self._reduced)
 
     def render(self):
         """Draw the current view into the canvas and return it (the tests read it back)."""
