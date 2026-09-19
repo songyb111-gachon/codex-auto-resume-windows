@@ -202,18 +202,26 @@ were before, and nothing slides under Reduce motion, Windows' animation setting 
 
 The notification-area icon is sixteen pixels across and glanced at, so it does not copy the
 six-state light; it speaks a smaller language with the mark it already has. The head - the bright
-dot at the leading end of the ring - is what moves. While the watcher watches it breathes, dimming
-toward the badge's deep blue and back on `GLOW`'s monitoring rhythm, and now and then travels once,
-slowly, round its own ring; while a recovery is in progress it keeps travelling, a turn per `GLOW`'s
-arc rhythm, on the recovering breath; paused it is grey and still; a problem is its colour, one
-pulse on `GLOW`'s attention rhythm, then held. The motion adds no shape and no colour: the frames
-are the mark itself, drawn from `ICON_SHAPE` by the same rasteriser as the `.ico`, with the head
-moved and recoloured, and at rest the icon is exactly the icon it has always been. Of `GLOW` the
-icon reads those four rhythms and nothing else. Its own few numbers - how often a watching icon
-turns, the head's positions, the breath's brightness steps - are `tray.py`'s `ICON_MOTION`,
-deliberately not `brand.py`'s, because every `GLOW` key is generated into the window and no window
-draws the icon. It holds still under Reduce motion, Windows' animation setting, High Contrast,
-battery saver, a locked session, and while it sits in the overflow area.
+dot at the leading end of the ring - is what moves. While the watcher watches it breathes four times,
+dimming toward the badge's deep blue and back on `GLOW`'s monitoring rhythm, and then turns once
+round its own ring, clockwise, in one breath's time and at full brightness, eased in and out: a loop
+of five slots, each one breath long. It never breathes while it turns, and every hand-over is at
+full brightness, where a breath and a turn both begin and end. While a recovery is in progress it
+keeps turning, clockwise, a turn per `GLOW`'s arc rhythm, at full brightness and without breathing;
+paused it is grey and still; a problem is its colour, one pulse on `GLOW`'s attention rhythm, then
+held. The motion adds no shape and no colour: the frames are the mark itself, drawn from
+`ICON_SHAPE` by the same rasteriser as the `.ico`, with the head moved - 24 positions, fifteen
+degrees apart - and recoloured - 24 levels of brightness, a tint of the head and never a stored
+frame - and at rest the icon is exactly the icon it has always been. Of `GLOW` the icon reads those
+three rhythms and nothing else. Its own few numbers - how many breaths come before a turn, the
+head's positions, the breath's levels and the frame rates - are `tray.py`'s `ICON_MOTION`,
+deliberately not `brand.py`'s, because every `GLOW` key is generated into the window's status light,
+and the window's taskbar button reads the icon's own from `Brand.Mark`. The README shows the motion
+as a GIF drawn from the icon's own frames (`docs/images/icon-motion.gif`, made by
+`build/make_screenshots.py`). It holds still under Reduce motion, Windows' animation setting, High
+Contrast, battery saver, a locked session, and while Windows says it sits in the overflow area -
+which Windows 11 build 26200 does not: it gives such an icon the overflow button's place, and there
+the icon moves unseen.
 
 ## Light, dark and High Contrast
 
