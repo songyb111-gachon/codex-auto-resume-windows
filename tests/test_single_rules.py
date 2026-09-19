@@ -498,9 +498,18 @@ class EpochTests(unittest.TestCase):
                          [946684800, 1700000000, 1.7e9, 1700000000.5, 4102444800])
 
     def test_the_app_servers_usage_windows_accept_whole_seconds_to_2100(self):
-        self.assertEqual(accepted_by(lambda value: windows._epoch(value) is not None),
+        """Read where the App Server's answer is read: a window's reset time outside this makes
+        the whole snapshot unknown, and one inside it is kept exactly as it came."""
+        def usage(value):
+            return windows.parse_usage({"rateLimitsByLimitId": {"codex": {"primary": {
+                "usedPercent": 100, "windowDurationMins": 300, "resetsAt": value}}}})
+
+        self.assertEqual(accepted_by(lambda value: value is not None
+                                     and usage(value)["reason"] != "usage_snapshot_unknown"),
                          [1, 946684799, 946684800, 1700000000, 4102444800])
-        self.assertIs(type(windows._epoch(1700000000)), int)
+        self.assertIs(type(usage(1700000000)["reset_at"]), int)
+        self.assertEqual(usage(1700000000)["windows"][0]["reset_at"], 1700000000)
+        self.assertIsNone(usage(None)["reset_at"], "no reset time is allowed, and stays none")
 
     def test_the_registry_accepts_2000_to_2100(self):
         self.assertEqual(accepted_by(lambda value: value is not None and compat._epoch_or_none(value) is not None),
