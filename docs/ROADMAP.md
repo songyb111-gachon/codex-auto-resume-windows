@@ -141,11 +141,7 @@ Interface work that came out of using v0.6.4:
 - three fixes found while planning the refactor,
 - tests that keep every safety check reading the whole package, so that moving code can never
   quietly take it out of a check's sight,
-- screenshot checks keyed on what the window is shown rather than on which files changed,
-- golden copies of the replies the window and the panel in Codex receive, so a split that changes
-  a single byte of them fails,
-- one implementation of rules that were written more than once, shared identifiers and
-  vocabularies, and typed contracts between the layers.
+- screenshot checks keyed on what the window is shown rather than on which files changed.
 
 ---
 
@@ -153,6 +149,13 @@ Interface work that came out of using v0.6.4:
 
 v0.6.6 is planned as the major structural cleanup of the Python implementation. It was the main
 part of v0.6.5 in the earlier plan; v0.6.5 ships its groundwork, and the split itself moves here.
+
+Before anything moves:
+
+- golden copies of the replies the window and the panel in Codex receive, so a split that changes
+  a single byte of them fails,
+- one implementation of rules that were written more than once, shared identifiers and
+  vocabularies, and typed contracts between the layers.
 
 Main goals:
 
