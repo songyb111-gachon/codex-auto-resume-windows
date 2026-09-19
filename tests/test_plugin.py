@@ -603,6 +603,36 @@ class ReleaseWorkflowTests(unittest.TestCase):
                          "payload/CodexAutoResumeSettings.exe"):
             self.assertIn(required, self.text)
 
+    # What the bootstraps of v0.5.2 to v0.6.4 require of an archive ($required in Test-Archive, and from
+    # v0.6.0 the payload root's files). Those bootstraps are installed on people's machines and check every
+    # update, so an archive missing any of these is one they refuse: the release must never publish it.
+    PUBLISHED_BOOTSTRAPS_REQUIRE = frozenset({
+        "payload/runtime/python.exe", "payload/app/src/codex_auto_resume/mcpserver.py",
+        "payload/app/mcp/codex-auto-resume-mcp.exe", "payload/app/.mcp.json",
+        "payload/app/.codex-plugin/plugin.json", "payload/app/scripts/plugin_setup.py",
+        "payload/CodexAutoResumeSettings.exe", "payload/codex-auto-resume.ico",
+        "install/install.ps1", "Install.cmd"})
+
+    def checked(self):
+        import re
+        block = re.search(r"foreach \(\$required in @\((.*?)\)\)", self.text, re.S)
+        self.assertIsNotNone(block, "release.yml's archive check was not found")
+        return set(re.findall(r"'([^']+)'", block.group(1)))
+
+    def test_it_checks_everything_this_bootstrap_requires_of_an_archive(self):
+        import re
+        bootstrap = (ROOT / "scripts" / "bootstrap.ps1").read_text(encoding="utf-8")
+        required = re.search(r"\$required = @\((.*?)\)", bootstrap, re.S)
+        root = re.search(r"\$rootFiles = @\((.*?)\)", bootstrap, re.S)
+        wanted = set(re.findall(r"'([^']+)'", required.group(1)))
+        wanted |= {"payload/" + name for name in re.findall(r"'([^']+)'", root.group(1))}
+        self.assertEqual(wanted - self.checked(), set(),
+                         "release.yml would publish an archive the bootstrap refuses to install")
+
+    def test_it_checks_everything_a_published_bootstrap_requires(self):
+        self.assertEqual(self.PUBLISHED_BOOTSTRAPS_REQUIRE - self.checked(), set(),
+                         "an installed bootstrap would refuse this release as an update")
+
 
 class ShortPathOwnershipTests(unittest.TestCase):
     """One directory, several spellings, one answer.
