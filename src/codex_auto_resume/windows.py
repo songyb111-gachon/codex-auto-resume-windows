@@ -20,7 +20,7 @@ import threading
 import time
 
 from . import machine
-from .domain import ids
+from .domain import ids, vocabulary
 
 NO_WINDOW = 0x08000000 if os.name == "nt" else 0
 # A Codex update bumps the version string, which alone must not disable auto-resume.
@@ -30,9 +30,9 @@ NO_WINDOW = 0x08000000 if os.name == "nt" else 0
 REQUIRED_QUEUE_FLAGS = ("--thread", "--message")
 # The only App Server methods the finite helper may call.
 PROTOCOL_METHODS = ("initialize", "account/rateLimits/read", "thread/queue/delete")
-# The local-check vocabulary of the Compatibility Registry (compat.RESULTS), spelled here so
-# the adapter does not import the registry to describe its own probes.
-PASS, FAIL, UNAVAILABLE = "PASS", "FAIL", "UNAVAILABLE"
+# The Compatibility Registry's local-check words, which the adapter's own probes answer with.
+PASS, FAIL, UNAVAILABLE = (vocabulary.LocalResult.PASS, vocabulary.LocalResult.FAIL,
+                           vocabulary.LocalResult.UNAVAILABLE)
 _VERIFIED = None
 
 

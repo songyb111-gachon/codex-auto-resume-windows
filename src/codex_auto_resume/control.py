@@ -21,7 +21,7 @@ from pathlib import Path
 import time
 
 from . import config, continuation, machine, reasons, settings, startup
-from .domain import ids
+from .domain import ids, vocabulary
 from .openstate import UPGRADE_PENDING, open_state
 from .store import (MAX_BUDGET_RESETS, TERMINAL, LegacyStore, StateFromNewerVersion, Store,
                     StoreError, UpgradePending)
@@ -64,13 +64,7 @@ NEWER_STATE = ("The recovery state was written by a newer version of Codex Auto 
 # every member in every language, and the tests refuse both a raise whose code is not here
 # and a code that reaches the catalogs without a sentence to say it, so a new refusal
 # cannot quietly arrive untranslated.
-ERROR_CODES = frozenset({
-    "invalid_id", "invalid_thread_id", "invalid_enabled", "no_such_interruption",
-    "not_installed", "start_failed", "store_unavailable", "newer_state", "upgrade_pending",
-    "state_busy", "not_exhausted", "cancel_requested", "possibly_sent", "reset_limit",
-    "already_finished", "being_sent", "in_flight", "observing", "cannot_continue",
-    "cannot_check_now", "file_exists", "request_failed", "thread_mismatch",
-})
+ERROR_CODES = frozenset(vocabulary.ErrorCode)
 # The code for a refusal with nothing more specific to say, and the one every caller may
 # assume is present. A rejection carrying no code at all would leave a front end holding
 # the English sentence with no way to say it, which is the gap the codes exist to close,

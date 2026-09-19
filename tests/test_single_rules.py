@@ -563,6 +563,14 @@ def literal(node):
     return None
 
 
+def listed(node):
+    """The words a literal spells, or an enum class assigns to its members; None otherwise."""
+    if isinstance(node, ast.ClassDef):
+        return {statement.value.value for statement in node.body
+                if isinstance(statement, ast.Assign) and isinstance(statement.value, ast.Constant)}
+    return literal(node)
+
+
 def calls(name):
     return lambda node: isinstance(node, ast.Call) and getattr(node.func, "attr", getattr(node.func, "id", None)) == name
 
@@ -619,7 +627,7 @@ RULES = {
         may_be_queued_shape,
         {"machine.py": "may_be_queued"}),
     "the states the watch follows, written out": (
-        lambda node: literal(node) == set(WATCHED),
+        lambda node: listed(node) == set(WATCHED),
         {}),
     "opening the state for a command, older store and all": (
         calls("LegacyStore"),
@@ -644,8 +652,8 @@ RULES = {
         calls("reconfigure"),
         {"controlcli.py": "use_utf8"}),
     "the window's pages": (
-        lambda node: (literal(node) or set()) >= {"overview", "statistics", "diagnostics"},
-        {"machine.py": ""}),
+        lambda node: (listed(node) or set()) >= {"overview", "statistics", "diagnostics"},
+        {"domain/vocabulary.py": "Page"}),
     "a plausible time's bounds": (
         lambda node: constant(node, 253402300799, 946684800, 4102444800),
         {"machine.py": ""}),

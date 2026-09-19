@@ -22,6 +22,8 @@ from __future__ import annotations
 import json
 import math
 
+from .domain.vocabulary import (Actor, EventCode, GateName, GateResult, Overlay, Page, PublicCode,
+                                ReasonCode, RecordState, TurnStatus, WithdrawReason)
 from .failures import USAGE_LIMIT
 
 # ----------------------------------------------------------------------- stored states
@@ -48,7 +50,8 @@ TERMINAL = frozenset({
     "cancelled", "superseded", "superseded_by_user", "failed", "submission_unknown",
     "terminal_failure",
 }) | EXHAUSTED | OUTCOMES
-STATES = WAITING | CLAIMED | IN_FLIGHT | OBSERVING | TERMINAL
+# Every stored state, each in exactly one of the groups above (tests/test_vocabulary.py).
+STATES = frozenset(RecordState)
 
 # The 18 states schema 2 knew, for the downgrade path.
 V2_STATES = frozenset({
@@ -172,51 +175,17 @@ def waiting_state(record: dict, now: float) -> str:
 
 
 # ---------------------------------------------------------------------------- reasons
-WITHDRAW_REASONS = frozenset({
-    "cancel", "paused", "paused_unknown", "thread_disabled", "superseded", "superseded_by_user",
-    "user_queued_input", "not_loaded", "expired", "projection_stale", "duplicate_owner",
-})
+WITHDRAW_REASONS = frozenset(WithdrawReason)
 SUPERSEDE_WITHDRAWALS = frozenset({"superseded", "superseded_by_user", "user_queued_input"})
-TURN_STATUSES = frozenset({"inProgress", "completed", "failed", "interrupted", "other"})
-ACTORS = frozenset({"engine", "gui", "cli", "toast", "mcp"})
+TURN_STATUSES = frozenset(TurnStatus)
+ACTORS = frozenset(Actor)
 
 # Every reason the engine or the store writes. The journal stores only these; anything
 # else is recorded as "other" rather than refused, because a journal entry must never
 # be the thing that stops a state change from committing.
-REASONS = frozenset({
-    # waiting
-    "desktop_app_unavailable", "notLoaded", "loaded_state_unknown", "loaded_recheck_failed",
-    "usage_unavailable", "usage_unknown", "usage_recheck_failed", "daily_submission_cap",
-    "thread_submission_cooldown", "queue_process_not_started", "projection_stale",
-    "user_input_queued", "waiting_reset", "other_recovery_in_flight", "released_before_send",
-    "released_after_withdrawal", "budget_restored", "retry_now",
-    # stops
-    "recovery_budget", "no_progress_budget", "chain_cap", "queue_launch_retry_limit",
-    "later_turn_exists", "latest_turn_changed", "parent_cancelled", "parent_handed_over",
-    "user_cancelled", "usage_never_available", "usage_not_restored_after_reset",
-    "duplicate_owner", "category_disabled",
-    # sending and receipts
-    "awaiting_delivery_receipt", "queue_result_unknown_do_not_resend",
-    "no_receipt_do_not_resend", "multiple_matching_queue_items", "queue_cleanup_unconfirmed",
-    "withdraw_unconfirmed", "duplicate_marker", "ambiguous_receipt", "queued_item_edited",
-    "owned_queue_removed", "turn_without_user_item", "post_send_bookkeeping_failed",
-    # outcomes
-    "marker_not_turn_initiator", "user_joined", "stale_turn_row", "unknown_turn_status",
-    "outcome_deadline", "correlation_conflict", "progress_observed", "no_progress_observed",
-    # `progress_then_turn_failed` is a recovery that worked and was interrupted again -
-    # usually by the next usage limit, which Codex records on the turn as a failure. The
-    # record is `recovered`, because it was; this reason is how the journal keeps the
-    # distinction that the turn itself did not end cleanly.
-    "turn_failed", "progress_then_turn_failed", "turn_interrupted",
-}) | WITHDRAW_REASONS
+REASONS = frozenset(ReasonCode)
 
-EVENT_CODES = frozenset({
-    "detected", "state", "claim", "submitted", "release_claim", "withdraw",
-    "release_withdrawn", "correlated", "continuation_after_user_turn",
-    "dispatched_despite_delete", "dispatched_while_paused", "cancel", "cancel_requested",
-    "reset_budget", "retry_now", "identity_drift", "hidden", "migrated",
-    "disabled_threads_with_pending", "thread_enabled", "other",
-})
+EVENT_CODES = frozenset(EventCode)
 # Bits for `events.flags`. Integers only: nothing a person wrote can be stored here.
 FLAG_AFTER_USER_WORK = 1
 FLAG_USER_JOINED = 2
@@ -248,12 +217,7 @@ def turn_status(value) -> str | None:
 WAITING_CODES = frozenset({
     "waiting_reset", "waiting_usage", "waiting_thread", "scheduled", "failed_retryable",
 })
-PUBLIC_CODES = WAITING_CODES | frozenset({
-    "submission_claimed", "submitted", "withdrawing", "turn_running", "turn_finishing",
-    "recovered", "no_progress", "handed_over", "recovery_failed", "stopped_by_user",
-    "outcome_unverified", "delivered_legacy", "cancelled", "superseded", "exhausted",
-    "failed_terminal", "submission_unknown",
-})
+PUBLIC_CODES = frozenset(PublicCode)
 _DIRECT = {
     "waiting_reset": "waiting_reset", "waiting_poll": "waiting_reset",
     "waiting_for_usage": "waiting_usage",
@@ -304,12 +268,11 @@ def public_reason(record: dict):
 # The settings window's pages, in the order it shows them: the ones a notification's button
 # or the icon may open it on. A closed list, because the page is spliced into a command line -
 # nothing else may ever reach it, whatever a caller passes.
-PAGES = ("overview", "pending", "history", "statistics", "diagnostics", "settings")
+PAGES = tuple(Page)
 
 
 # ----------------------------------------------------------------------------- overlays
-OVERLAYS = ("cancel_pending", "paused", "thread_disabled", "compatibility_blocked",
-            "engine_unavailable", "watcher_not_ticking")
+OVERLAYS = tuple(Overlay)
 
 
 def overlays(record: dict, *, enabled=True, thread_enabled=True, watcher=None) -> list:
@@ -352,12 +315,8 @@ def describe(record: dict, **surroundings) -> dict:
 
 # -------------------------------------------------------------------------------- gates
 PASS, WAIT, BLOCK, UNKNOWN = "PASS", "WAIT", "BLOCK", "UNKNOWN"
-GATE_RESULTS = frozenset({PASS, WAIT, BLOCK, UNKNOWN})
-GATES = (
-    "consent", "engine_compatible", "single_owner", "submission_safe", "identity",
-    "known_failure", "schedule", "chain_budget", "attempt_budget", "no_progress_budget",
-    "thread_available", "no_newer_user_work", "usage",
-)
+GATE_RESULTS = frozenset(GateResult)
+GATES = tuple(GateName)
 NOT_CHECKED = "not_checked"
 GATE_REASONS = REASONS | frozenset({
     NOT_CHECKED, "paused", "thread_disabled", "cancel_requested", "not_due", "possibly_sent",

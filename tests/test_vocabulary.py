@@ -381,6 +381,15 @@ class HomeTests(unittest.TestCase):
         self.assertLessEqual({check for checks, _tier in compat.CAPABILITIES.values() for check in checks},
                              set(v.CompatCheck))
 
+    def test_every_state_and_every_category_is_in_exactly_one_group(self):
+        """machine.STATES and failures.CATEGORIES are the whole vocabulary; the groups the rest of
+        the product decides by must still cover it, each member once."""
+        from codex_auto_resume import failures, machine
+        groups = (machine.WAITING, machine.CLAIMED, machine.IN_FLIGHT, machine.OBSERVING, machine.TERMINAL)
+        self.assertEqual(sorted(state for group in groups for state in group), sorted(machine.STATES))
+        groups = (failures.TRANSIENT, failures.TERMINAL, {failures.USAGE_LIMIT, failures.UNKNOWN})
+        self.assertEqual(sorted(category for group in groups for category in group), sorted(failures.CATEGORIES))
+
     def test_a_members_name_is_its_value_in_capitals(self):
         for cls, member in members():
             with self.subTest(vocabulary=cls.__name__, member=member.value):

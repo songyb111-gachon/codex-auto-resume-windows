@@ -19,7 +19,7 @@ from .domain import ids
 MAX_SCAN_BYTES = 8 * 1024 * 1024
 MAX_META_BYTES = 256 * 1024
 MAX_ITEM_BYTES = 1024 * 1024
-KNOWN_STATUSES = {"failed", "completed", "interrupted", "inProgress"}
+KNOWN_STATUSES = machine.TURN_STATUSES - {"other"}      # Codex's own four; "other" is ours
 # Item types that count as a turn having produced something. Anything Codex adds later
 # does not count until it is added here on purpose.
 PROGRESS_ITEM_TYPES = frozenset({"agentMessage", "commandExecution", "fileChange", "mcpToolCall"})

@@ -43,6 +43,9 @@ import re
 import time
 
 from . import machine
+from .domain.vocabulary import (BundledState, CacheOrigin, CacheState, CompatCheck, CompatSource, CompatState,
+                                DataSource, EngineState, ImportReason, LocalResult, PermitReason,
+                                RegistryReason, ResolutionReason, Tier, ViewReason, ViewStatus)
 
 # ------------------------------------------------------------------------------ formats
 FORMAT_PREFIX = "codex-auto-resume-compat/"
@@ -73,52 +76,29 @@ EPOCH_MIN, EPOCH_MAX = machine.EPOCH_CODEX      # 2000-01-01 to 2100-01-01, as C
 
 # ------------------------------------------------------------------------------ states
 VERIFIED, COMPATIBLE, INCOMPATIBLE, UNKNOWN = "VERIFIED", "COMPATIBLE", "INCOMPATIBLE", "UNKNOWN"
-STATES = (VERIFIED, COMPATIBLE, INCOMPATIBLE, UNKNOWN)
+STATES = tuple(CompatState)
 # Worst first. The coarse state is the worst of the capabilities it summarises.
 _ORDER = {INCOMPATIBLE: 0, UNKNOWN: 1, COMPATIBLE: 2, VERIFIED: 3}
 
 # What one local check found.
-PASS, FAIL, UNAVAILABLE, NOT_APPLICABLE = "PASS", "FAIL", "UNAVAILABLE", "NOT_APPLICABLE"
-RESULTS = (PASS, FAIL, UNAVAILABLE, NOT_APPLICABLE)
+PASS, FAIL, UNAVAILABLE, NOT_APPLICABLE = (LocalResult.PASS, LocalResult.FAIL,
+                                          LocalResult.UNAVAILABLE, LocalResult.NOT_APPLICABLE)
+RESULTS = tuple(LocalResult)
 
 # The product dimension, which is not a registry state: how a capability is offered.
-TIERS = ("conservative", "advanced", "experimental", "unsupported")
+TIERS = tuple(Tier)
 
 # The coarse vocabulary the watcher's heartbeat already stores (store.ENGINE_STATES). The
 # stored token for COMPATIBLE stays `structurally_compatible`: it is a wire value.
-COARSE = {VERIFIED: "verified", COMPATIBLE: "structurally_compatible",
-          INCOMPATIBLE: "incompatible", UNKNOWN: "unknown"}
-ENGINE_STATES = tuple(COARSE.values())
+COARSE = {VERIFIED: EngineState.VERIFIED, COMPATIBLE: EngineState.STRUCTURALLY_COMPATIBLE,
+          INCOMPATIBLE: EngineState.INCOMPATIBLE, UNKNOWN: EngineState.UNKNOWN}
+ENGINE_STATES = tuple(EngineState)
 
 # ------------------------------------------------------------------------------ checks
-# Every local structural check, each grounded in the code path that relies on it. None of
-# them sends anything, starts `codex app-server`, or writes anywhere.
-CHECKS = (
-    # E1 windows.Backend.engine_checks: the binary sits at the official, content-addressed
-    #    %LOCALAPPDATA%\OpenAI\Codex\bin\<hex>\codex.exe.
-    "official_location",
-    # E2 `codex --version` runs and exits 0.
-    "version_runs",
-    # E5 config.discover_codex_exe: exactly one candidate passes (or one was named).
-    "single_candidate",
-    # E4 `codex queue --help` exits 0 and still offers --thread and --message - the one
-    #    interface windows.Backend.send drives.
-    "queue_flags",
-    # E6 source.DB_KINDS: the newest generation of each database has every column the
-    #    read-only adapter reads. A missing column is a FAIL; no database is UNAVAILABLE.
-    "state_schema", "history_schema", "queue_schema",
-    # E7 source.LocalSource.projection: thread_history_projection_state with
-    #    next_rollout_byte_offset, which the freshness gate compares with the rollout file.
-    "projection_table",
-    # The rollout directory the reset hint and eligibility read (source._rollout_path).
-    "sessions_directory",
-    # windows.Backend.loaded: the writer-lock directory, and the Restart Manager API that
-    # inventories it without ever taking a lock.
-    "lock_directory", "restart_manager",
-    # windows.Protocol.call: the two App Server methods usage and withdrawal use are the
-    #    ones the adapter allowlists (a code-level check; nothing is started).
-    "protocol_usage_method", "protocol_delete_method",
-)
+# Every local structural check, each grounded in the code path that relies on it (the
+# vocabulary says which). None of them sends anything, starts `codex app-server`, or writes
+# anywhere.
+CHECKS = tuple(CompatCheck)
 
 # capability -> (the local checks that prove it, tier). The four without checks are not
 # implemented; they are listed so v0.6.6 can offer them, and they stay `unsupported`.
@@ -150,24 +130,17 @@ CAPABILITIES = {
 SEND_GATE = ("engine_present", "exact_thread_recovery")
 
 # Why a capability has the state it has.
-RESOLUTION_REASONS = frozenset({
-    "local_check_failed", "registry_incompatible", "local_check_unavailable",
-    "not_implemented", "registry_verified", "local_checks_passed",
-})
+RESOLUTION_REASONS = frozenset(ResolutionReason)
 # Why a reader could not use the report at all (every capability is then UNKNOWN).
-VIEW_REASONS = frozenset({"report_absent", "report_invalid", "report_stale", "engine_changed"})
+VIEW_REASONS = frozenset(ViewReason)
 REASONS = RESOLUTION_REASONS | VIEW_REASONS
 
 # The reasons a registry document may give. Closed: anything else becomes `unspecified`,
 # so a document can never put words in front of a person or a model.
-REGISTRY_REASONS = frozenset({
-    "queued_message_not_delivered_while_unloaded", "queue_receipt_format_changed",
-    "queue_interface_changed", "schema_changed", "protocol_changed", "delivery_unverified",
-    "maintainer_advisory", "unspecified",
-})
+REGISTRY_REASONS = frozenset(RegistryReason)
 
-SOURCES = ("local", "bundled", "cache")
-BUNDLED_STATES = ("ok", "missing", "rejected")
+SOURCES = tuple(CompatSource)
+BUNDLED_STATES = tuple(BundledState)
 # absent: none imported. ok: in force. expired: past expires_at - its INCOMPATIBLE data
 # still applies, its VERIFIED data does not. rejected: failed validation (kept on disk, not
 # deleted, so a person can look at it). superseded: older than the bundled baseline.
@@ -175,24 +148,18 @@ BUNDLED_STATES = ("ok", "missing", "rejected")
 # published more than FUTURE_SKEW_SECONDS after this computer's clock says it is now - the
 # clock is behind, or the data is misdated - and treated as expired until the clock catches
 # up: its restrictions apply, its trust does not.
-CACHE_STATES = ("absent", "ok", "expired", "rejected", "superseded", "from_newer_product",
-                "from_the_future")
+CACHE_STATES = tuple(CacheState)
 # Time may only ever withhold trust. A cache in any of these standings still restricts -
 # its INCOMPATIBLE data is in force - and only the first may also grant VERIFIED. No clock,
 # however wrong, can lift a restriction.
 RESTRICTING_STATES = ("ok", "expired", "from_the_future")
 TRUSTING_STATES = ("ok",)
-DATA_SOURCES = ("cache", "bundled", "none")
-VIEW_STATUSES = ("ok", "absent", "invalid", "stale", "engine_changed")
-CACHE_ORIGINS = ("main", "file")
+DATA_SOURCES = tuple(DataSource)
+VIEW_STATUSES = tuple(ViewStatus)
+CACHE_ORIGINS = tuple(CacheOrigin)
 
 # Why an import was refused. Closed, like everything else that leaves this module.
-IMPORT_REASONS = frozenset({
-    "too_large", "not_json", "duplicate_key", "not_finite", "too_deep", "not_an_object",
-    "unknown_format", "invalid_field", "signature_required", "range_cannot_grant",
-    "unevidenced_verified", "too_many", "from_the_future", "from_newer_product", "rollback",
-    "unreadable", "not_a_json_file", "write_failed",
-})
+IMPORT_REASONS = frozenset(ImportReason)
 
 VERSION_RE = re.compile(
     r"codex-cli (\d{1,6})\.(\d{1,6})\.(\d{1,6})(?:-alpha\.(\d{1,9})(?:\.(\d{1,9}))?)?")
@@ -813,10 +780,7 @@ def mcp_view(view) -> dict:
 
 
 # ------------------------------------------------------------------------------ v0.6.6
-PERMIT_REASONS = frozenset({
-    "allowed", "incompatible", "unknown", "not_opted_in", "not_verified",
-    "not_acknowledged_for_this_engine", "unsupported_tier",
-})
+PERMIT_REASONS = frozenset(PermitReason)
 
 
 def permits(view, capability, *, tier, opt_in=False, engine_version=None,
