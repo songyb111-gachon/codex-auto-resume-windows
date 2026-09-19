@@ -401,8 +401,56 @@ fail without it:
 If you are unsure whether a change crosses one of those lines, open an issue first and say
 what you are trying to achieve — there is usually a way to get there that keeps the property.
 
+## How the code is layered
+
+The Python package is built in layers, and its imports point one way: down or sideways,
+never up.
+
+- **Domain** — the rules with no side effects: how a failure is classified (`failures.py`),
+  which reasons are recoverable (`reasons.py`), and how a stored state becomes what a person is
+  shown (`machine.py`). The standard library only, and only the parts of it that touch no
+  clock, file or process.
+- **Policy and translation** — the settings schema, the continuation builder, the catalogs,
+  paths and the product version, and the log.
+- **Adapters** — everything that touches the outside: the store, Codex's files and processes,
+  Windows (the registry, the Start menu shortcut, PowerShell, notifications), and the
+  compatibility registry.
+- **The engine** — decides and schedules. It reaches Codex and the store through what it is
+  given rather than by importing them.
+- **Control** — the one layer a front end calls.
+- **Front ends** — the command line, the bridge the settings window talks to, the MCP server
+  and its panel, the watcher's runtime, the notification-area icon, its popup and the card.
+
+`tests/test_layers.py` places every module in one of these, and fails an import that points
+up, a module with no layer, and an import cycle. Where the code does not match the map yet,
+the test lists the real exceptions, and each one fails the test once it is gone, so those
+lists only shrink. The same file lists every import made inside a function, with its reason;
+a new one needs a line there. `tests/test_sizes.py` gives every module a budget of 700 lines,
+and holds the modules already over it to the length they have now.
+
+A test that asserts something about the source itself — that only the watcher sends, that the
+popup reaches nothing that can submit, that no module builds its own PowerShell command —
+reads it through `tests/srcscan.py`: every tracked `.py` file under `src/`, at any depth. Do
+not read one module by name, or glob one directory, to assert that something is absent: when
+the code moves, a test like that keeps passing and stops checking. `tests/test_srcscan.py`
+refuses both shapes, and fails when a `.py` file under `src/` is not tracked, because an
+untracked module is invisible to every scan while the suite still runs it.
+
+Some paths are contracts with programs outside the package and do not move:
+`src/auto_resume.py` (it is in users' sign-in entries) and `src/codex_auto_resume/cli.py` (an
+older launcher, already installed in a user's home, looks for both), and the module names
+the settings window, the MCP launcher, the bootstrap and the release check call.
+`tests/test_structural_invariants.py` pins them.
+
 ## Commit and pull requests
 
 - One change per commit, with a message that says what changed and why.
 - Run the full suite before pushing.
 - If you fixed something a user could hit, add the regression test in the same commit.
+- A commit that only moves code — lines moved verbatim into another file, nothing else
+  changed — is listed in `.git-blame-ignore-revs` by a later commit, so that `git blame`
+  credits each line to the change that last really touched it. Run this once in your clone:
+
+  ```bash
+  git config blame.ignoreRevsFile .git-blame-ignore-revs
+  ```
