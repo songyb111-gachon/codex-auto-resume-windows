@@ -709,7 +709,7 @@ class PlacementTests(unittest.TestCase):
     machine's.
     """
 
-    EXE = r"C:\Users\a\.codex-auto-resume\runtime\pythonw.exe"
+    EXE = r"C:\Users\ExampleUser\.codex-auto-resume\runtime\pythonw.exe"
     SETTINGS = place.NOTIFY_ICON_SETTINGS
     CHEVRON = place.TRAY_NOTIFY
 
@@ -751,7 +751,9 @@ class PlacementTests(unittest.TestCase):
 
     def test_the_path_is_read_as_windows_writes_it(self):
         """Windows writes a path under a known folder as that folder's GUID; case and separators are its own."""
-        guid = "{6D809377-6AF0-444B-8957-A3773F02200E}"
+        # Any known folder's GUID: the reader looks up whatever Windows wrote and the fake folders
+        # map answers, so this one is made up rather than FOLDERID_ProgramFiles itself.
+        guid = "{deadbeef-0000-4000-8000-000000000017}"
         keys = {self.SETTINGS + r"\17": self.entry(0, path=guid + r"\Python313\pythonw.exe")}
         folders = {guid: r"C:\Program Files"}.get
         placement, _ = self.placement(keys, executable=r"C:\PROGRAM FILES\Python313\pythonw.exe", folders=folders)
