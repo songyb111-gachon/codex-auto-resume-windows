@@ -109,15 +109,18 @@ other application opens.
 
 ### Evidence
 
-Everything below was run on the release candidate built from this tree, on one Windows 11 machine
-(Home, build 26200, 3840 x 2160 at 150%, Korean system language, Windows' apps set to dark and the
-product's Theme set to Light).
+Everything below was run on one Windows 11 machine (Home, build 26200, 3840 x 2160 at 150%, Korean
+system language, Windows' apps set to dark and the product's Theme set to Light). The suite, the
+build, the light, the pictures and the dialog were measured on this tree. The three that need an
+installation - the taskbar button in the installed location, the upgrade over v0.6.5 and the
+archive's own checks - were measured on the first candidate for this release, before the controls
+below were made the product's own, and are run again on the candidate that is published.
 
-- **The suite.** 2,556 tests, no failures, under Python 3.13 here (759 s, 8 skipped), and green on
+- **The suite.** 2,568 tests, no failures, under Python 3.13 here (771 s, 8 skipped), and green on
   GitHub's Windows runners for 3.12, 3.13, 3.14 and 3.15. The skips are the opt-in live checks and
   the pin check that waits for the tag.
 - **The window, built twice.** Two builds of `CodexAutoResumeSettings.exe` from these sources are
-  byte-identical (`7c95119e…`, 382,976 bytes). The archive's own digest is not written here - this
+  byte-identical (`97d835b8…`, 386,560 bytes). The archive's own digest is not written here - this
   file ships inside the archive, so naming it would change it - it is published beside the release
   and pinned in `scripts/release.json` afterwards, which is what `docs/VERIFY.md` compares.
 - **The taskbar button, in the installed location.** This is the claim v0.6.5 could not make. With
