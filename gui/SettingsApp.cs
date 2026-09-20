@@ -40,6 +40,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
 using System.Windows.Forms.Automation;
@@ -4050,6 +4051,30 @@ namespace CodexAutoResume
 
     internal static class Program
     {
+        [DllImport("shell32.dll", PreserveSig = false)]
+        private static extern void SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string id);
+
+        /// The identity Windows files this window's taskbar button under, and why it is the window's own.
+        ///
+        /// v0.6.5 moved the mark on the taskbar button by setting the window's big icon frame by frame, and it
+        /// was captured doing so - from a build in a scratch folder. Installed, it never moved. Measured on this
+        /// machine: the same executable, byte for byte, moved the button from a scratch folder and did not move
+        /// it from the installed one, where an instrumented build showed the window setting frame after frame
+        /// into a button that stayed pixel-identical for twenty-four seconds. What decides it is the location:
+        /// Windows files an installed window under the application registered there and paints its button from
+        /// that application's icon, which no window can change. (A Start Menu shortcut alone does not do it: one
+        /// written for a scratch folder, with the same identity and icon, left the button moving.)
+        ///
+        /// So the window claims an identity of its own, which no shortcut registers, and Windows falls back to
+        /// the icon the window itself carries. The notification identity is untouched: toasts are raised by the
+        /// watcher process under the watcher's AUMID, and this call changes only this process. Called before any
+        /// window exists, which is the only time Windows accepts it.
+        internal static void TakeOwnTaskbarIdentity()
+        {
+            try { SetCurrentProcessExplicitAppUserModelID("CodexAutoResume.Settings"); }
+            catch (Exception) { }           // an older shell, or a shell that refuses: the button simply stays still
+        }
+
         [STAThread]
         internal static int Main(string[] argv)
         {
@@ -4059,6 +4084,7 @@ namespace CodexAutoResume
             AppContext.SetSwitch("Switch.UseLegacyAccessibilityFeatures", false);
             AppContext.SetSwitch("Switch.UseLegacyAccessibilityFeatures.2", false);
             AppContext.SetSwitch("Switch.UseLegacyAccessibilityFeatures.3", false);
+            TakeOwnTaskbarIdentity();
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
