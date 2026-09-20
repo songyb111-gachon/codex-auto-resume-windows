@@ -1,0 +1,434 @@
+{
+ "de": {
+  "interruption_no_category": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Codex-Nutzungslimit erreicht. Diese Aufgabe wird nach dem Zurücksetzen fortgesetzt.</text><text>A project  ·  Unterhaltung: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"Nicht fortsetzen\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Dashboard öffnen\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_server": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Serverfehler · Codex wurde vorübergehend unterbrochen. Wird automatisch wiederholt.</text><text>A project  ·  Unterhaltung: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"Nicht wiederholen\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Dashboard öffnen\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_stream": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>p</text><text>Unterbrochene Antwort · Codex wurde vorübergehend unterbrochen. Wird automatisch wiederholt.</text><text>Unterhaltung: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"Nicht wiederholen\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Dashboard öffnen\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_usage_at": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Codex-Nutzungslimit erreicht. Diese Aufgabe wird um 14:05 fortgesetzt.</text><text>A project  ·  Unterhaltung: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"Nicht fortsetzen\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Dashboard öffnen\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_usage_soon": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Codex-Aufgabe</text><text>Codex-Nutzungslimit erreicht. Diese Aufgabe wird nach dem Zurücksetzen fortgesetzt.</text><text>Unterhaltung: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"Nicht fortsetzen\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Dashboard öffnen\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "result_failed": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Fortsetzen nicht möglich</text><text>Der Versuch war nicht erfolgreich. Für diese Aufgabe wird nichts mehr automatisch gesendet.</text><text>A project  ·  Unterhaltung: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_other": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Fortsetzen nicht möglich</text><text>Der Versuch war nicht erfolgreich. Für diese Aufgabe wird nichts mehr automatisch gesendet.</text><text>A project  ·  Unterhaltung: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_resumed": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Fortgesetzt</text><text>Die unterbrochene Aufgabe läuft wieder.</text><text>Unterhaltung: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_turn_started": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Fortgesetzt</text><text>Die unterbrochene Aufgabe läuft wieder.</text><text>A project  ·  Unterhaltung: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_unknown": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Ergebnis des Fortsetzens unbekannt</text><text>Es wird nichts erneut gesendet; prüfen Sie die Unterhaltung.</text><text>A project  ·  Unterhaltung: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "starting_full": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Die Fortsetzung wird an diese Unterhaltung gesendet.</text><text>A project  ·  Unterhaltung: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "starting_none": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Codex-Aufgabe</text><text>Die Fortsetzung wird an diese Unterhaltung gesendet.</text><text>Unterhaltung: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_attempts": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Keine weiteren Versuche</text><text>Keine Wiederherstellungsversuche mehr für diese Aufgabe.</text><text>A project  ·  Unterhaltung: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_cancelled": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Keine weiteren Versuche</text><text>Automatische Wiederherstellung für diese Aufgabe gestoppt.</text><text>Unterhaltung: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_no_progress": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Keine weiteren Versuche</text><text>Die Wiederherstellung brachte keinen Fortschritt und wurde daher gestoppt.</text><text>A project  ·  Unterhaltung: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "unannounced": []
+ },
+ "en": {
+  "interruption_no_category": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Codex usage limit reached. This task will resume after the reset.</text><text>A project  ·  Conversation: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"Don't resume\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Open Dashboard\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_server": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Server error · Codex was temporarily interrupted. Retrying automatically.</text><text>A project  ·  Conversation: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"Don't retry\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Open Dashboard\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_stream": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>p</text><text>Interrupted response · Codex was temporarily interrupted. Retrying automatically.</text><text>Conversation: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"Don't retry\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Open Dashboard\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_usage_at": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Codex usage limit reached. This task will resume at 14:05.</text><text>A project  ·  Conversation: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"Don't resume\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Open Dashboard\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_usage_soon": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Codex task</text><text>Codex usage limit reached. This task will resume after the reset.</text><text>Conversation: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"Don't resume\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Open Dashboard\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "result_failed": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Could not resume</text><text>The attempt did not go through. Nothing more will be sent automatically for this task.</text><text>A project  ·  Conversation: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_other": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Could not resume</text><text>The attempt did not go through. Nothing more will be sent automatically for this task.</text><text>A project  ·  Conversation: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_resumed": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Resumed</text><text>The interrupted task is running again.</text><text>Conversation: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_turn_started": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Resumed</text><text>The interrupted task is running again.</text><text>A project  ·  Conversation: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_unknown": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Resume result unknown</text><text>Nothing will be sent again; check the conversation.</text><text>A project  ·  Conversation: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "starting_full": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Sending the continuation to this conversation.</text><text>A project  ·  Conversation: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "starting_none": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Codex task</text><text>Sending the continuation to this conversation.</text><text>Conversation: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_attempts": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Stopped trying</text><text>Out of recovery attempts for this task.</text><text>A project  ·  Conversation: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_cancelled": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Stopped trying</text><text>Automatic recovery stopped for this task.</text><text>Conversation: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_no_progress": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Stopped trying</text><text>Recovery produced no progress, so it was stopped.</text><text>A project  ·  Conversation: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "unannounced": []
+ },
+ "es": {
+  "interruption_no_category": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Se alcanzó el límite de uso de Codex. Esta tarea se reanudará tras el restablecimiento.</text><text>A project  ·  Conversación: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"No reanudar\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Abrir Panel\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_server": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Error del servidor · Codex se interrumpió temporalmente. Reintentando automáticamente.</text><text>A project  ·  Conversación: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"No reintentar\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Abrir Panel\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_stream": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>p</text><text>Respuesta interrumpida · Codex se interrumpió temporalmente. Reintentando automáticamente.</text><text>Conversación: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"No reintentar\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Abrir Panel\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_usage_at": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Se alcanzó el límite de uso de Codex. Esta tarea se reanudará a esta hora: 14:05.</text><text>A project  ·  Conversación: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"No reanudar\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Abrir Panel\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_usage_soon": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Tarea de Codex</text><text>Se alcanzó el límite de uso de Codex. Esta tarea se reanudará tras el restablecimiento.</text><text>Conversación: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"No reanudar\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Abrir Panel\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "result_failed": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>No se pudo reanudar</text><text>El intento no se completó. No se enviará nada más automáticamente para esta tarea.</text><text>A project  ·  Conversación: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_other": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>No se pudo reanudar</text><text>El intento no se completó. No se enviará nada más automáticamente para esta tarea.</text><text>A project  ·  Conversación: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_resumed": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Reanudada</text><text>La tarea interrumpida vuelve a ejecutarse.</text><text>Conversación: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_turn_started": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Reanudada</text><text>La tarea interrumpida vuelve a ejecutarse.</text><text>A project  ·  Conversación: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_unknown": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Resultado de la reanudación desconocido</text><text>No se volverá a enviar nada; revisa la conversación.</text><text>A project  ·  Conversación: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "starting_full": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Enviando la continuación a esta conversación.</text><text>A project  ·  Conversación: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "starting_none": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Tarea de Codex</text><text>Enviando la continuación a esta conversación.</text><text>Conversación: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_attempts": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Se dejó de intentar</text><text>No quedan intentos de recuperación para esta tarea.</text><text>A project  ·  Conversación: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_cancelled": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Se dejó de intentar</text><text>La recuperación automática se detuvo para esta tarea.</text><text>Conversación: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_no_progress": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Se dejó de intentar</text><text>La recuperación no produjo avances, así que se detuvo.</text><text>A project  ·  Conversación: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "unannounced": []
+ },
+ "fr": {
+  "interruption_no_category": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Limite d'utilisation de Codex atteinte. Cette tâche reprendra après la réinitialisation.</text><text>A project  ·  Conversation : 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"Ne pas reprendre\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Ouvrir le Tableau de bord\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_server": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Erreur serveur · Codex a été temporairement interrompu. Nouvelle tentative automatique.</text><text>A project  ·  Conversation : 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"Ne pas réessayer\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Ouvrir le Tableau de bord\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_stream": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>p</text><text>Réponse interrompue · Codex a été temporairement interrompu. Nouvelle tentative automatique.</text><text>Conversation : 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"Ne pas réessayer\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Ouvrir le Tableau de bord\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_usage_at": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Limite d'utilisation de Codex atteinte. Cette tâche reprendra à 14:05.</text><text>A project  ·  Conversation : 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"Ne pas reprendre\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Ouvrir le Tableau de bord\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_usage_soon": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Tâche Codex</text><text>Limite d'utilisation de Codex atteinte. Cette tâche reprendra après la réinitialisation.</text><text>Conversation : 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"Ne pas reprendre\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Ouvrir le Tableau de bord\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "result_failed": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Reprise impossible</text><text>La tentative n'a pas abouti. Plus rien ne sera envoyé automatiquement pour cette tâche.</text><text>A project  ·  Conversation : 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_other": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Reprise impossible</text><text>La tentative n'a pas abouti. Plus rien ne sera envoyé automatiquement pour cette tâche.</text><text>A project  ·  Conversation : 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_resumed": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Tâche reprise</text><text>La tâche interrompue a repris.</text><text>Conversation : 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_turn_started": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Tâche reprise</text><text>La tâche interrompue a repris.</text><text>A project  ·  Conversation : 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_unknown": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Résultat de la reprise inconnu</text><text>Rien ne sera renvoyé ; vérifiez la conversation.</text><text>A project  ·  Conversation : 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "starting_full": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Envoi de la relance dans cette conversation.</text><text>A project  ·  Conversation : 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "starting_none": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Tâche Codex</text><text>Envoi de la relance dans cette conversation.</text><text>Conversation : 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_attempts": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Tentatives arrêtées</text><text>Plus de tentatives de récupération pour cette tâche.</text><text>A project  ·  Conversation : 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_cancelled": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Tentatives arrêtées</text><text>Récupération automatique arrêtée pour cette tâche.</text><text>Conversation : 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_no_progress": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Tentatives arrêtées</text><text>La récupération n'a produit aucun progrès : elle a donc été arrêtée.</text><text>A project  ·  Conversation : 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "unannounced": []
+ },
+ "ja": {
+  "interruption_no_category": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Codex の使用量の上限に達しました。このタスクはリセット後に再開します。</text><text>A project  ·  会話: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"再開しない\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"ダッシュボードを開く\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_server": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>サーバーエラー · Codex が一時的に中断されました。自動的に再試行します。</text><text>A project  ·  会話: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"再試行しない\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"ダッシュボードを開く\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_stream": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>p</text><text>応答の中断 · Codex が一時的に中断されました。自動的に再試行します。</text><text>会話: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"再試行しない\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"ダッシュボードを開く\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_usage_at": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Codex の使用量の上限に達しました。このタスクは 14:05 に再開します。</text><text>A project  ·  会話: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"再開しない\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"ダッシュボードを開く\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_usage_soon": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Codex のタスク</text><text>Codex の使用量の上限に達しました。このタスクはリセット後に再開します。</text><text>会話: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"再開しない\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"ダッシュボードを開く\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "result_failed": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>再開できませんでした</text><text>試行を完了できませんでした。このタスクについては、これ以上自動的に送信されません。</text><text>A project  ·  会話: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_other": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>再開できませんでした</text><text>試行を完了できませんでした。このタスクについては、これ以上自動的に送信されません。</text><text>A project  ·  会話: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_resumed": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>再開しました</text><text>中断されたタスクが再び実行されています。</text><text>会話: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_turn_started": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>再開しました</text><text>中断されたタスクが再び実行されています。</text><text>A project  ·  会話: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_unknown": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>再開の結果は不明です</text><text>再送信は行いません。会話を確認してください。</text><text>A project  ·  会話: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "starting_full": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>この会話に継続メッセージを送信しています。</text><text>A project  ·  会話: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "starting_none": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Codex のタスク</text><text>この会話に継続メッセージを送信しています。</text><text>会話: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_attempts": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>試行を停止しました</text><text>このタスクの復旧の試行回数を使い切りました。</text><text>A project  ·  会話: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_cancelled": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>試行を停止しました</text><text>このタスクの自動復旧を停止しました。</text><text>会話: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_no_progress": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>試行を停止しました</text><text>復旧しても進展がなかったため、停止しました。</text><text>A project  ·  会話: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "unannounced": []
+ },
+ "ko": {
+  "interruption_no_category": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Codex 사용량 한도에 도달했습니다. 사용량이 초기화되면 자동으로 재개합니다.</text><text>A project  ·  대화: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"재개하지 않음\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"대시보드 열기\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_server": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>서버 오류 · Codex 작업이 일시적으로 중단되었습니다. 자동으로 다시 시도합니다.</text><text>A project  ·  대화: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"다시 시도하지 않음\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"대시보드 열기\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_stream": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>p</text><text>끊긴 응답 · Codex 작업이 일시적으로 중단되었습니다. 자동으로 다시 시도합니다.</text><text>대화: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"다시 시도하지 않음\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"대시보드 열기\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_usage_at": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Codex 사용량 한도에 도달했습니다. 14:05에 이 작업을 자동으로 재개합니다.</text><text>A project  ·  대화: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"재개하지 않음\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"대시보드 열기\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_usage_soon": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Codex 작업</text><text>Codex 사용량 한도에 도달했습니다. 사용량이 초기화되면 자동으로 재개합니다.</text><text>대화: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"재개하지 않음\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"대시보드 열기\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "result_failed": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>재개하지 못했습니다</text><text>이번 시도는 전달되지 않았습니다. 이 작업에는 더 이상 자동으로 보내지 않습니다.</text><text>A project  ·  대화: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_other": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>재개하지 못했습니다</text><text>이번 시도는 전달되지 않았습니다. 이 작업에는 더 이상 자동으로 보내지 않습니다.</text><text>A project  ·  대화: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_resumed": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>재개되었습니다</text><text>중단되었던 작업이 다시 실행되고 있습니다.</text><text>대화: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_turn_started": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>재개되었습니다</text><text>중단되었던 작업이 다시 실행되고 있습니다.</text><text>A project  ·  대화: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_unknown": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>재개 결과를 확인할 수 없습니다</text><text>다시 보내지 않습니다. 대화를 직접 확인해 주세요.</text><text>A project  ·  대화: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "starting_full": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>이 대화에 이어서 진행할 메시지를 보내는 중입니다.</text><text>A project  ·  대화: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "starting_none": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Codex 작업</text><text>이 대화에 이어서 진행할 메시지를 보내는 중입니다.</text><text>대화: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_attempts": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>재시도를 중단했습니다</text><text>이 작업에 대한 복구 시도 횟수를 모두 사용했습니다.</text><text>A project  ·  대화: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_cancelled": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>재시도를 중단했습니다</text><text>이 작업의 자동 복구를 중단했습니다.</text><text>대화: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_no_progress": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>재시도를 중단했습니다</text><text>복구해도 진행이 없어 중단했습니다.</text><text>A project  ·  대화: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "unannounced": []
+ },
+ "pt-BR": {
+  "interruption_no_category": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Limite de uso do Codex atingido. Esta tarefa será retomada após a redefinição.</text><text>A project  ·  Conversa: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"Não retomar\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Abrir Dashboard\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_server": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Erro do servidor · O Codex foi interrompido temporariamente. Tentando novamente de forma automática.</text><text>A project  ·  Conversa: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"Não tentar de novo\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Abrir Dashboard\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_stream": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>p</text><text>Resposta interrompida · O Codex foi interrompido temporariamente. Tentando novamente de forma automática.</text><text>Conversa: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"Não tentar de novo\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Abrir Dashboard\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_usage_at": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Limite de uso do Codex atingido. Esta tarefa será retomada às 14:05.</text><text>A project  ·  Conversa: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"Não retomar\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Abrir Dashboard\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_usage_soon": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Tarefa do Codex</text><text>Limite de uso do Codex atingido. Esta tarefa será retomada após a redefinição.</text><text>Conversa: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"Não retomar\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"Abrir Dashboard\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "result_failed": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Não foi possível retomar</text><text>A tentativa não foi concluída. Nada mais será enviado automaticamente para esta tarefa.</text><text>A project  ·  Conversa: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_other": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Não foi possível retomar</text><text>A tentativa não foi concluída. Nada mais será enviado automaticamente para esta tarefa.</text><text>A project  ·  Conversa: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_resumed": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Retomada</text><text>A tarefa interrompida está em execução novamente.</text><text>Conversa: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_turn_started": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Retomada</text><text>A tarefa interrompida está em execução novamente.</text><text>A project  ·  Conversa: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_unknown": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Resultado da retomada desconhecido</text><text>Nada será enviado novamente; verifique a conversa.</text><text>A project  ·  Conversa: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "starting_full": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>Enviando a continuação para esta conversa.</text><text>A project  ·  Conversa: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "starting_none": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Tarefa do Codex</text><text>Enviando a continuação para esta conversa.</text><text>Conversa: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_attempts": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Tentativas encerradas</text><text>Sem tentativas de recuperação restantes para esta tarefa.</text><text>A project  ·  Conversa: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_cancelled": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Tentativas encerradas</text><text>A recuperação automática foi interrompida para esta tarefa.</text><text>Conversa: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_no_progress": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Tentativas encerradas</text><text>A recuperação não gerou progresso, por isso foi interrompida.</text><text>A project  ·  Conversa: 0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "unannounced": []
+ },
+ "zh-CN": {
+  "interruption_no_category": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>已达到 Codex 用量上限。此任务将在用量重置后继续。</text><text>A project  ·  对话：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"不要继续\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"打开仪表板\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_server": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>服务器错误 · Codex 暂时中断。正在自动重试。</text><text>A project  ·  对话：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"不要重试\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"打开仪表板\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_stream": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>p</text><text>响应中断 · Codex 暂时中断。正在自动重试。</text><text>对话：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"不要重试\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"打开仪表板\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_usage_at": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>已达到 Codex 用量上限。此任务将于 14:05 继续。</text><text>A project  ·  对话：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"不要继续\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"打开仪表板\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_usage_soon": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Codex 任务</text><text>已达到 Codex 用量上限。此任务将在用量重置后继续。</text><text>对话：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"不要继续\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"打开仪表板\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "result_failed": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>无法继续</text><text>此次尝试未成功。不会再为此任务自动发送任何内容。</text><text>A project  ·  对话：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_other": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>无法继续</text><text>此次尝试未成功。不会再为此任务自动发送任何内容。</text><text>A project  ·  对话：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_resumed": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>已继续</text><text>被中断的任务已重新运行。</text><text>对话：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_turn_started": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>已继续</text><text>被中断的任务已重新运行。</text><text>A project  ·  对话：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_unknown": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>继续结果未知</text><text>不会再次发送任何内容；请检查对话。</text><text>A project  ·  对话：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "starting_full": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>正在向此对话发送续接消息。</text><text>A project  ·  对话：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "starting_none": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Codex 任务</text><text>正在向此对话发送续接消息。</text><text>对话：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_attempts": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>已停止尝试</text><text>此任务的恢复尝试次数已用完。</text><text>A project  ·  对话：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_cancelled": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>已停止尝试</text><text>此任务的自动恢复已停止。</text><text>对话：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_no_progress": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>已停止尝试</text><text>恢复没有带来任何进展，因此已停止。</text><text>A project  ·  对话：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "unannounced": []
+ },
+ "zh-TW": {
+  "interruption_no_category": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>已達 Codex 使用量限制。此任務將在重設後接續。</text><text>A project  ·  對話：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"不要接續\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"開啟儀表板\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_server": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>伺服器錯誤 · Codex 暫時中斷。正在自動重試。</text><text>A project  ·  對話：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"不要重試\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"開啟儀表板\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_stream": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>p</text><text>回應中斷 · Codex 暫時中斷。正在自動重試。</text><text>對話：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"不要重試\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"開啟儀表板\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_usage_at": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>已達 Codex 使用量限制。此任務將於 14:05 接續。</text><text>A project  ·  對話：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"不要接續\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"開啟儀表板\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "interruption_usage_soon": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Codex 任務</text><text>已達 Codex 使用量限制。此任務將在重設後接續。</text><text>對話：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual><actions><action content=\"不要接續\" activationType=\"protocol\" arguments=\"codex-auto-resume:cancel?i=a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"/><action content=\"開啟儀表板\" activationType=\"protocol\" arguments=\"codex-auto-resume:open?page=pending\"/></actions></toast>"
+  ],
+  "result_failed": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>無法接續</text><text>此次嘗試未能成功。不會再為此任務自動傳送任何內容。</text><text>A project  ·  對話：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_other": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>無法接續</text><text>此次嘗試未能成功。不會再為此任務自動傳送任何內容。</text><text>A project  ·  對話：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_resumed": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>已接續</text><text>中斷的任務已重新執行。</text><text>對話：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_turn_started": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>已接續</text><text>中斷的任務已重新執行。</text><text>A project  ·  對話：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "result_unknown": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>接續結果不明</text><text>不會再次傳送；請查看對話。</text><text>A project  ·  對話：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "starting_full": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>A task</text><text>正在將接續訊息傳送到此對話。</text><text>A project  ·  對話：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "starting_none": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>Codex 任務</text><text>正在將接續訊息傳送到此對話。</text><text>對話：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_attempts": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>已停止嘗試</text><text>此任務的復原嘗試次數已用完。</text><text>A project  ·  對話：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_cancelled": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>已停止嘗試</text><text>已停止此任務的自動復原。</text><text>對話：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "stopped_no_progress": [
+   "<toast duration=\"long\"><visual><binding template=\"ToastGeneric\"><text>已停止嘗試</text><text>復原沒有產生任何進展，因此已停止。</text><text>A project  ·  對話：0a1b2c3d-0001-7000-8000-000000000001</text></binding></visual></toast>"
+  ],
+  "unannounced": []
+ }
+}

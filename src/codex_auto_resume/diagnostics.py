@@ -147,6 +147,22 @@ def _installation(control) -> dict:
     return found
 
 
+def _compatibility(control) -> dict:
+    """The Compatibility Registry's view, as the watcher last wrote it and a reader checks it.
+
+    Content-free by construction: states, reasons and check results from closed sets, a
+    version string the log already carries, and a timestamp. The report's binding to the
+    engine - a digest of its path and its size and time - stays out, because a digest of a
+    path that holds the user name is a guessable one.
+    """
+    try:
+        from . import compatio
+        explicit = {"codex_exe": control.get_settings().get("codex_exe")}
+        return compatio.reader_view(control.paths, settings=explicit)
+    except Exception as exc:
+        return {"status": "invalid", "error": type(exc).__name__}
+
+
 def collect(control, *, now=None) -> dict:
     """The whole bundle, redacted. Works with the watcher stopped and Codex closed."""
     redact = Redactor()
@@ -188,6 +204,7 @@ def collect(control, *, now=None) -> dict:
         bundle["events"] = []
         bundle["state_error"] = redact.text(str(exc))[:200]
     bundle["installation"] = _installation(control)
+    bundle["compatibility"] = _compatibility(control)
     logs = control.paths.logs_dir
     bundle["logs"] = {name: _tail(logs / name, redact)
                       for name in ("auto-resume.log", "errors.log", "launcher.log")

@@ -503,6 +503,10 @@ namespace CodexAutoResume
         private readonly Label detail = new Label();
         private readonly Label versionText = new Label();
         private readonly HaloDot stateDot = new HaloDot();
+        // v0.6.5: the notification-area icon's motion on the taskbar button (TaskbarMark), told the icon's state for what
+        // the window read wherever stateDot is told its own (TellTaskbar); null in a window LayoutAudit builds, and
+        // without the product's own icon.
+        private TaskbarMark taskbar;
         private Button startButton, closeButton;
 
         // The interface vocabulary, in the language the engine resolved. Fetched once,
@@ -571,30 +575,29 @@ namespace CodexAutoResume
 
         /// The window's opening client size, in logical pixels.
         ///
-        /// The height is the tallest that fits a 1920 by 1080 screen at 150% with the taskbar, less a few
-        /// pixels: a work area 1008 device pixels high, of which the frame takes 56 (GetWindowRect, and
-        /// AdjustWindowRectExForDpi at 144 DPI), leaves 952, and 632 is 948. The Overview's two rows share
-        /// the page's whole height (SoftRows), so this is how tall its cards are: at 600 each row was as tall
-        /// as its cards' content - at 150% in English 145 and 182 px, over a band of 25 px above the footer -
-        /// and the person found the cards too wide and too short. At 632 every card is 192 px there.
+        /// The height is the Overview's (v0.6.5). Its cards hold what they hold with the button each leads to at
+        /// its bottom left, in a row of its own under the last line (Lead), and FitOverview gives the rows what the
+        /// tallest needs, a little more, and under the last row the page's own padding, as every page has under its
+        /// last card. What the rows need, with the most the Overview ever shows - three lines under Waiting, four
+        /// finished conversations, four facts in Right now - is the same in all nine languages (every line is one
+        /// line, whatever it says), and per scaling a window of 626 px at 100%, 631 at 125%, 629 at 150%, 635 at 175%
+        /// and 624 at 200% (measured built and never shown, text drawn as this window draws it;
+        /// tests/test_gui_layout.py holds the page to it). 664 is that at 100% with 38 px more, shared by the two
+        /// rows: every card a little taller than what it holds at every scaling - 14 px at 175%, 19 at 100% - never
+        /// past comfort (OverviewComfort), and at none a band. Chosen from renders at 632, 648 and 664, side by side.
         ///
-        /// What the Overview needs, with the most it ever shows - three lines under Waiting, four finished
-        /// conversations with long names, and Right now planned for the widest words its facts and its button
-        /// are ever given whatever state the watcher is in - measured built and never shown, text drawn as this
-        /// window draws it, in all nine languages from 100% to 200%: 606 to 618 px for every row as tall as the
-        /// tallest, which Recently finished decides, with History under outcomes that reach the card's edge
-        /// (tests/test_gui_layout.py holds the page to it in every state, and to leaving no band above the
-        /// footer). A shorter window - KeepOnScreen gives one 601 px high on a 1920 by 1200 screen at 175% -
-        /// gives each row what its own cards need and the rest to Right now's (SoftRows.Shares), and the
-        /// Overview scrolls only below 569 to 580 px, in German 585 to 597, and in French 584 to 615: there
-        /// Right now needs 15 to 20 px more with automatic recovery first than with it last, which needed 569
-        /// to 595 (tests/test_gui_layout.py measures that shortest window too).
+        /// Taller than the 632 of v0.6.4, which was the tallest window that fits a 1920 by 1080 screen at 150%
+        /// with the taskbar (a work area of 1008 device pixels, less a frame of 56: 952, or 634 logical). There
+        /// KeepOnScreen gives the window the work area's height, and the Overview still fits - its rows need 629 -
+        /// with the space under them going first. A shorter screen still - KeepOnScreen gives 601 px on a 1920 by
+        /// 1200 screen at 175% - scrolls the Overview on the soft bar, where v0.6.4's buttons beside the facts
+        /// fitted: a button in a row of its own costs its row a button and a gap.
         ///
         /// The width is where the Pending list draws "waiting for the usage reset" and "Usage limit"
         /// whole beside "Why it is waiting" at its full 256 px: 933 to 946 in English, 813 to 817 in
         /// Korean.
         internal const int OpeningWidth = 1000;
-        internal const int OpeningHeight = 632;
+        internal const int OpeningHeight = 664;
 
         /// The display's scale. Read-only to the window; only LayoutAudit stands another
         /// scale in, to measure a layout at a scaling this machine is not set to.
@@ -697,8 +700,8 @@ namespace CodexAutoResume
             AutoScaleMode = AutoScaleMode.Font;
             // The page the window opens on, the Overview, is whole at this size without scrolling, in
             // every language at every scaling and with the most it ever shows - tests/test_gui_layout.py
-            // measures it - and the window, frame and all, is the tallest that fits a 1920 by 1080 screen
-            // at 150%: the Overview's cards share its height.
+            // measures it - its cards a little taller than what they hold and the page's rhythm under
+            // them; on a 1920 by 1080 screen at 150% KeepOnScreen makes it shorter, and it still fits.
             // A Settings section taller than the page scrolls. v0.6.3 grew the window to its tallest
             // section instead, which cost a second layout of everything before the first screen was
             // painted. See OpeningWidth.
@@ -710,7 +713,13 @@ namespace CodexAutoResume
             try
             {
                 string icon = Path.Combine(root, "codex-auto-resume.ico");
-                if (File.Exists(icon)) Icon = new Icon(icon);
+                if (File.Exists(icon))
+                {
+                    Icon = new Icon(icon);
+                    // With our own mark, and never in a window LayoutAudit builds: the taskbar button moves as the
+                    // notification-area icon does while the window is open (TaskbarMark).
+                    if (catalog == null) taskbar = new TaskbarMark(this);
+                }
             }
             catch (Exception) { /* an icon is decoration; never fail the window over it */ }
             if (asking != null)
@@ -1200,7 +1209,8 @@ namespace CodexAutoResume
         {
             int width = NoteWidth(row);
             if (width <= 0 || string.IsNullOrEmpty(reopenNote.Text)) return 0;
-            int text = TextRenderer.MeasureText(reopenNote.Text, reopenNote.Font, new Size(width, int.MaxValue), NoteFormat).Height;
+            // In the lines it is drawn in: Korean between its words (WrapLabel).
+            int text = TextRenderer.MeasureText(reopenNote.Lines(width), reopenNote.Font, new Size(width, int.MaxValue), NoteFormat).Height;
             int line = TextRenderer.MeasureText("Ag", reopenNote.Font, new Size(int.MaxValue, int.MaxValue),
                                                 TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix).Height;
             return Math.Min(text, NoteLines * line) + reopenNote.Padding.Vertical;
@@ -1340,7 +1350,8 @@ namespace CodexAutoResume
 
         private Label HelpText(string text)
         {
-            var label = new Label();
+            // Korean broken between its words, as the popup and the panel break it (WrapLabel).
+            var label = new WrapLabel();
             label.AutoSize = true;
             label.MaximumSize = new Size(Px(600), 0);
             // Stretched across its card, so it wraps at the card's width: the window is narrower
@@ -1633,6 +1644,11 @@ namespace CodexAutoResume
                     if (name == "reduce_motion")
                         host.Controls.Add(HelpText(S("help.reduce_motion",
                             "Stops the breathing and pulsing status animations in this window and the notification-area popup. Windows' own Animation effects setting is always honored as well.")));
+                    // When the card gives way to Windows' own notification - Do not disturb, full screen, a screen
+                    // reader, a locked or remote session - is said under its switch, never left to be found out.
+                    if (name == "notification_card")
+                        host.Controls.Add(HelpText(S("help.notification_card",
+                            "Notifications appear as a card beside the notification area and are also kept in Windows' notification center. When this is off - or while Do not disturb is on, an app is full screen, a screen reader is running, or the session is locked or remote - Windows shows its own notification instead.")));
                 }
                 else if (type == "integer")
                 {
@@ -2090,6 +2106,7 @@ namespace CodexAutoResume
         private void StatusUnavailable()
         {
             stateDot.State = "idle";
+            TellTaskbar(null, null, 0);
             headline.Text = S("status.unavailable", "Status unavailable");
             detail.Text = S("status.unavailable_detail", "Settings can still be changed and saved");
             // The version is deliberately left as it was: a failed status read is no
@@ -2142,6 +2159,8 @@ namespace CodexAutoResume
             if (snapshot == null)
                 stateDot.State = !Equals(running, true) ? "idle"
                                : !enabled ? "paused" : pending > 0 ? "waiting" : "monitoring";
+            // The taskbar button likewise, by the notification-area icon's rule (TrayActivity).
+            if (snapshot == null) TellTaskbar(status, null, Now());
             headline.Text = running == null ? S("status.unknown", "Watcher status unknown")
                           : !Equals(running, true) ? S("status.not_running", "Watcher not running")
                           : enabled ? S("status.watching", "Watching for interruptions")
@@ -2969,7 +2988,9 @@ namespace CodexAutoResume
         ///
         /// The window is built as it opens, at its opening size, with the Custom message and its
         /// per-kind editor showing, and every page and every Settings section is laid out in turn -
-        /// filled from `snapshotJson`, a dashboard reply, when one is given. It is never shown - it
+        /// filled from `snapshotJson`, a dashboard reply, when one is given, and the Diagnostics
+        /// page's Codex compatibility card from the registry view the reply carries under
+        /// `compatibility`, with the longest answer a refresh gives beside its button. It is never shown - it
         /// is not even a top-level window - and nothing is sent to it. Another scaling is stood in
         /// for this machine's by scaling DpiScale and the fonts together, which matched a real
         /// 144-DPI window to the pixel when the v0.6.4 clipping was measured. Reported are:
@@ -2977,15 +2998,22 @@ namespace CodexAutoResume
         ///     page that scrolls up and down;
         ///   * a page that would scroll sideways;
         ///   * the Overview, Pending or History scrolling at all (AuditScrolling);
-        ///   * the Overview leaving an empty band above the footer, or rows or cards in a row of different heights
-        ///     (AuditRows): its two rows share the page's whole height;
-        ///   * a name of Right now that wraps (AuditNames): at the opening size its card has room for them whole;
+        ///   * the Overview's rows against what FitOverview gives them (AuditRows): under the last row anything but the
+        ///     page's own padding, as every page keeps under its last card - cards reaching into it, or a dead band over
+        ///     it - rows of different heights where the page has room for them alike, cards in a row of different
+        ///     heights, and a card taller than its content sits comfortably in;
+        ///   * a name of Right now that wraps (AuditNames): its card has room for them whole;
         ///   * the Overview in the shortest window its rows' own tallest cards fit (AuditShortest) scrolling, leaving
-        ///     a band, cutting a card or its content off or putting a button out of its corner or over text - or a
-        ///     window a pixel shorter not scrolling;
-        ///   * a button pinned to the bottom right of a card or a row (Pinned) that is not within a pixel of
-        ///     that corner, or that covers a line of text in its card or row (AuditPins) - the Start button
-        ///     too, shown for it, since the watcher in a dashboard reply is running;
+        ///     space under its rows, cutting a card or its content off or putting a button out of its corner or over
+        ///     text - or a window a pixel shorter not scrolling;
+        ///   * a button an Overview card leads to (Lead) that is not within a pixel of its card's inner bottom-LEFT
+        ///     corner, or that covers a line of text or has one within the scale's medium step above it (AuditLead);
+        ///   * a button pinned to the bottom right of a block - the header's Start button, shown for it since the
+        ///     watcher in a dashboard reply is running, and the Custom messages' Clear buttons - that is not within a
+        ///     pixel of that corner, or that covers a line of text in its block (AuditPin);
+        ///   * a list - Pending, History, and the Timeline dialog's - whose columns are wider than it is, which is what
+        ///     shows a horizontal scroll bar, with the rows of the reply and with none (AuditLists): at the opening size
+        ///     its columns share its width;
         ///   * a drop-down that is not one field high;
         ///   * text, a list's columns or other content that needs more room than it is drawn in,
         ///     and a status light too small for its glow.
@@ -2994,6 +3022,7 @@ namespace CodexAutoResume
         {
             var findings = new List<string>();
             AuditedPins = 0;
+            AuditedLists = 0;
             AuditedNotes = 0;
             AuditedShortest = 0;
             AuditedAlike = 0;
@@ -3029,6 +3058,18 @@ namespace CodexAutoResume
                     form.BuildEditors(schema, current);
                     // Held by the window, so each page is filled from it as the page is built (PageFor).
                     if (snapshot != null) form.ApplySnapshot(snapshot);
+                    // The Diagnostics page's Codex compatibility card with the most it shows: the view the reply carries
+                    // beside the dashboard's own parts, when it carries one (the bridge answers it on its own, so the card
+                    // keeps it for when it is built), and beside its button the longest answer a refresh can give.
+                    var compatibility = snapshot == null ? null : Map(snapshot, "compatibility");
+                    if (compatibility != null) form.ApplyCompatibility(compatibility, false);
+                    string longest = "";
+                    foreach (string outcome in new[] { "refreshed", "refused", "unavailable", "incomplete", "failed", "busy" })
+                    {
+                        string said = form.CompatibilitySaid(outcome, "1234", "unevidenced_verified");
+                        if (said.Length > longest.Length) longest = said;
+                    }
+                    form.SetCompatNote(longest);
                     foreach (string page in PageOrder)
                     {
                         form.ShowPage(page);
@@ -3043,6 +3084,7 @@ namespace CodexAutoResume
                             }
                             form.AuditPins(page, findings);
                             if (page == "overview") form.AuditShortest(findings);
+                            if (page == "pending" || page == "history") form.AuditLists(page, findings);
                             continue;
                         }
                         foreach (string section in SectionOrder)
@@ -3051,6 +3093,22 @@ namespace CodexAutoResume
                             form.Audit("settings/" + section, findings);
                             form.AuditPins("settings/" + section, findings);
                         }
+                    }
+                    // The lists again with no rows at all, as a first installation or an unreadable store shows them: the
+                    // columns then share the list's width by their headings alone - the person saw v0.6.4's empty Pending
+                    // list with Windows' white bar under it (AuditLists). Then the Timeline dialog's list, built and never
+                    // shown.
+                    if (snapshot != null)
+                    {
+                        form.ApplySnapshot(WithoutRows(snapshot));
+                        foreach (string page in new[] { "pending", "history" })
+                        {
+                            form.ShowPage(page);
+                            form.Audit(page + " with no rows", findings);
+                            form.AuditLists(page + " with no rows", findings);
+                        }
+                        form.ApplySnapshot(snapshot);
+                        form.AuditTimeline(snapshot, findings);
                     }
                     // The Start button shows only while the watcher is stopped: shown for this, and hidden again.
                     form.startButton.Visible = true;
@@ -3083,14 +3141,13 @@ namespace CodexAutoResume
         /// shorter than the page needs, so the soft bar shows, and given its opening height back. Reported are, at
         /// the opening size after every step:
         ///   * the Overview scrolling;
-        ///   * the Overview leaving a band above the footer, or rows of different heights (AuditRows);
+        ///   * the Overview's rows not as FitOverview gives them - anything but the page's own padding under the last
+        ///     row, rows of different heights, a card that floats (AuditRows) - as a first installation shows it too;
         ///   * a name of Right now that wraps (AuditNames);
-        ///   * an Overview button (Pinned) out of its card's corner or over its text;
+        ///   * an Overview button (Lead) out of its card's bottom-left corner, over its text or crowding it;
         ///   * Right now laid out differently from the first step - its size, or the height it needs at its width,
-        ///     which is what shows a line that moved now that its row is given the page's height: its facts and its
-        ///     button are planned for the widest words each is ever given (SoftPin.Reserve), so neither a state nor
-        ///     the bar coming and going moves it - and the audit found German and French scrolling in states LayoutAudit's reply never
-        ///     shows;
+        ///     which is what shows a line that moved while its row kept its share of the page. In v0.6.4 the audit found
+        ///     German and French scrolling in states LayoutAudit's reply never shows;
         ///   * a shorter window that did not scroll, which would leave the last step proving nothing.
         /// tests/test_gui_layout.py runs it in every language at five scalings.
         internal static string OverviewStatesAudit(string stringsJson, string statesJson, double scale)
@@ -3138,8 +3195,8 @@ namespace CodexAutoResume
                         form.AuditState(last, first, ref planned, ref needs, findings);
                     }
                     if (first == null) return "no states :: nothing was audited";
-                    // 40 px shorter than the page needs: at the opening size its rows share whatever the page has
-                    // past that (SoftRows), so 40 px off the window alone may still fit.
+                    // 40 px shorter than the page needs: at the opening size its rows and the space under them take
+                    // whatever the page has past that (FitOverview), so 40 px off the window alone may still fit.
                     var page = form.pages["overview"] as SoftPage;
                     int spare = page == null ? 0 : Math.Max(0, page.ClientSize.Height - page.Extent);
                     form.ClientSize = new Size(opening.Width, opening.Height - spare - form.Px(40));
@@ -3173,8 +3230,8 @@ namespace CodexAutoResume
             var page = pages["overview"] as SoftPage;
             if (page != null && page.Overflowing)
                 findings.Add(where + " :: the page scrolls, " + page.Extent + " high in " + page.ClientSize.Height);
-            foreach (KeyValuePair<Control, Control> pair in pinned)
-                if (Showing(pair.Key)) AuditPin(where, pair.Key, pair.Value, findings);
+            foreach (KeyValuePair<Control, Control> pair in led)
+                if (Showing(pair.Key)) AuditLead(where, pair.Key, pair.Value, Px(LeadGap), findings);
             AuditRows(where, true, findings);
             AuditNames(where, findings);
             Control block = toggleButton.Parent;
@@ -3190,15 +3247,23 @@ namespace CodexAutoResume
                              ", needing " + needs + ", for " + first);
         }
 
-        /// How far short of the page's padding the Overview's last cards may end, for the pixel a table's shares
-        /// round away: logical pixels.
+        /// How far the Overview's rows and the space under them may be from what FitOverview gives them, for the pixel a
+        /// table's shares round away: logical pixels.
         internal const int BandTolerance = 3;
 
-        /// The Overview's cards against the page they share (SoftRows), unless the page scrolls, which
-        /// AuditScrolling reports: an empty band between the last cards and the room the page keeps under them for
-        /// their lift, above the footer; a card shorter or taller than another in its row; and, where the page has
-        /// room for them to be (`alike`) - at the opening size - rows of different heights.
-        private void AuditRows(string where, bool alike, List<string> findings)
+        /// The Overview's cards against the page they stand on (FitOverview), unless the page scrolls, which
+        /// AuditScrolling reports:
+        ///   * a card shorter or taller than another in its row;
+        ///   * a card that floats: taller than the tallest row needs and OverviewComfort, what it holds hanging in space
+        ///     above its button;
+        ///   * at the opening size (`opening`): under the last row anything but the page's own padding - the mirror of
+        ///     the padding over the first row, and what every page keeps under its last card - cards reaching into it,
+        ///     or a dead band over it (the review found 41 px above the footer where Pending and History leave 27, and 87
+        ///     on a first installation). What is left once the rows are as tall as comfort allows is space by design
+        ///     (OverviewHeights). And rows of different heights where the page has room for them alike;
+        ///   * in a window only as tall as the rows need (not `opening`): space under the last row, which the rows
+        ///     should have had.
+        private void AuditRows(string where, bool opening, List<string> findings)
         {
             Control built;
             var page = pages.TryGetValue("overview", out built) ? built as SoftPage : null;
@@ -3209,32 +3274,57 @@ namespace CodexAutoResume
                 findings.Add(where + " :: holds no grid of cards");
                 return;
             }
-            int bottom = 0;
+            int bottom = 0, tolerance = Px(BandTolerance), comfort = Px(OverviewComfort), rest = page.Padding.Bottom;
             var tallest = new Dictionary<int, int>();
             var shortest = new Dictionary<int, int>();
+            var needs = new Dictionary<int, int>();
             foreach (Control card in table.Controls)
             {
                 if (!OwnVisible(card)) continue;
                 bottom = Math.Max(bottom, table.Top + card.Bottom);
                 int row = table.GetPositionFromControl(card).Row;
-                int seen;
+                int seen, need = card.GetPreferredSize(new Size(card.Width, 0)).Height;
                 tallest[row] = tallest.TryGetValue(row, out seen) ? Math.Max(seen, card.Height) : card.Height;
                 shortest[row] = shortest.TryGetValue(row, out seen) ? Math.Min(seen, card.Height) : card.Height;
+                needs[row] = needs.TryGetValue(row, out seen) ? Math.Max(seen, need) : need;
             }
+            int most = 0;
+            foreach (int need in needs.Values) most = Math.Max(most, need);
+            bool capped = false;
+            foreach (Control card in table.Controls)
+            {
+                if (!OwnVisible(card)) continue;
+                if (card.Height > most + comfort + tolerance)
+                    findings.Add(where + "/" + AuditName(card) + " :: floats: " + card.Height + " high where the tallest row needs " + most +
+                                 " and comfort allows " + comfort + " more");
+                if (card.Height >= most + comfort - tolerance) capped = true;
+            }
+            // Past the page's own padding, which is what the page keeps under its last card.
             int band = page.ClientSize.Height - page.Padding.Bottom - bottom;
-            if (band > Px(BandTolerance))
-                findings.Add(where + " :: leaves an empty band " + band + " px high above the footer: its cards end at " + bottom +
+            if (opening)
+            {
+                if (band < -tolerance)
+                    findings.Add(where + " :: leaves only " + (band + rest) + " px under its last row, where the page's rhythm is " + rest +
+                                 ": its cards end at " + bottom + " in a page " + page.ClientSize.Height + " high");
+                else if (band > tolerance && !capped)
+                    findings.Add(where + " :: leaves an empty band " + (band + rest) + " px high under its last row, where the page's rhythm is " +
+                                 rest + " and its cards could be taller: they end at " + bottom + " in a page " + page.ClientSize.Height + " high");
+            }
+            else if (band > tolerance)
+                findings.Add(where + " :: leaves " + band + " px under its last row, which its rows need: its cards end at " + bottom +
                              " in a page " + page.ClientSize.Height + " high");
-            int lowest = int.MaxValue, highest = 0;
+            int lowest = int.MaxValue, highest = 0, free = Math.Max(0, band);
             foreach (KeyValuePair<int, int> row in tallest)
             {
                 if (shortest[row.Key] != row.Value)
                     findings.Add(where + " :: row " + row.Key + " holds cards " + shortest[row.Key] + " and " + row.Value + " high");
                 lowest = Math.Min(lowest, row.Value);
                 highest = Math.Max(highest, row.Value);
+                free += row.Value;
             }
-            if (alike && tallest.Count > 1 && highest - lowest > 1)
-                findings.Add(where + " :: its rows' cards are " + lowest + " and " + highest + " high");
+            if (opening && tallest.Count > 1 && highest - lowest > 1 && free >= tallest.Count * most)
+                findings.Add(where + " :: its rows' cards are " + lowest + " and " + highest + " high, where the page has room for all of them " +
+                             most + " high");
         }
 
         /// The Overview's grid of cards, or null.
@@ -3247,9 +3337,8 @@ namespace CodexAutoResume
             return grid;
         }
 
-        /// Every name of Right now's facts that wraps. Its card has room for them whole at the opening size, in every
-        /// language and state, and a block with the room keeps them whole (SoftPin.Arrange): only in a card as short
-        /// as its facts go - a window shorter than the opening size - do they give way to keep the button beside them.
+        /// Every name of Right now's facts that wraps. The button stands under the facts (Lead), so they have the card's
+        /// whole width in every language and state, at the opening size and in the shortest window the Overview fits.
         private void AuditNames(string where, List<string> findings)
         {
             foreach (KeyValuePair<Label, int> name in WrappedNames())
@@ -3261,8 +3350,7 @@ namespace CodexAutoResume
         private List<KeyValuePair<Label, int>> WrappedNames()
         {
             var wrapped = new List<KeyValuePair<Label, int>>();
-            var block = toggleButton == null ? null : toggleButton.Parent as SoftPin;
-            TableLayoutPanel facts = block == null ? null : block.Wraps;
+            TableLayoutPanel facts = nowFacts;
             if (facts == null) return wrapped;
             bool isName = true;
             using (var twin = new Label())
@@ -3290,18 +3378,17 @@ namespace CodexAutoResume
         /// The client heights, in device pixels, the last LayoutAudit measured the Overview at in AuditShortest: the
         /// shortest window its rows' own tallest cards fit (AuditedShortest), and the one every row as tall as the
         /// tallest card would need (AuditedAlike); and how many of Right now's names wrapped in the shortest
-        /// (AuditedWraps). So a quiet report is known to have measured a window where the rows cannot be alike, and
-        /// a quiet report on names to have been able to see one wrap.
+        /// (AuditedWraps). So a quiet report is known to have measured the shortest window, and tests/test_gui_layout.py
+        /// can hold it to the screens it must fit.
         internal static int AuditedShortest, AuditedAlike, AuditedWraps;
 
         /// The Overview in the shortest window it fits without scrolling: as tall as each row's own tallest card,
-        /// measured from the cards themselves at the opening width. KeepOnScreen gives the window a height like that on
-        /// a screen with less room than the opening size - 601 px on a 1920 by 1200 screen at 175% - and there the rows
-        /// share the page unequally (SoftRows.Shares). With every row as tall as the tallest, the Overview scrolled in
-        /// any window from 598 to 617 px high, where v0.6.3's fitted (v0.6.4, measured). Reported, in that window: the
-        /// page scrolling; an empty band above the footer; a card shorter than it needs; a pinned button out of its
-        /// corner or over text; anything cut off (Walk); and a window a pixel shorter that does not scroll, which would
-        /// leave the height measured proving nothing. The window then has its size back.
+        /// measured from the cards themselves at the opening width, with no space under the rows. KeepOnScreen gives the
+        /// window a height like that on a screen with less room than the opening size - 601 px on a 1920 by 1200 screen
+        /// at 175% - and there the rows keep what they need and the space under them goes first (OverviewHeights).
+        /// Reported, in that window: the page scrolling; space under the rows; a card shorter than it needs; a button
+        /// out of its corner, over text or crowding it; anything cut off (Walk); and a window a pixel shorter that does
+        /// not scroll, which would leave the height measured proving nothing. The window then has its size back.
         private void AuditShortest(List<string> findings)
         {
             Control built;
@@ -3324,8 +3411,9 @@ namespace CodexAutoResume
                 tallest = Math.Max(tallest, need);
             }
             Size opening = ClientSize;
-            // The window around the page - header, tabs, footer - and the page's and the grid's own padding.
-            int around = opening.Height - page.ClientSize.Height + page.Padding.Vertical + grid.Padding.Vertical;
+            // The window around the page - header, tabs, footer - and the page's own padding. Not the grid's: that is the
+            // space FitOverview keeps under the rows, which a window this short does not have.
+            int around = opening.Height - page.ClientSize.Height + page.Padding.Vertical;
             int height = around;
             foreach (int need in rows.Values) height += need;
             AuditedShortest = height;
@@ -3351,8 +3439,8 @@ namespace CodexAutoResume
                         if (card.Height < needs)
                             findings.Add(where + "/" + AuditName(card) + " :: is " + card.Height + " high and needs " + needs);
                     }
-                    foreach (KeyValuePair<Control, Control> pair in pinned)
-                        if (Showing(pair.Key)) AuditPin(where, pair.Key, pair.Value, findings);
+                    foreach (KeyValuePair<Control, Control> pair in led)
+                        if (Showing(pair.Key)) AuditLead(where, pair.Key, pair.Value, Px(LeadGap), findings);
                     Walk(page, where, findings);
                     AuditedWraps = WrappedNames().Count;
                 }
@@ -3409,8 +3497,8 @@ namespace CodexAutoResume
             Materialise(this);
             PerformLayout();
             Size room = reopenNote.ClientSize;
-            int needed = TextRenderer.MeasureText(reopenNote.Text, reopenNote.Font,
-                                                  new Size(Math.Max(1, room.Width - reopenNote.Padding.Horizontal), int.MaxValue),
+            int inside = Math.Max(1, room.Width - reopenNote.Padding.Horizontal);
+            int needed = TextRenderer.MeasureText(reopenNote.Lines(inside), reopenNote.Font, new Size(inside, int.MaxValue),
                                                   NoteFormat).Height;
             if (room.Width <= 0 || needed > room.Height - reopenNote.Padding.Vertical)
                 findings.Add("footer/reopen note at " + width + (beforeTheLayout ? ", shown before the window was laid out" : "") +
@@ -3423,14 +3511,15 @@ namespace CodexAutoResume
         /// orders - so that a quiet report is known to have looked at each of them.
         internal static int AuditedNotes;
 
-        /// How many pinned controls the last LayoutAudit held to their corners, so that a quiet report is known
-        /// to have looked at them.
+        /// How many pinned and led controls the last LayoutAudit held to their corners, so that a quiet report is
+        /// known to have looked at them.
         internal static int AuditedPins;
 
         private readonly HashSet<Control> auditedPins = new HashSet<Control>();
 
-        /// Every pinned control on screen that is not in its corner or covers text (AuditPin), each where it
-        /// first shows.
+        /// Every pinned control on screen that is not in its corner or covers text (AuditPin), and every button an
+        /// Overview card leads to that is not in its card's bottom-left corner, covers text or crowds it (AuditLead), each
+        /// where it first shows.
         private void AuditPins(string where, List<string> findings)
         {
             foreach (KeyValuePair<Control, Control> pair in pinned)
@@ -3439,6 +3528,13 @@ namespace CodexAutoResume
                 auditedPins.Add(pair.Key);
                 AuditedPins++;
                 AuditPin(where, pair.Key, pair.Value, findings);
+            }
+            foreach (KeyValuePair<Control, Control> pair in led)
+            {
+                if (!Showing(pair.Key) || auditedPins.Contains(pair.Key)) continue;
+                auditedPins.Add(pair.Key);
+                AuditedPins++;
+                AuditLead(where, pair.Key, pair.Value, Px(LeadGap), findings);
             }
         }
 
@@ -3467,6 +3563,27 @@ namespace CodexAutoResume
             Covered(place, control, block, Point.Empty, bounds, findings);
         }
 
+        /// A button an Overview card leads to (Lead) that is more than a pixel from the card's inner bottom-LEFT
+        /// corner, that lies over the text of anything else in the card, or that has a line of text less than `gap`
+        /// above it - the clear space around it (v0.6.5).
+        internal static void AuditLead(string where, Control control, Control block, int gap, List<string> findings)
+        {
+            string place = where + "/" + AuditName(control);
+            var inner = new Rectangle(block.Padding.Left, block.Padding.Top, block.ClientSize.Width - block.Padding.Horizontal,
+                                      block.ClientSize.Height - block.Padding.Vertical);
+            var bounds = new Rectangle(Point.Empty, control.Size);
+            for (Control c = control; c != null && c != block; c = c.Parent) bounds.Offset(c.Left, c.Top);
+            if (Math.Abs(bounds.Left - inner.Left) > 1 || Math.Abs(bounds.Bottom - inner.Bottom) > 1)
+                findings.Add(place + " :: is not at the bottom left of its " + AuditName(block) + ", " + bounds + " in " + inner);
+            Covered(place, control, block, Point.Empty, bounds, findings);
+            // The band above it, across the card: no line of text ends in it.
+            var above = new Rectangle(inner.Left, bounds.Top - gap, inner.Width, gap);
+            var crowding = new List<string>();
+            Covered(place, control, block, Point.Empty, above, crowding);
+            foreach (string line in crowding)
+                findings.Add(line.Replace(" :: covers ", " :: has less than " + gap + " px above it to "));
+        }
+
         private static void Covered(string place, Control pinnedControl, Control container, Point offset, Rectangle bounds,
                                     List<string> findings)
         {
@@ -3492,8 +3609,10 @@ namespace CodexAutoResume
             if (label == null) return bounds;
             TextFormatFlags format = TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl;
             if (!label.UseMnemonic) format |= TextFormatFlags.NoPrefix;
-            Size text = TextRenderer.MeasureText(label.Text, label.Font,
-                                                 new Size(Math.Max(1, label.ClientSize.Width - label.Padding.Horizontal), int.MaxValue), format);
+            int room = Math.Max(1, label.ClientSize.Width - label.Padding.Horizontal);
+            // In the lines it is drawn in (WrapLabel: Korean between its words).
+            var wrap = label as WrapLabel;
+            Size text = TextRenderer.MeasureText(wrap != null ? wrap.Lines(room) : label.Text, label.Font, new Size(room, int.MaxValue), format);
             int width = Math.Min(text.Width + label.Padding.Horizontal, bounds.Width);
             int height = Math.Min(text.Height + label.Padding.Vertical, bounds.Height);
             int x = bounds.X, y = bounds.Y;
@@ -3630,6 +3749,73 @@ namespace CodexAutoResume
             return text.Width > room.Width ? "text needs " + text.Width + " wide, has " + room.Width : null;
         }
 
+        /// How many lists the last LayoutAudit held to their width (AuditLists, AuditTimeline), so that a quiet report is
+        /// known to have looked at them.
+        internal static int AuditedLists;
+
+        /// The list on `page` - Pending's or History's - whose columns are wider than it is at the opening size, where
+        /// they share its width (FitColumns): v0.6.4's white bar under the Pending list.
+        private void AuditLists(string where, List<string> findings)
+        {
+            ListView list = where.StartsWith("pending", StringComparison.Ordinal) ? pendingList
+                          : where.StartsWith("history", StringComparison.Ordinal) ? historyList : null;
+            if (list == null || !Showing(list)) return;
+            AuditList(where + "/" + AuditName(list), list, findings);
+        }
+
+        /// A list whose columns are wider than it is, which is what makes Windows show its horizontal bar - under the
+        /// clip, with the soft one drawn in its place (SoftListHost). Measured rather than read from the list's style:
+        /// the list takes its bar away only once the window has had its messages, a list that has just grown its
+        /// vertical bar is set right by its host after one (SoftListHost.Sync), and the audit never pumps them - pumped,
+        /// they gave the window it measures the size of the screen the audit runs on.
+        private static void AuditList(string place, ListView list, List<string> findings)
+        {
+            AuditedLists++;
+            int total = 0;
+            foreach (ColumnHeader column in list.Columns) total += column.Width;
+            if (total > list.ClientSize.Width)
+                findings.Add(place + " :: scrolls sideways at the opening size, its columns " + total + " wide in " + list.ClientSize.Width);
+        }
+
+        /// The Timeline dialog's list, built for the reply's first waiting recovery and a history of events with long
+        /// words, laid out at the dialog's opening size and never shown (AuditList).
+        private void AuditTimeline(Dictionary<string, object> snapshot, List<string> findings)
+        {
+            var rows = snapshot == null ? null : snapshot.ContainsKey("pending") ? snapshot["pending"] as List<object> : null;
+            var row = rows != null && rows.Count > 0 ? rows[0] as Dictionary<string, object> : null;
+            if (row == null) row = new Dictionary<string, object>();
+            var events = new List<object>();
+            string[] codes = { "detected", "state", "claim", "submitted", "correlated", "retry_now", "release_claim",
+                               "continuation_after_user_turn", "dispatched_while_paused", "state" };
+            string[] states = { "waiting_reset", "scheduled", "submission_claimed", "submitted", "turn_running", "scheduled",
+                                "outcome_unverified", "no_progress", "submission_unknown", "recovered" };
+            double at = 1.8e9;
+            for (int i = 0; i < codes.Length; i++)
+            {
+                var entry = new Dictionary<string, object>();
+                entry["at"] = at + 3600.0 * i;
+                entry["code"] = codes[i];
+                entry["to_code"] = states[i];
+                events.Add(entry);
+            }
+            using (Form dialog = BuildTimeline(row, events))
+            {
+                dialog.TopLevel = false;
+                Materialise(dialog);
+                dialog.PerformLayout();
+                if (timelineList != null) AuditList("timeline/" + AuditName(timelineList), timelineList, findings);
+            }
+        }
+
+        /// A dashboard reply with no waiting and no finished recoveries in it.
+        private static Dictionary<string, object> WithoutRows(Dictionary<string, object> reply)
+        {
+            var empty = new Dictionary<string, object>(reply);
+            empty["pending"] = new List<object>();
+            empty["history"] = new List<object>();
+            return empty;
+        }
+
         /// A list's columns within its width, each heading whole in its column.
         private static string ColumnsFit(ListView list)
         {
@@ -3644,7 +3830,8 @@ namespace CodexAutoResume
                 if (needed > room) cut.Add("'" + column.Text + "' needs " + needed + ", has " + room);
             }
             if (total > list.ClientSize.Width) return "columns are " + total + " wide in " + list.ClientSize.Width;
-            return cut.Count == 0 ? null : "column headings cut: " + string.Join("; ", cut.ToArray());
+            return cut.Count == 0 ? null : "column headings cut: " + string.Join("; ", cut.ToArray()) + " (columns " + total + " wide in " +
+                                           list.ClientSize.Width + ")";
         }
 
         private static string AuditName(Control control)

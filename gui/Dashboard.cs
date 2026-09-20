@@ -90,6 +90,16 @@ namespace CodexAutoResume
             }
         }
 
+        /// One call on the one-shot bridge, past the long-lived process and its lock (v0.6.5): for a command that can
+        /// take minutes - the compatibility refresh waits up to 150 s on the network - which on the long-lived pipe
+        /// would hold every read the window paints from, and past the pipe's own 30 s reply limit would end the
+        /// process under it. Called from a worker thread only, as every bridge call is.
+        internal Dictionary<string, object> CallOnce(string command, string argument)
+        {
+            if (closed) throw new ObjectDisposedException("the window is closing");
+            return once.Call(command, argument);
+        }
+
         private Dictionary<string, object> Ask(string command, string argument)
         {
             if (process == null || process.HasExited) StartLocked();
@@ -298,7 +308,7 @@ namespace CodexAutoResume
     /// for a sentence that appears somewhere the focus is not; the name-change event
     /// below is the same news through the older interface. Neither announces a repeat of
     /// the identical sentence, which is why the note is also left on screen.
-    internal sealed class NoteLabel : Label
+    internal sealed class NoteLabel : WrapLabel
     {
         protected override void OnTextChanged(EventArgs e)
         {
@@ -479,12 +489,16 @@ namespace CodexAutoResume
             Invalidate();
         }
 
+        // What it says with no checks to show: wrapped, Korean between its words (Soft.Wrap).
+        private const TextFormatFlags EmptyFormat = TextFormatFlags.WordBreak | TextFormatFlags.Left;
+
         public override Size GetPreferredSize(Size proposedSize)
         {
             int width = proposedSize.Width > 0 && proposedSize.Width < 20000 ? proposedSize.Width : Soft.Px(260);
+            string text = empty.Length == 0 ? " " : empty;
             int height = rows.Count == 0
-                ? TextRenderer.MeasureText(empty.Length == 0 ? " " : empty, Font, new Size(width, int.MaxValue),
-                                           TextFormatFlags.WordBreak).Height
+                ? TextRenderer.MeasureText(Soft.Wrap(text, Font, width, EmptyFormat), Font, new Size(width, int.MaxValue),
+                                           EmptyFormat).Height
                 : rows.Count * RowHeight;
             return new Size(width, height);
         }
@@ -496,8 +510,8 @@ namespace CodexAutoResume
             g.Clear(ground);
             if (rows.Count == 0)
             {
-                TextRenderer.DrawText(g, empty, Font, ClientRectangle, Palette.Secondary,
-                                      TextFormatFlags.WordBreak | TextFormatFlags.Left);
+                TextRenderer.DrawText(g, Soft.Wrap(empty, Font, Width, EmptyFormat), Font, ClientRectangle, Palette.Secondary,
+                                      EmptyFormat);
                 return;
             }
             int y = 0, height = RowHeight;
@@ -573,6 +587,8 @@ namespace CodexAutoResume
         private Label explainAsOf;
         // The Pending list's Auto-resume column, a check box for the task on its row.
         private const int ResumeColumn = 5;
+        // The Pending list's Next check column, which the clock writes (UpdateCountdowns).
+        private const int CountdownColumn = 3;
         // The note that belongs to no single record: what Cancel all did.
         private const string BulkNote = "*";
         // The watcher's safety checks, in the order it evaluates them (machine.GATES).
@@ -591,6 +607,20 @@ namespace CodexAutoResume
         private Label diagVersion, diagWatcher, diagLastCheck, diagEngine, diagRecovery, diagStartup,
                       diagUpgrade, diagUpdate;
         private Button exportButton, repairButton, stopButton, updateButton;
+        // Codex compatibility (v0.6.5; BuildCompatibility): its facts, what the view cannot vouch for, the parts in two
+        // lists, what each state word means, and the refresh with what it last answered.
+        private Label compatOverall, compatEngine, compatChecked, compatData, compatNotice, compatLegend;
+        private GateList compatLeft, compatRight;
+        private Control compatLists;
+        private NoteLabel compatNote;
+        private Button compatButton;
+        private string compatSaid = "";
+        // The watcher's report as last read; the live check a refresh brought, shown instead while it stands over the
+        // reports read after it (LiveStands); and whether the last read failed.
+        private Dictionary<string, object> compatView, compatLive;
+        // What the report said when the live check arrived (Reading): news the live check has already seen past.
+        private string compatLiveOver;
+        private bool compatUnreadable, loadingCompat, compatRefreshing;
 
         // ----------------------------------------------------------------- chrome
         private void BuildDashboard()
@@ -660,6 +690,7 @@ namespace CodexAutoResume
                 {
                     RefreshNow();
                     if (currentPage == "statistics") LoadStatistics();
+                    if (currentPage == "diagnostics") LoadCompatibility();
                     e.Handled = true;
                 }
             };
@@ -712,6 +743,7 @@ namespace CodexAutoResume
             }
             if (auditing) return;
             if (name == "statistics") LoadStatistics();
+            if (name == "diagnostics") LoadCompatibility();
             // Not when the snapshot on screen is under two seconds old: switching pages straight
             // after a read asked for the same answer again - 17-87 ms of Python and up to 45 ms of
             // redrawing, for nothing new.
@@ -750,7 +782,8 @@ namespace CodexAutoResume
 
         private Label Value(string text)
         {
-            var label = new Label();
+            // A value that wraps breaks Korean between its words (WrapLabel).
+            var label = new WrapLabel();
             label.Text = text;
             label.AutoSize = true;
             label.ForeColor = Ink;
@@ -836,9 +869,9 @@ namespace CodexAutoResume
             return Pad(column == 0 ? 0 : half, 0, column == 0 ? half : 0, lastRow ? 0 : Brand.PageGap);
         }
 
-        /// The gap around a card in a grid whose rows share the page's height (SoftRows): between the columns as
-        /// GridGap has it, and between the rows half of the page gap under the one and half over the other, so
-        /// rows of one height are cards of one height.
+        /// The gap around a card in the Overview's grid, whose rows FitOverview sizes: between the columns as GridGap
+        /// has it, and between the rows half of the page gap under the one and half over the other, so rows of one
+        /// height are cards of one height.
         private Padding RowGap(int column, int row)
         {
             int half = Brand.PageGap / 2;
@@ -900,47 +933,21 @@ namespace CodexAutoResume
             // All of it: the header control paints whatever the columns leave in plain white.
             int available = list.ClientSize.Width;
             if (available < Px(160) || total <= 0) return;
-            // Every column first gets its heading, whole, in the list's font; what is left is shared
-            // in the declared proportions. Shared out alone, the proportions cut "Next check",
-            // "Attempts" and "Auto-resume" short in a window of v0.6.2's width.
-            //
-            // Then each column keeps room for the widest thing it holds: every column but the
-            // conversation's first, and the conversation's from what they leave - a name may be as long
-            // as its owner made it, and a state or a kind cut short says nothing. From the headings
-            // alone, a status needed the window 1,239 px wide before "waiting for the usage reset" was
-            // drawn whole (measured, 150%), because its column only ever had its share of what the
-            // headings left.
-            var floor = new int[weights.Length];
-            int floors = 0, others = 0, wanted = 0;
+            // Each column's heading, the widest cell under it and the least it is drawn at; how wide each is then
+            // follows what the list has room for (ColumnFloors), and what is left past that is shared in the declared
+            // proportions.
             int[] cells;
             cellWidths.TryGetValue(list, out cells);
-            var want = new int[weights.Length];
+            var heading = new int[weights.Length];
+            var least = new int[weights.Length];
             for (int i = 0; i < weights.Length; i++)
             {
-                floor[i] = HeadingWidth(list, i);
-                floors += floor[i];
-                want[i] = cells != null && i < cells.Length ? Math.Max(floor[i], cells[i]) : floor[i];
-                if (i > 0) others += want[i];
-                if (i > 0) wanted += want[i] - floor[i];
+                heading[i] = HeadingWidth(list, i);
+                least[i] = LeastWidth(list, i);
             }
-            if (floor[0] + others <= available)
-            {
-                for (int i = 1; i < weights.Length; i++) floor[i] = want[i];
-                floor[0] = Math.Max(floor[0], Math.Min(want[0], available - others));
-                floors = floor[0] + others;
-            }
-            else if (floors < available && wanted > 0)
-            {
-                // Not room for all of that: each of those columns is given the same part of what it
-                // wants past its heading, so none is cut to its heading while another is drawn whole.
-                int more = floor[0];
-                for (int i = 1; i < weights.Length; i++)
-                {
-                    floor[i] += (int)Math.Floor((want[i] - floor[i]) * (double)(available - floors) / wanted);
-                    more += floor[i];
-                }
-                floors = more;
-            }
+            int[] floor = ColumnFloors(heading, cells, least, Px(ReadableCells), available);
+            int floors = 0;
+            foreach (int width in floor) floors += width;
             int spare = Math.Max(0, available - floors);
             int used = 0;
             for (int i = 0; i < weights.Length; i++)
@@ -950,6 +957,108 @@ namespace CodexAutoResume
                 if (list.Columns[i].Width != width) list.Columns[i].Width = width;
                 used += width;
             }
+        }
+
+        /// How much of what a column holds is kept before a heading gives way (ColumnFloors): about a dozen characters,
+        /// with the cell's inset - twice the least a column is drawn at (LeastWidth).
+        internal const int ReadableCells = 96;
+
+        /// The least each of a list's columns is given, `available` wide (v0.6.5): `heading` each heading's width whole,
+        /// `cells` each column's widest cell (null before any was measured), `least` the least each is drawn at
+        /// (LeastWidth), `readable` how much of what a column holds is kept before a heading gives way (ReadableCells).
+        /// What the list has past their total is shared in the declared proportions (FitColumns).
+        ///
+        /// As the list narrows, what gives way, in turn:
+        ///   * a conversation's name past its heading: every other column keeps its heading and its widest cell whole,
+        ///     and the conversation's has what they leave - a name may be as long as its owner made it, and a state or a
+        ///     kind cut short says nothing. From the headings alone, a status needed the window 1,239 px wide before
+        ///     "waiting for the usage reset" was drawn whole (measured, 150%);
+        ///   * cells past a readable width: every heading stays whole - "Next check", "Attempts" and "Auto-resume" were
+        ///     cut short in a window of v0.6.2's width - and every column keeps what it holds up to `readable`; each is
+        ///     given the same part of what it wants past that;
+        ///   * headings wider than what their column holds, the widest first, each down to the next widest, never below
+        ///     what the column holds, readable;
+        ///   * last, the cells, the widest first, never below the least. Only a list narrower than every column's least
+        ///     is wider than its card, and scrolls sideways on the soft bar (SoftListHost).
+        /// A heading and the cells under it that no longer fit end in an ellipsis (DrawHeader, DrawCell). The columns kept
+        /// every heading whole whatever the list's width until v0.6.5, so a list narrower than its headings - a window
+        /// made narrower than it opens - was wider than its card, with Windows' own white bar under the rows; then the
+        /// headings alone gave way, and the review found the German Pending list 800 px wide at 200% with "Status" and
+        /// "Art" at three or four letters of what they hold while "Versuche" kept 70 px for a single digit and the
+        /// switch's column 100 for its 40 px switch. Widest first rather than in proportion, so a time or a count - which
+        /// says nothing cut - stays whole while a long state or name ends in an ellipsis.
+        internal static int[] ColumnFloors(int[] heading, int[] cells, int[] least, int readable, int available)
+        {
+            int count = heading.Length, others = 0, keeps = 0, holds = 0, wanted = 0;
+            var full = new int[count];
+            var hold = new int[count];
+            var keep = new int[count];
+            for (int i = 0; i < count; i++)
+            {
+                int cell = cells != null && i < cells.Length ? cells[i] : 0;
+                // A conversation's name holds only as much as its heading, past which it gives way first.
+                int need = Math.Max(least[i], i == 0 ? Math.Min(cell, heading[0]) : cell);
+                full[i] = Math.Max(heading[i], i == 0 ? cell : need);
+                hold[i] = Math.Max(least[i], Math.Min(need, readable));
+                keep[i] = Math.Max(heading[i], hold[i]);
+                if (i > 0)
+                {
+                    others += full[i];
+                    wanted += full[i] - keep[i];
+                }
+                keeps += keep[i];
+                holds += hold[i];
+            }
+            var widths = new int[count];
+            if (count == 0) return widths;
+            if (heading[0] + others <= available)
+            {
+                for (int i = 1; i < count; i++) widths[i] = full[i];
+                widths[0] = Math.Max(heading[0], Math.Min(full[0], available - others));
+                return widths;
+            }
+            if (keeps <= available)
+            {
+                widths[0] = keep[0];
+                for (int i = 1; i < count; i++)
+                    widths[i] = keep[i] + (wanted > 0 ? (int)Math.Floor((full[i] - keep[i]) * (double)(available - keeps) / wanted) : 0);
+                return widths;
+            }
+            bool headings = holds <= available;
+            int top = 0;
+            for (int i = 0; i < count; i++) top = Math.Max(top, headings ? keep[i] : hold[i]);
+            // The widest a heading, or else a cell, may stay: the largest cap under which the columns fit.
+            int low = 0, high = top;
+            while (low < high)
+            {
+                int cap = (low + high + 1) / 2;
+                if (Capped(keep, hold, least, cap, headings, null) <= available) low = cap;
+                else high = cap - 1;
+            }
+            Capped(keep, hold, least, low, headings, widths);
+            return widths;
+        }
+
+        // The columns' total with every heading (`headings`: each column between what it holds and its heading), or else
+        // every cell (between the least and what it holds), held to `cap`; each width into `widths` when it is given.
+        private static int Capped(int[] keep, int[] hold, int[] least, int cap, bool headings, int[] widths)
+        {
+            int total = 0;
+            for (int i = 0; i < keep.Length; i++)
+            {
+                int width = headings ? Math.Max(hold[i], Math.Min(keep[i], cap)) : Math.Max(least[i], Math.Min(hold[i], cap));
+                if (widths != null) widths[i] = width;
+                total += width;
+            }
+            return total;
+        }
+
+        /// The narrowest a column is drawn: an ellipsis and a letter or two of its heading - DrawHeader's inset and
+        /// 34 px - or, for Pending's Auto-resume column, its switch whole (DrawResumeBox) with DrawCell's inset.
+        private int LeastWidth(ListView list, int column)
+        {
+            if (list == pendingList && column == ResumeColumn) return Px(Brand.SwitchWidth + 2) + Px(14);
+            return Px(48);
         }
 
         // The widest cell of each column, as DrawCell draws it, measured when a list's rows change
@@ -968,8 +1077,12 @@ namespace CodexAutoResume
                 if (++rows > 200) break;
                 for (int c = 0; c < widths.Length && c < item.SubItems.Count; c++)
                 {
-                    string text = item.SubItems[c].Text;
-                    int width = c == 1 ? Soft.ChipSize(text, list.Font).Width
+                    // The countdown as the clock writes it now: the cell holds only what the last tick wrote, and nothing
+                    // yet in a row just added, so a list's first fit left the column no room for its time (v0.6.5).
+                    string text = list == pendingList && c == CountdownColumn ? CountdownText(item.Tag as Dictionary<string, object>, Now())
+                                : item.SubItems[c].Text;
+                    // A state chip where DrawCell draws one: the second column of a row that has its record.
+                    int width = c == 1 && item.Tag is Dictionary<string, object> ? Soft.ChipSize(text, list.Font).Width
                               : list == pendingList && c == ResumeColumn ? Px(Brand.SwitchWidth + 2)
                               : TextRenderer.MeasureText(text, list.Font, unbounded, TextFormatFlags.SingleLine).Width;
                     // DrawCell's inset: 10 before, 4 after.
@@ -1049,7 +1162,7 @@ namespace CodexAutoResume
             if (e.ColumnIndex == 1 && row != null)
                 Soft.Chip(e.Graphics, cell, text, list.Font, Palette.Contrast && selected ? ink : ToneFor(row), back);
             else if (list == pendingList && e.ColumnIndex == ResumeColumn && row != null)
-                DrawResumeBox(e.Graphics, cell, ThreadOn(row), back);
+                DrawResumeBox(e.Graphics, cell, row, back);
             else
                 TextRenderer.DrawText(e.Graphics, text, list.Font, cell, e.ColumnIndex == 0 ? ink : quiet,
                                       TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
@@ -1061,12 +1174,79 @@ namespace CodexAutoResume
         }
 
         /// The Auto-resume box, drawn as the switch every other on-or-off setting in the window is,
-        /// on the row's own ground.
-        private void DrawResumeBox(Graphics g, Rectangle cell, bool on, Color ground)
+        /// on the row's own ground: where its record says, or part-way there while it glides
+        /// (FollowResumeSwitches).
+        private void DrawResumeBox(Graphics g, Rectangle cell, Dictionary<string, object> row, Color ground)
         {
             int width = Px(Brand.SwitchWidth), height = Px(Brand.SwitchHeight);
             var track = new Rectangle(cell.X + Px(2), cell.Y + (cell.Height - height) / 2, width, height);
-            Soft.Switch(g, track, on, true, ground);
+            double on = ThreadOn(row) ? 1.0 : 0.0;
+            Transition glide;
+            string id = Str(row, "interruption_id");
+            if (id != null && resumeGlides.TryGetValue(id, out glide) && glide.Running) on = glide.Value;
+            Soft.SwitchAt(g, track, on, true, ground);
+        }
+
+        // Pending's Auto-resume switches (v0.6.5): each row's as it was last drawn, by its record's id, and the glide of
+        // each that has moved.
+        private readonly Dictionary<string, bool> resumeShown = new Dictionary<string, bool>();
+        private readonly Dictionary<string, Transition> resumeGlides = new Dictionary<string, Transition>();
+
+        /// Every Auto-resume switch in Pending, after its rows were written (v0.6.5). The switch never moves when it is
+        /// pressed: the press sends the change, and the list is read again once the control layer has answered
+        /// (ToggleAutoResume, Send). A switch already on screen that its record now says is the other way then glides
+        /// there - brand's one transition on its one curve, the knob sliding and the track cross-fading, as the popup's
+        /// and the panel's switch for the same conversation do - repainting only its own cell each frame (ResumeCell),
+        /// with no layout and no timer once it has arrived. A change refused leaves the record as it was, and nothing
+        /// moves. A row that appears is drawn as it is; with motion reduced, or Pending not on screen, the switch is
+        /// where its record says at once.
+        private void FollowResumeSwitches()
+        {
+            bool animate = Motion.Allowed(pendingList);
+            var present = new HashSet<string>();
+            foreach (ListViewItem item in pendingList.Items)
+            {
+                var row = item.Tag as Dictionary<string, object>;
+                string id = Str(row, "interruption_id");
+                if (id == null || !present.Add(id)) continue;
+                bool on = ThreadOn(row), was;
+                bool known = resumeShown.TryGetValue(id, out was);
+                resumeShown[id] = on;
+                Transition glide;
+                resumeGlides.TryGetValue(id, out glide);
+                if (!known || (was == on && (glide == null || glide.Target == (on ? 1.0 : 0.0)))) continue;
+                if (glide == null)
+                {
+                    if (!animate) continue;
+                    glide = new Transition(pendingList, was ? 1.0 : 0.0);
+                    string key = id;
+                    glide.Where = delegate { return ResumeCell(key); };
+                    resumeGlides[id] = glide;
+                }
+                glide.To(on ? 1.0 : 0.0, animate);
+            }
+            foreach (string id in new List<string>(resumeShown.Keys))
+            {
+                if (present.Contains(id)) continue;
+                resumeShown.Remove(id);
+                Transition glide;
+                if (resumeGlides.TryGetValue(id, out glide))
+                {
+                    glide.Dispose();
+                    resumeGlides.Remove(id);
+                }
+            }
+        }
+
+        /// Where the Auto-resume switch of the row for `id` is in Pending's list now, or nothing when that row is not
+        /// there: the cell a glide repaints, found again each frame, so a list that scrolls meanwhile is followed.
+        private Rectangle ResumeCell(string id)
+        {
+            if (pendingList == null || pendingList.IsDisposed) return Rectangle.Empty;
+            foreach (ListViewItem item in pendingList.Items)
+                if (Str(item.Tag as Dictionary<string, object>, "interruption_id") == id && item.SubItems.Count > ResumeColumn)
+                    return item.SubItems[ResumeColumn].Bounds;
+            return Rectangle.Empty;
         }
 
         /// The colour a record's state word is drawn in. Always beside the word itself.
@@ -1099,34 +1279,35 @@ namespace CodexAutoResume
         private Control BuildOverview()
         {
             Panel page = Page();
-            // Two rows of two cards that share the page's whole height (SoftRows): the cards reach from under the
-            // tabs to above the footer, rows of one height, whatever height the window has.
-            var grid = new SoftRows(2, 2);
+            // Two rows of two cards, and under them a row of space. How tall each is follows what the cards hold and the
+            // page's height (FitOverview). A ground, so the cards' lift is drawn on it. AutoSize, though the page decides
+            // its size: a table answers its parent's layout from its own only when it sizes itself, and WinForms then
+            // lays the parent out once the table's own layout has finished - so a card that grows on a page already laid
+            // out has the page fit the rows again, and scroll (as SoftRows did in v0.6.4).
+            var grid = new SoftStack();
+            grid.Dock = DockStyle.Fill;
+            grid.AutoSize = true;
+            grid.Margin = new Padding(0);
+            grid.ColumnCount = 2;
+            grid.RowCount = OverviewRows + 1;
+            for (int i = 0; i < 2; i++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+            for (int i = 0; i < OverviewRows; i++) grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 0f));
+            grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
 
             TableLayoutPanel now = MakeCard(S("overview.now", "Right now"));
             now.Margin = RowGap(0, 0);
             TableLayoutPanel facts = Facts(now);
             // Automatic recovery first, what the button pauses and resumes, then the watcher, the engine and the last
-            // check. At 600 px no order with automatic recovery first fitted every state in every language: beside
-            // the button, in French, "non pris en charge" took two more lines or the button under the facts, and the
-            // Overview scrolled, so for a while it came last. With the rows sharing the page (SoftRows) the button
-            // stands under the facts, whose longest words - "ne répond pas", "nicht unterstützt", "no se está
-            // ejecutando" - have the card's whole width in every language at every scaling and state (v0.6.4,
-            // measured: tests/test_gui_layout.py). It costs French in a window shorter than the opening size, where
-            // the rows no longer share the page alike: Right now needs 15 to 20 px more there than with automatic
-            // recovery last, and the Overview scrolls below 584 to 615 px rather than 569 to 595 (OpeningHeight).
+            // check. The button stands under the facts, so they have the card's whole width - "ne répond pas",
+            // "nicht unterstützt", "no se está ejecutando" among them - in every language at every scaling and state
+            // (tests/test_gui_layout.py).
             nowRecovery = Fact(facts, S("overview.recovery", "Automatic recovery"));
             nowWatcher = Fact(facts, S("diag.watcher", "Watcher"));
             nowEngine = Fact(facts, S("overview.engine", "Codex engine"));
             nowLastCheck = Fact(facts, S("overview.last_check", "Last check"));
+            nowFacts = facts;
             toggleButton = MakeButton(S("action.pause", "Pause recovery"), false, delegate { TogglePause(); });
-            // Where the card has no room under its facts - a window shorter than the Overview needs - the names give
-            // way before the button does: at 600 px "Automatische Wiederherstellung" beside "Wiederherstellung
-            // pausieren" left the last facts under the button in German, and a button under the facts made the
-            // Overview taller than its window. A card with the room keeps them whole (SoftPin.Arrange).
-            SoftPin nowBlock = PinTo(now, toggleButton);
-            nowBlock.Wraps = facts;
-            ReserveNowWords(nowBlock);
+            Lead(now, toggleButton);
 
             TableLayoutPanel waiting = MakeCard(S("overview.waiting", "Waiting"));
             waiting.Margin = RowGap(1, 0);
@@ -1140,7 +1321,7 @@ namespace CodexAutoResume
             waiting.Controls.Add(waitingLine);
             waiting.Controls.Add(nextLine);
             waiting.Controls.Add(runningLine);
-            PinTo(waiting, MakeButton(S("nav.pending", "Pending"), false, delegate { ShowPage("pending"); }));
+            Lead(waiting, MakeButton(S("nav.pending", "Pending"), false, delegate { ShowPage("pending"); }));
 
             TableLayoutPanel week = MakeCard(S("overview.week", "Last 7 days"));
             week.Margin = RowGap(0, 1);
@@ -1149,7 +1330,7 @@ namespace CodexAutoResume
             weekSent = Fact(weekFacts, S("overview.sent", "Continuations sent"));
             weekRecovered = Fact(weekFacts, S("overview.recovered", "Recovered"));
             weekSuccess = Fact(weekFacts, S("overview.success", "Success rate"));
-            PinTo(week, null);
+            Lead(week, null);
 
             // The last few recoveries that finished, so the page answers "did it work" as
             // well as "is it working" without a trip to the History page.
@@ -1159,7 +1340,7 @@ namespace CodexAutoResume
             recentEmpty = Value(S("history.empty", "No recoveries yet"));
             recentEmpty.ForeColor = Secondary;
             recent.Controls.Add(recentEmpty);
-            PinTo(recent, MakeButton(S("nav.history", "History"), false, delegate { ShowPage("history"); }));
+            Lead(recent, MakeButton(S("nav.history", "History"), false, delegate { ShowPage("history"); }));
             recentGrid.SizeChanged += delegate { FitRecentNames(); };
 
             grid.Controls.Add(now, 0, 0);
@@ -1167,55 +1348,165 @@ namespace CodexAutoResume
             grid.Controls.Add(week, 0, 1);
             grid.Controls.Add(recent, 1, 1);
             page.Controls.Add(grid);
+            overviewGrid = grid;
+            // Before the page lays the grid out, every time it does: the rows follow the page's height and what the
+            // cards hold (FitOverview).
+            var scroller = (SoftPage)page;
+            page.Layout += delegate { FitOverview(scroller, grid); };
             return page;
         }
 
-        /// An Overview card as the person asked for it in v0.6.4: its heading at the top left, what it
-        /// holds under the heading, and what the card leads to pinned to the card's bottom right
-        /// (SoftPin) - beside the last lines where they leave room, under them where they do not. Every
-        /// Overview card has the panel's first gap under its heading, button or not, so the facts in two
-        /// cards side by side start on one line.
+        // The Overview's rows of cards.
+        private const int OverviewRows = 2;
+
+        // The Overview's proportions (v0.6.5), every one a step of brand's scale. Chosen from renders of the window at
+        // 632, 648 and 664 px high, with card padding of 16 by 18 and 16 by 24, in English and Korean, light and dark,
+        // full and as a first installation shows it, side by side (SettingsForm.OpeningHeight says why 664).
+        //
+        // Under the last row the page keeps its own padding (CardRoom), the mirror of the padding over the first row, as
+        // every page keeps under its last card - so the gap above the footer stays where it is as the tabs change.
+        //
+        // The most a row is given past what the tallest row needs. A little more room than the content needs reads as a
+        // card at ease; past this it reads as content floating in an empty card, and the rest is space under the rows.
+        internal const int OverviewComfort = Brand.SpaceXl;
+        // The clear space above a card's button: the largest step of the scale with which the Overview still fits a
+        // 1920 by 1080 screen at 150% (SpaceL needed 637 px of window there, where the screen leaves 634).
+        internal const int LeadGap = Brand.SpaceM;
+
+        private TableLayoutPanel overviewGrid;
+        private TableLayoutPanel nowFacts;
+        // Whether the page fits the Overview's rows (FitOverview). Only tests/test_gui_layout.py turns it off, to show the
+        // audit a page laid out otherwise.
+        private bool fitOverview = true;
+
+        /// An Overview card as v0.6.2 had it and as the person asked for it again in v0.6.5: its heading at the top
+        /// left, what it holds under the heading, and the button it leads to at its bottom LEFT, in a row of its own
+        /// under the last line. The row takes whatever height the card is given past what it holds, and the button
+        /// stands at the row's bottom, so a card stretched beside a taller one keeps its button in its corner and its
+        /// content at its top. Every Overview card has the panel's first gap under its heading, button or not, so the
+        /// facts in two cards side by side start on one line. A card that leads nowhere (`button` null) keeps its
+        /// content where it is.
         ///
-        /// Before, the button sat beside the heading in a row one button high, because a button in a row
-        /// of its own under every card's content made the page taller than a window that fits a 1920 by
-        /// 1080 screen at 150%. Pinned, the heading takes only its own height, and a button takes a row
-        /// of its own only in a card whose lines reach its column - Recently finished, whose outcomes run
-        /// to the card's edge - so the page still fits (SettingsForm.OpeningHeight). A card that leads
-        /// nowhere (`button` null) keeps its content where it is, and has no block.
-        private SoftPin PinTo(TableLayoutPanel card, Button button)
+        /// v0.6.4 pinned the button to the bottom RIGHT, beside the last lines where they left room (SoftPin); the
+        /// person found the first screen better with v0.6.2's buttons at the left, where the eye comes down the card
+        /// and finds them - and a button under the content never makes a name wrap for its sake.
+        private void Lead(TableLayoutPanel card, Button button)
         {
             Control heading = card.Controls[0];
             heading.Margin = Pad(0, 0, 0, Brand.CardFirstGap);
-            if (button == null) return null;
-            // A ground in the card's colour, as the card's rows are: the button's lift reaches over it.
-            var body = new SoftStack();
-            body.BackColor = Card;
-            body.ColumnCount = 1;
-            body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            body.GrowStyle = TableLayoutPanelGrowStyle.AddRows;
-            body.AutoSize = true;
-            body.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            var content = new List<Control>();
-            for (int i = 1; i < card.Controls.Count; i++) content.Add(card.Controls[i]);
-            foreach (Control control in content)
-            {
-                card.Controls.Remove(control);
-                body.Controls.Add(control);
-            }
-            var block = new SoftPin(body, button);
-            block.Dock = DockStyle.Fill;
-            card.Controls.Add(block);
-            // The heading as tall as it is, and the block down to the card's inner bottom edge, however
-            // tall the card beside it makes this one and however much of the page its row is given (SoftRows).
             card.RowStyles.Clear();
-            card.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            for (int i = 0; i < card.Controls.Count; i++) card.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            if (button == null) return;
+            // Clear of the last line by the scale's medium step, never less, and at the bottom of what is left.
+            button.Anchor = AnchorStyles.Left | AnchorStyles.Bottom;
+            button.Margin = Pad(0, LeadGap, 0, 0);
+            card.Controls.Add(button);
             card.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-            Pinned(button, card);
-            return block;
+            led[button] = card;
         }
 
-        // Every control pinned to the bottom right of a block - a card, the header, a row - and that
-        // block, for LayoutAudit to hold each to its corner.
+        // Every control led to from the bottom left of an Overview card (Lead), and that card, for LayoutAudit to hold
+        // each to its corner.
+        private readonly Dictionary<Control, Control> led = new Dictionary<Control, Control>();
+
+        /// What each of the Overview's rows needs `width` wide, margins and all: its tallest card as a table measures
+        /// it, at the narrower column's width.
+        private static int[] OverviewRowNeeds(TableLayoutPanel grid, int width)
+        {
+            var needs = new int[OverviewRows];
+            int column = Math.Max(1, (width - grid.Padding.Horizontal) / Math.Max(1, grid.ColumnCount));
+            foreach (Control child in grid.Controls)
+            {
+                if (!Soft.OwnVisible(child)) continue;
+                int row = grid.GetPositionFromControl(child).Row;
+                if (row < 0 || row >= needs.Length) continue;
+                int room = Math.Max(1, column - child.Margin.Horizontal);
+                int height = child.AutoSize ? child.GetPreferredSize(new Size(room, 0)).Height : child.Height;
+                needs[row] = Math.Max(needs[row], height + child.Margin.Vertical);
+            }
+            return needs;
+        }
+
+        /// The Overview's rows and the space under them (v0.6.5). The person found v0.6.4's cards, stretched down the
+        /// whole page, emptier than they should be, with what they held floating at their tops - "white space is part
+        /// of the design". Now every card is as tall as the tallest row needs, and a little more, and what a taller
+        /// window has past that is space under the last row, not a band inside every card (OverviewHeights). Under the
+        /// last row the page keeps its own padding, as every page keeps under its last card: v0.6.5 first kept the gap
+        /// between cards there as well, inside that padding, and the review found 41 px above the footer where Pending
+        /// and History leave 27 - and 87 on a first installation, whose short second row was left short over a band.
+        /// Worked out before the page lays the grid out (its Layout event), at the width the grid is about to be given;
+        /// the grid's MinimumSize is what the rows need, which is how tall the page counts it (SoftPage), so the page
+        /// scrolls only when the rows themselves do not fit.
+        private void FitOverview(SoftPage page, TableLayoutPanel grid)
+        {
+            int width = page.DisplayRectangle.Width;
+            // From the first row's top to the page's edge, and the page's own padding under the last row.
+            int room = page.ClientSize.Height - page.Padding.Top;
+            int rest = page.Padding.Bottom;
+            if (!fitOverview || width <= 0 || room - rest <= 0) return;
+            int[] needs = OverviewRowNeeds(grid, width);
+            int[] heights = OverviewHeights(needs, room, rest, Px(OverviewComfort));
+            int total = 0;
+            foreach (int need in needs) total += need;
+            bool changed = grid.MinimumSize.Height != total;
+            for (int i = 0; i < heights.Length && !changed; i++)
+                changed = grid.RowStyles[i].SizeType != SizeType.Absolute || (int)grid.RowStyles[i].Height != heights[i];
+            if (!changed) return;
+            // One layout of the grid for all of it, at the size it has; the page then gives it its new one.
+            grid.SuspendLayout();
+            if (grid.MinimumSize.Height != total) grid.MinimumSize = new Size(0, total);
+            for (int i = 0; i < heights.Length; i++)
+            {
+                grid.RowStyles[i].SizeType = SizeType.Absolute;
+                grid.RowStyles[i].Height = heights[i];
+            }
+            grid.ResumeLayout(true);
+        }
+
+        /// How tall each of the Overview's rows is, for rows that need `needs` (margins and all), `room` from the first
+        /// row's top to the page's edge, with `rest` - the page's own padding - kept under the last row (v0.6.5):
+        ///   * the rows are alike, each as tall as the tallest needs and an even share of what is left past that, never
+        ///     more than `comfort`: a grid of cards of one height, the gap under it the page's own, and in a taller window
+        ///     what is left past comfort is space under the rows rather than every card stretching until what it holds
+        ///     floats. A card's room does not follow how little the other row holds - Right now stays where it is when
+        ///     History cannot be read, or when a first installation has nothing finished yet. v0.6.5 first left such a
+        ///     short row short, over a band 87 px high above the footer;
+        ///   * where the page has no room for every row as tall as the tallest, each row what it needs, and what the page
+        ///     has past that raises the shortest rows toward the tallest;
+        ///   * where it has less than they need, the rows what they need, and the page scrolls.
+        /// In whole pixels.
+        internal static int[] OverviewHeights(int[] needs, int room, int rest, int comfort)
+        {
+            int rows = needs.Length, total = 0, tallest = 0;
+            foreach (int need in needs)
+            {
+                total += need;
+                tallest = Math.Max(tallest, need);
+            }
+            var heights = new int[rows];
+            if (rows == 0) return heights;
+            int free = room - rest;
+            if (free >= rows * tallest)
+            {
+                int part = Math.Min(comfort, (free - rows * tallest) / rows);
+                for (int i = 0; i < rows; i++) heights[i] = tallest + part;
+                return heights;
+            }
+            for (int i = 0; i < rows; i++) heights[i] = needs[i];
+            // A pixel at a time to the shortest row, the first of those alike: fewer than the rows' difference in all.
+            for (int left = free - total; left > 0; left--)
+            {
+                int shortest = 0;
+                for (int i = 1; i < rows; i++)
+                    if (heights[i] < heights[shortest]) shortest = i;
+                if (heights[shortest] >= tallest) break;
+                heights[shortest]++;
+            }
+            return heights;
+        }
+
+        // Every control pinned to the bottom right of a block - the header, a row - and that block, for LayoutAudit to
+        // hold each to its corner.
         private readonly Dictionary<Control, Control> pinned = new Dictionary<Control, Control>();
 
         private void Pinned(Control control, Control block)
@@ -1542,7 +1833,7 @@ namespace CodexAutoResume
             Panel page = Page();
             TableLayoutPanel grid = Grid(2);
             TableLayoutPanel health = MakeCard(S("diag.health", "Health"));
-            health.Margin = GridGap(0, true);
+            health.Margin = GridGap(0, false);
             TableLayoutPanel facts = Facts(health);
             diagVersion = Fact(facts, S("diag.version", "Version"));
             diagWatcher = Fact(facts, S("diag.watcher", "Watcher"));
@@ -1560,7 +1851,7 @@ namespace CodexAutoResume
             health.Controls.Add(diagUpgrade);
 
             TableLayoutPanel tools = MakeCard(S("diag.tools", "Tools"));
-            tools.Margin = GridGap(1, true);
+            tools.Margin = GridGap(1, false);
             exportButton = MakeButton(S("action.export", "Export diagnostics..."), false, delegate { ExportDiagnostics(); });
             repairButton = MakeButton(S("action.repair", "Repair installation"), false, delegate { Repair(); });
             // Repair and update are different things and the two buttons say so: one runs
@@ -1583,8 +1874,480 @@ namespace CodexAutoResume
             }
             grid.Controls.Add(health, 0, 0);
             grid.Controls.Add(tools, 1, 0);
+            // Under both, across the page: what the Codex Compatibility Registry says about the engine on this machine.
+            TableLayoutPanel compat = BuildCompatibility();
+            grid.Controls.Add(compat, 0, 1);
+            grid.SetColumnSpan(compat, 2);
             page.Controls.Add(grid);
             return page;
+        }
+
+        // ---------------------------------------------------------- compatibility
+        // The Codex Compatibility Registry, shown to people (v0.6.5): for the Codex engine on this machine, which of the
+        // things this product does can be relied on, in the four words the registry has - verified, compatible,
+        // incompatible, unknown - each with what it means; when that was checked; and which data was in force, the data
+        // bundled with this version or data refreshed from GitHub, by its sequence number. The panel in Codex shows the
+        // same view, read-only (mcpui.renderCompatibility).
+        //
+        // What is shown is the watcher's report, read on the long-lived bridge like every other fact on this page: the
+        // bridge validates it and checks it still describes the engine on disk, and says why when it cannot be used. It
+        // is never the live check, which runs Codex, except after a refresh: the one the refresh button's answer carries,
+        // and the one made after an update check's refresh (CheckAfterRefresh). Either stands in for the report until
+        // the watcher's own catches up, never longer than a report may be relied on, and not past a report that has
+        // since become unusable (LiveStands) - so a watcher that is not running cannot put the data before back on the
+        // card beside a note saying it is no longer in force.
+        //
+        // The refresh is the only thing here that reaches the network, and only when its button is pressed: the bridge
+        // runs this installation's own bootstrap, which asks raw.githubusercontent.com for the one document and hands it
+        // to the validator. It can take minutes, so it goes over the one-shot bridge from a worker thread - never over
+        // the long-lived pipe the page is painted from, which it would hold for all that time. Every answer is said as
+        // itself: refreshed, refused (and why), unavailable, incomplete, failed, and busy while an installation or a
+        // repair is replacing the files it runs. Check for updates refreshes the data too, and says so here in the same
+        // words (CheckForUpdates, CompatibilityLine).
+
+        // The capabilities, in the registry's own order (compat.CAPABILITIES). Four are not offered yet; their rows are
+        // left out, as the command line leaves them out.
+        private static readonly string[] CompatOrder = { "engine_present", "exact_thread_recovery", "usage_limit_detection",
+            "usage_reset_hint", "usage_probe", "thread_eligibility", "loaded_state_detection", "recovery_turn_tracking",
+            "queue_withdraw", "outcome_observation", "transient_classification", "projection_freshness",
+            "empty_response_recovery", "not_loaded_recovery", "goal_continuation", "subagent_recovery" };
+
+        // The four states, in the order their meanings are listed.
+        private static readonly string[] CompatStates = { "VERIFIED", "COMPATIBLE", "INCOMPATIBLE", "UNKNOWN" };
+
+        // How long the live check a refresh brought may stand in for the watcher's report at most: as long as a report
+        // may be relied on at all (compat.REPORT_MAX_AGE - the watcher's interval between evaluations, its longest wait
+        // between ticks, and a margin). Past it the live check is as old as a report too old to use, and the report,
+        // older still, says so.
+        private const double CompatMaxAge = 4500;
+
+        // The argument that asks the bridge's `compatibility` for a live check instead of the watcher's report.
+        private const string LiveArgument = "{\"live\":true}";
+
+        private TableLayoutPanel BuildCompatibility()
+        {
+            TableLayoutPanel card = MakeCard(S("compat.title", "Codex compatibility"));
+            // The width of the page, under the two cards over it: no gap of its own beside them or under it.
+            card.Margin = new Padding(0);
+            TableLayoutPanel facts = Facts(card);
+            compatOverall = Fact(facts, S("compat.overall", "Overall"));
+            compatEngine = Fact(facts, S("compat.engine", "Codex version"));
+            compatChecked = Fact(facts, S("compat.checked", "Checked"));
+            compatData = Fact(facts, S("compat.data", "Data in force"));
+            // What the view cannot vouch for - no report, one too old, an engine that changed, a watcher still acting on
+            // what it found when it started, refreshed data that expired - in the accent, as the upgrade note above is.
+            compatNotice = HelpText("");
+            compatNotice.ForeColor = Accent;
+            // Every group on the card - the facts, this, the parts, what the words mean, the refresh - the scale's
+            // medium step apart, as the button is from what its card holds (LeadGap).
+            compatNotice.Margin = Pad(0, Brand.SpaceM, 0, 0);
+            // As wide as the card, which is the page's width: at the help text's 600 px a sentence of this card broke
+            // in two with most of the card empty beside it.
+            compatNotice.MaximumSize = Size.Empty;
+            card.Controls.Add(compatNotice);
+            // The parts, in two lists side by side: rows as the panel's settings rows are, a hairline between each two
+            // and the state as a chip at the end (GateList, as Why it is waiting draws its checks).
+            var lists = new SoftStack();
+            lists.ColumnCount = 2;
+            lists.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+            lists.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+            lists.AutoSize = true;
+            lists.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            lists.Dock = DockStyle.Fill;
+            lists.Margin = Pad(0, Brand.SpaceM, 0, 0);
+            lists.BackColor = Card;
+            compatLeft = CompatList();
+            compatLeft.Margin = Pad(0, 0, Brand.SpaceXl / 2, 0);
+            compatRight = CompatList();
+            compatRight.Margin = Pad(Brand.SpaceXl / 2, 0, 0, 0);
+            lists.Controls.Add(compatLeft, 0, 0);
+            lists.Controls.Add(compatRight, 1, 0);
+            card.Controls.Add(lists);
+            compatLists = lists;
+            // What each state word on the card means, one line each, for the words the card shows.
+            compatLegend = HelpText("");
+            compatLegend.Margin = Pad(0, Brand.SpaceM, 0, 0);
+            compatLegend.MaximumSize = Size.Empty;
+            card.Controls.Add(compatLegend);
+            // The refresh, at the card's bottom left as every card's button now is, and beside it what it last answered.
+            var row = new SoftStack();
+            row.ColumnCount = 2;
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            row.AutoSize = true;
+            row.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            row.Dock = DockStyle.Fill;
+            row.Margin = Pad(0, LeadGap, 0, 0);
+            row.BackColor = Card;
+            compatButton = MakeButton(S("diag.compat_refresh", "Refresh compatibility data"), false, delegate { RefreshCompatibility(); });
+            compatButton.Margin = new Padding(0);
+            compatButton.Anchor = AnchorStyles.Left | AnchorStyles.Bottom;
+            compatButton.Enabled = busy == 0;
+            compatNote = Note();
+            compatNote.AutoSize = true;
+            compatNote.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+            compatNote.Margin = Pad(Brand.SpaceM, 0, 0, 0);
+            compatNote.Text = compatSaid;
+            row.Controls.Add(compatButton, 0, 0);
+            row.Controls.Add(compatNote, 1, 0);
+            card.Controls.Add(row);
+            ShowCompatibility();
+            return card;
+        }
+
+        private GateList CompatList()
+        {
+            var list = new GateList();
+            list.Dock = DockStyle.Fill;
+            list.Font = Font;
+            list.AccessibleName = S("compat.title", "Codex compatibility");
+            return list;
+        }
+
+        /// A view of the registry has arrived: the watcher's report (`live` false), read on the long-lived bridge, or the
+        /// live check a refresh brought - the refresh button's answer, or the check made after an update check's refresh.
+        /// The live check is shown for as long as it stands over the reports read after it (LiveStands).
+        private void ApplyCompatibility(Dictionary<string, object> view, bool live)
+        {
+            if (view == null) return;
+            if (live)
+            {
+                compatLive = view;
+                // What the watcher's report said as this check was made: whatever it says later that it did not say
+                // then is news this check never saw.
+                compatLiveOver = Reading(compatView);
+            }
+            else
+            {
+                compatView = view;
+                if (compatLive != null && !LiveStands(compatLive, compatLiveOver, view, Now())) compatLive = null;
+            }
+            compatUnreadable = false;
+            ShowCompatibility();
+        }
+
+        /// Whether the live check a refresh brought (`live`) still stands over the watcher's report just read. A live
+        /// check is relied on as a report is, and no longer:
+        /// - a usable report as new as it takes its place: the watcher has caught up;
+        /// - past the age a report may have (CompatMaxAge) it is as stale as one;
+        /// - a report that has since become unusable - Codex changed under it, or it went missing, unreadable or too
+        ///   old - ends it, failing closed as every reader of the report does, since the live check cannot tell whether
+        ///   that change reached it too. What the report already said when the check was made (`over`), the check has
+        ///   seen past: a watcher that is not running, whose report is missing, older or about the Codex before, leaves
+        ///   it standing - and never snaps the card back to the data before the refresh.
+        internal static bool LiveStands(Dictionary<string, object> live, string over, Dictionary<string, object> report, double now)
+        {
+            double at = Number(live, "checked_at");
+            if (now - at >= CompatMaxAge) return false;
+            if (Str(report, "status") == "ok") return Number(report, "checked_at") < at;
+            return Reading(report) == over;
+        }
+
+        /// What a read of the report said, as its status and its time: "ok@1757000000.5", "absent@0", or "" for none.
+        internal static string Reading(Dictionary<string, object> view)
+        {
+            if (view == null) return "";
+            return (Str(view, "status") ?? "invalid") + "@" + Number(view, "checked_at").ToString("R", CultureInfo.InvariantCulture);
+        }
+
+        /// The Diagnostics card from the view in hand (ApplyCompatibility): nothing yet before the first read, and a read
+        /// that failed said as one - never the last answer as if it were current.
+        private void ShowCompatibility()
+        {
+            if (compatOverall == null) return;
+            Dictionary<string, object> view = compatLive ?? compatView;
+            var shown = new List<string[]>();
+            var notices = new List<string>();
+            var states = new List<string>();
+            if (view == null)
+            {
+                string nothing = compatUnreadable ? S("pending.unavailable", "This cannot be read right now") : "-";
+                compatOverall.Text = compatEngine.Text = compatChecked.Text = compatData.Text = compatUnreadable ? S("diag.unknown", "unknown") : "-";
+                SetLines(compatNotice, compatUnreadable ? new List<string> { nothing } : notices);
+                ShowParts(shown);
+                SetLines(compatLegend, notices);
+                return;
+            }
+            string status = Str(view, "status") ?? "invalid";
+            bool usable = status == "ok";
+            string overall = CompatState(Str(view, "overall"));
+            compatOverall.Text = S("compat.state." + overall, overall.ToLowerInvariant());
+            var engine = Map(view, "engine");
+            string version = Str(engine, "version");
+            // A report that cannot be used vouches for nothing it says - not the Codex it was about, which may since have
+            // changed, nor the data then in force: "-" for both, as the panel has them, and never "not found". When it
+            // was made is still said: it is what makes a report too old.
+            compatEngine.Text = !usable ? "-" : !string.IsNullOrEmpty(version) ? version : S("compat.engine_none", "not found");
+            compatChecked.Text = Ago(Number(view, "checked_at"));
+            compatData.Text = usable ? CompatData(Map(view, "data")) : "-";
+            // Why the view cannot be used - every part is unknown then, for that one reason, so the parts are not listed.
+            if (!usable) notices.Add(S("compat.status." + status, S("compat.status.invalid", "The last check could not be read, so nothing in it is relied on.")));
+            string acting = Str(view, "acting");
+            if (usable && acting != null && acting != Str(view, "overall"))
+                notices.Add(S("diag.compat_acting_differs",
+                              "The watcher is still acting on what it found when it started. Stop it and start it again from this page to check again."));
+            string cache = usable ? Str(Map(view, "data"), "cache") : null;
+            if (cache == "expired" || cache == "from_the_future" || cache == "rejected" || cache == "superseded" || cache == "from_newer_product")
+                notices.Add(S("compat.cache." + cache, cache.Replace('_', ' ')));
+            SetLines(compatNotice, notices);
+            var capabilities = Map(view, "capabilities");
+            // The words the card shows, explained: the overall's and the parts', when there are parts to show. A view that
+            // cannot be used is unknown for the one reason its notice gives, which the legend's reason would contradict.
+            if (usable) states.Add(overall);
+            if (usable && capabilities != null)
+                foreach (string name in CompatOrder)
+                {
+                    var entry = Map(capabilities, name);
+                    if (entry == null || Str(entry, "reason") == "not_implemented") continue;
+                    string state = CompatState(Str(entry, "state"));
+                    if (!states.Contains(state)) states.Add(state);
+                    shown.Add(new[] { S("compat.capability." + name, name.Replace('_', ' ')),
+                                      S("compat.state." + state, state.ToLowerInvariant()),
+                                      state == "INCOMPATIBLE" ? "BLOCK" : state == "UNKNOWN" ? "UNKNOWN" : "PASS" });
+                }
+            ShowParts(shown);
+            var meanings = new List<string>();
+            foreach (string state in CompatStates)
+                if (states.Contains(state)) meanings.Add(S("compat.meaning." + state, state));
+            SetLines(compatLegend, meanings);
+        }
+
+        /// The parts in the two lists, the first half on the left - and no room taken while there are none.
+        private void ShowParts(List<string[]> shown)
+        {
+            int half = (shown.Count + 1) / 2;
+            compatLeft.SetRows(shown.GetRange(0, half), "");
+            compatRight.SetRows(shown.GetRange(half, shown.Count - half), "");
+            bool any = shown.Count > 0;
+            if (Soft.OwnVisible(compatLists) != any) compatLists.Visible = any;
+        }
+
+        /// A registry state word from any of the vocabularies a view carries it in: the four capability states, and the
+        /// coarse word the overall and the watcher's gate use. Anything else is UNKNOWN, as the registry reads it.
+        internal static string CompatState(string word)
+        {
+            if (word == "VERIFIED" || word == "verified") return "VERIFIED";
+            if (word == "COMPATIBLE" || word == "structurally_compatible") return "COMPATIBLE";
+            if (word == "INCOMPATIBLE" || word == "incompatible") return "INCOMPATIBLE";
+            return "UNKNOWN";
+        }
+
+        /// Which data was in force: the data bundled with this version, data refreshed from GitHub, or none, with its
+        /// sequence number.
+        private string CompatData(Dictionary<string, object> data)
+        {
+            if (data == null) return "-";
+            string source = Str(data, "source") ?? "none";
+            if (source != "cache" && source != "bundled") source = "none";
+            string said = S("compat.source." + source, source);
+            object sequence = Get(data, source == "cache" ? "cache_sequence" : "bundled_sequence");
+            if (source == "none" || !(sequence is double)) return said;
+            return S("compat.source_sequence", "{source}, #{sequence}").Replace("{source}", said)
+                   .Replace("{sequence}", ((int)(double)sequence).ToString(CultureInfo.InvariantCulture));
+        }
+
+        /// Lines of text in a label that says nothing, and takes no room, while it has none. Its own visibility, not
+        /// Visible's answer, which is false for every label on a page that is not on screen - a card updated while
+        /// another page was showing kept a line it no longer had.
+        private static void SetLines(Label label, List<string> lines)
+        {
+            string text = string.Join(Environment.NewLine, lines.ToArray());
+            if (label.Text != text) label.Text = text;
+            bool any = text.Length > 0;
+            if (Soft.OwnVisible(label) != any) label.Visible = any;
+        }
+
+        /// The registry's view for the card: the watcher's report, as the page is shown and with every read while it is.
+        /// A file read, as quick as the dashboard's own, so it goes over the long-lived bridge; never the live check.
+        private void LoadCompatibility()
+        {
+            if (compatOverall == null || loadingCompat || auditing) return;
+            loadingCompat = true;
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            {
+                Dictionary<string, object> reply;
+                try { reply = bridge.Call("compatibility", null); }
+                catch (Exception) { reply = null; }
+                MethodInvoker apply = delegate
+                {
+                    loadingCompat = false;
+                    var view = Ok(reply) ? Map(reply, "compatibility") : null;
+                    if (view != null) ApplyCompatibility(view, false);
+                    else
+                    {
+                        // Unreadable now: the last report is not shown as if it were current. A live check still
+                        // stands - a failed read says nothing about it - but no longer than a report would.
+                        compatView = null;
+                        compatUnreadable = true;
+                        if (compatLive != null && Now() - Number(compatLive, "checked_at") >= CompatMaxAge) compatLive = null;
+                        ShowCompatibility();
+                    }
+                };
+                try { if (IsHandleCreated && !IsDisposed) BeginInvoke(apply); }
+                catch (Exception) { loadingCompat = false; }
+            });
+        }
+
+        /// The refresh button: the registry data asked for once, from its one address, on the one-shot bridge from a
+        /// worker thread (see the note at the top of this section). Every other action waits while it runs, as it does
+        /// for any action here, and what it answered is said beside the button.
+        private void RefreshCompatibility()
+        {
+            if (compatRefreshing) return;
+            compatRefreshing = true;
+            SetBusy(true);
+            SetCompatNote(S("diag.compat_refreshing", "Asking GitHub for the compatibility data..."));
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            {
+                string outcome;
+                Dictionary<string, object> result;
+                RunCompatibilityRefresh(bridge, out outcome, out result);
+                MethodInvoker finish = delegate
+                {
+                    compatRefreshing = false;
+                    SetBusy(false);
+                    var view = Map(result, "compatibility");
+                    if (view != null) ApplyCompatibility(view, Equals(Get(view, "live"), true));
+                    object sequence = Get(result, "sequence") ?? Get(Map(view, "data"), "cache_sequence");
+                    SetCompatNote(CompatibilitySaid(outcome, sequence is double ? ((int)(double)sequence).ToString(CultureInfo.InvariantCulture) : "?",
+                                                    Str(result, "reason")));
+                    if (view == null) LoadCompatibility();
+                };
+                try { if (IsHandleCreated && !IsDisposed) BeginInvoke(finish); }
+                catch (Exception) { }
+            });
+        }
+
+        /// Runs the refresh and says which of six things happened. Busy first: an installation or a repair holds the
+        /// installer's lock while it replaces the files the refresh would run, so the lock is looked at - taken and let
+        /// go at once, never held for the refresh, so an installation that starts meanwhile is not turned away for it.
+        private static void RunCompatibilityRefresh(PersistentBridge bridge, out string outcome, out Dictionary<string, object> result)
+        {
+            outcome = "failed";
+            result = null;
+            try
+            {
+                using (var gate = new System.Threading.Mutex(false, "Local\\CodexAutoResume.Install"))
+                {
+                    bool free;
+                    try { free = gate.WaitOne(0); }
+                    catch (System.Threading.AbandonedMutexException) { free = true; }
+                    if (!free) { outcome = "busy"; return; }
+                    gate.ReleaseMutex();
+                }
+                Dictionary<string, object> reply = bridge.CallOnce("compat-refresh", null);
+                result = Ok(reply) ? Map(reply, "result") : null;
+                outcome = CompatibilityOutcome(reply);
+            }
+            catch (Exception) { outcome = "failed"; }
+        }
+
+        /// The refresh's answer from the bridge's reply: `refreshed`, `refused`, `unavailable` or `incomplete` as it said
+        /// it, and anything else - no reply, a refusal of the request, a word this window does not know - `failed`.
+        internal static string CompatibilityOutcome(Dictionary<string, object> reply)
+        {
+            if (!Ok(reply)) return "failed";
+            string answer = Str(Map(reply, "result"), "answer");
+            if (answer == "refreshed" || answer == "refused" || answer == "unavailable" || answer == "incomplete") return answer;
+            return "failed";
+        }
+
+        /// The `compatibility:` line an update check prints once github.com has answered - `refreshed <sequence>`,
+        /// `refused <reason>` or `unavailable` (scripts/bootstrap.ps1) - as those words, or null when there is none or
+        /// it says something else. The last one counts, as the `update:` line's does.
+        internal static string CompatibilityLine(string printed)
+        {
+            string line = null;
+            foreach (string raw in (printed ?? "").Replace("\r", "").Split('\n'))
+            {
+                string trimmed = raw.Trim();
+                if (trimmed.StartsWith("compatibility: ", StringComparison.Ordinal)) line = trimmed.Substring("compatibility: ".Length);
+            }
+            if (line == null) return null;
+            string[] words = line.Split(' ');
+            if (words.Length == 1 && words[0] == "unavailable") return "unavailable";
+            if (words.Length != 2) return null;
+            if (words[0] == "refreshed" && Plain(words[1], true)) return line;
+            if (words[0] == "refused" && Plain(words[1], false)) return line;
+            return null;
+        }
+
+        // A sequence number (digits), or a refusal's code (lower-case letters and underscores), one to forty long.
+        private static bool Plain(string word, bool digits)
+        {
+            if (word.Length == 0 || word.Length > 40) return false;
+            foreach (char c in word)
+                if (digits ? !(c >= '0' && c <= '9') : !((c >= 'a' && c <= 'z') || c == '_')) return false;
+            return true;
+        }
+
+        /// What the update check's `compatibility:` line said, on the card, in the refresh's own words - the second
+        /// request the check made, and its result - with the live check made after it when it brought new data
+        /// (CheckAfterRefresh), as the refresh button's answer carries one, and the card read again.
+        private void ReportCompatibilityLine(string line, Dictionary<string, object> live)
+        {
+            if (line == null) return;
+            string[] words = line.Split(' ');
+            SetCompatNote(CompatibilitySaid(words[0], words[0] == "refreshed" ? words[1] : "?", words[0] == "refused" ? words[1] : null));
+            // A watcher that is not running has not looked at the new data, and its last report still says the data
+            // before was in force - beside a note saying it no longer is. The live check says what is in force now.
+            if (live != null) ApplyCompatibility(live, true);
+            LoadCompatibility();
+        }
+
+        /// After an update check brought in new data (its `compatibility:` line says `refreshed`): the live check the
+        /// refresh button's answer carries, which the check's own script does not make. It runs Codex's `--version` and
+        /// `queue --help` on this machine and asks nothing of the network; on the one-shot bridge, from the update
+        /// check's worker thread, never on the long-lived pipe the window paints from. Null for any other answer, or
+        /// when the check could not be made - the watcher's report is what the card has then.
+        private static Dictionary<string, object> CheckAfterRefresh(PersistentBridge bridge, string line)
+        {
+            if (line == null || !line.StartsWith("refreshed ", StringComparison.Ordinal)) return null;
+            try
+            {
+                Dictionary<string, object> reply = bridge.CallOnce("compatibility", LiveArgument);
+                var view = Ok(reply) ? Map(reply, "compatibility") : null;
+                return view != null && Equals(Get(view, "live"), true) ? view : null;
+            }
+            catch (Exception) { return null; }
+        }
+
+        /// One sentence for what a refresh answered, from the refresh button or an update check.
+        internal string CompatibilitySaid(string outcome, string sequence, string reason)
+        {
+            if (outcome == "refreshed")
+                return S("diag.compat_refreshed", "Compatibility data #{sequence} is now in force.", "sequence", sequence);
+            if (outcome == "refused")
+                return S("diag.compat_refused", "The downloaded data was refused ({code}): {reason}. The data in force before still applies.")
+                       .Replace("{code}", reason ?? "?").Replace("{reason}", RefusedBecause(reason));
+            if (outcome == "unavailable")
+                return S("diag.compat_unavailable", "GitHub could not be reached, so nothing was changed.");
+            if (outcome == "incomplete")
+                return S("diag.compat_incomplete",
+                         "Files this installation is made of are missing, so the data could not be refreshed. Install it again from the release archive.");
+            if (outcome == "busy")
+                return S("diag.compat_busy", "An installation or a repair is running. Refresh once it has finished.");
+            return S("diag.compat_failed", "The refresh did not finish, so nothing was changed.");
+        }
+
+        /// Why the validator refused a document, in plain words: one of six, for the eighteen codes it can give
+        /// (compat.IMPORT_REASONS). The code itself is said beside it, for whoever asks for help with it.
+        private string RefusedBecause(string code)
+        {
+            if (code == "from_the_future") return S("compat.refused.future", "it is dated after this computer's clock");
+            if (code == "from_newer_product") return S("compat.refused.newer", "it needs a newer version of Codex Auto Resume");
+            if (code == "rollback") return S("compat.refused.rollback", "it is older than the data already in force");
+            if (code == "unreadable" || code == "not_a_json_file") return S("compat.refused.unreadable", "it could not be read");
+            if (code == "write_failed") return S("compat.refused.not_saved", "it could not be saved on this computer");
+            return S("compat.refused.invalid", "it is not valid compatibility data");
+        }
+
+        /// What the refresh last answered, beside its button: kept for a card built later, and said to a screen reader as
+        /// it changes (NoteLabel).
+        private void SetCompatNote(string text)
+        {
+            compatSaid = text ?? "";
+            if (compatNote != null) SetNote(compatNote, compatSaid);
         }
 
         // ------------------------------------------------------------------ clock
@@ -1602,6 +2365,9 @@ namespace CodexAutoResume
             {
                 ticks++;
                 UpdateCountdowns();
+                // The taskbar button asks again whether it may move - a Reduce motion saved, Windows' animation
+                // effects, High Contrast or battery saver turned on or off - within a second of it (TaskbarMark.Sync).
+                if (taskbar != null) taskbar.Sync();
                 // Every second too, so a usage reset that passes while a row stays selected
                 // makes Retry now available without waiting for the next read.
                 UpdatePendingButtons();
@@ -1611,6 +2377,9 @@ namespace CodexAutoResume
                 {
                     RefreshNow();
                     if (currentPage == "statistics") LoadStatistics();
+                    // The watcher's report, read as the rest of the page is. Never the refresh: that is a request to
+                    // GitHub, and only its button makes one.
+                    if (currentPage == "diagnostics") LoadCompatibility();
                 }
                 // A language or theme changed elsewhere, or edits put back under a pending reopen.
                 TickReopen();
@@ -1805,24 +2574,6 @@ namespace CodexAutoResume
             return value == null || Equals(value, true);
         }
 
-        /// Right now planned for every word its facts and its button are ever given - by ApplySnapshot, and
-        /// "unknown" by MarkUnavailable - so it is laid out the same in every state the watcher is in and at
-        /// every age of its last check (SoftPin.Reserve). The ages are the widest of each unit Age writes.
-        /// Planned for the words on screen, a refresh that changed "just now" to "3 min ago" wrapped the
-        /// French names, and the Overview opened on a watcher in trouble scrolled (v0.6.4, measured).
-        private void ReserveNowWords(SoftPin block)
-        {
-            string unknown = S("diag.unknown", "unknown");
-            block.Reserve(nowRecovery, S("overview.on", "on"), S("overview.off", "paused"), unknown);
-            block.Reserve(nowWatcher, S("diag.running", "running"), S("diag.not_running", "not running"),
-                          S("diag.not_responding", "not responding"), unknown);
-            block.Reserve(nowEngine, S("engine.verified", "verified"), S("engine.structurally_compatible", "structurally_compatible"),
-                          S("engine.incompatible", "incompatible"), S("engine.unknown", "unknown"), unknown);
-            block.Reserve(nowLastCheck, S("time.never", "never"), Age(0), Age(59), Age(59 * 60), Age(23 * 3600),
-                          Age(999 * 86400), unknown);
-            block.Reserve(toggleButton, S("action.pause", "Pause recovery"), S("action.resume", "Resume recovery"));
-        }
-
         // ------------------------------------------------------------ snapshot use
         private void ApplySnapshot(Dictionary<string, object> reply)
         {
@@ -1889,7 +2640,7 @@ namespace CodexAutoResume
             }
             if (pendingList != null)
             {
-                if (Unreadable(reply, "pending")) ShowUnreadable(pendingList, pendingEmpty, unreadable);
+                if (Unreadable(reply, "pending")) ShowUnreadableList(pendingList, pendingEmpty, unreadable);
                 else
                 {
                     FillList(pendingList, Items(reply, "pending"), true);
@@ -1900,7 +2651,7 @@ namespace CodexAutoResume
             bool historyUnreadable = Unreadable(reply, "history");
             if (historyList != null)
             {
-                if (historyUnreadable) ShowUnreadable(historyList, historyEmpty, unreadable);
+                if (historyUnreadable) ShowUnreadableList(historyList, historyEmpty, unreadable);
                 else
                 {
                     FillList(historyList, Items(reply, "history"), false);
@@ -1944,6 +2695,15 @@ namespace CodexAutoResume
             empty.Visible = true;
         }
 
+        /// The same, and the columns fitted again: with no rows there are no cells to keep room for, and the columns
+        /// share the list's width by their headings (FitColumns).
+        private void ShowUnreadableList(ListView list, Label empty, string reason)
+        {
+            ShowUnreadable(list, empty, reason);
+            MeasureCells(list);
+            if (list == pendingList) FollowResumeSwitches();
+        }
+
         private void MarkUnavailable()
         {
             // The same unavailable state the header shows when the status cannot be read,
@@ -1953,6 +2713,7 @@ namespace CodexAutoResume
             snapshot = null;
             shownEnabled = null;
             stateDot.State = "idle";
+            TellTaskbar(null, null, 0);
             headline.Text = S("status.unavailable", "Status unavailable");
             detail.Text = S("status.unavailable_detail", "Settings can still be changed and saved");
             header.Invalidate(true);
@@ -1963,8 +2724,8 @@ namespace CodexAutoResume
                                             diagWatcher, diagEngine, diagLastCheck, diagRecovery })
                 if (label != null) label.Text = unknown;
             string unreadable = S("pending.unavailable", "This cannot be read right now");
-            if (pendingList != null) ShowUnreadable(pendingList, pendingEmpty, unreadable);
-            if (historyList != null) ShowUnreadable(historyList, historyEmpty, unreadable);
+            if (pendingList != null) ShowUnreadableList(pendingList, pendingEmpty, unreadable);
+            if (historyList != null) ShowUnreadableList(historyList, historyEmpty, unreadable);
             if (recentGrid != null) ClearRecent(unreadable);
             if (waitingLine != null)
             {
@@ -2090,6 +2851,7 @@ namespace CodexAutoResume
                 }
                 Preselect(list);
                 MeasureCells(list);
+                if (list == pendingList) FollowResumeSwitches();
             }
             finally
             {
@@ -2123,6 +2885,7 @@ namespace CodexAutoResume
             // there is one), and every second, so a task that has just come due shows the watcher
             // checking. Before an unreadable list returns, which leaves Activity the status alone.
             stateDot.State = Activity(status, pending, now);
+            TellTaskbar(status, pending, now);
             if (unreadable)
             {
                 if (waitingLine != null)
@@ -2163,11 +2926,17 @@ namespace CodexAutoResume
             if (pendingList == null) return;
             foreach (ListViewItem item in pendingList.Items)
             {
-                var row = item.Tag as Dictionary<string, object>;
-                double eligible = Number(row, "eligible_at");
-                string text = eligible <= 0 ? "" : eligible <= now ? S("pending.due", "due now") : Countdown(eligible - now);
-                if (item.SubItems[3].Text != text) item.SubItems[3].Text = text;
+                string text = CountdownText(item.Tag as Dictionary<string, object>, now);
+                if (item.SubItems[CountdownColumn].Text != text) item.SubItems[CountdownColumn].Text = text;
             }
+        }
+
+        /// What a waiting row's Next check says at `now`: how long until it is checked, that it is due, or nothing for a
+        /// row that is not waiting.
+        private string CountdownText(Dictionary<string, object> row, double now)
+        {
+            double eligible = Number(row, "eligible_at");
+            return eligible <= 0 ? "" : eligible <= now ? S("pending.due", "due now") : Countdown(eligible - now);
         }
 
         private static Dictionary<string, object> Selected(ListView list)
@@ -2284,6 +3053,7 @@ namespace CodexAutoResume
             if (repairButton != null) repairButton.Enabled = busy == 0;
             if (updateButton != null) updateButton.Enabled = busy == 0;
             if (stopButton != null) stopButton.Enabled = busy == 0;
+            if (compatButton != null) compatButton.Enabled = busy == 0;
             if (saveButton != null) saveButton.Enabled = busy == 0;
             if (restoreButton != null) restoreButton.Enabled = busy == 0;
         }
@@ -2521,6 +3291,82 @@ namespace CodexAutoResume
             return waiting ? "waiting" : "monitoring";
         }
 
+        /// What the notification-area icon shows for the watcher the window read, as the status-light word its state
+        /// is made from (v0.6.5): the taskbar button's, which TaskbarMark maps as the icon does (Brand.Mark.IconState,
+        /// tray.ICON_FOR_LIGHT).
+        ///
+        /// The icon's own rule, not the header light's (Activity), which parts from it for a record being withdrawn,
+        /// an incompatible engine and a list that cannot be read. tray.icon_state is ICON_FOR_LIGHT of
+        /// tray_popup.snapshot_activity: the tick's snapshot of the store (tray.snapshot_from) - a pause, then any
+        /// record sent or being followed, then any waiting - with, while its popup is open, the popup's word that a
+        /// person must act (tray_popup.activity). The window reads what that popup reads, get_status and list_pending,
+        /// and reads it now, so this is the icon with its popup open. With no list the status's counts of the store's
+        /// records by public code say the same (status.codes). Where no icon of this version can be showing, it is the
+        /// header light's word: grey with no watcher running or none known to be, and needing a person while an older
+        /// watcher still owns the state. Pure, so tests/test_gui_v065_taskbar.py holds it to tray.py's own code.
+        internal static string TrayActivity(Dictionary<string, object> status, List<object> pending, double now)
+        {
+            if (status == null || !Equals(Get(status, "watcher_running"), true)) return "idle";
+            if (Equals(Get(status, "upgrade_pending"), true)) return "attention";
+            var watcher = Map(status, "watcher");
+            if (Equals(Get(watcher, "ticking"), false) || Str(watcher, "engine_state") == "incompatible")
+                return "attention";
+            if (pending != null)
+                foreach (object entry in pending)
+                {
+                    var row = entry as Dictionary<string, object>;
+                    // tray_popup.ATTENTION_OVERLAYS: a record held for one of the above, or for a watcher not running.
+                    if (row != null && (HasOverlay(row, "compatibility_blocked") || HasOverlay(row, "engine_unavailable") ||
+                                        HasOverlay(row, "watcher_not_ticking")))
+                        return "attention";
+                }
+            object enabled;
+            if (status.TryGetValue("enabled", out enabled) && (enabled == null || Equals(enabled, false))) return "paused";
+            bool waiting = false, due = false, running = false;
+            if (pending != null)
+                foreach (object entry in pending)
+                {
+                    var row = entry as Dictionary<string, object>;
+                    if (row == null) continue;
+                    if (!WaitingCode(Str(row, "code")))
+                    {
+                        running = true;
+                        continue;
+                    }
+                    waiting = true;
+                    double eligible = Number(row, "eligible_at");
+                    if (eligible > 0 && eligible <= now) due = true;
+                }
+            else
+            {
+                var codes = Map(status, "codes");
+                if (codes != null)
+                    foreach (KeyValuePair<string, object> code in codes)
+                    {
+                        if (!(code.Value is double) || (double)code.Value <= 0) continue;
+                        if (WaitingCode(code.Key)) waiting = true;
+                        else running = true;
+                    }
+            }
+            if (running) return "recovering";
+            if (due) return "checking";
+            return waiting ? "waiting" : "monitoring";
+        }
+
+        /// A pending record's public code that means it waits (machine.WAITING_CODES): every other pending record has
+        /// been sent into Codex, or is being followed or taken back out of it.
+        private static bool WaitingCode(string code)
+        {
+            return code == "waiting_reset" || code == "waiting_usage" || code == "waiting_thread" || code == "scheduled" ||
+                   code == "failed_retryable";
+        }
+
+        /// The taskbar button told what the window read (TrayActivity), wherever the header light is told.
+        private void TellTaskbar(Dictionary<string, object> status, List<object> pending, double now)
+        {
+            if (taskbar != null) taskbar.Follow(TrayActivity(status, pending, now));
+        }
+
         /// The selected task's safety checks, as the watcher last recorded them.
         private void ShowExplain()
         {
@@ -2712,8 +3558,15 @@ namespace CodexAutoResume
 
         private void OpenTimeline(Dictionary<string, object> row, List<object> events)
         {
-            using (var dialog = new Form())
+            using (Form dialog = BuildTimeline(row, events)) dialog.ShowDialog(this);
+        }
+
+        /// The Timeline dialog for `row`'s `events`, built and not shown - OpenTimeline shows it, LayoutAudit
+        /// measures it.
+        private Form BuildTimeline(Dictionary<string, object> row, List<object> events)
+        {
             {
+                var dialog = new Form();
                 dialog.Text = S("timeline.title", "Timeline") + " - " + Conversation(row);
                 dialog.Font = Font;
                 dialog.BackColor = Canvas;
@@ -2745,6 +3598,8 @@ namespace CodexAutoResume
                         view.Items.Add(line);
                     }
                 }
+                // Each column's widest cell, so the columns share the dialog's width by what they hold (FitColumns).
+                MeasureCells(view);
                 var padding = new Panel();
                 padding.BackColor = Canvas;
                 padding.Dock = DockStyle.Fill;
@@ -2769,9 +3624,13 @@ namespace CodexAutoResume
                 {
                     if (e.KeyCode == Keys.Escape) { e.Handled = true; dialog.Close(); }
                 };
-                dialog.ShowDialog(this);
+                timelineList = view;
+                return dialog;
             }
         }
+
+        // The last Timeline dialog's list, for LayoutAudit.
+        private ListView timelineList;
 
         private void ExportDiagnostics()
         {
@@ -2981,13 +3840,17 @@ namespace CodexAutoResume
             diagUpdate.Text = S("diag.update_asking", "asking...");
             System.Threading.ThreadPool.QueueUserWorkItem(delegate
             {
-                string answer, current, latest, detail;
+                string answer, current, latest, detail, compatibility;
                 RunBootstrap(root, script, "-CheckOnly", CheckMilliseconds,
-                             out answer, out current, out latest, out detail);
+                             out answer, out current, out latest, out detail, out compatibility);
+                Dictionary<string, object> live = CheckAfterRefresh(bridge, compatibility);
                 MethodInvoker finish = delegate
                 {
                     SetBusy(false);
                     diagUpdate.Text = UpdateFact(answer, current, latest);
+                    // The check's second request, once github.com had answered: the Codex compatibility data, said on its
+                    // card before the update's own answer is.
+                    ReportCompatibilityLine(compatibility, live);
                     if (answer == "available") OfferUpdate(root, script, current, latest);
                     else ReportUpdate(answer, current, latest, detail);
                 };
@@ -3013,12 +3876,14 @@ namespace CodexAutoResume
             diagUpdate.Text = S("diag.update_installing", "installing...");
             System.Threading.ThreadPool.QueueUserWorkItem(delegate
             {
-                string answer, from, to, detail;
+                string answer, from, to, detail, compatibility;
                 RunBootstrap(root, script, "-Update", UpdateMilliseconds,
-                             out answer, out from, out to, out detail);
+                             out answer, out from, out to, out detail, out compatibility);
+                Dictionary<string, object> live = CheckAfterRefresh(bridge, compatibility);
                 MethodInvoker finish = delegate
                 {
                     SetBusy(false);
+                    ReportCompatibilityLine(compatibility, live);
                     if (answer == "installed") AfterUpdate(before, latest, detail);
                     else
                     {
@@ -3085,16 +3950,19 @@ namespace CodexAutoResume
             });
         }
 
-        /// Runs scripts/bootstrap.ps1 with one switch and reads the one line it prints for
-        /// a caller. The line is the contract; the rest of the output is for a person.
+        /// Runs scripts/bootstrap.ps1 with one switch and reads the line it prints for a
+        /// caller - and, since v0.6.5, the `compatibility:` line before it, the answer to the
+        /// check's second request (CompatibilityLine; null when it made none). The lines are
+        /// the contract; the rest of the output is for a person.
         private static void RunBootstrap(string root, string script, string flag, int milliseconds,
                                          out string answer, out string current, out string latest,
-                                         out string detail)
+                                         out string detail, out string compatibility)
         {
             answer = "failed";
             current = null;
             latest = null;
             detail = "";
+            compatibility = null;
             string powershell = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),
                                              "WindowsPowerShell", "v1.0", "powershell.exe");
             // By full path, never by bare name: a `powershell.exe` earlier on PATH is the
@@ -3127,6 +3995,7 @@ namespace CodexAutoResume
                     failure.Wait(5000);
                     string printed = output.IsCompleted ? output.Result : "";
                     detail = Tail(printed + "\n" + (failure.IsCompleted ? failure.Result : ""));
+                    compatibility = CompatibilityLine(printed);
                     string line = null;
                     foreach (string raw in (printed ?? "").Replace("\r", "").Split('\n'))
                     {

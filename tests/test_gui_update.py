@@ -46,7 +46,16 @@ CASES = {
     "line_among_others":  ("  Asking github.com\nupdate: current 0.6.0\n  [ok] done", 0, "current"),
     # Two lines, and the last one wins - which is the one the script prints last.
     "last_line_wins":     ("update: unavailable\nupdate: current 0.6.0", 0, "current"),
+    # v0.6.5: the check's second request, the Codex compatibility data, answers on its own line before the
+    # update's. It never changes the update's answer, whatever it says.
+    "with_refresh":       ("compatibility: refreshed 12\nupdate: current 0.6.0", 0, "current"),
+    "with_refusal":       ("compatibility: refused from_the_future\nupdate: available 0.5.7 0.6.0", 10, "available"),
+    "with_no_refresh":    ("compatibility: unavailable\nupdate: current 0.6.0", 0, "current"),
 }
+
+# What the window reads from each case's `compatibility:` line (CompatibilityLine): the words, or null.
+COMPATIBILITY = {"with_refresh": "refreshed 12", "with_refusal": "refused from_the_future",
+                 "with_no_refresh": "unavailable"}
 
 PROBE = r"""
 $ErrorActionPreference = 'Stop'
@@ -67,25 +76,26 @@ foreach ($case in (ConvertFrom-Json $env:CAR_CASES).PSObject.Properties) {
     $body += ('exit ' + $case.Value[1])
     [IO.File]::WriteAllText($script, ($body -join "`r`n"), (New-Object Text.UTF8Encoding $false))
     # out parameters come back through the array .NET was handed.
-    $arguments = [object[]]@($work, $script, '-CheckOnly', 60000, $null, $null, $null, $null)
+    $arguments = [object[]]@($work, $script, '-CheckOnly', 60000, $null, $null, $null, $null, $null)
     $null = $run.Invoke($null, $arguments)
     $out[$case.Name] = @{
         answer  = $arguments[4]
         current = $arguments[5]
         latest  = $arguments[6]
+        compatibility = $arguments[8]
     }
 }
 
 # A child that does not finish is not killed: it may be part way through an installation.
 $slow = [string](Join-Path $work 'slow.ps1')
 [IO.File]::WriteAllText($slow, "Start-Sleep -Seconds 30`r`nexit 0", (New-Object Text.UTF8Encoding $false))
-$arguments = [object[]]@($work, $slow, '-CheckOnly', 1500, $null, $null, $null, $null)
+$arguments = [object[]]@($work, $slow, '-CheckOnly', 1500, $null, $null, $null, $null, $null)
 $null = $run.Invoke($null, $arguments)
 $out['slow'] = @{ answer = $arguments[4]; current = $arguments[5]; latest = $arguments[6] }
 
 # A script that is not there at all.
 $arguments = [object[]]@($work, [string](Join-Path $work 'absent.ps1'), '-CheckOnly',
-                         60000, $null, $null, $null, $null)
+                         60000, $null, $null, $null, $null, $null)
 $null = $run.Invoke($null, $arguments)
 $out['absent'] = @{ answer = $arguments[4]; current = $arguments[5]; latest = $arguments[6] }
 
@@ -134,6 +144,14 @@ class BootstrapReadingTests(unittest.TestCase):
         for name, (_, _, expected) in sorted(CASES.items()):
             with self.subTest(name):
                 self.assertEqual(self.answer[name]["answer"], expected)
+
+    def test_the_compatibility_line_is_read_beside_the_update_line(self):
+        """v0.6.5: an update check also refreshes the Codex compatibility data once github.com has answered,
+        and says how that went on a line of its own. The window reads it so the person is told (the
+        Diagnostics card says it in the refresh's own words); every case without the line reads as none."""
+        for name in CASES:
+            with self.subTest(name):
+                self.assertEqual(self.answer[name].get("compatibility"), COMPATIBILITY.get(name))
 
     def test_the_versions_come_out_of_the_line(self):
         self.assertEqual(self.answer["available"]["current"], "0.5.7")

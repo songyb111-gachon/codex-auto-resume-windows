@@ -1,6 +1,274 @@
 # Changelog
 
+## v0.6.5 — A light you can see, notifications in the product's own card, and a Codex Compatibility Registry
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.4...v0.6.5)
+
+A design and safety release. With the compatibility data this release ships, recovery decides
+what it decided in v0.6.4: the same classifier, the same gates, the same one watcher that is the
+only thing allowed to send. The one difference is a check: codex-cli 0.153.4, which v0.6.4 trusted
+by its version, now has to show that `codex queue` still takes a conversation and a message, as
+every other build always had to (below). What changed is how much of it you can see - a status light and an
+icon that visibly move, notifications drawn in the product's own design, controls that answer as
+they change - and a Codex Compatibility Registry, whose data can only ever make the watcher more
+careful. The one new setting, **Show notifications as a card beside the notification area**, is on
+by default and changes where a notification appears, never whether there is one or what it says.
+
+### The status light
+
+- v0.6.4's light was too quiet to be seen. It now blinks the way the notification-area icon's head
+  does: while the watcher is watching, every 3.2 s the dot itself dims to 60% of the way toward the
+  card it sits on and comes back, with nothing spreading, and only once it is fully lit does a small
+  glow spread from its edge - opacity 0.34, 3 px past the dot at most - and draw back in. A first cut
+  breathed a glow reaching 7 px round a dot that never changed; this one was chosen after it, from
+  previews at 2, 3 and 4 px. While a recovery is being sent the same cycle runs every 2 s.
+- Waiting and checking hold lit with no glow, and a problem runs the cycle once, over 1.4 s, then
+  holds lit. The colours, the words beside the light and its size are unchanged, and it is the same
+  light in the Dashboard, the popup and the panel; the notification card shows it lit and still.
+- Reduce motion and Windows' animation setting hold it lit and still with no glow, and High Contrast
+  still draws a solid dot with no glow.
+
+### The notification-area icon moves
+
+- While the watcher is watching, the bright head of the mark breathes on the status light's 3.2 s
+  rhythm - dimming toward the badge's deep blue and back - three times, and then sweeps along the
+  ring's white stroke and back in a slot of two more breaths, at full brightness: 2.56 s out,
+  a moment at the stroke's far end, 2.56 s back, and 1.12 s at home - a loop of five 3.2 s slots,
+  16 s in all. It leaves its place clockwise and stays on the stroke, never crossing the gap at the
+  top of the ring. It never breathes while it travels, and a breath and the sweep's slot both begin
+  and end at full brightness, so nothing jumps where one gives way to the other.
+- While a recovery is in progress - a continuation being sent, or the turn it started still being
+  followed - the head sweeps out and back over and over, twice as quickly: 1.28 s out, a moment at
+  the far end, 1.28 s back and 0.24 s at home, a sweep every 2.88 s, at full brightness and without
+  breathing.
+- Paused, the head is grey and still. When something needs you it turns amber - the danger colour
+  for a failure - pulses once and holds.
+- The head moves in 24 steps of 15 degrees round the ring - the 20 of them from its own place
+  clockwise to the stroke's far end - and breathes through 24 levels of brightness, a tint of the
+  head rather than stored frames: about 16 frames a second while it travels, one for each step of
+  watching's sweep, and about 6 while it breathes. Each frame costs explorer.exe the work of drawing
+  the icon again, so the rates were chosen by measuring that - each candidate for 60 s against 60 s at
+  rest, on one machine (Windows 11 build 26200, 3840 x 2160 at 150%). While it watches, the
+  notification-area icon - measured where Windows had put it, in the overflow area - costs
+  explorer.exe about 1.3 points of one core above rest at these rates, against 1.1 at the 3 and 5
+  frames a second it had before and 2.2 with a breath of 11 a second; the taskbar button costs about
+  2 at every rate tried, and was seen redrawn no more than about eight times a second whatever it
+  was sent. Travelling all the time, while a recovery is in progress, each costs about 2.5 to 3.
+  These were measured while watching turned a whole way round in the last slot of five; it now
+  travels in two of them, so what watching costs sits a little nearer the travelling figure.
+- It holds still under Reduce motion, Windows' animation setting, High Contrast and battery saver,
+  while the session is locked, and while the icon sits in the overflow area where nobody sees it.
+  Where the icon is cannot be asked of the shell: Windows 11 build 26200 gives an icon in the
+  overflow area the overflow button's own place rather than none, and the icon moved there unseen,
+  at explorer.exe's cost. What Windows itself wrote about this icon says it instead - its own
+  per-icon setting, read and never written - and an icon it says nothing about is left to the
+  shell's answer, as before. At rest it is exactly the icon it has always been; the badge and the
+  shape are unchanged.
+- While the settings window is open, its taskbar button moves the same way, with the same rhythms
+  and frames. Its state is the icon's for the same watcher, as the icon has it while the popup is
+  open: the window, like the popup, reads the watcher as it is now. It holds still under the same
+  settings, while the session is locked or disconnected - which it asks Windows once a second, where
+  the icon hears Windows say it - and while the window is hidden. The title bar's icon does not move, and at
+  rest the button is the icon it has always been.
+
+### Notifications in the product's own card
+
+- A notification now appears as a card in the product's own design beside the notification area:
+  the popup's card, with the product's name, a status light and, for a detected interruption, the
+  kind of interruption on a chip. It says exactly what the Windows notification says - the same
+  three lines, in the Interface language - and offers exactly its buttons: **Don't resume** and
+  **Open Dashboard** for a detected interruption, none for anything else. A button does what the
+  notification's button does, and nothing more: it cancels that one recovery or opens that one page.
+- The card rises out of the corner the notification area is in, fading in and growing from 98% to
+  full size in about a third of a second, and never takes the keyboard focus. It stays at least 6
+  seconds - longer if Windows is set to keep notifications longer - and while the pointer is over
+  it, then fades. Up to three stack, the newest nearest the corner, and a newer card about the same
+  conversation replaces the older one. Under Reduce motion, Windows' animation setting, battery
+  saver or High Contrast it appears and disappears in place.
+- Once the card has been on screen, the same Windows notification is added to Windows'
+  notification center silently, with no banner and no sound, so the history is what it always was.
+  If a card cannot be drawn, Windows' own notification is raised instead.
+- Windows' own notification, exactly as before, is used whenever a card must not show: the setting
+  is off; the notification-area icon is off; Do not disturb or Focus is on; an app is full screen or
+  presenting; the session is locked or remote; a screen reader is running, because Windows'
+  notification is announced and a card that never takes the focus is not; or Codex Auto Resume's
+  notifications are switched off in Windows' Settings, in which case Windows shows nothing, as it
+  always did.
+- The setting is under Settings > General > Windows in the Dashboard, beside the notification-area
+  icon, with a line saying what it does. Codex cannot change it.
+- Which events notify and their wording did not change: the **Notifications** switch and the event
+  check boxes still decide whether there is a notification at all.
+
+### Depth in the popup
+
+- What stands on the popup's card is now raised and what holds a value is sunken: each waiting
+  task is a tile lifted off the card - a soft drop and highlight in light; in dark, a faint drop and
+  a one-pixel light along its top edge on a slightly brighter ground - the three counts sit in one
+  sunken well with a hairline between them, "nothing waiting" and a failed read are said from a well
+  too, and a button sinks into a well while it is pressed. High Contrast draws none of it.
+- In the panel in Codex, each waiting conversation's row and the Automatic recovery switch's tile
+  are lifted the same way.
+- The Dashboard's Pending and History lists stay flat rows with a hairline between them, as in
+  v0.6.4.
+- A count's label is never cut inside a word: a column whose longest word needs more room gets it.
+
+### The window's first screen
+
+- The Overview's **Pause recovery** or **Resume recovery**, **Pending** and **History** are back at
+  the bottom left of their cards, in a row of their own under what the card says, as in v0.6.2. The
+  header's **Start watcher** and the Custom messages' **Clear** buttons stay at the bottom right.
+- The window opens at 1000 × 664 instead of 1000 × 632. The Overview's rows are as tall as their
+  cards need and a little more, never more than 24 px past it, with the page's own 14 px gap under
+  the last row rather than cards stretched to the footer. On a screen whose work area is shorter -
+  1920 × 1080 at 150% with the taskbar, for one - it opens as tall as the work area, and the
+  Overview still fits there in every language.
+
+### Lists, drop-down lists and switches
+
+- Lists in the window no longer overflow sideways at ordinary sizes. As a list narrows, a
+  conversation's name gives way first, then what a column holds past a readable width, then
+  headings wider than what they head, the widest first, and last the cells, the widest first; what
+  no longer fits ends in an ellipsis, so a time or a count stays whole while a long name or state is
+  shortened. Only a list narrower than its columns can shrink to scrolls sideways, on the window's
+  own soft bar; Windows' white horizontal bar no longer shows.
+- Drop-down lists are drawn by the product, in the window and in the panel: a card of the cards'
+  own material floating under the field with the soft shadow, its items pills - the chosen one
+  sunken, the one under the pointer raised, the one the keyboard is on ringed. It opens where there
+  is room, shows up to twelve rows and scrolls the rest, rises into place unless motion is reduced,
+  and is drawn in system colours with no shadow in High Contrast. The keys are Windows': it opens on
+  a click, F4, Alt+Up, Alt+Down or Space, the arrows, Home, End, Page Up and Page Down move, typing
+  finds the next item that starts with what was typed, Enter or Tab takes an item and Escape closes
+  it unchanged. A screen reader hears it as a combo box with its choice and the item the keyboard is
+  on. In dark the open list is dark: v0.6.4 left it in Windows' light frame.
+- Switches glide when they change - the knob slides and the track cross-fades in 160 ms, on one
+  ease-out curve - in the window, the popup and the panel, and check boxes fade in the window and
+  the panel. A switch whose change has to be confirmed first - by you, or by the watcher - moves once,
+  when it is confirmed, and never slides and snaps back. Nothing moves under Reduce motion, Windows'
+  animation setting or High Contrast.
+
+### Words
+
+- The panel in Codex keeps Korean words whole when it wraps a line, and Japanese phrases; the
+  window breaks Korean lines only at spaces, where Windows used to break them inside a word.
+- The popup and the notification card set Latin text in Windows' UI font, as the window and the
+  panel do.
+- Everything new is in all nine languages.
+
+### Codex Compatibility Registry
+
+- For the Codex engine on this machine, the product now says which of the things it does can be
+  relied on, in four words: **verified** - the maintainer tested this exact Codex version, with
+  recorded evidence; **compatible** - the checks on this computer pass, and nobody has verified this
+  exact version; **incompatible** - a check on this computer failed, or the compatibility data says
+  this version does not work; **unknown** - it could not be established, because a check could not
+  run. It is on a new **Codex compatibility** card on the Diagnostics page, read-only in a card in
+  the panel, in `status` and `doctor`, in a new `compat` command, and in the diagnostics export.
+- The watcher does the checking as it runs: the checks the engine it drives has already passed,
+  the column names of Codex's databases (never a row), the folders recovery reads and the Windows
+  interface that tells whether a conversation is open. It writes what it found to
+  `config\compatibility.json`. Everything that shows it checks the file again as it reads it, and
+  shows unknown, saying why, for one that is damaged, too old, or about a Codex binary that has
+  since changed.
+- The data ships inside the release. The data this release ships marks no capability verified: a
+  verified entry has to cite a recording made on that exact Codex version, and none of the
+  repository's recordings says which version it was made on yet. So every capability is decided by
+  the checks on this computer - compatible where they pass - which is what the product did before
+  the registry existed. Its one restriction, for codex-cli 0.153.4, is on recovering a conversation
+  that is not open in the app, which this product does not do.
+- The one build v0.6.4 called verified, codex-cli 0.153.4, is now shown as compatible, and like
+  every other build it has to show that `codex queue` still offers `--thread` and `--message` before
+  anything is sent to it; v0.6.4 skipped that check for it.
+- The data is refreshed only when you ask: **Refresh compatibility data** on the Diagnostics card,
+  or **Check for updates** once github.com has answered it, whether or not an update exists. The
+  update check skips the refresh when github.com could not be reached and when too little of its
+  time is left, and its answer about updates is the same either way. Nothing polls, the watcher
+  never asks, and neither the panel nor Codex can ask. A refresh is one HTTPS GET to one fixed
+  address on raw.githubusercontent.com - this repository's own data file on its main branch - with
+  no query string and nothing about this machine in it.
+- What arrives is handed to this installation's own validator, which keeps it, as
+  `config\compat-cache.json`, only if it is compatibility data this version can read and no older
+  than what is in force; anything else is refused, and a refresh that fails or is refused changes
+  nothing. The card says what happened: refreshed with the data's number, refused and why, could
+  not be fetched, or busy while an installation or a repair is running.
+- Refreshed data can only make the watcher more careful. It can mark a Codex version incompatible,
+  and then nothing is sent while it is in force. It can mark something verified only for an exact
+  version whose checks on this computer already pass, which changes the word and not what is sent.
+  A check that fails on this computer always wins. Refreshed data past its expiry, about 90 days,
+  keeps its restrictions and loses its verifications.
+- Codex sees a summary: `get_status`, and `open_settings` with it, now carries the compatibility
+  summary as codes only - the overall result and the one the watcher acts on, whether the report
+  could be used, which data is in force and its number, the refreshed data's standing, when it was
+  checked, and each capability's state and reason. No version string, no path, no free text. No
+  tool can refresh or import the data.
+
+### Fixed
+
+- **`"enabled": "false"` turned automatic recovery on.** The window's bridge read its switches'
+  value with a plain truth test, so any non-empty text counted as yes: a request carrying `"false"`
+  switched recovery on and, for Run at Windows sign-in, wrote this product's sign-in autostart value;
+  a request with no value switched them off. The settings window always sends a real true or false,
+  so its own switches were not affected. Anything else is now refused, with the message and code
+  the control layer gives.
+- **Settings accepted or refused a value of the wrong type depending on the default.** An update
+  was compared with what it coerced to, so `{"notifications": 1}` was accepted and
+  `{"notifications": 0}` refused, and `{"reduce_motion": 0}` was accepted. A value is now checked
+  for the type the settings schema publishes first and refused if it is the wrong one, whatever it
+  equals. A settings file with such a value is still read as the default rather than refused.
+- **The log left out the reason for 14 of the 27 states a recovery can be in**, every outcome of a
+  recovery turn among them, and wrote the bare state name. Every state line now carries its reason
+  code, and still codes only.
+- **The release job did not check three things every installed copy requires of an update**:
+  `.codex-plugin/plugin.json`, `scripts/plugin_setup.py` and the icon at the payload's root. An
+  archive missing one would have been published and then refused by every installed copy. It checks
+  all ten entries now, and tests hold its list to what the bootstrap requires in both directions.
+- **A damaged plugin manifest passed as version "unknown", with nothing said.** The installation's
+  root is now found by its manifest rather than by counting folders, and a manifest that is there
+  but cannot be read logs a warning saying why, once, before the version reads unknown. A missing
+  manifest still reads unknown quietly.
+
+### Groundwork for splitting the Python code
+
+Nothing a user sees. Every safety scan in the tests now reads the whole package, recursively, so
+moving code into a subpackage can never take it out of a check's sight; the package's layers, each
+module's size and its structural invariants are held by tests; and the screenshot checks are keyed
+on what the window is shown rather than on which files changed. The split itself, and the golden
+replies, gathered rules and typed contracts that come before it, are v0.6.6.
+
+### Documents
+
+- `PRIVACY.md` and `SECURITY.md` describe the compatibility refresh - when it happens, its one
+  address, what is and is not sent, which file holds what and who writes it - the summary
+  `get_status` carries, and the notification card. The feature matrix, the brand document and the
+  roadmap describe the rest.
+- The README pictures a notification as the card it now is, in the light and the dark theme, in
+  place of a capture of Windows' notification taken before Open Dashboard existed, which no
+  manifest pinned. The card's pictures are drawn off-screen by the card's own code and pinned as
+  the popup's are, so a change to what the card says or how it is drawn fails the suite until they
+  are made again. The old capture is gone.
+
+### Evidence
+
+TO FILL: what was run, on which build, on which machine (Windows build, screen, scaling, language,
+app mode).
+
+- **The suite.** TO FILL
+- **The window, built twice.** TO FILL
+- **Clipping.** TO FILL
+- **Installed over v0.6.4.** TO FILL
+- **The compatibility card and its refresh, for real.** TO FILL
+- **Check for updates, and the refresh that rides on it.** TO FILL
+- **The notification card, on a real desktop.** TO FILL
+- **Windows' own notification where a card must not show.** TO FILL
+- **The icon's motion.** TO FILL
+- **The status light.** TO FILL
+- **Drop-down lists, switches and a screen reader.** TO FILL
+- **Korean and Latin text.** TO FILL
+
+Not verified, and not claimed: TO FILL
+
 ## v0.6.4 — One look in light and dark, a quieter status light, and a window that arrives ready
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.3...v0.6.4)
 
 A design and speed release. Recovery decides exactly what it decided in v0.6.3: the same
 classifier, the same gates, the same one watcher that is the only thing allowed to send. The one
@@ -193,6 +461,8 @@ any scaling but 150 per cent.
 
 ## v0.6.3 — Nine languages, your own words, and a window that shows it is alive
 
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.2...v0.6.3)
+
 A feature and design release. Recovery itself decides exactly what it decided in v0.6.2:
 the same classifier, the same gates, the same one watcher that is the only thing allowed to
 send. What changed is what it says, in which language, and how much of what it is doing
@@ -354,6 +624,8 @@ Korean documents where the generated `ko` branch keeps them.
 
 ## v0.6.2 — The update could not check what it had downloaded
 
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.1...v0.6.2)
+
 One fix, in the step that decides whether anything gets installed.
 
 - **Fixed: the Dashboard's update downloaded the archive and then could not verify it.**
@@ -373,6 +645,8 @@ One fix, in the step that decides whether anything gets installed.
   the ordinary way rather than through the button.
 
 ## v0.6.1 — What running it for real found
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.0...v0.6.1)
 
 Every change here came from the first live acceptance of v0.6.0: installing the published
 archive on a machine somebody uses and watching it work. The published v0.6.0 archive and
@@ -411,6 +685,8 @@ the top of this list was found outside that procedure, in ordinary use, which is
 argument for running the procedure. No real Codex visual recovery is claimed.
 
 ## v0.6.0 — It follows its own turn, and it shows you the work
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.7...v0.6.0)
 
 Two changes, and most of the rest follows from them. The engine no longer reads the
 conversation for signs that a recovery worked: it follows the continuation it sent to the
@@ -765,6 +1041,8 @@ says what works in between.
 
 ## v0.5.7 — Security fix
 
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.6...v0.5.7)
+
 A security release, shipped on its own rather than held for v0.6.0, because it closes
 a code injection present in v0.4.0 through v0.5.6. Recovery, settings, state and the
 install layout are exactly v0.5.6's. Upgrading is the whole remedy - and, as of this
@@ -807,6 +1085,8 @@ release, an upgrade replaces the running watcher, which is what makes that true.
   their full path under `%SystemRoot%\System32`.
 
 ## v0.5.6 — Finished, not just working
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.5...v0.5.6)
 
 The last v0.5 release, and a quality pass rather than a feature one. **Recovery is
 untouched**: the same failure categories, the same refusals, the same exact-thread
@@ -945,6 +1225,8 @@ were deliberately not used to mutate a released artefact; they ship here.
 
 ## v0.5.5 — Say only what you checked
 
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.4...v0.5.5)
+
 The last corrective release before v0.6. **Recovery is untouched** again: the same failure
 categories, the same refusals, the same identity rules, the same bounded retries, the same
 database. What changes is that several things which had been quietly asserting rather than
@@ -1050,6 +1332,8 @@ checking now check - and that the Korean branch stops being a second copy of the
 
 ## v0.5.4 — Prove it before you delete it
 
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.3...v0.5.4)
+
 The final v0.5 hardening release. **Recovery is untouched**: the same failure categories,
 the same refusals, the same identity rules, the same bounded retries, the same database.
 What changes is that installing, updating and removing this product now act only on things
@@ -1152,6 +1436,8 @@ mistake, unreported, on the install path, where it was worse.
   is present — a fix written against it changes nothing, and there is a test saying so.
 
 ## v0.5.3 — Say what the network does, and close the v0.5 line
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.2...v0.5.3)
 
 The last v0.5 release. **Nothing about recovery changes** — same failure categories, same
 refusals, same identity rules, same database, same bounded retries. What changes is that the
@@ -1268,6 +1554,8 @@ phrase cannot take the history with it.
 
 ## v0.5.2 — Install it from Codex, and look like one product
 
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.1...v0.5.2)
+
 A patch release. Recovery is unchanged: the same failure categories, the same refusals, the
 same identity rules, the same database. What changed is how you install it and what it looks
 like once you have.
@@ -1347,6 +1635,8 @@ that is how a colour survives a rebrand: in a document nobody reopened.
 
 ## v0.5.1 — Say what the product actually is
 
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.0...v0.5.1)
+
 A patch release. No change to how recovery works, what it will retry, or what it refuses to
 retry. What changed is everything around that: the documentation was describing a version of
 this project that no longer exists, and the install instructions contradicted the installer.
@@ -1403,6 +1693,8 @@ the conversation open for a recovery to be delivered; that limitation is unchang
 documented.
 
 ## v0.5.0 — Settings you can find, and a notification that says who it is from
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.4.1...v0.5.0)
 
 ### Settings, in three places, meaning one thing
 
@@ -1510,6 +1802,8 @@ the code. The watcher was not running, and the settings panel was the only thing
 
 ## v0.4.1 — Put the reason back in the notification
 
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.4.0...v0.4.1)
+
 - **Fixed: the notification never said why it appeared.** Windows renders at most three
   `<text>` elements in a toast and silently drops a fourth, so the four-line layout lost its
   body line: the toast showed the task name, the project and the thread id, but not
@@ -1520,6 +1814,8 @@ the code. The watcher was not running, and the settings panel was the only thing
   Found by looking at the actual notification, not the generated markup.
 
 ## v0.4.0 — Recover more, guess less, install in one step
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.3.2...v0.4.0)
 
 ### Recovery beyond usage limits
 
@@ -1582,6 +1878,8 @@ the code. The watcher was not running, and the settings panel was the only thing
 
 ## v0.3.2 — Make the login autostart actually start
 
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.3.1...v0.3.2)
+
 - **Fixed: the registered sign-in autostart could never run.** The Run value ended in `run`, and
   the launcher appended `run` again, so the command died with an argument error at every login.
   It went unnoticed because starting the watcher from setup passes no arguments and worked fine.
@@ -1594,6 +1892,8 @@ the code. The watcher was not running, and the settings panel was the only thing
 
 ## v0.3.1 — Keep the state out of somebody else's sandbox
 
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.3.0...v0.3.1)
+
 - **Runtime state moved from `%LOCALAPPDATA%` to `%USERPROFILE%\.codex-auto-resume\`.**
   Setup may be run from a packaged (MSIX) host, and Windows silently redirects such a host's
   AppData writes into its own private `LocalCache`: the environment variable still reads as the
@@ -1604,6 +1904,8 @@ the code. The watcher was not running, and the settings panel was the only thing
   Found by installing the plugin for real and reading back where the files actually went.
 
 ## v0.3.0 — A control at the moment it matters
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.2.0...v0.3.0)
 
 - **Windows notification when an interruption is detected.** The watcher is running at that
   moment, so this is the one place a control can be offered in time; the Codex turn has already
@@ -1626,6 +1928,8 @@ the code. The watcher was not running, and the settings panel was the only thing
   the command that is actually sent.
 
 ## v0.2.0 — Install and control it from inside Codex
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.1.0...v0.2.0)
 
 - **Codex plugin.** The repository root is now also a Codex plugin root, with a marketplace index
   (`.agents/plugins/marketplace.json`), a manifest (`.codex-plugin/plugin.json`) and one skill.
@@ -1672,6 +1976,8 @@ the code. The watcher was not running, and the settings panel was the only thing
 - Report the engine pin actually in force in error messages instead of a hardcoded version.
 
 ## v0.1.0 — first public release
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/commits/v0.1.0)
 
 First public release of `codex-auto-resume-windows`, a local-only Windows watcher that resumes Codex
 tasks interrupted by a usage limit.

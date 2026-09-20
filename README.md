@@ -38,8 +38,8 @@ v0.6.0).
 | **Identity** | the exact conversation UUID only — never `--last`, never "the most recent one", never a title or a folder name |
 | **Configure it** | a Windows window from the Start Menu — from v0.6.0, a Dashboard whose settings are one of its six pages — a settings panel inside Codex, or the command line |
 | **Languages** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) — in the Dashboard, the notification-area popup, Windows notifications, the panel inside Codex and the continuation message sent to Codex. It follows Windows unless you choose one; see [Languages](#languages) |
-| **Tells you** | Windows notifications when a task is interrupted, when recovery starts, how it went, and when it gives up. While the watcher runs it also shows a notification-area icon, whose tooltip says whether recovery is paused, how many recoveries are waiting, how many are running in Codex, and how long until the next check |
-| **Privacy** | no telemetry, no analytics, no automatic update check, never reads your credentials. *Check for updates* in the window asks GitHub which release is newest, and only when you press it. The watcher has no network code; the usage check, the resumed turn and what the plugin's tools and commands return in a conversation go to OpenAI through Codex, as Codex's traffic always does; setup downloads the release from GitHub; and the v0.5.7 installer has Codex refresh every Git marketplace you have configured (naming only this one is new in v0.6.0) |
+| **Tells you** | Notifications when a task is interrupted, when recovery starts, how it went, and when it gives up - from v0.6.5 as a card of the product's own beside the notification area, with Windows' own notification wherever a card must not show. While the watcher runs it also shows a notification-area icon, whose tooltip says whether recovery is paused, how many recoveries are waiting, how many are running in Codex, and how long until the next check |
+| **Privacy** | no telemetry, no analytics, no automatic update check, never reads your credentials. *Check for updates* in the window asks GitHub which release is newest, and only when you press it; it and *Refresh compatibility data* also fetch the Codex compatibility data from raw.githubusercontent.com, sending nothing about your machine. The watcher has no network code; the usage check, the resumed turn and what the plugin's tools and commands return in a conversation go to OpenAI through Codex, as Codex's traffic always does; setup downloads the release from GitHub; and the v0.5.7 installer has Codex refresh every Git marketplace you have configured (naming only this one is new in v0.6.0) |
 
 > **One honest limitation, up front.** Codex has to currently have that conversation open for a
 > recovery to be delivered. If the app restarted since, open the conversation once and recovery
@@ -169,13 +169,18 @@ Afterwards, change anything from **Start Menu → Codex Auto Resume**, or by ask
 
 ## What it looks like
 
-When a task is interrupted, Windows tells you — as **Codex Auto Resume**, not as whatever
-process happened to raise it. Doing nothing resumes. **Don't resume** only ever cancels, and
-**Open Dashboard** only opens the Dashboard's Pending page. The picture below was taken before
-**Open Dashboard** was added and before the identifier line said "Conversation";
-[The notification](#the-notification) shows what it says now.
+When a task is interrupted, a card in the product's own design appears beside the notification
+area, as **Codex Auto Resume**: which task stopped, why, and exactly which conversation it is.
+Doing nothing resumes. **Don't resume** only ever cancels, and **Open Dashboard** only opens the
+Dashboard's Pending page. Where a card must not be shown — the session is locked or remote, an
+app is full screen, Do not disturb or Focus is on, a screen reader is running, or the card or the
+notification-area icon is switched off — Windows' own notification appears instead, with the same
+words and the same two buttons; once a card has been seen, a silent copy of it goes to Windows'
+notification center, so the history is the same either way. Below is the card as the product
+draws it, in the light and the dark theme, rendered off-screen from sample data;
+[The notification](#the-notification) says what each line is.
 
-<img src="docs/images/notification.png" alt="A Windows notification from Codex Auto Resume saying a usage limit was reached and the task will resume after the reset, with a Don't resume button" width="470">
+<img src="docs/images/notification-card.png" alt="The notification card in the light theme: Codex Auto Resume with a cyan status light and a Usage limit chip, the task example-project, the line Codex usage limit reached. This task will resume at 08:42., the conversation's exact identifier, and the buttons Don't resume and Open Dashboard" width="388"> <img src="docs/images/notification-card-dark.png" alt="The same notification card in the dark theme" width="388">
 
 Inside Codex, ask to *open auto resume settings* and the panel shows what is waiting and lets
 you change most of it, in sections for General, Recovery, Notifications, Continuation message
@@ -191,10 +196,12 @@ photograph of the Codex window around it:
 The Start Menu opens the Dashboard, a standalone window that works with Codex closed: what the
 watcher is doing, what is waiting and when it is next looked at, what finished and how, the
 last week's numbers, the watcher's health, and the settings. The light in its header shows what
-the watcher is doing. While it is running and recovery is on, the light is cyan with a soft
-glow: it breathes slowly while the watcher watches, holds still while it waits, turns a small arc
-while it checks a task that has come due, and breathes a little faster while it recovers. Paused
-or stopped, it is plain grey; amber with one soft pulse means it needs you. The word beside it
+the watcher is doing. While it is running and recovery is on, the light is cyan and blinks the
+way the notification-area icon does: while the watcher watches, the dot slowly dims and comes back,
+and once it is lit a small glow spreads from it and draws back in; it holds lit while the watcher
+waits, turns a small arc while it checks a task that has come due, and blinks a little faster
+while it recovers. Paused or stopped, it is plain grey; amber, blinking once and then lit, means it
+needs you. The word beside it
 always says which. **Theme**, under Settings > Appearance, draws the window and the popup light or
 dark; its default, *Use system setting*, follows the app mode Windows is set to. When the
 interface language or the theme changes - saved in the window, changed in Codex, or Windows
@@ -204,9 +211,9 @@ Appearance, stops those animations, and Windows' own animation setting is always
 Contrast mode drops the shadows and tints, whatever the theme. It is a native window; there is no
 local web server and nothing opens in a browser.
 
-The pictures on this page are captured from a scratch installation holding synthetic records, in
-the light theme. They show what the windows look like; they do not show a real recovery, and they
-are not evidence that one was observed in Codex.
+The window pictures on this page are captured from a scratch installation holding synthetic
+records, in the light theme. They show what the windows look like; they do not show a real
+recovery, and they are not evidence that one was observed in Codex.
 
 <img src="docs/images/dashboard-overview.png" alt="The Codex Auto Resume Dashboard overview: automatic recovery on, the watcher running and the Codex engine verified, two recoveries waiting with the next check in a minute and a half, the last seven days' interruptions, continuations sent, recoveries and success rate, and the four most recently finished recoveries" width="680">
 
@@ -235,6 +242,20 @@ While the watcher runs it also puts an icon in the notification area. It belongs
 process itself, so it appears when one starts and goes when it stops, and it wears a small badge
 for the state the watcher is in. Its tooltip says whether recovery is paused, how many recoveries
 are waiting, how many are running in Codex and how long until the next check.
+
+The icon moves, in the mark it already has. While the watcher watches, the head - the bright dot at
+the end of the ring - breathes, dimming toward the badge's deep blue and back every 3.2 seconds, and
+after three breaths it sweeps along the ring's white stroke and back, clockwise, at full
+brightness: 2.56 seconds out, a moment at the far end, 2.56 seconds back and 1.12 at home. It never
+breathes while it travels, and it never crosses the gap at the top of the ring. While a recovery is
+in progress it sweeps out and back over and over, twice as quickly - once every 2.88 seconds -
+without breathing. Paused, it is grey and still; when something needs you it takes that colour, pulses once
+and holds. Nothing moves under Reduce motion, Windows' animation setting, High Contrast or battery
+saver, while the session is locked, or while Windows keeps the icon in the overflow area, where
+nobody would see it. While the settings window is open, its taskbar button moves the same way and
+stops for the same reasons.
+
+<img src="docs/images/icon-motion.gif" alt="The notification-area icon's motion, drawn from the icon's own frames, on a light taskbar above and a dark one below. From the left: watching, whose bright head breathes and then sweeps clockwise along the ring's white stroke and back, at full brightness; recovering, sweeping out and back all the time under a cyan badge; needing attention, amber under an amber badge, pulsing once and then still; paused, grey under a grey badge and still" width="288">
 
 A single click on the icon opens a small popup beside it, and another click closes it: the
 watcher's state, how many tasks are waiting and recovering, the next check, up to three waiting
@@ -518,6 +539,7 @@ records. `stop` asks a running watcher process to exit.
 | `uninstall` | Remove autostart and owned state/logs (`--keep-logs`, `--keep-state`). |
 | `diagnostics` | Write one redacted diagnostics file, to read before you share it (`--out`). |
 | `downgrade-state --to 2` | Rewrite the state file for a v0.5 release; stop the watcher first. |
+| `compat` | What the Codex Compatibility Registry says about this Codex, from the watcher's last report (`--live` to check now and write nothing, `--json`, `--import FILE` to validate a data file and keep it only if it passes). |
 
 Global options: `--home` (where this tool keeps its own state), `--codex-exe`, `--codex-home`, `--quiet`.
 
@@ -526,7 +548,14 @@ By default, failures up to 6 hours old at the moment you run `enable` are still 
 
 ## The notification
 
-When the watcher records an interruption, Windows shows one notification naming the task.
+When the watcher records an interruption, it shows one notification naming the task. From
+v0.6.5 it appears as a card in the product's own design beside the notification area, with the
+same words and the same buttons as Windows' notification, and the same notification is added to
+Windows' notification center silently once the card has been seen. Windows' own notification is
+shown instead whenever a card must not be: with **Show notifications as a card beside the
+notification area** off (Settings > General > Windows), with Do not disturb or Focus on, over a
+full-screen app, on a locked or remote session, while a screen reader runs, or when the
+notification-area icon is off.
 
 ```
 Payment retry refactor
@@ -788,9 +817,10 @@ Design rules enforced in code:
   table as reason codes, timestamps and identifiers, with any other detail masked, so no prompt
   text, Codex error text or account identifier is written through it. The main log also records
   its own state directory, a path that, at the default location, contains your Windows user name,
-  and the version string of an engine this tool has not been verified against. Tracebacks go to a
-  separate rotating `errors.log`, which also contains local paths. The launcher writes its own
-  exception messages to `logs\launcher.log`.
+  and the engine's version string - through v0.6.4 only for an engine this tool had not been
+  verified against, from v0.6.5 for every engine, beside the Compatibility Registry's codes for it.
+  Tracebacks go to a separate rotating `errors.log`, which also contains local paths. The launcher
+  writes its own exception messages to `logs\launcher.log`.
 - **Settings are policy only.** No setting can switch off a safety property; see
   [Settings](#settings).
 - **Never used:** GUI automation, mouse or keyboard simulation, OCR, screen scraping, accessibility-API
@@ -798,10 +828,10 @@ Design rules enforced in code:
 
 ## Privacy
 
-Nothing is sent to this project: there is no telemetry, analytics, crash reporting or update
-check, and no server of this project's to receive them. The tool itself transmits none of your
-prompts, the assistant's replies, tool input or output, file contents, account identifiers,
-credentials or error text anywhere. The recovery runtime (`src/`, `scripts/*.py`) imports no
+Nothing is sent to this project: there is no telemetry, analytics, crash reporting, automatic
+update check or automatic compatibility refresh, and no server of this project's to receive
+them. The tool itself transmits none of your prompts, the assistant's replies, tool input or
+output, file contents, account identifiers, credentials or error text anywhere. The recovery runtime (`src/`, `scripts/*.py`) imports no
 networking module, and a test fails if an import line in a tracked Python file under `src/` or
 `scripts/` names one of the common networking modules (`socket`, `ssl`, `http`,
 `urllib.request` and others).
@@ -826,6 +856,13 @@ to wherever your other Git marketplaces are hosted:
   request, as with any download. Downloading the archive yourself is the same GitHub download;
   after that, `Install.cmd` downloads nothing itself, but it does ask Codex to refresh
   marketplaces (next item).
+- **GitHub, when you ask.** *Check for updates* on the Diagnostics page asks github.com which
+  release is newest, with one `HEAD` request that reads no page. From v0.6.5, *Refresh
+  compatibility data* on the same page - and a *Check for updates* that github.com answered -
+  fetches the Codex compatibility data with one `GET` to one fixed address on
+  raw.githubusercontent.com, with nothing about your machine in it; this installation's own
+  validator keeps it only if it is valid, and it can only make the watcher more careful. Neither
+  happens unless you ask for it.
 - **Marketplace hosts, while an installer runs.** v0.6.0 names only
   `codex-auto-resume-windows`; if an earlier Git registration survives the local repoint,
   Codex fetches it from wherever it points. Installers through v0.5.7 instead ask Codex to

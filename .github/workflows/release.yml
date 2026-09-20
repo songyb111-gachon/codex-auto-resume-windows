@@ -157,14 +157,21 @@ jobs:
           $recorded = (Get-Content "$zip.sha256" -Raw).Split(' ')[0].Trim()
           $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
           if ($recorded -ne $actual) { throw "checksum mismatch: recorded $recorded, actual $actual" }
-          # An archive with no interpreter would install and then do nothing at all.
+          # An archive with no interpreter would install and then do nothing at all. The list is
+          # what an installed bootstrap requires before it installs an archive (scripts/bootstrap.ps1
+          # Test-Archive: $required and the payload root's files), and what every published
+          # bootstrap required: an update is checked by the bootstrap already on the machine, so
+          # an entry may be added here but never dropped.
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $names = [IO.Compression.ZipFile]::OpenRead((Resolve-Path $zip)).Entries.FullName
           foreach ($required in @('payload/runtime/python.exe',
                                   'payload/app/src/codex_auto_resume/mcpserver.py',
                                   'payload/app/mcp/codex-auto-resume-mcp.exe',
                                   'payload/app/.mcp.json',
+                                  'payload/app/.codex-plugin/plugin.json',
+                                  'payload/app/scripts/plugin_setup.py',
                                   'payload/CodexAutoResumeSettings.exe',
+                                  'payload/codex-auto-resume.ico',
                                   'install/install.ps1',
                                   'Install.cmd')) {
             if ($names -notcontains $required) { throw "the archive is missing $required" }

@@ -54,7 +54,7 @@ TEXTS = ("", "plain words", "two\r\nlines\r\n", "\U0001f9e9" * 1200, "a\U0001f9e
          "\U00020000\U0002a6d6", "\ud83e", "\udde9", "\ud83e🧩", "\udde9\ud83e")
 
 STATES = ("monitoring", "waiting", "checking", "recovering", "paused", "attention", "failed", "idle")
-MOMENTS = (0.0, 300.0, 600.0, 1200.0, 1800.0, 5000.0)
+MOMENTS = (0.0, 300.0, 600.0, 800.0, 1200.0, 1800.0, 2720.0, 5000.0)
 
 PROBE = r"""
 $ErrorActionPreference = 'Stop'
@@ -64,10 +64,11 @@ $halo = $assembly.GetType('CodexAutoResume.HaloDot', $true)
 $flags = [Reflection.BindingFlags]'Static,NonPublic,Public'
 $activity = $form.GetMethod('Activity', $flags)
 $opacity = $halo.GetMethod('HaloOpacity', $flags)
+$dim = $halo.GetMethod('HaloDim', $flags)
 $loops = $halo.GetMethod('Loops', $flags)
 $once = $halo.GetMethod('PulsesOnce', $flags)
 $length = $form.GetMethod('CustomLength', $flags)
-foreach ($pair in @(@('Activity', $activity), @('HaloOpacity', $opacity), @('Loops', $loops), @('PulsesOnce', $once), @('CustomLength', $length))) {
+foreach ($pair in @(@('Activity', $activity), @('HaloOpacity', $opacity), @('HaloDim', $dim), @('Loops', $loops), @('PulsesOnce', $once), @('CustomLength', $length))) {
     if (-not $pair[1]) { throw ('missing ' + $pair[0]) }
 }
 
@@ -89,7 +90,7 @@ function To-Value {
     return [double]$value
 }
 
-$out = @{ activity = @{}; opacity = @{}; loops = @{}; once = @{}; lengths = @() }
+$out = @{ activity = @{}; opacity = @{}; dim = @{}; loops = @{}; once = @{}; lengths = @() }
 foreach ($case in (ConvertFrom-Json $env:CAR_CASES).PSObject.Properties) {
     $status = $null
     if ($null -ne $case.Value.status) { $status = [Collections.Generic.Dictionary[string,object]](To-Value $case.Value.status) }
@@ -104,10 +105,15 @@ foreach ($state in (ConvertFrom-Json $env:CAR_STATES)) {
     $out.loops[$state] = [bool]$loops.Invoke($null, [object[]]@([string]$state))
     $out.once[$state] = [bool]$once.Invoke($null, [object[]]@([string]$state))
     $out.opacity[$state] = @{ moving = @(); reduced = @() }
+    $out.dim[$state] = @{ moving = @(); reduced = @() }
     foreach ($ms in (ConvertFrom-Json $env:CAR_MOMENTS)) {
-        # The same moment for the breathing clock and for the time since the state was entered.
-        $out.opacity[$state].moving += [double]$opacity.Invoke($null, [object[]]@([string]$state, [double]$ms, [double]$ms, $false))
-        $out.opacity[$state].reduced += [double]$opacity.Invoke($null, [object[]]@([string]$state, [double]$ms, [double]$ms, $true))
+        # The same moment for the cycle's clock and for the time since the state was entered.
+        foreach ($reduced in @($false, $true)) {
+            $call = [object[]]@([string]$state, [double]$ms, [double]$ms, $reduced)
+            $key = $(if ($reduced) { 'reduced' } else { 'moving' })
+            $out.opacity[$state][$key] += [double]$opacity.Invoke($null, $call)
+            $out.dim[$state][$key] += [double]$dim.Invoke($null, $call)
+        }
     }
 }
 foreach ($text in (ConvertFrom-Json $env:CAR_TEXTS)) {
@@ -163,32 +169,35 @@ class AliveStateTests(unittest.TestCase):
         self.assertEqual({state for state in STATES if self.answer["once"][state]},
                          {"attention", "failed"})
 
-    def test_monitoring_breathes_within_the_glow_range(self):
-        values = self.answer["opacity"]["monitoring"]["moving"]
-        self.assertGreater(max(values) - min(values), 0.1, "it does not visibly breathe")
-        for value in values:
-            self.assertGreaterEqual(value, brand.GLOW["monitoring_low"] - 1e-9)
-            self.assertLessEqual(value, brand.GLOW["monitoring_high"] + 1e-9)
+    def test_monitoring_blinks_the_dot_and_only_then_spreads_a_little(self):
+        dims, glows = self.answer["dim"]["monitoring"]["moving"], self.answer["opacity"]["monitoring"]["moving"]
+        self.assertAlmostEqual(dims[MOMENTS.index(800.0)], brand.GLOW["dot_dim"], places=9)   # its darkest
+        self.assertAlmostEqual(glows[MOMENTS.index(2720.0)], brand.GLOW["peak"], places=9)    # its peak
+        for moment, dim, glow in zip(MOMENTS, dims, glows):
+            with self.subTest(moment=moment):
+                self.assertTrue(dim == 0 or glow == 0, "a glow round a dot that is not fully lit")
+                self.assertLessEqual(dim, brand.GLOW["dot_dim"] + 1e-9)
+                self.assertLessEqual(glow, brand.GLOW["peak"] + 1e-9)
 
     def test_nothing_moves_when_motion_is_reduced(self):
         for state in STATES:
             with self.subTest(state):
-                self.assertEqual(len(set(round(v, 6) for v in self.answer["opacity"][state]["reduced"])), 1,
-                                 "the halo still changes with motion reduced")
+                self.assertEqual(set(self.answer["opacity"][state]["reduced"]), {0},
+                                 "a glow with motion reduced")
+                self.assertEqual(set(self.answer["dim"][state]["reduced"]), {0},
+                                 "the dot dims with motion reduced")
 
-    def test_still_states_have_no_halo_and_waiting_holds_one(self):
-        for state in ("paused", "idle"):
+    def test_still_states_never_light_up_and_waiting_holds_lit(self):
+        for state in ("paused", "idle", "waiting"):
             self.assertEqual(set(self.answer["opacity"][state]["moving"]), {0})
-        waiting = set(round(v, 6) for v in self.answer["opacity"]["waiting"]["moving"])
-        self.assertEqual(len(waiting), 1)
-        self.assertGreater(waiting.pop(), 0)
+            self.assertEqual(set(self.answer["dim"][state]["moving"]), {0})
 
-    def test_an_alarm_pulses_once_and_then_holds(self):
-        values = self.answer["opacity"]["attention"]["moving"]
-        still = brand.GLOW["still"]
-        self.assertGreater(values[MOMENTS.index(600.0)], still, "no pulse on entering the state")
-        for moment in (1800.0, 5000.0):
-            self.assertAlmostEqual(values[MOMENTS.index(moment)], still, places=9)
+    def test_an_alarm_runs_the_cycle_once_and_then_holds_lit(self):
+        dims, glows = self.answer["dim"]["attention"]["moving"], self.answer["opacity"]["attention"]["moving"]
+        self.assertGreater(dims[MOMENTS.index(600.0)], 0, "no pulse on entering the state")
+        self.assertGreater(glows[MOMENTS.index(1200.0)], 0, "no glow as the pulse ends")
+        for moment in (1800.0, 2720.0, 5000.0):
+            self.assertEqual((dims[MOMENTS.index(moment)], glows[MOMENTS.index(moment)]), (0, 0))
 
     def test_the_custom_message_counter_counts_what_the_settings_layer_counts(self):
         """Code points of the text as stored, as Python's len() counts them - not UTF-16 units,

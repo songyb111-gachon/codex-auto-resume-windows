@@ -15,11 +15,17 @@ import hashlib
 import os
 from pathlib import Path
 import re
+import sys
 import time
 import unittest
 import unittest.mock
 
-from codex_auto_resume import brand, control, interface, l10n, tray, tray_popup as popup
+_HERE = str(Path(__file__).resolve().parent)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)        # srcscan lives next to this file
+
+import srcscan  # noqa: E402
+from codex_auto_resume import brand, control, interface, l10n, tray, tray_popup as popup  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "src" / "codex_auto_resume" / "tray_popup.py"
@@ -447,67 +453,71 @@ class LayoutTests(unittest.TestCase):
 
 # ------------------------------------------------------------------------------- motion
 class MotionTests(unittest.TestCase):
-    """The glow is brand's status light, frame for frame, and it moves as v0.6.4 decided."""
+    """The light is brand's status light, frame for frame, and it moves as v0.6.5 decided: the dot blinks as the
+    icon's head does, and only once it is lit does a small glow spread and draw back in."""
     GLOW = brand.GLOW
-    STILL = brand.GLOW["still"]
-    MOMENTS = (0, 1, 97, 350, 550, 700, 900, 1100, 1399, 1400, 1600, 1800, 2200, 2700, 3599, 3600, 5000, 12345.6)
+    STILL = {"dim": 0.0, "opacity": 0.0, "spread": 0.0, "arc": None}
+    MOMENTS = (0, 1, 97, 350, 550, 700, 800, 900, 1100, 1399, 1400, 1600, 1800, 2080, 2200, 2700, 2720, 3599,
+               3600, 5000, 12345.6)
 
     def test_every_frame_is_the_brand_status_light(self):
         for state in popup.STATES + ("idle", "failed", "unknown"):
             with self.subTest(state):
                 for elapsed in self.MOMENTS:
-                    for since in (None, -1, 0, 350, 700, 1399, 1400, 9999):
+                    for since in (None, -1, 0, 350, 700, 1190, 1399, 1400, 9999):
                         for reduced in (False, True):
                             self.assertEqual(popup.halo(state, elapsed, since, reduced=reduced),
                                              brand.glow(state, elapsed, since, reduced=reduced))
                             self.assertEqual(popup.animates(state, since, reduced=reduced),
                                              brand.glow_moves(state, since, reduced=reduced))
 
-    def test_monitoring_breathes_slowly_and_low(self):
-        cycle, low, high = self.GLOW["monitoring_ms"], self.GLOW["monitoring_low"], self.GLOW["monitoring_high"]
-        self.assertAlmostEqual(popup.halo("monitoring", 0)["opacity"], low)
-        self.assertAlmostEqual(popup.halo("monitoring", cycle / 2)["opacity"], high)
-        self.assertAlmostEqual(popup.halo("monitoring", cycle)["opacity"], low)
-        for elapsed in range(0, cycle, 97):
+    def test_monitoring_dims_and_only_once_lit_spreads_a_little(self):
+        cycle = self.GLOW["monitoring_ms"]
+        self.assertEqual(popup.halo("monitoring", 0), self.STILL)
+        self.assertAlmostEqual(popup.halo("monitoring", cycle * 0.25)["dim"], self.GLOW["dot_dim"])
+        peak = popup.halo("monitoring", cycle * 0.85)
+        self.assertEqual(peak["dim"], 0.0)
+        self.assertAlmostEqual(peak["opacity"], self.GLOW["peak"])
+        self.assertAlmostEqual(brand.glow_radius(brand.STATUS_DOT["popup"], peak["spread"]),
+                               brand.STATUS_DOT["popup"] + 3)
+        for elapsed in range(0, cycle, 7):
             frame = popup.halo("monitoring", elapsed)
-            self.assertTrue(low - 1e-9 <= frame["opacity"] <= high + 1e-9)
-            self.assertTrue(self.GLOW["monitoring_scale_low"] - 1e-9 <= frame["scale"]
-                            <= self.GLOW["monitoring_scale_high"] + 1e-9)
+            self.assertTrue(frame["dim"] == 0.0 or frame["spread"] == 0.0, elapsed)
             self.assertIsNone(frame["arc"])
         self.assertTrue(popup.animates("monitoring"))
 
-    def test_waiting_is_a_still_soft_glow(self):
+    def test_waiting_holds_lit_with_no_glow(self):
         frames = {tuple(sorted(popup.halo("waiting", elapsed).items())) for elapsed in range(0, 5000, 333)}
-        self.assertEqual(frames, {(("arc", None), ("opacity", self.STILL), ("scale", 1.0))})
+        self.assertEqual(frames, {tuple(sorted(self.STILL.items()))})
         self.assertFalse(popup.animates("waiting"))
 
-    def test_checking_turns_a_small_arc_over_a_still_glow(self):
+    def test_checking_turns_a_small_arc_round_a_lit_dot(self):
         first, later = popup.halo("checking", 0), popup.halo("checking", self.GLOW["arc_ms"] / 4)
         self.assertAlmostEqual(later["arc"] - first["arc"], 90.0)
-        self.assertEqual((first["opacity"], later["opacity"]), (self.STILL, self.STILL))
+        for frame in (first, later):
+            self.assertEqual((frame["dim"], frame["opacity"], frame["spread"]), (0.0, 0.0, 0.0))
         self.assertTrue(popup.animates("checking"))
 
-    def test_recovering_breathes_brighter_and_quicker_than_monitoring(self):
-        recovering = max(popup.halo("recovering", elapsed)["opacity"]
-                         for elapsed in range(0, self.GLOW["recovering_ms"], 10))
-        monitoring = max(popup.halo("monitoring", elapsed)["opacity"]
-                         for elapsed in range(0, self.GLOW["monitoring_ms"], 10))
-        self.assertGreater(recovering, monitoring)
-        self.assertLess(self.GLOW["recovering_ms"], self.GLOW["monitoring_ms"])
-        self.assertAlmostEqual(popup.halo("recovering", 0)["opacity"],
-                               popup.halo("recovering", self.GLOW["recovering_ms"])["opacity"])
+    def test_recovering_runs_the_same_cycle_quicker(self):
+        cycle = self.GLOW["recovering_ms"]
+        self.assertLess(cycle, self.GLOW["monitoring_ms"])
+        self.assertEqual(popup.halo("recovering", 0), self.STILL)
+        self.assertEqual(popup.halo("recovering", cycle), self.STILL)
+        self.assertAlmostEqual(popup.halo("recovering", cycle * 0.25)["dim"], self.GLOW["dot_dim"])
+        self.assertAlmostEqual(popup.halo("recovering", cycle * 0.85)["opacity"], self.GLOW["peak"])
 
     def test_paused_has_no_glow_and_nothing_moves(self):
         self.assertIsNone(popup.halo("paused", 1234))
         self.assertIsNone(popup.halo("paused", 1234, reduced=True))
         self.assertFalse(popup.animates("paused"))
 
-    def test_attention_glows_up_once_when_it_arrives_and_then_holds_still(self):
+    def test_attention_runs_the_cycle_once_when_it_arrives_and_then_holds_lit(self):
         pulse = self.GLOW["attention_ms"]
-        self.assertAlmostEqual(popup.halo("attention", 0, since_entered_ms=pulse / 2)["opacity"],
-                               self.GLOW["attention_peak"])
-        self.assertAlmostEqual(popup.halo("attention", 0, since_entered_ms=pulse * 3)["opacity"], self.STILL)
-        self.assertAlmostEqual(popup.halo("attention", 0)["opacity"], self.STILL)
+        self.assertAlmostEqual(popup.halo("attention", 0, since_entered_ms=pulse * 0.25)["dim"], self.GLOW["dot_dim"])
+        self.assertAlmostEqual(popup.halo("attention", 0, since_entered_ms=pulse * 0.85)["opacity"],
+                               self.GLOW["peak"])
+        self.assertEqual(popup.halo("attention", 0, since_entered_ms=pulse * 3), self.STILL)
+        self.assertEqual(popup.halo("attention", 0), self.STILL)
         self.assertTrue(popup.animates("attention", pulse / 2))
         self.assertFalse(popup.animates("attention", pulse + 1))
 
@@ -516,14 +526,67 @@ class MotionTests(unittest.TestCase):
             with self.subTest(state):
                 self.assertFalse(popup.animates(state, 0, reduced=True))
                 frames = {repr(popup.halo(state, elapsed, since_entered_ms=elapsed, reduced=True))
-                          for elapsed in (0, 400, 1200, 2400, 9999)}
+                          for elapsed in (0, 400, 800, 1200, 2400, 2720, 9999)}
                 self.assertEqual(len(frames), 1)
-        self.assertEqual(popup.halo("monitoring", 900, reduced=True),
-                         {"opacity": brand.glow_rest("monitoring"), "scale": 1.0, "arc": None})
-        self.assertAlmostEqual(brand.glow_rest("monitoring"), 0.22)
-        self.assertEqual(popup.halo("waiting", 900, reduced=True)["opacity"], self.STILL)
+        # Lit, with no glow: the dot at its full colour and nothing round it.
+        self.assertEqual(popup.halo("monitoring", 800, reduced=True), self.STILL)
+        self.assertEqual(popup.halo("recovering", 1700, reduced=True), self.STILL)
+        self.assertEqual(popup.halo("waiting", 900, reduced=True), self.STILL)
         # Checking keeps its arc, still: with waiting and checking the same cyan, it is the difference.
         self.assertEqual(popup.halo("checking", 900, reduced=True)["arc"], self.GLOW["arc_still_at"])
+
+    def test_the_cycle_starts_with_the_state(self):
+        """As the window's does: a light that starts moving leaves the still light, with no jump."""
+        shown = object.__new__(popup.Popup)
+        shown._vm, shown._reduced, shown._state_since = {"state": "monitoring"}, False, 100.0
+        with unittest.mock.patch.object(popup.time, "monotonic", return_value=100.0):
+            self.assertEqual(shown.frame(), self.STILL)
+        with unittest.mock.patch.object(popup.time, "monotonic", return_value=100.8):
+            self.assertAlmostEqual(shown.frame()["dim"], self.GLOW["dot_dim"])
+        with unittest.mock.patch.object(popup.time, "monotonic", return_value=102.72):
+            self.assertAlmostEqual(shown.frame()["opacity"], self.GLOW["peak"])
+
+
+class SwitchGlideTests(unittest.TestCase):
+    """v0.6.5: a task's switch glides between its ends in brand's transition time, on brand's curve."""
+    T = ("check", "a" * 64)
+    U = ("check", "b" * 64)
+    MS = brand.MOTION["transition_ms"]
+
+    def test_a_glide_runs_its_ends_in_the_transition_time_on_the_brand_curve(self):
+        glide = (1000.0, 0.0, 1.0)
+        self.assertEqual(popup.glide_amount(glide, 1000.0), (0.0, False))
+        for elapsed in (16, 40, 80, 120, 159):
+            amount, done = popup.glide_amount(glide, 1000.0 + elapsed)
+            self.assertFalse(done)
+            self.assertAlmostEqual(amount, brand.ease(elapsed / float(self.MS)))
+        self.assertEqual(popup.glide_amount(glide, 1000.0 + self.MS), (1.0, True))
+        self.assertEqual(popup.glide_amount(glide, 99999.0), (1.0, True))
+        back = (0.0, 1.0, 0.0)
+        self.assertAlmostEqual(popup.glide_amount(back, 40)[0], 1.0 - brand.ease(40 / float(self.MS)))
+
+    def test_only_a_switch_drawn_the_other_way_starts_one(self):
+        self.assertEqual(popup.next_glides({self.T: True}, None, {}, 0.0), {})            # just opened
+        self.assertEqual(popup.next_glides({self.T: True}, {self.T: True}, {}, 0.0), {})  # unchanged
+        self.assertEqual(popup.next_glides({self.T: True}, {}, {}, 0.0), {})              # new row
+        self.assertEqual(popup.next_glides({self.T: True}, {self.T: False}, {}, 500.0),
+                         {self.T: (500.0, 0.0, 1.0)})
+        self.assertEqual(popup.next_glides({self.T: False, self.U: True}, {self.T: True, self.U: True}, {}, 7.0),
+                         {self.T: (7.0, 1.0, 0.0)})
+
+    def test_a_glide_keeps_going_turns_back_from_where_it_is_and_ends_with_its_row(self):
+        running = {self.T: (0.0, 0.0, 1.0)}
+        self.assertEqual(popup.next_glides({self.T: True}, {self.T: True}, running, 60.0), running)
+        turned = popup.next_glides({self.T: False}, {self.T: True}, running, 60.0)
+        self.assertEqual(turned[self.T][0], 60.0)
+        self.assertAlmostEqual(turned[self.T][1], brand.ease(60 / float(self.MS)))
+        self.assertEqual(turned[self.T][2], 0.0)
+        self.assertEqual(popup.next_glides({}, {self.T: True}, running, 60.0), {})
+
+    def test_reduced_motion_high_contrast_and_a_hidden_window_move_nothing(self):
+        running = {self.T: (0.0, 0.0, 1.0)}
+        self.assertEqual(popup.next_glides({self.T: True}, {self.T: False}, {}, 0.0, animate=False), {})
+        self.assertEqual(popup.next_glides({self.T: True}, {self.T: True}, running, 60.0, animate=False), {})
 
 
 class StatusLightTests(unittest.TestCase):
@@ -832,23 +895,114 @@ class BadgeTests(unittest.TestCase):
         self.assertEqual(digest.hexdigest(), "5b39ad98edd39a1426d1cf24e4ac9a83c4bdc9199e5c625ad80c50fd63855494")
 
 
+MALGUN_LOCALIZED = "\ub9d1\uc740 \uace0\ub515"       # Malgun Gothic's name on a Korean Windows
+LATIN = ("en", "de", "fr", "es", "pt-BR")
+
+
 class FontTests(unittest.TestCase):
     def test_each_script_has_its_own_face(self):
-        self.assertEqual(popup.font_faces("ko")[0], "Malgun Gothic")
-        self.assertEqual(popup.font_faces("ja")[0], "Yu Gothic UI")
-        self.assertEqual(popup.font_faces("zh-CN")[0], "Microsoft YaHei UI")
-        self.assertEqual(popup.font_faces("zh-TW")[0], "Microsoft JhengHei UI")
-        for locale in ("en", "de", "fr", "es", "pt-BR"):
-            self.assertEqual(popup.font_faces(locale)[0], "Segoe UI Variable Text")
-        for locale in l10n.LOCALES:
-            self.assertEqual(popup.font_faces(locale)[-1], "Segoe UI")
-            for weight in (400, 600):
-                self.assertEqual(popup.font_candidates(locale, weight)[-1][0], "Segoe UI")
+        for system in (None, "Segoe UI", MALGUN_LOCALIZED, "Yu Gothic UI"):
+            self.assertEqual(popup.font_faces("ko", system)[0], "Malgun Gothic")
+            self.assertEqual(popup.font_faces("ja", system)[0], "Yu Gothic UI")
+            self.assertEqual(popup.font_faces("zh-CN", system)[0], "Microsoft YaHei UI")
+            self.assertEqual(popup.font_faces("zh-TW", system)[0], "Microsoft JhengHei UI")
+            for locale in l10n.LOCALES:
+                self.assertEqual(popup.font_faces(locale, system)[-1], "Segoe UI")
+                for weight in (400, 600):
+                    self.assertEqual(popup.font_candidates(locale, weight, system)[-1][0], "Segoe UI")
+
+    def test_every_other_language_is_set_in_windows_own_ui_font_first(self):
+        """The panel's type stack, read the way GDI can read it. The panel asks for `system-ui`,
+        then "Segoe UI Variable Text", then "Segoe UI"; `system-ui` is Windows' UI font, the
+        message font the window itself is drawn in (SystemFonts.MessageBoxFont). On a Korean
+        Windows that is Malgun Gothic, so English in the popup and the card must be Malgun Gothic
+        too, not Segoe UI Variable Text beside a window and a panel that are not."""
+        for locale in LATIN:
+            self.assertEqual(popup.font_faces(locale, MALGUN_LOCALIZED),
+                             (MALGUN_LOCALIZED, "Segoe UI Variable Text", "Segoe UI"))
+            self.assertEqual(popup.font_faces(locale, "Segoe UI"), ("Segoe UI",))
+            self.assertEqual(popup.font_faces(locale, "segoe ui"), ("Segoe UI",))
+            self.assertEqual(popup.font_faces(locale, "Segoe UI Variable Text"),
+                             ("Segoe UI Variable Text", "Segoe UI"))
+            # Windows could not be asked: the panel's next choices, as before.
+            for nothing in (None, ""):
+                self.assertEqual(popup.font_faces(locale, nothing), ("Segoe UI Variable Text", "Segoe UI"))
+        with unittest.mock.patch.object(popup, "message_face", return_value=MALGUN_LOCALIZED):
+            self.assertEqual(popup.font_faces("en")[0], MALGUN_LOCALIZED)
+            self.assertEqual(popup.font_faces("ko")[0], "Malgun Gothic")
 
     def test_semibold_is_asked_for_by_name_where_gdi_would_otherwise_embolden(self):
-        self.assertEqual(popup.font_candidates("en", 600)[0], ("Segoe UI Variable Text Semibold", 400))
-        self.assertEqual(popup.font_candidates("ja", 600)[0], ("Yu Gothic UI Semibold", 400))
-        self.assertEqual(popup.font_candidates("ko", 600)[0], ("Malgun Gothic", 700))
+        self.assertEqual(popup.font_candidates("en", 600, None)[0], ("Segoe UI Variable Text Semibold", 400))
+        self.assertEqual(popup.font_candidates("ja", 600, None)[0], ("Yu Gothic UI Semibold", 400))
+        self.assertEqual(popup.font_candidates("ko", 600, None)[0], ("Malgun Gothic", 700))
+
+    def test_emphasis_follows_the_windows_own_rule(self):
+        """Soft.Weighted in gui/Controls.cs: a Segoe UI face's own semibold family, the face's
+        bold otherwise (Malgun Gothic and the other UI faces have no semibold)."""
+        self.assertEqual(popup.font_candidates("en", 600, "Segoe UI"),
+                         (("Segoe UI Semibold", 400), ("Segoe UI", 600)))
+        self.assertEqual(popup.font_candidates("en", 600, MALGUN_LOCALIZED),
+                         ((MALGUN_LOCALIZED, 700), ("Segoe UI Variable Text Semibold", 400),
+                          ("Segoe UI Semibold", 400), ("Segoe UI", 600)))
+        self.assertEqual(popup.font_candidates("en", 600, None),
+                         (("Segoe UI Variable Text Semibold", 400), ("Segoe UI Semibold", 400), ("Segoe UI", 600)))
+        self.assertEqual(popup.font_candidates("de", 400, MALGUN_LOCALIZED),
+                         ((MALGUN_LOCALIZED, 400), ("Segoe UI Variable Text", 400), ("Segoe UI", 400)))
+        self.assertIn('family.StartsWith("Segoe UI", StringComparison.Ordinal) && '
+                      '!family.EndsWith("Semibold", StringComparison.Ordinal)',
+                      (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8"))
+
+    def test_the_three_surfaces_start_from_the_same_face(self):
+        """One product: the window's every font is a variant of Windows' message font, the panel's
+        stack starts with `system-ui`, which resolves to it, and the popup asks Windows for it.
+        Putting "Segoe UI" ahead of `system-ui` in the panel would part the panel from the window
+        on every Windows whose UI font is not Segoe UI - a Korean one among them."""
+        from codex_auto_resume import mcpui
+        controls = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
+        self.assertIn("if (baseFont == null) baseFont = SystemFonts.MessageBoxFont;", controls)
+        stack = re.search(r"--font:\s*([^;]+);", mcpui._STYLE).group(1)
+        self.assertEqual(stack.split(",")[0].strip(), "system-ui")
+        panel = [face.strip().strip('"') for face in stack.split(",")[1:3]]
+        self.assertEqual(popup.font_faces("en", MALGUN_LOCALIZED)[1:], tuple(panel))
+        self.assertIn("SPI_GETNONCLIENTMETRICS", SOURCE.read_text(encoding="utf-8"))
+
+    @unittest.skipUnless(os.name == "nt", "asks Windows")
+    def test_the_popup_asks_windows_for_the_font_the_window_is_drawn_in(self):
+        face = popup.message_face()
+        self.assertTrue(face)
+        powershell = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
+                      / "WindowsPowerShell" / "v1.0" / "powershell.exe")
+        if not powershell.is_file():
+            self.skipTest("no Windows PowerShell to ask Windows Forms")
+        import subprocess
+        # .NET names a family in the current UI culture, which a process started without a
+        # console may not share with Windows' own setting ('Malgun Gothic' or '맑은 고딕'), so
+        # the window's font is every name its family answers to: as the window sees it, in the
+        # installed UI language, and the language-neutral one.
+        script = ("Add-Type -AssemblyName System.Drawing; "
+                  "$f = [Drawing.SystemFonts]::MessageBoxFont; "
+                  "$names = @($f.Name, $f.FontFamily.GetName([Globalization.CultureInfo]::InstalledUICulture.LCID), "
+                  "$f.FontFamily.GetName(0)); "
+                  "($names | ForEach-Object { ([int[]][char[]]$_) -join ',' }) -join ';'")
+        done = subprocess.run([str(powershell), "-NoProfile", "-NonInteractive", "-Command", script],
+                              capture_output=True, text=True, timeout=120)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        window = {"".join(chr(int(point)) for point in name.split(","))
+                  for name in done.stdout.strip().split(";") if name}
+        self.assertIn(face, window)
+
+    @unittest.skipUnless(os.name == "nt", "GDI")
+    def test_english_is_drawn_in_that_font(self):
+        face = popup.message_face()
+        renderer = popup.Renderer()
+        try:
+            renderer.use("en", 1.0)
+            self.assertEqual(renderer.fonts.faces["body"], face)
+            self.assertIn(renderer.fonts.faces["name"], (face, face + " Semibold"))
+            renderer.use("ko", 1.0)
+            self.assertEqual(renderer.fonts.faces["body"], "Malgun Gothic")
+        finally:
+            renderer.close()
 
     def test_the_vocabulary_tells_which_language_it_is(self):
         for locale in l10n.LOCALES:
@@ -861,63 +1015,116 @@ class FontTests(unittest.TestCase):
 
 
 # ----------------------------------------------------------------------------- safety
+# The popup's modules: tray_popup.py today, and every module under ui/popup/ once the
+# v0.6.5 split makes it a package. The envelope below is asserted over all of them at once
+# (PLAN-v2 M1): one popup module may import another, and everything else any of them imports
+# is held to one allowlist - so code moved out of tray_popup.py either lands in a module this
+# still reads, or in one the popup has to import from, which the allowlist refuses.
+POPUP_MODULES = ("codex_auto_resume.tray_popup", "codex_auto_resume.ui.popup")
+
+
+def is_popup_module(name):
+    return any(name == root or name.startswith(root + ".") for root in POPUP_MODULES)
+
+
+def envelope():
+    """The popup's modules, and every package above one of them that importing it runs.
+
+    Python runs `ui/__init__.py` before any module of `ui/popup/`, so whatever that file
+    imports is loaded with the popup, and it is read with the popup's own source. The
+    package's root `__init__.py` is the one left out: it runs before every module of the
+    package, and test_layers holds it to the policy layer, which reaches nothing that can
+    submit."""
+    own = {srcscan.module_name(path) for path in srcscan.files_of(*POPUP_MODULES)}
+    return own | {package for name in own for package in srcscan.ancestors(name) if package != srcscan.PACKAGE}
+
+
 class SafetyTests(unittest.TestCase):
-    """What this window can reach is what its source says it can reach."""
+    """What this window can reach is what its source says it can reach - all of its source,
+    however many files that becomes."""
 
     def setUp(self):
-        self.text = SOURCE.read_text(encoding="utf-8")
-        self.tree = ast.parse(self.text)
+        self.modules = envelope()
+        self.files = [srcscan.modules()[name] for name in sorted(self.modules)]
+        self.trees = {path: srcscan.package_asts()[path] for path in self.files}
+        self.texts = {path: srcscan.read(path) for path in self.files}
+
+    def test_the_envelope_is_the_popup_and_only_the_popup(self):
+        # It reads the module these tests drive...
+        self.assertIn(Path(popup.__file__).resolve(), {path.resolve() for path in self.files})
+        # ...and the exemption for "another popup module" reaches no further than the popup's
+        # own modules and the packages Python runs to load them: a sibling that merely shares
+        # the prefix is outside it, and so is held to the allowlist like any other import.
+        for name in self.modules:
+            with self.subTest(name):
+                self.assertTrue(is_popup_module(name) or any(
+                    is_popup_module(inner) and name in srcscan.ancestors(inner) for inner in self.modules))
+        self.assertNotIn(srcscan.PACKAGE, self.modules)
+        self.assertTrue(is_popup_module("codex_auto_resume.ui.popup.layout"))
+        for outside in ("codex_auto_resume.tray_popup_theme", "codex_auto_resume.ui.popups",
+                        "codex_auto_resume.ui", "codex_auto_resume.tray"):
+            self.assertFalse(is_popup_module(outside), outside)
 
     def test_it_imports_nothing_that_can_submit(self):
         package, stdlib = set(), set()
-        for node in ast.walk(self.tree):
-            if isinstance(node, ast.ImportFrom):
-                if node.level:
-                    names = [node.module] if node.module else [alias.name for alias in node.names]
-                    package.update(names)
-                else:
-                    stdlib.add(node.module)
-            elif isinstance(node, ast.Import):
-                stdlib.update(alias.name for alias in node.names)
-        self.assertLessEqual(package, {"brand", "l10n", "machine", "reasons", "tray"})
+        for path in self.files:
+            for entry in srcscan.imports(path):
+                if not entry.internal:
+                    stdlib.add(entry.target)
+                elif entry.target not in self.modules and not is_popup_module(entry.target):
+                    package.add(entry.target)
+        self.assertLessEqual(package, {"codex_auto_resume." + name
+                                       for name in ("brand", "l10n", "machine", "reasons", "tray")})
         for forbidden in ("engine", "backend", "windows", "store", "source", "app", "continuation",
                           "notify", "control", "controlcli", "mcpserver"):
-            self.assertNotIn(forbidden, package)
+            for name in package:
+                self.assertNotIn(forbidden, name.split(".")[1:], name)
         self.assertLessEqual(stdlib, {"__future__", "ctypes", "ctypes.wintypes", "itertools", "math", "os",
                                       "threading", "time"})
 
     def test_no_name_in_it_sends_submits_or_queues(self):
         names = set()
-        for node in ast.walk(self.tree):
-            if isinstance(node, ast.Name):
-                names.add(node.id)
-            elif isinstance(node, ast.Attribute):
-                names.add(node.attr)
-            elif isinstance(node, (ast.FunctionDef, ast.ClassDef)):
-                names.add(node.name)
-            elif isinstance(node, ast.alias):
-                names.add(node.asname or node.name)
+        for tree in self.trees.values():
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Name):
+                    names.add(node.id)
+                elif isinstance(node, ast.Attribute):
+                    names.add(node.attr)
+                elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    names.add(node.name)
+                elif isinstance(node, ast.alias):
+                    names.add(node.asname or node.name)
+                elif isinstance(node, ast.arg):
+                    names.add(node.arg)
+                elif isinstance(node, ast.keyword) and node.arg:
+                    names.add(node.arg)
         offenders = sorted(name for name in names
                            if re.search(r"send|submit|queue|dispatch|backend|engine", name, re.I))
         self.assertEqual(offenders, [])
 
     def test_it_asks_the_control_layer_for_exactly_four_things(self):
         called = set()
-        for node in ast.walk(self.tree):
-            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                    and isinstance(node.func.value, ast.Name) and node.func.value.id == "control"):
-                called.add(node.func.attr)
+        for tree in self.trees.values():
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                        and isinstance(node.func.value, ast.Name) and node.func.value.id == "control"):
+                    called.add(node.func.attr)
         self.assertEqual(called, set(popup.CONTROL_CALLS))
 
     def test_it_drives_nobody_else_s_window_and_opens_no_connection(self):
         forbidden = re.compile(r"\bSendInput\b|\bkeybd_event\b|\bmouse_event\b|\bSetCursorPos\b|"
                                r"\bPrintWindow\b|\bBitBlt\b|\bFindWindow\w*\b|\bsubprocess\b|\bsocket\b|"
                                r"\burllib\b|\bAccessibleObjectFromWindow\b|\bUIAutomation\w*\b")
-        self.assertEqual(forbidden.findall(self.text), [])
+        for path, text in self.texts.items():
+            with self.subTest(srcscan.relative(path)):
+                self.assertEqual(forbidden.findall(text), [])
 
     def test_every_colour_is_a_brand_token(self):
-        self.assertEqual(re.findall(r"#[0-9A-Fa-f]{6}\b", self.text), [])
-        used = set(re.findall(r"(?:argb|colorref)\(\"([a-z_]+)\"", self.text))
+        used = set()
+        for path, text in self.texts.items():
+            with self.subTest(srcscan.relative(path)):
+                self.assertEqual(re.findall(r"#[0-9A-Fa-f]{6}\b", text), [])
+            used |= set(re.findall(r"(?:argb|colorref)\(\"([a-z_]+)\"", text))
         tables = set(popup.DOT_FILL.values()) | set(popup.STATE_INK.values()) | {
             token for token in popup.BADGE.values() if token}
         for token in used | tables | {"waiting", "warning", "paused"}:
@@ -971,7 +1178,8 @@ class WindowsTests(unittest.TestCase):
         try:
             vm = popup.view_model(self.ROWS, STATUS, EN, NOW)
             plan = renderer.layout(vm, 1.0, "en")
-            canvas = renderer.draw(vm, plan, frame=popup.halo(vm["state"], 0))
+            peak = brand.GLOW["monitoring_ms"] * 0.85         # the glow at its peak, the dot fully lit
+            canvas = renderer.draw(vm, plan, frame=popup.halo("monitoring", peak))
             pixels = canvas.pixels()
             width = plan["size"][0]
 
@@ -1002,13 +1210,62 @@ class WindowsTests(unittest.TestCase):
             off = next(item for item in plan["items"] if item["kind"] == "switch" and not item["checked"])
             left, top, right, bottom = off["rect"]
             self.assertLess(sum(pixel(left + 25, top + 2)), sum(pixel(left + 25, (top + bottom) // 2)) - 10)
-            # The dot is flat and cyan, with a soft glow round it that has faded before the words.
+            # The dot is flat and cyan, with a small glow round it at its peak - 3 px past its edge and no
+            # further - that has faded long before the words.
             halo = next(item for item in plan["items"] if item["kind"] == "halo")
             cx, cy = int(halo["cx"]), int(halo["cy"])
-            self.assertEqual(pixel(cx, cy), brand.rgb(brand.LIGHT[brand.status_fill(vm["state"])]))
+            active = brand.rgb(brand.LIGHT[brand.status_fill(vm["state"])])
+            self.assertEqual(pixel(cx, cy), active)
             self.assertEqual(brand.status_fill(vm["state"]), "active")
-            self.assertLess(pixel(cx + 7, cy)[0], surface[0] - 8)
-            self.assertEqual(pixel(cx + 13, cy), surface)
+            self.assertLess(pixel(cx + 5, cy)[0], surface[0] - 8)
+            for distance in (9, 13):
+                self.assertEqual(pixel(cx + distance, cy), surface)
+            # At its darkest the dot is 60% of the way to the card, with nothing round it.
+            renderer.draw_halo(plan, popup.halo("monitoring", brand.GLOW["monitoring_ms"] * 0.25))
+            pixels = canvas.pixels()
+            dimmed = brand.rgb(brand.mix(brand.LIGHT["active"], brand.LIGHT["surface"], brand.GLOW["dot_dim"]))
+            for part, want in zip(pixel(cx, cy), dimmed):
+                self.assertLessEqual(abs(part - want), 2, (pixel(cx, cy), dimmed))
+            for distance in (6, 7, 9):
+                self.assertEqual(pixel(cx + distance, cy), surface)
+        finally:
+            renderer.close()
+
+    def test_the_glow_grows_out_from_under_the_dot_as_far_as_its_spread_and_draws_back_in(self):
+        """The drawn glow reaches brand.glow_radius of each frame's spread, not the peak's: it grows from under the dot
+        to 3 px past it and recedes the same way ("the glow grows from nothing ... reaching 3 CSS px"). A glow drawn at
+        its full size whatever the spread, only fading in, passed every test until this one: the others draw only the
+        peak and the darkest frame. At 300%, so a pixel is a third of a CSS px; the glow's last pixels are faint, so
+        what is seen ends within 2 device px inside the circle drawn."""
+        renderer = popup.Renderer()
+        try:
+            scale, cycle = 3.0, brand.GLOW["monitoring_ms"]
+            dot = brand.STATUS_DOT["popup"]
+            vm = popup.view_model(self.ROWS, STATUS, EN, NOW)
+            plan = renderer.layout(vm, scale, "en")
+            renderer.draw(vm, plan, frame=popup.halo("monitoring", 0))           # the whole frame, then its halo
+            halo = next(item for item in plan["items"] if item["kind"] == "halo")
+            cx, cy, width = int(halo["cx"]), int(halo["cy"]), plan["size"][0]
+            surface = brand.rgb(brand.LIGHT["surface"])
+            reached = []
+            # Through the bloom (65% to 85% of the cycle) and the withdrawal (85% to 100%).
+            for fraction in (0.68, 0.70, 0.72, 0.75, 0.78, 0.80, 0.85, 0.88, 0.90, 0.93, 0.96):
+                frame = popup.halo("monitoring", cycle * fraction)
+                pixels = renderer.draw_halo(plan, frame).pixels()
+                seen = max(distance for distance in range(0, int(halo["radius"]) + 8)
+                           if tuple(pixels[(cy * width + cx + distance) * 4 + channel] for channel in (2, 1, 0))
+                           != surface)
+                drawn = brand.glow_radius(dot, frame["spread"]) * scale
+                reached.append((fraction, frame["spread"], seen))
+                with self.subTest(fraction=fraction, spread=round(frame["spread"], 3)):
+                    self.assertGreater(frame["opacity"], 0.0)
+                    self.assertLessEqual(seen, drawn, "the glow reaches past its spread's radius")
+                    self.assertGreaterEqual(seen, drawn - 2, "the glow stops short of its spread's radius")
+            growing = [seen for fraction, _, seen in reached if fraction <= 0.85]
+            receding = [seen for fraction, _, seen in reached if fraction >= 0.85]
+            self.assertEqual(growing, sorted(growing))
+            self.assertEqual(receding, sorted(receding, reverse=True))
+            self.assertGreaterEqual(growing[-1] - growing[0], 2 * scale, reached)
         finally:
             renderer.close()
 
@@ -1331,6 +1588,115 @@ class WindowsTests(unittest.TestCase):
         finally:
             window.destroy()
 
+    def still_window(self, **options):
+        """A popup with nothing in flight - waiting, no glow that moves - shown off screen, with
+        motion allowed whatever this machine's own animation setting is."""
+        patcher = unittest.mock.patch.object(popup, "reduced_motion", lambda: False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        window = popup.Popup(control=FakeControl(self.ROWS[:3], **options), strings=EN)
+        window.create()
+        window.model.apply_outcome(("read",), popup.perform(("read",), window.control), time.time())
+        window.show(activate=False, origin=(-32000, -32000))
+        self.pump(0.2)
+        if window._contrast:                      # High Contrast still holds everything still
+            window.destroy()
+            self.skipTest("High Contrast is on: nothing glides")
+        window._reduced = False
+        self.assertEqual(window._vm["state"], "waiting")
+        self.assertFalse(window._frame_running)
+        return window
+
+    def test_a_switch_glides_only_once_its_change_is_confirmed_and_then_the_timer_stops(self):
+        window = self.still_window()
+        target = ("check", "b" * 64)
+        try:
+            self.assertTrue(window._switches[target])
+            window._activate(target)
+            # Asked, not yet answered: faded where it was, not moving.
+            self.assertEqual(window._glides, {})
+            self.assertTrue(next(item for item in window._plan["items"]
+                                 if item["kind"] == "switch" and item["target"] == target)["busy"])
+            deadline = time.monotonic() + 3
+            while target not in window._glides and time.monotonic() < deadline:
+                self.pump(0.005)
+            self.assertIn(target, window._glides)
+            started, begin, end = window._glides[target]
+            self.assertEqual((begin, end), (1.0, 0.0))
+            self.assertTrue(window._frame_running)
+            deadline = time.monotonic() + 2
+            while (window._glides or window._frame_running) and time.monotonic() < deadline:
+                self.pump(0.02)
+            self.assertEqual(window._glides, {})
+            self.assertFalse(window._frame_running, "a timer is left running with nothing moving")
+            self.assertFalse(window._switches[target])
+        finally:
+            window.destroy()
+
+    def test_a_refused_change_never_moves_the_switch(self):
+        window = self.still_window(refuse="already_finished")
+        target = ("check", "b" * 64)
+        try:
+            window._activate(target)
+            deadline = time.monotonic() + 3
+            while window.model.notice_key is None and time.monotonic() < deadline:
+                self.pump(0.01)
+                self.assertEqual(window._glides, {})
+            self.assertEqual(window.model.notice_key, "popup.stale")
+            self.pump(0.2)
+            self.assertEqual(window._glides, {})
+            self.assertTrue(window._switches[target])
+        finally:
+            window.destroy()
+
+    def test_with_motion_reduced_a_confirmed_change_is_simply_drawn_there(self):
+        window = self.still_window()
+        window._reduced = True                    # Reduce motion, Windows' animation setting or High Contrast
+        target = ("check", "b" * 64)
+        try:
+            window._activate(target)
+            deadline = time.monotonic() + 3
+            while window._switches.get(target) is not False and time.monotonic() < deadline:
+                self.pump(0.01)
+                self.assertEqual(window._glides, {})
+            self.assertIs(window._switches[target], False)
+            self.assertFalse(window._frame_running)
+        finally:
+            window.destroy()
+
+    def test_a_glide_s_ends_are_the_switch_as_it_is_drawn_at_rest(self):
+        renderer = popup.Renderer()
+        try:
+            for theme in ("light", "dark"):
+                renderer.theme = theme
+                vm = popup.view_model(self.ROWS, STATUS, EN, NOW)
+                plan = renderer.layout(vm, 1.25, "en")
+                switches = [item for item in plan["items"] if item["kind"] == "switch"]
+                rest = renderer.draw(vm, plan).pixels()
+                ends = {item["target"]: 1.0 if item["checked"] else 0.0 for item in switches}
+                with self.subTest(theme=theme):
+                    self.assertEqual(renderer.draw(vm, plan, glides=ends).pixels(), rest)
+                    # Halfway, the knob is halfway along its travel and the track between its looks.
+                    on = next(item for item in switches if item["checked"])
+                    middle = renderer.draw(vm, plan, glides={on["target"]: 0.5}).pixels()
+                    self.assertNotEqual(middle, rest)
+                    left, top, right, bottom = on["rect"]
+                    width = plan["size"][0]
+                    knob = round(brand.LAYOUT["knob"] * 1.25)
+                    start = left + round(brand.LAYOUT["knob_inset"] * 1.25)
+                    travel = round(brand.LAYOUT["knob_travel"] * 1.25)
+                    centre = int(start + travel * 0.5 + knob / 2.0)
+                    y = (top + bottom) // 2
+                    index = (y * width + centre) * 4
+                    knob_colour = tuple(middle[index + 2 - part] for part in range(3))
+                    tokens = brand.palette(theme)
+                    off, lit = brand.rgb(tokens["muted"]), brand.rgb(tokens["on_accent"])
+                    expected = tuple(int(round(a + (b - a) * 0.5)) for a, b in zip(off, lit))
+                    for got, want in zip(knob_colour, expected):
+                        self.assertLessEqual(abs(got - want), 2, (knob_colour, expected))
+        finally:
+            renderer.close()
+
     def test_a_closed_popup_does_not_hold_the_badge_on_attention(self):
         import ctypes
         from types import SimpleNamespace
@@ -1366,15 +1732,23 @@ class WindowsTests(unittest.TestCase):
         self.assertTrue(icon.start())
         try:
             icon.update({"enabled": True, "waiting": 2, "running": 0, "next_at": time.time() + 60})
-            deadline = time.monotonic() + 3
-            while icon._badge_token != "waiting" and time.monotonic() < deadline:
+            deadline = time.monotonic() + 5
+
+            def badged_frame():
+                key = icon._frame_key
+                return bool(icon._frame_icon) and key is not None and key[2] == "waiting"
+            while not badged_frame() and time.monotonic() < deadline:
                 time.sleep(0.05)
             self.assertEqual(icon._badge_token, "waiting")
-            self.assertTrue(icon._badge)
+            # Since v0.6.5 the icon is shown as a composed frame carrying the badge, and the badged
+            # copy of the .ico it was shown as until its frame table was built has been let go.
+            self.assertTrue(badged_frame())
+            self.assertIsNone(icon._badge)
         finally:
             icon.stop()
         self.assertFalse(icon._thread.is_alive())
         self.assertIsNone(icon._badge)
+        self.assertIsNone(icon._frame_icon)
 
     def cycle_and_measure(self, action, rounds=50):
         action()                                       # warm caches: fonts, GDI+, classes, shadow images

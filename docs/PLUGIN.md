@@ -72,8 +72,9 @@ anything but its exact id, resends an uncertain submission or forces a send.
 
 ### The tools, and which ones Codex asks about
 
-The table describes the server from v0.6.4. The server runs from the installed release, not from
-the plugin you add. An installation on v0.6.3 has the same seventeen tools, but its
+The table describes the server from v0.6.5. The server runs from the installed release, not from
+the plugin you add. An installation on v0.6.4 has the same seventeen tools, but its `get_status`
+carries no compatibility summary. One on v0.6.3 has the same seventeen tools too, but its
 `update_settings` does not offer the theme. One on v0.6.0 through v0.6.2 has sixteen tools, without
 `preview_recovery_message`, and its `update_settings` offers only the recovery categories, the
 limits and the notifications: the language and continuation settings do not exist before
@@ -91,7 +92,7 @@ the installation directory. The last two are described below the table.
 | Tool | What it does | Marked destructive |
 | --- | --- | --- |
 | `open_settings` | Shows the settings panel. Opening it changes nothing. | no |
-| `get_status` | Whether recovery is on, whether the watcher is running, counts by state, the version and the current settings. | no |
+| `get_status` | Whether recovery is on, whether the watcher is running, counts by state, the version and the current settings, and the Codex compatibility summary the Dashboard's Diagnostics page shows, as codes only - no Codex version string, no path, no free text. | no |
 | `list_pending` | Pending recoveries with their interruption ids, conversation ids, stored state, public code, reason, overlays and attempt counts. With `include_finished: true`, the recoveries that have already finished as well. | no |
 | `get_recovery_statistics` | How many interruptions were detected, how many continuations were sent, how they ended, and the median waits, over the last `days` days or all of it. Counts only; no ids. | no |
 | `get_recovery_timeline` | One interruption and everything that continued it, as codes and times. | no |
@@ -140,10 +141,12 @@ settings it returns do include `codex_exe`, which is empty unless an engine path
 by hand or through `update_settings` in v0.5.7 or earlier. Both changes ship in v0.6.0. In
 v0.5.7 and earlier, `update_settings` accepts those two settings as well and is not marked
 destructive, so it does not request approval through that annotation, and `get_status`
-reports the installation directory as `home`. Nor does `update_settings` offer the two
-preferences that belong to Windows, the notification-area icon (`show_tray`) and Reduce motion
-(`reduce_motion`), which the panel does not show either. From v0.6.4 it does offer the theme,
-the one appearance setting the panel shows.
+reports the installation directory as `home`. Nor does `update_settings` offer the preferences
+that belong to Windows - the notification-area icon (`show_tray`), Reduce motion
+(`reduce_motion`) and, from v0.6.5, the notification card (`notification_card`) - which the
+panel does not show either. From v0.6.4 it does offer the theme, the one appearance setting the
+panel shows. No tool refreshes or imports the Codex compatibility data: that happens only from
+the window's Diagnostics page, its update check, or the command line.
 
 **Custom message text cannot be written from Codex.** `update_settings` offers
 `custom_message_mode` - one message for every interruption, or one per kind - but neither
@@ -255,8 +258,8 @@ allowed to do is deliberately narrow:
 
 | | |
 | --- | --- |
-| **Where from** | One URL shape, built from `scripts/release.json` and a version this script chose. No parameter reaches a URL. An ordinary run fetches the version in this plugin's own manifest and the `.sha256` published beside it, and nothing else; it fetches the `.sha256` only when there is no pinned digest to check against. `-Update` is the one exception and the version it fetches is not an input either: it is three integers read out of a redirect under this exact owner and repository, and every check below still applies. |
-| **Over what** | HTTPS, TLS 1.2 minimum, and the *final* response URI has to be one of exactly three hosts - `github.com`, `objects.githubusercontent.com` or `release-assets.githubusercontent.com` - because a release download redirects to GitHub's object storage and nowhere else. |
+| **Where from** | One URL shape, built from `scripts/release.json` and a version this script chose. No parameter reaches a URL. An ordinary run fetches the version in this plugin's own manifest and the `.sha256` published beside it, and nothing else; it fetches the `.sha256` only when there is no pinned digest to check against. `-Update` is the one exception and the version it fetches is not an input either: it is three integers read out of a redirect under this exact owner and repository, and every check below still applies. From v0.6.5 there is one more thing it fetches, and only when asked: the Codex compatibility data, with `-Compatibility` or after an update check (`-CheckOnly`, `-Update`) that github.com answered - one `GET` to one constant address, this repository's `src/codex_auto_resume/data/codex_compat.json` on `main`, handed to the installation's own validator and never run. |
+| **Over what** | HTTPS, TLS 1.2 minimum, and the *final* response URI has to be one of exactly three hosts - `github.com`, `objects.githubusercontent.com` or `release-assets.githubusercontent.com` - because a release download redirects to GitHub's object storage and nowhere else. The compatibility data has its own one host, `raw.githubusercontent.com`, allowed for that fetch alone. |
 | **Checked how** | SHA-256 against the digest pinned in this plugin's `release.json` when there is one, and otherwise against the `.sha256` published beside the archive - and it says which. Then that the archive contains everything the release is defined to contain, that its manifest declares this product at this version, and that no entry escapes extraction. |
 | **Then** | Extract to a fresh temporary directory and run `install/install.ps1` from it. That installer is code from the downloaded archive, and nothing from the archive runs before all of the above passes. |
 | **Never** | Administrator rights, any change to a Windows security setting, any execution-policy change beyond its own process, and nothing from the network is ever piped into a shell. Any failure deletes the download and stops. |
@@ -566,7 +569,9 @@ for it, is worse than not building it.
 **C — a Windows notification. Shipped, and the one that actually arrives.** The watcher raises it
 the moment the interruption is recorded, whether or not Codex is open, with **Don't resume** (or
 **Don't retry**, for a transient failure) for that exact interruption, resuming as the default,
-and **Open Dashboard**, which opens the Pending page and can do nothing else.
+and **Open Dashboard**, which opens the Pending page and can do nothing else. From v0.6.5 it is
+drawn as the product's own card beside the notification area wherever a card may be shown, with
+the same words and the same two buttons, and as Windows' own notification everywhere else.
 
 **D — the notification-area popup.** A single click on the watcher's icon opens a compact popup
 listing what is waiting; each task has its own switch, *Automatically resume this task when the

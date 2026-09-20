@@ -533,12 +533,34 @@ class Server:
         handler = getattr(self, "_tool_" + name)
         return handler(arguments)
 
+    def _status(self) -> dict:
+        """The shared status, plus the Compatibility Registry's summary under `watcher`.
+
+        Read-only, and codes only: the coarse state and the one the watcher acts on, whether the
+        report could be used, where its data came from and its sequence number, the refreshed
+        data's standing, when it was checked, and each capability's state and reason from
+        closed sets - what the window's Diagnostics card shows, so the settings panel's card can
+        say the same. No version string, no path and no free text - this reply is part of what
+        Codex sends on - and there is deliberately no tool that refreshes or imports registry
+        data, so nothing a model reads can make this machine talk to GitHub.
+        """
+        status = self.control.get_status()
+        try:
+            from . import compat, compatio
+            summary = compat.mcp_view(compatio.reader_view(self.control.paths,
+                                                           settings=status.get("settings")))
+        except Exception:
+            summary = None
+        if isinstance(status.get("watcher"), dict) and summary is not None:
+            status = dict(status, watcher=dict(status["watcher"], compatibility=summary))
+        return status
+
     def _snapshot(self) -> dict:
         """Everything the settings panel needs, in one read."""
         from . import l10n
         settings = self.control.get_settings()
         l10n.set_preference(settings.get("interface_language"))
-        return {"status": self.control.get_status(),
+        return {"status": self._status(),
                 "schema": self.control.describe_settings(),
                 "settings": settings,
                 "pending": self.control.list_pending(),
@@ -556,7 +578,7 @@ class Server:
         return self._reply(summary, data, meta={"openai/outputTemplate": SETTINGS_UI})
 
     def _tool_get_status(self, _arguments) -> dict:
-        status = self.control.get_status()
+        status = self._status()
         return self._reply(
             "Auto recovery %s, watcher %s, %d pending, version %s." % (
                 "enabled" if status["enabled"] else "paused",

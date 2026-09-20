@@ -20,16 +20,23 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import call, patch
 
-from codex_auto_resume import config, control, controlcli, settings
+from codex_auto_resume import config, control, controlcli, settings, startup
 from codex_auto_resume.store import Store, StoreError
 from codex_auto_resume.windows import AdapterError, Mutex
+
+_HERE = str(Path(__file__).resolve().parent)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)        # srcscan lives next to this file
+
+import srcscan  # noqa: E402
 
 SRC = str(Path(__file__).resolve().parents[1] / "src")
 THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
@@ -58,12 +65,21 @@ class ControlTestCase(unittest.TestCase):
         # this layer; both are patched so the tests describe the layer, not the machine.
         self.running = patch.object(control.Control, "watcher_running", return_value=False)
         self.startup = patch.object(control.Control, "startup_enabled", return_value=False)
+        # The reader alone was not enough: the writer stayed live, so a bridge that ever
+        # read a flag with bool() again - or the old bridge, run to see a fix fail first -
+        # wrote this checkout into the real Run key (RegistryIsolationTests). Every registry
+        # call the startup layer makes, read or write, goes to a key-tree fake instead.
+        from test_cli import FakeWinreg
+        self.registry = FakeWinreg()
+        self.winreg = patch.object(startup, "_winreg", return_value=self.registry)
+        self.winreg.start()
         self.running.start()
         self.startup.start()
 
     def tearDown(self):
         self.startup.stop()
         self.running.stop()
+        self.winreg.stop()
         self.temporary.cleanup()
 
     def register(self, **kwargs):
@@ -333,10 +349,41 @@ class NotARecoveryEngineTests(ControlTestCase):
             self.assertFalse(any(word in name for word in forbidden), name)
 
     def test_the_module_never_imports_the_engine_or_the_source(self):
-        text = Path(control.__file__).read_text(encoding="utf-8")
-        for module in ("engine", "source", "messages"):
-            self.assertNotIn("from .%s import" % module, text)
-            self.assertNotIn("from . import %s" % module, text)
+        # Every file of the control layer, however many it becomes.
+        control_files = srcscan.files_of("codex_auto_resume.control")
+        for path in control_files:
+            text = srcscan.read(path)
+            for module in ("engine", "source", "messages"):
+                with self.subTest(file=srcscan.relative(path), module=module):
+                    self.assertEqual(re.findall(r"(?m)^[ \t]*from \.+%s\b.*" % module, text), [])
+                    self.assertEqual(re.findall(r"(?m)^[ \t]*from \.+ import .*\b%s\b.*" % module, text), [])
+        # And the whole package, however the import is spelled and wherever a control function
+        # has moved to: the modules that import any of the three - or anything inside one of
+        # them, once it is a package (`engine.dispatch`) - are exactly the ones that always
+        # have, and control is not one of them. A package's own modules importing each other
+        # are not counted.
+        guarded = {name: "codex_auto_resume." + name for name in ("engine", "source", "messages")}
+
+        def within(name, root):
+            return name == root or name.startswith(root + ".")
+
+        importers = {}
+        for module, path in srcscan.modules().items():
+            for entry in srcscan.imports(path):
+                for name, root in guarded.items():
+                    if within(entry.target, root) and not within(module, root):
+                        importers.setdefault(name, set()).add(srcscan.relative(path))
+        control = {srcscan.relative(path) for path in control_files}
+        self.assertIn("codex_auto_resume/control.py", control)
+        for name, found in sorted(importers.items()):
+            with self.subTest(guarded=name):
+                self.assertEqual(sorted(found & control), [], "control imports the %s" % name)
+        package = "codex_auto_resume/%s.py"
+        self.assertEqual(importers, {
+            "engine": {package % "app"},
+            "source": {package % name for name in ("app", "compatio", "controlcli", "engine")},
+            "messages": {package % name for name in ("app", "engine", "interface", "notifier", "notify")},
+        }, "the set of modules that reach the engine, the source or the messages has changed")
 
 
 class BridgeTests(ControlTestCase):
@@ -466,6 +513,13 @@ class BridgeTests(ControlTestCase):
             "preview-continuation", "interruption-recovery", "cancel-all",
             # Writes a redacted local file the user chose; it sends nothing anywhere.
             "diagnostics",
+            # v0.6.5, the Compatibility Registry. A read of the report (or a live check that
+            # runs `codex --version` and `codex queue --help`, as `doctor` does); an import
+            # that validates one registry document into the local cache; and the Diagnostics
+            # refresh, which runs this installation's own bootstrap to fetch that document.
+            # None of them sends anything to a conversation, and registry data can only ever
+            # restrict what the watcher does - never widen it.
+            "compatibility", "compat-import", "compat-refresh",
             # A read of several of the above at once, and the long-lived form of this
             # same command table - not a command of its own.
             "dashboard", "serve"]))
@@ -570,6 +624,127 @@ class BridgeTests(ControlTestCase):
         self.assertEqual(set(controlcli.PLAIN + controlcli.WITH_ARGUMENT) | {"serve"}, offered)
 
 
+class SwitchFlagTests(ControlTestCase):
+    """The two switches the bridge carries, and the one word that governs both.
+
+    `enabled` was read as `bool(payload.get("enabled"))`, and `bool` says yes to every
+    non-empty string. `{"enabled": "false"}` - what a front end sends the moment it
+    stringifies a boolean, and what a hand-written request looks like - therefore turned
+    automatic recovery *on*. The same line governed `startup`, where on means writing this
+    product's entry into the Run key, so a request that meant "off" registered a watcher
+    at sign-in instead; that is how a real machine's autostart entry was overwritten
+    during v0.6.5's design pass. A missing flag was the same accident pointing the other
+    way: `bool(None)` is False, so a request that said nothing switched recovery off.
+
+    The wire carries JSON. JSON has `true` and `false`, and nothing here has any business
+    guessing what a string meant, so the four commands that take a flag take a boolean or
+    a refusal - by name, with the code every front end already has words for.
+    """
+
+    # Every command whose argument carries `enabled`. The two that write a switch, and
+    # the two per-record ones that already refused a non-boolean, so the rule is one rule.
+    FLAG_COMMANDS = ("enabled", "startup", "thread-enabled", "interruption-recovery")
+    # Values a caller might send instead of a boolean. The first four are the ones that
+    # `bool()` turned into True, and "false" is the one that meant the opposite.
+    NOT_BOOLEANS = ("false", "true", "0", "no", "", 0, 1, 0.0, 1.0, None, [], {}, "False")
+
+    def dispatch(self, command, payload=None):
+        return controlcli.dispatch(self.control, command, payload or {})
+
+    def test_every_flag_command_refuses_a_value_that_is_not_a_boolean(self):
+        for command in self.FLAG_COMMANDS:
+            for value in self.NOT_BOOLEANS:
+                with self.subTest(command=command, value=repr(value)):
+                    reply = self.dispatch(command, {"enabled": value, "thread_id": THREAD,
+                                                    "interruption_id": KEY})
+                    self.assertIs(reply["ok"], False, reply)
+                    self.assertEqual(reply["error"], "enabled must be true or false")
+                    self.assertEqual(reply["error_code"], "invalid_enabled")
+
+    def test_a_missing_flag_is_refused_rather_than_read_as_off(self):
+        for command in self.FLAG_COMMANDS:
+            with self.subTest(command=command):
+                reply = self.dispatch(command, {"thread_id": THREAD, "interruption_id": KEY})
+                self.assertIs(reply["ok"], False, reply)
+                self.assertEqual(reply["error_code"], "invalid_enabled")
+
+    def test_the_string_false_does_not_turn_automation_on(self):
+        # The defect, stated as the thing a user would have seen: they paused recovery,
+        # something sent the word rather than the value, and the product resumed.
+        self.assertIs(self.dispatch("enabled", {"enabled": False})["ok"], True)
+        self.assertIs(self.control.get_status()["enabled"], False)
+        self.assertIs(self.dispatch("enabled", {"enabled": "false"})["ok"], False)
+        self.assertIs(self.control.get_status()["enabled"], False)
+        self.assertIs(self.dispatch("enabled", {"enabled": "true"})["ok"], False)
+        self.assertIs(self.control.get_status()["enabled"], False)
+
+    def test_a_string_never_reaches_the_autostart_writer(self):
+        # `startup` is the one command in this table that writes outside our own home.
+        # The refusal has to happen in the bridge, before the registry layer is asked for
+        # anything at all - so this asserts on the call that was never made.
+        with patch.object(control.Control, "set_startup_enabled", return_value=True) as writer:
+            for value in self.NOT_BOOLEANS:
+                with self.subTest(value=repr(value)):
+                    reply = self.dispatch("startup", {"enabled": value})
+                    self.assertIs(reply["ok"], False, reply)
+            self.assertEqual(writer.call_args_list, [])
+
+    def test_a_real_boolean_still_reaches_the_control_layer(self):
+        for wanted in (True, False):
+            with self.subTest(enabled=wanted):
+                with patch.object(control.Control, "set_startup_enabled",
+                                  return_value=wanted) as writer:
+                    reply = self.dispatch("startup", {"enabled": wanted})
+                self.assertIs(reply["ok"], True, reply)
+                self.assertIs(reply["startup_enabled"], wanted)
+                self.assertEqual(writer.call_args_list, [call(wanted)])
+                reply = self.dispatch("enabled", {"enabled": wanted})
+                self.assertIs(reply["ok"], True, reply)
+                self.assertIs(self.control.get_status()["enabled"], wanted)
+
+    def test_what_the_window_actually_sends_is_accepted_verbatim(self):
+        # The exact argument bytes the two windows build: `Dashboard.cs` for the pause
+        # switch, `SettingsApp.cs` for run at sign-in. Parsed the way the bridge parses
+        # them, so the test fails if either the wire or this rule moves.
+        for raw, wanted in (('{"enabled":true}', True), ('{"enabled":false}', False)):
+            with self.subTest(raw=raw):
+                payload = controlcli._payload(raw)
+                self.assertIs(payload["enabled"], wanted)
+                reply = self.dispatch("enabled", payload)
+                self.assertIs(reply["ok"], True, reply)
+                self.assertIs(self.control.get_status()["enabled"], wanted)
+
+
+class RegistryIsolationTests(ControlTestCase):
+    """No test built on ControlTestCase can reach the real Run key, whatever it calls.
+
+    SwitchFlagTests send `startup` through the bridge with every value `bool()` used to say
+    yes to. On today's bridge the refusal comes first, so the writer is never asked. On a
+    bridge that regressed - or on the old one, which is exactly what a reviewer runs to see
+    those tests fail first - each of those values becomes `set_startup_enabled(True)`, and
+    that wrote this checkout's entry into the real HKCU Run key, pointing at a temporary
+    home deleted a moment later: the 2026-09-18 incident again. Patching the reader alone
+    left the writer live, so the whole class now talks to a key-tree fake instead.
+    """
+
+    def test_the_registry_every_control_test_reaches_is_a_fake(self):
+        # Asked, not used: nothing is written, so this is safe to run before the guard exists.
+        from test_cli import FakeWinreg
+        self.assertIsInstance(startup._winreg(), FakeWinreg)
+
+    def test_a_bridge_that_regressed_to_bool_writes_only_into_the_fake(self):
+        from test_cli import FakeWinreg
+        # The guard first: without it, what follows would be the incident, so stop here.
+        self.assertIsInstance(startup._winreg(), FakeWinreg)
+        regressed = lambda payload: bool(payload.get("enabled"))  # noqa: E731 - the old line
+        with patch.object(controlcli, "_flag", regressed):
+            reply = controlcli.dispatch(self.control, "startup", {"enabled": "false"})
+        # The old defect, reproduced on purpose: "false" turned autostart on - in the fake.
+        self.assertIs(reply["ok"], True, reply)
+        value, _kind = self.registry.values[startup.VALUE_NAME]
+        self.assertTrue(startup.belongs_to(value, self.home), value)
+
+
 class ErrorCodeTests(ControlTestCase):
     """A refusal says the same thing twice: in English, and as a code.
 
@@ -593,24 +768,41 @@ class ErrorCodeTests(ControlTestCase):
 
         Some of these fire only for a store a version ahead, or for a record that vanished
         between two statements. They are still refusals a Korean window has to have words
-        for, and walking the module is the only way to be sure of every one of them.
+        for, and walking the source is the only way to be sure of every one of them. The
+        walk covers the whole package, so a refusal that moves out of control.py is still
+        read wherever it lands.
         """
-        source = Path(control.__file__).read_text(encoding="utf-8")
-        raises = [node for node in ast.walk(ast.parse(source))
-                  if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "ControlError"]
-        self.assertGreaterEqual(len(raises), 20, "the walk found no refusals; the shape changed")
-        for node in raises:
-            with self.subTest(line=node.lineno):
+        raises = []
+        for path, tree in srcscan.package_asts().items():
+            raises += [(srcscan.relative(path), node) for node in ast.walk(tree)
+                       if isinstance(node, ast.Call) and "ControlError" in (getattr(node.func, "id", None),
+                                                                            getattr(node.func, "attr", None))]
+        coded = [(where, node) for where, node in raises if any(keyword.arg == "code" for keyword in node.keywords)]
+        self.assertGreaterEqual(len(coded), 20, "the walk found no refusals; the shape changed")
+        # The bridge's and the MCP server's own framing refusals - a malformed request, turned
+        # away before any control call - take the fallback code by leaving it out. Nothing else
+        # may: every other refusal names its code, and these are the only files that do not.
+        self.assertEqual({where for where, node in raises if (where, node) not in coded},
+                         {"codex_auto_resume/controlcli.py", "codex_auto_resume/mcpserver.py"},
+                         "a refusal outside the two front ends' framing carries no code")
+        named = set()
+        for where, node in coded:
+            with self.subTest(file=where, line=node.lineno):
                 keywords = {keyword.arg: keyword.value for keyword in node.keywords}
-                self.assertIn("code", keywords, "this refusal carries no code")
                 value = keywords["code"]
                 if isinstance(value, ast.Constant):
                     self.assertIn(value.value, control.ERROR_CODES, "not in the closed set")
+                    named.add(value.value)
                 else:
                     # The two table-driven refusals. Their whole vocabulary is the tables'
                     # own, checked in the next test and driven through a real store in
                     # tests/test_control_v3.py.
                     self.assertEqual(getattr(value, "id", None), "code")
+        # And the closed set is exactly what the package raises: every code a refusal names,
+        # every code the refusal tables hold, and the fallback - nothing unused, nothing extra.
+        tables = {code for name, table in vars(control).items() if name.startswith("_REFUSALS_")
+                  for _, code in table.values()}
+        self.assertEqual(named | tables | {control.FALLBACK_CODE}, set(control.ERROR_CODES))
 
     def test_the_refusal_tables_invent_no_code_of_their_own(self):
         tables = {name: table for name, table in vars(control).items()
@@ -978,9 +1170,19 @@ class StopWatcherTests(ControlTestCase):
             self.assertEqual(killer.call_count, 0, name)
 
     def test_the_layer_holds_no_way_to_end_a_process(self):
-        text = Path(control.__file__).read_text(encoding="utf-8")
-        for call in ("os.kill", "taskkill", "TerminateProcess", ".terminate(", ".kill("):
-            self.assertNotIn(call, text, call)
+        # Asked of every file in the package: the one place anything is ended is the Codex
+        # adapter stopping its own finite helper (a `codex queue` that outlived its timeout,
+        # an App Server it started), so a way to end a process appearing in any other file -
+        # a control function moved there included - fails here.
+        own_helper = {"codex_auto_resume/windows.py"}
+        for call, holders in (("os.kill", set()), ("taskkill", set()), ("TerminateProcess", set()),
+                              (".terminate(", own_helper), (".kill(", own_helper)):
+            with self.subTest(call):
+                self.assertEqual(srcscan.holders(call), holders, call)
+        for path in srcscan.files_of("codex_auto_resume.control"):
+            text = srcscan.read(path)
+            for call in ("os.kill", "taskkill", "TerminateProcess", ".terminate(", ".kill("):
+                self.assertNotIn(call, text, call)
 
     def test_every_reply_is_content_free(self):
         # Four words and two flags. No path, no interruption id, no exception text, in any

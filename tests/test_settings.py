@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from codex_auto_resume import failures, settings
 
@@ -202,8 +203,14 @@ class DescribeTests(unittest.TestCase):
         self.by_name = {entry["name"]: entry for entry in self.described}
 
     def test_describes_every_field_exactly_once(self):
-        self.assertEqual(sorted(self.by_name), sorted(settings.FIELDS))
-        self.assertEqual(len(self.described), len(settings.FIELDS))
+        # Every field but those held back until something reads them (NOT_YET_OFFERED): a
+        # surface draws whatever is described, and a switch that changes nothing must not be drawn.
+        offered = set(settings.FIELDS) - settings.NOT_YET_OFFERED
+        self.assertEqual(sorted(self.by_name), sorted(offered))
+        self.assertEqual(len(self.described), len(offered))
+        self.assertLessEqual(settings.NOT_YET_OFFERED, set(settings.FIELDS), "held back, not unknown")
+        with patch.object(settings, "NOT_YET_OFFERED", frozenset()):
+            self.assertEqual(sorted(entry["name"] for entry in settings.describe()), sorted(settings.FIELDS))
 
     def test_every_entry_carries_a_group_the_interfaces_understand(self):
         # "windows" holds desktop preferences - the notification-area icon - shown in
@@ -301,6 +308,215 @@ class ThemeTests(unittest.TestCase):
                             encoding="utf-8")
             loaded = settings.load(path)
             self.assertEqual((loaded["theme"], loaded["max_no_progress"]), ("system", 5))
+
+
+class NotificationCardTests(unittest.TestCase):
+    """v0.6.5: the card is a desktop preference beside the icon, on unless somebody turns it off."""
+
+    def test_it_is_on_by_default_and_a_true_or_false(self):
+        self.assertIs(settings.DEFAULTS["notification_card"], True)
+        self.assertEqual(settings.field_type("notification_card"), "boolean")
+
+    def test_it_is_described_in_the_windows_group_right_after_the_icon(self):
+        described = settings.describe()
+        names = [entry["name"] for entry in described]
+        self.assertEqual(names.index("notification_card"), names.index("show_tray") + 1)
+        entry = described[names.index("notification_card")]
+        self.assertEqual(entry["group"], "windows")
+        self.assertNotIn("master", entry)
+
+    def test_now_that_the_icon_draws_the_card_the_switch_is_offered(self):
+        """The watcher hands notices to the notifier and the icon's thread hosts the card (tests/
+        test_notice_card.py SettingTests holds the two together), so describe() - which the
+        Dashboard draws from - offers the switch. The value is kept across other saves and checked."""
+        self.assertNotIn("notification_card", settings.NOT_YET_OFFERED)
+        self.assertIn("notification_card", [entry["name"] for entry in settings.describe()])
+        self.assertIs(settings.defaults()["notification_card"], True)
+        self.assertEqual(settings.validate_update({"notification_card": False}), {"notification_card": False})
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "settings.json"
+            settings.update(path, {"notification_card": False})
+            settings.update(path, {"show_tray": True})
+            self.assertIs(settings.load(path)["notification_card"], False, "kept across other saves")
+
+    def test_writes_take_a_boolean_and_nothing_else(self):
+        self.assertEqual(settings.validate_update({"notification_card": False}), {"notification_card": False})
+        for value in (0, 1, "false", None, [], {}):
+            with self.subTest(value=value):
+                with self.assertRaises(settings.SettingsError):
+                    settings.validate_update({"notification_card": value})
+
+    def test_a_hand_edited_file_falls_back_to_on(self):
+        for value in (0, "off", None, 2):
+            with self.subTest(value=value):
+                self.assertIs(settings.coerce({"notification_card": value})["notification_card"], True)
+        self.assertIs(settings.coerce({"notification_card": False})["notification_card"], False)
+
+    def test_turning_it_off_silences_nothing(self):
+        # Where a notification is drawn is not whether there is one.
+        values = dict(settings.defaults(), notification_card=False)
+        for event in settings.NOTIFICATION_EVENTS:
+            self.assertTrue(settings.notification_enabled(values, event), event)
+
+    def test_it_round_trips_through_the_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "settings.json"
+            settings.update(path, {"notification_card": False})
+            self.assertIs(settings.load(path)["notification_card"], False)
+            self.assertIs(json.loads(path.read_text(encoding="utf-8"))["notification_card"], False)
+
+
+class OfferedWithItsHelpTests(unittest.TestCase):
+    """A setting that describe() offers, and whose catalogs carry a help line for it, is drawn in the
+    Dashboard with that line under it. describe() is what puts a switch in the window, so emptying
+    NOT_YET_OFFERED is what put the card's switch there - and the card's help line is where a person
+    learns that Do not disturb, full screen, a screen reader, a locked or a remote session bring
+    Windows' own notification back instead (PLAN v2 B-D7: the user is to be told)."""
+
+    def test_every_offered_setting_with_a_help_line_is_drawn_with_it(self):
+        from codex_auto_resume import l10n
+        window = (Path(__file__).resolve().parents[1] / "gui" / "SettingsApp.cs").read_text(encoding="utf-8")
+        helps = l10n.catalog("en")
+        missing = []
+        for entry in settings.describe():
+            key = "help." + entry["name"]
+            if key in helps and ('"%s"' % key) not in window:
+                missing.append(key)
+        self.assertEqual(missing, [], "gui/SettingsApp.cs draws these switches without the help line the "
+                                      "catalogs have for them; beside `if (name == \"reduce_motion\")` add "
+                                      "`if (name == \"notification_card\") host.Controls.Add(HelpText(S("
+                                      "\"help.notification_card\", ...)));`")
+
+
+class WrongTypeTests(unittest.TestCase):
+    """A value of the wrong type is refused, whatever it happens to equal.
+
+    `validate_update` decided by comparing the coerced result with the value supplied:
+    `if coerced != value: raise`. A coercer answers a value it does not like with the
+    field's *default*, so whenever a wrong-typed value happened to equal that default the
+    comparison saw nothing wrong and the write went through. The effect was per-field,
+    because the default decides: `{"reduce_motion": 0}` was accepted (its default is
+    False, and False == 0 in Python) while `{"notifications": 0}` was refused (its default
+    is True); `{"max_no_progress": 3.0}` was accepted and `{"max_no_progress": 5.0}`
+    refused. The same defect, opposite answers, and nothing outside could predict which.
+
+    The table below is every field crossed with a value of every type the field does not
+    publish - both the half whose coerced result equals the value supplied and the half
+    whose does not - so neither can regress on its own. The published type is
+    `describe()`'s, which is what the MCP schema and every window's editor are built from:
+    what the schema will not offer, the validator will not take.
+    """
+
+    # One or two values of each JSON type, plus the two that are not JSON at all.
+    OTHER = {"boolean": [True, False],
+             "integer": [2, 7],
+             "number": [2.5, 7.5],
+             "string": ["", "7", "true"],
+             "array": [[]],
+             "object": [{}]}
+    # What each published type accepts. A number takes an integer - JSON has one numeric
+    # type, and a person who types 6 into a box that measures hours has given a number -
+    # and nothing takes a boolean but a boolean, because `bool` is an `int` in Python and
+    # is not one in JSON.
+    ACCEPTS = {"boolean": {"boolean"}, "integer": {"integer"},
+               "number": {"integer", "number"}, "string": {"string"}}
+
+    def twins(self, entry):
+        """The wrong-typed values that used to slip through for this field.
+
+        The defect's signature: another type, and equal to the field's default anyway. A
+        switch has two (0 and 0.0, or 1 and 1.0), a count has one (its default written as
+        a float), and nothing of another type equals a string, an hour count of 6.0 or the
+        `null` of a field that has no value - which is why the other half of the table
+        matters just as much.
+        """
+        default = entry["default"]
+        if isinstance(default, bool):
+            return [int(default), float(default)]
+        if isinstance(default, int):
+            return [float(default)]
+        return []
+
+    def candidates(self, entry):
+        """(type name, value) for everything this field should refuse."""
+        found = [(kind, value) for kind in sorted(self.OTHER) for value in self.OTHER[kind]]
+        for value in self.twins(entry):
+            found.append(("integer" if isinstance(value, int) else "number", value))
+        return [(kind, value) for kind, value in found
+                if kind not in self.ACCEPTS[entry["type"]]]
+
+    def test_a_value_of_a_type_the_schema_does_not_publish_is_refused(self):
+        for entry in settings.describe():
+            for kind, value in self.candidates(entry):
+                with self.subTest(name=entry["name"], kind=kind, value=repr(value)):
+                    with self.assertRaises(settings.SettingsError) as caught:
+                        settings.validate_update({entry["name"]: value})
+                    # The refusal names the field, because a Save sends many at once -
+                    # unless the field has words of its own, which the custom messages do
+                    # and which say more than the field name would.
+                    if entry["name"] not in settings.EXPLAIN:
+                        self.assertIn(entry["name"], str(caught.exception))
+
+    def test_the_table_holds_both_halves_of_the_defect(self):
+        """Without the first half this file would pass against the code that had the bug.
+
+        `slipped` is the set of fields with a wrong-typed value whose coerced result
+        equals the value supplied - the ones the old rule let through. It has to be
+        exactly the switches and the counts, and it has to be non-empty, or the table
+        above has quietly stopped exercising the defect.
+        """
+        slipped, refused = set(), set()
+        for entry in settings.describe():
+            default, coercer = settings.FIELDS[entry["name"]]
+            for _kind, value in self.candidates(entry):
+                side = slipped if coercer(value, default) == value else refused
+                side.add(entry["name"])
+        described = {entry["name"] for entry in settings.describe()}
+        self.assertEqual(slipped, {entry["name"] for entry in settings.describe()
+                                   if entry["type"] in ("boolean", "integer")})
+        self.assertEqual(refused, described)
+        self.assertTrue(slipped)
+
+    def test_the_values_the_design_pass_named(self):
+        # Stated one by one as well as by table, because these are the sentences the
+        # report will be read against.
+        for change in ({"reduce_motion": 0}, {"notifications": 0}, {"show_tray": 1},
+                       {"max_no_progress": 3.0}, {"max_no_progress": 5.0},
+                       {"max_recovery_attempts": 4.0}, {"max_chain_continuations": 6.0}):
+            with self.subTest(change=change):
+                with self.assertRaises(settings.SettingsError):
+                    settings.validate_update(change)
+
+    def test_every_default_is_still_accepted_as_a_write(self):
+        # The strongest statement that nothing was tightened past the schema: the whole
+        # field set, written at once, in the types the product itself uses.
+        self.assertEqual(settings.validate_update(settings.defaults()), settings.defaults())
+
+    def test_an_integer_is_still_a_number(self):
+        # What every window's spin box sends for the one field measured in hours.
+        self.assertEqual(settings.validate_update({"detection_lookback_hours": 6}),
+                         {"detection_lookback_hours": 6.0})
+        self.assertEqual(settings.validate_update({"detection_lookback_hours": 6.5}),
+                         {"detection_lookback_hours": 6.5})
+
+    def test_clearing_is_allowed_exactly_where_it_was_allowed(self):
+        # `null` is how a field that can have no value is emptied - the Codex path, and
+        # each custom message. Every other field has a value, and null is not one.
+        for name in sorted(settings.FIELDS):
+            default, _coerce = settings.FIELDS[name]
+            with self.subTest(name=name):
+                if default is None:
+                    self.assertEqual(settings.validate_update({name: None}), {name: None})
+                else:
+                    with self.assertRaises(settings.SettingsError):
+                        settings.validate_update({name: None})
+
+    def test_a_reading_still_falls_back_instead_of_refusing(self):
+        # `coerce` is the file path and it is unchanged: a hand-edited settings.json with
+        # a wrong type still starts the watcher on defaults rather than stopping it.
+        for name, value in (("reduce_motion", 0), ("notifications", 0), ("max_no_progress", 3.0)):
+            with self.subTest(name=name):
+                self.assertEqual(settings.coerce({name: value})[name], settings.DEFAULTS[name])
 
 
 if __name__ == "__main__":

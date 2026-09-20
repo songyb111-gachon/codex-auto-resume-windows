@@ -108,6 +108,11 @@ FIELDS = {
     "notifications": (True, _boolean),
     # The watcher's notification-area icon. Showing it changes nothing about recovery.
     "show_tray": (True, _boolean),
+    # v0.6.5: notifications drawn as the product's own card beside the notification area, with a
+    # silent copy in Windows' notification center; off, every notification is Windows' own toast
+    # as before. It chooses where a notification is drawn, never whether there is one: that is
+    # `notifications` and `notify_<event>`. It changes nothing about recovery.
+    "notification_card": (True, _boolean),
     # First in Appearance, so it comes before Reduce motion wherever the schema is listed.
     # Changes nothing but colours; the notification-area icon and its badge stay as they are.
     "theme": (DEFAULT_THEME, lambda v, d: _choice(v, d, THEMES)),
@@ -192,6 +197,52 @@ RANGES = {
 }
 
 
+# What each published type accepts on a write. A number takes an integer - JSON has one
+# numeric type, and a person who types 6 into a box that measures hours has given a
+# number - and nothing takes a boolean but a boolean, because `bool` is an `int` in
+# Python and is not one in JSON, so a tick box is not a count.
+_ACCEPTED_TYPES = {"boolean": (bool,), "integer": (int,), "number": (int, float),
+                   "string": (str,)}
+
+
+def field_type(name: str) -> str:
+    """The JSON type this field's values have: "boolean", "integer", "number" or "string".
+
+    One derivation, read by `describe()` - and therefore by the MCP schema and by every
+    window's editor - and by `validate_update`. What the schema will not offer, the
+    validator will not take.
+    """
+    default = FIELDS[name][0]
+    return ("boolean" if isinstance(default, bool)
+            else "integer" if isinstance(default, int)
+            else "number" if isinstance(default, float)
+            else "string")
+
+
+def _right_type(name: str, value) -> bool:
+    """Whether `value` is of this field's type, asked before anything looks at the value."""
+    if value is None:
+        # `null` empties a field that can have no value - the Codex path, and each custom
+        # message. Every other field has one, and null is not it.
+        return FIELDS[name][0] is None
+    if isinstance(value, bool):
+        return field_type(name) == "boolean"
+    return isinstance(value, _ACCEPTED_TYPES[field_type(name)])
+
+
+def _refuse(name: str, value):
+    """Raise the refusal for one field, in that field's own words where it has any."""
+    explain = EXPLAIN.get(name)
+    if explain is not None and value is not None:
+        # The field's own validator says what is wrong with it. A range is
+        # self-explanatory; free text is not.
+        try:
+            explain(value)
+        except ValueError as exc:
+            raise SettingsError(str(exc)) from None
+    raise SettingsError("invalid value for %s" % name)
+
+
 def defaults() -> dict:
     return dict(DEFAULTS)
 
@@ -224,17 +275,18 @@ def validate_update(changes) -> dict:
     clean = {}
     for name, value in changes.items():
         default, coercer = FIELDS[name]
+        # The type first, and only then the value. A coercer answers a value it does not
+        # like with the field's default, and this used to decide by comparing that answer
+        # with the value supplied - so a wrong type that happened to equal the default was
+        # read as "unchanged" and written. Which wrong types those were depended on the
+        # default, so `{"reduce_motion": 0}` was taken and `{"notifications": 0}` refused,
+        # and `{"max_no_progress": 3.0}` was taken and 5.0 refused. Asking the type first
+        # closes it for every field at once and leaves the range check exactly as it was.
+        if not _right_type(name, value):
+            _refuse(name, value)
         coerced = coercer(value, default)
         if coerced != value and not (name == "codex_exe" and value is None):
-            explain = EXPLAIN.get(name)
-            if explain is not None and value is not None:
-                # The field's own validator says what is wrong with it. A range is
-                # self-explanatory; free text is not.
-                try:
-                    explain(value)
-                except ValueError as exc:
-                    raise SettingsError(str(exc)) from None
-            raise SettingsError("invalid value for %s" % name)
+            _refuse(name, value)
         clean[name] = coerced
     return clean
 
@@ -331,19 +383,27 @@ def update(path: Path, changes: dict) -> dict:
     return save(path, dict(load(path), **clean))
 
 
+# Fields that exist - stored, validated, defaulted - but that no surface offers yet, because
+# nothing reads them yet. `describe()` leaves them out, and the Dashboard, the panel and the MCP
+# schema are all drawn from it, so none of them shows a switch that would change nothing.
+# Empty since v0.6.5: `notification_card` waited here until the watcher handed notices to the
+# notifier (app.py) and the icon's thread hosted the card (tray.py); tests/test_notice_card.py
+# (SettingTests) holds the name here exactly while that wiring is missing.
+NOT_YET_OFFERED = frozenset()
+
+
 def describe() -> list:
     """Machine-readable schema for the settings interfaces.
 
     The user interfaces render themselves from this, so a field added here appears in
-    every front end at once instead of being wired up three times.
+    every front end at once instead of being wired up three times. A field in
+    NOT_YET_OFFERED is not described: it has no front end until something reads it.
     """
     described = []
     for name, (default, _coerce) in FIELDS.items():
-        entry = {"name": name, "default": default,
-                 "type": "boolean" if isinstance(default, bool)
-                         else "integer" if isinstance(default, int)
-                         else "number" if isinstance(default, float)
-                         else "string"}
+        if name in NOT_YET_OFFERED:
+            continue
+        entry = {"name": name, "default": default, "type": field_type(name)}
         if name in RANGES:
             entry.update(RANGES[name])
         if name.startswith("recover_"):
@@ -357,9 +417,11 @@ def describe() -> list:
             # which it colours too. Reduce motion is only offered in the window: the panel
             # in Codex follows the host's own reduced-motion preference.
             entry["group"] = "appearance"
-        elif name == "show_tray":
+        elif name in ("show_tray", "notification_card"):
             # A desktop preference, beside "run at sign-in" - not a notification, and
-            # not something the notifications switch governs.
+            # not something the notifications switch governs. The card only chooses how a
+            # notification looks on this desktop, so it lives here too, and like the icon it is
+            # outside what the Codex panel and MCP may change (mcpserver.USER_GROUPS).
             entry["group"] = "windows"
         elif name in ("max_recovery_attempts", "max_no_progress", "max_chain_continuations",
                       "retry_timing"):
