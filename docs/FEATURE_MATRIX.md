@@ -74,7 +74,9 @@ real Codex recovery. Read each citation and its limits separately.
   facility**, and those tests skip themselves where the facility is absent. A skipped test
   proves nothing, so the fourth column says where a skip is likely.
 
-  For v0.6.5, the full run of this tree is TO FILL once the release candidate has run.
+  For v0.6.5, the full run of this tree was 2,555 tests with no failures on Python 3.13 (8 skipped)
+  and 3.12 (7 skipped) on the maintainer's Windows 11 machine, and green on GitHub's Windows runners
+  for 3.12, 3.13, 3.14 and 3.15.
 
   For the record: on 2026-09-17, on the Windows 11 machine this document was written on,
   `PYTHONPATH="src;tests" python -m unittest discover -s tests` ran the v0.6.4 tree -
