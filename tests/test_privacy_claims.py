@@ -253,13 +253,19 @@ class WordingTests(unittest.TestCase):
         tag, so at that moment the tag exists while the version is still the *current*
         one rather than a past one - and requiring it in a list of history would fail
         the release of every version, which is how this test first earned its keep.
+
+        So is a tag that is not a release: `v0.6.6-alpha` carries the candidate this
+        release's first attempt built, kept under a name of its own so `v0.6.6` was free
+        for the one that was published. The changelog is a list of releases, and a
+        release is tagged vMAJOR.MINOR.PATCH - the same shape `scripts/bootstrap.ps1`
+        will accept from the redirect it reads, and nothing else.
         """
         from codex_auto_resume import config
         current = "v" + config.version()
         tags = [tag for tag in
                 subprocess.run(["git", "-C", str(ROOT), "tag", "--list", "v*"],
                                capture_output=True, text=True, encoding="utf-8").stdout.split()
-                if tag != current]
+                if tag != current and re.fullmatch(r"v\d+\.\d+\.\d+", tag)]
         if not tags:
             self.skipTest("no earlier tags visible in this checkout")
         text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
