@@ -101,6 +101,9 @@ function Ask([string]$text, $affirm, [string]$press) {
         $look.work = @($work.Left, $work.Top, $work.Width, $work.Height)
         $look.owned = [bool]($dialog.Owner -ne $null -and [object]::ReferenceEquals($dialog.Owner, $window))
         $look.modal = [bool]$dialog.Modal
+        $focused = $dialog.ActiveControl
+        $look.focus = if ($focused -eq $null) { '' } else { [string]$focused.Text }
+        $look.selected = if ($look.well) { [int]$box.SelectionLength } else { -1 }
         $script:seen = $look
         $target = if ($press -eq 'accept') { $dialog.AcceptButton } else { $dialog.CancelButton }
         $target.PerformClick()
@@ -197,6 +200,10 @@ class DialogTests(unittest.TestCase):
         self.assertNotIn("well", short, "a sentence that fits is simply drawn")
         self.assertTrue(long.get("well"), "sixty lines are not")
         self.assertTrue(long["readonly"], "and they cannot be edited")
+        self.assertEqual(long["selected"], 0,
+                         "a text box answers the focus by selecting everything it holds; this one does not")
+        self.assertEqual(long["focus"], "Close",
+                         "and the keyboard starts on the button, not on the words")
         self.assertEqual(long["words"].count("\n"), LONG.count("\n"),
                          "all of them are there")
         self.assertLessEqual(long["at"][3], self.answer["work"][1], "and the dialog fits the screen")

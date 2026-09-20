@@ -1242,14 +1242,47 @@ class IconMotionPictureTests(unittest.TestCase):
                 found = re.search(r'<img src="%s" alt="([^"]{80,})"' % re.escape(self.GIF), body)
                 self.assertIsNotNone(found, "%s shows the icon's motion, with alt text that says what it shows" % name)
 
+    @staticmethod
+    def chunks(data: bytes) -> list:
+        """A PNG's chunks as (kind, payload), with every deflated one inflated.
+
+        What is compared has to be the picture, not the deflate stream that carries it. The same
+        bytes given to `zlib.compress` do not come back the same length from every Python: 3.14
+        ships zlib-ng, which found this picture 3 bytes shorter than 3.13 did, and a test that
+        compared the files byte for byte called that a stale commit. Inflating first compares what
+        a viewer would see - the pixels, the frame rectangles, the delays and the order - and still
+        fails the moment the generator would draw something else.
+        """
+        import zlib
+        found, at = [], 8
+        while at < len(data):
+            length, kind = struct.unpack(">I4s", data[at:at + 8])
+            body = data[at + 8:at + 8 + length]
+            if kind == b"IDAT":
+                body = zlib.decompress(body)
+            elif kind == b"fdAT":
+                body = body[:4] + zlib.decompress(body[4:])
+            found.append((kind, body))
+            at += 12 + length
+        return found
+
     def test_it_is_small_and_exactly_what_the_generator_writes(self):
         with tempfile.TemporaryDirectory() as folder:
             target = Path(folder) / "icon-motion.png"
             self.generator.render_icon_motion(target)
             written = target.read_bytes()
         committed = (ROOT / self.GIF).read_bytes()
-        self.assertEqual(written, committed,
+        kinds = [kind for kind, _ in self.chunks(committed)]
+        # So that a comparison of two empty lists can never be the thing that passes.
+        for required in (b"IHDR", b"acTL", b"fcTL", b"IDAT", b"fdAT", b"IEND"):
+            self.assertIn(required, kinds)
+        self.assertEqual([kind for kind, _ in self.chunks(written)], kinds,
                          "the committed picture is not the generator's; run build/make_screenshots.py --icon")
+        for index, ((kind, mine), (_, theirs)) in enumerate(zip(self.chunks(written), self.chunks(committed))):
+            with self.subTest("%s #%d" % (kind.decode("ascii"), index)):
+                self.assertEqual(mine, theirs,
+                                 "the committed picture is not the generator's; "
+                                 "run build/make_screenshots.py --icon")
         self.assertLess(len(committed), 300 * 1024)
         # An APNG since v0.6.6: a PNG whose first frame is what a viewer without animation shows, so the
         # badge's gradient and the ring's edges keep their colours instead of sharing 255 of them.
