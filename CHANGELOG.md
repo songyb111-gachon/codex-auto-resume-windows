@@ -248,23 +248,61 @@ replies, gathered rules and typed contracts that come before it, are v0.6.6.
 
 ### Evidence
 
-TO FILL: what was run, on which build, on which machine (Windows build, screen, scaling, language,
-app mode).
+Everything below was run on the release candidate built from this tree, on one Windows 11 machine
+(Home, build 26200, 3840 x 2160 at 150%, Korean system language, Windows' apps set to dark and the
+product's Theme set to Light).
 
-- **The suite.** TO FILL
-- **The window, built twice.** TO FILL
-- **Clipping.** TO FILL
-- **Installed over v0.6.4.** TO FILL
-- **The compatibility card and its refresh, for real.** TO FILL
-- **Check for updates, and the refresh that rides on it.** TO FILL
-- **The notification card, on a real desktop.** TO FILL
-- **Windows' own notification where a card must not show.** TO FILL
-- **The icon's motion.** TO FILL
-- **The status light.** TO FILL
-- **Drop-down lists, switches and a screen reader.** TO FILL
-- **Korean and Latin text.** TO FILL
+- **The suite.** 2,555 tests, no failures, under Python 3.13 (966 s, 8 skipped) and 3.12 (952 s, 7
+  skipped) here, and green on GitHub's Windows runners for 3.12, 3.13, 3.14 and 3.15. The skips are
+  the opt-in live checks, the pin check that waits for the tag, and, on one interpreter here, the
+  workflow parser that wants PyYAML.
+- **The window, built twice.** Two builds of `CodexAutoResumeSettings.exe` from these sources are
+  byte-identical (`e634e921…`, 382,976 bytes), and `build/normalize_pe.py` accepts both.
+- **Clipping.** The layout audit builds the window hidden in all nine languages at 100, 125, 150,
+  175 and 200 per cent, in every watcher state, and reports anything cut off, any pinned button away
+  from its corner, any text under one, and an Overview that scrolls. It reports nothing.
+- **Installed over v0.6.4 on this machine.** The installer answered *Updated. Your settings and
+  pending recoveries were kept.*; `config\settings.json` held every value it had before, byte for
+  byte on the first install and with only this release's new setting added afterwards; the watcher
+  restarted and the plugin manifest read 0.6.5. The installed MCP server introduced itself as 0.6.5
+  with its seventeen tools, previewed a continuation in Korean, still refused to let
+  `update_settings` write a Custom message, and carried the compatibility summary as codes only,
+  with no tool that could refresh or import data.
+- **The compatibility card and its refresh, for real.** The watcher checked the Codex on this
+  machine - `codex-cli 0.155.0-alpha.9.2` - found every local check passing and the bundled data
+  verifying nothing, called it compatible and wrote `config\compatibility.json`. **Refresh
+  compatibility data** then fetched the published file: `compatibility: refreshed 1`, written to
+  `config\compat-cache.json` by this installation's own validator.
+- **Check for updates, and the refresh that rides on it.** With v0.6.5 installed and v0.6.4 the
+  newest published release, the check answered `update: newer-local 0.6.5 0.6.4` and still refreshed
+  the compatibility data on the way (`compatibility: refreshed 1`) - the refresh happens whether or
+  not there is an update, and it never changes the update's own answer.
+- **The notification card, on a real desktop.** Three cards stacked in the notification area's
+  corner, drawn by the installed build's own code in dark and in light: the product's name, the
+  status light, the reason chip, the three lines and the two buttons, with the entrance and the
+  stack as designed.
+- **The icon's motion.** On this machine the notification-area icon sits in Windows 11's overflow
+  flyout, where this release holds it still on purpose: the watcher used 1.1 s of processor time in
+  its first 40 minutes. The motion itself - the breath, the clockwise sweep along the mark's stroke
+  and back, and the states - was captured from a real taskbar button with the window built into a
+  scratch folder, and is held by tests frame for frame against the icon's own table.
+- **The status light.** Drawn through a whole cycle on every surface - the window, the popup, the
+  panel in Codex and the notification card - in light and dark at 100% and 150%, and compared side
+  by side with the design it was approved from; the suite also reads the drawn pixels for the dot's
+  dimming and the glow's three-pixel reach.
+- **Drop-down lists, switches and a screen reader.** The probes open the real drop-down list, walk
+  it with the keys, type to find, close it on an outside click, glide the switches and read the list
+  and its highlighted item through Windows' own UI Automation. No screen reader was run.
+- **Korean and Latin text.** The window breaks Korean at spaces only (71 strings across four widths
+  and three scalings), the panel keeps Korean words whole, and the popup and the card set Latin text
+  in Windows' UI font, as the window and the panel do; the Korean pictures show it.
 
-Not verified, and not claimed: TO FILL
+Not verified, and not claimed: High Contrast on a real system (it is rendered and asserted, never
+switched on here); a real Codex interruption recovered by this build; the card's fallbacks on a
+locked, full-screen or Do Not Disturb desktop, or with a screen reader running (the rule is held by
+tests only); the taskbar button's motion in the installed window (the window open on this machine
+was opened before the update; the motion was captured from a scratch build instead); any machine but
+this one, and any scaling but 150 per cent.
 
 ## v0.6.4 — One look in light and dark, a quieter status light, and a window that arrives ready
 
