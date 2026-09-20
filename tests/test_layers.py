@@ -55,7 +55,7 @@ LAYER = {_q(name): layer for layer, names in {
     "domain": ("failures", "reasons", "machine"),
     "policy": ("", "settings", "continuation", "l10n", "interface", "messages", "config", "logbook"),
     "adapters": ("store", "source", "windows", "compat", "compatio", "startup", "shortcut", "pwsh",
-                 "notify", "notice_presence"),
+                 "notify", "notice_presence", "tray_place"),
     "engine": ("engine",),
     "control": ("control", "diagnostics"),
     "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcpui", "app", "tray", "tray_popup", "brand",
@@ -67,7 +67,8 @@ LAYER = {_q(name): layer for layer, names in {
 PLANNED = {_q(name) for name in ("codex", "win", "ui", "mcp", "domain.public")}
 STORE = {_q("store")}
 CODEX = {_q("source"), _q("windows"), _q("codex")}         # Codex's files and processes
-WIN = {_q(name) for name in ("windows", "startup", "shortcut", "pwsh", "notify", "notice_presence", "win")}
+WIN = {_q(name) for name in ("windows", "startup", "shortcut", "pwsh", "notify", "notice_presence",
+                             "tray_place", "win")}
 UI = {_q(name) for name in ("tray", "tray_popup", "brand", "notice_card", "notice_window", "ui")}
 MCP = {_q("mcpserver"), _q("mcpui"), _q("mcp")}
 # What the UI may reach: the control layer, the public status mapping (machine, until it is
@@ -89,6 +90,8 @@ UI_EXCEPTIONS = {
                                        "category is recoverable and whether it has a reset time",
     (_q("notice_window"), _q("notice_presence")): "the card reads battery saver and the message duration "
                                                   "from the presence probes, which are Windows adapters",
+    (_q("tray"), _q("tray_place")): "the icon asks where Windows keeps it and whether battery saver is on "
+                                    "before it moves; both are Windows adapters (win/ takes them at step 9)",
 }
 
 # Import cycles, which exist only through imports made inside functions. Each is removed by
