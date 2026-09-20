@@ -145,21 +145,29 @@ Interface work that came out of using v0.6.4:
 
 ---
 
-## v0.6.6 — The light, softened, and a taskbar button that moves where it is installed 🚧
+## v0.6.6 — The ordinary breath, a taskbar button that moves where it is installed, and the last native controls 🚧
 
 **In development, on the `dev` branch.**
 
-A short release, made of two things a day of real use turned up.
+What a day of real use turned up. Nothing about recovery changed.
 
-The status light was too quick and too deep to read as a breath: its cycle is half again as
-long, the dot no longer falls as far, and the glow's peak comes down a step. One table serves the
+The status light is the ordinary breath now: one symmetric cosine over 4.4 seconds, taken in
+light and drawn through the screen's gamma, with a deep swing and a glow that rides the
+brightness and reaches a share of the dot rather than a count of pixels. One table serves the
 window, the notification-area popup, the panel in Codex and the notification card, so all four
-soften together, and the icon's own breath and sweep, which read the same rhythm, slow with them.
+breathe alike, and the icon's own breath and sweep read the same rhythm.
 
 v0.6.5 moved the mark on the window's taskbar button, and it never moved on an installed one: an
 installed window is resolved to the application the installer registered, and such a button wears
 the icon that identity carries rather than the window's own. The window now takes a taskbar
 identity of its own, and the button moves where people actually have it.
+
+And the controls that were still Windows' or the browser's are the product's: every scroll bar,
+on either axis and wherever one appears, with its track coloured against the ground it runs over;
+and the message box, which is now a dialog in the window's own material whose buttons say what
+will happen rather than Yes and No. The documentation's pictures move, and they no longer carry
+the black frame `PrintWindow` never drew - they are cut to the window and the corners Windows
+rounds are rounded in them.
 
 ---
 

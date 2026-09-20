@@ -523,6 +523,7 @@ contained, no Custom message you typed, and no screenshot.
 | A stale click refused | Step 9 | `cancel` |
 | Pending's Auto-resume switch | Step 10 | `retry-now` |
 | Cancel all | After step 12 | `upgrade-keeps-decisions` |
+| The window's own dialog, and the scroll bars | Step 9 | `cancel` |
 
 **Interface language — step 3, noted in `watcher-starts`.** If `CODEX_AUTO_RESUME_LANG` is
 set in your environment it overrides the setting, so remove it first. On **Settings →
@@ -592,6 +593,19 @@ the Windows Dashboard. Change an ordinary setting in the panel and save, then re
 Dashboard. The panel does not refresh by itself, so reopen it before comparing. *A pass:* the
 panel's Preview matches the Dashboard's, the Custom text cannot be changed there, and saving
 in the panel left the Custom message as it was.
+
+**The window's own dialog, and the scroll bars — step 9, noted in `cancel`.** Press **Cancel**
+on the Pending page and read the dialog it raises, then press its **Close**; press **Cancel**
+again and take it. Do the same with **Clear history** on the History page, and answer that one
+with Esc. Then make the window narrow enough for a list to need its bar sideways, and tall
+enough for a Settings section to need one down, and scroll both by dragging, by the wheel and
+by the keyboard; open **Settings → Continuation message**, choose **Custom**, and scroll the
+message box with more lines in it than it shows. *A pass:* each dialog is in the window's own
+material, opens in the middle of the window, carries no second button on the taskbar, and has
+the action's own words on the button that takes it - never *Yes* and *No*; Esc leaves it as the
+other button does; and every bar you meet, in either direction and in the message box included,
+is the product's own pill in its groove, never Windows' grey, with nothing left of Windows' bar
+showing beside it.
 
 **A stale click refused — step 9, noted in `cancel`.** A click is refused only when its task
 changed between being drawn and being clicked, and that must not be arranged by editing
