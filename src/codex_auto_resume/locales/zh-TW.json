@@ -5,6 +5,7 @@
   "action.clear_history": "清除歷程記錄",
   "action.close": "關閉",
   "action.export": "匯出診斷資料…",
+  "action.install": "安裝",
   "action.failed": "無法完成此操作。",
   "action.open_logs": "開啟記錄檔資料夾",
   "action.pause": "暫停復原",

@@ -214,7 +214,7 @@ def prefer_app_mode(mode) -> bool:
 # The icon does not copy the windows' six-state status light: sixteen pixels across and glanced at, it speaks
 # a smaller language, and the distinctions it drops - waiting, checking, monitoring - are ones nobody acts on:
 #
-#   watching    the watcher runs with recovery on: a loop of five of brand's monitoring breaths (16 s) - three
+#   watching    the watcher runs with recovery on: a loop of five of brand's monitoring breaths (22 s) - three
 #               breaths of the head, then a sweep out and back in the last two, at full brightness;
 #   recovering  a continuation is being sent or is running in Codex: the head sweeps out and back
 #               over and over, at twice the speed, at full brightness and never breathing;
@@ -228,8 +228,8 @@ def prefer_app_mode(mode) -> bool:
 # there, with no jump - and it leaves its place clockwise, along the white stroke only, never crossing the gap.
 #
 # The sweeping mark is the mark's own head running along its own ring - "the ring is the wait, the gap is the
-# interruption, the head is the moment it resumes" - so the motion adds no shape and no colour, and breathing is
-# the head's brightness (no room for a halo at this size). The badge, the shape and the taskbar handling are as ever.
+# interruption, the head is the moment it resumes" - so the motion adds no shape and no colour, and breathing is the
+# head's brightness: no room for a halo here. The badge, the shape and the taskbar handling are as ever.
 #
 # Of brand.GLOW the icon reads two rhythms and nothing else: monitoring_ms (watching's breath, and so every slot
 # of its loop and of recovering's sweep) and attention_ms (the one pulse). Its own numbers are ICON_MOTION's, not
@@ -246,7 +246,7 @@ ICON_FOR_LIGHT = {"monitoring": "watching", "waiting": "watching", "checking": "
 ICON_MOTION = {
     # watching: `breaths` breaths of the head, then a sweep in a slot of `sweep_breaths` of them - `sweep_out` of
     # that slot going out, as much coming back, `sweep_hold` of it held at the far end and the rest of it at home.
-    # Recovering sweeps the same shape in one breath, then rests `recover_rest` of one at home: a sweep every 2.88 s.
+    # Recovering sweeps the same shape in one breath, then rests `recover_rest` of one at home: a sweep every 3.96 s.
     "breaths": 3, "sweep_breaths": 2, "sweep_out": 0.4, "sweep_hold": 0.025, "recover_rest": 0.075,
     # Every frame shown costs explorer.exe a redraw: the rates that looked smooth for the least of it (measured),
     # each just inside a whole number of Windows' 15.625 ms timer ticks, which a timer waits for at the least.
@@ -254,7 +254,7 @@ ICON_MOTION = {
     "turn_frame_ms": 62,      # ...four, sixteen, while it travels: about one frame a position at that speed
     "positions": 24,          # head positions round the ring, fifteen degrees apart
     "levels": 24,             # the breath's brightness steps: a tint of the head, never a stored frame
-    "dim": 0.6,               # at the breath's low the head is this far from its colour toward the badge
+    "dim": 0.6,               # the breath's low, toward the badge: deeper than the light since v0.6.6 softened it
     "build_budget_ms": 2000,  # a frame table that takes longer than this is not used
     "cache": 256,             # composed frames kept, per table
 }

@@ -377,6 +377,15 @@ namespace CodexAutoResume
             return false;
         }
 
+        /// Whether two colours are the same to look at: within a step of each other on every channel.
+        /// The tokens a ground can be are far further apart than this, so it names one without matching
+        /// a literal.
+        internal static bool Near(Color one, Color other)
+        {
+            return Math.Abs(one.R - other.R) <= 2 && Math.Abs(one.G - other.G) <= 2
+                   && Math.Abs(one.B - other.B) <= 2;
+        }
+
         internal static Color Mix(Color from, Color to, double amount)
         {
             amount = Math.Max(0, Math.Min(1, amount));
@@ -2230,7 +2239,16 @@ namespace CodexAutoResume
         }
 
         // States: 0 resting, 1 under the pointer, 2 dragged. The brand half is the theme's (Tokens).
-        internal static Color TrackFill(bool contrast) { return contrast ? SystemColors.Window : Tokens.Inset; }
+        /// The well the bar runs in, for the ground it is drawn on. Everywhere but in a well that is the
+        /// `inset` groove the design gives a track; in one - the message box, whose own ground is `inset` -
+        /// an inset track is the ground, and the bar would be a pill floating on nothing. There it is the
+        /// card's colour instead, so the groove is still a step away from what surrounds it.
+        internal static Color TrackFill(bool contrast, Color ground)
+        {
+            if (contrast) return SystemColors.Window;
+            return Soft.Near(ground, Tokens.Inset) ? Tokens.Surface : Tokens.Inset;
+        }
+
         internal static Color TrackEdge(bool contrast) { return contrast ? SystemColors.WindowFrame : Tokens.Line; }
 
         internal static Color ThumbFill(int state, bool contrast)
@@ -2248,12 +2266,12 @@ namespace CodexAutoResume
 
         /// The bar in `track`, standing or lying: its ends are round whichever way it runs (v0.6.5, when a
         /// list's bar across its bottom was added).
-        internal static void Draw(Graphics g, Rectangle track, Rectangle thumb, int state)
+        internal static void Draw(Graphics g, Rectangle track, Rectangle thumb, int state, Color ground)
         {
             if (track.Width <= 0 || track.Height <= 0) return;
             bool contrast = Palette.Contrast;
             float radius = Math.Min(track.Width, track.Height) / 2f;
-            Soft.Body(g, track, radius, TrackFill(contrast), TrackEdge(contrast), !contrast);
+            Soft.Body(g, track, radius, TrackFill(contrast, ground), TrackEdge(contrast), !contrast);
             if (thumb.Width <= 0 || thumb.Height <= 0) return;
             float knob = Math.Min(thumb.Width, thumb.Height) / 2f;
             if (!contrast)
@@ -2359,7 +2377,7 @@ namespace CodexAutoResume
 
         internal void Paint(Graphics g)
         {
-            if (!track.IsEmpty) SoftBar.Draw(g, track, Thumb, State);
+            if (!track.IsEmpty) SoftBar.Draw(g, track, Thumb, State, Ground.Colour(host));
         }
 
         internal void Invalidate()
@@ -4695,7 +4713,9 @@ namespace CodexAutoResume
                 }
             }
             if (cues && highlight >= 0 && highlight < count) Soft.Ring(f, PillRect(highlight), radius);
-            if (scrolls) SoftBar.Draw(f, TrackRect, ThumbRect, dragging ? 2 : 0);
+            // The list is its own window, drawn here rather than by a parent: its ground is the card it
+            // just filled, which is what the track's colour is chosen against.
+            if (scrolls) SoftBar.Draw(f, TrackRect, ThumbRect, dragging ? 2 : 0, Palette.Card);
         }
 
         // Copies what was drawn into a bitmap Windows can lay on the screen: premultiplied, top down.
@@ -5261,37 +5281,153 @@ namespace CodexAutoResume
     }
 
     /// A multi-line text box sitting in a well, for a message somebody writes.
-    internal sealed class SoftTextArea : Panel
+    internal sealed class SoftTextArea : Panel, ISoftScroller
     {
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern IntPtr SendMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct ScrollInfo
+        {
+            internal int Size, Mask, Min, Max, Page, Pos, TrackPos;
+        }
+
+        [DllImport("user32.dll")]
+        private static extern bool GetScrollInfo(IntPtr window, int bar, ref ScrollInfo info);
+
+        private const int SB_VERT = 1;
+        private const int SIF_ALL = 0x17;
+        private const int EM_LINESCROLL = 0x00B6;
+        private const int EM_GETFIRSTVISIBLELINE = 0x00CE;
+        private const int WM_VSCROLL = 0x0115;
+
         internal readonly TextBox Box = new TextBox();
+        private readonly ListClip clip = new ListClip();
+        private readonly SoftScrollBar bar;
+        private readonly Watcher watcher;
 
         internal SoftTextArea()
         {
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
                      ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
             BackColor = Palette.Inset;
+            bar = new SoftScrollBar(this, this);
             Box.BorderStyle = BorderStyle.None;
             Box.Multiline = true;
             Box.AcceptsReturn = true;
             Box.WordWrap = true;
+            // Windows' own bar is kept - it is what scrolls the text, and the wheel and the keys go
+            // through it - and hidden: the box is wider than the room it is given by exactly the bar,
+            // so the bar falls outside this control, where a child window is never drawn. The soft bar
+            // is drawn in the gutter that leaves, from the box's own scroll position, exactly as the
+            // list's is (SoftListHost).
             Box.ScrollBars = ScrollBars.Vertical;
             Box.BackColor = Palette.Inset;
             Box.ForeColor = Palette.Ink;
-            // Its scroll bar is Windows' own; in dark, Windows' dark one.
-            Soft.NativeScrollBars(Box);
             Box.GotFocus += delegate { Invalidate(); };
             Box.LostFocus += delegate { Invalidate(); };
-            Controls.Add(Box);
+            Box.TextChanged += delegate { Changed(); };
+            Box.HandleCreated += delegate { Changed(); };
+            watcher = new Watcher(this);
+            clip.BackColor = Palette.Inset;
+            clip.Controls.Add(Box);
+            Controls.Add(clip);
             // The well's padding on the left, top and bottom; the scroll bar keeps to the edge.
             Padding = new Padding(Soft.Px(Brand.WellPadLeft), Soft.Px(Brand.WellPadTop), Soft.Px(6), Soft.Px(Brand.WellPadBottom));
             Height = Soft.Px(96);
         }
 
+        /// Windows' own bar on the text box, as the box last drew it: how many lines there are, how
+        /// many show, and the first that does.
+        private ScrollInfo Read()
+        {
+            var info = new ScrollInfo();
+            info.Size = Marshal.SizeOf(typeof(ScrollInfo));
+            info.Mask = SIF_ALL;
+            if (Box.IsHandleCreated && GetScrollInfo(Box.Handle, SB_VERT, ref info)) return info;
+            info.Max = info.Page = info.Pos = 0;
+            return info;
+        }
+
+        // The box is asked once a change and the answer kept: GetScrollInfo is cheap, but the bar asks
+        // for all three while it draws and drags, and a keystroke must not cost three trips and a repaint.
+        private ScrollInfo last;
+
+        public int Extent { get { return Math.Max(0, last.Max - last.Min + 1); } }
+
+        public int Viewport { get { return Math.Max(1, last.Page); } }
+
+        public int Offset { get { return last.Pos; } }
+
+        public void ScrollTo(int offset)
+        {
+            if (!Box.IsHandleCreated) return;
+            int first = (int)SendMessage(Box.Handle, EM_GETFIRSTVISIBLELINE, IntPtr.Zero, IntPtr.Zero);
+            SendMessage(Box.Handle, EM_LINESCROLL, IntPtr.Zero, (IntPtr)(offset - first));
+            Changed();
+        }
+
+        public void Page(int direction)
+        {
+            ScrollTo(Offset + direction * Math.Max(1, Viewport - 1));
+        }
+
+        /// The box's scrolling, whoever caused it - the wheel, a key, the caret moving - so the soft
+        /// bar is where the text is. WM_VSCROLL reaches the box's parent, which is this control.
+        private sealed class Watcher : NativeWindow
+        {
+            private readonly SoftTextArea area;
+
+            internal Watcher(SoftTextArea area)
+            {
+                this.area = area;
+                area.Box.HandleCreated += delegate { AssignHandle(area.Box.Handle); };
+                area.Box.HandleDestroyed += delegate { ReleaseHandle(); };
+                area.Disposed += delegate { ReleaseHandle(); };
+            }
+
+            protected override void WndProc(ref Message m)
+            {
+                base.WndProc(ref m);
+                if (m.Msg == WM_VSCROLL || m.Msg == 0x020A || m.Msg == 0x0102 || m.Msg == 0x0100)
+                    area.Changed();                      // the wheel and the keys scroll it too
+            }
+        }
+
+        /// Where the soft bar is, and whether there is one: the gutter is kept only while the text is
+        /// taller than the box.
+        private void Changed()
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+            ScrollInfo now = Read();
+            bool moved = now.Pos != last.Pos || now.Page != last.Page || now.Max != last.Max || now.Min != last.Min;
+            last = now;
+            if (!moved) return;                          // nothing to draw again: a keystroke costs nothing
+            int gutter = Soft.Px(SoftBar.TrackWidth);
+            Rectangle track = Extent > Viewport
+                ? new Rectangle(Width - Padding.Right - gutter, Padding.Top, gutter,
+                                Math.Max(0, Height - Padding.Vertical))
+                : Rectangle.Empty;
+            bool appeared = track.IsEmpty != bar.Track.IsEmpty;
+            bar.Track = track;                           // invalidates what it covers itself
+            if (appeared) PerformLayout();               // the gutter came or went: the box's width did too
+            else if (!track.IsEmpty) Invalidate(track);
+        }
+
+        internal SoftScrollBar Bar { get { return bar; } }
+
         protected override void OnLayout(LayoutEventArgs levent)
         {
             base.OnLayout(levent);
-            Box.SetBounds(Padding.Left, Padding.Top, Math.Max(0, Width - Padding.Horizontal),
-                          Math.Max(0, Height - Padding.Vertical));
+            int room = Math.Max(0, Width - Padding.Horizontal);
+            // Wider than the room by the bar, so Windows' bar sits outside this control and is never
+            // drawn; narrower by the gutter while the soft bar shows, so no text runs under it.
+            int native = SystemInformation.VerticalScrollBarWidth;
+            int gutter = bar.Track.IsEmpty ? 0 : Soft.Px(SoftBar.TrackWidth);
+            int tall = Math.Max(0, Height - Padding.Vertical);
+            clip.SetBounds(Padding.Left, Padding.Top, Math.Max(0, room - gutter), tall);
+            Box.SetBounds(0, 0, Math.Max(0, room - gutter + native), tall);
+            Changed();
         }
 
         protected override void OnPaintBackground(PaintEventArgs e)
@@ -5299,6 +5435,12 @@ namespace CodexAutoResume
             float radius = Soft.PxF(Brand.RadiusControl);
             Ground.PaintBehind(this, e.Graphics, ClientRectangle, radius);
             Soft.InsetWell(e.Graphics, ClientRectangle, radius, Box.Focused);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            if (!bar.Track.IsEmpty) bar.Paint(e.Graphics);
         }
     }
 

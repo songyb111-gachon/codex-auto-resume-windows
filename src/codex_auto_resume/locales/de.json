@@ -5,6 +5,7 @@
   "action.clear_history": "Verlauf leeren",
   "action.close": "Schließen",
   "action.export": "Diagnose exportieren…",
+  "action.install": "Installieren",
   "action.failed": "Das konnte nicht ausgeführt werden.",
   "action.open_logs": "Protokollordner öffnen",
   "action.pause": "Wiederherstellung pausieren",

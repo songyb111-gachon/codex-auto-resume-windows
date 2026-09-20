@@ -34,10 +34,9 @@ off and a check box when it picks items of a list, as in the Windows Dashboard. 
 button at the right of a row is pinned to the row's bottom-right, beside the last line of the
 text it belongs to, as it is in the window and the notification-area popup.
 
-v0.6.5 made the last native piece its own. A select opened the browser's list - square, flat,
-system blue, a box from no card here - so every choice now opens the list the Windows Dashboard
-opens: a raised card in the cards' material with pill items, which is a WAI-ARIA combobox over the
-select, keys and screen readers included. The select stays underneath as the value, never shown.
+v0.6.5 made the last native piece its own: a select opened the browser's square, flat, system-blue
+list, so a choice now opens the Dashboard's - a raised card of pill items, a WAI-ARIA combobox over
+the select, which stays underneath as the value. Since v0.6.6 the scroll bar is ours too, either axis.
 And controls move when they change, on brand's one time and one curve: a switch's knob glides and
 its track cross-fades, a check box fades its fill and mark, a list rises into place - none of it
 with less motion or in High Contrast, and a switch that asks first moves once it is answered.
@@ -145,12 +144,12 @@ button, select, input { font: inherit; }
    stopped, not known to be running, or paused - keeps the grey it always had and never moves,
    and amber is for a watcher that runs and is not well.
 
-   The motion is brand's GLOW, the cycle the window and the notification-area popup draw: the
-   dot dims toward the card and comes back with nothing spreading (glow-dot), and only then, lit,
-   a small glow spreads from its edge and draws back in (glow-spread) - a falloff, never a disc
-   with an edge. Monitoring runs it slowly and recovering faster; a problem runs it once, when it
-   is first shown, and then holds lit; waiting and checking hold lit with no glow - nothing here
-   blinks for attention it already has. */
+   The motion is brand's GLOW, the breath the window and the popup draw: one symmetric cosine a
+   cycle, the dot dimming toward the card and back (glow-dot) with the glow riding its brightness
+   (glow-spread) - a falloff, never a disc with an edge. The curve is in the keyframes themselves,
+   sampled from brand.glow_phase, so what lies between two stops is walked straight (`linear`)
+   rather than eased again. Monitoring runs it slowly and recovering faster; a problem runs it
+   once and then holds lit; waiting and checking hold lit with no glow. */
 .halo { --halo-color: var(--idle); position: relative; flex: none; width: 12px; height: 12px;
         border-radius: 50%; background: var(--halo-color); }
 .halo::before { content: none; position: absolute; inset: calc(-1 * var(--glow-reach));
@@ -164,12 +163,12 @@ button, select, input { font: inherit; }
 .halo.attention { --halo-color: var(--attention); }
 .halo.paused { --halo-color: var(--paused); }
 .halo.monitoring::before, .halo.recovering::before, .halo.attention::before { content: ""; }
-.halo.monitoring { animation: glow-dot var(--glow-monitoring-ms) var(--glow-ease) infinite; }
-.halo.monitoring::before { animation: glow-spread var(--glow-monitoring-ms) var(--glow-ease) infinite; }
-.halo.recovering { animation: glow-dot var(--glow-recovering-ms) var(--glow-ease) infinite; }
-.halo.recovering::before { animation: glow-spread var(--glow-recovering-ms) var(--glow-ease) infinite; }
-.halo.attention.once { animation: glow-dot var(--glow-attention-ms) var(--glow-ease) 1; }
-.halo.attention.once::before { animation: glow-spread var(--glow-attention-ms) var(--glow-ease) 1; }
+.halo.monitoring { animation: glow-dot var(--glow-monitoring-ms) linear infinite; }
+.halo.monitoring::before { animation: glow-spread var(--glow-monitoring-ms) linear infinite; }
+.halo.recovering { animation: glow-dot var(--glow-recovering-ms) linear infinite; }
+.halo.recovering::before { animation: glow-spread var(--glow-recovering-ms) linear infinite; }
+.halo.attention.once { animation: glow-dot var(--glow-attention-ms) linear 1; }
+.halo.attention.once::before { animation: glow-spread var(--glow-attention-ms) linear 1; }
 @GLOW_KEYFRAMES@
 
 /* Controls rest on the card; values sit in wells. */
@@ -272,18 +271,19 @@ input[type=number] { width: var(--size-number-width); text-align: right; font-va
 .combo-option[aria-selected="true"] { background: var(--inset); border-color: var(--line);
                                       box-shadow: var(--elev-inset); color: var(--accent); }
 .combo-list.keys .combo-option.active { outline: 2px solid var(--focus); outline-offset: 2px; }
-/* The soft bar a long list scrolls on, the window's SoftBar: a well 12 across, a pad from the card's
-   top and bottom and SPACING xs from its right, and in it a raised pill 2 inside the well, never
-   shorter than 32. */
-.combo-scroll::-webkit-scrollbar { width: var(--space-m); }
-.combo-scroll::-webkit-scrollbar-track { margin: var(--space-xs) 0; background: var(--inset);
-                                         border: 1px solid var(--line); border-radius: 999px; }
-.combo-scroll::-webkit-scrollbar-thumb { min-height: var(--space-xxl); background: var(--raised);
-                                         background-clip: padding-box; border: 2px solid transparent;
-                                         border-radius: 999px; box-shadow: inset 0 0 0 1px var(--line); }
-.combo-scroll::-webkit-scrollbar-thumb:hover { box-shadow: inset 0 0 0 1px var(--muted); }
+/* The soft bar anything scrolls on, the window's SoftBar - either axis, whatever overflows, never the
+   browser's grey: a well 12 across, padded from its ends, holding a pill 2 inside it, 32 at shortest. */
+::-webkit-scrollbar { width: var(--space-m); height: var(--space-m); }
+::-webkit-scrollbar-track { margin: var(--space-xs) 0; background: var(--inset);
+                            border: 1px solid var(--line); border-radius: 999px; }
+::-webkit-scrollbar-track:horizontal { margin: 0 var(--space-xs); }
+::-webkit-scrollbar-thumb { min-height: var(--space-xxl); min-width: var(--space-xxl); background: var(--raised);
+                            background-clip: padding-box; border: 2px solid transparent;
+                            border-radius: 999px; box-shadow: inset 0 0 0 1px var(--line); }
+::-webkit-scrollbar-thumb:hover { box-shadow: inset 0 0 0 1px var(--muted); }
+::-webkit-scrollbar-corner { background: var(--inset); }
 @supports not selector(::-webkit-scrollbar) {
-  .combo-scroll { scrollbar-width: thin; scrollbar-color: var(--line) var(--inset); }
+  :root { scrollbar-width: thin; scrollbar-color: var(--line) var(--inset); }
 }
 
 /* A switch glides: the knob slides end to end and settles, and the track cross-fades from the

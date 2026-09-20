@@ -245,7 +245,10 @@ class ReleaseManifestTests(unittest.TestCase):
         exist until it is published - which also let the current version's pin be deleted
         after publication with the suite green. Where the tag is visible, that is caught.
         Skipped where the checkout has no tags, and on the release run for that very tag,
-        which is the one moment the pin legitimately does not exist yet.
+        which is the one moment the pin legitimately does not exist yet. Skipped too where
+        the tag exists but the release it points at is a pre-release, which `prerelease`
+        records: `latest` never answers with one, so nothing is served it and nothing can
+        be verified against a pin it does not have.
         """
         import os
         import subprocess
@@ -253,12 +256,31 @@ class ReleaseManifestTests(unittest.TestCase):
         current = config.version()
         if os.environ.get("GITHUB_REF") == "refs/tags/v" + current:
             self.skipTest("this is the release run for the current version")
+        if current in self.release.get("prerelease", []):
+            self.skipTest("v%s is tagged, and published as a pre-release" % current)
         tags = subprocess.run(["git", "-C", str(ROOT), "tag", "--list", "v" + current],
                               capture_output=True, text=True).stdout.split()
         if not tags:
             self.skipTest("v%s is not tagged in this checkout" % current)
         self.assertTrue(self.release["sha256"].get(current),
                         "v%s is tagged but its digest is not pinned" % current)
+
+    def test_a_prerelease_is_the_version_being_developed_and_carries_no_digest(self):
+        """The exemption above is only safe while it cannot outlive what it exempts.
+
+        A pre-release entry says "this tag exists and nothing is served it yet". Left behind
+        after the version was published, it would go on excusing a missing pin for ever - so
+        it may name the version under development and nothing else, which empties it at the
+        next bump, and it may not name a version that already carries a digest.
+        """
+        from codex_auto_resume import config
+        listed = self.release.get("prerelease", [])
+        self.assertIsInstance(listed, list)
+        self.assertEqual([version for version in listed if version != config.version()], [],
+                         "a pre-release entry outlived the version it was written for")
+        for version in listed:
+            self.assertIsNone(self.release["sha256"].get(version),
+                              "v%s is pinned, so it is published; take it off `prerelease`" % version)
 
     def test_no_other_substitution_is_possible(self):
         for value in (self.release["download"], self.release["archive"]):

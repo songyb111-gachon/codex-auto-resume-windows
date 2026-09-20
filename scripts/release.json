@@ -30,13 +30,23 @@
     "reproducible from v0.6.0 - build/normalize_pe.py replaces the two fields the in-box",
     "compiler varies. The measured compiler and machine scope is recorded in VERIFY.md;",
     "so the digest is still taken from the published file rather than from a local",
-    "rebuild. CONTRIBUTING.md carries that as a release step."
+    "rebuild. CONTRIBUTING.md carries that as a release step.",
+    "",
+    "`prerelease` names the version whose tag exists while its release is still marked a",
+    "pre-release. `latest` never answers with one, so nothing is served it and nothing can",
+    "be verified against a pin it does not have; without this the suite could not tell that",
+    "from a pin somebody deleted after publishing. It holds the version under development",
+    "and nothing else, so it empties itself at the next bump, and a version in it may not",
+    "also carry a digest."
   ],
   "owner": "songyb111-gachon",
   "repo": "codex-auto-resume-windows",
   "download": "https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/download/v{version}/",
   "latest": "https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest",
   "archive": "CodexAutoResume-v{version}-win-x64.zip",
+  "prerelease": [
+    "0.6.6"
+  ],
   "sha256": {
     "0.5.2": "8f628d5b6f65a6b68a112b68e1226846937f796afe60168782f51b94d86ad4d8",
     "0.5.3": "66a9d6c5eb6a01a60dcb805d9c1e97c516ccf5dd312dfb12ed80c493e9744d25",

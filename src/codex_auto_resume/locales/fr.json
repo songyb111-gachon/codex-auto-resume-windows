@@ -5,6 +5,7 @@
   "action.clear_history": "Effacer l'historique",
   "action.close": "Fermer",
   "action.export": "Exporter les diagnostics…",
+  "action.install": "Installer",
   "action.failed": "Cette action n'a pas pu être effectuée.",
   "action.open_logs": "Ouvrir le dossier des journaux",
   "action.pause": "Suspendre la récupération",

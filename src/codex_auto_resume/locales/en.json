@@ -5,6 +5,7 @@
   "action.clear_history": "Clear history",
   "action.close": "Close",
   "action.export": "Export diagnostics...",
+  "action.install": "Install",
   "action.failed": "That could not be done.",
   "action.open_logs": "Open logs folder",
   "action.pause": "Pause recovery",

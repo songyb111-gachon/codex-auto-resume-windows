@@ -1,4 +1,4 @@
-# Codex Auto Resume roadmap: v0.6.5 → v0.6.11
+# Codex Auto Resume roadmap: v0.6.5 → v0.6.12
 
 This is the current development direction for Codex Auto Resume after v0.6.4.
 
@@ -76,7 +76,7 @@ Recovery decides exactly what it decided in v0.6.3.
 **Released.**
 
 v0.6.5 carries the Codex Compatibility Registry and the interface work that came out of using
-v0.6.4, and lays the groundwork for splitting the Python implementation, which moves to v0.6.6.
+v0.6.4, and lays the groundwork for splitting the Python implementation, which moves to v0.6.7.
 
 ### Codex Compatibility Registry
 
@@ -145,11 +145,37 @@ Interface work that came out of using v0.6.4:
 
 ---
 
-## v0.6.6 — Python modularization
+## v0.6.6 — The ordinary breath, a taskbar button that moves where it is installed, and the last native controls 🚧
 
-**Next.**
+**In development, on the `dev` branch.**
 
-v0.6.6 is planned as the major structural cleanup of the Python implementation. It was the main
+What a day of real use turned up. Nothing about recovery changed.
+
+The status light is the ordinary breath now: one symmetric cosine over 4.4 seconds, taken in
+light and drawn through the screen's gamma, with a deep swing and a glow that rides the
+brightness and reaches a share of the dot rather than a count of pixels. One table serves the
+window, the notification-area popup, the panel in Codex and the notification card, so all four
+breathe alike, and the icon's own breath and sweep read the same rhythm.
+
+v0.6.5 moved the mark on the window's taskbar button, and it never moved on an installed one: an
+installed window is resolved to the application the installer registered, and such a button wears
+the icon that identity carries rather than the window's own. The window now takes a taskbar
+identity of its own, and the button moves where people actually have it.
+
+And the controls that were still Windows' or the browser's are the product's: every scroll bar,
+on either axis and wherever one appears, with its track coloured against the ground it runs over;
+and the message box, which is now a dialog in the window's own material whose buttons say what
+will happen rather than Yes and No. The documentation's pictures move, and they no longer carry
+the black frame `PrintWindow` never drew - they are cut to the window and the corners Windows
+rounds are rounded in them.
+
+---
+
+## v0.6.7 — Python modularization
+
+**After v0.6.6.**
+
+v0.6.7 is planned as the major structural cleanup of the Python implementation. It was the main
 part of v0.6.5 in the earlier plan; v0.6.5 ships its groundwork, and the split itself moves here.
 
 Before anything moves:
@@ -176,11 +202,11 @@ Bugs discovered during this refactor will be fixed with regression tests, but th
 
 ---
 
-## v0.6.7 — Advanced / Experimental recovery capabilities
+## v0.6.8 — Advanced / Experimental recovery capabilities
 
 The existing conservative behavior will remain the default.
 
-v0.6.7 is planned to revisit recovery capabilities that were previously excluded because they
+v0.6.8 is planned to revisit recovery capabilities that were previously excluded because they
 required weaker assumptions, insufficient evidence, or unsupported Codex behavior.
 
 Potential candidates include:
@@ -210,7 +236,7 @@ The principle remains:
 > Keep the safe default small, while giving informed users more control when they explicitly
 > choose it.
 
-### Also planned for v0.6.7
+### Also planned for v0.6.8
 
 - a design audit of the panel in Codex, the app and the notification-area popup, side by side in
   light and dark, fixing everything that does not yet look like one product,
@@ -219,11 +245,11 @@ The principle remains:
 
 ---
 
-## v0.6.8 — Final Python audit and stabilization
+## v0.6.9 — Final Python audit and stabilization
 
-v0.6.8 is planned as the final comprehensive audit of the Python implementation.
+v0.6.9 is planned as the final comprehensive audit of the Python implementation.
 
-Unlike v0.6.6, this release is intentionally a broad bug hunt.
+Unlike v0.6.7, this release is intentionally a broad bug hunt.
 
 Expected areas include:
 
@@ -251,9 +277,9 @@ for the Rust migration.
 
 ---
 
-## v0.6.9 — Complete Rust core replacement
+## v0.6.10 — Complete Rust core replacement
 
-v0.6.9 is planned to replace the production Python core with Rust.
+v0.6.10 is planned to replace the production Python core with Rust.
 
 The migration may happen incrementally during development, but the release itself is intended
 to switch to the completed Rust core rather than ship a long-lived mixed Python/Rust product.
@@ -262,7 +288,7 @@ The rule is:
 
 > **Replace the implementation, not the behavior.**
 
-The Rust implementation should reproduce v0.6.8 as closely as practical.
+The Rust implementation should reproduce v0.6.9 as closely as practical.
 
 Goals include:
 
@@ -305,13 +331,13 @@ deployment work.
 
 ---
 
-## v0.6.10 — Rust-native restructuring and optimization
+## v0.6.11 — Rust-native restructuring and optimization
 
-v0.6.9 will prioritize behavioral parity.
+v0.6.10 will prioritize behavioral parity.
 
 That may leave some Python-shaped architecture inside the first Rust implementation.
 
-v0.6.10 is planned to make the codebase more naturally Rust-oriented.
+v0.6.11 is planned to make the codebase more naturally Rust-oriented.
 
 Potential work includes:
 
@@ -331,9 +357,9 @@ This is not intended to be the final full-system bug hunt.
 
 ---
 
-## v0.6.11 — Final Rust audit and stabilization
+## v0.6.12 — Final Rust audit and stabilization
 
-v0.6.11 is planned as the final comprehensive stabilization pass.
+v0.6.12 is planned as the final comprehensive stabilization pass.
 
 Expected focus includes:
 
@@ -371,7 +397,7 @@ The intended final stack is:
 
 There is currently **no planned v0.7.0 feature cycle**.
 
-After v0.6.11, the project is expected to move primarily into maintenance:
+After v0.6.12, the project is expected to move primarily into maintenance:
 
 - Codex compatibility updates,
 - Compatibility Registry updates,
@@ -404,34 +430,40 @@ Codex Compatibility Registry
 
         ↓
 
-v0.6.6
-Python modularization
+v0.6.6  🚧 In development, on the dev branch
+The light softened
++ a taskbar button that moves where it is installed
 
         ↓
 
 v0.6.7
+Python modularization
+
+        ↓
+
+v0.6.8
 Advanced / Experimental recovery capabilities
 + design audit, a choice of appearance
 
         ↓
 
-v0.6.8
+v0.6.9
 Final Python audit and stabilization
 → freeze Python reference behavior
 
         ↓
 
-v0.6.9
+v0.6.10
 Complete Rust core replacement
 
         ↓
 
-v0.6.10
+v0.6.11
 Rust-native restructuring and optimization
 
         ↓
 
-v0.6.11
+v0.6.12
 Final Rust audit and stabilization
 → final stable Rust baseline
 
