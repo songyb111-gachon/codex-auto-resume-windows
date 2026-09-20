@@ -367,6 +367,16 @@ DLL 두 개(`vcruntime140.dll`과 `vcruntime140_1.dll`)에는 Microsoft의 서�
 
 ## 확인되지 않은 것
 
+- **이 릴리스의 압축 파일 이름을 가진 릴리스가 하나 더 있습니다.**
+  [`v0.6.6-alpha`](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/tag/v0.6.6-alpha)는
+  이번 릴리스를 처음 잘랐다가 접어 둔 후보이며, 지우지 않고 남겨 두었습니다. 태그 이름을 바꾸어도 이미
+  붙어 있던 파일의 이름은 바뀌지 않으므로, 그쪽 압축 파일의 이름도 `CodexAutoResume-v0.6.6-win-x64.zip`
+  입니다. 이름은 같고 바이트도 다이제스트도 다릅니다. 3단계는 `scripts/release.json`에 이번 릴리스의
+  번호로 고정된 값과 견주는데, 그것은 접미사 없는 태그에 게시된 릴리스의 값이지 그쪽 값이 아닙니다. 그래서
+  알파 페이지에서 받은 파일은 비교에서 어긋나며, 그것이 비교가 제 일을 하는 모습입니다. 무엇도 그것을
+  가져가지 않습니다. 업데이트 확인은 `releases/latest`가 끝나는 URL에서 태그를 읽어
+  `vMAJOR.MINOR.PATCH`만 받아들입니다.
+
 - **릴리스는 GitHub의 immutable release가 아닙니다.** GitHub는 v0.5.0부터 v0.6.0까지의 릴리스를 모두
   immutable이 아니라고 표시합니다. v0.6.0도 발행한 뒤에 API에 직접 물어보았고 마찬가지였습니다. immutable release는 게시된 릴리스의 파일을 바꾸거나 태그를 옮기는
   것을 GitHub 자체가 거부하게 하는 저장소 설정입니다. 릴리스 워크플로는 v0.5.4부터 이미 asset이 있는
