@@ -201,7 +201,7 @@ class AliveStateTests(unittest.TestCase):
         dims, glows = self.answer["dim"]["attention"]["moving"], self.answer["opacity"]["attention"]["moving"]
         self.assertGreater(dims[MOMENTS.index(600.0)], 0, "no pulse on entering the state")
         self.assertGreater(glows[MOMENTS.index(1200.0)], 0, "no glow as the pulse ends")
-        for moment in (1800.0, 2720.0, 5000.0):
+        for moment in (1800.0, WIDEST, 5000.0):        # all past the pulse's 1.4 s
             self.assertEqual((dims[MOMENTS.index(moment)], glows[MOMENTS.index(moment)]), (0, 0))
 
     def test_the_custom_message_counter_counts_what_the_settings_layer_counts(self):
