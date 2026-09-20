@@ -326,7 +326,7 @@ class CopyTests(unittest.TestCase):
 
 
 def read_png(path):
-    """Width, height and rows of RGB tuples, from an 8-bit RGB or RGBA PNG.
+    """Width, height, rows of RGB tuples and rows of alpha (None where the picture has none).
 
     Standard library only: the tests run where Pillow is not installed. Handles exactly
     what the screenshot generator writes and refuses anything else.
@@ -367,9 +367,10 @@ def read_png(path):
                 p_ = left + up - corner
                 pa, pb, pc = abs(p_ - left), abs(p_ - up), abs(p_ - corner)
                 line[i] = (line[i] + (left if pa <= pb and pa <= pc else up if pb <= pc else corner)) & 0xFF
-        rows.append([tuple(line[x * channels:x * channels + 3]) for x in range(width)])
+        rows.append([tuple(line[x * channels:x * channels + channels]) for x in range(width)])
         previous = line
-    return width, height, rows
+    return width, height, [[pixel[:3] for pixel in row] for row in rows], (
+        [[pixel[3] for pixel in row] for row in rows] if channels == 4 else None)
 
 
 class PixelTests(unittest.TestCase):
@@ -389,7 +390,7 @@ class PixelTests(unittest.TestCase):
         """The pages are cards on the window's ground. A capture that lost them - erased and
         not yet repainted - is mostly ground, which is what this catches."""
         for name in WINDOW_SHOTS:
-            width, height, rows = read_png(ROOT / name)
+            width, height, rows, _clear = read_png(ROOT / name)
             surface = sum(1 for row in rows for pixel in row if pixel == self.SURFACE)
             with self.subTest(name):
                 self.assertGreater(surface, width * height * 0.15,
@@ -400,7 +401,7 @@ class PixelTests(unittest.TestCase):
         were bands ruled off with a hairline, and one capture in four lost the header's rule the
         same way the dot was lost. A capture that loses a card shows canvas where it belongs."""
         for name in WINDOW_SHOTS:
-            width, height, rows = read_png(ROOT / name)
+            width, height, rows, _clear = read_png(ROOT / name)
             carded = [y for y, row in enumerate(rows)
                       if sum(1 for pixel in row if pixel == self.SURFACE) > width * 0.8]
             with self.subTest(name):
@@ -409,13 +410,39 @@ class PixelTests(unittest.TestCase):
 
     def test_every_window_screenshot_shows_the_state_dot(self):
         for name in WINDOW_SHOTS:
-            width, height, rows = read_png(ROOT / name)
+            width, height, rows, _clear = read_png(ROOT / name)
             header = rows[:height * 15 // 100]
             left = width // 8
             near = sum(1 for row in header for pixel in row[:left]
                        if all(abs(a - b) <= 24 for a, b in zip(pixel, self.ACTIVE)))
             with self.subTest(name):
                 self.assertGreater(near, 40, "the header's state dot is missing from %s" % name)
+
+    def test_no_window_screenshot_carries_the_frame_windows_draws(self):
+        """Until v0.6.6 every one of them had a black band down each side and along the bottom - 11 px
+        at 100%, 16 at 150% - and nobody had looked at the edge of a 1522-pixel picture. PrintWindow
+        returns the window without its frame, because the frame is Windows' to draw, and the bitmap it
+        is drawn into starts black. The picture is cut to the window's own client rectangle now."""
+        for name in WINDOW_SHOTS:
+            width, height, rows, _clear = read_png(ROOT / name)
+            with self.subTest(name):
+                middle = height // 2
+                self.assertNotEqual(rows[middle][0], (0, 0, 0), "a black band down the left")
+                self.assertNotEqual(rows[middle][width - 1], (0, 0, 0), "and down the right")
+                self.assertNotEqual(rows[height - 1][width // 2], (0, 0, 0), "and along the bottom")
+
+    def test_every_window_screenshot_has_the_corners_windows_rounds(self):
+        """A screenshot of a Windows 11 window with square corners is a screenshot of a window nobody
+        has. The capture cuts them to the system's radius and leaves them clear, so the page behind the
+        picture shows through - which only holds while every encoding after it keeps the alpha."""
+        for name in WINDOW_SHOTS:
+            width, height, _rows, clear = read_png(ROOT / name)
+            with self.subTest(name):
+                self.assertIsNotNone(clear, "%s has no transparency at all" % name)
+                for x, y, where in ((0, 0, "top left"), (width - 1, 0, "top right"),
+                                    (0, height - 1, "bottom left"), (width - 1, height - 1, "bottom right")):
+                    self.assertEqual(clear[y][x], 0, "%s: the %s corner is not clear" % (name, where))
+                self.assertEqual(clear[height // 2][width // 2], 255, "and the window itself is opaque")
 
 
 class ContentTests(unittest.TestCase):
