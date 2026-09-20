@@ -477,3 +477,20 @@ the settings window, the MCP launcher, the bootstrap and the release check call.
   ```bash
   git config blame.ignoreRevsFile .git-blame-ignore-revs
   ```
+
+## Reading the history
+
+The full history is kept: every commit that landed is still there, with its own message, so
+`git bisect` finds the commit that changed a behaviour and `git blame` names the change that
+wrote a line.
+
+To read it by release instead:
+
+- from v0.6.5 on, each release arrives on `main` as one merge commit, so
+  `git log --first-parent main` is one line per release;
+- for every release, including the older ones, the changelog entry links the commits it
+  contains, and `git log --oneline v0.6.3..v0.6.4` shows the same range in a clone;
+- `git tag` lists the releases themselves.
+
+Nothing about the history is rewritten to make it shorter: the published tags, the digests
+pinned beside them and anybody's existing clone all point at these commits.
