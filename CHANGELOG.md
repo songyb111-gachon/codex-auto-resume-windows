@@ -56,8 +56,9 @@ product's Theme set to Light).
   GitHub's Windows runners for 3.12, 3.13, 3.14 and 3.15. The skips are the opt-in live checks and
   the pin check that waits for the tag.
 - **The window, built twice.** Two builds of `CodexAutoResumeSettings.exe` from these sources are
-  byte-identical (`7c95119e…`, 382,976 bytes), and the archive is
-  `130c63e695f66f6ab9773eea8e189e4d5c1c62e8e511c2a235477c0107e4a7d3`.
+  byte-identical (`7c95119e…`, 382,976 bytes). The archive's own digest is not written here - this
+  file ships inside the archive, so naming it would change it - it is published beside the release
+  and pinned in `scripts/release.json` afterwards, which is what `docs/VERIFY.md` compares.
 - **The taskbar button, in the installed location.** This is the claim v0.6.5 could not make. With
   v0.6.6 installed over v0.6.5 here, the window's button was filmed at ten frames a second for
   twenty-four seconds: 92 of 198 frames differ from the one before, and the mark's head is at
