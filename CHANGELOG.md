@@ -33,6 +33,35 @@ the notification card breathe alike. The notification-area icon and the window's
 read the same rhythm, so the mark's head breathes with it and its sweep comes every 22 s rather
 than every 16 s; the head keeps its own deeper fall, because sixteen pixels need it.
 
+### The last controls that were not ours
+
+Two native controls were still showing through the design, and a third was ours only where somebody
+had remembered to ask for it.
+
+- **Every scroll bar is the product's own**, wherever one appears and on either axis. The panel's
+  rules had been written for one class - the drop-down's list - so a wide table, a long page or any
+  box added later got the browser's grey; they are global now, with a corner and a Firefox
+  fallback. In the window the message box was the last control still scrolling on Windows' bar: it
+  keeps that bar, because that is what scrolls the text and what the wheel and the keys talk to,
+  and hides it outside a clip, while ours is drawn in the gutter that leaves, from the box's own
+  scroll position, exactly as a list's is.
+- **A scroll bar's track takes its colour from the ground it runs over.** Over a card the groove is
+  `inset`, as it always was; in a well that is itself `inset` - the message box - an inset track
+  would be the ground and the pill would float on nothing, so there it is `surface`. High Contrast
+  keeps its system colours either way.
+- **Windows' message box is gone from the window.** Fourteen of the fifteen are now a dialog in the
+  material the rest of the window is made of, and they say what will happen: instead of "Yes" and
+  "No", which name nothing, the affirming button carries the words of the button that was pressed
+  to ask - *Clear history*, *Stop watcher*, *Install* - beside Cancel, which is the pattern the
+  panel settled first. The fifteenth is kept on purpose: it is raised before there is a window, a
+  theme or a catalog, to say that nothing is installed in that location.
+- **Every drop-down the panel makes is the panel's own**, which was true and is now held to by a
+  test that reads each one by name rather than counting them.
+
+Deliberately unchanged: the notification area's right-click menu, which Windows draws and which
+already follows the theme, and the file picker the diagnostics export opens, which is the one every
+other application opens.
+
 ### The documentation moves
 
 - The pictures a reader meets first are animated PNGs now: every dashboard page, the settings
@@ -45,6 +74,14 @@ than every 16 s; the head keeps its own deeper fall, because sixteen pixels need
   ground.
 - The pictures are the light theme's only. The dark theme is described rather than pictured, which
   halves what a reader scrolls past.
+- **Every window picture had a black band down each side and along its bottom** - 11 px at 100%,
+  16 at 150% - and nobody had looked at the edge of a 1522-pixel picture. It was not the window:
+  `PrintWindow` returns the window without its frame, because the frame is Windows' to draw, and
+  the bitmap it is drawn into starts black. The picture is now cut to what was actually drawn,
+  measured from the window's own client rectangle.
+- **And the corners Windows rounds are rounded in the picture**, at the system's own radius for
+  this window's DPI, left transparent so the page behind shows through them. A screenshot of a
+  Windows 11 window with square corners is a screenshot of a window nobody has.
 
 ### The taskbar button moves where it is installed
 
@@ -98,9 +135,17 @@ product's Theme set to Light).
   executables report 0.6.6 and that this machine's registrations and state were left as they were.
 - **The light.** Its numbers are held by the suite on the drawn pixels of every surface - the
   window, the popup, the panel and the card - and every picture in the documentation was drawn
-  again from the new table by the product's own code, in nine languages, light and dark.
-- **The icon's motion.** The GIF in the documentation is composed from the icon's own frames at the
-  new rhythm, and the suite holds every frame of it against the icon's table.
+  again from the new table by the product's own code, in nine languages, in the light theme.
+- **The icon's motion.** The animated PNG in the documentation is composed from the icon's own
+  frames at the new rhythm, and the suite holds every frame of it against the icon's table.
+- **The pictures' edges.** Every window picture is 22 px narrower and 11 shorter than it was: the
+  frame Windows draws and PrintWindow does not is gone, measured away rather than trimmed by eye,
+  and the four corners Windows rounds are rounded and clear, which the suite reads off the pixels.
+- **The dialog.** It is opened for real by the suite - the compiled window, a dialog asked for, a
+  timer that reads it while it is up and presses one of its buttons - and what is read back is where
+  the buttons are, which one Enter and Escape press, that it belongs to the window and carries no
+  second button on the taskbar, and the answer each press gave. Nobody has yet used it with a screen
+  reader, and no capture shows it.
 
 Not verified, and not claimed: the notification-area icon's own motion on this machine (Windows
 keeps it in the overflow flyout, where this release still holds it still on purpose); High Contrast

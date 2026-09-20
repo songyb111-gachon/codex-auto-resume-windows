@@ -341,6 +341,39 @@ ordinary size, what cannot fit ending in an ellipsis, so a list overflows sidewa
 narrower than its columns can shrink to; then, and only then, the soft bar lies along its bottom,
 and Windows' own horizontal bar - which showed white on a dark card - is clipped away too.
 
+Since v0.6.6 it is every bar, wherever one appears and on either axis, in the window and in the
+panel alike: a bar that arrives in Windows' or the browser's grey is a hole in the design, and it
+arrives by default, so the rule has to be the default too. The panel's stylesheet says it for the
+document rather than for one class, corner included, with `scrollbar-width` behind it for a browser
+that draws no `::-webkit-scrollbar`. The window's message box was the last control still scrolling
+on Windows' bar: it keeps that bar - it is what actually scrolls the text, and what the wheel and
+the keys talk to - and hides it outside a clip, while the soft bar is drawn in the gutter that
+leaves, from the box's own scroll position.
+
+And the track takes its colour from the ground it runs over. Over a card the groove is `inset`, as
+above; in a well that is itself `inset` - the message box - an inset track would *be* the ground
+and the thumb would float on nothing, so there the track is `surface`. A groove is a step away from
+what surrounds it, and which way that step goes depends on what surrounds it.
+
+## Asking, and telling
+
+Windows' message box was the window's last native control, and it broke three rules at once: a
+square grey sheet in nobody's material, a system font in a window with its own, and a title bar
+that ignores the theme - in dark, a white card in the middle of a dark window. Since v0.6.6 a
+question and a notice are both a dialog of the window's own: canvas, the window's font, its title
+bar, a sentence at a 420-pixel measure inset 16 on every side, and a button row inset the same.
+
+Its buttons say what will happen. "Yes" and "No" name nothing, so the affirming button carries the
+words of the button that was pressed to ask - *Clear history*, *Stop watcher*, *Install* - beside
+`action.cancel`, or `action.close` where the action itself is called Cancel and the two words would
+be the same. It is the accent button, and the only one; it is the rightmost; Enter presses it and
+Escape presses the other. A notice has one button, *Close*, and Enter and Escape both press it.
+The panel settled this first, on the pending row that asks before it switches a conversation off,
+and the window follows the panel rather than the other way round.
+
+One message box is left, and deliberately: the one raised before there is a window, a theme or a
+catalog, to say that nothing is installed in that location.
+
 ## Depth in the popup
 
 v0.6.5 gave the inside of the popup's card the depth its outside had. What stands on the card is

@@ -39,6 +39,7 @@ Add-Type -Namespace CaptureNative -Name Win -MemberDefinition @'
 [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr dc, uint flags);
 [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr c);
 [DllImport("user32.dll")] public static extern bool RedrawWindow(IntPtr h, IntPtr rect, IntPtr region, uint flags);
+[DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr h);
 public struct RECT { public int L, T, R, B; }
 public struct POINT { public int X, Y; }
 '@
@@ -95,6 +96,34 @@ try {
             $crop = New-Object System.Drawing.Rectangle $left, 0, ($width - $left - $right), ($height - $bottom)
             $cut = $bitmap.Clone($crop, $bitmap.PixelFormat)
         }
+    }
+    # And the corners Windows rounds. They are DWM's, not the window's, so they are not in
+    # what PrintWindow hands back either - a screenshot of a Windows 11 window with square
+    # corners is a screenshot of a window nobody has. They are cut here instead, to the
+    # system's own radius for a resizable window at this window's DPI, and the four corners
+    # are left transparent so the page behind the picture shows through them.
+    $dpi = [CaptureNative.Win]::GetDpiForWindow($handle)
+    if ($dpi -le 0) { $dpi = 96 }
+    $radius = [int][Math]::Round(8.0 * $dpi / 96.0)
+    if ($radius -gt 0 -and $cut.Width -gt 2 * $radius -and $cut.Height -gt 2 * $radius) {
+        $rounded = New-Object System.Drawing.Bitmap $cut.Width, $cut.Height, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+        $paint = [System.Drawing.Graphics]::FromImage($rounded)
+        $paint.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+        $paint.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+        $path = New-Object System.Drawing.Drawing2D.GraphicsPath
+        $d = 2 * $radius
+        $path.AddArc(0, 0, $d, $d, 180, 90)
+        $path.AddArc($cut.Width - $d, 0, $d, $d, 270, 90)
+        $path.AddArc($cut.Width - $d, $cut.Height - $d, $d, $d, 0, 90)
+        $path.AddArc(0, $cut.Height - $d, $d, $d, 90, 90)
+        $path.CloseFigure()
+        # Filled through the picture rather than clipped to it: a clip has hard edges, and a
+        # corner made of stair steps is the thing this is here to avoid.
+        $brush = New-Object System.Drawing.TextureBrush $cut
+        $paint.FillPath($brush, $path)
+        $brush.Dispose(); $path.Dispose(); $paint.Dispose()
+        if (-not [object]::ReferenceEquals($cut, $bitmap)) { $cut.Dispose() }
+        $cut = $rounded
     }
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Out) | Out-Null
     $cut.Save($Out, [System.Drawing.Imaging.ImageFormat]::Png)
