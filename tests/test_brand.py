@@ -601,8 +601,8 @@ class ScaleTests(unittest.TestCase):
         self.assertIn("--glow-edge: 6px;", scale)
         self.assertIn("--glow-outer: 9px;", scale)
         self.assertIn("--glow-from: 0.6667;", scale)
-        self.assertIn("--glow-dot-low: 0.4;", scale)
-        self.assertIn("--glow-monitoring-ms: 3200ms;", scale)
+        self.assertIn("--glow-dot-low: 0.62;", scale)
+        self.assertIn("--glow-monitoring-ms: 4400ms;", scale)
         self.assertIn("--transition: 160ms;", scale)
         self.assertIn("--transition-ease: cubic-bezier(0.33, 1, 0.68, 1);", scale)
 
@@ -649,9 +649,9 @@ class StatusLightTests(unittest.TestCase):
     def test_the_decided_numbers(self):
         # v0.6.5, the user: the icon head's blink, no spread from darkest to brightest, a slight spread
         # once lit, and smaller than the first cut's 7 px - the +3 px preview was kept.
-        expected = {"fall": 0.25, "rise": 0.40, "bloom": 0.20, "withdraw": 0.15, "dot_dim": 0.60,
-                    "peak": 0.34, "reach": 3, "edge_alpha": 0.67, "near_at": 0.14, "near_alpha": 0.58,
-                    "far_at": 0.66, "far_alpha": 0.50, "monitoring_ms": 3200, "recovering_ms": 2000,
+        expected = {"fall": 0.25, "rise": 0.40, "bloom": 0.20, "withdraw": 0.15, "dot_dim": 0.38,
+                    "peak": 0.30, "reach": 3, "edge_alpha": 0.67, "near_at": 0.14, "near_alpha": 0.58,
+                    "far_at": 0.66, "far_alpha": 0.50, "monitoring_ms": 4400, "recovering_ms": 2600,
                     "attention_ms": 1400, "arc_ms": 1600, "arc_alpha": 0.55}
         self.assertEqual({key: brand.GLOW[key] for key in expected}, expected)
         self.assertEqual(brand.GLOW_PHASES, ("fall", "rise", "bloom", "withdraw"))
@@ -811,8 +811,12 @@ class StatusLightTests(unittest.TestCase):
     def test_it_is_the_approved_preview(self):
         """The +3 px column of scratchpad/v065/light2/phased_small.py, as the user approved it: the first cut's
         falloff (7 px reach; .58 at .45 of it, .50 at .78) drawn about the window's dot with its outer edge
-        brought in to 3 px past the dot's edge at the peak, opacity .34, over a cycle that starts at its rise.
-        The table here states that falloff past the dot's edge; seen from outside the dot it is the same light."""
+        brought in to 3 px past the dot's edge at the peak, over a cycle that starts at its rise. The table here
+        states that falloff past the dot's edge; seen from outside the dot it is the same light.
+
+        v0.6.6 kept every one of those shapes and changed only how far they go: the dot's fall and the glow's peak
+        came down, and the cycle lengthened ("상태등은 은은한 느낌이 있어야해 부드럽고"). So the preview is read with
+        today's two amplitudes; what is checked is that the curve is still the approved one."""
         dot, cycle = brand.STATUS_DOT["window"], brand.GLOW["monitoring_ms"]
         old = ((0.0, 1.0), (dot / 12.0, 1.0), ((dot + 7 * 0.45) / 12.0, 0.58), ((dot + 7 * 0.78) / 12.0, 0.50),
                (1.0, 0.0))
@@ -826,17 +830,19 @@ class StatusLightTests(unittest.TestCase):
         def ease(t):
             return 0.5 - 0.5 * math.cos(math.pi * max(0.0, min(1.0, t)))
 
+        fall = brand.GLOW["dot_dim"]
+
         def preview(ms):                       # phased_small.phase(): (bloom, dim)
             f = (ms % cycle) / cycle
             if f < 0.40:
-                return 0.0, 0.60 * (1 - ease(f / 0.40))
+                return 0.0, fall * (1 - ease(f / 0.40))
             f -= 0.40
             if f < 0.20:
                 return ease(f / 0.20), 0.0
             f -= 0.20
             if f < 0.15:
                 return 1 - ease(f / 0.15), 0.0
-            return 0.0, 0.60 * ease((f - 0.15) / 0.25)
+            return 0.0, fall * ease((f - 0.15) / 0.25)
 
         for step in range(96):
             ms = step * cycle / 96
@@ -848,7 +854,7 @@ class StatusLightTests(unittest.TestCase):
                 outer = brand.glow_radius(dot, frame["spread"])
                 for tenth in range(0, 31):
                     radius = dot + tenth / 10.0
-                    then = 0.34 * bloom * falloff(old, radius / (dot + 3 * bloom)) if bloom else 0.0
+                    then = brand.GLOW["peak"] * bloom * falloff(old, radius / (dot + 3 * bloom)) if bloom else 0.0
                     now = frame["opacity"] * falloff(brand.glow_stops(dot), radius / outer) if outer > dot else 0.0
                     self.assertAlmostEqual(now, then, delta=0.004)
 
@@ -904,7 +910,7 @@ class GeneratedWindowTokenTests(unittest.TestCase):
         for text in ("AccentHover", "AccentPressed", "internal const int FieldHeight = 35;",
                      "internal const float ElevCardShadowAlpha = 0.55f;",
                      "internal const int ElevCardReachBottom = 25;",
-                     "internal const double GlowMonitoringMs = 3200;",
+                     "internal const double GlowMonitoringMs = 4400;",
                      "internal const double TransitionEaseX1 = 0.33;", "internal static double Ease(",
                      "internal static bool Glow(", "internal static bool GlowMoves(",
                      "internal static Color StatusFill(", "internal static Color StatusSystem("):

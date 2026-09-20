@@ -126,7 +126,7 @@ window and a card in Codex round their corners by the same amount.
 | `TYPE_SCALE`, `LINE_HEIGHT`, `TYPE_ROLES` | display 21, title 15, body 14, small 12.5, mono 13 | The panel's type. The native surfaces keep `TYPE`: a notification-area popup and a fixed-size window read better with smaller text than a panel inside Codex. |
 | `LAYOUT` | button 34 high, field 35, switch 40 × 22, check box 18 with 10 to its label, chip 22, card padding 16 × 18, page gap 14, and the rest | The sizes of the shared control recipes, taken from the panel. |
 | `SHADOWS` | light card: offset (4, 4), blur 14, `shadow_dark` at 0.55, and offset (−4, −4), blur 14, `shadow_light` at 0.90; control: the same at offset 2, blur 6; inset: offset 2, blur 6, inside the edge. Dark card: offset (0, 1), blur 2, `shadow_dark` at 0.70, offset (0, 6), blur 18, at 0.35, and a one-pixel `shadow_light` line at 0.45 inside the top edge; control: offset (0, 1), blur 2, at 0.60; inset: the same inside the edge, at 0.55 | A lifted card, a raised control and a well. Small on purpose: exaggerated embossing is what makes soft interfaces unreadable. |
-| `STATUS_DOT`, `STATUS_FILL`, `GLOW` | dot radius: window 5, popup 4.5, panel 6; a cycle of fall 25%, rise 40%, bloom 20% and withdraw 15%; the dot dims 60% of the way toward its ground; the glow reaches 3 beyond the dot, at opacity 0.34 | The state light: its size, its colour for each state, its blink and its glow. |
+| `STATUS_DOT`, `STATUS_FILL`, `GLOW` | dot radius: window 5, popup 4.5, panel 6; a cycle of fall 25%, rise 40%, bloom 20% and withdraw 15%; the dot dims 38% of the way toward its ground; the glow reaches 3 beyond the dot, at opacity 0.30 | The state light: its size, its colour for each state, its blink and its glow. |
 | `MOTION` | transition 160 ms on one curve, `ease` = cubic-bezier(0.33, 1, 0.68, 1), an ease-out | A switch's glide and a check box's fade on every surface, and the rise of an open drop-down list. |
 | `ICON_SHAPE` | ring 0.34 to 0.53 of the half-size; sweep from 125° round to 55°, leaving a 70° opening at the top; head radius 0.155; corners 0.30, or 0.24 below 32 px; 4 × 4 samples a pixel (`ICON_SUPERSAMPLE`) | The mark's geometry, in a square whose half-size is 1. |
 
@@ -164,10 +164,10 @@ that spreads only once the dot is fully lit. `brand.glow()` defines it once - it
 is tested against that one function. One cycle has four phases, each eased as half a raised
 cosine, so nothing has a corner:
 
-1. **Fall**, a quarter of the cycle: the dot dims to 60% of the way from its colour toward the
-   ground it sits on, as far as the icon's head dims toward its badge. Nothing spreads.
+1. **Fall**, a quarter of the cycle: the dot dims to 38% of the way from its colour toward the
+   ground it sits on. Nothing spreads. (The icon's head, sixteen pixels across, dims further: 60%.)
 2. **Rise**, 40%: the dot comes back to its full colour. Still nothing spreads.
-3. **Bloom**, 20%: lit, a glow grows from nothing to opacity 0.34, reaching 3 pixels past the
+3. **Bloom**, 20%: lit, a glow grows from nothing to opacity 0.30, reaching 3 pixels past the
    dot's edge.
 4. **Withdraw**, 15%: the glow draws back into the dot, which stays lit.
 
@@ -176,10 +176,10 @@ it with no jump, as each of the icon's breaths begins and ends at full brightnes
 
 | State | Colour | Light |
 | --- | --- | --- |
-| Monitoring | `active` | The cycle, every 3.2 s |
+| Monitoring | `active` | The cycle, every 4.4 s |
 | Waiting | `active` | Lit and still, with no glow |
 | Checking a task that has come due | `active` | Lit, with no glow, and a thin arc turning once every 1.6 s (in the Dashboard and the popup) |
-| Recovering | `active` | The cycle, every 2 s |
+| Recovering | `active` | The cycle, every 2.6 s |
 | Needs a person, failed | `attention`, `danger` | The cycle once, over 1.4 s, when it is first shown; then lit and still, with no glow |
 | Paused, stopped | `paused`, `idle` | A grey dot that never moves |
 
@@ -188,7 +188,7 @@ by breathing a glow - opacity 0.12 to 0.58, reaching 7 pixels past a dot that ne
 the answer was that the blink wanted was the icon's: from darkest to brightest nothing should
 spread, from brightest a slight spread, and less of it. Previews at +2, +3 and +4 pixels were
 rendered, light and dark, and +3 was kept. The glow is a falloff, never a disc: at its peak its
-alpha is 0.34 times 0.67 at the dot's edge, 0.58 at 0.14 of the reach, 0.50 at 0.66 and nothing at
+alpha is 0.30 times 0.67 at the dot's edge, 0.58 at 0.14 of the reach, 0.50 at 0.66 and nothing at
 3 pixels, in straight lines between, so it holds near half strength and then fades; it never dips
 and rises again, because a gap between a dot and a ring reads as a target. A smaller spread is the
 same falloff drawn smaller about the centre, so the glow grows out from under the dot. The largest
@@ -220,13 +220,13 @@ six-state light; it speaks a smaller language with the mark it already has. The 
 dot at the leading end of the ring - is what moves. While the watcher watches it breathes three
 times, dimming toward the badge's deep blue and back on `GLOW`'s monitoring rhythm, and then sweeps
 along the ring's white stroke and back in a slot of two more breaths, at full brightness, eased in
-and out: 2.56 s out, a moment held at the stroke's far end, 2.56 s back and 1.12 s at home - a loop
+and out: 3.52 s out, a moment held at the stroke's far end, 3.52 s back and 1.54 s at home - a loop
 of five slots, each one breath long. It leaves its place clockwise and stays on the stroke, never
 crossing the gap at the top of the ring, so the head is always somewhere the ring is drawn. It never
 breathes while it travels, and every hand-over is at full brightness, where a breath and the sweep's
 slot both begin and end. While a recovery is in progress it sweeps out and back over and over, twice
-as quickly - 1.28 s out, a moment at the far end, 1.28 s back and 0.24 s at home, a sweep every
-2.88 s - at full brightness and without breathing; paused it is grey and still; a problem is its
+as quickly - 1.76 s out, a moment at the far end, 1.76 s back and 0.33 s at home, a sweep every
+3.96 s - at full brightness and without breathing; paused it is grey and still; a problem is its
 colour, one pulse on `GLOW`'s attention rhythm, then held. The motion adds no shape and no colour:
 the frames are the mark itself, drawn from `ICON_SHAPE` by the same rasteriser as the `.ico`, with
 the head moved - 24 positions round the ring, fifteen degrees apart, of which the 20 from its own

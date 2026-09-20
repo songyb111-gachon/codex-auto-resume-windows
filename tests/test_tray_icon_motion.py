@@ -36,15 +36,16 @@ TOP = MOTION["levels"] - 1
 SLOT = brand.GLOW["monitoring_ms"]
 LOOP = SLOT * (MOTION["breaths"] + MOTION["sweep_breaths"])
 SWEEP_AT = SLOT * MOTION["breaths"]                   # where in the loop the sweep's slot starts
-# The two sweeps in ms, as the seconds v0.6.5 chose: where the cycle's sweep starts, how long it takes to go out, how
-# long it is held at the far end, how long it takes to come back, and how long it then rests at home, lit and still.
-# Watching's fills the last two breaths of its 16 s loop; recovering's whole cycle is 2.88 s.
-SWEEPS = {"watching": (9600.0, 2560.0, 160.0, 2560.0, 1120.0),
-          "recovering": (0.0, 1280.0, 80.0, 1280.0, 240.0)}
+# The two sweeps in ms, as the seconds v0.6.5 chose and v0.6.6's softer breath stretched: where the cycle's sweep
+# starts, how long it takes to go out, how long it is held at the far end, how long it takes to come back, and how
+# long it then rests at home, lit and still. Watching's fills the last two breaths of its 22 s loop; recovering's
+# whole cycle is 3.96 s.
+SWEEPS = {"watching": (13200.0, 3520.0, 220.0, 3520.0, 1540.0),
+          "recovering": (0.0, 1760.0, 110.0, 1760.0, 330.0)}
 
 
 def cycle_ms(state):
-    """How long one whole cycle of a state's sweep is: watching's loop, or recovering's 2.88 s."""
+    """How long one whole cycle of a state's sweep is: watching's loop, or recovering's 3.96 s."""
     return sum(SWEEPS[state][1:]) + SWEEPS[state][0]
 
 
@@ -153,13 +154,19 @@ class StateTests(unittest.TestCase):
                 self.assertGreaterEqual(brand.contrast(colour, ground), 2.5)
 
     def test_the_status_light_blinks_as_far_as_the_head_breathes(self):
-        """The user asked for the light to blink "아이콘에서 깜빡이는 이런 느낌": the light's dot dims as far toward its
-        ground as the head dims toward the badge, on the same rhythms, and both rest at full brightness. The light
-        spreads a little once lit; the icon never does ("no glow on icons ever")."""
-        self.assertEqual(brand.GLOW["dot_dim"], MOTION["dim"])
+        """The user asked for the light to blink "아이콘에서 깜빡이는 이런 느낌": the light and the head dim on the same
+        rhythm and both rest at full brightness. They no longer fall equally far. v0.6.6 softened the light -
+        "상태등은 은은한 느낌이 있어야해 부드럽고" - and the head kept 0.6, because sixteen pixels of it across a taskbar
+        need a fall a 10 px dot does not. The light spreads a little once lit; the icon never does."""
+        self.assertLess(brand.GLOW["dot_dim"], MOTION["dim"], "the light falls less far than the head")
+        self.assertEqual(MOTION["dim"], 0.6)
+        self.assertEqual(brand.GLOW["dot_dim"], 0.38)
         self.assertEqual(brand.glow("monitoring", 0)["dim"], 0.0)
         self.assertEqual(tray.icon_frame("watching", 0)[1], TOP)
-        self.assertAlmostEqual(max(brand.glow("monitoring", ms)["dim"] for ms in range(0, SLOT, 10)), MOTION["dim"])
+        self.assertAlmostEqual(max(brand.glow("monitoring", ms)["dim"] for ms in range(0, SLOT, 10)),
+                               brand.GLOW["dot_dim"])
+        # The head's own low, on the same rhythm: its darkest level is `dim` of the way down its scale.
+        self.assertEqual(tray.icon_frame("watching", SLOT / 2.0)[1], 0)
         self.assertNotIn("spread", MOTION)
         self.assertNotIn("peak", MOTION)
 
@@ -181,7 +188,7 @@ class StateTests(unittest.TestCase):
                          "internal const double Dim = 0.6;"):
             self.assertIn(declared, mark)
         self.assertNotIn("TurnEveryMs", mark)
-        self.assertEqual((SLOT, LOOP, SWEEP_AT), (3200, 16000, 9600))
+        self.assertEqual((SLOT, LOOP, SWEEP_AT), (4400, 22000, 13200))
         self.assertEqual((MOTION["positions"], MOTION["levels"]), (24, 24))
 
     def test_the_frame_rates_are_the_measured_ones_and_land_on_windows_timer_ticks(self):
@@ -220,9 +227,10 @@ class PhaseTests(unittest.TestCase):
 
     def test_the_seconds_of_both_sweeps_are_the_ones_v065_chose(self):
         """ICON_MOTION is written as fractions of brand's monitoring breath; these are the seconds they come to, and
-        what the rest of this file reads. Watching: three breaths, then a slot of two - 2.56 s out, 0.16 s at the far
-        end, 2.56 s back, 1.12 s at home - a 16 s loop. Recovering: the same shape in one breath, then 0.24 s at
-        home, so it sweeps every 2.88 s, twice as quickly."""
+        what the rest of this file reads. Watching: three breaths, then a slot of two - 3.52 s out, 0.22 s at the far
+        end, 3.52 s back, 1.54 s at home - a 22 s loop. Recovering: the same shape in one breath, then 0.33 s at
+        home, so it sweeps every 3.96 s, twice as quickly. The fractions are v0.6.5's; the seconds grew with
+        v0.6.6's softer, slower breath, which is the one number both the light and the icon read."""
         breath = float(brand.GLOW["monitoring_ms"])
         for state, (start, out, hold, back, home) in SWEEPS.items():
             sweeps = MOTION["sweep_breaths"] if state == "watching" else 1
@@ -235,8 +243,8 @@ class PhaseTests(unittest.TestCase):
                                  else breath * MOTION["recover_rest"])
         self.assertEqual((MOTION["breaths"], MOTION["sweep_breaths"]), (3, 2))
         self.assertEqual(cycle_ms("watching"), LOOP)
-        self.assertEqual(cycle_ms("watching"), 16000)
-        self.assertEqual(cycle_ms("recovering"), 2880)
+        self.assertEqual(cycle_ms("watching"), 22000)
+        self.assertEqual(cycle_ms("recovering"), 3960)
         self.assertEqual(SWEEPS["watching"][1], 2 * SWEEPS["recovering"][1], "recovering sweeps twice as quickly")
 
     def test_watching_is_three_breaths_then_a_sweep_in_a_slot_of_two(self):
