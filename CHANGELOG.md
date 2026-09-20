@@ -2,6 +2,8 @@
 
 ## v0.6.5 — A light you can see, notifications in the product's own card, and a Codex Compatibility Registry
 
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.4...v0.6.5)
+
 A design and safety release. With the compatibility data this release ships, recovery decides
 what it decided in v0.6.4: the same classifier, the same gates, the same one watcher that is the
 only thing allowed to send. The one difference is a check: codex-cli 0.153.4, which v0.6.4 trusted
@@ -266,6 +268,8 @@ Not verified, and not claimed: TO FILL
 
 ## v0.6.4 — One look in light and dark, a quieter status light, and a window that arrives ready
 
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.3...v0.6.4)
+
 A design and speed release. Recovery decides exactly what it decided in v0.6.3: the same
 classifier, the same gates, the same one watcher that is the only thing allowed to send. The one
 new setting, **Theme**, changes how the product looks and nothing it does.
@@ -457,6 +461,8 @@ any scaling but 150 per cent.
 
 ## v0.6.3 — Nine languages, your own words, and a window that shows it is alive
 
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.2...v0.6.3)
+
 A feature and design release. Recovery itself decides exactly what it decided in v0.6.2:
 the same classifier, the same gates, the same one watcher that is the only thing allowed to
 send. What changed is what it says, in which language, and how much of what it is doing
@@ -618,6 +624,8 @@ Korean documents where the generated `ko` branch keeps them.
 
 ## v0.6.2 — The update could not check what it had downloaded
 
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.1...v0.6.2)
+
 One fix, in the step that decides whether anything gets installed.
 
 - **Fixed: the Dashboard's update downloaded the archive and then could not verify it.**
@@ -637,6 +645,8 @@ One fix, in the step that decides whether anything gets installed.
   the ordinary way rather than through the button.
 
 ## v0.6.1 — What running it for real found
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.0...v0.6.1)
 
 Every change here came from the first live acceptance of v0.6.0: installing the published
 archive on a machine somebody uses and watching it work. The published v0.6.0 archive and
@@ -675,6 +685,8 @@ the top of this list was found outside that procedure, in ordinary use, which is
 argument for running the procedure. No real Codex visual recovery is claimed.
 
 ## v0.6.0 — It follows its own turn, and it shows you the work
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.7...v0.6.0)
 
 Two changes, and most of the rest follows from them. The engine no longer reads the
 conversation for signs that a recovery worked: it follows the continuation it sent to the
@@ -1029,6 +1041,8 @@ says what works in between.
 
 ## v0.5.7 — Security fix
 
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.6...v0.5.7)
+
 A security release, shipped on its own rather than held for v0.6.0, because it closes
 a code injection present in v0.4.0 through v0.5.6. Recovery, settings, state and the
 install layout are exactly v0.5.6's. Upgrading is the whole remedy - and, as of this
@@ -1071,6 +1085,8 @@ release, an upgrade replaces the running watcher, which is what makes that true.
   their full path under `%SystemRoot%\System32`.
 
 ## v0.5.6 — Finished, not just working
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.5...v0.5.6)
 
 The last v0.5 release, and a quality pass rather than a feature one. **Recovery is
 untouched**: the same failure categories, the same refusals, the same exact-thread
@@ -1209,6 +1225,8 @@ were deliberately not used to mutate a released artefact; they ship here.
 
 ## v0.5.5 — Say only what you checked
 
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.4...v0.5.5)
+
 The last corrective release before v0.6. **Recovery is untouched** again: the same failure
 categories, the same refusals, the same identity rules, the same bounded retries, the same
 database. What changes is that several things which had been quietly asserting rather than
@@ -1314,6 +1332,8 @@ checking now check - and that the Korean branch stops being a second copy of the
 
 ## v0.5.4 — Prove it before you delete it
 
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.3...v0.5.4)
+
 The final v0.5 hardening release. **Recovery is untouched**: the same failure categories,
 the same refusals, the same identity rules, the same bounded retries, the same database.
 What changes is that installing, updating and removing this product now act only on things
@@ -1416,6 +1436,8 @@ mistake, unreported, on the install path, where it was worse.
   is present — a fix written against it changes nothing, and there is a test saying so.
 
 ## v0.5.3 — Say what the network does, and close the v0.5 line
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.2...v0.5.3)
 
 The last v0.5 release. **Nothing about recovery changes** — same failure categories, same
 refusals, same identity rules, same database, same bounded retries. What changes is that the
@@ -1532,6 +1554,8 @@ phrase cannot take the history with it.
 
 ## v0.5.2 — Install it from Codex, and look like one product
 
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.1...v0.5.2)
+
 A patch release. Recovery is unchanged: the same failure categories, the same refusals, the
 same identity rules, the same database. What changed is how you install it and what it looks
 like once you have.
@@ -1611,6 +1635,8 @@ that is how a colour survives a rebrand: in a document nobody reopened.
 
 ## v0.5.1 — Say what the product actually is
 
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.0...v0.5.1)
+
 A patch release. No change to how recovery works, what it will retry, or what it refuses to
 retry. What changed is everything around that: the documentation was describing a version of
 this project that no longer exists, and the install instructions contradicted the installer.
@@ -1667,6 +1693,8 @@ the conversation open for a recovery to be delivered; that limitation is unchang
 documented.
 
 ## v0.5.0 — Settings you can find, and a notification that says who it is from
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.4.1...v0.5.0)
 
 ### Settings, in three places, meaning one thing
 
@@ -1774,6 +1802,8 @@ the code. The watcher was not running, and the settings panel was the only thing
 
 ## v0.4.1 — Put the reason back in the notification
 
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.4.0...v0.4.1)
+
 - **Fixed: the notification never said why it appeared.** Windows renders at most three
   `<text>` elements in a toast and silently drops a fourth, so the four-line layout lost its
   body line: the toast showed the task name, the project and the thread id, but not
@@ -1784,6 +1814,8 @@ the code. The watcher was not running, and the settings panel was the only thing
   Found by looking at the actual notification, not the generated markup.
 
 ## v0.4.0 — Recover more, guess less, install in one step
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.3.2...v0.4.0)
 
 ### Recovery beyond usage limits
 
@@ -1846,6 +1878,8 @@ the code. The watcher was not running, and the settings panel was the only thing
 
 ## v0.3.2 — Make the login autostart actually start
 
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.3.1...v0.3.2)
+
 - **Fixed: the registered sign-in autostart could never run.** The Run value ended in `run`, and
   the launcher appended `run` again, so the command died with an argument error at every login.
   It went unnoticed because starting the watcher from setup passes no arguments and worked fine.
@@ -1858,6 +1892,8 @@ the code. The watcher was not running, and the settings panel was the only thing
 
 ## v0.3.1 — Keep the state out of somebody else's sandbox
 
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.3.0...v0.3.1)
+
 - **Runtime state moved from `%LOCALAPPDATA%` to `%USERPROFILE%\.codex-auto-resume\`.**
   Setup may be run from a packaged (MSIX) host, and Windows silently redirects such a host's
   AppData writes into its own private `LocalCache`: the environment variable still reads as the
@@ -1868,6 +1904,8 @@ the code. The watcher was not running, and the settings panel was the only thing
   Found by installing the plugin for real and reading back where the files actually went.
 
 ## v0.3.0 — A control at the moment it matters
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.2.0...v0.3.0)
 
 - **Windows notification when an interruption is detected.** The watcher is running at that
   moment, so this is the one place a control can be offered in time; the Codex turn has already
@@ -1890,6 +1928,8 @@ the code. The watcher was not running, and the settings panel was the only thing
   the command that is actually sent.
 
 ## v0.2.0 — Install and control it from inside Codex
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.1.0...v0.2.0)
 
 - **Codex plugin.** The repository root is now also a Codex plugin root, with a marketplace index
   (`.agents/plugins/marketplace.json`), a manifest (`.codex-plugin/plugin.json`) and one skill.
@@ -1936,6 +1976,8 @@ the code. The watcher was not running, and the settings panel was the only thing
 - Report the engine pin actually in force in error messages instead of a hardcoded version.
 
 ## v0.1.0 — first public release
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/commits/v0.1.0)
 
 First public release of `codex-auto-resume-windows`, a local-only Windows watcher that resumes Codex
 tasks interrupted by a usage limit.
