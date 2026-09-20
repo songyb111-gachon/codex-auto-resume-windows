@@ -357,30 +357,30 @@ STATUS_FILL = {"monitoring": "active", "waiting": "active", "checking": "active"
 STATUS_SYSTEM = {"monitoring": "Highlight", "waiting": "Highlight", "checking": "Highlight",
                  "recovering": "Highlight", "attention": "WindowText", "failed": "WindowText",
                  "paused": "GrayText", "idle": "GrayText"}
-# The light. On a first cut whose glow breathed round a dot that never changed ("soft ring": .12 to .58 over a
-# 7 px reach), the user: "상태등 관련해서 반짝임 원한게 아이콘에서 깜빡이는 이런 느낌이야 ... 조금 번지는 정도",
-# then "가장 어두움 -> 가장 밝아짐 까지는 번지는게 없고 / 가장 밝아짐 -> 살짝 번짐 까지 있게 하자", and of the
-# spread, "지금은 너무 많이 커지는거 같아". So the blink is the icon head's - the dot itself dims and brightens, with
-# nothing spreading - and only once it is fully lit does the light spread, a little, and draw back in. Previews at
-# +2, +3 and +4 px past the dot's edge were rendered with the glow's own falloff, light and dark, and +3 was kept.
-#
+# The light. On a first cut whose glow breathed round a dot that never changed ("soft ring": .12 to .58 over a 7 px
+# reach), the user: "반짝임 원한게 아이콘에서 깜빡이는 이런 느낌이야 ... 조금 번지는 정도", then "가장 어두움 ->
+# 가장 밝아짐 까지는 번지는게 없고 / 가장 밝아짐 -> 살짝 번짐 까지", and of the spread, "너무 많이 커지는거 같아".
+# So the blink is the icon head's - the dot itself dims and brightens, nothing spreading - and only once it is fully
+# lit does the light spread, a little, and draw back in; previews at +2, +3 and +4 px were drawn, and +3 kept.
+# v0.6.6: on a real desktop it read as a blink - "너무 빠르게 깜빡이는거 같아", "은은한 느낌이 있어야해 부드럽고" -
+# so the cycle lengthened and both amplitudes came down (the dot falls 0.38, not 0.60: at 10 px, 60% reads as off and
+# on), the shapes untouched. The head keeps 0.60, being sixteen pixels, so tray.ICON_MOTION["dim"] is its own number
+# now; reading monitoring_ms, its sweep comes every 22 s rather than 16 s.
 # A cycle is four phases, GLOW_PHASES, each a fraction of it and eased as half a raised cosine, so nothing has a
-# corner: `fall`, the dot dims `dot_dim` of the way toward the ground it sits on (as far as the icon's head dims,
-# tray.ICON_MOTION["dim"]); `rise`, it comes back; `bloom`, lit, the glow grows from nothing to `peak` opacity and
-# `reach` CSS px past the dot's edge; `withdraw`, it draws back in. A cycle begins where a still light rests - lit,
-# no glow - so a light that starts moving leaves it with no jump, as each of the icon's breaths begins and ends at
-# full brightness. Monitoring runs it every monitoring_ms, recovering every recovering_ms, and a problem once, in
-# attention_ms, when it is first shown, then holds lit. Waiting and checking hold lit with no glow (checking turns
-# its arc), and so does every light under Reduce motion or Windows' animation setting; High Contrast is a solid dot.
-#
-# The glow is a falloff, never a disc: at its peak, `peak` times `edge_alpha` at the dot's edge, `near_alpha` at
-# `near_at` of the reach, `far_alpha` at `far_at`, nothing at the reach, straight between - the approved preview's.
-# A smaller spread is the same falloff drawn smaller about the centre, so it grows out from under the dot. At most
-# it reaches 8 CSS px from the window's dot centre, well inside the 28 px column the window keeps for it.
+# corner: `fall`, the dot dims `dot_dim` of the way toward the ground it sits on; `rise`, it comes back; `bloom`,
+# lit, the glow grows from nothing to `peak` opacity and `reach` CSS px past the dot's edge; `withdraw`, it draws
+# back in. A cycle begins where a still light rests - lit, no glow - so a light that starts moving leaves it with no
+# jump, as each of the icon's breaths does. Monitoring runs it every monitoring_ms, recovering every recovering_ms,
+# and a problem once, in attention_ms, when it is first shown, then holds lit. Waiting and checking hold lit with no
+# glow (checking turns its arc), as does every light under Reduce motion or Windows' animation setting; High
+# Contrast is a solid dot. The glow is a falloff, never a disc: at its peak, `peak` times `edge_alpha` at the dot's
+# edge, `near_alpha` at `near_at` of the reach, `far_alpha` at `far_at`, nothing at the reach, straight between -
+# the approved preview's. A smaller spread is that falloff drawn smaller about the centre, so it grows out from
+# under the dot; at most it reaches 8 CSS px from the window's dot centre, inside the 28 px column kept for it.
 GLOW = {
-    "fall": 0.25, "rise": 0.40, "bloom": 0.20, "withdraw": 0.15, "dot_dim": 0.60, "peak": 0.34, "reach": 3,
+    "fall": 0.25, "rise": 0.40, "bloom": 0.20, "withdraw": 0.15, "dot_dim": 0.38, "peak": 0.30, "reach": 3,
     "edge_alpha": 0.67, "near_at": 0.14, "near_alpha": 0.58, "far_at": 0.66, "far_alpha": 0.50,
-    "monitoring_ms": 3200, "recovering_ms": 2000, "attention_ms": 1400,
+    "monitoring_ms": 4400, "recovering_ms": 2600, "attention_ms": 1400,
     # Checking also turns the arc every surface already drew: `arc_gap` past the dot's edge,
     # `arc_width` wide, `arc_sweep` degrees long, in `active` at `arc_alpha`. With motion
     # reduced it holds at `arc_still_at` degrees.

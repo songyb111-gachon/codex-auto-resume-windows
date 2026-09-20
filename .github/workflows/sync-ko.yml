@@ -22,6 +22,13 @@ on:
   workflow_run:
     workflows: ["tests"]
     types: [completed]
+    # Only main's own test runs. Every push here goes to `dev` first and to `main` once it is
+    # green, so without this filter each release starts two sync runs a few seconds apart: dev's,
+    # which the job's `if` skips, and main's, which does the work. They share one concurrency
+    # group, and the newer pending run cancels the older - so from 2026-09-18 to 2026-09-20 it was
+    # main's that kept being cancelled while dev's skipped, and ko stayed 102 commits behind
+    # without a single failed run to show for it.
+    branches: [main]
   workflow_dispatch:
     inputs:
       sha:

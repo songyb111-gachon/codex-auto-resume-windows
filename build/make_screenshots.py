@@ -1012,7 +1012,7 @@ CARD_THEMES = ("light", "dark")
 # locale's tag.
 CARD_NAMES = ("screenshot-notification", "notification-card")
 
-# What draws the card, whichever file it is in: its own two modules, the package v0.6.6 moves
+# What draws the card, whichever file it is in: its own two modules, the package v0.6.7 moves
 # them into, and the popup's renderer and palette it is painted with. Keyed exactly as the
 # popup is (see POPUP_CODE): definitions pooled by name, what they import by name followed to
 # wherever it is defined.

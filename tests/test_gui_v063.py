@@ -54,7 +54,12 @@ TEXTS = ("", "plain words", "two\r\nlines\r\n", "\U0001f9e9" * 1200, "a\U0001f9e
          "\U00020000\U0002a6d6", "\ud83e", "\udde9", "\ud83e🧩", "\udde9\ud83e")
 
 STATES = ("monitoring", "waiting", "checking", "recovering", "paused", "attention", "failed", "idle")
-MOMENTS = (0.0, 300.0, 600.0, 800.0, 1200.0, 1800.0, 2720.0, 5000.0)
+# Two of these are the cycle's own: where the dot is darkest (the fall's end) and where the glow is
+# widest (the bloom's). They are read from the table rather than written as seconds, so a change of
+# rhythm moves the probe's moments with it.
+DARKEST = brand.GLOW["monitoring_ms"] * brand.GLOW["fall"]
+WIDEST = brand.GLOW["monitoring_ms"] * (brand.GLOW["fall"] + brand.GLOW["rise"] + brand.GLOW["bloom"])
+MOMENTS = (0.0, 300.0, 600.0, DARKEST, 1200.0, 1800.0, WIDEST, 5000.0)
 
 PROBE = r"""
 $ErrorActionPreference = 'Stop'
@@ -171,8 +176,8 @@ class AliveStateTests(unittest.TestCase):
 
     def test_monitoring_blinks_the_dot_and_only_then_spreads_a_little(self):
         dims, glows = self.answer["dim"]["monitoring"]["moving"], self.answer["opacity"]["monitoring"]["moving"]
-        self.assertAlmostEqual(dims[MOMENTS.index(800.0)], brand.GLOW["dot_dim"], places=9)   # its darkest
-        self.assertAlmostEqual(glows[MOMENTS.index(2720.0)], brand.GLOW["peak"], places=9)    # its peak
+        self.assertAlmostEqual(dims[MOMENTS.index(DARKEST)], brand.GLOW["dot_dim"], places=9)   # its darkest
+        self.assertAlmostEqual(glows[MOMENTS.index(WIDEST)], brand.GLOW["peak"], places=9)     # its peak
         for moment, dim, glow in zip(MOMENTS, dims, glows):
             with self.subTest(moment=moment):
                 self.assertTrue(dim == 0 or glow == 0, "a glow round a dot that is not fully lit")
@@ -196,7 +201,7 @@ class AliveStateTests(unittest.TestCase):
         dims, glows = self.answer["dim"]["attention"]["moving"], self.answer["opacity"]["attention"]["moving"]
         self.assertGreater(dims[MOMENTS.index(600.0)], 0, "no pulse on entering the state")
         self.assertGreater(glows[MOMENTS.index(1200.0)], 0, "no glow as the pulse ends")
-        for moment in (1800.0, 2720.0, 5000.0):
+        for moment in (1800.0, WIDEST, 5000.0):        # all past the pulse's 1.4 s
             self.assertEqual((dims[MOMENTS.index(moment)], glows[MOMENTS.index(moment)]), (0, 0))
 
     def test_the_custom_message_counter_counts_what_the_settings_layer_counts(self):
