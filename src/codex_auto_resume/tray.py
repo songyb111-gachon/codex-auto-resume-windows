@@ -16,15 +16,13 @@ state it is in. The popup lives on this thread too, so it is gone when the icon 
 Since v0.6.4 the popup and the menu open in the Interface language and the Theme stored at
 the moment they open (`_adopt_settings`), rather than waiting for the watcher's next tick.
 
-Since v0.6.5 the icon itself moves, in its own simpler language than the windows' status light
-(see "the icon's motion" below): while it watches, the mark's head breathes four times and then
-turns once, clockwise, round the ring; while a continuation is being sent it keeps turning;
-paused, it is grey and still; a problem is its colour, pulses once and holds. Frames are composed
-from a table built off this thread, swapped with NIM_MODIFY up to ICON_MOTION's rates, and nothing
-moves under Reduce motion, Windows' animation setting, High Contrast or battery saver, while the
-session is locked, or while Windows' own settings for the icon say it sits in the overflow flyout
-(`tray_place.IconPlacement`: on Windows 11 the shell gives such an icon the overflow button's
-rectangle, so its rectangle cannot tell).
+Since v0.6.5 the icon itself moves, in its own simpler language than the windows' status light (see "the icon's
+motion" below): while it watches, the mark's head breathes and then sweeps along the white stroke and back; while a
+continuation is being sent it keeps sweeping; paused, it is grey and still; a problem is its colour, pulses once and
+holds. Frames are composed from a table built off this thread, swapped with NIM_MODIFY up to ICON_MOTION's rates, and
+nothing moves under Reduce motion, Windows' animation setting, High Contrast or battery saver, while the session is
+locked, or while Windows' own settings for the icon say it sits in the overflow flyout (`tray_place.IconPlacement`: on
+Windows 11 the shell gives such an icon the overflow button's rectangle, so its rectangle cannot tell).
 
 Since v0.6.5 this thread also hosts the notification card (`notice_window.CardStack`), as it hosts
 the popup: given the notifier's inbox, the icon attaches it once its window exists, so a notice
@@ -213,29 +211,28 @@ def prefer_app_mode(mode) -> bool:
 
 
 # ------------------------------------------------------------------------ the icon's motion
-# The icon does not copy the windows' six-state status light. It is sixteen pixels across and a
-# person glances at it, so it speaks a smaller language - the distinctions it drops (waiting,
-# checking, monitoring) are the ones nobody has to act on:
+# The icon does not copy the windows' six-state status light: sixteen pixels across and glanced at, it speaks
+# a smaller language, and the distinctions it drops - waiting, checking, monitoring - are ones nobody acts on:
 #
-#   watching    the watcher runs with recovery on: a loop of five slots, each one of brand's monitoring breaths
-#               long (3.2 s) - four breaths of the head, then one clockwise turn at full brightness, eased in and out;
-#   recovering  a continuation is being sent or is running in Codex: the head keeps turning
-#               clockwise, a turn per brand's arc rhythm, at full brightness and never breathing;
+#   watching    the watcher runs with recovery on: a loop of five of brand's monitoring breaths (16 s) - three
+#               breaths of the head, then a sweep out and back in the last two, at full brightness;
+#   recovering  a continuation is being sent or is running in Codex: the head sweeps out and back
+#               over and over, at twice the speed, at full brightness and never breathing;
 #   idle        paused: the head is grey (brand's `idle` fill) and still;
 #   attention   needs a person: amber, one pulse when it arrives, then it holds;
 #   failed      a failure: the danger colour, one pulse, then it holds.
 #
 # The user, on a first cut that breathed under a turn every thirty seconds: "회전할 땐 안 깜빡이게 해 / 회전하는
 # 시간도 깜빡임 시간의 배수에 맞춰서 둘이 안 겹치게", and "시계가 나을거 같아서". So the head never breathes while it
-# turns, a turn is one breath long and comes every fifth, both start and end at full brightness - every hand-over
-# is there, with no jump - and it turns clockwise.
+# travels, its slot is a whole number of breaths and both its ends are at full brightness - every hand-over is
+# there, with no jump - and it leaves its place clockwise, along the white stroke only, never crossing the gap.
 #
-# The turning mark is the mark's own head going round its own ring - "the ring is the wait, the gap is the
+# The sweeping mark is the mark's own head running along its own ring - "the ring is the wait, the gap is the
 # interruption, the head is the moment it resumes" - so the motion adds no shape and no colour, and breathing is
 # the head's brightness (no room for a halo at this size). The badge, the shape and the taskbar handling are as ever.
 #
-# Of brand.GLOW the icon reads three rhythms and nothing else: monitoring_ms (watching's breath, and so its slot),
-# arc_ms (recovering's turn) and attention_ms (the one pulse). Its own numbers are ICON_MOTION's, deliberately not
+# Of brand.GLOW the icon reads two rhythms and nothing else: monitoring_ms (watching's breath, and so every slot
+# of its loop and of recovering's sweep) and attention_ms (the one pulse). Its own numbers are ICON_MOTION's, not
 # in brand.GLOW, every key of which is the windows' status light's; the taskbar button reads them from Brand.Mark.
 ICON_STATES = ("watching", "recovering", "idle", "attention", "failed")
 # The icon's state as a brand status-light state: its colour and its rhythm. Every value is a
@@ -244,21 +241,24 @@ ICON_BRAND_STATE = {"watching": "monitoring", "recovering": "recovering", "idle"
                     "attention": "attention", "failed": "failed"}
 # The icon's state for each status-light word: the popup's for a snapshot (icon_state), and the same word for what
 # the settings window read, for its taskbar button (SettingsForm.TrayActivity, Brand.Mark.IconState). Else idle.
-ICON_FOR_LIGHT = {"monitoring": "watching", "waiting": "watching", "checking": "watching",
-                  "recovering": "recovering", "paused": "idle", "idle": "idle",
-                  "attention": "attention", "failed": "failed"}
+ICON_FOR_LIGHT = {"monitoring": "watching", "waiting": "watching", "checking": "watching", "recovering": "recovering",
+                  "paused": "idle", "idle": "idle", "attention": "attention", "failed": "failed"}
 ICON_MOTION = {
-    "breaths": 4,             # watching: this many breaths, then one turn in a breath's time
+    # watching: `breaths` breaths of the head, then a sweep in a slot of `sweep_breaths` of them - `sweep_out` of
+    # that slot going out, as much coming back, `sweep_hold` of it held at the far end and the rest of it at home.
+    # Recovering sweeps the same shape in one breath, then rests `recover_rest` of one at home: a sweep every 2.88 s.
+    "breaths": 3, "sweep_breaths": 2, "sweep_out": 0.4, "sweep_hold": 0.025, "recover_rest": 0.075,
     # Every frame shown costs explorer.exe a redraw: the rates that looked smooth for the least of it (measured),
     # each just inside a whole number of Windows' 15.625 ms timer ticks, which a timer waits for at the least.
     "breathe_frame_ms": 156,  # ten ticks: about six frames a second while it breathes or pulses...
-    "turn_frame_ms": 62,      # ...four, sixteen, while it travels: every one of a 1.6 s turn's 24 positions
+    "turn_frame_ms": 62,      # ...four, sixteen, while it travels: about one frame a position at that speed
     "positions": 24,          # head positions round the ring, fifteen degrees apart
     "levels": 24,             # the breath's brightness steps: a tint of the head, never a stored frame
     "dim": 0.6,               # at the breath's low the head is this far from its colour toward the badge
     "build_budget_ms": 2000,  # a frame table that takes longer than this is not used
     "cache": 256,             # composed frames kept, per table
 }
+ICON_SWEEP = (brand.ICON_SHAPE["arc_end"] - brand.ICON_SHAPE["arc_start"]) % 360.0   # the stroke, in degrees
 # The badge's own deep blue the breath dims the head toward.
 ICON_DIM_TOWARD = brand.ICON_BOTTOM
 # The head's colour in the states that recolour it. The head sits on the icon's deep-blue badge,
@@ -316,21 +316,21 @@ def _breath_level(elapsed_ms, cycle_ms) -> int:
 
 
 def icon_turn(state, elapsed_ms) -> float:
-    """How far round the ring the head has travelled, clockwise, in degrees, or None when it is not travelling.
-
-    Watching: once in the last of every ICON_MOTION breaths + 1 slots, each a monitoring breath long, eased in and
-    out, the first time after four breaths. Recovering: continuously, one turn per brand arc_ms, evenly.
-    """
-    if state == "recovering":
-        cycle = brand.GLOW["arc_ms"]
-        return 360.0 * (elapsed_ms % cycle) / cycle
-    if state == "watching":
-        slot, breaths = brand.GLOW["monitoring_ms"], ICON_MOTION["breaths"]
-        into = elapsed_ms % (slot * (breaths + 1)) - slot * breaths
-        if into < 0:
-            return None
-        return 360.0 * (0.5 - 0.5 * math.cos(math.pi * into / float(slot)))
-    return None
+    """How far along the stroke the head has swept from its place, clockwise, in degrees, or None when the state is
+    not sweeping at all: ICON_SWEEP at the stroke's other end, brand's raised cosine over a sweep out and back with
+    that cosine's top held at the far end, and 0 - not None - for whatever is left of the cycle once it is home,
+    where it rests lit and still. ICON_MOTION says how long each part of a sweep takes."""
+    if state not in ("watching", "recovering"):
+        return None
+    breath, motion = float(brand.GLOW["monitoring_ms"]), ICON_MOTION
+    sweeps = motion["sweep_breaths"] if state == "watching" else 1
+    out, hold = breath * sweeps * motion["sweep_out"], breath * sweeps * motion["sweep_hold"]
+    start = breath * motion["breaths"] if state == "watching" else 0.0
+    cycle = start + breath * sweeps if state == "watching" else 2 * out + hold + breath * motion["recover_rest"]
+    into = elapsed_ms % cycle - start
+    if into < 0 or into >= 2 * out + hold:
+        return None if into < 0 else 0.0
+    return ICON_SWEEP * brand._breath(min(into, max(out, into - hold)), 2 * out)
 
 
 def _pulsing(state, since_entered_ms) -> bool:      # a problem's one pulse, still running
@@ -341,9 +341,9 @@ def _pulsing(state, since_entered_ms) -> bool:      # a problem's one pulse, sti
 def icon_frame(state, elapsed_ms, since_entered_ms=None, *, reduced=False) -> tuple:
     """(head position, breathing level) for one frame: a pure function of the state and the clock.
 
-    Position 0 is the head in its place, positions counting on clockwise round the ring; the top
-    level is the head's full colour, which it always has while it travels. With motion reduced
-    every state is its rest: the head in its place at full colour, so the states differ by colour
+    Position 0 is the head in its place, positions counting on clockwise round the ring, and a sweep reaches the
+    one nearest ICON_SWEEP; the top level is the head's full colour, which it has for a sweep's whole cycle. With
+    motion reduced every state is its rest: the head in its place at full colour, so the states differ by colour
     only. `since_entered_ms` is how long the state has been shown (None: its one pulse is over).
     """
     positions, top = ICON_MOTION["positions"], ICON_MOTION["levels"] - 1

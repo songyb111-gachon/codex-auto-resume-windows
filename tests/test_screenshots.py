@@ -1232,13 +1232,17 @@ class IconMotionPictureTests(unittest.TestCase):
         self.assertIn(b"NETSCAPE2.0\x03\x01\x00\x00", committed, "it loops for ever")
 
     def test_every_picture_is_the_icon_s_frame_at_that_moment(self):
-        """Watching's last two breaths and its turn, recovering's turns, attention's one pulse and paused, as the
-        icon's rules have them at each picture's moment - never breathing while it turns."""
+        """Two loops of watching from two breaths before a sweep, recovering's sweeps, attention's one pulse and
+        paused, as the icon's rules have them at each picture's moment - never breathing while it travels."""
         from codex_auto_resume import brand, tray
         g = self.generator
         start, end = g.icon_motion_stretch()
         top = tray.ICON_MOTION["levels"] - 1
-        self.assertEqual((start, end), (2 * brand.GLOW["monitoring_ms"], 5 * brand.GLOW["monitoring_ms"]))
+        breath, motion = brand.GLOW["monitoring_ms"], tray.ICON_MOTION
+        loop = breath * (motion["breaths"] + motion["sweep_breaths"])
+        self.assertEqual((start, end), (breath, 2 * loop))
+        self.assertEqual((start, end), (3200, 32000))
+        sweeps_at = breath * motion["breaths"] - start                  # the first sweep, in the stretch's own ms
         frames = self.made["frames"]
         self.assertEqual(sum(delay for delay, _, _ in frames), (end - start) // 10)
         self.assertTrue(all(delay > 0 for delay, _, _ in frames))
@@ -1252,14 +1256,15 @@ class IconMotionPictureTests(unittest.TestCase):
                         self.assertEqual(frame[1], top, "a head that has left its place is at full brightness")
                     if state in ("recovering", "idle"):
                         self.assertEqual(frame[1], top, "recovering never breathes, and paused is still")
-                    if state == "watching" and moment < 2 * brand.GLOW["monitoring_ms"] - 100:
-                        self.assertEqual(frame[0], 0, "no turn while it breathes")
+                    if state == "watching" and moment < sweeps_at - 100:
+                        self.assertEqual(frame[0], 0, "no sweep while it breathes")
                     if state == "attention" and moment >= brand.GLOW["attention_ms"] + 100:
                         self.assertEqual(tuple(frame), (0, top), "one pulse, then it holds")
-        positions = set(range(tray.ICON_MOTION["positions"]))
-        self.assertEqual({position for position, _ in seen["watching"]}, positions, "watching turns once round")
+        # The stroke's own positions: its place and every fifteen degrees clockwise of it, to the far end.
+        stroke = set(range(round(tray.ICON_SWEEP / (360.0 / motion["positions"])) + 1))
+        self.assertEqual({position for position, _ in seen["watching"]}, stroke, "watching sweeps the whole stroke")
         self.assertIn((0, 0), seen["watching"], "and breathes to its low")
-        self.assertGreaterEqual(len({position for position, _ in seen["recovering"]}), len(positions) - 2)
+        self.assertEqual({position for position, _ in seen["recovering"]}, stroke)
         # A problem's one pulse dims most of the way down: its frames need not land on the lowest level itself.
         self.assertLessEqual(min(level for _, level in seen["attention"]), top // 8)
         self.assertEqual({position for position, _ in seen["attention"]}, {0})
@@ -1339,8 +1344,14 @@ class IconMotionPictureTests(unittest.TestCase):
         glow = re.search(r'"monitoring_ms": (\d+)', real["brand.py"])
         moves = {
             "the way it turns": ("tray.py", 'ICON_SHAPE["arc_end"] - 360.0 * position', 'ICON_SHAPE["arc_end"] + 360.0 * position'),
-            "the breaths before a turn": ("tray.py", '"breaths": 4,', '"breaths": 3,'),
-            "the frame rate while it turns": ("tray.py", turn_ms, turn_ms.replace(",", "1,")),
+            "the breaths before a sweep": ("tray.py", '"breaths": 3,', '"breaths": 4,'),
+            "the sweep's slot": ("tray.py", '"sweep_breaths": 2,', '"sweep_breaths": 3,'),
+            "how much of the slot it travels": ("tray.py", '"sweep_out": 0.4,', '"sweep_out": 0.45,'),
+            "the pause at the far end": ("tray.py", '"sweep_hold": 0.025,', '"sweep_hold": 0.05,'),
+            "recovering's rest at home": ("tray.py", '"recover_rest": 0.075,', '"recover_rest": 0.1,'),
+            "how far along the stroke it goes": ("brand.py", '"arc_start": 125.0, "arc_end": 55.0,',
+                                                 '"arc_start": 130.0, "arc_end": 55.0,'),
+            "the frame rate while it travels": ("tray.py", turn_ms, turn_ms.replace(",", "1,")),
             "the breath's depth": ("tray.py", '"dim": 0.6,', '"dim": 0.5,'),
             "the breath's rhythm": ("brand.py", glow.group(0), '"monitoring_ms": %d' % (int(glow.group(1)) + 100)),
             "the mark's accent": ("brand.py", 'ICON_ACCENT = "#4FE0F5"', 'ICON_ACCENT = "#4FE0F6"'),
@@ -1371,7 +1382,8 @@ class IconMotionPictureTests(unittest.TestCase):
         is the same GIF."""
         real = self.real()
         before = self.drawing(real)
-        names = ("ICON_MOTION", "_breath_level", "icon_turn", "_pulsing", "icon_frame", "icon_frame_ms", "IconFrames")
+        names = ("ICON_MOTION", "ICON_SWEEP", "_breath_level", "icon_turn", "_pulsing", "icon_frame", "icon_frame_ms",
+                 "IconFrames")
         rest, moved = PopupDrawingTests.cut(real["tray.py"], *names)
         moved_files = dict(real, **{
             "tray.py": rest + "\nfrom .ui.tray.motion import %s\n" % ", ".join(names),

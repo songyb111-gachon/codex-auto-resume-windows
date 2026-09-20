@@ -1,15 +1,17 @@
 """The notification-area icon's motion (v0.6.5).
 
-The icon speaks a smaller language than the windows' status light: watching breathes four times and
-then turns once, clockwise, recovering keeps turning, paused is grey and still, a problem is its
-colour with one pulse. Everything that decides a frame is a pure function of the state and a clock,
-tested here as tables; the frames are pure pixels, pinned by a digest; and the icon's own timer, its
-swaps and its HICONs are exercised on Windows against a fake shell, where a leak would show.
+The icon speaks a smaller language than the windows' status light: watching breathes three times and
+then sweeps out along the white stroke and back, recovering keeps sweeping, paused is grey and still,
+a problem is its colour with one pulse. Everything that decides a frame is a pure function of the
+state and a clock, tested here as tables; the frames are pure pixels, pinned by a digest; and the
+icon's own timer, its swaps and its HICONs are exercised on Windows against a fake shell, where a
+leak would show.
 
 The user's rules for the motion (v0.6.5): "회전할 땐 안 깜빡이게 해 / 회전하는 시간도 깜빡임 시간의 배수에 맞춰서
-둘이 안 겹치게" - the head never breathes while it turns, a turn is one breath long and comes every
-fifth breath, and every hand-over between the two is at full brightness; and "시계가 나을거 같아서" - it
-turns clockwise.
+둘이 안 겹치게" - the head never breathes while it travels, its slot is a whole number of breaths, and
+every hand-over between the two is at full brightness; and "시계가 나을거 같아서" - it leaves its place
+clockwise. It leaves it along the mark's own white stroke and comes back the same way, never crossing
+the gap, so the head is always somewhere the ring is drawn.
 """
 from __future__ import annotations
 
@@ -29,10 +31,31 @@ from codex_auto_resume import brand, control, tray, tray_place as place, tray_po
 ROOT = Path(__file__).resolve().parents[1]
 MOTION = tray.ICON_MOTION
 TOP = MOTION["levels"] - 1
-# Watching's loop: ICON_MOTION breaths, each one brand monitoring breath long, then a turn in a slot of the same length.
+# Watching's loop: ICON_MOTION breaths, each one brand monitoring breath long, then a sweep out and back in a slot
+# of ICON_MOTION sweep_breaths of them.
 SLOT = brand.GLOW["monitoring_ms"]
-LOOP = SLOT * (MOTION["breaths"] + 1)
-TURN_AT = SLOT * MOTION["breaths"]                    # where in the loop the turn's slot starts
+LOOP = SLOT * (MOTION["breaths"] + MOTION["sweep_breaths"])
+SWEEP_AT = SLOT * MOTION["breaths"]                   # where in the loop the sweep's slot starts
+# The two sweeps in ms, as the seconds v0.6.5 chose: where the cycle's sweep starts, how long it takes to go out, how
+# long it is held at the far end, how long it takes to come back, and how long it then rests at home, lit and still.
+# Watching's fills the last two breaths of its 16 s loop; recovering's whole cycle is 2.88 s.
+SWEEPS = {"watching": (9600.0, 2560.0, 160.0, 2560.0, 1120.0),
+          "recovering": (0.0, 1280.0, 80.0, 1280.0, 240.0)}
+
+
+def cycle_ms(state):
+    """How long one whole cycle of a state's sweep is: watching's loop, or recovering's 2.88 s."""
+    return sum(SWEEPS[state][1:]) + SWEEPS[state][0]
+
+
+def stepped_positions(state):
+    """Every head position the icon's own timer stands the head at over one cycle, stepping from the clock's zero by
+    the interval each frame asks for, as the icon itself steps (tray.icon_frame_ms)."""
+    seen, at = set(), 0.0
+    while at < cycle_ms(state):
+        seen.add(tray.icon_frame(state, at, at)[0])
+        at += tray.icon_frame_ms(state, at, at)
+    return seen
 
 
 def for_light(light):
@@ -149,28 +172,38 @@ class StateTests(unittest.TestCase):
         self.assertTrue(mark, "Brand.cs declares no Brand.Mark")
         for name in ("TurnEvery", "TurnMs", "Breaths", "BreatheFrame", "TurnFrame", "IconMotion"):
             self.assertNotIn(name, light)
-        for declared in ("internal const int Breaths = 4;",
+        for declared in ("internal const int Breaths = 3;", "internal const int SweepBreaths = 2;",
+                         "internal const double SweepOut = 0.4;", "internal const double SweepHold = 0.025;",
+                         "internal const double RecoverRest = 0.075;", "internal const double Sweep = 290;",
                          "internal const int BreatheFrameMs = %d;" % MOTION["breathe_frame_ms"],
                          "internal const int TurnFrameMs = %d;" % MOTION["turn_frame_ms"],
                          "internal const int Positions = 24;", "internal const int Levels = 24;",
                          "internal const double Dim = 0.6;"):
             self.assertIn(declared, mark)
         self.assertNotIn("TurnEveryMs", mark)
-        self.assertEqual((SLOT, LOOP, TURN_AT), (3200, 16000, 12800))
+        self.assertEqual((SLOT, LOOP, SWEEP_AT), (3200, 16000, 9600))
         self.assertEqual((MOTION["positions"], MOTION["levels"]), (24, 24))
 
     def test_the_frame_rates_are_the_measured_ones_and_land_on_windows_timer_ticks(self):
         """Each frame shown costs explorer.exe a redraw of the icon, so the rates were chosen by measuring it (the
         CHANGELOG says what). A window timer fires on Windows' 15.625 ms clock tick at the earliest after its
         interval, so an interval just inside a whole number of ticks is the rate it says: 67 ms would be five ticks,
-        12.8 frames a second, where 62 is four, sixteen - one frame for each of the 24 positions a 1.6 s turn takes.
-        The breath, which costs the most because it is most of the time, has ten: 6.4 frames a second."""
+        12.8 frames a second, where 62 is four, sixteen. The breath, which costs the most because it is most of the
+        time, has ten: 6.4 frames a second. Sixteen is enough for watching's sweep, whose quickest moment is slower
+        than one position a frame, and stepping by it from the clock's zero the head stands at every position of the
+        stroke in both states - so nothing the sweep passes through is skipped."""
         tick = 1000.0 / 64
         for name, ticks in (("turn_frame_ms", 4), ("breathe_frame_ms", 10)):
             with self.subTest(name):
                 self.assertLessEqual(MOTION[name], ticks * tick)
                 self.assertGreater(MOTION[name], (ticks - 1) * tick)
-        self.assertGreaterEqual(1000.0 / (4 * tick), MOTION["positions"] * 1000.0 / brand.GLOW["arc_ms"])
+        # Watching's sweep at its quickest: brand's raised cosine over `out` peaks at halfway.
+        step = 360.0 / MOTION["positions"]
+        quickest = tray.ICON_SWEEP * 0.5 * math.pi / SWEEPS["watching"][1]           # degrees a ms
+        self.assertLessEqual(MOTION["turn_frame_ms"], step / quickest)
+        for state in ("watching", "recovering"):
+            with self.subTest(state):
+                self.assertEqual(stepped_positions(state), set(range(round(tray.ICON_SWEEP / step) + 1)))
 
 
 # ------------------------------------------------------------------------------ the phases
@@ -185,34 +218,123 @@ class PhaseTests(unittest.TestCase):
         self.assertEqual(set(range(TOP + 1)), {tray.icon_frame("watching", elapsed)[1]
                                                for elapsed in range(0, cycle, 10)})
 
-    def test_watching_is_four_breaths_then_one_turn_in_a_breath_s_time(self):
-        self.assertEqual(MOTION["breaths"], 4)
-        for elapsed in (0, 1000, 3200, 10000, TURN_AT - 1):
+    def test_the_seconds_of_both_sweeps_are_the_ones_v065_chose(self):
+        """ICON_MOTION is written as fractions of brand's monitoring breath; these are the seconds they come to, and
+        what the rest of this file reads. Watching: three breaths, then a slot of two - 2.56 s out, 0.16 s at the far
+        end, 2.56 s back, 1.12 s at home - a 16 s loop. Recovering: the same shape in one breath, then 0.24 s at
+        home, so it sweeps every 2.88 s, twice as quickly."""
+        breath = float(brand.GLOW["monitoring_ms"])
+        for state, (start, out, hold, back, home) in SWEEPS.items():
+            sweeps = MOTION["sweep_breaths"] if state == "watching" else 1
+            with self.subTest(state):
+                self.assertEqual(start, breath * MOTION["breaths"] if state == "watching" else 0.0)
+                self.assertEqual(out, breath * sweeps * MOTION["sweep_out"])
+                self.assertEqual(hold, breath * sweeps * MOTION["sweep_hold"])
+                self.assertEqual(back, out, "out and back take the same time")
+                self.assertEqual(home, breath * sweeps - 2 * out - hold if state == "watching"
+                                 else breath * MOTION["recover_rest"])
+        self.assertEqual((MOTION["breaths"], MOTION["sweep_breaths"]), (3, 2))
+        self.assertEqual(cycle_ms("watching"), LOOP)
+        self.assertEqual(cycle_ms("watching"), 16000)
+        self.assertEqual(cycle_ms("recovering"), 2880)
+        self.assertEqual(SWEEPS["watching"][1], 2 * SWEEPS["recovering"][1], "recovering sweeps twice as quickly")
+
+    def test_watching_is_three_breaths_then_a_sweep_in_a_slot_of_two(self):
+        start, out, hold, back, home = SWEEPS["watching"]
+        for elapsed in (0, 1000, 3200, 6400, SWEEP_AT - 1):
             self.assertIsNone(tray.icon_turn("watching", elapsed))
             self.assertEqual(tray.icon_frame("watching", elapsed)[0], 0)
-        self.assertAlmostEqual(tray.icon_turn("watching", TURN_AT), 0.0)
-        self.assertAlmostEqual(tray.icon_turn("watching", TURN_AT + SLOT / 2.0), 180.0)
+        self.assertAlmostEqual(tray.icon_turn("watching", start), 0.0)
+        self.assertAlmostEqual(tray.icon_turn("watching", start + out), tray.ICON_SWEEP)
+        self.assertAlmostEqual(tray.icon_turn("watching", start + out + hold + back), 0.0)
         self.assertIsNone(tray.icon_turn("watching", LOOP))                  # home again, and breathing
-        turn = [tray.icon_turn("watching", TURN_AT + ms) for ms in range(0, SLOT, 20)]
-        self.assertEqual(turn, sorted(turn))
-        # Eased in and out: slow at both ends, fastest halfway.
-        self.assertLess(turn[1] - turn[0], turn[len(turn) // 2 + 1] - turn[len(turn) // 2])
-        self.assertLess(turn[-1] - turn[-2], turn[len(turn) // 2 + 1] - turn[len(turn) // 2])
-        positions = [tray.icon_frame("watching", TURN_AT + ms)[0] for ms in range(0, SLOT, 50)]
-        self.assertEqual(positions[0], 0)
-        self.assertEqual(set(positions), set(range(MOTION["positions"])), "every position, once round")
-        # Four whole breaths before it, each from full brightness to its low and back.
+        going = [tray.icon_turn("watching", start + ms) for ms in range(0, int(out), 20)]
+        self.assertEqual(going, sorted(going))
+        # Eased in and out: slow at both ends of the leg, fastest halfway along it.
+        self.assertLess(going[1] - going[0], going[len(going) // 2 + 1] - going[len(going) // 2])
+        self.assertLess(going[-1] - going[-2], going[len(going) // 2 + 1] - going[len(going) // 2])
+        coming = [tray.icon_turn("watching", start + out + hold + ms) for ms in range(0, int(back), 20)]
+        self.assertEqual(coming, sorted(coming, reverse=True))
+        # Three whole breaths before it, each from full brightness to its low and back.
         for breath in range(MOTION["breaths"]):
-            start = breath * SLOT
             with self.subTest(breath=breath):
-                self.assertEqual(tray.icon_frame("watching", start), (0, TOP))
-                self.assertEqual(tray.icon_frame("watching", start + SLOT / 2.0), (0, 0))
+                self.assertEqual(tray.icon_frame("watching", breath * SLOT), (0, TOP))
+                self.assertEqual(tray.icon_frame("watching", breath * SLOT + SLOT / 2.0), (0, 0))
+        self.assertEqual(home, LOOP - start - out - hold - back)
         # And the next loop is the same.
-        for elapsed in (0, 777, 5000, TURN_AT + 900, 15999):
+        for elapsed in (0, 777, 5000, SWEEP_AT + 900, 15999):
             self.assertEqual(tray.icon_frame("watching", elapsed), tray.icon_frame("watching", elapsed + 3 * LOOP))
 
-    def test_the_head_never_breathes_while_it_turns(self):
-        """Watching's turn and recovering's are at full brightness in every frame of them."""
+    def test_recovering_sweeps_out_and_back_over_and_over_at_full_brightness(self):
+        start, out, hold, back, home = SWEEPS["recovering"]
+        self.assertEqual(start, 0.0, "recovering never breathes, so its sweep starts at once")
+        self.assertAlmostEqual(tray.icon_turn("recovering", 0), 0.0)
+        self.assertAlmostEqual(tray.icon_turn("recovering", out), tray.ICON_SWEEP)
+        self.assertAlmostEqual(tray.icon_turn("recovering", out + hold + back), 0.0)
+        for elapsed in (0, 5000, 31234):
+            self.assertIsNotNone(tray.icon_turn("recovering", elapsed))
+            self.assertEqual(tray.icon_frame("recovering", elapsed)[1], TOP)
+        # Every 2.88 s it is where it was, so nothing jumps when the cycle starts again.
+        for elapsed in range(0, 2880, 37):
+            with self.subTest(elapsed=elapsed):
+                self.assertAlmostEqual(tray.icon_turn("recovering", elapsed),
+                                       tray.icon_turn("recovering", elapsed + 5 * cycle_ms("recovering")))
+        furthest = round(tray.ICON_SWEEP / (360.0 / MOTION["positions"]))
+        self.assertEqual(tray.icon_frame("recovering", out), (furthest, TOP))
+        self.assertEqual(tray.icon_frame("recovering", brand.GLOW["recovering_ms"] / 2.0)[1], TOP, "no breath")
+        self.assertGreater(home, hold, "it rests at home longer than it pauses at the far end")
+
+    def test_the_head_never_leaves_the_white_stroke(self):
+        """The mark is a ring with a gap at the top; the head sweeps along the stroke and never into the gap. Every
+        moment of both states puts it between the stroke's two ends, going clockwise from its own place - the end the
+        head sits at - and it reaches the position nearest the other end and no further."""
+        self.assertEqual(tray.ICON_SWEEP, (brand.ICON_SHAPE["arc_end"] - brand.ICON_SHAPE["arc_start"]) % 360.0)
+        self.assertEqual(tray.ICON_SWEEP, 290.0)
+        self.assertEqual(360.0 - tray.ICON_SWEEP, 70.0, "the gap at the top, which the head never enters")
+        step = 360.0 / MOTION["positions"]
+        furthest = round(tray.ICON_SWEEP / step)
+        self.assertLessEqual(furthest * step, tray.ICON_SWEEP, "no position of the sweep is past the stroke's end")
+        for state, span in (("watching", 2 * LOOP), ("recovering", 4 * 2880)):
+            for elapsed in range(0, span, 11):
+                turn, position = tray.icon_turn(state, elapsed), tray.icon_frame(state, elapsed)[0]
+                with self.subTest(state=state, elapsed=elapsed):
+                    if turn is not None:
+                        self.assertGreaterEqual(turn, 0.0)
+                        self.assertLessEqual(turn, tray.ICON_SWEEP)
+                    self.assertLessEqual(position, furthest)
+                    # The angle the frames draw that position at, as a distance clockwise from the stroke's end.
+                    angle = brand.ICON_SHAPE["arc_end"] - step * position
+                    self.assertLessEqual((brand.ICON_SHAPE["arc_end"] - angle) % 360.0, tray.ICON_SWEEP)
+
+    def test_out_and_back_take_the_same_time_and_the_same_speed(self):
+        """A sweep is brand's raised cosine with its top held: the head is at the same angle as long before the far
+        end as after it, so coming back is going out run backwards - the same seconds and the same degrees a second."""
+        for state, (start, out, hold, back, _home) in SWEEPS.items():
+            self.assertEqual(out, back)
+            for ms in range(0, int(out) + 1, 8):
+                with self.subTest(state=state, ms=ms):
+                    self.assertAlmostEqual(tray.icon_turn(state, start + ms),
+                                           tray.icon_turn(state, start + 2 * out + hold - ms))
+
+    def test_the_far_end_pause_is_the_short_one_and_the_rest_of_the_slot_is_spent_at_home(self):
+        """The head touches the stroke's other end and comes straight back - it is held there for a fortieth of the
+        slot - and then waits at home, lit and still, for the rest of the cycle: seven times that pause while it
+        watches, three while it recovers."""
+        for state, (start, out, hold, back, home) in SWEEPS.items():
+            with self.subTest(state):
+                self.assertGreater(home, hold)
+                for ms in (0.0, hold / 2.0, hold):
+                    self.assertAlmostEqual(tray.icon_turn(state, start + out + ms), tray.ICON_SWEEP)
+                self.assertLess(tray.icon_turn(state, start + out - 1), tray.ICON_SWEEP)
+                self.assertLess(tray.icon_turn(state, start + out + hold + 1), tray.ICON_SWEEP)
+                # Home is 0, not "not sweeping at all": the head is in its place at full brightness and stays there.
+                for ms in range(0, int(home), 17):
+                    at = start + 2 * out + hold + ms
+                    self.assertEqual(tray.icon_turn(state, at), 0.0)
+                    self.assertEqual(tray.icon_frame(state, at), (0, TOP))
+
+    def test_the_head_never_breathes_while_it_travels(self):
+        """Watching's sweep and recovering's are at full brightness in every frame of them."""
         for elapsed in range(0, 3 * LOOP, 7):
             turning = tray.icon_turn("watching", elapsed) is not None
             with self.subTest(elapsed=elapsed):
@@ -225,12 +347,12 @@ class PhaseTests(unittest.TestCase):
                 self.assertEqual(tray.icon_frame("recovering", elapsed)[1], TOP)
 
     def test_every_hand_over_is_at_full_brightness(self):
-        """Each slot starts and ends with the head at full brightness in its place, so nothing jumps where a breath
-        gives way to a breath or to a turn, or a turn back to a breath."""
+        """Every hand-over has the head at full brightness in its place, so nothing jumps where a breath gives way to
+        a breath or to the sweep's slot, or that slot back to a breath."""
         near = 1000.0 / 64                          # within one of Windows' timer ticks either side
         for loop in range(3):
-            for slot in range(MOTION["breaths"] + 2):
-                edge = loop * LOOP + slot * SLOT
+            edges = [loop * LOOP + breath * SLOT for breath in range(MOTION["breaths"] + 1)] + [(loop + 1) * LOOP]
+            for edge in edges:
                 for elapsed in (edge - near, edge - 0.001, edge, edge + 0.001, edge + near):
                     if elapsed < 0:
                         continue
@@ -240,37 +362,33 @@ class PhaseTests(unittest.TestCase):
                         self.assertGreaterEqual(level, TOP - 1)
                 self.assertEqual(tray.icon_frame("watching", edge), (0, TOP))
 
-    def test_the_turn_comes_every_fifth_breath_and_lasts_one(self):
-        """The turn's slots are exactly [4, 5) breaths into each loop of five, for loop after loop."""
-        turning = [elapsed for elapsed in range(0, 4 * LOOP, 10) if tray.icon_turn("watching", elapsed) is not None]
-        expected = [elapsed for elapsed in range(0, 4 * LOOP, 10) if elapsed % LOOP >= TURN_AT]
-        self.assertEqual(turning, expected)
-        self.assertEqual(LOOP - TURN_AT, SLOT, "a turn is one breath long")
+    def test_the_sweep_comes_after_three_breaths_and_fills_the_last_two(self):
+        """The sweep's slot is exactly [3, 5) breaths into each loop of five, for loop after loop - the head travels
+        for part of it and waits at home, lit, for the rest, and never breathes in it."""
+        sweeping = [elapsed for elapsed in range(0, 4 * LOOP, 10) if tray.icon_turn("watching", elapsed) is not None]
+        expected = [elapsed for elapsed in range(0, 4 * LOOP, 10) if elapsed % LOOP >= SWEEP_AT]
+        self.assertEqual(sweeping, expected)
+        self.assertEqual(LOOP - SWEEP_AT, SLOT * MOTION["sweep_breaths"], "the slot is two breaths long")
         self.assertEqual(LOOP % SLOT, 0, "and the loop a whole number of them")
+        self.assertEqual(SWEEP_AT % SLOT, 0, "and the slot starts on a breath's edge")
 
-    def test_the_head_turns_clockwise(self):
+    def test_the_head_leaves_its_place_clockwise(self):
         """Position 1 is fifteen degrees clockwise of the head's place: on the screen, from the top right toward the
-        right-hand side, the way a clock's hand goes."""
+        right-hand side, the way a clock's hand goes. Going out the positions only rise, coming back they only fall."""
         positions = MOTION["positions"]
-        for elapsed in range(0, brand.GLOW["arc_ms"], 40):
-            position = tray.icon_frame("recovering", elapsed)[0]
-            with self.subTest(elapsed=elapsed):
-                self.assertAlmostEqual(tray.icon_turn("recovering", elapsed), 360.0 * elapsed / brand.GLOW["arc_ms"])
-                self.assertEqual(position, round(elapsed / (brand.GLOW["arc_ms"] / positions)) % positions)
+        for state, (start, out, hold, back, _home) in SWEEPS.items():
+            going = [tray.icon_frame(state, start + ms)[0] for ms in range(0, int(out) + 1, 10)]
+            coming = [tray.icon_frame(state, start + out + hold + ms)[0] for ms in range(0, int(back) + 1, 10)]
+            with self.subTest(state):
+                self.assertEqual(going, sorted(going))
+                self.assertEqual(coming, sorted(coming, reverse=True))
+                self.assertEqual((going[0], coming[-1]), (0, 0))
+                self.assertEqual(going[-1], max(going))
         home_x, home_y = brand.icon_head_centre(brand.ICON_SHAPE["arc_end"])
         next_x, next_y = brand.icon_head_centre(brand.ICON_SHAPE["arc_end"] - 360.0 / positions)
         # y up: clockwise from the top right is right and down.
         self.assertGreater(next_x, home_x)
         self.assertLess(next_y, home_y)
-
-    def test_recovering_turns_all_the_time_on_the_arc_rhythm_at_full_brightness(self):
-        arc = brand.GLOW["arc_ms"]
-        self.assertAlmostEqual(tray.icon_turn("recovering", arc / 4.0), 90.0)
-        self.assertAlmostEqual(tray.icon_turn("recovering", arc), 0.0)
-        for elapsed in (0, 5000, 31234):
-            self.assertIsNotNone(tray.icon_turn("recovering", elapsed))
-        self.assertEqual(tray.icon_frame("recovering", arc / 2.0), (MOTION["positions"] // 2, TOP))
-        self.assertEqual(tray.icon_frame("recovering", brand.GLOW["recovering_ms"] / 2.0)[1], TOP, "no breath")
 
     def test_paused_is_still_and_a_problem_pulses_once_then_holds(self):
         for elapsed in (0, 777, 15000, 29000):
@@ -288,19 +406,24 @@ class PhaseTests(unittest.TestCase):
 
     def test_reduced_motion_holds_every_state_at_its_rest(self):
         for state in tray.ICON_STATES + ("unknown",):
-            for elapsed in (0, 1600, TURN_AT + 400, 99999):
+            for elapsed in (0, 1600, SWEEP_AT + 400, 99999):
                 with self.subTest(state=state, elapsed=elapsed):
                     self.assertEqual(tray.icon_frame(state, elapsed, 100, reduced=True), (0, TOP))
                     self.assertIsNone(tray.icon_frame_ms(state, elapsed, 100, reduced=True))
 
     def test_frames_come_at_the_breathing_rate_and_quicker_while_the_head_travels(self):
+        """The quicker rate is the sweep's slot's, the breathing rate the breaths'. The slot keeps the quicker one
+        while the head waits at home too - a tick that finds the same frame swaps nothing (Tray._frame_for), so the
+        shell is asked for nothing there."""
         breathe, turn = MOTION["breathe_frame_ms"], MOTION["turn_frame_ms"]
         self.assertLess(turn, breathe)
         self.assertEqual(tray.icon_frame_ms("watching", 0), breathe)
-        self.assertEqual(tray.icon_frame_ms("watching", TURN_AT - 1), breathe)
-        self.assertEqual(tray.icon_frame_ms("watching", TURN_AT + 10), turn)
+        self.assertEqual(tray.icon_frame_ms("watching", SWEEP_AT - 1), breathe)
+        self.assertEqual(tray.icon_frame_ms("watching", SWEEP_AT + 10), turn)
+        self.assertEqual(tray.icon_frame_ms("watching", LOOP - 10), turn)
         self.assertEqual(tray.icon_frame_ms("watching", LOOP + 10), breathe)
         self.assertEqual(tray.icon_frame_ms("recovering", 0), turn)
+        self.assertEqual(tray.icon_frame_ms("recovering", 2879), turn)
         self.assertEqual(tray.icon_frame_ms("attention", 0, 10), breathe)
         self.assertIsNone(tray.icon_frame_ms("idle", 0, 0))
 
@@ -473,13 +596,13 @@ class TimerTests(unittest.TestCase):
     def test_the_timers_are_the_tick_and_the_frame_and_the_tick_is_unchanged(self):
         self.assertEqual((tray.TIMER_TICK, tray.TIMER_FRAME), (1, 2))
 
-    def test_breathing_then_turning_then_breathing(self):
+    def test_breathing_then_sweeping_then_breathing(self):
         icon = self.make()
         base = icon._epoch
         breathe, turn = MOTION["breathe_frame_ms"], MOTION["turn_frame_ms"]
         fake = self.sync(icon, base + 1.0)
         self.assertEqual(fake.timers, {2: breathe})
-        fake = self.sync(icon, base + (TURN_AT + 100) / 1000.0)
+        fake = self.sync(icon, base + (SWEEP_AT + 100) / 1000.0)
         self.assertEqual(fake.timers, {2: turn})
         fake = self.sync(icon, base + (LOOP + 100) / 1000.0)
         self.assertEqual(fake.timers, {2: breathe})

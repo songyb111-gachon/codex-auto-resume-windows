@@ -245,15 +245,17 @@ are waiting, how many are running in Codex and how long until the next check.
 
 The icon moves, in the mark it already has. While the watcher watches, the head - the bright dot at
 the end of the ring - breathes, dimming toward the badge's deep blue and back every 3.2 seconds, and
-after four breaths it turns once round the ring, clockwise, at full brightness; it never breathes
-while it turns. While a recovery is in progress it keeps turning, once every 1.6 seconds, without
-breathing. Paused, it is grey and still; when something needs you it takes that colour, pulses once
+after three breaths it sweeps along the ring's white stroke and back, clockwise, at full
+brightness: 2.56 seconds out, a moment at the far end, 2.56 seconds back and 1.12 at home. It never
+breathes while it travels, and it never crosses the gap at the top of the ring. While a recovery is
+in progress it sweeps out and back over and over, twice as quickly - once every 2.88 seconds -
+without breathing. Paused, it is grey and still; when something needs you it takes that colour, pulses once
 and holds. Nothing moves under Reduce motion, Windows' animation setting, High Contrast or battery
 saver, while the session is locked, or while Windows keeps the icon in the overflow area, where
 nobody would see it. While the settings window is open, its taskbar button moves the same way and
 stops for the same reasons.
 
-<img src="docs/images/icon-motion.gif" alt="The notification-area icon's motion, drawn from the icon's own frames, on a light taskbar above and a dark one below. From the left: watching, whose bright head breathes and then turns once round the ring, clockwise, at full brightness; recovering, turning all the time under a cyan badge; needing attention, amber under an amber badge, pulsing once and then still; paused, grey under a grey badge and still" width="288">
+<img src="docs/images/icon-motion.gif" alt="The notification-area icon's motion, drawn from the icon's own frames, on a light taskbar above and a dark one below. From the left: watching, whose bright head breathes and then sweeps clockwise along the ring's white stroke and back, at full brightness; recovering, sweeping out and back all the time under a cyan badge; needing attention, amber under an amber badge, pulsing once and then still; paused, grey under a grey badge and still" width="288">
 
 A single click on the icon opens a small popup beside it, and another click closes it: the
 watcher's state, how many tasks are waiting and recovering, the next check, up to three waiting

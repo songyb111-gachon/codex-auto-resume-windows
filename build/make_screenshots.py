@@ -1208,9 +1208,10 @@ def render_cards() -> list:
 # animated GIF. It is drawn here and never by hand: every picture in it is the icon's own frame (tray.IconFrames, with
 # the badge the icon wears in that state, composited as the icon composites it), at the moments the icon's own timer
 # shows one (tray.icon_frame and icon_frame_ms, stepped as the frame timer steps), laid over a light and a dark
-# taskbar. Four states side by side - watching, recovering, needing attention and paused - over one stretch of
-# watching's loop: its last two breaths and its turn. That stretch is a whole number of recovering's turns, so the GIF
-# loops without a jump; attention pulses once at its start, as it does when a problem arrives.
+# taskbar. Four states side by side - watching, recovering, needing attention and paused - over a stretch of
+# watching's loop that begins two breaths before a sweep and is a whole number of both its loops and recovering's
+# cycles (`icon_motion_stretch`), so every column loops without a jump; attention pulses once at its start, as it
+# does when a problem arrives.
 #
 # Its manifest entry, `<icon motion>`, is keyed as the card's is: what is pictured (the states, their badges, the
 # size, the grounds and the stretch of the loop) and the digest of the code that draws the frames - here the
@@ -1238,13 +1239,31 @@ ICON_ROOTS = (("tray", "IconFrames"), ("tray", "icon_frame"), ("tray", "icon_fra
 
 
 def icon_motion_stretch() -> tuple:
-    """(start, end) in ms of watching's loop that the GIF shows: its last two breaths and its turn."""
+    """(start, end) in ms of watching's loop that the GIF shows.
+
+    It begins two breaths before a sweep and ends on a whole number of watching's loops, so that column picks up
+    where it left off; and it is a whole number of recovering's cycles, so that column does too - recovering sweeps
+    every 2.88 s, which shares no short multiple with the 16 s loop, so the shortest stretch that closes for both
+    is two loops. With v0.6.5's numbers: 3.2 s to 32 s, two breaths and a sweep, then three breaths and a sweep.
+    """
     from codex_auto_resume import brand, tray
-    slot, breaths = brand.GLOW["monitoring_ms"], tray.ICON_MOTION["breaths"]
-    start, end = slot * max(0, breaths - 2), slot * (breaths + 1)
-    if (end - start) % brand.GLOW["arc_ms"]:
-        raise ValueError("the GIF would jump where it loops: its stretch is not a whole number of turns")
-    return start, end
+    slot, motion = brand.GLOW["monitoring_ms"], tray.ICON_MOTION
+    loop = slot * (motion["breaths"] + motion["sweep_breaths"])
+    start = slot * max(0, motion["breaths"] - 2)
+    for loops in range(1, 12):
+        end = loop * loops
+        if end > start and _icon_recovering_closes(end - start, loop):
+            return start, end
+    raise ValueError("the GIF would jump where it loops: no stretch is a whole number of recovering's sweeps")
+
+
+def _icon_recovering_closes(length: int, loop: int) -> bool:
+    """Whether recovering is in the same phase `length` ms apart, so its column loops without a jump."""
+    from codex_auto_resume import tray
+    for at in range(0, loop, 97):
+        if abs(tray.icon_turn("recovering", length + at) - tray.icon_turn("recovering", at)) > 1e-6:
+            return False
+    return True
 
 
 def icon_timeline(state: str, start: float, end: float) -> list:

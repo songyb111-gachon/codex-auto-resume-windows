@@ -29,25 +29,31 @@ by default and changes where a notification appears, never whether there is one 
 ### The notification-area icon moves
 
 - While the watcher is watching, the bright head of the mark breathes on the status light's 3.2 s
-  rhythm - dimming toward the badge's deep blue and back - four times, and then turns once round the
-  ring, clockwise, in one breath's time and at full brightness: a loop of five 3.2 s slots, 16 s in
-  all. It never breathes while it turns, and a breath and a turn both begin and end at full
-  brightness, so nothing jumps where one gives way to the other.
+  rhythm - dimming toward the badge's deep blue and back - three times, and then sweeps along the
+  ring's white stroke and back in a slot of two more breaths, at full brightness: 2.56 s out,
+  a moment at the stroke's far end, 2.56 s back, and 1.12 s at home - a loop of five 3.2 s slots,
+  16 s in all. It leaves its place clockwise and stays on the stroke, never crossing the gap at the
+  top of the ring. It never breathes while it travels, and a breath and the sweep's slot both begin
+  and end at full brightness, so nothing jumps where one gives way to the other.
 - While a recovery is in progress - a continuation being sent, or the turn it started still being
-  followed - the head keeps turning round the ring, clockwise, a turn every 1.6 s, at full brightness
-  and without breathing.
+  followed - the head sweeps out and back over and over, twice as quickly: 1.28 s out, a moment at
+  the far end, 1.28 s back and 0.24 s at home, a sweep every 2.88 s, at full brightness and without
+  breathing.
 - Paused, the head is grey and still. When something needs you it turns amber - the danger colour
   for a failure - pulses once and holds.
-- The head goes round in 24 steps of 15 degrees and breathes through 24 levels of brightness, a tint
-  of the head rather than stored frames: about 16 frames a second while it travels, one for each of a
-  1.6 s turn's steps, and about 6 while it breathes. Each frame costs explorer.exe the work of drawing
+- The head moves in 24 steps of 15 degrees round the ring - the 20 of them from its own place
+  clockwise to the stroke's far end - and breathes through 24 levels of brightness, a tint of the
+  head rather than stored frames: about 16 frames a second while it travels, one for each step of
+  watching's sweep, and about 6 while it breathes. Each frame costs explorer.exe the work of drawing
   the icon again, so the rates were chosen by measuring that - each candidate for 60 s against 60 s at
   rest, on one machine (Windows 11 build 26200, 3840 x 2160 at 150%). While it watches, the
   notification-area icon - measured where Windows had put it, in the overflow area - costs
   explorer.exe about 1.3 points of one core above rest at these rates, against 1.1 at the 3 and 5
   frames a second it had before and 2.2 with a breath of 11 a second; the taskbar button costs about
   2 at every rate tried, and was seen redrawn no more than about eight times a second whatever it
-  was sent. Turning all the time, while a recovery is in progress, each costs about 2.5 to 3.
+  was sent. Travelling all the time, while a recovery is in progress, each costs about 2.5 to 3.
+  These were measured while watching turned a whole way round in the last slot of five; it now
+  travels in two of them, so what watching costs sits a little nearer the travelling figure.
 - It holds still under Reduce motion, Windows' animation setting, High Contrast and battery saver,
   while the session is locked, and while the icon sits in the overflow area where nobody sees it.
   Where the icon is cannot be asked of the shell: Windows 11 build 26200 gives an icon in the

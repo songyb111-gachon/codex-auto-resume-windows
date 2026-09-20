@@ -584,10 +584,18 @@ namespace CodexAutoResume
         /// shows them.
         internal static class Mark
         {
-            // tray.ICON_MOTION. The icon also reads three of brand.GLOW's rhythms, which Brand declares:
-            // GlowMonitoringMs (watching's breath, and the slot its turn takes), GlowArcMs (recovering's
-            // turn) and GlowAttentionMs (a problem's one pulse).
-            internal const int Breaths = 4;
+            // tray.ICON_MOTION. The icon also reads two of brand.GLOW's rhythms, which Brand declares:
+            // GlowMonitoringMs (watching's breath, and so every slot of its loop and recovering's sweep)
+            // and GlowAttentionMs (a problem's one pulse).
+            internal const int Breaths = 3;
+            internal const int SweepBreaths = 2;
+            internal const double SweepOut = 0.4;
+            internal const double SweepHold = 0.025;
+            internal const double RecoverRest = 0.075;
+            // How far the head travels, in degrees: brand's arc, its place clockwise to the stroke's
+            // other end (tray.ICON_SWEEP). The gap at the top is the rest of the circle, and the head
+            // never enters it.
+            internal const double Sweep = 290;
             internal const int BreatheFrameMs = 156;
             internal const int TurnFrameMs = 62;
             internal const int Positions = 24;
@@ -636,25 +644,29 @@ namespace CodexAutoResume
                 return (int)Math.Floor(one + (other - one) * amount + 0.5);
             }
 
-            /// How far round the ring the head has travelled, clockwise, in degrees, or -1 when it is not
-            /// travelling (tray.icon_turn): watching once in the last of every Breaths + 1 slots, each
-            /// GlowMonitoringMs long, eased in and out; recovering all the time, once per GlowArcMs.
+            /// How far along the stroke the head has swept from its place, clockwise, in degrees, or -1 when
+            /// the state is not sweeping at all (tray.icon_turn): Sweep at the stroke's other end, Breath over
+            /// a sweep out and back with that cosine's top held at the far end, and 0 - not -1 - for whatever
+            /// is left of the cycle once it is home, where it rests lit and still.
             internal static double Turn(string state, double elapsedMs)
             {
-                if (state == "recovering") return 360.0 * (elapsedMs % GlowArcMs) / GlowArcMs;
-                if (state == "watching")
-                {
-                    double into = elapsedMs % (GlowMonitoringMs * (Breaths + 1)) - GlowMonitoringMs * Breaths;
-                    if (into < 0) return -1;
-                    return 360.0 * (0.5 - 0.5 * Math.Cos(Math.PI * into / GlowMonitoringMs));
-                }
-                return -1;
+                if (state != "watching" && state != "recovering") return -1;
+                double breath = GlowMonitoringMs;
+                int sweeps = state == "watching" ? SweepBreaths : 1;
+                double outMs = breath * sweeps * SweepOut, hold = breath * sweeps * SweepHold;
+                double start = state == "watching" ? breath * Breaths : 0;
+                double cycle = state == "watching" ? start + breath * sweeps
+                                                   : 2 * outMs + hold + breath * RecoverRest;
+                double into = elapsedMs % cycle - start;
+                if (into < 0) return -1;
+                if (into >= 2 * outMs + hold) return 0;
+                return Sweep * Breath(Math.Min(into, Math.Max(outMs, into - hold)), 2 * outMs);
             }
 
             /// One frame, as (position, level) (tray.icon_frame): position 0 is the head in its place, the
-            /// others clockwise round the ring, and the top level its full colour, which it keeps while it
-            /// travels. With motion reduced every state is at rest. A negative sinceEnteredMs means the
-            /// state's one pulse is over.
+            /// others clockwise round the ring, and the top level its full colour, which it keeps through a
+            /// sweep's whole cycle. With motion reduced every state is at rest. A negative sinceEnteredMs
+            /// means the state's one pulse is over.
             internal static void Frame(string state, double elapsedMs, double sinceEnteredMs, bool reduced,
                                        out int position, out int level)
             {
