@@ -70,7 +70,11 @@ def mapping() -> dict:
     return json.loads(MAPPING.read_text(encoding="utf-8"))
 
 
-VERSION = re.compile(r"v?\d+\.\d+\.\d+")
+# Three numbers, and what follows them. A tag with a suffix - `v0.6.6-alpha`, the candidate this
+# release was first cut from and then set aside - is not the current version: it is a name that
+# was fixed the day it was written and that nothing will ever move, which is exactly the thing the
+# rule below lets a document name.
+VERSION = re.compile(r"v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?")
 # A changelog names the release it is announcing, and a page that recounts what happened up to
 # a version names it. Those are history, and history that must not mention the newest release
 # is not history. The rule is about *current-facing* prose claiming a version that nothing will

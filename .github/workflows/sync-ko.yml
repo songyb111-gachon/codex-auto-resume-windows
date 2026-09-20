@@ -59,7 +59,13 @@ jobs:
     # suite against the tree about to be published, and a suite that ran somewhere the
     # product does not support would prove nothing about the branch it is guarding.
     runs-on: windows-latest
-    timeout-minutes: 20
+    # Above the suite's own time on a runner, with room to spare. This was 20 while the suite
+    # took 22 to 31 minutes there, so every sync was killed part way through the step that runs
+    # it - and a job stopped by `timeout-minutes` is reported as *cancelled*, which is the same
+    # word the concurrency note above explains away. So nothing ever failed, nobody was told, and
+    # ko sat 122 commits behind for four days while the runs looked like ordinary cancellations.
+    # Whoever makes the suite slower must move this with it.
+    timeout-minutes: 60
 
     steps:
       # The tested commit, not main's current head. On a workflow_run event the default

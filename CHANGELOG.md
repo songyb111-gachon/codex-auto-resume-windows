@@ -109,6 +109,21 @@ other application opens.
   English and Korean. The roadmap's planned releases each move one number on: the Python
   modularization that was v0.6.6 is v0.6.7, and everything after it follows.
 
+### The candidate that was set aside
+
+This release was cut twice. The first candidate was built, tagged `v0.6.6` and published on
+2026-09-20, and then stopped before it was announced, because the status light still was not right
+and the controls below had not been made the product's own yet. It was left up rather than deleted,
+and it now carries a tag of its own: **[`v0.6.6-alpha`](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/tag/v0.6.6-alpha)**,
+built from `f63d904`.
+
+It is not this release and nothing is served it: the update check reads the tag out of the URL
+`releases/latest` ends at and accepts `vMAJOR.MINOR.PATCH` and nothing else, so a tag with a suffix
+is refused by name. One thing about it is worth knowing if you go looking: **its archive is still
+called `CodexAutoResume-v0.6.6-win-x64.zip`**, because renaming a tag does not rename what is
+already attached to a release. Same name, different bytes, different digest - the digest pinned in
+`scripts/release.json` is this release's, and it is the one to check against.
+
 ### Evidence
 
 Everything below was run on one Windows 11 machine (Home, build 26200, 3840 x 2160 at 150%, Korean
