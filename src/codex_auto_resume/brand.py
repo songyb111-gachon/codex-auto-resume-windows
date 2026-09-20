@@ -18,25 +18,22 @@ learned what the tool does.
 
 ## Reading the tokens
 
-`LIGHT` and `DARK` hold the same key set, so any surface can theme by swapping one for
-the other. `RAMP` is the four identity blues, darkest first, and is what the icon and
-any promotional surface draw from; it does not change with the theme, because a brand
-mark that changes colour with the operating system is not a brand mark.
+`LIGHT` and `DARK` hold the same key set, so a surface themes by swapping one for the
+other. `RAMP` is the identity blues, darkest first, which the icon and any promotional
+surface draw from; it does not change with the theme, because a brand mark that changes
+colour with the operating system is not a brand mark.
 
-`active` is a **fill-only** token. Measured against white it reaches 2.4:1, which is fine
-for a status dot or a bar and is not enough for text. `accent` is the token for anything
-a person has to read; it reaches 6.8:1 on white and 6.7:1 on the dark surface. Text drawn
-*on* the accent takes `on_accent`, which is not the same colour in the two themes.
+`active` is a **fill-only** token: 2.4:1 against white, fine for a dot and not for text.
+`accent` is the token for anything a person reads - 6.8:1 on white, 6.7:1 on the dark
+surface - and text drawn *on* it takes `on_accent`, which differs between the themes.
 
 ## Two themes, three surfaces (v0.6.4)
 
-Until v0.6.4 only the Codex panel had a dark theme. Now the window and the notification-area
-popup have one too, and the panel in dark is the reference they are held to: the same DARK
-palette, the same dark elevation recipes, the same card ground. Every theme-dependent value is
-reachable by theme name - `palette(theme)`, `shadows(recipe, theme)`, `card_ground(theme)`,
-`status_colour(state, theme)`, `check_box(checked, enabled, theme)` - and the window gets the
-dark half generated as `Brand.Dark`, a twin of `Brand` with the same names. Which theme is in
-effect is the surfaces' business; High Contrast replaces both.
+The window, the popup and the panel all have both themes, and the panel in dark is the
+reference. Every theme-dependent value is reachable by theme name - `palette(theme)`,
+`shadows(recipe, theme)`, `card_ground(theme)`, `status_colour(state, theme)`,
+`check_box(checked, enabled, theme)` - and the window gets the dark half generated as
+`Brand.Dark`. Which theme is in effect is the surfaces' business; High Contrast replaces both.
 """
 from __future__ import annotations
 
@@ -87,20 +84,12 @@ LIGHT = {
     "paused":  "#55657A",   # deliberately quiet
 }
 
-# Dark is not light inverted. Three things were wrong with the first attempt, and all
-# three were visible the moment the two themes were put side by side:
-#
-#   * the canvas and the surface were four points of lightness apart, so a card did not
-#     read as a card - the panel looked like one dark sheet with hairlines drawn on it;
-#   * the hairline was darker than the surface it sat on, which is the wrong direction.
-#     On a dark ground an edge is lighter than what it encloses, not darker;
-#   * the cyan was at full saturation. It is a fill for "the watcher is running", it
-#     appears as an 11px dot, and at #22D3EE that dot was the brightest thing on screen -
-#     the product read as fluorescent rather than technical.
-#
-# So the surface is lifted away from the canvas, the line is lifted above the surface,
-# and the cyan is brought down in chroma while staying unmistakably cyan. The blues keep
-# the brand; there is simply less of the loudest one visible at once.
+# Dark is not light inverted. Three things were wrong the moment the themes were put side by
+# side: the canvas and the surface were four points of lightness apart, so a card did not read
+# as one; the hairline was darker than what it enclosed, which is the wrong direction on a dark
+# ground; and the cyan at full saturation made an 11 px dot the brightest thing on screen -
+# fluorescent rather than technical. So the surface is lifted away from the canvas, the line
+# above the surface, and the cyan brought down in chroma while staying unmistakably cyan.
 DARK = {
     "ink":     "#E8EEF6",
     "muted":   "#9AACBF",
@@ -167,18 +156,14 @@ SPACING = {"xs": 4, "s": 8, "m": 12, "l": 16, "xl": 24, "xxl": 32}
 # The notification-area popup's type sizes. The panel sets its own (TYPE_SCALE, below) and
 # the settings window keeps the system message font, so this table is the popup's alone.
 TYPE = {"title": 20, "heading": 14, "body": 12, "small": 11}
-# Motion is a state, not decoration: the state light's glow is GLOW (below), and every
-# recurring motion stops when a person has asked Windows to reduce motion. What is left here
-# is the controls' transitions. The shadows that were scalars here until v0.6.4 are
-# SHADOWS, the panel's exact recipes.
-#
-# v0.6.5: a switch glides when it changes - its knob slides and its track cross-fades - on every
-# surface, in `transition_ms`, on one curve: `ease`, a CSS cubic-bezier's four control numbers.
-# It is an ease-out (easeOutCubic): the knob leaves at once and settles, so a switch answers the
-# click the moment it is confirmed and still comes to rest softly. The panel writes it as
-# `--transition-ease`, the window reads Brand.TransitionEase*, the popup calls ease(). A change
-# that waits for a confirmation starts only once it is confirmed; nothing slides under Reduce
-# motion, Windows' animation setting or High Contrast.
+# Motion is a state, not decoration: the state light's is GLOW (below), and every recurring motion
+# stops when a person has asked Windows to reduce motion. What is left here is the controls' -
+# since v0.6.5 a switch glides when it changes, its knob sliding and its track cross-fading on
+# every surface, in `transition_ms` on one curve: `ease`, an ease-out (easeOutCubic) written as a
+# CSS cubic-bezier's four control numbers, so a switch answers the click at once and settles. The
+# panel writes it as `--transition-ease`, the window reads Brand.TransitionEase*, the popup calls
+# ease(); a change that waits for confirmation starts only once confirmed, and nothing slides
+# under Reduce motion, Windows' animation setting or High Contrast.
 MOTION = {"transition_ms": 160, "ease": (0.33, 1.0, 0.68, 1.0)}
 
 
@@ -301,17 +286,13 @@ _CARD_GROUND = {name: ("var(--surface)" if not lift else
 # apply - which kinds of interruption may be recovered, which events notify. The same setting is
 # the same kind on every surface, and a check box sits to the left of its label everywhere.
 #
-# It is the switch's material: unchecked it is the sunken well fields and switch tracks are (the
-# `inset` fill with the inset elevation inside its border); checked it is the accent with an
-# `on_accent` mark, as the switch's track and knob are. Its edge unchecked is `muted`, not `line`:
-# the switch's off state is identified by its `muted` knob, and an empty box has nothing inside
-# to do that - a `line` hairline on the card is 1.3:1, well under the 3:1 a control's boundary
-# needs, so the box would all but vanish for some readers. Disabled, it is what a disabled field
-# or button is here: a `surface` fill, a `line` hairline, no lift, and a `muted` mark if checked.
-#
-# Sizes are LAYOUT's check_size, check_gap and check_stroke and RADII's check. The keyboard focus
-# ring is every control's: `focus`, LAYOUT focus_width, focus_offset outside the box, its corners
-# following the box's. Each state's entries are palette tokens; `well` says whether the inset
+# It is the switch's material: unchecked, the sunken well fields and switch tracks are (`inset`
+# with the inset elevation inside its border); checked, the accent with an `on_accent` mark. Its
+# edge unchecked is `muted`, not `line`, because an empty box has no knob to identify it and a
+# `line` hairline on the card is 1.3:1 - under the 3:1 a control's boundary needs. Disabled, it is
+# what a disabled field is: `surface`, a `line` hairline, no lift, a `muted` mark if checked.
+# Sizes are LAYOUT's check_size, check_gap and check_stroke and RADII's check; the focus ring is
+# every control's. Each state's entries are palette tokens; `well` says whether the inset
 # elevation is drawn inside the border.
 CHECKBOX = {
     "off":          {"fill": "inset",   "edge": "muted",  "mark": None,        "well": True},
@@ -357,37 +338,35 @@ STATUS_FILL = {"monitoring": "active", "waiting": "active", "checking": "active"
 STATUS_SYSTEM = {"monitoring": "Highlight", "waiting": "Highlight", "checking": "Highlight",
                  "recovering": "Highlight", "attention": "WindowText", "failed": "WindowText",
                  "paused": "GrayText", "idle": "GrayText"}
-# The light. On a first cut whose glow breathed round a dot that never changed ("soft ring": .12 to .58 over a
-# 7 px reach), the user: "상태등 관련해서 반짝임 원한게 아이콘에서 깜빡이는 이런 느낌이야 ... 조금 번지는 정도",
-# then "가장 어두움 -> 가장 밝아짐 까지는 번지는게 없고 / 가장 밝아짐 -> 살짝 번짐 까지 있게 하자", and of the
-# spread, "지금은 너무 많이 커지는거 같아". So the blink is the icon head's - the dot itself dims and brightens, with
-# nothing spreading - and only once it is fully lit does the light spread, a little, and draw back in. Previews at
-# +2, +3 and +4 px past the dot's edge were rendered with the glow's own falloff, light and dark, and +3 was kept.
+# The light. Three cuts were wrong in three directions, and the user named each: a glow 7 px round a dot that never
+# changed - "너무 많이 커지는거 같아"; a dot that blinked, deep and quick - "너무 빠르게 깜빡이는거 같아 / 은은한
+# 느낌이 있어야해 부드럽고"; and an answer that shrank the swing, which is the wrong lever - "지금은 너무 안 보여".
+# Then: "이번에는 상태등의 정석대로 해줘". So the shape is the ordinary one for a light this size and nothing of
+# ours - one symmetric cosine a cycle near a resting breath, a deep swing taken in light and drawn through the
+# screen's gamma, a glow that rides the brightness, and a reach that is a share of the dot rather than a count of
+# pixels. docs/BRAND.md sets out why each of those is what it is.
 #
-# A cycle is four phases, GLOW_PHASES, each a fraction of it and eased as half a raised cosine, so nothing has a
-# corner: `fall`, the dot dims `dot_dim` of the way toward the ground it sits on (as far as the icon's head dims,
-# tray.ICON_MOTION["dim"]); `rise`, it comes back; `bloom`, lit, the glow grows from nothing to `peak` opacity and
-# `reach` CSS px past the dot's edge; `withdraw`, it draws back in. A cycle begins where a still light rests - lit,
-# no glow - so a light that starts moving leaves it with no jump, as each of the icon's breaths begins and ends at
-# full brightness. Monitoring runs it every monitoring_ms, recovering every recovering_ms, and a problem once, in
-# attention_ms, when it is first shown, then holds lit. Waiting and checking hold lit with no glow (checking turns
-# its arc), and so does every light under Reduce motion or Windows' animation setting; High Contrast is a solid dot.
-#
-# The glow is a falloff, never a disc: at its peak, `peak` times `edge_alpha` at the dot's edge, `near_alpha` at
-# `near_at` of the reach, `far_alpha` at `far_at`, nothing at the reach, straight between - the approved preview's.
-# A smaller spread is the same falloff drawn smaller about the centre, so it grows out from under the dot. At most
-# it reaches 8 CSS px from the window's dot centre, well inside the 28 px column the window keeps for it.
+# Monitoring runs it every monitoring_ms, recovering every recovering_ms, and a problem once, in attention_ms, when
+# it is first shown, then holds lit. A cycle begins and ends at the top, where a still light also sits, so a light
+# that starts moving does not jump in brightness; the glow is the one thing that arrives with the motion. Waiting
+# and checking hold lit with no glow (checking turns its arc), as does every light under Reduce motion or Windows'
+# animation setting; High Contrast is a solid dot. The glow is a falloff, never a disc: at its peak, `peak` times
+# `edge_alpha` at the dot's edge, `near_alpha` at `near_at` of the reach, `far_alpha` at `far_at`, nothing at the
+# reach, straight between; a smaller spread is that falloff drawn smaller about the centre, so it grows out from
+# under the dot, and at most it reaches 8 CSS px from the window's dot centre, inside the 28 px column kept for it.
 GLOW = {
-    "fall": 0.25, "rise": 0.40, "bloom": 0.20, "withdraw": 0.15, "dot_dim": 0.60, "peak": 0.34, "reach": 3,
+    # The breath. `low` is how much light is left at the bottom of it, `gamma` turns light into what
+    # an eye on a screen sees, `peak` is the glow's opacity at full brightness and `reach` how far it
+    # gets past the dot's edge.
+    "low": 0.35, "gamma": 2.2, "peak": 0.50, "reach_of_radius": 0.6,
     "edge_alpha": 0.67, "near_at": 0.14, "near_alpha": 0.58, "far_at": 0.66, "far_alpha": 0.50,
-    "monitoring_ms": 3200, "recovering_ms": 2000, "attention_ms": 1400,
+    "monitoring_ms": 4400, "recovering_ms": 2800, "attention_ms": 1400,
     # Checking also turns the arc every surface already drew: `arc_gap` past the dot's edge,
     # `arc_width` wide, `arc_sweep` degrees long, in `active` at `arc_alpha`. With motion
     # reduced it holds at `arc_still_at` degrees.
     "arc_ms": 1600, "arc_alpha": 0.55, "arc_gap": 3, "arc_width": 1.6, "arc_sweep": 100,
     "arc_still_at": 300,
 }
-GLOW_PHASES = ("fall", "rise", "bloom", "withdraw")
 GLOW_BREATHES = ("monitoring", "recovering")
 GLOW_PULSES = ("attention", "failed")
 
@@ -442,15 +421,13 @@ def css_scale() -> str:
     parts.append("--transition: %dms;" % MOTION["transition_ms"])
     parts.append("--transition-ease: %s;" % css_ease())
     dot, light = STATUS_DOT["panel"], GLOW
-    parts.append("--glow-reach: %s;" % _css_length(light["reach"]))
+    parts.append("--glow-reach: %s;" % _css_length(glow_reach(dot)))
     for name, fraction in (("edge", 0.0), ("near", light["near_at"]), ("far", light["far_at"]),
                            ("outer", 1.0)):
-        parts.append("--glow-%s: %s;" % (name, _css_length(dot + light["reach"] * fraction)))
+        parts.append("--glow-%s: %s;" % (name, _css_length(dot + glow_reach(dot) * fraction)))
     for name in ("edge", "near", "far"):
         parts.append("--glow-%s-mix: %s%%;" % (name, _number(light[name + "_alpha"] * 100)))
-    parts.append("--glow-peak: %s;" % _number(light["peak"]))
     parts.append("--glow-from: %s;" % _number(dot / glow_extent(dot)))
-    parts.append("--glow-dot-low: %s;" % _number(1 - light["dot_dim"]))
     for state in GLOW_BREATHES:
         parts.append("--glow-%s-ms: %dms;" % (state, light[state + "_ms"]))
     parts.append("--glow-attention-ms: %dms;" % light["attention_ms"])
@@ -460,15 +437,29 @@ def css_scale() -> str:
     return " ".join(parts)
 
 
+GLOW_STOPS = 40             # keyframe stops a breath is written as: one every 2.5% of the cycle, which keeps the
+                            # straight lines between them inside a thousandth of the curve
+
+
 def css_glow_keyframes() -> str:
-    """GLOW's cycle as the panel's keyframes: `glow-dot`, the dot's opacity over the card (its dimming), and
-    `glow-spread`, the glow's opacity and scale (its spread). A keyframe selector cannot read a custom property, so
-    the phases' ends are written here; the animation's --glow-ease eases each phase on its own, as glow() does."""
-    ends = [sum(GLOW[phase] for phase in GLOW_PHASES[:index + 1]) for index in range(3)]
-    fallen, risen, bloomed = ("%s%%" % _number(end * 100) for end in ends)
-    return ("@keyframes glow-dot { 0%%, %s, 100%% { opacity: 1; } %s { opacity: var(--glow-dot-low); } }\n"
-            "@keyframes glow-spread { 0%%, %s, 100%% { opacity: 0; transform: scale(var(--glow-from)); }\n"
-            "  %s { opacity: var(--glow-peak); transform: scale(1); } }" % (risen, fallen, risen, bloomed))
+    """GLOW's breath as the panel's keyframes: `glow-dot`, the dot's opacity over the card, and `glow-spread`, the
+    glow's opacity and scale.
+
+    A keyframe selector cannot read a custom property and CSS has no cosine, so the curve is sampled here from
+    glow_phase itself, every 5% of the cycle, and written out as stops. What the browser puts between two stops is a
+    straight line across a twentieth of a four-second breath, which is below what an eye can see; sampling is what
+    keeps the panel's light the same light as the window's rather than a hand-fitted lookalike.
+    """
+    dot, spread, extent = [], [], glow_extent(STATUS_DOT["panel"])
+    for step in range(GLOW_STOPS + 1):
+        fraction = step / float(GLOW_STOPS)
+        dim, out = glow_phase(fraction)
+        at = "%s%%" % _number(fraction * 100)
+        dot.append("%s { opacity: %s; }" % (at, _number(1.0 - dim)))
+        scale = glow_radius(STATUS_DOT["panel"], out) / extent
+        spread.append("%s { opacity: %s; transform: scale(%s); }" % (at, _number(GLOW["peak"] * out), _number(scale)))
+    return ("@keyframes glow-dot { %s }\n@keyframes glow-spread { %s }"
+            % (" ".join(dot), " ".join(spread)))
 
 
 def css_ease() -> str:
@@ -742,19 +733,20 @@ def _breath(elapsed_ms, cycle_ms) -> float:
     return 0.5 - 0.5 * math.cos(2 * math.pi * (elapsed_ms % cycle_ms) / cycle_ms)
 
 
+def glow_floor() -> float:
+    """What the dot is drawn at when the breath is at its lowest: `low` of the light, as it is seen."""
+    return GLOW["low"] ** (1.0 / GLOW["gamma"])
+
+
 def glow_phase(fraction):
-    """The light at `fraction` of GLOW's cycle, 0 to 1, as (dim, spread): how far the dot is drawn toward its ground
-    (0 lit, `dot_dim` darkest) and how far out the glow is (0 none, 1 its peak). One of them is always 0."""
-    for phase in GLOW_PHASES[:-1]:
-        if fraction < GLOW[phase]:
-            break
-        fraction -= GLOW[phase]
-    else:
-        phase = GLOW_PHASES[-1]
-    step = 0.5 - 0.5 * math.cos(math.pi * min(1.0, max(0.0, fraction / GLOW[phase])))      # half a raised cosine
-    dim = GLOW["dot_dim"]
-    return {"fall": (dim * step, 0.0), "rise": (dim * (1.0 - step), 0.0), "bloom": (0.0, step),
-            "withdraw": (0.0, 1.0 - step)}[phase]
+    """The light at `fraction` of one breath, 0 to 1, as (dim, spread): how far the dot is drawn toward the ground it
+    sits on (0 at rest) and how far out the glow is (0 none, 1 its peak). One symmetric cosine, taken in light and
+    raised to 1/gamma to be drawn; the glow rides the brightness, squared so it keeps to the top of the breath."""
+    breath = 0.5 + 0.5 * math.cos(2.0 * math.pi * (fraction % 1.0))            # 1 at rest, 0 at the low
+    lit = (GLOW["low"] + (1.0 - GLOW["low"]) * breath) ** (1.0 / GLOW["gamma"])
+    floor = glow_floor()
+    risen = (lit - floor) / (1.0 - floor)
+    return 1.0 - lit, risen * risen
 
 
 def glow(state, elapsed_ms, since_entered_ms=None, *, reduced=False):
@@ -791,11 +783,17 @@ def glow_moves(state, since_entered_ms=None, *, reduced=False) -> bool:
     return False
 
 
+def glow_reach(dot_radius: float) -> float:
+    """How far past the dot's edge the glow gets at the top of the breath: a share of the dot, so the window's
+    10 px light and the panel's 12 px one are the same light at two sizes."""
+    return GLOW["reach_of_radius"] * dot_radius
+
+
 def glow_stops(dot_radius: float) -> tuple:
     """The falloff as (fraction of the outer radius from the centre, alpha factor) stops, for a gradient filling the
     glow's disc at any spread; the first two lie under the dot. GDI+ path gradients count their positions from the
     edge inward, so the window and the popup reverse these."""
-    outer, reach = float(glow_extent(dot_radius)), GLOW["reach"]
+    outer, reach = float(glow_extent(dot_radius)), glow_reach(dot_radius)
     return ((0.0, GLOW["edge_alpha"]), (dot_radius / outer, GLOW["edge_alpha"]),
             ((dot_radius + reach * GLOW["near_at"]) / outer, GLOW["near_alpha"]),
             ((dot_radius + reach * GLOW["far_at"]) / outer, GLOW["far_alpha"]),
@@ -804,7 +802,7 @@ def glow_stops(dot_radius: float) -> tuple:
 
 def glow_radius(dot_radius: float, spread: float = 1.0) -> float:
     """The glow's outer radius in CSS px for a frame's `spread`; times the display scale to draw."""
-    return dot_radius + GLOW["reach"] * spread
+    return dot_radius + glow_reach(dot_radius) * spread
 
 
 def glow_extent(dot_radius: float) -> float:

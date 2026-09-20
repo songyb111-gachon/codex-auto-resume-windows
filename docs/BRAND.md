@@ -126,7 +126,7 @@ window and a card in Codex round their corners by the same amount.
 | `TYPE_SCALE`, `LINE_HEIGHT`, `TYPE_ROLES` | display 21, title 15, body 14, small 12.5, mono 13 | The panel's type. The native surfaces keep `TYPE`: a notification-area popup and a fixed-size window read better with smaller text than a panel inside Codex. |
 | `LAYOUT` | button 34 high, field 35, switch 40 × 22, check box 18 with 10 to its label, chip 22, card padding 16 × 18, page gap 14, and the rest | The sizes of the shared control recipes, taken from the panel. |
 | `SHADOWS` | light card: offset (4, 4), blur 14, `shadow_dark` at 0.55, and offset (−4, −4), blur 14, `shadow_light` at 0.90; control: the same at offset 2, blur 6; inset: offset 2, blur 6, inside the edge. Dark card: offset (0, 1), blur 2, `shadow_dark` at 0.70, offset (0, 6), blur 18, at 0.35, and a one-pixel `shadow_light` line at 0.45 inside the top edge; control: offset (0, 1), blur 2, at 0.60; inset: the same inside the edge, at 0.55 | A lifted card, a raised control and a well. Small on purpose: exaggerated embossing is what makes soft interfaces unreadable. |
-| `STATUS_DOT`, `STATUS_FILL`, `GLOW` | dot radius: window 5, popup 4.5, panel 6; a cycle of fall 25%, rise 40%, bloom 20% and withdraw 15%; the dot dims 60% of the way toward its ground; the glow reaches 3 beyond the dot, at opacity 0.34 | The state light: its size, its colour for each state, its blink and its glow. |
+| `STATUS_DOT`, `STATUS_FILL`, `GLOW` | dot radius: window 5, popup 4.5, panel 6; one cosine a cycle, taken in light and drawn through gamma 2.2; the dot keeps 35% of its light at the bottom; the glow rides it, reaching 0.6 of the radius at opacity 0.50 | The state light: its size, its colour for each state, its blink and its glow. |
 | `MOTION` | transition 160 ms on one curve, `ease` = cubic-bezier(0.33, 1, 0.68, 1), an ease-out | A switch's glide and a check box's fade on every surface, and the rise of an open drop-down list. |
 | `ICON_SHAPE` | ring 0.34 to 0.53 of the half-size; sweep from 125° round to 55°, leaving a 70° opening at the top; head radius 0.155; corners 0.30, or 0.24 below 32 px; 4 × 4 samples a pixel (`ICON_SUPERSAMPLE`) | The mark's geometry, in a square whose half-size is 1. |
 
@@ -158,38 +158,43 @@ rather than guessing it from the recipe's name.
 
 The state light says whether the watcher is alive, in the Dashboard's header, at the top of the
 popup and at the top of the panel, and since v0.6.5 it says what a notification card is about.
-It is a flat dot that blinks the way the notification-area icon's head does, with a small glow
-that spreads only once the dot is fully lit. `brand.glow()` defines it once - its numbers are
-`GLOW`, generated into the window's `gui/Brand.cs` and the panel's stylesheet - and every surface
-is tested against that one function. One cycle has four phases, each eased as half a raised
-cosine, so nothing has a corner:
+It is a flat dot that breathes, with a glow that rides its brightness. `brand.glow()` defines it
+once - its numbers are `GLOW`, generated into the window's `gui/Brand.cs` and the panel's
+stylesheet - and every surface is tested against that one function. Since v0.6.6 the shape is the
+ordinary one a status light of this size is built from, and nothing of ours:
 
-1. **Fall**, a quarter of the cycle: the dot dims to 60% of the way from its colour toward the
-   ground it sits on, as far as the icon's head dims toward its badge. Nothing spreads.
-2. **Rise**, 40%: the dot comes back to its full colour. Still nothing spreads.
-3. **Bloom**, 20%: lit, a glow grows from nothing to opacity 0.34, reaching 3 pixels past the
-   dot's edge.
-4. **Withdraw**, 15%: the glow draws back into the dot, which stays lit.
+1. **One cycle, near a resting breath.** 4.4 seconds, about fourteen a minute. Quicker reads as a
+   blink; much slower reads as a light that has stopped.
+2. **One symmetric cosine across the whole cycle.** The light is never not moving, and has a
+   corner nowhere. Half of it goes down, half comes back.
+3. **A deep swing.** The dot keeps 35% of its light at the bottom, which is 62% of its colour as
+   drawn. What makes a breath gentle is its speed and its curve, not a small swing.
+4. **Taken in light, drawn through the screen's gamma.** A cosine walked straight along an alpha
+   bunches at the top and rushes at the bottom; raised to 1/2.2 it is even to look at.
+5. **A glow that rides the brightness.** Out at the top of the breath at opacity 0.50, gone at the
+   bottom, and reaching 0.6 of the dot's radius past its edge - a share of the dot, so the
+   window's 10-pixel light and the panel's 12-pixel one are the same light at two sizes.
+6. **A dot whose size never changes.** A 10-pixel disc that scales reads as jitter.
 
-A cycle begins where a still light rests - lit, with no glow - so a light that starts moving leaves
-it with no jump, as each of the icon's breaths begins and ends at full brightness.
+A cycle begins and ends at the top, where a still light also sits, so a light that starts moving
+does not jump in brightness; the glow is the one thing that arrives with the motion.
 
 | State | Colour | Light |
 | --- | --- | --- |
-| Monitoring | `active` | The cycle, every 3.2 s |
+| Monitoring | `active` | The cycle, every 4.4 s |
 | Waiting | `active` | Lit and still, with no glow |
 | Checking a task that has come due | `active` | Lit, with no glow, and a thin arc turning once every 1.6 s (in the Dashboard and the popup) |
-| Recovering | `active` | The cycle, every 2 s |
+| Recovering | `active` | The cycle, every 2.8 s |
 | Needs a person, failed | `attention`, `danger` | The cycle once, over 1.4 s, when it is first shown; then lit and still, with no glow |
 | Paused, stopped | `paused`, `idle` | A grey dot that never moves |
 
-The user chose this light (2026-09-19). The first v0.6.5 cut made v0.6.4's too-quiet light visible
-by breathing a glow - opacity 0.12 to 0.58, reaching 7 pixels past a dot that never changed - and
-the answer was that the blink wanted was the icon's: from darkest to brightest nothing should
-spread, from brightest a slight spread, and less of it. Previews at +2, +3 and +4 pixels were
-rendered, light and dark, and +3 was kept. The glow is a falloff, never a disc: at its peak its
-alpha is 0.34 times 0.67 at the dot's edge, 0.58 at 0.14 of the reach, 0.50 at 0.66 and nothing at
-3 pixels, in straight lines between, so it holds near half strength and then fades; it never dips
+Three cuts were wrong in three directions before this one, and the user named each: the first
+breathed a glow round a dot that never changed, 7 pixels of it ("너무 많이 커지는거 같아"); v0.6.5
+made the dot itself blink, deep and quick ("너무 빠르게 깜빡이는거 같아 / 은은한 느낌이 있어야해
+부드럽고"); v0.6.6's first answer shrank the swing, which is the wrong lever ("지금은 너무 안
+보여"). The fourth is the ordinary one above, chosen against the other three side by side. The glow
+is a falloff, never a disc: at its peak its alpha is 0.50 times 0.67 at the dot's edge, 0.58 at 0.14 of the reach, 0.50 at 0.66 and nothing at
+the reach, in straight lines between, so it holds near half strength and then fades; it never dips
 and rises again, because a gap between a dot and a ring reads as a target. A smaller spread is the
 same falloff drawn smaller about the centre, so the glow grows out from under the dot. The largest
 reaches 8 pixels from the window's dot centre, well inside the 28-pixel column the window keeps
@@ -220,13 +225,13 @@ six-state light; it speaks a smaller language with the mark it already has. The 
 dot at the leading end of the ring - is what moves. While the watcher watches it breathes three
 times, dimming toward the badge's deep blue and back on `GLOW`'s monitoring rhythm, and then sweeps
 along the ring's white stroke and back in a slot of two more breaths, at full brightness, eased in
-and out: 2.56 s out, a moment held at the stroke's far end, 2.56 s back and 1.12 s at home - a loop
+and out: 3.52 s out, a moment held at the stroke's far end, 3.52 s back and 1.54 s at home - a loop
 of five slots, each one breath long. It leaves its place clockwise and stays on the stroke, never
 crossing the gap at the top of the ring, so the head is always somewhere the ring is drawn. It never
 breathes while it travels, and every hand-over is at full brightness, where a breath and the sweep's
 slot both begin and end. While a recovery is in progress it sweeps out and back over and over, twice
-as quickly - 1.28 s out, a moment at the far end, 1.28 s back and 0.24 s at home, a sweep every
-2.88 s - at full brightness and without breathing; paused it is grey and still; a problem is its
+as quickly - 1.76 s out, a moment at the far end, 1.76 s back and 0.33 s at home, a sweep every
+3.96 s - at full brightness and without breathing; paused it is grey and still; a problem is its
 colour, one pulse on `GLOW`'s attention rhythm, then held. The motion adds no shape and no colour:
 the frames are the mark itself, drawn from `ICON_SHAPE` by the same rasteriser as the `.ico`, with
 the head moved - 24 positions round the ring, fifteen degrees apart, of which the 20 from its own
@@ -238,7 +243,7 @@ numbers - how many breaths come before a sweep, how long its slot is and how tha
 head's positions, the breath's levels and the frame rates - are `tray.py`'s `ICON_MOTION`,
 deliberately not `brand.py`'s, because every `GLOW` key is generated into the window's status light,
 and the window's taskbar button reads the icon's own from `Brand.Mark`. The README shows the motion
-as a GIF drawn from the icon's own frames (`docs/images/icon-motion.gif`, made by
+as an animated PNG drawn from the icon's own frames (`docs/images/icon-motion.png`, made by
 `build/make_screenshots.py`). It holds still under Reduce motion, Windows' animation setting, High
 Contrast, battery saver, a locked session, and while Windows' own settings for the icon say it sits
 in the overflow area (`tray_place.IconPlacement`, which reads them and writes nothing): the icon's
@@ -335,6 +340,39 @@ Since v0.6.5 the same holds across a list's bottom. A list's columns share its w
 ordinary size, what cannot fit ending in an ellipsis, so a list overflows sideways only in a window
 narrower than its columns can shrink to; then, and only then, the soft bar lies along its bottom,
 and Windows' own horizontal bar - which showed white on a dark card - is clipped away too.
+
+Since v0.6.6 it is every bar, wherever one appears and on either axis, in the window and in the
+panel alike: a bar that arrives in Windows' or the browser's grey is a hole in the design, and it
+arrives by default, so the rule has to be the default too. The panel's stylesheet says it for the
+document rather than for one class, corner included, with `scrollbar-width` behind it for a browser
+that draws no `::-webkit-scrollbar`. The window's message box was the last control still scrolling
+on Windows' bar: it keeps that bar - it is what actually scrolls the text, and what the wheel and
+the keys talk to - and hides it outside a clip, while the soft bar is drawn in the gutter that
+leaves, from the box's own scroll position.
+
+And the track takes its colour from the ground it runs over. Over a card the groove is `inset`, as
+above; in a well that is itself `inset` - the message box - an inset track would *be* the ground
+and the thumb would float on nothing, so there the track is `surface`. A groove is a step away from
+what surrounds it, and which way that step goes depends on what surrounds it.
+
+## Asking, and telling
+
+Windows' message box was the window's last native control, and it broke three rules at once: a
+square grey sheet in nobody's material, a system font in a window with its own, and a title bar
+that ignores the theme - in dark, a white card in the middle of a dark window. Since v0.6.6 a
+question and a notice are both a dialog of the window's own: canvas, the window's font, its title
+bar, a sentence at a 420-pixel measure inset 16 on every side, and a button row inset the same.
+
+Its buttons say what will happen. "Yes" and "No" name nothing, so the affirming button carries the
+words of the button that was pressed to ask - *Clear history*, *Stop watcher*, *Install* - beside
+`action.cancel`, or `action.close` where the action itself is called Cancel and the two words would
+be the same. It is the accent button, and the only one; it is the rightmost; Enter presses it and
+Escape presses the other. A notice has one button, *Close*, and Enter and Escape both press it.
+The panel settled this first, on the pending row that asks before it switches a conversation off,
+and the window follows the panel rather than the other way round.
+
+One message box is left, and deliberately: the one raised before there is a window, a theme or a
+catalog, to say that nothing is installed in that location.
 
 ## Depth in the popup
 

@@ -40,6 +40,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
 using System.Windows.Forms.Automation;
@@ -2255,9 +2256,8 @@ namespace CodexAutoResume
             catch (Exception error)
             {
                 RefreshStatusAsync(null);
-                MessageBox.Show(this, S("start.failed", "Could not start the watcher.") + Environment.NewLine +
-                                Environment.NewLine + error.Message,
-                                "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Tell(S("start.failed", "Could not start the watcher.") + Environment.NewLine +
+                     Environment.NewLine + error.Message);
             }
             startButton.Enabled = true;
         }
@@ -2330,22 +2330,19 @@ namespace CodexAutoResume
 
         private void SaveFailed(Dictionary<string, object> reply)
         {
-            MessageBox.Show(this, S("settings.save_failed", "Could not save.") + Environment.NewLine + Environment.NewLine +
-                            Convert.ToString(Get(reply, "error"), CultureInfo.InvariantCulture),
-                            "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            Tell(S("settings.save_failed", "Could not save.") + Environment.NewLine + Environment.NewLine +
+                 Convert.ToString(Get(reply, "error"), CultureInfo.InvariantCulture));
         }
 
         private void RestoreDefaults()
         {
-            if (MessageBox.Show(this, S("settings.confirm_restore", "Reset every setting to its recommended value?"),
-                                "Codex Auto Resume", MessageBoxButtons.YesNo,
-                                MessageBoxIcon.Question) != DialogResult.Yes) return;
+            if (!Confirm(S("settings.confirm_restore", "Reset every setting to its recommended value?"),
+                         S("action.restore", "Restore defaults"))) return;
             CallAsync("defaults", null, delegate(Dictionary<string, object> reply)
             {
                 if (Ok(reply)) { Reload(); return; }
-                MessageBox.Show(this, S("settings.restore_failed", "Could not restore defaults.") + Environment.NewLine +
-                                Environment.NewLine + Convert.ToString(Get(reply, "error"), CultureInfo.InvariantCulture),
-                                "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Tell(S("settings.restore_failed", "Could not restore defaults.") + Environment.NewLine +
+                     Environment.NewLine + Convert.ToString(Get(reply, "error"), CultureInfo.InvariantCulture));
             });
         }
     }
@@ -4050,6 +4047,30 @@ namespace CodexAutoResume
 
     internal static class Program
     {
+        [DllImport("shell32.dll", PreserveSig = false)]
+        private static extern void SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string id);
+
+        /// The identity Windows files this window's taskbar button under, and why it is the window's own.
+        ///
+        /// v0.6.5 moved the mark on the taskbar button by setting the window's big icon frame by frame, and it
+        /// was captured doing so - from a build in a scratch folder. Installed, it never moved. Measured on this
+        /// machine: the same executable, byte for byte, moved the button from a scratch folder and did not move
+        /// it from the installed one, where an instrumented build showed the window setting frame after frame
+        /// into a button that stayed pixel-identical for twenty-four seconds. What decides it is the location:
+        /// Windows files an installed window under the application registered there and paints its button from
+        /// that application's icon, which no window can change. (A Start Menu shortcut alone does not do it: one
+        /// written for a scratch folder, with the same identity and icon, left the button moving.)
+        ///
+        /// So the window claims an identity of its own, which no shortcut registers, and Windows falls back to
+        /// the icon the window itself carries. The notification identity is untouched: toasts are raised by the
+        /// watcher process under the watcher's AUMID, and this call changes only this process. Called before any
+        /// window exists, which is the only time Windows accepts it.
+        internal static void TakeOwnTaskbarIdentity()
+        {
+            try { SetCurrentProcessExplicitAppUserModelID("CodexAutoResume.Settings"); }
+            catch (Exception) { }           // an older shell, or a shell that refuses: the button simply stays still
+        }
+
         [STAThread]
         internal static int Main(string[] argv)
         {
@@ -4059,6 +4080,7 @@ namespace CodexAutoResume
             AppContext.SetSwitch("Switch.UseLegacyAccessibilityFeatures", false);
             AppContext.SetSwitch("Switch.UseLegacyAccessibilityFeatures.2", false);
             AppContext.SetSwitch("Switch.UseLegacyAccessibilityFeatures.3", false);
+            TakeOwnTaskbarIdentity();
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
@@ -4066,6 +4088,10 @@ namespace CodexAutoResume
             var bridge = new Bridge(root);
             if (!bridge.Available)
             {
+                // The one message box left, and deliberately Windows' own: there is no window yet, no
+                // theme has been read and no catalog has been loaded, so the window's dialog would
+                // have neither its material nor its language. This says, in English, that there is
+                // nothing here to run, and nothing here can say it any better.
                 MessageBox.Show("Codex Auto Resume is not installed in this location." +
                                 Environment.NewLine + Environment.NewLine + root,
                                 "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Error);

@@ -598,11 +598,14 @@ class ScaleTests(unittest.TestCase):
             self.assertIn("--size-%s:" % key.replace("_", "-"), scale)
         self.assertIn("--size-card-pad: 16px 18px;", scale)
         self.assertIn("--size-row-pad: 11px 0;", scale)
+        self.assertIn("--glow-reach: 3.6px;", scale)            # 0.6 of the panel's 6 px dot
         self.assertIn("--glow-edge: 6px;", scale)
-        self.assertIn("--glow-outer: 9px;", scale)
-        self.assertIn("--glow-from: 0.6667;", scale)
-        self.assertIn("--glow-dot-low: 0.4;", scale)
-        self.assertIn("--glow-monitoring-ms: 3200ms;", scale)
+        self.assertIn("--glow-outer: 9.6px;", scale)
+        # The dot's depth is not a property any more: the panel walks the breath's own stops
+        # (css_glow_keyframes), sampled from glow_phase, so there is nothing here to keep in step.
+        self.assertIn("--glow-from: 0.625;", scale)
+        self.assertNotIn("--glow-dot-low", scale)
+        self.assertIn("--glow-monitoring-ms: 4400ms;", scale)
         self.assertIn("--transition: 160ms;", scale)
         self.assertIn("--transition-ease: cubic-bezier(0.33, 1, 0.68, 1);", scale)
 
@@ -611,10 +614,10 @@ RUNNING_STATES = ("monitoring", "waiting", "checking", "recovering")
 
 
 class StatusLightTests(unittest.TestCase):
-    """The status light, as the v0.6.4 decision states it and v0.6.5 made visible: the shape is the
-    flat dot each surface already drew, every running state is the cyan the dot had before v0.6.3,
-    the greys stay exactly as they were, and the light blinks as the icon's head does - the dot dims
-    and comes back with nothing spreading, and only then, lit, spreads a little and draws back in."""
+    """The status light: the flat dot each surface already drew, every running state the cyan the dot had
+    before v0.6.3, the greys exactly as they were, and - since v0.6.6 - the ordinary breath a status light
+    of this size is built from: one symmetric cosine a cycle, taken in light and drawn through the screen's
+    gamma, with the glow riding the brightness and reaching a share of the dot rather than a flat 3 px."""
 
     def test_every_running_state_is_the_cyan_from_before_v063(self):
         for state in RUNNING_STATES:
@@ -647,20 +650,26 @@ class StatusLightTests(unittest.TestCase):
             self.assertEqual(brand.status_system(state), "GrayText")
 
     def test_the_decided_numbers(self):
-        # v0.6.5, the user: the icon head's blink, no spread from darkest to brightest, a slight spread
-        # once lit, and smaller than the first cut's 7 px - the +3 px preview was kept.
-        expected = {"fall": 0.25, "rise": 0.40, "bloom": 0.20, "withdraw": 0.15, "dot_dim": 0.60,
-                    "peak": 0.34, "reach": 3, "edge_alpha": 0.67, "near_at": 0.14, "near_alpha": 0.58,
-                    "far_at": 0.66, "far_alpha": 0.50, "monitoring_ms": 3200, "recovering_ms": 2000,
+        # v0.6.6, chosen against the earlier cuts side by side: a resting-breath cycle, a dot that keeps
+        # `low` of its light at the bottom, and a glow that reaches a share of the dot rather than 3 px
+        # everywhere - which had been two thirds of the popup's radius and half of the panel's.
+        expected = {"low": 0.35, "gamma": 2.2, "peak": 0.50, "reach_of_radius": 0.6,
+                    "edge_alpha": 0.67, "near_at": 0.14, "near_alpha": 0.58, "far_at": 0.66,
+                    "far_alpha": 0.50, "monitoring_ms": 4400, "recovering_ms": 2800,
                     "attention_ms": 1400, "arc_ms": 1600, "arc_alpha": 0.55}
         self.assertEqual({key: brand.GLOW[key] for key in expected}, expected)
-        self.assertEqual(brand.GLOW_PHASES, ("fall", "rise", "bloom", "withdraw"))
-        self.assertAlmostEqual(sum(brand.GLOW[phase] for phase in brand.GLOW_PHASES), 1.0)
         self.assertEqual(brand.STATUS_DOT, {"window": 5, "popup": 4.5, "panel": 6, "mini": 4})
-        # The first cut's breath and ring are gone, not left beside the new numbers.
-        for gone in ("still", "attention_peak", "monitoring_low", "monitoring_high", "monitoring_scale_low",
-                     "recovering_low", "recovering_high", "recovering_scale_high"):
+        self.assertAlmostEqual(brand.glow_floor(), 0.35 ** (1 / 2.2))          # 62% of the colour, as drawn
+        # A breath is a rhythm, not a length: every surface breathes alike and only the reach is a size.
+        for surface, radius in brand.STATUS_DOT.items():
+            with self.subTest(surface):
+                self.assertAlmostEqual(brand.glow_reach(radius), 0.6 * radius)
+                self.assertAlmostEqual(brand.glow_extent(radius), 1.6 * radius)
+        # The phases and the first cut's ring are gone, not left beside the new numbers.
+        for gone in ("fall", "rise", "bloom", "withdraw", "dot_dim", "reach", "still", "attention_peak",
+                     "monitoring_low", "monitoring_high", "recovering_low", "recovering_high"):
             self.assertNotIn(gone, brand.GLOW)
+        self.assertFalse(hasattr(brand, "GLOW_PHASES"))
 
     def assertFrame(self, frame, expected):
         self.assertEqual(set(frame), set(expected))
@@ -676,60 +685,76 @@ class StatusLightTests(unittest.TestCase):
         return [(elapsed, brand.glow(state, 0 if since else elapsed, elapsed if since else None))
                 for elapsed in (index * step for index in range(count))]
 
-    def test_nothing_spreads_before_the_dot_is_fully_lit(self):
-        """"가장 어두움 -> 가장 밝아짐 까지는 번지는게 없고 / 가장 밝아짐 -> 살짝 번짐 까지 있게 하자"."""
+    def test_the_glow_rides_the_brightness(self):
+        """It takes no turn of its own: out when the dot is lit, gone when the dot is at its lowest, and
+        never anywhere the brightness has not put it. Squared, so it keeps to the top of the breath."""
         for state, since in (("monitoring", False), ("recovering", False), ("attention", True), ("failed", True)):
             with self.subTest(state):
-                cycle = brand.GLOW["attention_ms" if since else state + "_ms"]
-                lit_from = (brand.GLOW["fall"] + brand.GLOW["rise"]) * cycle
+                pairs = []
                 for elapsed, frame in self.cycle(state, since=since):
-                    if frame["opacity"] > 0 or frame["spread"] > 0:
-                        self.assertEqual(frame["dim"], 0.0, elapsed)
-                        self.assertGreaterEqual(elapsed, lit_from - 1e-6)
-                    if elapsed < lit_from:
-                        self.assertEqual((frame["opacity"], frame["spread"]), (0.0, 0.0), elapsed)
                     self.assertAlmostEqual(frame["opacity"], brand.GLOW["peak"] * frame["spread"])
+                    pairs.append((1.0 - frame["dim"], frame["spread"]))
+                floor = brand.glow_floor()
+                for lit, spread in pairs:
+                    with self.subTest(lit=round(lit, 3)):
+                        self.assertAlmostEqual(spread, ((lit - floor) / (1.0 - floor)) ** 2, places=9)
+                self.assertAlmostEqual(max(spread for _, spread in pairs), 1.0, places=3)
+                self.assertAlmostEqual(min(spread for _, spread in pairs), 0.0, places=3)
 
-    def test_the_cycle_is_fall_rise_bloom_withdraw(self):
-        light, cycle = brand.GLOW, brand.GLOW["monitoring_ms"]
+    def test_the_cycle_is_one_symmetric_breath(self):
+        """Down for half of it and up for the other half, with the light never still, the two halves
+        mirror images, and no step anywhere a frame could land."""
+        cycle = brand.GLOW["monitoring_ms"]
 
         def at(fraction):
             return brand.glow("monitoring", fraction * cycle)
 
-        self.assertEqual(at(0), {"dim": 0.0, "opacity": 0.0, "spread": 0.0, "arc": None})
-        self.assertAlmostEqual(at(light["fall"])["dim"], light["dot_dim"])            # darkest
-        risen = at(light["fall"] + light["rise"])
-        self.assertEqual((risen["dim"], risen["spread"]), (0.0, 0.0))                  # lit, nothing spread
-        peak = at(light["fall"] + light["rise"] + light["bloom"])
-        self.assertEqual(peak["dim"], 0.0)
-        self.assertAlmostEqual(peak["spread"], 1.0)
-        self.assertAlmostEqual(peak["opacity"], light["peak"])
-        # Each phase moves one way only, eased: no corner where one gives way to the next.
+        self.assertAlmostEqual(at(0)["dim"], 0.0)                                   # the top of the breath
+        self.assertAlmostEqual(at(0.5)["dim"], 1.0 - brand.glow_floor())            # its bottom
+        self.assertAlmostEqual(at(0.5)["spread"], 0.0)
+        for fraction in (0.05, 0.17, 0.25, 0.4, 0.49):
+            with self.subTest(fraction=fraction):
+                self.assertAlmostEqual(at(fraction)["dim"], at(1.0 - fraction)["dim"], places=9)
         frames = self.cycle("monitoring")
         dims = [frame["dim"] for _, frame in frames]
-        spreads = [frame["spread"] for _, frame in frames]
-        darkest, lit, bloomed = (int(cycle * mark) for mark in (0.25, 0.65, 0.85))
-        self.assertEqual(dims[:darkest + 1], sorted(dims[:darkest + 1]))
-        self.assertEqual(dims[darkest:lit + 1], sorted(dims[darkest:lit + 1], reverse=True))
-        self.assertEqual(spreads[lit:bloomed + 1], sorted(spreads[lit:bloomed + 1]))
-        self.assertEqual(spreads[bloomed:], sorted(spreads[bloomed:], reverse=True))
+        half = int(cycle * 0.5)
+        self.assertEqual(dims[:half + 1], sorted(dims[:half + 1]))                  # down, all the way
+        self.assertEqual(dims[half:], sorted(dims[half:], reverse=True))            # and back up
+        levels = set(round(dim, 4) for dim in dims)
+        self.assertGreater(len(levels), 0.9 * len(dims) / 2 - 100)      # a cosine meets each level twice
         for index in range(1, len(frames) + 1):
             now = frames[index % len(frames)][1]
             before = frames[index - 1][1]
             self.assertLess(abs(now["dim"] - before["dim"]), 0.003, index)
             self.assertLess(abs(now["spread"] - before["spread"]), 0.01, index)
 
-    def test_a_cycle_starts_and_ends_at_the_still_light(self):
-        """A light that starts moving leaves the still light - lit, no glow - with no jump, as each of the
-        icon's breaths begins and ends at full brightness."""
-        still = {"dim": 0.0, "opacity": 0.0, "spread": 0.0, "arc": None}
+    def test_the_curve_is_taken_in_light_and_drawn_through_the_gamma(self):
+        """Walking a cosine straight along an alpha bunches at the top and rushes at the bottom. The
+        cosine is in light; what is drawn is that raised to 1/gamma, which is even to look at."""
+        import math
+        cycle = brand.GLOW["monitoring_ms"]
+        for fraction in (0.0, 0.1, 0.25, 0.5, 0.75, 0.9):
+            with self.subTest(fraction=fraction):
+                breath = 0.5 + 0.5 * math.cos(2.0 * math.pi * fraction)
+                light = brand.GLOW["low"] + (1.0 - brand.GLOW["low"]) * breath
+                drawn = light ** (1.0 / brand.GLOW["gamma"])
+                self.assertAlmostEqual(1.0 - brand.glow("monitoring", fraction * cycle)["dim"], drawn, places=9)
+        # Halfway down in time is brighter than halfway down in light: that is the correction.
+        self.assertGreater(1.0 - brand.glow("monitoring", cycle * 0.25)["dim"],
+                           (1.0 + brand.GLOW["low"]) / 2.0)
+
+    def test_a_cycle_starts_and_ends_at_full_brightness(self):
+        """A breath begins and ends at the top, where the still light also sits, so a light that starts
+        moving does not jump in brightness. The glow is the one thing that appears with the motion: it
+        rides the brightness, so at the top it is out, and a still light never has one."""
         for state in brand.GLOW_BREATHES:
             with self.subTest(state):
-                self.assertEqual(brand.glow(state, 0), still)
-                self.assertEqual(brand.glow(state, brand.GLOW[state + "_ms"]), still)
-                end = brand.glow(state, brand.GLOW[state + "_ms"] - 1)
-                self.assertLess(end["spread"], 0.001)
-                self.assertEqual(brand.glow("waiting", 1234), still)
+                cycle = brand.GLOW[state + "_ms"]
+                self.assertAlmostEqual(brand.glow(state, 0)["dim"], 0.0)
+                self.assertAlmostEqual(brand.glow(state, cycle)["dim"], 0.0)
+                self.assertAlmostEqual(brand.glow(state, cycle * 2)["dim"], 0.0)
+                self.assertAlmostEqual(brand.glow(state, cycle - 1)["dim"], 0.0, places=5)
+        self.assertEqual(brand.glow("waiting", 1234), {"dim": 0.0, "opacity": 0.0, "spread": 0.0, "arc": None})
 
     def test_recovering_runs_the_same_cycle_faster(self):
         self.assertLess(brand.GLOW["recovering_ms"], brand.GLOW["monitoring_ms"])
@@ -762,8 +787,8 @@ class StatusLightTests(unittest.TestCase):
                 for since in range(0, pulse, 20):
                     self.assertFrame(brand.glow(state, 5000, since),
                                      brand.glow("monitoring", since / pulse * brand.GLOW["monitoring_ms"]))
-                self.assertAlmostEqual(brand.glow(state, 0, pulse * 0.25)["dim"], brand.GLOW["dot_dim"])
-                self.assertAlmostEqual(brand.glow(state, 0, pulse * 0.85)["opacity"], brand.GLOW["peak"])
+                self.assertAlmostEqual(brand.glow(state, 0, pulse * 0.5)["dim"], 1.0 - brand.glow_floor())
+                self.assertAlmostEqual(brand.glow(state, 0, 0)["opacity"], brand.GLOW["peak"])
                 for settled in (pulse, pulse + 1, 5000, None, -5):
                     self.assertEqual(brand.glow(state, 777, settled), still)
                 self.assertTrue(brand.glow_moves(state, 700))
@@ -780,8 +805,8 @@ class StatusLightTests(unittest.TestCase):
                 self.assertFalse(brand.glow_moves(state, 0, reduced=True))
         self.assertFalse(hasattr(brand, "glow_rest"))
 
-    def test_the_glow_falls_off_from_the_dot_to_nothing_three_pixels_out(self):
-        stops = brand.glow_stops(5)
+    def test_the_glow_falls_off_from_the_dot_to_nothing_at_its_reach(self):
+        stops = brand.glow_stops(5)                       # the window's dot: 0.6 of 5 px is 3
         self.assertEqual([alpha for _, alpha in stops], [0.67, 0.67, 0.58, 0.50, 0.0])
         positions = [position for position, _ in stops]
         self.assertEqual(positions, sorted(positions))
@@ -796,61 +821,21 @@ class StatusLightTests(unittest.TestCase):
         alphas = [alpha for _, alpha in stops]
         self.assertEqual(alphas, sorted(alphas, reverse=True))
 
-    def test_the_spread_reaches_three_pixels_past_the_dot_and_no_further(self):
-        """"지금은 너무 많이 커지는거 같아": the first cut reached 7 px past the dot's edge, and a little more as it
-        swelled. Every frame of every state stays within 3 px, on every surface's dot."""
+    def test_the_spread_reaches_its_share_of_the_dot_and_no_further(self):
+        """"지금은 너무 많이 커지는거 같아": the first cut reached 7 px past the dot's edge and a little more as it
+        swelled. v0.6.5 answered with a flat 3 px, which is a different light on each surface - two thirds of
+        the popup's radius, half of the panel's. It is a share of the dot now, and no frame of any state
+        passes it."""
         for surface, dot in brand.STATUS_DOT.items():
             with self.subTest(surface):
-                self.assertEqual(brand.glow_extent(dot) - dot, 3)
+                reach = brand.GLOW["reach_of_radius"] * dot
+                self.assertAlmostEqual(brand.glow_extent(dot) - dot, reach)
                 reached = max(brand.glow_radius(dot, frame["spread"]) - dot
                               for state in ("monitoring", "recovering")
                               for _, frame in self.cycle(state, step=5.0))
-                self.assertAlmostEqual(reached, 3.0, places=4)
-        self.assertEqual(brand.glow_extent(brand.STATUS_DOT["popup"]), 7.5)
-
-    def test_it_is_the_approved_preview(self):
-        """The +3 px column of scratchpad/v065/light2/phased_small.py, as the user approved it: the first cut's
-        falloff (7 px reach; .58 at .45 of it, .50 at .78) drawn about the window's dot with its outer edge
-        brought in to 3 px past the dot's edge at the peak, opacity .34, over a cycle that starts at its rise.
-        The table here states that falloff past the dot's edge; seen from outside the dot it is the same light."""
-        dot, cycle = brand.STATUS_DOT["window"], brand.GLOW["monitoring_ms"]
-        old = ((0.0, 1.0), (dot / 12.0, 1.0), ((dot + 7 * 0.45) / 12.0, 0.58), ((dot + 7 * 0.78) / 12.0, 0.50),
-               (1.0, 0.0))
-
-        def falloff(stops, fraction):
-            for (f0, a0), (f1, a1) in zip(stops, stops[1:]):
-                if fraction <= f1:
-                    return a0 + (a1 - a0) * (fraction - f0) / (f1 - f0)
-            return 0.0
-
-        def ease(t):
-            return 0.5 - 0.5 * math.cos(math.pi * max(0.0, min(1.0, t)))
-
-        def preview(ms):                       # phased_small.phase(): (bloom, dim)
-            f = (ms % cycle) / cycle
-            if f < 0.40:
-                return 0.0, 0.60 * (1 - ease(f / 0.40))
-            f -= 0.40
-            if f < 0.20:
-                return ease(f / 0.20), 0.0
-            f -= 0.20
-            if f < 0.15:
-                return 1 - ease(f / 0.15), 0.0
-            return 0.0, 0.60 * ease((f - 0.15) / 0.25)
-
-        for step in range(96):
-            ms = step * cycle / 96
-            bloom, dim = preview(ms)
-            frame = brand.glow("monitoring", ms + brand.GLOW["fall"] * cycle)
-            with self.subTest(ms=ms):
-                self.assertAlmostEqual(frame["dim"], dim, places=9)
-                self.assertAlmostEqual(frame["spread"], bloom, places=9)
-                outer = brand.glow_radius(dot, frame["spread"])
-                for tenth in range(0, 31):
-                    radius = dot + tenth / 10.0
-                    then = 0.34 * bloom * falloff(old, radius / (dot + 3 * bloom)) if bloom else 0.0
-                    now = frame["opacity"] * falloff(brand.glow_stops(dot), radius / outer) if outer > dot else 0.0
-                    self.assertAlmostEqual(now, then, delta=0.004)
+                self.assertAlmostEqual(reached, reach, places=3)
+        self.assertEqual(brand.glow_extent(brand.STATUS_DOT["window"]), 8)
+        self.assertAlmostEqual(brand.glow_extent(brand.STATUS_DOT["popup"]), 7.2)
 
     def test_the_largest_glow_fits_the_column_the_window_keeps_for_it(self):
         """The window's header gives the light a 28 px column and asks 2 * ceil(extent) of it at
@@ -904,7 +889,7 @@ class GeneratedWindowTokenTests(unittest.TestCase):
         for text in ("AccentHover", "AccentPressed", "internal const int FieldHeight = 35;",
                      "internal const float ElevCardShadowAlpha = 0.55f;",
                      "internal const int ElevCardReachBottom = 25;",
-                     "internal const double GlowMonitoringMs = 3200;",
+                     "internal const double GlowMonitoringMs = 4400;",
                      "internal const double TransitionEaseX1 = 0.33;", "internal static double Ease(",
                      "internal static bool Glow(", "internal static bool GlowMoves(",
                      "internal static Color StatusFill(", "internal static Color StatusSystem("):

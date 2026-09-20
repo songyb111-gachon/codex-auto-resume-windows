@@ -1,5 +1,160 @@
 # Changelog
 
+## v0.6.6 — A status light that breathes, a taskbar button that moves where it is installed, and pictures that show it
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.5...v0.6.6)
+
+What a day of real use turned up. Nothing about recovery changed: the same classifier, the same
+gates, the same one watcher that is the only thing allowed to send, and no new setting.
+
+### The status light is the ordinary breath now
+
+Three cuts were wrong in three directions, and each was named: v0.6.4's glow was too big, v0.6.5's
+blink too quick and too hard, and this release's first answer - a smaller swing - too faint to see.
+The fourth is how a status light of this size is ordinarily built, and nothing of ours:
+
+- **One cycle near a resting breath**, 4.4 s, about fourteen a minute. Recovering runs it every
+  2.8 s; a problem runs it once, over 1.4 s, and then holds lit.
+- **One symmetric cosine across the whole cycle**, so the light is never not moving and has a
+  corner nowhere - half of it down, half back.
+- **A deep swing**: the dot keeps 35% of its light at the bottom, 62% of its colour as drawn.
+  Gentleness comes from the speed and the curve, not from a small swing, which is what the first
+  answer got backwards.
+- **Taken in light and drawn through the screen's gamma**, because a cosine walked straight along
+  an alpha bunches at the top and rushes at the bottom.
+- **A glow that rides the brightness** rather than taking a turn of its own: out at the top at
+  opacity 0.50, gone at the bottom.
+- **A reach that is a share of the dot**, 0.6 of its radius, rather than the flat 3 px it had been
+  - which was two thirds of the popup's radius and half of the panel's, the same light in two
+  strengths. The window's is unchanged at 3 px; the panel's is 3.6 and the popup's 2.7.
+
+One table serves every surface, so the window, the notification-area popup, the panel in Codex and
+the notification card breathe alike. The notification-area icon and the window's taskbar button
+read the same rhythm, so the mark's head breathes with it and its sweep comes every 22 s rather
+than every 16 s; the head keeps its own deeper fall, because sixteen pixels need it.
+
+### The last controls that were not ours
+
+Two native controls were still showing through the design, and a third was ours only where somebody
+had remembered to ask for it.
+
+- **Every scroll bar is the product's own**, wherever one appears and on either axis. The panel's
+  rules had been written for one class - the drop-down's list - so a wide table, a long page or any
+  box added later got the browser's grey; they are global now, with a corner and a Firefox
+  fallback. In the window the message box was the last control still scrolling on Windows' bar: it
+  keeps that bar, because that is what scrolls the text and what the wheel and the keys talk to,
+  and hides it outside a clip, while ours is drawn in the gutter that leaves, from the box's own
+  scroll position, exactly as a list's is.
+- **A scroll bar's track takes its colour from the ground it runs over.** Over a card the groove is
+  `inset`, as it always was; in a well that is itself `inset` - the message box - an inset track
+  would be the ground and the pill would float on nothing, so there it is `surface`. High Contrast
+  keeps its system colours either way.
+- **Windows' message box is gone from the window.** Fourteen of the fifteen are now a dialog in the
+  material the rest of the window is made of, and they say what will happen: instead of "Yes" and
+  "No", which name nothing, the affirming button carries the words of the button that was pressed
+  to ask - *Clear history*, *Stop watcher*, *Install* - beside Cancel, which is the pattern the
+  panel settled first. The fifteenth is kept on purpose: it is raised before there is a window, a
+  theme or a catalog, to say that nothing is installed in that location.
+- **Every drop-down the panel makes is the panel's own**, which was true and is now held to by a
+  test that reads each one by name rather than counting them.
+
+Deliberately unchanged: the notification area's right-click menu, which Windows draws and which
+already follows the theme, and the file picker the diagnostics export opens, which is the one every
+other application opens.
+
+### The documentation moves
+
+- The pictures a reader meets first are animated PNGs now: every dashboard page, the settings
+  window, the panel in Codex and the notification-area popup, in each language, with their status
+  light redrawn from `brand.glow` at the rate the window itself repaints. Nothing else in them
+  moves, they keep every colour they had, and a viewer without animation sees the still picture
+  that was always there.
+- The icon's motion and the light's own picture are animated PNGs too, in place of the GIFs they
+  were: a GIF holds 256 colours, which is not enough for the badge's gradient or the card's
+  ground.
+- The pictures are the light theme's only. The dark theme is described rather than pictured, which
+  halves what a reader scrolls past.
+- **Every window picture had a black band down each side and along its bottom** - 11 px at 100%,
+  16 at 150% - and nobody had looked at the edge of a 1522-pixel picture. It was not the window:
+  `PrintWindow` returns the window without its frame, because the frame is Windows' to draw, and
+  the bitmap it is drawn into starts black. The picture is now cut to what was actually drawn,
+  measured from the window's own client rectangle.
+- **And the corners Windows rounds are rounded in the picture**, at the system's own radius for
+  this window's DPI, left transparent so the page behind shows through them. A screenshot of a
+  Windows 11 window with square corners is a screenshot of a window nobody has.
+
+### The taskbar button moves where it is installed
+
+- v0.6.5 moved the mark on the window's taskbar button, and on an installed window it never moved
+  once. Measured here: the published executable, byte for byte, moved the button from a scratch
+  folder and did not move it from the installed one, where an instrumented build showed the window
+  setting frame after frame into a button that stayed pixel-identical for twenty-four seconds.
+  What decides it is where the window is installed, not what it does: Windows files an installed
+  window under the application registered at that location and paints its button from that
+  application's icon, which no window can change. A Start Menu shortcut alone does not do it - one
+  written for a scratch folder, with the same identity and the same icon, left the button moving.
+- The window now asks Windows to file it under an identity of its own, which nothing registers, and
+  the button falls back to the icon the window itself sets. With that one call the same build moved
+  74 of 163 filmed frames in the installed location. Notifications are unaffected: they are raised
+  by the watcher under the watcher's own AppUserModelID, which is what makes them attributable.
+- The notification-area icon is unchanged, including where it holds still on purpose: an icon
+  Windows keeps in the overflow flyout does not move, because nobody sees it there. Dragging it onto
+  the taskbar brings its motion back within a second.
+
+### Documents
+
+- The changelog, the roadmap, the brand notes and the feature matrix carry the new numbers, in
+  English and Korean. The roadmap's planned releases each move one number on: the Python
+  modularization that was v0.6.6 is v0.6.7, and everything after it follows.
+
+### Evidence
+
+Everything below was run on one Windows 11 machine (Home, build 26200, 3840 x 2160 at 150%, Korean
+system language, Windows' apps set to dark and the product's Theme set to Light). The suite, the
+build, the light, the pictures and the dialog were measured on this tree. The three that need an
+installation - the taskbar button in the installed location, the upgrade over v0.6.5 and the
+archive's own checks - were measured on the first candidate for this release, before the controls
+below were made the product's own, and are run again on the candidate that is published.
+
+- **The suite.** 2,568 tests, no failures, under Python 3.13 here (771 s, 8 skipped), and green on
+  GitHub's Windows runners for 3.12, 3.13, 3.14 and 3.15. The skips are the opt-in live checks and
+  the pin check that waits for the tag.
+- **The window, built twice.** Two builds of `CodexAutoResumeSettings.exe` from these sources are
+  byte-identical (`97d835b8…`, 386,560 bytes). The archive's own digest is not written here - this
+  file ships inside the archive, so naming it would change it - it is published beside the release
+  and pinned in `scripts/release.json` afterwards, which is what `docs/VERIFY.md` compares.
+- **The taskbar button, in the installed location.** This is the claim v0.6.5 could not make. With
+  v0.6.6 installed over v0.6.5 here, the window's button was filmed at ten frames a second for
+  twenty-four seconds: 92 of 198 frames differ from the one before, and the mark's head is at
+  different places and brightnesses through the loop. The same measurement on the published v0.6.5
+  build, in the same place, found not one changed pixel in twenty-four seconds; the same executable
+  moved the button from a scratch folder. An instrumented build showed the window setting frames
+  throughout (state=watching, allowed=True, interval 156 then 62) - the frames simply never reached
+  the button.
+- **Installed over v0.6.5 on this machine.** The installer answered *Updated. Your settings and
+  pending recoveries were kept.*; `config\settings.json` was byte for byte what it had been; the
+  watcher restarted and reported 0.6.6, and the plugin manifest reads 0.6.6.
+- **The archive.** `build/smoke_archive.py` passed every check on it, including that both
+  executables report 0.6.6 and that this machine's registrations and state were left as they were.
+- **The light.** Its numbers are held by the suite on the drawn pixels of every surface - the
+  window, the popup, the panel and the card - and every picture in the documentation was drawn
+  again from the new table by the product's own code, in nine languages, in the light theme.
+- **The icon's motion.** The animated PNG in the documentation is composed from the icon's own
+  frames at the new rhythm, and the suite holds every frame of it against the icon's table.
+- **The pictures' edges.** Every window picture is 22 px narrower and 11 shorter than it was: the
+  frame Windows draws and PrintWindow does not is gone, measured away rather than trimmed by eye,
+  and the four corners Windows rounds are rounded and clear, which the suite reads off the pixels.
+- **The dialog.** It is opened for real by the suite - the compiled window, a dialog asked for, a
+  timer that reads it while it is up and presses one of its buttons - and what is read back is where
+  the buttons are, which one Enter and Escape press, that it belongs to the window and carries no
+  second button on the taskbar, and the answer each press gave. Nobody has yet used it with a screen
+  reader, and no capture shows it.
+
+Not verified, and not claimed: the notification-area icon's own motion on this machine (Windows
+keeps it in the overflow flyout, where this release still holds it still on purpose); High Contrast
+on a real system; a real Codex interruption recovered by this build; any machine but this one, and
+any scaling but 150 per cent.
+
 ## v0.6.5 — A light you can see, notifications in the product's own card, and a Codex Compatibility Registry
 
 [The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.4...v0.6.5)
@@ -232,7 +387,7 @@ Nothing a user sees. Every safety scan in the tests now reads the whole package,
 moving code into a subpackage can never take it out of a check's sight; the package's layers, each
 module's size and its structural invariants are held by tests; and the screenshot checks are keyed
 on what the window is shown rather than on which files changed. The split itself, and the golden
-replies, gathered rules and typed contracts that come before it, are v0.6.6.
+replies, gathered rules and typed contracts that come before it, are v0.6.7.
 
 ### Documents
 

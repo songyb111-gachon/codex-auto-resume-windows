@@ -39,7 +39,7 @@ FONTS = (9.0, 12.0)
 # the bloom (65% to 85%) and the withdrawal (85% to 100%).
 LIGHT_SCALE = 3.0
 LIGHT_SIDE = 96
-LIGHT_FRACTIONS = (0.25, 0.60, 0.68, 0.70, 0.72, 0.75, 0.78, 0.80, 0.85, 0.88, 0.90, 0.93, 0.96)
+LIGHT_FRACTIONS = (0.0, 0.08, 0.16, 0.25, 0.34, 0.42, 0.5, 0.58, 0.66, 0.75, 0.84, 0.92, 0.99)
 LIGHT_MOMENTS = tuple(brand.GLOW["monitoring_ms"] * fraction for fraction in LIGHT_FRACTIONS)
 
 PROBE = r"""
@@ -346,19 +346,31 @@ class MaterialTests(unittest.TestCase):
             lit = channels(row[centre])
             with self.subTest(fraction=fraction, spread=round(frame["spread"], 3), dim=round(frame["dim"], 3)):
                 want = brand.rgb(brand.mix(colour, "#%02X%02X%02X" % ground, frame["dim"]))
-                for part, expected in zip(lit, want):
-                    self.assertLessEqual(abs(part - expected), 2, (lit, want))
-                if frame["spread"] == 0:
-                    self.assertLessEqual(seen, dot * LIGHT_SCALE + 1, "no glow before the dot is lit")
+                if frame["spread"] < 0.02:
+                    # Nothing under it: the dot is exactly its colour that far toward the ground.
+                    for part, expected in zip(lit, want):
+                        self.assertLessEqual(abs(part - expected), 2, (lit, want))
+                    self.assertLessEqual(seen, dot * LIGHT_SCALE + 1, "a glow with nothing to spread")
                     continue
+                # The glow is drawn under the dot and is the dot's own colour, so the centre lands between
+                # the dot over the plain card and the colour itself - which for a cyan means less red, not
+                # more light.
+                pure = brand.rgb(colour)
+                for part, expected, full in zip(lit, want, pure):
+                    self.assertGreaterEqual(part + 2, min(expected, full), (lit, want, pure))
+                    self.assertLessEqual(part - 2, max(expected, full), (lit, want, pure))
                 radius = brand.glow_radius(dot, frame["spread"]) * LIGHT_SCALE
                 self.assertLessEqual(seen, radius, "the glow reaches past its spread's radius")
                 self.assertGreaterEqual(seen, radius - 2, "the glow stops short of its spread's radius")
                 reached.append((fraction, seen))
         self.assertEqual(frames[round(LIGHT_MOMENTS[0], 3)][0], frames[round(LIGHT_MOMENTS[-1], 3)][0])
-        self.assertGreater(brand.glow("monitoring", LIGHT_MOMENTS[0], LIGHT_MOMENTS[0])["dim"], 0.5)
-        growing = [seen for fraction, seen in reached if fraction <= 0.85]
-        receding = [seen for fraction, seen in reached if fraction >= 0.85]
+        # The breath starts at the top, where the dot is lit and the glow is at its widest.
+        self.assertAlmostEqual(brand.glow("monitoring", LIGHT_MOMENTS[0], LIGHT_MOMENTS[0])["dim"], 0.0, places=9)
+        self.assertAlmostEqual(brand.glow("monitoring", brand.GLOW["monitoring_ms"] * 0.5,
+                                          brand.GLOW["monitoring_ms"] * 0.5)["dim"],
+                               1.0 - brand.glow_floor(), places=9)
+        receding = [seen for fraction, seen in reached if fraction <= 0.5]
+        growing = [seen for fraction, seen in reached if fraction >= 0.5]
         self.assertEqual(growing, sorted(growing))
         self.assertEqual(receding, sorted(receding, reverse=True))
         self.assertGreaterEqual(growing[-1] - growing[0], 2 * LIGHT_SCALE, reached)
@@ -451,6 +463,7 @@ $comboType = $assembly.GetType('CodexAutoResume.SoftCombo', $true)
 $softType = $assembly.GetType('CodexAutoResume.Soft', $true)
 $formType = $assembly.GetType('CodexAutoResume.SettingsForm', $true)
 $scrollerType = $assembly.GetType('CodexAutoResume.ISoftScroller', $true)
+$tokensType = $assembly.GetType('CodexAutoResume.Tokens', $true)
 function Get-Member2($target, [string]$name) { return $target.GetType().GetProperty($name, $instance).GetValue($target, $null) }
 function Set-Member2($target, [string]$name, $value) { $target.GetType().GetProperty($name, $instance).SetValue($target, $value, $null) }
 function Invoke-Member2($target, [string]$name, [object[]]$arguments) {
@@ -497,9 +510,15 @@ $trackFill = $barType.GetMethod('TrackFill', $static)
 $trackEdge = $barType.GetMethod('TrackEdge', $static)
 $thumbFill = $barType.GetMethod('ThumbFill', $static)
 $thumbEdge = $barType.GetMethod('ThumbEdge', $static)
-$out.contrast = @{ track = @($trackFill.Invoke($null, [object[]]@($true)).Name, $trackEdge.Invoke($null, [object[]]@($true)).Name)
+# A bar is drawn on the ground it runs over, and the track's colour is chosen against it (v0.6.6): on a
+# card the groove is `inset`, and in a well that is already `inset` - the message box - it is `surface`.
+$onCard = $tokensType.GetField('Card', $static).GetValue($null)
+$onInset = $tokensType.GetField('Inset', $static).GetValue($null)
+$out.contrast = @{ track = @($trackFill.Invoke($null, [object[]]@($true, $onCard)).Name, $trackEdge.Invoke($null, [object[]]@($true)).Name)
+                   inset = [string]$trackFill.Invoke($null, [object[]]@($true, $onInset)).Name
                    thumb = @(); edge = @() }
-$out.light = @{ track = @($trackFill.Invoke($null, [object[]]@($false)).ToArgb(), $trackEdge.Invoke($null, [object[]]@($false)).ToArgb())
+$out.light = @{ track = @($trackFill.Invoke($null, [object[]]@($false, $onCard)).ToArgb(), $trackEdge.Invoke($null, [object[]]@($false)).ToArgb())
+                inset = [int]$trackFill.Invoke($null, [object[]]@($false, $onInset)).ToArgb()
                 thumb = @(); edge = @() }
 foreach ($state in 0, 1, 2) {
     $out.contrast.thumb += [string]$thumbFill.Invoke($null, [object[]]@([int]$state, $true)).Name
@@ -808,8 +827,18 @@ class SoftScrollTests(unittest.TestCase):
     def test_high_contrast_draws_the_bar_in_system_colours(self):
         contrast = self.answer["contrast"]
         self.assertEqual(contrast["track"], ["Window", "WindowFrame"])
+        self.assertEqual(contrast["inset"], "Window", "the ground does not move High Contrast off its own colours")
         self.assertEqual(contrast["thumb"], ["GrayText", "Highlight", "Highlight"])
         self.assertEqual(contrast["edge"], contrast["thumb"])
+
+    def test_the_track_takes_its_colour_from_the_ground_it_runs_over(self):
+        """A groove has to be a step away from what surrounds it. Over a card - the list, the page, the panel - that
+        step is `inset`; in the message box, whose own well is already `inset`, an inset track would be the ground
+        itself and the pill would float on nothing, so there the track is `surface` ("스크롤바는 스크롤바가 생기는
+        곳에 따라 색이 쫌 달라져야 하지 않을까?")."""
+        light = self.answer["light"]
+        self.assertEqual(light["track"][0], argb(brand.LIGHT["inset"]), "on a card, the groove")
+        self.assertEqual(light["inset"], argb(brand.LIGHT["surface"]), "in an inset well, a step the other way")
 
     def test_the_bar_is_the_panels_material_and_darkens_a_step_under_the_pointer(self):
         light = self.answer["light"]
@@ -892,9 +921,9 @@ class SourceRuleTests(unittest.TestCase):
                 self.assertNotIn("Color.Transparent", body)
 
     def test_the_soft_bar_has_no_shadow_in_high_contrast_and_no_native_bar_behind_it(self):
-        draw = self.body("internal static void Draw(Graphics g, Rectangle track, Rectangle thumb, int state)")
+        draw = self.body("internal static void Draw(Graphics g, Rectangle track, Rectangle thumb, int state, Color ground)")
         self.assertIn("bool contrast = Palette.Contrast;", draw)
-        self.assertIn("Soft.Body(g, track, radius, TrackFill(contrast), TrackEdge(contrast), !contrast);", draw,
+        self.assertIn("Soft.Body(g, track, radius, TrackFill(contrast, ground), TrackEdge(contrast), !contrast);", draw,
                       "the well's inset shadow is off in High Contrast")
         self.assertIn("if (!contrast)", draw[:draw.index("Elevation.StampOuter(")], "and so is the thumb's lift")
         page = self.controls[self.controls.index("internal sealed class SoftPage "):]

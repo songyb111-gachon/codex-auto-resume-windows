@@ -180,7 +180,7 @@ notification center, so the history is the same either way. Below is the card as
 draws it, in the light and the dark theme, rendered off-screen from sample data;
 [The notification](#the-notification) says what each line is.
 
-<img src="docs/images/notification-card.png" alt="The notification card in the light theme: Codex Auto Resume with a cyan status light and a Usage limit chip, the task example-project, the line Codex usage limit reached. This task will resume at 08:42., the conversation's exact identifier, and the buttons Don't resume and Open Dashboard" width="388"> <img src="docs/images/notification-card-dark.png" alt="The same notification card in the dark theme" width="388">
+<img src="docs/images/notification-card.png" alt="The notification card in the light theme: Codex Auto Resume with a cyan status light and a Usage limit chip, the task example-project, the line Codex usage limit reached. This task will resume at 08:42., the conversation's exact identifier, and the buttons Don't resume and Open Dashboard" width="388">
 
 Inside Codex, ask to *open auto resume settings* and the panel shows what is waiting and lets
 you change most of it, in sections for General, Recovery, Notifications, Continuation message
@@ -244,18 +244,27 @@ for the state the watcher is in. Its tooltip says whether recovery is paused, ho
 are waiting, how many are running in Codex and how long until the next check.
 
 The icon moves, in the mark it already has. While the watcher watches, the head - the bright dot at
-the end of the ring - breathes, dimming toward the badge's deep blue and back every 3.2 seconds, and
+the end of the ring - breathes, dimming toward the badge's deep blue and back every 4.4 seconds, and
 after three breaths it sweeps along the ring's white stroke and back, clockwise, at full
-brightness: 2.56 seconds out, a moment at the far end, 2.56 seconds back and 1.12 at home. It never
+brightness: 3.52 seconds out, a moment at the far end, 3.52 seconds back and 1.54 at home. It never
 breathes while it travels, and it never crosses the gap at the top of the ring. While a recovery is
-in progress it sweeps out and back over and over, twice as quickly - once every 2.88 seconds -
+in progress it sweeps out and back over and over, twice as quickly - once every 3.96 seconds -
 without breathing. Paused, it is grey and still; when something needs you it takes that colour, pulses once
 and holds. Nothing moves under Reduce motion, Windows' animation setting, High Contrast or battery
 saver, while the session is locked, or while Windows keeps the icon in the overflow area, where
 nobody would see it. While the settings window is open, its taskbar button moves the same way and
 stops for the same reasons.
 
-<img src="docs/images/icon-motion.gif" alt="The notification-area icon's motion, drawn from the icon's own frames, on a light taskbar above and a dark one below. From the left: watching, whose bright head breathes and then sweeps clockwise along the ring's white stroke and back, at full brightness; recovering, sweeping out and back all the time under a cyan badge; needing attention, amber under an amber badge, pulsing once and then still; paused, grey under a grey badge and still" width="288">
+<img src="docs/images/status-light.png" alt="The status light breathing on a card: a cyan dot that dims to about two thirds of its colour and comes back over four and a half seconds, with a soft glow that grows out from under it as it brightens and is gone at the bottom of the breath" width="112">
+
+While the watcher is watching, the light breathes: one cycle every 4.4 seconds, the dot dimming to
+62% of its colour and back along a cosine, with a glow that rides that brightness and reaches 0.6 of
+the dot's radius past its edge. It is the same light in the window, in the notification-area popup,
+in the panel in Codex and on the notification card. A recovery in progress breathes it every 2.8
+seconds; waiting and checking hold it lit and still; Reduce motion, Windows' animation setting and
+High Contrast hold it still too.
+
+<img src="docs/images/icon-motion.png" alt="The notification-area icon's motion, drawn from the icon's own frames, on a light taskbar. From the left: watching, whose bright head breathes and then sweeps clockwise along the ring's white stroke and back, at full brightness; recovering, sweeping out and back all the time under a cyan badge; needing attention, amber under an amber badge, pulsing once and then still; paused, grey under a grey badge and still" width="288">
 
 A single click on the icon opens a small popup beside it, and another click closes it: the
 watcher's state, how many tasks are waiting and recovering, the next check, up to three waiting
