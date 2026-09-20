@@ -246,5 +246,161 @@ class DialogTests(unittest.TestCase):
         self.assertIn("no window yet", self.settings[at - 400:at], "and it says why it is still Windows'")
 
 
+# Every label the window can put on the button that acts. `action.failed` is a sentence, not a
+# button, and is deliberately not among them.
+AFFIRMS = ("action.cancel", "action.cancel_all", "action.reset_budget", "action.thread_off",
+           "action.thread_on", "action.resume", "action.clear_history", "action.stop_watcher",
+           "action.repair", "action.install", "action.restore")
+
+FIT_PROBE = r"""
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+[Windows.Forms.Application]::EnableVisualStyles()
+[Windows.Forms.Application]::SetCompatibleTextRenderingDefault($false)
+$assembly = [Reflection.Assembly]::LoadFile($env:CAR_EXE)
+$static = [Reflection.BindingFlags]'Static,NonPublic,Public'
+$instance = [Reflection.BindingFlags]'Instance,NonPublic,Public'
+$formType = $assembly.GetType('CodexAutoResume.SettingsForm', $true)
+$bridgeType = $assembly.GetType('CodexAutoResume.Bridge', $true)
+$persistentType = $assembly.GetType('CodexAutoResume.PersistentBridge', $true)
+$assembly.GetType('CodexAutoResume.Tokens', $true).GetMethod('Adopt', $static).Invoke($null, [object[]]@($false))
+$utf8 = New-Object Text.UTF8Encoding $false
+$parse = $assembly.GetType('CodexAutoResume.Json', $true).GetMethod('Parse', $static)
+$cases = $parse.Invoke($null, [object[]]@([string][IO.File]::ReadAllText($env:CAR_CASES, $utf8)))
+$nowhere = [string](Join-Path $env:CAR_WORK 'nowhere')
+$once = $bridgeType.GetConstructors($instance)[0].Invoke([object[]]@($nowhere))
+$bridge = $persistentType.GetConstructors($instance)[0].Invoke([object[]]@($nowhere, $once))
+$three = @($formType.GetConstructors($instance) | Where-Object { $_.GetParameters().Count -eq 3 })[0]
+$result = @{}
+foreach ($tag in $cases.Keys) {
+    $case = $cases[$tag]
+    # The window takes a strings *reply*, not a bare catalog: handed the catalog itself it finds
+    # no key and falls back to the English written beside each call, which would have made this a
+    # nine-language test of English.
+    $words = [string][IO.File]::ReadAllText([string]$case['catalog'], $utf8)
+    $catalog = $parse.Invoke($null, [object[]]@('{"ok":true,"strings":' + $words + '}'))
+    $window = $three.Invoke([object[]]@($bridge, $catalog, [Drawing.SystemFonts]::MessageBoxFont))
+    $window.StartPosition = 'Manual'
+    $window.Location = New-Object Drawing.Point -4000, -4000
+    $window.Show()
+    [Windows.Forms.Application]::DoEvents()
+    $say = @($formType.GetMethods($instance) | Where-Object { $_.Name -eq 'Say' })[0]
+    $script:look = $null
+    $timer = New-Object Windows.Forms.Timer
+    $timer.Interval = 350
+    $timer.Add_Tick({
+        $timer.Stop()
+        $dialog = [Windows.Forms.Form]::ActiveForm
+        if ($dialog -eq $null -or [object]::ReferenceEquals($dialog, $window)) { return }
+        try {
+            $seen = @{ client = @($dialog.ClientSize.Width, $dialog.ClientSize.Height); buttons = @() }
+            foreach ($c in $dialog.Controls) {
+                foreach ($k in $c.Controls) {
+                    if ($k -is [Windows.Forms.Label]) {
+                        $flags = [Windows.Forms.TextFormatFlags]::WordBreak -bor [Windows.Forms.TextFormatFlags]::NoPrefix
+                        $needs = [Windows.Forms.TextRenderer]::MeasureText($k.Text, $k.Font,
+                                 (New-Object Drawing.Size $k.Width, 0), $flags)
+                        $seen.words = @($k.Bounds.Left, $k.Bounds.Top, $k.Width, $k.Height)
+                        $seen.needs = @($needs.Width, $needs.Height)
+                    }
+                    if ($k.GetType().Name -eq 'SoftTextArea') { $seen.well = $true }
+                }
+                if ($c -is [Windows.Forms.FlowLayoutPanel]) {
+                    foreach ($k in $c.Controls) {
+                        $seen.buttons += ,@([string]$k.Text, [int]($c.Left + $k.Bounds.Left),
+                                            [int]($c.Left + $k.Bounds.Right), [int]$k.Bounds.Top, [int]$k.Bounds.Bottom)
+                    }
+                    $seen.row = @($c.Left, $c.Top, $c.Width, $c.Height)
+                }
+            }
+            $script:look = $seen
+        } catch { $script:look = @{ failed = [string]$_ } }
+        if (-not $dialog.IsDisposed) { $dialog.Close() }
+    })
+    $timer.Start()
+    $null = $say.Invoke($window, [object[]]@([string]$case['text'], [string]$case['affirm']))
+    if ($script:look -eq $null) { throw "no dialog for $tag" }
+    if ($script:look.ContainsKey('failed')) { throw $script:look.failed }
+    $result[$tag] = $script:look
+    $window.Close()
+}
+$result | ConvertTo-Json -Depth 8 -Compress
+"""
+
+
+@unittest.skipUnless(os.name == "nt", "the window is Windows'")
+@unittest.skipUnless(EXE.is_file(), "build the window first: build/make_gui.ps1")
+class DialogFitTests(unittest.TestCase):
+    """The dialog holds the longest thing every language can put in it.
+
+    The window's own pages are audited in nine languages at five scalings; the dialog is a form of
+    its own and was in none of that. What it is handed is not a fixed string either - it is whatever
+    the catalog says, and German's update question is 279 characters where Simplified Chinese's is
+    82. So this raises it, in each language, with the longest question that language has and the
+    longest label the window can put on the button that acts, and looks at whether the words fit and
+    whether the buttons are still on one line.
+    """
+
+    answer = None
+    cases = None
+
+    @classmethod
+    def setUpClass(cls):
+        catalogs = ROOT / "src" / "codex_auto_resume" / "locales"
+        cases = {}
+        for path in sorted(catalogs.glob("*.json")):
+            catalog = json.loads(path.read_text(encoding="utf-8"))
+            questions = [value for key, value in catalog.items()
+                         if key.startswith("confirm.") or key == "settings.confirm_restore"]
+            labels = [catalog[key] for key in AFFIRMS if key in catalog]
+            if not questions or not labels:
+                continue
+            cases[path.stem] = {"catalog": str(path),
+                                "text": max(questions, key=len).replace("{name}", "example-project")
+                                                              .replace("{latest}", "0.6.7"),
+                                "affirm": max(labels, key=len)}
+        cls.cases = cases
+        with tempfile.TemporaryDirectory() as work:
+            written = Path(work) / "cases.json"
+            written.write_text(json.dumps(cases, ensure_ascii=False), encoding="utf-8")
+            environment = dict(os.environ)
+            environment.update({"CAR_EXE": str(EXE), "CAR_CASES": str(written), "CAR_WORK": work})
+            done = subprocess.run([str(POWERSHELL), "-NoProfile", "-ExecutionPolicy", "Bypass",
+                                   "-Command", FIT_PROBE],
+                                  capture_output=True, text=True, timeout=600, env=environment)
+        if done.returncode != 0:
+            raise AssertionError(done.stdout + done.stderr)
+        cls.answer = json.loads(done.stdout.strip().splitlines()[-1])
+
+    def test_every_language_gets_a_dialog_for_its_longest_question(self):
+        self.assertEqual(sorted(self.answer), sorted(self.cases), "a language raised no dialog")
+
+    def test_the_words_are_never_cut_off(self):
+        for tag, look in sorted(self.answer.items()):
+            with self.subTest(tag):
+                if look.get("well"):
+                    continue                    # too tall to draw, so it scrolls instead: covered above
+                width, height = look["words"][2], look["words"][3]
+                needs = look["needs"]
+                self.assertLessEqual(needs[0], width, "%s: the words are wider than the room" % tag)
+                self.assertLessEqual(needs[1], height, "%s: the words are taller than the room" % tag)
+
+    def test_the_buttons_stay_on_one_line_inside_the_dialog(self):
+        """The row wraps when what it holds will not fit, which is the right thing for it to do and
+        the wrong thing to see: two buttons above one another, with the dialog sized for one row."""
+        for tag, look in sorted(self.answer.items()):
+            buttons = look["buttons"]
+            with self.subTest(tag):
+                self.assertEqual(len(buttons), 2, "%s: a question has two buttons" % tag)
+                self.assertEqual(buttons[0][3], buttons[1][3], "%s: the buttons are on two lines" % tag)
+                self.assertLessEqual(max(b[2] for b in buttons), look["client"][0],
+                                     "%s: a button runs past the dialog's edge" % tag)
+                self.assertGreaterEqual(min(b[1] for b in buttons), 0,
+                                        "%s: a button starts before the dialog's edge" % tag)
+                self.assertLessEqual(max(b[4] for b in buttons), look["row"][3],
+                                     "%s: a button runs past its row" % tag)
+
+
 if __name__ == "__main__":
     unittest.main()
