@@ -71,9 +71,9 @@ Recovery decides exactly what it decided in v0.6.3.
 
 ---
 
-## v0.6.5 — Codex Compatibility Registry, interface polish, and groundwork for the split 🚧
+## v0.6.5 — Codex Compatibility Registry, interface polish, and groundwork for the split ✅
 
-**In development, on the `dev` branch.**
+**Released.**
 
 v0.6.5 carries the Codex Compatibility Registry and the interface work that came out of using
 v0.6.4, and lays the groundwork for splitting the Python implementation, which moves to v0.6.6.
@@ -146,6 +146,8 @@ Interface work that came out of using v0.6.4:
 ---
 
 ## v0.6.6 — Python modularization
+
+**Next.**
 
 v0.6.6 is planned as the major structural cleanup of the Python implementation. It was the main
 part of v0.6.5 in the earlier plan; v0.6.5 ships its groundwork, and the split itself moves here.
@@ -395,7 +397,7 @@ UI lag reduction
 
         ↓
 
-v0.6.5  🚧 In development, on the dev branch
+v0.6.5  ✅ Released
 Codex Compatibility Registry
 + icon motion, notification card, UI polish
 + groundwork for the Python split
@@ -438,4 +440,4 @@ Final Rust audit and stabilization
 Maintenance
 ```
 
-This document records the current direction; v0.6.5 is being built on the `dev` branch.
+This document records the current direction; v0.6.5 is out, and v0.6.6 is built on the `dev` branch.
