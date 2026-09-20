@@ -3153,6 +3153,11 @@ namespace CodexAutoResume
                     well.Box.Font = Font;
                     well.Box.ReadOnly = true;
                     well.Box.Text = text ?? "";
+                    // Read from the top, unselected. A text box takes the focus a dialog hands its first
+                    // control and answers it by selecting everything it holds, which reads as a page of
+                    // highlighted text nobody asked to highlight - and leaves the well wearing the focus
+                    // ring while the button that closes it has none.
+                    dialog.Shown += delegate { well.Box.Select(0, 0); };
                     well.Box.AccessibleName = "Codex Auto Resume";
                     padding.Controls.Add(well);
                 }
@@ -3197,6 +3202,9 @@ namespace CodexAutoResume
                 dialog.Controls.Add(buttons);
                 dialog.AcceptButton = accept;
                 dialog.CancelButton = dismiss;     // which is also what Escape presses
+                // The keyboard starts on the button that acts, not on the words: a dialog hands the
+                // focus to its first control, and where the words are in a well that is the well.
+                dialog.ActiveControl = accept;
 
                 dialog.ClientSize = new Size(width + 2 * pad, room + pad + buttons.PreferredSize.Height);
                 dialog.ShowDialog(this);
