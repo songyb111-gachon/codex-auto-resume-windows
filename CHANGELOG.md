@@ -1,26 +1,50 @@
 # Changelog
 
-## v0.6.6 — The light, softened, and a taskbar button that moves where it is installed
+## v0.6.6 — A status light that breathes, a taskbar button that moves where it is installed, and pictures that show it
 
 [The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.5...v0.6.6)
 
-Two things a day of real use turned up. Nothing about recovery changed: the same classifier, the
-same gates, the same one watcher that is the only thing allowed to send, and no new setting.
+What a day of real use turned up. Nothing about recovery changed: the same classifier, the same
+gates, the same one watcher that is the only thing allowed to send, and no new setting.
 
-### The status light is softer
+### The status light is the ordinary breath now
 
-- v0.6.5's light read as a blink rather than a breath. Its cycle is now 4.4 s rather than 3.2 s,
-  the dot dims 38% of the way toward the card it sits on rather than 60%, and the glow that
-  spreads once the dot is lit peaks at 0.30 rather than 0.34. Its shape is v0.6.5's, unchanged:
-  the same four phases, the same falloff, the same 3 px reach. While a recovery is being sent the
-  same cycle runs every 2.6 s rather than 2 s; a problem still runs it once, over 1.4 s, and then
-  holds lit.
-- One table serves every surface, so the window, the notification-area popup, the panel in Codex
-  and the notification card soften together and stay the same light.
-- The notification-area icon and the window's taskbar button read that same rhythm, so the mark's
-  head breathes more slowly too, and its sweep along the ring comes every 22 s rather than every
-  16 s. The head itself still dims 60% toward the badge: at sixteen pixels across, the light's new
-  38% would not read at all.
+Three cuts were wrong in three directions, and each was named: v0.6.4's glow was too big, v0.6.5's
+blink too quick and too hard, and this release's first answer - a smaller swing - too faint to see.
+The fourth is how a status light of this size is ordinarily built, and nothing of ours:
+
+- **One cycle near a resting breath**, 4.4 s, about fourteen a minute. Recovering runs it every
+  2.8 s; a problem runs it once, over 1.4 s, and then holds lit.
+- **One symmetric cosine across the whole cycle**, so the light is never not moving and has a
+  corner nowhere - half of it down, half back.
+- **A deep swing**: the dot keeps 35% of its light at the bottom, 62% of its colour as drawn.
+  Gentleness comes from the speed and the curve, not from a small swing, which is what the first
+  answer got backwards.
+- **Taken in light and drawn through the screen's gamma**, because a cosine walked straight along
+  an alpha bunches at the top and rushes at the bottom.
+- **A glow that rides the brightness** rather than taking a turn of its own: out at the top at
+  opacity 0.50, gone at the bottom.
+- **A reach that is a share of the dot**, 0.6 of its radius, rather than the flat 3 px it had been
+  - which was two thirds of the popup's radius and half of the panel's, the same light in two
+  strengths. The window's is unchanged at 3 px; the panel's is 3.6 and the popup's 2.7.
+
+One table serves every surface, so the window, the notification-area popup, the panel in Codex and
+the notification card breathe alike. The notification-area icon and the window's taskbar button
+read the same rhythm, so the mark's head breathes with it and its sweep comes every 22 s rather
+than every 16 s; the head keeps its own deeper fall, because sixteen pixels need it.
+
+### The documentation moves
+
+- The pictures a reader meets first are animated PNGs now: every dashboard page, the settings
+  window, the panel in Codex and the notification-area popup, in each language, with their status
+  light redrawn from `brand.glow` at the rate the window itself repaints. Nothing else in them
+  moves, they keep every colour they had, and a viewer without animation sees the still picture
+  that was always there.
+- The icon's motion and the light's own picture are animated PNGs too, in place of the GIFs they
+  were: a GIF holds 256 colours, which is not enough for the badge's gradient or the card's
+  ground.
+- The pictures are the light theme's only. The dark theme is described rather than pictured, which
+  halves what a reader scrolls past.
 
 ### The taskbar button moves where it is installed
 

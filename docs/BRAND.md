@@ -126,7 +126,7 @@ window and a card in Codex round their corners by the same amount.
 | `TYPE_SCALE`, `LINE_HEIGHT`, `TYPE_ROLES` | display 21, title 15, body 14, small 12.5, mono 13 | The panel's type. The native surfaces keep `TYPE`: a notification-area popup and a fixed-size window read better with smaller text than a panel inside Codex. |
 | `LAYOUT` | button 34 high, field 35, switch 40 × 22, check box 18 with 10 to its label, chip 22, card padding 16 × 18, page gap 14, and the rest | The sizes of the shared control recipes, taken from the panel. |
 | `SHADOWS` | light card: offset (4, 4), blur 14, `shadow_dark` at 0.55, and offset (−4, −4), blur 14, `shadow_light` at 0.90; control: the same at offset 2, blur 6; inset: offset 2, blur 6, inside the edge. Dark card: offset (0, 1), blur 2, `shadow_dark` at 0.70, offset (0, 6), blur 18, at 0.35, and a one-pixel `shadow_light` line at 0.45 inside the top edge; control: offset (0, 1), blur 2, at 0.60; inset: the same inside the edge, at 0.55 | A lifted card, a raised control and a well. Small on purpose: exaggerated embossing is what makes soft interfaces unreadable. |
-| `STATUS_DOT`, `STATUS_FILL`, `GLOW` | dot radius: window 5, popup 4.5, panel 6; a cycle of fall 25%, rise 40%, bloom 20% and withdraw 15%; the dot dims 38% of the way toward its ground; the glow reaches 3 beyond the dot, at opacity 0.30 | The state light: its size, its colour for each state, its blink and its glow. |
+| `STATUS_DOT`, `STATUS_FILL`, `GLOW` | dot radius: window 5, popup 4.5, panel 6; one cosine a cycle, taken in light and drawn through gamma 2.2; the dot keeps 35% of its light at the bottom; the glow rides it, reaching 0.6 of the radius at opacity 0.50 | The state light: its size, its colour for each state, its blink and its glow. |
 | `MOTION` | transition 160 ms on one curve, `ease` = cubic-bezier(0.33, 1, 0.68, 1), an ease-out | A switch's glide and a check box's fade on every surface, and the rise of an open drop-down list. |
 | `ICON_SHAPE` | ring 0.34 to 0.53 of the half-size; sweep from 125° round to 55°, leaving a 70° opening at the top; head radius 0.155; corners 0.30, or 0.24 below 32 px; 4 × 4 samples a pixel (`ICON_SUPERSAMPLE`) | The mark's geometry, in a square whose half-size is 1. |
 
@@ -158,38 +158,43 @@ rather than guessing it from the recipe's name.
 
 The state light says whether the watcher is alive, in the Dashboard's header, at the top of the
 popup and at the top of the panel, and since v0.6.5 it says what a notification card is about.
-It is a flat dot that blinks the way the notification-area icon's head does, with a small glow
-that spreads only once the dot is fully lit. `brand.glow()` defines it once - its numbers are
-`GLOW`, generated into the window's `gui/Brand.cs` and the panel's stylesheet - and every surface
-is tested against that one function. One cycle has four phases, each eased as half a raised
-cosine, so nothing has a corner:
+It is a flat dot that breathes, with a glow that rides its brightness. `brand.glow()` defines it
+once - its numbers are `GLOW`, generated into the window's `gui/Brand.cs` and the panel's
+stylesheet - and every surface is tested against that one function. Since v0.6.6 the shape is the
+ordinary one a status light of this size is built from, and nothing of ours:
 
-1. **Fall**, a quarter of the cycle: the dot dims to 38% of the way from its colour toward the
-   ground it sits on. Nothing spreads. (The icon's head, sixteen pixels across, dims further: 60%.)
-2. **Rise**, 40%: the dot comes back to its full colour. Still nothing spreads.
-3. **Bloom**, 20%: lit, a glow grows from nothing to opacity 0.30, reaching 3 pixels past the
-   dot's edge.
-4. **Withdraw**, 15%: the glow draws back into the dot, which stays lit.
+1. **One cycle, near a resting breath.** 4.4 seconds, about fourteen a minute. Quicker reads as a
+   blink; much slower reads as a light that has stopped.
+2. **One symmetric cosine across the whole cycle.** The light is never not moving, and has a
+   corner nowhere. Half of it goes down, half comes back.
+3. **A deep swing.** The dot keeps 35% of its light at the bottom, which is 62% of its colour as
+   drawn. What makes a breath gentle is its speed and its curve, not a small swing.
+4. **Taken in light, drawn through the screen's gamma.** A cosine walked straight along an alpha
+   bunches at the top and rushes at the bottom; raised to 1/2.2 it is even to look at.
+5. **A glow that rides the brightness.** Out at the top of the breath at opacity 0.50, gone at the
+   bottom, and reaching 0.6 of the dot's radius past its edge - a share of the dot, so the
+   window's 10-pixel light and the panel's 12-pixel one are the same light at two sizes.
+6. **A dot whose size never changes.** A 10-pixel disc that scales reads as jitter.
 
-A cycle begins where a still light rests - lit, with no glow - so a light that starts moving leaves
-it with no jump, as each of the icon's breaths begins and ends at full brightness.
+A cycle begins and ends at the top, where a still light also sits, so a light that starts moving
+does not jump in brightness; the glow is the one thing that arrives with the motion.
 
 | State | Colour | Light |
 | --- | --- | --- |
 | Monitoring | `active` | The cycle, every 4.4 s |
 | Waiting | `active` | Lit and still, with no glow |
 | Checking a task that has come due | `active` | Lit, with no glow, and a thin arc turning once every 1.6 s (in the Dashboard and the popup) |
-| Recovering | `active` | The cycle, every 2.6 s |
+| Recovering | `active` | The cycle, every 2.8 s |
 | Needs a person, failed | `attention`, `danger` | The cycle once, over 1.4 s, when it is first shown; then lit and still, with no glow |
 | Paused, stopped | `paused`, `idle` | A grey dot that never moves |
 
-The user chose this light (2026-09-19). The first v0.6.5 cut made v0.6.4's too-quiet light visible
-by breathing a glow - opacity 0.12 to 0.58, reaching 7 pixels past a dot that never changed - and
-the answer was that the blink wanted was the icon's: from darkest to brightest nothing should
-spread, from brightest a slight spread, and less of it. Previews at +2, +3 and +4 pixels were
-rendered, light and dark, and +3 was kept. The glow is a falloff, never a disc: at its peak its
-alpha is 0.30 times 0.67 at the dot's edge, 0.58 at 0.14 of the reach, 0.50 at 0.66 and nothing at
-3 pixels, in straight lines between, so it holds near half strength and then fades; it never dips
+Three cuts were wrong in three directions before this one, and the user named each: the first
+breathed a glow round a dot that never changed, 7 pixels of it ("너무 많이 커지는거 같아"); v0.6.5
+made the dot itself blink, deep and quick ("너무 빠르게 깜빡이는거 같아 / 은은한 느낌이 있어야해
+부드럽고"); v0.6.6's first answer shrank the swing, which is the wrong lever ("지금은 너무 안
+보여"). The fourth is the ordinary one above, chosen against the other three side by side. The glow
+is a falloff, never a disc: at its peak its alpha is 0.50 times 0.67 at the dot's edge, 0.58 at 0.14 of the reach, 0.50 at 0.66 and nothing at
+the reach, in straight lines between, so it holds near half strength and then fades; it never dips
 and rises again, because a gap between a dot and a ring reads as a target. A smaller spread is the
 same falloff drawn smaller about the centre, so the glow grows out from under the dot. The largest
 reaches 8 pixels from the window's dot centre, well inside the 28-pixel column the window keeps

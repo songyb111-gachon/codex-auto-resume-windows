@@ -39,7 +39,7 @@ FONTS = (9.0, 12.0)
 # the bloom (65% to 85%) and the withdrawal (85% to 100%).
 LIGHT_SCALE = 3.0
 LIGHT_SIDE = 96
-LIGHT_FRACTIONS = (0.25, 0.60, 0.68, 0.70, 0.72, 0.75, 0.78, 0.80, 0.85, 0.88, 0.90, 0.93, 0.96)
+LIGHT_FRACTIONS = (0.0, 0.08, 0.16, 0.25, 0.34, 0.42, 0.5, 0.58, 0.66, 0.75, 0.84, 0.92, 0.99)
 LIGHT_MOMENTS = tuple(brand.GLOW["monitoring_ms"] * fraction for fraction in LIGHT_FRACTIONS)
 
 PROBE = r"""
@@ -346,21 +346,31 @@ class MaterialTests(unittest.TestCase):
             lit = channels(row[centre])
             with self.subTest(fraction=fraction, spread=round(frame["spread"], 3), dim=round(frame["dim"], 3)):
                 want = brand.rgb(brand.mix(colour, "#%02X%02X%02X" % ground, frame["dim"]))
-                for part, expected in zip(lit, want):
-                    self.assertLessEqual(abs(part - expected), 2, (lit, want))
-                if frame["spread"] == 0:
-                    self.assertLessEqual(seen, dot * LIGHT_SCALE + 1, "no glow before the dot is lit")
+                if frame["spread"] < 0.02:
+                    # Nothing under it: the dot is exactly its colour that far toward the ground.
+                    for part, expected in zip(lit, want):
+                        self.assertLessEqual(abs(part - expected), 2, (lit, want))
+                    self.assertLessEqual(seen, dot * LIGHT_SCALE + 1, "a glow with nothing to spread")
                     continue
+                # The glow is drawn under the dot and is the dot's own colour, so the centre lands between
+                # the dot over the plain card and the colour itself - which for a cyan means less red, not
+                # more light.
+                pure = brand.rgb(colour)
+                for part, expected, full in zip(lit, want, pure):
+                    self.assertGreaterEqual(part + 2, min(expected, full), (lit, want, pure))
+                    self.assertLessEqual(part - 2, max(expected, full), (lit, want, pure))
                 radius = brand.glow_radius(dot, frame["spread"]) * LIGHT_SCALE
                 self.assertLessEqual(seen, radius, "the glow reaches past its spread's radius")
                 self.assertGreaterEqual(seen, radius - 2, "the glow stops short of its spread's radius")
                 reached.append((fraction, seen))
         self.assertEqual(frames[round(LIGHT_MOMENTS[0], 3)][0], frames[round(LIGHT_MOMENTS[-1], 3)][0])
-        # The first moment is the fall's end, where the dot is as dark as the table lets it be.
-        self.assertAlmostEqual(brand.glow("monitoring", LIGHT_MOMENTS[0], LIGHT_MOMENTS[0])["dim"],
-                               brand.GLOW["dot_dim"], places=9)
-        growing = [seen for fraction, seen in reached if fraction <= 0.85]
-        receding = [seen for fraction, seen in reached if fraction >= 0.85]
+        # The breath starts at the top, where the dot is lit and the glow is at its widest.
+        self.assertAlmostEqual(brand.glow("monitoring", LIGHT_MOMENTS[0], LIGHT_MOMENTS[0])["dim"], 0.0, places=9)
+        self.assertAlmostEqual(brand.glow("monitoring", brand.GLOW["monitoring_ms"] * 0.5,
+                                          brand.GLOW["monitoring_ms"] * 0.5)["dim"],
+                               1.0 - brand.glow_floor(), places=9)
+        receding = [seen for fraction, seen in reached if fraction <= 0.5]
+        growing = [seen for fraction, seen in reached if fraction >= 0.5]
         self.assertEqual(growing, sorted(growing))
         self.assertEqual(receding, sorted(receding, reverse=True))
         self.assertGreaterEqual(growing[-1] - growing[0], 2 * LIGHT_SCALE, reached)

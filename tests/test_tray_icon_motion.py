@@ -158,13 +158,13 @@ class StateTests(unittest.TestCase):
         rhythm and both rest at full brightness. They no longer fall equally far. v0.6.6 softened the light -
         "상태등은 은은한 느낌이 있어야해 부드럽고" - and the head kept 0.6, because sixteen pixels of it across a taskbar
         need a fall a 10 px dot does not. The light spreads a little once lit; the icon never does."""
-        self.assertLess(brand.GLOW["dot_dim"], MOTION["dim"], "the light falls less far than the head")
+        self.assertLess(1.0 - brand.glow_floor(), MOTION["dim"], "the light falls less far than the head")
         self.assertEqual(MOTION["dim"], 0.6)
-        self.assertEqual(brand.GLOW["dot_dim"], 0.38)
+        self.assertAlmostEqual(brand.glow_floor(), 0.35 ** (1 / 2.2))
         self.assertEqual(brand.glow("monitoring", 0)["dim"], 0.0)
         self.assertEqual(tray.icon_frame("watching", 0)[1], TOP)
         self.assertAlmostEqual(max(brand.glow("monitoring", ms)["dim"] for ms in range(0, SLOT, 10)),
-                               brand.GLOW["dot_dim"])
+                               1.0 - brand.glow_floor(), places=5)
         # The head's own low, on the same rhythm: its darkest level is `dim` of the way down its scale.
         self.assertEqual(tray.icon_frame("watching", SLOT / 2.0)[1], 0)
         self.assertNotIn("spread", MOTION)

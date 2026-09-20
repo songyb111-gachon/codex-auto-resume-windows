@@ -418,10 +418,13 @@ class StyleTests(unittest.TestCase):
         self.assertEqual(scale & colours, set())
         self.assertIn(brand.css_scale(), mcpui._STYLE)
         for name in ("--transition", "--glow-reach", "--glow-edge", "--glow-near", "--glow-far",
-                     "--glow-outer", "--glow-edge-mix", "--glow-near-mix", "--glow-far-mix", "--glow-peak",
-                     "--glow-from", "--glow-dot-low", "--glow-monitoring-ms", "--glow-recovering-ms",
-                     "--glow-attention-ms"):
+                     "--glow-outer", "--glow-edge-mix", "--glow-near-mix", "--glow-far-mix",
+                     "--glow-from", "--glow-monitoring-ms", "--glow-recovering-ms", "--glow-attention-ms"):
             self.assertIn("var(%s)" % name, mcpui._STYLE)
+        # Since v0.6.6 the breath's own numbers are in the keyframes, sampled from the curve, so the peak and
+        # the dot's low are not variables the stylesheet reads any more.
+        for gone in ("--glow-peak", "--glow-dot-low"):
+            self.assertNotIn(gone, brand.css_scale())
         # v0.6.3's halo numbers, which the glow replaced, and the first v0.6.5 cut's breathing glow, which
         # the blink replaced, are neither used nor emitted.
         for name in ("--breathe", "--pulse", "--halo-min", "--halo-max", "--glow-still", "--glow-attention-peak",
@@ -635,7 +638,7 @@ class StatusLightTests(unittest.TestCase):
     def test_the_glow_falls_off_as_brand_says_with_no_edge(self):
         before = ".halo::before"
         self.assertEqual(declared(before, "inset"), "calc(-1 * var(--glow-reach))")
-        self.assertEqual(number("var(--glow-reach)", "px"), brand.GLOW["reach"])
+        self.assertAlmostEqual(number("var(--glow-reach)", "px"), brand.glow_reach(brand.STATUS_DOT["panel"]))
         dot = number(declared(".halo", "width"), "px") / 2
         gradient = declared(before, "background")
         self.assertTrue(gradient.startswith("radial-gradient(circle closest-side, ") and gradient.endswith(")"))
@@ -650,7 +653,7 @@ class StatusLightTests(unittest.TestCase):
         parts.append(current.strip())
         self.assertEqual(parts[0], "circle closest-side")
         # closest-side of a box `reach` wider than the dot on every side.
-        outer = dot + brand.GLOW["reach"]
+        outer = dot + brand.glow_reach(dot)
         observed = []
         for stop in parts[1:]:
             colour, position = stop.rsplit(" ", 1)
@@ -680,7 +683,7 @@ class StatusLightTests(unittest.TestCase):
 
     def animation(self, selector):
         value = resolve(declared(selector, "animation"))
-        name, duration, easing, count = re.fullmatch(r"(\S+) (\d+(?:\.\d+)?)ms (cubic-bezier\([^)]*\)) (\S+)",
+        name, duration, easing, count = re.fullmatch(r"(\S+) (\d+(?:\.\d+)?)ms (cubic-bezier\([^)]*\)|linear) (\S+)",
                                                      value).groups()
         return self.keyframes(name), float(duration), easing, count
 
@@ -689,7 +692,9 @@ class StatusLightTests(unittest.TestCase):
         progress = (elapsed % duration) / duration
         for (start, low, small), (end, high, large) in zip(frames, frames[1:]):
             if start <= progress <= end:
-                eased = cubic_bezier(easing, (progress - start) / (end - start))
+                step = (progress - start) / (end - start)
+                # The curve is in the stops since v0.6.6, so what is between them is walked straight.
+                eased = step if easing == "linear" else cubic_bezier(easing, step)
                 return low + (high - low) * eased, small + (large - small) * eased
         raise AssertionError(progress)
 
@@ -722,11 +727,13 @@ class StatusLightTests(unittest.TestCase):
 
     def test_a_problem_runs_the_cycle_once_and_then_holds_lit(self):
         pulse = brand.GLOW["attention_ms"]
-        for step in range(97):
+        # Up to the end of the pulse. At the end the animation stops and the element falls back to its own
+        # style, which is the still light - and that is the assertion below, not a frame of the animation.
+        for step in range(96):
             since = pulse * step / 96
             with self.subTest(since=since):
-                self.assertBrands(self.light("attention", min(since, pulse - 1e-9), once=True),
-                                  brand.glow("attention", 0, since_entered_ms=since if step < 96 else None))
+                self.assertBrands(self.light("attention", since, once=True),
+                                  brand.glow("attention", 0, since_entered_ms=since))
         # Once it has run, what is left is the still light: the dot at full strength, no glow.
         self.assertIsNone(declared(".halo.attention", "animation"))
         self.assertIsNone(declared(".halo", "opacity"))
