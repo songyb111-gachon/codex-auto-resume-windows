@@ -40,9 +40,10 @@ real Codex recovery. Read each citation and its limits separately.
   `visual_ui_scraping_used: false` recorded in
   [`docs/evidence/unloaded-thread-observation.json`](evidence/unloaded-thread-observation.json).
   That is a protocol observation, not somebody watching.
-- **This version, v0.6.6, is not released; v0.6.5 is the newest that is.** The rows below
-  that say PUBLISHED mean a published version - v0.6.0, v0.6.1, v0.6.2, v0.6.3, v0.6.4 or
-  v0.6.5, all six of whose archives are published and whose digests are pinned on `main`. v0.6.3 added nine
+- **This version, v0.6.6, is released and is the newest.** The rows below that say PUBLISHED
+  mean a published version - v0.6.0 through v0.6.6, all seven of whose archives are published
+  and whose digests are pinned on `main`. A row says PUBLISHED only where the published bytes
+  were driven again, so v0.6.6's own rows will not say it until that has been done. v0.6.3 added nine
   interface languages, settings for the continuation message, a popup on the
   notification-area icon, an Open Dashboard button on notifications and a redesigned window
   and panel, and fixed one defect present in the three versions before it: a recoverable
@@ -61,8 +62,7 @@ real Codex recovery. Read each citation and its limits separately.
   bytes were driven again. v0.6.6 gives the status light the breath a light of its size is
   ordinarily built from, moves the window's taskbar button where it is installed, makes every
   scroll bar and the message box the product's own, and cuts the frame and rounds the corners
-  in the documentation's pictures. Until v0.6.6 is published nothing here claims PUBLISHED for
-  any of that. What PUBLISHED does *not* mean anywhere here
+  in the documentation's pictures; nothing here claims PUBLISHED for any of that yet. What PUBLISHED does *not* mean anywhere here
   is that somebody installed it and used it: the published bytes were driven against a
   state directory and a Codex home that exist only for that check, with the installer's
   registrations never run and no watcher started against real Codex state. Installing,
