@@ -232,7 +232,7 @@ attention 맥동의 지속 시간에는 `--attention`이라는 이름을 절대 
 쓰이는지, 머리의 자리 수, 숨의 밝기 단계, 프레임 빠르기 - 는 `tray.py`의 `ICON_MOTION`에 있고, 일부러
 `brand.py`에 두지 않았습니다. `GLOW`의 키는 모두 창의 상태 불빛으로 생성되고, 창의 작업 표시줄 단추는 아이콘의 숫자를
 `Brand.Mark`에서 읽기 때문입니다. README는 이 움직임을 아이콘 자신의 프레임으로 그린 GIF로
-보여 줍니다(`docs/images/icon-motion.gif`, `build/make_screenshots.py`가 만듭니다). 움직임
+보여 줍니다(움직이는 PNG, `docs/images/icon-motion.png`, `build/make_screenshots.py`가 만듭니다). 움직임
 줄이기, Windows의 애니메이션 설정, 고대비, 배터리 절약 모드에서, 세션이 잠겨 있을 때, 그리고 Windows가
 아이콘에 대해 가진 자신의 설정이 넘침 영역에 있다고 말하는 동안에는 멈춰 있습니다(`tray_place.IconPlacement`는
 그 설정을 읽기만 하고 아무것도 쓰지 않습니다). 아이콘의 사각형으로는 알 수 없습니다. Windows 11 빌드
