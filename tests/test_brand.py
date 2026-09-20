@@ -601,8 +601,10 @@ class ScaleTests(unittest.TestCase):
         self.assertIn("--glow-reach: 3.6px;", scale)            # 0.6 of the panel's 6 px dot
         self.assertIn("--glow-edge: 6px;", scale)
         self.assertIn("--glow-outer: 9.6px;", scale)
+        # The dot's depth is not a property any more: the panel walks the breath's own stops
+        # (css_glow_keyframes), sampled from glow_phase, so there is nothing here to keep in step.
         self.assertIn("--glow-from: 0.625;", scale)
-        self.assertIn("--glow-dot-low: 0.6205;", scale)
+        self.assertNotIn("--glow-dot-low", scale)
         self.assertIn("--glow-monitoring-ms: 4400ms;", scale)
         self.assertIn("--transition: 160ms;", scale)
         self.assertIn("--transition-ease: cubic-bezier(0.33, 1, 0.68, 1);", scale)
