@@ -194,10 +194,15 @@ class ComboMarkupTests(unittest.TestCase):
         self.assertEqual(set(observed["all"]), {"true"})
 
     def test_every_select_the_page_makes_is_given_the_list(self):
+        """Not two of them, but each one there is: a select the page makes and does not hand to combo() opens the
+        browser's own list, which is the one thing this whole control exists to stop. Read by name rather than by
+        count so a third drop-down is covered the day it is written ("선택창 같은 거 ... 전역으로 설정")."""
         script = mcpui._SCRIPT
-        made = len(re.findall(r"createElement\('select'\)", script))
-        self.assertEqual(made, 2)
-        self.assertEqual(len(re.findall(r"= combo\((?:input|select)\);", script)), made)
+        made = re.findall(r"var (\w+) = document\.createElement\('select'\);", script)
+        self.assertTrue(made, "no select is made; has the panel changed shape?")
+        for name in made:
+            with self.subTest(name):
+                self.assertIn("combo(%s)" % name, script, "this select would open the browser's list")
 
 
 # ---------------------------------------------------------------------------------- keyboard
@@ -782,12 +787,20 @@ class OneListTests(unittest.TestCase):
                           declared(".combo-option", "scroll-snap-align")), ("y mandatory", "var(--space-xs) 0", "start"))
 
     def test_the_bar_it_scrolls_on_is_the_windows_soft_bar(self):
-        # SoftBar: a well 12 across, a pad from the card's top and bottom and SPACING xs from its right, and
-        # a raised pill 2 inside it, never shorter than 32.
-        self.assertEqual(declared(".combo-scroll::-webkit-scrollbar", "width"), "var(--space-m)")
-        self.assertEqual(resolved(declared(".combo-scroll::-webkit-scrollbar", "width")), 12)
+        # SoftBar: a well 12 across, a pad from its ends and SPACING xs from its side, and a raised pill 2
+        # inside it, never shorter than 32. Since v0.6.6 the rules are the panel's, not one list's: any
+        # overflow anywhere gets them, on either axis.
+        self.assertEqual(declared("::-webkit-scrollbar", "width"), "var(--space-m)")
+        self.assertEqual(declared("::-webkit-scrollbar", "height"), "var(--space-m)")
+        self.assertEqual(resolved(declared("::-webkit-scrollbar", "width")), 12)
         self.assertRegex(CONTROLS, r"const int TrackWidth = 12;")
-        track, thumb = ".combo-scroll::-webkit-scrollbar-track", ".combo-scroll::-webkit-scrollbar-thumb"
+        self.assertEqual(declared("::-webkit-scrollbar-track:horizontal", "margin"), "0 var(--space-xs)")
+        self.assertEqual(declared("::-webkit-scrollbar-corner", "background"), "var(--inset)")
+        self.assertEqual(declared("::-webkit-scrollbar-thumb", "min-width"), "var(--space-xxl)")
+        for selector in (".combo-scroll::-webkit-scrollbar", ".combo-scroll::-webkit-scrollbar-track",
+                         ".combo-scroll::-webkit-scrollbar-thumb"):
+            self.assertIsNone(declared(selector, "width"), "one list's own bar is gone: every bar is the same")
+        track, thumb = "::-webkit-scrollbar-track", "::-webkit-scrollbar-thumb"
         self.assertEqual((declared(track, "margin"), declared(track, "background"), declared(track, "border"),
                           declared(track, "border-radius")),
                          ("var(--space-xs) 0", "var(--inset)", "1px solid var(--line)", "999px"))
