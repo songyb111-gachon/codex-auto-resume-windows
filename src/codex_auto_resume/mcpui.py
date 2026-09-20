@@ -145,14 +145,12 @@ button, select, input { font: inherit; }
    stopped, not known to be running, or paused - keeps the grey it always had and never moves,
    and amber is for a watcher that runs and is not well.
 
-   The motion is brand's GLOW, the breath the window and the notification-area popup draw: one
-   symmetric cosine a cycle, the dot dimming toward the card and coming back (glow-dot) with the
-   glow riding its brightness (glow-spread) - a falloff, never a disc with an edge. The curve is
-   in the keyframes themselves, sampled from brand.glow_phase every 5% of the cycle, so the steps
-   between them are walked straight (`linear`) rather than eased again. Monitoring runs it slowly
-   and recovering faster; a problem runs it once, when it is first shown, and then holds lit;
-   waiting and checking hold lit with no glow - nothing here blinks for attention it already
-   has. */
+   The motion is brand's GLOW, the breath the window and the popup draw: one symmetric cosine a
+   cycle, the dot dimming toward the card and back (glow-dot) with the glow riding its brightness
+   (glow-spread) - a falloff, never a disc with an edge. The curve is in the keyframes themselves,
+   sampled from brand.glow_phase, so what lies between two stops is walked straight (`linear`)
+   rather than eased again. Monitoring runs it slowly and recovering faster; a problem runs it
+   once and then holds lit; waiting and checking hold lit with no glow. */
 .halo { --halo-color: var(--idle); position: relative; flex: none; width: 12px; height: 12px;
         border-radius: 50%; background: var(--halo-color); }
 .halo::before { content: none; position: absolute; inset: calc(-1 * var(--glow-reach));

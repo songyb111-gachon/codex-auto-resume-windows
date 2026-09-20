@@ -79,18 +79,13 @@ COPIES = {
         "assets/screenshot-settings-ko.png": "docs/images/settings-window-ko.png",
     },
 }
-# The notification card (v0.6.5), light and dark, drawn off-screen by the card's own code. Kept
-# apart from COPIES, whose window pictures the pixel checks below read for the window's cards
-# and its state dot.
+# The notification card (v0.6.5), drawn off-screen by the card's own code. Kept apart from COPIES,
+# whose window pictures the pixel checks below read for the window's cards and its state dot. Since
+# v0.6.6 the documentation is the light theme's only ("대부분의 이미지는 화이트모드만 해"), so the
+# dark twin of each card is described in the text rather than pictured.
 CARD_COPIES = {
-    "en": {
-        "assets/screenshot-notification.png": "docs/images/notification-card.png",
-        "assets/screenshot-notification-dark.png": "docs/images/notification-card-dark.png",
-    },
-    "ko": {
-        "assets/screenshot-notification-ko.png": "docs/images/notification-card-ko.png",
-        "assets/screenshot-notification-dark-ko.png": "docs/images/notification-card-dark-ko.png",
-    },
+    "en": {"assets/screenshot-notification.png": "docs/images/notification-card.png"},
+    "ko": {"assets/screenshot-notification-ko.png": "docs/images/notification-card-ko.png"},
 }
 ALL_COPIES = {canonical: copy for mapping in (COPIES, CARD_COPIES)
               for pairs in mapping.values() for canonical, copy in pairs.items()}
@@ -1118,7 +1113,7 @@ class CardPictureTests(unittest.TestCase):
             "a catalog word": lambda: patch.dict(l10n._CACHE["en"], {"msg.toast_button_open": "Open the Dashboard"}),
             "the reset time": lambda: patch.object(g, "CARD_RESET_AT", g.CARD_RESET_AT + 60),
             "the conversation's name": lambda: patch.object(g, "WINDOW_NAMES", ("example-other",) + g.WINDOW_NAMES[1:]),
-            "a theme pictured": lambda: patch.object(g, "CARD_THEMES", ("light",)),
+            "a theme pictured": lambda: patch.object(g, "CARD_THEMES", ("light", "dark")),
         }
         for what, change in changes.items():
             with self.subTest(what), change():
@@ -1200,7 +1195,7 @@ class IconMotionPictureTests(unittest.TestCase):
     when the motion, its numbers, the mark or its colours change, and not when the icon's menu or the popup does.
     """
 
-    GIF = "docs/images/icon-motion.gif"
+    GIF = "docs/images/icon-motion.png"
 
     @classmethod
     def setUpClass(cls):
@@ -1222,14 +1217,19 @@ class IconMotionPictureTests(unittest.TestCase):
 
     def test_it_is_small_and_exactly_what_the_generator_writes(self):
         with tempfile.TemporaryDirectory() as folder:
-            target = Path(folder) / "icon-motion.gif"
+            target = Path(folder) / "icon-motion.png"
             self.generator.render_icon_motion(target)
             written = target.read_bytes()
         committed = (ROOT / self.GIF).read_bytes()
-        self.assertEqual(written, committed, "the committed GIF is not the generator's; run build/make_screenshots.py --icon")
+        self.assertEqual(written, committed,
+                         "the committed picture is not the generator's; run build/make_screenshots.py --icon")
         self.assertLess(len(committed), 300 * 1024)
-        self.assertEqual(committed[:6], b"GIF89a")
-        self.assertIn(b"NETSCAPE2.0\x03\x01\x00\x00", committed, "it loops for ever")
+        # An APNG since v0.6.6: a PNG whose first frame is what a viewer without animation shows, so the
+        # badge's gradient and the ring's edges keep their colours instead of sharing 255 of them.
+        self.assertEqual(committed[:8], b"\x89PNG\r\n\x1a\n")
+        self.assertIn(b"acTL", committed, "it is animated")
+        self.assertEqual(committed[committed.index(b"acTL") + 8:committed.index(b"acTL") + 12][2:], b"\x00\x00",
+                         "it loops for ever")
 
     def test_every_picture_is_the_icon_s_frame_at_that_moment(self):
         """Two loops of watching from two breaths before a sweep, recovering's sweeps, attention's one pulse and
@@ -1244,7 +1244,7 @@ class IconMotionPictureTests(unittest.TestCase):
         self.assertEqual((start, end), (4400, 44000))
         sweeps_at = breath * motion["breaths"] - start                  # the first sweep, in the stretch's own ms
         frames = self.made["frames"]
-        self.assertEqual(sum(delay for delay, _, _ in frames), (end - start) // 10)
+        self.assertEqual(sum(delay for delay, _, _ in frames), end - start)      # ms, as an APNG counts
         self.assertTrue(all(delay > 0 for delay, _, _ in frames))
         self.assertEqual(len(self.made["moments"]), len(frames))
         seen = {state: set() for state, _ in g.ICON_MOTION_LIGHTS}
@@ -1272,30 +1272,22 @@ class IconMotionPictureTests(unittest.TestCase):
 
     @staticmethod
     def delays(data: bytes) -> list:
-        """Each picture's delay in a GIF, in hundredths of a second, read block by block."""
-        at = 13 + ((3 << ((data[10] & 7) + 1)) if data[10] & 0x80 else 0)
-        found = []
+        """Each picture's delay in milliseconds, read from the APNG's fcTL chunks in order.
 
-        def skip(at):
-            while data[at]:
-                at += data[at] + 1
-            return at + 1
-
-        while data[at] != 0x3B:
-            if data[at] == 0x21:
-                if data[at + 1] == 0xF9:
-                    found.append(struct.unpack("<H", data[at + 4:at + 6])[0])
-                at = skip(at + 2)
-            elif data[at] == 0x2C:
-                flags = data[at + 9]
-                at += 10 + ((3 << ((flags & 7) + 1)) if flags & 0x80 else 0)
-                at = skip(at + 1)
-            else:
-                raise ValueError("not a GIF block at %d" % at)
+        A GIF counted hundredths; an APNG carries a numerator and a denominator, which the writer sets
+        to milliseconds over 1000 - the icon's own rates are milliseconds, so nothing is rounded away.
+        """
+        found, at = [], 8
+        while at + 8 <= len(data):
+            length, kind = struct.unpack(">I4s", data[at:at + 8])
+            if kind == b"fcTL":
+                numerator, denominator = struct.unpack(">HH", data[at + 28:at + 32])
+                found.append(int(round(numerator * 1000.0 / (denominator or 1000))))
+            at += 12 + length
         return found
 
     def test_no_picture_is_shorter_than_a_browser_shows_it(self):
-        """Browsers - Chromium, Firefox and Safari alike - show a GIF picture of 10 ms or less for 100 ms. The first
+        """Browsers - Chromium, Firefox and Safari alike - show a picture of 10 ms or less for 100 ms. The first
         GIF merged the four states' moments into hundredths of a second, and where watching's and recovering's frames
         fell 10 ms apart a picture got 10 ms: on GitHub the 9.6 s loop took about 10.95 s, with fifteen stalls, most
         of them in the turns. So moments closer than ICON_MOTION_SHORTEST are shown as one picture."""
@@ -1303,10 +1295,10 @@ class IconMotionPictureTests(unittest.TestCase):
         start, end = g.icon_motion_stretch()
         self.assertEqual(g.ICON_MOTION_SHORTEST, 2)
         made = [delay for delay, _, _ in self.made["frames"]]
-        self.assertGreaterEqual(min(made), g.ICON_MOTION_SHORTEST, sorted(made)[:20])
+        self.assertGreaterEqual(min(made), g.ICON_MOTION_SHORTEST * 10, sorted(made)[:20])
         committed = self.delays((ROOT / self.GIF).read_bytes())
         self.assertEqual(committed, made)
-        self.assertEqual(sum(committed), (end - start) // 10, "the loop is as long as the stretch it shows")
+        self.assertEqual(sum(committed), end - start, "the loop is as long as the stretch it shows")
 
     def test_it_loops_without_a_jump(self):
         """The GIF starts again where its stretch ends: the same frame of every state, as watching's loop and a whole

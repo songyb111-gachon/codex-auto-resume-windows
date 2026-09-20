@@ -243,7 +243,7 @@ numbers - how many breaths come before a sweep, how long its slot is and how tha
 head's positions, the breath's levels and the frame rates - are `tray.py`'s `ICON_MOTION`,
 deliberately not `brand.py`'s, because every `GLOW` key is generated into the window's status light,
 and the window's taskbar button reads the icon's own from `Brand.Mark`. The README shows the motion
-as a GIF drawn from the icon's own frames (`docs/images/icon-motion.gif`, made by
+as an animated PNG drawn from the icon's own frames (`docs/images/icon-motion.png`, made by
 `build/make_screenshots.py`). It holds still under Reduce motion, Windows' animation setting, High
 Contrast, battery saver, a locked session, and while Windows' own settings for the icon say it sits
 in the overflow area (`tray_place.IconPlacement`, which reads them and writes nothing): the icon's

@@ -859,10 +859,16 @@ class MotionStyleTests(unittest.TestCase):
                 if not all(on_curve):
                     self.assertFalse(any(on_curve))
                     self.assertEqual(declarations.get("transition-timing-function"), "var(--transition-ease)")
-        # No other curve anywhere a transition or an animation is timed, the glow's own excepted.
+        # No other curve anywhere a transition or an animation is timed - except the status light's, whose
+        # curve is in its keyframes since v0.6.6 (sampled from brand.glow_phase every 2.5% of the cycle), so
+        # what lies between two of them is walked straight rather than eased a second time.
         for where, selectors, declarations in RULES:
             for prop in ("transition", "transition-timing-function", "animation", "animation-timing-function"):
                 value = declarations.get(prop, "")
+                if value.startswith("glow-dot ") or value.startswith("glow-spread "):
+                    with self.subTest(selectors=selectors, prop=prop):
+                        self.assertRegex(value, r"^glow-(dot|spread) var\(--glow-[a-z]+-ms\) linear (infinite|1)$")
+                    continue
                 with self.subTest(selectors=selectors, prop=prop):
                     self.assertNotRegex(value, r"(?<![-\w])(ease|ease-in|ease-out|ease-in-out|linear|step-start"
                                                r"|step-end)(?![-\w])|steps\(|cubic-bezier\(")

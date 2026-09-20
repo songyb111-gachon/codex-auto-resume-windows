@@ -1482,10 +1482,17 @@ def breathes(path: Path) -> bool:
 def breathe_pictures(paths=None) -> list:
     """Make every captured picture with a status light breathe, and say which ones did.
 
+    A documentation copy is copied rather than drawn again: two encodings of one picture are two
+    files, and the suite holds each copy to be its canonical asset byte for byte.
+
         python build/make_screenshots.py --breathe
     """
+    copies = {}
+    for locale in LOCALES:
+        copies.update(paths_for(locale))
     if paths is None:
-        paths = sorted(list(ASSETS.glob("*.png")) + list(DOCS.glob("*.png")))
+        paths = sorted(list(ASSETS.glob("*.png")) + [path for path in DOCS.glob("*.png")
+                                                     if path not in set(copies.values())])
     done = []
     for path in paths:
         if not breathes(path):
@@ -1493,6 +1500,10 @@ def breathe_pictures(paths=None) -> list:
         if breathe_picture(path):
             done.append(path)
             print("  %s  %s" % (path.relative_to(ROOT), dimensions(path)))
+            copy = copies.get(path)
+            if copy is not None:
+                shutil.copyfile(path, copy)
+                done.append(copy)
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     for path in done:
         key = str(path.relative_to(ROOT)).replace("\\", "/")
@@ -1959,8 +1970,8 @@ def render_light_only() -> Path:
     print("  %s  %s" % (LIGHT_MOTION_APNG.relative_to(ROOT), dimensions(LIGHT_MOTION_APNG)))
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     manifest["inputs"]["<light motion>"] = light_render_input()
-    manifest["images"][str(LIGHT_MOTION_APNG.relative_to(ROOT)).replace("\\", "/")] = sha256(
-        LIGHT_MOTION_APNG.read_bytes())
+    manifest["images"][str(LIGHT_MOTION_APNG.relative_to(ROOT)).replace("\\", "/")] = {
+        "sha256": sha256(LIGHT_MOTION_APNG.read_bytes()), "size": dimensions(LIGHT_MOTION_APNG)}
     MANIFEST.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print("manifest       : %s (the light's entries only)" % MANIFEST.relative_to(ROOT))
     return LIGHT_MOTION_APNG
@@ -2431,6 +2442,7 @@ def render_inputs() -> dict:
             else:
                 os.environ[l10n.ENV_LANG] = previous
     inputs["<icon motion>"] = icon_render_input()
+    inputs["<light motion>"] = light_render_input()
     return inputs
 
 
