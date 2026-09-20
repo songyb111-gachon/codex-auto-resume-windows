@@ -145,9 +145,9 @@ Interface work that came out of using v0.6.4:
 
 ---
 
-## v0.6.6 — The ordinary breath, a taskbar button that moves where it is installed, and the last native controls 🚧
+## v0.6.6 — The ordinary breath, a taskbar button that moves where it is installed, and the last native controls ✅
 
-**In development, on the `dev` branch.**
+**Released.**
 
 What a day of real use turned up. Nothing about recovery changed.
 
@@ -173,7 +173,7 @@ rounds are rounded in them.
 
 ## v0.6.7 — Python modularization
 
-**After v0.6.6.**
+**Next.**
 
 v0.6.7 is planned as the major structural cleanup of the Python implementation. It was the main
 part of v0.6.5 in the earlier plan; v0.6.5 ships its groundwork, and the split itself moves here.
@@ -430,7 +430,7 @@ Codex Compatibility Registry
 
         ↓
 
-v0.6.6  🚧 In development, on the dev branch
+v0.6.6  ✅ Released
 The light softened
 + a taskbar button that moves where it is installed
 
