@@ -24,7 +24,11 @@ from unittest.mock import MagicMock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+_HERE = str(Path(__file__).resolve().parent)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)        # srcscan lives next to this file
 
+import srcscan  # noqa: E402
 from codex_auto_resume import notify, pwsh, shortcut  # noqa: E402
 
 # Every character PowerShell treats as a quote or an interpolation start, in payloads
@@ -110,6 +114,11 @@ class NoValueInScriptTests(unittest.TestCase):
             with self.subTest(module.__name__):
                 self.assertFalse(hasattr(module, "_ps_literal"),
                                  "quoting values into script text is the bug this replaced")
+        # Nor anywhere else in the package, where a split module could have taken it.
+        defined = [srcscan.relative(path) for path, tree in srcscan.package_asts().items()
+                   for node in ast.walk(tree)
+                   if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "_ps_literal"]
+        self.assertEqual(defined, [], "quoting values into script text is the bug this replaced")
 
     def test_the_scripts_have_no_format_placeholders(self):
         for name, script in (("notify._SCRIPT", notify._SCRIPT), ("shortcut._MAKER", shortcut._MAKER)):
@@ -120,30 +129,25 @@ class NoValueInScriptTests(unittest.TestCase):
     def test_every_pwsh_run_call_passes_a_module_constant(self):
         """Not an f-string, not a %-format, not a concatenation: a name bound once."""
         calls = []
-        for path in (ROOT / "src" / "codex_auto_resume").glob("*.py"):
-            tree = ast.parse(path.read_text(encoding="utf-8"))
+        # Every tracked module at any depth: a module in a subpackage is still one that could
+        # hand PowerShell a script built from a value.
+        for path, tree in srcscan.package_asts().items():
             constants = {target.id for node in tree.body if isinstance(node, ast.Assign)
                          for target in node.targets if isinstance(target, ast.Name)}
             for node in ast.walk(tree):
                 if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
                         and node.func.attr == "run" and isinstance(node.func.value, ast.Name) \
                         and node.func.value.id == "pwsh":
-                    calls.append(path.name)
+                    calls.append(srcscan.relative(path))
                     script = node.args[0]
-                    with self.subTest(path.name):
+                    with self.subTest(srcscan.relative(path)):
                         self.assertIsInstance(script, ast.Name, "the script must be a named constant")
                         self.assertIn(script.id, constants, "the script must be defined at module level")
-        self.assertEqual(sorted(set(calls)), ["notify.py", "shortcut.py"])
+        self.assertEqual(sorted(set(calls)), ["codex_auto_resume/notify.py", "codex_auto_resume/shortcut.py"])
 
     def test_nothing_else_builds_an_encoded_powershell_command(self):
         """One place encodes scripts; a second would be a second place to get it wrong."""
-        offenders = []
-        for path in (ROOT / "src" / "codex_auto_resume").glob("*.py"):
-            if path.name == "pwsh.py":
-                continue
-            if "-EncodedCommand" in path.read_text(encoding="utf-8"):
-                offenders.append(path.name)
-        self.assertEqual(offenders, [])
+        self.assertEqual(srcscan.holders("-EncodedCommand"), {"codex_auto_resume/pwsh.py"})
 
     def test_the_shortcut_values_travel_out_of_band(self):
         with patch.object(pwsh, "executable", return_value="powershell.exe"), \

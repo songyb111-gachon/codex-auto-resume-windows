@@ -71,9 +71,9 @@ Recovery decides exactly what it decided in v0.6.3.
 
 ---
 
-## v0.6.5 — Codex Compatibility Registry, interface polish, and groundwork for the split
+## v0.6.5 — Codex Compatibility Registry, interface polish, and groundwork for the split 🚧
 
-**Next. Being built on the `dev` branch.**
+**In development, on the `dev` branch.**
 
 v0.6.5 carries the Codex Compatibility Registry and the interface work that came out of using
 v0.6.4, and lays the groundwork for splitting the Python implementation, which moves to v0.6.6.
@@ -395,7 +395,7 @@ UI lag reduction
 
         ↓
 
-v0.6.5  (next, on the dev branch)
+v0.6.5  🚧 In development, on the dev branch
 Codex Compatibility Registry
 + icon motion, notification card, UI polish
 + groundwork for the Python split

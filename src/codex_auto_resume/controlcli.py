@@ -14,9 +14,13 @@ Two ways to call it, one set of commands:
   would have printed. Starting an interpreter per call cost a noticeable pause on every
   click and made a live view impossible; this costs one start.
 
-The surface is deliberately narrow and typed. There is no command that runs a program,
-reads an arbitrary file, writes the registry directly or executes SQL, and every
-identifier is validated before it reaches the store.
+The surface is deliberately narrow and typed. There is no command that runs an arbitrary
+program, writes the registry directly or executes SQL, and every identifier is validated
+before it reaches the store. The programs it can start are fixed: the watcher, and - for the
+Diagnostics page's compatibility refresh, only when a person presses it - this installation's
+own `scripts/bootstrap.ps1 -Compatibility`. The one file it reads by name is a Compatibility
+Registry document handed to `compat-import`, which is size-capped, parsed by the hardened
+validator and never echoed: the answer is a code.
 
 A rejected request always answers `{"ok": false, "error": "...", "error_code": "..."}`:
 the English sentence, which the command line prints and a bug report quotes, and beside it
@@ -53,7 +57,10 @@ PLAIN = ("status", "settings", "describe", "defaults", "pending", "pending-all",
          "stop-watcher", "strings", "history", "clear-history", "dashboard", "cancel-all")
 WITH_ARGUMENT = ("update", "enabled", "startup", "cancel", "reset-budget", "retry-now",
                  "timeline", "statistics", "thread-enabled", "cancel-thread", "diagnostics",
-                 "preview-continuation", "interruption-recovery")
+                 "preview-continuation", "interruption-recovery",
+                 # The Compatibility Registry: read the report (or check live), import a
+                 # document the bootstrap downloaded, and the Diagnostics refresh.
+                 "compatibility", "compat-import", "compat-refresh")
 # Big enough for the largest Save the settings layer accepts: eight Custom messages of 2000
 # characters each, and the window writes every line break as a six-character escape, so a
 # valid Save can come to nearly 100 KiB. At 64 KiB such a Save was refused as "request too
@@ -151,6 +158,28 @@ def _days(payload):
     return days
 
 
+def _flag(payload):
+    """The `enabled` field of a switch request: a real boolean, or a refusal.
+
+    This was `bool(payload.get("enabled"))`, and `bool` says yes to every non-empty
+    string. `{"enabled": "false"}` therefore turned automatic recovery *on*, and the same
+    line governed `startup`, where on means writing this product's entry into the Run key
+    - so a request that meant "off" registered a watcher at sign-in instead. A missing
+    field was the same accident the other way round: `bool(None)` is False, and a request
+    that said nothing switched recovery off.
+
+    The wire is JSON and JSON has `true` and `false`, which is exactly what both windows
+    send. Nothing here has to guess what a string meant, so anything that is not a boolean
+    is refused by name, with the code the front ends already have words for
+    (`error.invalid_enabled`, in all nine catalogs) - the same sentence and the same code
+    the control layer raises when it is called directly.
+    """
+    enabled = payload.get("enabled")
+    if not isinstance(enabled, bool):
+        raise ControlError("enabled must be true or false", code="invalid_enabled")
+    return enabled
+
+
 def _labels():
     """Display names for conversations, read-only from Codex's own state.
 
@@ -163,6 +192,76 @@ def _labels():
         return LocalSource(config.codex_home())
     except Exception:
         return None
+
+
+def _boolean(payload, name):
+    """An optional flag: absent is False, a real boolean is itself, anything else refused."""
+    value = payload.get(name, False)
+    if not isinstance(value, bool):
+        raise ControlError("%s must be true or false" % name)
+    return value
+
+
+def _compatibility(control: Control, payload: dict) -> dict:
+    """The Compatibility Registry as the window shows it.
+
+    Without `live` this is the watcher's report, validated and checked against the engine
+    on disk - UNKNOWN for everything when it cannot be used, with the reason. With `live`
+    it is a fresh check made here and returned, never written: the report has one writer,
+    and it is the watcher. A live check runs `codex --version` and `codex queue --help` and
+    reads Codex's schema, so the window asks for it only when a person does.
+    """
+    from . import compatio
+    settings = control.get_settings()
+    if _boolean(payload, "live"):
+        explicit = settings.get("codex_exe") or None
+        return compatio.live_view(control.paths, config.codex_home(), explicit=explicit)
+    return compatio.reader_view(control.paths, settings=settings)
+
+
+def _compat_import(control: Control, payload: dict) -> dict:
+    """Validate one registry document and, only if it passes, make it the cache.
+
+    The bootstrap's download lands in a temporary file and comes here; this is the only
+    writer of `compat-cache.json`. A refusal is an answer, not an error: the command ran,
+    and what it found is one code from a closed set.
+    """
+    from . import compatio
+    target = payload.get("path")
+    origin = payload.get("origin", "file")
+    if not isinstance(target, str) or not target:
+        raise ControlError("choose a .json file to import")
+    if origin not in ("main", "file"):
+        raise ControlError("origin must be main or file")
+    result = compatio.import_document(control.paths, target, origin=origin)
+    # Ask a running watcher to look now, so the report follows the new data within a tick
+    # rather than a poll. A lost wake only delays; the watcher also sees the file change.
+    woke = False
+    if result.get("imported"):
+        try:
+            from .windows import WakeEvent
+            woke = bool(WakeEvent(str(control.paths.state_dir)).signal())
+        except Exception:
+            woke = False
+    return dict(result, woke_watcher=woke)
+
+
+def _compat_refresh(control: Control) -> dict:
+    """The Diagnostics page's refresh: this installation's own bootstrap, asked to fetch the
+    registry data from its one constant address and import it through `compat-import`.
+
+    Only ever started by a person pressing the button. It can take a minute on a slow
+    connection, so a window calls it on the one-shot bridge from a worker thread, never on
+    the long-lived pipe it paints from. The reply carries the fresh view as well, checked
+    live, because a watcher that is not running cannot have recomputed the report yet.
+    """
+    from . import compatio
+    outcome = compatio.run_refresh(control.paths.home)
+    try:
+        view = _compatibility(control, {"live": True})
+    except Exception:
+        view = compatio.reader_view(control.paths)
+    return dict(outcome, compatibility=view)
 
 
 def dispatch(control: Control, command: str, payload: dict) -> dict:
@@ -224,9 +323,9 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
         if command == "update":
             return {"ok": True, "settings": control.update_settings(payload)}
         if command == "enabled":
-            return {"ok": True, "result": control.set_enabled(bool(payload.get("enabled")))}
+            return {"ok": True, "result": control.set_enabled(_flag(payload))}
         if command == "startup":
-            return {"ok": True, "startup_enabled": control.set_startup_enabled(bool(payload.get("enabled")))}
+            return {"ok": True, "startup_enabled": control.set_startup_enabled(_flag(payload))}
         if command == "cancel":
             return {"ok": True, "result": control.cancel_interruption(payload.get("interruption_id"))}
         if command == "reset-budget":
@@ -238,10 +337,8 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
         if command == "statistics":
             return {"ok": True, "result": control.statistics(_days(payload))}
         if command == "thread-enabled":
-            enabled = payload.get("enabled")
-            if not isinstance(enabled, bool):
-                raise ControlError("enabled must be true or false")
-            return {"ok": True, "result": control.set_thread_enabled(payload.get("thread_id"), enabled)}
+            return {"ok": True, "result": control.set_thread_enabled(payload.get("thread_id"),
+                                                                     _flag(payload))}
         if command == "cancel-thread":
             return {"ok": True, "result": control.cancel_thread(payload.get("thread_id"))}
         if command == "preview-continuation":
@@ -249,13 +346,16 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
             return {"ok": True, "result": control.preview_continuation(payload.get("category"),
                                                                        changes)}
         if command == "interruption-recovery":
-            enabled = payload.get("enabled")
-            if not isinstance(enabled, bool):
-                raise ControlError("enabled must be true or false")
             return {"ok": True, "result": control.set_interruption_recovery(
-                payload.get("interruption_id"), payload.get("thread_id"), enabled)}
+                payload.get("interruption_id"), payload.get("thread_id"), _flag(payload))}
         if command == "cancel-all":
             return {"ok": True, "result": control.cancel_all_pending(actor="gui")}
+        if command == "compatibility":
+            return {"ok": True, "compatibility": _compatibility(control, payload)}
+        if command == "compat-import":
+            return {"ok": True, "result": _compat_import(control, payload)}
+        if command == "compat-refresh":
+            return {"ok": True, "result": _compat_refresh(control)}
         if command == "diagnostics":
             from . import diagnostics
             target = payload.get("path")
@@ -327,6 +427,12 @@ def build_parser() -> argparse.ArgumentParser:
         p = sub.add_parser(name)
         p.add_argument("json", nargs="?", default="",
                        help='JSON object argument, or "-" to read it from stdin')
+        if name == "compat-import":
+            # How the bootstrap calls it: a path as its own argument, which survives Windows
+            # PowerShell 5.1's native-argument quoting and a non-ASCII profile directory,
+            # where a JSON string on a command line or piped text does not.
+            p.add_argument("--file", help="the registry document to validate and import")
+            p.add_argument("--origin", choices=("main", "file"), default=None)
     return parser
 
 
@@ -343,6 +449,10 @@ def main(argv=None) -> int:
         return serve(control, sys.stdin, sys.stdout)
     try:
         payload = _payload(_argument(getattr(args, "json", ""), sys.stdin))
+        if args.command == "compat-import" and getattr(args, "file", None):
+            payload = dict(payload, path=args.file)
+            if args.origin:
+                payload["origin"] = args.origin
     except ControlError as exc:
         reply = _rejected(str(exc), exc.code)
     else:

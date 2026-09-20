@@ -26,8 +26,8 @@ An empty `docs/evidence/live/` is not a pass. It means nothing has been accepted
 - **The release candidate.** The archive built for the version you are accepting, and the
   `.sha256` published beside it. The version in `.codex-plugin/plugin.json` is the version
   every evidence file has to claim, so accept a build whose manifest already says the
-  number that is about to be released. For v0.6.4 that number is `0.6.4`, and the
-  installation step 13 upgrades from is the published v0.6.3.
+  number that is about to be released. For v0.6.5 that number is `0.6.5`, and the
+  installation step 13 upgrades from is the published v0.6.4.
 - **What v0.6.3 adds is checked inside these steps.** [What v0.6.3 adds, and where to write
   it down](#what-v063-adds-and-where-to-write-it-down) names the step each check belongs to
   and the file whose note records it; read it before step 3.
@@ -443,10 +443,11 @@ Run value is gone (`Get-ItemProperty HKCU:\Software\Microsoft\Windows\CurrentVer
 Then install the same or a newer archive over the installation — the ordinary upgrade
 path — and look again.
 
-For v0.6.4, start from an installation of the published v0.6.3 and install the v0.6.4
-archive over it. v0.6.4 changes no setting, so read Settings afterwards — **Interface
-language**, **Message style** and any Custom message should be what they were before the
-upgrade — and put anything else in the note. Starting from v0.6.2 or earlier also changes the
+For v0.6.5, start from an installation of the published v0.6.4 and install the v0.6.5
+archive over it. v0.6.5 changes no setting you had and adds one, **Show notifications as a
+card beside the notification area**, which is on after the upgrade. Read Settings afterwards —
+**Interface language**, **Theme**, **Message style** and any Custom message should be what they
+were before the upgrade — and put anything else in the note. Starting from v0.6.2 or earlier also changes the
 one default v0.6.3 changed on purpose: the continuation used to be one fixed English sentence
 per kind of interruption, and is now the Standard message in the continuation language.
 

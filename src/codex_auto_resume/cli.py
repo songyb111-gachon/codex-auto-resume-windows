@@ -10,7 +10,7 @@ import sys
 import time
 import uuid
 
-from . import config, machine, notify, settings, shortcut, startup
+from . import compat, compatio, config, machine, notify, settings, shortcut, startup
 from .app import EXIT_BUSY, EXIT_ERROR, EXIT_OK, App
 from .logbook import format_local, tail
 from .store import TERMINAL, LegacyStore, StoreError, UpgradePending
@@ -75,6 +75,15 @@ def build_parser() -> argparse.ArgumentParser:
                    help="keep settings and pending recoveries, so re-installing picks them up")
 
     sub.add_parser("doctor", help="verify official engine, desktop app pairing and adapters (read-only)")
+
+    p = sub.add_parser("compat", help="what the Codex Compatibility Registry says about this engine")
+    p.add_argument("--live", action="store_true",
+                   help="check now (runs codex --version and codex queue --help) instead of "
+                        "reading the watcher's report; nothing is written")
+    p.add_argument("--import", dest="import_file", metavar="FILE",
+                   help="validate a registry document and, if it passes, make it the local "
+                        "cache (the offline way to do what the Diagnostics refresh does)")
+    p.add_argument("--json", action="store_true")
 
     p = sub.add_parser("activate", help="handle a codex-auto-resume: URI (used by the notification button)")
     p.add_argument("uri")
@@ -239,12 +248,13 @@ def cmd_status(args) -> int:
     try:
         backend = app.backend()
         _print("codex engine     : %s" % backend.codex_exe)
-        _print("engine version   : %s%s" % (backend.engine_version,
-               "" if backend.engine_verified else "  (unverified build; interface probe passed)"))
+        _print("engine version   : %s  (%s)" % (backend.engine_version, _engine_words(app, backend)[0]))
         identity = backend.app_identity()
         _print("ChatGPT app      : %s" % ("running (pid %d, codex server pid %d)" % (identity["pid"], identity["server"]["pid"]) if identity else "not running / not paired"))
     except (config.ConfigError, AdapterError) as exc:
         _print("codex engine     : unavailable (%s)" % exc)
+    view = compatio.reader_view(app.paths, settings=app.settings)
+    _print("compatibility    : %s (%s)" % (view["overall"], _view_status(view)))
     _print("pending          : %d" % len(pending))
     for state in sorted(counts):
         _print("  %-22s %d" % (state, counts[state]))
@@ -260,13 +270,26 @@ def cmd_doctor(args) -> int:
     try:
         backend = app.backend()
         _print("codex.exe        : %s" % backend.codex_exe)
-        _print("engine version   : %s" % (
-            "%s (verified)" % backend.engine_version if backend.engine_verified
-            else "%s (NOT a verified version; accepted because `codex queue` still "
-                 "offers --thread/--message)" % backend.engine_version))
+        _print("engine version   : %s (%s)" % (backend.engine_version, _engine_words(app, backend)[1]))
     except (config.ConfigError, AdapterError) as exc:
         _print("codex.exe        : FAIL (%s)" % exc)
         return EXIT_ERROR
+    # Checked now, against the backend just probed; never written - the report on disk is
+    # the watcher's alone. Read-only against Codex's state, like everything here.
+    try:
+        live = compatio.live_view(app.paths, app.codex_home, backend=backend, discovery={},
+                                  source=app.source())
+    except Exception as exc:
+        live = None
+        _print("compatibility    : unavailable (%s)" % type(exc).__name__)
+    if live is not None:
+        _print("compatibility    : %s (checked now)" % live["overall"])
+        for line in _capability_lines(live, only_problems=True):
+            _print(line)
+        if live["overall"] == "incompatible":
+            ok = False
+    report = compatio.reader_view(app.paths, settings=app.settings)
+    _print("watcher's report : %s (%s)" % (report["overall"], _view_status(report)))
     _print("codex home       : %s" % app.codex_home)
     identity = backend.app_identity()
     if identity:
@@ -313,6 +336,98 @@ def cmd_doctor(args) -> int:
     except startup.StartupError as exc:
         _print("notification action: unavailable (%s)" % exc)
     return EXIT_OK if ok else EXIT_ERROR
+
+
+# What `status` (short) and `doctor` (long) say about an engine that passed its local
+# checks, in the word the watcher's gate reads for it - from the registry data in force, the
+# bundled baseline and an imported cache alike - so the engine line can never contradict the
+# compatibility line printed under it.
+_ENGINE_WORDS = {
+    "verified": (
+        "verified by the registry data in force",
+        "verified: its local checks pass, and the registry data in force verifies this build"),
+    "structurally_compatible": (
+        "compatible: local checks pass; the registry data in force does not verify this build",
+        "compatible: its local checks pass - `codex queue` still offers --thread/--message - "
+        "and the registry data in force does not verify this build"),
+    "incompatible": (
+        "local checks pass, but the registry data in force marks this build incompatible",
+        "its local checks pass, but the registry data in force marks this build incompatible; "
+        "nothing is sent while that data is in force"),
+}
+# When the registry data could not be read at all: only what the checks themselves showed.
+_ENGINE_CHECKS_ONLY = ("local checks pass",
+                       "its local checks pass - `codex queue` still offers --thread/--message")
+
+
+def _engine_words(app, backend):
+    try:
+        word = compatio.engine_word(app.paths, backend.engine_version)
+    except Exception:
+        word = None
+    return _ENGINE_WORDS.get(word, _ENGINE_CHECKS_ONLY)
+
+
+def _view_status(view) -> str:
+    status = view.get("status")
+    words = {"ok": "report ok", "absent": "no report yet - is the watcher running?",
+             "invalid": "report unreadable", "stale": "report too old - is the watcher ticking?",
+             "engine_changed": "the engine changed since the last check"}
+    text = words.get(status, "report unreadable")
+    if status == "ok" and view.get("checked_at"):
+        text += ", checked %s" % format_local(view["checked_at"])
+    if view.get("acting") and view.get("acting") != view.get("overall"):
+        text += "; the watcher is still acting on %s - restart it to re-check" % view["acting"]
+    return text
+
+
+def _capability_lines(view, *, only_problems=False) -> list:
+    lines = []
+    for name, entry in view["capabilities"].items():
+        if entry["reason"] == "not_implemented":
+            continue
+        if only_problems and entry["state"] in (compat.COMPATIBLE, compat.VERIFIED):
+            continue
+        detail = entry["reason"] + (" (%s)" % entry["registry_reason"]
+                                    if entry.get("registry_reason") else "")
+        lines.append("  %-26s %-12s %s" % (name, entry["state"], detail))
+    return lines
+
+
+def cmd_compat(args) -> int:
+    """The Compatibility Registry, read-only; or an offline import into its cache."""
+    app = _app(args)
+    if args.import_file:
+        result = compatio.import_document(app.paths, args.import_file, origin="file")
+        if result["imported"]:
+            try:
+                from .windows import WakeEvent
+                WakeEvent(str(app.paths.state_dir)).signal()
+            except Exception:
+                pass
+            _print("imported registry data #%d (cache %s)" % (result["sequence"], result["cache"]))
+            return EXIT_OK
+        _print("refused: %s; the existing cache was left as it was" % result["reason"])
+        return EXIT_ERROR
+    if args.live:
+        explicit = app._codex_exe_override or os.environ.get(config.ENV_CODEX_EXE) or None
+        view = compatio.live_view(app.paths, app.codex_home, explicit=explicit)
+    else:
+        view = compatio.reader_view(app.paths, settings=app.settings)
+    if args.json:
+        _print(json.dumps(view, indent=2, ensure_ascii=False))
+        return EXIT_OK
+    _print("compatibility    : %s (%s)" % (view["overall"], "checked now" if view.get("live")
+                                             else _view_status(view)))
+    _print("engine version   : %s" % (view["engine"]["version"] or "not found"))
+    data = view.get("data") or {}
+    if data:
+        _print("registry data    : %s (bundled %s #%s, cache %s%s)" % (
+            data["source"], data["bundled"], data["bundled_sequence"], data["cache"],
+            " #%s" % data["cache_sequence"] if data.get("cache_sequence") is not None else ""))
+    for line in _capability_lines(view):
+        _print(line)
+    return EXIT_OK
 
 
 def cmd_run(args) -> int:
@@ -593,7 +708,7 @@ COMMANDS = {
     "enable": cmd_enable, "disable": cmd_disable, "status": cmd_status, "pending": cmd_pending,
     "cancel": cmd_cancel, "logs": cmd_logs, "run": cmd_run, "stop": cmd_stop,
     "install": cmd_install, "uninstall": cmd_uninstall, "doctor": cmd_doctor,
-    "activate": cmd_activate,
+    "activate": cmd_activate, "compat": cmd_compat,
 }
 
 

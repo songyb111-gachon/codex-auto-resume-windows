@@ -4,7 +4,7 @@ Codex Auto Resume runs on your machine. It has no server, no account and no tele
 the watcher makes no outbound network request of its own.
 
 It does cause network traffic, though, and that is worth stating up front rather than in a
-footnote. There are three kinds, and they are genuinely different:
+footnote. There are four kinds, and they are genuinely different:
 
 - **OpenAI, through Codex.** The watcher drives the official Codex binary already signed in
   on your machine. When a recovery is due, it asks Codex for your current usage, and Codex
@@ -33,19 +33,41 @@ footnote. There are three kinds, and they are genuinely different:
   it sees for any anonymous request to a public page: an IP address, a time and a user
   agent. It happens when you press the button and at no other time.
 
-**There is no automatic update check.** Nothing polls, nothing checks on a schedule, and
-nothing checks when the window opens or when the watcher starts. A machine that is never
-asked makes none of these requests, and a machine that never installs makes none of the
-GitHub requests at all.
+- **GitHub, for the Codex compatibility data, when you ask for it.** From v0.6.5 the
+  Diagnostics page has a *Refresh compatibility data* button, and `scripts/bootstrap.ps1
+  -Compatibility` does the same from a command line. *Check for updates* refreshes the data too,
+  once github.com has answered it, whether or not an update exists; it skips the refresh when
+  github.com could not be reached, or when too little of the check's time is left. Each refresh is
+  one HTTPS `GET` to one constant address, with no query string: this repository's own data file on
+  its main branch,
+  `raw.githubusercontent.com/songyb111-gachon/codex-auto-resume-windows/main/src/codex_auto_resume/data/codex_compat.json`.
+  If a redirect ends anywhere but raw.githubusercontent.com, the download is refused; as for the
+  release download, that check comes after the download, so a redirect would still send the
+  request to the host it pointed at before the file is refused.
+
+  Nothing about you or this machine is in the request: no installation id, no version of yours,
+  no machine name, no account - and not the Codex version you have, which is why the whole file is
+  fetched and matched here. GitHub sees an IP address, a time and PowerShell's standard user agent,
+  as for any anonymous download. What comes back is data and is never run: this installation's own
+  validator keeps it (see [What it stores](#what-it-stores-and-where)) only if it is valid
+  compatibility data, and that data can only make the watcher more careful. It happens only when
+  you ask for it, with one of those buttons or those commands; the watcher never asks, and Codex
+  cannot.
+
+**There is no automatic update check, and no automatic compatibility refresh.** Nothing polls,
+nothing checks on a schedule, and nothing checks when the window opens or when the watcher starts.
+A machine that is never asked makes none of these requests, and a machine that never installs
+makes none of the GitHub requests at all.
 
 The sections below take each in turn.
 
 ## What it sends to the developer
 
 Nothing, beyond the aggregate download count GitHub shows for every release (see
-[Installing it](#installing-it)) and, if you press *Check for updates*, one more anonymous
-request to a public GitHub page. There is no telemetry, no analytics, no crash reporting,
-no opt-in reporting and no automatic update check — no endpoint of any kind exists to
+[Installing it](#installing-it)) and, if you press *Check for updates* or *Refresh
+compatibility data*, one or two more anonymous requests to public GitHub addresses. There is no
+telemetry, no analytics, no crash reporting, no opt-in reporting, no automatic update check and
+no automatic compatibility refresh — no endpoint of any kind exists to
 receive them, because no collection service is operated for this project. Local statistics
 in the window are read from your own database and never leave it.
 
@@ -163,8 +185,8 @@ signature.
 
 The watcher itself contacts no GitHub host: the code that reaches the network is the
 PowerShell installer, and a test fails if any module under `src/` or `scripts/*.py` imports
-a networking module. The update check is that same installer, run by the button rather than
-on a schedule, and never by the watcher. A Codex
+a networking module. The update check and the compatibility refresh are that same installer,
+run by a button rather than on a schedule, and never by the watcher. A Codex
 process, including one this tool starts, may refresh Git marketplaces of its own accord;
 that is Codex's behaviour, and once installing has
 repointed this product's marketplace, it points at the local copy rather than at GitHub.
@@ -199,7 +221,14 @@ process it found, to confirm it is still the same one; the per-user registry val
 registered itself; whether High Contrast is on and, from v0.6.4, whether Windows is set to show
 apps light or dark - the per-user `AppsUseLightTheme` value, which it reads and never writes - so
 the Dashboard, the popup and its menu can be drawn to match; and the integrity level of the
-watcher's single-instance mutex and stop event, a check that is new in v0.6.0.
+watcher's single-instance mutex and stop event, a check that is new in v0.6.0. From v0.6.5 the
+notification card and the icon's motion ask a few more, all content-free and described under
+[Notifications](#notifications).
+
+From v0.6.5, for the Codex Compatibility Registry, the watcher also reads the shape of Codex's
+databases - which tables they have and which columns those tables have, by name only, through the
+same read-only connection, never a row - and whether Codex's `sessions` and `thread-writer-locks`
+folders exist.
 
 No decision rests on the text of your messages, except whether one of them carries this
 tool's own marker (below). It never selects the `title`, `preview` or
@@ -275,7 +304,10 @@ those come from where the tool is installed rather than from a conversation. v0.
 both. No Python code here uses `shell=True`, `os.system`, `eval` or `exec`, and every
 Python subprocess gets an argument list. Installing, uninstalling and the plugin's setup are PowerShell
 scripts as well (`install\install.ps1`, `scripts\bootstrap.ps1`), and the installer runs
-the `codex plugin` commands listed above.
+the `codex plugin` commands listed above. The update check and, from v0.6.5, the compatibility
+refresh are `scripts\bootstrap.ps1` too, started from the window by Windows PowerShell's full
+path; the refresh then runs this installation's own bundled Python once, to validate what it
+downloaded.
 
 The resumed turn is not run by any of those processes. `codex queue` places the message in
 Codex's queue and exits; your Codex desktop app picks it up and runs the turn, signed in as you
@@ -319,7 +351,12 @@ conversation to OpenAI like any tool output. That is:
 - from `get_status`: the version, whether recovery is on, whether the watcher is running and
   whether sign-in autostart is registered, counts by state, and your settings — which
   include the Codex executable path if you set one and, from v0.6.3, the text of any Custom
-  message you have written (Codex can read it there, not change it). It no longer returns the installation
+  message you have written (Codex can read it there, not change it). From v0.6.5 it also
+  carries the Codex compatibility summary that the Dashboard's Diagnostics page shows, as codes
+  only: the overall result and the one the watcher acts on, whether the
+  compatibility report could be used, where the compatibility data came from and its sequence
+  number, the refreshed data's standing, when the check ran, and each capability's state and
+  reason — no Codex version string, no path and no free text. It no longer returns the installation
   directory's path, which normally includes your Windows user name; v0.5.0 through v0.5.7
   did, and a conversation held with one of them still carries it;
 - from `list_pending`: the pending recoveries, with their conversation ids, interruption ids,
@@ -341,7 +378,9 @@ conversation to OpenAI like any tool output. That is:
   from `logs`, recent log lines.
 
 None of it is prompt text, assistant output or tool content. The window opened from the Start
-Menu reads the same information on your machine and sends it nowhere.
+Menu reads the same information on your machine and sends it nowhere. No tool can refresh or
+import the Codex compatibility data: that is done only from the window or a command line, as
+described at the top.
 
 ## What it stores, and where
 
@@ -378,15 +417,33 @@ default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
   your conversations, and it holds no Custom message text. The window uses it only while that key
   still matches and writes a new one otherwise; deleting it only makes the next opening a little
   slower. `Uninstall.cmd` with `-Purge` removes it with the rest of `config/`;
+- `config/compat-cache.json`, from v0.6.5 — the Codex compatibility data you last asked for, kept
+  only if it passed validation. Its one writer is this installation's validator (`controlcli
+  compat-import`): a refresh downloads to a temporary file, hands it to the validator and deletes
+  it, and `auto_resume.py compat --import FILE` hands it a file you supply. It holds the data file
+  as published - the Codex versions it covers, capability states and reason codes, dates and a
+  sequence number - with when it was stored and whether it came from a refresh or a file. Nothing
+  in it is about you, this machine or your conversations. It is checked again every time it is
+  read, and one that fails is ignored, never deleted;
+- `config/compatibility.json`, from v0.6.5 — the watcher's latest compatibility report, and the
+  watcher is its only writer: the product version, the version string `codex --version` printed,
+  a SHA-256 digest of the Codex executable's resolved path (the digest, not the path, which normally
+  includes your Windows user name), that executable's size and modification time, how many
+  candidates were found, what each local check found, which compatibility data was in force, and
+  each capability's state and reason code. It is regenerated as the watcher runs; deleting it only
+  makes the window, the panel and the command line show unknown until it is written again. Both
+  compatibility files go with the rest of `config/` under `Uninstall.cmd -Purge`, and the command
+  line's `uninstall` deletes both unless you pass `--keep-state`;
 - `logs/` — `auto-resume.log`, what the watcher did, by reason code and conversation UUID;
   `errors.log`, the Python traceback when something goes wrong; and `launcher.log`, a line
   per launch (and why, if one failed).
 
 Engine events are written from a fixed message table. The main log also records the state
-directory's path, which normally includes your Windows user name, and — for a Codex version
-this tool was not verified against — the version string `codex --version` printed. Prompt
-text, assistant output, tool output and Codex's error text are not deliberately written to
-any log. When something fails, `errors.log` receives the full Python traceback, and
+directory's path, which normally includes your Windows user name, and the version string
+`codex --version` printed - until v0.6.4 only for a Codex version this tool was not verified
+against, from v0.6.5 for every version, beside what the compatibility data says about it, as
+codes. Prompt text, assistant output, tool output and Codex's error text are not deliberately
+written to any log. When something fails, `errors.log` receives the full Python traceback, and
 `launcher.log` and `errors.log` receive the exception's message; this tool does not control
 what text an exception carries.
 
@@ -421,7 +478,7 @@ tool, and a file that already exists is never overwritten.
 Two traces of your conversations live outside that directory, and neither is written by
 this tool directly.
 Windows keeps the notifications it showed in its notification history for a while, or until
-you clear them.
+you clear them - from v0.6.5 including the silent copy raised for each notification card.
 And each resumed conversation contains the continuation message (your Custom message, when that
 is what was sent), with its
 `[codex-auto-resume:…]` marker, in Codex's own history, like any message.
@@ -461,6 +518,32 @@ kind of interruption and when it is next checked. The watcher draws it on your m
 sends nothing anywhere. It adds nothing to the logs but a line naming a popup action that
 failed, with its refusal code or exception class.
 
+From v0.6.5 a notification can appear as the product's own card beside the notification area
+instead of as a Windows toast. It is on by default and switched off under Settings > General >
+Windows. What the card shows is what the toast shows - the same lines, drawn from the same
+sources, and the same buttons - plus the product's name, a status light and, for a detected
+interruption, the kind of interruption as a word from the product's own translations. The watcher
+draws it on your machine, as it draws the popup; nothing new leaves the machine for it, and no
+service is involved, as none is for the toast. Once the card has been on screen, the same toast is
+raised silently - no banner, no sound - so Windows' notification history holds what it held before;
+if a card cannot be drawn, the toast is raised instead. A card's button does what the toast's
+does, in the watcher itself rather than through the `codex-auto-resume:` handler: cancel one
+recovery or open one page of the Dashboard. Each press leaves one line in the log: the
+conversation's UUID when it cancelled one, or a refusal code or an exception class when nothing
+happened, as the toast's buttons do.
+
+To decide whether a card may be drawn at all, the watcher asks Windows content-free questions each
+time: whether Windows is accepting notifications right now (not locked, not a full-screen app or a
+presentation, not quiet time), whether Do not disturb or Focus is on, whether notifications for
+this product are switched on in Windows' Settings, whether a screen reader is running, whether the
+session is remote, and whether the desktop taking input is still yours. For how the card and the
+notification-area icon move, it asks whether battery saver is on and how long Windows keeps a
+notification on screen, and it notices when the session is locked or disconnected - which the
+settings window's taskbar button asks Windows outright for this session, so that it stops behind the
+lock screen as the icon does - and whether the icon is in the overflow area, which it reads from the
+settings Windows itself keeps for that icon. It reads these and changes none of them; any answer it
+cannot get means Windows' own toast.
+
 ## Languages
 
 From v0.6.3 the interface - the Dashboard, the popup and menu, notifications and the panel in
@@ -473,9 +556,10 @@ language Windows lists on this machine; a language you choose is stored in
 ## Third parties
 
 **GitHub**, for the release download when you install or update from the plugin, or when
-you download the ZIP yourself, and for the marketplace refresh described under
-[Installing it](#installing-it) when a marketplace it refreshes points at GitHub. It is
-subject to GitHub's own privacy practices, as any download would be.
+you download the ZIP yourself; for the marketplace refresh described under
+[Installing it](#installing-it) when a marketplace it refreshes points at GitHub; for *Check
+for updates*; and, from v0.6.5, for the Codex compatibility data from raw.githubusercontent.com
+when you ask for it. It is subject to GitHub's own privacy practices, as any download would be.
 
 **OpenAI**, only through the official Codex app and CLI already signed in on your machine:
 the usage check, which Codex identifies as coming from this tool; the resumed turn; and

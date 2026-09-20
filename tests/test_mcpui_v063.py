@@ -17,6 +17,7 @@ about a boundary rather than a look:
 """
 from __future__ import annotations
 
+import ast
 import json
 from pathlib import Path
 import re
@@ -27,8 +28,13 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+_HERE = str(Path(__file__).resolve().parent)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)        # srcscan lives next to this file
 
-from codex_auto_resume import (brand, continuation, control, l10n, machine,  # noqa: E402
+import srcscan  # noqa: E402
+
+from codex_auto_resume import (brand, compat, continuation, control, l10n, machine,  # noqa: E402
                                mcpserver, mcpui, reasons)
 from codex_auto_resume import settings as policy                              # noqa: E402
 
@@ -354,6 +360,15 @@ class CatalogTests(unittest.TestCase):
         "choice.": tuple(policy.RETRY_TIMING),
         "code.": tuple(machine.PUBLIC_CODES),
         "error.": tuple(control.ERROR_CODES),
+        # v0.6.5, the Codex compatibility card: every part the registry names, its four states and what
+        # each means, why a report cannot be used, and where the data in force came from.
+        "compat.capability.": tuple(compat.CAPABILITIES),
+        "compat.state.": compat.STATES,
+        "compat.meaning.": compat.STATES,
+        "compat.status.": tuple(status for status in compat.VIEW_STATUSES if status != "ok"),
+        "compat.source.": compat.DATA_SOURCES,
+        # The refreshed data's standings that are more than "in force", said as the window says them.
+        "compat.cache.": tuple(state for state in compat.CACHE_STATES if state not in ("absent", "ok")),
     }
 
     def test_every_key_the_script_names_exists_in_english(self):
@@ -403,11 +418,14 @@ class StyleTests(unittest.TestCase):
         self.assertEqual(scale & colours, set())
         self.assertIn(brand.css_scale(), mcpui._STYLE)
         for name in ("--transition", "--glow-reach", "--glow-edge", "--glow-near", "--glow-far",
-                     "--glow-outer", "--glow-near-mix", "--glow-far-mix", "--glow-still",
-                     "--glow-monitoring-ms", "--glow-recovering-ms", "--glow-attention-ms"):
+                     "--glow-outer", "--glow-edge-mix", "--glow-near-mix", "--glow-far-mix", "--glow-peak",
+                     "--glow-from", "--glow-dot-low", "--glow-monitoring-ms", "--glow-recovering-ms",
+                     "--glow-attention-ms"):
             self.assertIn("var(%s)" % name, mcpui._STYLE)
-        # v0.6.3's halo numbers, which the glow replaced, are neither used nor emitted.
-        for name in ("--breathe", "--pulse", "--halo-min", "--halo-max"):
+        # v0.6.3's halo numbers, which the glow replaced, and the first v0.6.5 cut's breathing glow, which
+        # the blink replaced, are neither used nor emitted.
+        for name in ("--breathe", "--pulse", "--halo-min", "--halo-max", "--glow-still", "--glow-attention-peak",
+                     "--glow-monitoring-low", "--glow-monitoring-rest", "--glow-recovering-scale-high"):
             self.assertNotIn("var(%s)" % name, mcpui._STYLE)
             self.assertNotIn(name + ":", brand.css_scale())
 
@@ -469,6 +487,14 @@ class MaterialTests(unittest.TestCase):
     def test_the_lift_is_brands_recipe_and_resolves_to_the_css_v063_wrote(self):
         self.assertFalse(hasattr(mcpui, "_ELEVATION_LIGHT"))
         self.assertFalse(hasattr(mcpui, "_ELEVATION_DARK"))
+        # Nor anywhere else the panel's code could move to: no module binds either name, and
+        # no file of the package spells the old shadow.
+        bound = {target.id for tree in srcscan.package_asts().values() for node in ast.walk(tree)
+                 if isinstance(node, (ast.Assign, ast.AnnAssign))
+                 for target in (node.targets if isinstance(node, ast.Assign) else [node.target])
+                 if isinstance(target, ast.Name)}
+        self.assertFalse({"_ELEVATION_LIGHT", "_ELEVATION_DARK"} & bound)
+        self.assertEqual(srcscan.holders("var(--shadow-dark)"), set())
         source = (ROOT / "src" / "codex_auto_resume" / "mcpui.py").read_text(encoding="utf-8")
         self.assertNotIn("var(--shadow-dark)", source)
         self.assertIn('.replace("@ELEVATION_LIGHT@", brand.css_elevation("light"))', source)
@@ -495,16 +521,18 @@ class MaterialTests(unittest.TestCase):
 
     def test_a_disabled_control_says_so_in_muted_text_not_in_opacity(self):
         # Saying nothing about opacity is not saying 1. The browser's own stylesheet fades a
-        # disabled select to 0.7, `appearance: none` or not, and muted text at 0.7 is about 3:1 in
-        # light. So the fields say 1, and each control is measured at the opacity it resolves to,
-        # composited over the card it stands on, in light and in both ways of being dark.
-        browser = {"select:disabled": "0.7"}
+        # disabled field to 0.7, and muted text at 0.7 is about 3:1 in light. So the fields say 1,
+        # and each control is measured at the opacity it resolves to, composited over the card it
+        # stands on, in light and in both ways of being dark. Since v0.6.5 a drop-down's field is
+        # the page's own combobox (the select behind it is never shown), disabled by aria-disabled.
+        combo = '.combo-box[aria-disabled="true"]'
+        browser = {"input[type=number]:disabled": "0.7"}
         themes = (ROOT_TOKENS,) + tuple(
             dict(ROOT_TOKENS, **declarations) for context, selectors, declarations in RULES
             if (context, selectors) in (("@media (prefers-color-scheme: dark)", (':root:not([data-theme="light"])',)),
                                         ("", (':root[data-theme="dark"]',))))
         self.assertEqual(len(themes), 3)
-        for selector in ("button[disabled]", "select:disabled", "input[type=number]:disabled",
+        for selector in ("button[disabled]", combo, "input[type=number]:disabled",
                          ".segment input:disabled + span"):
             with self.subTest(selector):
                 self.assertEqual(declared(selector, "color"), "var(--muted)")
@@ -517,7 +545,7 @@ class MaterialTests(unittest.TestCase):
                     text = brand.mix(card, painted("var(--muted)", tokens), opacity)
                     well = brand.mix(card, painted(ground, tokens), opacity)
                     self.assertGreaterEqual(brand.contrast(text, well), 4.5, (tokens["--muted"], opacity))
-                if selector in ("select:disabled", "input[type=number]:disabled"):
+                if selector in (combo, "input[type=number]:disabled"):
                     self.assertEqual(declared(selector, "opacity"), "1")
                 else:
                     self.assertIn(declared(selector, "opacity"), (None, "1"))
@@ -544,7 +572,8 @@ class MaterialTests(unittest.TestCase):
                 (".savebar", "padding", "var(--size-savebar-pad)"), (".setting", "padding", "var(--size-row-pad)"),
                 (".prow", "padding", "var(--size-tile-pad)"), (".master", "padding", "var(--size-tile-pad)"),
                 ("button", "min-height", "var(--size-button-height)"), ("button", "padding", "var(--size-button-pad)"),
-                ("select", "min-height", "var(--size-field-height)"), ("select", "padding", "var(--size-select-pad)"),
+                (".combo-box", "min-height", "var(--size-field-height)"),
+                (".combo-box", "padding", "var(--size-select-pad)"),
                 ("input[type=number]", "width", "var(--size-number-width)"),
                 ("input.switch", "width", "var(--size-switch-width)"),
                 ("input.switch", "height", "var(--size-switch-height)"),
@@ -557,10 +586,14 @@ class MaterialTests(unittest.TestCase):
 
 
 class StatusLightTests(unittest.TestCase):
-    """The light: a flat dot in brand's colour for its state, and brand's glow around it."""
+    """The light: a flat dot in brand's colour for its state, blinking on brand's cycle, and brand's glow."""
 
     def static_opacity(self, state):
         return number(declared(".halo.%s::before" % state, "opacity") or declared(".halo::before", "opacity"))
+
+    def glows(self, state):
+        """Whether any of brand's frames for the state ever shows a glow."""
+        return any((brand.glow(state, ms, ms) or {}).get("opacity", 0) > 0 for ms in range(0, 3200, 20))
 
     def test_the_light_is_a_flat_dot_of_the_size_it_always_had(self):
         self.assertEqual(declared(".halo", "width"), "%dpx" % (2 * brand.STATUS_DOT["panel"]))
@@ -593,8 +626,11 @@ class StatusLightTests(unittest.TestCase):
                    for context, selectors, declarations in RULES
                    if context == "" and declarations.get("content") == '""'
                    for selector in selectors if selector.startswith(".halo.") and selector.endswith("::before")}
-        self.assertEqual(glowing, {state for state in LIGHT_STATES if brand.glow(state, 0) is not None})
-        self.assertNotIn("paused", glowing)
+        self.assertEqual(glowing, {state for state in LIGHT_STATES if self.glows(state)})
+        self.assertEqual(glowing, {"monitoring", "recovering", "attention"})
+        # Between its moments a glow is not there at all: nothing is lit round a still dot.
+        self.assertEqual(self.static_opacity("monitoring"), 0.0)
+        self.assertEqual(declared(".halo::before", "transform"), "scale(var(--glow-from))")
 
     def test_the_glow_falls_off_as_brand_says_with_no_edge(self):
         before = ".halo::before"
@@ -615,13 +651,14 @@ class StatusLightTests(unittest.TestCase):
         self.assertEqual(parts[0], "circle closest-side")
         # closest-side of a box `reach` wider than the dot on every side.
         outer = dot + brand.GLOW["reach"]
-        observed = [(0.0, 1.0)]
+        observed = []
         for stop in parts[1:]:
             colour, position = stop.rsplit(" ", 1)
             mixed = re.fullmatch(r"color-mix\(in srgb, var\(--halo-color\) (.+), transparent\)", colour)
             alpha = (1.0 if colour == "var(--halo-color)" else 0.0 if colour == "transparent"
                      else number(mixed.group(1), "%") / 100)
             observed.append((number(position, "px") / outer, alpha))
+        observed.insert(0, (0.0, observed[0][1]))          # a gradient holds its first colour to the centre
         expected = brand.glow_stops(dot)
         self.assertEqual(len(observed), len(expected))
         for (at, alpha), (want_at, want_alpha) in zip(observed, expected):
@@ -656,49 +693,64 @@ class StatusLightTests(unittest.TestCase):
                 return low + (high - low) * eased, small + (large - small) * eased
         raise AssertionError(progress)
 
-    def test_the_glow_breathes_on_brands_curve(self):
-        # Sampled over two cycles against brand.glow(), which the window and the popup draw too.
-        # The easing is a Bezier, so it is a half-cosine only to within a small error.
+    def light(self, state, elapsed, once=False):
+        """The dot's opacity, the glow's opacity and the glow's scale the stylesheet draws at `elapsed`."""
+        suffix = ".once" if once else ""
+        dot = self.animation(".halo.%s%s" % (state, suffix))
+        glow = self.animation(".halo.%s%s::before" % (state, suffix))
+        for animation in (dot, glow):
+            self.assertEqual(animation[3], "1" if once else "infinite")
+            self.assertEqual(animation[1], brand.GLOW[("attention" if once else state) + "_ms"])
+        return self.frame(dot, elapsed)[0], self.frame(glow, elapsed)[0], self.frame(glow, elapsed)[1]
+
+    def assertBrands(self, drawn, frame):
+        dot = number(declared(".halo", "width"), "px") / 2
+        self.assertAlmostEqual(drawn[0], 1 - frame["dim"], delta=0.002)
+        self.assertAlmostEqual(drawn[1], frame["opacity"], delta=0.002)
+        self.assertAlmostEqual(drawn[2], brand.glow_radius(dot, frame["spread"]) / brand.glow_extent(dot), delta=0.002)
+
+    def test_the_light_runs_brands_cycle_on_brands_curve(self):
+        # Sampled over two cycles against brand.glow(), which the window and the popup draw too: the dot's
+        # opacity over the card is its dimming, and the glow's opacity and scale are its spread. The easing is
+        # a Bezier, so each phase is a half-cosine only to within a small error.
         for state in ("monitoring", "recovering"):
-            animation = self.animation(".halo.%s::before" % state)
-            self.assertEqual(animation[3], "infinite")
-            self.assertEqual(animation[1], brand.GLOW[state + "_ms"])
-            for step in range(97):
-                elapsed = animation[1] * 2 * step / 96
+            cycle = brand.GLOW[state + "_ms"]
+            for step in range(193):
+                elapsed = cycle * 2 * step / 192
                 with self.subTest(state=state, elapsed=elapsed):
-                    opacity, scale = self.frame(animation, elapsed)
-                    expected = brand.glow(state, elapsed)
-                    self.assertAlmostEqual(opacity, expected["opacity"], delta=0.002)
-                    self.assertAlmostEqual(scale, expected["scale"], delta=0.002)
+                    self.assertBrands(self.light(state, elapsed), brand.glow(state, elapsed))
 
-    def test_a_problem_pulses_once_on_brands_curve_and_then_holds(self):
-        animation = self.animation(".halo.attention.once::before")
-        self.assertEqual(animation[3], "1")
-        self.assertEqual(animation[1], brand.GLOW["attention_ms"])
-        for step in range(49):
-            since = animation[1] * step / 48
-            expected = brand.glow("attention", 0, since_entered_ms=since if step < 48 else None)
-            opacity, scale = self.frame(animation, min(since, animation[1] - 1e-9))
-            self.assertAlmostEqual(opacity, expected["opacity"], delta=0.002)
-            self.assertEqual(scale, expected["scale"])
-        self.assertAlmostEqual(self.static_opacity("attention"), brand.glow("attention", 0)["opacity"])
+    def test_a_problem_runs_the_cycle_once_and_then_holds_lit(self):
+        pulse = brand.GLOW["attention_ms"]
+        for step in range(97):
+            since = pulse * step / 96
+            with self.subTest(since=since):
+                self.assertBrands(self.light("attention", min(since, pulse - 1e-9), once=True),
+                                  brand.glow("attention", 0, since_entered_ms=since if step < 96 else None))
+        # Once it has run, what is left is the still light: the dot at full strength, no glow.
+        self.assertIsNone(declared(".halo.attention", "animation"))
+        self.assertIsNone(declared(".halo", "opacity"))
+        self.assertEqual(self.static_opacity("attention"), brand.glow("attention", 0)["opacity"])
 
-    def test_waiting_holds_still(self):
+    def test_waiting_and_checking_hold_lit_with_no_glow(self):
         for state in ("waiting", "checking"):
             with self.subTest(state):
+                self.assertIsNone(declared(".halo.%s" % state, "animation"))
                 self.assertIsNone(declared(".halo.%s::before" % state, "animation"))
-                self.assertAlmostEqual(self.static_opacity(state), brand.glow(state, 1234)["opacity"])
+                self.assertIsNone(declared(".halo.%s::before" % state, "content"))
+                self.assertEqual(brand.glow(state, 1234)["opacity"], 0.0)
+                self.assertEqual(brand.glow(state, 1234)["dim"], 0.0)
 
-    def test_with_less_motion_every_glow_holds_at_brands_rest(self):
-        # Reduced motion removes the animations; what is left is each state's own opacity.
-        self.assertEqual(declared(".halo::before", "transform", REDUCED), "none")
+    def test_with_less_motion_every_light_holds_lit_with_no_glow(self):
+        # Reduced motion removes the animations; what is left is the dot at full strength and no glow at all.
+        self.assertEqual(declared(".halo::before", "display", REDUCED), "none")
+        self.assertIsNone(declared(".halo", "opacity"))
         for state in LIGHT_STATES:
             frame = brand.glow(state, 5000, since_entered_ms=0, reduced=True)
             if frame is None:
                 continue
             with self.subTest(state):
-                self.assertAlmostEqual(self.static_opacity(state), frame["opacity"])
-                self.assertEqual(frame["scale"], 1.0)
+                self.assertEqual((frame["dim"], frame["opacity"], frame["spread"]), (0.0, 0.0, 0.0))
 
     def test_high_contrast_draws_a_solid_system_colour_and_no_glow(self):
         # CSS names Windows' text colour CanvasText.
@@ -714,7 +766,7 @@ class StatusLightTests(unittest.TestCase):
             self.assertEqual(declared(selector, "forced-color-adjust", FORCED), "none", selector)
         # A rule that opts out of forced colours keeps its shadow unless it takes it off itself.
         for selector in (".card", ".savebar", "button", "select", "input", ".segment span", ".bubble",
-                         ".segment input:checked + span"):
+                         ".segment input:checked + span", ".combo-box", ".combo-list", ".combo-option"):
             self.assertEqual(declared(selector, "box-shadow", FORCED), "none", selector)
 
 

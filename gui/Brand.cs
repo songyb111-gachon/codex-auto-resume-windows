@@ -12,6 +12,9 @@
 // draws - the spinner's buttons, the drop-down's arrow, the check glyph - stayed light. v0.6.4's
 // window draws those faces itself, which is what lets it take the dark half. A part Windows
 // still draws is the window's to theme, not this file's.
+//
+// Brand.Mark (v0.6.5) is the notification-area icon's motion for the window's taskbar button: the
+// icon's states, rhythms and frames from src/codex_auto_resume/tray.py, the frames as its own pixels.
 
 using System;
 using System.Drawing;
@@ -61,6 +64,10 @@ namespace CodexAutoResume
         internal const int TypeBody = 12;
         internal const int TypeSmall = 11;
         internal const int TransitionMs = 160;
+        internal const double TransitionEaseX1 = 0.33;
+        internal const double TransitionEaseY1 = 1;
+        internal const double TransitionEaseX2 = 0.68;
+        internal const double TransitionEaseY2 = 1;
 
         internal const string HexAccent = "#1257B8";
         internal const string HexBrand = "#1257B8";
@@ -195,28 +202,26 @@ namespace CodexAutoResume
         internal const int ElevInsetReachRight = 0;
         internal const int ElevInsetReachBottom = 0;
 
-        // The status light (brand.STATUS_DOT, brand.GLOW): the dot keeps its size, and the glow's
-        // numbers are the popup's and the panel's too.
+        // The status light (brand.STATUS_DOT, brand.GLOW): the dot keeps its size, and its cycle - fall,
+        // rise, bloom and withdraw, as fractions of it - and the glow's numbers are the popup's and the
+        // panel's too.
         internal const double StatusDotRadius = 5;
-        internal const double GlowExtent = 12.48;
-        internal const double GlowReach = 7;
-        internal const double GlowNearAt = 0.35;
-        internal const double GlowNearAlpha = 0.55;
-        internal const double GlowFarAt = 0.7;
-        internal const double GlowFarAlpha = 0.2;
-        internal const double GlowMonitoringMs = 3600;
-        internal const double GlowMonitoringLow = 0.14;
-        internal const double GlowMonitoringHigh = 0.3;
-        internal const double GlowMonitoringScaleLow = 0.94;
-        internal const double GlowMonitoringScaleHigh = 1;
-        internal const double GlowRecoveringMs = 2200;
-        internal const double GlowRecoveringLow = 0.18;
-        internal const double GlowRecoveringHigh = 0.38;
-        internal const double GlowRecoveringScaleLow = 0.96;
-        internal const double GlowRecoveringScaleHigh = 1.04;
-        internal const double GlowStill = 0.2;
+        internal const double GlowExtent = 8;
+        internal const double GlowFall = 0.25;
+        internal const double GlowRise = 0.4;
+        internal const double GlowBloom = 0.2;
+        internal const double GlowWithdraw = 0.15;
+        internal const double GlowDotDim = 0.6;
+        internal const double GlowPeak = 0.34;
+        internal const double GlowReach = 3;
+        internal const double GlowEdgeAlpha = 0.67;
+        internal const double GlowNearAt = 0.14;
+        internal const double GlowNearAlpha = 0.58;
+        internal const double GlowFarAt = 0.66;
+        internal const double GlowFarAlpha = 0.5;
+        internal const double GlowMonitoringMs = 3200;
+        internal const double GlowRecoveringMs = 2000;
         internal const double GlowAttentionMs = 1400;
-        internal const double GlowAttentionPeak = 0.42;
         internal const double GlowArcMs = 1600;
         internal const double GlowArcAlpha = 0.55;
         internal const double GlowArcGap = 3;
@@ -252,40 +257,32 @@ namespace CodexAutoResume
             return SystemColors.GrayText;
         }
 
-        /// The glow around the status dot for one frame, or false when the state has none.
-        /// brand.glow() in C#: `arc` is the checking arc's start angle in degrees, or -1, and a
-        /// negative or NaN sinceEnteredMs means the state's one pulse is over. The caller draws
-        /// no glow in High Contrast.
+        /// The status light for one frame, or false when the light is off: brand.glow() in C#. `dim` is
+        /// how far the dot is drawn from its colour toward the ground under it, `opacity` multiplies the
+        /// glow's falloff, `spread` is how far out the glow is - 0 none, 1 GlowReach past the dot's edge -
+        /// and `arc` is the checking arc's start angle in degrees, or -1. A negative or NaN sinceEnteredMs
+        /// means the state's one pulse is over. The caller neither dims the dot nor draws a glow in High
+        /// Contrast.
         internal static bool Glow(string state, double elapsedMs, double sinceEnteredMs, bool reduced,
-                                  out double opacity, out double scale, out double arc)
+                                  out double dim, out double opacity, out double spread, out double arc)
         {
+            dim = 0;
             opacity = 0;
-            scale = 1;
+            spread = 0;
             arc = -1;
             if (state == "monitoring")
-                return Breathe(elapsedMs, reduced, GlowMonitoringMs, GlowMonitoringLow, GlowMonitoringHigh,
-                               GlowMonitoringScaleLow, GlowMonitoringScaleHigh, out opacity, out scale);
+                return reduced || Light(elapsedMs % GlowMonitoringMs / GlowMonitoringMs, out dim, out opacity, out spread);
             if (state == "recovering")
-                return Breathe(elapsedMs, reduced, GlowRecoveringMs, GlowRecoveringLow, GlowRecoveringHigh,
-                               GlowRecoveringScaleLow, GlowRecoveringScaleHigh, out opacity, out scale);
-            if (state == "waiting")
-            {
-                opacity = GlowStill;
-                return true;
-            }
+                return reduced || Light(elapsedMs % GlowRecoveringMs / GlowRecoveringMs, out dim, out opacity, out spread);
+            if (state == "waiting") return true;
             if (state == "checking")
             {
-                opacity = GlowStill;
                 arc = reduced ? GlowArcStillAt : elapsedMs % GlowArcMs / GlowArcMs * 360.0;
                 return true;
             }
             if (state == "attention" || state == "failed")
-            {
-                opacity = GlowStill;
-                if (!reduced && sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs)
-                    opacity = GlowStill + (GlowAttentionPeak - GlowStill) * Breath(sinceEnteredMs, GlowAttentionMs);
-                return true;
-            }
+                return reduced || !(sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs)
+                       || Light(sinceEnteredMs / GlowAttentionMs, out dim, out opacity, out spread);
             return false;
         }
 
@@ -297,25 +294,68 @@ namespace CodexAutoResume
             return (state == "attention" || state == "failed") && sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs;
         }
 
-        private static bool Breathe(double elapsedMs, bool reduced, double cycleMs, double low, double high,
-                                    double small, double large, out double opacity, out double scale)
+        /// The light at `fraction` of GLOW's cycle (brand.glow_phase): the dot dims and comes back
+        /// with no glow, and only then, lit, the glow spreads and draws back in, each phase eased as
+        /// half a raised cosine.
+        private static bool Light(double fraction, out double dim, out double opacity, out double spread)
         {
-            if (reduced)
-            {
-                opacity = (low + high) / 2;
-                scale = 1;
-                return true;
-            }
-            double wave = Breath(elapsedMs, cycleMs);
-            opacity = low + (high - low) * wave;
-            scale = small + (large - small) * wave;
+            dim = 0;
+            spread = 0;
+            if (fraction < GlowFall) dim = GlowDotDim * Eased(fraction / GlowFall);
+            else if ((fraction -= GlowFall) < GlowRise) dim = GlowDotDim * (1.0 - Eased(fraction / GlowRise));
+            else if ((fraction -= GlowRise) < GlowBloom) spread = Eased(fraction / GlowBloom);
+            else spread = 1.0 - Eased((fraction - GlowBloom) / GlowWithdraw);
+            opacity = GlowPeak * spread;
             return true;
+        }
+
+        /// Half a raised cosine: 0 at 0, 1 at 1, with no corner at either end.
+        private static double Eased(double progress)
+        {
+            return 0.5 - 0.5 * Math.Cos(Math.PI * Math.Min(1.0, Math.Max(0.0, progress)));
         }
 
         /// 0 at the start of a cycle, 1 halfway, 0 again: a raised cosine.
         private static double Breath(double elapsedMs, double cycleMs)
         {
             return 0.5 - 0.5 * Math.Cos(2 * Math.PI * (elapsedMs % cycleMs) / cycleMs);
+        }
+
+        /// How far a transition has come, 0 to 1, after `progress` of TransitionMs: brand.ease(), the
+        /// CSS cubic-bezier TransitionEaseX1, Y1, X2, Y2. Held at 0 before the start and 1 after the end.
+        internal static double Ease(double progress)
+        {
+            if (!(progress > 0)) return 0;
+            if (progress >= 1) return 1;
+            double t = progress;
+            for (int i = 0; i < 8; i++)
+            {
+                double error = Bezier(TransitionEaseX1, TransitionEaseX2, t) - progress;
+                if (Math.Abs(error) < 1e-7) return Bezier(TransitionEaseY1, TransitionEaseY2, t);
+                double slope = BezierSlope(TransitionEaseX1, TransitionEaseX2, t);
+                if (Math.Abs(slope) < 1e-6) break;
+                t = Math.Min(1.0, Math.Max(0.0, t - error / slope));
+            }
+            double low = 0, high = 1;
+            t = progress;
+            for (int i = 0; i < 40; i++)
+            {
+                double value = Bezier(TransitionEaseX1, TransitionEaseX2, t);
+                if (Math.Abs(value - progress) < 1e-7) break;
+                if (value < progress) low = t; else high = t;
+                t = (low + high) / 2.0;
+            }
+            return Bezier(TransitionEaseY1, TransitionEaseY2, t);
+        }
+
+        private static double Bezier(double a, double b, double t)
+        {
+            return ((1.0 - 3.0 * b + 3.0 * a) * t + (3.0 * b - 6.0 * a)) * t * t + 3.0 * a * t;
+        }
+
+        private static double BezierSlope(double a, double b, double t)
+        {
+            return 3.0 * (1.0 - 3.0 * b + 3.0 * a) * t * t + 2.0 * (3.0 * b - 6.0 * a) * t + 3.0 * a;
         }
 
         /// The check box's fill (brand.CHECKBOX): the well unchecked, the accent checked, the surface
@@ -535,6 +575,552 @@ namespace CodexAutoResume
                     return false;
                 }
                 return false;
+            }
+        }
+
+        /// The notification-area icon's motion on the window's taskbar button (v0.6.5), from
+        /// codex_auto_resume.tray: the icon's five states and the one each status light is drawn as, its
+        /// rhythms, and its frames at each .ico entry the window's big icon is up to 300%. TaskbarMark
+        /// shows them.
+        internal static class Mark
+        {
+            // tray.ICON_MOTION. The icon also reads two of brand.GLOW's rhythms, which Brand declares:
+            // GlowMonitoringMs (watching's breath, and so every slot of its loop and recovering's sweep)
+            // and GlowAttentionMs (a problem's one pulse).
+            internal const int Breaths = 3;
+            internal const int SweepBreaths = 2;
+            internal const double SweepOut = 0.4;
+            internal const double SweepHold = 0.025;
+            internal const double RecoverRest = 0.075;
+            // How far the head travels, in degrees: brand's arc, its place clockwise to the stroke's
+            // other end (tray.ICON_SWEEP). The gap at the top is the rest of the circle, and the head
+            // never enters it.
+            internal const double Sweep = 290;
+            internal const int BreatheFrameMs = 156;
+            internal const int TurnFrameMs = 62;
+            internal const int Positions = 24;
+            internal const int Levels = 24;
+            internal const double Dim = 0.6;
+            // A pixel's samples: brand.ICON_SUPERSAMPLE squared.
+            internal const int Samples = 16;
+            // What a head pixel's entry in the frames starts with (build/make_brand.py, mark_frames).
+            internal const int EntryGround = 0;
+            internal const int EntryHead = 1;
+            internal const int EntrySamples = 2;
+
+            /// The icon's state for the state a status light shows (tray.ICON_FOR_LIGHT); anything
+            /// unknown is idle.
+            internal static string IconState(string light)
+            {
+                if (light == "monitoring" || light == "waiting" || light == "checking") return "watching";
+                if (light == "recovering") return "recovering";
+                if (light == "attention") return "attention";
+                if (light == "failed") return "failed";
+                return "idle";
+            }
+
+            /// The head's full colour in an icon state (tray.icon_head_colour); anything unknown is idle's.
+            internal static Color HeadColour(string state)
+            {
+                if (state == "watching" || state == "recovering") return Color.FromArgb(0x4F, 0xE0, 0xF5);
+                if (state == "attention") return Color.FromArgb(0xE0, 0x9B, 0x57);
+                if (state == "failed") return Color.FromArgb(0xF2, 0x87, 0x7C);
+                return Color.FromArgb(0x94, 0xA3, 0xB8);
+            }
+
+            /// The head's colour at breathing `level` (tray.icon_level_colour): the top level is `colour`, the
+            /// lowest Dim of the way toward the badge's deep blue.
+            internal static Color LevelColour(Color colour, int level)
+            {
+                int top = Levels - 1;
+                level = Math.Max(0, Math.Min(top, level));
+                double amount = Dim * (top - level) / (double)top;
+                return Color.FromArgb(Toward(colour.R, 0x0B, amount), Toward(colour.G, 0x25, amount),
+                                      Toward(colour.B, 0x45, amount));
+            }
+
+            private static int Toward(int one, int other, double amount)
+            {
+                return (int)Math.Floor(one + (other - one) * amount + 0.5);
+            }
+
+            /// How far along the stroke the head has swept from its place, clockwise, in degrees, or -1 when
+            /// the state is not sweeping at all (tray.icon_turn): Sweep at the stroke's other end, Breath over
+            /// a sweep out and back with that cosine's top held at the far end, and 0 - not -1 - for whatever
+            /// is left of the cycle once it is home, where it rests lit and still.
+            internal static double Turn(string state, double elapsedMs)
+            {
+                if (state != "watching" && state != "recovering") return -1;
+                double breath = GlowMonitoringMs;
+                int sweeps = state == "watching" ? SweepBreaths : 1;
+                double outMs = breath * sweeps * SweepOut, hold = breath * sweeps * SweepHold;
+                double start = state == "watching" ? breath * Breaths : 0;
+                double cycle = state == "watching" ? start + breath * sweeps
+                                                   : 2 * outMs + hold + breath * RecoverRest;
+                double into = elapsedMs % cycle - start;
+                if (into < 0) return -1;
+                if (into >= 2 * outMs + hold) return 0;
+                return Sweep * Breath(Math.Min(into, Math.Max(outMs, into - hold)), 2 * outMs);
+            }
+
+            /// One frame, as (position, level) (tray.icon_frame): position 0 is the head in its place, the
+            /// others clockwise round the ring, and the top level its full colour, which it keeps through a
+            /// sweep's whole cycle. With motion reduced every state is at rest. A negative sinceEnteredMs
+            /// means the state's one pulse is over.
+            internal static void Frame(string state, double elapsedMs, double sinceEnteredMs, bool reduced,
+                                       out int position, out int level)
+            {
+                position = 0;
+                level = Levels - 1;
+                if (reduced) return;
+                double turn = Turn(state, elapsedMs);
+                if (turn >= 0)
+                {
+                    position = (int)Math.Round(turn / (360.0 / Positions)) % Positions;
+                    return;
+                }
+                if (state == "watching") level = BreathLevel(elapsedMs, GlowMonitoringMs);
+                else if (Pulsing(state, sinceEnteredMs)) level = BreathLevel(sinceEnteredMs, GlowAttentionMs);
+            }
+
+            /// How soon the next frame is due, in ms, or -1 when nothing moves (tray.icon_frame_ms).
+            internal static int FrameMs(string state, double elapsedMs, double sinceEnteredMs, bool reduced)
+            {
+                if (reduced) return -1;
+                if (Turn(state, elapsedMs) >= 0) return TurnFrameMs;
+                if (state == "watching" || Pulsing(state, sinceEnteredMs)) return BreatheFrameMs;
+                return -1;
+            }
+
+            /// Whether a problem's one pulse is still running (tray._pulsing).
+            private static bool Pulsing(string state, double sinceEnteredMs)
+            {
+                return (state == "attention" || state == "failed") && sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs;
+            }
+
+            /// Full colour at the start of a cycle, dimmest halfway, full again (tray._breath_level).
+            private static int BreathLevel(double elapsedMs, double cycleMs)
+            {
+                return (int)Math.Round((Levels - 1) * (1.0 - Breath(elapsedMs, cycleMs)));
+            }
+
+            /// The frames for a big icon of `size` px, base64 (build/make_brand.py, mark_frames), or null
+            /// for a size there are none of.
+            internal static string Frames(int size)
+            {
+                if (size == 32) return Frames32();
+                if (size == 40) return Frames40();
+                if (size == 48) return Frames48();
+                if (size == 64) return Frames64();
+                return null;
+            }
+
+            private static string Frames32()
+            {
+                return
+                    "AgAAAAABwWAbXwHCYBvPGMJhG/8BwmAbzwHBYBtfAwAAAAABvl4anxy+Xxr/Ab5eGp8BAAAAAAG6XRpfHrpdGv8Bul0aXwG2WxnP" +
+                    "HrZbGf8BtlsZzyCyWRn/IK5XGP8gqlUY/yCmUxf/IKJSF/8KnlAW/wHDj2j/Aciadv8InlAW/wHImnb/AcOPaP8KnlAW/wmaThb/" +
+                    "AcCOaP8C//ny/wGtbj//BppOFv8BrW4//wL/+fL/AcCOaP8Jmk4W/wiWTBX/AapsPv8D//ny/wHXuJ//BpZMFf8B17if/wP/+fL/" +
+                    "AapsPv8IlkwV/wiSShX/AeTNuv8C//ny/wHq2Mj/AZlUIv8GkkoV/wGZVCL/AerYyP8C//ny/wHkzbr/CJJKFf8HjkgU/wGcXi//" +
+                    "A//58v8Bo2k9/wiOSBT/AaNpPf8D//ny/wGcXi//B45IFP8HikYU/wGvfln/Av/58v8B6dfI/wqKRhT/AenXyP8C//ny/wGvfln/" +
+                    "B4pGFP8HhkQT/wHCnoL/Av/58v8ByqqQ/wqGRBP/AcqqkP8C//ny/wHCnoL/B4ZEE/8HgkIT/wHAnYL/Av/58v8ByKmQ/wqCQhP/" +
+                    "AcipkP8C//ny/wHAnYL/B4JCE/8HfkAS/wGmelj/Av/58v8B59bI/wp+QBL/AefWyP8C//ny/wGmelj/B35AEv8Hej4S/wGKVS7/" +
+                    "A//58v8Bk2E8/wh6PhL/AZNhPP8D//ny/wGKVS7/B3o+Ev8Idj0R/wHcybn/Av/58v8B5dXH/wF/SB//BnY9Ef8Bf0gf/wHl1cf/" +
+                    "Av/58v8B3Mm5/wh2PRH/CHI7Ef8BjF47/wP/+fL/AeTVx/8BjV47/wRyOxH/AY1eO/8B5NXH/wP/+fL/AYxeO/8IcjsR/wluORD/" +
+                    "AaSAZP8E//ny/wHk1cf/AsClj/8B5NXH/wT/+fL/AaSAZP8JbjkQ/wpqNxD/AaF/ZP8K//ny/wGhf2T/Cmo3EP8LZjUP/wGCWTn/" +
+                    "AdjHuf8G//ny/wHYx7n/AYJZOf8LZjUP/w1iMw//AXVMK/8Bk3FV/wKwloD/AZNxVf8BdUwr/w1iMw//IF4xDv8gWi8O/yBWLQ3/" +
+                    "AVIrDc8eUisN/wFSKw3PAU4pDF8eTikM/wFOKQxfAQAAAAABSygMnxxKKAz/AUsoDJ8DAAAAAAFHJgtfAUYmC88YRiYL/wFGJgvP" +
+                    "AUcmC18CAAAAABEHFw0AAAIQAkIBkgQeCQIQAkIBkgQeCQAAAAIQCooA7wHUAwEBAhAKigDvAdQDAAIQBtwAIQMzBgEBAQECEAbc" +
+                    "ACEDMwYCEAiwAHAC1AQBAQEBAhAIjAEcAzoFAhACJgEnBDkIAQEBAQIQAjwNng3yDQACEAT8AHUD2QYCEAtpAG4B1gICEAsAA30D" +
+                    "HwQCEARYC6wL9AsAEgkYDwACEAMeARIEEAgCEA1CAPMA4AEBAhAKhADkAb4DAhABSgGxBEsJAAIQDiwAnQA3AQEBAQIQCoQA1QGh" +
+                    "AwIQAiYBKAQ7CAEBAQECEAxUADABWgIAAhAPFQBJAJEAAQEBAhAKFQPKA7YEAAIQAwQBrQM5BwIQDigAkAAaAQECEAzIA+QD/AMC" +
+                    "EAEuDpcO8Q4AAAAAAAATChkQAAACEARYC6wL9AsCEAeiAW0D2gUCEAI0AUYEdggAAAIQCZ4Gzwb5BgEBAhAPFQBNAJgAAhAE/ACS" +
+                    "AxEHAhACAwK7BHAIAQEBAQIQC2kAcwHeAgIQAhgB9gPJBwEBAQECEAxQACIBOgIAAhALZABfAbECAQEBAhAFmAJsBNwGAAACEAY6" +
+                    "BH4FIAcCEAiQB8gH+AcCEARYC6wL9AsAFAwaEgACEARYC6wL9AsCEAu6BN0E+wQCEAoVA8sDuAQCEAImAQ4EBggAAhAErALHBI8H" +
+                    "AQEBAhAPFABJAJAAAhABLAFABFsIAhAIoAA0AlQEAQEBAQIQBPAATgN+BgIQCJgAJAI0BAEBAQECEAP3AHoD0wYCEAEdAeUDpAcC" +
+                    "EA0YAX0BAgIBAQIQClEBRAKIAwAAAAIQBFgLrAv0CwIQA0oMpQzzDAAAFA4aFAACEAbaBqIHlwgCEAzIA+QD/AMCEAzIA+QD/AMC" +
+                    "EAWYAm4E4AYAAhAE5AA3A1EGAQEBAQIQAgoBwANdBwIQCJgAFAIUBAEBAQECEAerAFcCmAQCEAa0AIQC7wQBAQEBAhAD6gBGA2sG" +
+                    "AAIQCZ4Gzwb5BgEBAhAIkADxAc0DAAAAAAAAABQPGhUAAAAAAAACEAP3AGIDpAYCEA4mAIYACAEBAhAO5AHyAf4BAhADUgXxBg8J" +
+                    "AAIQDEgAAwH9AQEBAQIQDiQAggD/AAABAQEBAQACEArqA18E6wQBAQECEAxEAPIA1wEAAhABLg6XDvEOAhAKrAXWBfoFAhAMyAPk" +
+                    "A/wDAhAKZgBeAagCAhAB/wB0A7QGABMRGRcAAhAC/ACIA+4GAhAI0AVYBvkGAhAGdAm6CfYJAAACEATYAO8CwQUBAQECEAqsBdYF" +
+                    "+gUAAhALVQAyAVICAQEBAQIQAu4AVwN9BgIQC/gCYgPkAwEBAQECEALuADkDQQYCEARYC6wL9AsBAQECEApgAFMBkgIAAAIQAjwN" +
+                    "ng3yDQIQCGIBdgLhAwIQBqAAIgIiBAAAERIXGAAAAAIQArwC4gTBBwAAAAIQA90AGwMIBgIQDxEAPgB4AAECEA7kAfIB/gECEANK" +
+                    "DKUM8wwAAhAOIgB3AOcAAQEBAhAN1gLrAv0CAAEBAQEBAAIQDMgD5AP8AwEBAQIQCmAASQF9AgACEAEuDpcO8Q4CEAoDA4cDLAQC" +
+                    "EAw8ANAAlAECEApaADoBYAICEAHhABoDAAYQExYZAAACEALuAFgDfgYCEALPARUECAcAAAACEAtVACoBQgIBAQIQCZ4Gzwb5BgAC" +
+                    "EAYoBD0FmQYBAQEBAhAEWAusC/QLAhAIkAfIB/gHAQEBAQIQB3IBrwJQBAIQBFgLrAv0CwEBAQIQDw8ANABlAAIQAtIA5QKZBQAC" +
+                    "EAVrAr4DbQUCEAw8AMwAhAECEAtLAP8A5gECEAS0AGgCmQQADhQUGgACEAH/AHYDtwYCEAiIANwBnAMCEAiIANwBnAMCEASOAkQE" +
+                    "fgYAAAIQDRIBbQHfAQEBAQIQBFgLrAv0CwIQBFgLrAv0CwEBAQECEAu6BN0E+wQCEANKDKUM8wwBAQEBAhAKAwOIAy0EAAIQCj0B" +
+                    "+AHmAgEBAhAPDwAzAGEAAhAC0gDQAmEFAAACEAO2AIICyAQCEASoAFACaAQCEAHSAOYCiAUADBQSGgAAAhAGqgBSAoAEAhAIiADc" +
+                    "AZwDAhAEzADHAmMFAAACEAmeBs8G+QYBAQECEAbOBn0HSQgAAQEBAQIQDMgD5AP8AwABAQEBAhAMyAPkA/wDAAIQCHgAmwERAwEB" +
+                    "AQIQBWsCvwNuBQAAAhADtgCCAsgEAhAHfgC6AUsDAhACxAC0AigFAAsUERoCEAEuDpcO8Q4CEArqA1wE5AQBAhAMRADvAM8BAhAD" +
+                    "3QABA9QFAAIQCqwF1gX6BQEBAQIQDiAAcwDfAAACEAzIA+QD/AMBAQEBAAIQCloAPQFlAgEBAQIQDuQB8gH+AQACEAHhAAQDxAUC" +
+                    "EAw8AMwAhQEBAhAOHgBmAMIAAhADMgV1BgcIAAAAAAAAAAkTDxkAAhAEWAusC/QLAhAL+AJnA+0DAhALVQA1AVcCAhAEzADfApMF" +
+                    "AAIQAjwNng3yDQEBAQECEALuADsDRQYCEAhiAYcCAwQBAQEBAhAIzAVKBtoGAhAGoAAlAicEAQEBAQIQBnQJugn2CQACEApaADsB" +
+                    "YgIBAQIQCqwF1gX6BQAAAAIQAtIA0AJgBQIQAtIA0AJgBQAACBEOFwAAAAAAAAIQAS4Olw7xDgIQDMgD5AP8AwECEA4kAH4A+AAC" +
+                    "EAPqAC4DPAYAAhAKCQOhA18EAQEBAhAPEQA+AHgAAAIQDEQA7ADKAQEBAQECEAKwArgEXwcCEApgAFUBlQIBAQECEA7kAfIB/gEA" +
+                    "AhAB8AA4AzwGAhAKYABGAXgCAQIQDdYC6wL9AgIQA0oMpQzzDAAHEA0WAAIQBFgLrAv0CwIQCJAHyAf4BwIQBjoEdAUOBwAAAhAF" +
+                    "hgI3BHEGAQEBAhALWgBEAXwCAAIQDEgA+gDqAQEBAQECEAL8AGwDtQYCEAtVADABTwIBAQEBAhACzwESBAMHAhAEzADCAlsFAhAP" +
+                    "EQA6AHEAAQECEAmeBs8G+QYAAAIQAuAAHAMIBgIQB3IBvQJsBAIQBFgLrAv0CwAABg4MFAAAAhADSgylDPMMAhAEWAusC/QLAAAA" +
+                    "AhAKUQFRAqMDAQECEA0YAYMBDgICEAEdAQQE4wcCEAP3AGEDogYBAQEBAhAImAAUAhQEAhAE2AAGA+4FAQEBAQIQCJAABAL0AwIQ" +
+                    "AQ4BqQMsBwIQDxIAPgB5AAEBAQIQBJgCYwTHBgACEALuAFQDeAYCEAoJA6ADXQQCEAu6BN0E+wQCEARYC6wL9AsABgwMEgAAAAAA" +
+                    "AAACEAigAEcCewQBAQIQCZ4Gzwb5BgACEAMEAZUDCgcBAQEBAhAGyADCAmsFAhAHqwBoArkEAQEBAQIQCJgAJAI0BAIQAgoBogMh" +
+                    "BwEBAQECEATkAB0DGwYAAhAFhgI1BG0GAhAMyAPkA/wDAhAMyAPkA/wDAhAG1AaRB3YIAAYLDBEAAhABOwF1BNMIAhAKfgDMAY4D" +
+                    "AhAMyAPkA/wDAhAKrAXWBfoFAhABLg6XDvEOAAIQDFQAKgFNAgEBAQIQCvIDdwQfBQABAQEBAQACEA4oAIwAEwEBAQECEAxQABkB" +
+                    "JwIAAhADUgUBBy8JAhAO5AHyAf4BAQIQDiYAiAAKAQIQA/cAeQPRBgAAAAAAAAcJDQ8AAAIQBtwAJAM4BgIQCIwBLQNcBQIQAoAF" +
+                    "rweRCgAAAhAKhADXAaQDAQEBAhAECAGqA0EHAhACJgEpBD0IAQEBAQIQC2kAfQHyAgIQAiYBCwQBCAEBAQECEAtpAHEB2wIAAhAK" +
+                    "rAXWBfoFAQEBAhAE8ABlA6sGAAACEAZ0CboJ9gkCEAjUBWIGDQcCEAIYAdoDkAcACQgPDgIQAVkBzwSHCQIQCooA8AHWAwIQDFwA" +
+                    "TAGQAgIQCooA8AHWAwIQAVkBzwSHCQACEAqEAOEBuQMBAQECEAxYAEIBfQIAAQEBAQEAAhAN1gLrAv0CAQEBAhAOKgCXACsBAAIQ" +
+                    "A0oMpQzzDAIQDuQB8gH+AQECEA8VAEkAkQACEAMRAcADbQcAAAACEALUAlYFpwgAAAAKBxANAAIQBBQB7APTBwIQC3MApAFHAwIQ" +
+                    "DFwAUAGgAgIQBf0AmQMtBwACEAJCAX0E5QgCEA8XAFMApAABAQECEAQUAdoDoQcCEAeiAXsD9gUBAQEBAhAIsACAAvQEAhAEWAus" +
+                    "C/QLAQEBAQIQBtwACwMHBgACEAmeBs8G+QYBAQIQC2kAeQHrAgAAAAIQAgMCuARrCAIQAiYBCgQACAAADAYSDAACEAFoAQMF/wkC" +
+                    "EAQgAQQEBAgCEAM4AVkErQgAAAIQAkIBkgQdCQIQDxcAVACoAAEBAhAKigD3AewDAAIQCooA7QHRAwEBAQECEAMrASsEQggCEAtu" +
+                    "AI8BFwMBAQEBAhAECAHAA24HAhAEnAOpBWwIAQEBAhANQgDoAMwBAAACEAT8AI0DCQcCEAioAFwCrAQCEAioAFwCrAQCEAE7AXME" +
+                    "0AgADgYUDAACEAJQAa4EVgkCEAfYAAUDBgYCEAM4AVkErQgAAAIQBf0AmAMrBwEBAQIQCLgAnQI3BQACEAxcAEgBigIBAQEBAAIQ" +
+                    "DFgAQAF6AgEBAQEAAhAG3AAJAwQGAQEBAhAJmgAgAjYEAAACEAT8AI0DCQcCEAioAFwCrAQCEAbSAPQC2gUAAA8GFQwAAAAAAAAA" +
+                    "AhADKwE/BHgIAhAOLgCoAFABAQIQDFwAUAGfAgIQAVkB5QTDCQACEA4uAKUARwEBAQECEAqKAO0B0QMAAQEBAQIQDMgD5AP8AwAC" +
+                    "EA4sAJsAMwEBAQECEAqsBdYF+gUAAhADEQHaA6EHAhAMVAAtAVUCAQIQCvIDegQmBQIQAS4Olw7xDg==";
+            }
+
+            private static string Frames40()
+            {
+                return
+                    "AwAAAAABwWEbbwHCYRvPHsJhG/8BwmEbzwHBYRtvBAAAAAABvl8aDwG/XxrPIr9fGv8Bv18azwG+XxoPAgAAAAABu14azyS8Xhr/" +
+                    "AbteGs8BAAAAAAG4XBlvJrhcGf8BuFwZbwG1WxnPJrVbGf8BtVsZzyiyWRn/KK9YGP8orFYY/yipVRf/KKVTF/8oolIX/w2fUBb/" +
+                    "AcOPaP8Bq2Ux/wqfUBb/AatlMf8Bw49o/w2fUBb/DJxPFv8BwY5o/wH/+fL/AebOu/8KnE8W/wHmzrv/Af/58v8BwY5o/wycTxb/" +
+                    "C5lNFf8Bv41o/wP/+fL/AcWYdv8ImU0V/wHFmHb/A//58v8Bv41o/wuZTRX/CpZLFf8Bo2Ew/wH47uT/A//58v8B69jI/wiWSxX/" +
+                    "AevYyP8D//ny/wH47uT/AaNhMP8KlksV/wqSShX/Ada3n/8D//ny/wHq2Mj/AZlVIv8IkkoV/wGZVSL/AerYyP8D//ny/wHWt5//" +
+                    "CpJKFf8Jj0gU/wGWUyL/Afju5P8D//ny/wGkaT3/Co9IFP8BpGk9/wP/+fL/Afju5P8BllMi/wmPSBT/CYxHFP8BsH9Z/wP/+fL/" +
+                    "AdvBrP8MjEcU/wHbwaz/A//58v8BsH9Z/wmMRxT/CYlFE/8BxJ+C/wP/+fL/AbWIZ/8MiUUT/wG1iGf/A//58v8BxJ+C/wmJRRP/" +
+                    "CYZEE/8Bwp6C/wP/+fL/AaRxSv8MhkQT/wGkcUr/A//58v8Bwp6C/wmGRBP/CYNCE/8BwZ2C/wP/+fL/AaJwSv8Mg0IT/wGicEr/" +
+                    "A//58v8BwZ2C/wmDQhP/CX9BEv8Bv52C/wP/+fL/Aa+GZv8Mf0ES/wGvhmb/A//58v8Bv52C/wl/QRL/CXw/Ev8BpXlY/wP/+fL/" +
+                    "Ada/rP8MfD8S/wHWv6z/A//58v8BpXlY/wl8PxL/CXk+Ef8BgUkf/wH27eP/A//58v8BkmE7/wp5PhH/AZJhO/8D//ny/wH27eP/" +
+                    "AYFJH/8JeT4R/wp2PBH/Acuynf8D//ny/wHl1cf/AX5IH/8IdjwR/wF+SB//AeXVx/8D//ny/wHLsp3/CnY8Ef8KczsR/wGEUi3/" +
+                    "Afbt4/8D//ny/wHk1cf/AY1eO/8GczsR/wGNXjv/AeTVx/8D//ny/wH27eP/AYRSLf8KczsR/wtvORD/AaWBZP8F//ny/wHSvav/" +
+                    "AaWBZf8Ck2lI/wGlgWX/AdK9q/8F//ny/wGlgWT/C285EP8MbDgQ/wGjgGT/Dv/58v8Bo4Bk/wxsOBD/DWk2D/8BoX9k/wH17OP/" +
+                    "Cv/58v8B9ezj/wGhf2T/DWk2D/8OZjUP/wF5TSv/AcWvnP8B9ezj/wb/+fL/AfXs4/8Bxa+c/wF5TSv/DmY1D/8QYzMP/wFsPx3/" +
+                    "AZNxVf8EsJaA/wGTcVX/AWw/Hf8QYzMP/yhgMg7/KFwwDv8oWS4N/yhWLQ3/AVMrDc8mUysN/wFTKw3PAVAqDG8mUCoM/wFQKgxv" +
+                    "AQAAAAABTSgMzyRNKAz/AU0oDM8CAAAAAAFLKAwPAUknC88iSScL/wFJJwvPAUsoDA8EAAAAAAFHJgtvAUYlC88eRiUL/wFGJQvP" +
+                    "AUcmC28DAAAAABUJHRAAAAACEAMrAT8EbQgCEAMrAT8EbQgAAAAAAhADKwEsBEQIAhANRQD4AOsBAQECEA1FAPgA6wECEAFZAc8E" +
+                    "hwkAAAIQDFoAQwGBAgEBAQECEAxaAEMBgQIAAAEBAQEBAQAAAQEBAQEBAAACEAp+AMYBgwMBAQEBAhAJngbPBvkGAAACEAE7AV0E" +
+                    "mAgCEAmTAAcC/wMCEA8VAEoAkgACEA/yAPkA/wACEAmeBs8G+QYAABcLHhIAAAIQB8oA2AKjBQIQDFwARAGEAgIQCZ4ANwJkBAIQ" +
+                    "AjgBaAS8CAAAAhAMWAA+AXUCAQEBAhAPFgBQAJ4AAhACNAFTBJEIAhAF8ABVA5cGAQEBAQECEAqDANIBmQMCEAioAF4CsAQBAQEB" +
+                    "AQIQDFQALwFYAgIQAxEByANzBwEBAQEBAhAJTQJnA9wEAAIQCngAswFYAwEBAQIQDdYC6wL9AgIQAVEN5w2DDgAAAhAE8ABYA5EG" +
+                    "AhAI9gSyBZ0GAhAGdAm6CfYJAhABLg6XDvEOABgNHxQAAAIQB4IIwQj3CAIQDMgD5AP8AwIQC24AhgECAwIQBfEAVwOaBgAAAhAJ" +
+                    "ngbPBvkGAQEBAQIQBtIA9wLfBQIQAgMCwgRzCAEBAQEBAhAOKgCWACcBAhAE8wBpA7oGAQEBAQEBAAIQDxQARwCLAAEBAQECEAxQ" +
+                    "AB0BLwIAAhAGxAC4AlkFAQEBAhAP8gD5AP8AAhADWAULB0UJAAACEAKnA9kFvggCEAeCCMEI9wgCEAZ0CboJ9gkCEAEuDpcO8Q4A" +
+                    "GQ8gFgAAAhAGdAm6CfYJAhAIkAfIB/gHAhAHMQRaBdwGAhABOwFeBJoIAAACEA3WAusC/QIBAQECEA0+ANsAsgECEAEwAUQEaggC" +
+                    "EAbIAMwCfwUBAQEBAQIQB7QAhALyBAIQCJ4ALgJKBAEBAQEBAhAMTwAXASUCAhAGvgCqAjsFAQEBAQECEAerAGYCtQQAAhANOQDH" +
+                    "AIcBAQEBAhANOQDHAIcBAhABHQHpA6wHAAACEAZ0CboJ9gkCEAiQB8gH+AcCEAeCCMEI9wgCEAEwB9kI9woAGREgGAAAAhACPA2e" +
+                    "DfINAhAEWAusC/QLAhADSgylDPMMAAAAAhAGYQPUBL8GAQEBAhAMLgHLAZ0CAhABKQEXBAwIAhACCgG8A1UHAQEBAQECEAiYACMC" +
+                    "MgQCEAerAFkCnAQBAQEBAQIQDEwACwEMAgIQBcgAzQJ8BQEBAQEBAhALWwBGAX4CAAIQDRYBdwH2AQEBAQECEATYAPkC0wUAAhAB" +
+                    "Lg6XDvEOAhAKrAXWBfoFAhAMyAPkA/wDAhAL2QMiBHQEAhAE1ADpAq0FABkTIBsAAAAAAAAAAAIQCWQBiwIUBAEBAhAN1gLrAv0C" +
+                    "AhADUgXzBhMJAAIQCJMACwIABAEBAQECEA4lAIMAAQEAAhAOJACAAPsAAQEBAQECEATYAPoC1gUCEA4jAHwA8QABAQEBAQIQBNUA" +
+                    "6wKyBQIQCM4FUAboBgEBAQECEA4iAHgA6wAAAAIQCZ4Gzwb5BgEBAhAMRADsAMkBAhAD3QABA9UFAAAAAAAAAAAYFR8dAAAAAAAA" +
+                    "AAIQAQ4BuQNNBwIQCmwAgAHyAgEBAhAMyAPkA/wDAhADSgylDPMMAAIQCX0AtQFWAwEBAQECEA3WAusC/QIAAhAPEQA9AHcAAQEB" +
+                    "AQECEAPdABMDAgYCEA/yAPkA/wABAQEBAQIQA90AAgPWBQIQCZ4Gzwb5BgEBAQECEA0wAKsATQEAAAIQCZ4Gzwb5BgEBAhAMQADd" +
+                    "AK0BAhAB8ABHA1oGAAAAAAAAAAAWFx0eAAACEAPpACoDMAYCEAiQAPQB1AMCEAVmCrMK9QoAAAACEApmAG0ByQIBAQECEAzIA+QD" +
+                    "/AMAAhAEzADIAmYFAQEBAQECEAehBwMIaggCEAjsBIsFTQYBAQEBAQIQDEEA5gC/AQIQBnQJugn2CQEBAQEBAhAJcACHAfYCAhAB" +
+                    "Lg6XDvEOAhAN1gLrAv0CAQEBAhAPDwA2AGgAAhAC3AD6AsMFAAIQAUsN0g1XDgIQCS8C9wL4AwIQDDwA0ACUAQIQCloAOgFgAgIQ" +
+                    "AtIA5AKYBQAUGBsfAAAAAhAEzADYApAFAhACzwENBAQHAAAAAhAGqgBSAoEEAhAPEQA8AHQAAQECEAmeBs8G+QYAAhACigNmBc4H" +
+                    "AQEBAQECEAeCCMEI9wgCEAeCCMEI9wgBAQEBAQIQDMgD5AP8AwIQBnQJugn2CQEBAQEBAhALTgAQAQ4CAhABLg6XDvEOAhAP8gD5" +
+                    "AP8AAQEBAQIQBaUARQJkBAACEAMyBXUGDwgCEAw8AMwAiQEBAhAOHgBmAMQAAhAGlgABAt0DABIZGSAAAAIQBqoAUgKCBAIQCIgA" +
+                    "3AGcAwIQBqoAUgKCBAAAAAIQDTIArgBSAQEBAQIQDdYC6wL9AgACEAZ0CboJ9gkBAQEBAQIQBnQJugn2CQIQCJAHyAf4BwEBAQEB" +
+                    "AhAIkAfIB/gHAhAHggjBCPcIAQEBAQECEAcTBOoE9wUCEAEWB2cIDQoCEA0tAJkAJwEBAQECEA0tAJkAJwECEAHhAAQD0AUAAhAB" +
+                    "1QDtAp8FAhAHfgC+AVwDAhAMOADEAHwBAhAHfgC+AVwDAhAB1QDtAp8FABAZFyAAAAIQBbsAjQL1BAIQB5kAFwIPBAIQAu4APgNM" +
+                    "BgAAAhABLg6XDvEOAhANFAFtAeEBAQEBAhAGSgOBBBEGAAIQCqwF1gX6BQEBAQEBAhACPA2eDfINAhAMyAPkA/wDAQEBAQECEARY" +
+                    "C6wL9AsCEAvXAxgEYQQBAQEBAQIQA0oMpQzzDAIQBLQAaQKlBAEBAQECEAwfAZIBJgIAAAIQBKkAVQJ9BAIQC0YA9gDcAQIQDDgA" +
+                    "xAB8AQIQCHAAjAH8AgIQAdUA7QKfBQANGRUgAAACEAjOBU4G4gYCEA4iAHgA6AACEA4iAHgA6AACEAiIANwBnAMAAAACEAmeBs8G" +
+                    "+QYBAQEBAhAJVQFUAqEDAAABAQEBAQEAAAEBAQEBAQAAAhAMPADSAJcBAQEBAQIQDdYC6wL9AgAAAhADwwCcAggFAhAOHgBmAMQA" +
+                    "AQECEA4eAGYAxAACEAMyBXUGDwgAAAAAAhAEqABUAnwEAhAEqABUAnwEAAAACxgTHwAAAhAJngbPBvkGAhAP8gD5AP8AAhAPEQA9" +
+                    "AHcAAhAJdwCqAUADAhAB/wCMA+8GAAACEAmeBs8G+QYBAQEBAhAKZgBkAbMCAAABAQEBAQEAAAEBAQEBAQAAAhAMPgDZAKMBAQEB" +
+                    "AQIQDMgD5AP8AwAAAhAB4QAaAwAGAhANLQCdADABAQECEA3WAusC/QICEANKDKUM8wwAAAAAAhADwwCcAggFAhADwwCcAggFAAAA" +
+                    "ChYRHQACEAEuDpcO8Q4CEAZ0CboJ9gkCEAjwBJ0FdAYCEATYAPwC2wUAAAIQAU0N3A1qDgIQDdYC6wL9AgEBAQIQCmwAdwHeAgAC" +
+                    "EAk5AiADTQQBAQEBAQIQA90AEwMCBgIQDEQA7QDMAQEBAQEBAhAIiADaAZgDAhAKYQBYAZ0CAQEBAQECEAVmCrMK9QoCEALgAA8D" +
+                    "7QUCEA8QADcAawABAQECEAzIA+QD/AMAAAIQAtwA+gLCBQIQCWwAegHbAgIQDDwA2ACgAQIQB58H/gdgCAAACRQQGwACEAEuDpcO" +
+                    "8Q4CEAZ0CboJ9gkCEAeCCMEI9wgCEAKnA8oFnwgAAAIQA0wF5wb5CAIQD/IA+QD/AAEBAQIQBrgAjgIBBQACEAxIAP8A9QEBAQEB" +
+                    "AhAPEgBAAH4AAAEBAQEBAQIQBNUA6wKyBQIQDiIAeADrAAEBAQEBAhACzwELBAAHAhAGqgBPAnsEAQEBAQIQCZ4Gzwb5BgAAAhAF" +
+                    "sQB2AskEAhALUAAdASsCAhAMyAPkA/wDAhAHggjBCPcIAAAIEg8ZAAIQATwH/QhDCwIQB4IIwQj3CAIQCJAHyAf4BwIQBnQJugn2" +
+                    "CQAAAhABHQEABNsHAhANOQDOAJQBAQEBAhANOQDOAJQBAAIQB6sAWQKcBAEBAQEBAhAGvgCcAh8FAhAMSQAFAf8BAQEBAQECEAiS" +
+                    "AAoC/gMCEAeiADsCXwQBAQEBAQIQBrQAegLbBAIQAQoBpQMdBwIQDTQAugBpAQEBAQIQDdYC6wL9AgAAAhAB/wCLA+0GAhAHHQQR" +
+                    "BUkGAhAIkAfIB/gHAhAGdAm6CfYJAAAIEA8XAAIQBPQAawO/BgIQC90DLQSNBAIQDMgD5AP8AwIQCqwF1gX6BQIQAS4Olw7xDgAC" +
+                    "EATwAFsDmQYBAQEBAhANGgGJARoCAAIQC2MAXQGvAgEBAQEBAhAF2gAAA+cFAhAMTAARARgCAQEBAQECEAerAGYCtQQCEAiYABUC" +
+                    "FgQBAQEBAQIQAgoBpgMpBwIQAREB0gN7BwIQDCgBvAF8AgEBAQIQBlUDswR6BgAAAAIQA0oMpQzzDAIQBFgLrAv0CwIQAjwNng3y" +
+                    "DQAACA0PFQAAAAAAAAAAAhADEQHaA6AHAhAMVAAwAVsCAQECEAmeBs8G+QYAAAIQDioAlgAnAQEBAQECEAjWBWoGHgcCEATzAGkD" +
+                    "ugYBAQEBAQIQDikAkgAhAQIQBPAAWgOWBgEBAQEBAhAOKACOABcBAAIQDicAiwARAQEBAQECEAidAC0CSAQAAhADUgX/BisJAhAN" +
+                    "1gLrAv0CAQECEAlkAZECIAQAAAAAAAAAAAkLEBMAAAAAAAAAAAIQAUoBogQtCQIQDFgAPwF3AgEBAhAJLgMpBHIFAAACEA1CAOoA" +
+                    "zgEBAQEBAhAJmQAgAjMEAhADEQHZA58HAQEBAQECEA/yAPkA/wACEAMRAcgDcwcBAQEBAQIQDxUASgCSAAACEA3WAusC/QIBAQEB" +
+                    "AhAJjQD8AekDAAIQA0oMpQzzDAIQDMgD5AP8AwEBAhAKeACqAUQDAhABLAEwBDoIAAAAAAAAAAsKEhEAAhACQgF+BOYIAhAKigDw" +
+                    "AdYDAhAMXABMAZACAhAJoQBCAnkEAhABWQHPBIcJAAIQAjgBaAS7CAIQDxcAUQChAAEBAQIQDUQA8wDiAQIQAU4BuARaCQIQCZoA" +
+                    "KgJJBAEBAQEBAhAG3AAXAx8GAhAMVwA2AWUCAQEBAQECEAiuAGwCygQCEAelBxQIjwgBAQEBAQIQBPwAjAMGBwACEAzIA+QD/AMB" +
+                    "AQECEAp+AL0BbQMAAAACEAVmCrMK9QoCEAigAEQCdAQCEAMFAbEDRQcAAA0JFBAAAhAG5gBFA30GAhAOLgCoAE4BAQIQDFwAUAGb" +
+                    "AgIQAysBPwRtCAACEAX9AIgD/wYBAQEBAhAPFwBTAKQAAhABWQHPBIcJAhALcACTAR8DAQEBAQECEAbfACYDPQYCEAzIA+QD/AMB" +
+                    "AQEBAQIQB8YAxgJ/BQIQB4IIwQj3CAEBAQEBAhACMAE8BGAIAAIQCZ4Gzwb5BgEBAhAPFQBLAJUAAhAG0gD0AtkFAAAAAhACAwLA" +
+                    "BG8IAhAE/AB8A9wGAAAADwgWDwACEAFlAfwE6AkCEAfYAAED9QUCEAxgAFgBqAICEAfYAAED9QUCEAFlAfwE6AkAAhABWQHlBLcJ" +
+                    "AhANRQD8APQBAQEBAhANRQD8APQBAhABWQHlBLcJAhAHzwDjArgFAQEBAQECEAfPAOMCuAUCEAiyAIQC/AQBAQEBAQIQCLIAhAL8" +
+                    "BAIQBtwAFQMbBgEBAQEBAhAG3AAVAxsGAAIQDUAA5wDJAQEBAQIQDUAA5wDJAQAAAAIQBtIA9ALYBQIQCKgAXAKsBAIQBtIA9ALY" +
+                    "BQAAEQgYDwACEAFlAfwE6AkCEAjAAKwCTAUCEAxgAFgBqAICEAt4AK0BUQMCEAQfAf8D7wcAAAIQDFwATwGZAgEBAQECEAQUAesD" +
+                    "xwcCEAMrASsEQggBAQEBAQIQC3MAmwEuAwIQBAsBxgN6BwEBAQEBAhAMWQBCAX4CAhACNAFRBI0IAQEBAQECEAqEANkBqQMAAhAG" +
+                    "2AAFA/kFAQEBAhANQADnAMkBAhABRgGKBPoIAAACEAImASQEMggCEAe9AKgCQgUCEAXnAEADbgYAABMIGw8AAAACEAQgAQAE8AcC" +
+                    "EAQgAQAE8AcAAAAAAhADKwE/BG0IAhAOLgCoAE4BAQECEA4uAKgATgECEAMrAT8EbQgAAAIQDUUA+ADrAQEBAQECEAxcAEoBjQIA" +
+                    "AAEBAQEBAQAAAQEBAQEBAAACEAmXAB0CLgQBAQEBAhAJngbPBvkGAAAAAhAIqABcAqwEAhAOKgCWACoBAhAOKgCWACoBAhAI1gVs" +
+                    "BiQHAAA=";
+            }
+
+            private static string Frames48()
+            {
+                return
+                    "AwAAAAABwmEbDwHCYRtvAcJhG88kwmEb/wHCYRvPAcJhG28BwmEbDwUAAAAAAb9gGj8Bv2Aa7yjAYBr/Ab9gGu8Bv2AaPwMAAAAA" +
+                    "AbxeGj8svV4a/wG8Xho/AQAAAAABul0aDwG6XRrvLLpdGv8Bul0a7wG6XRoPAbdcGW8uuFwZ/wG3XBlvAbVbGc8utVsZ/wG1WxnP" +
+                    "MLJZGf8wsFgY/zCtVxj/MKtVGP8wqFQX/zClUxf/MKNSF/8QoFAW/wGycD//DqBQFv8BsnA//xCgUBb/D51PFv8Bwo9o/wH/+fL/" +
+                    "AbyEWv8MnU8W/wG8hFr/Af/58v8Bwo9o/w+dTxb/DptOFv8BwI5o/wL/+fL/Afju5P8Bp2Mx/wqbThb/AadjMf8B+O7k/wL/+fL/" +
+                    "AcCOaP8Om04W/w2YTRX/AbJ4TP8E//ny/wHlzrr/CphNFf8B5c66/wT/+fL/AbJ4TP8NmE0V/wyVSxX/AZxWIv8B8ePW/wT/+fL/" +
+                    "AfHj1v8BomEw/wiVSxX/AaJhMP8B8ePW/wT/+fL/AfHj1v8BnFYi/wyVSxX/DJNKFf8ByaGD/wT/+fL/AfHj1v8BmVUi/wqTShX/" +
+                    "AZlVIv8B8ePW/wT/+fL/Acmhg/8Mk0oV/wyQSRT/AfHj1v8E//ny/wGkaj3/DJBJFP8BpGo9/wT/+fL/AfHj1v8MkEkU/wuNRxT/" +
+                    "AaNpPf8E//ny/wHUtp7/Do1HFP8B1Lae/wT/+fL/AaNpPf8LjUcU/wuLRhT/AcWfg/8E//ny/wGgaD3/DotGFP8BoGg9/wT/+fL/" +
+                    "AcWfg/8Li0YU/wuIRRP/AdK1nv8E//ny/xCIRRP/BP/58v8B0rWe/wuIRRP/C4VEE/8B4Mu6/wP/+fL/AejXyP8QhUQT/wHo18j/" +
+                    "A//58v8B4Mu6/wuFRBP/C4NCE/8B4Mu6/wP/+fL/AefWyP8Qg0IT/wHn1sj/A//58v8B4Mu6/wuDQhP/C4BBEv8Bz7Se/wT/+fL/" +
+                    "EIBBEv8E//ny/wHPtJ7/C4BBEv8LfkAS/wG+nIL/BP/58v8BlmI8/w5+QBL/AZZiPP8E//ny/wG+nIL/C35AEv8Lez8S/wGTYjz/" +
+                    "BP/58v8BzbOe/w57PxL/Ac2znv8E//ny/wGTYjz/C3s/Ev8MeD0R/wHu4dX/BP/58v8BkmA7/wx4PRH/AZJgO/8E//ny/wHu4dX/" +
+                    "DHg9Ef8MdjwR/wG6moH/BP/58v8B7eHV/wF+SB//CnY8Ef8Bfkgf/wHt4dX/BP/58v8BupqB/wx2PBH/DHM7Ef8Be0cf/wHt4dX/" +
+                    "BP/58v8B7eHV/wGNXjv/CHM7Ef8BjV47/wHt4dX/BP/58v8B7eHV/wF7Rx//DHM7Ef8NcDkQ/wGUaUj/Bv/58v8ByrGd/wGLXTr/" +
+                    "BHA5EP8Bi106/wHKsZ3/Bv/58v8BlGlI/w1wORD/Dm44EP8BpIBk/wj/+fL/AuTVx/8I//ny/wGkgGT/Dm44EP8PazcQ/wGif2T/" +
+                    "EP/58v8Bon9k/w9rNxD/EGg2D/8BjmZI/wHs4NX/DP/58v8B7ODV/wGOZkj/EGg2D/8RZjQP/wFvQR3/AbKWgP8B6+DV/wj/+fL/" +
+                    "Aevg1f8BspaA/wFvQR3/EWY0D/8UYzMP/wGAWDn/AbCWgP8BxK6c/wLXx7n/AcSunP8BsJaA/wGAWDn/FGMzD/8wYDIO/zBeMQ7/" +
+                    "MFsvDv8wWS4N/zBWLQ3/AVMsDc8uUywN/wFTLA3PAVEqDG8uUSoM/wFRKgxvAU8qDA8BTikM7yxOKQz/AU4pDO8BTyoMDwEAAAAA" +
+                    "AUwoDD8sSygM/wFMKAw/AwAAAAABSScMPwFJJgvvKEkmC/8BSSYL7wFJJww/BQAAAAABRyYLDwFHJgtvAUYlC88kRiUL/wFGJQvP" +
+                    "AUcmC28BRyYLDwMAAAAAGgsiFAAAAAIQBBQB7APIBwIQBBQB7APIBwAAAAACEAX9AIoDBAcCEA8XAFMApAABAQIQDxcAUwCkAAIQ" +
+                    "Bf0AigMEBwACEAMmARsEJggBAQEBAQECEAI8AWsExQgCEAqEAN4BtAMBAQEBAQECEAmaAC0CUQQCEAxYADkBbAIBAQEBAQECEAxY" +
+                    "ADkBbAICEAmWABwCKQQBAQEBAQECEAmeBs8G+QYCEAImASQELwgCEA8VAEsAlQABAQEBAhAP8gD5AP8AAhACPA2eDfINAAIQAxEB" +
+                    "xwN1BwIQDioAlAAkAQEBAhAO5AHyAf4BAhADSgylDPMMAAAAAAIQAh4BAATiBwIQArUDDgYsCQAAABwNJBYAAAIQAjwBbATGCAIQ" +
+                    "B84A2QKoBQIQB84A2QKoBQIQAjwBbATGCAAAAAIQBtwAHQMtBgEBAQECEAbcAB0DLQYAAhAECAGsA0YHAQEBAQEBAhAECAGsA0YH" +
+                    "AhAKggDQAZMDAQEBAQEBAhAKggDQAZMDAhAMVAAvAVcCAQEBAQEBAhAMVAAvAVcCAhAIqABTApYEAQEBAQEBAhAHdwL8AwQGAhAB" +
+                    "MwFKBHMIAhAPFABJAI8AAQEBAQIQD/IA+QD/AAIQAXQMOA0VDgACEAIYAewDvgcCEAtkAGQBwQIBAQIQC7oE3QT7BAIQAjwNng3y" +
+                    "DQAAAAAAAAAAAB0PJhgAAAAAAhACpAT0Bg0KAAAAAAAAAhAJngbPBvkGAQECEA8WAE4AmQACEAivAGwCxwQAAAACEAmeBs8G+QYB" +
+                    "AQEBAQIQCKgAXwKwBAACEAIDAsIEdggBAQEBAQEBAAIQBPYAbwPDBgEBAQEBAQECEAT2AG8DwwYCEAIYAewDvwcBAQEBAQEBAhAB" +
+                    "LAE0BE0IAAIQDFAAGgEqAgEBAQEBAhAKeACoAUEDAAACEAEkARIE+wcCEAxMABQBHQIBAQECEAu6BN0E+wQCEAH4CGMKKgwAAAAA" +
+                    "AhADrQmGCoYLAhAEWAusC/QLAhACPA2eDfINAAAAHhInGgAAAhACPA2eDfINAhAHggjBCPcIAhAIkAfIB/gHAhAFWwTvBQQIAAAA" +
+                    "AAIQBnQJugn2CQIQD/IA+QD/AAEBAQIQDT8A3QCzAQIQATQBSwR1CAACEAEsATUETwgCEA8UAEgAjwABAQEBAQIQCngArwFUAwAC" +
+                    "EAbIAMQCbwUBAQEBAQECEA8UAEcAjAAAAhAHrwBxAskEAQEBAQEBAQACEAP3AHcDygYBAQEBAQECEAxMABABFQIAAAIQCnIAjwEQ" +
+                    "AwEBAQECEA8TAEIAggACEAP3AGMDqAYAAAACEAiQB8gH+AcCEA3WAusC/QICEA/yAPkA/wACEAu6BN0E+wQCEAMMB1cI/AkAAB4V" +
+                    "Jx0AAAIQBFgLrAv0CwIQC7oE3QT7BAIQDMgD5AP8AwIQCqwF1gX6BQIQA1oFEwdTCQAAAAIQBsUAuQJWBQEBAQECEA8UAEYAiQAC" +
+                    "EAP/AIkD7gYAAhABHQEABNcHAhAPEwBFAIcAAQEBAQECEA4mAIkADQEAAhAE5AAhAycGAQEBAQEBAQACEATeABIDCQYBAQEBAQEB" +
+                    "AAACEA8SAEAAfQABAQEBAQIQDEgAAAH2AQAAAhAFJgVZBuAHAhAP8gD5AP8AAQEBAhAPEgA/AHoAAhAD6gA1A0AGAAAAAhACPA2e" +
+                    "DfINAhAIkAfIB/gHAhAJngbPBvkGAhAHwAZKB+kHAhABBgGeAxIHAAAeFyYgAAAAAhACPA2eDfINAhABLg6XDvEOAAAAAAIQBdEA" +
+                    "4AKoBQIQDgUBPAGDAQEBAhAMyAPkA/wDAhABsgq+CwINAAIQBN8AEwMLBgEBAQEBAhANGAF9AQICAAIQC1oAQgF3AgEBAQEBAQIQ" +
+                    "BrQAgwLtBAEBAQEBAQECEAiQAPoB2gMCEAxGAPcA4wEBAQEBAQECEAedACsCPgQCEAWkCDsJ5AkBAQEBAQIQDxEAPAB1AAIQAf8A" +
+                    "iwPpBgACEAiQB8gH+AcBAQECEA4iAHYA5AACEAPdAAED2AUAAAACEAEuDpcO8Q4CEARYC6wL9AsCEASHAjIEYQYAAAAcGiUiAAAC" +
+                    "EAL8AIQD5gYCEAl+AMQBdgMCEAzIA+QD/AMCEAqsBdYF+gUCEANKDKUM8wwAAAACEAPqADcDRQYCEA8SAEAAfAABAQEBAhAFZgqz" +
+                    "CvUKAAACEA4kAHwA8wABAQEBAQIQD/IA+QD/AAACEALuAFADdQYBAQEBAQEBAhAEzADWAogFAhACkQN3BfIHAQEBAQEBAQIQBMwA" +
+                    "xwJnBQACEA7kAfIB/gEBAQEBAQIQDxAAOQBwAAAAAhADSgylDPMMAhAP8gD5AP8AAQEBAQIQBbAAbwK4BAAAAAIQAjwNng3yDQIQ" +
+                    "CZ4Gzwb5BgIQDEAA3ACoAQIQCXAAgQHpAgIQAuAACAPcBQAAGhwjJAAAAhABBwGfAxQHAhAIjwDwAcsDAhAMSAD4AOgBAhAKrAXW" +
+                    "BfoFAhAEWAusC/QLAAAAAhAC7gBQA3UGAhAPEQA9AHcAAQEBAQIQBnQJugn2CQAAAhALVQApAUECAQEBAQEBAhACegsiDNkMAAEB" +
+                    "AQEBAQECEAd2AccChQQAAQEBAQEBAQIQB5AA/gHdAwACEAu6BN0E+wQBAQEBAQECEALgAAgD3AUAAhACPA2eDfINAhAP8gD5AP8A" +
+                    "AQEBAQIQBpkAHQIUBAAAAAIQAWgMDQ29DQIQB00CYQPEBAIQDDwA0ACUAQIQCloAOgFgAgIQBLQAeALFBAAAGB0hJgAAAAIQAu4A" +
+                    "UAN2BgIQBMwA2AKMBQIQAs8BDQQABwAAAAACEAH/AHkDwgYCEAxEAO8A0AEBAQECEAmeBs8G+QYAAAACEAxDAOgAxQEBAQEBAQIQ" +
+                    "CZ4Gzwb5BgACEAOkCWUKQwsBAQEBAQEBAAIQBFgLrAv0CwEBAQEBAQECEAJoBA0GKQgCEAI8DZ4N8g0BAQEBAQECEA8PADYAaAAA" +
+                    "AAIQC7oE3QT7BAEBAQEBAhAIeAClAS4DAAACEAHcCPMJRQsCEApaADIBTgIBAQECEAh4AJkBFQMAAAAAAAIQAdkA9QKqBQIQBKwA" +
+                    "XAKEBAAAAAAWHh4nAAACEAPdAAMD3gUCEAeZABcCEwQCEAaqAFIChgQCEAH/AHkDwgYAAAACEAplAFwBqAIBAQECEA8RADoAcgAC" +
+                    "EAZ0CboJ9gkAAhAIkAfIB/gHAQEBAQECEA/yAPkA/wACEAI8DZ4N8g0CEA3WAusC/QIBAQEBAQECEAeCCMEI9wgCEA/yAPkA/wAB" +
+                    "AQEBAQECEAiQB8gH+AcCEAu6BN0E+wQBAQEBAQECEAUxBFQFwwYCEAP4BgEIRwkCEA8PADMAYgABAQEBAhANLQCZACcBAAACEAO7" +
+                    "AI8C5wQCEAw4AMgAgAEBAhAPDgAyAGAAAhAKVAAsAUACAhAB2QD1AqoFAAAAAAAAAAAAEx4bJwAAAAIQBMwAyAJsBQIQBMwAyAJs" +
+                    "BQIQAf8AeQPCBgAAAAIQBSAFOQalBwIQDxEAOgByAAEBAhAPEQA6AHIAAhAGpwBDAmsEAAIQAjwNng3yDQIQD/IA+QD/AAEBAQEB" +
+                    "AhAEWAusC/QLAhAIkAfIB/gHAQEBAQEBAhALugTdBPsEAhAJngbPBvkGAQEBAQEBAhAMyAPkA/wDAhAHvAY3B8MHAQEBAQEBAhAK" +
+                    "rAXWBfoFAhAB4QAEA9AFAhAPDwAzAGIAAQEBAQIQDw8AMwBiAAIQAzIFdQYPCAACEAO7AI8C5wQCEAw4AMgAgAEBAQIQDhwAZADA" +
+                    "AAIQA7sAjwLnBAAAAAAAAAAAABAeGSYAAAIQBaQIOQnfCQIQDEQA8ADQAQECEAtVACsBRAICEATMAMgCawUAAAACEAiQB8gH+AcB" +
+                    "AQEBAQIQBbcAfALbBAACEAEuDpcO8Q4BAQEBAQECEA4CATIBbgEAAhAEWAusC/QLAQEBAQEBAQIQAjwNng3yDQIQBH4CDwQTBgEB" +
+                    "AQEBAQECEAEuDpcO8Q4AAhAOHgBpAMsAAQEBAQECEAzIA+QD/AMAAAIQA8MAnAIIBQIQDw8AMwBiAAEBAQIQDRABXwHDAQIQAaIK" +
+                    "fwt9DAAAAAIQAdkA9QKqBQIQB38AwwFhAwIQCHAAkAEAAwIQBo4A9gHCAwAAAA4cFiUAAAACEAKZA5UFMQgCEAL2AGIDnAYAAAAA" +
+                    "AhADSgylDPMMAhAO5AHyAf4BAQECEA4iAHoA7gACEAPdABQDAAYAAhACPA2eDfINAhAP8gD5AP8AAQEBAQIQDxEAPAB0AAIQAu4A" +
+                    "PgNPBgIQCZ4Gzwb5BgEBAQEBAQIQCXQAlQEWAwIQDEAA4wC4AQEBAQEBAQIQDMgD5AP8AwIQCXAAhAHuAgEBAQEBAQIQCqwF1gX6" +
+                    "BQIQAtgA9wK5BQEBAQEBAQIQA0oMpQzzDAACEAWlAEMCXwQCEA8PADQAZQABAQIQD/IA+QD/AAIQBWYKswr1CgAAAAACEAS0AGgC" +
+                    "pAQCEAS0AGgCpAQAAAAMGhQjAAAAAAAAAAAAAhACPA2eDfINAhALugTdBPsEAQECEAtaAD8BbAICEAL8AHYDwAYAAhABbAwgDeMN" +
+                    "AhAP8gD5AP8AAQEBAQIQDxIAPgB6AAIQAQcBnwMUBwIQB1sCmQM3BQEBAQEBAQIQCIgA5QGyAwIQDEQA7QDNAQEBAQEBAQIQDEQA" +
+                    "7QDNAQIQCmIAWgGjAgEBAQEBAQIQCqwF1gX6BQIQBMAAqAImBQEBAQEBAQIQBFgLrAv0CwACEAagACkCLQQBAQEBAhAGdAm6CfYJ" +
+                    "AAAAAhAC2AD2ArgFAhAHiADmAakDAhAHagGpAj8EAhACdgsYDMQMAAAKGBMhAAAAAhACPA2eDfINAhAEWAusC/QLAhADrQmDCoEL" +
+                    "AAAAAAIQAfAISQr6CwIQC7oE3QT7BAEBAQIQDEwACAEHAgIQARYB1wOMBwAAAhAKbACCAfUCAQEBAQECEAxIAAIB+gEAAhABDgG1" +
+                    "AzoHAQEBAQEBAQIQAvwAdgO/BgIQBNIA5QKpBQEBAQEBAQECEATSAOUCqQUAAQEBAQEBAQIQAs8BCwT9BgACEAiIANkBmAMBAQEB" +
+                    "AQIQCZ4Gzwb5BgAAAAIQCIEAzAGBAwIQDxAAOQBwAAEBAhAJngbPBvkGAAAAAAAAAhACaAQaBkUIAAAAAAkWEh4AAAIQAxQHcQgs" +
+                    "CgIQC7oE3QT7BAIQD/IA+QD/AAIQDdYC6wL9AgIQCJAHyAf4BwAAAAIQA/cAeAPNBgIQDxMARQCHAAEBAQECEApyAJsBJgMAAAIQ" +
+                    "DEwADAEPAgEBAQEBAQIQA/cAZAOrBgABAQEBAQEBAhAHpwBOAogEAAIQDxIAQAB9AAEBAQEBAQIQBrQAggLrBAACEApsAHsB4gIB" +
+                    "AQEBAQIQDxIAPwB6AAIQAQ4BtAM4BwACEAEGAZ4DEgcCEA0zALgAaAEBAQECEA/yAPkA/wACEAZ0CboJ9gkAAAAAAhAFPwSKBTMH" +
+                    "AhAIkAfIB/gHAhAHggjBCPcIAhACPA2eDfINAAAJExIbAAACEAE0AUsEdQgCEAfIBmIHGwgCEAmeBs8G+QYCEAiQB8gH+AcCEAI8" +
+                    "DZ4N8g0AAAACEAMEAaYDNQcCEA8UAEgAjwABAQECEA/yAPkA/wACEAUyBYsGTAgAAAIQDFAAHAEuAgEBAQEBAhAPFABHAIwAAAAB" +
+                    "AQEBAQEBAhAE6gBCA2MGAAEBAQEBAQECEATkADMDRQYAAhAOJgCFAAUBAQEBAQECEA8TAEIAggACEAEdAekDsAcAAhAD7wBSA4cG" +
+                    "AhAPEgBBAIAAAQEBAQIQBrcAjQIEBQAAAAIQA0oF3wbrCAIQCqwF1gX6BQIQDMgD5AP8AwIQC7oE3QT7BAIQBFgLrAv0CwAAChAS" +
+                    "GQAAAAIQBL0C+AT1BwIQBFgLrAv0CwIQAS4Olw7xDgAAAAIQAxEB2gOdBwIQDioAmAAuAQEBAQIQCJAHyAf4BwACEAE7AV4EnggC" +
+                    "EA8VAEsAlAABAQEBAQIQBawIVQkcCgIQB7kAlAITBQEBAQEBAQIQDFIAJQFBAgIQCKAAPgJuBAEBAQEBAQECEAbIAMMCbQUBAQEB" +
+                    "AQECEAtkAGEBtgIAAhANGAGDAQ4CAQEBAQECEATpAEEDYQYAAhABsgrECwwNAhAMyAPkA/wDAQECEA4FAT0BhAECEAXRAO0CuwUA" +
+                    "AAAAAhABLg6XDvEOAhACPA2eDfINAAAACw4UFgAAAhACNAFaBKIIAhAJmgAwAlYEAhAMWABAAXwCAhAJngbPBvkGAhACyANXBscJ" +
+                    "AAAAAhAF8gBeA6sGAQEBAQIQDxYATwCcAAIQAx4B+gPhBwAAAhAPFgBOAJkAAQEBAQECEA4sAJsAMgEAAhAE/ACNAwUHAQEBAQEB" +
+                    "AQIQAuACfwUDCQIQBPwAfgPkBgEBAQEBAQECEAImARIECQgAAhAP8gD5AP8AAQEBAQECEA4oAJIAHwEAAAIQBWYKswr1CgEBAQEC" +
+                    "EA8UAEcAjQACEAMEAaQDMAcAAAACEANKDKUM8wwCEAqsBdYF+gUCEAzIA+QD/AMCEAmMAO0ByQMCEAIYAd4DmAcAAA0MFhQAAAIQ" +
+                    "BBQB3AOnBwIQCooA8AHWAwIQDFwATAGQAgIQB88A5gK/BQIQAVkB0gSOCQAAAAIQBuMAKQNGBgEBAQECEA8XAFEAoQACEAI8AWsE" +
+                    "xQgAAhACNAFaBKIIAQEBAQEBAhALbgCOARYDAAIQB8YAwQJ0BQEBAQEBAQEAAhAHngFjA8EFAQEBAQEBAQACEAKCC0QMIQ0BAQEB" +
+                    "AQECEAtpAHoB7AIAAAIQBnQJugn2CQEBAQECEA8VAEoAkgACEAImARIECQgAAAACEARYC6wL9AsCEAqsBdYF+gUCEAxQACQBPAIC" +
+                    "EAihAEgCfQQCEAEzAUoEcwgAAA8KGBMAAAAAAhAEHAH4A+gHAhABYQH0BN0JAAAAAAACEAi4AJ8CMwUBAQECEAqKAPgB6AMCEAFZ" +
+                    "AeUEtwkAAAIQCLgAkwIaBQEBAQEBAhALcwCcATEDAAACEA8XAFEAoQABAQEBAQECEAI8AWsExQgCEAKkBAEHKQoBAQEBAQEBAhAE" +
+                    "CAG6A2UHAAEBAQEBAQECEAMeAfkD3gcAAhAJngbPBvkGAQEBAQECEAxVADQBXwIAAAACEAmeBs8G+QYBAQECEAxUAC0BVAICEAE7" +
+                    "AXAExQgAAAAAAhACAwLABHMIAhAE/AB8A+AGAhACJgESBAgIAAAAEgkaEgAAAAAAAAAAAAIQAWEB9ATdCQIQCpAA/gH2AwIQDxgA" +
+                    "VQCpAAECEAxgAFQBpAICEAMzAUwEjggAAAIQDUUA/AD0AQEBAQECEA8XAFQApwACEAMrAT8EbQgCEAX9AIkDAgcBAQEBAQECEAtz" +
+                    "AJwBMAMCEAi0AIYCAgUBAQEBAQECEA8XAFEAoQACEAfGAMsCiwUBAQEBAQECEA1CAO4A2AECEALsAp0FQgkCEA8WAE4AmgABAQEB" +
+                    "AQIQCLAAcQLWBAACEAbVAAMD7wUCEA8VAE0AlwABAQECEAp/AM4BjgMAAAACEAE7AXAExQgCEAbSAPQC1AUCEAe9AKgCPgUCEAMR" +
+                    "AdgDlwcAABUJHRIAAAAAAAAAAAACEAMzAUwEjggCEA4wAKoAUgEBAQIQDGAAVAGkAgIQAzMBTASOCAACEAMrAT8EbQgCEA8XAFQA" +
+                    "pwABAQEBAhAPFwBUAKcAAhABWQHlBLcJAhAKigDuAdMDAQEBAQEBAhAHzwDlArwFAhAMWgBDAYECAQEBAQEBAhAJngA1AmIEAhAL" +
+                    "bgCNARQDAQEBAQEBAhAIsAB8Au4EAhAECAGqA0IHAQEBAQECEA8WAE4AmgACEAI0AUcEeQgAAhAG1QADA+8FAhAPFQBNAJcAAQEC" +
+                    "EA8VAE0AlwACEAXqAFADhwYAAAACEAE7AXAExQgCEAT8AIwDAAcCEAT8AIwDAAcAAAAXCiASAAAAAhAG7gBQA5gGAhAIwACoAkgF" +
+                    "AhAH1wD8AvAFAhABYQH0BN0JAAAAAhABWQHlBLcJAhANRQD8APQBAQEBAhAPFwBUAKcAAhADKwE/BG0IAAACEAxcAEoBjgIBAQEB" +
+                    "AQIQDi4ApQBHAQACEAFSAbwEZQkBAQEBAQEBAhAExgIbBUMIAhACNAFYBJ8IAQEBAQEBAQIQBFgLrAv0CwACEA4sAJwANQEBAQEB" +
+                    "AQECEAEuDpcO8Q4AAhAF6wBRA4gGAQEBAQECEAiQB8gH+AcAAAACEAT8AIwDAQcCEAtpAHgB6QIBAhAMVAAsAVQCAhAFrAhXCSEK" +
+                    "AAA=";
+            }
+
+            private static string Frames64()
+            {
+                return
+                    "BQAAAAABwmEbHwHCYRtvAcJhG78ww2Eb/wHCYRu/AcJhG28BwmEbHwkAAAAAAcBgG382wWAb/wHAYBt/BgAAAAABvl8aDwG+XxrP" +
+                    "OL9fGv8Bvl8azwG+XxoPBAAAAAABvF4azzq9Xhr/AbxeGs8DAAAAAAG6XRp/PLtdGv8Bul0afwEAAAAAAbhcGh8+uVwa/wG4XBof" +
+                    "AbZbGW8+t1sZ/wG2WxlvAbVaGb8+tVoZ/wG1Whm/QLNaGf9AsVkZ/0CvWBj/QK1XGP9Aq1YY/0CpVRj/QKdUF/9ApVMX/0CjUhf/" +
+                    "QKFRF/8Vn1AW/wG9hVr/Ac+khP8Sn1AW/wHPpIT/Ab2FWv8Vn1AW/xSdTxb/AcKPaP8C//ny/wG1eU3/EJ1PFv8BtXlN/wL/+fL/" +
+                    "AcKPaP8UnU8W/xObThb/AcCOaP8D//ny/wHy49b/AaFZI/8Om04W/wGhWSP/AfLj1v8D//ny/wHAjmj/E5tOFv8SmU0W/wG5g1r/" +
+                    "Bf/58v8B38Ot/w6ZTRb/Ad/Drf8F//ny/wG5g1r/EplNFv8Rl0wV/wGkYjD/Afju5P8G//ny/wG3glr/DJdMFf8Bt4Ja/wb/+fL/" +
+                    "Afju5P8BpGIw/xGXTBX/EZVLFf8B3sKs/wb/+fL/Afju5P8Br3ZM/wyVSxX/Aa92TP8B+O7k/wb/+fL/Ad7CrP8RlUsV/xCTShX/" +
+                    "Aa52TP8G//ny/wH47uT/AadrPv8Ok0oV/wGnaz7/Afju5P8G//ny/wGudkz/EJNKFf8QkUkV/wHWt5//Bv/58v8BrHVM/xCRSRX/" +
+                    "Aax1TP8G//ny/wHWt5//EJFJFf8Pj0gU/wGWUyH/Bv/58v8B1bae/xKPSBT/AdW2nv8G//ny/wGWUyH/D49IFP8PjUcU/wG4imf/" +
+                    "Bv/58v8Bm10v/xKNRxT/AZtdL/8G//ny/wG4imf/D41HFP8Pi0YU/wHMq5D/Bf/58v8B2sGs/xSLRhT/AdrBrP8F//ny/wHMq5D/" +
+                    "D4tGFP8PiUYU/wHhzLr/Bf/58v8BvJR1/xSJRhT/AbyUdf8F//ny/wHhzLr/D4lGFP8Ph0UT/wH37eT/Bf/58v8BpXJK/xSHRRP/" +
+                    "AaVySv8F//ny/wH37eT/D4dFE/8PhUQT/wb/+fL/AZxlPP8UhUQT/wGcZTz/Bv/58v8PhUQT/w+DQxP/Bv/58v8BmmU8/xSDQxP/" +
+                    "AZplPP8G//ny/w+DQxP/D4FCE/8B9+3k/wX/+fL/AaBvSv8UgUIT/wGgb0r/Bf/58v8B9+3k/w+BQhP/D39BEv8B38u6/wX/+fL/" +
+                    "AbeRdP8Uf0ES/wG3kXT/Bf/58v8B38u6/w9/QRL/D31AEv8BxqiQ/wX/+fL/Ada/rP8UfUAS/wHWv6z/Bf/58v8BxqiQ/w99QBL/" +
+                    "D3s/Ev8BrIRm/wb/+fL/AYxWLv8Sez8S/wGMVi7/Bv/58v8BrIRm/w97PxL/D3k+Ev8BgUkg/wb/+fL/Ac2znv8SeT4S/wHNs57/" +
+                    "Bv/58v8BgUkg/w95PhL/EHc9Ef8BzLKd/wb/+fL/AZlsSf8Qdz0R/wGZbEn/Bv/58v8BzLKd/xB3PRH/EHU8Ef8Bl2tJ/wb/+fL/" +
+                    "Afbt4/8Bj187/w51PBH/AY9fO/8B9u3j/wb/+fL/AZdrSf8QdTwR/xFzOxH/AdO9q/8G//ny/wH27eP/AZZrSf8MczsR/wGWa0n/" +
+                    "Afbt4/8G//ny/wHTvav/EXM7Ef8RcToR/wGDUi3/Afbt4/8H//ny/wHKsZ3/AYNSLf8IcToR/wGDUi3/Acqxnf8H//ny/wH27eP/" +
+                    "AYNSLf8RcToR/xJvORD/AZx1Vv8J//ny/wHSvav/Aa6Ncv8Bk2lI/wKKXTr/AZNpSP8Bro1y/wHSvav/Cf/58v8BnHVW/xJvORD/" +
+                    "E204EP8Bo4Bk/xj/+fL/AaOAZP8TbTgQ/xRrNxD/AaJ/ZP8W//ny/wGif2T/FGs3EP8VaTYQ/wGYc1b/AfXs4/8S//ny/wH17OP/" +
+                    "AZhzVv8VaTYQ/xZnNQ//AXpOK/8Bz7ur/xD/+fL/Ac+7q/8Bek4r/xZnNQ//GGU0D/8Bi2VH/wHFr5z/DP/58v8Bxa+c/wGLZUf/" +
+                    "GGU0D/8aZDMP/wFtQB3/AZ19ZP8BuqKO/wHYx7n/AfXs4/8C//ny/wH17OP/AdjHuf8BuqKO/wGdfWT/AW1AHf8aZDMP/0BiMg//" +
+                    "QGAyDv9AXjEO/0BcMA7/QFovDv9AWC4N/0BWLQ3/AVQsDb8+VCwN/wFULA2/AVIrDW8+UisN/wFSKw1vAVAqDB8+UCoM/wFQKgwf" +
+                    "AQAAAAABTikMfzxOKQz/AU4pDH8DAAAAAAFMKAzPOkwoDP8BTCgMzwQAAAAAAUsoDA8BSicMzzhKJwz/AUonDM8BSygMDwYAAAAA" +
+                    "AUgmC382SCYL/wFIJgt/CQAAAAABRyYLHwFGJgtvAUYlC78wRiUL/wFGJQu/AUYmC28BRyYLHwUAAAAAIw8tGgAAAAIQAkIBjgQI" +
+                    "CQIQBBQB6APABwIQBBQB6APABwIQAkIBjgQICQAAAAACEAFZAdIElQkCEAtzAJ0BNAMBAQEBAhALcwCdATQDAhABWQHSBJUJAAIQ" +
+                    "AVkBwwR3CQIQDUUA9QDmAQEBAQEBAQIQDUUA9QDmAQIQAVkBwwR3CQIQCLAAgwL9BAEBAQEBAQEBAhAIsACDAv0EAhAOLACgADwB" +
+                    "AQEBAQEBAQECEA1CAO8A2QEBAQEBAQEBAQEBAhAOLACaADIBAQEBAQEBAQECEA7kAfIB/gECEAp+AMoBjAMBAQEBAQEBAQIQCZ4G" +
+                    "zwb5BgIQAiYBIAQsCAIQDxUASwCVAAEBAQEBAQIQD/IA+QD/AAIQAS4Olw7xDgACEAMRAcsDfAcCEA4qAJQAJgEBAQEBAhAO5AHy" +
+                    "Af4BAhADSgylDPMMAAAAAAIQBecAKgM+BgIQCKgATAKIBAIQCIUB+wL2BAIQBWYKswr1CgAAACUSMB0AAAACEAbcACQDPgYCEAxY" +
+                    "AEQBgAIBAhANQgDzAOABAhAJmgA0AmAEAhABSgG0BFkJAAAAAhABSgGpBDsJAhAMWABAAXgCAQEBAQECEA8WAFAAngACEAMeAQsE" +
+                    "AQgAAAIQCZoAJwJCBAEBAQEBAQECEA4sAJ4AOAEAAhABSgGLBP8IAQEBAQEBAQEBAhAG3AAIAwAGAhAE/ACWAxoHAQEBAQEBAQEB" +
+                    "AhAIqABkArwEAhAE/ACKAwIHAQEBAQEBAQEBAhAIqABcAqwEAhABOwFhBKQIAQEBAQEBAQEBAhAGrwGaAy4GAAIQCn4AugFoAwEB" +
+                    "AQEBAQECEA/yAPkA/wACEAEACXwKYQwAAhABLAFDBGgIAhANPADZAK0BAQEBAQECEA/yAPkA/wACEANKDKUM8wwAAAACEAEsATQE" +
+                    "SggCEAigADwCaQQCEA4oAI4AGgEBAhAP8gD5AP8AAhAKrAXWBfoFAhACPA2eDfINAAAAAAAAAAAAAAAAACcVMiAAAAACEAZ0CboJ" +
+                    "9gkCEAu6BN0E+wQCEAzIA+QD/AMCEAxYADgBaAICEAfGAL0CaQUCEAFKAYsE/wgAAAACEAEuDpcO8Q4CEAzIA+QD/AMBAQEBAQIQ" +
+                    "DT8A5wDIAQIQAiYBMARKCAAAAhAJngbPBvkGAQEBAQEBAQIQDT8A5ADCAQACEAHSA2wG5gkBAQEBAQEBAQECEAXnADcDVwYCEAT8" +
+                    "AHUD0gYBAQEBAQEBAQECEAioAE4CjAQCEATwAGkDugYBAQEBAQEBAQECEAigAEYCfAQCEAIYAewDvAcBAQEBAQEBAQECEAbIAM0C" +
+                    "hgUAAhAMUAAaAS0CAQEBAQEBAQIQDxQARgCLAAIQASwBJQQsCAACEAEsARoEDggCEA4oAIwAEgEBAQEBAQIQD/IA+QD/AAIQA9II" +
+                    "2QkdCwAAAAIQAR0BCwTwBwIQClEBUgKiAwIQD/IA+QD/AAEBAhALugTdBPsEAhADSgylDPMMAAAAAAAAAAAAAAAAACgYMyMAAAAA" +
+                    "AhADSgylDPMMAhAFZgqzCvUKAhAEWAusC/QLAhAB0gNtBugJAAAAAAACEANKDKUM8wwCEA7kAfIB/gEBAQEBAhAIqABQAo8EAAAA" +
+                    "AhADFgeDCFUKAhAP8gD5AP8AAQEBAQEBAhAJjAD+Ae4DAAACEAxQACABNwIBAQEBAQEBAQIQAwQBpQMwBwIQAhgB3wOiBwEBAQEB" +
+                    "AQEBAQIQCKAANgJcBAIQBPAASANyBgEBAQEBAQEBAQIQDFAAGAEmAgIQA/cAgQPhBgEBAQEBAQEBAQIQCYUA4wG0AwACEA4mAIgA" +
+                    "CgEBAQEBAQEBAQIQBOQAMANBBgACEAXRAOECpQUBAQEBAQEBAhAMTAAMAQ0CAAAAAhAGnQFLA4sFAhAP8gD5AP8AAQEBAQIQC9sD" +
+                    "JgR9BAIQAR0B3gOWBwAAAAACEAEuDpcO8Q4CEAZ0CboJ9gkCEAiQB8gH+AcCEAiQB8gH+AcCEANKDKUM8wwAAAAoHDMnAAAAAhAC" +
+                    "PA2eDfINAhAJngbPBvkGAhAMyAPkA/wDAhAMyAPkA/wDAhAHggjBCPcIAhABHAi4CckLAAAAAAIQBmID1QTABgEBAQEBAhAPFABG" +
+                    "AIoAAhADBAGOA/0GAAACEATkADwDWwYBAQEBAQEBAhAPEwBFAIgAAhABHQELBPEHAAIQDTkAzACRAQEBAQEBAQEBAhAImAAgAi0E" +
+                    "AAEBAQEBAQEBAQIQDEwADAEOAgABAQEBAQEBAQECEAxMAAgBBgIAAhAPEgBBAH8AAQEBAQEBAQECEApsAIYB/AIAAhAIkAABAusD" +
+                    "AQEBAQEBAQECEATYAAID4QUAAhABzgIoBUQIAhAN1gLrAv0CAQEBAQEBAhAKbAB6AeMCAAAAAhABLg6XDvEOAhAJngbPBvkGAhAP" +
+                    "8gD5AP8AAQECEA7kAfIB/gECEAeiAC4CQwQAAAAAAAAAAhADSgylDPMMAhACPA2eDfINAAAAACgfMyoAAAAAAhADSgylDPMMAhAE" +
+                    "WAusC/QLAAAAAAAAAAIQCJgAGAIfBAIQD/IA+QD/AAEBAhAP8gD5AP8AAhAJngbPBvkGAhABLg6XDvEOAAAAAhAKcgCMAQsDAQEB" +
+                    "AQEBAhAN1gLrAv0CAAACEAXGAMsCfAUBAQEBAQEBAQIQCJAACAL9AwACEAtaAEIBdAIBAQEBAQEBAQIQDiQAgQD8AAACEA4kAH8A" +
+                    "+AABAQEBAQEBAQEAAhAMSAD5AOYBAQEBAQEBAQEBAAIQCXcArAFEAwEBAQEBAQEBAhALVQAyAVUCAAIQAlsM4gxpDQIQD/IA+QD/" +
+                    "AAEBAQEBAQECEATMANICgQUAAAIQA0oMpQzzDAIQD/IA+QD/AAEBAQECEA8RADsAcwACEAaqAFECgQQAAAAAAhABLg6XDvEOAhAH" +
+                    "ggjBCPcIAhAMyAPkA/wDAhAM5wIlA24DAhAIiADQAYgDAhAC7gAyAzQGAAAAJiMxLQAAAhAC/ACEA94GAhAKbACEAfQCAhAOJACC" +
+                    "APwAAQIQDuQB8gH+AQIQCJAHyAf4BwIQAS4Olw7xDgAAAAIQA+oANwNHBgIQDxIAQAB8AAEBAQEBAhAN1gLrAv0CAhABLg6XDvEO" +
+                    "AAACEA4kAH0A9AABAQEBAQEBAhALugTdBPsEAAIQBbsAogIjBQEBAQEBAQEBAQIQAu4AWgOKBgIQCIgA4gGsAwEBAQEBAQEBAQIQ" +
+                    "BMwA0wKCBQIQCGkBmgIoBAEBAQEBAQEBAQIQBMwAygJqBQIQBWYKswr1CgEBAQEBAQEBAQIQAu4AMgM0BgACEA7kAfIB/gEBAQEB" +
+                    "AQEBAhALUAAeASwCAAACEANKDKUM8wwCEA/yAPkA/wABAQEBAQIQDTAAqABHAQIQAfAATwNqBgAAAAIQAS4Olw7xDgIQCZ4Gzwb5" +
+                    "BgIQDuQB8gH+AQECEA0wAKUAQQECEAiAALkBWQMCEAHwAEADTAYAACMlLjAAAAAAAhABDgGmAx8HAhAE2ADsArQFAhAE+AYHCFoJ" +
+                    "AhABLg6XDvEOAAAAAAACEAH/AJcDAQcCEApmAHIB0AIBAQEBAhAJngbPBvkGAhABLg6XDvEOAAACEAH/AIgD4wYCEA0zALYAYgEB" +
+                    "AQEBAQECEAzIA+QD/AMAAAIQCIgA3QGdAwEBAQEBAQEBAhAGdAm6CfYJAAIQDiIAdgDkAAEBAQEBAQEBAhAM5wIlA24DAAEBAQEB" +
+                    "AQEBAQEAAhAP8gD5AP8AAQEBAQEBAQECEA0wAKkASAEAAhAKrAXWBfoFAQEBAQEBAQECEAlwAIQB8AIAAhACPA2eDfINAhAP8gD5" +
+                    "AP8AAQEBAQEBAhAPEAA2AGkAAhAB8AA1Ay4GAAACEANKDKUM8wwCEA/yAPkA/wABAQEBAhAOHgBqAM4AAhADwwC6AkAFAAAAAAIQ" +
+                    "AdwI+wlVCwIQBnkB0gKNBAIQCHgApAEoAwIQCHgApAEoAwIQBpYADgL0AwAAACAnKzIAAAAAAhAC7gBMA24GAhAEzADUAoQFAhAE" +
+                    "zADUAoQFAhABogO/BYEIAAAAAAACEAH/AH0DxQYCEAxEAPAA0AEBAQEBAhAJngbPBvkGAhABLg6XDvEOAAACEAH/AG4DpwYCEA4i" +
+                    "AHYA5AABAQEBAQECEAzIA+QD/AMAAAIQCkIBGgIuAwEBAQEBAQEBAhAGdAm6CfYJAAIQD/IA+QD/AAEBAQEBAQEBAhALugTdBPsE" +
+                    "AAEBAQEBAQEBAQIQDMgD5AP8AwABAQEBAQEBAQECEAxAANsApgEAAhALugTdBPsEAQEBAQEBAQECEAeHAOMBowMAAhADSgylDPMM" +
+                    "AhAP8gD5AP8AAQEBAQEBAhANLQCdAC8BAhAB4QAXA/IFAAACEAO+CI0JgwoCEA8PADMAYwABAQEBAhANLQCaACoBAhAC0gDUAnYF" +
+                    "AAAAAAIQAeEA+QK9BQIQBpYA+gHQAwIQCHgAlAEMAwIQCHgAlAEMAwIQBaUALQIyBAAAAB0oKDMAAAAAAhAD3QAHA98FAhAEzADM" +
+                    "AmwFAhAC7gBCA1IGAAAAAAAAAhAFuwCGAuMEAhAOIgB2AOQAAQEBAhAMRADsAMgBAhADBAcxCKUJAAAAAhAGggEBA+0EAQEBAQEB" +
+                    "AhAP8gD5AP8AAhADSgylDPMMAAIQAS4Olw7xDgIQD/IA+QD/AAEBAQEBAQECEA7kAfIB/gEAAhAGdAm6CfYJAQEBAQEBAQEBAhAD" +
+                    "SgylDPMMAhAIkAfIB/gHAQEBAQEBAQEBAhAFZgqzCvUKAhAIkAfIB/gHAQEBAQEBAQEBAhAEWAusC/QLAhADSgylDPMMAQEBAQEB" +
+                    "AQEBAhABigNjBb0HAAIQC9cDFwRfBAEBAQEBAQECEAh4AJ0BHgMAAAIQAeEA+QK9BQIQDDwAyQCFAQEBAQEBAhAJaQBhAaoCAAAA" +
+                    "AAACEASoAFgCfQQCEAliAF4BnAICEAw4AMgAfAECEAhwAJAB/AICEAO2AIoC3QQAAAAZKCQzAAAAAAAAAAAAAAAAAAIQAcEC7ATD" +
+                    "BwIQCIgA1wGPAwIQDxEAOwByAAEBAhANMwCxAFYBAhAEzADAAlQFAAAAAhABLg6XDvEOAhAN1gLrAv0CAQEBAQEBAhAGRgOBBA0G" +
+                    "AAACEAmeBs8G+QYBAQEBAQEBAQIQAjwNng3yDQACEA/yAPkA/wABAQEBAQEBAQIQCZ4Gzwb5BgIQA0oMpQzzDAEBAQEBAQEBAQIQ" +
+                    "DMgD5AP8AwIQAjwNng3yDQEBAQEBAQEBAQIQDMgD5AP8AwACEA7kAfIB/gEBAQEBAQEBAQIQB4IIwQj3CAACEAeHANEBggMBAQEB" +
+                    "AQEBAhAPDwAzAGMAAhAB+QcwCbAKAAACEApaAC8BSQIBAQEBAQIQDw8AMgBhAAIQA8MAkwL4BAAAAAACEASoAFgCfQQCEApUACwB" +
+                    "PAICEAw4AMgAfAECEAw4AMgAfAECEAhwAJAB/AICEAHSAO4CnwUAABYoITMAAAIQAlsM4QxnDQIQCXcApAEsAwIQDEQA8ADQAQIQ" +
+                    "DiIAeADoAAIQC1UALAFEAgIQBbsAkQL5BAAAAAACEANKDKUM8wwCEA/yAPkA/wABAQEBAQIQCmYAYQGrAgAAAhABLg6XDvEOAhAP" +
+                    "8gD5AP8AAQEBAQEBAQIQCIAAzQF9AwACEAeCCMEI9wgBAQEBAQEBAQIQD/IA+QD/AAACEAzIA+QD/AMBAQEBAQEBAQECEANKDKUM" +
+                    "8wwCEAzmAiEDZgMBAQEBAQEBAQECEARYC6wL9AsCEAh4AK4BPAMBAQEBAQEBAQIQD/IA+QD/AAACEALSAOICjAUCEA8PADQAZQAB" +
+                    "AQEBAQEBAhAJngbPBvkGAAACEAaWAAQC5QMBAQEBAQECEA3WAusC/QICEAEuDpcO8Q4AAAACEAS0AGAClQQCEAtLAPsA5gEBAQIQ" +
+                    "Dh4AZADCAAIQCHgAlAEMAwAAAAAAAAAAAAAAAAAAEyYdMQAAAAIQBWYKswr1CgIQCGkBqAJHBAIQCIgA7AHAAwIQBbsAowIlBQAA" +
+                    "AAACEANKDKUM8wwCEA7kAfIB/gEBAQEBAhAOIgB6AOwAAhAD3QAQA/kFAAIQAS4Olw7xDgIQD/IA+QD/AAEBAQEBAQIQDxEAPAB0" +
+                    "AAIQAu4AQgNSBgIQCZ4Gzwb5BgEBAQEBAQEBAhAKZgBgAaoCAhAO5AHyAf4BAQEBAQEBAQECEA4gAHQA4AABAQEBAQEBAQEBAhAN" +
+                    "MACmAEIBAQEBAQEBAQECEA7kAfIB/gECEAiAALUBSwMBAQEBAQEBAQIQCJAHyAf4BwIQAeEAJgMQBgIQDS0AoAA1AQEBAQEBAQIQ" +
+                    "DdYC6wL9AgIQAS4Olw7xDgACEAHhABcD8gUCEAtLAAYB+QEBAQEBAhALugTdBPsEAhABLg6XDvEOAAAAAAIQAtIA1AJ2BQIQBLQA" +
+                    "bAKsBAIQBLQAbAKsBAIQAtIA1AJ2BQAAABAjGy4AAAAAAAAAAAAAAAAAAhACPA2eDfINAhAKrAXWBfoFAhAP8gD5AP8AAQIQDiQA" +
+                    "gAD4AAIQCJAA/AHfAwIQAQ4BtQM9BwAAAAIQA0oMpQzzDAIQD/IA+QD/AAEBAQEBAhANNgC8AG4BAhABDgGmAx8HAAIQAegIMArD" +
+                    "CwIQD/IA+QD/AAEBAQEBAQECEApmAHABzgIAAhAGiwEXAyEFAQEBAQEBAQEBAhAB/wCIA+MGAhAIiADcAZwDAQEBAQEBAQEBAhAE" +
+                    "zADKAmoFAhAIiADUAYwDAQEBAQEBAQEBAhAE8wb2BzMJAhAGoAA+AloEAQEBAQEBAQEBAhABLg6XDvEOAAIQDiAAcADaAAEBAQEB" +
+                    "AQECEAmeBs8G+QYAAAIQA9AA0AJ0BQIQDxAANwBrAAEBAQEBAhAMyAPkA/wDAhABLg6XDvEOAAAAAhAB8AA1Ay4GAhAJcAB9Ad8C" +
+                    "AhANMACiADsBAQIQDOYCIQNmAwIQBnQJugn2CQAAAA4gGSsAAAAAAAAAAAAAAAAAAhADSgylDPMMAhALugTdBPsEAQECEA/yAPkA" +
+                    "/wACEApRAUMCiQMCEAEdAd4DlwcAAAACEAPKCMUJ9QoCEA/yAPkA/wABAQEBAQIQDiQAggAAAQIQAQ4BzwN5BwACEAEOAcQDWwcC" +
+                    "EA8SAEEAfgABAQEBAQEBAhAMSAACAfcBAAIQBrQAeQLUBAEBAQEBAQEBAQIQAvwAdgPCBgIQCJAA8gHMAwEBAQEBAQEBAQIQBNgA" +
+                    "6wKyBQIQCIgA6gG8AwEBAQEBAQEBAQIQBMwA3wKaBQIQBbsAlgIMBQEBAQEBAQEBAQIQAaIDvgWACAACEA0zALEAWQEBAQEBAQEB" +
+                    "AhAJngbPBvkGAAACEALuADIDNAYCEA0zAK4AUwEBAQEBAQIQDMgD5AP8AwIQAS4Olw7xDgAAAAIQAfAAXgOIBgIQB5AAAgLoAwIQ" +
+                    "DEAA5AC8AQIQDMgD5AP8AwIQC7oE3QT7BAIQBnQJugn2CQAAAA0dGCgAAAACEANKDKUM8wwCEAiQB8gH+AcCEAiQB8gH+AcCEAZ0" +
+                    "CboJ9gkCEAEuDpcO8Q4AAAAAAhABHQELBPEHAhAL2wMpBIQEAQEBAQIQD/IA+QD/AAIQBp0BZgPEBQAAAAIQDEwAEAEXAgEBAQEB" +
+                    "AQECEAXRAOwCvgUAAhAE5AAkAysGAQEBAQEBAQECEA4mAIYACAEAAhAJhQDOAYsDAQEBAQEBAQEBAhAD9wBaA5QGAhAMSAAEAf4B" +
+                    "AQEBAQEBAQEBAhAE2AAMA/oFAhAIkAACAuwDAQEBAQEBAQEBAhAC/ACDA9wGAhAD6gA2A0UGAQEBAQEBAQECEAxIAPwA7QEAAAIQ" +
+                    "CX4AswFRAwEBAQEBAQIQD/IA+QD/AAIQAwoHRQjTCQAAAAIQCIgA6AG5AwEBAQECEA7kAfIB/gECEANKDKUM8wwAAAAAAAIQAaID" +
+                    "vQV+CAIQBFgLrAv0CwIQBWYKswr1CgIQA0oMpQzzDAAAAAANGRgkAAAAAAIQAjwNng3yDQIQA0oMpQzzDAAAAAAAAAACEAe0AJEC" +
+                    "DgUCEA7kAfIB/gEBAQIQD/IA+QD/AAIQCZ4Gzwb5BgIQAS4Olw7xDgAAAAIQCngAsAFTAwEBAQEBAQIQDdYC6wL9AgIQAegClwUt" +
+                    "CQACEATwAFIDiwYBAQEBAQEBAQIQCKAANwJdBAACEAp4AKQBOgMBAQEBAQEBAQIQDxQARgCKAAACEAxMABQBHgIBAQEBAQEBAQEA" +
+                    "AhAMTAAQARYCAQEBAQEBAQEBAAIQCJgAGAIbBAEBAQEBAQEBAhANOQDJAIoBAAIQAR0B3gOWBwIQDxMAQgCBAAEBAQEBAQECEATk" +
+                    "ABgDEQYAAAIQA+oATQN4BgIQDxIAQQB/AAEBAQEBAhAGVAOyBHkGAAAAAAIQAQ4IiQlmCwIQB4IIwQj3CAIQDMgD5AP8AwIQDMgD" +
+                    "5AP8AwIQCZ4Gzwb5BgIQAjwNng3yDQAAAA0WGCEAAAACEAImATAESggCEAioAGgCwAQCEAzrAjgDlQMCEAzIA+QD/AMCEAeCCMEI" +
+                    "9wgCEAEuDpcO8Q4AAAAAAhAG0gD1AtkFAhAPFQBMAJYAAQEBAQIQD/IA+QD/AAIQA0oMpQzzDAAAAhAE/ACCA+sGAQEBAQEBAQIQ" +
+                    "D/IA+QD/AAIQAl8M7wyGDQACEAtpAHEB2AIBAQEBAQEBAQIQCZMABQL7AwABAQEBAQEBAQECEAxQACMBPgIAAQEBAQEBAQEBAhAO" +
+                    "KACPABoBAAIQDigAjQAWAQEBAQEBAQEBAhALZABhAbkCAAIQCKAAMAJLBAEBAQEBAQEBAhAF3AACA+cFAAACEA3WAusC/QIBAQEB" +
+                    "AQECEApyAJ4BKwMAAAACEAEuDpcO8Q4CEAmeBs8G+QYCEA/yAPkA/wABAQIQD/IA+QD/AAIQCJgAIAIpBAAAAAAAAAACEARYC6wL" +
+                    "9AsCEANKDKUM8wwAAAAADxMaHQAAAhABSgGpBDsJAhAIsAB/Au8EAhANQgDwANoBAQIQDuQB8gH+AQIQCZ4Gzwb5BgIQAd4DpgZg" +
+                    "CgAAAAIQAUoBmgQdCQIQDUIA7QDUAQEBAQEBAhAPFgBPAJwAAhADHgH+A+cHAAACEAtuAIUBAQMBAQEBAQEBAhAOLACcADQBAAIQ" +
+                    "AiYBMARKCAEBAQEBAQEBAQIQBcQB9wPrBgIQBPwAigMCBwEBAQEBAQEBAQIQCIUBCQMVBQIQBPwAgQPqBgEBAQEBAQEBAQIQCKgA" +
+                    "VgKcBAIQAiYBCAT0BwEBAQEBAQEBAQIQBecAKwNABgACEAu6BN0E+wQBAQEBAQEBAhAOKACRAB4BAAACEAEuDpcO8Q4CEA3WAusC" +
+                    "/QIBAQEBAQIQDxQARwCNAAIQAwQBpAMuBwAAAAIQAS4Olw7xDgIQCJAHyAf4BwIQDuQB8gH+AQECEA4oAIwAFgECEAp4AKYBQgMC" +
+                    "EAIYAd4DoAcAABIQHRsAAAACEAbmADgDZgYCEAi4AJQCIAUCEAi4AJQCIAUCEAbmADgDZgYCEAFZAdIElQkAAAAAAhADKwEhBDUI" +
+                    "AhAOLgCkAEQBAQEBAQIQDxcAUgCiAAIQAysBIQQ1CAAAAhABSgG0BFkJAhAPFgBRAKAAAQEBAQEBAhAPFgBRAKAAAhACNAFkBLoI" +
+                    "AAIQCZoALQJPBAEBAQEBAQEBAhAKhADeAbIDAAIQDUIA7ADTAQEBAQEBAQEBAhAPFgBPAJwAAAEBAQEBAQEBAQEAAhAM6wI4A5UD" +
+                    "AQEBAQEBAQECEA4qAJgALgEAAhAGdAm6CfYJAQEBAQEBAQECEAioAFsCqwQAAAIQDMgD5AP8AwEBAQEBAQIQDT8A3wC5AQIQATsB" +
+                    "YQSkCAAAAhABLg6XDvEOAhAJngbPBvkGAQEBAQIQCn4AuAFmAwIQATsBUgSGCAAAAAAAAhABLg6XDvEOAhAEAgc6CMUJAhAE8ABo" +
+                    "A7gGAhABLAFDBGgIAAAAABUOIBkAAAACEAX9AKADMQcCEAi4AKQCPAUCEAi4AKQCPAUCEAbmAEwDigYCEAFZAfAEygkAAAAAAhAC" +
+                    "QgGOBAgJAhANRQD7APEBAQEBAQIQDxcAVACmAAIQAysBOwRjCAAAAhABWQHSBJUJAhANRQD4AOwBAQEBAQEBAhAPFwBTAKQAAhAD" +
+                    "KwEuBE8IAAIQB88A3AKuBQEBAQEBAQEBAhALcwCXASgDAAIQDFgAQQF+AgEBAQEBAQEBAQACEAzIA+QD/AMBAQEBAQEBAQEAAhAL" +
+                    "ugTdBPsEAQEBAQEBAQECEA8WAE4AmwAAAhAGdAm6CfYJAQEBAQEBAQECEAqEANABmAMAAAIQDMgD5AP8AwEBAQEBAQIQDioAmAAu" +
+                    "AQIQATsBewTgCAAAAhABLg6XDvEOAhAJngbPBvkGAQEBAQIQDFQALAFUAgIQATsBbATCCAAAAAAAAhAB0gNrBuUJAhAE/ACAA+gG" +
+                    "AhAE/ACAA+gGAhACJgEWBBAIAAAAABgNIxgAAAACEAM4AVEEmAgCEAjAAKgCTAUCEAxgAFQBqAICEAmoAFMCowQCEAQgAfwD7wcA" +
+                    "AAAAAAIQCaEAUAKVBAEBAQEBAhAMXABTAZ8CAhABWQHwBMoJAAACEAi4AJsCKgUBAQEBAQEBAhALcwChATsDAAIQAVkB0gSVCQEB" +
+                    "AQEBAQEBAQIQAysBLgROCAIQBBQBzwOSBwEBAQEBAQEBAQIQCLgAigIMBQIQBfIAcwPaBgEBAQEBAQEBAQIQCLAAggL8BAIQAx4B" +
+                    "CQT/BwEBAQEBAQEBAQIQBtwAGgMmBgACEA4sAJwANgEBAQEBAQEBAhAPFgBOAJsAAhABSgGZBBwJAAIQAx4B7gPKBwIQDxYATQCZ" +
+                    "AAEBAQEBAQIQBtwABQP9BQAAAAIQAxEB4QOwBwIQDFQAMAFcAgEBAQIQDioAmAAuAQIQBecARwOABgAAAAAAAAIQAiYBIAQsCAIQ" +
+                    "BPwAiAMABwIQAxEB1AOWBwAAAAAcDScYAAACEAFoAfsE6AkCEAjAAKgCTAUCEAxgAFQBqAICEAxgAFQBqAICEAqQAP4B+gMCEAQg" +
+                    "AfwD7wcAAAAAAhADKwFIBH0IAhAPFwBVAKgAAQEBAQECEAqKAPsB7QMAAAIQAVkB4QSsCQIQDxcAVACmAAEBAQEBAQECEAfPAO4C" +
+                    "zwUAAhAHzwDlAsAFAQEBAQEBAQECEA4uAKUASAEAAhAMXABFAYYCAQEBAQEBAQEBAhACQgFyBNYIAhAMWABBAX4CAQEBAQEBAQEB" +
+                    "AhADHgETBBkIAhAJmgAsAk4EAQEBAQEBAQECEA8WAE8AnQAAAhACNAFKBIAIAQEBAQEBAQECEAmaACQCPwQAAAIQBtwABQP9BQEB" +
+                    "AQEBAQIQDUIA5wDLAQIQAUoBigT+CAAAAAIQBPwAlAMYBwIQDT8A5ADFAQEBAhAPFQBMAJcAAhAIqABhArkEAhABOwF7BOAIAAAA" +
+                    "AAAAAAAAAAAAAB8NKhgAAAAAAAAAAAAAAAAAAAIQCLgApAI8BQIQDi4AqgBQAQEBAhALcwCoAUcDAhAEFAH0A9cHAAAAAhABWQHh" +
+                    "BKwJAhANRQD7APEBAQEBAQEBAhAG5gBCA3UGAAACEAmhAEECegQBAQEBAQEBAhAPFwBTAKQAAhACQgGABPIIAAIQDxcAUgCiAAEB" +
+                    "AQEBAQEBAhAIuACKAgwFAhAECAHDA3oHAQEBAQEBAQEBAhAM7AI8A50DAhADHgEJBP8HAQEBAQEBAQEBAhAMyAPkA/wDAAIQDxYA" +
+                    "TgCbAAEBAQEBAQEBAhAHggjBCPcIAAIQCLAAawLLBAEBAQEBAQECEA/yAPkA/wACEAEuDpcO8Q4AAAIQCn4AyQGLAwEBAQEBAhAP" +
+                    "8gD5AP8AAhADSgylDPMMAAAAAAIQBecAPANqBgIQC2kAdwHpAgIQDioAlgAqAQIQDFQALAFUAgIQCZMADQITBAIQAl8M8AyIDQAA";
             }
         }
     }

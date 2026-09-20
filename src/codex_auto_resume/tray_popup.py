@@ -89,6 +89,49 @@ BADGE = {"monitoring": None, "waiting": "waiting", "checking": "waiting", "recov
 # card's surface, as the panel mixes it, whatever the chip sits on.
 CHIP_ALPHA = 0.12
 
+# v0.6.5: depth inside the card (requirement 11). Until then everything on the popup's card was
+# flat - a tile was a lighter fill and a hairline - so the card looked neumorphic and its inside
+# did not. Now what stands on the card is raised and what holds a value is sunken:
+#
+#   a task tile    lifts off the card: a soft drop under it and a light top edge;
+#   the counts     sit in a well, as the panel's fields do (brand's `inset` fill and recipe);
+#   an empty list  says so from a well too, and so does a failed read;
+#   a button       sinks into a well while it is pressed (brand's `control` and `inset`), and a
+#                  switch's track is a well - both as they were, now on a surface that has depth.
+#
+# The panel is the reference, so a tile is made of brand's own recipes and grounds only - no
+# number of the popup's own. The card's recipe does not transfer (at its 14 px blur a tile eight
+# pixels from the next would share one grey smear with it); the control recipe does, at a tile's
+# scale, and it is the lift the panel already puts on what stands on its cards (buttons, segments):
+#
+#   light  brand's control lift: a short drop down and right, the white highlight up and left;
+#   dark   a drop alone is invisible on a dark card at this size, so dark is the panel's dark
+#          recipe: brand's control drop, the one-pixel top light of brand's dark card inside the
+#          hairline, and `raised` for a ground - a step brighter than the card's own, the step the
+#          panel's rows stand on.
+#
+# A tile's ground is `raised` in both themes, as the panel's rows and every resting button are: a
+# ground of the tile's own put the tiles a step above 'Pause recovery' in dark, so the button looked
+# sunk below them. When the panel's rows take the same lift, this belongs in brand.SHADOWS.
+# High Contrast draws none of it: system colours, hairlines, no shadow. Nothing here moves.
+DEPTH = {
+    "light": {"tile": brand.shadows("control", "light")},
+    "dark": {"tile": brand.shadows("control", "dark")
+             + tuple(shadow for shadow in brand.shadows("card", "dark") if shadow.inset)},
+}
+
+
+def recipe_shadows(recipe, theme="light") -> tuple:
+    """A recipe's shadows in `theme`: the tile's (DEPTH, made of brand's) or brand's own (brand.SHADOWS)."""
+    theme = brand.theme_name(theme)
+    own = DEPTH.get(theme, {}).get(recipe)
+    return own if own is not None else brand.shadows(recipe, theme)
+
+
+def tile_ground(theme="light") -> str:
+    """A task tile's ground: brand's `raised`, as the panel's rows and a resting button stand on."""
+    return brand.palette(theme)["raised"]
+
 
 def say(strings, key, **fields) -> str:
     """One string from the catalog the icon was given, English underneath it.
@@ -129,22 +172,45 @@ def locale_of(strings) -> str:
 
 _SCRIPT_FACES = {"ko": "Malgun Gothic", "ja": "Yu Gothic UI", "zh-CN": "Microsoft YaHei UI",
                  "zh-TW": "Microsoft JhengHei UI"}
+_ON_EVERY_WINDOWS = "Segoe UI"
+_ASK_WINDOWS = object()
 
 
-def font_faces(locale) -> tuple:
-    """The typefaces to try for a locale, best first. The last one is on every Windows."""
-    return (_SCRIPT_FACES.get(locale, "Segoe UI Variable Text"), "Segoe UI")
+def font_faces(locale, system=_ASK_WINDOWS) -> tuple:
+    """The typefaces to try for a locale, best first. The last one is on every Windows.
+
+    A script with a face of its own (Korean, Japanese, Chinese) is set in that face. Every
+    other language follows the panel's type stack - `system-ui`, then "Segoe UI Variable
+    Text", then "Segoe UI" - where `system-ui` is Windows' UI font: the message font the
+    window is drawn in (SystemFonts.MessageBoxFont), which `message_face` asks Windows for.
+    So English on a Korean Windows is Malgun Gothic here too, as it is in the window and the
+    panel, and Segoe UI on an English one. `system` stands in Windows' answer; None or ""
+    means Windows could not be asked, and the stack goes on to its next choices.
+    """
+    if locale in _SCRIPT_FACES:
+        return (_SCRIPT_FACES[locale], _ON_EVERY_WINDOWS)
+    first = message_face() if system is _ASK_WINDOWS else system
+    faces = []
+    for face in (first, "Segoe UI Variable Text"):
+        if not isinstance(face, str) or not face.strip():
+            continue                                   # no answer: the stack's next choice
+        if face.lower() == _ON_EVERY_WINDOWS.lower():
+            break                                      # Windows' UI font is the last resort itself
+        if face.lower() not in [known.lower() for known in faces]:
+            faces.append(face)
+    return tuple(faces) + (_ON_EVERY_WINDOWS,)
 
 
-def font_candidates(locale, weight) -> tuple:
+def font_candidates(locale, weight, system=_ASK_WINDOWS) -> tuple:
     """(face, weight) pairs to try for one font role, best first.
 
     GDI has no semibold inside a family it lists as regular: Segoe UI Variable Text asked
     for weight 600 answers with its bold. The semibold instances are families of their
     own and are asked for at their regular weight. Malgun Gothic and the Chinese UI faces
-    have no semibold at all, so their emphasis is their bold.
+    have no semibold at all, so their emphasis is their bold - the window's own rule
+    (Soft.Weighted: a Segoe UI face's semibold family, the face's bold otherwise).
     """
-    faces = font_faces(locale)
+    faces = font_faces(locale, system)
     if weight < 600:
         return tuple((face, 400) for face in faces)
     if locale == "ja":
@@ -152,7 +218,11 @@ def font_candidates(locale, weight) -> tuple:
                 ("Segoe UI", 600))
     if locale in _SCRIPT_FACES:
         return ((faces[0], 700), ("Segoe UI Semibold", 400), ("Segoe UI", 600))
-    return (("Segoe UI Variable Text Semibold", 400), ("Segoe UI Semibold", 400), ("Segoe UI", 600))
+    heavy = []
+    for face in faces[:-1]:
+        segoe = face.lower().startswith("segoe ui") and not face.lower().endswith("semibold")
+        heavy.append((face + " Semibold", 400) if segoe else (face, 700))
+    return tuple(heavy) + (("Segoe UI Semibold", 400), ("Segoe UI", 600))
 
 
 def is_waiting(row) -> bool:
@@ -490,20 +560,56 @@ def next_focus(order, current, backwards=False):
 
 # ------------------------------------------------------------------------------- motion
 def halo(state, elapsed_ms, since_entered_ms=None, *, reduced=False):
-    """The glow around the state dot for one frame, or None when there is none.
-
-    It is brand's status light, the one definition the window and the panel draw too: `opacity`
-    multiplies the glow's soft falloff, `scale` multiplies its outer radius, and `arc` is the
-    start angle of the checking arc in degrees (None when there is no arc). Monitoring breathes
-    slowly and low, waiting holds still, checking turns its arc, recovering breathes a little
-    quicker and brighter, a problem glows up once when it arrives, and a pause has no glow.
-    """
+    """The state dot's light for one frame, or None when it is off: brand's status light, which the window and the
+    panel draw too. `dim` is how far the dot is drawn toward the card, `opacity` multiplies the glow's soft falloff,
+    `spread` is how far out the glow is and `arc` the checking arc's start angle in degrees, or None."""
     return brand.glow(state, elapsed_ms, since_entered_ms, reduced=reduced)
 
 
 def animates(state, since_entered_ms=0, *, reduced=False) -> bool:
     """Whether the frame timer should run at all."""
     return brand.glow_moves(state, since_entered_ms, reduced=reduced)
+
+
+# v0.6.5: a task's switch glides when it changes - the knob slides end to end and the track
+# cross-fades between the grey well and the accent - in brand's one transition time, on brand's
+# one curve, as the window's and the panel's switches do. A glide is (started_ms, from, to), the
+# ends being how far on the switch is: 0 off, 1 on. It starts only when a switch the window has
+# already drawn is drawn the other way - which, for a change somebody asked for here, is when the
+# control layer has confirmed it: the press only fades the switch while the answer is awaited, so
+# it never moves and snaps back. With motion reduced, in High Contrast, while the window is hidden
+# and on the frame that opens it, a change is simply drawn in its new place.
+def glide_amount(glide, now_ms) -> tuple:
+    """(how far on the switch is, whether the glide is over) at `now_ms`, eased."""
+    started, begin, end = glide
+    progress = (now_ms - started) / float(brand.MOTION["transition_ms"])
+    if progress >= 1.0:
+        return end, True
+    return begin + (end - begin) * brand.ease(progress), False
+
+
+def next_glides(seen, previous, glides, now_ms, *, animate=True) -> dict:
+    """The glides running after a switch table `seen` ({target: checked}) replaced `previous`.
+
+    A glide still heading where its switch is drawn keeps going; a switch drawn the other way
+    from before starts one from wherever it is now - its end, or partway through a glide it is
+    turning back from. `animate` False stops every glide where it would have ended; no `previous`
+    (the window has just opened) starts none; a switch no longer drawn loses its glide.
+    """
+    if not animate:
+        return {}
+    running = {}
+    for target, checked in seen.items():
+        end = 1.0 if checked else 0.0
+        glide = glides.get(target)
+        if glide is not None and glide[2] == end:
+            running[target] = glide
+            continue
+        if previous is None or target not in previous or bool(previous[target]) == bool(checked):
+            continue
+        begin = glide_amount(glide, now_ms)[0] if glide is not None else 1.0 - end
+        running[target] = (now_ms, begin, end)
+    return running
 
 
 # ---------------------------------------------------------------------------- the badge
@@ -703,6 +809,48 @@ def vocabulary(language) -> dict:
 
 
 # ------------------------------------------------------------------------------- layout
+def _breaks_anywhere(char) -> bool:
+    """A character a line may break before or after: Chinese and Japanese are set without spaces."""
+    code = ord(char)
+    return 0x2E80 <= code <= 0x9FFF or 0xF900 <= code <= 0xFAFF or 0xFF00 <= code <= 0xFFEF
+
+
+def unbroken(text):
+    """The pieces of a label no line may break inside: its words, and in a run of Chinese or Japanese
+    each character (Korean is set with spaces, and Renderer.lines breaks it only there)."""
+    pieces = []
+    for word in str(text).split():
+        if any(_breaks_anywhere(char) for char in word):
+            pieces.extend(word)
+        else:
+            pieces.append(word)
+    return pieces or [""]
+
+
+def share_columns(available, needs) -> list:
+    """Widths for columns side by side in `available` pixels, one per need.
+
+    Equal shares while every need fits in one; otherwise each column that needs more is given what
+    it needs and the others share what is left alike, repeatedly, until the rest all fit. Only if
+    the needs themselves do not fit are they cut down together, each by the same fraction, rather
+    than one column taking all of the shortfall.
+    """
+    count = len(needs)
+    needs = [max(0, int(need)) for need in needs]
+    total = sum(needs)
+    if total > available:
+        return [available * need // total for need in needs]
+    fixed = {}
+    while len(fixed) < count:
+        free = [index for index in range(count) if index not in fixed]
+        share = (available - sum(fixed.values())) // len(free)
+        wider = [index for index in free if needs[index] > share]
+        if not wider:
+            return [fixed.get(index, share) for index in range(count)]
+        fixed.update((index, needs[index]) for index in wider)
+    return needs
+
+
 def layout(vm, scale, measure, width=WIDTH) -> dict:
     """Every rectangle the window draws, in device pixels, and the height it needs.
 
@@ -745,23 +893,38 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
          STATE_INK.get(vm["state"], "ink"), wrap=True)
     y += header_h + px(space["m"])
 
-    # Summary: waiting, recovering, next check.
-    items.append({"kind": "rule", "rect": (left, y, right, y + max(1, px(1)))})
-    y += px(space["m"])
+    # Summary: waiting, recovering, next check - three values read off a field, so since v0.6.5
+    # they sit in one sunken well, as the panel's fields do, with a hairline between them. The
+    # well's padding comes out of the columns, and an equal third is then narrower than a long word
+    # ('Wiederherstellung'), which DrawText would cut in two: a column whose longest word or value
+    # needs more is given it, and the others share what is left (share_columns).
+    well_top = y
+    well_pad = px(space["m"])
+    y += well_pad
     gutter = px(space["m"])
-    column = (inner - 2 * gutter) // 3
-    label_h = max(measure("label", label, column, True)[1] for label, _ in vm["counts"])
-    value_h = max(measure("value", value, column, False)[1] for _, value in vm["counts"])
-    for index, (label, value) in enumerate(vm["counts"]):
-        x = left + index * (column + gutter)
+    available = inner - 2 * well_pad - 2 * gutter
+    needs = [max([measure("label", piece, available, False)[0] for piece in unbroken(label)]
+                 + [measure("value", value, available, False)[0]]) for label, value in vm["counts"]]
+    columns = share_columns(available, needs)
+    label_h = max(measure("label", label, column, True)[1] for (label, _), column in zip(vm["counts"], columns))
+    value_h = max(measure("value", value, column, False)[1] for (_, value), column in zip(vm["counts"], columns))
+    counts = []
+    x = left + well_pad
+    for index, ((label, value), column) in enumerate(zip(vm["counts"], columns)):
         if index:
             rule_x = x - gutter // 2
-            items.append({"kind": "rule", "rect": (rule_x, y + px(2), rule_x + max(1, px(1)),
-                                                   y + label_h + value_h)})
-        text((x, y, x + column, y + label_h), "label", label, "muted", wrap=True)
-        text((x, y + label_h + px(2), x + column, y + label_h + px(2) + value_h), "value", value, "ink")
-    y += label_h + px(2) + value_h + px(space["m"])
-    items.append({"kind": "rule", "rect": (left, y, right, y + max(1, px(1)))})
+            counts.append({"kind": "rule", "rect": (rule_x, y + px(2), rule_x + max(1, px(1)),
+                                                    y + label_h + value_h)})
+        counts.append({"kind": "text", "rect": (x, y, x + column, y + label_h), "role": "label", "text": label,
+                       "colour": "muted", "wrap": True, "align": "left", "target": None})
+        counts.append({"kind": "text", "rect": (x, y + label_h + px(2), x + column,
+                                                y + label_h + px(2) + value_h),
+                       "role": "value", "text": value, "colour": "ink", "wrap": False, "align": "left",
+                       "target": None})
+        x += column + gutter
+    y += label_h + px(2) + value_h + well_pad
+    items.append({"kind": "well", "rect": (left, well_top, right, y)})
+    items.extend(counts)
     y += px(space["m"])
 
     # The tasks, most urgent first.
@@ -832,9 +995,10 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
 
     quiet = vm["error"] or vm["empty"]
     if quiet:
+        # Nothing to list is said from a well: an empty field, not a tile with nothing on it.
         _, quiet_h = measure("body", quiet, inner - 2 * pad, True)
         block = quiet_h + 2 * pad
-        items.append({"kind": "panel", "rect": (left, y, right, y + block)})
+        items.append({"kind": "well", "rect": (left, y, right, y + block)})
         text((left + pad, y + pad, right - pad, y + pad + quiet_h), "body", quiet, "muted",
              wrap=True, align="center")
         y += block + px(space["s"])
@@ -921,6 +1085,7 @@ MONITOR_DEFAULTTONEAREST = 2
 TME_LEAVE = 0x2
 SPI_GETCLIENTAREAANIMATION = 0x1042
 SPI_GETHIGHCONTRAST, HCF_HIGHCONTRASTON = 0x0042, 0x1
+SPI_GETNONCLIENTMETRICS = 0x0029
 DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND = 33, 2
 # Windows 11 draws a hairline round a rounded popup in the app mode's colour unless told the
 # window is dark; 20 since Windows 10 20H1, 19 on the builds before it.
@@ -1016,6 +1181,21 @@ if os.name == "nt":
 
     class HIGHCONTRASTW(C.Structure):
         _fields_ = [("cbSize", W.UINT), ("dwFlags", W.DWORD), ("lpszDefaultScheme", W.LPWSTR)]
+
+    class LOGFONTW(C.Structure):
+        _fields_ = [("lfHeight", W.LONG), ("lfWidth", W.LONG), ("lfEscapement", W.LONG),
+                    ("lfOrientation", W.LONG), ("lfWeight", W.LONG), ("lfItalic", W.BYTE),
+                    ("lfUnderline", W.BYTE), ("lfStrikeOut", W.BYTE), ("lfCharSet", W.BYTE),
+                    ("lfOutPrecision", W.BYTE), ("lfClipPrecision", W.BYTE), ("lfQuality", W.BYTE),
+                    ("lfPitchAndFamily", W.BYTE), ("lfFaceName", W.WCHAR * 32)]
+
+    class NONCLIENTMETRICSW(C.Structure):
+        _fields_ = [("cbSize", W.UINT), ("iBorderWidth", C.c_int), ("iScrollWidth", C.c_int),
+                    ("iScrollHeight", C.c_int), ("iCaptionWidth", C.c_int), ("iCaptionHeight", C.c_int),
+                    ("lfCaptionFont", LOGFONTW), ("iSmCaptionWidth", C.c_int), ("iSmCaptionHeight", C.c_int),
+                    ("lfSmCaptionFont", LOGFONTW), ("iMenuWidth", C.c_int), ("iMenuHeight", C.c_int),
+                    ("lfMenuFont", LOGFONTW), ("lfStatusFont", LOGFONTW), ("lfMessageFont", LOGFONTW),
+                    ("iPaddedBorderWidth", C.c_int)]
 
 
 def _signature(function, result, *arguments):
@@ -1213,6 +1393,29 @@ def high_contrast() -> bool:
         return bool(info.dwFlags & HCF_HIGHCONTRASTON)
     except Exception:
         return False
+
+
+def message_face():
+    """The face of Windows' message font, or None when Windows cannot be asked.
+
+    The window's every font is a variant of this one (SystemFonts.MessageBoxFont reads the
+    same field), and the panel's `system-ui` resolves to it, so text set in it here is set in
+    the face the other two surfaces use: Segoe UI on an English Windows, Malgun Gothic -
+    by its Korean name - on a Korean one. Asked each time fonts are made; nothing is cached.
+    """
+    if os.name != "nt":
+        return None
+    try:
+        _declare()
+        metrics = NONCLIENTMETRICSW()
+        metrics.cbSize = C.sizeof(NONCLIENTMETRICSW)
+        if not _dll("user32").SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, metrics.cbSize,
+                                                    C.byref(metrics), 0):
+            return None
+        face = metrics.lfMessageFont.lfFaceName
+        return face if face and face.strip() else None
+    except Exception:
+        return None
 
 
 def system_rgb(name) -> tuple:
@@ -1585,9 +1788,10 @@ class _Fonts:
         self.key = (locale, scale)
         self.handles = {}
         self.faces = {}
+        system = message_face()                  # once for every role, so they cannot disagree
         try:
             for role, (_, weight) in ROLES.items():
-                candidates = font_candidates(locale, weight)
+                candidates = font_candidates(locale, weight, system)
                 face, actual = next(((name, value) for name, value in candidates if _face_exists(dc, name)),
                                     candidates[-1])
                 height = -max(1, int(round(role_size(role, locale) * scale)))
@@ -1685,18 +1889,25 @@ class Renderer:
         self.use(locale, scale)
         return layout(vm, scale, self.measure)
 
-    def draw(self, vm, plan, *, frame=None, hover=None, pressed=None, focus=None):
-        """One whole frame into the canvas. Returns the canvas."""
+    def draw(self, vm, plan, *, frame=None, hover=None, pressed=None, focus=None, glides=None):
+        """One whole frame into the canvas. Returns the canvas.
+
+        `glides` is {switch target: how far on, 0 to 1} for the switches part way through a
+        glide: those are left out of the cached ground and drawn over it where they are now.
+        """
         width, height = plan["size"]
         scale = plan["scale"]
         canvas = self.canvas
         canvas.ensure(width, height)
-        self._ground(plan, pressed)
+        glides = glides or {}
+        self._ground(plan, pressed, glides)
         busy = {item["target"] for item in plan["items"] if item.get("busy")}
         with _Painter(canvas) as paint:
             for item in plan["items"]:
                 if item["kind"] == "button":
                     self._button(paint, item, scale, hover, pressed)
+                elif item["kind"] == "switch" and item["target"] in glides:
+                    self._switch(paint, item, scale, on=glides[item["target"]])
         self._text(canvas.dc, plan, busy)
         if focus is not None:
             with _Painter(canvas) as paint:
@@ -1762,13 +1973,14 @@ class Renderer:
         """A button stands on the card unless it is pressed or busy."""
         return not item["busy"] and pressed != item["target"]
 
-    def _ground(self, plan, pressed):
+    def _ground(self, plan, pressed, glides=()):
         """Everything but the text, the buttons' faces and the halo: drawn once, then copied.
 
         The canvas, the card and its lift, the task rows, rules, chips, notes and switches, and
         the lift under each button. None of it changes on a one-second tick, so a tick costs a
         memory copy; hovering changes only a face. A press takes a button's lift away, so a
-        press is part of the key, and so is the theme every colour in it comes from.
+        press is part of the key, and so is the theme every colour in it comes from. A switch in
+        the middle of a glide is left out - its row's tile shows there - and drawn over the copy.
         """
         canvas, scale = self.canvas, plan["scale"]
         self._use_scale(scale)
@@ -1779,15 +1991,26 @@ class Renderer:
                 parts.append((kind, item["rect"], item["primary"], self._lifted(item, pressed)))
             elif kind not in ("text", "focusable", "halo"):
                 parts.append((kind, item["rect"], item.get("radius"), item.get("tone"), item.get("checked"),
-                              item.get("busy")))
+                              item.get("busy"), kind == "switch" and item["target"] in glides))
         key = (plan["size"], scale, self._theme(), self._system_key(), tuple(parts))
         if self._ground_key == key and self._ground_pixels is not None:
             C.memmove(canvas.bits, self._ground_pixels, len(self._ground_pixels))
             return
+        drawn = [item for item in plan["items"] if not (item["kind"] == "switch" and item["target"] in glides)]
         with _Painter(canvas) as paint:
             paint.fill_round((0, 0, canvas.width, canvas.height), 0, self._argb("canvas"))
-            for item in plan["items"]:
-                self._ground_item(paint, item, scale, pressed)
+            # The card, then every tile's lift, then everything that stands on the card: a tile's
+            # shadow falls on the card, and never over a tile drawn before it - the highlight above
+            # the second tile would otherwise lie across the bottom edge of the first.
+            for item in drawn:
+                if item["kind"] == "card":
+                    self._ground_item(paint, item, scale, pressed)
+            for item in drawn:
+                if item["kind"] == "panel":
+                    self._lift(paint, "tile", item["rect"], brand.RADII["control"] * scale, scale)
+            for item in drawn:
+                if item["kind"] != "card":
+                    self._ground_item(paint, item, scale, pressed)
         self._ground_pixels = canvas.pixels()
         self._ground_key = key
 
@@ -1805,10 +2028,21 @@ class Renderer:
             self._inner(paint, "card", rect, radius, scale)
             paint.stroke_round(rect, radius, self._argb("line"), hairline)
         elif kind == "panel":
-            # A task row is a tile, as in the panel: raised, a hairline, and no shadow of its own.
-            radius = brand.RADII["control"] * scale
-            paint.fill_round(item["rect"], radius, self._argb("raised"))
-            paint.stroke_round(item["rect"], radius, self._argb("line"), hairline)
+            # A task row is a tile, raised off the card (DEPTH): its lift is already under it (see
+            # _ground), then its ground - `raised`, a step brighter than the card's in dark - its top
+            # light and the hairline, which stays because a shadow alone is not an edge for everybody.
+            rect, radius = item["rect"], brand.RADII["control"] * scale
+            ground = self._argb("raised") if self.contrast else _pack(brand.rgb(tile_ground(self._theme())))
+            paint.fill_round(rect, radius, ground)
+            self._inner(paint, "tile", rect, radius, scale)
+            paint.stroke_round(rect, radius, self._argb("line"), hairline)
+        elif kind == "well":
+            # A value's field, sunken as the panel's are: the inset fill, the inset recipe inside the
+            # border, and the hairline.
+            rect, radius = item["rect"], brand.RADII["control"] * scale
+            paint.fill_round(rect, radius, self._argb("inset"))
+            self._well(paint, rect, radius, scale)
+            paint.stroke_round(rect, radius, self._argb("line"), hairline)
         elif kind == "rule":
             paint.fill_round(item["rect"], 0, self._argb("line"))
         elif kind in ("chip", "note"):
@@ -1862,7 +2096,7 @@ class Renderer:
         if self.contrast:
             return
         left, top, right, bottom = (int(value) for value in rect)
-        for shadow in reversed(brand.shadows(recipe, self._theme())):
+        for shadow in reversed(recipe_shadows(recipe, self._theme())):
             if shadow.inset:
                 continue
             image = self._image(lift_coverage(right - left, bottom - top, radius, shadow.blur * scale), shadow)
@@ -1875,7 +2109,7 @@ class Renderer:
         """A recipe's inset shadows inside a body's border, over its fill, as CSS paints them."""
         if self.contrast:
             return
-        inset = [shadow for shadow in reversed(brand.shadows(recipe, self._theme())) if shadow.inset]
+        inset = [shadow for shadow in reversed(recipe_shadows(recipe, self._theme())) if shadow.inset]
         if not inset:
             return
         border = int(max(1.0, round(scale)))
@@ -1893,24 +2127,34 @@ class Renderer:
         the bottom right; in dark, one soft shade along the inside of the top."""
         self._inner(paint, "inset", rect, radius, scale)
 
-    def _switch(self, paint, item, scale):
-        """The panel's switch: a well with a quiet knob when off, the accent with a white knob when on."""
+    def _switch(self, paint, item, scale, on=None):
+        """The panel's switch: a well with a quiet knob when off, the accent with a white knob when on.
+
+        `on` is how far on it is drawn, for a glide: the knob that far along its travel, the accent
+        faded in over the well by as much, and the knob's colour that far from off's to on's. None
+        draws it where it stands.
+        """
         left, top, right, bottom = rect = item["rect"]
         radius = (bottom - top) / 2.0
         faded = 0.5 if item["busy"] else 1.0              # busy: halfway into the row it sits on
         knob = int(round(brand.LAYOUT["knob"] * scale))
         knob_left = left + int(round(brand.LAYOUT["knob_inset"] * scale))
-        if item["checked"]:
-            paint.fill_round(rect, radius, self._argb("accent", faded))
-            knob_left += int(round(brand.LAYOUT["knob_travel"] * scale))
-            knob_token = "on_accent"
-        else:
+        amount = (1.0 if item["checked"] else 0.0) if on is None else max(0.0, min(1.0, float(on)))
+        off_knob = "ink" if self.contrast else "muted"
+        if amount < 1.0:
             paint.fill_round(rect, radius, self._argb("inset", faded))
             if not item["busy"]:
                 self._well(paint, rect, radius, scale)
             paint.stroke_round(rect, radius, self._argb("line", faded), max(1.0, round(scale)))
-            knob_token = "ink" if self.contrast else "muted"
-        paint.fill_circle(knob_left + knob / 2.0, (top + bottom) / 2.0, knob / 2.0, self._argb(knob_token, faded))
+        if amount > 0.0:
+            paint.fill_round(rect, radius, self._argb("accent", faded * amount))
+        knob_left += int(round(brand.LAYOUT["knob_travel"] * scale)) * amount
+        if amount in (0.0, 1.0):
+            colour = self._argb("on_accent" if amount else off_knob, faded)
+        else:
+            start, end = self._rgb(off_knob), self._rgb("on_accent")
+            colour = _pack(tuple(int(round(a + (b - a) * amount)) for a, b in zip(start, end)), faded)
+        paint.fill_circle(knob_left + knob / 2.0, (top + bottom) / 2.0, knob / 2.0, colour)
 
     def _button(self, paint, item, scale, hover, pressed):
         """A button's face. Its lift is in the ground; pressed, it sinks into a well instead."""
@@ -1959,14 +2203,18 @@ class Renderer:
             if arc is not None:
                 paint.arc(cx, cy, arc_radius, arc, light["arc_sweep"], colour, arc_width)
             return
-        fill = DOT_FILL.get(state, "idle")
-        if frame is not None:
-            paint.glow(cx, cy, brand.glow_radius(dot, frame["scale"]) * scale, brand.glow_stops(dot),
-                       self._rgb(fill), frame["opacity"])
-        paint.fill_circle(cx, cy, dot * scale, self._argb(fill))
+        self._light(paint, cx, cy, dot, scale, DOT_FILL.get(state, "idle"), frame)
         if arc is not None:
             paint.arc(cx, cy, arc_radius, arc, light["arc_sweep"], self._argb("active", light["arc_alpha"]),
                       arc_width)
+
+    def _light(self, paint, cx, cy, dot, scale, fill, frame):
+        """The dot and its glow for a brand.glow frame (None: off). Dimmed, the dot is its colour over the card."""
+        dim, opacity = (frame["dim"], frame["opacity"]) if frame is not None else (0.0, 0.0)
+        if opacity > 0:
+            paint.glow(cx, cy, brand.glow_radius(dot, frame["spread"]) * scale, brand.glow_stops(dot), self._rgb(fill),
+                       opacity)
+        paint.fill_circle(cx, cy, dot * scale, self._argb(fill, 1.0 - dim))
 
     def _text(self, dc, plan, busy):
         gdi32, user32 = _dll("gdi32"), _dll("user32")
@@ -2125,7 +2373,6 @@ class Popup:
         self._frame_running = False
         self._state = None
         self._state_since = time.monotonic()
-        self._epoch = time.monotonic()
         self._reduced = False
         self._contrast = False
         self._apps_light = None          # Windows' app mode when last asked: True, False or None
@@ -2135,6 +2382,8 @@ class Popup:
         self._strings = None
         self._static_dirty = True        # anything but the halo changed since the last frame
         self._origin = None
+        self._switches = None            # {target: checked} as last laid out while on screen
+        self._glides = {}                # {target: (started_ms, from, to)}: switches on the move
 
     # ------------------------------------------------------------------ lifecycle
     def create(self):
@@ -2182,6 +2431,7 @@ class Popup:
         self._plan = self._vm = None
         self._static_dirty = True
         self._framed_dark = None
+        self._switches, self._glides = None, {}
         if self._class:
             user32.UnregisterClassW(self._class, _dll("kernel32").GetModuleHandleW(None))
             self._class = None
@@ -2244,6 +2494,8 @@ class Popup:
             self.hidden_at = time.monotonic()
         self.hover = self.pressed = self.focus = None
         self._painted_plan = None
+        # A change made while it is closed is simply there when it opens again.
+        self._switches, self._glides = None, {}
 
     # ------------------------------------------------------------------- appearance
     def _read_look(self):
@@ -2389,7 +2641,28 @@ class Popup:
         plan = self._renderer.layout(vm, self.dpi / 96.0, self.locale)
         self._vm, self._plan = vm, plan
         self._static_dirty = True
+        self._follow_switches(plan)
         return plan
+
+    def _follow_switches(self, plan):
+        """Start a glide for each switch now drawn the other way from the last layout on screen."""
+        seen = {item["target"]: bool(item["checked"]) for item in plan["items"] if item["kind"] == "switch"}
+        previous = self._switches if self.visible else None
+        self._glides = next_glides(seen, previous, self._glides, time.monotonic() * 1000.0,
+                                   animate=self.visible and not self._reduced)
+        self._switches = seen if self.visible else None
+
+    def _glide_amounts(self):
+        """{target: how far on} for the switches still gliding; finished glides are let go."""
+        now = time.monotonic() * 1000.0
+        amounts = {}
+        for target, glide in list(self._glides.items()):
+            amount, done = glide_amount(glide, now)
+            if done:
+                del self._glides[target]
+            else:
+                amounts[target] = amount
+        return amounts
 
     def _update(self, now=None):
         if self.hwnd is None or self._renderer is None:
@@ -2412,7 +2685,8 @@ class Popup:
     def _sync_frames(self):
         user32 = _dll("user32")
         wanted = (self.visible and self._vm is not None
-                  and animates(self._vm["state"], self._since_state_ms(), reduced=self._reduced))
+                  and (bool(self._glides)
+                       or animates(self._vm["state"], self._since_state_ms(), reduced=self._reduced)))
         if wanted and not self._frame_running:
             user32.SetTimer(self.hwnd, TIMER_FRAME, FRAME_MS, None)
             self._frame_running = True
@@ -2421,11 +2695,11 @@ class Popup:
             self._frame_running = False
 
     def frame(self):
-        """The halo for this instant."""
+        """The halo for this instant, its cycle starting with its state, as the window's does."""
         if self._vm is None:
             return None
-        return halo(self._vm["state"], (time.monotonic() - self._epoch) * 1000.0,
-                    self._since_state_ms(), reduced=self._reduced)
+        since = self._since_state_ms()
+        return halo(self._vm["state"], since, since, reduced=self._reduced)
 
     def render(self):
         """Draw the current view into the canvas and return it (the tests read it back)."""
@@ -2436,10 +2710,15 @@ class Popup:
             # The halo band saved with the last whole frame is in the old colours.
             self._renderer.theme, self._renderer.contrast = look
             self._static_dirty = True
+        if self._glides:
+            # A switch on the move is drawn over the ground every frame, and the frame after its
+            # glide ends draws it back into the ground where it has come to rest.
+            self._static_dirty = True
         if self._static_dirty or self._renderer.halo_plan is not self._plan:
             self._static_dirty = False
             return self._renderer.draw(self._vm, self._plan, frame=self.frame(), hover=self.hover,
-                                       pressed=self.pressed, focus=self.focus if self.keyboard else None)
+                                       pressed=self.pressed, focus=self.focus if self.keyboard else None,
+                                       glides=self._glide_amounts())
         return self._renderer.draw_halo(self._plan, self.frame())
 
     def _invalidate(self):
@@ -2531,6 +2810,7 @@ class Popup:
             return 1
         if message == WM_TIMER:
             if wparam == TIMER_FRAME:
+                # A glide redraws the frame whole (render() sees it); the halo alone is a band.
                 self._sync_frames()
                 user32.InvalidateRect(hwnd, None, False)
             elif wparam == TIMER_TICK:

@@ -33,6 +33,18 @@ which ship with it. An on/off setting is a switch when it turns something that r
 off and a check box when it picks items of a list, as in the Windows Dashboard. A switch or a
 button at the right of a row is pinned to the row's bottom-right, beside the last line of the
 text it belongs to, as it is in the window and the notification-area popup.
+
+v0.6.5 made the last native piece its own. A select opened the browser's list - square, flat,
+system blue, a box from no card here - so every choice now opens the list the Windows Dashboard
+opens: a raised card in the cards' material with pill items, which is a WAI-ARIA combobox over the
+select, keys and screen readers included. The select stays underneath as the value, never shown.
+And controls move when they change, on brand's one time and one curve: a switch's knob glides and
+its track cross-fades, a check box fades its fill and mark, a list rises into place - none of it
+with less motion or in High Contrast, and a switch that asks first moves once it is answered.
+It also shows the Codex Compatibility Registry as the Dashboard's Diagnostics page does, folded and
+read-only (`renderCompatibility`): codes in, words out, and no way to refresh the data from here.
+Its tiles - a waiting task, the master switch - stand on their cards as the popup's task tiles do
+(`tile_elevation`), and a line of Korean breaks between words and one of Japanese between phrases.
 """
 from __future__ import annotations
 
@@ -55,22 +67,39 @@ _STYLE = r"""
   color-scheme: light dark;
   @LIGHT@
   @ELEVATION_LIGHT@
+  @TILE_LIGHT@
   @SCALE@
-  /* The glow's easing: a half-cosine, to within 0.002 of its phase, so a breath the stylesheet
-     draws is the same curve brand.glow() gives the window and the popup. */
+  /* The light's easing: half a raised cosine, to within 0.002 of each phase, so the cycle the
+     stylesheet draws is the same curve brand.glow() gives the window and the popup. */
   --glow-ease: cubic-bezier(.37, 0, .63, 1);
+  /* Every transition on the page takes brand's time and brand's one curve, --transition and
+     --transition-ease (MOTION, in the scale above): an ease-out, so a switch's knob, a check box's
+     mark and a list that opens leave at once and settle softly, as they do in the window and the
+     popup. */
   --font: system-ui, "Segoe UI Variable Text", "Segoe UI", "Malgun Gothic", "Yu Gothic UI",
           "Microsoft YaHei UI", "Microsoft JhengHei UI", sans-serif;
   --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { color-scheme: dark; @DARK@ @ELEVATION_DARK@ }
+  :root:not([data-theme="light"]) { color-scheme: dark; @DARK@ @ELEVATION_DARK@ @TILE_DARK@ }
 }
-:root[data-theme="dark"] { color-scheme: dark; @DARK@ @ELEVATION_DARK@ }
-:root[data-theme="light"] { color-scheme: light; @LIGHT@ @ELEVATION_LIGHT@ }
+:root[data-theme="dark"] { color-scheme: dark; @DARK@ @ELEVATION_DARK@ @TILE_DARK@ }
+:root[data-theme="light"] { color-scheme: light; @LIGHT@ @ELEVATION_LIGHT@ @TILE_LIGHT@ }
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
+/* A line breaks between words, never inside one, in the languages that set lines without hyphens.
+   Korean puts spaces between its words, so it breaks only there ('진단', never '진/단'). Japanese has
+   no spaces: keeping all its characters together would break it only at its commas and stops and
+   leave lines half empty, so it breaks between phrases where the engine knows them (auto-phrase) and
+   as before where it does not. Chinese is set breaking between any two characters, as it always was.
+   In all three a word longer than its whole line still breaks rather than run past the edge. The root
+   carries the page's language (applyLanguage); Latin text is set as it always was. */
+:root:lang(ko) { word-break: keep-all; }
+@supports (word-break: auto-phrase) {
+  :root:lang(ja) { word-break: auto-phrase; }
+}
+:root:lang(ko), :root:lang(ja), :root:lang(zh) { overflow-wrap: anywhere; }
 body { margin: 0; padding: var(--size-page-pad); background: var(--canvas); color: var(--ink);
        font: var(--type-body)/var(--lh-body) var(--font); -webkit-font-smoothing: antialiased; }
 h1, h2, h3, p, ul { margin: 0; }
@@ -110,47 +139,38 @@ button, select, input { font: inherit; }
 .hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .hero-actions > * { margin-top: 6px; }
 
-/* The status light: a flat dot, and a glow that says it is alive. The dot is the brand's
-   `active` cyan whenever the watcher runs with recovery on, whatever it is doing; the word
-   beside it and the motion tell those states apart. A light that is off - stopped, not known
-   to be running, or paused - keeps the grey it always had and has no glow at all, and amber is
-   for a watcher that runs and is not well.
+/* The status light: a flat dot that blinks the way the notification-area icon's head does. The
+   dot is the brand's `active` cyan whenever the watcher runs with recovery on, whatever it is
+   doing; the word beside it and the motion tell those states apart. A light that is off -
+   stopped, not known to be running, or paused - keeps the grey it always had and never moves,
+   and amber is for a watcher that runs and is not well.
 
-   The glow is a falloff, never a disc with an edge, and its numbers are brand's GLOW, the
-   ones the window and the notification-area popup draw with. Monitoring breathes slowly and
-   low; recovering a little quicker and brighter; waiting holds still; a problem pulses once,
-   when it is first shown, and then holds - nothing here blinks for attention it already has. */
+   The motion is brand's GLOW, the cycle the window and the notification-area popup draw: the
+   dot dims toward the card and comes back with nothing spreading (glow-dot), and only then, lit,
+   a small glow spreads from its edge and draws back in (glow-spread) - a falloff, never a disc
+   with an edge. Monitoring runs it slowly and recovering faster; a problem runs it once, when it
+   is first shown, and then holds lit; waiting and checking hold lit with no glow - nothing here
+   blinks for attention it already has. */
 .halo { --halo-color: var(--idle); position: relative; flex: none; width: 12px; height: 12px;
         border-radius: 50%; background: var(--halo-color); }
 .halo::before { content: none; position: absolute; inset: calc(-1 * var(--glow-reach));
-                border-radius: 50%; pointer-events: none; opacity: var(--glow-still);
+                border-radius: 50%; pointer-events: none; opacity: 0; transform: scale(var(--glow-from));
                 background: radial-gradient(circle closest-side,
-                  var(--halo-color) var(--glow-edge),
+                  color-mix(in srgb, var(--halo-color) var(--glow-edge-mix), transparent) var(--glow-edge),
                   color-mix(in srgb, var(--halo-color) var(--glow-near-mix), transparent) var(--glow-near),
                   color-mix(in srgb, var(--halo-color) var(--glow-far-mix), transparent) var(--glow-far),
                   transparent var(--glow-outer)); }
 .halo.monitoring, .halo.waiting, .halo.checking, .halo.recovering { --halo-color: var(--active); }
 .halo.attention { --halo-color: var(--attention); }
 .halo.paused { --halo-color: var(--paused); }
-.halo.monitoring::before, .halo.waiting::before, .halo.checking::before, .halo.recovering::before,
-.halo.attention::before { content: ""; }
-.halo.monitoring::before { opacity: var(--glow-monitoring-rest);
-                           animation: glow-monitoring var(--glow-monitoring-ms) var(--glow-ease) infinite; }
-.halo.recovering::before { opacity: var(--glow-recovering-rest);
-                           animation: glow-recovering var(--glow-recovering-ms) var(--glow-ease) infinite; }
-.halo.attention.once::before { animation: glow-attention var(--glow-attention-ms) var(--glow-ease) 1; }
-@keyframes glow-monitoring {
-  0%, 100% { opacity: var(--glow-monitoring-low); transform: scale(var(--glow-monitoring-scale-low)); }
-  50% { opacity: var(--glow-monitoring-high); transform: scale(var(--glow-monitoring-scale-high)); }
-}
-@keyframes glow-recovering {
-  0%, 100% { opacity: var(--glow-recovering-low); transform: scale(var(--glow-recovering-scale-low)); }
-  50% { opacity: var(--glow-recovering-high); transform: scale(var(--glow-recovering-scale-high)); }
-}
-@keyframes glow-attention {
-  0%, 100% { opacity: var(--glow-still); }
-  50% { opacity: var(--glow-attention-peak); }
-}
+.halo.monitoring::before, .halo.recovering::before, .halo.attention::before { content: ""; }
+.halo.monitoring { animation: glow-dot var(--glow-monitoring-ms) var(--glow-ease) infinite; }
+.halo.monitoring::before { animation: glow-spread var(--glow-monitoring-ms) var(--glow-ease) infinite; }
+.halo.recovering { animation: glow-dot var(--glow-recovering-ms) var(--glow-ease) infinite; }
+.halo.recovering::before { animation: glow-spread var(--glow-recovering-ms) var(--glow-ease) infinite; }
+.halo.attention.once { animation: glow-dot var(--glow-attention-ms) var(--glow-ease) 1; }
+.halo.attention.once::before { animation: glow-spread var(--glow-attention-ms) var(--glow-ease) 1; }
+@GLOW_KEYFRAMES@
 
 /* Controls rest on the card; values sit in wells. */
 button { min-height: var(--size-button-height); padding: var(--size-button-pad);
@@ -158,7 +178,8 @@ button { min-height: var(--size-button-height); padding: var(--size-button-pad);
          border: 1px solid var(--line); background: var(--raised); color: var(--ink);
          box-shadow: var(--elev-control); font-weight: 500; line-height: 20px; cursor: pointer;
          transition: background-color var(--transition), border-color var(--transition),
-                     box-shadow var(--transition), color var(--transition); }
+                     box-shadow var(--transition), color var(--transition);
+         transition-timing-function: var(--transition-ease); }
 button:hover:not([disabled]) { background: var(--surface); }
 button:active:not([disabled]) { background: var(--inset); box-shadow: var(--elev-inset); }
 button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
@@ -175,34 +196,111 @@ button[disabled] { background: var(--surface); border-color: var(--line); color:
 :focus { outline: none; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-select, input[type=number] { min-height: var(--size-field-height); padding: 6px 12px; color: var(--ink);
+.combo-box, input[type=number] { min-height: var(--size-field-height); padding: 6px 12px; color: var(--ink);
         background-color: var(--inset); border: 1px solid var(--line);
         border-radius: var(--radius-control); box-shadow: var(--elev-inset);
-        transition: border-color var(--transition), box-shadow var(--transition); }
-select { appearance: none; -webkit-appearance: none; max-width: 100%; min-width: 0;
-         padding: var(--size-select-pad); cursor: pointer; text-overflow: ellipsis;
-         background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
-                           linear-gradient(135deg, var(--muted) 50%, transparent 50%);
-         background-position: calc(100% - var(--size-chevron-right) - var(--size-chevron-height)) 55%,
-                              calc(100% - var(--size-chevron-right)) 55%;
-         background-size: var(--size-chevron-height) var(--size-chevron-height);
-         background-repeat: no-repeat; }
-select option { background-color: var(--surface); color: var(--ink); }
+        transition: border-color var(--transition), box-shadow var(--transition);
+        transition-timing-function: var(--transition-ease); }
 input[type=number] { width: var(--size-number-width); text-align: right; font-variant-numeric: tabular-nums; }
-/* Opacity 1 is said, not left out: the browser's own stylesheet fades a disabled select to 0.7,
-   `appearance: none` or not, and muted text at 0.7 fell to about 3:1 in light. */
-select:disabled, input[type=number]:disabled { background-color: var(--surface); box-shadow: none;
+/* Opacity 1 is said, not left out: the browser's own stylesheet fades a disabled field to 0.7,
+   and muted text at 0.7 fell to about 3:1 in light. */
+.combo-box[aria-disabled="true"], input[type=number]:disabled { background-color: var(--surface); box-shadow: none;
                                                color: var(--muted); cursor: default; opacity: 1; }
 
+/* A drop-down is the page's own, never the browser's: the list a native select opens is a
+   square, flat, system-blue box that belongs to no card here, so every choice opens the list the
+   Windows Dashboard opens (SoftDropList) - the same list, by the same numbers, on this page's type.
+   The select stays in the page, hidden, as the value the rest of the page reads and the `change`
+   it listens to; the combobox beside it is what is seen, focused and read out.
+
+   The field is the well a value sits in, with brand's wedge on the right. The list is a card: the
+   card's ground, hairline, radius and lift, the soft shadow spilling outside it (in dark, its light
+   top edge), SPACING xs under the field - over it where there is no room below. It starts a pad
+   (SPACING s) left of the field and is at least a pad wider on each side, so each item's pill starts
+   where the field does and its words start under the field's; it is wider only where its words need
+   it, and never wider than the page.
+
+   Its items are pills a pad in from the card's edge and SPACING xs apart, each the field's line with
+   a pad above and below, set as the field is set, words the field's padding in, RADII small. The
+   current value is sunken, in the accent; under the pointer an item rises, the control's lift - not
+   the current one, which stays sunken, and not while the keyboard leads; the item the keyboard is on
+   carries the focus ring every control has, in the room kept around the items for it. The field
+   gives its own ring up while its list is open, so the ring is where the keyboard is.
+
+   It shows twelve rows whole - every list here has fewer, so none scrolls - and a longer list, or one
+   cut to the room there is, scrolls inside the card's padding and not at its edge, a whole row at a
+   time, on the window's soft bar. It rises a few pixels into place as it fades in, and closes at once. */
+.combo { position: relative; display: block; width: 100%; min-width: 0;
+         --combo-line: 20px; --combo-words: @SELECT_PAD_LEFT@;
+         --combo-pill: calc(var(--combo-line) + 2 * var(--space-s)); }
+.combo-box { position: relative; display: flex; align-items: center; width: 100%; min-width: 0;
+             padding: var(--size-select-pad); line-height: var(--combo-line); cursor: pointer; }
+.combo-box[aria-expanded="true"] { outline: none; }
+.combo-value { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.combo-box::after { content: ""; position: absolute; right: var(--size-chevron-right);
+                    top: calc(55% - var(--size-chevron-height) * .55);
+                    width: var(--size-chevron-width); height: var(--size-chevron-height);
+                    background: var(--muted); clip-path: polygon(0 0, 100% 0, 50% 100%); pointer-events: none; }
+.combo-list { position: absolute; z-index: 3; top: calc(100% + var(--space-xs)); left: calc(-1 * var(--space-s));
+              width: max-content; min-width: calc(100% + 2 * var(--space-s));
+              padding: calc(var(--space-s) - var(--space-xs) - var(--size-hairline));
+              background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card);
+              box-shadow: var(--elev-card);
+              animation: combo-rise var(--transition) var(--transition-ease); }
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .combo-list { background: var(--card-ground); }
+}
+.combo-list.up { top: auto; bottom: calc(100% + var(--space-xs)); }
+@keyframes combo-rise {
+  from { opacity: 0; transform: translateY(var(--space-xs)); }
+}
+/* What scrolls, inside the card's padding: SPACING xs of room around the items for the ring, which
+   with the card's hairline and padding is the window's pad. */
+.combo-scroll { position: relative; display: grid; gap: var(--space-xs); padding: var(--space-xs);
+                max-height: calc(2 * var(--space-xs) + 12 * var(--combo-pill) + 11 * var(--space-xs));
+                overflow-y: auto; overscroll-behavior: contain;
+                scroll-snap-type: y mandatory; scroll-padding: var(--space-xs) 0; }
+.combo-option { display: block; min-width: 0; padding: calc(var(--space-s) - var(--size-hairline)) var(--combo-words);
+                border-radius: var(--radius-small); border: 1px solid transparent; color: var(--ink);
+                line-height: var(--combo-line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                scroll-snap-align: start; cursor: pointer;
+                transition: background-color var(--transition), box-shadow var(--transition),
+                            color var(--transition), border-color var(--transition);
+                transition-timing-function: var(--transition-ease); }
+.combo-list:not(.keys) .combo-option:not([aria-selected="true"]):hover { background: var(--raised);
+                border-color: var(--line); box-shadow: var(--elev-control); }
+.combo-option[aria-selected="true"] { background: var(--inset); border-color: var(--line);
+                                      box-shadow: var(--elev-inset); color: var(--accent); }
+.combo-list.keys .combo-option.active { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* The soft bar a long list scrolls on, the window's SoftBar: a well 12 across, a pad from the card's
+   top and bottom and SPACING xs from its right, and in it a raised pill 2 inside the well, never
+   shorter than 32. */
+.combo-scroll::-webkit-scrollbar { width: var(--space-m); }
+.combo-scroll::-webkit-scrollbar-track { margin: var(--space-xs) 0; background: var(--inset);
+                                         border: 1px solid var(--line); border-radius: 999px; }
+.combo-scroll::-webkit-scrollbar-thumb { min-height: var(--space-xxl); background: var(--raised);
+                                         background-clip: padding-box; border: 2px solid transparent;
+                                         border-radius: 999px; box-shadow: inset 0 0 0 1px var(--line); }
+.combo-scroll::-webkit-scrollbar-thumb:hover { box-shadow: inset 0 0 0 1px var(--muted); }
+@supports not selector(::-webkit-scrollbar) {
+  .combo-scroll { scrollbar-width: thin; scrollbar-color: var(--line) var(--inset); }
+}
+
+/* A switch glides: the knob slides end to end and settles, and the track cross-fades from the
+   grey well to the accent and back - brand's time on brand's curve, and nothing but paint. A check box fades its fill and its mark in the same time. With less motion or in
+   High Contrast the change is immediate (see the two blocks at the end). */
 input.switch { appearance: none; -webkit-appearance: none; position: relative; flex: none;
                width: var(--size-switch-width); height: var(--size-switch-height); margin: 0;
                border-radius: 999px; cursor: pointer;
                background: var(--inset); border: 1px solid var(--line); box-shadow: var(--elev-inset);
-               transition: background-color var(--transition), border-color var(--transition); }
+               transition: background-color var(--transition), border-color var(--transition),
+                           box-shadow var(--transition);
+               transition-timing-function: var(--transition-ease); }
 input.switch::before { content: ""; position: absolute; top: calc(var(--size-knob-inset) - var(--size-hairline));
                        left: calc(var(--size-knob-inset) - var(--size-hairline)); width: var(--size-knob);
                        height: var(--size-knob); border-radius: 50%; background: var(--muted);
-                       transition: transform var(--transition), background-color var(--transition); }
+                       transition: transform var(--transition), background-color var(--transition);
+                       transition-timing-function: var(--transition-ease); }
 input.switch:checked { background: var(--accent); border-color: var(--accent); box-shadow: none; }
 input.switch:checked::before { transform: translateX(var(--size-knob-travel)); background: var(--on-accent); }
 /* A switch carries no text, so it may still fade. */
@@ -220,13 +318,20 @@ input.check { appearance: none; -webkit-appearance: none; position: relative; fl
               border-radius: var(--radius-check); cursor: pointer;
               background: var(--check-off-fill); border: var(--size-hairline) solid var(--check-off-edge);
               box-shadow: var(--check-off-elev);
-              transition: background-color var(--transition), border-color var(--transition); }
+              transition: background-color var(--transition), border-color var(--transition),
+                          box-shadow var(--transition);
+              transition-timing-function: var(--transition-ease); }
+/* The mark fades rather than blinks: its opacity eases, and it stays visible until a fade out has
+   finished (a visibility transition keeps `visible` for its whole length). */
 input.check::before { content: ""; position: absolute; inset: calc(-1 * var(--size-hairline));
                       clip-path: var(--check-mark-shape); background: var(--check-on-mark);
-                      visibility: hidden; }
+                      opacity: 0; visibility: hidden;
+                      transition: opacity var(--transition), visibility var(--transition),
+                                  background-color var(--transition);
+                      transition-timing-function: var(--transition-ease); }
 input.check:checked { background: var(--check-on-fill); border-color: var(--check-on-edge);
                       box-shadow: var(--check-on-elev); }
-input.check:checked::before { visibility: visible; }
+input.check:checked::before { opacity: 1; visibility: visible; }
 input.check:disabled { background: var(--check-off-disabled-fill); border-color: var(--check-off-disabled-edge);
                        box-shadow: var(--check-off-disabled-elev); cursor: default; }
 input.check:checked:disabled { background: var(--check-on-disabled-fill);
@@ -257,7 +362,7 @@ label.setting { cursor: pointer; }
 .setting-label { font-weight: 500; }
 .setting-control { flex: 0 1 auto; display: flex; min-width: 0; max-width: 100%; margin-left: auto; }
 .has-select .setting-control { flex: 0 1 280px; }
-.has-select select { width: 100%; }
+.has-select .combo { width: 100%; }
 .setting.stack { display: grid; grid-template-columns: minmax(0, 1fr); justify-content: stretch; gap: 8px; }
 .card > h2 + *, .card-head + * { margin-top: var(--size-card-first-gap); }
 
@@ -266,9 +371,12 @@ label.setting { cursor: pointer; }
 .toggles .setting { flex-wrap: nowrap; }
 .toggles.quiet .setting-label { color: var(--muted); }
 
+/* A tile - the master switch's here, a waiting task's below - stands on its card as the popup's task
+   tiles do: the `raised` ground, the hairline, and --elev-tile, which is brand's control lift and, in
+   dark, where a drop alone does not show at a tile's size, the dark card's one-pixel top light. */
 .master { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 10px 0 6px;
           padding: var(--size-tile-pad); background: var(--raised); border: 1px solid var(--line);
-          border-radius: var(--radius-control); }
+          border-radius: var(--radius-control); box-shadow: var(--elev-tile); }
 /* What the tile says - the state, and under it what the last press answered - is one block, and
    the button is pinned to the tile's bottom-right beside it (see .setting). */
 .master-body { flex: 1 1 200px; display: grid; gap: 4px; min-width: 0; }
@@ -288,7 +396,8 @@ label.setting { cursor: pointer; }
                 border-radius: var(--radius-control); border: 1px solid var(--line);
                 background: var(--raised); box-shadow: var(--elev-control);
                 transition: background-color var(--transition), box-shadow var(--transition),
-                            color var(--transition), border-color var(--transition); }
+                            color var(--transition), border-color var(--transition);
+                transition-timing-function: var(--transition-ease); }
 .segment input:hover:not(:disabled) + span { background: var(--surface); }
 .segment input:checked + span { background: var(--inset); box-shadow: var(--elev-inset);
                                 color: var(--accent); border-color: var(--accent); font-weight: 600; }
@@ -302,7 +411,8 @@ details.fold > summary { display: flex; align-items: center; justify-content: sp
 details.fold > summary::-webkit-details-marker { display: none; }
 .chevron { flex: none; width: var(--size-fold-chevron); height: var(--size-fold-chevron); margin-right: 6px;
            border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
-           transform: translateY(-2px) rotate(45deg); transition: transform var(--transition); }
+           transform: translateY(-2px) rotate(45deg);
+           transition: transform var(--transition) var(--transition-ease); }
 details.fold:not([open]) > summary .chevron { transform: rotate(-45deg); }
 details.card.fold { padding: 0; }
 details.card.fold > summary { padding: var(--size-card-pad); border-radius: var(--radius-card); }
@@ -313,13 +423,28 @@ details.inner > summary { padding: 12px 0; border-radius: var(--radius-small); }
 details.inner > summary h3 { font-size: var(--type-body); font-weight: 600; }
 details.inner > .fold-body { padding-bottom: 2px; }
 details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
+/* What a folded card says while it is folded - the Codex compatibility card's overall word - rides
+   beside its chevron, at the right of the title. */
+.fold-end { display: flex; flex: none; align-items: center; gap: var(--space-s); }
+
+/* The Codex compatibility card (v0.6.5): the parts the product relies on, as settings rows are drawn
+   - a hairline between each two, the state as a chip at the end of the row - as the window's
+   Diagnostics page lists them too. One column: at the panel's width two columns wrapped most names
+   onto a second line, where the window's wider page keeps them on one. Read-only. */
+.compat-meta { margin-top: var(--space-xs); }
+.compat-rows { list-style: none; padding: 0; margin: var(--space-s) 0 0; grid-template-columns: minmax(0, 1fr); }
+.compat-rows .setting { flex-wrap: nowrap; }
+.compat-state { flex: none; }
+.compat-legend { display: grid; gap: var(--space-xs); margin-top: var(--space-m); }
+.compat .callout { margin: var(--space-m) 0 0; }
+.compat-refresh { margin-top: var(--space-m); }
 
 /* What is waiting, as soft rows rather than a table. Wide content wraps inside its row;
    the panel itself never scrolls sideways. */
 .prows { list-style: none; padding: 0; display: grid; gap: var(--size-tile-gap); }
 .prow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-width: 0;
         padding: var(--size-tile-pad); background: var(--raised); border: 1px solid var(--line);
-        border-radius: var(--radius-control); }
+        border-radius: var(--radius-control); box-shadow: var(--elev-tile); }
 .prow-main { flex: 1 1 220px; min-width: 0; display: grid; gap: 3px; }
 .prow-title { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
 .prow-name { font-weight: 600; min-width: 0; max-width: 100%; overflow: hidden;
@@ -370,7 +495,7 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
 .bubble { margin-top: 10px; padding: var(--size-well-pad); border-radius: var(--radius-control);
           background: var(--inset); border: 1px solid var(--line); box-shadow: var(--elev-inset); }
 .bubble-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: var(--lh-bubble);
-               transition: opacity var(--transition); }
+               transition: opacity var(--transition) var(--transition-ease); }
 .bubble[aria-busy="true"] .bubble-text { opacity: .55; }
 .bubble.unavailable .bubble-text { color: var(--muted); }
 .skeleton { display: block; height: var(--size-skeleton-height); margin: 6px 0;
@@ -406,30 +531,47 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
   .segmented { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* A person who asked Windows for less motion gets none: every glow holds still at its resting
-   strength - the opacity each state's rule above already sets - and nothing slides. */
+/* A person who asked Windows for less motion gets none: every light holds lit with no glow,
+   nothing slides, a switch or a check box simply changes, and a list simply appears. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
-  .halo::before { transform: none; }
+  .halo::before { display: none; }
 }
 
 /* Windows High Contrast. The browser puts the person's system colours in place of the palette
    and takes every shadow away - and it would paint the light over with the page's ground,
    and the switch's knob with it. So those keep a solid system colour of their own: Highlight
    while something is watched, the text colour for a problem, grey when the light is off. No
-   glow: a soft falloff is exactly what High Contrast is asked to remove. */
+   glow: a soft falloff is exactly what High Contrast is asked to remove.
+
+   And no motion, whatever Windows' animation setting says: High Contrast is less motion, as the
+   window counts it (Soft.ReduceMotion) - a list simply appears, an item simply changes, and a switch
+   or a check box simply changes. */
 @media (forced-colors: active) {
-  .card, .savebar, button, select, input, .segment span, .bubble { box-shadow: none; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .card, .savebar, button, select, input, .segment span, .bubble,
+  .combo-box, .combo-list, .combo-option, .master, .prow { box-shadow: none; }
   .halo, .dot, .halo.paused, .dot.paused { forced-color-adjust: none; background: GrayText; }
   .halo.monitoring, .halo.waiting, .halo.checking, .halo.recovering, .dot.on { background: Highlight; }
   .halo.attention { background: CanvasText; }
   .halo::before { display: none; }
-  /* The chevron is a gradient, which forced colours remove; the system's own arrow replaces it. */
-  select { appearance: auto; -webkit-appearance: auto; }
+  /* The wedge is a clipped fill, which forced colours would paint the page's ground: it keeps the
+     text colour. */
+  .combo-box::after { forced-color-adjust: none; background: CanvasText; }
+  .combo-box[aria-disabled="true"]::after { background: GrayText; }
+  /* The list's items opt out for the same reason as the check box, so each draws itself in system
+     colours: the current value in Highlight, the item under the pointer edged in it, and the item
+     the keyboard is on ringed in it. */
+  .combo-option { forced-color-adjust: none; background: Canvas; color: CanvasText; border-color: Canvas; }
+  .combo-list:not(.keys) .combo-option:not([aria-selected="true"]):hover { background: Canvas;
+                border-color: Highlight; box-shadow: none; }
+  .combo-option[aria-selected="true"] { background: Highlight; color: HighlightText; border-color: Highlight;
+                                        box-shadow: none; }
+  .combo-list.keys .combo-option.active { outline-color: Highlight; }
   input.switch::before { forced-color-adjust: none; background: CanvasText; }
   input.switch:checked { forced-color-adjust: none; background: Highlight; border-color: Highlight; }
   input.switch:checked::before { background: HighlightText; }
-  button[disabled], select:disabled, input:disabled, .segment input:disabled + span {
+  button[disabled], .combo-box[aria-disabled="true"], input:disabled, .segment input:disabled + span {
     color: GrayText; border-color: GrayText; }
   /* The check box keeps brand's system colours (CHECKBOX_SYSTEM) for the same reason as the knob:
      left to forced colours, the layer its mark is cut from is painted the page's ground. It opts
@@ -446,6 +588,23 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
 }
 """
 
+
+def css_shadow(shadow) -> str:
+    """One of brand's Shadows as CSS, word for word as brand.css_elevation writes it."""
+    return "%s%s %s %s color-mix(in srgb, var(--%s) %d%%, transparent)" % (
+        "inset " if shadow.inset else "", brand._css_length(shadow.dx), brand._css_length(shadow.dy),
+        brand._css_length(shadow.blur), shadow.token.replace("_", "-"), int(round(shadow.alpha * 100)))
+
+
+def tile_elevation(theme) -> str:
+    """`--elev-tile` for one theme: how a tile - a waiting task's row, the master switch's - stands on
+    its card. It is the popup's raised task tile (tray_popup.DEPTH), made of brand's recipes the same
+    way: brand's control lift and, where brand's card has one (dark), the card's inset top light, the
+    one-pixel edge a drop alone cannot give a tile on a dark card at this size."""
+    top_light = [shadow for shadow in brand.shadows("card", theme) if shadow.inset]
+    return "--elev-tile: %s;" % ", ".join(["var(--elev-control)"] + [css_shadow(shadow) for shadow in top_light])
+
+
 # Resolved once, at import: the palette is a build-time fact, not a per-request one. The lift
 # of a surface is brand's SHADOWS written as CSS - the recipe the window and the popup paint
 # from - so this page states no shadow of its own.
@@ -453,7 +612,12 @@ _STYLE = (_STYLE.replace("@LIGHT@", brand.css_variables(brand.LIGHT))
                 .replace("@DARK@", brand.css_variables(brand.DARK))
                 .replace("@ELEVATION_LIGHT@", brand.css_elevation("light"))
                 .replace("@ELEVATION_DARK@", brand.css_elevation("dark"))
-                .replace("@SCALE@", brand.css_scale()))
+                .replace("@TILE_LIGHT@", tile_elevation("light"))
+                .replace("@TILE_DARK@", tile_elevation("dark"))
+                .replace("@SCALE@", brand.css_scale())
+                .replace("@GLOW_KEYFRAMES@", brand.css_glow_keyframes())
+                # Where a drop-down's words start, in its field and in its list: the field's own padding.
+                .replace("@SELECT_PAD_LEFT@", "%gpx" % brand.padding("select_pad")[3]))
 
 _SCRIPT = r"""
 // The widget bridge is whatever the host provides. Try the documented shape first,
@@ -493,6 +657,14 @@ var HOOKS = {};
 var LAST_STATE = '';
 // The pending row whose "turn off" is being confirmed, by its exact interruption id.
 var CONFIRM_ROW = '';
+// What each pending row's switch showed when the page was last drawn, by interruption id - the
+// drawing before this one in WAS, this one's in SHOWN - and the switches to move once drawn.
+// A conversation's switch changes only when a tool has confirmed the change, and that answer
+// arrives with a redraw: a switch drawn already moved would jump, so it is drawn where it was and
+// glides from there (glide()).
+var WAS = {};
+var SHOWN = {};
+var GLIDES = [];
 var PREVIEW = {reason: '', nodes: null, last: null, asking: ''};
 // The settings whose unsaved value changes the Preview.
 var PREVIEW_FIELDS = ['interface_language', 'continuation_language', 'continuation_style',
@@ -563,6 +735,16 @@ function applyTheme(root, settings, pinned) {
   var stamp = themeStamp((settings || {}).theme);
   if (stamp) root.setAttribute('data-theme', stamp);
   else root.removeAttribute('data-theme');
+}
+
+// The language the words are in, on the root: the stylesheet breaks a line of Korean between words and
+// one of Japanese between phrases by it, and a screen reader reads each language in its own voice. Set on
+// every draw (render), because a saved Interface language draws the page again in that language; none
+// when the page has no locale to name.
+function applyLanguage(root, locale) {
+  if (!root || typeof root.setAttribute !== 'function') return;
+  if (typeof locale === 'string' && locale) root.setAttribute('lang', locale);
+  else root.removeAttribute('lang');
 }
 
 // The stored appearance and language, applied to the page in place. True when the words changed.
@@ -780,15 +962,23 @@ function card(title, extra) {
   return node;
 }
 
-// A section whose body folds away. Whether it is open survives a redraw.
-function folding(key, title, openByDefault, kind) {
+// A section whose body folds away. Whether it is open survives a redraw. `aside`, when given, is what
+// the section says while it is folded - beside the chevron, at the right of the title.
+function folding(key, title, openByDefault, kind, aside) {
   var node = element('details', kind === 'inner' ? 'fold inner' : 'card fold');
   node.open = Object.prototype.hasOwnProperty.call(OPEN, key) ? OPEN[key] : openByDefault;
   var summary = element('summary');
   summary.appendChild(element(kind === 'inner' ? 'h3' : 'h2', null, title));
   var chevron = element('span', 'chevron');
   chevron.setAttribute('aria-hidden', 'true');
-  summary.appendChild(chevron);
+  if (aside) {
+    var end = element('span', 'fold-end');
+    end.appendChild(aside);
+    end.appendChild(chevron);
+    summary.appendChild(end);
+  } else {
+    summary.appendChild(chevron);
+  }
   node.appendChild(summary);
   node.addEventListener('toggle', function () { OPEN[key] = node.open; });
   var body = element('div', 'fold-body');
@@ -842,7 +1032,328 @@ function settingRow(title, help, control, className) {
   var box = element('div', 'setting-control');
   box.appendChild(control);
   row.appendChild(box);
-  return {row: row, help: helpNode};
+  return {row: row, help: helpNode, label: name};
+}
+
+// A drop-down: a select, and the list this page opens for it (`.combo` in the stylesheet says why
+// the list is the page's own, and that it is the Windows Dashboard's list).
+//
+// The select stays in the page, hidden, and is still the value: EDITORS read it, the page listens
+// to its `change`, and picking from the list sets it and fires that `change`, so nothing that reads
+// a choice knows the list exists. Nothing can open the browser's own list: the select is never
+// shown, never focused and never reached by Tab.
+//
+// What is seen, focused and read out is a combobox, as the WAI-ARIA pattern for a select-only
+// combobox has it: `aria-expanded` while its list is open, `aria-activedescendant` naming the item
+// the keyboard is on - focus itself never leaves the combobox - and a listbox of options, the
+// current value's `aria-selected`. The listbox is the card; what scrolls inside it says nothing of
+// its own. Its keys are the pattern's and the window's list's (SoftCombo) together:
+//   closed  Down, Up, Enter, Space, F4, Alt+Down and Alt+Up open the list on the current value;
+//           Home and End open it on the first and the last item, Page Up and Page Down a page along;
+//           a letter opens it on the next item whose name begins with it;
+//   open    Up, Down, Home, End, Page Up and Page Down move - a page is what shows, less one row, as
+//           in the window; Enter, Space, F4, Alt+Up and Alt+Down pick and close; Tab picks and moves
+//           on; Escape closes and changes nothing; Left and Right do nothing; a letter finds.
+// Letters typed within a second of each other are one search, the window's TypeAhead, measured
+// between the keys' own time stamps, so nothing here ticks. The search is the window's
+// (SoftCombo.Find): a first letter looks from the item after the one the keyboard is on, round to
+// the start, and the same letter again steps on through the items it begins; a longer search keeps
+// the item the keyboard is on while that still matches, so a word typed through goes to its item and
+// stays there.
+//
+// The pointer: a press on the field opens or closes the list, a press on an item picks it. The
+// pointer moving over an item moves the keyboard's item there - shown by the item rising rather than
+// by the ring - so Enter takes the item under the pointer, as in the window; a move the browser makes
+// up for a pointer that stood still while the list appeared or scrolled under it leaves the keyboard
+// where it is. A press anywhere else, the page losing focus - to another window, or to Codex itself -
+// and Tab away all close it, since each takes focus from the combobox; only Tab picks on the way. A
+// press inside the list keeps focus where it is. The wheel scrolls a long list, a row at a time, and
+// stops at its ends rather than carrying on into the page.
+var COMBO_ROWS = 12;
+var COMBO_TYPING_MS = 1000;
+
+function combo(select) {
+  var id = select.id;
+  var wrap = element('div', 'combo');
+  select.hidden = true;
+  select.setAttribute('tabindex', '-1');
+  select.setAttribute('aria-hidden', 'true');
+  wrap.appendChild(select);
+  var box = element('div', 'combo-box');
+  box.id = id + '-box';
+  box.setAttribute('role', 'combobox');
+  box.setAttribute('aria-haspopup', 'listbox');
+  box.setAttribute('aria-expanded', 'false');
+  box.setAttribute('aria-controls', id + '-list');
+  var shown = element('span', 'combo-value');
+  box.appendChild(shown);
+  wrap.appendChild(box);
+  var list = element('div', 'combo-list');
+  list.id = id + '-list';
+  list.setAttribute('role', 'listbox');
+  list.setAttribute('tabindex', '-1');
+  list.hidden = true;
+  var scroll = element('div', 'combo-scroll');
+  scroll.setAttribute('role', 'none');
+  list.appendChild(scroll);
+  wrap.appendChild(list);
+  var items = [];
+  var expanded = false;
+  var active = 0;
+  var typed = '';
+  var typedAt = -Infinity;
+  // Where the pointer last moved to, on the screen.
+  var pointer = null;
+
+  Array.prototype.forEach.call(select.options, function (option, index) {
+    var item = element('div', 'combo-option');
+    item.id = id + '-option-' + index;
+    item.setAttribute('role', 'option');
+    item.addEventListener('click', function () {
+      pick(index);
+      box.focus();
+    });
+    item.addEventListener('mousemove', function (event) { hover(index, event); });
+    scroll.appendChild(item);
+    items.push(item);
+  });
+
+  // The index of the value the select holds.
+  function current() {
+    for (var index = 0; index < select.options.length; index++) {
+      if (select.options[index].value === select.value) return index;
+    }
+    return 0;
+  }
+
+  // The field, the items and whether any of it can be used, from the select - which is also how a
+  // caller that renames an option (the Continuation language's "Same as the interface") is shown.
+  function sync() {
+    var chosen = current();
+    shown.textContent = items.length ? select.options[chosen].textContent : '';
+    items.forEach(function (item, index) {
+      item.textContent = select.options[index].textContent;
+      item.setAttribute('aria-selected', index === chosen ? 'true' : 'false');
+    });
+    if (select.disabled) {
+      close();
+      box.setAttribute('aria-disabled', 'true');
+      box.removeAttribute('tabindex');
+    } else {
+      box.removeAttribute('aria-disabled');
+      box.setAttribute('tabindex', '0');
+    }
+  }
+
+  // From one item to the next, as laid out: an item and the gap under it.
+  function pitch() {
+    return items.length > 1 ? items[1].offsetTop - items[0].offsetTop : items[0].offsetHeight;
+  }
+
+  // How many rows show: as laid out, or - where nothing is laid out - what the stylesheet shows.
+  function rows() {
+    var step = pitch();
+    var count = step > 0 ? Math.round((scroll.clientHeight - 2 * items[0].offsetTop + step - items[0].offsetHeight) / step)
+                         : NaN;
+    return count >= 1 ? count : Math.min(items.length, COMBO_ROWS);
+  }
+
+  // A page: what shows, less the row kept in view from the page before.
+  function page() {
+    return Math.max(1, rows() - 1);
+  }
+
+  // As the window places its list (SoftDropList.Place). Across, from a pad left of the field, as the
+  // stylesheet has it, and moved left as far as it would run past the page, which it is never wider
+  // than. Below the field, or above it when there is not room for it below and there is more above;
+  // a list with room on neither side goes to the larger and is cut to the whole rows that fit there,
+  // never fewer than one, and scrolls. Measured in layout, which the opening rise does not move.
+  function place() {
+    list.classList.toggle('up', false);
+    list.style.left = '';
+    list.style.maxWidth = '';
+    scroll.style.maxHeight = '';
+    var root = document.documentElement || {};
+    var width = root.clientWidth || window.innerWidth || 0;
+    if (width && typeof list.getBoundingClientRect === 'function') {
+      list.style.maxWidth = width + 'px';
+      var edge = list.getBoundingClientRect();
+      var over = Math.min(edge.right - width, edge.left);
+      if (over > 0) list.style.left = (list.offsetLeft - over) + 'px';
+    }
+    var view = window.innerHeight || root.clientHeight || 0;
+    if (!view || typeof box.getBoundingClientRect !== 'function') return;
+    var field = box.getBoundingClientRect();
+    var gap = Math.max(0, list.offsetTop - box.offsetHeight);
+    var height = list.offsetHeight;
+    var below = view - field.bottom - 2 * gap;
+    var above = field.top - 2 * gap;
+    if (height <= below) return;
+    var up = above > below;
+    list.classList.toggle('up', up);
+    var room = Math.floor(up ? above : below);
+    var step = pitch(), pill = items[0].offsetHeight, inset = items[0].offsetTop;
+    if (height <= room || !(step > 0)) return;
+    // The card's hairlines and padding and the room around the items, above and below them.
+    var frame = height - scroll.clientHeight + 2 * inset;
+    var fit = Math.max(1, Math.floor((room - frame + step - pill) / step));
+    scroll.style.maxHeight = (2 * inset + fit * step - (step - pill)) + 'px';
+  }
+
+  // The item the keyboard is on, scrolled into the list's view with its ring - a whole row at a time,
+  // since every row starts a pitch after the one before.
+  function reveal(item) {
+    var room = scroll.clientHeight;
+    if (!(scroll.scrollHeight > room)) return;
+    var pad = items[0].offsetTop;
+    var top = item.offsetTop - pad;
+    var bottom = item.offsetTop + item.offsetHeight + pad;
+    if (top < scroll.scrollTop) scroll.scrollTop = top;
+    else if (bottom > scroll.scrollTop + room) scroll.scrollTop = bottom - room;
+  }
+
+  // The keyboard's item to `index`, kept to the list; scrolled into view unless the pointer put it there.
+  function move(index, byPointer) {
+    active = Math.max(0, Math.min(items.length - 1, index));
+    items.forEach(function (item, at) { item.classList.toggle('active', at === active); });
+    box.setAttribute('aria-activedescendant', items[active].id);
+    if (!byPointer) reveal(items[active]);
+  }
+
+  // The pointer over item `index`. A move with no movement, or to where the pointer already was, is
+  // one the browser makes up when the list appears or scrolls under a pointer that stood still: while
+  // the keyboard leads, that leaves its item where it is. Any other hands the lead to the pointer.
+  function hover(index, event) {
+    if (!expanded) return;
+    var at = event && typeof event.screenX === 'number' ? event.screenX + ',' + event.screenY : null;
+    var still = !!event && ((event.movementX === 0 && event.movementY === 0) || (at !== null && at === pointer));
+    pointer = at;
+    if (still && list.classList.contains('keys')) return;
+    list.classList.toggle('keys', false);
+    move(index, true);
+  }
+
+  function open(index, byKeys) {
+    if (select.disabled || !items.length) return;
+    if (!expanded) {
+      expanded = true;
+      list.hidden = false;
+      box.setAttribute('aria-expanded', 'true');
+      list.classList.toggle('keys', !!byKeys);
+      place();
+    }
+    move(index);
+  }
+
+  function close() {
+    if (!expanded) return;
+    expanded = false;
+    list.hidden = true;
+    list.classList.toggle('keys', false);
+    box.setAttribute('aria-expanded', 'false');
+    box.removeAttribute('aria-activedescendant');
+    typed = '';
+  }
+
+  // The item at `index` becomes the value, and the select says so the way a select does.
+  function pick(index) {
+    close();
+    var option = select.options[index];
+    if (!option || option.value === select.value) return;
+    select.value = option.value;
+    sync();
+    select.dispatchEvent(new Event('change', {bubbles: true}));
+  }
+
+  // What `text` finds with the keyboard on item `from`: SoftCombo.Find, the window's. -1 when nothing does.
+  function seek(text, from) {
+    var wanted = text.toLowerCase();
+    var repeated = wanted.split('').every(function (character) { return character === wanted.charAt(0); });
+    if (repeated) wanted = wanted.charAt(0);
+    var start = repeated ? from + 1 : from;
+    for (var step = 0; step < items.length; step++) {
+      var at = (start + step) % items.length;
+      if (items[at].textContent.toLowerCase().indexOf(wanted) === 0) return at;
+    }
+    return -1;
+  }
+
+  function typing(time) {
+    return typed !== '' && time - typedAt < COMBO_TYPING_MS;
+  }
+
+  function find(letter, time) {
+    if (!typing(time)) typed = '';
+    typed += letter;
+    typedAt = time;
+    var from = expanded ? active : current();
+    var at = seek(typed, from);
+    open(at < 0 ? from : at, true);
+  }
+
+  box.addEventListener('keydown', function (event) {
+    if (select.disabled || event.ctrlKey || event.metaKey) return;
+    var key = event.key || '';
+    var time = event.timeStamp || Date.now();
+    var last = items.length - 1;
+    if (key === 'Tab') {
+      if (expanded) pick(active);
+      return;
+    }
+    // F4, and Alt with Down or Up: what opens the window's list and takes its item. Never Alt+F4.
+    var toggles = (key === 'F4' && !event.altKey) || (event.altKey && (key === 'ArrowDown' || key === 'ArrowUp'));
+    if (key.length === 1 && !event.altKey && (key !== ' ' || typing(time))) find(key, time);
+    else if (!expanded) {
+      if (toggles || key === 'ArrowDown' || key === 'ArrowUp' || key === 'Enter' || key === ' ') open(current(), true);
+      else if (key === 'Home') open(0, true);
+      else if (key === 'End') open(last, true);
+      else if (key === 'PageUp' || key === 'PageDown') {
+        open(current(), true);
+        move(active + (key === 'PageUp' ? -1 : 1) * page());
+      }
+      else return;
+    }
+    else if (toggles || key === 'Enter' || key === ' ') pick(active);
+    else if (key === 'Escape') {
+      close();
+      event.stopPropagation();
+    }
+    else if (key === 'ArrowDown') move(active + 1);
+    else if (key === 'ArrowUp') move(active - 1);
+    else if (key === 'Home') move(0);
+    else if (key === 'End') move(last);
+    else if (key === 'PageUp') move(active - page());
+    else if (key === 'PageDown') move(active + page());
+    else if (key !== 'ArrowLeft' && key !== 'ArrowRight') return;
+    event.preventDefault();
+    if (expanded) list.classList.toggle('keys', true);
+  });
+  box.addEventListener('click', function () {
+    if (select.disabled) return;
+    if (expanded) close();
+    else open(current(), false);
+  });
+  box.addEventListener('blur', close);
+  list.addEventListener('mousedown', function (event) { event.preventDefault(); });
+  select.addEventListener('change', sync);
+  sync();
+
+  // The setting's name names the field and its list, a press on the name puts focus on the field,
+  // and the help under the name describes it.
+  function labelled(labelNode, helpNode) {
+    labelNode.id = id + '-label';
+    box.setAttribute('aria-labelledby', labelNode.id);
+    list.setAttribute('aria-labelledby', labelNode.id);
+    if (helpNode) {
+      helpNode.id = id + '-help';
+      box.setAttribute('aria-describedby', helpNode.id);
+    }
+    labelNode.addEventListener('click', function () {
+      if (!select.disabled) box.focus();
+    });
+  }
+
+  return {node: wrap, box: box, list: list, sync: sync, labelled: labelled};
 }
 
 function toggle(entry, onChange) {
@@ -935,8 +1446,11 @@ function choiceField(entry, options, help, onChange) {
     if (onChange) onChange(input.value);
   });
   EDITORS[entry.name] = function () { return input.value; };
-  var built = settingRow(label(entry.name), help, input, 'has-select');
+  var field = combo(input);
+  var built = settingRow(label(entry.name), help, field.node, 'has-select');
+  field.labelled(built.label, built.help);
   built.select = input;
+  built.sync = field.sync;
   return built;
 }
 
@@ -1116,10 +1630,15 @@ function threadSwitch(row, shown) {
   input.type = 'checkbox';
   input.setAttribute('role', 'switch');
   input.setAttribute('aria-label', t('pending.col_resume', 'Auto-resume') + ': ' + shown);
-  input.checked = row.thread_enabled;
+  var was = WAS[row.interruption_id];
+  input.checked = typeof was === 'boolean' ? was : row.thread_enabled;
+  if (input.checked !== row.thread_enabled) GLIDES.push({input: input, to: row.thread_enabled});
+  SHOWN[row.interruption_id] = row.thread_enabled;
   input.disabled = !HOST;
   input.addEventListener('change', function () {
-    // The switch shows what a tool last confirmed, until a tool confirms something else.
+    // The switch shows what a tool last confirmed, until a tool confirms something else. Put back
+    // in the same task as the press, before anything is drawn: it never moves on the press, and so
+    // never snaps back - it moves once, when the change is confirmed.
     input.checked = row.thread_enabled;
     if (row.thread_enabled) {
       // Turning it off cancels what this conversation has waiting, so it is asked first.
@@ -1166,6 +1685,129 @@ function changeThread(row, shown, enable, controls) {
     CONFIRM_ROW = '';
     render();
   });
+}
+
+// The Codex Compatibility Registry (v0.6.5), read-only, as the Windows Dashboard's Diagnostics page shows
+// it: for the Codex engine on this machine, which of the things this product does can be relied on, in
+// the registry's four words - each with what it means - with when that was checked and which data was in
+// force. Folded until it is opened; folded, its chip says the headline.
+//
+// What reaches this page is codes only (the status reply's `watcher.compatibility`): the state and the
+// reason of each part, where the data came from and its sequence number, what the watcher acts on, the
+// refreshed data's standing, one time - no version string, no path and no word from a registry document.
+// And nothing here refreshes the data: a refresh is a request to GitHub, and neither a model nor this
+// page may make one. The person is told where they can.
+var COMPAT_STATES = ['VERIFIED', 'COMPATIBLE', 'INCOMPATIBLE', 'UNKNOWN'];
+// The refreshed data's standings that are more than "in force", each said as the window's card says it:
+// expired or dated ahead, its restrictions apply and its trust does not; the others, the bundled data applies.
+var COMPAT_CAVEATS = ['expired', 'from_the_future', 'rejected', 'superseded', 'from_newer_product'];
+// The parts, in the registry's own order. The four it does not offer yet are left out, as they are in
+// the window and on the command line.
+var COMPAT_ORDER = ['engine_present', 'exact_thread_recovery', 'usage_limit_detection', 'usage_reset_hint',
+                    'usage_probe', 'thread_eligibility', 'loaded_state_detection', 'recovery_turn_tracking',
+                    'queue_withdraw', 'outcome_observation', 'transient_classification', 'projection_freshness',
+                    'empty_response_recovery', 'not_loaded_recovery', 'goal_continuation', 'subagent_recovery'];
+
+// A registry state from either word a view carries one in - a part's state, or the overall's coarse word.
+// Anything else is UNKNOWN, as the registry reads it.
+function compatState(word) {
+  if (word === 'VERIFIED' || word === 'verified') return 'VERIFIED';
+  if (word === 'COMPATIBLE' || word === 'structurally_compatible') return 'COMPATIBLE';
+  if (word === 'INCOMPATIBLE' || word === 'incompatible') return 'INCOMPATIBLE';
+  return 'UNKNOWN';
+}
+
+// A state's chip: green for what can be relied on, red for what cannot, grey for what is not known - as
+// the window draws its checks. Always beside the word.
+function compatTone(state) {
+  return state === 'INCOMPATIBLE' ? 'danger' : state === 'UNKNOWN' ? 'paused' : 'success';
+}
+
+// A moment as a clock shows it, and its date when that is not today. Written out, as nextCheck writes a
+// time, rather than in the browser's own format and language.
+function clockTime(at) {
+  if (typeof at !== 'number' || !isFinite(at)) return '-';
+  var when = new Date(at * 1000);
+  if (isNaN(when.getTime())) return '-';
+  var pad = function (number) { return (number < 10 ? '0' : '') + number; };
+  var time = pad(when.getHours()) + ':' + pad(when.getMinutes());
+  var now = new Date();
+  if (when.getFullYear() === now.getFullYear() && when.getMonth() === now.getMonth() &&
+      when.getDate() === now.getDate()) return time;
+  return when.getFullYear() + '-' + pad(when.getMonth() + 1) + '-' + pad(when.getDate()) + ' ' + time;
+}
+
+function renderCompatibility(status) {
+  var view = status && status.watcher && status.watcher.compatibility;
+  if (!view || typeof view !== 'object') return null;
+  var overall = compatState(view.overall);
+  var chip = element('span', 'chip ' + compatTone(overall), t('compat.state.' + overall, overall.toLowerCase()));
+  var fold = folding('compat', t('compat.title', 'Codex compatibility'), false, null, chip);
+  fold.node.className += ' compat';
+  var body = fold.body;
+  // A report that cannot be used makes every part unknown, for that one reason: said once, not listed. It
+  // says nothing about the data in force either, which is '-' then, as in the window - never 'none'.
+  var usable = view.status === 'ok';
+  var source = (view.source === 'cache' || view.source === 'bundled') ? view.source : 'none';
+  // Which data, by its sequence number when there is data and a number: the window's words for both.
+  var data = t('compat.source.' + source, source);
+  var sequence = view.sequence;
+  if (source !== 'none' && typeof sequence === 'number' && isFinite(sequence) && sequence >= 0 &&
+      Math.floor(sequence) === sequence) {
+    data = fill('compat.source_sequence', '{source}, #{sequence}', {source: data, sequence: sequence});
+  }
+  var meta = element('div', 'prow-meta compat-meta');
+  [[t('compat.checked', 'Checked'), typeof view.checked_at === 'number' ? clockTime(view.checked_at) : t('time.never', 'never')],
+   [t('compat.data', 'Data in force'), usable ? data : '-']
+  ].forEach(function (pair) {
+    var fact = element('span', null, pair[0] + ' ');
+    fact.appendChild(element('b', null, pair[1]));
+    meta.appendChild(fact);
+  });
+  body.appendChild(meta);
+  // What the view cannot vouch for, as the window's card says it and in its order: why a report cannot be
+  // used; else a watcher still acting on what it found when it started, which the window tells a person
+  // to restart - from the window, which this page names; and refreshed data that is not simply in force.
+  var notices = [];
+  if (!usable) {
+    notices.push(t('compat.status.' + (typeof view.status === 'string' ? view.status : 'invalid'),
+      t('compat.status.invalid', 'The last check could not be read, so nothing in it is relied on.')));
+  }
+  if (usable && typeof view.acting === 'string' && view.acting !== view.overall) {
+    notices.push(t('panel.compat_acting_differs',
+      'The watcher is still acting on what it found when it started. Stop it and start it again on the Diagnostics page of the Codex Auto Resume window to check again.'));
+  }
+  if (usable && COMPAT_CAVEATS.indexOf(view.cache) >= 0) {
+    notices.push(t('compat.cache.' + view.cache, view.cache.replace(/_/g, ' ')));
+  }
+  notices.forEach(function (text) { body.appendChild(element('p', 'callout', text)); });
+  // The words shown, explained - not for a report that cannot be used, which is unknown for the one reason
+  // the callout gives, and which the legend's reason would contradict.
+  var shown = usable ? [overall] : [];
+  var capabilities = (usable && view.capabilities && typeof view.capabilities === 'object') ? view.capabilities : {};
+  var rows = element('ul', 'toggles compat-rows');
+  rows.setAttribute('aria-label', t('compat.title', 'Codex compatibility'));
+  COMPAT_ORDER.forEach(function (name) {
+    var entry = capabilities[name];
+    if (!entry || typeof entry !== 'object' || entry.reason === 'not_implemented') return;
+    var state = compatState(entry.state);
+    if (shown.indexOf(state) < 0) shown.push(state);
+    var row = element('li', 'setting');
+    var text = element('div', 'setting-text');
+    text.appendChild(element('span', 'setting-label', t('compat.capability.' + name, name.replace(/_/g, ' '))));
+    row.appendChild(text);
+    row.appendChild(element('span', 'chip compat-state ' + compatTone(state), t('compat.state.' + state, state.toLowerCase())));
+    rows.appendChild(row);
+  });
+  if (rows.children.length) body.appendChild(rows);
+  var legend = element('div', 'compat-legend');
+  COMPAT_STATES.forEach(function (state) {
+    if (shown.indexOf(state) >= 0) legend.appendChild(element('p', 'help', t('compat.meaning.' + state, state)));
+  });
+  if (legend.children.length) body.appendChild(legend);
+  body.appendChild(element('p', 'help compat-refresh', t('panel.compat_refresh',
+    'This data changes only when you ask: with Refresh compatibility data on the Diagnostics page of the Codex Auto Resume window, or with Check for updates.')));
+  return fold.node;
 }
 
 function renderGeneral(byName) {
@@ -1301,7 +1943,10 @@ function renderContinuation(byName) {
     Array.prototype.forEach.call(field.select.options, function (option) {
       if (option.value === 'follow') follow = option;
     });
-    HOOKS.follow = function (chosen) { if (follow) follow.textContent = followLabel(chosen); };
+    HOOKS.follow = function (chosen) {
+      if (follow) follow.textContent = followLabel(chosen);
+      field.sync();
+    };
     rows.appendChild(field.row);
   }
 
@@ -1383,8 +2028,11 @@ function renderPreviewCard() {
       PREVIEW.reason = select.value;
       refreshPreview();
     });
+    var field = combo(select);
+    var built = settingRow(t('preview.for', 'Preview for'), '', field.node, 'has-select');
+    field.labelled(built.label, built.help);
     var rows = element('div', 'rows');
-    rows.appendChild(settingRow(t('preview.for', 'Preview for'), '', select, 'has-select').row);
+    rows.appendChild(built.row);
     node.appendChild(rows);
   }
   var frame = element('div', 'bubble');
@@ -1462,12 +2110,29 @@ function renderFooter(schema) {
   return {node: bar, save: save, message: message};
 }
 
+// The switches whose change a tool confirmed, moved now that they are drawn in the state they
+// showed before. Reading a layout styles the page once in that state - synchronously, nothing
+// waits or ticks - so the change is a transition from it rather than a switch drawn already moved.
+// With less motion or in High Contrast the stylesheet has no transition, and the change is simply
+// made.
+function glide() {
+  var moves = GLIDES;
+  GLIDES = [];
+  if (!moves.length) return;
+  void moves[0].input.offsetWidth;
+  moves.forEach(function (move) { move.input.checked = move.to; });
+}
+
 function render() {
+  applyLanguage(document.documentElement, LOCALE);
   var root = document.getElementById('root');
   root.textContent = '';
   EDITORS = {};
   HOOKS = {};
   PREVIEW.nodes = null;
+  WAS = SHOWN;
+  SHOWN = {};
+  GLIDES = [];
   if (!DATA) {
     root.appendChild(element('p', 'note',
       t('panel.unavailable', 'Settings are not available in this view.')));
@@ -1480,18 +2145,20 @@ function render() {
 
   var page = element('main', 'page');
   root.appendChild(page);
-  // State first; then what is waiting, because it is the part that changes; then what is
-  // configured, general to particular; then what the configuration will say; then how the
-  // panel looks, where the Windows Dashboard puts it too.
+  // State first; then what is waiting, because it is the part that changes; then whether this
+  // Codex can be relied on, folded; then what is configured, general to particular; then what
+  // the configuration will say; then how the panel looks, where the Windows Dashboard puts it too.
   var hero = renderHero(status);
   page.appendChild(hero.node);
-  [renderPending(DATA.pending), renderGeneral(byName), renderRecovery(status, schema),
+  [renderPending(DATA.pending), renderCompatibility(status), renderGeneral(byName), renderRecovery(status, schema),
    renderNotifications(schema), renderContinuation(byName), renderPreviewCard(),
    renderAppearance(byName)
   ].forEach(function (section) { if (section) page.appendChild(section); });
   var footer = renderFooter(schema);
   page.appendChild(footer.node);
   var message = hero.message;
+
+  glide();
 
   // A message left over from the click that caused this render. It is carried across
   // rather than written before render(), which empties the panel and would discard it.

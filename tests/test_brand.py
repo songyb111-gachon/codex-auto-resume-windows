@@ -357,6 +357,24 @@ class GeneratedFileTests(unittest.TestCase):
         altered = [(16, make_icon.png(16, bytes(pixels)))] + images[1:]
         self.assertNotEqual(ico_content(make_icon.ico(images)), ico_content(make_icon.ico(altered)))
 
+    def test_the_icon_s_geometry_is_brand_s_under_its_old_names(self):
+        """v0.6.5 moved the mark's numbers and rasteriser into brand, so the watcher can draw the
+        icon's motion from them; make_icon.py writes the same bytes from there."""
+        shape = brand.ICON_SHAPE
+        self.assertEqual((make_icon.RING_INNER, make_icon.RING_OUTER, make_icon.ARC_START, make_icon.ARC_END,
+                          make_icon.HEAD_RADIUS, make_icon.CORNER_LARGE, make_icon.CORNER_SMALL,
+                          make_icon.CORNER_THRESHOLD),
+                         (0.34, 0.53, 125.0, 55.0, 0.155, 0.30, 0.24, 32))
+        self.assertEqual((shape["ring_inner"], shape["arc_end"], shape["head_radius"]), (0.34, 55.0, 0.155))
+        self.assertEqual(make_icon.render(24), brand.icon_render(24))
+        self.assertEqual(make_icon.HEAD_CENTRE, brand.icon_head_centre())
+        # The head kept apart gives the whole render back, in any colour it is given.
+        head = brand.rgb(brand.ICON_ACCENT)
+        for size in (16, 32):
+            rows = brand.icon_samples(size)
+            self.assertEqual(b"".join(bytes(part for sample in row for part in brand.icon_pixel(sample, head))
+                                      for row in rows), brand.icon_render(size))
+
     def test_the_two_names_for_the_256_icon_agree(self):
         assets = ROOT / "assets"
         self.assertEqual((assets / "icon.png").read_bytes(),
@@ -581,17 +599,22 @@ class ScaleTests(unittest.TestCase):
         self.assertIn("--size-card-pad: 16px 18px;", scale)
         self.assertIn("--size-row-pad: 11px 0;", scale)
         self.assertIn("--glow-edge: 6px;", scale)
-        self.assertIn("--glow-outer: 13px;", scale)
-        self.assertIn("--glow-monitoring-ms: 3600ms;", scale)
+        self.assertIn("--glow-outer: 9px;", scale)
+        self.assertIn("--glow-from: 0.6667;", scale)
+        self.assertIn("--glow-dot-low: 0.4;", scale)
+        self.assertIn("--glow-monitoring-ms: 3200ms;", scale)
+        self.assertIn("--transition: 160ms;", scale)
+        self.assertIn("--transition-ease: cubic-bezier(0.33, 1, 0.68, 1);", scale)
 
 
 RUNNING_STATES = ("monitoring", "waiting", "checking", "recovering")
 
 
 class StatusLightTests(unittest.TestCase):
-    """The status light, as the v0.6.4 decision states it: the shape is the flat dot each surface
-    already drew, every running state is the cyan the dot had before v0.6.3, the greys stay
-    exactly as they were, and the glow is soft, low and slow."""
+    """The status light, as the v0.6.4 decision states it and v0.6.5 made visible: the shape is the
+    flat dot each surface already drew, every running state is the cyan the dot had before v0.6.3,
+    the greys stay exactly as they were, and the light blinks as the icon's head does - the dot dims
+    and comes back with nothing spreading, and only then, lit, spreads a little and draws back in."""
 
     def test_every_running_state_is_the_cyan_from_before_v063(self):
         for state in RUNNING_STATES:
@@ -624,93 +647,246 @@ class StatusLightTests(unittest.TestCase):
             self.assertEqual(brand.status_system(state), "GrayText")
 
     def test_the_decided_numbers(self):
-        expected = {"reach": 7, "near_at": 0.35, "near_alpha": 0.55, "far_at": 0.70, "far_alpha": 0.20,
-                    "monitoring_ms": 3600, "monitoring_low": 0.14, "monitoring_high": 0.30,
-                    "monitoring_scale_low": 0.94, "monitoring_scale_high": 1.00,
-                    "recovering_ms": 2200, "recovering_low": 0.18, "recovering_high": 0.38,
-                    "recovering_scale_low": 0.96, "recovering_scale_high": 1.04,
-                    "still": 0.20, "attention_ms": 1400, "attention_peak": 0.42,
-                    "arc_ms": 1600, "arc_alpha": 0.55}
+        # v0.6.5, the user: the icon head's blink, no spread from darkest to brightest, a slight spread
+        # once lit, and smaller than the first cut's 7 px - the +3 px preview was kept.
+        expected = {"fall": 0.25, "rise": 0.40, "bloom": 0.20, "withdraw": 0.15, "dot_dim": 0.60,
+                    "peak": 0.34, "reach": 3, "edge_alpha": 0.67, "near_at": 0.14, "near_alpha": 0.58,
+                    "far_at": 0.66, "far_alpha": 0.50, "monitoring_ms": 3200, "recovering_ms": 2000,
+                    "attention_ms": 1400, "arc_ms": 1600, "arc_alpha": 0.55}
         self.assertEqual({key: brand.GLOW[key] for key in expected}, expected)
+        self.assertEqual(brand.GLOW_PHASES, ("fall", "rise", "bloom", "withdraw"))
+        self.assertAlmostEqual(sum(brand.GLOW[phase] for phase in brand.GLOW_PHASES), 1.0)
         self.assertEqual(brand.STATUS_DOT, {"window": 5, "popup": 4.5, "panel": 6, "mini": 4})
+        # The first cut's breath and ring are gone, not left beside the new numbers.
+        for gone in ("still", "attention_peak", "monitoring_low", "monitoring_high", "monitoring_scale_low",
+                     "recovering_low", "recovering_high", "recovering_scale_high"):
+            self.assertNotIn(gone, brand.GLOW)
 
-    def test_monitoring_breathes_slowly_and_softly(self):
-        start, peak = brand.glow("monitoring", 0), brand.glow("monitoring", 1800)
-        self.assertAlmostEqual(start["opacity"], 0.14)
-        self.assertAlmostEqual(start["scale"], 0.94)
-        self.assertAlmostEqual(peak["opacity"], 0.30)
-        self.assertAlmostEqual(peak["scale"], 1.00)
-        self.assertAlmostEqual(brand.glow("monitoring", 3600)["opacity"], 0.14)
-        for elapsed in range(0, 7200, 37):
-            frame = brand.glow("monitoring", elapsed)
-            self.assertTrue(0.14 - 1e-9 <= frame["opacity"] <= 0.30 + 1e-9)
-            self.assertTrue(0.94 - 1e-9 <= frame["scale"] <= 1.0 + 1e-9)
-            self.assertIsNone(frame["arc"])
-        # A raised cosine: no corner where a cycle begins, so nothing jumps.
-        self.assertLess(brand.glow("monitoring", 36)["opacity"] - 0.14, 0.001)
+    def assertFrame(self, frame, expected):
+        self.assertEqual(set(frame), set(expected))
+        for key, value in expected.items():
+            if value is None:
+                self.assertIsNone(frame[key], key)
+            else:
+                self.assertAlmostEqual(frame[key], value, places=9, msg=key)
+
+    def cycle(self, state, step=1.0, since=False):
+        cycle = brand.GLOW["attention_ms" if since else state + "_ms"]
+        count = int(cycle / step)
+        return [(elapsed, brand.glow(state, 0 if since else elapsed, elapsed if since else None))
+                for elapsed in (index * step for index in range(count))]
+
+    def test_nothing_spreads_before_the_dot_is_fully_lit(self):
+        """"가장 어두움 -> 가장 밝아짐 까지는 번지는게 없고 / 가장 밝아짐 -> 살짝 번짐 까지 있게 하자"."""
+        for state, since in (("monitoring", False), ("recovering", False), ("attention", True), ("failed", True)):
+            with self.subTest(state):
+                cycle = brand.GLOW["attention_ms" if since else state + "_ms"]
+                lit_from = (brand.GLOW["fall"] + brand.GLOW["rise"]) * cycle
+                for elapsed, frame in self.cycle(state, since=since):
+                    if frame["opacity"] > 0 or frame["spread"] > 0:
+                        self.assertEqual(frame["dim"], 0.0, elapsed)
+                        self.assertGreaterEqual(elapsed, lit_from - 1e-6)
+                    if elapsed < lit_from:
+                        self.assertEqual((frame["opacity"], frame["spread"]), (0.0, 0.0), elapsed)
+                    self.assertAlmostEqual(frame["opacity"], brand.GLOW["peak"] * frame["spread"])
+
+    def test_the_cycle_is_fall_rise_bloom_withdraw(self):
+        light, cycle = brand.GLOW, brand.GLOW["monitoring_ms"]
+
+        def at(fraction):
+            return brand.glow("monitoring", fraction * cycle)
+
+        self.assertEqual(at(0), {"dim": 0.0, "opacity": 0.0, "spread": 0.0, "arc": None})
+        self.assertAlmostEqual(at(light["fall"])["dim"], light["dot_dim"])            # darkest
+        risen = at(light["fall"] + light["rise"])
+        self.assertEqual((risen["dim"], risen["spread"]), (0.0, 0.0))                  # lit, nothing spread
+        peak = at(light["fall"] + light["rise"] + light["bloom"])
+        self.assertEqual(peak["dim"], 0.0)
+        self.assertAlmostEqual(peak["spread"], 1.0)
+        self.assertAlmostEqual(peak["opacity"], light["peak"])
+        # Each phase moves one way only, eased: no corner where one gives way to the next.
+        frames = self.cycle("monitoring")
+        dims = [frame["dim"] for _, frame in frames]
+        spreads = [frame["spread"] for _, frame in frames]
+        darkest, lit, bloomed = (int(cycle * mark) for mark in (0.25, 0.65, 0.85))
+        self.assertEqual(dims[:darkest + 1], sorted(dims[:darkest + 1]))
+        self.assertEqual(dims[darkest:lit + 1], sorted(dims[darkest:lit + 1], reverse=True))
+        self.assertEqual(spreads[lit:bloomed + 1], sorted(spreads[lit:bloomed + 1]))
+        self.assertEqual(spreads[bloomed:], sorted(spreads[bloomed:], reverse=True))
+        for index in range(1, len(frames) + 1):
+            now = frames[index % len(frames)][1]
+            before = frames[index - 1][1]
+            self.assertLess(abs(now["dim"] - before["dim"]), 0.003, index)
+            self.assertLess(abs(now["spread"] - before["spread"]), 0.01, index)
+
+    def test_a_cycle_starts_and_ends_at_the_still_light(self):
+        """A light that starts moving leaves the still light - lit, no glow - with no jump, as each of the
+        icon's breaths begins and ends at full brightness."""
+        still = {"dim": 0.0, "opacity": 0.0, "spread": 0.0, "arc": None}
+        for state in brand.GLOW_BREATHES:
+            with self.subTest(state):
+                self.assertEqual(brand.glow(state, 0), still)
+                self.assertEqual(brand.glow(state, brand.GLOW[state + "_ms"]), still)
+                end = brand.glow(state, brand.GLOW[state + "_ms"] - 1)
+                self.assertLess(end["spread"], 0.001)
+                self.assertEqual(brand.glow("waiting", 1234), still)
+
+    def test_recovering_runs_the_same_cycle_faster(self):
+        self.assertLess(brand.GLOW["recovering_ms"], brand.GLOW["monitoring_ms"])
+        for step in range(0, 100):
+            fraction = step / 100.0
+            self.assertFrame(brand.glow("recovering", fraction * brand.GLOW["recovering_ms"]),
+                             brand.glow("monitoring", fraction * brand.GLOW["monitoring_ms"]))
+        self.assertTrue(brand.glow_moves("recovering"))
         self.assertTrue(brand.glow_moves("monitoring"))
 
-    def test_waiting_holds_a_still_glow(self):
+    def test_waiting_and_checking_hold_lit_with_no_glow(self):
         frames = {tuple(sorted(brand.glow("waiting", elapsed, elapsed).items()))
                   for elapsed in range(0, 9000, 333)}
-        self.assertEqual(frames, {(("arc", None), ("opacity", 0.20), ("scale", 1.0))})
+        self.assertEqual(frames, {(("arc", None), ("dim", 0.0), ("opacity", 0.0), ("spread", 0.0))})
         self.assertFalse(brand.glow_moves("waiting", 0))
+        for elapsed in range(0, 3200, 50):
+            frame = brand.glow("checking", elapsed)
+            self.assertEqual((frame["dim"], frame["opacity"], frame["spread"]), (0.0, 0.0, 0.0))
 
     def test_checking_turns_its_arc_once_every_1600ms(self):
         self.assertAlmostEqual(brand.glow("checking", 400)["arc"] - brand.glow("checking", 0)["arc"], 90.0)
         self.assertAlmostEqual(brand.glow("checking", 1600)["arc"], 0.0)
-        self.assertEqual(brand.glow("checking", 400)["opacity"], 0.20)
         self.assertEqual(brand.glow("checking", 400, reduced=True)["arc"], 300)
         self.assertTrue(brand.glow_moves("checking"))
 
-    def test_recovering_breathes_faster_and_a_little_brighter(self):
-        low, high = brand.glow("recovering", 0), brand.glow("recovering", 1100)
-        self.assertAlmostEqual(low["opacity"], 0.18)
-        self.assertAlmostEqual(low["scale"], 0.96)
-        self.assertAlmostEqual(high["opacity"], 0.38)
-        self.assertAlmostEqual(high["scale"], 1.04)
-        self.assertAlmostEqual(brand.glow("recovering", 2200)["opacity"], 0.18)
-        self.assertLess(brand.GLOW["recovering_ms"], brand.GLOW["monitoring_ms"])
-
-    def test_an_alarm_pulses_once_softly_and_then_holds(self):
+    def test_an_alarm_runs_the_cycle_once_and_then_holds_lit(self):
+        pulse, still = brand.GLOW["attention_ms"], {"dim": 0.0, "opacity": 0.0, "spread": 0.0, "arc": None}
         for state in ("attention", "failed"):
             with self.subTest(state):
-                self.assertAlmostEqual(brand.glow(state, 0, 0)["opacity"], 0.20)
-                self.assertAlmostEqual(brand.glow(state, 0, 700)["opacity"], 0.42)
-                for settled in (1400, 1401, 5000, None, -5):
-                    self.assertAlmostEqual(brand.glow(state, 0, settled)["opacity"], 0.20)
-                for elapsed in range(0, 1400, 20):
-                    self.assertTrue(0.20 - 1e-9 <= brand.glow(state, 0, elapsed)["opacity"] <= 0.42 + 1e-9)
-                    self.assertEqual(brand.glow(state, 0, elapsed)["scale"], 1.0)
+                for since in range(0, pulse, 20):
+                    self.assertFrame(brand.glow(state, 5000, since),
+                                     brand.glow("monitoring", since / pulse * brand.GLOW["monitoring_ms"]))
+                self.assertAlmostEqual(brand.glow(state, 0, pulse * 0.25)["dim"], brand.GLOW["dot_dim"])
+                self.assertAlmostEqual(brand.glow(state, 0, pulse * 0.85)["opacity"], brand.GLOW["peak"])
+                for settled in (pulse, pulse + 1, 5000, None, -5):
+                    self.assertEqual(brand.glow(state, 777, settled), still)
                 self.assertTrue(brand.glow_moves(state, 700))
-                self.assertFalse(brand.glow_moves(state, 1400))
+                self.assertFalse(brand.glow_moves(state, pulse))
                 self.assertFalse(brand.glow_moves(state, None))
 
-    def test_reduced_motion_holds_every_glow_still_at_its_rest(self):
-        rest = {"monitoring": 0.22, "waiting": 0.20, "checking": 0.20, "recovering": 0.28,
-                "attention": 0.20, "failed": 0.20}
-        for state, opacity in rest.items():
+    def test_reduced_motion_holds_every_light_lit_with_no_glow(self):
+        for state in ("monitoring", "waiting", "checking", "recovering", "attention", "failed"):
             with self.subTest(state):
-                frames = [brand.glow(state, elapsed, elapsed, reduced=True) for elapsed in (0, 350, 700, 1800, 9999)]
-                for frame in frames:
-                    self.assertAlmostEqual(frame["opacity"], opacity)
-                    self.assertEqual(frame["scale"], 1.0)
-                    self.assertEqual(frame["arc"], 300 if state == "checking" else None)
-                self.assertAlmostEqual(brand.glow_rest(state), opacity)
+                for elapsed in (0, 350, 700, 800, 1800, 2700, 9999):
+                    frame = brand.glow(state, elapsed, elapsed, reduced=True)
+                    self.assertEqual(frame, {"dim": 0.0, "opacity": 0.0, "spread": 0.0,
+                                             "arc": 300 if state == "checking" else None})
                 self.assertFalse(brand.glow_moves(state, 0, reduced=True))
+        self.assertFalse(hasattr(brand, "glow_rest"))
 
-    def test_the_glow_falls_off_smoothly_from_the_dot_to_nothing(self):
+    def test_the_glow_falls_off_from_the_dot_to_nothing_three_pixels_out(self):
         stops = brand.glow_stops(5)
-        self.assertEqual([alpha for _, alpha in stops], [1.0, 1.0, 0.55, 0.20, 0.0])
+        self.assertEqual([alpha for _, alpha in stops], [0.67, 0.67, 0.58, 0.50, 0.0])
         positions = [position for position, _ in stops]
         self.assertEqual(positions, sorted(positions))
-        self.assertAlmostEqual(positions[1], 5 / 12.0)
-        self.assertAlmostEqual(positions[2], (5 + 0.35 * 7) / 12.0)
-        self.assertAlmostEqual(positions[3], (5 + 0.70 * 7) / 12.0)
+        self.assertAlmostEqual(positions[1], 5 / 8.0)
+        self.assertAlmostEqual(positions[2], (5 + 0.14 * 3) / 8.0)
+        self.assertAlmostEqual(positions[3], (5 + 0.66 * 3) / 8.0)
         self.assertEqual(positions[-1], 1.0)
-        self.assertAlmostEqual(brand.glow_radius(5), 12.0)
-        self.assertAlmostEqual(brand.glow_extent(5), 12.48)
-        self.assertAlmostEqual(brand.glow_extent(brand.STATUS_DOT["popup"]), 11.96)
+        self.assertEqual(brand.glow_radius(5), 8.0)
+        self.assertEqual(brand.glow_radius(5, 0.0), 5.0)
+        self.assertEqual(brand.glow_radius(5, 0.5), 6.5)
+        # Never a dip and a second rise: a gap between the dot and a ring reads as a target.
+        alphas = [alpha for _, alpha in stops]
+        self.assertEqual(alphas, sorted(alphas, reverse=True))
+
+    def test_the_spread_reaches_three_pixels_past_the_dot_and_no_further(self):
+        """"지금은 너무 많이 커지는거 같아": the first cut reached 7 px past the dot's edge, and a little more as it
+        swelled. Every frame of every state stays within 3 px, on every surface's dot."""
+        for surface, dot in brand.STATUS_DOT.items():
+            with self.subTest(surface):
+                self.assertEqual(brand.glow_extent(dot) - dot, 3)
+                reached = max(brand.glow_radius(dot, frame["spread"]) - dot
+                              for state in ("monitoring", "recovering")
+                              for _, frame in self.cycle(state, step=5.0))
+                self.assertAlmostEqual(reached, 3.0, places=4)
+        self.assertEqual(brand.glow_extent(brand.STATUS_DOT["popup"]), 7.5)
+
+    def test_it_is_the_approved_preview(self):
+        """The +3 px column of scratchpad/v065/light2/phased_small.py, as the user approved it: the first cut's
+        falloff (7 px reach; .58 at .45 of it, .50 at .78) drawn about the window's dot with its outer edge
+        brought in to 3 px past the dot's edge at the peak, opacity .34, over a cycle that starts at its rise.
+        The table here states that falloff past the dot's edge; seen from outside the dot it is the same light."""
+        dot, cycle = brand.STATUS_DOT["window"], brand.GLOW["monitoring_ms"]
+        old = ((0.0, 1.0), (dot / 12.0, 1.0), ((dot + 7 * 0.45) / 12.0, 0.58), ((dot + 7 * 0.78) / 12.0, 0.50),
+               (1.0, 0.0))
+
+        def falloff(stops, fraction):
+            for (f0, a0), (f1, a1) in zip(stops, stops[1:]):
+                if fraction <= f1:
+                    return a0 + (a1 - a0) * (fraction - f0) / (f1 - f0)
+            return 0.0
+
+        def ease(t):
+            return 0.5 - 0.5 * math.cos(math.pi * max(0.0, min(1.0, t)))
+
+        def preview(ms):                       # phased_small.phase(): (bloom, dim)
+            f = (ms % cycle) / cycle
+            if f < 0.40:
+                return 0.0, 0.60 * (1 - ease(f / 0.40))
+            f -= 0.40
+            if f < 0.20:
+                return ease(f / 0.20), 0.0
+            f -= 0.20
+            if f < 0.15:
+                return 1 - ease(f / 0.15), 0.0
+            return 0.0, 0.60 * ease((f - 0.15) / 0.25)
+
+        for step in range(96):
+            ms = step * cycle / 96
+            bloom, dim = preview(ms)
+            frame = brand.glow("monitoring", ms + brand.GLOW["fall"] * cycle)
+            with self.subTest(ms=ms):
+                self.assertAlmostEqual(frame["dim"], dim, places=9)
+                self.assertAlmostEqual(frame["spread"], bloom, places=9)
+                outer = brand.glow_radius(dot, frame["spread"])
+                for tenth in range(0, 31):
+                    radius = dot + tenth / 10.0
+                    then = 0.34 * bloom * falloff(old, radius / (dot + 3 * bloom)) if bloom else 0.0
+                    now = frame["opacity"] * falloff(brand.glow_stops(dot), radius / outer) if outer > dot else 0.0
+                    self.assertAlmostEqual(now, then, delta=0.004)
+
+    def test_the_largest_glow_fits_the_column_the_window_keeps_for_it(self):
+        """The window's header gives the light a 28 px column and asks 2 * ceil(extent) of it at
+        every scaling (SettingsApp's LayoutAudit)."""
+        extent = brand.glow_extent(brand.STATUS_DOT["window"])
+        for scale in (1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 3.0):
+            with self.subTest(scale=scale):
+                self.assertLessEqual(2 * math.ceil(extent * scale - 1e-9), int(28 * scale + 0.5))
+
+    def test_the_transition_eases_out_on_one_curve(self):
+        """v0.6.5: a switch glides in MOTION's time on MOTION's curve, on every surface."""
+        self.assertEqual(brand.MOTION["transition_ms"], 160)
+        self.assertEqual(brand.css_ease(), "cubic-bezier(0.33, 1, 0.68, 1)")
+        self.assertEqual((brand.ease(-1), brand.ease(0), brand.ease(1), brand.ease(2)), (0.0, 0.0, 1.0, 1.0))
+        values = [brand.ease(step / 100.0) for step in range(101)]
+        self.assertEqual(values, sorted(values))
+        # An ease-out: it leaves at once and settles - past halfway at a fifth of its time.
+        self.assertGreater(brand.ease(0.2), 0.45)
+        self.assertLess(1.0 - brand.ease(0.9), 0.01)
+        # easeOutCubic, 1 - (1 - t)^3, to within the curve's fit.
+        for step in range(1, 100):
+            t = step / 100.0
+            self.assertAlmostEqual(brand.ease(t), 1 - (1 - t) ** 3, delta=0.03)
+        # Solved, not approximated: the curve's x at the parameter found is the progress asked for.
+        x1, _, x2, _ = brand.MOTION["ease"]
+        for step in range(1, 100):
+            progress = step / 100.0
+            low, high = 0.0, 1.0
+            for _ in range(60):
+                middle = (low + high) / 2.0
+                if brand._bezier(x1, x2, middle) < progress:
+                    low = middle
+                else:
+                    high = middle
+            self.assertAlmostEqual(brand.ease(progress), brand._bezier(*brand.MOTION["ease"][1::2], low),
+                                   delta=1e-5)
 
 
 class GeneratedWindowTokenTests(unittest.TestCase):
@@ -728,7 +904,8 @@ class GeneratedWindowTokenTests(unittest.TestCase):
         for text in ("AccentHover", "AccentPressed", "internal const int FieldHeight = 35;",
                      "internal const float ElevCardShadowAlpha = 0.55f;",
                      "internal const int ElevCardReachBottom = 25;",
-                     "internal const double GlowMonitoringMs = 3600;",
+                     "internal const double GlowMonitoringMs = 3200;",
+                     "internal const double TransitionEaseX1 = 0.33;", "internal static double Ease(",
                      "internal static bool Glow(", "internal static bool GlowMoves(",
                      "internal static Color StatusFill(", "internal static Color StatusSystem("):
             self.assertIn(text, self.source)
@@ -788,15 +965,21 @@ foreach ($state in (ConvertFrom-Json $env:CAR_STATES)) {
         foreach ($entered in $since) {
             'moves|' + $state + '|' + (Text $entered) + '|' + $reduced + '|' + [bool]$moves.Invoke($null, [object[]]@($state, [double]$entered, [bool]$reduced))
             foreach ($ms in $moments) {
-                $call = [object[]]@($state, [double]$ms, [double]$entered, [bool]$reduced, $null, $null, $null)
+                $call = [object[]]@($state, [double]$ms, [double]$entered, [bool]$reduced, $null, $null, $null, $null)
                 $shown = [bool]$glow.Invoke($null, $call)
-                'glow|' + $state + '|' + (Text $ms) + '|' + (Text $entered) + '|' + $reduced + '|' + $shown + '|' + (Text $call[4]) + '|' + (Text $call[5]) + '|' + (Text $call[6])
+                'glow|' + $state + '|' + (Text $ms) + '|' + (Text $entered) + '|' + $reduced + '|' + $shown + '|' + (Text $call[4]) + '|' + (Text $call[5]) + '|' + (Text $call[6]) + '|' + (Text $call[7])
             }
         }
     }
 }
 foreach ($field in $brand.GetFields($flags)) {
     if ($field.IsLiteral -and $field.FieldType -ne [string]) { 'const|' + $field.Name + '|' + (Text $field.GetRawConstantValue()) }
+}
+$ease = $brand.GetMethod('Ease', $flags)
+if (-not $ease) { throw 'missing Ease' }
+foreach ($step in -10..110) {
+    $progress = [double]$step / 100.0
+    'ease|' + (Text $progress) + '|' + (Text $ease.Invoke($null, [object[]]@($progress)))
 }
 function Argb([object]$value) { return ('{0:X8}' -f $value.ToArgb()) }
 $dark = $assembly.GetType('CodexAutoResume.Brand+Dark', $true)
@@ -847,12 +1030,14 @@ foreach ($on in @($false, $true)) {
 @unittest.skipUnless(CSC.is_file() and POWERSHELL.is_file(), "needs the in-box compiler and PowerShell")
 class GeneratedStatusLightTests(unittest.TestCase):
     """Brand.cs's status light is compiled and called, and must say what brand.py says: the
-    window, the popup and the panel all draw one glow."""
+    window, the popup and the panel all draw one light. The moments fall in every phase of both
+    cycles and on their edges: 800 and 2080 end monitoring's fall and rise, 2720 is its peak."""
 
     STATES = ("monitoring", "waiting", "checking", "recovering", "attention", "failed", "paused",
               "idle", "", "stopped")
-    MOMENTS = (0, 250, 400, 700, 900, 1100, 1399, 1400, 1800, 2200, 2700, 3600, 5000, 7777)
-    SINCE = (-1, 0, 350, 700, 1399, 1400, 5000)       # negative: the pulse is over
+    MOMENTS = (0, 250, 400, 500, 700, 800, 900, 1100, 1300, 1399, 1400, 1700, 1800, 1900, 2080, 2200,
+               2400, 2700, 2720, 3000, 3199, 3600, 5000, 7777)
+    SINCE = (-1, 0, 350, 700, 1000, 1190, 1300, 1399, 1400, 5000)       # negative: the pulse is over
 
     @classmethod
     def setUpClass(cls):
@@ -892,15 +1077,16 @@ class GeneratedStatusLightTests(unittest.TestCase):
     def test_the_window_glow_is_brand_glow(self):
         rows = self.records.get("glow", [])
         self.assertEqual(len(rows), len(self.STATES) * 2 * len(self.SINCE) * len(self.MOMENTS))
-        for state, ms, since, reduced, shown, opacity, scale, arc in rows:
+        for state, ms, since, reduced, shown, dim, opacity, spread, arc in rows:
             entered = float(since)
             expected = brand.glow(state, float(ms), entered if entered >= 0 else None,
                                   reduced=reduced == "True")
             with self.subTest(state=state, ms=ms, since=since, reduced=reduced):
                 self.assertEqual(shown == "True", expected is not None)
                 if expected is not None:
+                    self.assertAlmostEqual(float(dim), expected["dim"], delta=1e-9)
                     self.assertAlmostEqual(float(opacity), expected["opacity"], delta=1e-9)
-                    self.assertAlmostEqual(float(scale), expected["scale"], delta=1e-9)
+                    self.assertAlmostEqual(float(spread), expected["spread"], delta=1e-9)
                     if expected["arc"] is None:
                         self.assertEqual(float(arc), -1.0)
                     else:
@@ -914,6 +1100,13 @@ class GeneratedStatusLightTests(unittest.TestCase):
             with self.subTest(state=state, since=since, reduced=reduced):
                 self.assertEqual(moves == "True", brand.glow_moves(
                     state, entered if entered >= 0 else None, reduced=reduced == "True"))
+
+    def test_the_window_eases_a_transition_as_brand_ease_does(self):
+        rows = self.records.get("ease", [])
+        self.assertEqual(len(rows), 121)
+        for progress, value in rows:
+            with self.subTest(progress=progress):
+                self.assertAlmostEqual(float(value), brand.ease(float(progress)), delta=1e-9)
 
     def test_the_window_fills_the_dot_from_the_palette(self):
         fills = dict(self.records.get("fill", []))

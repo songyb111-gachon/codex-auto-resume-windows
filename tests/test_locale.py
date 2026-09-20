@@ -26,7 +26,11 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+_HERE = str(Path(__file__).resolve().parent)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)        # srcscan lives next to this file
 
+import srcscan  # noqa: E402
 from codex_auto_resume import control, controlcli, interface, mcpui, messages   # noqa: E402
 
 
@@ -138,11 +142,15 @@ class CatalogTests(unittest.TestCase):
         from one of them by the time it was read.
         """
         import ast
+        import importlib
         from codex_auto_resume import control
-        # Both files that raise: the control layer, and the bridge's own framing refusals.
-        package = ROOT / "src" / "codex_auto_resume"
-        source = "\n".join((package / name).read_text(encoding="utf-8")
-                           for name in ("control.py", "controlcli.py"))
+        # Every file that raises, wherever it is: the control layer, the bridge's and the MCP
+        # server's own framing refusals, and any module a refusal is moved to.
+        trees = srcscan.package_asts()
+        self.assertGreaterEqual(sum(1 for tree in trees.values() for node in ast.walk(tree)
+                                    if isinstance(node, ast.Call) and any(keyword.arg == "code" for keyword in node.keywords)
+                                    and "ControlError" in (getattr(node.func, "id", None), getattr(node.func, "attr", None))),
+                                20, "the walk found no coded refusals; the shape changed")
         english = interface.STRINGS["en"]
         raised = set()
         wordings = {}
@@ -156,29 +164,32 @@ class CatalogTests(unittest.TestCase):
                 if code == "reset_limit":
                     continue
                 self.assertEqual(english["error." + code], message)
-        for node in ast.walk(ast.parse(source)):
-            if not (isinstance(node, ast.Call) and getattr(node.func, "id", "") == "ControlError"):
-                continue
-            code = None
-            for keyword in node.keywords:
-                if keyword.arg == "code" and isinstance(keyword.value, ast.Constant):
-                    code = keyword.value.value
-            if code is None:
-                continue          # the coded-by-default raises; test_control checks those
-            raised.add(code)
-            argument = node.args[0] if node.args else None
-            if isinstance(argument, ast.BinOp) and isinstance(argument.left, ast.Constant):
-                argument = argument.left          # "invalid %s" % name
-            fixed = None
-            if isinstance(argument, ast.Constant) and isinstance(argument.value, str):
-                fixed = argument.value
-            elif isinstance(argument, ast.Name):
-                fixed = getattr(control, argument.id, None)
-            if not isinstance(fixed, str):
-                continue          # str(exc) and friends carry a lower layer's own words
-            # Up to where the sentence stops being fixed, without the punctuation that
-            # was only there to introduce the part that varies.
-            wordings.setdefault(code, set()).add(fixed.split("%")[0].strip().rstrip(":;,- "))
+        for path, tree in trees.items():
+            for node in ast.walk(tree):
+                if not (isinstance(node, ast.Call) and "ControlError" in (getattr(node.func, "id", None),
+                                                                          getattr(node.func, "attr", None))):
+                    continue
+                code = None
+                for keyword in node.keywords:
+                    if keyword.arg == "code" and isinstance(keyword.value, ast.Constant):
+                        code = keyword.value.value
+                if code is None:
+                    continue          # the coded-by-default raises; test_control checks those
+                raised.add(code)
+                argument = node.args[0] if node.args else None
+                if isinstance(argument, ast.BinOp) and isinstance(argument.left, ast.Constant):
+                    argument = argument.left          # "invalid %s" % name
+                fixed = None
+                if isinstance(argument, ast.Constant) and isinstance(argument.value, str):
+                    fixed = argument.value
+                elif isinstance(argument, ast.Name):
+                    # The sentence a name holds, looked up in the module that raises it.
+                    fixed = getattr(importlib.import_module(srcscan.module_name(path)), argument.id, None)
+                if not isinstance(fixed, str):
+                    continue          # str(exc) and friends carry a lower layer's own words
+                # Up to where the sentence stops being fixed, without the punctuation that
+                # was only there to introduce the part that varies.
+                wordings.setdefault(code, set()).add(fixed.split("%")[0].strip().rstrip(":;,- "))
         for code, sentences in wordings.items():
             # Compared as sentences rather than as bytes: the catalog writes what a dialog
             # shows, so it capitalises and ends with a stop, while a raise is a fragment
@@ -197,20 +208,21 @@ class CatalogTests(unittest.TestCase):
 
         The Dashboard's strings repeated two keys the Codex panel already had, and the
         Korean label of the panel's button changed with nobody deciding it should. The
-        catalogs above are the merged dictionaries, so only the source can show this.
+        catalogs above are the merged dictionaries, so only the source can show this. Read
+        across the whole package, so a table moved out of interface.py is still read.
         """
         import ast
-        source = (ROOT / "src" / "codex_auto_resume" / "interface.py").read_text(encoding="utf-8")
-        for node in ast.walk(ast.parse(source)):
-            if not isinstance(node, ast.Dict):
-                continue
-            seen = {}
-            for key in node.keys:
-                if isinstance(key, ast.Constant) and isinstance(key.value, str):
-                    with self.subTest(key=key.value):
-                        self.assertNotIn(key.value, seen, "defined at line %s and again at line %d"
-                                         % (seen.get(key.value), key.lineno))
-                    seen[key.value] = key.lineno
+        for path, tree in srcscan.package_asts().items():
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Dict):
+                    continue
+                seen = {}
+                for key in node.keys:
+                    if isinstance(key, ast.Constant) and isinstance(key.value, str):
+                        with self.subTest(file=srcscan.relative(path), key=key.value):
+                            self.assertNotIn(key.value, seen, "defined at line %s and again at line %d"
+                                             % (seen.get(key.value), key.lineno))
+                        seen[key.value] = key.lineno
 
     def test_no_string_is_empty(self):
         for language, table in interface.STRINGS.items():

@@ -204,6 +204,14 @@ $checkType = $assembly.GetType('CodexAutoResume.SoftCheck', $true)
 $jsonType = $assembly.GetType('CodexAutoResume.Json', $true)
 $parse = $jsonType.GetMethod('Parse', $static)
 $adopt = $paletteType.GetMethod('Adopt', $static)
+# An answer for the window's input from Windows' High Contrast (Theme.HighContrastOn), compiled, so it holds on any thread.
+Add-Type -TypeDefinition @'
+public static class Said {
+    public static bool Yes() { return true; }
+    public static bool No() { return false; }
+    public static System.Func<bool> Answer(bool yes) { return yes ? new System.Func<bool>(Yes) : new System.Func<bool>(No); }
+}
+'@
 $out = @{}
 
 # ------------------------------------------------------------------ resolution
@@ -390,7 +398,7 @@ function New-Window {
     $formType.GetField('auditing', $instance).SetValue($window, $true)
     $window.TopLevel = $false
     $window.MinimumSize = [Drawing.Size]::Empty
-    # The opening size, read from the window: 1000 by 632 since the Overview's rows share the page (it was 600).
+    # The opening size, read from the window: 1000 by 664 since v0.6.5 (632 in v0.6.4, 600 before).
     $window.ClientSize = [Drawing.Size]::new([int]$formType.GetField('OpeningWidth', $static).GetValue($null), [int]$formType.GetField('OpeningHeight', $static).GetValue($null))
     return $window
 }
@@ -463,6 +471,18 @@ foreach ($theme in @('light', 'dark')) {
     $window.Dispose()
 }
 
+# ------------------------------------------------------------------ High Contrast, as the window reads it
+# Theme.HighContrastOn: Windows' own answer as the window ships, and the probe's own answer from here on - "off", so the
+# steps below change the theme on every machine; with High Contrast on here, every one read "contrast" and was skipped.
+$contrastInput = $themeType.GetField('HighContrastOn', $static)
+$currentOf = $themeType.GetMethod('Current', $static)
+$out.contrastInput = @{ default = [string]$contrastInput.GetValue($null).Method.Name }
+$contrastInput.SetValue($null, [Said]::Answer($true))
+$out.contrastInput.on = @([string]$currentOf.Invoke($null, [object[]]@('light')), [string]$currentOf.Invoke($null, [object[]]@('dark')),
+                          [string]$currentOf.Invoke($null, [object[]]@('system')))
+$contrastInput.SetValue($null, [Said]::Answer($false))
+$out.contrastInput.off = @([string]$currentOf.Invoke($null, [object[]]@('light')), [string]$currentOf.Invoke($null, [object[]]@('dark')))
+
 # ------------------------------------------------------------------ the reopen check, while an action is on its way
 # Not audited, so CheckReopen decides for real. An action is on its way (busy), so where it would reopen it waits,
 # as it does while minimized or under a dialog, and never starts a new process - every step checks that first.
@@ -514,7 +534,7 @@ $steps += ,(Step 'first read of a second reopen in a row')
 $null = Invoke-Window $window 'Observe' @((Stored 'en' 'dark'), $false)
 $steps += ,(Step 'read again')
 $out.checks = $steps
-$out.highContrast = [bool][Windows.Forms.SystemInformation]::HighContrast
+$out.highContrast = [bool]$themeType.GetMethod('ContrastOn', $static).Invoke($null, $null)
 $window.Dispose()
 
 # ------------------------------------------------------------------ the handover's two endings
@@ -683,6 +703,8 @@ try {
 # is after a window's own WM_SETTINGCHANGE has been. Stood in for by leaving the opposite answer in that cache: the
 # theme is still what Windows says now.
 $out.staleCache = @{}
+# Windows' own answer again - its own method, whatever the input held - for this is about what Windows says.
+$contrastInput.SetValue($null, [Delegate]::CreateDelegate([Func[bool]], $themeType.GetMethod('HighContrast', $static)))
 try {
     $info = [Windows.Forms.SystemInformation]
     $cached = $info.GetField('highContrast', $static)
@@ -846,6 +868,13 @@ class WindowThemeTests(unittest.TestCase):
         for name, theme in (("dark", "dark"), ("light", "light"), ("whitespace", "light"), ("versioned", "dark")):
             with self.subTest(read=name):
                 self.assertEqual(self.answer["stored"][name], theme)
+
+    def test_high_contrast_as_the_window_reads_it_wins_over_every_preference(self):
+        """What Theme.HighContrastOn answers - Windows' own answer as the window ships (ThemeSourceRuleTests), the
+        probe's here - wins over every preference."""
+        contrast = self.answer["contrastInput"]
+        self.assertEqual(contrast["on"], ["contrast", "contrast", "contrast"])
+        self.assertEqual(contrast["off"], ["light", "dark"])
 
     def test_high_contrast_is_asked_of_windows_not_of_a_cache_the_change_has_not_reached(self):
         """Turning High Contrast on reaches the window's WM_SETTINGCHANGE before .NET's own copy of the setting
@@ -1086,9 +1115,9 @@ class WindowThemeTests(unittest.TestCase):
     def test_the_window_waits_for_unsaved_edits_and_says_so_in_the_save_card(self):
         """The real CheckReopen, driven through Observe as a read of the settings drives it. An action is on
         its way, so where the window would reopen it waits (recheck), as it waits while minimized or under a
-        dialog, and nothing is started."""
-        if self.answer["highContrast"]:
-            self.skipTest("High Contrast is on, and wins over the themes these steps change")
+        dialog, and nothing is started. High Contrast is the probe's own answer, "off", so the steps are the same on a
+        machine that has it on."""
+        self.assertFalse(self.answer["highContrast"], "the probe answers High Contrast 'off' for these steps")
         note = l10n.catalog("en")["note.reopen_pending"]
         expected = [
             # step, recheck (would reopen, or waits for the edits), note shown, openedTheme
@@ -1141,8 +1170,7 @@ class WindowThemeTests(unittest.TestCase):
         different change reopens it as ever."""
         handover = self.answer["handover"]
         self.assertNotIn("error", handover)
-        if self.answer["highContrast"]:
-            self.skipTest("High Contrast is on, and wins over the themes these steps change")
+        self.assertFalse(self.answer["highContrast"], "the probe answers High Contrast 'off' for these steps")
         self.assertEqual(handover["heldWhileStaying"], 1, "not reopening: the work is done at once")
         self.assertEqual(handover["heldWhileReopening"], 1, "reopening: the work waits")
         gone = handover["gone"]
@@ -1308,7 +1336,15 @@ class ThemeSourceRuleTests(unittest.TestCase):
         controls = self.sources["Controls.cs"]
         asked = self.block(controls, "internal static bool HighContrast()", "\n        }\n")
         self.assertIn("SystemParametersInfo(SPI_GETHIGHCONTRAST", asked)
-        self.assertIn("HighContrast()", self.block(controls, "internal static string Current(", "\n        }\n"))
+        # Through the one input a probe may answer (Theme.HighContrastOn), which ships as Windows' own answer, which the
+        # window's first theme reads too, and which nothing in the window sets.
+        self.assertIn("ContrastOn()", self.block(controls, "internal static string Current(", "\n        }\n"))
+        self.assertIn("internal static Func<bool> HighContrastOn = HighContrast;", controls)
+        self.assertIn("on != null ? on() : HighContrast()", self.block(controls, "internal static bool ContrastOn()", "\n        }\n"))
+        self.assertIn("Adopt(CodexAutoResume.Theme.ContrastOn() ?", controls)
+        for name, text in self.sources.items():
+            with self.subTest(name):
+                self.assertEqual(self.code(text).count("HighContrastOn ="), 1 if name == "Controls.cs" else 0)
         uses = sum(self.code(text).count("SystemInformation.HighContrast") for text in self.sources.values())
         self.assertEqual(uses, 1, "SystemInformation.HighContrast only as the fallback, where Windows cannot be asked")
         self.assertIn("SystemInformation.HighContrast", self.code(asked))
