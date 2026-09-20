@@ -244,11 +244,11 @@ for the state the watcher is in. Its tooltip says whether recovery is paused, ho
 are waiting, how many are running in Codex and how long until the next check.
 
 The icon moves, in the mark it already has. While the watcher watches, the head - the bright dot at
-the end of the ring - breathes, dimming toward the badge's deep blue and back every 3.2 seconds, and
+the end of the ring - breathes, dimming toward the badge's deep blue and back every 4.4 seconds, and
 after three breaths it sweeps along the ring's white stroke and back, clockwise, at full
-brightness: 2.56 seconds out, a moment at the far end, 2.56 seconds back and 1.12 at home. It never
+brightness: 3.52 seconds out, a moment at the far end, 3.52 seconds back and 1.54 at home. It never
 breathes while it travels, and it never crosses the gap at the top of the ring. While a recovery is
-in progress it sweeps out and back over and over, twice as quickly - once every 2.88 seconds -
+in progress it sweeps out and back over and over, twice as quickly - once every 3.96 seconds -
 without breathing. Paused, it is grey and still; when something needs you it takes that colour, pulses once
 and holds. Nothing moves under Reduce motion, Windows' animation setting, High Contrast or battery
 saver, while the session is locked, or while Windows keeps the icon in the overflow area, where

@@ -63,11 +63,21 @@ POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
 LIGHTS = ("monitoring", "waiting", "checking", "recovering", "paused", "idle", "attention", "failed", "", "stopped",
           "Monitoring", "watching")
 STATES = tray.ICON_STATES + ("", "paused", "monitoring")
-# Watching's loop is five 3.2 s slots - three breaths, then a sweep out and back from 9.6 s to 16 s - so the moments
-# cross each breath's edge, the sweep's start, its far end and the pause there, its way home, its rest there and a
-# second loop; recovering sweeps the same shape every 2.88 s, and a problem's pulse lasts 1.4 s.
-MOMENTS = (0, 150, 800, 1280, 1360, 1600, 2640, 2880, 3199, 3200, 6400, 9599, 9600, 9650, 12160, 12320, 13600, 14880,
-           15999, 16000, 16050, 31234, 59000)
+# Watching's loop is five slots of brand's monitoring breath - three breaths, then a sweep out and back in the last
+# two - so the moments cross each breath's edge, the sweep's start, its far end and the pause there, its way home,
+# its rest there and a second loop. They are built from the rhythm, not written as seconds, so that softening the
+# light (v0.6.6: 3.2 s to 4.4 s) moves the probe with it rather than leaving it sampling the middle of a breath.
+SLOT = int(brand.GLOW["monitoring_ms"])
+SWEEP_AT = SLOT * tray.ICON_MOTION["breaths"]
+LOOP = SLOT * (tray.ICON_MOTION["breaths"] + tray.ICON_MOTION["sweep_breaths"])
+OUT = int(SLOT * tray.ICON_MOTION["sweep_breaths"] * tray.ICON_MOTION["sweep_out"])
+HOLD = int(SLOT * tray.ICON_MOTION["sweep_breaths"] * tray.ICON_MOTION["sweep_hold"])
+MOMENTS = tuple(sorted({0, 150, SLOT // 4, SLOT // 2, SLOT // 2 + 80, SLOT - 1, SLOT, SLOT + 400, 2 * SLOT,
+                        SWEEP_AT - 1, SWEEP_AT, SWEEP_AT + 50, SWEEP_AT + OUT, SWEEP_AT + OUT + HOLD,
+                        SWEEP_AT + 2 * OUT + HOLD, LOOP - 1, LOOP, LOOP + 50, 31234, 59000}))
+# One breath, sampled to its end, and the sweep's slot from just before it to just after it.
+BREATH_WALK = tuple(range(0, SLOT + 1, max(50, SLOT // 32)))
+TURN_WALK = tuple(range(SWEEP_AT - 100, LOOP + 200, 100))
 SINCE = (-1, 0, 300, 700, 1399, 1400, 5000)
 PROBE_SIZES = (16, 24, 32, 40, 48, 56, 64, 72)
 # Windows' display scales, and the big icon's size at each: SM_CXICON, 32 px at 100%.
@@ -471,11 +481,11 @@ $markType.GetField('Clock', $instance).SetValue($mark, [ProbeClock]::Func())
 [ProbeClock]::Now = 0
 $out.before = @{ state = (StateOf $mark); moving = (Moving $mark); look = (Look $window) }
 
-# Watching: three breaths, then a sweep out and back in the last two 3.2 s slots of every 16 s.
+# Watching: three breaths, then a sweep out and back in the last two slots of every loop.
 $null = $follow.Invoke($mark, [object[]]@('monitoring'))
 $out.watching = @{ state = (StateOf $mark); moving = (Moving $mark); interval = [int](Field $mark 'interval')
-                   breath = (Walk $mark $window 0 (0..32 | ForEach-Object { $_ * 100 }))
-                   turn = (Walk $mark $window 0 (0..70 | ForEach-Object { 9500 + $_ * 100 })) }
+                   breath = (Walk $mark $window 0 (ConvertFrom-Json $env:CAR_BREATH_WALK))
+                   turn = (Walk $mark $window 0 (ConvertFrom-Json $env:CAR_TURN_WALK)) }
 # Every frame shown is the composed frame the rule asks for at that moment.
 $checks = @()
 foreach ($ms in @(0, 400, 1600, 2800, 9700, 12200, 13600, 14400, 15300)) {
@@ -685,6 +695,8 @@ class TaskbarMarkTests(unittest.TestCase):
                      CAR_LIGHTS=json.dumps(LIGHTS), CAR_STATES=json.dumps(STATES), CAR_MOMENTS=json.dumps(MOMENTS),
                      CAR_SINCE=json.dumps(SINCE), CAR_SIZES=json.dumps(PROBE_SIZES), CAR_BIG_SIZES=json.dumps(BIG_SIZES),
                      CAR_COLOURS=json.dumps([list(colour) for colour in COLOURS]),
+                     CAR_BREATH_WALK=json.dumps(list(BREATH_WALK)),
+                     CAR_TURN_WALK=json.dumps(list(TURN_WALK)),
                      CAR_SNAPSHOTS=json.dumps(list(cls.snapshots))))
         answer = work / "result.json"
         cls.answer = (json.loads(answer.read_text(encoding="utf-8-sig"))
@@ -921,7 +933,7 @@ class TaskbarMarkTests(unittest.TestCase):
         self.assertTrue(watching["moving"])
         self.assertEqual(watching["interval"], tray.ICON_MOTION["breathe_frame_ms"])
         breath, turn = watching["breath"], watching["turn"]
-        # The breath: the head's brightness, in its place - a picture for each level the rule asks for over one 3.2 s
+        # The breath: the head's brightness, in its place - a picture for each level the rule asks for over one
         # slot, the first and the last the window's own icon again at full brightness.
         self.assertEqual(len({row[2] for row in breath}), len({tray.icon_frame("watching", row[0]) for row in breath}))
         self.assertGreaterEqual(len({row[2] for row in breath}), 12)
@@ -1113,6 +1125,41 @@ class TaskbarMarkTests(unittest.TestCase):
                 self.assertLess(body.index("stateDot.State ="), body.index("TellTaskbar("))
         self.assertIn("if (snapshot == null) TellTaskbar(status, null, Now());",
                       method(settings, "private void ApplyStatus("))
+
+    def test_the_window_takes_a_taskbar_identity_of_its_own_so_its_button_can_change(self):
+        """v0.6.6. Everything above was true in v0.6.5 and the installed window's button still never moved.
+
+        Measured here, on Windows 11: the published executable, byte for byte, moved the button from a scratch
+        folder and did not move it from the installed one, where an instrumented build showed the window setting
+        frame after frame (state=watching, allowed=True, interval 156 then 62) into a button that stayed
+        pixel-identical for twenty-four seconds. What decides it is the location: Windows files an installed window
+        under the application registered there and paints its button from that application's icon, which no window
+        can change. A Start Menu shortcut alone does not do it - one written for a scratch folder, carrying the
+        same identity and the same icon, left the button moving.
+
+        So the window asks Windows to file it under an identity of its own, which nothing registers, and the button
+        falls back to the icon the window itself sets. With that one call the same build moved 74 of 163 frames in
+        the installed location. It is made before any window exists, which is the only time Windows accepts it, and
+        it changes this process alone: notifications are raised by the watcher under the watcher's AUMID, which is
+        what makes them attributable, and that is untouched.
+        """
+        from codex_auto_resume import startup
+
+        settings = (GUI / "SettingsApp.cs").read_text(encoding="utf-8")
+        self.assertIn("SetCurrentProcessExplicitAppUserModelID", settings)
+        self.assertIn('SetCurrentProcessExplicitAppUserModelID("CodexAutoResume.Settings")', settings)
+        # The window's identity is its own: sharing the watcher's would resolve to the installer's shortcut again.
+        self.assertNotIn('SetCurrentProcessExplicitAppUserModelID("%s")' % startup.AUMID, settings)
+        self.assertEqual(startup.AUMID, "CodexAutoResume.Watcher")
+        main = settings[settings.index("internal static int Main(string[] argv)"):]
+        main = main[:main.index("Application.Run(")]
+        self.assertIn("TakeOwnTaskbarIdentity();", main)
+        # Before any window is made, and before the first control decides anything about itself.
+        self.assertLess(main.index("TakeOwnTaskbarIdentity();"), main.index("Application.EnableVisualStyles();"))
+        self.assertEqual(settings.count("TakeOwnTaskbarIdentity()"), 2)         # declared once, called once
+        claim = settings[settings.index("internal static void TakeOwnTaskbarIdentity()"):]
+        claim = claim[:claim.index("\n        }\n")]
+        self.assertIn("catch (Exception) { }", claim)                           # an older shell decides nothing
 
 
 if __name__ == "__main__":

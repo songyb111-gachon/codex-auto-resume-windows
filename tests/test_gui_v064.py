@@ -356,7 +356,9 @@ class MaterialTests(unittest.TestCase):
                 self.assertGreaterEqual(seen, radius - 2, "the glow stops short of its spread's radius")
                 reached.append((fraction, seen))
         self.assertEqual(frames[round(LIGHT_MOMENTS[0], 3)][0], frames[round(LIGHT_MOMENTS[-1], 3)][0])
-        self.assertGreater(brand.glow("monitoring", LIGHT_MOMENTS[0], LIGHT_MOMENTS[0])["dim"], 0.5)
+        # The first moment is the fall's end, where the dot is as dark as the table lets it be.
+        self.assertAlmostEqual(brand.glow("monitoring", LIGHT_MOMENTS[0], LIGHT_MOMENTS[0])["dim"],
+                               brand.GLOW["dot_dim"], places=9)
         growing = [seen for fraction, seen in reached if fraction <= 0.85]
         receding = [seen for fraction, seen in reached if fraction >= 0.85]
         self.assertEqual(growing, sorted(growing))
