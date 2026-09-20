@@ -48,7 +48,39 @@ same gates, the same one watcher that is the only thing allowed to send, and no 
 
 ### Evidence
 
-TO FILL: what was run, on which build, on which machine
+Everything below was run on the release candidate built from this tree, on one Windows 11 machine
+(Home, build 26200, 3840 x 2160 at 150%, Korean system language, Windows' apps set to dark and the
+product's Theme set to Light).
+
+- **The suite.** 2,556 tests, no failures, under Python 3.13 here (759 s, 8 skipped), and green on
+  GitHub's Windows runners for 3.12, 3.13, 3.14 and 3.15. The skips are the opt-in live checks and
+  the pin check that waits for the tag.
+- **The window, built twice.** Two builds of `CodexAutoResumeSettings.exe` from these sources are
+  byte-identical (`7c95119e…`, 382,976 bytes), and the archive is
+  `130c63e695f66f6ab9773eea8e189e4d5c1c62e8e511c2a235477c0107e4a7d3`.
+- **The taskbar button, in the installed location.** This is the claim v0.6.5 could not make. With
+  v0.6.6 installed over v0.6.5 here, the window's button was filmed at ten frames a second for
+  twenty-four seconds: 92 of 198 frames differ from the one before, and the mark's head is at
+  different places and brightnesses through the loop. The same measurement on the published v0.6.5
+  build, in the same place, found not one changed pixel in twenty-four seconds; the same executable
+  moved the button from a scratch folder. An instrumented build showed the window setting frames
+  throughout (state=watching, allowed=True, interval 156 then 62) - the frames simply never reached
+  the button.
+- **Installed over v0.6.5 on this machine.** The installer answered *Updated. Your settings and
+  pending recoveries were kept.*; `config\settings.json` was byte for byte what it had been; the
+  watcher restarted and reported 0.6.6, and the plugin manifest reads 0.6.6.
+- **The archive.** `build/smoke_archive.py` passed every check on it, including that both
+  executables report 0.6.6 and that this machine's registrations and state were left as they were.
+- **The light.** Its numbers are held by the suite on the drawn pixels of every surface - the
+  window, the popup, the panel and the card - and every picture in the documentation was drawn
+  again from the new table by the product's own code, in nine languages, light and dark.
+- **The icon's motion.** The GIF in the documentation is composed from the icon's own frames at the
+  new rhythm, and the suite holds every frame of it against the icon's table.
+
+Not verified, and not claimed: the notification-area icon's own motion on this machine (Windows
+keeps it in the overflow flyout, where this release still holds it still on purpose); High Contrast
+on a real system; a real Codex interruption recovered by this build; any machine but this one, and
+any scaling but 150 per cent.
 
 ## v0.6.5 — A light you can see, notifications in the product's own card, and a Codex Compatibility Registry
 
