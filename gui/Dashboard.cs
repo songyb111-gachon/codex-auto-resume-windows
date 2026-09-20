@@ -3087,10 +3087,121 @@ namespace CodexAutoResume
             });
         }
 
-        private bool Confirm(string question)
+        private bool Confirm(string question, string affirm)
         {
-            return question == null || MessageBox.Show(this, question, "Codex Auto Resume",
-                MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
+            return question == null || Say(question, affirm);
+        }
+
+        /// A notice: one sentence and one button that closes it.
+        private void Tell(string text)
+        {
+            Say(text, null);
+        }
+
+        // ---------------------------------------------------------------- the window's own message box
+        /// What Windows' message box was, in the material the rest of this window is made of.
+        ///
+        /// It was the last native piece here. Windows' box is a square grey sheet with a system font and
+        /// a title bar that ignores the theme - in dark it is a white card in the middle of a dark window
+        /// - and its buttons say "Yes" and "No", which name nothing. This one says what will happen: the
+        /// words of the button that was pressed to ask. The panel settled that pattern first (confirmOff:
+        /// the action's own label beside `action.cancel`), so both halves of the product ask the same way.
+        ///
+        /// No new words were needed for it. A notice closes with `action.close`; a question affirms with
+        /// the label its caller already has and dismisses with `action.cancel` - or with `action.close`
+        /// where those two would be the same word, as they are for the Pending page's own Cancel.
+        private bool Say(string text, string affirm)
+        {
+            using (var dialog = new Form())
+            {
+                dialog.Text = "Codex Auto Resume";
+                dialog.Font = Font;
+                dialog.BackColor = Canvas;
+                dialog.ForeColor = Ink;
+                // In the window's theme, title bar and all.
+                Soft.TitleBar(dialog);
+                dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
+                dialog.StartPosition = FormStartPosition.CenterParent;
+                dialog.MinimizeBox = false;
+                dialog.MaximizeBox = false;
+                dialog.ShowInTaskbar = false;
+                dialog.ShowIcon = false;
+
+                // A measure a sentence is read at, not a box stretched to whatever it holds: the words
+                // wrap inside it, and a short one still gets a dialog wide enough to look deliberate.
+                int pad = Px(16);
+                Size measured = TextRenderer.MeasureText(text ?? "", Font, new Size(Px(420), 0),
+                                                         TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+                int width = Math.Max(Px(300), measured.Width);
+                // And a height a dialog can be. A refusal carries the local service's own sentence
+                // under the translated one, and that sentence is whatever was raised - a path, a stack,
+                // a page of it. Past this the words go in a well and scroll there, on the window's own
+                // bar, rather than making a dialog taller than the screen it opens on.
+                int tallest = Px(240);
+                bool scrolls = measured.Height > tallest;
+                int room = scrolls ? tallest : measured.Height;
+
+                var padding = new Panel();
+                padding.BackColor = Canvas;
+                padding.Dock = DockStyle.Fill;
+                padding.Padding = Pad(16, 16, 16, 0);
+                if (scrolls)
+                {
+                    var well = new SoftTextArea();
+                    well.Dock = DockStyle.Fill;
+                    well.Font = Font;
+                    well.Box.Font = Font;
+                    well.Box.ReadOnly = true;
+                    well.Box.Text = text ?? "";
+                    well.Box.AccessibleName = "Codex Auto Resume";
+                    padding.Controls.Add(well);
+                }
+                else
+                {
+                    var words = new Label();
+                    words.Text = text ?? "";
+                    words.ForeColor = Ink;
+                    words.BackColor = Canvas;
+                    words.UseMnemonic = false;     // an ampersand in a conversation's name is a letter
+                    words.AutoSize = false;
+                    words.Dock = DockStyle.Fill;
+                    padding.Controls.Add(words);
+                }
+                dialog.Controls.Add(padding);
+
+                bool said = false;
+                FlowLayoutPanel buttons = ButtonRow();
+                buttons.FlowDirection = FlowDirection.RightToLeft;
+                // A right-to-left flow lays its first control out from its own width less both sides
+                // of its padding, so what stands between the rightmost button and the edge is the two
+                // added together. All of it is put on the right, where it is the gap, and the row is
+                // then inset by the same 16 as the sentence above it.
+                buttons.Padding = Pad(0, 12, 16, 16);
+                Button accept, dismiss;
+                if (affirm == null)
+                {
+                    accept = dismiss = MakeButton(S("action.close", "Close"), true, delegate { dialog.Close(); });
+                    buttons.Controls.Add(accept);
+                }
+                else
+                {
+                    accept = MakeButton(affirm, true, delegate { said = true; dialog.Close(); });
+                    string away = S("action.cancel", "Cancel");
+                    if (string.Equals(away, affirm, StringComparison.CurrentCultureIgnoreCase))
+                        away = S("action.close", "Close");
+                    dismiss = MakeButton(away, false, delegate { dialog.Close(); });
+                    // Right to left, so the button that does the thing is the rightmost.
+                    buttons.Controls.Add(accept);
+                    buttons.Controls.Add(dismiss);
+                }
+                dialog.Controls.Add(buttons);
+                dialog.AcceptButton = accept;
+                dialog.CancelButton = dismiss;     // which is also what Escape presses
+
+                dialog.ClientSize = new Size(width + 2 * pad, room + pad + buttons.PreferredSize.Height);
+                dialog.ShowDialog(this);
+                return said;
+            }
         }
 
         // A confirmation that names the conversation it acts on. The row is the one read at
@@ -3117,9 +3228,8 @@ namespace CodexAutoResume
             string said = string.IsNullOrEmpty(code) || code == "request_failed"
                         ? null : S("error." + code, null);
             string lead = said ?? S("action.failed", "That could not be done.");
-            MessageBox.Show(this, lead + (said != null || string.IsNullOrEmpty(english)
-                                          ? "" : Environment.NewLine + Environment.NewLine + english),
-                            "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            Tell(lead + (said != null || string.IsNullOrEmpty(english)
+                         ? "" : Environment.NewLine + Environment.NewLine + english));
         }
 
         private static Dictionary<string, object> Failure(Exception error)
@@ -3165,7 +3275,8 @@ namespace CodexAutoResume
             var row = Selected(pendingList);
             if (row == null) return;
             if (!Confirm(Named("confirm.cancel",
-                               "Stop recovering \"{name}\"? A continuation already running in Codex is not stopped.", row)))
+                               "Stop recovering \"{name}\"? A continuation already running in Codex is not stopped.", row),
+                         S("action.cancel", "Cancel")))
                 return;
             Send("cancel", IdArgument(row));
         }
@@ -3175,7 +3286,8 @@ namespace CodexAutoResume
             var row = Selected(historyList);
             if (row == null) return;
             if (!Confirm(Named("confirm.reset",
-                               "Give \"{name}\" its attempts back? It waits and is checked again; nothing is sent now.", row)))
+                               "Give \"{name}\" its attempts back? It waits and is checked again; nothing is sent now.", row),
+                         S("action.reset_budget", "Give attempts back")))
                 return;
             CallAsync("reset-budget", IdArgument(row), delegate(Dictionary<string, object> reply)
             {
@@ -3184,7 +3296,7 @@ namespace CodexAutoResume
                     S("history.reset_done", "Attempts restored. Nothing was sent."),
                     S("history.reset_thread_off", "Automatic recovery is off for this conversation; switch it on before recovery can run."));
                 if (notice != null)
-                    MessageBox.Show(this, notice, "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    Tell(notice);
                 RefreshAfterChange();
             });
         }
@@ -3206,7 +3318,9 @@ namespace CodexAutoResume
             if (!Confirm(on ? Named("confirm.thread_off",
                                     "Turn automatic recovery off for \"{name}\"? Its waiting recoveries are cancelled.", row)
                             : Named("confirm.thread_on",
-                                    "Turn automatic recovery back on for \"{name}\"? Nothing is sent now; every check still applies.", row)))
+                                    "Turn automatic recovery back on for \"{name}\"? Nothing is sent now; every check still applies.", row),
+                         on ? S("action.thread_off", "Turn off for this conversation")
+                            : S("action.thread_on", "Turn on for this conversation")))
                 return;
             string thread = Json.Escape(Str(row, "thread_id"));
             if (on) Send("cancel-thread", "{\"thread_id\":" + thread + "}");
@@ -3223,7 +3337,8 @@ namespace CodexAutoResume
             // Off only ever reduces what runs, so it happens at once. On asks first, naming the
             // conversation, exactly as the button beside the list does.
             if (enable && !Confirm(Named("confirm.thread_on",
-                                         "Turn automatic recovery back on for \"{name}\"? Nothing is sent now; every check still applies.", row)))
+                                         "Turn automatic recovery back on for \"{name}\"? Nothing is sent now; every check still applies.", row),
+                                   S("action.thread_on", "Turn on for this conversation")))
                 return;
             Send("interruption-recovery", "{\"interruption_id\":" + Json.Escape(id) + ",\"thread_id\":" +
                  Json.Escape(thread) + ",\"enabled\":" + (enable ? "true" : "false") + "}");
@@ -3233,7 +3348,8 @@ namespace CodexAutoResume
         {
             if (busy > 0 || pendingList.Items.Count == 0) return;
             if (!Confirm(S("confirm.cancel_all",
-                           "Stop every pending recovery? Anything already handed to Codex is withdrawn only if it is still queued.")))
+                           "Stop every pending recovery? Anything already handed to Codex is withdrawn only if it is still queued."),
+                         S("action.cancel_all", "Cancel all")))
                 return;
             CallAsync("cancel-all", null, delegate(Dictionary<string, object> reply)
             {
@@ -3414,8 +3530,7 @@ namespace CodexAutoResume
                 var status = Ok(reply) ? Map(reply, "status") : null;
                 if (status == null)
                 {
-                    MessageBox.Show(this, S("status.unavailable", "Status unavailable"), "Codex Auto Resume",
-                                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    Tell(S("status.unavailable", "Status unavailable"));
                     return;
                 }
                 bool enabled = Equals(Get(status, "enabled"), true);
@@ -3428,13 +3543,15 @@ namespace CodexAutoResume
         private void SetEnabled(bool enable)
         {
             // Pausing never asks: it only reduces what happens. Turning recovery back on does.
-            if (enable && !Confirm(S("confirm.resume", "Turn automatic recovery back on?"))) return;
+            if (enable && !Confirm(S("confirm.resume", "Turn automatic recovery back on?"),
+                                   S("action.resume", "Resume recovery"))) return;
             Send("enabled", enable ? "{\"enabled\":true}" : "{\"enabled\":false}");
         }
 
         private void ClearHistory()
         {
-            if (!Confirm(S("confirm.clear", "Hide finished recoveries from the history?"))) return;
+            if (!Confirm(S("confirm.clear", "Hide finished recoveries from the history?"),
+                         S("action.clear_history", "Clear history"))) return;
             Send("clear-history", null);
         }
 
@@ -3647,15 +3764,13 @@ namespace CodexAutoResume
             }
             if (File.Exists(target))
             {
-                MessageBox.Show(this, S("diag.export_exists", "That file already exists; choose a new name."),
-                                "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Tell(S("diag.export_exists", "That file already exists; choose a new name."));
                 return;
             }
             CallAsync("diagnostics", "{\"path\":" + Json.Escape(target) + "}", delegate(Dictionary<string, object> reply)
             {
                 if (Ok(reply))
-                    MessageBox.Show(this, S("diag.export_done", "Diagnostics saved."), "Codex Auto Resume",
-                                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    Tell(S("diag.export_done", "Diagnostics saved."));
                 else Report(reply);
             });
         }
@@ -3663,7 +3778,8 @@ namespace CodexAutoResume
         private void StopWatcher()
         {
             if (!Confirm(S("confirm.stop_watcher",
-                           "Stop the watcher? It finishes the check it is in and then stops. Nothing waiting is lost, and nothing is recovered until it runs again."))) return;
+                           "Stop the watcher? It finishes the check it is in and then stops. Nothing waiting is lost, and nothing is recovered until it runs again."),
+                         S("action.stop_watcher", "Stop watcher"))) return;
             CallAsync("stop-watcher", null, delegate(Dictionary<string, object> reply)
             {
                 if (!Ok(reply)) { Report(reply); RefreshAfterChange(); return; }
@@ -3675,8 +3791,7 @@ namespace CodexAutoResume
                             : state == "still-finishing" ? S("diag.stop_finishing", "The watcher is finishing the check it is in, and stops when that is done.")
                             : state == "not-running" ? S("diag.stop_not_running", "The watcher was not running.")
                             : S("diag.stop_unknown", "Whether the watcher stopped could not be told.");
-                MessageBox.Show(this, text, "Codex Auto Resume", MessageBoxButtons.OK,
-                                state == "unknown" ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+                Tell(text);
                 RefreshAfterChange();
             });
         }
@@ -3695,7 +3810,8 @@ namespace CodexAutoResume
 
         private void Repair()
         {
-            if (!Confirm(S("confirm.repair", "Run setup again to repair the Windows registrations?"))) return;
+            if (!Confirm(S("confirm.repair", "Run setup again to repair the Windows registrations?"),
+                         S("action.repair", "Repair installation"))) return;
             string root = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
             string python = Path.Combine(root, "runtime", "python.exe");
             string setup = Path.Combine(root, "app", "scripts", "plugin_setup.py");
@@ -3863,7 +3979,8 @@ namespace CodexAutoResume
         {
             if (!Confirm(S("confirm.update",
                            "Version {latest} has been published. Download and install it? Your settings, your pause and everything waiting are kept.",
-                           "latest", latest).Replace("{current}", current ?? "")))
+                           "latest", latest).Replace("{current}", current ?? ""),
+                         S("action.install", "Install")))
             {
                 ReportUpdate("available", current, latest, null);
                 return;
@@ -3944,8 +4061,7 @@ namespace CodexAutoResume
                             : S("diag.update_watcher_unknown", "Whether the watcher restarted could not be told."));
                 text += Environment.NewLine + Environment.NewLine +
                         S("diag.update_reopen", "Close this window and open it again so it runs the new version.");
-                MessageBox.Show(this, text, "Codex Auto Resume", MessageBoxButtons.OK,
-                                handover == "restarted" ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+                Tell(text);
                 RefreshAfterChange();
             });
         }
@@ -4038,7 +4154,6 @@ namespace CodexAutoResume
 
         private void ReportUpdate(string answer, string current, string latest, string detail)
         {
-            bool calm = answer == "current" || answer == "available" || answer == "newer-local";
             string text =
                 answer == "current"
                     ? S("diag.update_is_current", "Version {version} is the newest published release.", "version", current)
@@ -4057,13 +4172,11 @@ namespace CodexAutoResume
                     : S("diag.update_failed", "The update check did not finish.");
             if ((answer == "failed" || answer == "unavailable") && !string.IsNullOrEmpty(detail))
                 text += Environment.NewLine + Environment.NewLine + detail;
-            MessageBox.Show(this, text, "Codex Auto Resume", MessageBoxButtons.OK,
-                            calm ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+            Tell(text);
         }
 
         private void ReportRepair(string outcome, string detail)
         {
-            bool calm = outcome == "done" || outcome == "running";
             string text = outcome == "done" ? S("diag.repair_done", "Setup finished.")
                         : outcome == "running" ? S("diag.repair_running", "Setup is taking longer than usual and is still working. It carries on in the background; look at this page again in a minute.")
                         : outcome == "busy" ? S("diag.repair_busy", "An installation or a repair is already running. Try again once it has finished.")
@@ -4073,8 +4186,7 @@ namespace CodexAutoResume
             // would be noise beside a sentence that already says what to do.
             if (outcome == "failed" && !string.IsNullOrEmpty(detail))
                 text += Environment.NewLine + Environment.NewLine + detail;
-            MessageBox.Show(this, text, "Codex Auto Resume", MessageBoxButtons.OK,
-                            calm ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+            Tell(text);
         }
     }
 }

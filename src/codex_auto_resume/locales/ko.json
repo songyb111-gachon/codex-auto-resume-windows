@@ -5,6 +5,7 @@
   "action.clear_history": "기록 지우기",
   "action.close": "닫기",
   "action.export": "진단 정보 내보내기...",
+  "action.install": "설치",
   "action.failed": "그 작업을 하지 못했습니다.",
   "action.open_logs": "로그 폴더 열기",
   "action.pause": "자동 복구 일시 정지",

@@ -5,6 +5,7 @@
   "action.clear_history": "清除历史记录",
   "action.close": "关闭",
   "action.export": "导出诊断信息…",
+  "action.install": "安装",
   "action.failed": "无法完成此操作。",
   "action.open_logs": "打开日志文件夹",
   "action.pause": "暂停恢复",
