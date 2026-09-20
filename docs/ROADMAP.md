@@ -1,6 +1,6 @@
-# Codex Auto Resume roadmap: v0.6.5 → v0.6.12
+# Codex Auto Resume roadmap: v0.6.6 → v0.6.12
 
-This is the current development direction for Codex Auto Resume after v0.6.4.
+This is the current development direction for Codex Auto Resume after v0.6.5.
 
 This is a **planned roadmap, not a promise**. Details may change as Codex evolves or as testing
 reveals better or safer implementation paths.

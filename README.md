@@ -255,7 +255,7 @@ saver, while the session is locked, or while Windows keeps the icon in the overf
 nobody would see it. While the settings window is open, its taskbar button moves the same way and
 stops for the same reasons.
 
-<img src="docs/images/status-light.png" alt="The status light breathing on a card: a cyan dot that dims to about two thirds of its colour and comes back over four and a half seconds, with a soft glow that grows out from under it as it brightens and is gone at the bottom of the breath" width="112">
+<img src="docs/images/status-light.png" alt="The status light breathing on a card: a cyan dot that dims to about two thirds of its colour and comes back over 4.4 seconds, with a soft glow that grows out from under it as it brightens and is gone at the bottom of the breath" width="112">
 
 While the watcher is watching, the light breathes: one cycle every 4.4 seconds, the dot dimming to
 62% of its colour and back along a cosine, with a glow that rides that brightness and reaches 0.6 of
