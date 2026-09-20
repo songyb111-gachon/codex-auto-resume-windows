@@ -28,10 +28,12 @@ The fourth is how a status light of this size is ordinarily built, and nothing o
   - which was two thirds of the popup's radius and half of the panel's, the same light in two
   strengths. The window's is unchanged at 3 px; the panel's is 3.6 and the popup's 2.7.
 
-One table serves every surface, so the window, the notification-area popup, the panel in Codex and
-the notification card breathe alike. The notification-area icon and the window's taskbar button
-read the same rhythm, so the mark's head breathes with it and its sweep comes every 22 s rather
-than every 16 s; the head keeps its own deeper fall, because sixteen pixels need it.
+One table serves every surface, so the window, the notification-area popup and the panel in Codex
+breathe alike; the notification card draws its light from the same table at one moment of the
+breath, because a card that is on the screen for a few seconds does not breathe at all. The
+notification-area icon and the window's taskbar button read the same rhythm, so the mark's head
+breathes with it and its sweep comes every 22 s rather than every 16 s; the head keeps its own
+deeper fall, because sixteen pixels need it.
 
 ### The last controls that were not ours
 
@@ -116,11 +118,11 @@ installation - the taskbar button in the installed location, the upgrade over v0
 archive's own checks - were measured on the first candidate for this release, before the controls
 below were made the product's own, and are run again on the candidate that is published.
 
-- **The suite.** 2,568 tests, no failures, under Python 3.13 here (771 s, 8 skipped), and green on
+- **The suite.** 2,572 tests, no failures, under Python 3.13 here (910 s, 8 skipped), and green on
   GitHub's Windows runners for 3.12, 3.13, 3.14 and 3.15. The skips are the opt-in live checks and
   the pin check that waits for the tag.
 - **The window, built twice.** Two builds of `CodexAutoResumeSettings.exe` from these sources are
-  byte-identical (`97d835b8…`, 386,560 bytes). The archive's own digest is not written here - this
+  byte-identical (`c572844e…`, 387,072 bytes). The archive's own digest is not written here - this
   file ships inside the archive, so naming it would change it - it is published beside the release
   and pinned in `scripts/release.json` afterwards, which is what `docs/VERIFY.md` compares.
 - **The taskbar button, in the installed location.** This is the claim v0.6.5 could not make. With
@@ -138,7 +140,7 @@ below were made the product's own, and are run again on the candidate that is pu
   executables report 0.6.6 and that this machine's registrations and state were left as they were.
 - **The light.** Its numbers are held by the suite on the drawn pixels of every surface - the
   window, the popup, the panel and the card - and every picture in the documentation was drawn
-  again from the new table by the product's own code, in nine languages, in the light theme.
+  again from the new table by the product's own code, in the five languages they are made in, in the light theme.
 - **The icon's motion.** The animated PNG in the documentation is composed from the icon's own
   frames at the new rhythm, and the suite holds every frame of it against the icon's table.
 - **The pictures' edges.** Every window picture is 22 px narrower and 11 shorter than it was: the

@@ -1,8 +1,8 @@
-# Codex Auto Resume 로드맵: v0.6.5부터 v0.6.12까지
+# Codex Auto Resume 로드맵: v0.6.6부터 v0.6.12까지
 
 > 🌐 한국어 문서입니다. English version: [`main` 브랜치의 docs/ROADMAP.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/ROADMAP.md)
 
-v0.6.4 이후 Codex Auto Resume가 나아가려는 개발 방향입니다.
+v0.6.5 이후 Codex Auto Resume가 나아가려는 개발 방향입니다.
 
 이 문서는 **계획한 로드맵이지 약속이 아닙니다**. Codex가 달라지거나, 테스트하다가 더 낫거나 더
 안전한 구현 방법이 보이면 세부 사항은 바뀔 수 있습니다.
