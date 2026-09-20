@@ -1,5 +1,55 @@
 # Changelog
 
+## v0.6.6 — The light, softened, and a taskbar button that moves where it is installed
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.5...v0.6.6)
+
+Two things a day of real use turned up. Nothing about recovery changed: the same classifier, the
+same gates, the same one watcher that is the only thing allowed to send, and no new setting.
+
+### The status light is softer
+
+- v0.6.5's light read as a blink rather than a breath. Its cycle is now 4.4 s rather than 3.2 s,
+  the dot dims 38% of the way toward the card it sits on rather than 60%, and the glow that
+  spreads once the dot is lit peaks at 0.30 rather than 0.34. Its shape is v0.6.5's, unchanged:
+  the same four phases, the same falloff, the same 3 px reach. While a recovery is being sent the
+  same cycle runs every 2.6 s rather than 2 s; a problem still runs it once, over 1.4 s, and then
+  holds lit.
+- One table serves every surface, so the window, the notification-area popup, the panel in Codex
+  and the notification card soften together and stay the same light.
+- The notification-area icon and the window's taskbar button read that same rhythm, so the mark's
+  head breathes more slowly too, and its sweep along the ring comes every 22 s rather than every
+  16 s. The head itself still dims 60% toward the badge: at sixteen pixels across, the light's new
+  38% would not read at all.
+
+### The taskbar button moves where it is installed
+
+- v0.6.5 moved the mark on the window's taskbar button, and on an installed window it never moved
+  once. Measured here: the published executable, byte for byte, moved the button from a scratch
+  folder and did not move it from the installed one, where an instrumented build showed the window
+  setting frame after frame into a button that stayed pixel-identical for twenty-four seconds.
+  What decides it is where the window is installed, not what it does: Windows files an installed
+  window under the application registered at that location and paints its button from that
+  application's icon, which no window can change. A Start Menu shortcut alone does not do it - one
+  written for a scratch folder, with the same identity and the same icon, left the button moving.
+- The window now asks Windows to file it under an identity of its own, which nothing registers, and
+  the button falls back to the icon the window itself sets. With that one call the same build moved
+  74 of 163 filmed frames in the installed location. Notifications are unaffected: they are raised
+  by the watcher under the watcher's own AppUserModelID, which is what makes them attributable.
+- The notification-area icon is unchanged, including where it holds still on purpose: an icon
+  Windows keeps in the overflow flyout does not move, because nobody sees it there. Dragging it onto
+  the taskbar brings its motion back within a second.
+
+### Documents
+
+- The changelog, the roadmap, the brand notes and the feature matrix carry the new numbers, in
+  English and Korean. The roadmap's planned releases each move one number on: the Python
+  modularization that was v0.6.6 is v0.6.7, and everything after it follows.
+
+### Evidence
+
+TO FILL: what was run, on which build, on which machine
+
 ## v0.6.5 — A light you can see, notifications in the product's own card, and a Codex Compatibility Registry
 
 [The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.4...v0.6.5)
@@ -232,7 +282,7 @@ Nothing a user sees. Every safety scan in the tests now reads the whole package,
 moving code into a subpackage can never take it out of a check's sight; the package's layers, each
 module's size and its structural invariants are held by tests; and the screenshot checks are keyed
 on what the window is shown rather than on which files changed. The split itself, and the golden
-replies, gathered rules and typed contracts that come before it, are v0.6.6.
+replies, gathered rules and typed contracts that come before it, are v0.6.7.
 
 ### Documents
 

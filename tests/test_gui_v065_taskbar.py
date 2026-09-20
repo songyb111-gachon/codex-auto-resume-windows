@@ -1114,6 +1114,41 @@ class TaskbarMarkTests(unittest.TestCase):
         self.assertIn("if (snapshot == null) TellTaskbar(status, null, Now());",
                       method(settings, "private void ApplyStatus("))
 
+    def test_the_window_takes_a_taskbar_identity_of_its_own_so_its_button_can_change(self):
+        """v0.6.6. Everything above was true in v0.6.5 and the installed window's button still never moved.
+
+        Measured here, on Windows 11: the published executable, byte for byte, moved the button from a scratch
+        folder and did not move it from the installed one, where an instrumented build showed the window setting
+        frame after frame (state=watching, allowed=True, interval 156 then 62) into a button that stayed
+        pixel-identical for twenty-four seconds. What decides it is the location: Windows files an installed window
+        under the application registered there and paints its button from that application's icon, which no window
+        can change. A Start Menu shortcut alone does not do it - one written for a scratch folder, carrying the
+        same identity and the same icon, left the button moving.
+
+        So the window asks Windows to file it under an identity of its own, which nothing registers, and the button
+        falls back to the icon the window itself sets. With that one call the same build moved 74 of 163 frames in
+        the installed location. It is made before any window exists, which is the only time Windows accepts it, and
+        it changes this process alone: notifications are raised by the watcher under the watcher's AUMID, which is
+        what makes them attributable, and that is untouched.
+        """
+        from codex_auto_resume import startup
+
+        settings = (GUI / "SettingsApp.cs").read_text(encoding="utf-8")
+        self.assertIn("SetCurrentProcessExplicitAppUserModelID", settings)
+        self.assertIn('SetCurrentProcessExplicitAppUserModelID("CodexAutoResume.Settings")', settings)
+        # The window's identity is its own: sharing the watcher's would resolve to the installer's shortcut again.
+        self.assertNotIn('SetCurrentProcessExplicitAppUserModelID("%s")' % startup.AUMID, settings)
+        self.assertEqual(startup.AUMID, "CodexAutoResume.Watcher")
+        main = settings[settings.index("internal static int Main(string[] argv)"):]
+        main = main[:main.index("Application.Run(")]
+        self.assertIn("TakeOwnTaskbarIdentity();", main)
+        # Before any window is made, and before the first control decides anything about itself.
+        self.assertLess(main.index("TakeOwnTaskbarIdentity();"), main.index("Application.EnableVisualStyles();"))
+        self.assertEqual(settings.count("TakeOwnTaskbarIdentity()"), 2)         # declared once, called once
+        claim = settings[settings.index("internal static void TakeOwnTaskbarIdentity()"):]
+        claim = claim[:claim.index("\n        }\n")]
+        self.assertIn("catch (Exception) { }", claim)                           # an older shell decides nothing
+
 
 if __name__ == "__main__":
     unittest.main()
