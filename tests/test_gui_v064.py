@@ -463,6 +463,7 @@ $comboType = $assembly.GetType('CodexAutoResume.SoftCombo', $true)
 $softType = $assembly.GetType('CodexAutoResume.Soft', $true)
 $formType = $assembly.GetType('CodexAutoResume.SettingsForm', $true)
 $scrollerType = $assembly.GetType('CodexAutoResume.ISoftScroller', $true)
+$tokensType = $assembly.GetType('CodexAutoResume.Tokens', $true)
 function Get-Member2($target, [string]$name) { return $target.GetType().GetProperty($name, $instance).GetValue($target, $null) }
 function Set-Member2($target, [string]$name, $value) { $target.GetType().GetProperty($name, $instance).SetValue($target, $value, $null) }
 function Invoke-Member2($target, [string]$name, [object[]]$arguments) {
@@ -509,9 +510,15 @@ $trackFill = $barType.GetMethod('TrackFill', $static)
 $trackEdge = $barType.GetMethod('TrackEdge', $static)
 $thumbFill = $barType.GetMethod('ThumbFill', $static)
 $thumbEdge = $barType.GetMethod('ThumbEdge', $static)
-$out.contrast = @{ track = @($trackFill.Invoke($null, [object[]]@($true)).Name, $trackEdge.Invoke($null, [object[]]@($true)).Name)
+# A bar is drawn on the ground it runs over, and the track's colour is chosen against it (v0.6.6): on a
+# card the groove is `inset`, and in a well that is already `inset` - the message box - it is `surface`.
+$onCard = $tokensType.GetField('Card', $static).GetValue($null)
+$onInset = $tokensType.GetField('Inset', $static).GetValue($null)
+$out.contrast = @{ track = @($trackFill.Invoke($null, [object[]]@($true, $onCard)).Name, $trackEdge.Invoke($null, [object[]]@($true)).Name)
+                   inset = [string]$trackFill.Invoke($null, [object[]]@($true, $onInset)).Name
                    thumb = @(); edge = @() }
-$out.light = @{ track = @($trackFill.Invoke($null, [object[]]@($false)).ToArgb(), $trackEdge.Invoke($null, [object[]]@($false)).ToArgb())
+$out.light = @{ track = @($trackFill.Invoke($null, [object[]]@($false, $onCard)).ToArgb(), $trackEdge.Invoke($null, [object[]]@($false)).ToArgb())
+                inset = [int]$trackFill.Invoke($null, [object[]]@($false, $onInset)).ToArgb()
                 thumb = @(); edge = @() }
 foreach ($state in 0, 1, 2) {
     $out.contrast.thumb += [string]$thumbFill.Invoke($null, [object[]]@([int]$state, $true)).Name
@@ -820,8 +827,18 @@ class SoftScrollTests(unittest.TestCase):
     def test_high_contrast_draws_the_bar_in_system_colours(self):
         contrast = self.answer["contrast"]
         self.assertEqual(contrast["track"], ["Window", "WindowFrame"])
+        self.assertEqual(contrast["inset"], "Window", "the ground does not move High Contrast off its own colours")
         self.assertEqual(contrast["thumb"], ["GrayText", "Highlight", "Highlight"])
         self.assertEqual(contrast["edge"], contrast["thumb"])
+
+    def test_the_track_takes_its_colour_from_the_ground_it_runs_over(self):
+        """A groove has to be a step away from what surrounds it. Over a card - the list, the page, the panel - that
+        step is `inset`; in the message box, whose own well is already `inset`, an inset track would be the ground
+        itself and the pill would float on nothing, so there the track is `surface` ("스크롤바는 스크롤바가 생기는
+        곳에 따라 색이 쫌 달라져야 하지 않을까?")."""
+        light = self.answer["light"]
+        self.assertEqual(light["track"][0], argb(brand.LIGHT["inset"]), "on a card, the groove")
+        self.assertEqual(light["inset"], argb(brand.LIGHT["surface"]), "in an inset well, a step the other way")
 
     def test_the_bar_is_the_panels_material_and_darkens_a_step_under_the_pointer(self):
         light = self.answer["light"]
@@ -904,9 +921,9 @@ class SourceRuleTests(unittest.TestCase):
                 self.assertNotIn("Color.Transparent", body)
 
     def test_the_soft_bar_has_no_shadow_in_high_contrast_and_no_native_bar_behind_it(self):
-        draw = self.body("internal static void Draw(Graphics g, Rectangle track, Rectangle thumb, int state)")
+        draw = self.body("internal static void Draw(Graphics g, Rectangle track, Rectangle thumb, int state, Color ground)")
         self.assertIn("bool contrast = Palette.Contrast;", draw)
-        self.assertIn("Soft.Body(g, track, radius, TrackFill(contrast), TrackEdge(contrast), !contrast);", draw,
+        self.assertIn("Soft.Body(g, track, radius, TrackFill(contrast, ground), TrackEdge(contrast), !contrast);", draw,
                       "the well's inset shadow is off in High Contrast")
         self.assertIn("if (!contrast)", draw[:draw.index("Elevation.StampOuter(")], "and so is the thumb's lift")
         page = self.controls[self.controls.index("internal sealed class SoftPage "):]
