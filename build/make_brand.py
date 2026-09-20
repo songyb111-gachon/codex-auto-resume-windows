@@ -154,7 +154,10 @@ def sections():
         for side, value in zip(("Left", "Top", "Right", "Bottom"), brand.reach(recipe)):
             elevation.append(("Elev" + _camel(recipe) + "Reach" + side, "int", value))
 
+    # The window draws one dot, so the share of its radius the glow reaches is a length here: the
+    # rest of the product works it out per surface (brand.glow_reach), the window has only its own.
     light = [("StatusDotRadius", "double", brand.STATUS_DOT["window"]),
+             ("GlowReach", "double", brand.glow_reach(brand.STATUS_DOT["window"])),
              ("GlowExtent", "double", brand.glow_extent(brand.STATUS_DOT["window"]))]
     for key, value in brand.GLOW.items():
         light.append(("Glow" + _camel(key), "double", value))
@@ -325,50 +328,27 @@ def methods() -> str:
     return "".join(lines)
 
 
-# What each of brand.GLOW_PHASES does, as a C# statement of its eased progress: the dot dims and
-# comes back with no glow, and only then, lit, the glow spreads and draws back in.
-_PHASE_EFFECTS = {"fall": "dim = GlowDotDim * %s;", "rise": "dim = GlowDotDim * (1.0 - %s);",
-                  "bloom": "spread = %s;", "withdraw": "spread = 1.0 - %s;"}
-
-
 def light_method() -> list:
-    """brand.glow_phase() in C#: the phases in brand.GLOW_PHASES' order, each eased on its own, with
-    the same subtractions in the same order, so the window's light is brand's to the last bit."""
-    phases = brand.GLOW_PHASES
-    if set(phases) != set(_PHASE_EFFECTS) or len(phases) != len(_PHASE_EFFECTS):
-        raise ValueError("Brand.cs knows what fall, rise, bloom and withdraw do, and nothing else")
-    names = ["Glow" + _camel(phase) for phase in phases]
+    """brand.glow_phase() in C#: one symmetric cosine over the whole cycle, taken in light and drawn through
+    the gamma a screen shows, with the glow riding the brightness - the same arithmetic in the same order, so
+    the window's light is brand's to the last bit."""
     lines = [
-        "        /// The light at `fraction` of GLOW's cycle (brand.glow_phase): the dot dims and comes back\n",
-        "        /// with no glow, and only then, lit, the glow spreads and draws back in, each phase eased as\n",
-        "        /// half a raised cosine.\n",
+        "        /// The light at `fraction` of one breath (brand.glow_phase): a cosine in light, raised to\n",
+        "        /// 1/gamma to be drawn, with the glow riding the brightness rather than taking a turn of its own.\n",
         "        private static bool Light(double fraction, out double dim, out double opacity, out double spread)\n",
         "        {\n",
-        "            dim = 0;\n",
-        "            spread = 0;\n",
-    ]
-    for index, (phase, name) in enumerate(zip(phases, names)):
-        if index == 0:
-            lines.append("            if (fraction < %s) %s\n"
-                         % (name, _PHASE_EFFECTS[phase] % ("Eased(fraction / %s)" % name)))
-        elif index < len(phases) - 1:
-            lines.append("            else if ((fraction -= %s) < %s) %s\n"
-                         % (names[index - 1], name, _PHASE_EFFECTS[phase] % ("Eased(fraction / %s)" % name)))
-        else:
-            lines.append("            else %s\n"
-                         % (_PHASE_EFFECTS[phase] % ("Eased((fraction - %s) / %s)" % (names[index - 1], name))))
-    lines += [
+        "            double breath = 0.5 + 0.5 * Math.Cos(2.0 * Math.PI * (fraction - Math.Floor(fraction)));\n",
+        "            double lit = Math.Pow(GlowLow + (1.0 - GlowLow) * breath, 1.0 / GlowGamma);\n",
+        "            double floor = Math.Pow(GlowLow, 1.0 / GlowGamma);\n",
+        "            double risen = (lit - floor) / (1.0 - floor);\n",
+        "            dim = 1.0 - lit;\n",
+        "            spread = risen * risen;\n",
         "            opacity = GlowPeak * spread;\n",
         "            return true;\n",
         "        }\n",
-        "\n",
-        "        /// Half a raised cosine: 0 at 0, 1 at 1, with no corner at either end.\n",
-        "        private static double Eased(double progress)\n",
-        "        {\n",
-        "            return 0.5 - 0.5 * Math.Cos(Math.PI * Math.Min(1.0, Math.Max(0.0, progress)));\n",
-        "        }\n",
     ]
     return lines
+
 
 def ease_method() -> list:
     """brand.ease() in C#: how far a transition has come after `progress` of its time, on the

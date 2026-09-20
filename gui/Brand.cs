@@ -206,21 +206,19 @@ namespace CodexAutoResume
         // rise, bloom and withdraw, as fractions of it - and the glow's numbers are the popup's and the
         // panel's too.
         internal const double StatusDotRadius = 5;
-        internal const double GlowExtent = 8;
-        internal const double GlowFall = 0.25;
-        internal const double GlowRise = 0.4;
-        internal const double GlowBloom = 0.2;
-        internal const double GlowWithdraw = 0.15;
-        internal const double GlowDotDim = 0.38;
-        internal const double GlowPeak = 0.3;
         internal const double GlowReach = 3;
+        internal const double GlowExtent = 8;
+        internal const double GlowLow = 0.35;
+        internal const double GlowGamma = 2.2;
+        internal const double GlowPeak = 0.5;
+        internal const double GlowReachOfRadius = 0.6;
         internal const double GlowEdgeAlpha = 0.67;
         internal const double GlowNearAt = 0.14;
         internal const double GlowNearAlpha = 0.58;
         internal const double GlowFarAt = 0.66;
         internal const double GlowFarAlpha = 0.5;
         internal const double GlowMonitoringMs = 4400;
-        internal const double GlowRecoveringMs = 2600;
+        internal const double GlowRecoveringMs = 2800;
         internal const double GlowAttentionMs = 1400;
         internal const double GlowArcMs = 1600;
         internal const double GlowArcAlpha = 0.55;
@@ -294,25 +292,18 @@ namespace CodexAutoResume
             return (state == "attention" || state == "failed") && sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs;
         }
 
-        /// The light at `fraction` of GLOW's cycle (brand.glow_phase): the dot dims and comes back
-        /// with no glow, and only then, lit, the glow spreads and draws back in, each phase eased as
-        /// half a raised cosine.
+        /// The light at `fraction` of one breath (brand.glow_phase): a cosine in light, raised to
+        /// 1/gamma to be drawn, with the glow riding the brightness rather than taking a turn of its own.
         private static bool Light(double fraction, out double dim, out double opacity, out double spread)
         {
-            dim = 0;
-            spread = 0;
-            if (fraction < GlowFall) dim = GlowDotDim * Eased(fraction / GlowFall);
-            else if ((fraction -= GlowFall) < GlowRise) dim = GlowDotDim * (1.0 - Eased(fraction / GlowRise));
-            else if ((fraction -= GlowRise) < GlowBloom) spread = Eased(fraction / GlowBloom);
-            else spread = 1.0 - Eased((fraction - GlowBloom) / GlowWithdraw);
+            double breath = 0.5 + 0.5 * Math.Cos(2.0 * Math.PI * (fraction - Math.Floor(fraction)));
+            double lit = Math.Pow(GlowLow + (1.0 - GlowLow) * breath, 1.0 / GlowGamma);
+            double floor = Math.Pow(GlowLow, 1.0 / GlowGamma);
+            double risen = (lit - floor) / (1.0 - floor);
+            dim = 1.0 - lit;
+            spread = risen * risen;
             opacity = GlowPeak * spread;
             return true;
-        }
-
-        /// Half a raised cosine: 0 at 0, 1 at 1, with no corner at either end.
-        private static double Eased(double progress)
-        {
-            return 0.5 - 0.5 * Math.Cos(Math.PI * Math.Min(1.0, Math.Max(0.0, progress)));
         }
 
         /// 0 at the start of a cycle, 1 halfway, 0 again: a raised cosine.

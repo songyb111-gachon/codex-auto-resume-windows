@@ -471,18 +471,18 @@ class MotionTests(unittest.TestCase):
                             self.assertEqual(popup.animates(state, since, reduced=reduced),
                                              brand.glow_moves(state, since, reduced=reduced))
 
-    def test_monitoring_dims_and_only_once_lit_spreads_a_little(self):
-        cycle = self.GLOW["monitoring_ms"]
-        self.assertEqual(popup.halo("monitoring", 0), self.STILL)
-        self.assertAlmostEqual(popup.halo("monitoring", cycle * 0.25)["dim"], self.GLOW["dot_dim"])
-        peak = popup.halo("monitoring", cycle * 0.85)
-        self.assertEqual(peak["dim"], 0.0)
-        self.assertAlmostEqual(peak["opacity"], self.GLOW["peak"])
-        self.assertAlmostEqual(brand.glow_radius(brand.STATUS_DOT["popup"], peak["spread"]),
-                               brand.STATUS_DOT["popup"] + 3)
+    def test_monitoring_breathes_and_the_glow_rides_it(self):
+        cycle, dot = self.GLOW["monitoring_ms"], brand.STATUS_DOT["popup"]
+        top = popup.halo("monitoring", 0)
+        self.assertEqual(top["dim"], 0.0)                                  # a breath starts at the top
+        self.assertAlmostEqual(top["opacity"], self.GLOW["peak"])
+        self.assertAlmostEqual(brand.glow_radius(dot, top["spread"]), dot + brand.glow_reach(dot))
+        bottom = popup.halo("monitoring", cycle * 0.5)
+        self.assertAlmostEqual(bottom["dim"], 1.0 - brand.glow_floor())
+        self.assertAlmostEqual(bottom["opacity"], 0.0)
         for elapsed in range(0, cycle, 7):
             frame = popup.halo("monitoring", elapsed)
-            self.assertTrue(frame["dim"] == 0.0 or frame["spread"] == 0.0, elapsed)
+            self.assertAlmostEqual(frame["opacity"], self.GLOW["peak"] * frame["spread"])
             self.assertIsNone(frame["arc"])
         self.assertTrue(popup.animates("monitoring"))
 
@@ -501,10 +501,10 @@ class MotionTests(unittest.TestCase):
     def test_recovering_runs_the_same_cycle_quicker(self):
         cycle = self.GLOW["recovering_ms"]
         self.assertLess(cycle, self.GLOW["monitoring_ms"])
-        self.assertEqual(popup.halo("recovering", 0), self.STILL)
-        self.assertEqual(popup.halo("recovering", cycle), self.STILL)
-        self.assertAlmostEqual(popup.halo("recovering", cycle * 0.25)["dim"], self.GLOW["dot_dim"])
-        self.assertAlmostEqual(popup.halo("recovering", cycle * 0.85)["opacity"], self.GLOW["peak"])
+        self.assertEqual(popup.halo("recovering", 0), popup.halo("monitoring", 0))
+        self.assertEqual(popup.halo("recovering", cycle), popup.halo("monitoring", 0))
+        self.assertAlmostEqual(popup.halo("recovering", cycle * 0.5)["dim"], 1.0 - brand.glow_floor())
+        self.assertAlmostEqual(popup.halo("recovering", cycle)["opacity"], self.GLOW["peak"])
 
     def test_paused_has_no_glow_and_nothing_moves(self):
         self.assertIsNone(popup.halo("paused", 1234))
@@ -513,9 +513,9 @@ class MotionTests(unittest.TestCase):
 
     def test_attention_runs_the_cycle_once_when_it_arrives_and_then_holds_lit(self):
         pulse = self.GLOW["attention_ms"]
-        self.assertAlmostEqual(popup.halo("attention", 0, since_entered_ms=pulse * 0.25)["dim"], self.GLOW["dot_dim"])
-        self.assertAlmostEqual(popup.halo("attention", 0, since_entered_ms=pulse * 0.85)["opacity"],
-                               self.GLOW["peak"])
+        self.assertAlmostEqual(popup.halo("attention", 0, since_entered_ms=pulse * 0.5)["dim"],
+                               1.0 - brand.glow_floor())
+        self.assertAlmostEqual(popup.halo("attention", 0, since_entered_ms=0)["opacity"], self.GLOW["peak"])
         self.assertEqual(popup.halo("attention", 0, since_entered_ms=pulse * 3), self.STILL)
         self.assertEqual(popup.halo("attention", 0), self.STILL)
         self.assertTrue(popup.animates("attention", pulse / 2))
@@ -542,12 +542,12 @@ class MotionTests(unittest.TestCase):
         # The two moments the cycle is read at, from the table rather than as seconds, so a
         # change of rhythm moves them with it: the fall's end (darkest) and the bloom's (widest).
         cycle = self.GLOW["monitoring_ms"] / 1000.0
-        darkest = 100.0 + cycle * self.GLOW["fall"]
-        widest = 100.0 + cycle * (self.GLOW["fall"] + self.GLOW["rise"] + self.GLOW["bloom"])
+        darkest = 100.0 + cycle * 0.5
+        widest = 100.0 + cycle
         with unittest.mock.patch.object(popup.time, "monotonic", return_value=100.0):
-            self.assertEqual(shown.frame(), self.STILL)
+            self.assertEqual(shown.frame()["dim"], 0.0)                    # the top, where the still light is
         with unittest.mock.patch.object(popup.time, "monotonic", return_value=darkest):
-            self.assertAlmostEqual(shown.frame()["dim"], self.GLOW["dot_dim"])
+            self.assertAlmostEqual(shown.frame()["dim"], 1.0 - brand.glow_floor())
         with unittest.mock.patch.object(popup.time, "monotonic", return_value=widest):
             self.assertAlmostEqual(shown.frame()["opacity"], self.GLOW["peak"])
 
@@ -1183,7 +1183,7 @@ class WindowsTests(unittest.TestCase):
         try:
             vm = popup.view_model(self.ROWS, STATUS, EN, NOW)
             plan = renderer.layout(vm, 1.0, "en")
-            peak = brand.GLOW["monitoring_ms"] * 0.85         # the glow at its peak, the dot fully lit
+            peak = 0.0                                       # the top of a breath: lit, the glow at its peak
             canvas = renderer.draw(vm, plan, frame=popup.halo("monitoring", peak))
             pixels = canvas.pixels()
             width = plan["size"][0]
@@ -1220,15 +1220,19 @@ class WindowsTests(unittest.TestCase):
             halo = next(item for item in plan["items"] if item["kind"] == "halo")
             cx, cy = int(halo["cx"]), int(halo["cy"])
             active = brand.rgb(brand.LIGHT[brand.status_fill(vm["state"])])
-            self.assertEqual(pixel(cx, cy), active)
+            # Under the glow the dot is still its own colour; the glow only lightens what is round it.
+            renderer.draw_halo(plan, popup.halo("waiting", 0))
+            self.assertEqual(canvas.pixels() and pixel(cx, cy), active)
+            renderer.draw_halo(plan, popup.halo("monitoring", peak))
             self.assertEqual(brand.status_fill(vm["state"]), "active")
             self.assertLess(pixel(cx + 5, cy)[0], surface[0] - 8)
             for distance in (9, 13):
                 self.assertEqual(pixel(cx + distance, cy), surface)
-            # At its darkest the dot is 60% of the way to the card, with nothing round it.
-            renderer.draw_halo(plan, popup.halo("monitoring", brand.GLOW["monitoring_ms"] * 0.25))
+            # At the bottom of the breath the dot is its floor of the way to the card, with nothing round it.
+            renderer.draw_halo(plan, popup.halo("monitoring", brand.GLOW["monitoring_ms"] * 0.5))
             pixels = canvas.pixels()
-            dimmed = brand.rgb(brand.mix(brand.LIGHT["active"], brand.LIGHT["surface"], brand.GLOW["dot_dim"]))
+            dimmed = brand.rgb(brand.mix(brand.LIGHT["active"], brand.LIGHT["surface"],
+                                         1.0 - brand.glow_floor()))
             for part, want in zip(pixel(cx, cy), dimmed):
                 self.assertLessEqual(abs(part - want), 2, (pixel(cx, cy), dimmed))
             for distance in (6, 7, 9):
@@ -1253,8 +1257,8 @@ class WindowsTests(unittest.TestCase):
             cx, cy, width = int(halo["cx"]), int(halo["cy"]), plan["size"][0]
             surface = brand.rgb(brand.LIGHT["surface"])
             reached = []
-            # Through the bloom (65% to 85% of the cycle) and the withdrawal (85% to 100%).
-            for fraction in (0.68, 0.70, 0.72, 0.75, 0.78, 0.80, 0.85, 0.88, 0.90, 0.93, 0.96):
+            # Up the second half of the breath to the top, and down the first half of the next one.
+            for fraction in (0.62, 0.68, 0.74, 0.80, 0.86, 0.93, 0.99, 1.07, 1.14, 1.20, 1.26, 1.32, 1.38):
                 frame = popup.halo("monitoring", cycle * fraction)
                 pixels = renderer.draw_halo(plan, frame).pixels()
                 seen = max(distance for distance in range(0, int(halo["radius"]) + 8)
@@ -1266,8 +1270,8 @@ class WindowsTests(unittest.TestCase):
                     self.assertGreater(frame["opacity"], 0.0)
                     self.assertLessEqual(seen, drawn, "the glow reaches past its spread's radius")
                     self.assertGreaterEqual(seen, drawn - 2, "the glow stops short of its spread's radius")
-            growing = [seen for fraction, _, seen in reached if fraction <= 0.85]
-            receding = [seen for fraction, _, seen in reached if fraction >= 0.85]
+            growing = [seen for fraction, _, seen in reached if fraction <= 0.99]
+            receding = [seen for fraction, _, seen in reached if fraction >= 0.99]
             self.assertEqual(growing, sorted(growing))
             self.assertEqual(receding, sorted(receding, reverse=True))
             self.assertGreaterEqual(growing[-1] - growing[0], 2 * scale, reached)

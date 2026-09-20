@@ -54,12 +54,12 @@ TEXTS = ("", "plain words", "two\r\nlines\r\n", "\U0001f9e9" * 1200, "a\U0001f9e
          "\U00020000\U0002a6d6", "\ud83e", "\udde9", "\ud83e🧩", "\udde9\ud83e")
 
 STATES = ("monitoring", "waiting", "checking", "recovering", "paused", "attention", "failed", "idle")
-# Two of these are the cycle's own: where the dot is darkest (the fall's end) and where the glow is
-# widest (the bloom's). They are read from the table rather than written as seconds, so a change of
-# rhythm moves the probe's moments with it.
-DARKEST = brand.GLOW["monitoring_ms"] * brand.GLOW["fall"]
-WIDEST = brand.GLOW["monitoring_ms"] * (brand.GLOW["fall"] + brand.GLOW["rise"] + brand.GLOW["bloom"])
-MOMENTS = (0.0, 300.0, 600.0, DARKEST, 1200.0, 1800.0, WIDEST, 5000.0)
+# Two of these are the breath's own: its bottom, where the dot is darkest and no glow is out, and its
+# top, where the dot is lit and the glow is widest. They are read from the table rather than written as
+# seconds, so a change of rhythm moves the probe's moments with it.
+DARKEST = brand.GLOW["monitoring_ms"] * 0.5
+WIDEST = float(brand.GLOW["monitoring_ms"])
+MOMENTS = (0.0, 300.0, 600.0, 1200.0, 1800.0, DARKEST, 5000.0, WIDEST)
 
 PROBE = r"""
 $ErrorActionPreference = 'Stop'
@@ -174,15 +174,20 @@ class AliveStateTests(unittest.TestCase):
         self.assertEqual({state for state in STATES if self.answer["once"][state]},
                          {"attention", "failed"})
 
-    def test_monitoring_blinks_the_dot_and_only_then_spreads_a_little(self):
+    def test_monitoring_breathes_the_dot_and_the_glow_rides_it(self):
         dims, glows = self.answer["dim"]["monitoring"]["moving"], self.answer["opacity"]["monitoring"]["moving"]
-        self.assertAlmostEqual(dims[MOMENTS.index(DARKEST)], brand.GLOW["dot_dim"], places=9)   # its darkest
-        self.assertAlmostEqual(glows[MOMENTS.index(WIDEST)], brand.GLOW["peak"], places=9)     # its peak
+        floor = brand.glow_floor()
+        self.assertAlmostEqual(dims[MOMENTS.index(DARKEST)], 1.0 - floor, places=9)    # the bottom
+        self.assertAlmostEqual(glows[MOMENTS.index(DARKEST)], 0.0, places=9)           # nothing out there
+        self.assertAlmostEqual(dims[MOMENTS.index(WIDEST)], 0.0, places=9)             # the top
+        self.assertAlmostEqual(glows[MOMENTS.index(WIDEST)], brand.GLOW["peak"], places=9)
         for moment, dim, glow in zip(MOMENTS, dims, glows):
             with self.subTest(moment=moment):
-                self.assertTrue(dim == 0 or glow == 0, "a glow round a dot that is not fully lit")
-                self.assertLessEqual(dim, brand.GLOW["dot_dim"] + 1e-9)
+                self.assertLessEqual(dim, 1.0 - floor + 1e-9)
                 self.assertLessEqual(glow, brand.GLOW["peak"] + 1e-9)
+                # The glow is where the brightness put it, on the window's own drawing of the curve.
+                self.assertAlmostEqual(glow, brand.GLOW["peak"] * (((1.0 - dim) - floor) / (1.0 - floor)) ** 2,
+                                       places=9)
 
     def test_nothing_moves_when_motion_is_reduced(self):
         for state in STATES:
@@ -200,8 +205,8 @@ class AliveStateTests(unittest.TestCase):
     def test_an_alarm_runs_the_cycle_once_and_then_holds_lit(self):
         dims, glows = self.answer["dim"]["attention"]["moving"], self.answer["opacity"]["attention"]["moving"]
         self.assertGreater(dims[MOMENTS.index(600.0)], 0, "no pulse on entering the state")
-        self.assertGreater(glows[MOMENTS.index(1200.0)], 0, "no glow as the pulse ends")
-        for moment in (1800.0, WIDEST, 5000.0):        # all past the pulse's 1.4 s
+        self.assertGreater(glows[MOMENTS.index(0.0)], 0, "no glow at the top of the pulse")
+        for moment in (1800.0, WIDEST, 5000.0):        # all past the pulse's 1.4 s, where it holds lit
             self.assertEqual((dims[MOMENTS.index(moment)], glows[MOMENTS.index(moment)]), (0, 0))
 
     def test_the_custom_message_counter_counts_what_the_settings_layer_counts(self):

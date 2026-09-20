@@ -670,6 +670,136 @@ def write_png(path: Path, width: int, height: int, bgra: bytes) -> None:
                      + chunk(b"IDAT", zlib.compress(bytes(raw), 9)) + chunk(b"IEND", b""))
 
 
+# ------------------------------------------------------------------- animated PNG
+# A GIF holds 256 colours, and a screenshot of this window holds thousands: quantising one costs the soft grounds
+# and the shadows the whole design is made of. An APNG costs nothing - it is a PNG with more frames, the first of
+# which is what a viewer that ignores the rest shows - so the pictures that move keep their name, their colours and
+# their still first frame ("APNG (화질 그대로)").
+#
+# Only what changed is written after the first frame: each later frame carries the smallest rectangle that differs
+# from the one before, drawn over it (APNG_OVER, APNG_KEEP). For these pictures that is the status light and
+# nothing else, so a breathing dashboard costs a few kilobytes more than a still one.
+APNG_KEEP, APNG_OVER = 0, 1          # dispose: leave the frame as it is; blend: draw this frame over it
+
+
+def _png_chunk(kind: bytes, data: bytes) -> bytes:
+    import zlib
+    return (struct.pack(">I", len(data)) + kind + data
+            + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF))
+
+
+def _png_rows(rgb: bytes, width: int, height: int, stride: int, left: int, top: int) -> bytes:
+    """The raw scanlines of a rectangle of an RGB picture, each with the filter byte PNG puts first."""
+    raw = bytearray()
+    for y in range(height):
+        raw.append(0)
+        at = ((top + y) * stride + left) * 3
+        raw += rgb[at:at + width * 3]
+    return bytes(raw)
+
+
+def _apng_changed(before: bytes, after: bytes, width: int, height: int) -> tuple:
+    """The smallest (left, top, width, height) that differs, or None when the two are the same."""
+    left, top, right, bottom = width, height, -1, -1
+    for y in range(height):
+        row = y * width * 3
+        if before[row:row + width * 3] == after[row:row + width * 3]:
+            continue
+        top = min(top, y)
+        bottom = max(bottom, y)
+        for x in range(width):
+            at = row + x * 3
+            if before[at:at + 3] != after[at:at + 3]:
+                left = min(left, x)
+                right = max(right, x)
+    if bottom < 0:
+        return None
+    return left, top, right - left + 1, bottom - top + 1
+
+
+def write_apng(path: Path, width: int, height: int, frames: list) -> None:
+    """An animated PNG that loops forever, from RGB pictures all `width` by `height`.
+
+    `frames` is [(delay in ms, RGB bytes)], each picture the whole size. The first is what a viewer without APNG
+    shows; each later one is written as the rectangle that differs from the frame before it, over it - so a picture
+    where only a light moves costs a few hundred bytes a frame, and can be shown at the rate the real thing moves
+    at. Nothing here depends on the machine: the same pictures make the same bytes.
+    """
+    import zlib
+    if not frames:
+        raise ValueError("an APNG needs at least one picture")
+    denominator = 1000
+    out = bytearray(b"\x89PNG\r\n\x1a\n")
+    out += _png_chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+    out += _png_chunk(b"acTL", struct.pack(">II", len(frames), 0))
+    sequence = 0
+    out += _png_chunk(b"fcTL", struct.pack(">IIIIIHHBB", sequence, width, height, 0, 0,
+                                           frames[0][0], denominator, APNG_KEEP, APNG_OVER))
+    sequence += 1
+    out += _png_chunk(b"IDAT", zlib.compress(_png_rows(frames[0][1], width, height, width, 0, 0), 9))
+    previous = frames[0][1]
+    for delay_ms, picture in frames[1:]:
+        box = _apng_changed(previous, picture, width, height)
+        if box is None:
+            box = (0, 0, 1, 1)                       # a frame that changes nothing still takes its time
+        left, top, wide, tall = box
+        out += _png_chunk(b"fcTL", struct.pack(">IIIIIHHBB", sequence, wide, tall, left, top,
+                                               delay_ms, denominator, APNG_KEEP, APNG_OVER))
+        sequence += 1
+        rows = _png_rows(picture, wide, tall, width, left, top)
+        out += _png_chunk(b"fdAT", struct.pack(">I", sequence) + zlib.compress(rows, 9))
+        sequence += 1
+        previous = picture
+    out += _png_chunk(b"IEND", b"")
+    path.write_bytes(bytes(out))
+
+
+def read_png_rgb(path: Path) -> tuple:
+    """(width, height, RGB bytes) of an 8-bit RGB or RGBA PNG - the first frame of an APNG included."""
+    import zlib
+    raw = path.read_bytes()
+    if raw[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError("not a PNG: %s" % path)
+    at, data, width, height, channels = 8, bytearray(), None, None, 3
+    while at < len(raw):
+        length, kind = struct.unpack(">I4s", raw[at:at + 8])
+        body = raw[at + 8:at + 8 + length]
+        if kind == b"IHDR":
+            width, height, depth, colour, _, _, interlace = struct.unpack(">IIBBBBB", body)
+            if depth != 8 or colour not in (2, 6) or interlace:
+                raise ValueError("unsupported PNG layout: %s" % path)
+            channels = 3 if colour == 2 else 4
+        elif kind == b"IDAT":
+            data += body
+        elif kind == b"IEND":
+            break
+        at += 12 + length
+    pixels = zlib.decompress(bytes(data))
+    stride = width * channels
+    out, previous = bytearray(), bytearray(stride)
+    for y in range(height):
+        start = y * (stride + 1)
+        mode, line = pixels[start], bytearray(pixels[start + 1:start + 1 + stride])
+        for i in range(stride):
+            left = line[i - channels] if i >= channels else 0
+            up = previous[i]
+            corner = previous[i - channels] if i >= channels else 0
+            if mode == 1:
+                line[i] = (line[i] + left) & 0xFF
+            elif mode == 2:
+                line[i] = (line[i] + up) & 0xFF
+            elif mode == 3:
+                line[i] = (line[i] + (left + up) // 2) & 0xFF
+            elif mode == 4:
+                guess = left + up - corner
+                pa, pb, pc = abs(guess - left), abs(guess - up), abs(guess - corner)
+                line[i] = (line[i] + (left if pa <= pb and pa <= pc else up if pb <= pc else corner)) & 0xFF
+        for x in range(width):
+            out += line[x * channels:x * channels + 3]
+        previous = line
+    return width, height, bytes(out)
+
+
 def render_popup(target: Path, locale: str) -> None:
     from codex_auto_resume import tray_popup
     strings, view = popup_view(locale)
@@ -1007,7 +1137,9 @@ CARD_RESET_AT = POPUP_NOW + 2540            # popup_rows()'s usage limit, on the
 CARD_INTERRUPTION = "1" * 64                # its interruption: in a button's URI, never drawn
 # Both themes for the two README languages; the popup's documentation languages in the pinned
 # theme, as the popup is drawn.
-CARD_THEMES = ("light", "dark")
+# The documentation is drawn in the light theme; the dark one is described rather than pictured, which is
+# the user's call ("대부분의 이미지는 화이트모드만 해") and halves the pictures a reader scrolls past.
+CARD_THEMES = ("light",)
 # Canonical asset name and documentation copy name; a dark picture adds "-dark" before the
 # locale's tag.
 CARD_NAMES = ("screenshot-notification", "notification-card")
@@ -1218,7 +1350,7 @@ def render_cards() -> list:
 # definitions the frame table and the schedule are made of, followed name by name from the few the GIF calls
 # (ICON_ROOTS) to whatever they use, in whichever module that lives (`icon_drawing`). So a change to the motion, its
 # numbers, the mark or its colours marks the GIF stale; a change to the icon's menu or popup does not.
-ICON_MOTION_GIF = DOCS / "icon-motion.gif"
+ICON_MOTION_APNG = DOCS / "icon-motion.png"
 # The icon at 48 px: the notification-area icon at 300%, and the taskbar button's big icon at 150%, which the .ico
 # carries as an entry of its own.
 ICON_MOTION_SIZE = 48
@@ -1228,7 +1360,7 @@ ICON_MOTION_PAD = 12
 ICON_MOTION_LIGHTS = (("watching", "monitoring"), ("recovering", "recovering"), ("attention", "attention"),
                       ("idle", "paused"))
 # Windows 11's taskbar in its light and its dark mode, as assets/make_icon.py's contact sheet has them.
-ICON_MOTION_GROUNDS = (("light", "#EEF0F3"), ("dark", "#1F1F1F"))
+ICON_MOTION_GROUNDS = (("light", "#EEF0F3"),)
 # The shortest a picture is held, in hundredths of a second. Browsers - Chromium, Firefox and Safari alike - show a
 # picture of 10 ms or less for 100 ms, so moments of the states closer than this are one picture: the later one's.
 ICON_MOTION_SHORTEST = 2
@@ -1236,6 +1368,250 @@ ICON_MOTION_SHORTEST = 2
 ICON_ROOTS = (("tray", "IconFrames"), ("tray", "icon_frame"), ("tray", "icon_frame_ms"), ("tray", "icon_head_colour"),
               ("tray", "icon_level_colour"), ("tray", "ICON_FOR_LIGHT"), ("tray_popup", "BADGE"),
               ("tray_popup", "composite_badge"), ("brand", "LIGHT"), ("brand", "rgb"))
+
+
+# --------------------------------------------------------- pictures that breathe
+# A still picture of a light says nothing about a light that moves, so the pictures a reader meets first are
+# animated: the same capture, with its status light redrawn frame by frame from brand.glow - the function the
+# window, the popup and the panel all draw it with - at the rate the window itself repaints (BREATHE_FPS).
+#
+# Nothing else in the picture moves. The light is found by its own colour (`find_light`), the ground under it is
+# the card it sits on, and every frame is the capture with that one disc painted again; what a viewer without APNG
+# sees is the first frame, which is the still picture that was always there.
+BREATHE_FPS = 30
+BREATHE_STATE = "monitoring"
+
+
+def find_light(rgb: bytes, width: int, height: int, colour: tuple) -> tuple | None:
+    """(x, y) of the centre of the status light in a captured picture, or None where it is not there.
+
+    The light is the roundest run of its own colour: pixels within a few steps of it, gathered into clusters, the
+    one nearest a filled disc winning. A chip or a button in the same colour is a rectangle and loses; a glyph is
+    neither round nor wide enough.
+    """
+    seen, clusters = set(), []
+    for y in range(height):
+        row = y * width * 3
+        for x in range(width):
+            at = row + x * 3
+            if (x, y) in seen:
+                continue
+            if max(abs(rgb[at] - colour[0]), abs(rgb[at + 1] - colour[1]), abs(rgb[at + 2] - colour[2])) > 6:
+                continue
+            stack, found = [(x, y)], []
+            seen.add((x, y))
+            while stack:
+                cx, cy = stack.pop()
+                found.append((cx, cy))
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    nx, ny = cx + dx, cy + dy
+                    if 0 <= nx < width and 0 <= ny < height and (nx, ny) not in seen:
+                        near = (ny * width + nx) * 3
+                        if max(abs(rgb[near] - colour[0]), abs(rgb[near + 1] - colour[1]),
+                               abs(rgb[near + 2] - colour[2])) <= 6:
+                            seen.add((nx, ny))
+                            stack.append((nx, ny))
+            clusters.append(found)
+    best = None
+    for found in clusters:
+        xs = [x for x, _ in found]
+        ys = [y for _, y in found]
+        wide, tall = max(xs) - min(xs) + 1, max(ys) - min(ys) + 1
+        if abs(wide - tall) > 2 or not (6 <= wide <= 40):
+            continue                                        # a small disc, not a chip and not a glyph
+        score = abs(len(found) - 3.14159 * (wide / 2.0) ** 2)
+        if best is None or score < best[0]:
+            best = (score, (sum(xs) / len(xs), sum(ys) / len(ys)), wide / 2.0)
+    return None if best is None else (best[1][0], best[1][1], best[2])
+
+
+def breathe_over(rgb: bytes, width: int, height: int, where: tuple, ground: tuple, colour: tuple) -> list:
+    """One cycle of the light, as whole pictures: the capture with its light redrawn at each moment.
+
+    `where` is (x, y, drawn radius) from find_light, `ground` the card's colour under it and `colour` the light's.
+    Every pixel of the disc is sampled nine times across, as the window's own antialiasing does.
+    """
+    from codex_auto_resume import brand
+    cycle = brand.GLOW[BREATHE_STATE + "_ms"]
+    steps = int(round(cycle / 1000.0 * BREATHE_FPS))
+    delay = int(round(cycle / steps))
+    centre_x, centre_y, drawn = where
+    dot = brand.STATUS_DOT["window"]
+    reach = brand.glow_reach(dot) * (drawn / dot)
+    stops = brand.glow_stops(dot)
+    box = int(drawn + reach) + 2
+    frames = []
+    for step in range(steps):
+        frame = brand.glow(BREATHE_STATE, step / float(steps) * cycle)
+        outer = drawn + reach * frame["spread"]
+        picture = bytearray(rgb)
+        for y in range(max(0, int(centre_y - box)), min(height, int(centre_y + box) + 1)):
+            for x in range(max(0, int(centre_x - box)), min(width, int(centre_x + box) + 1)):
+                red = green = blue = 0.0
+                for sub_y in range(3):
+                    for sub_x in range(3):
+                        away = (((x + (sub_x + 0.5) / 3.0 - 0.5) - centre_x) ** 2
+                                + ((y + (sub_y + 0.5) / 3.0 - 0.5) - centre_y) ** 2) ** 0.5
+                        parts = list(ground)
+                        if frame["opacity"] > 0 and outer > 0 and away < outer:
+                            alpha = frame["opacity"] * _falloff(stops, away / outer)
+                            parts = [part + (one - part) * alpha for part, one in zip(parts, colour)]
+                        if away < drawn:
+                            parts = [part + (one - part) * (1.0 - frame["dim"])
+                                     for part, one in zip(parts, colour)]
+                        red += parts[0]; green += parts[1]; blue += parts[2]
+                at = (y * width + x) * 3
+                picture[at] = int(round(red / 9.0))
+                picture[at + 1] = int(round(green / 9.0))
+                picture[at + 2] = int(round(blue / 9.0))
+        frames.append((delay, bytes(picture)))
+    return frames
+
+
+# The pictures that hold a light that moves. The notification card is drawn once and holds still - that is the
+# product, not the picture - so it keeps its stillness here; the icon's and the light's own pictures are animated
+# already, and the social preview is a poster.
+BREATHE_SKIP = ("notification-card", "icon-motion", "status-light", "social-preview", "screenshot-notification")
+
+
+def breathes(path: Path) -> bool:
+    """Whether a picture is one whose light moves in the product."""
+    return not any(part in path.name for part in BREATHE_SKIP)
+
+
+def breathe_pictures(paths=None) -> list:
+    """Make every captured picture with a status light breathe, and say which ones did.
+
+        python build/make_screenshots.py --breathe
+    """
+    if paths is None:
+        paths = sorted(list(ASSETS.glob("*.png")) + list(DOCS.glob("*.png")))
+    done = []
+    for path in paths:
+        if not breathes(path):
+            continue
+        if breathe_picture(path):
+            done.append(path)
+            print("  %s  %s" % (path.relative_to(ROOT), dimensions(path)))
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    for path in done:
+        key = str(path.relative_to(ROOT)).replace("\\", "/")
+        if key in manifest["images"]:
+            entry = manifest["images"][key]
+            if isinstance(entry, dict):
+                manifest["images"][key] = {"sha256": sha256(path.read_bytes()), "size": dimensions(path)}
+            else:
+                manifest["images"][key] = sha256(path.read_bytes())
+    MANIFEST.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print("manifest       : %s (the pictures that breathe)" % MANIFEST.relative_to(ROOT))
+    return done
+
+
+def breathe_picture(path: Path, theme: str = "light") -> bool:
+    """Rewrite a captured picture as an APNG whose status light breathes. False when it has no light to find."""
+    from codex_auto_resume import brand
+    palette = brand.palette(theme)
+    width, height, rgb = read_png_rgb(path)
+    colour = brand.rgb(palette[brand.status_fill(BREATHE_STATE)])
+    where = find_light(rgb, width, height, colour)
+    if where is None:
+        return False
+    frames = breathe_over(rgb, width, height, where, brand.rgb(palette["surface"]), colour)
+    write_apng(path, width, height, frames)
+    return True
+
+
+# ---------------------------------------------------------------- the status light, as a GIF
+# The light is a rhythm, and a still picture of a rhythm says nothing - so the documentation carries one breath of
+# it as an animated GIF, drawn here from brand.glow itself at the window's dot size, on the card it sits on. One
+# cycle exactly, so it loops where it began, and the light theme only, as the rest of the pictures are.
+#
+# Its manifest entry, `<light motion>`, is what it pictures and the digest of what draws it (LIGHT_ROOTS,
+# followed), so a change to the curve, the depth, the reach or the colours marks it stale.
+LIGHT_MOTION_APNG = DOCS / "status-light.png"
+LIGHT_MOTION_STATE = "monitoring"
+LIGHT_MOTION_SCALE = 6              # the window's 5 px dot, drawn at 30
+LIGHT_MOTION_PAD = 6                # CSS px of card round the glow's widest
+# Pictures a second. The window's own light redraws on a 33 ms timer, so this is the rate the real thing
+# moves at rather than a rate that merely reads as smooth.
+LIGHT_MOTION_FPS = 30
+LIGHT_ROOTS = (("brand", "glow"), ("brand", "glow_stops"), ("brand", "glow_radius"), ("brand", "glow_extent"),
+               ("brand", "STATUS_DOT"), ("brand", "status_fill"), ("brand", "LIGHT"), ("brand", "rgb"))
+
+
+def light_motion_cell(fraction: float) -> tuple:
+    """(width, RGB bytes) of the light at `fraction` of its cycle: the glow under the dot, both over the card.
+
+    Every pixel is sampled nine times across, so an edge is the curve's and not the grid's; the alphas are
+    brand's own - the glow's falloff at that spread, then the dot at what the breath leaves it."""
+    from codex_auto_resume import brand
+    dot = brand.STATUS_DOT["window"]
+    half = (brand.glow_extent(dot) + LIGHT_MOTION_PAD) * LIGHT_MOTION_SCALE
+    size = int(round(2 * half))
+    frame = brand.glow(LIGHT_MOTION_STATE, fraction * brand.GLOW[LIGHT_MOTION_STATE + "_ms"])
+    ground = brand.rgb(brand.LIGHT["surface"])
+    colour = brand.rgb(brand.LIGHT[brand.status_fill(LIGHT_MOTION_STATE)])
+    outer = brand.glow_radius(dot, frame["spread"]) * LIGHT_MOTION_SCALE
+    stops = brand.glow_stops(dot)
+    radius = dot * LIGHT_MOTION_SCALE
+    out = bytearray(size * size * 3)
+    for y in range(size):
+        for x in range(size):
+            red = green = blue = 0.0
+            for sub_y in range(3):
+                for sub_x in range(3):
+                    px = x + (sub_x + 0.5) / 3.0 - half
+                    py = y + (sub_y + 0.5) / 3.0 - half
+                    away = (px * px + py * py) ** 0.5
+                    parts = list(ground)
+                    if frame["opacity"] > 0 and outer > 0 and away < outer:
+                        alpha = frame["opacity"] * _falloff(stops, away / outer)
+                        parts = [part + (one - part) * alpha for part, one in zip(parts, colour)]
+                    if away < radius:
+                        lit = 1.0 - frame["dim"]
+                        parts = [part + (one - part) * lit for part, one in zip(parts, colour)]
+                    red += parts[0]; green += parts[1]; blue += parts[2]
+            at = (y * size + x) * 3
+            out[at] = int(round(red / 9.0))
+            out[at + 1] = int(round(green / 9.0))
+            out[at + 2] = int(round(blue / 9.0))
+    return size, bytes(out)
+
+
+def _falloff(stops, fraction: float) -> float:
+    """The glow's alpha factor at `fraction` of its outer radius, straight between brand's stops."""
+    for (first, alpha), (second, next_alpha) in zip(stops, stops[1:]):
+        if fraction <= second:
+            if second == first:
+                return alpha
+            return alpha + (next_alpha - alpha) * (fraction - first) / (second - first)
+    return 0.0
+
+
+def render_light_motion(target: Path = LIGHT_MOTION_APNG) -> None:
+    """One breath of the light, as an APNG: the pictures keep their colours, and only the light changes."""
+    from codex_auto_resume import brand
+    cycle = brand.GLOW[LIGHT_MOTION_STATE + "_ms"]
+    steps = int(round(cycle / 1000.0 * LIGHT_MOTION_FPS))
+    delay = int(round(cycle / steps))
+    cells = [light_motion_cell(step / float(steps)) for step in range(steps)]
+    size = cells[0][0]
+    write_apng(target, size, size, [(delay, picture) for _size, picture in cells])
+
+
+def light_drawing(package=None) -> str:
+    """The digest of what draws the light (LIGHT_ROOTS, followed)."""
+    package = Path(package) if package is not None else ROOT / "src" / "codex_auto_resume"
+    return sha256("\n".join(sorted(reached_definitions(package, LIGHT_ROOTS))).encode("utf-8"))
+
+
+def light_render_input(drawing: str | None = None) -> str:
+    """The light GIF's manifest entry: what it pictures, and what draws it."""
+    shown = {"state": LIGHT_MOTION_STATE, "scale": LIGHT_MOTION_SCALE, "pad": LIGHT_MOTION_PAD,
+             "fps": LIGHT_MOTION_FPS, "theme": "light"}
+    if drawing is None:
+        drawing = light_drawing()
+    return sha256((json.dumps(shown, sort_keys=True) + drawing).encode("utf-8"))
 
 
 def icon_motion_stretch() -> tuple:
@@ -1383,32 +1759,21 @@ def icon_motion_frames() -> dict:
                 if key not in cells:
                     cells[key] = _icon_cell(frames, state, word, ground, *frame[state])
                 counted[key] = counted.get(key, 0) + 1
-    # Each colour weighs the pixels it covers in the pictures shown, a picture counted once for each frame it is in.
-    weights = {}
-    for key, picture in cells.items():
-        for at in range(0, len(picture), 3):
-            colour = tuple(picture[at:at + 3])
-            weights[colour] = weights.get(colour, 0) + counted[key]
-    palette = _median_cut(weights, 255) if len(weights) > 255 else sorted(weights)
-    nearest = {}
-    for colour in sorted(weights):
-        nearest[colour] = min(range(len(palette)), key=lambda index: (
-            sum((one - other) ** 2 for one, other in zip(colour, palette[index])), index))
-    indexed = {key: bytes(nearest[tuple(picture[at:at + 3])] for at in range(0, len(picture), 3))
-               for key, picture in cells.items()}
+    # The pictures keep their own colours: an APNG has no palette to fit them into, and the badge's gradient and
+    # the ring's edges are what a quantised GIF used to spend its 255 colours on.
     cell = ICON_MOTION_SIZE + 2 * ICON_MOTION_PAD
     width, height = len(ICON_MOTION_LIGHTS) * cell, len(ICON_MOTION_GROUNDS) * cell
     out = []
     for delay, frame in shown:
-        canvas = bytearray(width * height)
+        canvas = bytearray(width * height * 3)
         for column, (state, _) in enumerate(ICON_MOTION_LIGHTS):
             for row, (ground, _) in enumerate(ICON_MOTION_GROUNDS):
-                picture = indexed[(state, ground) + tuple(frame[state])]
+                picture = cells[(state, ground) + tuple(frame[state])]
                 for y in range(cell):
-                    at = (row * cell + y) * width + column * cell
-                    canvas[at:at + cell] = picture[y * cell:(y + 1) * cell]
-        out.append((delay, bytes(canvas), frame))
-    return {"width": width, "height": height, "palette": palette, "frames": out, "moments": [at for _, at in ticks]}
+                    at = ((row * cell + y) * width + column * cell) * 3
+                    canvas[at:at + cell * 3] = picture[y * cell * 3:(y + 1) * cell * 3]
+        out.append((delay * 10, bytes(canvas), frame))          # the GIF counted hundredths; an APNG counts ms
+    return {"width": width, "height": height, "frames": out, "moments": [at for _, at in ticks]}
 
 
 def _lzw(indices: bytes, minimum: int) -> bytes:
@@ -1502,9 +1867,10 @@ def write_gif(path: Path, width: int, height: int, palette: list, frames: list) 
     path.write_bytes(bytes(data))
 
 
-def render_icon_motion(target: Path = ICON_MOTION_GIF) -> None:
+def render_icon_motion(target: Path = ICON_MOTION_APNG) -> None:
+    """The icon's motion as an APNG: the icon's own frames, at their own colours."""
     made = icon_motion_frames()
-    write_gif(target, made["width"], made["height"], made["palette"], made["frames"])
+    write_apng(target, made["width"], made["height"], [(delay, picture) for delay, picture, _ in made["frames"]])
 
 
 def _module_aliases(reader, index) -> dict:
@@ -1584,20 +1950,36 @@ def icon_render_input(drawing: str | None = None) -> str:
     return sha256((json.dumps(shown, sort_keys=True) + drawing).encode("utf-8"))
 
 
+def render_light_only() -> Path:
+    """Only the status light's GIF: render it and pin it, leaving every other entry of the manifest as it was.
+
+        python build/make_screenshots.py --light
+    """
+    render_light_motion(LIGHT_MOTION_APNG)
+    print("  %s  %s" % (LIGHT_MOTION_APNG.relative_to(ROOT), dimensions(LIGHT_MOTION_APNG)))
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    manifest["inputs"]["<light motion>"] = light_render_input()
+    manifest["images"][str(LIGHT_MOTION_APNG.relative_to(ROOT)).replace("\\", "/")] = sha256(
+        LIGHT_MOTION_APNG.read_bytes())
+    MANIFEST.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print("manifest       : %s (the light's entries only)" % MANIFEST.relative_to(ROOT))
+    return LIGHT_MOTION_APNG
+
+
 def render_icon_only() -> Path:
     """Only the icon's GIF: render it and pin it, leaving every other entry of the manifest as it was.
 
         python build/make_screenshots.py --icon
     """
-    render_icon_motion(ICON_MOTION_GIF)
-    print("  %s  %s" % (ICON_MOTION_GIF.relative_to(ROOT), dimensions(ICON_MOTION_GIF)))
+    render_icon_motion(ICON_MOTION_APNG)
+    print("  %s  %s" % (ICON_MOTION_APNG.relative_to(ROOT), dimensions(ICON_MOTION_APNG)))
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     manifest["inputs"]["<icon motion>"] = icon_render_input()
-    manifest["images"][str(ICON_MOTION_GIF.relative_to(ROOT)).replace("\\", "/")] = {
-        "sha256": sha256(ICON_MOTION_GIF.read_bytes()), "size": dimensions(ICON_MOTION_GIF)}
+    manifest["images"][str(ICON_MOTION_APNG.relative_to(ROOT)).replace("\\", "/")] = {
+        "sha256": sha256(ICON_MOTION_APNG.read_bytes()), "size": dimensions(ICON_MOTION_APNG)}
     MANIFEST.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print("manifest       : %s (the icon's entries only)" % MANIFEST.relative_to(ROOT))
-    return ICON_MOTION_GIF
+    return ICON_MOTION_APNG
 
 
 def scratch_installation(workspace: Path) -> Path:
@@ -2149,6 +2531,12 @@ def main(argv=None) -> int:
     if list(sys.argv[1:] if argv is None else argv) == ["--icon"]:
         render_icon_only()
         return 0
+    if list(sys.argv[1:] if argv is None else argv) == ["--light"]:
+        render_light_only()
+        return 0
+    if list(sys.argv[1:] if argv is None else argv) == ["--breathe"]:
+        breathe_pictures()
+        return 0
 
     print("version        : %s" % config.version())
     print("theme          : %s" % THEME)
@@ -2192,9 +2580,9 @@ def main(argv=None) -> int:
                 print("  %s  %s" % (targets[page].relative_to(ROOT), size))
             extras.extend(targets.values())
     os.environ.pop(l10n.ENV_LANG, None)
-    render_icon_motion(ICON_MOTION_GIF)
-    extras.append(ICON_MOTION_GIF)
-    print("  %s  %s" % (ICON_MOTION_GIF.relative_to(ROOT), dimensions(ICON_MOTION_GIF)))
+    render_icon_motion(ICON_MOTION_APNG)
+    extras.append(ICON_MOTION_APNG)
+    print("  %s  %s" % (ICON_MOTION_APNG.relative_to(ROOT), dimensions(ICON_MOTION_APNG)))
 
     for source, copy in copies.items():
         shutil.copyfile(source, copy)

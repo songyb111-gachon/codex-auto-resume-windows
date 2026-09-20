@@ -357,37 +357,51 @@ STATUS_FILL = {"monitoring": "active", "waiting": "active", "checking": "active"
 STATUS_SYSTEM = {"monitoring": "Highlight", "waiting": "Highlight", "checking": "Highlight",
                  "recovering": "Highlight", "attention": "WindowText", "failed": "WindowText",
                  "paused": "GrayText", "idle": "GrayText"}
-# The light. On a first cut whose glow breathed round a dot that never changed ("soft ring": .12 to .58 over a 7 px
-# reach), the user: "반짝임 원한게 아이콘에서 깜빡이는 이런 느낌이야 ... 조금 번지는 정도", then "가장 어두움 ->
-# 가장 밝아짐 까지는 번지는게 없고 / 가장 밝아짐 -> 살짝 번짐 까지", and of the spread, "너무 많이 커지는거 같아".
-# So the blink is the icon head's - the dot itself dims and brightens, nothing spreading - and only once it is fully
-# lit does the light spread, a little, and draw back in; previews at +2, +3 and +4 px were drawn, and +3 kept.
-# v0.6.6: on a real desktop it read as a blink - "너무 빠르게 깜빡이는거 같아", "은은한 느낌이 있어야해 부드럽고" -
-# so the cycle lengthened and both amplitudes came down (the dot falls 0.38, not 0.60: at 10 px, 60% reads as off and
-# on), the shapes untouched. The head keeps 0.60, being sixteen pixels, so tray.ICON_MOTION["dim"] is its own number
-# now; reading monitoring_ms, its sweep comes every 22 s rather than 16 s.
-# A cycle is four phases, GLOW_PHASES, each a fraction of it and eased as half a raised cosine, so nothing has a
-# corner: `fall`, the dot dims `dot_dim` of the way toward the ground it sits on; `rise`, it comes back; `bloom`,
-# lit, the glow grows from nothing to `peak` opacity and `reach` CSS px past the dot's edge; `withdraw`, it draws
-# back in. A cycle begins where a still light rests - lit, no glow - so a light that starts moving leaves it with no
-# jump, as each of the icon's breaths does. Monitoring runs it every monitoring_ms, recovering every recovering_ms,
-# and a problem once, in attention_ms, when it is first shown, then holds lit. Waiting and checking hold lit with no
-# glow (checking turns its arc), as does every light under Reduce motion or Windows' animation setting; High
-# Contrast is a solid dot. The glow is a falloff, never a disc: at its peak, `peak` times `edge_alpha` at the dot's
-# edge, `near_alpha` at `near_at` of the reach, `far_alpha` at `far_at`, nothing at the reach, straight between -
-# the approved preview's. A smaller spread is that falloff drawn smaller about the centre, so it grows out from
-# under the dot; at most it reaches 8 CSS px from the window's dot centre, inside the 28 px column kept for it.
+# The light. Three cuts were wrong in three directions, and the user named each one: the first breathed a glow round
+# a dot that never changed, 7 px of it - "너무 많이 커지는거 같아"; v0.6.5 made the dot itself blink, deep and quick -
+# "너무 빠르게 깜빡이는거 같아 / 은은한 느낌이 있어야해 부드럽고"; v0.6.6 answered that by shrinking the swing, which
+# is the wrong lever - "지금은 너무 안 보여". Then: "이번에는 상태등의 정석대로 해줘".
+#
+# So this is how a status light of this size is ordinarily built, and nothing of ours. The dot is 10 px across in the
+# window, 12 in the panel, 9 in the popup, and at that size:
+#
+#   * colour says what the state is; motion only says the thing is alive. A state nobody waits on does not move;
+#   * one cycle near a resting breath - `monitoring_ms`, four seconds, twelve to fifteen a minute. Quicker reads as a
+#     blink, much slower as a light that has stopped;
+#   * one symmetric cosine across the whole cycle, so the light is never not moving and has a corner nowhere;
+#   * the dot dims and comes back: `low` of the light is left at the bottom, 62% of the colour as drawn, and the
+#     glow carries the rest of the movement. Gentleness comes from the speed and the curve, not from a small swing,
+#     which is what v0.6.6 got backwards - it shrank the swing and left nothing to see;
+#   * the cosine is taken in light and raised to 1/`gamma` to be drawn, because a screen shows light unevenly and a
+#     cosine walked straight along an alpha bunches at the top and rushes at the bottom;
+#   * the glow rides the brightness rather than taking a turn of its own, and is a share of the dot rather than a
+#     count of pixels: `reach_of_radius` of the radius at `peak` opacity at the top of the breath, gone at the
+#     bottom. A flat 3 px, which is what this was until v0.6.6, is two thirds of the popup's radius and half of the
+#     panel's - the same light in two strengths;
+#   * the dot's size never changes. A 10 px disc that scales reads as jitter, not as breathing.
+#
+# Monitoring runs it every monitoring_ms, recovering every recovering_ms, and a problem once, in attention_ms, when
+# it is first shown, then holds lit. A cycle begins and ends at rest - lit, no glow - so a light that starts moving
+# leaves the still one with no jump. Waiting and checking hold lit with no glow (checking turns its arc), as does
+# every light under Reduce motion or Windows' animation setting; High Contrast is a solid dot.
+#
+# The glow is a falloff, never a disc: at its peak, `peak` times `edge_alpha` at the dot's edge, `near_alpha` at
+# `near_at` of the reach, `far_alpha` at `far_at`, nothing at the reach, straight between. A smaller spread is that
+# falloff drawn smaller about the centre, so it grows out from under the dot; at most it reaches 8 CSS px from the
+# window's dot centre, inside the 28 px column kept for it.
 GLOW = {
-    "fall": 0.25, "rise": 0.40, "bloom": 0.20, "withdraw": 0.15, "dot_dim": 0.38, "peak": 0.30, "reach": 3,
+    # The breath. `low` is how much light is left at the bottom of it, `gamma` turns light into what
+    # an eye on a screen sees, `peak` is the glow's opacity at full brightness and `reach` how far it
+    # gets past the dot's edge.
+    "low": 0.35, "gamma": 2.2, "peak": 0.50, "reach_of_radius": 0.6,
     "edge_alpha": 0.67, "near_at": 0.14, "near_alpha": 0.58, "far_at": 0.66, "far_alpha": 0.50,
-    "monitoring_ms": 4400, "recovering_ms": 2600, "attention_ms": 1400,
+    "monitoring_ms": 4400, "recovering_ms": 2800, "attention_ms": 1400,
     # Checking also turns the arc every surface already drew: `arc_gap` past the dot's edge,
     # `arc_width` wide, `arc_sweep` degrees long, in `active` at `arc_alpha`. With motion
     # reduced it holds at `arc_still_at` degrees.
     "arc_ms": 1600, "arc_alpha": 0.55, "arc_gap": 3, "arc_width": 1.6, "arc_sweep": 100,
     "arc_still_at": 300,
 }
-GLOW_PHASES = ("fall", "rise", "bloom", "withdraw")
 GLOW_BREATHES = ("monitoring", "recovering")
 GLOW_PULSES = ("attention", "failed")
 
@@ -442,15 +456,13 @@ def css_scale() -> str:
     parts.append("--transition: %dms;" % MOTION["transition_ms"])
     parts.append("--transition-ease: %s;" % css_ease())
     dot, light = STATUS_DOT["panel"], GLOW
-    parts.append("--glow-reach: %s;" % _css_length(light["reach"]))
+    parts.append("--glow-reach: %s;" % _css_length(glow_reach(dot)))
     for name, fraction in (("edge", 0.0), ("near", light["near_at"]), ("far", light["far_at"]),
                            ("outer", 1.0)):
-        parts.append("--glow-%s: %s;" % (name, _css_length(dot + light["reach"] * fraction)))
+        parts.append("--glow-%s: %s;" % (name, _css_length(dot + glow_reach(dot) * fraction)))
     for name in ("edge", "near", "far"):
         parts.append("--glow-%s-mix: %s%%;" % (name, _number(light[name + "_alpha"] * 100)))
-    parts.append("--glow-peak: %s;" % _number(light["peak"]))
     parts.append("--glow-from: %s;" % _number(dot / glow_extent(dot)))
-    parts.append("--glow-dot-low: %s;" % _number(1 - light["dot_dim"]))
     for state in GLOW_BREATHES:
         parts.append("--glow-%s-ms: %dms;" % (state, light[state + "_ms"]))
     parts.append("--glow-attention-ms: %dms;" % light["attention_ms"])
@@ -460,15 +472,29 @@ def css_scale() -> str:
     return " ".join(parts)
 
 
+GLOW_STOPS = 40             # keyframe stops a breath is written as: one every 2.5% of the cycle, which keeps the
+                            # straight lines between them inside a thousandth of the curve
+
+
 def css_glow_keyframes() -> str:
-    """GLOW's cycle as the panel's keyframes: `glow-dot`, the dot's opacity over the card (its dimming), and
-    `glow-spread`, the glow's opacity and scale (its spread). A keyframe selector cannot read a custom property, so
-    the phases' ends are written here; the animation's --glow-ease eases each phase on its own, as glow() does."""
-    ends = [sum(GLOW[phase] for phase in GLOW_PHASES[:index + 1]) for index in range(3)]
-    fallen, risen, bloomed = ("%s%%" % _number(end * 100) for end in ends)
-    return ("@keyframes glow-dot { 0%%, %s, 100%% { opacity: 1; } %s { opacity: var(--glow-dot-low); } }\n"
-            "@keyframes glow-spread { 0%%, %s, 100%% { opacity: 0; transform: scale(var(--glow-from)); }\n"
-            "  %s { opacity: var(--glow-peak); transform: scale(1); } }" % (risen, fallen, risen, bloomed))
+    """GLOW's breath as the panel's keyframes: `glow-dot`, the dot's opacity over the card, and `glow-spread`, the
+    glow's opacity and scale.
+
+    A keyframe selector cannot read a custom property and CSS has no cosine, so the curve is sampled here from
+    glow_phase itself, every 5% of the cycle, and written out as stops. What the browser puts between two stops is a
+    straight line across a twentieth of a four-second breath, which is below what an eye can see; sampling is what
+    keeps the panel's light the same light as the window's rather than a hand-fitted lookalike.
+    """
+    dot, spread, extent = [], [], glow_extent(STATUS_DOT["panel"])
+    for step in range(GLOW_STOPS + 1):
+        fraction = step / float(GLOW_STOPS)
+        dim, out = glow_phase(fraction)
+        at = "%s%%" % _number(fraction * 100)
+        dot.append("%s { opacity: %s; }" % (at, _number(1.0 - dim)))
+        scale = glow_radius(STATUS_DOT["panel"], out) / extent
+        spread.append("%s { opacity: %s; transform: scale(%s); }" % (at, _number(GLOW["peak"] * out), _number(scale)))
+    return ("@keyframes glow-dot { %s }\n@keyframes glow-spread { %s }"
+            % (" ".join(dot), " ".join(spread)))
 
 
 def css_ease() -> str:
@@ -742,19 +768,27 @@ def _breath(elapsed_ms, cycle_ms) -> float:
     return 0.5 - 0.5 * math.cos(2 * math.pi * (elapsed_ms % cycle_ms) / cycle_ms)
 
 
+def glow_floor() -> float:
+    """What the dot is drawn at when the breath is at its lowest: `low` of the light, as it is seen."""
+    return GLOW["low"] ** (1.0 / GLOW["gamma"])
+
+
 def glow_phase(fraction):
-    """The light at `fraction` of GLOW's cycle, 0 to 1, as (dim, spread): how far the dot is drawn toward its ground
-    (0 lit, `dot_dim` darkest) and how far out the glow is (0 none, 1 its peak). One of them is always 0."""
-    for phase in GLOW_PHASES[:-1]:
-        if fraction < GLOW[phase]:
-            break
-        fraction -= GLOW[phase]
-    else:
-        phase = GLOW_PHASES[-1]
-    step = 0.5 - 0.5 * math.cos(math.pi * min(1.0, max(0.0, fraction / GLOW[phase])))      # half a raised cosine
-    dim = GLOW["dot_dim"]
-    return {"fall": (dim * step, 0.0), "rise": (dim * (1.0 - step), 0.0), "bloom": (0.0, step),
-            "withdraw": (0.0, 1.0 - step)}[phase]
+    """The light at `fraction` of one breath, 0 to 1, as (dim, spread): how far the dot is drawn toward the ground it
+    sits on (0 at rest) and how far out the glow is (0 none, 1 its peak).
+
+    One cosine, symmetric, running the whole cycle: there is no moment the light is not moving, which is what a breath
+    is and a blink is not. The cosine is taken in light and then raised to 1/gamma, because a screen shows light
+    unevenly - fading a colour's alpha straight along a cosine bunches at the top and rushes at the bottom, and the
+    same curve taken this way is even to look at. The glow rides the brightness rather than following it as its own
+    phase: it is out when the dot is lit, gone when the dot is low, and squared so it stays near the top of the
+    breath instead of hanging around the middle.
+    """
+    breath = 0.5 + 0.5 * math.cos(2.0 * math.pi * (fraction % 1.0))            # 1 at rest, 0 at the low
+    lit = (GLOW["low"] + (1.0 - GLOW["low"]) * breath) ** (1.0 / GLOW["gamma"])
+    floor = glow_floor()
+    risen = (lit - floor) / (1.0 - floor)
+    return 1.0 - lit, risen * risen
 
 
 def glow(state, elapsed_ms, since_entered_ms=None, *, reduced=False):
@@ -791,11 +825,17 @@ def glow_moves(state, since_entered_ms=None, *, reduced=False) -> bool:
     return False
 
 
+def glow_reach(dot_radius: float) -> float:
+    """How far past the dot's edge the glow gets at the top of the breath: a share of the dot, so the window's
+    10 px light and the panel's 12 px one are the same light at two sizes."""
+    return GLOW["reach_of_radius"] * dot_radius
+
+
 def glow_stops(dot_radius: float) -> tuple:
     """The falloff as (fraction of the outer radius from the centre, alpha factor) stops, for a gradient filling the
     glow's disc at any spread; the first two lie under the dot. GDI+ path gradients count their positions from the
     edge inward, so the window and the popup reverse these."""
-    outer, reach = float(glow_extent(dot_radius)), GLOW["reach"]
+    outer, reach = float(glow_extent(dot_radius)), glow_reach(dot_radius)
     return ((0.0, GLOW["edge_alpha"]), (dot_radius / outer, GLOW["edge_alpha"]),
             ((dot_radius + reach * GLOW["near_at"]) / outer, GLOW["near_alpha"]),
             ((dot_radius + reach * GLOW["far_at"]) / outer, GLOW["far_alpha"]),
@@ -804,7 +844,7 @@ def glow_stops(dot_radius: float) -> tuple:
 
 def glow_radius(dot_radius: float, spread: float = 1.0) -> float:
     """The glow's outer radius in CSS px for a frame's `spread`; times the display scale to draw."""
-    return dot_radius + GLOW["reach"] * spread
+    return dot_radius + glow_reach(dot_radius) * spread
 
 
 def glow_extent(dot_radius: float) -> float:
