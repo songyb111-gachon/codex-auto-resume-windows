@@ -5,6 +5,7 @@
   "action.clear_history": "Borrar historial",
   "action.close": "Cerrar",
   "action.export": "Exportar diagnóstico...",
+  "action.install": "Instalar",
   "action.failed": "No se pudo realizar.",
   "action.open_logs": "Abrir carpeta de registros",
   "action.pause": "Pausar recuperación",

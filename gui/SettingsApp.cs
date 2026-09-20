@@ -2256,9 +2256,8 @@ namespace CodexAutoResume
             catch (Exception error)
             {
                 RefreshStatusAsync(null);
-                MessageBox.Show(this, S("start.failed", "Could not start the watcher.") + Environment.NewLine +
-                                Environment.NewLine + error.Message,
-                                "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Tell(S("start.failed", "Could not start the watcher.") + Environment.NewLine +
+                     Environment.NewLine + error.Message);
             }
             startButton.Enabled = true;
         }
@@ -2331,22 +2330,19 @@ namespace CodexAutoResume
 
         private void SaveFailed(Dictionary<string, object> reply)
         {
-            MessageBox.Show(this, S("settings.save_failed", "Could not save.") + Environment.NewLine + Environment.NewLine +
-                            Convert.ToString(Get(reply, "error"), CultureInfo.InvariantCulture),
-                            "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            Tell(S("settings.save_failed", "Could not save.") + Environment.NewLine + Environment.NewLine +
+                 Convert.ToString(Get(reply, "error"), CultureInfo.InvariantCulture));
         }
 
         private void RestoreDefaults()
         {
-            if (MessageBox.Show(this, S("settings.confirm_restore", "Reset every setting to its recommended value?"),
-                                "Codex Auto Resume", MessageBoxButtons.YesNo,
-                                MessageBoxIcon.Question) != DialogResult.Yes) return;
+            if (!Confirm(S("settings.confirm_restore", "Reset every setting to its recommended value?"),
+                         S("action.restore", "Restore defaults"))) return;
             CallAsync("defaults", null, delegate(Dictionary<string, object> reply)
             {
                 if (Ok(reply)) { Reload(); return; }
-                MessageBox.Show(this, S("settings.restore_failed", "Could not restore defaults.") + Environment.NewLine +
-                                Environment.NewLine + Convert.ToString(Get(reply, "error"), CultureInfo.InvariantCulture),
-                                "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Tell(S("settings.restore_failed", "Could not restore defaults.") + Environment.NewLine +
+                     Environment.NewLine + Convert.ToString(Get(reply, "error"), CultureInfo.InvariantCulture));
             });
         }
     }
@@ -4092,6 +4088,10 @@ namespace CodexAutoResume
             var bridge = new Bridge(root);
             if (!bridge.Available)
             {
+                // The one message box left, and deliberately Windows' own: there is no window yet, no
+                // theme has been read and no catalog has been loaded, so the window's dialog would
+                // have neither its material nor its language. This says, in English, that there is
+                // nothing here to run, and nothing here can say it any better.
                 MessageBox.Show("Codex Auto Resume is not installed in this location." +
                                 Environment.NewLine + Environment.NewLine + root,
                                 "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Error);

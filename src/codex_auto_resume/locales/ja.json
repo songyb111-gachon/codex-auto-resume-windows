@@ -5,6 +5,7 @@
   "action.clear_history": "履歴をクリア",
   "action.close": "閉じる",
   "action.export": "診断情報のエクスポート...",
+  "action.install": "インストール",
   "action.failed": "実行できませんでした。",
   "action.open_logs": "ログフォルダーを開く",
   "action.pause": "復旧を一時停止",
