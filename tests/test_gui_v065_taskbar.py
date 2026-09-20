@@ -63,10 +63,11 @@ POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
 LIGHTS = ("monitoring", "waiting", "checking", "recovering", "paused", "idle", "attention", "failed", "", "stopped",
           "Monitoring", "watching")
 STATES = tray.ICON_STATES + ("", "paused", "monitoring")
-# Watching's loop is five 3.2 s slots - four breaths, then a turn from 12.8 s to 16 s - so the moments cross each slot's
-# edges, the turn's middle and a second loop; recovering turns every 1.6 s, and a problem's pulse lasts 1.4 s.
-MOMENTS = (0, 150, 800, 1600, 1799, 2400, 3199, 3200, 5000, 9999, 12799, 12800, 12850, 13600, 14400, 15200, 15999,
-           16000, 16050, 28800, 31234, 57700, 59000)
+# Watching's loop is five 3.2 s slots - three breaths, then a sweep out and back from 9.6 s to 16 s - so the moments
+# cross each breath's edge, the sweep's start, its far end and the pause there, its way home, its rest there and a
+# second loop; recovering sweeps the same shape every 2.88 s, and a problem's pulse lasts 1.4 s.
+MOMENTS = (0, 150, 800, 1280, 1360, 1600, 2640, 2880, 3199, 3200, 6400, 9599, 9600, 9650, 12160, 12320, 13600, 14880,
+           15999, 16000, 16050, 31234, 59000)
 SINCE = (-1, 0, 300, 700, 1399, 1400, 5000)
 PROBE_SIZES = (16, 24, 32, 40, 48, 56, 64, 72)
 # Windows' display scales, and the big icon's size at each: SM_CXICON, 32 px at 100%.
@@ -352,8 +353,9 @@ foreach ($state in (ConvertFrom-Json $env:CAR_STATES)) {
                 $arguments = [object[]]@([string]$state, [double]$ms, [double]$since, [bool]$reduced, [int]0, [int]0)
                 $null = $frame.Invoke($null, $arguments)
                 $next = [int]$frameMs.Invoke($null, [object[]]@([string]$state, [double]$ms, [double]$since, [bool]$reduced))
+                # The turn is written G17, not R: on .NET Framework R can print a double that does not read back.
                 $out.frames += ,@([string]$state, [double]$ms, [double]$since, [bool]$reduced, [int]$arguments[4], [int]$arguments[5], $next,
-                                  ([double]$turn.Invoke($null, [object[]]@([string]$state, [double]$ms))).ToString('R', $invariant))
+                                  ([double]$turn.Invoke($null, [object[]]@([string]$state, [double]$ms))).ToString('G17', $invariant))
             }
         }
     }
@@ -469,14 +471,14 @@ $markType.GetField('Clock', $instance).SetValue($mark, [ProbeClock]::Func())
 [ProbeClock]::Now = 0
 $out.before = @{ state = (StateOf $mark); moving = (Moving $mark); look = (Look $window) }
 
-# Watching: four breaths, then one turn in the fifth 3.2 s slot of every 16 s.
+# Watching: three breaths, then a sweep out and back in the last two 3.2 s slots of every 16 s.
 $null = $follow.Invoke($mark, [object[]]@('monitoring'))
 $out.watching = @{ state = (StateOf $mark); moving = (Moving $mark); interval = [int](Field $mark 'interval')
                    breath = (Walk $mark $window 0 (0..32 | ForEach-Object { $_ * 100 }))
-                   turn = (Walk $mark $window 0 (0..36 | ForEach-Object { 12600 + $_ * 100 })) }
+                   turn = (Walk $mark $window 0 (0..70 | ForEach-Object { 9500 + $_ * 100 })) }
 # Every frame shown is the composed frame the rule asks for at that moment.
 $checks = @()
-foreach ($ms in @(0, 400, 1600, 2800, 12900, 13600, 14400, 15300)) {
+foreach ($ms in @(0, 400, 1600, 2800, 9700, 12200, 13600, 14400, 15300)) {
     [ProbeClock]::Now = $ms
     $null = $animate.Invoke($mark, @())
     $want = Expected $table 'watching' $ms $ms $false
@@ -559,13 +561,16 @@ foreach ($pair in @(@('recovering', 'recovering'), @('paused', 'idle'), @('atten
     $null = $follow.Invoke($mark, [object[]]@('monitoring'))
 }
 
-# Hundreds of frames: the objects the process holds stay level.
+# Hundreds of frames: the objects the process holds stay level. The step is a fortieth of recovering's 2.88 s sweep
+# and the three samples are forty steps apart in multiples, so each is at the same point of it: where the head is
+# home and lit the button shows the window's own icon and holds no frame of its own, so samples at different points
+# of the sweep would differ by that one icon without anything having leaked.
 $null = $follow.Invoke($mark, [object[]]@('recovering'))
 $leak = @()
 for ($i = 0; $i -lt 360; $i++) {
-    [ProbeClock]::Now = 500000 + $i * 67
+    [ProbeClock]::Now = 500000 + $i * 72
     $null = $animate.Invoke($mark, @())
-    if ($i -eq 10 -or $i -eq 180 -or $i -eq 359) { $leak += ,@($i, [Icons]::Resources()) }
+    if ($i -eq 10 -or $i -eq 170 -or $i -eq 330) { $leak += ,@($i, [Icons]::Resources()) }
 }
 $out.leak = @{ at = $leak; baseline = $baseline; before = $before; distinct = 0 }
 
@@ -802,6 +807,9 @@ class TaskbarMarkTests(unittest.TestCase):
 
     # ---------------------------------------------------------------- the rhythm: the tray's own
     def test_every_frame_and_interval_is_the_tray_icon_s(self):
+        """The frame and the interval are the icon's exactly. The sweep's angle is compared to a billionth of a
+        degree rather than bit for bit: the CLR's Math.Cos and Python's can part in the last bits, and the position
+        that angle draws - the picture anybody sees - is compared exactly."""
         rows = self.answer["frames"]
         self.assertEqual(len(rows), len(STATES) * len(MOMENTS) * len(SINCE) * 2)
         for state, ms, since, reduced, position, level, interval, turned in rows:
@@ -811,7 +819,10 @@ class TaskbarMarkTests(unittest.TestCase):
                 expected = tray.icon_frame_ms(state, ms, entered, reduced=reduced)
                 self.assertEqual(interval, -1 if expected is None else expected)
                 turn = tray.icon_turn(state, ms)
-                self.assertEqual(float(turned), -1.0 if turn is None else turn)
+                if turn is None:
+                    self.assertEqual(float(turned), -1.0)
+                else:
+                    self.assertAlmostEqual(float(turned), turn, places=9)
 
     def test_the_head_s_colours_are_the_tray_icon_s(self):
         for state in STATES:
@@ -904,7 +915,7 @@ class TaskbarMarkTests(unittest.TestCase):
         self.assertEqual({row[4] for row in walk}, {own["smallPixels"]})
         self.assertLessEqual(len({row[3] for row in walk}), 2)
 
-    def test_watching_breathes_and_turns_once_on_the_big_icon_and_the_small_icon_never_changes(self):
+    def test_watching_breathes_and_sweeps_on_the_big_icon_and_the_small_icon_never_changes(self):
         watching = self.answer["watching"]
         self.assertEqual(watching["state"], "watching")
         self.assertTrue(watching["moving"])
@@ -917,10 +928,12 @@ class TaskbarMarkTests(unittest.TestCase):
         self.assertEqual(breath[0][1], self.answer["own"]["big"])
         self.assertEqual(breath[-1][1], self.answer["own"]["big"])
         self.assertTrue(all(row[5] for row in breath))
-        # The turn: the head travels at full brightness, a picture for each position the rule asks for, with the
+        # The sweep: the head travels at full brightness, a picture for each position the rule asks for, with the
         # quicker frames while it does - and the slot starts and ends on the window's own icon.
+        sweep_at = brand.GLOW["monitoring_ms"] * tray.ICON_MOTION["breaths"]
+        loop = brand.GLOW["monitoring_ms"] * (tray.ICON_MOTION["breaths"] + tray.ICON_MOTION["sweep_breaths"])
         frames = [tray.icon_frame("watching", row[0]) for row in turn]
-        self.assertEqual({level for (_, level), row in zip(frames, turn) if 12800 <= row[0] < 16000},
+        self.assertEqual({level for (_, level), row in zip(frames, turn) if sweep_at <= row[0] < loop},
                          {tray.ICON_MOTION["levels"] - 1})
         self.assertEqual(len({row[2] for row in turn}), len(set(frames)))
         self.assertGreaterEqual(len({row[2] for row in turn}), 20)
@@ -940,7 +953,7 @@ class TaskbarMarkTests(unittest.TestCase):
     def test_the_frame_timer_moves_it_by_itself(self):
         self.assertGreaterEqual(self.answer["watching"]["timed"], 5)
 
-    def test_recovering_keeps_turning(self):
+    def test_recovering_keeps_sweeping(self):
         recovering = self.answer["recovering"]
         self.assertEqual(recovering["state"], "recovering")
         self.assertTrue(recovering["moving"])

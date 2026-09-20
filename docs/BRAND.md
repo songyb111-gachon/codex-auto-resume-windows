@@ -217,18 +217,24 @@ were before, and nothing slides under Reduce motion, Windows' animation setting 
 
 The notification-area icon is sixteen pixels across and glanced at, so it does not copy the
 six-state light; it speaks a smaller language with the mark it already has. The head - the bright
-dot at the leading end of the ring - is what moves. While the watcher watches it breathes four times,
-dimming toward the badge's deep blue and back on `GLOW`'s monitoring rhythm, and then turns once
-round its own ring, clockwise, in one breath's time and at full brightness, eased in and out: a loop
-of five slots, each one breath long. It never breathes while it turns, and every hand-over is at
-full brightness, where a breath and a turn both begin and end. While a recovery is in progress it
-keeps turning, clockwise, a turn per `GLOW`'s arc rhythm, at full brightness and without breathing;
-paused it is grey and still; a problem is its colour, one pulse on `GLOW`'s attention rhythm, then
-held. The motion adds no shape and no colour: the frames are the mark itself, drawn from
-`ICON_SHAPE` by the same rasteriser as the `.ico`, with the head moved - 24 positions, fifteen
-degrees apart - and recoloured - 24 levels of brightness, a tint of the head and never a stored
-frame - and at rest the icon is exactly the icon it has always been. Of `GLOW` the icon reads those
-three rhythms and nothing else. Its own few numbers - how many breaths come before a turn, the
+dot at the leading end of the ring - is what moves. While the watcher watches it breathes three
+times, dimming toward the badge's deep blue and back on `GLOW`'s monitoring rhythm, and then sweeps
+along the ring's white stroke and back in a slot of two more breaths, at full brightness, eased in
+and out: 2.56 s out, a moment held at the stroke's far end, 2.56 s back and 1.12 s at home - a loop
+of five slots, each one breath long. It leaves its place clockwise and stays on the stroke, never
+crossing the gap at the top of the ring, so the head is always somewhere the ring is drawn. It never
+breathes while it travels, and every hand-over is at full brightness, where a breath and the sweep's
+slot both begin and end. While a recovery is in progress it sweeps out and back over and over, twice
+as quickly - 1.28 s out, a moment at the far end, 1.28 s back and 0.24 s at home, a sweep every
+2.88 s - at full brightness and without breathing; paused it is grey and still; a problem is its
+colour, one pulse on `GLOW`'s attention rhythm, then held. The motion adds no shape and no colour:
+the frames are the mark itself, drawn from `ICON_SHAPE` by the same rasteriser as the `.ico`, with
+the head moved - 24 positions round the ring, fifteen degrees apart, of which the 20 from its own
+place clockwise to the stroke's far end are the ones a sweep uses - and recoloured - 24 levels of
+brightness, a tint of the head and never a stored frame - and at rest the icon is exactly the icon
+it has always been. Of `GLOW` the icon reads two rhythms and nothing else: the monitoring breath,
+which is every slot of its loop and of recovering's sweep, and the attention pulse. Its own few
+numbers - how many breaths come before a sweep, how long its slot is and how that slot is spent, the
 head's positions, the breath's levels and the frame rates - are `tray.py`'s `ICON_MOTION`,
 deliberately not `brand.py`'s, because every `GLOW` key is generated into the window's status light,
 and the window's taskbar button reads the icon's own from `Brand.Mark`. The README shows the motion
