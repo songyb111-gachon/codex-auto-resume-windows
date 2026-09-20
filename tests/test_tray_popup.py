@@ -539,11 +539,16 @@ class MotionTests(unittest.TestCase):
         """As the window's does: a light that starts moving leaves the still light, with no jump."""
         shown = object.__new__(popup.Popup)
         shown._vm, shown._reduced, shown._state_since = {"state": "monitoring"}, False, 100.0
+        # The two moments the cycle is read at, from the table rather than as seconds, so a
+        # change of rhythm moves them with it: the fall's end (darkest) and the bloom's (widest).
+        cycle = self.GLOW["monitoring_ms"] / 1000.0
+        darkest = 100.0 + cycle * self.GLOW["fall"]
+        widest = 100.0 + cycle * (self.GLOW["fall"] + self.GLOW["rise"] + self.GLOW["bloom"])
         with unittest.mock.patch.object(popup.time, "monotonic", return_value=100.0):
             self.assertEqual(shown.frame(), self.STILL)
-        with unittest.mock.patch.object(popup.time, "monotonic", return_value=100.8):
+        with unittest.mock.patch.object(popup.time, "monotonic", return_value=darkest):
             self.assertAlmostEqual(shown.frame()["dim"], self.GLOW["dot_dim"])
-        with unittest.mock.patch.object(popup.time, "monotonic", return_value=102.72):
+        with unittest.mock.patch.object(popup.time, "monotonic", return_value=widest):
             self.assertAlmostEqual(shown.frame()["opacity"], self.GLOW["peak"])
 
 
