@@ -688,13 +688,30 @@ def _png_chunk(kind: bytes, data: bytes) -> bytes:
             + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF))
 
 
-def _png_rows(rgb: bytes, width: int, height: int, stride: int, left: int, top: int) -> bytes:
-    """The raw scanlines of a rectangle of an RGB picture, each with the filter byte PNG puts first."""
+def _png_rows(rgb: bytes, width: int, height: int, stride: int, left: int, top: int, alpha=None) -> bytes:
+    """The raw scanlines of a rectangle of a picture, each with the filter byte PNG puts first.
+
+    With `alpha` - one byte a pixel, the whole picture - the rows are RGBA, so a picture that has
+    transparent corners keeps them. The window's screenshots do: Windows rounds a window's corners
+    and PrintWindow does not draw them, so the capture cuts them to the system's radius and leaves
+    them clear, and an encoding that dropped the alpha would fill them with black.
+    """
     raw = bytearray()
     for y in range(height):
         raw.append(0)
-        at = ((top + y) * stride + left) * 3
-        raw += rgb[at:at + width * 3]
+        row = (top + y) * stride + left
+        if alpha is None:
+            raw += rgb[row * 3:(row + width) * 3]
+            continue
+        # Interleaved by three slice assignments rather than a loop over six million pixels: the
+        # panel's picture is 1800 by 3424, and a pixel at a time costs half a minute a frame.
+        colours = rgb[row * 3:(row + width) * 3]
+        line = bytearray(width * 4)
+        line[0::4] = colours[0::3]
+        line[1::4] = colours[1::3]
+        line[2::4] = colours[2::3]
+        line[3::4] = alpha[row:row + width]
+        raw += line
     return bytes(raw)
 
 
@@ -717,26 +734,29 @@ def _apng_changed(before: bytes, after: bytes, width: int, height: int) -> tuple
     return left, top, right - left + 1, bottom - top + 1
 
 
-def write_apng(path: Path, width: int, height: int, frames: list) -> None:
+def write_apng(path: Path, width: int, height: int, frames: list, alpha=None) -> None:
     """An animated PNG that loops forever, from RGB pictures all `width` by `height`.
 
     `frames` is [(delay in ms, RGB bytes)], each picture the whole size. The first is what a viewer without APNG
     shows; each later one is written as the rectangle that differs from the frame before it, over it - so a picture
     where only a light moves costs a few hundred bytes a frame, and can be shown at the rate the real thing moves
     at. Nothing here depends on the machine: the same pictures make the same bytes.
+
+    `alpha` is the picture's transparency, one byte a pixel, kept for every frame: only the light moves, and the
+    light is never at a corner, so what is transparent stays transparent throughout.
     """
     import zlib
     if not frames:
         raise ValueError("an APNG needs at least one picture")
     denominator = 1000
     out = bytearray(b"\x89PNG\r\n\x1a\n")
-    out += _png_chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+    out += _png_chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6 if alpha else 2, 0, 0, 0))
     out += _png_chunk(b"acTL", struct.pack(">II", len(frames), 0))
     sequence = 0
     out += _png_chunk(b"fcTL", struct.pack(">IIIIIHHBB", sequence, width, height, 0, 0,
                                            frames[0][0], denominator, APNG_KEEP, APNG_OVER))
     sequence += 1
-    out += _png_chunk(b"IDAT", zlib.compress(_png_rows(frames[0][1], width, height, width, 0, 0), 9))
+    out += _png_chunk(b"IDAT", zlib.compress(_png_rows(frames[0][1], width, height, width, 0, 0, alpha), 9))
     previous = frames[0][1]
     for delay_ms, picture in frames[1:]:
         box = _apng_changed(previous, picture, width, height)
@@ -746,7 +766,7 @@ def write_apng(path: Path, width: int, height: int, frames: list) -> None:
         out += _png_chunk(b"fcTL", struct.pack(">IIIIIHHBB", sequence, wide, tall, left, top,
                                                delay_ms, denominator, APNG_KEEP, APNG_OVER))
         sequence += 1
-        rows = _png_rows(picture, wide, tall, width, left, top)
+        rows = _png_rows(picture, wide, tall, width, left, top, alpha)
         out += _png_chunk(b"fdAT", struct.pack(">I", sequence) + zlib.compress(rows, 9))
         sequence += 1
         previous = picture
@@ -756,6 +776,17 @@ def write_apng(path: Path, width: int, height: int, frames: list) -> None:
 
 def read_png_rgb(path: Path) -> tuple:
     """(width, height, RGB bytes) of an 8-bit RGB or RGBA PNG - the first frame of an APNG included."""
+    width, height, rgb, _alpha = read_png(path)
+    return width, height, rgb
+
+
+def read_png(path: Path) -> tuple:
+    """(width, height, RGB bytes, alpha bytes or None) of an 8-bit RGB or RGBA PNG.
+
+    The two planes are kept apart because everything that draws here works in RGB; the alpha is
+    carried along so that what a picture has transparent - the corners Windows rounds - survives
+    being written out again.
+    """
     import zlib
     raw = path.read_bytes()
     if raw[:8] != b"\x89PNG\r\n\x1a\n":
@@ -776,7 +807,7 @@ def read_png_rgb(path: Path) -> tuple:
         at += 12 + length
     pixels = zlib.decompress(bytes(data))
     stride = width * channels
-    out, previous = bytearray(), bytearray(stride)
+    out, clear, previous = bytearray(), bytearray(), bytearray(stride)
     for y in range(height):
         start = y * (stride + 1)
         mode, line = pixels[start], bytearray(pixels[start + 1:start + 1 + stride])
@@ -794,10 +825,15 @@ def read_png_rgb(path: Path) -> tuple:
                 guess = left + up - corner
                 pa, pb, pc = abs(guess - left), abs(guess - up), abs(guess - corner)
                 line[i] = (line[i] + (left if pa <= pb and pa <= pc else up if pb <= pc else corner)) & 0xFF
-        for x in range(width):
-            out += line[x * channels:x * channels + 3]
+        if channels == 3:
+            out += line
+        else:
+            out += bytes(b for x in range(width) for b in line[x * 4:x * 4 + 3])
+            clear += line[3::4]
         previous = line
-    return width, height, bytes(out)
+    # A picture that is opaque everywhere is handed back without an alpha at all, so it is written
+    # as the RGB it always was: only the window's captures, whose corners Windows rounds, carry one.
+    return width, height, bytes(out), (bytes(clear) if channels == 4 and min(clear) < 255 else None)
 
 
 def render_popup(target: Path, locale: str) -> None:
@@ -1522,13 +1558,13 @@ def breathe_picture(path: Path, theme: str = "light") -> bool:
     """Rewrite a captured picture as an APNG whose status light breathes. False when it has no light to find."""
     from codex_auto_resume import brand
     palette = brand.palette(theme)
-    width, height, rgb = read_png_rgb(path)
+    width, height, rgb, alpha = read_png(path)
     colour = brand.rgb(palette[brand.status_fill(BREATHE_STATE)])
     where = find_light(rgb, width, height, colour)
     if where is None:
         return False
     frames = breathe_over(rgb, width, height, where, brand.rgb(palette["surface"]), colour)
-    write_apng(path, width, height, frames)
+    write_apng(path, width, height, frames, alpha)
     return True
 
 
