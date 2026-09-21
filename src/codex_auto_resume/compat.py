@@ -2,24 +2,22 @@
 network access happens in this module.
 
 What it answers is narrow: for the Codex engine on this machine, which of the things this
-product does can be relied on, and why. Every answer is one of four states:
-
-* ``VERIFIED``     - the maintainer tested this exact engine version, with cited evidence;
-* ``COMPATIBLE``   - the local structural checks pass; nobody has verified this build;
-* ``INCOMPATIBLE`` - a local check failed, or registry data says this build is unsafe;
+product does can be relied on, and why. Every answer is one of six states (v0.6.7):
+* ``VERIFIED`` a real recovery on this exact version exercised it; ``CHECKED`` the maintainer's
+  checks passed on it, nothing more; ``COMPATIBLE`` the local checks pass, no claim either way;
+* ``FAILED_HERE`` a local check failed on a version the data checked or verified - this machine;
+* ``INCOMPATIBLE`` a local check failed, or registry data says this build is unsafe;
 * ``UNKNOWN``      - it cannot be established, because a check could not run.
 
 Two rules decide every answer, and they are the whole reason the registry can be fed data
 from outside the release without that data being able to make anything less careful:
 
 1. **A failed local check always wins.** Nothing a registry document says can turn a local
-   FAIL into anything but INCOMPATIBLE.
+   FAIL into anything that sends: INCOMPATIBLE, or FAILED_HERE where the data vouched for it.
 2. **Registry data can never raise a capability above what the local checks allow.** It can
    restrict anything (INCOMPATIBLE, for an exact version or a range of them); it can elevate
-   only a local PASS, only to VERIFIED, and only for an exact version string. An unrunnable
-   check stays UNKNOWN whatever the data claims.
-
-`resolve()` is those two rules as five lines, in that order.
+   only a local PASS, only to CHECKED or VERIFIED, for an exact version string. An unrunnable
+   check stays UNKNOWN whatever the data claims. `resolve()` is those two rules, in that order.
 
 The data format carries one integer major (`codex-auto-resume-compat/1`). An unknown major,
 a malformed document, a duplicate key, a non-finite number, a range that tries to grant
@@ -71,10 +69,11 @@ EPOCH_MIN = 946684800          # 2000-01-01, as source.epoch
 EPOCH_MAX = 4102444800         # 2100-01-01
 
 # ------------------------------------------------------------------------------ states
-VERIFIED, COMPATIBLE, INCOMPATIBLE, UNKNOWN = "VERIFIED", "COMPATIBLE", "INCOMPATIBLE", "UNKNOWN"
-STATES = (VERIFIED, COMPATIBLE, INCOMPATIBLE, UNKNOWN)
-# Worst first. The coarse state is the worst of the capabilities it summarises.
-_ORDER = {INCOMPATIBLE: 0, UNKNOWN: 1, COMPATIBLE: 2, VERIFIED: 3}
+VERIFIED, CHECKED, COMPATIBLE = "VERIFIED", "CHECKED", "COMPATIBLE"
+FAILED_HERE, INCOMPATIBLE, UNKNOWN = "FAILED_HERE", "INCOMPATIBLE", "UNKNOWN"
+STATES = (VERIFIED, CHECKED, COMPATIBLE, FAILED_HERE, INCOMPATIBLE, UNKNOWN)  # worst first below:
+_ORDER = {INCOMPATIBLE: 0, FAILED_HERE: 1, UNKNOWN: 2, COMPATIBLE: 3, CHECKED: 4, VERIFIED: 5}
+_OWN_REASON = dict(VERIFIED="registry_verified", CHECKED="registry_checked", FAILED_HERE="local_check_failed_here")
 
 # What one local check found.
 PASS, FAIL, UNAVAILABLE, NOT_APPLICABLE = "PASS", "FAIL", "UNAVAILABLE", "NOT_APPLICABLE"
@@ -85,8 +84,8 @@ TIERS = ("conservative", "advanced", "experimental", "unsupported")
 
 # The coarse vocabulary the watcher's heartbeat already stores (store.ENGINE_STATES). The
 # stored token for COMPATIBLE stays `structurally_compatible`: it is a wire value.
-COARSE = {VERIFIED: "verified", COMPATIBLE: "structurally_compatible",
-          INCOMPATIBLE: "incompatible", UNKNOWN: "unknown"}
+COARSE = {VERIFIED: "verified", CHECKED: "checked", COMPATIBLE: "structurally_compatible",
+          FAILED_HERE: "failed_here", INCOMPATIBLE: "incompatible", UNKNOWN: "unknown"}
 ENGINE_STATES = tuple(COARSE.values())
 
 # ------------------------------------------------------------------------------ checks
@@ -150,8 +149,8 @@ SEND_GATE = ("engine_present", "exact_thread_recovery")
 
 # Why a capability has the state it has.
 RESOLUTION_REASONS = frozenset({
-    "local_check_failed", "registry_incompatible", "local_check_unavailable",
-    "not_implemented", "registry_verified", "local_checks_passed",
+    "local_check_failed", "registry_incompatible", "local_check_unavailable", "registry_checked",
+    "not_implemented", "registry_verified", "local_checks_passed", "local_check_failed_here",
 })
 # Why a reader could not use the report at all (every capability is then UNKNOWN).
 VIEW_REASONS = frozenset({"report_absent", "report_invalid", "report_stale", "engine_changed"})
@@ -397,14 +396,14 @@ def validate_document(value) -> dict:
                                             or not DATE_RE.fullmatch(verified_at)):
                 raise DocumentError("invalid_field")
             state = claim.get("state")
-            if name not in CAPABILITIES or state not in (VERIFIED, INCOMPATIBLE):
+            if name not in CAPABILITIES or state not in (VERIFIED, CHECKED, INCOMPATIBLE):
                 # Unknown capability ids and states that carry no weight here (COMPATIBLE,
                 # UNKNOWN, or a name from a later format) are ignored - and an unknown state
-                # can never be read as VERIFIED, because only the literal is.
+                # is never read as trust: only the literals are. v0.6.5 and v0.6.6 skip CHECKED.
                 continue
-            if state == VERIFIED and not evidence:
-                # VERIFIED is a claim about a tested build; without a citation it is just
-                # an assertion, and the evidence rule refuses those.
+            if state in (VERIFIED, CHECKED) and not evidence:
+                # Either is a claim about a tested build; without a citation it is just an
+                # assertion, and the evidence rule refuses those.
                 raise DocumentError("unevidenced_verified")
             capabilities[name] = {"state": state, "reason": _registry_reason(claim.get("reason")),
                                   "evidence": list(evidence)}
@@ -498,21 +497,21 @@ def combine(results) -> str:
 
 
 def resolve(local, evidence):
-    """(state, reason) for one capability. `local` is one of RESULTS; `evidence` is
-    VERIFIED, INCOMPATIBLE or None. Local always wins; remote data only ever restricts,
-    or elevates a local PASS."""
+    """(state, reason) for one capability. `local` is one of RESULTS; `evidence` is VERIFIED,
+    CHECKED, INCOMPATIBLE or None. Local always wins; remote data only restricts or elevates a PASS."""
     if local not in RESULTS:
         local = UNAVAILABLE
-    if evidence not in (VERIFIED, INCOMPATIBLE):
+    if evidence not in (VERIFIED, CHECKED, INCOMPATIBLE):
         evidence = None
-    if local == FAIL:
-        return INCOMPATIBLE, "local_check_failed"
+    if local == FAIL:  # on a build the data vouches for, the cause is most likely this machine
+        return (FAILED_HERE, "local_check_failed_here") if evidence in (VERIFIED, CHECKED) \
+            else (INCOMPATIBLE, "local_check_failed")
     if evidence == INCOMPATIBLE:
         return INCOMPATIBLE, "registry_incompatible"
     if local in (UNAVAILABLE, NOT_APPLICABLE):
         return UNKNOWN, "local_check_unavailable"
-    if evidence == VERIFIED:
-        return VERIFIED, "registry_verified"
+    if evidence in (VERIFIED, CHECKED):
+        return evidence, "registry_verified" if evidence == VERIFIED else "registry_checked"
     return COMPATIBLE, "local_checks_passed"
 
 
@@ -531,8 +530,8 @@ def evidence_for(capability, version, sources):
 
     `sources` is a list of ``(name, document, verified_allowed)``. INCOMPATIBLE is the union
     over every source (an expired cache's restrictions included), so remote data can never
-    lift a bundled INCOMPATIBLE; VERIFIED needs an exact version match in a source whose
-    VERIFIED data is in force.
+    lift a bundled INCOMPATIBLE; VERIFIED or CHECKED needs an exact version match in a source
+    whose trust is in force, and the best of them wins.
     """
     key = parse_version(version)
     for name, document, _ in sources:
@@ -546,13 +545,14 @@ def evidence_for(capability, version, sources):
                 return INCOMPATIBLE, name, advisory["reason"]
     if key is None:
         return None, None, None
+    best = (None, None, None)
     for name, document, verified_allowed in sources:
-        if document is None or not verified_allowed:
-            continue
-        claim = document["engines"].get(version, {}).get(capability)
+        claims = document["engines"].get(version, {}) if document and verified_allowed else {}
+        claim = claims.get(capability)
         if claim and claim["state"] == VERIFIED:
             return VERIFIED, name, None
-    return None, None, None
+        best = (CHECKED, name, None) if claim and claim["state"] == CHECKED and best[0] is None else best
+    return best
 
 
 def evaluate(checks, *, version, sources) -> dict:
@@ -565,7 +565,7 @@ def evaluate(checks, *, version, sources) -> dict:
         if not needed and reason == "local_check_unavailable":
             reason = "not_implemented"
         entry = {"state": state, "reason": reason,
-                 "source": origin if reason in ("registry_incompatible", "registry_verified") else "local",
+                 "source": origin if reason.startswith("registry_") else "local",
                  "tier": tier}
         if reason == "registry_incompatible":
             entry["registry_reason"] = why
@@ -691,7 +691,7 @@ def _clean_capabilities(value) -> dict:
         if (item["state"] not in STATES or item["reason"] not in RESOLUTION_REASONS
                 or item["source"] not in SOURCES or item["tier"] not in TIERS):
             raise ValueError("capability")
-        if item["state"] == VERIFIED and item["reason"] != "registry_verified":
+        if _OWN_REASON.get(item["state"], item["reason"]) != item["reason"]:
             raise ValueError("capability")
         if "registry_reason" in entry:
             if entry["registry_reason"] not in REGISTRY_REASONS:
