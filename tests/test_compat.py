@@ -664,9 +664,6 @@ class BundledBaselineTests(unittest.TestCase):
         self.assertLess(len(self.raw), compat.MAX_DOCUMENT_BYTES)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 def released_compat(tag):
     """That release's own compat.py, from its tag - what an installation of it runs on fetched data - or None
@@ -721,3 +718,7 @@ class OlderReleasesTests(unittest.TestCase):
                                  old.accepted_word(version, [("main", old.validate_document(document()), True)]))
         self.assertEqual(compat.accepted_word(version, [("main", compat.validate_document(with_claims), True)]),
                          "checked")
+
+
+if __name__ == "__main__":
+    unittest.main()
