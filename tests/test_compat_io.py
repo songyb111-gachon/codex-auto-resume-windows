@@ -28,10 +28,14 @@ from codex_auto_resume.source import LocalSource  # noqa: E402
 from codex_auto_resume.store import Store  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
+# Every document here is newer than the bundled baseline, whatever sequence the data on main
+# has reached: a literal would turn into a rollback the day the data passed it.
+BASE = compatio.load_bundled()[0]["sequence"]
 
 
-def registry_document(sequence=5, *, engines=(), advisories=(), published="2026-09-18T00:00:00Z",
+def registry_document(sequence=None, *, engines=(), advisories=(), published="2026-09-18T00:00:00Z",
                       expires="2027-06-01T00:00:00Z", min_product="0.6.4", **extra):
+    sequence = BASE + 4 if sequence is None else sequence
     value = {"format": compat.FORMAT, "sequence": sequence, "published_at": published,
              "expires_at": expires, "min_product": min_product, "requires_signature": False,
              "engines": list(engines), "advisories": list(advisories)}
@@ -64,23 +68,23 @@ class ImportTests(Scratch):
     def test_a_valid_document_becomes_the_cache(self):
         result = compatio.import_document(self.paths, self.write_document(registry_document()),
                                           origin="main", now=self.now)
-        self.assertEqual(result, {"imported": True, "reason": None, "sequence": 5, "cache": "ok"})
+        self.assertEqual(result, {"imported": True, "reason": None, "sequence": BASE + 4, "cache": "ok"})
         envelope = json.loads(self.paths.compat_cache_file.read_text(encoding="utf-8"))
         self.assertEqual(envelope["format"], compat.CACHE_FORMAT)
         self.assertEqual(envelope["origin"], "main")
         self.assertNotIn("sha256", envelope, "no digest that would need canonical re-encoding")
         cache = compatio.read_cache(self.paths.compat_cache_file, now=self.now)
-        self.assertEqual((cache["state"], cache["sequence"]), ("ok", 5))
+        self.assertEqual((cache["state"], cache["sequence"]), ("ok", BASE + 4))
 
     def test_a_refusal_leaves_the_existing_cache_exactly_as_it_was(self):
-        compatio.import_document(self.paths, self.write_document(registry_document(7)), now=self.now)
+        compatio.import_document(self.paths, self.write_document(registry_document(BASE + 6)), now=self.now)
         before = self.paths.compat_cache_file.read_bytes()
         cases = [
-            (registry_document(6), "rollback"),
-            (registry_document(8, min_product="9.0.0"), "from_newer_product"),
-            (registry_document(8, advisories=[dict(advisory(), state="VERIFIED")]), "range_cannot_grant"),
-            (registry_document(8, requires_signature=True), "signature_required"),
-            (registry_document(8, published="2031-01-01T00:00:00Z", expires="2032-01-01T00:00:00Z"),
+            (registry_document(BASE + 5), "rollback"),
+            (registry_document(BASE + 7, min_product="9.0.0"), "from_newer_product"),
+            (registry_document(BASE + 7, advisories=[dict(advisory(), state="VERIFIED")]), "range_cannot_grant"),
+            (registry_document(BASE + 7, requires_signature=True), "signature_required"),
+            (registry_document(BASE + 7, published="2031-01-01T00:00:00Z", expires="2032-01-01T00:00:00Z"),
              "from_the_future"),
             ({"format": "codex-auto-resume-compat/2"}, "unknown_format"),
         ]
@@ -124,17 +128,17 @@ class ImportTests(Scratch):
                              "rejected", garbage)
 
     def test_a_cache_older_than_a_newer_bundled_baseline_is_set_aside(self):
-        compatio.import_document(self.paths, self.write_document(registry_document(5)), now=self.now)
-        newer = compat.validate_document(registry_document(9))
+        compatio.import_document(self.paths, self.write_document(registry_document(BASE + 4)), now=self.now)
+        newer = compat.validate_document(registry_document(BASE + 8))
         cache = compatio.read_cache(self.paths.compat_cache_file, bundled=newer, now=self.now)
         self.assertEqual(cache["state"], "superseded")
         self.assertIsNone(cache["document"])
 
     def test_a_crash_mid_write_leaves_the_old_file_and_no_temporary(self):
-        compatio.import_document(self.paths, self.write_document(registry_document(5)), now=self.now)
+        compatio.import_document(self.paths, self.write_document(registry_document(BASE + 4)), now=self.now)
         before = self.paths.compat_cache_file.read_bytes()
         with patch.object(compatio.os, "replace", side_effect=OSError("power cut")):
-            result = compatio.import_document(self.paths, self.write_document(registry_document(6)),
+            result = compatio.import_document(self.paths, self.write_document(registry_document(BASE + 5)),
                                               now=self.now)
         self.assertEqual(result["reason"], "write_failed")
         self.assertEqual(self.paths.compat_cache_file.read_bytes(), before)
@@ -416,7 +420,7 @@ class TimeTests(Scratch):
 
     def import_trust(self, *, published, expires, advisories=()):
         claim = {"state": "VERIFIED", "evidence": ["docs/evidence/loaded-thread-delivery.json"]}
-        value = registry_document(9, published=iso(published), expires=iso(expires),
+        value = registry_document(BASE + 8, published=iso(published), expires=iso(expires),
                                   engines=[{"version": self.VERSION,
                                             "capabilities": {"engine_present": claim,
                                                              "exact_thread_recovery": claim}}],
