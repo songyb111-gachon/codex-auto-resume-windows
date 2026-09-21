@@ -1,0 +1,102 @@
+{
+  "format": "codex-auto-resume-compat-evidence/1",
+  "codex_version": "codex-cli 0.153.4",
+  "verdict": "PASS",
+  "recorded_at": "2026-09-21T14:26:58Z",
+  "recorded_by": "codex-compat-admin, on the maintainer's own Windows machine",
+  "attribution": {
+    "rule": "the window below, set by hand",
+    "window": [
+      "2026-09-12T21:25:00Z",
+      "2026-09-12T21:45:00Z"
+    ],
+    "basis": "No engine report names 0.153.4: the product then in use, v0.6.0, was verified against codex-cli 0.153.4 (windows.py VERIFIED_VERSIONS) and logged a version only when it was another one. Its watcher started at 06:36:05 local time inside this window without naming one, the next start at 06:52:50 named codex-cli 0.154.0-alpha.6.2, and the conversation's own session file records cli_version 0.153.4."
+  },
+  "local_checks": {
+    "reports": 0,
+    "first": null,
+    "last": null,
+    "covers": []
+  },
+  "records": [
+    {
+      "detected_at": "2026-09-12T20:22:31Z",
+      "delivered_at": "2026-09-12T21:31:17Z",
+      "outcome_at": "2026-09-12T21:39:07Z",
+      "category": "usage_limit",
+      "state": "recovered",
+      "reason": "progress_then_turn_failed",
+      "turn_status": "failed",
+      "gates_passed": 13,
+      "progress_items": {
+        "agentMessage": 3,
+        "commandExecution": 13,
+        "fileChange": 1,
+        "mcpToolCall": 0
+      }
+    }
+  ],
+  "capabilities": {
+    "engine_present": {
+      "confirmed": 1,
+      "missed": 0,
+      "last_confirmed": "2026-09-12T21:39:07Z",
+      "level": "VERIFIED"
+    },
+    "exact_thread_recovery": {
+      "confirmed": 1,
+      "missed": 0,
+      "last_confirmed": "2026-09-12T21:39:07Z",
+      "level": "VERIFIED"
+    },
+    "loaded_state_detection": {
+      "confirmed": 1,
+      "missed": 0,
+      "last_confirmed": "2026-09-12T21:39:07Z",
+      "level": "VERIFIED"
+    },
+    "outcome_observation": {
+      "confirmed": 1,
+      "missed": 0,
+      "last_confirmed": "2026-09-12T21:39:07Z",
+      "level": "VERIFIED"
+    },
+    "projection_freshness": {
+      "confirmed": 1,
+      "missed": 0,
+      "last_confirmed": "2026-09-12T21:39:07Z",
+      "level": "VERIFIED"
+    },
+    "recovery_turn_tracking": {
+      "confirmed": 1,
+      "missed": 0,
+      "last_confirmed": "2026-09-12T21:39:07Z",
+      "level": "VERIFIED"
+    },
+    "thread_eligibility": {
+      "confirmed": 1,
+      "missed": 0,
+      "last_confirmed": "2026-09-12T21:39:07Z",
+      "level": "VERIFIED"
+    },
+    "usage_limit_detection": {
+      "confirmed": 1,
+      "missed": 0,
+      "last_confirmed": "2026-09-12T21:39:07Z",
+      "level": "VERIFIED"
+    },
+    "usage_probe": {
+      "confirmed": 1,
+      "missed": 0,
+      "last_confirmed": "2026-09-12T21:39:07Z",
+      "level": "VERIFIED"
+    },
+    "usage_reset_hint": {
+      "confirmed": 1,
+      "missed": 0,
+      "last_confirmed": "2026-09-12T21:39:07Z",
+      "level": "VERIFIED"
+    }
+  },
+  "note": "Content-free: counts, states and times from this machine's own records; no conversation text, identifiers or paths."
+}
