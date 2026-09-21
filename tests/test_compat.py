@@ -631,11 +631,10 @@ class BundledBaselineTests(unittest.TestCase):
                         self.assertEqual(recorded.get("capabilities", {}).get(name, {}).get("level"),
                                          compat.VERIFIED, (path, name))
 
-    def test_a_checked_claim_is_a_record_that_no_release_reads(self):
-        """CHECKED says the local checks passed on that version on the maintainer's machine
-        and no real recovery confirmed the capability. No release reads it - the validator
-        skips a state it does not know, so it can grant nothing - and it is held to the same
-        citation rule as any claim, so the record says what it rests on."""
+    def test_a_checked_claim_is_read_here_and_cites_a_recording_of_its_version(self):
+        """CHECKED says the maintainer's local checks passed on that version and no real recovery
+        confirmed the capability. v0.6.7 reads it (OlderReleasesTests: v0.6.5 and v0.6.6 skip it),
+        and it is held to the same citation rule as any claim, so the record says what it rests on."""
         for engine in json.loads(self.raw)["engines"]:
             version = engine["version"]
             for name, claim in engine["capabilities"].items():
@@ -643,7 +642,7 @@ class BundledBaselineTests(unittest.TestCase):
                 if claim["state"] != "CHECKED":
                     continue
                 with self.subTest(version=version, capability=name):
-                    self.assertNotIn(name, self.parsed["engines"].get(version, {}))
+                    self.assertEqual(self.parsed["engines"][version][name]["state"], compat.CHECKED)
                     self.assertTrue(claim["evidence"])
                     for path in claim["evidence"]:
                         recorded = json.loads((ROOT / path).read_text(encoding="utf-8"))
@@ -667,3 +666,58 @@ class BundledBaselineTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def released_compat(tag):
+    """That release's own compat.py, from its tag - what an installation of it runs on fetched data - or None
+    where this checkout has no tags. It is standard library only, so it loads on its own."""
+    import subprocess
+    import types
+    shown = subprocess.run(["git", "-C", str(ROOT), "show", "%s:src/codex_auto_resume/compat.py" % tag],
+                           capture_output=True, text=True, encoding="utf-8")
+    if shown.returncode:
+        return None
+    module = types.ModuleType("compat_" + tag.replace(".", "_"))
+    exec(compile(shown.stdout, "%s:compat.py" % tag, "exec"), module.__dict__)
+    return module
+
+
+class OlderReleasesTests(unittest.TestCase):
+    """The data on main is fetched by every installation, whichever release it runs, so each installed release
+    must take the newest data whole - its own validator, from its own tag - and read in it only what it knew:
+    v0.6.5 and v0.6.6 skip CHECKED, a state they do not know, and nothing they decide moves because of it.
+    Skipped where the checkout has no tags; CI checks out with every tag."""
+    RELEASES = ("v0.6.5", "v0.6.6")
+
+    def older(self):
+        found = {tag: released_compat(tag) for tag in self.RELEASES}
+        if not all(found.values()):
+            self.skipTest("the release tags are not in this checkout")
+        return found
+
+    def test_every_installed_release_takes_the_data_on_main(self):
+        import subprocess
+        import time
+        raw = BUNDLED.read_bytes()
+        for tag, old in self.older().items():
+            with self.subTest(tag):
+                shown = subprocess.run(["git", "-C", str(ROOT), "show", "%s:src/codex_auto_resume/data/codex_compat.json"
+                                        % tag], capture_output=True, text=True, encoding="utf-8").stdout
+                parsed = old.parse_document(raw)
+                self.assertEqual(old.document_standing(parsed, product=tag[1:], bundled=old.parse_document(shown.encode()),
+                                                       now=time.time()), "ok")
+                for engine_entry in json.loads(raw)["engines"]:
+                    for name, claim in engine_entry["capabilities"].items():
+                        if claim["state"] == compat.CHECKED:
+                            self.assertNotIn(name, parsed["engines"].get(engine_entry["version"], {}))
+
+    def test_checked_claims_move_no_older_word(self):
+        version = "codex-cli 0.160.0"
+        claim = {"state": "CHECKED", "evidence": ["docs/evidence/loaded-thread-delivery.json"]}
+        with_claims = document(engines=[engine(version, engine_present=claim, exact_thread_recovery=claim)])
+        for tag, old in self.older().items():
+            with self.subTest(tag):
+                self.assertEqual(old.accepted_word(version, [("main", old.validate_document(with_claims), True)]),
+                                 old.accepted_word(version, [("main", old.validate_document(document()), True)]))
+        self.assertEqual(compat.accepted_word(version, [("main", compat.validate_document(with_claims), True)]),
+                         "checked")
