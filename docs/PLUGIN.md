@@ -144,8 +144,8 @@ destructive, so it does not request approval through that annotation, and `get_s
 reports the installation directory as `home`. Nor does `update_settings` offer the preferences
 that belong to Windows - the notification-area icon (`show_tray`), Reduce motion
 (`reduce_motion`) and, from v0.6.5, the notification card (`notification_card`) - which the
-panel does not show either. From v0.6.4 it does offer the theme, the one appearance setting the
-panel shows. No tool refreshes or imports the Codex compatibility data: that happens only from
+panel does not show either. From v0.6.4 it does offer the theme, and from v0.6.6 the panel's own
+theme beside it (`panel_theme`): the two appearance settings the panel shows. No tool refreshes or imports the Codex compatibility data: that happens only from
 the window's Diagnostics page, its update check, or the command line.
 
 **Custom message text cannot be written from Codex.** `update_settings` offers
@@ -175,8 +175,9 @@ a conversation's title or content. The same holds for command output the skill a
 `open_settings` returns the panel as a `ui://` resource, which Codex renders beneath the tool
 result. It is one self-contained page - no script, stylesheet or font from anywhere else - and
 it draws itself from the settings schema the tool returns, so it shows the fields the settings
-module defines rather than a list of its own. It follows Codex's light or dark theme unless the
-Theme setting chooses one, and Codex's reduced-motion preference, in the visual language the
+module defines rather than a list of its own. It is drawn in its own theme, `panel_theme`: Codex's
+light or dark, Light, Dark, or - the default - whatever the Theme setting chooses, which is what it
+followed alone until v0.6.6. It follows Codex's reduced-motion preference, in the visual language the
 Dashboard and the popup share ([BRAND.md](BRAND.md)). Top to bottom:
 
 * **The state**: what the watcher is doing, in a word beside a halo - monitoring, waiting,
@@ -201,10 +202,12 @@ Dashboard and the popup share ([BRAND.md](BRAND.md)). Top to bottom:
 * **Preview**: the exact text for a chosen kind of interruption, from
   `preview_recovery_message`, following the language and style chosen but not yet saved. The
   page never assembles a continuation of its own.
-* **Appearance**: the theme - Use system setting, Light or Dark. Once a new one is saved, the
-  panel draws itself in it at once.
+* **Appearance**: the Theme - Use system setting, Light or Dark - and Theme in Codex, the panel's
+  own - Same as Theme, Codex's theme, Light or Dark. Once either is saved the panel redraws at
+  once in its own choice, or in the Theme's while its own is Same as Theme.
 * **Save**, for the settings above that wait for it. It sends the Interface language and the
-  theme only when they were changed in the panel, so a save cannot put back one changed elsewhere.
+  two themes only when they were changed in the panel, so a save cannot put back one changed
+  elsewhere.
 
 Where the host gives the page no way to call tools, it is a read-only summary and says so.
 

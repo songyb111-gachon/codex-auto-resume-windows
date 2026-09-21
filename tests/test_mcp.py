@@ -235,13 +235,21 @@ class ToolSurfaceTests(McpTestCase):
         self.assertIs(mcpserver.settings_schema()["additionalProperties"], False)
 
     def test_the_theme_is_offered_and_the_windows_only_preferences_are_not(self):
-        """The panel is drawn in the theme too, so Codex may change it. Reduce motion and
-        the notification-area icon belong to the Windows surfaces and stay out."""
+        """The panel is drawn in the theme too, so Codex may change it - and, from v0.6.6, in its
+        own panel theme, which colours nothing else. Reduce motion and the notification-area icon
+        belong to the Windows surfaces and stay out."""
         properties = mcpserver.settings_schema()["properties"]
-        self.assertEqual(mcpserver.PANEL_APPEARANCE, frozenset({"theme"}))
+        self.assertEqual(mcpserver.PANEL_APPEARANCE, frozenset({"theme", "panel_theme"}))
         self.assertEqual(properties["theme"]["type"], "string")
         self.assertEqual(properties["theme"]["enum"], ["system", "light", "dark"])
-        self.assertNotEqual(properties["theme"]["description"], "See the settings documentation.")
+        self.assertEqual(properties["panel_theme"]["type"], "string")
+        self.assertEqual(properties["panel_theme"]["enum"], ["same", "system", "light", "dark"])
+        for name in ("theme", "panel_theme"):
+            with self.subTest(name):
+                self.assertNotEqual(properties[name]["description"], "See the settings documentation.")
+        # A model reading the Theme's description has to learn it no longer colours the panel on its
+        # own, or it will answer "make Codex dark" by darkening the window as well.
+        self.assertIn("panel_theme", properties["theme"]["description"])
         for name in ("reduce_motion", "show_tray"):
             self.assertNotIn(name, properties)
 

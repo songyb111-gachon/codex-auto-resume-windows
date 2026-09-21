@@ -26,8 +26,8 @@ continuation settings. Two things about those are structural rather than stylist
   builds the message with the function the watcher sends with. The page never assembles a
   continuation of its own.
 
-v0.6.4 added the Theme setting, which the panel applies to itself - Light or Dark stamp
-`data-theme` on the root, Use system setting stamps nothing and follows Codex - and it
+v0.6.4 added the Theme setting and v0.6.6 the panel's own beside it, which the panel applies to
+itself - Light or Dark stamp `data-theme` on the root, following Codex stamps nothing - and it
 speaks a newly saved Interface language at once, from every language's words for this page,
 which ship with it. An on/off setting is a switch when it turns something that runs on or
 off and a check box when it picks items of a list, as in the Windows Dashboard. A switch or a
@@ -56,8 +56,8 @@ from . import brand, interface, l10n
 # from the shared palette, which is what keeps this panel, the settings window and the
 # icon the same product rather than three that happen to ship together.
 _STYLE = r"""
-/* Three states, not two. An explicit choice - the Theme setting's Light or Dark - stamps
-   `data-theme` on the root; Use system setting stamps nothing and only the media query,
+/* Three states, not two. An explicit choice - Light or Dark, the panel's or the Theme's - stamps
+   `data-theme` on the root; following the host stamps nothing and only the media query,
    which is Codex's own scheme, separates light from dark. The stamp goes on the root and
    nowhere else: the `--check-*` aliases are resolved where they are declared, which is here.
    A colour whose only definition lives inside the media block is the classic unreadable
@@ -721,18 +721,18 @@ function adoptLanguage(settings) {
   return true;
 }
 
-// What the stored Theme stamps on the page's root: Light or Dark as chosen, and nothing for Use
-// system setting, which leaves Codex's own scheme in charge. Anything else - a watcher older than
-// the setting, or a value from a newer one - is Use system setting.
+// Light or Dark as chosen, and nothing for Use system setting, which leaves Codex's own scheme in
+// charge - as is anything else, from a watcher older than the setting or newer than this page.
 function themeStamp(preference) {
   return (preference === 'light' || preference === 'dark') ? preference : '';
 }
 
-// On the root, because that is where the theme blocks and the aliases built on them are declared.
-// High Contrast needs nothing here: forced colours replace whichever palette is stamped.
+// On the root, where the theme blocks are declared; High Contrast's forced colours replace any. The
+// panel theme's own choice, or the Theme's while it is "same" - absent too, from an older watcher.
 function applyTheme(root, settings, pinned) {
   if (!root || pinned) return;
-  var stamp = themeStamp((settings || {}).theme);
+  var own = (settings = settings || {}).panel_theme;
+  var stamp = themeStamp(own === 'system' || own === 'light' || own === 'dark' ? own : settings.theme);
   if (stamp) root.setAttribute('data-theme', stamp);
   else root.removeAttribute('data-theme');
 }
@@ -857,9 +857,9 @@ function setThreadRecovery(threadId, enable) {
 // the Save button cannot even assemble a request that carries it.
 function editable(entry) {
   var groups = ['general', 'recovery', 'limits', 'notifications', 'continuation'];
-  // Of the appearance settings only the theme, which the panel applies to itself. Reduce motion
+  // Of the appearance settings only the two themes, which the panel is drawn in. Reduce motion
   // and the notification-area icon are Windows' own and stay in the Windows Dashboard.
-  var appearance = ['theme'];
+  var appearance = ['theme', 'panel_theme'];
   if (!entry || typeof entry.name !== 'string') return false;
   if (entry.group === 'appearance') return appearance.indexOf(entry.name) >= 0 && !entry.multiline;
   if (groups.indexOf(entry.group) < 0 || entry.multiline) return false;
@@ -876,15 +876,13 @@ function collectChanges(editors, schema) {
   return changes;
 }
 
-// Of the collected changes, the settings every surface is drawn in - the Interface language and
-// the Theme - that still hold what the page was drawn with (or last saved). This page is not told
-// when the Windows Dashboard, another panel or Codex changes either, so sending them back unedited
-// would quietly undo that change, and the Dashboard, which reopens itself in a new language or
-// theme, would reopen in the one it had just left. They go only when chosen here: the rule the
-// Dashboard saves by too. Every other setting is still sent whole, as it always was.
+// Of the collected changes, the settings surfaces are drawn in - language and both themes - that still
+// hold what the page was drawn with. This page is not told when the Dashboard or Codex changes them,
+// so sending them back unedited would quietly undo that change; they go only when chosen here, the
+// rule the Dashboard saves by too. Every other setting is still sent whole, as it always was.
 function unedited(changes, saved) {
   saved = saved || {};
-  return ['interface_language', 'theme'].filter(function (name) {
+  return ['interface_language', 'theme', 'panel_theme'].filter(function (name) {
     return Object.prototype.hasOwnProperty.call(changes, name)
            && Object.prototype.hasOwnProperty.call(saved, name)
            && changes[name] === saved[name];
@@ -1035,8 +1033,7 @@ function settingRow(title, help, control, className) {
   return {row: row, help: helpNode, label: name};
 }
 
-// A drop-down: a select, and the list this page opens for it (`.combo` in the stylesheet says why
-// the list is the page's own, and that it is the Windows Dashboard's list).
+// A drop-down: a select, and the list this page opens for it (`.combo` in the stylesheet says why).
 //
 // The select stays in the page, hidden, and is still the value: EDITORS read it, the page listens
 // to its `change`, and picking from the list sets it and fires that `change`, so nothing that reads
@@ -1827,16 +1824,19 @@ function renderGeneral(byName) {
   return node;
 }
 
-// Light, Dark, or whatever Codex itself is showing. Applied when the save is confirmed, not
-// while the choice is still only on screen: the page shows what is stored.
+// Both themes, each in its own words. Applied once the save is confirmed, not while only on screen.
 function renderAppearance(byName) {
-  var entry = byName.theme;
-  if (!entry || !editable(entry)) return null;
-  var node = card(t('group.appearance', 'Appearance'));
-  var rows = element('div', 'rows');
-  rows.appendChild(choiceField(entry, (entry.choices || []).map(function (choice) {
-    return {value: choice, text: t('choice.theme.' + choice, choice)};
-  }), t('help.theme', 'Light or dark for this window, the notification-area popup and the panel in Codex.')).row);
+  var shown = ['theme', 'panel_theme'].filter(function (name) { return byName[name] && editable(byName[name]); });
+  if (!shown.length) return null;
+  var node = card(t('group.appearance', 'Appearance')), rows = element('div', 'rows');
+  var words = {theme: function (c) { return t('choice.theme.' + c, c); },
+               panel_theme: function (c) { return t('choice.panel_theme.' + c, c); }};
+  var help = {theme: t('help.theme', ''), panel_theme: t('help.panel_theme', '')};
+  shown.forEach(function (name) {
+    rows.appendChild(choiceField(byName[name], (byName[name].choices || []).map(function (choice) {
+      return {value: choice, text: words[name](choice)};
+    }), help[name]).row);
+  });
   node.appendChild(rows);
   return node;
 }
@@ -2317,8 +2317,8 @@ def settings_page(data=None, theme=None) -> str:
     if data is not None:
         seed = "<script>window.__CODEX_AUTO_RESUME__=%s;</script>" % _script_json(data)
     # `theme` pins the colour scheme instead of following the host or the stored Theme.
-    # Codex never passes it - inside Codex the panel follows the Theme setting, and with
-    # Use system setting the host - and the documentation capture does, because a
+    # Codex never passes it - inside Codex the panel follows its own theme, or the Theme's
+    # while that is Same as Theme, or the host - and the documentation capture does, because a
     # screenshot whose theme depends on whichever machine ran the build is not a
     # deterministic artefact. `data-theme-pinned` tells the script to leave it alone.
     root = ("<html>" if theme not in ("light", "dark")
