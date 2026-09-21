@@ -257,7 +257,7 @@ class ManifestTests(unittest.TestCase):
                                          sim, thread, name=(name or "").upper(), **rest)),
             "compatio.py - the local checks behind the Diagnostics card":
                 lambda: changed(compatio, "source_checks", lambda checks: dict(checks, queue_schema="FAIL")),
-            "data/codex_compat.json - the registry data in force":
+            "tests/fixtures/codex_compat_frozen.json - the registry data the pictures are made with":
                 lambda: patch.object(compatio, "load_bundled", return_value=(None, "missing")),
         }
         if os.name == "nt":
@@ -717,7 +717,8 @@ class EnvelopeTests(unittest.TestCase):
         self.assertEqual((view["status"], view["live"]), ("ok", False), "the card would say why it cannot be used")
         self.assertEqual(view["checked_at"], generator.ENVELOPE_NOW - 40)
         self.assertEqual(view["engine"], {"found": True, "version": generator.CODEX_VERSION})
-        bundled, _state = compatio.load_bundled()
+        with generator.frozen_registry().frozen():
+            bundled, _state = compatio.load_bundled()
         self.assertEqual((view["data"]["source"], view["data"]["bundled_sequence"], view["data"]["cache"]),
                          ("bundled", bundled["sequence"], "absent"))
         # The word the gate reads for this build with the bundled data - "verified" only if that
