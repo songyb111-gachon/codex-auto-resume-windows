@@ -1672,13 +1672,18 @@ namespace CodexAutoResume
                     // apart, so Save writes "normal" whatever the label says - a settings
                     // file that changes meaning with the display language would be a bug
                     // the user could not see until the watcher read it back.
-                    // The Theme's labels are its own ("Use system setting", "Light", "Dark").
-                    SoftCombo combo = ChoiceCombo(field, current, name == "theme" ? "choice.theme." : "choice.");
+                    // Each theme's labels are its own: the Theme's "Use system setting", the panel
+                    // theme's "Same as Theme" and "Codex's theme", and both themes' Light and Dark.
+                    bool themed = name == "theme" || name == "panel_theme";
+                    SoftCombo combo = ChoiceCombo(field, current, themed ? "choice." + name + "." : "choice.");
                     host.Controls.Add(NewRow(Humanise(name), combo));
                     editors[name] = combo;
                     if (name == "theme")
                         host.Controls.Add(HelpText(S("help.theme",
-                            "Light or dark for this window, the notification-area popup and the panel in Codex. Use system setting follows Windows; in Codex it follows Codex's own theme.")));
+                            "Light or dark for this window, the notification-area popup and the notification card, and for the panel in Codex while Theme in Codex is Same as Theme. Use system setting follows Windows here and Codex's own theme in Codex.")));
+                    if (name == "panel_theme")
+                        host.Controls.Add(HelpText(S("help.panel_theme",
+                            "Light or dark for the panel in Codex alone. Same as Theme uses the choice above; Codex's theme follows Codex whatever the Theme is.")));
                 }
             }
             if (master != null)
@@ -2625,10 +2630,36 @@ namespace CodexAutoResume
         private void Observe(Dictionary<string, object> current, bool firstRead)
         {
             Remember(current);
+            FollowPanelTheme(current);
             // Words that did not come from a reply - the bridge could not be asked, and the window speaks
             // its English fallback - are no language to reopen from.
             if (openedLanguage == null) openedLanguage = storedLanguage;
             CheckReopen(firstRead);
+        }
+
+        /// The panel's own theme, as it is stored now, in the drop-down that shows it. The window is not
+        /// drawn in it, so a change made in the panel or by Codex reopens nothing, as a change of language
+        /// or Theme does - but left alone the drop-down would go on showing the old choice, and because a
+        /// Save leaves out a value still equal to the page's baseline (ChangesJson), the window could not
+        /// even write the choice it showed. So the baseline and the drop-down both follow what is stored,
+        /// the baseline first, so nothing measuring unsaved edits sees the two disagree. A choice the person
+        /// has made here and not saved yet is theirs, and is left where it is.
+        private void FollowPanelTheme(Dictionary<string, object> current)
+        {
+            Control editor;
+            string was, stored = Str(current, "panel_theme");
+            var combo = stored != null && editors.TryGetValue("panel_theme", out editor) ? editor as ComboBox : null;
+            if (combo == null || baseline == null || !baseline.TryGetValue("panel_theme", out was)) return;
+            var shown = combo.SelectedItem as Choice;
+            if (Json.Escape(shown == null ? null : shown.Value) != was) return;
+            for (int i = 0; i < combo.Items.Count; i++)
+            {
+                var item = combo.Items[i] as Choice;
+                if (item == null || item.Value != stored) continue;
+                baseline["panel_theme"] = Json.Escape(stored);
+                if (combo.SelectedIndex != i) combo.SelectedIndex = i;
+                return;
+            }
         }
 
         private void Remember(Dictionary<string, object> current)
@@ -2717,9 +2748,10 @@ namespace CodexAutoResume
             return values;
         }
 
-        /// The changes a Save sends: every value on the page, except the Interface language and the Theme
-        /// while they are still what the page was built with - so saving something else never puts back a
-        /// language or theme chosen somewhere else meanwhile, which this window is about to reopen in.
+        /// The changes a Save sends: every value on the page, except the Interface language and the two
+        /// themes while they are still what the page was built with - so saving something else never puts
+        /// back a language or theme chosen somewhere else meanwhile. The window reopens in a new language
+        /// or Theme; the panel's own theme it follows in place (FollowPanelTheme).
         private string ChangesJson(Dictionary<string, string> values)
         {
             var changes = new StringBuilder("{");
@@ -2727,7 +2759,8 @@ namespace CodexAutoResume
             foreach (KeyValuePair<string, string> pair in values)
             {
                 string was;
-                if ((pair.Key == "interface_language" || pair.Key == "theme") && baseline != null &&
+                if ((pair.Key == "interface_language" || pair.Key == "theme" || pair.Key == "panel_theme") &&
+                    baseline != null &&
                     baseline.TryGetValue(pair.Key, out was) && was == pair.Value) continue;
                 if (!first) changes.Append(',');
                 first = false;

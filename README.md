@@ -202,8 +202,11 @@ and once it is lit a small glow spreads from it and draws back in; it holds lit 
 waits, turns a small arc while it checks a task that has come due, and blinks a little faster
 while it recovers. Paused or stopped, it is plain grey; amber, blinking once and then lit, means it
 needs you. The word beside it
-always says which. **Theme**, under Settings > Appearance, draws the window and the popup light or
-dark; its default, *Use system setting*, follows the app mode Windows is set to. When the
+always says which. **Theme**, under Settings > Appearance, draws the window, the popup and the
+notification card light or dark; its default, *Use system setting*, follows the app mode Windows is
+set to. **Theme in Codex**, beside it, is the panel's own: *Same as Theme* (the default, which is how
+every panel looked before it existed), *Codex's theme*, *Light* or *Dark* - so the window can keep a
+Light or Dark of its own while the panel follows Codex, or the panel can keep one whatever Codex does. When the
 interface language or the theme changes - saved in the window, changed in Codex, or Windows
 switching between light and dark - the window closes and opens again by itself, on the same page
 and in the same place, but never over changes you have not saved. **Reduce motion**, also under

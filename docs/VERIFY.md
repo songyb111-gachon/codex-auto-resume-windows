@@ -176,10 +176,9 @@ not use the file at all and re-runs setup instead, unless you also pass `-Force`
 The v0.6.3 archive is checked like any other, before it is extracted: the steps above, with
 v0.6.3's own file and values. v0.6.2's pin on `main` vouches for v0.6.2's file and nothing
 else. v0.6.3 is published and its own pin is committed, so step 3 has a digest to compare
-with, and so are v0.6.5, v0.6.6 and their pins. A release that has just been published has no
-pin for a little while - until the pin is committed, step 3 has nothing to compare its archive
-with, which is the case [a new release has no pin for a while](#what-is-not-verified)
-describes.
+with, and so are v0.6.5 and its pin. v0.6.6, the version being prepared, is not published yet:
+until it is and its pin is committed, step 3 has nothing to compare its archive with, which is
+the case [a new release has no pin for a while](#what-is-not-verified) describes.
 
 From v0.6.2 there are two routes, and both end in the same installer with `--keep-state`:
 extracting the archive and running `Install.cmd`, or the Dashboard's update button, whose

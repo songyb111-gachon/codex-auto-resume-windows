@@ -291,7 +291,7 @@ class ThemeTests(unittest.TestCase):
         self.assertEqual(entry, {"name": "theme", "default": "system", "type": "string",
                                  "choices": ["system", "light", "dark"], "group": "appearance"})
         appearance = [entry["name"] for entry in described if entry["group"] == "appearance"]
-        self.assertEqual(appearance, ["theme", "reduce_motion"])
+        self.assertEqual(appearance, ["theme", "panel_theme", "reduce_motion"])
 
     def test_it_round_trips_through_the_file_and_survives_an_unrelated_update(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -308,6 +308,43 @@ class ThemeTests(unittest.TestCase):
                             encoding="utf-8")
             loaded = settings.load(path)
             self.assertEqual((loaded["theme"], loaded["max_no_progress"]), ("system", 5))
+
+
+class PanelThemeTests(unittest.TestCase):
+    """The panel in Codex's own light or dark (v0.6.6).
+
+    Use system setting already let each surface follow its host; what nobody could do was keep the
+    window Light or Dark and give the panel a different answer ("mcp 와 나머지의 테마 설정을 별도로").
+    "same" follows the Theme, which is what every panel did before the setting existed, so it is the
+    default: an upgrade changes nothing anybody can see. How the panel resolves the pair is the
+    panel's own (applyTheme), pinned in test_mcpui_v064.
+    """
+
+    def test_the_choices_and_a_default_that_changes_nothing(self):
+        self.assertEqual(settings.PANEL_THEMES, ("same", "system", "light", "dark"))
+        self.assertEqual(settings.defaults()["panel_theme"], "same")
+
+    def test_every_choice_is_accepted_and_anything_else_is_same(self):
+        for choice in settings.PANEL_THEMES:
+            with self.subTest(choice):
+                self.assertEqual(settings.validate_update({"panel_theme": choice}), {"panel_theme": choice})
+        for bad in ("Same", "codex", "", None, 0, ["dark"]):
+            with self.subTest(bad=bad):
+                with self.assertRaises(settings.SettingsError):
+                    settings.validate_update({"panel_theme": bad})
+                self.assertEqual(settings.coerce({"panel_theme": bad})["panel_theme"], "same")
+
+    def test_it_sits_beside_the_theme_in_appearance(self):
+        entry = next(entry for entry in settings.describe() if entry["name"] == "panel_theme")
+        self.assertEqual(entry, {"name": "panel_theme", "default": "same", "type": "string",
+                                 "choices": ["same", "system", "light", "dark"], "group": "appearance"})
+
+    def test_it_round_trips_and_leaves_the_theme_alone(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "settings.json"
+            settings.save(path, {"theme": "light", "panel_theme": "dark"})
+            loaded = settings.load(path)
+            self.assertEqual((loaded["theme"], loaded["panel_theme"]), ("light", "dark"))
 
 
 class NotificationCardTests(unittest.TestCase):

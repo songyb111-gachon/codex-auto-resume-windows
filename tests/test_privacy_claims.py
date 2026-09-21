@@ -254,9 +254,9 @@ class WordingTests(unittest.TestCase):
         one rather than a past one - and requiring it in a list of history would fail
         the release of every version, which is how this test first earned its keep.
 
-        So is a tag that is not a release: `v0.6.6-alpha` carries the candidate this
-        release's first attempt built, kept under a name of its own so `v0.6.6` was free
-        for the one that was published. The changelog is a list of releases, and a
+        So is a tag that is not a release: `v0.6.6-alpha` and `v0.6.6-beta` carry two
+        builds of v0.6.6 published before it was finished, each kept under a name of its
+        own so `v0.6.6` was free for the next. The changelog is a list of releases, and a
         release is tagged vMAJOR.MINOR.PATCH - the same shape `scripts/bootstrap.ps1`
         will accept from the redirect it reads, and nothing else.
         """

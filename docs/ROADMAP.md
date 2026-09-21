@@ -145,9 +145,9 @@ Interface work that came out of using v0.6.4:
 
 ---
 
-## v0.6.6 — The ordinary breath, a taskbar button that moves where it is installed, and the last native controls ✅
+## v0.6.6 — The ordinary breath, a taskbar button that moves where it is installed, and the last native controls 🚧
 
-**Released.**
+**In development, on the `dev` branch.**
 
 What a day of real use turned up. Nothing about recovery changed.
 
@@ -169,11 +169,15 @@ will happen rather than Yes and No. The documentation's pictures move, and they 
 the black frame `PrintWindow` never drew - they are cut to the window and the corners Windows
 rounds are rounded in them.
 
+The panel in Codex gets a theme of its own, Theme in Codex, right under the Theme: Same as Theme,
+which is the default and what every panel did before, Codex's theme, Light or Dark. The window,
+the popup and the notification card keep the Theme.
+
 ---
 
 ## v0.6.7 — Python modularization
 
-**Next.**
+**After v0.6.6.**
 
 v0.6.7 is planned as the major structural cleanup of the Python implementation. It was the main
 part of v0.6.5 in the earlier plan; v0.6.5 ships its groundwork, and the split itself moves here.
@@ -430,7 +434,7 @@ Codex Compatibility Registry
 
         ↓
 
-v0.6.6  ✅ Released
+v0.6.6  🚧 In development, on the dev branch
 The light softened
 + a taskbar button that moves where it is installed
 
