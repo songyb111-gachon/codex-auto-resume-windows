@@ -330,7 +330,8 @@ class McpTests(unittest.TestCase):
         self.assertEqual(set(summary), {"status", "overall", "acting", "source", "sequence", "cache",
                                         "checked_at", "capabilities"})
         self.assertEqual((summary["status"], summary["overall"]), ("ok", "structurally_compatible"))
-        self.assertEqual((summary["source"], summary["sequence"]), ("bundled", 1))
+        self.assertEqual((summary["source"], summary["sequence"]),
+                         ("bundled", compatio.load_bundled()[0]["sequence"]))
         text = json.dumps(summary)
         for leak in ("codex-cli", str(self.fixture.exe), compatio.path_digest(self.fixture.exe),
                      str(self.fixture.paths.home)):

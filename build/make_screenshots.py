@@ -434,13 +434,26 @@ def _checked_as_on_windows(backend) -> dict:
             "version": CODEX_VERSION, "signature": (status.st_size, status.st_mtime_ns)}
 
 
+def frozen_registry():
+    """The registry data every picture is made with: v0.6.6's bundled document, frozen in
+    `tests/fixtures/codex_compat_frozen.json`. The live file on main changes whenever
+    compatibility data is published; a picture must not go stale because of that."""
+    sys.path.insert(0, str(ROOT / "tests"))
+    try:
+        import frozen_registry as frozen
+    finally:
+        sys.path.pop(0)
+    return frozen
+
+
 def engine_word() -> str:
     """The word the watcher's gate reads, and its heartbeat stores, for CODEX_VERSION once it
-    passed its checks, with the bundled registry data in force - for the popup, which is drawn
-    from a status rather than an installation. `seed_compatibility` checks that the watcher's
-    own evaluation gives the same word."""
+    passed its checks, with the registry data the pictures are made with - for the popup, which
+    is drawn from a status rather than an installation. `seed_compatibility` checks that the
+    watcher's own evaluation gives the same word."""
     from codex_auto_resume import compat, compatio
-    bundled, _state = compatio.load_bundled()
+    with frozen_registry().frozen():
+        bundled, _state = compatio.load_bundled()
     return compat.accepted_word(CODEX_VERSION, [("bundled", bundled, True)])
 
 
@@ -455,7 +468,7 @@ def seed_compatibility(home: Path, codex: Path, local: Path, now: float) -> str:
     engine is a stand-in (`place_codex`), and it answers only its checks' two questions.
 
     So the card says what an installation on CODEX_VERSION says: every part its local checks
-    establish is Compatible, since the bundled data verifies no build; not-loaded recovery is
+    establish is Compatible, since the frozen registry data verifies no build; not-loaded recovery is
     Incompatible, from the bundled data's entry for this build; and loaded-state detection is
     Unknown, because the synthetic home has no writer-lock directory for its check to find.
 
@@ -470,6 +483,7 @@ def seed_compatibility(home: Path, codex: Path, local: Path, now: float) -> str:
     exe = place_codex(local, now - 6 * 24 * 3600)
     paths = config.Paths(home)
     with ExitStack() as stack:
+        stack.enter_context(frozen_registry().frozen())
         stack.enter_context(patch.dict(os.environ, {"LOCALAPPDATA": str(local.resolve())}))
         os.environ.pop(config.ENV_CODEX_EXE, None)
         stack.enter_context(patch.object(windows, "S", _CodexProcesses(exe)))
@@ -2037,6 +2051,9 @@ def scratch_installation(workspace: Path) -> Path:
     home = workspace / "home"
     (home / "app").mkdir(parents=True)
     shutil.copytree(ROOT / "src", home / "app" / "src")
+    # Bundling the frozen registry data, so the window's own bridge answers as the envelope does.
+    shutil.copyfile(frozen_registry().FROZEN,
+                    home / "app" / "src" / "codex_auto_resume" / "data" / "codex_compat.json")
     shutil.copytree(ROOT / ".codex-plugin", home / "app" / ".codex-plugin")
     # The same pinned, checksum-verified interpreter the release ships, from the same
     # cache, so the window in the picture runs on the interpreter users will have.
@@ -2358,6 +2375,7 @@ def window_envelopes(locales) -> dict:
 
     envelopes = {}
     with tempfile.TemporaryDirectory() as name, ExitStack() as stack:
+        stack.enter_context(frozen_registry().frozen())
         workspace = Path(name)
         home, codex, local = workspace / "home", workspace / "codex", workspace / "LocalAppData"
         # The part of `scratch_installation` the bridge reads: the settings it stores. The
