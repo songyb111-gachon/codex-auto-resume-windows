@@ -1,5 +1,94 @@
 # Changelog
 
+## v0.6.7 — Compatibility in tiers, Failed here, and a notification card that breathes
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.6...v0.6.7)
+
+What the compatibility data can say grew by one word, what a failure can say grew by one more, and the
+notification card's light now does what every other light does. Nothing about recovery changed: the
+same classifier, the same gates, the same one watcher that is the only thing allowed to send.
+
+### Verified, Checked, Compatible
+
+Each capability, for the exact Codex version on this computer, is now one of six states rather than
+four, in this order:
+
+- **Verified** - a real recovery on this exact Codex version exercised the capability, and none failed it.
+- **Checked** - new: the maintainer's local checks passed on this exact version, and nothing confirmed more.
+- **Compatible** - the data says nothing about this version, and this computer's own checks pass.
+- **Failed here**, **Incompatible** and **Unknown**, below.
+
+The two rules are the ones v0.6.5 introduced. A failed local check always wins, and the data can only
+restrict, or raise a local pass - now to Checked or to Verified - for an exact version. A Checked
+capability needs a cited recording, as a Verified one does, and stops counting when a fetched copy
+expires. It sends exactly as a Compatible or a Verified one does; only the advanced tier, which nothing
+offers yet, still asks for Verified alone. The window's Diagnostics card, the panel in Codex, `status`,
+`doctor` and the watcher's log say the new word in all nine languages, and the word the watcher's gate
+reads for an engine can now be `checked`.
+
+### Failed here
+
+A local check that fails on a version the data checked or verified used to read as Incompatible, the
+same word as a Codex version that does not work. It reads **Failed here** now: the data vouches for
+that version, so the cause is most likely this computer - where Codex is installed, a file it is
+missing - and not the Codex version. It holds every send and refuses every capability exactly as
+Incompatible does, the watcher's engine state reads `failed_here`, the Diagnostics card shows the part
+in the blocking tone, and a waiting interruption carries its own overlay, *Codex checks failed on this
+computer*, which makes the popup and the notification-area icon ask for attention. A local failure on
+a version nobody has checked, and a version the data marks incompatible, are still Incompatible.
+
+### Older releases take the newer data
+
+The data on `main` is fetched by every installation, whichever release it runs. v0.6.5 and v0.6.6 take
+data carrying Checked claims whole: their validator passes over a state it does not know, so nothing
+they decide moves, and a Verified claim reaches them as it always did. The suite now proves it with
+their own code rather than by reading it: `OlderReleasesTests` loads each release's `compat.py` from
+its tag and runs it on the data. The tool that publishes the data checks the same way before it opens
+anything.
+
+### The notification card breathes
+
+The card's status light is the popup's now: it breathes on the one table the window, the popup and the
+panel breathe on - a breath every 4.4 s while monitoring and every 2.8 s while recovering - a problem
+pulses once and then holds lit, and an interruption waiting for its reset holds lit and still, as it
+does everywhere. The card's face is drawn again for the light at most every 80 ms. Reduce motion and
+High Contrast hold it lit and still with no glow, which is what v0.6.6 drew for every card on purpose.
+`notice_window.py` grew by seven lines for it, and its line ceiling was raised to match: the split that
+brings those ceilings down is v0.6.8.
+
+### Compatibility data between releases
+
+The data file on `main` is live: it changes whenever compatibility data is published, between releases.
+The behaviour tests and the documentation's pictures read v0.6.6's bundled document, frozen beside them
+(`tests/fixtures/codex_compat_frozen.json`), so a publication cannot turn `main` red or mark a picture
+stale; `BundledBaselineTests` still hold the live file to its rules. The first publication since v0.6.6
+verified codex-cli 0.153.4, 0.154.0-alpha.6.2 and 0.155.0-alpha.9.2 and checked 0.155.0-alpha.2.6,
+each from one machine's own records of real recoveries, with the recordings under `docs/evidence/compat/`.
+
+### Fixed
+
+- **Main went red once on the commit a release is tagged at.** The check that a tagged version's digest
+  is pinned now skips the commit the tag points at, which cannot carry its own digest; a later commit
+  without the pin still fails.
+
+### Documents
+
+- The roadmap's planned releases each move one number on: the Python modularization that was v0.6.7 is
+  v0.6.8, the GitHub landing-page tidy goes with it, and everything after follows.
+- The feature matrix, the security and support notes, the brand document, the README and the plugin,
+  live-acceptance and verification guides say the six states and the breathing card, in English and Korean.
+
+### Evidence
+
+Everything below was run on one Windows 11 machine (Home, build 26200, Korean system language). The
+suite passes on this tree; the tests named above are the ones that hold each change: `ResolveTests`,
+`PermitTests`, `EvaluatorTests`, `CardTests`, `OlderReleasesTests`, `BundledBaselineTests` and the
+card's two light tests. The pictures were made again for this version.
+
+Not verified, and not claimed: a real Codex showing Checked or Failed here, which needs a version the
+data checks on a computer whose check fails; the card's light breathing on a real desktop, which is
+drawn off-screen and read at single moments; and the Failed here overlay asked for by a test.
+
 ## v0.6.6 — A status light that breathes, a taskbar button that moves where it is installed, a theme of the panel's own, and pictures that show it
 
 [The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.5...v0.6.6)

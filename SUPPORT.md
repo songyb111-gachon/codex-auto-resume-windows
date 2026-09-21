@@ -49,7 +49,7 @@ Whichever of these apply:
 | Problem | Useful to include |
 | --- | --- |
 | **Install, upgrade or repair failed** | The full `Install.cmd` output, your Windows version, and whether the Codex app was open |
-| **Codex version compatibility** | The engine version from `doctor`, and whether it says *verified* or *unverified* |
+| **Codex version compatibility** | The engine version from `doctor`, and the word it gives it: *verified*, *checked*, *compatible*, *failed here*, *incompatible* or *unknown* |
 | **A failure was recovered that should not have been** | The failure category shown in `pending` or the log line, and what you expected instead |
 | **A recoverable failure was missed** | What Codex showed you, and the log lines around that time |
 | **A task stayed at `waiting_for_loaded_thread`** | Whether the conversation was open in the app — see the note below |

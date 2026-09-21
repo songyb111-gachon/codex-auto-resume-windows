@@ -277,11 +277,14 @@ as codes only - no version string, no path, no free text.
   data ships in the release and can be refreshed from this repository on request (above), so data
   from outside the release reaches a decision the watcher makes - and it is built so that it can
   only make that decision more careful. A failed local check always wins: nothing a document says
-  turns it into anything but incompatible. A document can mark a capability incompatible, for an
+  turns it into anything that sends. A document can mark a capability incompatible, for an
   exact Codex version or a range, and then the watcher sends nothing while that data is in force;
-  it can mark one verified only for an exact version, citing an evidence file, and only where the
-  local checks already pass - which changes the word shown and not what is sent. A check that
-  could not run stays unknown whatever the data claims, and unknown sends nothing. The validator,
+  it can mark one verified, or from v0.6.7 checked, only for an exact version, citing an evidence
+  file, and only where the local checks already pass - which changes the word shown and not what
+  is sent. A local check that fails on a version the data checked or verified reads as failed
+  here, since the cause is then most likely this computer rather than that version, and it
+  still sends nothing, exactly as incompatible does. A check that could not run stays unknown
+  whatever the data claims, and unknown sends nothing. The validator,
   `controlcli compat-import`, is the only writer of `config/compat-cache.json`: it refuses whole a
   document of an unknown format, a malformed or oversized one, one with a duplicate key or a
   number that is not finite, a range that tries to grant trust, one that says it needs a signature

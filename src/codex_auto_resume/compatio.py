@@ -670,7 +670,7 @@ class Evaluator:
         if said == self._said:
             return
         self._said = said
-        self.log("compatibility: acting %s, checked %s (engine %s; data %s, cache %s)%s" % (
+        self.log("compatibility: acting %s, found %s (engine %s; data %s, cache %s)%s" % (
             report.get("acting"), report["overall"], report["engine"]["version"] or "not found",
             report["data"]["source"], report["data"]["cache"],
             "; not established: " + ", ".join(failing) if failing else ""))

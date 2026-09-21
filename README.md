@@ -218,7 +218,7 @@ The window pictures on this page are captured from a scratch installation holdin
 records, in the light theme. They show what the windows look like; they do not show a real
 recovery, and they are not evidence that one was observed in Codex.
 
-<img src="docs/images/dashboard-overview.png" alt="The Codex Auto Resume Dashboard overview: automatic recovery on, the watcher running and the Codex engine verified, two recoveries waiting with the next check in a minute and a half, the last seven days' interruptions, continuations sent, recoveries and success rate, and the four most recently finished recoveries" width="680">
+<img src="docs/images/dashboard-overview.png" alt="The Codex Auto Resume Dashboard overview: automatic recovery on, the watcher running and the Codex engine compatible, two recoveries waiting with the next check in a minute and a half, the last seven days' interruptions, continuations sent, recoveries and success rate, and the four most recently finished recoveries" width="680">
 
 Each waiting recovery shows why it is waiting and when it is next checked, and **Why it is
 waiting** lists the watcher's safety checks for the selected task as the watcher last recorded
@@ -386,10 +386,15 @@ ownership information. It never acquires a lock on the app's file.
 - Windows 10/11.
 - The official Windows ChatGPT/Codex desktop app, running, with its engine at
   `%LOCALAPPDATA%\OpenAI\Codex\bin\<hash>\codex.exe`.
-- The engine is located automatically. A version this tool has been verified against is trusted
-  outright; after a Codex update an unrecognised version is accepted only if `codex queue` still
-  offers `--thread` and `--message`, and `status`/`doctor` label it as unverified. Anything that
-  cannot prove that interface is refused rather than guessed at.
+- The engine is located automatically, and no version is trusted by its version string alone:
+  whichever one is found, before a Codex update or after one, is accepted only if `codex queue`
+  still offers `--thread` and `--message`. `status`/`doctor` then name it with one of three words
+  that all send alike - *verified*, where a real recovery on that exact version confirmed it; *checked* (from
+  v0.6.7), where the maintainer's own checks passed on that exact version and nothing confirmed
+  more; *compatible*, where the compatibility data makes no claim about it. A local check that
+  fails on a version the data checked or verified reads as *failed here* - the cause is then most
+  likely this computer rather than that version - and it sends nothing, exactly as *incompatible*
+  does. Anything that cannot prove that interface is refused rather than guessed at.
 
 **Python is not required by either install route** — the installation brings its own runtime
 (Python 3.13.15), and the plugin's setup script is PowerShell. Python 3.12 or newer is needed only if

@@ -47,7 +47,7 @@ python src\auto_resume.py status
 | 문제 | 함께 넣으면 도움이 되는 것 |
 | --- | --- |
 | **설치·업그레이드·복구 실패** | `Install.cmd`의 전체 출력, 사용 중인 Windows 버전, 그리고 Codex 앱이 열려 있었는지 여부 |
-| **Codex 버전 호환성** | `doctor`가 보여 주는 엔진 버전, 그리고 *verified*로 나오는지 *unverified*로 나오는지 |
+| **Codex 버전 호환성** | `doctor`가 보여 주는 엔진 버전, 그리고 그 버전에 붙이는 단어(*verified*, *checked*, *compatible*, *failed here*, *incompatible*, *unknown* 가운데 하나) |
 | **복구되지 말았어야 할 장애가 복구됨** | `pending`이나 로그 줄에 표시된 장애 분류, 그리고 대신 기대하신 동작 |
 | **복구할 수 있는 장애를 놓침** | Codex가 화면에 보여 준 내용, 그리고 그 시각 전후의 로그 줄 |
 | **작업이 `waiting_for_loaded_thread`에 머무름** | 그 대화가 앱에 열려 있었는지 여부 — 아래 항목을 참고하세요 |
