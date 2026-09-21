@@ -14,6 +14,7 @@ if _HERE not in sys.path:
     sys.path.insert(0, _HERE)        # srcscan lives next to this file
 
 import srcscan  # noqa: E402
+import frozen_registry  # noqa: E402
 
 THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
 QUEUE = "0a1b2c3d-0003-7000-8000-000000000003"
@@ -188,13 +189,19 @@ class BackendTests(unittest.TestCase):
                     self.compat("codex-cli 0.153.4", **kwargs)
                 self.assertEqual(str(caught.exception), "unsupported_codex_version")
 
-    def test_the_bundled_registry_verifies_no_version_yet(self):
-        """The evidence rule: nothing is VERIFIED until a recording states its version."""
+    def test_the_adapter_verifies_exactly_what_the_bundled_registry_verifies(self):
+        """No version string is trusted by itself any more: the adapter's list is the bundled
+        document's VERIFIED versions, read once. v0.6.6's bundled document verified none - the
+        evidence rule wanted a recording that states its version - and data published since
+        may verify some; either way the adapter says what the document says."""
+        from codex_auto_resume import compat, compatio
         w._VERIFIED = None
         self.addCleanup(setattr, w, "_VERIFIED", None)
-        self.assertEqual(w.verified_versions(), ())
-        backend = self.compat("codex-cli 0.153.4")
-        self.assertFalse(backend.engine_verified)
+        live, _state = compatio.load_bundled()
+        self.assertEqual(w.verified_versions(), compat.verified_versions(live))
+        with frozen_registry.frozen():
+            self.assertEqual(w.verified_versions(), ())
+            self.assertFalse(self.compat("codex-cli 0.153.4").engine_verified)
 
     def test_engine_checks_say_which_check_failed_and_never_raise(self):
         exe = Path(self.LOCAL_APPDATA) / "OpenAI" / "Codex" / "bin" / "abcdef0123456789" / "codex.exe"
