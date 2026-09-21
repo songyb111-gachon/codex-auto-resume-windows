@@ -17,6 +17,10 @@ and is reported "structurally_compatible" now (v0.6.5 ships no VERIFIED entry un
 evidence carries the version it was recorded on), and a refused engine is reported
 "incompatible" rather than "unknown" (it used to be unable to say so at all). The gate
 result - PASS - and every decision after it are the same.
+
+Those words are what v0.6.5 and v0.6.6 bundled, so the module runs on that document, frozen
+(`frozen_registry`): data published on main since can verify 0.153.4, and that must not
+rewrite what this records.
 """
 from __future__ import annotations
 
@@ -32,11 +36,20 @@ _HERE = str(Path(__file__).resolve().parent)
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 from codexsim import APP, CodexHome, SimBackend  # noqa: E402
+import frozen_registry  # noqa: E402
 from codex_auto_resume import config, machine, windows  # noqa: E402
 from codex_auto_resume.app import App  # noqa: E402
 from codex_auto_resume.engine import Engine  # noqa: E402
 from codex_auto_resume.source import LocalSource  # noqa: E402
 from codex_auto_resume.store import Store  # noqa: E402
+
+
+def setUpModule():
+    frozen_registry.hold()
+
+
+def tearDownModule():
+    frozen_registry.release()
 
 T1 = "11111111-1111-7111-8111-111111111111"
 TURN_A = "aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa"

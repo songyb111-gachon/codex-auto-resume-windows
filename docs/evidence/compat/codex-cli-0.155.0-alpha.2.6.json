@@ -1,0 +1,85 @@
+{
+  "format": "codex-auto-resume-compat-evidence/1",
+  "codex_version": "codex-cli 0.155.0-alpha.2.6",
+  "verdict": "CHECKED",
+  "recorded_at": "2026-09-21T18:15:31Z",
+  "recorded_by": "codex-compat-admin, on the maintainer's own Windows machine",
+  "attribution": {
+    "rule": "a record counts for this version only when the product's engine reports before and after it - or the version installed now - name this version and no other",
+    "window": null,
+    "basis": null
+  },
+  "local_checks": {
+    "reports": 14,
+    "first": "2026-09-17T17:39:22Z",
+    "last": "2026-09-19T13:07:36Z",
+    "covers": [
+      "engine_present",
+      "exact_thread_recovery"
+    ]
+  },
+  "records": [],
+  "capabilities": {
+    "engine_present": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": "CHECKED"
+    },
+    "exact_thread_recovery": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": "CHECKED"
+    },
+    "loaded_state_detection": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": null
+    },
+    "outcome_observation": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": null
+    },
+    "projection_freshness": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": null
+    },
+    "recovery_turn_tracking": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": null
+    },
+    "thread_eligibility": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": null
+    },
+    "usage_limit_detection": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": null
+    },
+    "usage_probe": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": null
+    },
+    "usage_reset_hint": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": null
+    }
+  },
+  "note": "Content-free: counts, states and times from this machine's own records; no conversation text, identifiers or paths."
+}
