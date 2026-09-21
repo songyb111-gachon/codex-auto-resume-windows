@@ -40,10 +40,10 @@ real Codex recovery. Read each citation and its limits separately.
   `visual_ui_scraping_used: false` recorded in
   [`docs/evidence/unloaded-thread-observation.json`](evidence/unloaded-thread-observation.json).
   That is a protocol observation, not somebody watching.
-- **This version, v0.6.7, is not released; v0.6.6 is the newest that is.** The rows below that
-  say PUBLISHED mean a published version - v0.6.0 through v0.6.6, all seven of whose archives are
-  published and whose digests are pinned on `main`. A row says PUBLISHED only where the published bytes
-  were driven again, so v0.6.6's own rows will not say it until that has been done. v0.6.3 added nine
+- **This version, v0.6.7, is released and is the newest.** The rows below that say PUBLISHED
+  mean a published version - v0.6.0 through v0.6.7, all eight of whose archives are published
+  and whose digests are pinned on `main`. A row says PUBLISHED only where the published bytes
+  were driven again, so v0.6.6's and v0.6.7's own rows will not say it until that has been done. v0.6.3 added nine
   interface languages, settings for the continuation message, a popup on the
   notification-area icon, an Open Dashboard button on notifications and a redesigned window
   and panel, and fixed one defect present in the three versions before it: a recoverable
