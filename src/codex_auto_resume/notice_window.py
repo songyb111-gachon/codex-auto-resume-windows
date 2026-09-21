@@ -16,22 +16,19 @@ from whatever somebody is doing, whatever they click:
   popup's own renderer (`tray_popup.Renderer`) at the monitor's scale and then given its rounded
   corners in alpha. Its two buttons are the toast's two buttons.
 
-A frame is one scaled blit of the card drawn once, one stamp of the shadow at the frame's depth,
-and one `UpdateLayeredWindow` each with the frame's alpha - no layout, no text. The frame timer
-runs only while something moves; a card that is only holding costs one one-shot timer.
-
-Nothing here can act: a button click calls `on_action(uri)` on a short worker thread and the
-card goes away; what the URI may do is decided in `notifier.activate`. No control layer, no
-notification module, no automation of anybody else's window.
+A frame is one scaled blit of the card, one stamp of the shadow at its depth and one `UpdateLayeredWindow`
+each with its alpha. The face is drawn again only for the status light, which breathes on the table the popup's
+breathes on (v0.6.7) - at most every 80 ms, and never under Reduce motion or High Contrast - and the frame timer
+runs only while something moves. Nothing here can act: a button click calls `on_action(uri)` on a short worker
+thread and the card goes away; what the URI may do is decided in `notifier.activate`.
 
 **Every notice ends once.** Each notice this stack takes from the inbox is ended by exactly one
-`on_complete(notice, shown)` call, on a worker thread (the host passes `notifier.complete`):
-`shown` True once the card has been on screen whole - its first frame at full strength went
-through `UpdateLayeredWindow` - or was clicked, or was replaced by a newer card about the same
-conversation (which then speaks for it); False when it broke, was pushed out of the stack or
-the stack went away before it was ever seen whole, and for every notice still waiting in the
-inbox when the stack goes. A card that breaks after it was seen is only taken down: it has
-been shown, and its history copy is already on its way.
+`on_complete(notice, shown)` call, on a worker thread (the host passes `notifier.complete`): `shown` True
+once the card has been on screen whole - its first frame at full strength went through
+`UpdateLayeredWindow` - or was clicked, or was replaced by a newer card about the same conversation (which
+then speaks for it); False when it broke, was pushed out of the stack or the stack went away before it was
+ever seen whole, and for every notice still waiting in the inbox when the stack goes. A card that breaks
+after it was seen is only taken down: it has been shown, and its history copy is already on its way.
 """
 from __future__ import annotations
 
@@ -393,7 +390,7 @@ class Card:
         self.stack = stack
         self.notice = notice
         self.vm = notice_card.view(notice)
-        self.edge = "bottom"
+        self.edge, self.born, self._breathed = "bottom", now_ms, now_ms
         self.scale = where["dpi"] / 96.0
         self.theme, self.contrast = drawn["theme"], drawn["contrast"]
         self.motion = notice_card.CardMotion(now_ms, hold_ms=stack.hold(), reduced=drawn["reduced"])
@@ -428,13 +425,14 @@ class Card:
             raise
 
     # ---- drawing the card once
-    def _draw_card(self):
+    def _draw_card(self, now_ms=None):
         if self.renderer is None:
             self.renderer = _CardRenderer()
             self.renderer.theme, self.renderer.contrast = self.theme, self.contrast
         self.renderer.use(self.vm["locale"], self.scale)
         self.plan = notice_card.layout(self.vm, self.scale, self.renderer.measure)
-        glow = None if self.contrast else brand.glow(self.vm["status"], 0.0, None, reduced=True)
+        age = 0.0 if now_ms is None else now_ms - self.born  # the light's own moment, from when the card came
+        glow = None if self.contrast else brand.glow(self.vm["status"], age, age, reduced=self.motion.reduced)
         canvas = self.renderer.draw(self.vm, self.plan, frame=glow, hover=self.hover, pressed=self.pressed)
         width, height = self.plan["size"]
         pixels = notice_card.premultiply(canvas.pixels(), width, height,
@@ -471,6 +469,15 @@ class Card:
         """The pointer moved onto or off a button, or pressed one: draw the face again."""
         self._draw_card()
         self._pushed = None
+
+    def breathe(self, now_ms) -> bool:
+        """Whether the status light moves now; its face is drawn again for it at most every 80 ms."""
+        if self.contrast or not brand.glow_moves(self.vm["status"], now_ms - self.born, reduced=self.motion.reduced):
+            return False
+        if now_ms - self._breathed >= 80:
+            self._draw_card(now_ms)
+            self._pushed, self._breathed = None, now_ms
+        return True
 
     # ---- a frame
     def _paint_body(self, scale):
@@ -825,7 +832,7 @@ class CardStack:
         if not self.hwnd:
             return
         user32 = _dll("user32")
-        moving = any(card.motion.moving(now) for card in self.cards)
+        moving = any([card.motion.moving(now) or card.breathe(now) for card in self.cards])
         if moving and not self._frame_running:
             user32.SetTimer(self.hwnd, TIMER_FRAME, notice_card.FRAME_MS, None)
             self._frame_running = True
