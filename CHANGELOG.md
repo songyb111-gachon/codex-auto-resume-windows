@@ -133,9 +133,10 @@ Settings > Appearance right under the Theme, is the panel's own: *Same as Theme*
 
 ### Two builds before this one
 
-v0.6.6 was published twice before this, and both builds are kept as pre-releases with entries of
-their own below: `v0.6.6-beta`, the build published as `v0.6.6` on 2026-09-20, and `v0.6.6-alpha`,
-the first candidate. All three archives are called `CodexAutoResume-v0.6.6-win-x64.zip`, because
+v0.6.6 was published twice before this, and both builds are kept as pre-releases, each on a release
+page of its own and with an entry of its own right after this one in the changelog:
+[`v0.6.6-beta`](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/tag/v0.6.6-beta), the build announced as `v0.6.6` on 2026-09-20, and
+[`v0.6.6-alpha`](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/tag/v0.6.6-alpha), the first candidate. All three archives are called `CodexAutoResume-v0.6.6-win-x64.zip`, because
 renaming a tag does not rename what is already attached to a release - the same name for different
 bytes. The digest pinned in `scripts/release.json` is this release's, and it is the one to check
 against.
@@ -144,16 +145,17 @@ against.
 
 Everything below was run on one Windows 11 machine (Home, build 26200, 3840 x 2160 at 150%, Korean
 system language, Windows' apps set to dark and the product's Theme set to Light). The suite, the
-build, the light, the pictures and the dialog were measured on this tree. The three that need an
-installation - the taskbar button in the installed location, the upgrade over v0.6.5 and the
-archive's own checks - were measured on the first candidate for this release, before the controls
-below were made the product's own, and are run again on the candidate that is published.
+build, the archive, the light, the pictures, the dialog and the panel's own theme were measured on
+this tree. Two things were measured on the first candidate, `v0.6.6-alpha`, and not again: the
+taskbar button filmed in the installed location, whose code has not changed since by a byte, and
+the upgrade over v0.6.5, which this release made over the beta instead.
 
-- **The suite.** 2,572 tests, no failures, under Python 3.13 here (910 s, 8 skipped), and green on
+- **The suite.** 2,580 tests, no failures, under Python 3.13 here (900 s, 8 skipped), and green on
   GitHub's Windows runners for 3.12, 3.13, 3.14 and 3.15. The skips are the opt-in live checks and
   the pin check that waits for the tag.
-- **The window, built twice.** Two builds of `CodexAutoResumeSettings.exe` from these sources are
-  byte-identical (`c572844e…`, 387,072 bytes). The archive's own digest is not written here - this
+- **The window, built here and on GitHub.** The `CodexAutoResumeSettings.exe` built from these
+  sources on this machine and the one GitHub's runner built into the published archive are
+  byte-identical (`db7257ee…`, 388,096 bytes). The archive's own digest is not written here - this
   file ships inside the archive, so naming it would change it - it is published beside the release
   and pinned in `scripts/release.json` afterwards, which is what `docs/VERIFY.md` compares.
 - **The taskbar button, in the installed location.** This is the claim v0.6.5 could not make. With
@@ -164,10 +166,12 @@ below were made the product's own, and are run again on the candidate that is pu
   moved the button from a scratch folder. An instrumented build showed the window setting frames
   throughout (state=watching, allowed=True, interval 156 then 62) - the frames simply never reached
   the button.
-- **Installed over v0.6.5 on this machine.** The installer answered *Updated. Your settings and
-  pending recoveries were kept.*; `config\settings.json` was byte for byte what it had been; the
-  watcher restarted and reported 0.6.6, and the plugin manifest reads 0.6.6.
-- **The archive.** `build/smoke_archive.py` passed every check on it, including that both
+- **Installed on this machine.** The first candidate was installed over v0.6.5: the installer
+  answered *Updated. Your settings and pending recoveries were kept.*; `config\settings.json` was
+  byte for byte what it had been; the watcher restarted and reported 0.6.6. This release was
+  installed over the beta from its own archive's `Install.cmd`, with the same answer; the 154
+  files it installed are byte for byte the archive's, and the watcher restarted on them.
+- **The archive.** `build/smoke_archive.py` passed every check on the published archive, including that both
   executables report 0.6.6 and that this machine's registrations and state were left as they were.
 - **The light.** Its numbers are held by the suite on the drawn pixels of every surface - the
   window, the popup, the panel and the card - and every picture in the documentation was drawn
@@ -182,27 +186,36 @@ below were made the product's own, and are run again on the candidate that is pu
   the buttons are, which one Enter and Escape press, that it belongs to the window and carries no
   second button on the taskbar, and the answer each press gave. Nobody has yet used it with a screen
   reader, and no capture shows it.
+- **Theme in Codex.** The panel's own `applyTheme` is run in Node over thirteen pairs of the two
+  themes, and the panel's row is driven there: its four choices, a save that sends it alone, and
+  the stamp changing in place. The compiled window is driven too - it sends the setting only when
+  it was changed there, and its drop-down follows a change made in the panel or by Codex. The
+  settings panel's picture shows the row, in the five languages the pictures are made in.
 
 Not verified, and not claimed: the notification-area icon's own motion on this machine (Windows
 keeps it in the overflow flyout, where this release still holds it still on purpose); High Contrast
-on a real system; a real Codex interruption recovered by this build; any machine but this one, and
+on a real system; a real Codex interruption recovered by this build; the panel drawn in a theme of
+its own inside a real Codex; any machine but this one, and
 any scaling but 150 per cent.
 
-## v0.6.6-beta — The build first published as v0.6.6, before the panel had a theme of its own
+## v0.6.6-beta — The build announced as v0.6.6, before the panel had a theme of its own
 
-**A pre-release, kept on [its own page](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/tag/v0.6.6-beta).** Built from `b17076d`, published as
-`v0.6.6` on 2026-09-20 and renamed `v0.6.6-beta` on 2026-09-21. It went out without the panel's own
+**A pre-release, kept on [its own page](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/tag/v0.6.6-beta).** Built from `b17076d`, published and
+announced as `v0.6.6` on 2026-09-20 and renamed `v0.6.6-beta` on 2026-09-21. It went out without the panel's own
 theme, which was asked for the same day, so v0.6.6 was cut a third time. Its notes are v0.6.6's
 above less *The panel in Codex has a theme of its own*: the ordinary breath, the taskbar button that
 moves where it is installed, the product's own scroll bars and dialog, and the pictures cut to the
-window.
+window. Its evidence was measured on its own tree: 2,572 tests, and a window built twice to
+`c572844e…`, 387,072 bytes.
 
-- It was announced, so it is said plainly: **`v0.6.6` has named two archives.** This one's digest is
+- It was announced, so it is said plainly: **the tag `v0.6.6` has named three archives**, and this
+  was the first announced under it. Its digest is
   `e620280bd5b40ad354d767fe22dd65ec8ed3eefe6b2f0af20d20759fca7e81a3`; `scripts/release.json` pins v0.6.6's, so a copy taken from the beta's page fails the
   comparison, which is the comparison doing its job.
 - Nothing is served it: the update check reads the tag out of the URL `releases/latest` ends at and
-  accepts `vMAJOR.MINOR.PATCH` alone. A machine running it keeps it and is not moved back to v0.6.5,
-  and because the number is the same, v0.6.6 installs over it only with `-Force`.
+  accepts `vMAJOR.MINOR.PATCH` alone. A machine running it keeps it and is not moved back to v0.6.5.
+  Because the number is the same, the update check does not offer it v0.6.6 either: the v0.6.6
+  archive's `Install.cmd` installs over it, and so does the setup script given `-Force`.
 
 ## v0.6.6-alpha — The first candidate, set aside before it was announced
 
