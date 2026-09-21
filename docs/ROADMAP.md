@@ -175,9 +175,9 @@ the popup and the notification card keep the Theme.
 
 ---
 
-## v0.6.7 — Compatibility in tiers, Failed here, and a notification card that breathes 🚧
+## v0.6.7 — Compatibility in tiers, Failed here, and a notification card that breathes ✅
 
-**In development, on the `dev` branch.**
+**Released.**
 
 The Compatibility Registry learns to say how much stands behind its word, and the notification
 card's light joins the others. For a Codex version the data says nothing about, recovery decides
@@ -217,7 +217,7 @@ it still.
 
 ## v0.6.8 — Python modularization
 
-**After v0.6.7.**
+**Next.**
 
 v0.6.8 is planned as the major structural cleanup of the Python implementation. It was the main
 part of v0.6.5 in the earlier plan; v0.6.5 ships its groundwork, and the split itself moves here.
@@ -483,7 +483,7 @@ The light softened
 
         ↓
 
-v0.6.7  🚧 In development, on the dev branch
+v0.6.7  ✅ Released
 Compatibility in tiers: Verified, Checked, Compatible
 + Failed here, and a notification card that breathes
 
@@ -526,4 +526,4 @@ Final Rust audit and stabilization
 Maintenance
 ```
 
-This document records the current direction; v0.6.6 is out, and v0.6.7 is built on the `dev` branch.
+This document records the current direction; v0.6.7 is out, and v0.6.8 is next.
