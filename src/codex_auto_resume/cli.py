@@ -286,7 +286,7 @@ def cmd_doctor(args) -> int:
         _print("compatibility    : %s (checked now)" % live["overall"])
         for line in _capability_lines(live, only_problems=True):
             _print(line)
-        if live["overall"] == "incompatible":
+        if live["overall"] in ("incompatible", "failed_here"):
             ok = False
     report = compatio.reader_view(app.paths, settings=app.settings)
     _print("watcher's report : %s (%s)" % (report["overall"], _view_status(report)))
@@ -338,22 +338,22 @@ def cmd_doctor(args) -> int:
     return EXIT_OK if ok else EXIT_ERROR
 
 
-# What `status` (short) and `doctor` (long) say about an engine that passed its local
-# checks, in the word the watcher's gate reads for it - from the registry data in force, the
-# bundled baseline and an imported cache alike - so the engine line can never contradict the
-# compatibility line printed under it.
+# What `status` (short) and `doctor` (long) say about an engine that passed its local checks, in the
+# word the watcher's gate reads for it - so the engine line never contradicts the compatibility line.
 _ENGINE_WORDS = {
-    "verified": (
-        "verified by the registry data in force",
-        "verified: its local checks pass, and the registry data in force verifies this build"),
+    "verified": ("verified by the registry data in force: a real recovery on this build confirmed it",
+                 "verified: its local checks pass, and the registry data in force verifies this build"),
+    "checked": ("checked: local checks pass, and the maintainer's checks passed on this build",
+                "checked: its local checks pass, and the registry data in force records the maintainer's "
+                "checks passing on this build; no real recovery has verified it yet"),
     "structurally_compatible": (
         "compatible: local checks pass; the registry data in force does not verify this build",
         "compatible: its local checks pass - `codex queue` still offers --thread/--message - "
         "and the registry data in force does not verify this build"),
-    "incompatible": (
-        "local checks pass, but the registry data in force marks this build incompatible",
-        "its local checks pass, but the registry data in force marks this build incompatible; "
-        "nothing is sent while that data is in force"),
+    "incompatible": ("local checks pass, but the registry data in force marks this build incompatible",
+                     "its local checks pass, but the registry data in force marks this build incompatible; "
+                     "nothing is sent while that data is in force"),
+    "failed_here": ("a local check failed here, on a build the registry data in force vouches for",) * 2,
 }
 # When the registry data could not be read at all: only what the checks themselves showed.
 _ENGINE_CHECKS_ONLY = ("local checks pass",
@@ -386,7 +386,7 @@ def _capability_lines(view, *, only_problems=False) -> list:
     for name, entry in view["capabilities"].items():
         if entry["reason"] == "not_implemented":
             continue
-        if only_problems and entry["state"] in (compat.COMPATIBLE, compat.VERIFIED):
+        if only_problems and entry["state"] in (compat.COMPATIBLE, compat.CHECKED, compat.VERIFIED):
             continue
         detail = entry["reason"] + (" (%s)" % entry["registry_reason"]
                                     if entry.get("registry_reason") else "")

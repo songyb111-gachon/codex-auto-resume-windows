@@ -1912,8 +1912,9 @@ namespace CodexAutoResume
             "queue_withdraw", "outcome_observation", "transient_classification", "projection_freshness",
             "empty_response_recovery", "not_loaded_recovery", "goal_continuation", "subagent_recovery" };
 
-        // The four states, in the order their meanings are listed.
-        private static readonly string[] CompatStates = { "VERIFIED", "COMPATIBLE", "INCOMPATIBLE", "UNKNOWN" };
+        // The six states, in the order their meanings are listed (compat.STATES).
+        private static readonly string[] CompatStates =
+            { "VERIFIED", "CHECKED", "COMPATIBLE", "FAILED_HERE", "INCOMPATIBLE", "UNKNOWN" };
 
         // How long the live check a refresh brought may stand in for the watcher's report at most: as long as a report
         // may be relied on at all (compat.REPORT_MAX_AGE - the watcher's interval between evaluations, its longest wait
@@ -2103,7 +2104,7 @@ namespace CodexAutoResume
                     if (!states.Contains(state)) states.Add(state);
                     shown.Add(new[] { S("compat.capability." + name, name.Replace('_', ' ')),
                                       S("compat.state." + state, state.ToLowerInvariant()),
-                                      state == "INCOMPATIBLE" ? "BLOCK" : state == "UNKNOWN" ? "UNKNOWN" : "PASS" });
+                                      state == "INCOMPATIBLE" || state == "FAILED_HERE" ? "BLOCK" : state == "UNKNOWN" ? "UNKNOWN" : "PASS" });
                 }
             ShowParts(shown);
             var meanings = new List<string>();
@@ -2127,7 +2128,9 @@ namespace CodexAutoResume
         internal static string CompatState(string word)
         {
             if (word == "VERIFIED" || word == "verified") return "VERIFIED";
+            if (word == "CHECKED" || word == "checked") return "CHECKED";
             if (word == "COMPATIBLE" || word == "structurally_compatible") return "COMPATIBLE";
+            if (word == "FAILED_HERE" || word == "failed_here") return "FAILED_HERE";
             if (word == "INCOMPATIBLE" || word == "incompatible") return "INCOMPATIBLE";
             return "UNKNOWN";
         }
@@ -3433,14 +3436,16 @@ namespace CodexAutoResume
             if (status == null || !Equals(Get(status, "watcher_running"), true)) return "idle";
             if (Equals(Get(status, "upgrade_pending"), true)) return "attention";
             var watcher = Map(status, "watcher");
-            if (Equals(Get(watcher, "ticking"), false) || Str(watcher, "engine_state") == "incompatible")
+            if (Equals(Get(watcher, "ticking"), false) || Str(watcher, "engine_state") == "incompatible" ||
+                Str(watcher, "engine_state") == "failed_here")
                 return "attention";
             if (pending != null)
                 foreach (object entry in pending)
                 {
                     var row = entry as Dictionary<string, object>;
                     // tray_popup.ATTENTION_OVERLAYS: a record held for one of the above, or for a watcher not running.
-                    if (row != null && (HasOverlay(row, "compatibility_blocked") || HasOverlay(row, "engine_unavailable") ||
+                    if (row != null && (HasOverlay(row, "compatibility_blocked") || HasOverlay(row, "compatibility_failed_here") ||
+                                        HasOverlay(row, "engine_unavailable") ||
                                         HasOverlay(row, "watcher_not_ticking")))
                         return "attention";
                 }
