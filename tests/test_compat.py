@@ -598,12 +598,46 @@ class BundledBaselineTests(unittest.TestCase):
                         self.assertIn(recorded.get("codex_version"),
                                       (version, version.replace("codex-cli ", "")))
 
-    def test_it_ships_no_verified_entry_until_the_evidence_exists(self):
-        """None of the recordings in docs/evidence states the version it was made on, so
-        v0.6.5 ships with no VERIFIED entry at all and everything resolves locally."""
-        self.assertEqual(compat.verified_versions(self.parsed), ())
-        self.assertFalse([name for claims in self.parsed["engines"].values()
-                          for name, claim in claims.items() if claim["state"] == compat.VERIFIED])
+    def test_every_verified_claim_stands_on_a_recovery_that_exercised_it(self):
+        """v0.6.5 and v0.6.6 shipped no VERIFIED entry, because no recording then stated the
+        version it was made on. The data on main may carry them since, capability by
+        capability, each written from one machine's own records of that exact version: a
+        capability is VERIFIED only where a real recovery on that version exercised it. A
+        recovery exercises both capabilities the watcher gates on, so a version with any
+        VERIFIED capability has those two; and what it cites is a passing recording that says
+        this capability was confirmed."""
+        for version, claims in self.parsed["engines"].items():
+            verified = {name for name, claim in claims.items() if claim["state"] == compat.VERIFIED}
+            if not verified:
+                continue
+            with self.subTest(version=version):
+                self.assertLessEqual(set(compat.SEND_GATE), verified)
+                for name in verified:
+                    for path in claims[name]["evidence"]:
+                        recorded = json.loads((ROOT / path).read_text(encoding="utf-8"))
+                        self.assertEqual(recorded.get("verdict"), "PASS", path)
+                        self.assertEqual(recorded.get("capabilities", {}).get(name, {}).get("level"),
+                                         compat.VERIFIED, (path, name))
+
+    def test_a_checked_claim_is_a_record_that_no_release_reads(self):
+        """CHECKED says the local checks passed on that version on the maintainer's machine
+        and no real recovery confirmed the capability. No release reads it - the validator
+        skips a state it does not know, so it can grant nothing - and it is held to the same
+        citation rule as any claim, so the record says what it rests on."""
+        for engine in json.loads(self.raw)["engines"]:
+            version = engine["version"]
+            for name, claim in engine["capabilities"].items():
+                self.assertIn(claim.get("state"), (compat.VERIFIED, compat.INCOMPATIBLE, "CHECKED"))
+                if claim["state"] != "CHECKED":
+                    continue
+                with self.subTest(version=version, capability=name):
+                    self.assertNotIn(name, self.parsed["engines"].get(version, {}))
+                    self.assertTrue(claim["evidence"])
+                    for path in claim["evidence"]:
+                        recorded = json.loads((ROOT / path).read_text(encoding="utf-8"))
+                        self.assertIn(recorded.get("codex_version"),
+                                      (version, version.replace("codex-cli ", "")))
+                        self.assertEqual(recorded["capabilities"][name]["level"], "CHECKED")
 
     def test_every_cited_file_exists(self):
         for claims in self.parsed["engines"].values():
