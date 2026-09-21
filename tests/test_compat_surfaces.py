@@ -360,7 +360,7 @@ class McpTests(unittest.TestCase):
                 self.assertEqual(srcscan.holders(forbidden), {package % name for name in holders})
 
     def test_no_experimental_setting_can_ever_be_offered_to_a_model(self):
-        """M9, for v0.6.7's opt-ins. The schema is generated from the settings module, so a
+        """M9, for v0.6.9's opt-ins. The schema is generated from the settings module, so a
         field in a user group would be exposed with no further review; this is the rule that
         stops that, written before any such field exists."""
         properties = mcpserver.settings_schema()["properties"]
