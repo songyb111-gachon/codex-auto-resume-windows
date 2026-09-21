@@ -936,7 +936,8 @@ function tone(code) {
   if (code === 'recovered') return 'success';
   if (['exhausted', 'failed_terminal', 'recovery_failed'].indexOf(code) >= 0) return 'danger';
   if (['failed_retryable', 'outcome_unverified', 'submission_unknown', 'no_progress',
-       'engine_unavailable', 'watcher_not_ticking', 'compatibility_blocked'].indexOf(code) >= 0) return 'warning';
+       'engine_unavailable', 'watcher_not_ticking', 'compatibility_blocked', 'compatibility_failed_here']
+      .indexOf(code) >= 0) return 'warning';
   return 'paused';
 }
 
@@ -1694,12 +1695,11 @@ function changeThread(row, shown, enable, controls) {
 // refreshed data's standing, one time - no version string, no path and no word from a registry document.
 // And nothing here refreshes the data: a refresh is a request to GitHub, and neither a model nor this
 // page may make one. The person is told where they can.
-var COMPAT_STATES = ['VERIFIED', 'COMPATIBLE', 'INCOMPATIBLE', 'UNKNOWN'];
+var COMPAT_STATES = ['VERIFIED', 'CHECKED', 'COMPATIBLE', 'FAILED_HERE', 'INCOMPATIBLE', 'UNKNOWN'];
 // The refreshed data's standings that are more than "in force", each said as the window's card says it:
 // expired or dated ahead, its restrictions apply and its trust does not; the others, the bundled data applies.
 var COMPAT_CAVEATS = ['expired', 'from_the_future', 'rejected', 'superseded', 'from_newer_product'];
-// The parts, in the registry's own order. The four it does not offer yet are left out, as they are in
-// the window and on the command line.
+// The parts, in the registry's own order; the four it does not offer yet are left out, as in the window.
 var COMPAT_ORDER = ['engine_present', 'exact_thread_recovery', 'usage_limit_detection', 'usage_reset_hint',
                     'usage_probe', 'thread_eligibility', 'loaded_state_detection', 'recovery_turn_tracking',
                     'queue_withdraw', 'outcome_observation', 'transient_classification', 'projection_freshness',
@@ -1707,17 +1707,17 @@ var COMPAT_ORDER = ['engine_present', 'exact_thread_recovery', 'usage_limit_dete
 
 // A registry state from either word a view carries one in - a part's state, or the overall's coarse word.
 // Anything else is UNKNOWN, as the registry reads it.
+var COMPAT_WORDS = {verified: 'VERIFIED', checked: 'CHECKED', structurally_compatible: 'COMPATIBLE',
+                    failed_here: 'FAILED_HERE', incompatible: 'INCOMPATIBLE'};
 function compatState(word) {
-  if (word === 'VERIFIED' || word === 'verified') return 'VERIFIED';
-  if (word === 'COMPATIBLE' || word === 'structurally_compatible') return 'COMPATIBLE';
-  if (word === 'INCOMPATIBLE' || word === 'incompatible') return 'INCOMPATIBLE';
-  return 'UNKNOWN';
+  if (COMPAT_STATES.indexOf(word) >= 0) return word;
+  return Object.prototype.hasOwnProperty.call(COMPAT_WORDS, word) ? COMPAT_WORDS[word] : 'UNKNOWN';
 }
 
 // A state's chip: green for what can be relied on, red for what cannot, grey for what is not known - as
 // the window draws its checks. Always beside the word.
 function compatTone(state) {
-  return state === 'INCOMPATIBLE' ? 'danger' : state === 'UNKNOWN' ? 'paused' : 'success';
+  return state === 'INCOMPATIBLE' || state === 'FAILED_HERE' ? 'danger' : state === 'UNKNOWN' ? 'paused' : 'success';
 }
 
 // A moment as a clock shows it, and its date when that is not today. Written out, as nextCheck writes a

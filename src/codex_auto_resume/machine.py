@@ -238,7 +238,7 @@ def public_reason(record: dict):
 
 # ----------------------------------------------------------------------------- overlays
 OVERLAYS = ("cancel_pending", "paused", "thread_disabled", "compatibility_blocked",
-            "engine_unavailable", "watcher_not_ticking")
+            "compatibility_failed_here", "engine_unavailable", "watcher_not_ticking")
 
 
 def overlays(record: dict, *, enabled=True, thread_enabled=True, watcher=None) -> list:
@@ -261,6 +261,9 @@ def overlays(record: dict, *, enabled=True, thread_enabled=True, watcher=None) -
     watcher = watcher or {}
     if watcher.get("engine_state") == "incompatible":
         found.append("compatibility_blocked")
+    elif watcher.get("engine_state") == "failed_here":
+        # The data vouches for this Codex version and a check here failed: this computer, not the version.
+        found.append("compatibility_failed_here")
     if watcher.get("running") is False:
         found.append("engine_unavailable")
     elif watcher.get("running") is True and watcher.get("ticking") is False:
