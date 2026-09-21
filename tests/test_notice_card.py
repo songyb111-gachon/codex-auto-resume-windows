@@ -1414,14 +1414,15 @@ class WindowsTests(unittest.TestCase):
         self.assertEqual(alpha, 255)
         self.assertEqual((red, green, blue), brand.rgb(brand.LIGHT["danger"]))
 
-    def test_the_cards_light_is_lit_and_still_with_no_glow(self):
-        """The card is drawn once and never moves its light, so it shows brand's still light whatever its state: the
-        dot at its full colour and nothing round it, as every surface does when its light holds still."""
+    def test_the_cards_light_holds_still_with_no_glow_when_motion_is_reduced(self):
+        """Under Reduce motion the card shows brand's still light whatever its state: the dot at its full colour
+        and nothing round it, as every surface does when its light holds still - and it never asks to move."""
         for kind, payload, token in (("interruption", EVENTS[0][1], "active"),
                                      ("result", {"state": "submission_failed"}, "danger")):
             with self.subTest(kind):
-                card = self.offscreen(build(kind, payload))
+                card = self.offscreen(build(kind, payload), drawn=dict(self.LIGHT, reduced=True))
                 card.paint(10_000)
+                self.assertFalse(card.breathe(10_000))
                 halo = next(item for item in card.plan["items"] if item["kind"] == "halo")
                 cx, cy = int(halo["cx"]), int(halo["cy"])
                 blue, green, red, _ = self.pixel(card.body, cx, cy)
@@ -1429,6 +1430,32 @@ class WindowsTests(unittest.TestCase):
                 ground = self.pixel(card.body, cx + 10, cy)
                 for distance in (6, 7, 8):
                     self.assertEqual(self.pixel(card.body, cx + distance, cy), ground, distance)
+
+    def test_the_cards_light_breathes_on_the_popups_table(self):
+        """v0.6.7: the card's light is the popup's - one breath on brand.GLOW for a breathing state, drawn again
+        at most every 80 ms; a problem pulses once and then holds lit; High Contrast never moves it."""
+        # A continuation being sent, or delivered and running again: the two states that breathe. An
+        # interruption waiting for its reset holds lit and still, on the card as in the popup.
+        notices = [build(event, detail, identity) for event, detail, identity in EVENTS]
+        breathing = [notice for notice in notices if notice is not None and notice.status in brand.GLOW_BREATHES]
+        self.assertTrue(breathing, "some card must breathe")
+        card = self.offscreen(breathing[0])
+        state = card.vm["status"]
+        self.assertIn(state, brand.GLOW_BREATHES)
+        halo = next(item for item in card.plan["items"] if item["kind"] == "halo")
+        cx, cy = int(halo["cx"]), int(halo["cy"])
+        rest = self.pixel(card.body, cx, cy)
+        low = brand.GLOW[state + "_ms"] // 2                    # the bottom of the breath
+        self.assertTrue(card.breathe(low))
+        card.paint(low)
+        self.assertNotEqual(self.pixel(card.body, cx, cy), rest, "the dot dims at the bottom of the breath")
+        self.assertTrue(card.breathe(low + 10))                 # still moving, not drawn again yet
+        failed = self.offscreen(build("result", {"state": "submission_failed"}))
+        self.assertIn(failed.vm["status"], brand.GLOW_PULSES)
+        self.assertTrue(failed.breathe(100))
+        self.assertFalse(failed.breathe(brand.GLOW["attention_ms"] + 1), "one pulse, then lit and still")
+        contrast = self.offscreen(build("interruption", EVENTS[0][1]), drawn=dict(self.LIGHT, contrast=True))
+        self.assertFalse(contrast.breathe(low))
 
     def test_every_scale_and_theme_draws(self):
         for theme, scale in itertools.product(brand.THEMES, (1.0, 1.5, 2.0)):
