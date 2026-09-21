@@ -463,6 +463,27 @@ foreach ($theme in @('light', 'dark')) {
     $entry.dirty += [bool](Invoke-Window $window 'Dirty' @())
     $values = Invoke-Window $window 'EditorValues' @()
     $entry.touched = [string](Invoke-Window $window 'ChangesJson' @($values))
+    # The panel's own theme (v0.6.6): sent when changed here, left out when put back, followed in place
+    # when it changes elsewhere, and left alone while it holds an edit of its own not saved yet.
+    $panelCombo = $editors['panel_theme']
+    function PanelChoice() { $c = $panelCombo.SelectedItem; if ($c -eq $null) { return '' }; return [string]$c.GetType().GetField('Value', $instance).GetValue($c) }
+    function PanelIndex([string]$value) { for ($i = 0; $i -lt $panelCombo.Items.Count; $i++) { $c = $panelCombo.Items[$i]; if ([string]$c.GetType().GetField('Value', $instance).GetValue($c) -eq $value) { return $i } }; return -1 }
+    $panel = @{ built = PanelChoice }
+    $panelCombo.SelectedIndex = PanelIndex 'dark'
+    $panel.sentWhenChanged = [string](Invoke-Window $window 'ChangesJson' @((Invoke-Window $window 'EditorValues' @())))
+    $panelCombo.SelectedIndex = PanelIndex $panel.built
+    $panel.sentWhenPutBack = [string](Invoke-Window $window 'ChangesJson' @((Invoke-Window $window 'EditorValues' @())))
+    # Changed in the panel or by Codex, while the window is open.
+    $null = Invoke-Window $window 'FollowPanelTheme' @($parse.Invoke($null, [object[]]@('{"panel_theme": "light"}')))
+    $panel.followed = PanelChoice
+    $panel.baselineAfter = [string]((Get-Field $window 'baseline')['panel_theme'])
+    # And the person puts it back to what the window used to show - which a stale baseline would have dropped.
+    $panelCombo.SelectedIndex = PanelIndex $panel.built
+    $panel.sentWhenChosenBack = [string](Invoke-Window $window 'ChangesJson' @((Invoke-Window $window 'EditorValues' @())))
+    # An unsaved choice of the person's own is not moved by a change elsewhere.
+    $null = Invoke-Window $window 'FollowPanelTheme' @($parse.Invoke($null, [object[]]@('{"panel_theme": "system"}')))
+    $panel.kept = PanelChoice
+    $entry.panel = $panel
     $entry.openedTheme = [string](Get-Field $window 'openedTheme')
     $versionText = Get-Field $window 'versionText'
     $entry.version = @{ fore = [int]$versionText.ForeColor.ToArgb()
@@ -1073,6 +1094,26 @@ class WindowThemeTests(unittest.TestCase):
                 self.assertIn(touched["theme"], settings.THEMES)
                 self.assertNotIn("interface_language", touched)
 
+    def test_the_panels_own_theme_is_sent_only_when_changed_and_follows_a_change_made_elsewhere(self):
+        """v0.6.6. The window is not drawn in the panel's theme, so a change of it in the panel or by Codex
+        reopens nothing - and until it followed in place, the drop-down kept showing the old choice, and a
+        Save, which leaves out a value still equal to the page's baseline, could not even write the choice it
+        showed. Found by review before release."""
+        for theme in ("light", "dark"):
+            panel = self.answer["window"][theme]["panel"]
+            with self.subTest(theme):
+                self.assertEqual(panel["built"], "same", "an untouched setting shows its default")
+                self.assertEqual(json.loads(panel["sentWhenChanged"]).get("panel_theme"), "dark",
+                                 "chosen here, it is sent")
+                self.assertNotIn("panel_theme", json.loads(panel["sentWhenPutBack"]),
+                                 "put back to what the page was built with, it is not")
+                self.assertEqual(panel["followed"], "light", "changed elsewhere, the drop-down shows it")
+                self.assertEqual(panel["baselineAfter"], '"light"', "and a Save measures from it")
+                self.assertEqual(json.loads(panel["sentWhenChosenBack"]).get("panel_theme"), "same",
+                                 "so choosing what the window used to show is a change, and is sent")
+                self.assertEqual(panel["kept"], "same",
+                                 "an unsaved choice of the person's own is not moved by a change elsewhere")
+
     def test_unsaved_edits_are_what_differs_from_the_page_as_built(self):
         for theme in ("light", "dark"):
             with self.subTest(theme):
@@ -1469,7 +1510,10 @@ class ThemeSourceRuleTests(unittest.TestCase):
         self.assertIn("NewCheck(Humanise(name), Equals(Get(current, name), true), IsListItem(name));", window)
         self.assertIn('NewCheck(S("field.startup", "Run at Windows sign-in"), false, false);', window)
         self.assertNotIn('ChoiceCombo(field, current, "choice.");', window)
-        self.assertIn('name == "theme" ? "choice.theme." : "choice."', window)
+        # Each theme in its own words: the Theme's "Use system setting", the panel theme's "Same as
+        # Theme" and "Codex's theme" (v0.6.6) - never the generic "choice." the other settings share.
+        self.assertIn('bool themed = name == "theme" || name == "panel_theme";', window)
+        self.assertIn('themed ? "choice." + name + "." : "choice."', window)
 
 
 if __name__ == "__main__":

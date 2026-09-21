@@ -54,10 +54,9 @@ def _identifier_schema(title: str) -> dict:
 # Settings groups a person can change from a front end. Anything else is not offered to
 # a model and is refused if a client sends it anyway.
 USER_GROUPS = frozenset({"general", "recovery", "limits", "notifications", "continuation"})
-# The one Appearance setting the panel offers, because it colours the panel as well. Reduce
-# motion stays out: it is a preference of the Windows surfaces, and the panel follows the
-# host's own reduced-motion setting instead. The notification-area icon ("windows") too.
-PANEL_APPEARANCE = frozenset({"theme"})
+# The Appearance settings the panel offers: both themes, which colour it. Reduce motion and the
+# notification-area icon ("windows") stay out: the panel follows the host's reduced-motion setting.
+PANEL_APPEARANCE = frozenset({"theme", "panel_theme"})
 
 
 def settings_schema() -> dict:
@@ -103,11 +102,12 @@ def settings_schema() -> dict:
                                         "Turning this on can never widen what counts as "
                                         "recoverable; the classifier decides that."
                                         % entry["category"].replace("_", " "))
-        elif name == "theme":
-            described["description"] = ("Light or dark for the settings window, the "
-                                        "notification-area popup and the settings panel. "
-                                        "system follows Windows' app mode, and in Codex "
-                                        "Codex's own theme. Changes nothing but colours.")
+        elif name in ("theme", "panel_theme"):
+            described["description"] = {
+                "theme": "Light or dark for the settings window, the popup, the notification card and, "
+                         "while panel_theme is same, the panel. system: Windows there, Codex in the panel.",
+                "panel_theme": "Light or dark for the settings panel in Codex alone: same uses theme's "
+                               "choice, system follows Codex whatever theme is. Changes nothing but colours."}[name]
         described.setdefault("description", "See the settings documentation.")
         properties[name] = described
     return {"type": "object", "properties": properties, "additionalProperties": False}

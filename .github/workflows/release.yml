@@ -28,7 +28,10 @@ name: release
 # steal, and only a real tag push reaches `publish`.
 on:
   push:
-    tags: ["v*"]
+    # A suffixed tag - v0.6.6-alpha, v0.6.6-beta - only ever renames a release that is already
+    # published; its archive is attached and its version is the plain one, so a build would
+    # refuse the tag and leave a red run. Nothing is built for one.
+    tags: ["v*", "!v*-*"]
   workflow_dispatch:
     inputs:
       ref:

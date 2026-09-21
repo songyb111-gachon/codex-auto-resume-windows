@@ -57,14 +57,24 @@ RETRY_TIMING = {
 }
 DEFAULT_TIMING = "normal"
 
-# Light or dark, for the settings window, the notification-area popup and the panel in
-# Codex. "system" is not a colour: it is the standing instruction to follow the host -
-# Windows' app mode for the window and the popup, Codex's own theme for the panel - so a
-# later change there carries every surface with it. Windows High Contrast outranks all
-# three on every surface; that is an accessibility setting, not a theme.
+# Light or dark, for the settings window, the notification-area popup and the notification
+# card - and for the panel in Codex too while its own choice is "same". "system" is not a
+# colour: it is the standing instruction to follow the host - Windows' app mode for the
+# window and the popup, Codex's own theme for the panel - so a later change there carries
+# every surface with it. Windows High Contrast outranks every choice on every surface; that
+# is an accessibility setting, not a theme.
 THEME_SYSTEM = "system"
 THEMES = (THEME_SYSTEM, "light", "dark")
 DEFAULT_THEME = THEME_SYSTEM
+
+# The panel's own, from v0.6.6. Use system setting already let each surface follow its host,
+# but a Light or Dark Theme bound the panel too: nobody could keep the window dark and let the
+# panel follow Codex, or pin the panel whatever Codex does. "same" follows the Theme above,
+# which is what every panel did before this existed - so it is the default, and an upgrade
+# changes nothing anybody can see. "system" here is Codex's own theme.
+PANEL_THEME_SAME = "same"
+PANEL_THEMES = (PANEL_THEME_SAME, THEME_SYSTEM, "light", "dark")
+DEFAULT_PANEL_THEME = PANEL_THEME_SAME
 
 
 class SettingsError(ValueError):
@@ -116,6 +126,8 @@ FIELDS = {
     # First in Appearance, so it comes before Reduce motion wherever the schema is listed.
     # Changes nothing but colours; the notification-area icon and its badge stay as they are.
     "theme": (DEFAULT_THEME, lambda v, d: _choice(v, d, THEMES)),
+    # The panel in Codex's own light or dark, or "same" as the Theme above (the default).
+    "panel_theme": (DEFAULT_PANEL_THEME, lambda v, d: _choice(v, d, PANEL_THEMES)),
     # Stops every looping and pulsing animation in the Dashboard and the notification-area
     # popup, on top of Windows' own "Animation effects" switch, which is honoured anyway.
     "reduce_motion": (False, _boolean),
@@ -190,6 +202,7 @@ RANGES = {
     "detection_lookback_hours": {"min": 0.0, "max": float(24 * 7)},
     "retry_timing": {"choices": list(RETRY_TIMING)},
     "theme": {"choices": list(THEMES)},
+    "panel_theme": {"choices": list(PANEL_THEMES)},
     "interface_language": {"choices": list(l10n.CHOICES)},
     "continuation_language": {"choices": list(CONTINUATION_LANGUAGES)},
     "continuation_style": {"choices": list(continuation.STYLES)},
@@ -412,10 +425,10 @@ def describe() -> list:
         elif name.startswith("notify_") or name == "notifications":
             entry["group"] = "notifications"
             entry["master"] = name == "notifications"
-        elif name in ("theme", "reduce_motion"):
-            # How the surfaces look. The theme is offered in the window and in the panel,
-            # which it colours too. Reduce motion is only offered in the window: the panel
-            # in Codex follows the host's own reduced-motion preference.
+        elif name in ("theme", "panel_theme", "reduce_motion"):
+            # How the surfaces look. Both themes are offered in the window and in the panel.
+            # Reduce motion is only offered in the window: the panel in Codex follows the host's
+            # own reduced-motion preference.
             entry["group"] = "appearance"
         elif name in ("show_tray", "notification_card"):
             # A desktop preference, beside "run at sign-in" - not a notification, and

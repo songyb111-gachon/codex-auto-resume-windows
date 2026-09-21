@@ -248,7 +248,9 @@ believing they changed something.
 What `update_settings` can change: which classified failure categories are recovered, how many
 attempts each interruption gets, how many continuations one task gets in total (six by default,
 one to ten), when to stop after repeated no-progress recoveries, the retry timing preset, which
-notifications appear, the interface language, the theme (light, dark, or following the system), the continuation language, the message style
+notifications appear, the interface language, the theme (light, dark, or following the system), the
+panel's own theme in Codex (`panel_theme`: the same as the theme, Codex's, light or dark), the
+continuation language, the message style
 (Minimal, Standard, Detailed or Custom), and whether a Custom message is one message for every
 interruption or one per kind. The window has three things `update_settings` does not offer: the
 notification-area icon, Reduce motion, and the Custom message text itself. If the user wants to

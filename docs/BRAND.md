@@ -257,7 +257,15 @@ Dashboard and the popup, *Use system setting* means the app mode Windows is set 
 `AppsUseLightTheme` value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`,
 where 0 is dark and a missing value is light. For the panel it means Codex's own theme: the page
 carries no theme of its own and follows `prefers-color-scheme`, while *Light* and *Dark* stamp its
-root with `data-theme`. The notification-area icon and its badge do not change with the setting;
+root with `data-theme`.
+
+Since v0.6.6 the panel has a theme of its own beside that one, **Theme in Codex**: *Same as Theme*,
+*Codex's theme*, *Light* or *Dark*. *Same as Theme* is the default and is the paragraph above, word
+for word - so the Theme draws the panel only while the panel's own says so, and draws the Dashboard,
+the popup and the notification card always. Only the panel reads it, so the resolution is one
+function, the panel's `applyTheme`, and anything it does not know is *Same as Theme*.
+
+The notification-area icon and its badge do not change with either setting;
 they sit on the taskbar, not on any of the three surfaces. When the icon's head takes a state's
 colour it is the one made to read on the icon's own deep-blue badge: the dark palette's
 `attention` and `danger`, and the light palette's `idle` grey, whose dark value all but vanishes
