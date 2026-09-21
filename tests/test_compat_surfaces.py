@@ -40,6 +40,21 @@ def a_document(sequence=5, **extra):
 REFRESH_HOST = "raw.githubusercontent.com"
 
 
+def generated_ko_branch() -> bool:
+    """Whether this checkout is the generated `ko` branch, the way tests/test_privacy_claims.py
+    and tests/test_python_support.py ask it: by the marker being *tracked*, because a stray local
+    run of the generator leaves an untracked copy behind and that must not excuse anything.
+
+    There, each Korean document has been written over its English sibling and removed, so the
+    root PRIVACY.md and SECURITY.md are the Korean text and there is no English to hold to English
+    wording. This module did not ask, and it was the one failure that kept ko from syncing."""
+    import subprocess
+    listed = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files", "--", ".github/GENERATED-BRANCH.md"],
+        capture_output=True, text=True, encoding="utf-8")
+    return bool(listed.returncode == 0 and listed.stdout.strip())
+
+
 def documentation_gaps(texts) -> list:
     """What the privacy and security documents still owe the compatibility refresh.
 
@@ -489,6 +504,15 @@ class PrivacyTests(unittest.TestCase):
         if compat.product_key(manifest["version"]) <= (0, 6, 4):
             self.skipTest("binding from the version bump past 0.6.4: PRIVACY.md, SECURITY.md and "
                           "their .ko.md pairs must name the compatibility refresh before it ships")
+        if generated_ko_branch():
+            # The Korean half of the rule, asked of the files that hold the Korean text here. The
+            # English half is main's to answer, where the English is.
+            for name in ("PRIVACY.md", "SECURITY.md"):
+                with self.subTest(name):
+                    self.assertIn(REFRESH_HOST, (ROOT / name).read_text(encoding="utf-8"),
+                                  "%s holds the Korean text on this branch, and it must still name %s"
+                                  % (name, REFRESH_HOST))
+            return
         texts = {name: (ROOT / name).read_text(encoding="utf-8") if (ROOT / name).is_file() else ""
                  for name in ("PRIVACY.md", "SECURITY.md", "PRIVACY.ko.md", "SECURITY.ko.md")}
         self.assertEqual(documentation_gaps(texts), [])
