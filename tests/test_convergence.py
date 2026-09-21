@@ -311,12 +311,13 @@ class ReleaseManifestTests(unittest.TestCase):
         claimed to catch leaves no entry at all, so nothing was being checked.
 
         The shipped list is the changelog's own headings, which is the one place a release
-        is recorded that cannot be forgotten separately.
+        is recorded that cannot be forgotten separately - a release's, that is: a pre-release
+        such as `v0.6.6-beta` has an entry too, and is not a version anything pins.
         """
         from codex_auto_resume import config
         current = config.version()
         shipped = [found.group(1) for found in
-                   re.finditer(r"^##\s+v(\d+\.\d+\.\d+)", CHANGELOG_TEXT, re.M)]
+                   re.finditer(r"^##\s+v(\d+\.\d+\.\d+)(?![\w.-])", CHANGELOG_TEXT, re.M)]
         self.assertTrue(shipped, "no released versions found in the changelog")
         digests = self.release["sha256"]
         # The bootstrap only pins from 0.5.2 onwards; earlier releases predate the plugin

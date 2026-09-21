@@ -19,9 +19,13 @@ CHANGELOG = ROOT / "CHANGELOG.md"
 
 
 def section(text: str, version: str) -> str:
-    """The body under `## v<version> ...`, up to the next top-level entry."""
+    """The body under `## v<version> ...`, up to the next top-level entry.
+
+    A pre-release's heading - `## v0.6.6-beta` - is an entry of its own, and never the release's:
+    the version has to end where the heading's version does, so neither a suffix nor a longer
+    number is read as a match, wherever in the file the pre-release sits."""
     wanted = re.escape(str(version).lstrip("v"))
-    pattern = re.compile(r"^##\s+v%s\b.*?$" % wanted, re.MULTILINE)
+    pattern = re.compile(r"^##\s+v%s(?![\w.-]).*?$" % wanted, re.MULTILINE)
     match = pattern.search(text)
     if match is None:
         raise SystemExit("CHANGELOG.md has no section for v%s" % version)

@@ -572,6 +572,18 @@ class ReleaseNotesTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.notes.section("## v0.50.0 - other\n\nbody\n", "0.5")
 
+    def test_a_pre_release_heading_is_an_entry_of_its_own(self):
+        # v0.6.6 was published twice before it was final, and each build keeps an entry named
+        # after its tag. Wherever one sits, the release's notes are the release's, and the
+        # pre-release's are its own.
+        text = "\n\n".join(["## v0.6.6-beta - earlier", "beta", "## v0.6.6 - final", "final",
+                            "## v0.6.6-alpha - first", "alpha"]) + "\n"
+        self.assertEqual(self.notes.section(text, "0.6.6"), "final")
+        self.assertEqual(self.notes.section(text, "v0.6.6-beta"), "beta")
+        self.assertEqual(self.notes.section(text, "0.6.6-alpha"), "alpha")
+        with self.assertRaises(SystemExit):
+            self.notes.section("## v0.6.6-beta - earlier\n\nbeta\n", "0.6.6")
+
     def test_the_newest_changelog_entry_is_the_current_version(self):
         import re
         first = re.search(r"^##\s+v(\S+)", self.changelog, re.MULTILINE)
