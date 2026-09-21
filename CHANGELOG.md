@@ -131,29 +131,14 @@ Settings > Appearance right under the Theme, is the panel's own: *Same as Theme*
   English and Korean. The roadmap's planned releases each move one number on: the Python
   modularization that was v0.6.6 is v0.6.7, and everything after it follows.
 
-### The candidate that was set aside
+### Two builds before this one
 
-This release was cut twice. The first candidate was built, tagged `v0.6.6` and published on
-2026-09-20, and then stopped before it was announced, because the status light still was not right
-and the controls below had not been made the product's own yet. It was left up rather than deleted,
-and it now carries a tag of its own: **[`v0.6.6-alpha`](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/tag/v0.6.6-alpha)**,
-built from `f63d904`.
-
-It is not this release and nothing is served it: the update check reads the tag out of the URL
-`releases/latest` ends at and accepts `vMAJOR.MINOR.PATCH` and nothing else, so a tag with a suffix
-is refused by name. One thing about it is worth knowing if you go looking: **its archive is still
-called `CodexAutoResume-v0.6.6-win-x64.zip`**, because renaming a tag does not rename what is
-already attached to a release. Same name, different bytes, different digest - the digest pinned in
-`scripts/release.json` is this release's, and it is the one to check against.
-
-It happened a second time, for a different reason. The build published as `v0.6.6` on 2026-09-20 -
-the one with the canonical breath, the product's own scroll bars and dialog, and the pictures' edges -
-went out without the panel's own theme, which was asked for the same day. So this release was cut a
-third time, and that build now carries **[`v0.6.6-beta`](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/tag/v0.6.6-beta)**,
-marked a pre-release. That one was announced, so it is said here plainly: **`v0.6.6` has named two
-archives.** The digest pinned in `scripts/release.json` is this one's; the beta's is written on its
-own release page beside it, and a download taken from there fails the comparison, which is the
-comparison doing its job.
+v0.6.6 was published twice before this, and both builds are kept as pre-releases with entries of
+their own below: `v0.6.6-beta`, the build published as `v0.6.6` on 2026-09-20, and `v0.6.6-alpha`,
+the first candidate. All three archives are called `CodexAutoResume-v0.6.6-win-x64.zip`, because
+renaming a tag does not rename what is already attached to a release - the same name for different
+bytes. The digest pinned in `scripts/release.json` is this release's, and it is the one to check
+against.
 
 ### Evidence
 
@@ -202,6 +187,34 @@ Not verified, and not claimed: the notification-area icon's own motion on this m
 keeps it in the overflow flyout, where this release still holds it still on purpose); High Contrast
 on a real system; a real Codex interruption recovered by this build; any machine but this one, and
 any scaling but 150 per cent.
+
+## v0.6.6-beta — The build first published as v0.6.6, before the panel had a theme of its own
+
+**A pre-release, kept on [its own page](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/tag/v0.6.6-beta).** Built from `b17076d`, published as
+`v0.6.6` on 2026-09-20 and renamed `v0.6.6-beta` on 2026-09-21. It went out without the panel's own
+theme, which was asked for the same day, so v0.6.6 was cut a third time. Its notes are v0.6.6's
+above less *The panel in Codex has a theme of its own*: the ordinary breath, the taskbar button that
+moves where it is installed, the product's own scroll bars and dialog, and the pictures cut to the
+window.
+
+- It was announced, so it is said plainly: **`v0.6.6` has named two archives.** This one's digest is
+  `e620280bd5b40ad354d767fe22dd65ec8ed3eefe6b2f0af20d20759fca7e81a3`; `scripts/release.json` pins v0.6.6's, so a copy taken from the beta's page fails the
+  comparison, which is the comparison doing its job.
+- Nothing is served it: the update check reads the tag out of the URL `releases/latest` ends at and
+  accepts `vMAJOR.MINOR.PATCH` alone. A machine running it keeps it and is not moved back to v0.6.5,
+  and because the number is the same, v0.6.6 installs over it only with `-Force`.
+
+## v0.6.6-alpha — The first candidate, set aside before it was announced
+
+**A pre-release, kept on [its own page](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/tag/v0.6.6-alpha).** Built from `f63d904`, tagged
+`v0.6.6` and published on 2026-09-20, then stopped before it was announced: its gentler light - a
+smaller swing - was too faint to see, and the scroll bars, the dialog and the pictures' edges had not
+been made the product's own yet. It carried two things: a slower, shallower status light (a 4.4 s
+cycle, the dot dimming 38% of the way rather than 60%, the glow peaking at 0.30), and the taskbar
+button that moves where it is installed, which v0.6.6 carries too.
+
+- Its archive is called `CodexAutoResume-v0.6.6-win-x64.zip` as well, and its digest is
+  `3b99217b084148111d07cfc51c9ad8f5bddb6fd50029979ed1b1b6796be0b956`. Nothing is served it, for the same reason as the beta.
 
 ## v0.6.5 — A light you can see, notifications in the product's own card, and a Codex Compatibility Registry
 
