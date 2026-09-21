@@ -72,7 +72,7 @@ STALE_CODES = frozenset({"no_such_interruption", "thread_mismatch", "already_fin
 
 STATES = ("monitoring", "waiting", "checking", "recovering", "paused", "attention")
 # Circumstances under which nothing will recover until a person does something.
-ATTENTION_OVERLAYS = frozenset({"compatibility_blocked", "engine_unavailable", "watcher_not_ticking"})
+ATTENTION_OVERLAYS = frozenset({"compatibility_blocked", "compatibility_failed_here", "engine_unavailable", "watcher_not_ticking"})
 
 # What each state is drawn with. Fill tokens for the dot, text tokens for its word: `active`
 # is fill-only and never carries text, which is why the two tables are separate. The dot is
@@ -242,7 +242,7 @@ def activity(status, rows, now) -> str:
     rows = rows or []
     watcher = status.get("watcher") or {}
     if (status.get("watcher_running") is False or watcher.get("ticking") is False
-            or watcher.get("engine_state") == "incompatible"
+            or watcher.get("engine_state") in ("incompatible", "failed_here")
             or any(ATTENTION_OVERLAYS & set(row.get("overlays") or ()) for row in rows)):
         return "attention"
     if status and not status.get("enabled", True):

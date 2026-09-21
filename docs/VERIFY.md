@@ -403,16 +403,18 @@ If either one blocks you, please open an issue naming the file and the message.
 
 ## What is not verified
 
-- **One other release carries this release's archive name.**
+- **Two other releases carry v0.6.6's archive name.**
   [`v0.6.6-alpha`](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/tag/v0.6.6-alpha)
-  is the candidate v0.6.6 was first cut from, published and then set aside; it was kept rather than
-  deleted, and renaming its tag did not rename the file already attached to it, so its archive is
-  also called `CodexAutoResume-v0.6.6-win-x64.zip`. Same name, different bytes, different digest.
-  Step 3 compares against the digest pinned for `0.6.6` in `scripts/release.json`, which is the
-  release published at the tag `v0.6.6` and not that one - so a download taken from the alpha's
-  page fails the comparison, which is the comparison doing its job. Nothing fetches it: the update
-  check reads the tag out of the URL `releases/latest` ends at and accepts `vMAJOR.MINOR.PATCH`
-  alone.
+  is the candidate v0.6.6 was first cut from, published and then set aside, and
+  [`v0.6.6-beta`](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/tag/v0.6.6-beta)
+  is the build first announced as v0.6.6, before the panel had a theme of its own. Both were kept
+  rather than deleted, and renaming a tag did not rename the file already attached to it, so each
+  archive is also called `CodexAutoResume-v0.6.6-win-x64.zip`. Same name, different bytes,
+  different digests. Step 3 compares against the digest pinned for `0.6.6` in
+  `scripts/release.json`, which is the release published at the tag `v0.6.6` and neither of those -
+  so a download taken from either pre-release's page fails the comparison, which is the comparison
+  doing its job. Nothing fetches them: the update check reads the tag out of the URL
+  `releases/latest` ends at and accepts `vMAJOR.MINOR.PATCH` alone.
 
 - **The releases are not GitHub immutable releases.** GitHub reports every release from
   v0.5.0 through v0.6.0 as not immutable, v0.6.0 included - the API was asked after it was

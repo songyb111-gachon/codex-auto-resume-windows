@@ -30,7 +30,7 @@ Three kinds of input, and the difference matters:
   name from anywhere else, wherever those live - so moving one between modules cannot fire
   it and changing one does.
 * The **notification card** is hashed the same way: by what it says, built by the watcher's
-  own builder, and by the definitions that draw it - its own modules, wherever v0.6.7 moves
+  own builder, and by the definitions that draw it - its own modules, wherever v0.6.8 moves
   them, pooled with the popup's renderer and palette, which paint it.
 
 So this fires whenever something the picture is drawn from changed - not, as an earlier
@@ -1184,8 +1184,8 @@ class CardPictureTests(unittest.TestCase):
                          "the five modules are everything the card's digest reads today")
         for what, (name, old, new) in {
                 "the card's layout": ("notice_card.py", "button_h = px(32)", "button_h = px(34)"),
-                "the card's own light": ("notice_window.py", "brand.glow(self.vm[\"status\"], 0.0,",
-                                         "brand.glow(self.vm[\"status\"], 0.5,"),
+                "the card's own light": ("notice_window.py", "brand.glow(self.vm[\"status\"], age, age,",
+                                         "brand.glow(self.vm[\"status\"], age + 1, age,"),
                 "its floating shadow": ("notice_card.py", "DARK_ENOUGH = 0.05", "DARK_ENOUGH = 0.06"),
                 "the popup's renderer it is painted by": ("tray_popup.py", "class Renderer:",
                                                           "class Renderer:\n    painted = True\n"),
@@ -1197,7 +1197,7 @@ class CardPictureTests(unittest.TestCase):
                 self.assertNotEqual(self.drawing(changed), before, what + " did not move the digest")
 
     def test_moving_the_card_into_ui_card_leaves_the_digest(self):
-        """v0.6.7 moves the card into `ui/card/`: its layout and its motion leave `notice_card.py`
+        """v0.6.8 moves the card into `ui/card/`: its layout and its motion leave `notice_card.py`
         for their own modules, with the imports that follow them, and comments change on the way."""
         real = self.real()
         before = self.drawing(real)
@@ -1431,7 +1431,7 @@ class IconMotionPictureTests(unittest.TestCase):
                 self.assertEqual(self.drawing(changed), before, what + " moved the entry")
 
     def test_moving_the_motion_into_a_module_of_its_own_leaves_the_entry(self):
-        """v0.6.7 splits the package; the motion leaving tray.py for its own module, with the imports that follow it,
+        """v0.6.8 splits the package; the motion leaving tray.py for its own module, with the imports that follow it,
         is the same GIF."""
         real = self.real()
         before = self.drawing(real)

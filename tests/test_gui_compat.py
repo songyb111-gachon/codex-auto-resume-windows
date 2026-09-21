@@ -244,7 +244,7 @@ foreach ($pair in $cases['outcomes'].GetEnumerator()) { $out.outcomes[$pair.Key]
 $state = $form.GetMethod('CompatState', $static)
 # Pairs, not a table: PowerShell's keys ignore case, and VERIFIED and verified are two cases here.
 $out.states = @()
-foreach ($word in @('VERIFIED', 'verified', 'COMPATIBLE', 'structurally_compatible', 'INCOMPATIBLE', 'incompatible', 'UNKNOWN', 'unknown', 'something', '')) {
+foreach ($word in @('VERIFIED', 'verified', 'CHECKED', 'checked', 'COMPATIBLE', 'structurally_compatible', 'FAILED_HERE', 'failed_here', 'INCOMPATIBLE', 'incompatible', 'UNKNOWN', 'unknown', 'something', '')) {
     $out.states += ,@([string]$word, [string]$state.Invoke($null, [object[]]@([string]$word)))
 }
 
@@ -389,8 +389,9 @@ $korean.Dispose()
 
 
 def rich_view(ok_view: dict, now: float) -> dict:
-    """The fullest card: a part incompatible and one unknown, a VERIFIED one, the watcher still acting on what
-    it found when it started, and refreshed data that has expired - every line the card can add."""
+    """The fullest card: a part incompatible, one failed here and one unknown, a VERIFIED and a CHECKED one, the
+    watcher still acting on what it found when it started, and refreshed data that has expired - every line the
+    card can add."""
     view = json.loads(json.dumps(ok_view))
     view["overall"] = "incompatible"
     view["acting"] = "structurally_compatible"
@@ -401,6 +402,8 @@ def rich_view(ok_view: dict, now: float) -> dict:
     view["capabilities"]["queue_withdraw"].update(state="INCOMPATIBLE", reason="registry_incompatible")
     view["capabilities"]["loaded_state_detection"].update(state="UNKNOWN", reason="local_check_unavailable")
     view["capabilities"]["engine_present"].update(state="VERIFIED", reason="registry_verified")
+    view["capabilities"]["usage_probe"].update(state="CHECKED", reason="registry_checked")
+    view["capabilities"]["outcome_observation"].update(state="FAILED_HERE", reason="local_check_failed_here")
     return view
 
 
@@ -540,7 +543,8 @@ class CardTests(unittest.TestCase):
         self.assertEqual([row.split("|")[0] for row in rows], [ENGLISH["compat.capability." + name] for name in offered],
                          "the registry's order, and the four it does not offer yet left out, as the command line leaves them")
         self.assertEqual(len(card["left"]), (len(rows) + 1) // 2, "two lists side by side")
-        tone = {"VERIFIED": "PASS", "COMPATIBLE": "PASS", "INCOMPATIBLE": "BLOCK", "UNKNOWN": "UNKNOWN"}
+        tone = {"VERIFIED": "PASS", "CHECKED": "PASS", "COMPATIBLE": "PASS", "FAILED_HERE": "BLOCK",
+                "INCOMPATIBLE": "BLOCK", "UNKNOWN": "UNKNOWN"}
         states = [self.views_["ok"]["capabilities"][name]["state"] for name in offered]
         self.assertEqual([row.split("|")[1:] for row in rows],
                          [[ENGLISH["compat.state." + state], tone[state]] for state in states], "each part's own state")
@@ -559,6 +563,9 @@ class CardTests(unittest.TestCase):
         self.assertEqual(rows[ENGLISH["compat.capability.queue_withdraw"]], [ENGLISH["compat.state.INCOMPATIBLE"], "BLOCK"])
         self.assertEqual(rows[ENGLISH["compat.capability.loaded_state_detection"]], [ENGLISH["compat.state.UNKNOWN"], "UNKNOWN"])
         self.assertEqual(rows[ENGLISH["compat.capability.engine_present"]], [ENGLISH["compat.state.VERIFIED"], "PASS"])
+        self.assertEqual(rows[ENGLISH["compat.capability.usage_probe"]], [ENGLISH["compat.state.CHECKED"], "PASS"])
+        self.assertEqual(rows[ENGLISH["compat.capability.outcome_observation"]],
+                         [ENGLISH["compat.state.FAILED_HERE"], "BLOCK"])
         self.assertEqual(card["legend"].splitlines(), [ENGLISH["compat.meaning." + state] for state in compat.STATES],
                          "each word the card shows, explained, in the registry's order")
         self.assertEqual(card["notice"].splitlines(), [ENGLISH["diag.compat_acting_differs"], ENGLISH["compat.cache.expired"]])
@@ -691,9 +698,10 @@ class CardTests(unittest.TestCase):
             "last_wins": "refreshed 3", "none": None, "no_sequence": None, "not_a_sequence": None,
             "not_a_code": None, "a_word_it_does_not_know": None, "too_many": None, "indented": "refreshed 5"})
 
-    def test_the_registry_words_map_to_its_four_states(self):
+    def test_the_registry_words_map_to_its_six_states(self):
         self.assertEqual(dict(self.answer["states"]), {
-            "VERIFIED": "VERIFIED", "verified": "VERIFIED", "COMPATIBLE": "COMPATIBLE",
+            "VERIFIED": "VERIFIED", "verified": "VERIFIED", "CHECKED": "CHECKED", "checked": "CHECKED",
+            "FAILED_HERE": "FAILED_HERE", "failed_here": "FAILED_HERE", "COMPATIBLE": "COMPATIBLE",
             "structurally_compatible": "COMPATIBLE", "INCOMPATIBLE": "INCOMPATIBLE", "incompatible": "INCOMPATIBLE",
             "UNKNOWN": "UNKNOWN", "unknown": "UNKNOWN", "something": "UNKNOWN", "": "UNKNOWN"})
 

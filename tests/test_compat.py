@@ -53,11 +53,13 @@ def refused(value):
 
 
 class ResolveTests(unittest.TestCase):
-    EVIDENCE = (compat.VERIFIED, compat.INCOMPATIBLE, None, "COMPATIBLE", "UNKNOWN", "garbage")
+    EVIDENCE = (compat.VERIFIED, compat.CHECKED, compat.INCOMPATIBLE, None, "COMPATIBLE", "UNKNOWN", "garbage")
 
     def test_every_pair(self):
         expected = {
-            compat.FAIL: lambda e: (compat.INCOMPATIBLE, "local_check_failed"),
+            compat.FAIL: lambda e: ((compat.FAILED_HERE, "local_check_failed_here")
+                                    if e in (compat.VERIFIED, compat.CHECKED)
+                                    else (compat.INCOMPATIBLE, "local_check_failed")),
             compat.UNAVAILABLE: lambda e: ((compat.INCOMPATIBLE, "registry_incompatible")
                                            if e == compat.INCOMPATIBLE
                                            else (compat.UNKNOWN, "local_check_unavailable")),
@@ -67,6 +69,7 @@ class ResolveTests(unittest.TestCase):
             compat.PASS: lambda e: ((compat.INCOMPATIBLE, "registry_incompatible")
                                     if e == compat.INCOMPATIBLE else
                                     (compat.VERIFIED, "registry_verified") if e == compat.VERIFIED
+                                    else (compat.CHECKED, "registry_checked") if e == compat.CHECKED
                                     else (compat.COMPATIBLE, "local_checks_passed")),
         }
         for local, evidence in itertools.product(compat.RESULTS, self.EVIDENCE):
@@ -74,8 +77,16 @@ class ResolveTests(unittest.TestCase):
                 self.assertEqual(compat.resolve(local, evidence), expected[local](evidence))
 
     def test_a_failed_local_check_always_wins(self):
+        """Nothing the data says turns a local FAIL into something that sends. Where the data checked or
+        verified this exact version the answer is FAILED_HERE - this machine, most likely - and it blocks
+        and refuses exactly as INCOMPATIBLE does (engine.py's gate, permits)."""
         for evidence in self.EVIDENCE:
-            self.assertEqual(compat.resolve(compat.FAIL, evidence)[0], compat.INCOMPATIBLE)
+            state = compat.resolve(compat.FAIL, evidence)[0]
+            self.assertIn(state, (compat.INCOMPATIBLE, compat.FAILED_HERE))
+            self.assertEqual(state == compat.FAILED_HERE, evidence in (compat.VERIFIED, compat.CHECKED))
+            self.assertIn(compat.COARSE[state], ("incompatible", "failed_here"))
+            self.assertEqual(compat.permits({"capabilities": {"x": {"state": state}}}, "x",
+                                            tier="conservative"), (False, "incompatible"))
 
     def test_nothing_but_a_local_pass_can_become_verified(self):
         for local, evidence in itertools.product(list(compat.RESULTS) + ["junk", None], self.EVIDENCE):
@@ -365,7 +376,8 @@ class EvaluateTests(unittest.TestCase):
         self.assertEqual(set(compat.ENGINE_STATES), set(store.ENGINE_STATES))
         for states in itertools.product(compat.STATES, repeat=2):
             capabilities = {name: {"state": state} for name, state in zip(compat.SEND_GATE, states)}
-            worst = min(states, key=lambda s: ["INCOMPATIBLE", "UNKNOWN", "COMPATIBLE", "VERIFIED"].index(s))
+            worst = min(states, key=lambda s: ["INCOMPATIBLE", "FAILED_HERE", "UNKNOWN", "COMPATIBLE",
+                                                "CHECKED", "VERIFIED"].index(s))
             self.assertEqual(compat.aggregate(capabilities), compat.COARSE[worst])
         self.assertEqual(compat.aggregate({}), "unknown")
         self.assertEqual(compat.aggregate({"engine_present": {"state": "sure"}}), "unknown")
@@ -541,7 +553,7 @@ class PermitTests(unittest.TestCase):
         cap = "not_loaded_recovery"
         for state in compat.STATES:
             view = self.view(state)
-            ok = state in (compat.VERIFIED, compat.COMPATIBLE)
+            ok = state in (compat.VERIFIED, compat.CHECKED, compat.COMPATIBLE)
             self.assertEqual(compat.permits(view, cap, tier="conservative")[0], ok, state)
             self.assertFalse(compat.permits(view, cap, tier="advanced", opt_in=False)[0])
             self.assertEqual(compat.permits(view, cap, tier="advanced", opt_in=True)[0],
@@ -619,11 +631,10 @@ class BundledBaselineTests(unittest.TestCase):
                         self.assertEqual(recorded.get("capabilities", {}).get(name, {}).get("level"),
                                          compat.VERIFIED, (path, name))
 
-    def test_a_checked_claim_is_a_record_that_no_release_reads(self):
-        """CHECKED says the local checks passed on that version on the maintainer's machine
-        and no real recovery confirmed the capability. No release reads it - the validator
-        skips a state it does not know, so it can grant nothing - and it is held to the same
-        citation rule as any claim, so the record says what it rests on."""
+    def test_a_checked_claim_is_read_here_and_cites_a_recording_of_its_version(self):
+        """CHECKED says the maintainer's local checks passed on that version and no real recovery
+        confirmed the capability. v0.6.7 reads it (OlderReleasesTests: v0.6.5 and v0.6.6 skip it),
+        and it is held to the same citation rule as any claim, so the record says what it rests on."""
         for engine in json.loads(self.raw)["engines"]:
             version = engine["version"]
             for name, claim in engine["capabilities"].items():
@@ -631,7 +642,7 @@ class BundledBaselineTests(unittest.TestCase):
                 if claim["state"] != "CHECKED":
                     continue
                 with self.subTest(version=version, capability=name):
-                    self.assertNotIn(name, self.parsed["engines"].get(version, {}))
+                    self.assertEqual(self.parsed["engines"][version][name]["state"], compat.CHECKED)
                     self.assertTrue(claim["evidence"])
                     for path in claim["evidence"]:
                         recorded = json.loads((ROOT / path).read_text(encoding="utf-8"))
@@ -651,6 +662,62 @@ class BundledBaselineTests(unittest.TestCase):
     def test_it_is_ascii_and_small(self):
         self.raw.decode("ascii")
         self.assertLess(len(self.raw), compat.MAX_DOCUMENT_BYTES)
+
+
+
+def released_compat(tag):
+    """That release's own compat.py, from its tag - what an installation of it runs on fetched data - or None
+    where this checkout has no tags. It is standard library only, so it loads on its own."""
+    import subprocess
+    import types
+    shown = subprocess.run(["git", "-C", str(ROOT), "show", "%s:src/codex_auto_resume/compat.py" % tag],
+                           capture_output=True, text=True, encoding="utf-8")
+    if shown.returncode:
+        return None
+    module = types.ModuleType("compat_" + tag.replace(".", "_"))
+    exec(compile(shown.stdout, "%s:compat.py" % tag, "exec"), module.__dict__)
+    return module
+
+
+class OlderReleasesTests(unittest.TestCase):
+    """The data on main is fetched by every installation, whichever release it runs, so each installed release
+    must take the newest data whole - its own validator, from its own tag - and read in it only what it knew:
+    v0.6.5 and v0.6.6 skip CHECKED, a state they do not know, and nothing they decide moves because of it.
+    Skipped where the checkout has no tags; CI checks out with every tag."""
+    RELEASES = ("v0.6.5", "v0.6.6")
+
+    def older(self):
+        found = {tag: released_compat(tag) for tag in self.RELEASES}
+        if not all(found.values()):
+            self.skipTest("the release tags are not in this checkout")
+        return found
+
+    def test_every_installed_release_takes_the_data_on_main(self):
+        import subprocess
+        import time
+        raw = BUNDLED.read_bytes()
+        for tag, old in self.older().items():
+            with self.subTest(tag):
+                shown = subprocess.run(["git", "-C", str(ROOT), "show", "%s:src/codex_auto_resume/data/codex_compat.json"
+                                        % tag], capture_output=True, text=True, encoding="utf-8").stdout
+                parsed = old.parse_document(raw)
+                self.assertEqual(old.document_standing(parsed, product=tag[1:], bundled=old.parse_document(shown.encode()),
+                                                       now=time.time()), "ok")
+                for engine_entry in json.loads(raw)["engines"]:
+                    for name, claim in engine_entry["capabilities"].items():
+                        if claim["state"] == compat.CHECKED:
+                            self.assertNotIn(name, parsed["engines"].get(engine_entry["version"], {}))
+
+    def test_checked_claims_move_no_older_word(self):
+        version = "codex-cli 0.160.0"
+        claim = {"state": "CHECKED", "evidence": ["docs/evidence/loaded-thread-delivery.json"]}
+        with_claims = document(engines=[engine(version, engine_present=claim, exact_thread_recovery=claim)])
+        for tag, old in self.older().items():
+            with self.subTest(tag):
+                self.assertEqual(old.accepted_word(version, [("main", old.validate_document(with_claims), True)]),
+                                 old.accepted_word(version, [("main", old.validate_document(document()), True)]))
+        self.assertEqual(compat.accepted_word(version, [("main", compat.validate_document(with_claims), True)]),
+                         "checked")
 
 
 if __name__ == "__main__":

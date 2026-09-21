@@ -49,6 +49,8 @@ ENGINE_LOG_WORDS = {
                                "does not verify this build",
     "incompatible": "passes its local checks, but the registry data in force marks it "
                     "incompatible; nothing is sent while that data is in force",
+    "checked": "is checked: its local checks pass, and the registry data in force records the "
+               "maintainer's checks passing on this build; no real recovery has verified it yet",
 }
 ENGINE_LOG_CHECKS_ONLY = "passes its local checks (`codex queue` still offers --thread/--message)"
 

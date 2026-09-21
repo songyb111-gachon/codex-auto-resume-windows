@@ -877,8 +877,8 @@ class Engine:
             self.log(row["thread_id"], "checking_eligibility", None)
         compatibility = self.engine_state()
         vector["engine_compatible"] = (
-            machine.gate(machine.PASS) if compatibility in ("verified", "structurally_compatible")
-            else machine.gate(machine.BLOCK, "engine_incompatible") if compatibility == "incompatible"
+            machine.gate(machine.PASS) if compatibility in ("verified", "checked", "structurally_compatible")
+            else machine.gate(machine.BLOCK, "engine_incompatible") if compatibility in ("incompatible", "failed_here")
             else machine.gate(machine.UNKNOWN, "engine_unknown"))
         vector["single_owner"] = (machine.gate(machine.PASS) if self.home_lock()
                                   else machine.gate(machine.BLOCK, "home_lock_unavailable"))

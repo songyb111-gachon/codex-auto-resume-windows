@@ -244,11 +244,14 @@ class ReleaseManifestTests(unittest.TestCase):
         The released-versions check exempts the current version, because its digest cannot
         exist until it is published - which also let the current version's pin be deleted
         after publication with the suite green. Where the tag is visible, that is caught.
-        Skipped where the checkout has no tags, and on the release run for that very tag,
-        which is the one moment the pin legitimately does not exist yet. Skipped too where
-        the tag exists but the release it points at is a pre-release, which `prerelease`
-        records: `latest` never answers with one, so nothing is served it and nothing can
-        be verified against a pin it does not have.
+        Skipped where the checkout has no tags, and on the commit the tag points at: the digest
+        is of the archive built from that commit, so the commit cannot carry it, and its pin
+        is always a later commit. That was said first of the release run for the tag alone,
+        and main's own run for the same commit went red at v0.6.6 - its checkout saw the tag
+        pushed moments earlier, the tree it tested could not hold the pin, and the pin commit
+        after it was green. Skipped too where the tag exists but the release it points at is a
+        pre-release, which `prerelease` records: `latest` never answers with one, so nothing
+        is served it and nothing can be verified against a pin it does not have.
         """
         import os
         import subprocess
@@ -262,6 +265,10 @@ class ReleaseManifestTests(unittest.TestCase):
                               capture_output=True, text=True).stdout.split()
         if not tags:
             self.skipTest("v%s is not tagged in this checkout" % current)
+        tagged, head = (subprocess.run(["git", "-C", str(ROOT), "rev-parse", ref], capture_output=True,
+                                       text=True).stdout.strip() for ref in ("v%s^{commit}" % current, "HEAD"))
+        if tagged and tagged == head:
+            self.skipTest("this is the commit v%s tags, which cannot carry its own digest" % current)
         self.assertTrue(self.release["sha256"].get(current),
                         "v%s is tagged but its digest is not pinned" % current)
 
