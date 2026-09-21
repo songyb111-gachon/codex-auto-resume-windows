@@ -1183,8 +1183,8 @@ class CardPictureTests(unittest.TestCase):
                          "the five modules are everything the card's digest reads today")
         for what, (name, old, new) in {
                 "the card's layout": ("notice_card.py", "button_h = px(32)", "button_h = px(34)"),
-                "the card's own light": ("notice_window.py", "brand.glow(self.vm[\"status\"], 0.0,",
-                                         "brand.glow(self.vm[\"status\"], 0.5,"),
+                "the card's own light": ("notice_window.py", "brand.glow(self.vm[\"status\"], age, age,",
+                                         "brand.glow(self.vm[\"status\"], age + 1, age,"),
                 "its floating shadow": ("notice_card.py", "DARK_ENOUGH = 0.05", "DARK_ENOUGH = 0.06"),
                 "the popup's renderer it is painted by": ("tray_popup.py", "class Renderer:",
                                                           "class Renderer:\n    painted = True\n"),
