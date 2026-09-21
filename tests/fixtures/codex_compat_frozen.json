@@ -1,0 +1,49 @@
+{
+  "_comment": [
+    "Codex Compatibility Registry data, format 1. Validated by src/codex_auto_resume/compat.py",
+    "and by tests/test_compat.py before it can ship or be served.",
+    "",
+    "This file is the bundled baseline of a release, and the same path on the main branch is",
+    "what a refresh fetches - only when a person asks, from the Diagnostics page or an update",
+    "check. Remote data may only restrict: an entry here can mark a capability INCOMPATIBLE for",
+    "an exact version or a range, and can mark one VERIFIED only for an exact version whose",
+    "local checks already pass. A failed local check always wins.",
+    "",
+    "No entry is VERIFIED. The evidence rule: a VERIFIED entry has to cite an evidence file",
+    "whose recorded codex_version is that exact version, and none of the recordings in",
+    "docs/evidence records the version it was made on yet. Until one does, every capability",
+    "resolves through the local checks - COMPATIBLE where they pass - which is exactly what",
+    "the product did before the registry existed. A VERIFIED engine lists engine_present and",
+    "exact_thread_recovery both.",
+    "",
+    "`sequence` only ever goes up. A refresh refuses a document with a lower sequence than the",
+    "one it would replace, and a cached document older than the bundled baseline is set aside.",
+    "`expires_at` is about 90 days after `published_at`: past it, a fetched copy's VERIFIED",
+    "entries stop counting while its INCOMPATIBLE ones never expire. The bundled copy never",
+    "expires. `min_product` is the oldest product that reads format 1: v0.6.5, the first release",
+    "that carries the registry.",
+    "`signature`, `key_id` and `requires_signature` are reserved: a document that requires a",
+    "signature is refused whole until something verifies one."
+  ],
+  "format": "codex-auto-resume-compat/1",
+  "sequence": 1,
+  "published_at": "2026-09-19T00:00:00Z",
+  "expires_at": "2026-12-18T00:00:00Z",
+  "min_product": "0.6.5",
+  "signature": null,
+  "key_id": null,
+  "requires_signature": false,
+  "engines": [
+    {
+      "version": "codex-cli 0.153.4",
+      "capabilities": {
+        "not_loaded_recovery": {
+          "state": "INCOMPATIBLE",
+          "reason": "queued_message_not_delivered_while_unloaded",
+          "evidence": ["docs/evidence/unloaded-thread-delivery.json"]
+        }
+      }
+    }
+  ],
+  "advisories": []
+}
