@@ -1,11 +1,12 @@
 # Changelog
 
-## v0.6.6 — A status light that breathes, a taskbar button that moves where it is installed, and pictures that show it
+## v0.6.6 — A status light that breathes, a taskbar button that moves where it is installed, a theme of the panel's own, and pictures that show it
 
 [The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.5...v0.6.6)
 
 What a day of real use turned up. Nothing about recovery changed: the same classifier, the same
-gates, the same one watcher that is the only thing allowed to send, and no new setting.
+gates, the same one watcher that is the only thing allowed to send. One new setting, the panel's
+own theme, whose default changes nothing.
 
 ### The status light is the ordinary breath now
 
@@ -63,6 +64,27 @@ had remembered to ask for it.
 Deliberately unchanged: the notification area's right-click menu, which Windows draws and which
 already follows the theme, and the file picker the diagnostics export opens, which is the one every
 other application opens.
+
+### The panel in Codex has a theme of its own
+
+The panel sits inside Codex and everything else sits on Windows. *Use system setting* already let
+each follow its own host, but a Light or Dark Theme drew them all alike: nobody could keep the window
+dark and let the panel follow Codex, or pin the panel whatever Codex does. **Theme in Codex**, under
+Settings > Appearance right under the Theme, is the panel's own: *Same as Theme*, *Codex's theme*,
+*Light* or *Dark*.
+
+- *Same as Theme* is the default, and it is exactly what every panel did before: the Theme's choice,
+  with *Use system setting* following Codex there as it always has. An upgrade changes nothing
+  anybody can see; the new setting only matters once somebody chooses it.
+- The Theme itself now draws the window, the popup and the notification card, and draws the panel
+  only while Theme in Codex is Same as Theme. Its help in both places says so.
+- It is offered in the window and in the panel, and Codex may change it too (`panel_theme` in the
+  settings tool). A save sends it only when it was changed where the save was made, as the Theme and
+  the Interface language are sent, so one changed elsewhere is not put back.
+- A watcher too old to know the setting sends none, and the panel draws itself in the Theme's choice,
+  as it did. A value it does not know is Same as Theme.
+- Its words are in all nine languages, and the Theme's help is rewritten in all nine, because it no
+  longer colours the panel outright.
 
 ### The documentation moves
 
@@ -123,6 +145,15 @@ is refused by name. One thing about it is worth knowing if you go looking: **its
 called `CodexAutoResume-v0.6.6-win-x64.zip`**, because renaming a tag does not rename what is
 already attached to a release. Same name, different bytes, different digest - the digest pinned in
 `scripts/release.json` is this release's, and it is the one to check against.
+
+It happened a second time, for a different reason. The build published as `v0.6.6` on 2026-09-20 -
+the one with the canonical breath, the product's own scroll bars and dialog, and the pictures' edges -
+went out without the panel's own theme, which was asked for the same day. So this release was cut a
+third time, and that build now carries **[`v0.6.6-beta`](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/tag/v0.6.6-beta)**,
+marked a pre-release. That one was announced, so it is said here plainly: **`v0.6.6` has named two
+archives.** The digest pinned in `scripts/release.json` is this one's; the beta's is written on its
+own release page beside it, and a download taken from there fails the comparison, which is the
+comparison doing its job.
 
 ### Evidence
 

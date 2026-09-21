@@ -261,9 +261,10 @@ class ControlKindTests(unittest.TestCase):
         self.assertEqual(observed["primary"], "primary")
         self.assertEqual(len(observed["calls"]), 1)
         sent = observed["calls"][0][1]
-        # Everything the panel may write, except the language and theme it did not change here
+        # Everything the panel may write, except the language and the themes it did not change here
         # (ChangedElsewhereTests says why).
-        self.assertEqual(set(sent), set(mcpserver.settings_schema()["properties"]) - {"theme", "interface_language"})
+        self.assertEqual(set(sent), set(mcpserver.settings_schema()["properties"])
+                         - {"theme", "panel_theme", "interface_language"})
         self.assertEqual(sent["recover_" + reasons.RECOVERABLE[0]], False)
 
     def test_without_a_host_every_box_is_disabled_and_still_drawn(self):
@@ -398,6 +399,34 @@ class ThemeTests(unittest.TestCase):
         self.assertIsNone(observed["noSettings"])
         self.assertEqual(observed["pinned"], ["dark"] * len(cases))
 
+    def test_the_panel_theme_wins_and_same_or_nothing_is_the_themes(self):
+        """v0.6.6: the panel is drawn in its own theme where it has one, and in the Theme's where it
+        says "same" - or says nothing, from a watcher too old to send it, which must look exactly as
+        every panel did before the setting existed."""
+        pairs = [
+            # (theme, panel_theme) -> the stamp on the root
+            ("light", "dark"), ("dark", "light"),           # its own choice, whatever the Theme is
+            ("dark", "system"), ("light", "system"),        # Codex's own: no stamp at all
+            ("dark", "same"), ("light", "same"), ("system", "same"),
+            ("dark", None), ("light", None), ("system", None),   # an older watcher sends none
+            ("dark", "Dark"), ("light", "codex"), ("dark", 1),   # nothing this page knows: the Theme's
+        ]
+        observed = run_javascript(["themeStamp", "applyTheme"], """
+          function root() {
+            var attributes = {};
+            return {getAttribute: function (n) { return n in attributes ? attributes[n] : null; },
+                    setAttribute: function (n, v) { attributes[n] = v; },
+                    removeAttribute: function (n) { delete attributes[n]; }};
+          }
+          process.stdout.write(JSON.stringify(%s.map(function (pair) {
+            var settings = {theme: pair[0]};
+            if (pair[1] !== null) settings.panel_theme = pair[1];
+            var r = root(); applyTheme(r, settings, false); return r.getAttribute('data-theme');
+          })));
+        """ % json.dumps(pairs))
+        self.assertEqual(observed, ["dark", "light", None, None, "dark", "light", None,
+                                    "dark", "light", None, "dark", "light", "dark"])
+
     def test_the_stored_theme_is_on_the_root_before_the_first_paint(self):
         for theme, stamp in (("light", "light"), ("dark", "dark"), ("system", None)):
             with self.subTest(theme):
@@ -476,12 +505,53 @@ class ThemeTests(unittest.TestCase):
         self.assertIn("theme", observed["editors"])
         self.assertNotIn("reduce_motion", observed["editors"])
 
-    def test_only_the_theme_of_the_appearance_settings_is_the_panels_to_change(self):
+    def test_the_panels_own_row_offers_its_four_choices_in_the_panels_words(self):
+        observed = run_page(say("""(function () {
+          var select = byId('car-panel_theme');
+          var row = select.parentNode.parentNode.parentNode;
+          var theme = byId('car-theme').parentNode.parentNode.parentNode;
+          var rows = row.parentNode.children;
+          return {options: select.options.map(function (o) { return [o.value, o.textContent, !!o.selected]; }),
+                  help: row.textContent, sameCard: row.parentNode === theme.parentNode,
+                  after: rows.indexOf(row) === rows.indexOf(theme) + 1};
+        })()"""), data=snapshot(panel_theme="light"))
+        self.assertEqual(observed["options"], [[choice, ENGLISH["choice.panel_theme." + choice], choice == "light"]
+                                               for choice in policy.PANEL_THEMES])
+        self.assertIn(ENGLISH["field.panel_theme"], observed["help"])
+        self.assertIn(ENGLISH["help.panel_theme"], observed["help"])
+        # Right under the Theme, in the same card.
+        self.assertTrue(observed["sameCard"])
+        self.assertTrue(observed["after"])
+
+    def test_a_saved_panel_theme_is_sent_alone_and_applies_at_once_in_place(self):
+        observed = run_page("""
+          var steps = [];
+          var first = ROOT_NODE.children[0];
+          async function choose(value) {
+            var select = byId('car-panel_theme');
+            select.value = value;
+            select.fire('change');
+            saveButton().onclick();
+            await settle();
+            steps.push([document.documentElement.getAttribute('data-theme'), ROOT_NODE.children[0] === first]);
+          }
+          await choose('light');
+          await choose('system');
+          await choose('same');
+          """ + say("{steps: steps, sent: CALLS.filter(function (c) { return c[0] === 'update_settings'; })"
+                    ".map(function (c) { return [c[1].panel_theme, c[1].theme]; })}"), data=snapshot(theme="dark"))
+        # Its own Light, then Codex's (no stamp), then the Theme's Dark again - each without a redraw.
+        self.assertEqual([step[0] for step in observed["steps"]], ["light", None, "dark"])
+        self.assertTrue(all(step[1] for step in observed["steps"]))
+        # Each save carries the choice made here, and never the Theme nobody touched.
+        self.assertEqual(observed["sent"], [["light", None], ["system", None], ["same", None]])
+
+    def test_only_the_themes_of_the_appearance_settings_are_the_panels_to_change(self):
         schema = policy.describe()
         observed = run_javascript(["editable"], say("%s.filter(editable).map(function (e) { return e.name; })"
                                                     % json.dumps(schema, default=str)))
         appearance = {e["name"] for e in schema if e["group"] == "appearance"}
-        self.assertEqual(set(observed) & appearance, {"theme"})
+        self.assertEqual(set(observed) & appearance, {"theme", "panel_theme"})
         self.assertEqual(set(observed), set(mcpserver.settings_schema()["properties"]))
 
 
@@ -679,10 +749,12 @@ class ChangedElsewhereTests(unittest.TestCase):
         self.assertEqual(len(observed["sent"]), 1)
         sent = observed["sent"][0]
         self.assertNotIn("theme", sent)
+        self.assertNotIn("panel_theme", sent)
         self.assertNotIn("interface_language", sent)
         self.assertEqual(sent["recover_" + reasons.RECOVERABLE[0]], False)
         # Everything else is still sent whole, as it always was.
-        self.assertEqual(set(sent), set(mcpserver.settings_schema()["properties"]) - {"theme", "interface_language"})
+        self.assertEqual(set(sent), set(mcpserver.settings_schema()["properties"])
+                         - {"theme", "panel_theme", "interface_language"})
         self.assertEqual((observed["stored"]["theme"], observed["stored"]["interface_language"]), ("dark", "ko"))
         # The confirmed settings are drawn: the controls say what is stored, so nothing is left
         # looking unsaved and the next save cannot send the old values back either.
