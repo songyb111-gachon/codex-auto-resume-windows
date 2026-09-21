@@ -39,10 +39,10 @@
   그 대화의 로컬 기록·대기열로 확인한 것이고,
   [`docs/evidence/unloaded-thread-observation.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/evidence/unloaded-thread-observation.json)에
   `visual_ui_scraping_used: false`로 적혀 있습니다. 프로토콜 관측이지, 누가 지켜본 것이 아닙니다.
-- **이번 릴리스는 공개되었고, 공개된 가장 새 릴리스입니다.** 아래에서 PUBLISHED라고 적힌 항목들이
-  뜻하는 것은 공개된 릴리스, 곧 v0.6.0부터 이번 릴리스까지입니다. 일곱 다 압축 파일이 발행되었고
+- **이번 릴리스는 아직 공개되지 않았고, 공개된 가장 새 릴리스는 v0.6.6입니다.** 아래에서 PUBLISHED라고
+  적힌 항목들이 뜻하는 것은 공개된 릴리스, 곧 v0.6.0부터 v0.6.6까지입니다. 일곱 다 압축 파일이 발행되었고
   해시가 `main`에 고정되어 있습니다. 항목이 PUBLISHED라고 말하는 것은 발행된 바이트로 다시 확인한
-  경우뿐이므로, 이번 릴리스가 더한 것들은 그 확인을 마친 뒤에야 그렇게 말합니다. v0.6.3은 화면 언어 아홉 개, 이어가기 메시지 설정, 알림
+  경우뿐이므로, v0.6.6이 더한 것들은 그 확인을 마친 뒤에야 그렇게 말합니다. v0.6.3은 화면 언어 아홉 개, 이어가기 메시지 설정, 알림
   영역 아이콘의 팝업, 알림의 대시보드 열기 단추, 새로 꾸민 창과 패널을 더했고, 그 앞의 세 버전 모두에
   있던 결함 하나 - 복구되는데도 끌 스위치가 없던 중단 종류 - 를 고쳤습니다. 그 기능들에 대한 항목은
   여전히 무엇으로 시험했는지를 적고 있으며, 어느 것도 PUBLISHED라고 하지 않습니다. 발행된 바이트로
@@ -54,10 +54,18 @@
   고쳤습니다. 같은 이유로 그 어느 것도 PUBLISHED라고 하지 않습니다. v0.6.5는 Codex 호환성
   레지스트리와 요청할 때만 하는 새로 받기, 알림 카드, 알림 영역 아이콘의 움직임, 아이콘처럼 깜빡이는
   상태 불빛, 팝업의 입체감, 제품이 직접 그리는 드롭다운 목록과 미끄러지는 스위치, 너비에 맞는 목록, 그리고
-  수정 다섯 가지를 더했고(17절, 그리고 7절부터 16절의 줄들), 공개되었습니다. 이번 릴리스는 상태등을
+  수정 다섯 가지를 더했고(17절, 그리고 7절부터 16절의 줄들), 공개되었습니다. v0.6.6은 상태등을
   그 크기의 불빛을 만드는 보통의 방식으로 바꾸고, 창의 작업 표시줄 단추를 설치된 자리에서 움직이게 하고,
   모든 스크롤 막대와 메시지 상자를 제품의 것으로 만들고, Codex 안의 패널에 자기 테마를 주고, 문서
-  그림에서 창틀을 잘라내고 모서리를 둥글립니다. 아직 이 문서의 어느 것도 그에 대해 PUBLISHED라고 하지 않습니다. 이 문서 어디에서도 PUBLISHED가 뜻하지
+  그림에서 창틀을 잘라내고 모서리를 둥글렸습니다. 공개되었지만, 아직 이 문서의 어느 것도 그에 대해
+  PUBLISHED라고 하지 않습니다. 이번 릴리스는 기능마다의 답을 네 상태가 아니라 여섯 상태로 합니다.
+  점검됨은 메인테이너의 로컬 확인이 바로 그 Codex 버전에서 통과했고 그 이상은 확인되지 않은 것이고,
+  이 PC에서 실패는 데이터가 점검했거나 검증한 버전에서 로컬 확인이 실패한 것이라, 원인은 Codex 버전보다
+  이 PC일 가능성이 큽니다. 또 v0.6.5와 v0.6.6이 더 새 데이터를 통째로 받아도 그들이 결정하는 것은
+  아무것도 움직이지 않게 하고, 알림 카드의 불빛이 창, 팝업, 패널의 불빛과 같은 표로 숨 쉬게 하고,
+  호환성 데이터를 `main`을 빨갛게 만들지 않고 릴리스 사이에 공개할 수 있게 하며 - 동작 테스트와 문서
+  그림은 옆에 얼려 둔 v0.6.6의 데이터를 읽습니다 - 릴리스 태그가 가리키는 커밋에서 실패하던 테스트
+  하나를 고칩니다(11절과 17절). 이 문서의 어느 것도 그에 대해 PUBLISHED라고 하지 않습니다. 이 문서 어디에서도 PUBLISHED가 뜻하지
   *않는* 것은, 누군가 그것을 설치해서 써 보았다는 것입니다. 발행된 바이트는 그 확인만을 위해 만든
   상태 폴더와 Codex 홈을 상대로 구동했고, 설치 프로그램의 등록은 하나도 돌리지 않았으며, 실제
   Codex 상태를 상대로 워처를 띄우지도 않았습니다. 누군가 쓰는 기계에서 설치하고 올리고 지우는
@@ -72,7 +80,7 @@
   그런 테스트는 기능이 없으면 스스로 건너뜁니다. 건너뛴 테스트는 아무것도 증명하지 않으므로,
   건너뛸 가능성이 있는 곳은 네 번째 칸에 적었습니다.
 
-  이번 릴리스의 나무를 전부 돌린 기록은 다음과 같다. 메인테이너의 Windows 11 기계에서 Python 3.13
+  v0.6.6의 나무를 전부 돌린 기록은 다음과 같다. 메인테이너의 Windows 11 기계에서 Python 3.13
   (8개 건너뜀)으로 2,572개 테스트가 실패 없이 통과했고, GitHub의 Windows 러너에서
   3.12, 3.13, 3.14, 3.15 모두 초록불이었다.
 
@@ -227,10 +235,10 @@
 | 기능 | 근거 등급 | 뒷받침하는 것 | 아직 없는 것 |
 | --- | --- | --- | --- |
 | 여섯 쪽 - 개요, 대기 중, 기록, 통계, 진단, 설정 | REAL WINDOWS TESTED | `gui/Dashboard.cs`가 여섯 쪽을 모두 만들고, 여섯 쪽 모두 `build/capture_window.ps1`로 144 DPI에서 영어와 한국어로 찍혀 있다. `docs/images/dashboard-overview.png`, `dashboard-pending.png`, `dashboard-history.png`, `dashboard-statistics.png`, `dashboard-diagnostics.png`, `settings-window.png`이고, 개요·대기 중·설정 쪽은 일본어, 간체 중국어, 독일어로도 찍혀 있다(`dashboard-overview-ja.png` 등). `assets/screenshots.json`에 고정되고 `tests/test_screenshots.py:ManifestTests`(5개)가 확인한다 | 한 쪽을 한 크기에서 한 벌의 합성 레코드로 찍은 것이다. 그림은 쪽이 그려진다는 것을 보일 뿐, 사람이 그것을 쓰는 모습을 보이지는 않는다. 창을 그리는 입력이 바뀌면 그림을 다시 만들므로(다음 줄), 그림은 지금의 소스가 그리는 창을 예시 자료로 보여 준다. 마우스를 올린 모습, 키보드 초점, 고대비, 상태 불빛의 움직임은 어느 그림에도 없고, 설정 그림은 이어서 하기 메시지 부분이다. |
-| 스크린샷은 최신이다. 그것을 만든 입력이 바뀌면 스위트가 실패한다 | UNIT TESTED | `tests/test_screenshots.py:ManifestTests.test_every_render_input_is_unchanged_since_the_images_were_made`, `test_the_committed_images_are_the_ones_the_manifest_describes`, `test_the_window_inputs_include_what_the_dashboard_is_computed_by`, `test_the_recorded_version_is_the_current_version`. `ContentTests.test_the_sample_version_comes_from_the_manifest`는 그림이 보여 주는 버전이 플러그인 매니페스트를 따르게 하고, `ContentTests.test_every_surface_is_drawn_in_the_pinned_theme`는 그림을 만드는 기계가 어떤 테마를 쓰든 창, 팝업, 패널의 그림을 밝은 테마로 묶어 둔다 | 매니페스트는 그림을 만든 버전을 적고, 그것이 현재 버전이 아니면 스위트가 실패한다. 최신 그림이라도 한 크기에서 예시 자료를 찍은 그림일 뿐이다. **어두운 테마로 그린 그림은 알림 카드뿐이다.** 창, 팝업, 패널을 어두운 테마로 보여 주는 커밋된 그림은 없다. |
+| 스크린샷은 최신이다. 그것을 만든 입력이 바뀌면 스위트가 실패한다 | UNIT TESTED | `tests/test_screenshots.py:ManifestTests.test_every_render_input_is_unchanged_since_the_images_were_made`, `test_the_committed_images_are_the_ones_the_manifest_describes`, `test_the_window_inputs_include_what_the_dashboard_is_computed_by`, `test_the_recorded_version_is_the_current_version`. `ContentTests.test_the_sample_version_comes_from_the_manifest`는 그림이 보여 주는 버전이 플러그인 매니페스트를 따르게 하고, `ContentTests.test_every_surface_is_drawn_in_the_pinned_theme`는 그림을 만드는 기계가 어떤 테마를 쓰든 창, 팝업, 패널의 그림을 밝은 테마로 묶어 둔다 | 매니페스트는 그림을 만든 버전을 적고, 그것이 현재 버전이 아니면 스위트가 실패한다. 최신 그림이라도 한 크기에서 예시 자료를 찍은 그림일 뿐이다. **어두운 테마를 보여 주는 커밋된 그림은 하나도 없다.** v0.6.6부터 창, 팝업, 패널, 알림 카드의 그림은 모두 밝은 테마이고, 어두운 테마는 그림이 아니라 글로 설명한다. |
 | 스크린샷의 예시 자료에는 실제 식별자가 없다 | UNIT TESTED | `tests/test_screenshots.py:ContentTests.test_the_window_sample_carries_no_real_identifier`, `test_the_sample_data_carries_no_real_identifier` | - |
-| 아이콘의 움직임은 README에 아이콘 자신의 프레임으로 그린 움직이는 PNG로 실린다. 감시 중, 복구 중, 확인 필요, 일시 정지를 각자 다는 배지와 함께 48 px로, 밝은 작업 표시줄과 어두운 작업 표시줄 위에, 아이콘 자신의 타이머가 보여 주는 순간마다 그린다. 그림은 `<icon motion>` 아래에 고정되어, 움직임이나 그 숫자, 표시나 그 색이 바뀌면 바뀌고, 아이콘의 메뉴나 팝업이나 카드가 바뀌거나 움직임이 다른 모듈로 옮겨질 때는 바뀌지 않는다. 작고, 그림 하나하나를 브라우저가 보여 주는 최소 길이인 1/100초 두 번 이상 붙들며, 생성기가 바이트 그대로 다시 쓴다 | UNIT TESTED, 프레임으로 그린 그림으로 | `assets/screenshots.json` 안의 `docs/images/icon-motion.png`; `tests/test_screenshots.py:IconMotionPictureTests`(8개, 커밋된 그림에서 지연 값을 직접 읽는 `test_no_picture_is_shorter_than_a_browser_shows_it` 포함) | 녹화가 아니라 그린 것이라 알림 영역 자체가 아니다. 브라우저가 10 ms 이하의 지연을 100 ms로 늘인다는 것은 이것을 만들며 헤드리스 Edge에서 측정했을 뿐, 이 저장소 어디에도 기록되어 있지 않다. 이전 릴리스까지는 GIF였고, 256색을 프레임끼리 나누어 쓰느라 픽셀의 2%쯤이 아이콘 자신의 색과 한 채널에서 29까지 달랐다. 움직이는 PNG는 아이콘의 색을 그대로 담는다. |
-| 그림에 실린 알림은 제품이 실제로 보여 주는 카드다. 워처 자신의 빌더가 예시 자료의 대화에서 사용량 한도에 대해 만드는 알림을 카탈로그의 말 그대로 담아, 카드 자신의 코드가 화면 밖에서 영어와 한국어는 밝은 테마와 어두운 테마로, 일본어, 간체 중국어, 독일어는 밝은 테마로 그린다. 그림마다 `<card render:*>` 아래에 고정되고, 이 항목은 카드가 하는 말이나 카드를 그리는 코드가 바뀌면 움직이지만 그 코드를 옮기거나 기계가 달라져도 움직이지 않는다 | REAL WINDOWS TESTED, 화면 밖에서 그린 그림으로 | `docs/images/notification-card.png`와 그 ko, ja, zh-CN, de 짝이 `assets/screenshots.json`에 있다. `tests/test_screenshots.py:CardPictureTests`(7개) | 민무늬 바탕 위에 멈춰 있는 카드를 한 배율로 그린 것이다. 나타나는 모습, 쌓이는 모습, 실제 배경 화면이나 옆의 작업 표시줄은 없다. 카드가 나타나면 안 되는 곳에서 대신 뜨는 Windows 자체 알림은 그림으로 싣지 않았다. |
+| 아이콘의 움직임은 README에 아이콘 자신의 프레임으로 그린 움직이는 PNG로 실린다. 감시 중, 복구 중, 확인 필요, 일시 정지를 각자 다는 배지와 함께 48 px로, 밝은 작업 표시줄과 어두운 작업 표시줄 위에, 아이콘 자신의 타이머가 보여 주는 순간마다 그린다. 그림은 `<icon motion>` 아래에 고정되어, 움직임이나 그 숫자, 표시나 그 색이 바뀌면 바뀌고, 아이콘의 메뉴나 팝업이나 카드가 바뀌거나 움직임이 다른 모듈로 옮겨질 때는 바뀌지 않는다. 작고, 그림 하나하나를 브라우저가 보여 주는 최소 길이인 1/100초 두 번 이상 붙들며, 생성기가 바이트 그대로 다시 쓴다 | UNIT TESTED, 프레임으로 그린 그림으로 | `assets/screenshots.json` 안의 `docs/images/icon-motion.png`; `tests/test_screenshots.py:IconMotionPictureTests`(8개, 커밋된 그림에서 지연 값을 직접 읽는 `test_no_picture_is_shorter_than_a_browser_shows_it` 포함) | 녹화가 아니라 그린 것이라 알림 영역 자체가 아니다. 브라우저가 10 ms 이하의 지연을 100 ms로 늘인다는 것은 이것을 만들며 헤드리스 Edge에서 측정했을 뿐, 이 저장소 어디에도 기록되어 있지 않다. v0.6.6 전까지는 GIF였고, 256색을 프레임끼리 나누어 쓰느라 픽셀의 2%쯤이 아이콘 자신의 색과 한 채널에서 29까지 달랐다. 움직이는 PNG는 아이콘의 색을 그대로 담는다. |
+| 그림에 실린 알림은 제품이 실제로 보여 주는 카드다. 워처 자신의 빌더가 예시 자료의 대화에서 사용량 한도에 대해 만드는 알림을 카탈로그의 말 그대로 담아, 카드 자신의 코드가 화면 밖에서 밝은 테마로, 영어, 한국어, 일본어, 간체 중국어, 독일어로 그린다. 그림마다 `<card render:*>` 아래에 고정되고, 이 항목은 카드가 하는 말이나 카드를 그리는 코드가 바뀌면 움직이지만 그 코드를 옮기거나 기계가 달라져도 움직이지 않는다 | REAL WINDOWS TESTED, 화면 밖에서 그린 그림으로 | `docs/images/notification-card.png`와 그 ko, ja, zh-CN, de 짝이 `assets/screenshots.json`에 있다. `tests/test_screenshots.py:CardPictureTests`(7개) | 민무늬 바탕 위에 멈춰 있는 카드를 한 배율로 그린 것이다. 나타나는 모습, 쌓이는 모습, 실제 배경 화면이나 옆의 작업 표시줄은 없다. 카드가 나타나면 안 되는 곳에서 대신 뜨는 Windows 자체 알림은 그림으로 싣지 않았다. |
 | 창은 오래 사는 브리지 프로세스 하나와, 요청 하나에 JSON 한 줄로 이야기한다 | UNIT TESTED | `tests/test_gui_layout.py:PersistentBridgeTests.test_the_serve_command_line_answers_a_request`가 창이 만드는 바로 그 명령줄을 돌려 실제 응답을 요구한다. `tests/test_control.py:BridgeTests.test_serve_answers_every_line_with_exactly_one_line`, `test_serve_framing_edge_cases_each_get_the_answer_they_should`, `test_serve_cannot_reach_anything_the_one_shot_form_cannot` | 컴파일된 창 쪽 클라이언트는 한 번도 구동되지 않는다. |
 | 개요 전체가 한 번의 왕복으로 오고, 각 조각은 따로 실패한다 | UNIT TESTED | `tests/test_control.py:BridgeTests.test_a_dashboard_part_that_fails_costs_only_that_part` | 브리지에서 확인한 것이다. 실패한 조각을 창이 제대로 그리는지는 확인하지 않는다. |
 | 브리지는 워처를 import하지 않고 `status`에 답하며, 워처 뮤텍스에 대한 그 확인은 워처 자신의 확인과 같은 답 - 실행 중 아님, 실행 중, 알 수 없음 - 을 낸다 | REAL WINDOWS TESTED | `tests/test_control.py:BridgeImportTests`(2개)가 진짜 브리지를 한 번 쓰는 형태와 계속 도는 형태로, 빈 Codex 홈을 상대로 하위 프로세스에서 돌려, 실제로 확인을 했는지와 `app`, `notify`, `tray_popup`, `xml.sax`를 하나도 불러오지 않았는지를 요구한다. `WatcherProbeTests`(3개)는 뮤텍스가 비었을 때, 다른 프로세스가 쥐었을 때와 그 프로세스가 사라진 뒤, 뮤텍스 호출을 일부러 실패시켰을 때 두 확인에 모두 묻는다. `tests/test_notify.py:ImportCostTests.test_importing_the_module_does_not_load_xml_sax`도 있고, `ToastPayloadTests.test_the_escaping_itself_has_not_moved`는 알림의 이스케이프가 그 import를 옮기기 전과 같기를 요구한다 | Windows가 아니면 건너뛴다. 브리지의 확인은 이제 워처 확인의 사본이고, 둘을 맞춰 두는 것은 이 테스트들뿐이다. 알 수 없음은 누가 먼저 만든 객체가 아니라 뮤텍스 호출을 바꿔 쳐서 만든다. 변경 기록의 상태 확인 341ms에서 168ms는 개발 중에 빈 상태 디렉터리를 상대로 잰 것이고, 시간을 재는 테스트는 없다. |

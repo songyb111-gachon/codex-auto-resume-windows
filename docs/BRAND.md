@@ -198,8 +198,9 @@ the reach, in straight lines between, so it holds near half strength and then fa
 and rises again, because a gap between a dot and a ring reads as a target. A smaller spread is the
 same falloff drawn smaller about the centre, so the glow grows out from under the dot. The largest
 reaches 8 pixels from the window's dot centre, well inside the 28-pixel column the window keeps
-for it at every scaling. The notification card is drawn once and holds still, so it shows the still
-light. The light always has its word beside it.
+for it at every scaling. Since v0.6.7 the notification card's light breathes on this same table
+too, its face drawn again at most every 80 ms, and Reduce motion and High Contrast keep it still;
+v0.6.6 drew it once, lit and still, on purpose. The light always has its word beside it.
 
 All of it stops on request. The Dashboard and the popup stop every animation when **Reduce
 motion** is on (Settings > Appearance) or when Windows' own animation-effects switch is off, and

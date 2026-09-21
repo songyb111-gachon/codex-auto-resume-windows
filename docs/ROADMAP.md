@@ -1,6 +1,6 @@
-# Codex Auto Resume roadmap: v0.6.6 → v0.6.12
+# Codex Auto Resume roadmap: v0.6.7 → v0.6.13
 
-This is the current development direction for Codex Auto Resume after v0.6.5.
+This is the current development direction for Codex Auto Resume after v0.6.6.
 
 This is a **planned roadmap, not a promise**. Details may change as Codex evolves or as testing
 reveals better or safer implementation paths.
@@ -76,7 +76,7 @@ Recovery decides exactly what it decided in v0.6.3.
 **Released.**
 
 v0.6.5 carries the Codex Compatibility Registry and the interface work that came out of using
-v0.6.4, and lays the groundwork for splitting the Python implementation, which moves to v0.6.7.
+v0.6.4, and lays the groundwork for splitting the Python implementation, which moves to v0.6.8.
 
 ### Codex Compatibility Registry
 
@@ -175,11 +175,51 @@ the popup and the notification card keep the Theme.
 
 ---
 
-## v0.6.7 — Python modularization
+## v0.6.7 — Compatibility in tiers, Failed here, and a notification card that breathes 🚧
 
-**Next.**
+**In development, on the `dev` branch.**
 
-v0.6.7 is planned as the major structural cleanup of the Python implementation. It was the main
+The Compatibility Registry learns to say how much stands behind its word, and the notification
+card's light joins the others. For a Codex version the data says nothing about, recovery decides
+exactly what it decided in v0.6.6.
+
+Each capability, on each exact Codex version, now resolves to one of six states, in this order:
+
+- **VERIFIED** — a real recovery on this exact version exercised it, and none failed
+- **CHECKED** — new: the maintainer's local checks passed on this exact version, and nothing
+  confirmed more
+- **COMPATIBLE** — the data makes no claim, and the checks on this computer pass
+- **FAILED_HERE** — new: the data checked or verified this exact version, but a check on this
+  computer failed, so the cause is most likely this computer rather than the Codex version
+- **INCOMPATIBLE** — a check on this computer failed on a version nobody checked, or the data says
+  it does not work
+- **UNKNOWN** — compatibility cannot be established
+
+The rules stay as they were: a failed local check always wins, and is now INCOMPATIBLE or
+FAILED_HERE; data can only restrict, or raise a local pass - to CHECKED or VERIFIED - for an exact
+version. CHECKED sends exactly as COMPATIBLE and VERIFIED do; like VERIFIED, it needs recorded
+evidence and expires with the fetched data. FAILED_HERE blocks every send exactly as INCOMPATIBLE
+does, and says so: a recovery it holds says *Codex checks failed on this computer*, and the
+notification-area popup and its icon ask for attention. The advanced tier planned for v0.6.9 stays
+VERIFIED-only.
+
+The data on main is fetched by every installed release, so each must take the newest whole, with
+its own validator: v0.6.5 and v0.6.6 skip CHECKED, a state they do not know, and nothing they decide
+moves. And new data can be published between releases without turning main red: the behaviour
+tests and the pictures read a frozen copy of v0.6.6's data, while the live file is still held to its
+evidence rules.
+
+The notification card's status light breathes on the same table as the window, the popup and the
+panel in Codex, where v0.6.6 drew it lit and still on purpose. Reduce motion and High Contrast keep
+it still.
+
+---
+
+## v0.6.8 — Python modularization
+
+**After v0.6.7.**
+
+v0.6.8 is planned as the major structural cleanup of the Python implementation. It was the main
 part of v0.6.5 in the earlier plan; v0.6.5 ships its groundwork, and the split itself moves here.
 
 Before anything moves:
@@ -201,16 +241,19 @@ Main goals:
 
 The window's largest C# files may be split the same way, behind the same kind of safety net.
 
+The repository's landing page on GitHub is tidied in the same release, while paths are moving
+anyway, so that fewer files sit at its root.
+
 Bugs discovered during this refactor will be fixed with regression tests, but this release is
 **not intended to be the full repository-wide bug hunt**.
 
 ---
 
-## v0.6.8 — Advanced / Experimental recovery capabilities
+## v0.6.9 — Advanced / Experimental recovery capabilities
 
 The existing conservative behavior will remain the default.
 
-v0.6.8 is planned to revisit recovery capabilities that were previously excluded because they
+v0.6.9 is planned to revisit recovery capabilities that were previously excluded because they
 required weaker assumptions, insufficient evidence, or unsupported Codex behavior.
 
 Potential candidates include:
@@ -240,7 +283,7 @@ The principle remains:
 > Keep the safe default small, while giving informed users more control when they explicitly
 > choose it.
 
-### Also planned for v0.6.8
+### Also planned for v0.6.9
 
 - a design audit of the panel in Codex, the app and the notification-area popup, side by side in
   light and dark, fixing everything that does not yet look like one product,
@@ -249,11 +292,11 @@ The principle remains:
 
 ---
 
-## v0.6.9 — Final Python audit and stabilization
+## v0.6.10 — Final Python audit and stabilization
 
-v0.6.9 is planned as the final comprehensive audit of the Python implementation.
+v0.6.10 is planned as the final comprehensive audit of the Python implementation.
 
-Unlike v0.6.7, this release is intentionally a broad bug hunt.
+Unlike v0.6.8, this release is intentionally a broad bug hunt.
 
 Expected areas include:
 
@@ -281,9 +324,9 @@ for the Rust migration.
 
 ---
 
-## v0.6.10 — Complete Rust core replacement
+## v0.6.11 — Complete Rust core replacement
 
-v0.6.10 is planned to replace the production Python core with Rust.
+v0.6.11 is planned to replace the production Python core with Rust.
 
 The migration may happen incrementally during development, but the release itself is intended
 to switch to the completed Rust core rather than ship a long-lived mixed Python/Rust product.
@@ -292,7 +335,7 @@ The rule is:
 
 > **Replace the implementation, not the behavior.**
 
-The Rust implementation should reproduce v0.6.9 as closely as practical.
+The Rust implementation should reproduce v0.6.10 as closely as practical.
 
 Goals include:
 
@@ -335,13 +378,13 @@ deployment work.
 
 ---
 
-## v0.6.11 — Rust-native restructuring and optimization
+## v0.6.12 — Rust-native restructuring and optimization
 
-v0.6.10 will prioritize behavioral parity.
+v0.6.11 will prioritize behavioral parity.
 
 That may leave some Python-shaped architecture inside the first Rust implementation.
 
-v0.6.11 is planned to make the codebase more naturally Rust-oriented.
+v0.6.12 is planned to make the codebase more naturally Rust-oriented.
 
 Potential work includes:
 
@@ -361,9 +404,9 @@ This is not intended to be the final full-system bug hunt.
 
 ---
 
-## v0.6.12 — Final Rust audit and stabilization
+## v0.6.13 — Final Rust audit and stabilization
 
-v0.6.12 is planned as the final comprehensive stabilization pass.
+v0.6.13 is planned as the final comprehensive stabilization pass.
 
 Expected focus includes:
 
@@ -401,7 +444,7 @@ The intended final stack is:
 
 There is currently **no planned v0.7.0 feature cycle**.
 
-After v0.6.12, the project is expected to move primarily into maintenance:
+After v0.6.13, the project is expected to move primarily into maintenance:
 
 - Codex compatibility updates,
 - Compatibility Registry updates,
@@ -440,34 +483,41 @@ The light softened
 
         ↓
 
-v0.6.7
-Python modularization
+v0.6.7  🚧 In development, on the dev branch
+Compatibility in tiers: Verified, Checked, Compatible
++ Failed here, and a notification card that breathes
 
         ↓
 
 v0.6.8
+Python modularization
++ a tidier landing page on GitHub
+
+        ↓
+
+v0.6.9
 Advanced / Experimental recovery capabilities
 + design audit, a choice of appearance
 
         ↓
 
-v0.6.9
+v0.6.10
 Final Python audit and stabilization
 → freeze Python reference behavior
 
         ↓
 
-v0.6.10
+v0.6.11
 Complete Rust core replacement
 
         ↓
 
-v0.6.11
+v0.6.12
 Rust-native restructuring and optimization
 
         ↓
 
-v0.6.12
+v0.6.13
 Final Rust audit and stabilization
 → final stable Rust baseline
 
@@ -476,4 +526,4 @@ Final Rust audit and stabilization
 Maintenance
 ```
 
-This document records the current direction; v0.6.5 is out, and v0.6.6 is built on the `dev` branch.
+This document records the current direction; v0.6.6 is out, and v0.6.7 is built on the `dev` branch.

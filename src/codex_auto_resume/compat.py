@@ -119,7 +119,7 @@ CHECKS = (
 )
 
 # capability -> (the local checks that prove it, tier). The four without checks are not
-# implemented; they are listed so v0.6.7 can offer them, and they stay `unsupported`.
+# implemented; they are listed so v0.6.9 can offer them, and they stay `unsupported`.
 CAPABILITIES = {
     "engine_present": (("official_location", "version_runs", "single_candidate"), "conservative"),
     "exact_thread_recovery": (("official_location", "version_runs", "queue_flags"), "conservative"),
@@ -144,7 +144,7 @@ CAPABILITIES = {
 # E1, E2, E4, E5), so no existing decision moves. The other send-required capabilities -
 # turn tracking, withdrawal, loaded state, projection freshness - keep the dynamic gates
 # they already have at the moment of an attempt; their static states are reported, and
-# `permits()` reads them for anything v0.6.7 offers beyond the conservative default.
+# `permits()` reads them for anything v0.6.9 offers beyond the conservative default.
 SEND_GATE = ("engine_present", "exact_thread_recovery")
 
 # Why a capability has the state it has.
@@ -813,7 +813,7 @@ def mcp_view(view) -> dict:
                              and entry.get("reason") in REASONS}}
 
 
-# ------------------------------------------------------------------------------ v0.6.7
+# ------------------------------------------------------------------------------ v0.6.9
 PERMIT_REASONS = frozenset({
     "allowed", "incompatible", "unknown", "not_opted_in", "not_verified",
     "not_acknowledged_for_this_engine", "unsupported_tier",

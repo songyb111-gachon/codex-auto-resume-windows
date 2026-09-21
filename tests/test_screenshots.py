@@ -30,7 +30,7 @@ Three kinds of input, and the difference matters:
   name from anywhere else, wherever those live - so moving one between modules cannot fire
   it and changing one does.
 * The **notification card** is hashed the same way: by what it says, built by the watcher's
-  own builder, and by the definitions that draw it - its own modules, wherever v0.6.7 moves
+  own builder, and by the definitions that draw it - its own modules, wherever v0.6.8 moves
   them, pooled with the popup's renderer and palette, which paint it.
 
 So this fires whenever something the picture is drawn from changed - not, as an earlier
@@ -1196,7 +1196,7 @@ class CardPictureTests(unittest.TestCase):
                 self.assertNotEqual(self.drawing(changed), before, what + " did not move the digest")
 
     def test_moving_the_card_into_ui_card_leaves_the_digest(self):
-        """v0.6.7 moves the card into `ui/card/`: its layout and its motion leave `notice_card.py`
+        """v0.6.8 moves the card into `ui/card/`: its layout and its motion leave `notice_card.py`
         for their own modules, with the imports that follow them, and comments change on the way."""
         real = self.real()
         before = self.drawing(real)
@@ -1430,7 +1430,7 @@ class IconMotionPictureTests(unittest.TestCase):
                 self.assertEqual(self.drawing(changed), before, what + " moved the entry")
 
     def test_moving_the_motion_into_a_module_of_its_own_leaves_the_entry(self):
-        """v0.6.7 splits the package; the motion leaving tray.py for its own module, with the imports that follow it,
+        """v0.6.8 splits the package; the motion leaving tray.py for its own module, with the imports that follow it,
         is the same GIF."""
         real = self.real()
         before = self.drawing(real)
