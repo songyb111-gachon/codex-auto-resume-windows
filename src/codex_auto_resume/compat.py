@@ -840,7 +840,7 @@ def permits(view, capability, *, tier, opt_in=False, engine_version=None,
             state = UNKNOWN
         if tier not in TIERS or tier == "unsupported":
             return False, "unsupported_tier"
-        if state == INCOMPATIBLE:
+        if state in (INCOMPATIBLE, FAILED_HERE):  # failed here fails a check, as incompatible does
             return False, "incompatible"
         if state == UNKNOWN:
             return False, "unknown"

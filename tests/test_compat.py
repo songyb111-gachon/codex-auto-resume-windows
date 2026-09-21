@@ -53,11 +53,13 @@ def refused(value):
 
 
 class ResolveTests(unittest.TestCase):
-    EVIDENCE = (compat.VERIFIED, compat.INCOMPATIBLE, None, "COMPATIBLE", "UNKNOWN", "garbage")
+    EVIDENCE = (compat.VERIFIED, compat.CHECKED, compat.INCOMPATIBLE, None, "COMPATIBLE", "UNKNOWN", "garbage")
 
     def test_every_pair(self):
         expected = {
-            compat.FAIL: lambda e: (compat.INCOMPATIBLE, "local_check_failed"),
+            compat.FAIL: lambda e: ((compat.FAILED_HERE, "local_check_failed_here")
+                                    if e in (compat.VERIFIED, compat.CHECKED)
+                                    else (compat.INCOMPATIBLE, "local_check_failed")),
             compat.UNAVAILABLE: lambda e: ((compat.INCOMPATIBLE, "registry_incompatible")
                                            if e == compat.INCOMPATIBLE
                                            else (compat.UNKNOWN, "local_check_unavailable")),
@@ -67,6 +69,7 @@ class ResolveTests(unittest.TestCase):
             compat.PASS: lambda e: ((compat.INCOMPATIBLE, "registry_incompatible")
                                     if e == compat.INCOMPATIBLE else
                                     (compat.VERIFIED, "registry_verified") if e == compat.VERIFIED
+                                    else (compat.CHECKED, "registry_checked") if e == compat.CHECKED
                                     else (compat.COMPATIBLE, "local_checks_passed")),
         }
         for local, evidence in itertools.product(compat.RESULTS, self.EVIDENCE):
@@ -74,8 +77,16 @@ class ResolveTests(unittest.TestCase):
                 self.assertEqual(compat.resolve(local, evidence), expected[local](evidence))
 
     def test_a_failed_local_check_always_wins(self):
+        """Nothing the data says turns a local FAIL into something that sends. Where the data checked or
+        verified this exact version the answer is FAILED_HERE - this machine, most likely - and it blocks
+        and refuses exactly as INCOMPATIBLE does (engine.py's gate, permits)."""
         for evidence in self.EVIDENCE:
-            self.assertEqual(compat.resolve(compat.FAIL, evidence)[0], compat.INCOMPATIBLE)
+            state = compat.resolve(compat.FAIL, evidence)[0]
+            self.assertIn(state, (compat.INCOMPATIBLE, compat.FAILED_HERE))
+            self.assertEqual(state == compat.FAILED_HERE, evidence in (compat.VERIFIED, compat.CHECKED))
+            self.assertIn(compat.COARSE[state], ("incompatible", "failed_here"))
+            self.assertEqual(compat.permits({"capabilities": {"x": {"state": state}}}, "x",
+                                            tier="conservative"), (False, "incompatible"))
 
     def test_nothing_but_a_local_pass_can_become_verified(self):
         for local, evidence in itertools.product(list(compat.RESULTS) + ["junk", None], self.EVIDENCE):
@@ -365,7 +376,8 @@ class EvaluateTests(unittest.TestCase):
         self.assertEqual(set(compat.ENGINE_STATES), set(store.ENGINE_STATES))
         for states in itertools.product(compat.STATES, repeat=2):
             capabilities = {name: {"state": state} for name, state in zip(compat.SEND_GATE, states)}
-            worst = min(states, key=lambda s: ["INCOMPATIBLE", "UNKNOWN", "COMPATIBLE", "VERIFIED"].index(s))
+            worst = min(states, key=lambda s: ["INCOMPATIBLE", "FAILED_HERE", "UNKNOWN", "COMPATIBLE",
+                                                "CHECKED", "VERIFIED"].index(s))
             self.assertEqual(compat.aggregate(capabilities), compat.COARSE[worst])
         self.assertEqual(compat.aggregate({}), "unknown")
         self.assertEqual(compat.aggregate({"engine_present": {"state": "sure"}}), "unknown")
@@ -541,7 +553,7 @@ class PermitTests(unittest.TestCase):
         cap = "not_loaded_recovery"
         for state in compat.STATES:
             view = self.view(state)
-            ok = state in (compat.VERIFIED, compat.COMPATIBLE)
+            ok = state in (compat.VERIFIED, compat.CHECKED, compat.COMPATIBLE)
             self.assertEqual(compat.permits(view, cap, tier="conservative")[0], ok, state)
             self.assertFalse(compat.permits(view, cap, tier="advanced", opt_in=False)[0])
             self.assertEqual(compat.permits(view, cap, tier="advanced", opt_in=True)[0],

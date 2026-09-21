@@ -298,9 +298,11 @@ class EvaluatorTests(unittest.TestCase):
         with self.assertRaises(config.ConfigError):
             fixture.app.backend()
         fixture.settle()
-        self.assertEqual(fixture.app.engine_state(), "incompatible")
+        # v0.6.7: the data vouches for this exact build, so the failure is this machine's - FAILED_HERE -
+        # and it holds every send exactly as INCOMPATIBLE does.
+        self.assertEqual(fixture.app.engine_state(), "failed_here")
         self.assertEqual(self.report(fixture)["capabilities"]["exact_thread_recovery"]["state"],
-                         compat.INCOMPATIBLE)
+                         compat.FAILED_HERE)
 
     def _document_file(self, fixture, value):
         path = Path(fixture.folder.name) / "download.json"
