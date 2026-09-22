@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import ast
 import copy
-import hashlib
 import os
 from pathlib import Path
 import re
@@ -224,16 +223,12 @@ class ActivityTests(unittest.TestCase):
         self.assertEqual(popup.activity(dict(STATUS, watcher={"engine_state": "incompatible"}), [], NOW),
                          "attention")
 
-    def test_the_badge_follows_the_ticks_snapshot(self):
-        self.assertIsNone(popup.BADGE[popup.snapshot_activity({}, NOW)])
-        self.assertIsNone(popup.BADGE[popup.snapshot_activity({"enabled": True, "waiting": 0}, NOW)])
-        self.assertEqual(popup.BADGE[popup.snapshot_activity({"enabled": True, "waiting": 2, "next_at": NOW + 9},
-                                                             NOW)], "waiting")
-        self.assertEqual(popup.BADGE[popup.snapshot_activity({"enabled": False, "waiting": 2}, NOW)], "paused")
-        self.assertEqual(popup.BADGE[popup.snapshot_activity({"enabled": True}, NOW, attention=True)], "attention")
-        for state in popup.STATES:
-            token = popup.BADGE[state]
-            self.assertTrue(token is None or token in brand.LIGHT, state)
+    def test_the_icon_s_word_follows_the_ticks_snapshot(self):
+        self.assertEqual(popup.snapshot_activity({}, NOW), "monitoring")
+        self.assertEqual(popup.snapshot_activity({"enabled": True, "waiting": 0}, NOW), "monitoring")
+        self.assertEqual(popup.snapshot_activity({"enabled": True, "waiting": 2, "next_at": NOW + 9}, NOW), "waiting")
+        self.assertEqual(popup.snapshot_activity({"enabled": False, "waiting": 2}, NOW), "paused")
+        self.assertEqual(popup.snapshot_activity({"enabled": True}, NOW, attention=True), "attention")
 
 
 # ---------------------------------------------------------------------------- placement
@@ -511,15 +506,17 @@ class MotionTests(unittest.TestCase):
         self.assertIsNone(popup.halo("paused", 1234, reduced=True))
         self.assertFalse(popup.animates("paused"))
 
-    def test_attention_runs_the_cycle_once_when_it_arrives_and_then_holds_lit(self):
-        pulse = self.GLOW["attention_ms"]
-        self.assertAlmostEqual(popup.halo("attention", 0, since_entered_ms=pulse * 0.5)["dim"],
-                               1.0 - brand.glow_floor())
-        self.assertAlmostEqual(popup.halo("attention", 0, since_entered_ms=0)["opacity"], self.GLOW["peak"])
-        self.assertEqual(popup.halo("attention", 0, since_entered_ms=pulse * 3), self.STILL)
-        self.assertEqual(popup.halo("attention", 0), self.STILL)
-        self.assertTrue(popup.animates("attention", pulse / 2))
-        self.assertFalse(popup.animates("attention", pulse + 1))
+    def test_attention_breathes_slowly_for_as_long_as_it_lasts(self):
+        """Until v0.6.8 it ran the cycle once when it arrived and then held lit; now it is the slowest breath."""
+        cycle = self.GLOW["attention_ms"]
+        self.assertGreater(cycle, self.GLOW["monitoring_ms"])
+        for loop in (0, 1, 12):
+            at = loop * cycle
+            self.assertAlmostEqual(popup.halo("attention", at + cycle * 0.5, at + cycle * 0.5)["dim"],
+                                   1.0 - brand.glow_floor())
+            self.assertAlmostEqual(popup.halo("attention", at, at)["opacity"], self.GLOW["peak"])
+        for since in (0, cycle / 2, cycle + 1, cycle * 30):
+            self.assertTrue(popup.animates("attention", since))
 
     def test_reduced_motion_never_loops_or_pulses(self):
         for state in popup.STATES:
@@ -851,32 +848,13 @@ class ActionTests(unittest.TestCase):
         self.assertEqual(model.view(NOW)["error"], EN["pending.unavailable"])
 
 
-# -------------------------------------------------------------------- badge and fonts
-class BadgeTests(unittest.TestCase):
-    def test_the_dot_is_drawn_in_its_colour_inside_a_cut_out(self):
-        size = 32
-        pixels = bytearray(bytes((200, 100, 50, 255)) * (size * size))
-        colour = brand.rgb(brand.LIGHT["waiting"])
-        popup.composite_badge(pixels, size, size, colour)
-        cut = size * 0.25
-        centre = int(size - cut)
-        index = (centre * size + centre) * 4
-        self.assertEqual(tuple(pixels[index:index + 4]), (colour[2], colour[1], colour[0], 255))
-        ring = int(size - cut + (cut - 1.0))                   # inside the cut, outside the dot
-        index = (centre * size + min(size - 1, ring)) * 4
-        self.assertLess(pixels[index + 3], 255)
-        self.assertEqual(tuple(pixels[0:4]), (200, 100, 50, 255))
-
-    def test_a_small_icon_still_gets_a_dot(self):
-        pixels = bytearray(16 * 16 * 4)
-        popup.composite_badge(pixels, 16, 16, brand.rgb(brand.LIGHT["attention"]))
-        self.assertGreater(sum(pixels[3::4]), 255 * 4)
-
-    def test_the_icon_s_badge_is_what_it_was_before_v0_6_4(self):
-        """v0.6.4 changed the status light inside the windows and left the icon alone: the same
-        table, the same state from the same snapshot, and the same pixels, pinned from v0.6.3."""
-        self.assertEqual(popup.BADGE, {"monitoring": None, "waiting": "waiting", "checking": "waiting",
-                                       "recovering": "active", "paused": "paused", "attention": "attention"})
+# -------------------------------------------------------------------- no badge, and fonts
+class NoBadgeTests(unittest.TestCase):
+    def test_the_icon_wears_no_badge_and_reads_the_same_word(self):
+        """v0.6.8: the badge is gone - the user: "왜 트레이는 복구 중에 우측 하단에 상태등이 하나 더 생기지" - and the
+        icon's state still comes from the same word for the same snapshot, as it has since v0.6.3."""
+        for name in ("BADGE", "composite_badge", "badge_icon", "_read_pixels"):
+            self.assertFalse(hasattr(popup, name), name)
         snapshots = [({}, {}), ({"enabled": True, "waiting": 0}, {}),
                      ({"enabled": True, "waiting": 2, "next_at": NOW + 9}, {}),
                      ({"enabled": True, "waiting": 2, "next_at": NOW - 1}, {}),
@@ -887,17 +865,6 @@ class BadgeTests(unittest.TestCase):
         self.assertEqual([popup.snapshot_activity(snapshot, NOW, **options) for snapshot, options in snapshots],
                          ["monitoring", "monitoring", "waiting", "checking", "waiting", "recovering", "paused",
                           "paused", "attention", "attention", "monitoring"])
-        digest = hashlib.sha256()
-        for size in (16, 20, 24, 32, 48):
-            for token in ("waiting", "active", "paused", "attention"):
-                pixels = bytearray()
-                for y in range(size):
-                    for x in range(size):
-                        pixels += bytes(((x * 17 + y * 5) % 256, (x * 3 + y * 11) % 256, (x * 29 + 7) % 256,
-                                         255 if (x + y) % 5 else 128))
-                popup.composite_badge(pixels, size, size, brand.rgb(brand.LIGHT[token]))
-                digest.update(bytes(pixels))
-        self.assertEqual(digest.hexdigest(), "5b39ad98edd39a1426d1cf24e4ac9a83c4bdc9199e5c625ad80c50fd63855494")
 
 
 MALGUN_LOCALIZED = "\ub9d1\uc740 \uace0\ub515"       # Malgun Gothic's name on a Korean Windows
@@ -1130,8 +1097,7 @@ class SafetyTests(unittest.TestCase):
             with self.subTest(srcscan.relative(path)):
                 self.assertEqual(re.findall(r"#[0-9A-Fa-f]{6}\b", text), [])
             used |= set(re.findall(r"(?:argb|colorref)\(\"([a-z_]+)\"", text))
-        tables = set(popup.DOT_FILL.values()) | set(popup.STATE_INK.values()) | {
-            token for token in popup.BADGE.values() if token}
+        tables = set(popup.DOT_FILL.values()) | set(popup.STATE_INK.values())
         for token in used | tables | {"waiting", "warning", "paused"}:
             self.assertIn(token, brand.LIGHT, token)
 
@@ -1447,64 +1413,6 @@ class WindowsTests(unittest.TestCase):
         finally:
             window.destroy()
 
-    def test_the_badge_icon_is_made_and_released(self):
-        import ctypes
-        user32 = ctypes.WinDLL("user32")
-        user32.LoadImageW.restype = ctypes.c_void_p
-        user32.LoadImageW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_uint, ctypes.c_int,
-                                      ctypes.c_int, ctypes.c_uint]
-        user32.DestroyIcon.argtypes = [ctypes.c_void_p]
-        base = user32.LoadImageW(None, str(ROOT / "assets" / "codex-auto-resume.ico"), 1, 32, 32, 0x10)
-        self.assertTrue(base)
-        try:
-            def once():
-                badge = popup.badge_icon(base, "waiting")
-                self.assertTrue(badge)
-                user32.DestroyIcon(badge)
-            self.cycle_and_measure(once)
-        finally:
-            user32.DestroyIcon(base)
-
-    def test_the_badge_icon_is_the_badge_drawn_into_the_icon_s_own_pixels(self):
-        import ctypes
-        user32 = ctypes.WinDLL("user32")
-        user32.LoadImageW.restype = ctypes.c_void_p
-        user32.LoadImageW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_uint, ctypes.c_int,
-                                      ctypes.c_int, ctypes.c_uint]
-        user32.DestroyIcon.argtypes = [ctypes.c_void_p]
-        popup._declare()
-        gdi32 = popup._dll("gdi32")
-
-        def colour_pixels(icon):
-            info = popup.ICONINFO()
-            self.assertTrue(popup._dll("user32").GetIconInfo(icon, ctypes.byref(info)))
-            try:
-                shape = popup.BITMAP()
-                self.assertTrue(gdi32.GetObjectW(info.hbmColor, ctypes.sizeof(popup.BITMAP), ctypes.byref(shape)))
-                return popup._read_pixels(info.hbmColor, shape.bmWidth, abs(shape.bmHeight)), shape.bmWidth
-            finally:
-                gdi32.DeleteObject(info.hbmColor)
-                gdi32.DeleteObject(info.hbmMask)
-
-        for size in (16, 32):
-            base = user32.LoadImageW(None, str(ROOT / "assets" / "codex-auto-resume.ico"), 1, size, size, 0x10)
-            self.assertTrue(base)
-            try:
-                original, width = colour_pixels(base)
-                self.assertTrue(any(original[3::4]))                   # the icon carries its own alpha
-                for token in ("waiting", "active", "paused", "attention"):
-                    with self.subTest(size=size, token=token):
-                        expected = bytearray(original)
-                        popup.composite_badge(expected, width, len(original) // (4 * width),
-                                              brand.rgb(brand.LIGHT[token]))
-                        badge = popup.badge_icon(base, token)
-                        try:
-                            self.assertEqual(colour_pixels(badge)[0], expected)
-                        finally:
-                            user32.DestroyIcon(badge)
-            finally:
-                user32.DestroyIcon(base)
-
     def test_a_new_language_rebuilds_the_fonts_on_the_next_frame(self):
         window = self.make()
         try:
@@ -1706,34 +1614,16 @@ class WindowsTests(unittest.TestCase):
         finally:
             renderer.close()
 
-    def test_a_closed_popup_does_not_hold_the_badge_on_attention(self):
-        import ctypes
-        from types import SimpleNamespace
-        user32 = ctypes.WinDLL("user32")
-        user32.LoadImageW.restype = ctypes.c_void_p
-        user32.LoadImageW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_uint, ctypes.c_int,
-                                      ctypes.c_int, ctypes.c_uint]
-        user32.DestroyIcon.argtypes = [ctypes.c_void_p]
-        base = user32.LoadImageW(None, str(ROOT / "assets" / "codex-auto-resume.ico"), 1, 32, 32, 0x10)
-        self.assertTrue(base)
+    def test_a_closed_popup_does_not_hold_the_icon_on_attention(self):
         stale = dict(STATUS, watcher=dict(STATUS["watcher"], ticking=False))
         window = popup.Popup(control=FakeControl([], stale), strings=EN)
         window.model.apply_outcome(("read",), popup.perform(("read",), window.control), time.time())
         self.assertTrue(window.attention())
-        icon = SimpleNamespace(_icon=base, _popup=window, _badge=None, _badge_token=None, _shown_icon=None,
-                               log=lambda message: None)
         snapshot = {"enabled": True, "waiting": 0, "running": 0, "next_at": None}
-        try:
-            window.visible = False
-            tray.Tray._badge_for(icon, snapshot)
-            self.assertNotEqual(icon._badge_token, "attention")
-            window.visible = True
-            tray.Tray._badge_for(icon, snapshot)
-            self.assertEqual(icon._badge_token, "attention")
-        finally:
-            if icon._badge:
-                user32.DestroyIcon(icon._badge)
-            user32.DestroyIcon(base)
+        window.visible = False
+        self.assertNotEqual(tray.icon_state(snapshot, attention=tray.popup_attention(window)), "attention")
+        window.visible = True
+        self.assertEqual(tray.icon_state(snapshot, attention=tray.popup_attention(window)), "attention")
 
     def test_the_icon_starts_with_the_popup_wired_and_stops_cleanly(self):
         icon = tray.Tray(icon_path=ROOT / "assets" / "codex-auto-resume.ico", strings=EN,
@@ -1743,20 +1633,17 @@ class WindowsTests(unittest.TestCase):
             icon.update({"enabled": True, "waiting": 2, "running": 0, "next_at": time.time() + 60})
             deadline = time.monotonic() + 5
 
-            def badged_frame():
-                key = icon._frame_key
-                return bool(icon._frame_icon) and key is not None and key[2] == "waiting"
-            while not badged_frame() and time.monotonic() < deadline:
+            def framed():
+                return bool(icon._frame_icon) and icon._frame_key is not None
+            while not framed() and time.monotonic() < deadline:
                 time.sleep(0.05)
-            self.assertEqual(icon._badge_token, "waiting")
-            # Since v0.6.5 the icon is shown as a composed frame carrying the badge, and the badged
-            # copy of the .ico it was shown as until its frame table was built has been let go.
-            self.assertTrue(badged_frame())
-            self.assertIsNone(icon._badge)
+            # Since v0.6.5 the icon is shown as a composed frame; since v0.6.8 that frame is the head alone.
+            self.assertTrue(framed())
+            self.assertEqual(len(icon._frame_key), 2)
+            self.assertEqual(icon._icon_state, "watching")
         finally:
             icon.stop()
         self.assertFalse(icon._thread.is_alive())
-        self.assertIsNone(icon._badge)
         self.assertIsNone(icon._frame_icon)
 
     def cycle_and_measure(self, action, rounds=50):

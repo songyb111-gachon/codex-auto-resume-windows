@@ -1014,8 +1014,25 @@ class Store:
     def pending(self) -> list[dict[str, Any]]:
         return self.records_in(STATES - TERMINAL)
 
+    def failure_marks(self) -> dict[str, Any]:
+        """Two times for the icon's "a recovery failed" (v0.6.8): the newest certain failure - a `failed` record's
+        outcome_at, which it is given once as it ends and never again - and the newest moment a recovery was on its
+        way: a claim still held (submitted_at, which a claim handed back unsent clears), a continuation queued
+        (first_queued_at) or a recovery turn seen starting (turn_started_at). Not last_claim_at: a claim released before
+        anything was sent keeps it, and sent nothing. Read from the records, never the journal. A failure hidden by
+        Clear history counts for nothing, and neither does a row migrated from schema 2, which has no outcome_at."""
+        with self._read() as connection:
+            failed = connection.execute(
+                "SELECT max(outcome_at) FROM interruptions WHERE state='failed' AND outcome_at IS NOT NULL "
+                "AND history_hidden_at IS NULL").fetchone()[0]
+            started = connection.execute(
+                "SELECT max(max(coalesce(submitted_at, 0), coalesce(first_queued_at, 0), "
+                "coalesce(turn_started_at, 0))) FROM interruptions").fetchone()[0]
+        started = _finite(started)
+        return {"failed_at": _finite(failed), "started_at": started if started else None}
+
     def history(self, *, include_hidden: bool = False, limit: int = 500) -> list[dict[str, Any]]:
-        """Records for display, newest first. The only reader that honours Clear history."""
+        """Records for display, newest first. With failure_marks, the readers that honour Clear history."""
         limit = max(1, min(int(limit), 10000))
         where = "" if include_hidden else "WHERE history_hidden_at IS NULL"
         with self._read() as connection:

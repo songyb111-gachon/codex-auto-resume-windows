@@ -22,10 +22,13 @@ ROOT = Path(__file__).resolve().parents[1]
 MATRIX = ROOT / "docs" / "FEATURE_MATRIX.md"
 KOREAN = ROOT / "docs" / "FEATURE_MATRIX.ko.md"
 
-# `tests/test_engine.py:CorrelationTests.test_T01_...`, and the bare `test_...`
-# continuations that follow one in the same cell.
+# `tests/test_engine.py:CorrelationTests.test_T01_...`, and what follows one in the same cell without
+# repeating the module: a class (`WindowsTests`), a class and a test (`WindowsTests.test_x`), or a bare
+# test (`test_x`), each read in the module the cell last named.
 CITATION = re.compile(r"tests/(test_[A-Za-z0-9_]+)\.py:([A-Za-z_][A-Za-z0-9_]*)"
                       r"(?:\.(test_[A-Za-z0-9_]+))?")
+TOKEN = re.compile(r"`([^`]+)`")
+CONTINUED = re.compile(r"(?:([A-Z][A-Za-z0-9_]*Tests)(?:\.(test_[A-Za-z0-9_]+))?|(test_[A-Za-z0-9_]+))")
 # A path in backticks that points into this repository rather than at a command.
 PATH = re.compile(r"`((?:src|tests|scripts|build|gui|docs|assets|install|skills)/[^`\s]+)`")
 LEVELS = ("IMPLEMENTED", "UNIT TESTED", "INTEGRATION TESTED", "REAL WINDOWS TESTED",
@@ -44,6 +47,42 @@ def members(module: str) -> dict:
     return found
 
 
+def unresolved(text: str, cache: dict, name: str) -> list:
+    """Every citation in `text` that names a module, class or test that does not exist."""
+    missing = []
+    for line in text.splitlines():
+        if not line.startswith("|"):
+            continue
+        for cell in line.split("|"):
+            module = None
+            for token in TOKEN.findall(cell):
+                full = CITATION.fullmatch(token) or CITATION.match(token)
+                if full:
+                    module, klass, method = full.groups()
+                    if not (ROOT / "tests" / (module + ".py")).is_file():
+                        missing.append("%s: tests/%s.py does not exist" % (name, module))
+                        module = None
+                        continue
+                    classes = cache.setdefault(module, members(module))
+                    if klass not in classes:
+                        missing.append("%s: tests/%s.py has no class %s" % (name, module, klass))
+                    elif method and method not in classes[klass]:
+                        missing.append("%s: tests/%s.py:%s has no %s" % (name, module, klass, method))
+                    continue
+                continued = CONTINUED.fullmatch(token)
+                if module is None or not continued:
+                    continue
+                classes = cache.setdefault(module, members(module))
+                klass, method, bare = continued.groups()
+                if bare and not any(bare in tests for tests in classes.values()):
+                    missing.append("%s: tests/%s.py has no %s" % (name, module, bare))
+                elif klass and klass not in classes:
+                    missing.append("%s: tests/%s.py has no class %s" % (name, module, klass))
+                elif klass and method and method not in classes[klass]:
+                    missing.append("%s: tests/%s.py:%s has no %s" % (name, module, klass, method))
+    return missing
+
+
 class CitationTests(unittest.TestCase):
     def setUp(self):
         if not MATRIX.is_file():
@@ -51,20 +90,20 @@ class CitationTests(unittest.TestCase):
         self.text = MATRIX.read_text(encoding="utf-8")
 
     def test_every_test_it_cites_exists(self):
+        """In both languages, and down to the names a cell lists after its first full citation."""
         cache = {}
         missing = []
-        for module, klass, method in CITATION.findall(self.text):
-            if not (ROOT / "tests" / (module + ".py")).is_file():
-                missing.append("tests/%s.py does not exist" % module)
-                continue
-            classes = cache.setdefault(module, members(module))
-            if klass not in classes:
-                missing.append("tests/%s.py has no class %s" % (module, klass))
-            elif method and method not in classes[klass]:
-                missing.append("tests/%s.py:%s has no %s" % (module, klass, method))
+        for path in (MATRIX, KOREAN):
+            if path.is_file():
+                missing += unresolved(path.read_text(encoding="utf-8"), cache, path.name)
         self.assertEqual(sorted(set(missing)), [],
                          "the matrix cites evidence that is no longer there; a citation "
                          "that does not resolve is a claim nobody can check")
+
+    def test_a_bare_name_that_is_not_there_is_caught(self):
+        cell = "| x | UNIT TESTED | `tests/test_feature_matrix.py:CitationTests` (2 tests, incl. `test_no_such_thing`) | - |"
+        self.assertEqual(unresolved(cell, {}, "row"),
+                         ["row: tests/test_feature_matrix.py has no test_no_such_thing"])
 
     def test_every_file_it_points_at_is_in_the_repository(self):
         """Not merely on the machine that wrote the sentence.

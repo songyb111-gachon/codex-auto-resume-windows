@@ -560,6 +560,7 @@
   "timeline.col_time": "Time",
   "timeline.empty": "Nothing recorded",
   "timeline.title": "Timeline",
+  "tray.failed": "A recovery failed",
   "tray.idle": "Nothing waiting",
   "tray.next": "next check in {time}",
   "tray.paused": "Paused",

@@ -699,14 +699,13 @@ class StatusLightTests(unittest.TestCase):
                 return low + (high - low) * eased, small + (large - small) * eased
         raise AssertionError(progress)
 
-    def light(self, state, elapsed, once=False):
+    def light(self, state, elapsed):
         """The dot's opacity, the glow's opacity and the glow's scale the stylesheet draws at `elapsed`."""
-        suffix = ".once" if once else ""
-        dot = self.animation(".halo.%s%s" % (state, suffix))
-        glow = self.animation(".halo.%s%s::before" % (state, suffix))
+        dot = self.animation(".halo.%s" % state)
+        glow = self.animation(".halo.%s::before" % state)
         for animation in (dot, glow):
-            self.assertEqual(animation[3], "1" if once else "infinite")
-            self.assertEqual(animation[1], brand.GLOW[("attention" if once else state) + "_ms"])
+            self.assertEqual(animation[3], "infinite")
+            self.assertEqual(animation[1], brand.GLOW[state + "_ms"])
         return self.frame(dot, elapsed)[0], self.frame(glow, elapsed)[0], self.frame(glow, elapsed)[1]
 
     def assertBrands(self, drawn, frame):
@@ -718,27 +717,21 @@ class StatusLightTests(unittest.TestCase):
     def test_the_light_runs_brands_cycle_on_brands_curve(self):
         # Sampled over two cycles against brand.glow(), which the window and the popup draw too: the dot's
         # opacity over the card is its dimming, and the glow's opacity and scale are its spread. The easing is
-        # a Bezier, so each phase is a half-cosine only to within a small error.
-        for state in ("monitoring", "recovering"):
+        # a Bezier, so each phase is a half-cosine only to within a small error. Attention loops too since
+        # v0.6.8, the slowest of the three, where it used to run the cycle once and hold.
+        for state in ("monitoring", "recovering", "attention"):
             cycle = brand.GLOW[state + "_ms"]
             for step in range(193):
                 elapsed = cycle * 2 * step / 192
                 with self.subTest(state=state, elapsed=elapsed):
                     self.assertBrands(self.light(state, elapsed), brand.glow(state, elapsed))
 
-    def test_a_problem_runs_the_cycle_once_and_then_holds_lit(self):
-        pulse = brand.GLOW["attention_ms"]
-        # Up to the end of the pulse. At the end the animation stops and the element falls back to its own
-        # style, which is the still light - and that is the assertion below, not a frame of the animation.
-        for step in range(96):
-            since = pulse * step / 96
-            with self.subTest(since=since):
-                self.assertBrands(self.light("attention", since, once=True),
-                                  brand.glow("attention", 0, since_entered_ms=since))
-        # Once it has run, what is left is the still light: the dot at full strength, no glow.
-        self.assertIsNone(declared(".halo.attention", "animation"))
+    def test_attention_breathes_for_as_long_as_it_lasts_and_nothing_pulses_once(self):
+        """v0.6.8: "확인필요는 천천히 계속 부드럽게 깜빡이고" - the hero no longer marks a light to run once."""
+        self.assertLess(brand.GLOW["monitoring_ms"], brand.GLOW["attention_ms"])
+        self.assertNotIn(".once", mcpui._STYLE)
+        self.assertNotIn("LAST_STATE", mcpui._SCRIPT)
         self.assertIsNone(declared(".halo", "opacity"))
-        self.assertEqual(self.static_opacity("attention"), brand.glow("attention", 0)["opacity"])
 
     def test_waiting_and_checking_hold_lit_with_no_glow(self):
         for state in ("waiting", "checking"):
@@ -783,7 +776,6 @@ class HeroLightTests(unittest.TestCase):
     """The word and the light: a watcher that is not running asks for attention with a grey light."""
 
     PRELUDE = """
-      var LAST_STATE = '';
       var document = {createElement: function (tag) {
         return {tag: tag, children: [], attributes: {}, className: '', textContent: '',
                 setAttribute: function (name, value) { this.attributes[name] = value; },
@@ -806,7 +798,6 @@ class HeroLightTests(unittest.TestCase):
             ["t", "fill", "element", "activity", "lightFor", "nextCheck", "heroFacts", "renderHero"], """
           DATA = {pending: []};
           process.stdout.write(JSON.stringify(%s.map(function (status) {
-            LAST_STATE = '';
             var hero = renderHero(status).node;
             var line = hero.children[1];
             return [hero.attributes['data-state'], line.children[0].className, line.children[1].textContent];

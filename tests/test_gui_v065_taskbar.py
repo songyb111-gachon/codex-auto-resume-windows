@@ -134,8 +134,9 @@ WATCHERS = {
 class WatcherStore:
     """The watcher's store, as tray.snapshot_from reads it."""
 
-    def __init__(self, records, enabled):
+    def __init__(self, records, enabled, marks=None):
         self.records, self.enabled = records, enabled
+        self.marks = marks or {"failed_at": None, "started_at": None}
 
     def pending(self):
         return [dict(record) for record in self.records]
@@ -143,20 +144,26 @@ class WatcherStore:
     def settings(self):
         return {"enabled": self.enabled}
 
+    def failure_marks(self):
+        return dict(self.marks)
 
-def tray_icon(status, rows, records, enabled, popup_open, now=NOW):
+
+def tray_icon(status, rows, records, enabled, popup_open, now=NOW, failure=None):
     """The notification-area icon's state for one watcher, by tray.py's own code, as Tray._observe makes it: the tick's
-    snapshot of the store (snapshot_from), and whether its popup, open or not, says a person must act (popup_attention
-    over a PopupModel that read the same get_status and list_pending the window reads)."""
-    snapshot = tray.snapshot_from(WatcherStore(records, enabled), now)
+    snapshot of the store (snapshot_from), whether a failure in it is still unseen (Tray._failure_unseen, through the
+    control layer's rule), and whether its popup, open or not, says a person must act (popup_attention over a
+    PopupModel that read the same get_status and list_pending the window reads). `failure` is (marks, seen_at)."""
+    marks, seen = failure or (None, None)
+    snapshot = tray.snapshot_from(WatcherStore(records, enabled, marks), now)
+    failed = control.unseen_failure(snapshot["failures"], seen) is not None
     model = tray_popup.PopupModel()
     model.status, model.rows = copy.deepcopy(status), copy.deepcopy(rows)
     popup = types.SimpleNamespace(visible=popup_open, attention=model.attention)
-    return tray.icon_state(snapshot, attention=tray.popup_attention(popup), failed=snapshot.get("failed") is True)
+    return tray.icon_state(snapshot, attention=tray.popup_attention(popup), failed=failed)
 
 
 def watcher_case(name, records, *, watcher, enabled=True, listed=True, upgrade=False, disabled=(), now=NOW,
-                 listed_with=None):
+                 listed_with=None, failure=None):
     """One watcher: what the window reads of it - control.get_status and control.list_pending, as the bridge's dashboard
     reply carries them, each row from control.describe_record - and, where a watcher of this version runs and so has an
     icon, that icon's state with its popup closed and open (tray_icon). A list that could not be read is None, and the
@@ -172,6 +179,9 @@ def watcher_case(name, records, *, watcher, enabled=True, listed=True, upgrade=F
             codes[code] = codes.get(code, 0) + 1
     status = {"version": "0.6.5", "enabled": enabled, "watcher_running": watcher["running"], "watcher": watcher,
               "upgrade_pending": upgrade, "startup_enabled": True, "pending": len(records), "codes": codes}
+    if failure is not None:
+        # get_status's key, by the same rule the icon asks the control layer (Control.failure_unseen).
+        status["failure_unseen"] = control.unseen_failure(*failure) is not None
     rows = None
     if listed and not upgrade:
         rows = []
@@ -182,7 +192,7 @@ def watcher_case(name, records, *, watcher, enabled=True, listed=True, upgrade=F
             rows.append(row)
     icon = None
     if watcher["running"] is True and not upgrade:
-        icon = tuple(tray_icon(status, rows, records, enabled, opened, now) for opened in (False, True))
+        icon = tuple(tray_icon(status, rows, records, enabled, opened, now, failure) for opened in (False, True))
     return {"name": name, "status": status, "rows": rows, "tray": icon}
 
 
@@ -220,6 +230,17 @@ def window_cases():
         for enabled in (True, False):
             name = "an older watcher owns the state, %s, %s" % (watcher_name, "on" if enabled else "paused")
             cases.append(watcher_case(name, [waiting], watcher=WATCHERS[watcher_name], enabled=enabled, upgrade=True))
+    # v0.6.8: a certain failure, unseen, seen, and followed by a new recovery - red only while nobody has seen it and
+    # nothing has started since, whatever else the watcher is doing, and never where no watcher of this version runs.
+    failures = {"a failure nobody has seen": ({"failed_at": NOW - 60, "started_at": NOW - 90}, NOW - 3600),
+                "a failure already seen": ({"failed_at": NOW - 60, "started_at": NOW - 90}, NOW - 30),
+                "a failure a new recovery followed": ({"failed_at": NOW - 60, "started_at": NOW - 20}, NOW - 3600)}
+    for failure_name, failure in failures.items():
+        for watcher_name in ("watching", "not running", "an incompatible engine"):
+            for enabled in (True, False):
+                name = "%s, %s, %s, one waiting" % (watcher_name, "on" if enabled else "paused", failure_name)
+                cases.append(watcher_case(name, [waiting], watcher=WATCHERS[watcher_name], enabled=enabled,
+                                          failure=failure))
     # The list read a moment after the status, the watcher changed between: its records carry what the status does not
     # yet say (tray_popup.ATTENTION_OVERLAYS), which the open popup reads as a person needing to act.
     for watcher_name in ("an incompatible engine", "not running", "not ticking"):
@@ -558,7 +579,7 @@ foreach ($light in @('monitoring', 'recovering', 'paused', 'attention', 'failed'
 }
 $reduce.SetValue($null, $false)
 
-# Recovering turns all the time, paused is grey and still, a problem pulses once and holds.
+# Recovering and a failure turn all the time, paused is grey and still, attention breathes slowly (since v0.6.8).
 foreach ($pair in @(@('recovering', 'recovering'), @('paused', 'idle'), @('attention', 'attention'), @('failed', 'failed'), @('idle', 'idle'))) {
     [ProbeClock]::Now = 400000
     $null = $follow.Invoke($mark, [object[]]@($pair[0]))
@@ -762,7 +783,8 @@ class TaskbarMarkTests(unittest.TestCase):
                                                                "turn_running", "turn_finishing"})
         self.assertEqual(len({case["name"] for case in self.cases}), len(self.cases))
         icons = {case["tray"] for case in self.cases if case["tray"] is not None}
-        self.assertEqual({opened for _, opened in icons}, {"watching", "recovering", "idle", "attention"})
+        # "failed" since v0.6.8: a certain failure nobody has seen (window_cases' failure cases).
+        self.assertEqual({opened for _, opened in icons}, {"watching", "recovering", "idle", "attention", "failed"})
 
     def test_every_watcher_the_window_can_see_is_the_tray_icon_s_state_for_it(self):
         """The icon's state by tray.py's own code, not a snapshot or an attention written here: the last round's test
@@ -986,20 +1008,33 @@ class TaskbarMarkTests(unittest.TestCase):
                 self.assertNotEqual(entry["walk"][0][1], self.answer["own"]["big"])
                 self.small_is_still(entry["walk"])
 
-    def test_a_problem_pulses_once_and_then_holds_its_colour(self):
-        for light in ("attention", "failed"):
-            entry = self.answer[light]
-            walk = entry["walk"]
-            with self.subTest(light=light):
-                self.assertEqual(entry["state"], light)
-                self.assertTrue(entry["moving"], "the pulse runs the timer")
-                pulse = [row for row in walk if row[0] < brand.GLOW["attention_ms"]]
-                after = [row for row in walk if row[0] >= brand.GLOW["attention_ms"]]
-                self.assertGreaterEqual(len({row[2] for row in pulse}), 4)
-                self.assertEqual({row[2] for row in after}, {entry["rest"]})
-                self.assertFalse(after[-1][5], "no timer once the pulse is over")
-                self.assertFalse(entry["movingAfter"])
-                self.small_is_still(walk)
+    def test_a_failure_sweeps_on_the_big_icon_twice_as_quickly_as_recovering(self):
+        """v0.6.8: red never holds still, and its head moves: recovering's sweep in half the time, on the turn's
+        frame rate, for as long as the failure is shown - past the 1.4 s a one-time pulse used to last."""
+        entry = self.answer["failed"]
+        walk = entry["walk"]
+        self.assertEqual(entry["state"], "failed")
+        self.assertTrue(entry["moving"])
+        self.assertEqual(entry["interval"], tray.ICON_MOTION["turn_frame_ms"])
+        late = [row for row in walk if row[0] >= 1400]
+        self.assertGreaterEqual(len({row[2] for row in late}), 4, "the head stopped moving")
+        self.assertTrue(all(row[5] for row in walk), "the timer stopped")
+        self.assertTrue(entry["movingAfter"])
+        self.small_is_still(walk)
+
+    def test_attention_breathes_slowly_for_as_long_as_it_lasts(self):
+        """v0.6.8: amber breathes at home on brand's attention rhythm, the slowest, and keeps the breathing rate's
+        timer; until then it pulsed once and held."""
+        entry = self.answer["attention"]
+        walk = entry["walk"]
+        self.assertEqual(entry["state"], "attention")
+        self.assertTrue(entry["moving"])
+        self.assertEqual(entry["interval"], tray.ICON_MOTION["breathe_frame_ms"])
+        late = [row for row in walk if row[0] >= 1400]
+        self.assertGreaterEqual(len({row[2] for row in late}), 4, "it stopped breathing after one pulse")
+        self.assertTrue(all(row[5] for row in walk), "the timer stopped")
+        self.assertTrue(entry["movingAfter"])
+        self.small_is_still(walk)
 
     def test_each_reason_holds_it_still_and_it_moves_again_when_the_reason_goes(self):
         own = self.answer["own"]

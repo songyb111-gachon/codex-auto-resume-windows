@@ -560,6 +560,7 @@
   "timeline.col_time": "시각",
   "timeline.empty": "기록된 것이 없습니다",
   "timeline.title": "진행 기록",
+  "tray.failed": "복구에 실패했습니다",
   "tray.idle": "기다리는 작업 없음",
   "tray.next": "{time} 뒤 다시 확인",
   "tray.paused": "일시 정지됨",

@@ -276,9 +276,9 @@ def methods() -> str:
         "        /// The status light for one frame, or false when the light is off: brand.glow() in C#. `dim` is\n",
         "        /// how far the dot is drawn from its colour toward the ground under it, `opacity` multiplies the\n",
         "        /// glow's falloff, `spread` is how far out the glow is - 0 none, 1 GlowReach past the dot's edge -\n",
-        "        /// and `arc` is the checking arc's start angle in degrees, or -1. A negative or NaN sinceEnteredMs\n",
-        "        /// means the state's one pulse is over. The caller neither dims the dot nor draws a glow in High\n",
-        "        /// Contrast.\n",
+        "        /// and `arc` is the checking arc's start angle in degrees, or -1. Every light that moves loops on\n",
+        "        /// elapsedMs; sinceEnteredMs is what a problem's one pulse ran on until v0.6.8 and is read by\n",
+        "        /// nothing now. The caller neither dims the dot nor draws a glow in High Contrast.\n",
         "        internal static bool Glow(string state, double elapsedMs, double sinceEnteredMs, bool reduced,\n",
         "                                  out double dim, out double opacity, out double spread, out double arc)\n",
         "        {\n",
@@ -301,19 +301,14 @@ def methods() -> str:
         "                arc = reduced ? GlowArcStillAt : elapsedMs % GlowArcMs / GlowArcMs * 360.0;\n",
         "                return true;\n",
         "            }\n",
-        "            if (%s)\n" % _condition(brand.GLOW_PULSES),
-        "                return reduced || !(sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs)\n",
-        "                       || Light(sinceEnteredMs / GlowAttentionMs, out dim, out opacity, out spread);\n",
         "            return false;\n",
         "        }\n",
         "\n",
-        "        /// Whether a frame timer has anything to draw for this state.\n",
+        "        /// Whether a frame timer has anything to draw for this state: every breathing state and checking's\n",
+        "        /// arc, for as long as the state lasts.\n",
         "        internal static bool GlowMoves(string state, double sinceEnteredMs, bool reduced)\n",
         "        {\n",
-        "            if (reduced) return false;\n",
-        '            if (%s || state == "checking") return true;\n' % _condition(brand.GLOW_BREATHES),
-        "            return (%s) && sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs;\n"
-        % _condition(brand.GLOW_PULSES),
+        '            return !reduced && (%s || state == "checking");\n' % _condition(brand.GLOW_BREATHES),
         "        }\n",
         "\n",
     ] + light_method() + [
@@ -652,9 +647,14 @@ def mark_class() -> str:
     if set(tray.ICON_FOR_LIGHT) != set(brand.STATUS_FILL):
         raise ValueError("every status light has an icon state, and anything else is idle")
     unknown = tray.icon_head_colour("an unknown state")
-    pulses = [state for state in tray.ICON_STATES if tray.icon_brand_state(state) in brand.GLOW_PULSES]
-    if pulses != ["attention", "failed"]:
-        raise ValueError("Brand.Mark pulses attention and failed once, which are brand's pulses")
+    if hasattr(brand, "GLOW_PULSES"):
+        raise ValueError("Brand.Mark has no one-time pulse since v0.6.8, and neither has brand")
+    if tray.ICON_BREATHS != {"watching": "monitoring_ms", "attention": "attention_ms"}:
+        raise ValueError("Brand.Mark breathes watching and attention on brand's rhythms for them")
+    if tray.ICON_SWEEPS != ("watching", "recovering", "failed"):
+        raise ValueError("Brand.Mark sweeps watching, recovering and failed")
+    if tray.ICON_TRAVEL_BREATHS != {"failed": "failed_ms"}:
+        raise ValueError("Brand.Mark blinks a failure's head as it sweeps, and nothing else's")
     dim = brand.rgb(tray.ICON_DIM_TOWARD)
     lines = [
         "\n",
@@ -664,14 +664,16 @@ def mark_class() -> str:
         "        /// shows them.\n",
         "        internal static class Mark\n",
         "        {\n",
-        "            // tray.ICON_MOTION. The icon also reads two of brand.GLOW's rhythms, which Brand declares:\n",
-        "            // GlowMonitoringMs (watching's breath, and so every slot of its loop and recovering's sweep)\n",
-        "            // and GlowAttentionMs (a problem's one pulse).\n",
+        "            // tray.ICON_MOTION. The icon also reads three of brand.GLOW's rhythms, which Brand declares:\n",
+        "            // GlowMonitoringMs (watching's breath, and so every slot of its loop and of recovering's and a\n",
+        "            // failure's sweeps), GlowAttentionMs (attention's breath) and GlowFailedMs (the blink a\n",
+        "            // failure's head keeps as it sweeps).\n",
         "            internal const int Breaths = %s;\n" % _literal("int", motion["breaths"]),
         "            internal const int SweepBreaths = %s;\n" % _literal("int", motion["sweep_breaths"]),
         "            internal const double SweepOut = %s;\n" % _literal("double", motion["sweep_out"]),
         "            internal const double SweepHold = %s;\n" % _literal("double", motion["sweep_hold"]),
         "            internal const double RecoverRest = %s;\n" % _literal("double", motion["recover_rest"]),
+        "            internal const double FailedSlot = %s;\n" % _literal("double", motion["failed_slot"]),
         "            // How far the head travels, in degrees: brand's arc, its place clockwise to the stroke's\n",
         "            // other end (tray.ICON_SWEEP). The gap at the top is the rest of the circle, and the head\n",
         "            // never enters it.\n",
@@ -741,8 +743,8 @@ def mark_class() -> str:
         "            /// is left of the cycle once it is home, where it rests lit and still.\n",
         "            internal static double Turn(string state, double elapsedMs)\n",
         "            {\n",
-        '                if (state != "watching" && state != "recovering") return -1;\n',
-        "                double breath = GlowMonitoringMs;\n",
+        '                if (state != "watching" && state != "recovering" && state != "failed") return -1;\n',
+        '                double breath = state == "failed" ? GlowMonitoringMs * FailedSlot : GlowMonitoringMs;\n',
         '                int sweeps = state == "watching" ? SweepBreaths : 1;\n',
         "                double outMs = breath * sweeps * SweepOut, hold = breath * sweeps * SweepHold;\n",
         '                double start = state == "watching" ? breath * Breaths : 0;\n',
@@ -756,8 +758,9 @@ def mark_class() -> str:
         "\n",
         "            /// One frame, as (position, level) (tray.icon_frame): position 0 is the head in its place, the\n",
         "            /// others clockwise round the ring, and the top level its full colour, which it keeps through a\n",
-        "            /// sweep's whole cycle. With motion reduced every state is at rest. A negative sinceEnteredMs\n",
-        "            /// means the state's one pulse is over.\n",
+        "            /// sweep's whole cycle - but a failure's, which blinks as it goes (tray.ICON_TRAVEL_BREATHS).\n",
+        "            /// With motion reduced every state is at rest. sinceEnteredMs is read by\n",
+        "            /// nothing since v0.6.8, when the one-time pulse went.\n",
         "            internal static void Frame(string state, double elapsedMs, double sinceEnteredMs, bool reduced,\n",
         "                                       out int position, out int level)\n",
         "            {\n",
@@ -768,10 +771,11 @@ def mark_class() -> str:
         "                if (turn >= 0)\n",
         "                {\n",
         "                    position = (int)Math.Round(turn / (360.0 / Positions)) % Positions;\n",
+        '                    if (state == "failed") level = BreathLevel(elapsedMs, GlowFailedMs);\n',
         "                    return;\n",
         "                }\n",
         '                if (state == "watching") level = BreathLevel(elapsedMs, GlowMonitoringMs);\n',
-        "                else if (Pulsing(state, sinceEnteredMs)) level = BreathLevel(sinceEnteredMs, GlowAttentionMs);\n",
+        '                else if (state == "attention") level = BreathLevel(elapsedMs, GlowAttentionMs);\n',
         "            }\n",
         "\n",
         "            /// How soon the next frame is due, in ms, or -1 when nothing moves (tray.icon_frame_ms).\n",
@@ -779,14 +783,8 @@ def mark_class() -> str:
         "            {\n",
         "                if (reduced) return -1;\n",
         "                if (Turn(state, elapsedMs) >= 0) return TurnFrameMs;\n",
-        '                if (state == "watching" || Pulsing(state, sinceEnteredMs)) return BreatheFrameMs;\n',
+        '                if (state == "watching" || state == "attention") return BreatheFrameMs;\n',
         "                return -1;\n",
-        "            }\n",
-        "\n",
-        "            /// Whether a problem's one pulse is still running (tray._pulsing).\n",
-        "            private static bool Pulsing(string state, double sinceEnteredMs)\n",
-        "            {\n",
-        "                return (%s) && sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs;\n" % _condition(pulses),
         "            }\n",
         "\n",
         "            /// Full colour at the start of a cycle, dimmest halfway, full again (tray._breath_level).\n",
