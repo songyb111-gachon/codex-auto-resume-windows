@@ -278,8 +278,10 @@ class VersionResourceTests(unittest.TestCase):
         for name, found in sorted(self.fields.items()):
             with self.subTest(name):
                 # Explorer shows the file version; the informational version is what the
-                # product calls itself, and it is the manifest's version with nothing added.
-                self.assertEqual(found["FileVersion"], self.version + ".0")
+                # product calls itself, and it is the manifest's version with nothing added. A
+                # version resource holds numbers only, so a pre-release's file version is its
+                # release's (0.6.9-alpha -> 0.6.9.0).
+                self.assertEqual(found["FileVersion"], self.version.split("-")[0] + ".0")
                 self.assertEqual(found["ProductVersion"], self.version)
                 self.assertEqual(found["ProductName"], self.product)
                 self.assertEqual(found["CompanyName"], self.publisher)

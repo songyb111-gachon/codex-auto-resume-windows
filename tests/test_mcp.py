@@ -250,7 +250,7 @@ class ToolSurfaceTests(McpTestCase):
         # A model reading the Theme's description has to learn it no longer colours the panel on its
         # own, or it will answer "make Codex dark" by darkening the window as well.
         self.assertIn("panel_theme", properties["theme"]["description"])
-        for name in ("reduce_motion", "show_tray"):
+        for name in ("reduce_motion", "show_tray", "start_with_codex"):
             self.assertNotIn(name, properties)
 
     def test_a_model_cannot_write_the_text_sent_into_conversations(self):
@@ -340,7 +340,7 @@ class ToolBehaviourTests(McpTestCase):
         self.assertEqual(self.control.get_settings()["theme"], "dark")
 
     def test_a_windows_only_preference_is_refused_even_if_the_schema_is_ignored(self):
-        for name in ("reduce_motion", "show_tray"):
+        for name in ("reduce_motion", "show_tray", "start_with_codex"):
             with self.subTest(name):
                 response = self.call("update_settings", {name: not settings.DEFAULTS[name]})
                 self.assertIs(response["result"]["isError"], True)

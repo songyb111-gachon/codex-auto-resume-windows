@@ -27,6 +27,8 @@ attach to them normally.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from . import l10n, messages
 
 # Ordinary UI vocabulary. The `field.*` keys are the settings schema's own names, so a
@@ -45,7 +47,28 @@ from . import l10n, messages
 # English with the locale's own entries layered over it, so every locale always has
 # every key. `tests/test_l10n.py` checks the files themselves for completeness,
 # which is the question this mapping deliberately cannot answer.
-STRINGS = {locale: l10n.catalog(locale) for locale in l10n.LOCALES}
+class _Catalogs(Mapping):
+    """Every shipped language's catalog, each built the first time it is asked for.
+
+    This was a dict comprehension at import, so importing this module built nine catalogs and read
+    the English file nine times - in the watcher, in every bridge process and in the MCP server,
+    each of which uses exactly one language. `l10n.catalog` caches, so nothing is read twice; what
+    changes is that eight languages nobody asked for are never read at all.
+    """
+
+    def __getitem__(self, locale):
+        if locale not in l10n.LOCALES:
+            raise KeyError(locale)
+        return l10n.catalog(locale)
+
+    def __iter__(self):
+        return iter(l10n.LOCALES)
+
+    def __len__(self):
+        return len(l10n.LOCALES)
+
+
+STRINGS = _Catalogs()
 
 def catalog(environ=None) -> dict:
     """The strings for the language this machine resolves to, as a plain dict.

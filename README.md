@@ -29,7 +29,7 @@ setting, the notification, the command line, the safety model and privacy in ful
 | **Identity** | the exact conversation UUID only — never `--last`, never "the most recent one", never a title or a folder name |
 | **Configure it** | the Dashboard from the Start Menu, a settings panel inside Codex, or the command line |
 | **Languages** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) |
-| **Privacy** | no telemetry, no analytics, no automatic update check. *Check for updates* asks GitHub which release is newest, and only when you press it. The watcher has no network code; the usage check and the resumed turn go to OpenAI through Codex, as Codex's traffic always does |
+| **Privacy** | no telemetry, no analytics, no automatic update check. Setting it up from Codex downloads the release from GitHub, and *Check for updates* asks GitHub which release is newest only when you press it. The watcher has no network code; the usage check and the resumed turn go to OpenAI through Codex, as Codex's traffic always does |
 
 > **One honest limitation, up front.** Codex has to currently have that conversation open for a
 > recovery to be delivered. If the app restarted since, open the conversation once and recovery
@@ -85,6 +85,9 @@ Running either again upgrades or repairs it, and keeps anything already waiting 
   status", "show pending auto resumes", "open auto resume settings", "turn auto resume off".
 
 ## What it looks like
+
+The status light breathes wherever it is shown - on the card, in the Dashboard, in the panel inside
+Codex and on the notification-area icon - and the pictures below breathe with it.
 
 The notification card, as the product draws it:
 

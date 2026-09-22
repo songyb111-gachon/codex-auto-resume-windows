@@ -481,10 +481,11 @@ class MotionTests(unittest.TestCase):
             self.assertIsNone(frame["arc"])
         self.assertTrue(popup.animates("monitoring"))
 
-    def test_waiting_holds_lit_with_no_glow(self):
-        frames = {tuple(sorted(popup.halo("waiting", elapsed).items())) for elapsed in range(0, 5000, 333)}
-        self.assertEqual(frames, {tuple(sorted(self.STILL.items()))})
-        self.assertFalse(popup.animates("waiting"))
+    def test_waiting_breathes_as_monitoring_does(self):
+        # v0.6.9: it held lit and still while the icon, which draws it as watching, kept moving.
+        for elapsed in range(0, 5000, 333):
+            self.assertEqual(popup.halo("waiting", elapsed), popup.halo("monitoring", elapsed), elapsed)
+        self.assertTrue(popup.animates("waiting"))
 
     def test_checking_turns_a_small_arc_round_a_lit_dot(self):
         first, later = popup.halo("checking", 0), popup.halo("checking", self.GLOW["arc_ms"] / 4)
@@ -1506,12 +1507,14 @@ class WindowsTests(unittest.TestCase):
             window.destroy()
 
     def still_window(self, **options):
-        """A popup with nothing in flight - waiting, no glow that moves - shown off screen, with
-        motion allowed whatever this machine's own animation setting is."""
+        """A popup with nothing in flight - paused, so no light that moves - shown off screen, with
+        motion allowed whatever this machine's own animation setting is. Until v0.6.9 it was waiting,
+        which held still then and breathes now."""
         patcher = unittest.mock.patch.object(popup, "reduced_motion", lambda: False)
         patcher.start()
         self.addCleanup(patcher.stop)
-        window = popup.Popup(control=FakeControl(self.ROWS[:3], **options), strings=EN)
+        paused = dict(copy.deepcopy(STATUS), enabled=False)
+        window = popup.Popup(control=FakeControl(self.ROWS[:3], status=paused, **options), strings=EN)
         window.create()
         window.model.apply_outcome(("read",), popup.perform(("read",), window.control), time.time())
         window.show(activate=False, origin=(-32000, -32000))
@@ -1520,7 +1523,7 @@ class WindowsTests(unittest.TestCase):
             window.destroy()
             self.skipTest("High Contrast is on: nothing glides")
         window._reduced = False
-        self.assertEqual(window._vm["state"], "waiting")
+        self.assertEqual(window._vm["state"], "paused")
         self.assertFalse(window._frame_running)
         return window
 

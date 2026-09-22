@@ -447,7 +447,7 @@ def main():
         reported = [line.strip() for line in out.splitlines() if "|" in line]
         check("both executables report the expected version",
               code == 0 and len(reported) == 2
-              and all(line.startswith(expected + ".0|" + expected + "|") for line in reported),
+              and all(line.startswith(expected.split("-")[0] + ".0|" + expected + "|") for line in reported),
               out)
 
         print()

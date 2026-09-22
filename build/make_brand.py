@@ -295,7 +295,6 @@ def methods() -> str:
             % (name, name),
         ]
     lines += [
-        '            if (state == "waiting") return true;\n',
         '            if (state == "checking")\n',
         "            {\n",
         "                arc = reduced ? GlowArcStillAt : elapsedMs % GlowArcMs / GlowArcMs * 360.0;\n",

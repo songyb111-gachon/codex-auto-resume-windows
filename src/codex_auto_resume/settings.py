@@ -123,6 +123,11 @@ FIELDS = {
     # as before. It chooses where a notification is drawn, never whether there is one: that is
     # `notifications` and `notify_<event>`. It changes nothing about recovery.
     "notification_card": (True, _boolean),
+    # v0.6.9: start the watcher when Codex starts this plugin's MCP server, as well as - or
+    # instead of - at Windows sign-in. Off by default. It decides when the watcher starts,
+    # never what it does once it runs: the MCP server launches the same launcher sign-in uses,
+    # only while no watcher runs and no installation holds its lock (control.start_for_codex).
+    "start_with_codex": (False, _boolean),
     # First in Appearance, so it comes before Reduce motion wherever the schema is listed.
     # Changes nothing but colours; the notification-area icon stays as it is.
     "theme": (DEFAULT_THEME, lambda v, d: _choice(v, d, THEMES)),
@@ -399,10 +404,19 @@ def update(path: Path, changes: dict) -> dict:
 # Fields that exist - stored, validated, defaulted - but that no surface offers yet, because
 # nothing reads them yet. `describe()` leaves them out, and the Dashboard, the panel and the MCP
 # schema are all drawn from it, so none of them shows a switch that would change nothing.
-# Empty since v0.6.5: `notification_card` waited here until the watcher handed notices to the
-# notifier (app.py) and the icon's thread hosted the card (tray.py); tests/test_notice_card.py
-# (SettingTests) holds the name here exactly while that wiring is missing.
-NOT_YET_OFFERED = frozenset()
+# `notification_card` waited here until the watcher handed notices to the notifier (app.py) and the
+# icon's thread hosted the card (tray.py); tests/test_notice_card.py (SettingTests) holds the name here
+# exactly while that wiring is missing.
+#
+# `start_with_codex` is here for the opposite reason: it is wired, and what it would do cannot be done.
+# v0.6.9-alpha measured Codex 26.915 on a real machine - Codex runs each plugin's MCP server in a job
+# with KILL_ON_JOB_CLOSE that forbids breakaway, and cancels the server seconds after it starts, so
+# every watcher started from there was killed within about six seconds. A switch that says the watcher
+# starts with Codex, and never leaves one running, would be a false thing to show, so no surface offers
+# it; `Control.start_for_codex` refuses for the same reason and writes what the job said to
+# logs/codex-start.log, which is how the next Codex gets measured. The advanced edition builds it
+# properly in v0.6.11, where starting a process outside the host's job is a thing a person may turn on.
+NOT_YET_OFFERED = frozenset({"start_with_codex"})
 
 
 def describe() -> list:
@@ -430,7 +444,7 @@ def describe() -> list:
             # Reduce motion is only offered in the window: the panel in Codex follows the host's
             # own reduced-motion preference.
             entry["group"] = "appearance"
-        elif name in ("show_tray", "notification_card"):
+        elif name in ("show_tray", "notification_card", "start_with_codex"):
             # A desktop preference, beside "run at sign-in" - not a notification, and
             # not something the notifications switch governs. The card only chooses how a
             # notification looks on this desktop, so it lives here too, and like the icon it is

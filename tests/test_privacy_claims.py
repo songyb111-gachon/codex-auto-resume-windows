@@ -219,6 +219,10 @@ class WordingTests(unittest.TestCase):
             self.assertTrue(row, "%s has no privacy row in its summary table" % name)
             self.assertRegex(row[0], r"(?i)github",
                              "%s's privacy row must admit the download" % name)
+            # Naming GitHub for the update check alone passed this while the row had
+            # lost the download itself, when the README was shortened.
+            self.assertRegex(row[0], r"(?i)download|내려받",
+                             "%s's privacy row must say setup downloads from GitHub" % name)
 
     def test_no_released_version_has_lost_its_changelog_section(self):
         """A guard against over-correcting.
@@ -237,7 +241,7 @@ class WordingTests(unittest.TestCase):
         shipped = ("v0.1.0", "v0.2.0", "v0.3.0", "v0.3.1", "v0.3.2",
                    "v0.4.0", "v0.4.1", "v0.5.0", "v0.5.1", "v0.5.2", "v0.5.3", "v0.5.4", "v0.5.5",
                    "v0.5.6", "v0.5.7", "v0.6.0", "v0.6.1", "v0.6.2", "v0.6.3", "v0.6.4", "v0.6.5",
-                   "v0.6.6", "v0.6.7")
+                   "v0.6.6", "v0.6.7", "v0.6.8")
         text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
         missing = [tag for tag in shipped
                    if not re.search(r"^##\s+%s\b" % re.escape(tag), text, re.M)]

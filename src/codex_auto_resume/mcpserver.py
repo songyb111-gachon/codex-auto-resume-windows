@@ -13,6 +13,11 @@ What this is deliberately not:
   attempt forward; it does not decide whether that attempt happens.
 * **Not a second database.** Nothing here writes SQL or reads the state file directly.
 
+This server starts nothing. v0.6.9 measured whether it could start the watcher when Codex starts
+it - Codex runs each MCP server in a job object with KILL_ON_JOB_CLOSE and no breakaway, and every
+watcher started there died with the server seconds later - so `Control.start_for_codex` refuses and
+records what the job said. No surface offers the setting it would have read.
+
 The safety consequence matters more than the architecture: a model driving these tools
 cannot make recovery less careful. It cannot retry an unclassified failure, resolve a
 conversation by title, resend an uncertain submission or force a send - not because it
@@ -35,6 +40,8 @@ PROTOCOL_VERSION = "2025-06-18"
 SUPPORTED_PROTOCOLS = (PROTOCOL_VERSION, "2025-03-26", "2024-11-05")
 SERVER_NAME = "codex-auto-resume"
 SETTINGS_UI = "ui://codex-auto-resume/settings"
+# How long a finished server waits for its start-with-Codex launch (control.start_for_codex).
+STARTER_GRACE_SECONDS = 3.0
 
 # JSON-RPC error codes we actually use.
 PARSE_ERROR = -32700
@@ -717,7 +724,22 @@ def main(argv=None) -> int:
         sys.stdin.reconfigure(encoding="utf-8")
     except AttributeError:
         pass
-    return Server(Control(home)).serve()
+    control = Control(home)
+    # v0.6.9, "Start when Codex starts": Codex starts this server whenever it opens, so this is
+    # the moment to start a watcher that is not running - beside the handshake, never in front of
+    # it. Only for an installation (a home); a source checkout run without --home starts nothing.
+    # Codex cancels the first servers it starts within seconds, so the launch is made at once and
+    # given a moment to finish when the server is done, and never more.
+    starter = None
+    if home:
+        import threading
+        starter = threading.Thread(target=control.start_for_codex, name="start-for-codex")
+        starter.start()
+    try:
+        return Server(control).serve()
+    finally:
+        if starter is not None:
+            starter.join(STARTER_GRACE_SECONDS)
 
 
 if __name__ == "__main__":

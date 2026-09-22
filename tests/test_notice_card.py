@@ -1435,8 +1435,8 @@ class WindowsTests(unittest.TestCase):
         """v0.6.7: the card's light is the popup's - one breath on brand.GLOW for a breathing state, drawn again
         at most every 80 ms; since v0.6.8 attention and a failure breathe too, for as long as the card is up -
         attention slowest, a failure quickest - where they used to pulse once; High Contrast never moves it."""
-        # A continuation being sent, or delivered and running again: the two states that breathe. An
-        # interruption waiting for its reset holds lit and still, on the card as in the popup.
+        # A continuation being sent, or delivered and running again, breathes; since v0.6.9 so does an
+        # interruption waiting for its reset, on the card as in the popup, on monitoring's rhythm.
         notices = [build(event, detail, identity) for event, detail, identity in EVENTS]
         breathing = [notice for notice in notices if notice is not None and notice.status in brand.GLOW_BREATHES]
         self.assertTrue(breathing, "some card must breathe")
