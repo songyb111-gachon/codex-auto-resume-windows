@@ -443,8 +443,10 @@ default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
   with the rest of `config/` under `Uninstall.cmd -Purge`, and the command line's `uninstall` deletes
   it unless you pass `--keep-state`;
 - `logs/` — `auto-resume.log`, what the watcher did, by reason code and conversation UUID;
-  `errors.log`, the Python traceback when something goes wrong; and `launcher.log`, a line
-  per launch (and why, if one failed).
+  `errors.log`, the Python traceback when something goes wrong; `launcher.log`, a line
+  per launch (and why, if one failed); and, from v0.6.9, `codex-start.log`, a line each time Codex
+  starts the plugin's MCP server, holding that process's id, what Windows wrapped it in and which
+  of a fixed set of decisions was taken - no path, no file name, nothing from a conversation.
 
 Engine events are written from a fixed message table. The main log also records the state
 directory's path, which normally includes your Windows user name, and the version string

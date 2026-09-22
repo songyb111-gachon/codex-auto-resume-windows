@@ -118,6 +118,11 @@ Extract the archive and run `Install.cmd` only when every check you made agrees.
 them disagrees, do not extract it: delete the file and open an issue with the version and
 the values you got.
 
+A pre-release - a tag with a suffix, such as `vX.Y.Z-alpha` - is never in the pin table either, and
+that is deliberate: the table's keys are releases, and nothing is ever served a pre-release, because
+`releases/latest` does not answer with one. For a pre-release, steps 1, 2 and 4 are the whole check,
+with `--source-ref refs/tags/vX.Y.Z-alpha` in step 4, and step 3 does not apply.
+
 v0.5.0 and v0.5.1 predate the `sha256` pin table and have no entry. For them only the `.sha256`
 and the release-page digest apply (they have no attestation either). Any other version
 that is on the releases page but missing from the table was published recently, and its

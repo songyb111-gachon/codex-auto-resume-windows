@@ -1,4 +1,4 @@
-# Codex Auto Resume roadmap: v0.6.7 → v0.6.13
+# Codex Auto Resume roadmap: v0.6.7 → v0.6.14
 
 This is the current development direction for Codex Auto Resume after v0.6.6.
 
@@ -12,7 +12,7 @@ advanced features, more than any program like this, in two editions → stabiliz
 core with Rust and make it Rust-native → stabilize Rust**
 
 The default recovery behavior stays as conservative as it has always been, through every release
-here: what v0.6.10 adds is there for a person to turn on, never on by itself.
+here: what v0.6.11 adds is there for a person to turn on, never on by itself.
 
 ---
 
@@ -203,7 +203,7 @@ version. CHECKED sends exactly as COMPATIBLE and VERIFIED do; like VERIFIED, it 
 evidence and expires with the fetched data. FAILED_HERE blocks every send exactly as INCOMPATIBLE
 does, and says so: a recovery it holds says *Codex checks failed on this computer*, and the
 notification-area popup and its icon ask for attention. The advanced tier planned then stayed
-VERIFIED-only; v0.6.10's own plan, below, lifts that for what it adds.
+VERIFIED-only; v0.6.11's own plan, below, lifts that for what it adds.
 
 The data on main is fetched by every installed release, so each must take the newest whole, with
 its own validator: v0.6.5 and v0.6.6 skip CHECKED, a state they do not know, and nothing they decide
@@ -245,21 +245,32 @@ and the loading that feels slower in every language but English (reported with v
 measured where it happens, its cause found and fixed, and the measurement kept as a test. Before the
 split rather than after it: the split's golden copies then hold the faster window, and the split
 carries it, instead of the fix being made again on code that has just moved. It changes how fast the
-window is, and that is worth a release of its own, so it is one: no pre-release.
+window is, and that is worth a release of its own, so it is one.
+
+### v0.6.9-alpha 🚧 — starting with Codex, measured (a pre-release)
+
+Two facts about starting with Codex cannot be read out of any source: when Codex starts a plugin's
+MCP server, and what becomes of a watcher that server started when Codex closes. Both are answers
+only a machine running the real thing can give, so the switch and the measurement it needs were
+built first and published as **v0.6.9-alpha**, a pre-release, for exactly that: it is a stage the
+work had to be split into, not a release of its own. Nothing is served it - `releases/latest` never
+answers with a pre-release - and it is not on main, so the plugin's own route never offers it. It
+also carries the lights and the pictures below, which arrived with it.
 
 ### Starting with Codex
 
 Today the watcher starts when you sign in to Windows. v0.6.9 adds the other choice the user asked
 for: start it when Codex starts. Codex already starts this plugin's own MCP server whenever it opens,
 so that server can start the watcher when none is running - through the same launcher sign-in uses,
-never while an install or an update is in progress, and never a second copy. Nothing new is
+never while an install or an update is in progress, and a second launch racing it exits at once on
+the watcher's single-instance mutex. Nothing new is
 registered with Windows for it: no scheduled task, no WMI subscription, no process left resident to
 wait for Codex. It is off until it is turned on, in the Dashboard.
 
 Two facts decide whether it can ship in v0.6.9, and both are measured before it is built: when Codex
 actually starts its MCP servers, and what happens to a watcher started that way when the ChatGPT app
 closes. If either means it cannot keep the standards the product keeps, it moves to the advanced
-edition of v0.6.10 instead of being bent to fit.
+edition of v0.6.11 instead of being bent to fit.
 
 ### A shorter README
 
@@ -269,15 +280,14 @@ was, to [the guide](GUIDE.md), in both languages.
 
 ---
 
-## v0.6.10 — Python modularization, then advanced features in two editions
+## v0.6.10 — Python modularization, then the design settled
 
 v0.6.10 arrives in two stages: **v0.6.10-alpha**, a pre-release, is the modularization and nothing
-else; the final **v0.6.10** builds the advanced features on the boundaries it leaves, in two editions
-released together. The order is deliberate: an edition can leave the advanced code out of its archive
-only if that code lives in modules of its own, and a split is safer made on one edition than on two.
-A pre-release is for a stage the work has to be split into that is not a release on its own, and the
-modularization is that: it changes nothing anybody could see, so it is not worth a release by itself,
-and it has to be finished and published before what is built on it.
+else; the final **v0.6.10** is the design audit and the choice of appearance, built on the boundaries
+the alpha leaves. A pre-release is for a stage the work has to be split into that is not a release on
+its own, and the modularization is that: it changes nothing anybody could see, so it is not worth a
+release by itself, and it has to be finished and published before what is built on it. The design is
+the opposite - it changes what everything looks like - so it is a release.
 
 ### v0.6.10-alpha — Python modularization (a pre-release)
 
@@ -309,12 +319,31 @@ The repository's landing page on GitHub is tidied in the same stage, while paths
 anyway, so that fewer files sit at its root.
 
 Bugs discovered during this refactor will be fixed with regression tests, but the alpha is
-**not intended to be the full repository-wide bug hunt**; v0.6.11 is. It is the modularization and
+**not intended to be the full repository-wide bug hunt**; v0.6.12 is. It is the modularization and
 nothing else: no feature, and no change anybody could see.
 
-### v0.6.10 — Advanced features: more than any program like this offers
 
-v0.6.10 goes further than every release so far. It is planned to offer, aggressively, as many
+### v0.6.10 — The design audit, and a choice of appearance
+
+The final v0.6.10 is the design, settled, and nothing else. It is a release of its own because it is
+worth one: it changes what every surface looks like, which is exactly what a person sees. It sits
+here and not elsewhere for four reasons. After the alpha, because four looks in light and dark are
+only safe to build once the drawing lives in modules. Before the two editions, so both inherit one
+settled design instead of being audited twice. Before Rust, so the port copies a finished look. And
+the audit before the choice, because the other looks are derived from today's, so today's has to be
+right first.
+
+- a design audit of the panel in Codex, the app, the notification-area popup and the notification
+  card, side by side in light and dark, fixing everything that does not yet look like one product,
+- a choice of appearance: today's design, the same without motion, v0.6.2's plainer look (with
+  today's status light), and a fully plain one - each in light and dark,
+- then the advanced features and the two editions above.
+
+---
+
+## v0.6.11 — Advanced features in two editions
+
+v0.6.11 goes further than every release so far. It is planned to offer, aggressively, as many
 capabilities as any comparable program does, and more: before it is built, the tools that do anything
 like this are surveyed, and everything any of them offers goes on the list.
 
@@ -334,7 +363,7 @@ Two rules, the user's own:
 A switch that is off is still code that is there. If the new capabilities shipped inside the one
 product, what has set it apart from the start - that it never sends a continuation twice, that it
 reads and sends through exactly one conversation, that it fails closed - would hold only while a
-setting said so, not in the code. So from v0.6.10 there are two editions, built from one repository
+setting said so, not in the code. So from v0.6.11 there are two editions, built from one repository
 and released at the same time, with the same version:
 
 - **Standard** is the product as it is. The new capabilities are not in it at all: their code is
@@ -343,7 +372,7 @@ and released at the same time, with the same version:
 
 Each has its own archive, pinned digest and build attestation. An installation updates within its
 edition only; moving between them is a deliberate reinstall, never an update. The Rust core carries
-both (v0.6.12).
+both (v0.6.13).
 
 Where the list starts, from the earlier plan:
 
@@ -357,7 +386,7 @@ Where the list starts, from the earlier plan:
 ### Compatibility reports from others
 
 Today only the maintainer records which Codex versions this product works with, using a separate
-management program. From v0.6.10 anyone can contribute a report, and none of them can be made up
+management program. From v0.6.11 anyone can contribute a report, and none of them can be made up
 without it showing:
 
 - **A report is what the program measured, not what a person typed.** The program runs the checks on
@@ -384,21 +413,14 @@ edition, so a person using that edition can record and submit a report without a
 standard edition sends nothing and gains nothing here: a report goes to GitHub only when its author
 opens the pull request.
 
-### Also planned for v0.6.10
-
-- a design audit of the panel in Codex, the app and the notification-area popup, side by side in
-  light and dark, fixing everything that does not yet look like one product,
-- a choice of appearance: today's design, the same without motion, v0.6.2's plainer look (with
-  today's status light), and a fully plain one - each in light and dark.
-
 ---
 
-## v0.6.11 — The final Python audit, both editions
+## v0.6.12 — The final Python audit, both editions
 
-v0.6.11 is the last Python release: the whole repository, both editions, through its bug hunt, and
+v0.6.12 is the last Python release: the whole repository, both editions, through its bug hunt, and
 the Python reference implementation the Rust migration reproduces.
 
-v0.6.11 is planned as the final comprehensive audit of the Python implementation, in both editions.
+v0.6.12 is planned as the final comprehensive audit of the Python implementation, in both editions.
 
 Unlike v0.6.10-alpha's refactoring, it is intentionally a broad bug hunt.
 
@@ -430,14 +452,14 @@ for the Rust migration.
 
 ---
 
-## v0.6.12 — Rust: the core replaced as it is, then made Rust-native
+## v0.6.13 — Rust: the core replaced as it is, then made Rust-native
 
-v0.6.12 arrives in two stages too: **v0.6.12-alpha**, a pre-release, replaces the production Python
-core with Rust as it is; the final **v0.6.12** is that core made naturally Rust-oriented. The alpha is
+v0.6.13 arrives in two stages too: **v0.6.13-alpha**, a pre-release, replaces the production Python
+core with Rust as it is; the final **v0.6.13** is that core made naturally Rust-oriented. The alpha is
 a pre-release because the core swapped as it is is a stage on the way to the Rust-native one, not a
 release worth having on its own.
 
-### v0.6.12-alpha — Complete Rust core replacement (a pre-release)
+### v0.6.13-alpha — Complete Rust core replacement (a pre-release)
 
 The alpha is planned to replace the production Python core with Rust, as it is.
 
@@ -448,7 +470,7 @@ The rule is:
 
 > **Replace the implementation, not the behavior.**
 
-The Rust implementation should reproduce the final v0.6.11 as closely as practical.
+The Rust implementation should reproduce the final v0.6.12 as closely as practical.
 
 Goals include:
 
@@ -490,13 +512,13 @@ Rust
 PowerShell may remain as a thin layer for bootstrap, installation, updating, or similar Windows
 deployment work.
 
-### v0.6.12 — Rust-native restructuring and optimization
+### v0.6.13 — Rust-native restructuring and optimization
 
 The alpha prioritizes behavioral parity.
 
 That may leave some Python-shaped architecture inside the first Rust implementation.
 
-The final v0.6.12 is planned to make the codebase more naturally Rust-oriented.
+The final v0.6.13 is planned to make the codebase more naturally Rust-oriented.
 
 Potential work includes:
 
@@ -516,9 +538,9 @@ This is not intended to be the final full-system bug hunt.
 
 ---
 
-## v0.6.13 — Final Rust audit and stabilization: the Rust bug hunt
+## v0.6.14 — Final Rust audit and stabilization: the Rust bug hunt
 
-v0.6.13 is planned as the final comprehensive stabilization pass.
+v0.6.14 is planned as the final comprehensive stabilization pass.
 
 Expected focus includes:
 
@@ -556,7 +578,7 @@ The intended final stack is:
 
 There is currently **no planned v0.7.0 feature cycle**.
 
-After v0.6.13, the project is expected to move primarily into maintenance:
+After v0.6.14, the project is expected to move primarily into maintenance:
 
 - Codex compatibility updates,
 - Compatibility Registry updates,
@@ -615,25 +637,29 @@ The window's lag
 
 v0.6.10-alpha → v0.6.10
 Python modularization and a tidier landing page on GitHub, in a pre-release
-+ advanced features, more than any program like this, in two editions, in the final
-+ compatibility reports from others
-+ design audit, a choice of appearance
++ the design audit and a choice of appearance, in the final
 
         ↓
 
 v0.6.11
+Advanced features, more than any program like this, in two editions
++ compatibility reports from others
+
+        ↓
+
+v0.6.12
 The final Python audit, both editions
 → freeze Python reference behavior
 
         ↓
 
-v0.6.12-alpha → v0.6.12
+v0.6.13-alpha → v0.6.13
 Complete Rust core replacement, in a pre-release
 + Rust-native restructuring and optimization, in the final
 
         ↓
 
-v0.6.13
+v0.6.14
 Final Rust audit and stabilization: the Rust bug hunt
 → final stable Rust baseline
 

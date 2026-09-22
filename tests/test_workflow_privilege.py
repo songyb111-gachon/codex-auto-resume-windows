@@ -75,7 +75,12 @@ class WorkflowPrivilegeTests(unittest.TestCase):
         self.assertIn('refs/tags/v$VERSION', publish)
 
     def test_the_version_is_validated_before_anything_uses_it(self):
-        self.assertIn(r"-notmatch '^\d+\.\d+\.\d+$'", text("release.yml"))
+        self.assertIn(r"-notmatch '^\d+\.\d+\.\d+(-alpha)?$'", text("release.yml"))
+
+    def test_a_pre_release_never_becomes_the_latest_release(self):
+        publish = job(text("release.yml"), "publish")
+        self.assertIn("prerelease=(--prerelease --latest=false)", publish)
+        self.assertIn('"v*.*.*-alpha"', text("release.yml"))
 
     def test_no_expression_is_spliced_into_a_run_script(self):
         """`${{ }}` inside `run:` is text substitution into a shell script.

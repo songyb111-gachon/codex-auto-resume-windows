@@ -73,9 +73,14 @@ ORDERING = [
     ("0.5.7", "0.6.0", -1),
     ("0.6.1", "0.6.0", 1),
     ("10.0.0", "9.0.0", 1),
+    # v0.6.9: a planned pre-release sits just before its own release and after the one before.
+    ("0.6.9-alpha", "0.6.9", -1),
+    ("0.6.9", "0.6.9-alpha", 1),
+    ("0.6.9-alpha", "0.6.8", 1),
+    ("0.6.9-alpha", "0.6.9-alpha", 0),
 ]
 
-MALFORMED = ["1.2", "1.2.3.4", "v1.2.3", "1.2.3-rc1", "", "1.2.x", "1234567.0.0"]
+MALFORMED = ["1.2", "1.2.3.4", "v1.2.3", "1.2.3-rc1", "1.2.3-beta", "1.2.3-alpha1", "", "1.2.x", "1234567.0.0"]
 
 PROBE = r"""
 $ErrorActionPreference = 'Stop'

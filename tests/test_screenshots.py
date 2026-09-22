@@ -445,6 +445,77 @@ class PixelTests(unittest.TestCase):
                 self.assertEqual(clear[height // 2][width // 2], 255, "and the window itself is opaque")
 
 
+class BreathingPictureTests(unittest.TestCase):
+    """The light a picture moves must be the light the product moves.
+
+    Every animated picture is the capture with one disc painted again (`breathe_picture`), and which
+    disc that is was decided by whichever round run of the colour scored roundest. In the panel's
+    pictures that was the 8 px dot in the Automatic recovery tile - a dot that never moves in the
+    product - while the status light at the top, the one that breathes, stayed still. The user saw
+    it: "상태등이 맨위에 있는건 안 깜빡이네?". The finder takes the topmost disc now, and this holds
+    every picture to it by reading where its frames actually draw.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.generator = generator()
+
+    @staticmethod
+    def frame_boxes(data: bytes) -> list:
+        """(x, y, width, height) of each APNG frame's rectangle, in order."""
+        found, at = [], 8
+        while at + 8 <= len(data):
+            length, kind = struct.unpack(">I4s", data[at:at + 8])
+            if kind == b"fcTL":
+                width, height, x, y = struct.unpack(">IIII", data[at + 12:at + 28])
+                found.append((x, y, width, height))
+            at += 12 + length
+        return found
+
+    def animated(self) -> list:
+        names = sorted(json.loads(MANIFEST.read_text(encoding="utf-8"))["images"])
+        return [name for name in names
+                if name.endswith(".png") and b"acTL" in (ROOT / name).read_bytes()
+                and self.generator.breathes(ROOT / name)]
+
+    def test_every_breathing_picture_moves_its_topmost_status_light(self):
+        from codex_auto_resume import brand
+        palette = brand.palette("light")
+        colour = brand.rgb(palette[brand.status_fill(self.generator.BREATHE_STATE)])
+        ground = brand.rgb(palette["surface"])
+        names = self.animated()
+        self.assertTrue(names, "no picture breathes any more")
+        for name in names:
+            raw = (ROOT / name).read_bytes()
+            width, height, rgb, _alpha = self.generator.read_png(ROOT / name)
+            light = self.generator.find_light(rgb, width, height, colour, ground)
+            boxes = self.frame_boxes(raw)[1:]
+            with self.subTest(name):
+                self.assertIsNotNone(light, "%s has no status light to move" % name)
+                self.assertTrue(boxes, "%s carries no frame after the first" % name)
+                x, y, radius = light
+                # A frame carries only the strip that differs from the one before it, and a frame that
+                # changes nothing carries a 1x1 placeholder, so the region that moves is their union.
+                moving = [box for box in boxes if box[2:] != (1, 1)]
+                self.assertTrue(moving, "%s has frames but none of them changes a pixel" % name)
+                left = min(box[0] for box in moving)
+                top = min(box[1] for box in moving)
+                right = max(box[0] + box[2] for box in moving)
+                bottom = max(box[1] + box[3] for box in moving)
+                self.assertTrue(left <= x <= right and top <= y <= bottom,
+                                "%s moves (%d, %d)-(%d, %d), which does not hold the light at (%d, %d)"
+                                % (name, left, top, right, bottom, x, y))
+                # And it moves the light, not the page: the glow reaches a little past the dot, never far.
+                self.assertLess(max(right - left, bottom - top), 12 * radius,
+                                "%s redraws far more than its light" % name)
+
+    def test_the_card_breathes_with_the_rest(self):
+        """Until v0.6.9 an interruption card held still, so its picture did too. Waiting breathes now."""
+        self.assertNotIn("notification-card", self.generator.BREATHE_SKIP)
+        self.assertNotIn("screenshot-notification", self.generator.BREATHE_SKIP)
+        self.assertIn("docs/images/notification-card.png", self.animated())
+
+
 class ContentTests(unittest.TestCase):
     """Two properties of the pictures themselves, checked without reading pixels."""
 

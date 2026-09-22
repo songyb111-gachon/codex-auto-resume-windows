@@ -631,7 +631,7 @@ class StatusLightTests(unittest.TestCase):
                    if context == "" and declarations.get("content") == '""'
                    for selector in selectors if selector.startswith(".halo.") and selector.endswith("::before")}
         self.assertEqual(glowing, {state for state in LIGHT_STATES if self.glows(state)})
-        self.assertEqual(glowing, {"monitoring", "recovering", "attention"})
+        self.assertEqual(glowing, {"monitoring", "waiting", "recovering", "attention"})
         # Between its moments a glow is not there at all: nothing is lit round a still dot.
         self.assertEqual(self.static_opacity("monitoring"), 0.0)
         self.assertEqual(declared(".halo::before", "transform"), "scale(var(--glow-from))")
@@ -719,7 +719,7 @@ class StatusLightTests(unittest.TestCase):
         # opacity over the card is its dimming, and the glow's opacity and scale are its spread. The easing is
         # a Bezier, so each phase is a half-cosine only to within a small error. Attention loops too since
         # v0.6.8, the slowest of the three, where it used to run the cycle once and hold.
-        for state in ("monitoring", "recovering", "attention"):
+        for state in ("monitoring", "waiting", "recovering", "attention"):
             cycle = brand.GLOW[state + "_ms"]
             for step in range(193):
                 elapsed = cycle * 2 * step / 192
@@ -733,8 +733,12 @@ class StatusLightTests(unittest.TestCase):
         self.assertNotIn("LAST_STATE", mcpui._SCRIPT)
         self.assertIsNone(declared(".halo", "opacity"))
 
-    def test_waiting_and_checking_hold_lit_with_no_glow(self):
-        for state in ("waiting", "checking"):
+    def test_checking_holds_lit_with_no_glow_and_waiting_breathes(self):
+        # v0.6.9: waiting breathes on its own rhythm, which is monitoring's; checking still holds lit.
+        self.assertEqual(declared(".halo.waiting", "animation"), "glow-dot var(--glow-waiting-ms) linear infinite")
+        self.assertEqual(declared(".halo.waiting::before", "animation"),
+                         "glow-spread var(--glow-waiting-ms) linear infinite")
+        for state in ("checking",):
             with self.subTest(state):
                 self.assertIsNone(declared(".halo.%s" % state, "animation"))
                 self.assertIsNone(declared(".halo.%s::before" % state, "animation"))

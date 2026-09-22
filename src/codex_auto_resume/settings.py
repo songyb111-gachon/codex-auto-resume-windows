@@ -123,6 +123,11 @@ FIELDS = {
     # as before. It chooses where a notification is drawn, never whether there is one: that is
     # `notifications` and `notify_<event>`. It changes nothing about recovery.
     "notification_card": (True, _boolean),
+    # v0.6.9: start the watcher when Codex starts this plugin's MCP server, as well as - or
+    # instead of - at Windows sign-in. Off by default. It decides when the watcher starts,
+    # never what it does once it runs: the MCP server launches the same launcher sign-in uses,
+    # only while no watcher runs and no installation holds its lock (control.start_for_codex).
+    "start_with_codex": (False, _boolean),
     # First in Appearance, so it comes before Reduce motion wherever the schema is listed.
     # Changes nothing but colours; the notification-area icon stays as it is.
     "theme": (DEFAULT_THEME, lambda v, d: _choice(v, d, THEMES)),
@@ -430,7 +435,7 @@ def describe() -> list:
             # Reduce motion is only offered in the window: the panel in Codex follows the host's
             # own reduced-motion preference.
             entry["group"] = "appearance"
-        elif name in ("show_tray", "notification_card"):
+        elif name in ("show_tray", "notification_card", "start_with_codex"):
             # A desktop preference, beside "run at sign-in" - not a notification, and
             # not something the notifications switch governs. The card only chooses how a
             # notification looks on this desktop, so it lives here too, and like the icon it is
