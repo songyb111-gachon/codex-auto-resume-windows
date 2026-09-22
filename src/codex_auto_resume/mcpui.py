@@ -149,8 +149,9 @@ button, select, input { font: inherit; }
    (glow-spread) - a falloff, never a disc with an edge. The curve is in the keyframes themselves,
    sampled from brand.glow_phase, so what lies between two stops is walked straight (`linear`)
    rather than eased again. Monitoring runs it slowly, recovering faster and attention slowest of
-   all, each for as long as it lasts - until v0.6.8 attention ran it once and then held lit;
-   waiting and checking hold lit with no glow. */
+   all, each for as long as it lasts - until v0.6.8 attention ran it once and then held lit.
+   Waiting breathes on monitoring's rhythm, as the notification-area icon draws it (until v0.6.9
+   it held lit and still); checking holds lit with no glow. */
 .halo { --halo-color: var(--idle); position: relative; flex: none; width: 12px; height: 12px;
         border-radius: 50%; background: var(--halo-color); }
 .halo::before { content: none; position: absolute; inset: calc(-1 * var(--glow-reach));
@@ -163,9 +164,11 @@ button, select, input { font: inherit; }
 .halo.monitoring, .halo.waiting, .halo.checking, .halo.recovering { --halo-color: var(--active); }
 .halo.attention { --halo-color: var(--attention); }
 .halo.paused { --halo-color: var(--paused); }
-.halo.monitoring::before, .halo.recovering::before, .halo.attention::before { content: ""; }
+.halo.monitoring::before, .halo.waiting::before, .halo.recovering::before, .halo.attention::before { content: ""; }
 .halo.monitoring { animation: glow-dot var(--glow-monitoring-ms) linear infinite; }
 .halo.monitoring::before { animation: glow-spread var(--glow-monitoring-ms) linear infinite; }
+.halo.waiting { animation: glow-dot var(--glow-waiting-ms) linear infinite; }
+.halo.waiting::before { animation: glow-spread var(--glow-waiting-ms) linear infinite; }
 .halo.recovering { animation: glow-dot var(--glow-recovering-ms) linear infinite; }
 .halo.recovering::before { animation: glow-spread var(--glow-recovering-ms) linear infinite; }
 .halo.attention { animation: glow-dot var(--glow-attention-ms) linear infinite; }

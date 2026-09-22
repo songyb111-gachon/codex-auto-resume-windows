@@ -1650,6 +1650,10 @@ namespace CodexAutoResume
                     if (name == "notification_card")
                         host.Controls.Add(HelpText(S("help.notification_card",
                             "Notifications appear as a card beside the notification area and are also kept in Windows' notification center. When this is off - or while Do not disturb is on, an app is full screen, a screen reader is running, or the session is locked or remote - Windows shows its own notification instead.")));
+                    // v0.6.9: when the watcher starts, said under its switch - beside sign-in, not instead of it.
+                    if (name == "start_with_codex")
+                        host.Controls.Add(HelpText(S("help.start_with_codex",
+                            "Codex starts this plugin whenever it opens, and the watcher starts with it if it is not already running. This is separate from starting at sign-in: either or both can be on. It changes nothing about what is recovered.")));
                 }
                 else if (type == "integer")
                 {
@@ -3935,12 +3939,15 @@ namespace CodexAutoResume
                     string[] catalogs = Directory.Exists(locales) ? Directory.GetFiles(locales, "*.json") : new string[0];
                     Array.Sort(catalogs, StringComparer.OrdinalIgnoreCase);
                     foreach (string catalog in catalogs) Stamp(key, sha, catalog);
-                    // Read once, so the language is taken from the very bytes the digest is of.
+                    // Read once, so the language is taken from the very bytes the digest is of. The
+                    // file's own digest is deliberately not part of the key: the only thing in it these
+                    // words depend on is the Interface language, which is below - and keying on the
+                    // whole file made every save of any setting, the theme included, throw the cache
+                    // away and open the next window cold on a fresh interpreter.
                     string settings = Path.Combine(Path.Combine(root, "config"), "settings.json");
                     byte[] stored = File.Exists(settings) ? File.ReadAllBytes(settings) : null;
                     string preference = StoredPreference(stored);
                     if (preference == null) return null;
-                    key.Append("|settings ").Append(stored == null ? "-" : Convert.ToBase64String(sha.ComputeHash(stored)));
                     key.Append(PreferencePart).Append(preference);
                 }
                 foreach (string name in new[] { "CODEX_AUTO_RESUME_LANG", "LC_ALL", "LC_MESSAGES", "LANG" })

@@ -50,6 +50,23 @@ What a green run does and does not establish is set out capability by capability
 no suite can make - a real install, a real interruption, a real send - are the procedure in
 [`docs/LIVE_ACCEPTANCE.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/LIVE_ACCEPTANCE.md).
 
+## Measuring the window
+
+Speed is a claim like any other, and `build/measure_window.py` is how it is checked rather than
+believed. It builds `gui/*.cs` into a scratch folder and walks the real window page by page and
+section by section - `SettingsForm.LayoutAudit`, off screen, with no bridge and no timers - at two
+languages and two scales, and prints the medians:
+
+```bash
+py build/measure_window.py
+py build/measure_window.py --tree <another checkout>
+```
+
+Timings belong to a machine, so the suite asserts none of them; what it holds is the behaviour the
+speed comes from, such as `tests/test_gui_v069_idle.py`, which fails if an unchanged snapshot makes
+the window fill a list or rebuild the safety checks again. The v0.6.9 numbers are in that file's
+header and in the changelog.
+
 ## Validating plugin metadata
 
 The plugin manifest, the marketplace index and the MCP companion file are covered by
@@ -182,6 +199,12 @@ So, once the release is up:
 1. Download the published `CodexAutoResume-v<version>-win-x64.zip`.
 2. `Get-FileHash <zip> -Algorithm SHA256` — and check it against the published `.sha256`.
 3. Put that digest in `scripts/release.json` under the version, and commit.
+
+A planned pre-release - a suffixed tag such as `v0.6.9-alpha` - is not pinned at all. The
+table's keys are releases, `releases/latest` never answers with a pre-release, so nothing is
+served one, and the check that a tagged version carries a pin is told about it by the
+`prerelease` list in `scripts/release.json` instead. That list names the version under
+development and nothing else, so the next bump empties it.
 
 Until that commit exists, the plugin verifies against the published `.sha256` sidecar
 instead and says so when it runs. That is weaker — the sidecar comes from the same origin

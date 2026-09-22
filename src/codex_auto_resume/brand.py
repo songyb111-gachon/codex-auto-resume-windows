@@ -327,7 +327,7 @@ CHECK_MARK = ((4.5, 8.75), (7.5, 11.75), (13.5, 5.75))
 #
 # Every state in which the watcher runs with recovery on is the brand's `active` cyan - the
 # colour the dot had until v0.6.3 drew waiting and checking in blue. The word beside the dot
-# and the motion tell those four apart. A stopped or unknown watcher and a pause keep the
+# and the motion tell those four apart - waiting and monitoring by the word alone since v0.6.9, as the icon always did. A stopped or unknown watcher and a pause keep the
 # greys they have always had, with no glow at all; amber is for a watcher that runs and is not
 # well, and red for a failure.
 STATUS_DOT = {"window": 5, "popup": 4.5, "panel": 6, "mini": 4}   # radius, CSS px
@@ -352,8 +352,10 @@ STATUS_SYSTEM = {"monitoring": "Highlight", "waiting": "Highlight", "checking": 
 # 움직이는거도 필요해". So attention is the slowest breath of all and a failure the quickest, and nothing pulses
 # once. A cycle begins and ends at the top, where a still light also sits, so a light
 # that starts moving does not jump in brightness; the glow is the one thing that arrives with the motion. Waiting
-# and checking hold lit with no glow (checking turns its arc), as does every light under Reduce motion or Windows'
-# animation setting; High Contrast is a solid dot. The glow is a falloff, never a disc: at its peak, `peak` times
+# breathes on monitoring's rhythm (waiting_ms is monitoring_ms): it is the watcher watching, with something to watch for, and until
+# v0.6.9 it held lit and still while the notification-area icon, which draws it as watching, kept moving - the user,
+# of the panel: "상태등이 맨위에 있는건 안 깜빡이네?". Checking holds lit with no glow and turns its arc. Every light
+# holds still under Reduce motion or Windows' animation setting; High Contrast is a solid dot. The glow is a falloff, never a disc: at its peak, `peak` times
 # `edge_alpha` at the dot's edge, `near_alpha` at `near_at` of the reach, `far_alpha` at `far_at`, nothing at the
 # reach, straight between; a smaller spread is that falloff drawn smaller about the centre, so it grows out from
 # under the dot, and at most it reaches 8 CSS px from the window's dot centre, inside the 28 px column kept for it.
@@ -363,14 +365,14 @@ GLOW = {
     # gets past the dot's edge.
     "low": 0.35, "gamma": 2.2, "peak": 0.50, "reach_of_radius": 0.6,
     "edge_alpha": 0.67, "near_at": 0.14, "near_alpha": 0.58, "far_at": 0.66, "far_alpha": 0.50,
-    "monitoring_ms": 4400, "recovering_ms": 2800, "attention_ms": 5600, "failed_ms": 1200,
+    "monitoring_ms": 4400, "waiting_ms": 4400, "recovering_ms": 2800, "attention_ms": 5600, "failed_ms": 1200,
     # Checking also turns the arc every surface already drew: `arc_gap` past the dot's edge,
     # `arc_width` wide, `arc_sweep` degrees long, in `active` at `arc_alpha`. With motion
     # reduced it holds at `arc_still_at` degrees.
     "arc_ms": 1600, "arc_alpha": 0.55, "arc_gap": 3, "arc_width": 1.6, "arc_sweep": 100,
     "arc_still_at": 300,
 }
-GLOW_BREATHES = ("monitoring", "recovering", "attention", "failed")
+GLOW_BREATHES = ("monitoring", "waiting", "recovering", "attention", "failed")
 
 
 def _number(value) -> str:
@@ -765,7 +767,7 @@ def glow(state, elapsed_ms, since_entered_ms=None, *, reduced=False):
         fraction = None if reduced else (elapsed_ms % GLOW[state + "_ms"]) / GLOW[state + "_ms"]
     elif state == "checking":
         arc = GLOW["arc_still_at"] if reduced else (elapsed_ms % GLOW["arc_ms"]) / GLOW["arc_ms"] * 360.0
-    elif state != "waiting":
+    else:
         return None
     dim, spread = (0.0, 0.0) if fraction is None else glow_phase(fraction)
     return {"dim": dim, "opacity": GLOW["peak"] * spread, "spread": spread, "arc": arc}

@@ -479,6 +479,12 @@ namespace CodexAutoResume
 
         internal void SetRows(List<string[]> fresh, string whenEmpty)
         {
+            // The snapshot arrives every five seconds and the checks in it rarely move, so the same
+            // thirteen rows were rebuilt, given a new accessible description and handed a full parent
+            // layout every time - on the window's thread, whether or not this page was the one on
+            // screen. Identical rows are now nothing to do.
+            if (Same(fresh, whenEmpty)) return;
+            GateFills++;
             rows.Clear();
             rows.AddRange(fresh);
             empty = whenEmpty ?? "";
@@ -487,6 +493,22 @@ namespace CodexAutoResume
             AccessibleDescription = rows.Count == 0 ? empty : string.Join(", ", spoken.ToArray());
             if (Parent != null) Parent.PerformLayout();
             Invalidate();
+        }
+
+        internal static int GateFills;
+
+        /// Whether these are the rows it already holds, word for word, in the same order.
+        private bool Same(List<string[]> fresh, string whenEmpty)
+        {
+            if (fresh == null || rows.Count != fresh.Count || empty != (whenEmpty ?? "")) return false;
+            for (int i = 0; i < rows.Count; i++)
+            {
+                string[] mine = rows[i], theirs = fresh[i];
+                if (mine == null || theirs == null || mine.Length != theirs.Length) return false;
+                for (int c = 0; c < mine.Length; c++)
+                    if (mine[c] != theirs[c]) return false;
+            }
+            return true;
         }
 
         // What it says with no checks to show: wrapped, Korean between its words (Soft.Wrap).
@@ -741,6 +763,8 @@ namespace CodexAutoResume
             {
                 if (paused) Redraw(pageHost, true);
             }
+            // Coming back to Pending: the countdowns the clock did not write while it was hidden.
+            if (name == "pending" && snapshot != null) WriteCountdowns(Now());
             if (auditing) return;
             if (name == "statistics") LoadStatistics();
             if (name == "diagnostics") LoadCompatibility();
@@ -1132,9 +1156,8 @@ namespace CodexAutoResume
 
         private void DrawHeader(object sender, DrawListViewColumnHeaderEventArgs e)
         {
-            using (var brush = new SolidBrush(Card)) e.Graphics.FillRectangle(brush, e.Bounds);
-            using (var brush = new SolidBrush(Line))
-                e.Graphics.FillRectangle(brush, e.Bounds.Left, e.Bounds.Bottom - Soft.Hairline, e.Bounds.Width, Soft.Hairline);
+            e.Graphics.FillRectangle(Soft.Fill(Card), e.Bounds);
+            e.Graphics.FillRectangle(Soft.Fill(Line), e.Bounds.Left, e.Bounds.Bottom - Soft.Hairline, e.Bounds.Width, Soft.Hairline);
             var bounds = new Rectangle(e.Bounds.X + Px(10), e.Bounds.Y, Math.Max(0, e.Bounds.Width - Px(14)), e.Bounds.Height);
             TextRenderer.DrawText(e.Graphics, e.Header.Text, e.Font, bounds, Secondary,
                                   TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
@@ -1149,9 +1172,11 @@ namespace CodexAutoResume
             // rows have; the chosen row is pressed into the inset colour. High Contrast keeps
             // Highlight for it.
             Color back = !selected ? Card : Palette.Contrast ? Palette.AccentSoft : Palette.Inset;
-            using (var brush = new SolidBrush(back)) e.Graphics.FillRectangle(brush, e.Bounds);
-            using (var brush = new SolidBrush(Line))
-                e.Graphics.FillRectangle(brush, e.Bounds.Left, e.Bounds.Bottom - Soft.Hairline, e.Bounds.Width, Soft.Hairline);
+            // Brushes from Soft.Fill, which keeps one per colour: a list of twenty rows across six columns
+            // allocated two hundred and forty brushes every time it repainted, and it repaints on every
+            // scroll, selection and refresh.
+            e.Graphics.FillRectangle(Soft.Fill(back), e.Bounds);
+            e.Graphics.FillRectangle(Soft.Fill(Line), e.Bounds.Left, e.Bounds.Bottom - Soft.Hairline, e.Bounds.Width, Soft.Hairline);
             var row = e.Item.Tag as Dictionary<string, object>;
             var cell = new Rectangle(e.Bounds.X + Px(10), e.Bounds.Y, Math.Max(0, e.Bounds.Width - Px(14)), e.Bounds.Height);
             string text = e.SubItem == null ? "" : e.SubItem.Text;
@@ -2705,6 +2730,7 @@ namespace CodexAutoResume
         /// share the list's width by their headings (FitColumns).
         private void ShowUnreadableList(ListView list, Label empty, string reason)
         {
+            filled.Remove(list);            // it no longer holds the records the signature describes
             ShowUnreadable(list, empty, reason);
             MeasureCells(list);
             if (list == pendingList) FollowResumeSwitches();
@@ -2787,6 +2813,31 @@ namespace CodexAutoResume
                           When(Number(row, "detected_at")), When(Number(row, "outcome_at")) };
         }
 
+        // What a filled list is made of, per list: every row's cells and the three things a row is
+        // drawn from besides its text - its state's colour, its overlays and its Auto-resume switch.
+        // The snapshot arrives every five seconds whether or not anything moved, and filling used to
+        // rewrite every cell, invalidate the list and re-measure every cell of up to 200 rows in both
+        // lists, on the window's own thread, for rows that were byte for byte the ones already there.
+        private readonly Dictionary<ListView, string> filled = new Dictionary<ListView, string>();
+
+        // How many times a list has actually been filled, and a gate list actually rebuilt. Diagnostic
+        // only - nothing reads them but tests/test_gui_v069_idle.py, which is how "an unchanged snapshot
+        // costs nothing" is held to being true rather than remembered.
+        internal static int ListFills;
+
+        private string ListSignature(List<Dictionary<string, object>> fresh, bool pending)
+        {
+            var parts = new List<string>();
+            foreach (var row in fresh)
+            {
+                parts.Add(Str(row, "interruption_id") ?? "");
+                foreach (string cell in Cells(row, pending)) parts.Add(cell ?? "");
+                parts.Add(ToneFor(row).ToArgb().ToString(CultureInfo.InvariantCulture));
+                parts.Add(ThreadOn(row) ? "1" : "0");
+            }
+            return string.Join("\u001f", parts.ToArray());
+        }
+
         private void FillList(ListView list, List<object> rows, bool pending)
         {
             var fresh = new List<Dictionary<string, object>>();
@@ -2796,6 +2847,15 @@ namespace CodexAutoResume
                     var row = entry as Dictionary<string, object>;
                     if (row != null) fresh.Add(row);
                 }
+
+            string signature = ListSignature(fresh, pending);
+            string before;
+            // A glide is mid-flight: the switch it draws is not in the records, so let the fill run.
+            if (filled.TryGetValue(list, out before) && before == signature &&
+                list.Items.Count == fresh.Count && resumeGlides.Count == 0)
+                return;
+            filled[list] = signature;
+            ListFills++;
 
             filling = true;
             try
@@ -2929,6 +2989,16 @@ namespace CodexAutoResume
                     : S("overview.next", "Next check in {time}", "time", Countdown(next - now));
                 runningLine.Text = running > 0 ? S("overview.running_count", "{n} running in Codex", "n", running) : "";
             }
+            // Every second, and only where a person can see it: writing a sub-item is a message to the
+            // native list, and a countdown changes every tick, so a hidden Pending page was sending one
+            // per waiting row per second for nobody. ShowPage writes them once when it comes back.
+            if (pendingList == null || currentPage != "pending") return;
+            WriteCountdowns(now);
+        }
+
+        /// Each waiting row's Next check, written only where it differs from what the row already shows.
+        private void WriteCountdowns(double now)
+        {
             if (pendingList == null) return;
             foreach (ListViewItem item in pendingList.Items)
             {

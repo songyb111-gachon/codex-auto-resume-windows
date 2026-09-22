@@ -207,7 +207,7 @@ def collect(control, *, now=None) -> dict:
     bundle["compatibility"] = _compatibility(control)
     logs = control.paths.logs_dir
     bundle["logs"] = {name: _tail(logs / name, redact)
-                      for name in ("auto-resume.log", "errors.log", "launcher.log")
+                      for name in ("auto-resume.log", "errors.log", "launcher.log", "codex-start.log")
                       if (logs / name).is_file()}
     return bundle
 

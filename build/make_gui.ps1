@@ -47,7 +47,9 @@ $normalizer = Join-Path $Root 'build\normalize_pe.py'
 # text is a pure function of the manifest, so the build stays reproducible.
 $pluginManifest = Get-Content (Join-Path $Root '.codex-plugin\plugin.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 $version = [string]$pluginManifest.version
-if ($version -notmatch '^\d+\.\d+\.\d+$') { throw ('plugin.json version is not MAJOR.MINOR.PATCH: ' + $version) }
+if ($version -notmatch '^(\d+\.\d+\.\d+)(-alpha)?$') { throw ('plugin.json version is not MAJOR.MINOR.PATCH(-alpha): ' + $version) }
+# A version resource holds numbers only; a pre-release keeps its full name in the informational version.
+$numericVersion = $Matches[1]
 $publisher = [string]$pluginManifest.author.name
 $product = [string]$pluginManifest.interface.displayName
 function Get-VersionInfoSource([string]$Description) {
@@ -62,8 +64,8 @@ function Get-VersionInfoSource([string]$Description) {
         ('[assembly: AssemblyProduct(' + (Lit $product) + ')]'),
         ('[assembly: AssemblyCompany(' + (Lit $publisher) + ')]'),
         ('[assembly: AssemblyCopyright(' + (Lit ('Copyright (c) ' + $publisher + '. MIT License.')) + ')]'),
-        ('[assembly: AssemblyVersion("' + $version + '.0")]'),
-        ('[assembly: AssemblyFileVersion("' + $version + '.0")]'),
+        ('[assembly: AssemblyVersion("' + $numericVersion + '.0")]'),
+        ('[assembly: AssemblyFileVersion("' + $numericVersion + '.0")]'),
         ('[assembly: AssemblyInformationalVersion("' + $version + '")]')
     ) -join "`r`n"
 }

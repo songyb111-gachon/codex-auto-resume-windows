@@ -582,7 +582,7 @@ def render_panel(target: Path) -> None:
             cwd=workspace)
         if not shot.is_file():
             raise SystemExit("the renderer produced no image")
-        shutil.copyfile(shot, target)
+        copy_file(shot, target)
 
 
 # ---------------------------------------------------------------- settings window
@@ -679,9 +679,39 @@ def write_png(path: Path, width: int, height: int, bgra: bytes) -> None:
         return (struct.pack(">I", len(data)) + kind + data
                 + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF))
 
-    path.write_bytes(b"\x89PNG\r\n\x1a\n"
-                     + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
-                     + chunk(b"IDAT", zlib.compress(bytes(raw), 9)) + chunk(b"IEND", b""))
+    write_file(path, b"\x89PNG\r\n\x1a\n"
+               + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
+               + chunk(b"IDAT", zlib.compress(bytes(raw), 9)) + chunk(b"IEND", b""))
+
+
+# Windows occasionally refuses a write to a picture this generator has just written - EINVAL from a
+# scanner, a sync client or the shell still holding the file - and the same write succeeds a moment
+# later. A run takes a quarter of an hour, so one unlucky file must not end it; every picture written
+# or copied here goes through these two. Nothing else is retried: a path that is wrong stays wrong.
+WRITE_ATTEMPTS = 6
+WRITE_PAUSE = 0.4
+
+
+def write_file(path: Path, data: bytes) -> None:
+    for attempt in range(WRITE_ATTEMPTS):
+        try:
+            path.write_bytes(data)
+            return
+        except OSError:
+            if attempt == WRITE_ATTEMPTS - 1:
+                raise
+            time.sleep(WRITE_PAUSE)
+
+
+def copy_file(source, target) -> None:
+    for attempt in range(WRITE_ATTEMPTS):
+        try:
+            shutil.copyfile(source, target)
+            return
+        except OSError:
+            if attempt == WRITE_ATTEMPTS - 1:
+                raise
+            time.sleep(WRITE_PAUSE)
 
 
 # ------------------------------------------------------------------- animated PNG
@@ -785,7 +815,7 @@ def write_apng(path: Path, width: int, height: int, frames: list, alpha=None) ->
         sequence += 1
         previous = picture
     out += _png_chunk(b"IEND", b"")
-    path.write_bytes(bytes(out))
+    write_file(path, bytes(out))
 
 
 def read_png_rgb(path: Path) -> tuple:
@@ -1363,7 +1393,7 @@ def render_cards() -> list:
         for theme, (asset, copy) in card_paths(locale).items():
             render_card(asset or copy, locale, theme)
             if asset is not None:
-                shutil.copyfile(asset, copy)
+                copy_file(asset, copy)
             print("  %s  %s" % ((asset or copy).relative_to(ROOT), dimensions(asset or copy)))
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     drawing = card_drawing()
@@ -1427,24 +1457,47 @@ ICON_ROOTS = (("tray", "IconFrames"), ("tray", "icon_frame"), ("tray", "icon_fra
 # the card it sits on, and every frame is the capture with that one disc painted again; what a viewer without APNG
 # sees is the first frame, which is the still picture that was always there.
 BREATHE_FPS = 30
+# Monitoring's rhythm, which is also waiting's (brand.GLOW waiting_ms) - and waiting is the state most of
+# these pictures are in, since their sample data has interruptions waiting. One rhythm covers both.
 BREATHE_STATE = "monitoring"
 
 
-def find_light(rgb: bytes, width: int, height: int, colour: tuple) -> tuple | None:
-    """(x, y) of the centre of the status light in a captured picture, or None where it is not there.
+# How far toward the card a dot may be dimmed and still be the dot. brand.glow dims to `glow_floor` - about 0.38
+# of the way - at the bottom of a breath, and the glow round it never comes closer to the light's own colour than
+# about two thirds of the way, so a threshold between the two tells a dimmed dot from the glow it sits in.
+LIGHT_DIM = 0.45
 
-    The light is the roundest run of its own colour: pixels within a few steps of it, gathered into clusters, the
-    one nearest a filled disc winning. A chip or a button in the same colour is a rectangle and loses; a glyph is
-    neither round nor wide enough.
+
+def find_light(rgb: bytes, width: int, height: int, colour: tuple, ground: tuple) -> tuple | None:
+    """(x, y, radius) of the status light in a captured picture, or None where it is not there.
+
+    The light is the topmost round disc of its own colour, at any point of its breath: a captured window or panel
+    is caught at whatever moment it was in, and since v0.6.9 waiting breathes too, so the dot in a picture is
+    rarely at full brightness. Pixels are taken as the light's when they lie on the line from its colour toward
+    the card under it, no further than LIGHT_DIM - which the glow never reaches - and gathered into clusters; a
+    chip or a button is a rectangle and loses the roundness check, a glyph is neither round nor wide enough.
+
+    Topmost, not roundest: every surface carries its status light at the top, and the panel's pictures used to
+    breathe an 8 px dot in the Automatic recovery tile far below it - a dot that never moves in the product -
+    because it scored as the rounder disc.
     """
+    def lit(at):
+        """Whether the pixel at byte offset `at` is the light's colour, dimmed no further than LIGHT_DIM."""
+        spread = max(abs(one - other) for one, other in zip(colour, ground))
+        if spread == 0:
+            return False
+        channel = max(range(3), key=lambda index: abs(ground[index] - colour[index]))
+        share = (rgb[at + channel] - colour[channel]) / float(ground[channel] - colour[channel])
+        if not -0.02 <= share <= LIGHT_DIM:
+            return False
+        return all(abs(rgb[at + index] - (colour[index] + share * (ground[index] - colour[index]))) <= 6
+                   for index in range(3))
+
     seen, clusters = set(), []
     for y in range(height):
         row = y * width * 3
         for x in range(width):
-            at = row + x * 3
-            if (x, y) in seen:
-                continue
-            if max(abs(rgb[at] - colour[0]), abs(rgb[at + 1] - colour[1]), abs(rgb[at + 2] - colour[2])) > 6:
+            if (x, y) in seen or not lit(row + x * 3):
                 continue
             stack, found = [(x, y)], []
             seen.add((x, y))
@@ -1453,12 +1506,9 @@ def find_light(rgb: bytes, width: int, height: int, colour: tuple) -> tuple | No
                 found.append((cx, cy))
                 for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
                     nx, ny = cx + dx, cy + dy
-                    if 0 <= nx < width and 0 <= ny < height and (nx, ny) not in seen:
-                        near = (ny * width + nx) * 3
-                        if max(abs(rgb[near] - colour[0]), abs(rgb[near + 1] - colour[1]),
-                               abs(rgb[near + 2] - colour[2])) <= 6:
-                            seen.add((nx, ny))
-                            stack.append((nx, ny))
+                    if 0 <= nx < width and 0 <= ny < height and (nx, ny) not in seen and lit((ny * width + nx) * 3):
+                        seen.add((nx, ny))
+                        stack.append((nx, ny))
             clusters.append(found)
     best = None
     for found in clusters:
@@ -1467,9 +1517,12 @@ def find_light(rgb: bytes, width: int, height: int, colour: tuple) -> tuple | No
         wide, tall = max(xs) - min(xs) + 1, max(ys) - min(ys) + 1
         if abs(wide - tall) > 2 or not (6 <= wide <= 40):
             continue                                        # a small disc, not a chip and not a glyph
-        score = abs(len(found) - 3.14159 * (wide / 2.0) ** 2)
-        if best is None or score < best[0]:
-            best = (score, (sum(xs) / len(xs), sum(ys) / len(ys)), wide / 2.0)
+        area = 3.14159 * (wide / 2.0) ** 2
+        if abs(len(found) - area) > 0.35 * area:
+            continue                                        # filled like a disc, not a ring or a letter
+        top = min(ys)
+        if best is None or top < best[0]:
+            best = (top, (sum(xs) / len(xs), sum(ys) / len(ys)), wide / 2.0)
     return None if best is None else (best[1][0], best[1][1], best[2])
 
 
@@ -1516,10 +1569,10 @@ def breathe_over(rgb: bytes, width: int, height: int, where: tuple, ground: tupl
     return frames
 
 
-# The pictures that hold a light that moves. The notification card is drawn once and holds still - that is the
-# product, not the picture - so it keeps its stillness here; the icon's and the light's own pictures are animated
-# already, and the social preview is a poster.
-BREATHE_SKIP = ("notification-card", "icon-motion", "status-light", "social-preview", "screenshot-notification")
+# The pictures that hold a light that moves. The icon's and the light's own pictures are animated already, and the
+# social preview is a poster. The notification card was here too while it held still: since v0.6.9 an interruption
+# waiting for its reset breathes, on the card as everywhere, so its picture breathes with it.
+BREATHE_SKIP = ("icon-motion", "status-light", "social-preview")
 
 
 def breathes(path: Path) -> bool:
@@ -1550,7 +1603,7 @@ def breathe_pictures(paths=None) -> list:
             print("  %s  %s" % (path.relative_to(ROOT), dimensions(path)))
             copy = copies.get(path)
             if copy is not None:
-                shutil.copyfile(path, copy)
+                copy_file(path, copy)
                 done.append(copy)
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     for path in done:
@@ -1572,10 +1625,11 @@ def breathe_picture(path: Path, theme: str = "light") -> bool:
     palette = brand.palette(theme)
     width, height, rgb, alpha = read_png(path)
     colour = brand.rgb(palette[brand.status_fill(BREATHE_STATE)])
-    where = find_light(rgb, width, height, colour)
+    ground = brand.rgb(palette["surface"])
+    where = find_light(rgb, width, height, colour, ground)
     if where is None:
         return False
-    frames = breathe_over(rgb, width, height, where, brand.rgb(palette["surface"]), colour)
+    frames = breathe_over(rgb, width, height, where, ground, colour)
     write_apng(path, width, height, frames, alpha)
     return True
 
@@ -1926,7 +1980,7 @@ def write_gif(path: Path, width: int, height: int, palette: list, frames: list) 
                                    for at in range(0, len(packed), 255)) + b"\x00"
         previous = canvas
     data += b"\x3B"
-    path.write_bytes(bytes(data))
+    write_file(path, bytes(data))
 
 
 def render_icon_motion(target: Path = ICON_MOTION_APNG) -> None:
@@ -2652,7 +2706,7 @@ def main(argv=None) -> int:
     print("  %s  %s" % (ICON_MOTION_APNG.relative_to(ROOT), dimensions(ICON_MOTION_APNG)))
 
     for source, copy in copies.items():
-        shutil.copyfile(source, copy)
+        copy_file(source, copy)
         print("copied         : %s -> %s" % (source.relative_to(ROOT), copy.relative_to(ROOT)))
 
     MANIFEST.write_text(json.dumps({

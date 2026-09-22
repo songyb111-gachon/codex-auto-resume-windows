@@ -218,6 +218,7 @@ namespace CodexAutoResume
         internal const double GlowFarAt = 0.66;
         internal const double GlowFarAlpha = 0.5;
         internal const double GlowMonitoringMs = 4400;
+        internal const double GlowWaitingMs = 4400;
         internal const double GlowRecoveringMs = 2800;
         internal const double GlowAttentionMs = 5600;
         internal const double GlowFailedMs = 1200;
@@ -271,13 +272,14 @@ namespace CodexAutoResume
             arc = -1;
             if (state == "monitoring")
                 return reduced || Light(elapsedMs % GlowMonitoringMs / GlowMonitoringMs, out dim, out opacity, out spread);
+            if (state == "waiting")
+                return reduced || Light(elapsedMs % GlowWaitingMs / GlowWaitingMs, out dim, out opacity, out spread);
             if (state == "recovering")
                 return reduced || Light(elapsedMs % GlowRecoveringMs / GlowRecoveringMs, out dim, out opacity, out spread);
             if (state == "attention")
                 return reduced || Light(elapsedMs % GlowAttentionMs / GlowAttentionMs, out dim, out opacity, out spread);
             if (state == "failed")
                 return reduced || Light(elapsedMs % GlowFailedMs / GlowFailedMs, out dim, out opacity, out spread);
-            if (state == "waiting") return true;
             if (state == "checking")
             {
                 arc = reduced ? GlowArcStillAt : elapsedMs % GlowArcMs / GlowArcMs * 360.0;
@@ -290,7 +292,7 @@ namespace CodexAutoResume
         /// arc, for as long as the state lasts.
         internal static bool GlowMoves(string state, double sinceEnteredMs, bool reduced)
         {
-            return !reduced && (state == "monitoring" || state == "recovering" || state == "attention" || state == "failed" || state == "checking");
+            return !reduced && (state == "monitoring" || state == "waiting" || state == "recovering" || state == "attention" || state == "failed" || state == "checking");
         }
 
         /// The light at `fraction` of one breath (brand.glow_phase): a cosine in light, raised to

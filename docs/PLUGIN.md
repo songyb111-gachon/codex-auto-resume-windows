@@ -61,7 +61,10 @@ operations it uses.
 
 It is a front end and nothing more. No tool detects a failure, reserves an interruption or
 sends a continuation; the watcher stays the only thing that recovers, and it keeps running when
-the server is not. Two tools change *when* the watcher next looks at a record: `retry_now` moves
+the server is not. v0.6.9 tried to give it one more thing to do - starting the watcher when Codex
+starts, for a person who had asked for that - and measured, on a real machine, that Codex runs each
+MCP server in a job object that ends whatever that server starts. So it starts nothing, and writes
+one line to `logs/codex-start.log` saying what the job said. Two tools change *when* the watcher next looks at a record: `retry_now` moves
 a waiting record's next check to now, and `reset_recovery_budget` returns an exhausted record to
 waiting with its recovery attempts and its no-progress count reset to zero. It does not switch
 recovery for that conversation back on: where that conversation is off, the reply says so and

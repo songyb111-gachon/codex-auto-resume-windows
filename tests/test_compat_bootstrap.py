@@ -397,14 +397,18 @@ class UpdateCheckWholeScriptTests(unittest.TestCase):
         (root / ".codex-plugin").mkdir(parents=True)
         text = BOOTSTRAP.read_text(encoding="utf-8").replace(RAW, "https://127.0.0.1:1/codex_compat.json")
         (root / "scripts" / "bootstrap.ps1").write_text(text, encoding="utf-8")
-        shutil.copyfile(ROOT / ".codex-plugin" / "plugin.json", root / ".codex-plugin" / "plugin.json")
         cls.release = json.loads((ROOT / "scripts" / "release.json").read_text(encoding="utf-8"))
         release = dict(cls.release, latest="https://127.0.0.1:1/releases/latest",
                        download="https://127.0.0.1:1/releases/download/v{version}/")
         (root / "scripts" / "release.json").write_text(json.dumps(release), encoding="utf-8")
         cls.script = root / "scripts" / "bootstrap.ps1"
         manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8-sig"))
-        cls.version = manifest["version"]
+        # The stub answers with this version as a published tag, and only vMAJOR.MINOR.PATCH is
+        # ever accepted from the network - so the copy carries a released version's manifest even
+        # while this checkout is a pre-release. What is under test is the answer, not the name.
+        cls.version = manifest["version"].split("-")[0]
+        manifest["version"] = cls.version
+        (root / ".codex-plugin" / "plugin.json").write_text(json.dumps(manifest), encoding="utf-8")
 
     @classmethod
     def tearDownClass(cls):

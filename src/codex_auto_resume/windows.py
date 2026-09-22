@@ -100,6 +100,108 @@ def process_identity(pid):
         k.CloseHandle(handle)
 
 
+# The job-object limit bits `process_context` reports, and the creation flag that leaves a job.
+JOB_BREAKAWAY_OK = 0x0800
+JOB_SILENT_BREAKAWAY_OK = 0x1000
+JOB_KILL_ON_CLOSE = 0x2000
+CREATE_BREAKAWAY_FROM_JOB = 0x01000000
+APPMODEL_ERROR_NO_PACKAGE = 15700
+
+
+class _BasicLimits(C.Structure):
+    _fields_ = [("per_process_user_time", C.c_longlong), ("per_job_user_time", C.c_longlong),
+                ("flags", W.DWORD), ("minimum_working_set", C.c_size_t),
+                ("maximum_working_set", C.c_size_t), ("active_process_limit", W.DWORD),
+                ("affinity", C.c_size_t), ("priority_class", W.DWORD), ("scheduling_class", W.DWORD)]
+
+
+class _ExtendedLimits(C.Structure):
+    _fields_ = [("basic", _BasicLimits)] + [(name, C.c_ulonglong) for name in (
+                    "read_operations", "write_operations", "other_operations",
+                    "read_bytes", "write_bytes", "other_bytes")] + [
+                (name, C.c_size_t) for name in ("process_memory_limit", "job_memory_limit",
+                                                "peak_process_memory", "peak_job_memory")]
+
+
+def process_context() -> dict:
+    """What Windows has wrapped this process in: a job object and its limits, and a package.
+
+    Asked by the MCP server each time Codex starts it, because a watcher the server starts
+    inherits both. A job whose last handle closes with KILL_ON_JOB_CLOSE set ends every
+    process still in it, so a watcher left inside the job of the Codex that started it would
+    stop when that Codex closes; BREAKAWAY_OK is whether a child may leave it on request, and
+    SILENT_BREAKAWAY_OK whether every child leaves it anyway. A package identity would move
+    the watcher's AppData writes into the package's private copy - the home lock among them -
+    which is why the home is not in AppData (tests/test_plugin.py).
+
+    Content-free by construction: booleans, each None where Windows would not say. Only the
+    immediate job is read; a job nested inside another reports its own limits.
+    """
+    facts = {"in_job": None, "kill_on_close": None, "breakaway_ok": None,
+             "silent_breakaway_ok": None, "packaged": None}
+    try:
+        k = _kernel()
+    except AdapterError:
+        return facts
+    k.GetCurrentProcess.restype = W.HANDLE
+    k.IsProcessInJob.argtypes = [W.HANDLE, W.HANDLE, C.POINTER(W.BOOL)]
+    k.IsProcessInJob.restype = W.BOOL
+    inside = W.BOOL()
+    if k.IsProcessInJob(k.GetCurrentProcess(), None, C.byref(inside)):
+        facts["in_job"] = bool(inside.value)
+    if facts["in_job"] is False:
+        facts.update(kill_on_close=False, breakaway_ok=False, silent_breakaway_ok=False)
+    elif facts["in_job"]:
+        k.QueryInformationJobObject.argtypes = [W.HANDLE, C.c_int, C.c_void_p, W.DWORD,
+                                                C.POINTER(W.DWORD)]
+        k.QueryInformationJobObject.restype = W.BOOL
+        limits = _ExtendedLimits()
+        # 9 is JobObjectExtendedLimitInformation; a NULL job is the caller's own.
+        if k.QueryInformationJobObject(None, 9, C.byref(limits), C.sizeof(limits), None):
+            flags = limits.basic.flags
+            facts.update(kill_on_close=bool(flags & JOB_KILL_ON_CLOSE),
+                         breakaway_ok=bool(flags & JOB_BREAKAWAY_OK),
+                         silent_breakaway_ok=bool(flags & JOB_SILENT_BREAKAWAY_OK))
+    try:
+        k.GetCurrentPackageFullName.argtypes = [C.POINTER(W.UINT), W.LPWSTR]
+        k.GetCurrentPackageFullName.restype = C.c_long
+        length = W.UINT(0)
+        facts["packaged"] = k.GetCurrentPackageFullName(C.byref(length), None) != APPMODEL_ERROR_NO_PACKAGE
+    except AttributeError:
+        pass
+    return facts
+
+
+INSTALL_LOCK = "Local\\CodexAutoResume.Install"
+
+
+ERROR_FILE_NOT_FOUND = 2
+SYNCHRONIZE = 0x00100000
+
+
+def install_in_progress():
+    """True while an installation, repair or update holds its lock; None where it cannot tell.
+
+    The installer creates its named mutex and holds it for as long as it runs, so the mutex existing
+    is the answer, and this only opens it: it never waits on it and never owns it, even for an
+    instant, because an installer starting at that instant would take an owner it cannot wait out
+    for another installation and stop. A name that does not exist is no installation. The one
+    thing that also opens it is the Dashboard's own momentary look, which this reads as busy -
+    once, until the next start.
+    """
+    try:
+        k = _kernel()
+    except AdapterError:
+        return None
+    k.OpenMutexW.argtypes = [W.DWORD, W.BOOL, W.LPCWSTR]
+    k.OpenMutexW.restype = W.HANDLE
+    handle = k.OpenMutexW(SYNCHRONIZE, False, INSTALL_LOCK)
+    if handle:
+        k.CloseHandle(handle)
+        return True
+    return False if C.get_last_error() == ERROR_FILE_NOT_FOUND else True
+
+
 # NOTE: no LockFileEx/byte-lock probe exists anywhere in this tool by design.
 # Acquiring the thread writer lock -- even for microseconds on a momentarily free
 # range -- could make the ChatGPT app's own try_lock fail. Loaded-state ownership is

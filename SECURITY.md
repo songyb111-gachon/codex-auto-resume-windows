@@ -54,7 +54,12 @@ display it, and Windows keeps them in its notification history.
   validator (`controlcli compat-import`) and only after a document passed it. From v0.6.8 it also
   holds `config/failure-seen.json`, one time - when a person last saw a failed recovery - which the
   watcher, the popup and the window write through a temporary file under one named lock, and which
-  decides nothing but whether the icon is red.
+  decides nothing but whether the icon is red. From v0.6.9 `logs/codex-start.log` holds one line
+  each time Codex starts the plugin's MCP server and that server considers starting the watcher:
+  what Windows wrapped the server in and what was decided, in fixed words, with no path in it.
+- Nothing, from the MCP server, since v0.6.9 measured what would happen: Codex runs each plugin's
+  MCP server in a job object that ends what that server starts, so the server starts no watcher and
+  writes one line saying so. Nothing else in this product starts a process from inside Codex.
 - One continuation message to one exact thread, through the official `codex queue` CLI. Its
   text is this product's message in the language and style you chose or, from v0.6.3, the
   Custom message you wrote in the Dashboard (see *The Custom message is written in the
