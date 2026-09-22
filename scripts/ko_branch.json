@@ -31,6 +31,7 @@
     "docs/PLUGIN.ko.md": "docs/PLUGIN.md",
     "docs/VERIFY.ko.md": "docs/VERIFY.md",
     "docs/FEATURE_MATRIX.ko.md": "docs/FEATURE_MATRIX.md",
+    "docs/GUIDE.ko.md": "docs/GUIDE.md",
     "docs/LIVE_ACCEPTANCE.ko.md": "docs/LIVE_ACCEPTANCE.md",
     "docs/ROADMAP.ko.md": "docs/ROADMAP.md"
   },
@@ -58,7 +59,7 @@
     "CONTRIBUTING.md": "ce4e7f2342e4c185b240ee8cc3632bc48c4157552653e89633c4e1abc47b1241",
     "CONTRIBUTORS.md": "698f3d4fb75b30354e1c6749d4702c0e5e36149c640d90dc18a8dfa6842d0c3b",
     "PRIVACY.md": "8b3decff3baba54c078da075d849d6aab0b4853741eb168e07a589f1994b1468",
-    "README.md": "339640c0e11270787619c0ec6d4c52b5a4f9f91615ca32c5ad5f72486bfea82b",
+    "README.md": "56bbc1b498e4399604ff8518db32065c9484b1c3cefd4d0492b395c9ec3c3013",
     "SECURITY.md": "6abea26e95aae5ea36b5f6c7bac709fd76fd1f6c160af0edee305da4426156d9",
     "SUPPORT.md": "fdb8542c3ee6a3a14f813a41c38a4cba6b2e7df0ca06fd846b269c57a7abbcc6",
     "docs/BRAND.md": "1167b7854b680a0a3ac3943eeeb280e53f0069d961cde2cabed925c4fca6341e",
@@ -68,6 +69,7 @@
     "docs/VERIFY.md": "9effedef4250e27c8a42de641582e32d68a070a91e2c7706a1fb314ac0459cec",
     "docs/FEATURE_MATRIX.md": "fee5b8a27e36f574c46f6b642b1751327bda294d73ea81cd63a43df15f01e787",
     "docs/LIVE_ACCEPTANCE.md": "1a94c108c121113a200b30ebc1f82fa3e26d395261cc810580b3e12a91d779ff",
-    "docs/ROADMAP.md": "4a0d7d70a085ed15df004fbf6b00bcd6e550ba7ce90b00e45515b9edef831d24"
+    "docs/ROADMAP.md": "fbbb9f841c437f2c2f447d129eed2bbbe8adbd6db5f9a6a5118cd28b3f879480",
+    "docs/GUIDE.md": "5a3ce70fb2d4ae8e2ba03d406f159676ba42d124698fbf5d1ddd9eeddac129e2"
   }
 }

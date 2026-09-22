@@ -86,7 +86,7 @@ DOCS = documents_here((
     "README.md", "README.ko.md", "PRIVACY.md", "SECURITY.md", "SECURITY.ko.md",
     "SUPPORT.md", "CONTRIBUTING.md", "CONTRIBUTORS.ko.md",
     "docs/PLUGIN.md", "docs/BRAND.md", "docs/COMPARISON.md",
-    "docs/COMPARISON.ko.md", "docs/DEVELOPMENT.ko.md",
+    "docs/COMPARISON.ko.md", "docs/DEVELOPMENT.ko.md", "docs/GUIDE.md", "docs/GUIDE.ko.md",
     "skills/codex-auto-resume/SKILL.md"))
 
 # The changelog is a record of what past releases did and must not be rewritten to match
