@@ -1284,7 +1284,9 @@ class IconMotionPictureTests(unittest.TestCase):
                 self.assertEqual(mine, theirs,
                                  "the committed picture is not the generator's; "
                                  "run build/make_screenshots.py --icon")
-        self.assertLess(len(committed), 300 * 1024)
+        # 512 KiB since v0.6.8, from 300: attention and a failure now move for as long as they last, where each used
+        # to hold still after one pulse, so two more of the five columns change in almost every picture.
+        self.assertLess(len(committed), 512 * 1024)
         # An APNG since v0.6.6: a PNG whose first frame is what a viewer without animation shows, so the
         # badge's gradient and the ring's edges keep their colours instead of sharing 255 of them.
         self.assertEqual(committed[:8], b"\x89PNG\r\n\x1a\n")
@@ -1293,8 +1295,9 @@ class IconMotionPictureTests(unittest.TestCase):
                          "it loops for ever")
 
     def test_every_picture_is_the_icon_s_frame_at_that_moment(self):
-        """Two loops of watching from two breaths before a sweep, recovering's sweeps, attention's one pulse and
-        paused, as the icon's rules have them at each picture's moment - never breathing while it travels."""
+        """Two loops of watching from two breaths before a sweep, recovering's sweeps, attention's slow breath, a
+        failure's quick sweeps and paused, as the icon's rules have them at each picture's moment - never breathing
+        while it travels."""
         from codex_auto_resume import brand, tray
         g = self.generator
         start, end = g.icon_motion_stretch()
@@ -1315,18 +1318,21 @@ class IconMotionPictureTests(unittest.TestCase):
                 with self.subTest(state=state, moment=moment):
                     if frame[0] != 0:
                         self.assertEqual(frame[1], top, "a head that has left its place is at full brightness")
-                    if state in ("recovering", "idle"):
-                        self.assertEqual(frame[1], top, "recovering never breathes, and paused is still")
+                    if state in ("recovering", "failed", "idle"):
+                        self.assertEqual(frame[1], top, "recovering and a failure never breathe, and paused is still")
                     if state == "watching" and moment < sweeps_at - 100:
                         self.assertEqual(frame[0], 0, "no sweep while it breathes")
-                    if state == "attention" and moment >= brand.GLOW["attention_ms"] + 100:
-                        self.assertEqual(tuple(frame), (0, top), "one pulse, then it holds")
+                    if state == "attention":
+                        self.assertEqual(frame[0], 0, "attention breathes at home and never sweeps")
         # The stroke's own positions: its place and every fifteen degrees clockwise of it, to the far end.
         stroke = set(range(round(tray.ICON_SWEEP / (360.0 / motion["positions"])) + 1))
         self.assertEqual({position for position, _ in seen["watching"]}, stroke, "watching sweeps the whole stroke")
         self.assertIn((0, 0), seen["watching"], "and breathes to its low")
         self.assertEqual({position for position, _ in seen["recovering"]}, stroke)
-        # A problem's one pulse dims most of the way down: its frames need not land on the lowest level itself.
+        # A failure's sweep is twice as quick at the same frame rate: it passes some positions between frames, and
+        # reaches both ends of the stroke.
+        self.assertTrue({0, max(stroke)} <= {position for position, _ in seen["failed"]})
+        # Attention's slow breath dims most of the way down: its frames need not land on the lowest level itself.
         self.assertLessEqual(min(level for _, level in seen["attention"]), top // 8)
         self.assertEqual({position for position, _ in seen["attention"]}, {0})
         self.assertEqual(seen["idle"], {(0, top)})
@@ -1363,17 +1369,21 @@ class IconMotionPictureTests(unittest.TestCase):
 
     def test_it_loops_without_a_jump(self):
         """The GIF starts again where its stretch ends: the same frame of every state, as watching's loop and a whole
-        number of recovering's turns have it."""
+        number of recovering's and a failure's turns have it - and attention, whose 5.6 s breath does not divide the
+        stretch, within one level of 24 of the frame it began with."""
         from codex_auto_resume import tray
         g = self.generator
         start, end = g.icon_motion_stretch()
         first = self.made["frames"][0][2]
         for state, _ in g.ICON_MOTION_LIGHTS:
-            if state == "attention":
-                continue                        # its pulse is what arriving looks like
             with self.subTest(state=state):
                 moment = end if state == "watching" else end - start
-                self.assertEqual(tuple(first[state]), tray.icon_frame(state, moment, None))
+                position, level = tray.icon_frame(state, moment, None)
+                if state == "attention":
+                    self.assertEqual(position, first[state][0])
+                    self.assertLessEqual(abs(level - first[state][1]), 1)
+                else:
+                    self.assertEqual(tuple(first[state]), (position, level))
 
     def drawing(self, files):
         with tempfile.TemporaryDirectory() as root:
@@ -1408,8 +1418,9 @@ class IconMotionPictureTests(unittest.TestCase):
             "the breath's depth": ("tray.py", '"dim": 0.6,', '"dim": 0.5,'),
             "the breath's rhythm": ("brand.py", glow.group(0), '"monitoring_ms": %d' % (int(glow.group(1)) + 100)),
             "the mark's accent": ("brand.py", 'ICON_ACCENT = "#4FE0F5"', 'ICON_ACCENT = "#4FE0F6"'),
-            "a failure's rhythm": ("brand.py", '"failed_ms": 2200,', '"failed_ms": 2000,'),
-            "which states breathe in place": ("tray.py", '"failed": "failed_ms"}', '"failed": "recovering_ms"}'),
+            "attention's rhythm": ("brand.py", '"attention_ms": 5600,', '"attention_ms": 6600,'),
+            "which states breathe in place": ("tray.py", '"attention": "attention_ms"}', '"attention": "recovering_ms"}'),
+            "how quickly a failure sweeps": ("tray.py", '"failed_slot": 0.5,', '"failed_slot": 0.6,'),
         }
         for what, (name, old, new) in moves.items():
             changed = dict(real)
@@ -1436,8 +1447,8 @@ class IconMotionPictureTests(unittest.TestCase):
         is the same GIF."""
         real = self.real()
         before = self.drawing(real)
-        names = ("ICON_BREATHS", "ICON_MOTION", "ICON_SWEEP", "_breath_level", "icon_turn", "_pulsing", "icon_frame", "icon_frame_ms",
-                 "IconFrames")
+        names = ("ICON_BREATHS", "ICON_SWEEPS", "ICON_MOTION", "ICON_SWEEP", "_breath_level", "icon_turn", "icon_frame",
+                 "icon_frame_ms", "IconFrames")
         rest, moved = PopupDrawingTests.cut(real["tray.py"], *names)
         moved_files = dict(real, **{
             "tray.py": rest + "\nfrom .ui.tray.motion import %s\n" % ", ".join(names),

@@ -370,6 +370,12 @@ OpenTelemetry exporter(`otel.exporter`, `otel.trace_exporter`, `otel.metrics_exp
   상태와 사유 코드가 들어갑니다. 워처가 실행되면서 다시 만들어지므로, 지워도 다시 쓰일 때까지 창과 패널과
   명령줄이 알 수 없음으로 보여 줄 뿐입니다. 두 호환성 파일 모두 `Uninstall.cmd -Purge`로 `config/`의 나머지와
   함께 지워지고, 명령줄의 `uninstall`은 `--keep-state`를 주지 않는 한 둘 다 지웁니다;
+- `config/failure-seen.json`(v0.6.7 다음 릴리스부터) — 시각 하나, 곧 사람이 알림 영역 팝업을 열거나
+  대시보드를 앞으로 가져와 실패한 복구를 마지막으로 본 때입니다. 없으면 워처가 시작할 때 그 시각을 쓰고(틱마다
+  다시 확인합니다), 팝업과 창이 앞으로만 옮깁니다. 어느 복구가 실패했는지도, 사용자에 관한 것도 들어 있지 않으며, 아이콘과 작업
+  표시줄 단추를 빨갛게 할지만 정합니다. 지워도 워처가 다시 시작할 때까지 실패가 빨갛게 보이지 않을 뿐입니다.
+  `Uninstall.cmd -Purge`로 `config/`의 나머지와 함께 지워지고, 명령줄의 `uninstall`은 `--keep-state`를 주지
+  않는 한 이것도 지웁니다;
 - `logs/` — 워처가 무엇을 했는지 사유 코드와 대화 UUID로 기록하는 `auto-resume.log`, 문제가 생겼을 때의
   Python traceback이 남는 `errors.log`, 실행될 때마다 한 줄씩(실패했다면 그 이유도) 남는 `launcher.log`.
 

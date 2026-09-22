@@ -215,7 +215,7 @@ it still.
 
 ---
 
-## v0.6.8 — A tray icon without its badge, and a red light that moves 🚧
+## v0.6.8 — A tray icon without its badge, and lights that never stop 🚧
 
 **In development, on the `dev` branch.**
 
@@ -224,11 +224,12 @@ never had, so during a recovery the tray showed a second light the taskbar did n
 the head of the mark says the state on its own, and the tray icon and the taskbar button are one
 picture.
 
-A failure's red light pulsed once and then held still. It now keeps breathing for as long as the
-failure is shown, every 2.2 seconds - a little quicker than recovering's 2.8 and monitoring's 4.4 -
-on every surface that shows it: the window, the notification card, the tray icon and the taskbar
-button. Needing attention still pulses once and holds; Reduce motion and High Contrast still hold
-every light still.
+Needing attention and a failure pulsed once and then held still. Now neither stops for as long as
+it lasts: attention's amber light breathes slowly, every 5.6 seconds - slower than monitoring's
+4.4 - and a failure's red light quickly, every 1.2 seconds. The tray icon and the taskbar button,
+which nothing put in the failed state before, now turn red when a recovery fails, their head
+sweeping along the ring twice as quickly as a recovery's, and stay red until you have seen it.
+Reduce motion and High Contrast still hold every light still.
 
 ---
 
@@ -511,7 +512,7 @@ Compatibility in tiers: Verified, Checked, Compatible
 
 v0.6.8  🚧 In development, on the dev branch
 The tray icon without its badge
-+ a red light that keeps breathing
++ attention breathing slowly, a failure moving quickly
 
         ↓
 

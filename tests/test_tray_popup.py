@@ -506,15 +506,17 @@ class MotionTests(unittest.TestCase):
         self.assertIsNone(popup.halo("paused", 1234, reduced=True))
         self.assertFalse(popup.animates("paused"))
 
-    def test_attention_runs_the_cycle_once_when_it_arrives_and_then_holds_lit(self):
-        pulse = self.GLOW["attention_ms"]
-        self.assertAlmostEqual(popup.halo("attention", 0, since_entered_ms=pulse * 0.5)["dim"],
-                               1.0 - brand.glow_floor())
-        self.assertAlmostEqual(popup.halo("attention", 0, since_entered_ms=0)["opacity"], self.GLOW["peak"])
-        self.assertEqual(popup.halo("attention", 0, since_entered_ms=pulse * 3), self.STILL)
-        self.assertEqual(popup.halo("attention", 0), self.STILL)
-        self.assertTrue(popup.animates("attention", pulse / 2))
-        self.assertFalse(popup.animates("attention", pulse + 1))
+    def test_attention_breathes_slowly_for_as_long_as_it_lasts(self):
+        """Until v0.6.8 it ran the cycle once when it arrived and then held lit; now it is the slowest breath."""
+        cycle = self.GLOW["attention_ms"]
+        self.assertGreater(cycle, self.GLOW["monitoring_ms"])
+        for loop in (0, 1, 12):
+            at = loop * cycle
+            self.assertAlmostEqual(popup.halo("attention", at + cycle * 0.5, at + cycle * 0.5)["dim"],
+                                   1.0 - brand.glow_floor())
+            self.assertAlmostEqual(popup.halo("attention", at, at)["opacity"], self.GLOW["peak"])
+        for since in (0, cycle / 2, cycle + 1, cycle * 30):
+            self.assertTrue(popup.animates("attention", since))
 
     def test_reduced_motion_never_loops_or_pulses(self):
         for state in popup.STATES:

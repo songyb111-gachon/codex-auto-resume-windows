@@ -70,6 +70,8 @@ class Paths:
         # for, written only by the validator that imports it.
         self.compat_report_file = self.state_dir / "compatibility.json"
         self.compat_cache_file = self.state_dir / "compat-cache.json"
+        # v0.6.8: when a person last saw a failure on the icon or the Dashboard (control.acknowledge_failure).
+        self.failure_seen_file = self.state_dir / "failure-seen.json"
         self.log_file = self.logs_dir / "auto-resume.log"
         self.error_log = self.logs_dir / "errors.log"
         self.entry_script = PROJECT_ROOT / "src" / "auto_resume.py"
@@ -178,9 +180,9 @@ class Paths:
         if not self.owns(self.state_dir):
             return []
         names = ["state.sqlite", "state.sqlite-journal", "state.sqlite-wal", "state.sqlite-shm", "settings.json",
-                 "compatibility.json", "compat-cache.json"]
+                 "compatibility.json", "compat-cache.json", "failure-seen.json"]
         files = [self.state_dir / name for name in names]
-        for pattern in ("settings.*.tmp", "compatibility.*.tmp", "compat-cache.*.tmp"):
+        for pattern in ("settings.*.tmp", "compatibility.*.tmp", "compat-cache.*.tmp", "failure-seen.*.tmp"):
             files += [p for p in sorted(self.state_dir.glob(pattern))
                       if not p.is_symlink() and self.confined(p)]
         return files + [self.state_dir / OWNER_MARKER]

@@ -560,6 +560,7 @@
   "timeline.col_time": "時間",
   "timeline.empty": "沒有記錄",
   "timeline.title": "時間軸",
+  "tray.failed": "有一項復原失敗",
   "tray.idle": "沒有等待中的項目",
   "tray.next": "{time}後進行下次檢查",
   "tray.paused": "已暫停",

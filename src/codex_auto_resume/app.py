@@ -494,6 +494,8 @@ class App:
         engine = None
         last_enabled = None
         exit_code = EXIT_OK
+        if not once:
+            self._failure_baseline()
         tray = None if once else self._start_tray(stop)
         try:
             while True:
@@ -533,6 +535,8 @@ class App:
                 except Exception:
                     self._record_failure("initialising Codex adapter" if engine is None else "tick")
                 self._heartbeat(store, session, started, ok)
+                if not once:
+                    self._failure_baseline()            # made good at the next tick if a write was refused
                 if tray is not None:
                     self._update_tray(tray, store)
                 last_tick = time.monotonic()
@@ -554,6 +558,16 @@ class App:
         return exit_code
 
     # ------------------------------------------------------------------ tray
+    def _failure_baseline(self):
+        """Where no time a failure was last seen can be believed, now: a failure from before this watcher - or before
+        the upgrade that brought the red icon - is never shown as new (control.acknowledge_failure). At the start and
+        at every tick, which costs a look at one file, so a write Windows refused once is made good."""
+        from .control import Control
+        try:
+            Control(self.paths).acknowledge_failure(baseline=True)
+        except Exception as exc:
+            self.logger.info("failure baseline not written (%s)", type(exc).__name__)
+
     def _start_tray(self, stop):
         """The icon, if the user wants one. A tray that cannot start costs the icon only."""
         if os.name != "nt" or not self.settings.get("show_tray", True):

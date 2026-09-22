@@ -71,9 +71,9 @@ $activity = $form.GetMethod('Activity', $flags)
 $opacity = $halo.GetMethod('HaloOpacity', $flags)
 $dim = $halo.GetMethod('HaloDim', $flags)
 $loops = $halo.GetMethod('Loops', $flags)
-$once = $halo.GetMethod('PulsesOnce', $flags)
+$once = $halo.GetMethod('PulsesOnce', $flags)          # gone since v0.6.8: nothing pulses once
 $length = $form.GetMethod('CustomLength', $flags)
-foreach ($pair in @(@('Activity', $activity), @('HaloOpacity', $opacity), @('HaloDim', $dim), @('Loops', $loops), @('PulsesOnce', $once), @('CustomLength', $length))) {
+foreach ($pair in @(@('Activity', $activity), @('HaloOpacity', $opacity), @('HaloDim', $dim), @('Loops', $loops), @('CustomLength', $length))) {
     if (-not $pair[1]) { throw ('missing ' + $pair[0]) }
 }
 
@@ -95,7 +95,7 @@ function To-Value {
     return [double]$value
 }
 
-$out = @{ activity = @{}; opacity = @{}; dim = @{}; loops = @{}; once = @{}; lengths = @() }
+$out = @{ activity = @{}; opacity = @{}; dim = @{}; loops = @{}; once = [bool]$once; lengths = @() }
 foreach ($case in (ConvertFrom-Json $env:CAR_CASES).PSObject.Properties) {
     $status = $null
     if ($null -ne $case.Value.status) { $status = [Collections.Generic.Dictionary[string,object]](To-Value $case.Value.status) }
@@ -108,7 +108,6 @@ foreach ($case in (ConvertFrom-Json $env:CAR_CASES).PSObject.Properties) {
 }
 foreach ($state in (ConvertFrom-Json $env:CAR_STATES)) {
     $out.loops[$state] = [bool]$loops.Invoke($null, [object[]]@([string]$state))
-    $out.once[$state] = [bool]$once.Invoke($null, [object[]]@([string]$state))
     $out.opacity[$state] = @{ moving = @(); reduced = @() }
     $out.dim[$state] = @{ moving = @(); reduced = @() }
     foreach ($ms in (ConvertFrom-Json $env:CAR_MOMENTS)) {
@@ -168,10 +167,10 @@ class AliveStateTests(unittest.TestCase):
             with self.subTest(name):
                 self.assertEqual(self.answer["activity"][name], expected)
 
-    def test_only_the_working_states_loop_and_only_the_alarms_pulse_once(self):
+    def test_every_state_that_moves_loops_and_nothing_pulses_once(self):
         self.assertEqual({state for state in STATES if self.answer["loops"][state]},
-                         {"monitoring", "checking", "recovering", "failed"})
-        self.assertEqual({state for state in STATES if self.answer["once"][state]}, {"attention"})
+                         {"monitoring", "checking", "recovering", "attention", "failed"})
+        self.assertFalse(self.answer["once"], "HaloDot.PulsesOnce is gone since v0.6.8")
 
     def test_monitoring_breathes_the_dot_and_the_glow_rides_it(self):
         dims, glows = self.answer["dim"]["monitoring"]["moving"], self.answer["opacity"]["monitoring"]["moving"]
@@ -201,12 +200,17 @@ class AliveStateTests(unittest.TestCase):
             self.assertEqual(set(self.answer["opacity"][state]["moving"]), {0})
             self.assertEqual(set(self.answer["dim"][state]["moving"]), {0})
 
-    def test_an_alarm_runs_the_cycle_once_and_then_holds_lit(self):
-        dims, glows = self.answer["dim"]["attention"]["moving"], self.answer["opacity"]["attention"]["moving"]
-        self.assertGreater(dims[MOMENTS.index(600.0)], 0, "no pulse on entering the state")
-        self.assertGreater(glows[MOMENTS.index(0.0)], 0, "no glow at the top of the pulse")
-        for moment in (1800.0, WIDEST, 5000.0):        # all past the pulse's 1.4 s, where it holds lit
-            self.assertEqual((dims[MOMENTS.index(moment)], glows[MOMENTS.index(moment)]), (0, 0))
+    def test_attention_and_a_failure_keep_breathing_where_they_used_to_pulse_once(self):
+        """v0.6.8: amber is the slowest breath and red the quickest, on the window's own drawing of brand's curve,
+        long after the 1.4 s the one pulse used to last."""
+        for state in ("attention", "failed"):
+            dims, glows = self.answer["dim"][state]["moving"], self.answer["opacity"][state]["moving"]
+            with self.subTest(state):
+                self.assertGreater(glows[MOMENTS.index(0.0)], 0, "no glow at the top of the breath")
+                late = [MOMENTS.index(moment) for moment in MOMENTS if moment >= 1800.0]
+                self.assertTrue(any(dims[index] > 0 for index in late), "it stopped after one pulse")
+                for moment, dim in zip(MOMENTS, dims):
+                    self.assertAlmostEqual(dim, brand.glow(state, moment)["dim"], places=6, msg=moment)
 
     def test_the_custom_message_counter_counts_what_the_settings_layer_counts(self):
         """Code points of the text as stored, as Python's len() counts them - not UTF-16 units,
