@@ -7,10 +7,12 @@ reveals better or safer implementation paths.
 
 The overall direction is:
 
-**finish the UI → add compatibility intelligence → clean up Python → add optional advanced
-recovery → stabilize Python → replace the core with Rust → make it Rust-native → stabilize Rust**
+**finish the UI → add compatibility intelligence → add advanced features, more than any program
+like this → clean up and stabilize Python → replace the core with Rust and make it Rust-native →
+stabilize Rust**
 
-The default recovery behavior will remain conservative throughout this process.
+The default recovery behavior stays as conservative as it has always been, through every release
+here: what v0.6.9 adds is there for a person to turn on, never on by itself.
 
 ---
 
@@ -76,7 +78,7 @@ Recovery decides exactly what it decided in v0.6.3.
 **Released.**
 
 v0.6.5 carries the Codex Compatibility Registry and the interface work that came out of using
-v0.6.4, and lays the groundwork for splitting the Python implementation, which moved to v0.6.9's alpha.
+v0.6.4, and lays the groundwork for splitting the Python implementation, which moved to v0.6.10's alpha.
 
 ### Codex Compatibility Registry
 
@@ -228,24 +230,78 @@ Needing attention and a failure pulsed once and then held still. Now neither sto
 it lasts: attention's amber light breathes slowly, every 5.6 seconds - slower than monitoring's
 4.4 - and a failure's red light quickly, every 1.2 seconds. The tray icon and the taskbar button,
 which nothing put in the failed state before, now turn red when a recovery fails, their head
-sweeping along the ring twice as quickly as a recovery's, and stay red until you have seen it.
+sweeping along the ring twice as quickly as a recovery's and blinking as it goes, and stay red until
+you have seen it.
 Reduce motion and High Contrast still hold every light still.
 
 ---
 
-## v0.6.9 — Python modularization, then the final Python audit
+## v0.6.9 — Advanced features: more than any program like this offers
 
-v0.6.9 is the last Python release, and it arrives in stages rather than in one drop:
-**v0.6.9-alpha**, a pre-release, carries the modularization; the final **v0.6.9** follows once the
-rest below is in and the whole repository has been through its bug hunt, and it is the Python
-reference implementation the Rust migration reproduces. Anything in between worth trying before the
-final ships as a pre-release of its own.
+v0.6.9 goes further than every release so far. It is planned to offer, aggressively, as many
+capabilities as any comparable program does, and more: before it is built, the tools that do anything
+like this are surveyed, and everything any of them offers goes on the list.
 
-### v0.6.9-alpha — Python modularization (a pre-release)
+Two rules, the user's own:
+
+- **Everything the product does today keeps today's constraints.** Nothing it already does is
+  loosened, and the default does not change - it never sends a continuation again when the first
+  may already have been delivered, as it never has.
+- **Everything those constraints made impossible is built, and only those who want it use it.** Each
+  such capability is off until a person turns it on, one by one, and says plainly what it does before
+  they do - sending again when the first may have been delivered included. The limits the earlier
+  plan put on what may be offered this way - only what is proven safe, availability for VERIFIED
+  Codex versions only, "candidates, not guaranteed" - no longer bind it.
+
+### Two editions, released together
+
+A switch that is off is still code that is there. If the new capabilities shipped inside the one
+product, what has set it apart from the start - that it never sends a continuation twice, that it
+reads and sends through exactly one conversation, that it fails closed - would hold only while a
+setting said so, not in the code. So from v0.6.9 there are two editions, built from one repository
+and released at the same time, with the same version:
+
+- **Standard** is the product as it is. The new capabilities are not in it at all: their code is
+  left out of its archive, and a test proves the archive it builds holds none of it.
+- **Advanced** is everything, each new capability off until its user turns it on.
+
+Each has its own archive, pinned digest and build attestation. An installation updates within its
+edition only; moving between them is a deliberate reinstall, never an update. The Rust core carries
+both (v0.6.11).
+
+Where the list starts, from the earlier plan:
+
+- notLoaded recovery,
+- empty-response recovery,
+- Goal-like continuation,
+- subagent recovery,
+- every further failure category that can be recovered,
+- broader recovery wherever Codex allows it.
+
+### Also planned for v0.6.9
+
+- a design audit of the panel in Codex, the app and the notification-area popup, side by side in
+  light and dark, fixing everything that does not yet look like one product,
+- a choice of appearance: today's design, the same without motion, v0.6.2's plainer look (with
+  today's status light), and a fully plain one - each in light and dark,
+- responsiveness: the lag the window still has, worst on some pages, and the loading that feels
+  slower in every language but English (reported with v0.6.8) - measured where it happens, its causes
+  found and fixed.
+
+---
+
+## v0.6.10 — Python modularization, then the final Python audit
+
+v0.6.10 is the last Python release, and it arrives in two stages: **v0.6.10-alpha**, a pre-release,
+carries the modularization; the final **v0.6.10** follows once the whole repository has been through
+its bug hunt, and it is the Python reference implementation the Rust migration reproduces.
+
+### v0.6.10-alpha — Python modularization (a pre-release)
 
 The alpha is planned as the major structural cleanup of the Python implementation. It was the main
-part of v0.6.5 in the earlier plan, and then of v0.6.8; v0.6.5 ships its groundwork, and the split
-itself lands here.
+part of v0.6.5 in the earlier plan, and then of v0.6.8 and v0.6.9; v0.6.5 ships its groundwork, and
+the split itself lands here. Until it does, the line ceilings hold nothing back: a module may grow as
+the features before it need.
 
 Before anything moves:
 
@@ -272,50 +328,9 @@ anyway, so that fewer files sit at its root.
 Bugs discovered during this refactor will be fixed with regression tests, but the alpha is
 **not intended to be the full repository-wide bug hunt**; the final is.
 
-### Advanced / Experimental recovery capabilities
+### v0.6.10 — Final Python audit and stabilization
 
-The existing conservative behavior will remain the default.
-
-On the way to the final, v0.6.9 is planned to revisit recovery capabilities that were previously excluded because they
-required weaker assumptions, insufficient evidence, or unsupported Codex behavior.
-
-Potential candidates include:
-
-- notLoaded recovery,
-- empty-response recovery,
-- Goal-like continuation,
-- subagent recovery,
-- additional recoverable failure categories,
-- broader recovery behavior where newer Codex capabilities make it safe enough.
-
-These are **candidates, not guaranteed features**.
-
-Each capability should be independently classified where practical:
-
-- Conservative
-- Advanced
-- Experimental
-- Unsupported
-
-Per-feature opt-in is preferred over one global "unsafe mode".
-
-Availability should integrate with the Compatibility Registry introduced in v0.6.5.
-
-The principle remains:
-
-> Keep the safe default small, while giving informed users more control when they explicitly
-> choose it.
-
-### Also planned for v0.6.9
-
-- a design audit of the panel in Codex, the app and the notification-area popup, side by side in
-  light and dark, fixing everything that does not yet look like one product,
-- a choice of appearance: today's design, the same without motion, v0.6.2's plainer look (with
-  today's status light), and a fully plain one - each in light and dark.
-
-### v0.6.9 — Final Python audit and stabilization
-
-The final v0.6.9 is planned as the final comprehensive audit of the Python implementation.
+The final v0.6.10 is planned as the final comprehensive audit of the Python implementation.
 
 Unlike the alpha, it is intentionally a broad bug hunt.
 
@@ -333,7 +348,8 @@ Expected areas include:
 - malformed, stale, or corrupted state,
 - fault injection,
 - real Codex integration,
-- Advanced / Experimental recovery paths.
+- Advanced / Experimental recovery paths,
+- responsiveness, in every language: whatever lag v0.6.9 left.
 
 Confirmed bugs should receive regression tests.
 
@@ -345,9 +361,14 @@ for the Rust migration.
 
 ---
 
-## v0.6.10 — Complete Rust core replacement
+## v0.6.11 — Rust: the core replaced as it is, then made Rust-native
 
-v0.6.10 is planned to replace the production Python core with Rust.
+v0.6.11 arrives in two stages too: **v0.6.11-alpha**, a pre-release, replaces the production Python
+core with Rust as it is; the final **v0.6.11** is that core made naturally Rust-oriented.
+
+### v0.6.11-alpha — Complete Rust core replacement (a pre-release)
+
+The alpha is planned to replace the production Python core with Rust, as it is.
 
 The migration may happen incrementally during development, but the release itself is intended
 to switch to the completed Rust core rather than ship a long-lived mixed Python/Rust product.
@@ -356,14 +377,15 @@ The rule is:
 
 > **Replace the implementation, not the behavior.**
 
-The Rust implementation should reproduce the final v0.6.9 as closely as practical.
+The Rust implementation should reproduce the final v0.6.10 as closely as practical.
 
 Goals include:
 
 - Python/Rust differential testing,
 - existing database compatibility,
 - existing settings compatibility,
-- preservation of Conservative and Advanced behavior,
+- preservation of Conservative and Advanced behavior, and of the two editions: the standard one
+  built without the advanced code at all,
 - preservation of Compatibility Registry semantics,
 - preservation of exact-thread and fail-closed safety guarantees,
 - removal of the production Python core/runtime when ready.
@@ -397,15 +419,13 @@ Rust
 PowerShell may remain as a thin layer for bootstrap, installation, updating, or similar Windows
 deployment work.
 
----
+### v0.6.11 — Rust-native restructuring and optimization
 
-## v0.6.11 — Rust-native restructuring and optimization
-
-v0.6.10 will prioritize behavioral parity.
+The alpha prioritizes behavioral parity.
 
 That may leave some Python-shaped architecture inside the first Rust implementation.
 
-v0.6.11 is planned to make the codebase more naturally Rust-oriented.
+The final v0.6.11 is planned to make the codebase more naturally Rust-oriented.
 
 Potential work includes:
 
@@ -425,7 +445,7 @@ This is not intended to be the final full-system bug hunt.
 
 ---
 
-## v0.6.12 — Final Rust audit and stabilization
+## v0.6.12 — Final Rust audit and stabilization: the Rust bug hunt
 
 v0.6.12 is planned as the final comprehensive stabilization pass.
 
@@ -516,26 +536,27 @@ The tray icon without its badge
 
         ↓
 
-v0.6.9-alpha → v0.6.9
+v0.6.9
+Advanced features: more than any program like this
++ design audit, a choice of appearance
+
+        ↓
+
+v0.6.10-alpha → v0.6.10
 Python modularization and a tidier landing page on GitHub, in a pre-release
-+ advanced / experimental recovery, design audit, a choice of appearance
 + the final Python audit, in the final
 → freeze Python reference behavior
 
         ↓
 
-v0.6.10
-Complete Rust core replacement
-
-        ↓
-
-v0.6.11
-Rust-native restructuring and optimization
+v0.6.11-alpha → v0.6.11
+Complete Rust core replacement, in a pre-release
++ Rust-native restructuring and optimization, in the final
 
         ↓
 
 v0.6.12
-Final Rust audit and stabilization
+Final Rust audit and stabilization: the Rust bug hunt
 → final stable Rust baseline
 
         ↓

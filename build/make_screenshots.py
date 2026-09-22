@@ -1194,7 +1194,7 @@ CARD_THEMES = ("light",)
 # locale's tag.
 CARD_NAMES = ("screenshot-notification", "notification-card")
 
-# What draws the card, whichever file it is in: its own two modules, the package v0.6.9 moves
+# What draws the card, whichever file it is in: its own two modules, the package v0.6.10 moves
 # them into, and the popup's renderer and palette it is painted with. Keyed exactly as the
 # popup is (see POPUP_CODE): definitions pooled by name, what they import by name followed to
 # wherever it is defined.
@@ -1392,7 +1392,8 @@ def render_cards() -> list:
 # (tray.icon_frame and icon_frame_ms, stepped as the frame timer steps), laid over a light and a dark taskbar. Five
 # states side by side - watching, recovering, needing attention, failed and paused - over a stretch of watching's
 # loop that begins two breaths before a sweep and is a whole number of its loops and of recovering's and a failure's
-# sweeps (`icon_motion_stretch`), so those columns loop without a jump. Attention's slow breath does not divide it:
+# sweeps and of a failure's 1.2 s blink (`icon_motion_stretch`), so those columns loop without a jump. Attention's
+# slow breath does not divide it:
 # where the picture starts again that column is within one level of 24 of where it began.
 #
 # Its manifest entry, `<icon motion>`, is keyed as the card's is: what is pictured (the states, the size, the grounds and the stretch of the loop) and the digest of the code that draws the frames - here the
@@ -1687,7 +1688,8 @@ def icon_motion_stretch() -> tuple:
     start = slot * max(0, motion["breaths"] - 2)
     for loops in range(1, 12):
         end = loop * loops
-        if end > start and all(_icon_sweep_closes(state, end - start, loop) for state in ("recovering", "failed")):
+        if end > start and all(_icon_sweep_closes(state, end - start, loop) for state in ("recovering", "failed")) \
+                and all((end - start) % brand.GLOW[rhythm] == 0 for rhythm in tray.ICON_TRAVEL_BREATHS.values()):
             return start, end
     raise ValueError("the GIF would jump where it loops: no stretch is a whole number of recovering's and a "
                      "failure's sweeps")

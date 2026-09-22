@@ -24,7 +24,8 @@ stops for as long as it lasts, with the same curve and glow as every other light
 - **Needing attention** breathes slowly - every 5.6 seconds, slower than monitoring's 4.4 - in amber.
 - **A failure** breathes quickly - every 1.2 seconds, quicker than a recovery's 2.8 - in red. On the
   tray icon and the taskbar button its head sweeps out along the ring and back as a recovery's does,
-  twice as quickly: once every 1.98 seconds, at full brightness.
+  twice as quickly - once every 1.98 seconds - and blinks as it goes, on that same 1.2-second breath:
+  the one state whose head breathes while it travels.
 
 The window, the notification-area popup, the panel in Codex, the notification card, the tray icon
 and the taskbar button all take it from one table. Reduce motion, Windows' animation setting and High
@@ -45,9 +46,13 @@ this update never turn the icon red; PRIVACY.md lists what it holds.
 
 - The README's picture of the icon's motion has a fifth column, the failed icon sweeping, and no
   badges.
-- The roadmap: the Python modularization becomes **v0.6.9-alpha**, a pre-release, and the final
-  **v0.6.9** is the last Python release, after the repository-wide bug hunt. The Rust releases move
-  up one, to v0.6.10 - v0.6.12.
+- The roadmap: **v0.6.9** is advanced features - as many as any program like this offers, and
+  more: everything the product does today keeps today's constraints, and everything they made
+  impossible is built, off until you turn it on - in an advanced edition released beside the
+  standard one, which does not contain that code at all. **v0.6.10-alpha**, a pre-release, is the Python
+  modularization, and the final **v0.6.10** the last Python release, after the repository-wide bug
+  hunt. **v0.6.11-alpha** replaces the core with Rust as it is, the final **v0.6.11** makes it
+  Rust-native, and **v0.6.12** is the Rust bug hunt.
 
 ## v0.6.7 — Compatibility in tiers, Failed here, and a notification card that breathes
 

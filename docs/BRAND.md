@@ -236,7 +236,9 @@ as quickly - 1.76 s out, a moment at the far end, 1.76 s back and 0.33 s at home
 3.96 s - at full brightness and without breathing; paused it is grey and still; needing a person it
 is amber and breathes in its place on `GLOW`'s attention rhythm, 5.6 s, for as long as it lasts; failed
 it is red and sweeps recovering's shape twice as quickly - 0.88 s out, a moment at the far end, 0.88 s
-back and 0.17 s at home, a sweep every 1.98 s - at full brightness and never breathing, until somebody
+back and 0.17 s at home, a sweep every 1.98 s - and blinks as it goes, on the red light's own 1.2 s
+breath: the one state whose head breathes while it travels, at the user's word ("실패시에는 깜빡이면서
+움직이면 좋겠는데"); watching and recovering keep the rule that it never does. So it stays until somebody
 has seen the failure (the popup opened, the Dashboard in front) or a new recovery has started. Nothing
 pulses once since v0.6.8. The motion adds no shape and no colour:
 the frames are the mark itself, drawn from `ICON_SHAPE` by the same rasteriser as the `.ico`, with

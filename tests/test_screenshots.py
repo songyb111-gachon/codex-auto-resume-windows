@@ -30,7 +30,7 @@ Three kinds of input, and the difference matters:
   name from anywhere else, wherever those live - so moving one between modules cannot fire
   it and changing one does.
 * The **notification card** is hashed the same way: by what it says, built by the watcher's
-  own builder, and by the definitions that draw it - its own modules, wherever v0.6.9 moves
+  own builder, and by the definitions that draw it - its own modules, wherever v0.6.10 moves
   them, pooled with the popup's renderer and palette, which paint it.
 
 So this fires whenever something the picture is drawn from changed - not, as an earlier
@@ -1197,7 +1197,7 @@ class CardPictureTests(unittest.TestCase):
                 self.assertNotEqual(self.drawing(changed), before, what + " did not move the digest")
 
     def test_moving_the_card_into_ui_card_leaves_the_digest(self):
-        """v0.6.9 moves the card into `ui/card/`: its layout and its motion leave `notice_card.py`
+        """v0.6.10 moves the card into `ui/card/`: its layout and its motion leave `notice_card.py`
         for their own modules, with the imports that follow them, and comments change on the way."""
         real = self.real()
         before = self.drawing(real)
@@ -1316,10 +1316,10 @@ class IconMotionPictureTests(unittest.TestCase):
             for state, frame in shown.items():
                 seen[state].add(tuple(frame))
                 with self.subTest(state=state, moment=moment):
-                    if frame[0] != 0:
+                    if frame[0] != 0 and state != "failed":
                         self.assertEqual(frame[1], top, "a head that has left its place is at full brightness")
-                    if state in ("recovering", "failed", "idle"):
-                        self.assertEqual(frame[1], top, "recovering and a failure never breathe, and paused is still")
+                    if state in ("recovering", "idle"):
+                        self.assertEqual(frame[1], top, "recovering never breathes, and paused is still")
                     if state == "watching" and moment < sweeps_at - 100:
                         self.assertEqual(frame[0], 0, "no sweep while it breathes")
                     if state == "attention":
@@ -1332,6 +1332,9 @@ class IconMotionPictureTests(unittest.TestCase):
         # A failure's sweep is twice as quick at the same frame rate: it passes some positions between frames, and
         # reaches both ends of the stroke.
         self.assertTrue({0, max(stroke)} <= {position for position, _ in seen["failed"]})
+        # And it blinks as it goes (v0.6.8), far out as well as at home.
+        self.assertLessEqual(min(level for _, level in seen["failed"]), top // 8)
+        self.assertTrue(any(position > 0 and level < top for position, level in seen["failed"]))
         # Attention's slow breath dims most of the way down: its frames need not land on the lowest level itself.
         self.assertLessEqual(min(level for _, level in seen["attention"]), top // 8)
         self.assertEqual({position for position, _ in seen["attention"]}, {0})
@@ -1421,6 +1424,8 @@ class IconMotionPictureTests(unittest.TestCase):
             "attention's rhythm": ("brand.py", '"attention_ms": 5600,', '"attention_ms": 6600,'),
             "which states breathe in place": ("tray.py", '"attention": "attention_ms"}', '"attention": "recovering_ms"}'),
             "how quickly a failure sweeps": ("tray.py", '"failed_slot": 0.5,', '"failed_slot": 0.6,'),
+            "what a failure blinks on": ("tray.py", 'ICON_TRAVEL_BREATHS = {"failed": "failed_ms"}',
+                                         'ICON_TRAVEL_BREATHS = {"failed": "attention_ms"}'),
         }
         for what, (name, old, new) in moves.items():
             changed = dict(real)
@@ -1443,11 +1448,11 @@ class IconMotionPictureTests(unittest.TestCase):
                 self.assertEqual(self.drawing(changed), before, what + " moved the entry")
 
     def test_moving_the_motion_into_a_module_of_its_own_leaves_the_entry(self):
-        """v0.6.9 splits the package; the motion leaving tray.py for its own module, with the imports that follow it,
+        """v0.6.10 splits the package; the motion leaving tray.py for its own module, with the imports that follow it,
         is the same GIF."""
         real = self.real()
         before = self.drawing(real)
-        names = ("ICON_BREATHS", "ICON_SWEEPS", "ICON_MOTION", "ICON_SWEEP", "_breath_level", "icon_turn", "icon_frame",
+        names = ("ICON_BREATHS", "ICON_SWEEPS", "ICON_TRAVEL_BREATHS", "ICON_MOTION", "ICON_SWEEP", "_breath_level", "icon_turn", "icon_frame",
                  "icon_frame_ms", "IconFrames")
         rest, moved = PopupDrawingTests.cut(real["tray.py"], *names)
         moved_files = dict(real, **{
