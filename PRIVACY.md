@@ -434,6 +434,14 @@ default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
   makes the window, the panel and the command line show unknown until it is written again. Both
   compatibility files go with the rest of `config/` under `Uninstall.cmd -Purge`, and the command
   line's `uninstall` deletes both unless you pass `--keep-state`;
+- `config/failure-seen.json`, from v0.6.8 — one time: when a person last saw a failed recovery,
+  by opening the notification-area popup or bringing the Dashboard to the front. The watcher writes
+  its start there when there is none (and checks at every tick), and the popup and the window move it
+  forward. It says nothing
+  about which recovery failed or about you, and only decides whether the icon and the taskbar button
+  are red. Deleting it only means a failure is not shown red until the watcher starts again. It goes
+  with the rest of `config/` under `Uninstall.cmd -Purge`, and the command line's `uninstall` deletes
+  it unless you pass `--keep-state`;
 - `logs/` — `auto-resume.log`, what the watcher did, by reason code and conversation UUID;
   `errors.log`, the Python traceback when something goes wrong; and `launcher.log`, a line
   per launch (and why, if one failed).

@@ -59,7 +59,9 @@ class SnapshotTests(unittest.TestCase):
                                 "uncertain": False}, 100.0, next_retry_at=300.0)
                 snapshot = tray.snapshot_from(store, 200.0)
         # The next check is the later of the schedule and the usage reset.
-        self.assertEqual(snapshot, {"enabled": True, "waiting": 1, "running": 0, "next_at": 500.0})
+        # Since v0.6.8 it also carries when the newest certain failure was, and the newest claim: none here.
+        self.assertEqual(snapshot, {"enabled": True, "waiting": 1, "running": 0, "next_at": 500.0,
+                                    "failures": {"failed_at": None, "started_at": None}})
 
 
 @unittest.skipUnless(sys.platform == "win32", "Windows notification area")

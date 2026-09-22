@@ -51,7 +51,10 @@ display it, and Windows keeps them in its notification history.
   that includes two compatibility files, each with one writer: `config/compatibility.json`, the
   watcher's report, written atomically under the lock the watcher already holds; and
   `config/compat-cache.json`, the Codex compatibility data a person asked for, written only by the
-  validator (`controlcli compat-import`) and only after a document passed it.
+  validator (`controlcli compat-import`) and only after a document passed it. From v0.6.8 it also
+  holds `config/failure-seen.json`, one time - when a person last saw a failed recovery - which the
+  watcher, the popup and the window write through a temporary file under one named lock, and which
+  decides nothing but whether the icon is red.
 - One continuation message to one exact thread, through the official `codex queue` CLI. Its
   text is this product's message in the language and style you chose or, from v0.6.3, the
   Custom message you wrote in the Dashboard (see *The Custom message is written in the

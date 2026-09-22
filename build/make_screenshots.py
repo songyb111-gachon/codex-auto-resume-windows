@@ -1194,7 +1194,7 @@ CARD_THEMES = ("light",)
 # locale's tag.
 CARD_NAMES = ("screenshot-notification", "notification-card")
 
-# What draws the card, whichever file it is in: its own two modules, the package v0.6.8 moves
+# What draws the card, whichever file it is in: its own two modules, the package v0.6.10-alpha moves
 # them into, and the popup's renderer and palette it is painted with. Keyed exactly as the
 # popup is (see POPUP_CODE): definitions pooled by name, what they import by name followed to
 # wherever it is defined.
@@ -1388,15 +1388,15 @@ def render_cards() -> list:
 # ------------------------------------------------------------ the icon's motion
 # Since v0.6.5 the notification-area icon moves (tray.py, "the icon's motion"), and the README shows how, as an
 # animated GIF. It is drawn here and never by hand: every picture in it is the icon's own frame (tray.IconFrames, with
-# the badge the icon wears in that state, composited as the icon composites it), at the moments the icon's own timer
-# shows one (tray.icon_frame and icon_frame_ms, stepped as the frame timer steps), laid over a light and a dark
-# taskbar. Four states side by side - watching, recovering, needing attention and paused - over a stretch of
-# watching's loop that begins two breaths before a sweep and is a whole number of both its loops and recovering's
-# cycles (`icon_motion_stretch`), so every column loops without a jump; attention pulses once at its start, as it
-# does when a problem arrives.
+# nothing on top since v0.6.8, as the icon has nothing), at the moments the icon's own timer shows one
+# (tray.icon_frame and icon_frame_ms, stepped as the frame timer steps), laid over a light and a dark taskbar. Five
+# states side by side - watching, recovering, needing attention, failed and paused - over a stretch of watching's
+# loop that begins two breaths before a sweep and is a whole number of its loops and of recovering's and a failure's
+# sweeps and of a failure's 1.2 s blink (`icon_motion_stretch`), so those columns loop without a jump. Attention's
+# slow breath does not divide it:
+# where the picture starts again that column is within one level of 24 of where it began.
 #
-# Its manifest entry, `<icon motion>`, is keyed as the card's is: what is pictured (the states, their badges, the
-# size, the grounds and the stretch of the loop) and the digest of the code that draws the frames - here the
+# Its manifest entry, `<icon motion>`, is keyed as the card's is: what is pictured (the states, the size, the grounds and the stretch of the loop) and the digest of the code that draws the frames - here the
 # definitions the frame table and the schedule are made of, followed name by name from the few the GIF calls
 # (ICON_ROOTS) to whatever they use, in whichever module that lives (`icon_drawing`). So a change to the motion, its
 # numbers, the mark or its colours marks the GIF stale; a change to the icon's menu or popup does not.
@@ -1405,10 +1405,9 @@ ICON_MOTION_APNG = DOCS / "icon-motion.png"
 # carries as an entry of its own.
 ICON_MOTION_SIZE = 48
 ICON_MOTION_PAD = 12
-# The states pictured, each as the status-light word the icon takes it from (tray.ICON_FOR_LIGHT): the word also says
-# which badge the icon wears (tray_popup.BADGE). Watching with nothing waiting wears none.
+# The states pictured, each as the status-light word the icon takes it from (tray.ICON_FOR_LIGHT).
 ICON_MOTION_LIGHTS = (("watching", "monitoring"), ("recovering", "recovering"), ("attention", "attention"),
-                      ("idle", "paused"))
+                      ("failed", "failed"), ("idle", "paused"))
 # Windows 11's taskbar in its light and its dark mode, as assets/make_icon.py's contact sheet has them.
 ICON_MOTION_GROUNDS = (("light", "#EEF0F3"),)
 # The shortest a picture is held, in hundredths of a second. Browsers - Chromium, Firefox and Safari alike - show a
@@ -1416,8 +1415,7 @@ ICON_MOTION_GROUNDS = (("light", "#EEF0F3"),)
 ICON_MOTION_SHORTEST = 2
 # What the GIF draws with, followed from these to everything they use (`icon_drawing`).
 ICON_ROOTS = (("tray", "IconFrames"), ("tray", "icon_frame"), ("tray", "icon_frame_ms"), ("tray", "icon_head_colour"),
-              ("tray", "icon_level_colour"), ("tray", "ICON_FOR_LIGHT"), ("tray_popup", "BADGE"),
-              ("tray_popup", "composite_badge"), ("brand", "LIGHT"), ("brand", "rgb"))
+              ("tray", "icon_level_colour"), ("tray", "ICON_FOR_LIGHT"), ("brand", "rgb"))
 
 
 # --------------------------------------------------------- pictures that breathe
@@ -1682,6 +1680,7 @@ def icon_motion_stretch() -> tuple:
     where it left off; and it is a whole number of recovering's cycles, so that column does too - recovering sweeps
     every 2.88 s, which shares no short multiple with the 16 s loop, so the shortest stretch that closes for both
     is two loops. With v0.6.5's numbers: 3.2 s to 32 s, two breaths and a sweep, then three breaths and a sweep.
+    Since v0.6.8 it is a whole number of a failure's sweeps as well, which are twice as quick as recovering's.
     """
     from codex_auto_resume import brand, tray
     slot, motion = brand.GLOW["monitoring_ms"], tray.ICON_MOTION
@@ -1689,16 +1688,19 @@ def icon_motion_stretch() -> tuple:
     start = slot * max(0, motion["breaths"] - 2)
     for loops in range(1, 12):
         end = loop * loops
-        if end > start and _icon_recovering_closes(end - start, loop):
+        if end > start and all(_icon_sweep_closes(state, end - start, loop) for state in ("recovering", "failed")) \
+                and all((end - start) % brand.GLOW[rhythm] == 0 for rhythm in tray.ICON_TRAVEL_BREATHS.values()):
             return start, end
-    raise ValueError("the GIF would jump where it loops: no stretch is a whole number of recovering's sweeps")
+    raise ValueError("the GIF would jump where it loops: no stretch is a whole number of recovering's and a "
+                     "failure's sweeps")
 
 
-def _icon_recovering_closes(length: int, loop: int) -> bool:
-    """Whether recovering is in the same phase `length` ms apart, so its column loops without a jump."""
+def _icon_sweep_closes(state: str, length: int, loop: int) -> bool:
+    """Whether a state that sweeps all the time is in the same phase `length` ms apart, so its column loops without
+    a jump."""
     from codex_auto_resume import tray
     for at in range(0, loop, 97):
-        if abs(tray.icon_turn("recovering", length + at) - tray.icon_turn("recovering", at)) > 1e-6:
+        if abs(tray.icon_turn(state, length + at) - tray.icon_turn(state, at)) > 1e-6:
             return False
     return True
 
@@ -1722,15 +1724,14 @@ def icon_timeline(state: str, start: float, end: float) -> list:
     return shown
 
 
-def _icon_cell(frames, state: str, word: str, ground: str, position: int, level: int) -> bytes:
-    """One state's picture on one ground, RGB: the icon's own frame - its head at `position` and `level`, its badge
-    for `word` - laid over the ground with its straight alpha, in a cell ICON_MOTION_PAD wider each way."""
-    from codex_auto_resume import brand, tray, tray_popup
+def _icon_cell(frames, state: str, ground: str, position: int, level: int) -> bytes:
+    """One state's picture on one ground, RGB: the icon's own frame - its head at `position` and `level` - laid over
+    the ground with its straight alpha, in a cell ICON_MOTION_PAD wider each way."""
+    from codex_auto_resume import brand, tray
     size, pad = ICON_MOTION_SIZE, ICON_MOTION_PAD
     cell = size + 2 * pad
-    token = tray_popup.BADGE.get(word)
     head = tray.icon_level_colour(tray.icon_head_colour(state), level)
-    pixels = frames.compose(position, head, brand.rgb(brand.LIGHT[token]) if token else None)
+    pixels = frames.compose(position, head)
     red, green, blue = brand.rgb(dict(ICON_MOTION_GROUNDS)[ground])
     out = bytearray(bytes((red, green, blue)) * (cell * cell))
     for y in range(size):
@@ -1814,11 +1815,11 @@ def icon_motion_frames() -> dict:
     frames = tray.IconFrames(ICON_MOTION_SIZE)
     cells, counted = {}, {}
     for _delay, frame in shown:
-        for state, word in ICON_MOTION_LIGHTS:
+        for state, _ in ICON_MOTION_LIGHTS:
             for ground, _ in ICON_MOTION_GROUNDS:
                 key = (state, ground) + tuple(frame[state])
                 if key not in cells:
-                    cells[key] = _icon_cell(frames, state, word, ground, *frame[state])
+                    cells[key] = _icon_cell(frames, state, ground, *frame[state])
                 counted[key] = counted.get(key, 0) + 1
     # The pictures keep their own colours: an APNG has no palette to fit them into, and the badge's gradient and
     # the ring's edges are what a quantised GIF used to spend its 255 colours on.

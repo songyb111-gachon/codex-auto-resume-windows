@@ -5883,11 +5883,11 @@ namespace CodexAutoResume
     /// The dot keeps the size it has always had. Every state in which the watcher runs with
     /// recovery on is the brand's cyan, the colour the dot had before v0.6.3; a stopped or
     /// unknown watcher and a pause keep their greys and never move; a watcher that runs but is
-    /// not well is amber, and a failure red. Monitoring and recovering run brand's cycle, one
-    /// slowly and one faster: the dot dims toward the card and comes back with nothing spreading,
-    /// and only then, lit, a small glow spreads from its edge and draws back in. Waiting holds
-    /// lit; checking also turns a small arc; a state that needs a person runs the cycle once when
-    /// it is entered, then holds lit. brand.glow() defines every number, for the popup and the
+    /// not well is amber, and a failure red. Monitoring, recovering, attention and a failure run
+    /// brand's cycle for as long as they last - attention slowest, a failure quickest: the dot
+    /// dims toward the card and comes back with nothing spreading, and only then, lit, a small
+    /// glow spreads from its edge and draws back in. Waiting holds lit; checking also turns a
+    /// small arc. Until v0.6.8 a problem ran the cycle once and held. brand.glow() defines every number, for the popup and the
     /// panel too. With motion reduced nothing moves and the dot holds lit with no glow; in High
     /// Contrast the dot is a system colour, unlit.
     internal sealed class HaloDot : Control
@@ -5931,18 +5931,13 @@ namespace CodexAutoResume
         /// Loops for as long as the state lasts.
         internal static bool Loops(string state)
         {
-            return state == "monitoring" || state == "checking" || state == "recovering";
-        }
-
-        /// Pulses once, when the state is entered.
-        internal static bool PulsesOnce(string state)
-        {
-            return state == "attention" || state == "failed";
+            return state == "monitoring" || state == "checking" || state == "recovering" || state == "attention"
+                   || state == "failed";
         }
 
         /// The glow's opacity for one frame, brand.glow()'s "opacity", or 0 when there is no glow.
-        /// The cycle follows `elapsedMs`; the one pulse follows `sinceEnteredMs`, and a negative
-        /// value means it is over. Pure, so the rule can be checked without drawing.
+        /// The cycle follows `elapsedMs`; `sinceEnteredMs` is read by nothing since v0.6.8, when the
+        /// one-time pulse went. Pure, so the rule can be checked without drawing.
         internal static double HaloOpacity(string state, double elapsedMs, double sinceEnteredMs, bool reduced)
         {
             double dim, opacity, spread, arc;
@@ -6374,7 +6369,7 @@ namespace CodexAutoResume
         }
 
         /// The icon's state for a status-light word (Brand.Mark.IconState) - the window's is SettingsForm.TrayActivity's
-        /// - from now on. The same state again changes nothing: a breath or a pulse carries on.
+        /// - from now on. The same state again changes nothing: a breath or a sweep carries on.
         internal void Follow(string light)
         {
             string next = Brand.Mark.IconState(light);

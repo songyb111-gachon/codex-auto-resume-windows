@@ -148,8 +148,9 @@ button, select, input { font: inherit; }
    cycle, the dot dimming toward the card and back (glow-dot) with the glow riding its brightness
    (glow-spread) - a falloff, never a disc with an edge. The curve is in the keyframes themselves,
    sampled from brand.glow_phase, so what lies between two stops is walked straight (`linear`)
-   rather than eased again. Monitoring runs it slowly and recovering faster; a problem runs it
-   once and then holds lit; waiting and checking hold lit with no glow. */
+   rather than eased again. Monitoring runs it slowly, recovering faster and attention slowest of
+   all, each for as long as it lasts - until v0.6.8 attention ran it once and then held lit;
+   waiting and checking hold lit with no glow. */
 .halo { --halo-color: var(--idle); position: relative; flex: none; width: 12px; height: 12px;
         border-radius: 50%; background: var(--halo-color); }
 .halo::before { content: none; position: absolute; inset: calc(-1 * var(--glow-reach));
@@ -167,8 +168,8 @@ button, select, input { font: inherit; }
 .halo.monitoring::before { animation: glow-spread var(--glow-monitoring-ms) linear infinite; }
 .halo.recovering { animation: glow-dot var(--glow-recovering-ms) linear infinite; }
 .halo.recovering::before { animation: glow-spread var(--glow-recovering-ms) linear infinite; }
-.halo.attention.once { animation: glow-dot var(--glow-attention-ms) linear 1; }
-.halo.attention.once::before { animation: glow-spread var(--glow-attention-ms) linear 1; }
+.halo.attention { animation: glow-dot var(--glow-attention-ms) linear infinite; }
+.halo.attention::before { animation: glow-spread var(--glow-attention-ms) linear infinite; }
 @GLOW_KEYFRAMES@
 
 /* Controls rest on the card; values sit in wells. */
@@ -653,8 +654,6 @@ var DRAFT = {};
 // Which folding sections are open, for the same reason.
 var OPEN = {};
 var HOOKS = {};
-// The state the hero last showed, so a problem pulses when it appears and not on every redraw.
-var LAST_STATE = '';
 // The pending row whose "turn off" is being confirmed, by its exact interruption id.
 var CONFIRM_ROW = '';
 // What each pending row's switch showed when the page was last drawn, by interruption id - the
@@ -1541,9 +1540,8 @@ function renderHero(status) {
   hero.appendChild(element('div', 'eyebrow', 'Codex Auto Resume · v' + (status.version || '?')));
   var line = element('div', 'hero-state');
   var light = lightFor(status, state);
-  var halo = element('span', 'halo ' + light + (light === 'attention' && LAST_STATE !== 'attention' ? ' once' : ''));
+  var halo = element('span', 'halo ' + light);
   halo.setAttribute('aria-hidden', 'true');
-  LAST_STATE = state;
   line.appendChild(halo);
   line.appendChild(element('h1', null, t('activity.' + state, state)));
   hero.appendChild(line);

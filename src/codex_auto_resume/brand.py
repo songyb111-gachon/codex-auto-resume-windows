@@ -346,8 +346,11 @@ STATUS_SYSTEM = {"monitoring": "Highlight", "waiting": "Highlight", "checking": 
 # screen's gamma, a glow that rides the brightness, and a reach that is a share of the dot rather than a count of
 # pixels. docs/BRAND.md sets out why each of those is what it is.
 #
-# Monitoring runs it every monitoring_ms, recovering every recovering_ms, and a problem once, in attention_ms, when
-# it is first shown, then holds lit. A cycle begins and ends at the top, where a still light also sits, so a light
+# Monitoring runs it every monitoring_ms, recovering every recovering_ms, attention every attention_ms and a failure
+# every failed_ms, each for as long as it lasts. Until v0.6.8 a problem ran it once and then held still; the user:
+# "빨간 상태등일 때도 상태등이 움직이게 해줘", then "확인필요는 천천히 계속 부드럽게 깜빡이고, 실패는 빠르게
+# 움직이는거도 필요해". So attention is the slowest breath of all and a failure the quickest, and nothing pulses
+# once. A cycle begins and ends at the top, where a still light also sits, so a light
 # that starts moving does not jump in brightness; the glow is the one thing that arrives with the motion. Waiting
 # and checking hold lit with no glow (checking turns its arc), as does every light under Reduce motion or Windows'
 # animation setting; High Contrast is a solid dot. The glow is a falloff, never a disc: at its peak, `peak` times
@@ -360,15 +363,14 @@ GLOW = {
     # gets past the dot's edge.
     "low": 0.35, "gamma": 2.2, "peak": 0.50, "reach_of_radius": 0.6,
     "edge_alpha": 0.67, "near_at": 0.14, "near_alpha": 0.58, "far_at": 0.66, "far_alpha": 0.50,
-    "monitoring_ms": 4400, "recovering_ms": 2800, "attention_ms": 1400,
+    "monitoring_ms": 4400, "recovering_ms": 2800, "attention_ms": 5600, "failed_ms": 1200,
     # Checking also turns the arc every surface already drew: `arc_gap` past the dot's edge,
     # `arc_width` wide, `arc_sweep` degrees long, in `active` at `arc_alpha`. With motion
     # reduced it holds at `arc_still_at` degrees.
     "arc_ms": 1600, "arc_alpha": 0.55, "arc_gap": 3, "arc_width": 1.6, "arc_sweep": 100,
     "arc_still_at": 300,
 }
-GLOW_BREATHES = ("monitoring", "recovering")
-GLOW_PULSES = ("attention", "failed")
+GLOW_BREATHES = ("monitoring", "recovering", "attention", "failed")
 
 
 def _number(value) -> str:
@@ -398,7 +400,7 @@ def padding(key: str) -> tuple:
 def css_scale() -> str:
     """The scale as CSS custom properties, for the panel's stylesheet.
 
-    The glow's properties are all `--glow-*`, so the attention pulse's duration is
+    The glow's properties are all `--glow-*`, so attention's breath is
     `--glow-attention-ms` and never `--attention`: the palette already emits `--attention` as
     a colour on the same `:root`, and two custom properties with one name do not raise
     anything - the later declaration wins, the dark theme re-declares the colour, and an
@@ -430,7 +432,6 @@ def css_scale() -> str:
     parts.append("--glow-from: %s;" % _number(dot / glow_extent(dot)))
     for state in GLOW_BREATHES:
         parts.append("--glow-%s-ms: %dms;" % (state, light[state + "_ms"]))
-    parts.append("--glow-attention-ms: %dms;" % light["attention_ms"])
     parts.append("--glow-arc-ms: %dms;" % light["arc_ms"])
     parts.append("--glow-arc-mix: %s%%;" % _number(light["arc_alpha"] * 100))
     parts.append(css_check_box())
@@ -754,18 +755,16 @@ def glow(state, elapsed_ms, since_entered_ms=None, *, reduced=False):
 
     `dim` is how far the dot is drawn from its colour toward the ground under it, `opacity` multiplies the glow's
     falloff (glow_stops), `spread` is how far out it is (glow_radius) and `arc` is the checking arc's start angle in
-    degrees, or None. `elapsed_ms` is any clock that does not run backwards; `since_entered_ms` is how long the state
-    has been shown, None meaning long enough that its one pulse is over. High Contrast neither dims the dot nor draws
-    a glow, which is the caller's check.
+    degrees, or None. `elapsed_ms` is any clock that does not run backwards. `since_entered_ms`, how long the state
+    has been shown, is what a problem's one pulse ran on until v0.6.8; every light that moves now loops on
+    `elapsed_ms`, and the argument is still taken so the surfaces that pass it are unchanged. High Contrast neither
+    dims the dot nor draws a glow, which is the caller's check.
     """
     fraction = arc = None
     if state in GLOW_BREATHES:
         fraction = None if reduced else (elapsed_ms % GLOW[state + "_ms"]) / GLOW[state + "_ms"]
     elif state == "checking":
         arc = GLOW["arc_still_at"] if reduced else (elapsed_ms % GLOW["arc_ms"]) / GLOW["arc_ms"] * 360.0
-    elif state in GLOW_PULSES:
-        if not reduced and since_entered_ms is not None and 0 <= since_entered_ms < GLOW["attention_ms"]:
-            fraction = since_entered_ms / GLOW["attention_ms"]
     elif state != "waiting":
         return None
     dim, spread = (0.0, 0.0) if fraction is None else glow_phase(fraction)
@@ -773,14 +772,9 @@ def glow(state, elapsed_ms, since_entered_ms=None, *, reduced=False):
 
 
 def glow_moves(state, since_entered_ms=None, *, reduced=False) -> bool:
-    """Whether a frame timer has anything to draw for this state."""
-    if reduced:
-        return False
-    if state in GLOW_BREATHES or state == "checking":
-        return True
-    if state in GLOW_PULSES:
-        return since_entered_ms is not None and 0 <= since_entered_ms < GLOW["attention_ms"]
-    return False
+    """Whether a frame timer has anything to draw for this state: every breathing state and checking's arc, for as
+    long as the state lasts. `since_entered_ms` is taken and read by nothing since v0.6.8 (see glow)."""
+    return not reduced and (state in GLOW_BREATHES or state == "checking")
 
 
 def glow_reach(dot_radius: float) -> float:

@@ -1433,7 +1433,8 @@ class WindowsTests(unittest.TestCase):
 
     def test_the_cards_light_breathes_on_the_popups_table(self):
         """v0.6.7: the card's light is the popup's - one breath on brand.GLOW for a breathing state, drawn again
-        at most every 80 ms; a problem pulses once and then holds lit; High Contrast never moves it."""
+        at most every 80 ms; since v0.6.8 attention and a failure breathe too, for as long as the card is up -
+        attention slowest, a failure quickest - where they used to pulse once; High Contrast never moves it."""
         # A continuation being sent, or delivered and running again: the two states that breathe. An
         # interruption waiting for its reset holds lit and still, on the card as in the popup.
         notices = [build(event, detail, identity) for event, detail, identity in EVENTS]
@@ -1451,9 +1452,15 @@ class WindowsTests(unittest.TestCase):
         self.assertNotEqual(self.pixel(card.body, cx, cy), rest, "the dot dims at the bottom of the breath")
         self.assertTrue(card.breathe(low + 10))                 # still moving, not drawn again yet
         failed = self.offscreen(build("result", {"state": "submission_failed"}))
-        self.assertIn(failed.vm["status"], brand.GLOW_PULSES)
+        self.assertEqual(failed.vm["status"], "failed")
+        self.assertIn("failed", brand.GLOW_BREATHES)
         self.assertTrue(failed.breathe(100))
-        self.assertFalse(failed.breathe(brand.GLOW["attention_ms"] + 1), "one pulse, then lit and still")
+        self.assertTrue(failed.breathe(brand.GLOW["failed_ms"] * 7 + 100), "red keeps breathing")
+        unknown = self.offscreen(build("result", {"state": "submission_unknown"}))
+        self.assertEqual(unknown.vm["status"], "attention")
+        self.assertIn("attention", brand.GLOW_BREATHES)
+        self.assertTrue(unknown.breathe(100))
+        self.assertTrue(unknown.breathe(brand.GLOW["attention_ms"] * 3 + 100), "amber keeps breathing, slowly")
         contrast = self.offscreen(build("interruption", EVENTS[0][1]), drawn=dict(self.LIGHT, contrast=True))
         self.assertFalse(contrast.breathe(low))
 

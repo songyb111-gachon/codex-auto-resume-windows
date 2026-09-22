@@ -46,7 +46,7 @@ The nine numbers and the rasteriser moved into `codex_auto_resume.brand` (`ICON_
 inside the watcher. This script imports them under the names it always used, and writes
 exactly the bytes it wrote before. `--frames <dir>` renders the icon's motion as a contact
 sheet - every head position and breathing level at 16/20/24/32 px on a light and a dark
-taskbar, with and without a badge - which is the desk check for that motion.
+taskbar, with nothing drawn on the mark since v0.6.8 - which is the desk check for that motion.
 """
 from __future__ import annotations
 
@@ -197,8 +197,9 @@ TASKBARS = {"light": "#EEF0F3", "dark": "#1F1F1F"}
 
 
 def frame_rows(frames):
-    """The frames a person should look at, as (what, [BGRA frames]): the breath, a turn, the
-    recovering turn under its badge, and each recoloured state at rest and through its pulse."""
+    """The frames a person should look at, as (what, [BGRA frames]): watching's breath and a turn, one
+    sweep each of recovering and a failure as the frame timer steps them, attention's breath, and
+    paused at rest. Nothing is drawn on the mark since v0.6.8."""
     from codex_auto_resume import tray
     top = tray.ICON_MOTION["levels"] - 1
     accent = tray.icon_head_colour("watching")
@@ -207,22 +208,22 @@ def frame_rows(frames):
                                       for level in breath]),
             ("watching: one turn", [frames.compose(position, accent)
                                     for position in range(tray.ICON_MOTION["positions"])])]
-    active = brand.rgb(brand.LIGHT["active"])
-    step = tray.ICON_MOTION["turn_frame_ms"]
-    rows.append(("recovering, badged", [
-        frames.compose(*_recovering(tray, elapsed), active) for elapsed in range(0, brand.GLOW["arc_ms"], step)]))
-    for state, badge in (("idle", "paused"), ("attention", "attention"), ("failed", None)):
-        colour = tray.icon_head_colour(state)
-        row = [frames.compose(0, colour, brand.rgb(brand.LIGHT[badge]) if badge else None),
-               frames.compose(0, colour)]
-        row += [frames.compose(0, tray.icon_level_colour(colour, level)) for level in breath]
-        rows.append((state, row))
+    motion, step = tray.ICON_MOTION, tray.ICON_MOTION["turn_frame_ms"]
+    for state in ("recovering", "failed"):
+        slot = brand.GLOW["monitoring_ms"] * (motion["failed_slot"] if state == "failed" else 1)
+        cycle = slot * (2 * motion["sweep_out"] + motion["sweep_hold"] + motion["recover_rest"])
+        rows.append(("%s: one sweep" % state,
+                     [frames.compose(*_frame(tray, state, elapsed)) for elapsed in range(0, int(cycle), step)]))
+    amber = tray.icon_head_colour("attention")
+    rows.append(("attention: the breath", [frames.compose(0, tray.icon_level_colour(amber, level))
+                                           for level in breath]))
+    rows.append(("idle", [frames.compose(0, tray.icon_head_colour("idle"))]))
     return rows
 
 
-def _recovering(tray, elapsed):
-    position, level = tray.icon_frame("recovering", elapsed)
-    return position, tray.icon_level_colour(tray.icon_head_colour("recovering"), level)
+def _frame(tray, state, elapsed):
+    position, level = tray.icon_frame(state, elapsed)
+    return position, tray.icon_level_colour(tray.icon_head_colour(state), level)
 
 
 def contact_sheet(out: Path) -> Path:

@@ -560,6 +560,7 @@
   "timeline.col_time": "時刻",
   "timeline.empty": "記録はありません",
   "timeline.title": "タイムライン",
+  "tray.failed": "復旧に失敗しました",
   "tray.idle": "待機中のものはありません",
   "tray.next": "次の確認まで {time}",
   "tray.paused": "一時停止中",

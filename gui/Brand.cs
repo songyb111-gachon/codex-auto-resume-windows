@@ -219,7 +219,8 @@ namespace CodexAutoResume
         internal const double GlowFarAlpha = 0.5;
         internal const double GlowMonitoringMs = 4400;
         internal const double GlowRecoveringMs = 2800;
-        internal const double GlowAttentionMs = 1400;
+        internal const double GlowAttentionMs = 5600;
+        internal const double GlowFailedMs = 1200;
         internal const double GlowArcMs = 1600;
         internal const double GlowArcAlpha = 0.55;
         internal const double GlowArcGap = 3;
@@ -258,9 +259,9 @@ namespace CodexAutoResume
         /// The status light for one frame, or false when the light is off: brand.glow() in C#. `dim` is
         /// how far the dot is drawn from its colour toward the ground under it, `opacity` multiplies the
         /// glow's falloff, `spread` is how far out the glow is - 0 none, 1 GlowReach past the dot's edge -
-        /// and `arc` is the checking arc's start angle in degrees, or -1. A negative or NaN sinceEnteredMs
-        /// means the state's one pulse is over. The caller neither dims the dot nor draws a glow in High
-        /// Contrast.
+        /// and `arc` is the checking arc's start angle in degrees, or -1. Every light that moves loops on
+        /// elapsedMs; sinceEnteredMs is what a problem's one pulse ran on until v0.6.8 and is read by
+        /// nothing now. The caller neither dims the dot nor draws a glow in High Contrast.
         internal static bool Glow(string state, double elapsedMs, double sinceEnteredMs, bool reduced,
                                   out double dim, out double opacity, out double spread, out double arc)
         {
@@ -272,24 +273,24 @@ namespace CodexAutoResume
                 return reduced || Light(elapsedMs % GlowMonitoringMs / GlowMonitoringMs, out dim, out opacity, out spread);
             if (state == "recovering")
                 return reduced || Light(elapsedMs % GlowRecoveringMs / GlowRecoveringMs, out dim, out opacity, out spread);
+            if (state == "attention")
+                return reduced || Light(elapsedMs % GlowAttentionMs / GlowAttentionMs, out dim, out opacity, out spread);
+            if (state == "failed")
+                return reduced || Light(elapsedMs % GlowFailedMs / GlowFailedMs, out dim, out opacity, out spread);
             if (state == "waiting") return true;
             if (state == "checking")
             {
                 arc = reduced ? GlowArcStillAt : elapsedMs % GlowArcMs / GlowArcMs * 360.0;
                 return true;
             }
-            if (state == "attention" || state == "failed")
-                return reduced || !(sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs)
-                       || Light(sinceEnteredMs / GlowAttentionMs, out dim, out opacity, out spread);
             return false;
         }
 
-        /// Whether a frame timer has anything to draw for this state.
+        /// Whether a frame timer has anything to draw for this state: every breathing state and checking's
+        /// arc, for as long as the state lasts.
         internal static bool GlowMoves(string state, double sinceEnteredMs, bool reduced)
         {
-            if (reduced) return false;
-            if (state == "monitoring" || state == "recovering" || state == "checking") return true;
-            return (state == "attention" || state == "failed") && sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs;
+            return !reduced && (state == "monitoring" || state == "recovering" || state == "attention" || state == "failed" || state == "checking");
         }
 
         /// The light at `fraction` of one breath (brand.glow_phase): a cosine in light, raised to
@@ -575,14 +576,16 @@ namespace CodexAutoResume
         /// shows them.
         internal static class Mark
         {
-            // tray.ICON_MOTION. The icon also reads two of brand.GLOW's rhythms, which Brand declares:
-            // GlowMonitoringMs (watching's breath, and so every slot of its loop and recovering's sweep)
-            // and GlowAttentionMs (a problem's one pulse).
+            // tray.ICON_MOTION. The icon also reads three of brand.GLOW's rhythms, which Brand declares:
+            // GlowMonitoringMs (watching's breath, and so every slot of its loop and of recovering's and a
+            // failure's sweeps), GlowAttentionMs (attention's breath) and GlowFailedMs (the blink a
+            // failure's head keeps as it sweeps).
             internal const int Breaths = 3;
             internal const int SweepBreaths = 2;
             internal const double SweepOut = 0.4;
             internal const double SweepHold = 0.025;
             internal const double RecoverRest = 0.075;
+            internal const double FailedSlot = 0.5;
             // How far the head travels, in degrees: brand's arc, its place clockwise to the stroke's
             // other end (tray.ICON_SWEEP). The gap at the top is the rest of the circle, and the head
             // never enters it.
@@ -641,8 +644,8 @@ namespace CodexAutoResume
             /// is left of the cycle once it is home, where it rests lit and still.
             internal static double Turn(string state, double elapsedMs)
             {
-                if (state != "watching" && state != "recovering") return -1;
-                double breath = GlowMonitoringMs;
+                if (state != "watching" && state != "recovering" && state != "failed") return -1;
+                double breath = state == "failed" ? GlowMonitoringMs * FailedSlot : GlowMonitoringMs;
                 int sweeps = state == "watching" ? SweepBreaths : 1;
                 double outMs = breath * sweeps * SweepOut, hold = breath * sweeps * SweepHold;
                 double start = state == "watching" ? breath * Breaths : 0;
@@ -656,8 +659,9 @@ namespace CodexAutoResume
 
             /// One frame, as (position, level) (tray.icon_frame): position 0 is the head in its place, the
             /// others clockwise round the ring, and the top level its full colour, which it keeps through a
-            /// sweep's whole cycle. With motion reduced every state is at rest. A negative sinceEnteredMs
-            /// means the state's one pulse is over.
+            /// sweep's whole cycle - but a failure's, which blinks as it goes (tray.ICON_TRAVEL_BREATHS).
+            /// With motion reduced every state is at rest. sinceEnteredMs is read by
+            /// nothing since v0.6.8, when the one-time pulse went.
             internal static void Frame(string state, double elapsedMs, double sinceEnteredMs, bool reduced,
                                        out int position, out int level)
             {
@@ -668,10 +672,11 @@ namespace CodexAutoResume
                 if (turn >= 0)
                 {
                     position = (int)Math.Round(turn / (360.0 / Positions)) % Positions;
+                    if (state == "failed") level = BreathLevel(elapsedMs, GlowFailedMs);
                     return;
                 }
                 if (state == "watching") level = BreathLevel(elapsedMs, GlowMonitoringMs);
-                else if (Pulsing(state, sinceEnteredMs)) level = BreathLevel(sinceEnteredMs, GlowAttentionMs);
+                else if (state == "attention") level = BreathLevel(elapsedMs, GlowAttentionMs);
             }
 
             /// How soon the next frame is due, in ms, or -1 when nothing moves (tray.icon_frame_ms).
@@ -679,14 +684,8 @@ namespace CodexAutoResume
             {
                 if (reduced) return -1;
                 if (Turn(state, elapsedMs) >= 0) return TurnFrameMs;
-                if (state == "watching" || Pulsing(state, sinceEnteredMs)) return BreatheFrameMs;
+                if (state == "watching" || state == "attention") return BreatheFrameMs;
                 return -1;
-            }
-
-            /// Whether a problem's one pulse is still running (tray._pulsing).
-            private static bool Pulsing(string state, double sinceEnteredMs)
-            {
-                return (state == "attention" || state == "failed") && sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs;
             }
 
             /// Full colour at the start of a cycle, dimmest halfway, full again (tray._breath_level).

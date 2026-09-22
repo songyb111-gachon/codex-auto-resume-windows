@@ -560,6 +560,7 @@
   "timeline.col_time": "Zeit",
   "timeline.empty": "Nichts aufgezeichnet",
   "timeline.title": "Zeitachse",
+  "tray.failed": "Eine Wiederherstellung ist fehlgeschlagen",
   "tray.idle": "Nichts wartet",
   "tray.next": "nächste Prüfung in {time}",
   "tray.paused": "Pausiert",

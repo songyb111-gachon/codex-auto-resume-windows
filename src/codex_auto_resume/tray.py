@@ -10,16 +10,21 @@ recoveries are waiting, when the next one is due - and counts that time down loc
 Reaching zero only means the watcher looks again; nothing is sent because of it.
 
 Since v0.6.3 a single click opens the mini-dashboard beside the icon (`tray_popup.py`),
-the right-click menu is what it always was, and the icon wears a small badge for the
-state it is in. The popup lives on this thread too, so it is gone when the icon is.
+the right-click menu is what it always was, and until v0.6.8 the icon wore a small badge for
+the state it was in. The popup lives on this thread too, so it is gone when the icon is.
+
+Since v0.6.8 the icon wears no badge at all: its head says the state, as the window's taskbar button's does, so
+the two are one picture (the user: "왜 트레이는 복구 중에 우측 하단에 상태등이 하나 더 생기지").
 
 Since v0.6.4 the popup and the menu open in the Interface language and the Theme stored at
 the moment they open (`_adopt_settings`), rather than waiting for the watcher's next tick.
 
 Since v0.6.5 the icon itself moves, in its own simpler language than the windows' status light (see "the icon's
 motion" below): while it watches, the mark's head breathes and then sweeps along the white stroke and back; while a
-continuation is being sent it keeps sweeping; paused, it is grey and still; a problem is its colour, pulses once and
-holds. Frames are composed from a table built off this thread, swapped with NIM_MODIFY up to ICON_MOTION's rates, and
+continuation is being sent it keeps sweeping; paused, it is grey and still. Since v0.6.8 needing attention is
+amber and breathes slowly for as long as it lasts, and a failure is red and sweeps twice as quickly as recovering,
+blinking as it goes.
+Frames are composed from a table built off this thread, swapped with NIM_MODIFY up to ICON_MOTION's rates, and
 nothing moves under Reduce motion, Windows' animation setting, High Contrast or battery saver, while the session is
 locked, or while Windows' own settings for the icon say it sits in the overflow flyout (`tray_place.IconPlacement`: on
 Windows 11 the shell gives such an icon the overflow button's rectangle, so its rectangle cannot tell).
@@ -61,7 +66,7 @@ WM_USER = 0x0400
 WM_APP = 0x8000
 CALLBACK = WM_APP + 1
 WM_TRAY_FRAMES = WM_APP + 2         # the frame table's building thread has finished
-# The icon window's timers: the one-second tick (tooltip, badge, what may move) and, only while
+# The icon window's timers: the one-second tick (tooltip, state, what may move) and, only while
 # the icon moves, the frame timer.
 TIMER_TICK, TIMER_FRAME = 1, 2
 # With NOTIFYICON_VERSION_4 the shell reports a click or Enter on the icon as a select,
@@ -156,7 +161,9 @@ def tooltip(snapshot: dict, strings: dict, now: float) -> str:
     title = strings.get("tray.title", "Codex Auto Resume")
     if not snapshot:
         return title
-    if not snapshot.get("enabled", True):
+    if snapshot.get("failed"):
+        line = strings.get("tray.failed", "A recovery failed")
+    elif not snapshot.get("enabled", True):
         line = strings.get("tray.paused", "Paused")
     else:
         waiting, running = snapshot.get("waiting", 0), snapshot.get("running", 0)
@@ -181,12 +188,6 @@ def popup_attention(popup) -> bool:
     attention" until somebody opened it again.
     """
     return bool(popup is not None and popup.visible and popup.attention())
-
-
-def badge_token(snapshot, now, attention=False):
-    """The palette token of the icon's badge for a snapshot, or None for no badge."""
-    from . import tray_popup
-    return tray_popup.BADGE.get(tray_popup.snapshot_activity(snapshot, now, attention=attention))
 
 
 def menu_app_mode(look) -> int:
@@ -219,8 +220,17 @@ def prefer_app_mode(mode) -> bool:
 #   recovering  a continuation is being sent or is running in Codex: the head sweeps out and back
 #               over and over, at twice the speed, at full brightness and never breathing;
 #   idle        paused: the head is grey (brand's `idle` fill) and still;
-#   attention   needs a person: amber, one pulse when it arrives, then it holds;
-#   failed      a failure: the danger colour, one pulse, then it holds.
+#   attention   needs a person: amber, breathing in its place on brand's attention rhythm (5.6 s), the slowest
+#               breath there is, for as long as it lasts;
+#   failed      a failure: the danger colour, sweeping out and back like recovering but twice as quickly - a sweep
+#               every 1.98 s - and blinking as it goes, on the red light's own 1.2 s breath, for as long as it lasts:
+#               the one state whose head breathes while it travels (the user: "실패시에는 깜빡이면서 움직이면
+#               좋겠는데"); watching and recovering keep v0.6.5's rule below. The two keep different time, neither
+#               a whole number of the other ("달라야해 / 같으면 안 예뻐"): they meet again only every 39.6 s.
+#
+# Until v0.6.8 attention and a failure pulsed once and held. The user: "빨간 상태등일 때도 상태등이 움직이게
+# 해줘", then "확인필요는 천천히 계속 부드럽게 깜빡이고, 실패는 빠르게 움직이는거도 필요해" - and, asked which,
+# that a failure's head moves quickly too, not only its light.
 #
 # The user, on a first cut that breathed under a turn every thirty seconds: "회전할 땐 안 깜빡이게 해 / 회전하는
 # 시간도 깜빡임 시간의 배수에 맞춰서 둘이 안 겹치게", and "시계가 나을거 같아서". So the head never breathes while it
@@ -229,11 +239,13 @@ def prefer_app_mode(mode) -> bool:
 #
 # The sweeping mark is the mark's own head running along its own ring - "the ring is the wait, the gap is the
 # interruption, the head is the moment it resumes" - so the motion adds no shape and no colour, and breathing is the
-# head's brightness: no room for a halo here. The badge, the shape and the taskbar handling are as ever.
+# head's brightness: no room for a halo here. The shape and the taskbar handling are as ever, and since v0.6.8 no
+# badge sits on top: the head is the only thing that says the state, on the tray as on the taskbar button.
 #
-# Of brand.GLOW the icon reads two rhythms and nothing else: monitoring_ms (watching's breath, and so every slot
-# of its loop and of recovering's sweep) and attention_ms (the one pulse). Its own numbers are ICON_MOTION's, not
-# in brand.GLOW, every key of which is the windows' status light's; the taskbar button reads them from Brand.Mark.
+# Of brand.GLOW the icon reads three rhythms and nothing else: monitoring_ms (watching's breath, and so every slot
+# of its loop and of recovering's and a failure's sweeps), attention_ms (attention's breath) and failed_ms (the blink
+# a failure's head keeps as it sweeps). Its own numbers are
+# ICON_MOTION's, not in brand.GLOW, every key of which is the windows' status light's; the taskbar button reads them from Brand.Mark.
 ICON_STATES = ("watching", "recovering", "idle", "attention", "failed")
 # The icon's state as a brand status-light state: its colour and its rhythm. Every value is a
 # key of brand.STATUS_FILL; anything unknown is idle grey, as brand.status_fill is.
@@ -243,14 +255,22 @@ ICON_BRAND_STATE = {"watching": "monitoring", "recovering": "recovering", "idle"
 # the settings window read, for its taskbar button (SettingsForm.TrayActivity, Brand.Mark.IconState). Else idle.
 ICON_FOR_LIGHT = {"monitoring": "watching", "waiting": "watching", "checking": "watching", "recovering": "recovering",
                   "paused": "idle", "idle": "idle", "attention": "attention", "failed": "failed"}
+# The states whose head breathes in its place, and the brand.GLOW rhythm each breathes on.
+ICON_BREATHS = {"watching": "monitoring_ms", "attention": "attention_ms"}
+# The states whose head sweeps: watching between its breaths, recovering and a failure all the time.
+ICON_SWEEPS = ("watching", "recovering", "failed")
+# The one state whose head breathes as it sweeps, and the rhythm: a failure blinks on the red light's own breath.
+ICON_TRAVEL_BREATHS = {"failed": "failed_ms"}
 ICON_MOTION = {
     # watching: `breaths` breaths of the head, then a sweep in a slot of `sweep_breaths` of them - `sweep_out` of
     # that slot going out, as much coming back, `sweep_hold` of it held at the far end and the rest of it at home.
     # Recovering sweeps the same shape in one breath, then rests `recover_rest` of one at home: a sweep every 3.96 s.
+    # A failure sweeps recovering's shape in `failed_slot` of a breath: twice as quickly, a sweep every 1.98 s.
     "breaths": 3, "sweep_breaths": 2, "sweep_out": 0.4, "sweep_hold": 0.025, "recover_rest": 0.075,
+    "failed_slot": 0.5,
     # Every frame shown costs explorer.exe a redraw: the rates that looked smooth for the least of it (measured),
     # each just inside a whole number of Windows' 15.625 ms timer ticks, which a timer waits for at the least.
-    "breathe_frame_ms": 156,  # ten ticks: about six frames a second while it breathes or pulses...
+    "breathe_frame_ms": 156,  # ten ticks: about six frames a second while it breathes...
     "turn_frame_ms": 62,      # ...four, sixteen, while it travels: about one frame a position at that speed
     "positions": 24,          # head positions round the ring, fifteen degrees apart
     "levels": 24,             # the breath's brightness steps: a tint of the head, never a stored frame
@@ -271,8 +291,8 @@ ICON_HEAD_PALETTE = {"idle": "light", "attention": "dark", "danger": "dark"}
 def icon_state(snapshot, *, attention=False, failed=False) -> str:
     """The icon's state from the tick's snapshot: one of ICON_STATES, ICON_FOR_LIGHT of the popup's word.
 
-    `attention` is what the badge already uses (the open popup says nothing can recover until a
-    person acts); `failed` is a failure the watcher reports. Neither is ever inferred here.
+    `attention` is the open popup's word (it says nothing can recover until a person acts);
+    `failed` is a failure the watcher reports. Neither is ever inferred here.
     """
     if failed:
         return "failed"
@@ -319,10 +339,13 @@ def icon_turn(state, elapsed_ms) -> float:
     """How far along the stroke the head has swept from its place, clockwise, in degrees, or None when the state is
     not sweeping at all: ICON_SWEEP at the stroke's other end, brand's raised cosine over a sweep out and back with
     that cosine's top held at the far end, and 0 - not None - for whatever is left of the cycle once it is home,
-    where it rests lit and still. ICON_MOTION says how long each part of a sweep takes."""
-    if state not in ("watching", "recovering"):
+    where it rests lit and still. ICON_MOTION says how long each part of a sweep takes; a failure's is recovering's
+    in `failed_slot` of the time."""
+    if state not in ICON_SWEEPS:
         return None
     breath, motion = float(brand.GLOW["monitoring_ms"]), ICON_MOTION
+    if state == "failed":
+        breath *= motion["failed_slot"]
     sweeps = motion["sweep_breaths"] if state == "watching" else 1
     out, hold = breath * sweeps * motion["sweep_out"], breath * sweeps * motion["sweep_hold"]
     start = breath * motion["breaths"] if state == "watching" else 0.0
@@ -333,29 +356,26 @@ def icon_turn(state, elapsed_ms) -> float:
     return ICON_SWEEP * brand._breath(min(into, max(out, into - hold)), 2 * out)
 
 
-def _pulsing(state, since_entered_ms) -> bool:      # a problem's one pulse, still running
-    return (icon_brand_state(state) in brand.GLOW_PULSES and since_entered_ms is not None
-            and 0 <= since_entered_ms < brand.GLOW["attention_ms"])
-
-
 def icon_frame(state, elapsed_ms, since_entered_ms=None, *, reduced=False) -> tuple:
     """(head position, breathing level) for one frame: a pure function of the state and the clock.
 
     Position 0 is the head in its place, positions counting on clockwise round the ring, and a sweep reaches the
-    one nearest ICON_SWEEP; the top level is the head's full colour, which it has for a sweep's whole cycle. With
+    one nearest ICON_SWEEP; the top level is the head's full colour, which it has for a sweep's whole cycle - but a
+    failure's, which blinks as it goes (ICON_TRAVEL_BREATHS). With
     motion reduced every state is its rest: the head in its place at full colour, so the states differ by colour
-    only. `since_entered_ms` is how long the state has been shown (None: its one pulse is over).
+    only. `since_entered_ms`, how long the state has been shown, is what a problem's one pulse ran on until v0.6.8;
+    nothing reads it now, and it is still taken so its callers are unchanged.
     """
     positions, top = ICON_MOTION["positions"], ICON_MOTION["levels"] - 1
     if reduced:
         return (0, top)
     turn = icon_turn(state, elapsed_ms)
     if turn is not None:
-        return (int(round(turn / (360.0 / positions))) % positions, top)
-    if state == "watching":
-        return (0, _breath_level(elapsed_ms, brand.GLOW["monitoring_ms"]))
-    if _pulsing(state, since_entered_ms):
-        return (0, _breath_level(since_entered_ms, brand.GLOW["attention_ms"]))
+        level = (_breath_level(elapsed_ms, brand.GLOW[ICON_TRAVEL_BREATHS[state]]) if state in ICON_TRAVEL_BREATHS
+                 else top)
+        return (int(round(turn / (360.0 / positions))) % positions, level)
+    if state in ICON_BREATHS:
+        return (0, _breath_level(elapsed_ms, brand.GLOW[ICON_BREATHS[state]]))
     return (0, top)
 
 
@@ -365,7 +385,7 @@ def icon_frame_ms(state, elapsed_ms, since_entered_ms=None, *, reduced=False):
         return None
     if icon_turn(state, elapsed_ms) is not None:
         return ICON_MOTION["turn_frame_ms"]
-    if state == "watching" or _pulsing(state, since_entered_ms):
+    if state in ICON_BREATHS:
         return ICON_MOTION["breathe_frame_ms"]
     return None
 
@@ -385,9 +405,9 @@ class IconFrames:
     The mark without its head is rendered once; for each of ICON_MOTION's head positions only the
     few pixels the head can touch are rendered again, with the head kept apart so it can take any
     colour with the arithmetic a whole render uses. Position 0 in the accent is therefore the .ico's
-    own image at that size, byte for byte. A frame is that, the head's colour at a breathing level,
-    and the badge composited last exactly as tray_popup.badge_icon does it. Top-down BGRA with
-    straight alpha, as icon bitmaps are. `ground` and `heads` go into the window's Brand.Mark as they are.
+    own image at that size, byte for byte. A frame is that and the head's colour at a breathing
+    level, and nothing on top of it since v0.6.8. Top-down BGRA with straight alpha, as icon
+    bitmaps are. `ground` and `heads` go into the window's Brand.Mark as they are.
     """
 
     def __init__(self, size):
@@ -409,10 +429,9 @@ class IconFrames:
             self.heads.append((box, brand.icon_samples(size, head_angle=angle, box=box)))
         self._cache = {}
 
-    def compose(self, position, head, badge=None) -> bytes:
-        """One frame: the head at `position` in `head` (red, green, blue), and the badge's dot in
-        `badge` (red, green, blue) or none."""
-        key = (int(position) % len(self.heads), tuple(head), tuple(badge) if badge else None)
+    def compose(self, position, head) -> bytes:
+        """One frame: the head at `position` in `head` (red, green, blue)."""
+        key = (int(position) % len(self.heads), tuple(head))
         cached = self._cache.get(key)
         if cached is not None:
             return cached
@@ -424,9 +443,6 @@ class IconFrames:
                 red, green, blue, alpha = brand.icon_pixel(sample, key[1])
                 index = ((top + y) * size + left + x) * 4
                 pixels[index:index + 4] = bytes((blue, green, red, alpha))
-        if badge:
-            from . import tray_popup
-            tray_popup.composite_badge(pixels, size, size, key[2])
         frame = bytes(pixels)
         if len(self._cache) >= ICON_MOTION["cache"]:
             self._cache.pop(next(iter(self._cache)))
@@ -468,8 +484,7 @@ class Tray:
         self._proc = None           # keeps the callback alive for the window's life
         self._icon = None
         self._icon_owned = False
-        self._badge = None          # the badged copy currently shown, if any
-        self._badge_token = None
+        self._failed = False        # the icon shows a failure nobody has seen (_failure_unseen)
         self._shown_icon = None
         self._last_tip = None
         self._taskbar_created = None
@@ -482,8 +497,7 @@ class Tray:
         self._menu_mode = APP_MODE_DEFAULT   # what this process's menus were last asked to be
         self._menu_theming = True            # False once Windows could not be asked
         # v0.6.5: the icon's motion. Until its frame table is built (off this thread) the icon is
-        # drawn exactly as before - the .ico, and a badged copy of it - and if the table cannot be
-        # built it stays that way. Once it is, every icon shown is one composed frame, made into
+        # the .ico, and if the table cannot be built it stays that way. Once it is, every icon shown is one composed frame, made into
         # an HICON as it is shown and destroyed once the shell holds the next: two at most.
         self._frames = None           # IconFrames once built; False when it could not be
         self._frames_result = None    # what the building thread left: (frames, reason)
@@ -663,10 +677,15 @@ class Tray:
         data.uFlags = flags
         data.uCallbackMessage = CALLBACK
         data.hIcon = self._shown_icon or self._icon
+        data.szTip = tooltip(self._shown(), self.strings, time.time())
+        return data
+
+    def _shown(self) -> dict:
+        """The last tick's snapshot as the icon shows it: with whether a failure nobody has seen is on it."""
         with self._lock:
             snapshot = dict(self._snapshot)
-        data.szTip = tooltip(snapshot, self.strings, time.time())
-        return data
+        snapshot["failed"] = self._failed
+        return snapshot
 
     def _notify(self, action):
         # NIF_SHOWTIP: under version 4 the shell hides the standard tooltip unless asked.
@@ -685,37 +704,19 @@ class Tray:
     def _refresh(self):
         with self._lock:
             snapshot = dict(self._snapshot)
+        self._failed = self._failure_unseen(snapshot)
+        snapshot["failed"] = self._failed
         text = tooltip(snapshot, self.strings, time.time())
+        changed, replaced = False, []
         if self._frames:
             self._observe(snapshot)
             changed, replaced = self._frame_for(time.monotonic())
-        else:
-            changed, replaced = self._badge_for(snapshot)
-            replaced = [replaced]
         if text != self._last_tip or changed:
             self._notify(NIM_MODIFY)
         for handle in replaced:
             if handle:
                 _dll("user32").DestroyIcon(handle)      # only after the shell holds the new one
         self._sync_motion()
-
-    def _badge_for(self, snapshot):
-        """Swap the badge when the state it shows changed. Returns (changed, icon to destroy)."""
-        if not self._icon:
-            return False, None
-        try:
-            from . import tray_popup
-            token = badge_token(snapshot, time.time(), popup_attention(self._popup))
-            if token == self._badge_token:
-                return False, None
-            badge = tray_popup.badge_icon(self._icon, token) if token else None
-            replaced, self._badge = self._badge, badge
-            self._badge_token = token
-            self._shown_icon = badge or self._icon
-            return True, replaced
-        except Exception as exc:
-            self.log("tray badge failed (%s)" % type(exc).__name__)
-            return False, None
 
     # --------------------------------------------------------------- the icon's motion
     def _build_frames_later(self, size):
@@ -748,7 +749,7 @@ class Tray:
         self._refresh()
 
     def _observe(self, snapshot):
-        """What the one-second tick decides for the motion: the badge, the state, whether it may move.
+        """What the one-second tick decides for the motion: the state and whether it may move.
 
         Windows is asked what may move only when the state has something to move, and whether
         the icon is in the overflow flyout only when nothing else already holds it still. The
@@ -756,7 +757,6 @@ class Tray:
         (`_adopt_reduce_motion`), so a Save in the window holds the icon within a second.
         """
         attention = popup_attention(self._popup)
-        self._badge_token = badge_token(snapshot, time.time(), attention)
         state = icon_state(snapshot, attention=attention, failed=snapshot.get("failed") is True)
         now = time.monotonic()
         if state != self._icon_state:
@@ -792,14 +792,13 @@ class Tray:
         since = (now - self._state_since) * 1000.0
         position, level = icon_frame(state, elapsed, since, reduced=not self._motion_allowed)
         head = icon_level_colour(icon_head_colour(state), level)
-        token = self._badge_token
-        key = (position, head, token)
+        key = (position, head)
         if key == self._frame_key and self._frame_icon:
             return False, []
         try:
             from . import tray_popup
-            pixels = frames.compose(position, head, brand.rgb(brand.LIGHT[token]) if token else None)
-            tray_popup._declare()                  # the GDI calls' types, as badge_icon declares them
+            pixels = frames.compose(position, head)
+            tray_popup._declare()                  # the GDI calls' types
             made = tray_popup._icon_from_pixels(pixels, frames.size, frames.size)
             if not made:
                 raise OSError("CreateIconIndirect")
@@ -808,12 +807,10 @@ class Tray:
             self.log("tray motion failed (%s)" % type(exc).__name__)
             self._frames, self._frame_key = False, None
             replaced, self._frame_icon = self._frame_icon, None
-            self._badge_token = None
-            self._shown_icon = self._badge or self._icon
+            self._shown_icon = self._icon
             return True, [replaced]
-        # The badged copy of the old path is not shown once frames are; it goes with the swap.
-        replaced = [self._frame_icon, self._badge]
-        self._frame_icon, self._badge, self._frame_key = made, None, key
+        replaced = [self._frame_icon]
+        self._frame_icon, self._frame_key = made, key
         self._shown_icon = made
         return True, replaced
 
@@ -880,8 +877,7 @@ class Tray:
         user32 = _dll("user32")
         self._adopt_settings()                  # the menu speaks the language stored now
         self._theme_menu()                      # and is drawn in the theme the popup is
-        with self._lock:
-            snapshot = dict(self._snapshot)
+        snapshot = self._shown()
         menu = user32.CreatePopupMenu()
         try:
             status = tooltip(snapshot, self.strings, time.time()).split("\n", 1)[-1]
@@ -954,7 +950,7 @@ class Tray:
         and somebody who has just chosen a language or a theme and clicks the icon expects the
         popup and the menu to have it already. So the icon looks for itself before it opens
         either - the same settings, resolved the way the watcher resolves them - and the watcher
-        restarts for none of it. The icon and its badge do not change with the theme.
+        restarts for none of it. The icon does not change with the theme.
         """
         try:
             values = self._stored_settings()
@@ -1050,6 +1046,30 @@ class Tray:
             popup.on_select(keyboard=keyboard)
         except Exception as exc:
             self._popup_broke(exc)
+            return
+        self._failure_seen()
+
+    def _failure_unseen(self, snapshot) -> bool:
+        """Whether the icon shows a certain failure: one the watcher found (snapshot_from) that nobody has seen since
+        and no recovery has followed (control.unseen_failure). Without a control layer, or when it cannot say, no."""
+        if self.control is None or not snapshot.get("failures"):
+            return False
+        try:
+            return self.control.failure_unseen(snapshot["failures"]) is True
+        except Exception:
+            return False
+
+    def _failure_seen(self):
+        """A click that opens the popup has seen the failure the icon shows: say so, and let the icon go back now
+        rather than at the next second."""
+        if not self._failed or self.control is None:
+            return
+        try:
+            self.control.acknowledge_failure()
+        except Exception as exc:
+            self.log("tray failure acknowledgement failed (%s)" % type(exc).__name__)
+            return
+        self._refresh()
 
     def _double_click(self):
         self._adopt_settings()
@@ -1136,9 +1156,6 @@ class Tray:
                 data.hWnd = hwnd
                 data.uID = 1
                 _dll("shell32").Shell_NotifyIconW(NIM_DELETE, C.byref(data))
-                if self._badge:
-                    user32.DestroyIcon(self._badge)
-                    self._badge = None
                 if self._frame_icon:
                     user32.DestroyIcon(self._frame_icon)
                     self._frame_icon = self._frame_key = None
@@ -1165,8 +1182,10 @@ def snapshot_from(store, now: float) -> dict:
                 due.append(at)
         else:
             running += 1
+    # When the newest certain failure was, and the newest recovery on its way: the icon asks the control layer
+    # whether anybody has seen it since (Tray._failure_unseen), every second rather than every tick.
     return {"enabled": store.settings()["enabled"], "waiting": waiting, "running": running,
-            "next_at": min(due) if due else None}
+            "next_at": min(due) if due else None, "failures": store.failure_marks()}
 
 
 # The pages the window will open on. A closed list, because the value is spliced into a

@@ -2,7 +2,8 @@
 
 The icon speaks a smaller language than the windows' status light: watching breathes three times and
 then sweeps out along the white stroke and back, recovering keeps sweeping, paused is grey and still,
-a problem is its colour with one pulse. Everything that decides a frame is a pure function of the
+and since v0.6.8 attention is amber and breathes slowly while a failure is red, sweeps twice as quickly
+as recovering and blinks as it goes. Everything that decides a frame is a pure function of the
 state and a clock, tested here as tables; the frames are pure pixels, pinned by a digest; and the
 icon's own timer, its swaps and its HICONs are exercised on Windows against a fake shell, where a
 leak would show.
@@ -41,11 +42,12 @@ SWEEP_AT = SLOT * MOTION["breaths"]                   # where in the loop the sw
 # long it then rests at home, lit and still. Watching's fills the last two breaths of its 22 s loop; recovering's
 # whole cycle is 3.96 s.
 SWEEPS = {"watching": (13200.0, 3520.0, 220.0, 3520.0, 1540.0),
-          "recovering": (0.0, 1760.0, 110.0, 1760.0, 330.0)}
+          "recovering": (0.0, 1760.0, 110.0, 1760.0, 330.0),
+          "failed": (0.0, 880.0, 55.0, 880.0, 165.0)}
 
 
 def cycle_ms(state):
-    """How long one whole cycle of a state's sweep is: watching's loop, or recovering's 3.96 s."""
+    """How long one whole cycle of a state's sweep is: watching's loop, recovering's 3.96 s or a failure's 1.98."""
     return sum(SWEEPS[state][1:]) + SWEEPS[state][0]
 
 
@@ -79,7 +81,8 @@ class StateTests(unittest.TestCase):
         self.assertEqual(brand.status_fill("watching"), "idle")
         self.assertIn("monitoring", brand.GLOW_BREATHES)
         self.assertIn("recovering", brand.GLOW_BREATHES)
-        self.assertEqual(set(brand.GLOW_PULSES), {"attention", "failed"})
+        self.assertIn("attention", brand.GLOW_BREATHES)
+        self.assertFalse(hasattr(brand, "GLOW_PULSES"), "nothing pulses once since v0.6.8")
 
     def test_anything_unknown_is_idle_grey(self):
         for unknown in ("", None, "stopped", "monitoring", "paused"):
@@ -181,7 +184,8 @@ class StateTests(unittest.TestCase):
             self.assertNotIn(name, light)
         for declared in ("internal const int Breaths = 3;", "internal const int SweepBreaths = 2;",
                          "internal const double SweepOut = 0.4;", "internal const double SweepHold = 0.025;",
-                         "internal const double RecoverRest = 0.075;", "internal const double Sweep = 290;",
+                         "internal const double RecoverRest = 0.075;", "internal const double FailedSlot = 0.5;",
+                         "internal const double Sweep = 290;",
                          "internal const int BreatheFrameMs = %d;" % MOTION["breathe_frame_ms"],
                          "internal const int TurnFrameMs = %d;" % MOTION["turn_frame_ms"],
                          "internal const int Positions = 24;", "internal const int Levels = 24;",
@@ -211,6 +215,12 @@ class StateTests(unittest.TestCase):
         for state in ("watching", "recovering"):
             with self.subTest(state):
                 self.assertEqual(stepped_positions(state), set(range(round(tray.ICON_SWEEP / step) + 1)))
+        # A failure's sweep is twice as quick at the same sixteen frames a second - explorer.exe pays no more for it
+        # than for recovering's - so at its quickest the head passes a position or two between frames; it still
+        # leaves from its place and reaches the stroke's far end every time.
+        furthest = round(tray.ICON_SWEEP / step)
+        self.assertTrue({0, furthest} <= stepped_positions("failed"))
+        self.assertEqual(tray.icon_frame_ms("failed", 440), MOTION["turn_frame_ms"])
 
 
 # ------------------------------------------------------------------------------ the phases
@@ -231,8 +241,8 @@ class PhaseTests(unittest.TestCase):
         end, 3.52 s back, 1.54 s at home - a 22 s loop. Recovering: the same shape in one breath, then 0.33 s at
         home, so it sweeps every 3.96 s, twice as quickly. The fractions are v0.6.5's; the seconds grew with
         v0.6.6's softer, slower breath, which is the one number both the light and the icon read."""
-        breath = float(brand.GLOW["monitoring_ms"])
         for state, (start, out, hold, back, home) in SWEEPS.items():
+            breath = float(brand.GLOW["monitoring_ms"]) * (MOTION["failed_slot"] if state == "failed" else 1)
             sweeps = MOTION["sweep_breaths"] if state == "watching" else 1
             with self.subTest(state):
                 self.assertEqual(start, breath * MOTION["breaths"] if state == "watching" else 0.0)
@@ -246,6 +256,8 @@ class PhaseTests(unittest.TestCase):
         self.assertEqual(cycle_ms("watching"), 22000)
         self.assertEqual(cycle_ms("recovering"), 3960)
         self.assertEqual(SWEEPS["watching"][1], 2 * SWEEPS["recovering"][1], "recovering sweeps twice as quickly")
+        self.assertEqual(cycle_ms("failed"), 1980)
+        self.assertEqual(SWEEPS["recovering"][1], 2 * SWEEPS["failed"][1], "and a failure twice as quickly again")
 
     def test_watching_is_three_breaths_then_a_sweep_in_a_slot_of_two(self):
         start, out, hold, back, home = SWEEPS["watching"]
@@ -302,7 +314,7 @@ class PhaseTests(unittest.TestCase):
         step = 360.0 / MOTION["positions"]
         furthest = round(tray.ICON_SWEEP / step)
         self.assertLessEqual(furthest * step, tray.ICON_SWEEP, "no position of the sweep is past the stroke's end")
-        for state, span in (("watching", 2 * LOOP), ("recovering", 4 * 2880)):
+        for state, span in (("watching", 2 * LOOP), ("recovering", 4 * 2880), ("failed", 4 * 1980)):
             for elapsed in range(0, span, 11):
                 turn, position = tray.icon_turn(state, elapsed), tray.icon_frame(state, elapsed)[0]
                 with self.subTest(state=state, elapsed=elapsed):
@@ -335,14 +347,18 @@ class PhaseTests(unittest.TestCase):
                     self.assertAlmostEqual(tray.icon_turn(state, start + out + ms), tray.ICON_SWEEP)
                 self.assertLess(tray.icon_turn(state, start + out - 1), tray.ICON_SWEEP)
                 self.assertLess(tray.icon_turn(state, start + out + hold + 1), tray.ICON_SWEEP)
-                # Home is 0, not "not sweeping at all": the head is in its place at full brightness and stays there.
+                # Home is 0, not "not sweeping at all": the head is in its place - at full brightness, but a
+                # failure's, which blinks there as everywhere - and stays there.
                 for ms in range(0, int(home), 17):
                     at = start + 2 * out + hold + ms
                     self.assertEqual(tray.icon_turn(state, at), 0.0)
-                    self.assertEqual(tray.icon_frame(state, at), (0, TOP))
+                    self.assertEqual(tray.icon_frame(state, at)[0], 0)
+                    if state not in tray.ICON_TRAVEL_BREATHS:
+                        self.assertEqual(tray.icon_frame(state, at), (0, TOP))
 
     def test_the_head_never_breathes_while_it_travels(self):
-        """Watching's sweep and recovering's are at full brightness in every frame of them."""
+        """Watching's sweep and recovering's are at full brightness in every frame of them (a failure's alone blinks,
+        at the user's word: see test_a_failure_sweeps_like_recovering_twice_as_quickly_for_as_long_as_it_lasts)."""
         for elapsed in range(0, 3 * LOOP, 7):
             turning = tray.icon_turn("watching", elapsed) is not None
             with self.subTest(elapsed=elapsed):
@@ -350,6 +366,7 @@ class PhaseTests(unittest.TestCase):
                     self.assertEqual(tray.icon_frame("watching", elapsed)[1], TOP)
                 else:
                     self.assertEqual(tray.icon_frame("watching", elapsed)[0], 0, "no turn while it breathes")
+        self.assertEqual(tray.ICON_TRAVEL_BREATHS, {"failed": "failed_ms"})
         for elapsed in range(0, 40000, 13):
             with self.subTest(recovering=elapsed):
                 self.assertEqual(tray.icon_frame("recovering", elapsed)[1], TOP)
@@ -398,19 +415,61 @@ class PhaseTests(unittest.TestCase):
         self.assertGreater(next_x, home_x)
         self.assertLess(next_y, home_y)
 
-    def test_paused_is_still_and_a_problem_pulses_once_then_holds(self):
+    def test_a_failure_sweeps_like_recovering_twice_as_quickly_for_as_long_as_it_lasts(self):
+        """v0.6.8, the user: "실패는 빠르게 움직이는거도 필요해", and asked which, that the head moves too; then
+        "실패시에는 깜빡이면서 움직이면 좋겠는데". Red sweeps recovering's shape in half its time - out, a moment at
+        the far end, back, a moment at home - and blinks as it goes, on the red light's own breath (brand's failed_ms),
+        however long ago the failure arrived; Reduce motion holds it lit at home."""
+        start, out, hold, back, home = SWEEPS["failed"]
+        blink = brand.GLOW["failed_ms"]
+        self.assertEqual(tray.ICON_SWEEPS, ("watching", "recovering", "failed"))
+        self.assertNotIn("failed", tray.ICON_BREATHS, "it never breathes standing still: it always travels")
+        self.assertEqual(tray.ICON_TRAVEL_BREATHS, {"failed": "failed_ms"})
+        furthest = round(tray.ICON_SWEEP / (360.0 / MOTION["positions"]))
+        for since in (0, 5000, None):
+            for loop in (0, 7):
+                at = loop * cycle_ms("failed")
+                with self.subTest(since=since, loop=loop):
+                    self.assertEqual(tray.icon_frame("failed", at, since)[0], 0)
+                    self.assertEqual(tray.icon_frame("failed", at + out, since)[0], furthest)
+                    self.assertEqual(tray.icon_frame("failed", at + 2 * out + hold + home / 2.0, since)[0], 0)
+                    self.assertEqual(tray.icon_frame_ms("failed", at + out / 2.0, since), MOTION["turn_frame_ms"])
+        # The sweep and the blink keep different time, and neither is a whole number of the other, so the blink
+        # lands somewhere new on every sweep - the user: "움직이는 주기랑 깜빡이는 주기가 ... 달라야해 / 같으면 안
+        # 예뻐". 1.98 s against 1.2 s: the two meet again only every 39.6 s.
+        sweep = int(cycle_ms("failed"))
+        self.assertNotEqual(sweep, blink)
+        self.assertNotEqual(sweep % blink, 0)
+        self.assertNotEqual(blink % sweep, 0)
+        self.assertEqual(math.lcm(sweep, blink), 39600)
+        # The blink is the breath: full at each of its starts, lowest halfway, whatever the head is doing.
+        for index in range(12):
+            with self.subTest(blink=index):
+                self.assertEqual(tray.icon_frame("failed", index * blink)[1], TOP)
+                self.assertEqual(tray.icon_frame("failed", index * blink + blink / 2.0)[1], 0)
+        seen = {tray.icon_frame("failed", elapsed) for elapsed in range(0, 3 * int(cycle_ms("failed")), 11)}
+        self.assertEqual({level for _, level in seen}, set(range(TOP + 1)))
+        self.assertTrue(any(position == furthest and level < TOP for position, level in seen), "it blinks far out too")
+        self.assertEqual(tray.icon_frame("failed", out, 0, reduced=True), (0, TOP))
+        self.assertIsNone(tray.icon_frame_ms("failed", out, 0, reduced=True))
+
+    def test_paused_is_still_and_attention_breathes_slowly_in_its_place(self):
+        """v0.6.8, the user: "확인필요는 천천히 계속 부드럽게 깜빡이고". Amber breathes at home on brand's attention
+        rhythm, the slowest there is, for as long as it lasts; it never sweeps."""
         for elapsed in (0, 777, 15000, 29000):
             self.assertEqual(tray.icon_frame("idle", elapsed, 0), (0, TOP))
-        pulse = brand.GLOW["attention_ms"]
-        for state in ("attention", "failed"):
-            with self.subTest(state):
-                self.assertEqual(tray.icon_frame(state, 12345, 0), (0, TOP))
-                self.assertEqual(tray.icon_frame(state, 12345, pulse / 2.0), (0, 0))
-                for settled in (pulse, pulse + 1, 99999, None, -5):
-                    self.assertEqual(tray.icon_frame(state, 12345, settled), (0, TOP))
-                self.assertIsNotNone(tray.icon_frame_ms(state, 0, pulse / 2.0))
-                self.assertIsNone(tray.icon_frame_ms(state, 0, pulse))
-                self.assertIsNone(tray.icon_frame_ms(state, 0, None))
+        cycle = brand.GLOW["attention_ms"]
+        self.assertEqual(tray.ICON_BREATHS["attention"], "attention_ms")
+        self.assertGreater(cycle, brand.GLOW["monitoring_ms"])
+        for since in (0, 5000, 99999, None, -5):
+            for loop in (0, 9):
+                at = loop * cycle
+                with self.subTest(since=since, loop=loop):
+                    self.assertEqual(tray.icon_frame("attention", at, since), (0, TOP))
+                    self.assertEqual(tray.icon_frame("attention", at + cycle / 2.0, since), (0, 0))
+                    self.assertIsNone(tray.icon_turn("attention", at + cycle / 2.0))
+                    self.assertEqual(tray.icon_frame_ms("attention", at + cycle / 2.0, since),
+                                     MOTION["breathe_frame_ms"])
 
     def test_reduced_motion_holds_every_state_at_its_rest(self):
         for state in tray.ICON_STATES + ("unknown",):
@@ -433,6 +492,9 @@ class PhaseTests(unittest.TestCase):
         self.assertEqual(tray.icon_frame_ms("recovering", 0), turn)
         self.assertEqual(tray.icon_frame_ms("recovering", 2879), turn)
         self.assertEqual(tray.icon_frame_ms("attention", 0, 10), breathe)
+        self.assertEqual(tray.icon_frame_ms("attention", 99999, None), breathe)
+        self.assertEqual(tray.icon_frame_ms("failed", 0), turn)
+        self.assertEqual(tray.icon_frame_ms("failed", 1979), turn)
         self.assertIsNone(tray.icon_frame_ms("idle", 0, 0))
 
     def test_the_breath_s_levels_run_from_the_colour_toward_the_badge(self):
@@ -506,14 +568,18 @@ class FrameTests(unittest.TestCase):
             self.assertLess(abs(difference), 8.0, (position, angle, expected))
         self.assertEqual(frames.compose(0, accent), home)
 
-    def test_the_badge_is_composited_last_exactly_as_the_badge_icon_does(self):
+    def test_nothing_is_drawn_on_top_of_the_mark(self):
+        """v0.6.8: no badge. The frame is the mark and its head, and the corner a badge sat in is the .ico's own."""
+        self.assertFalse(hasattr(popup, "BADGE"))
+        self.assertFalse(hasattr(popup, "composite_badge"))
+        self.assertFalse(hasattr(popup, "badge_icon"))
+        self.assertFalse(hasattr(tray, "badge_token"))
         for size, frames in self.frames.items():
-            for token in ("waiting", "active", "paused", "attention"):
-                with self.subTest(size=size, token=token):
-                    colour = brand.rgb(brand.LIGHT[token])
-                    expected = bytearray(frames.compose(5, (10, 200, 30)))
-                    popup.composite_badge(expected, size, size, colour)
-                    self.assertEqual(frames.compose(5, (10, 200, 30), colour), bytes(expected))
+            with self.subTest(size=size):
+                frame = frames.compose(0, brand.rgb(brand.ICON_ACCENT))
+                ground = frames.ground
+                corner = [(y * size + x) * 4 for y in range(size * 3 // 4, size) for x in range(size * 3 // 4, size)]
+                self.assertEqual([frame[at:at + 4] for at in corner], [ground[at:at + 4] for at in corner])
 
     def test_a_colour_touches_the_head_and_nothing_else(self):
         frames = self.frames[24]
@@ -534,9 +600,8 @@ class FrameTests(unittest.TestCase):
             for position in range(MOTION["positions"]):
                 digest.update(frames.compose(position, colour))
             for level in range(TOP + 1):
-                digest.update(frames.compose(0, tray.icon_level_colour(colour, level),
-                                             brand.rgb(brand.LIGHT["waiting"])))
-        self.assertEqual(digest.hexdigest(), "461a614326a9a7f0713638bda31adb47158b1cafec9f900d36a95ae4ac514cc0")
+                digest.update(frames.compose(0, tray.icon_level_colour(colour, level)))
+        self.assertEqual(digest.hexdigest(), "13b12a2b3495a8fe52a1f15a627433eb568b0c08e0f636449de001248635a8ee")
 
     def test_composed_frames_are_kept_and_the_store_is_bounded(self):
         frames = tray.IconFrames(16)
@@ -631,11 +696,15 @@ class TimerTests(unittest.TestCase):
         icon._motion_ms = 200
         self.assertEqual(self.sync(icon, icon._epoch + 1.0).calls, [("kill", 2)])
 
-    def test_a_pulse_runs_the_timer_until_it_is_over(self):
-        icon = self.make("attention")
-        icon._state_since = icon._epoch
-        self.assertEqual(self.sync(icon, icon._epoch + 0.5).timers, {2: MOTION["breathe_frame_ms"]})
-        self.assertEqual(self.sync(icon, icon._epoch + 2.0).calls, [("kill", 2)])
+    def test_attention_and_a_failure_keep_the_timer_for_as_long_as_they_last(self):
+        """Until v0.6.8 attention's one pulse ran the timer for 1.4 s and then stopped it."""
+        for state, interval in (("attention", MOTION["breathe_frame_ms"]), ("failed", MOTION["turn_frame_ms"])):
+            with self.subTest(state):
+                icon = self.make(state)
+                icon._state_since = icon._epoch
+                self.assertEqual(self.sync(icon, icon._epoch + 0.5).timers, {2: interval})
+                icon._motion_ms = interval
+                self.assertEqual(self.sync(icon, icon._epoch + 600.0).calls, [])
 
 
 class ObserveTests(unittest.TestCase):
@@ -697,11 +766,13 @@ class ObserveTests(unittest.TestCase):
         self.assertFalse(icon._motion_allowed)
         self.assertEqual(asked, [])
 
-    def test_the_badge_token_is_the_one_the_badge_always_had(self):
+    def test_the_icon_keeps_no_badge_state(self):
         icon, _ = self.observe({"enabled": True, "waiting": 2, "next_at": time.time() + 60})
-        self.assertEqual(icon._badge_token, "waiting")
+        self.assertEqual(icon._icon_state, "watching")
         icon, _ = self.observe({"enabled": True, "running": 1})
-        self.assertEqual((icon._icon_state, icon._badge_token), ("recovering", "active"))
+        self.assertEqual(icon._icon_state, "recovering")
+        self.assertFalse(hasattr(icon, "_badge_token"))
+        self.assertFalse(hasattr(icon, "_badge"))
 
     def test_a_locked_or_disconnected_session_stops_it_and_unlocking_lets_it_go(self):
         icon = tray.Tray(strings={})
@@ -969,7 +1040,6 @@ class SwapTests(unittest.TestCase):
         icon._frames = tray.IconFrames(16)
         icon._icon_state = "recovering"
         icon._motion_allowed = True
-        icon._badge_token = "active"
         icon._notify_icon = lambda: True                   # the shell is not told
         icon._sync_motion = lambda: None
         return icon
@@ -1034,16 +1104,15 @@ class SwapTests(unittest.TestCase):
         finally:
             tray._dll("user32").DestroyIcon(icon._frame_icon)
 
-    def test_the_old_path_s_badged_copy_goes_with_the_first_frame(self):
+    def test_the_first_frame_replaces_the_ico_and_keeps_it(self):
         icon = self.make()
         icon._icon_state = "watching"
-        badge = popup._icon_from_pixels(bytes(16 * 16 * 4), 16, 16)
-        icon._badge = icon._shown_icon = badge
+        icon._shown_icon = icon._icon
         changed, replaced = icon._frame_for(time.monotonic())
         try:
             self.assertTrue(changed)
-            self.assertIn(badge, replaced)
-            self.assertIsNone(icon._badge)
+            self.assertEqual(replaced, [None])                  # the .ico is the icon's own, never destroyed here
+            self.assertEqual(icon._icon, 1)
             self.assertIs(icon._shown_icon, icon._frame_icon)
         finally:
             user32 = tray._dll("user32")
@@ -1064,14 +1133,12 @@ class LiveMotionTests(unittest.TestCase):
                 time.sleep(0.05)
             self.assertTrue(icon._frames)
             self.assertEqual(icon._icon_state, "idle")
-            self.assertEqual(icon._frame_key[1], tray.icon_head_colour("idle"))
-            self.assertEqual(icon._frame_key[2], "paused")
+            self.assertEqual(icon._frame_key, (0, tray.icon_head_colour("idle")))   # and no badge on it
             self.assertIsNone(icon._motion_ms)                   # grey and still: no frame timer
         finally:
             icon.stop()
         self.assertFalse(icon._thread.is_alive())
         self.assertIsNone(icon._frame_icon)
-        self.assertIsNone(icon._badge)
 
     def test_without_its_own_ico_the_icon_builds_no_frames(self):
         icon = tray.Tray(icon_path=ROOT / "no-such.ico", strings={})
