@@ -236,16 +236,36 @@ Reduce motion and High Contrast still hold every light still.
 
 ---
 
-## v0.6.9 — The window's lag
+## v0.6.9 — The window's lag, and starting with Codex
 
 **Next.**
 
-One thing, on its own, before anything moves: the window's responsiveness - the lag it still has,
-worst on some pages, and the loading that feels slower in every language but English (reported with
-v0.6.8). Each is measured where it happens, its cause found and fixed, and the measurement kept as a
-test. Before the split rather than after it: the split's golden copies then hold the faster window,
-and the split carries it, instead of the fix being made again on code that has just moved. It changes
-how fast the window is, and that is worth a release of its own, so it is one: no pre-release.
+First, and on its own terms: the window's responsiveness - the lag it still has, worst on some pages,
+and the loading that feels slower in every language but English (reported with v0.6.8). Each is
+measured where it happens, its cause found and fixed, and the measurement kept as a test. Before the
+split rather than after it: the split's golden copies then hold the faster window, and the split
+carries it, instead of the fix being made again on code that has just moved. It changes how fast the
+window is, and that is worth a release of its own, so it is one: no pre-release.
+
+### Starting with Codex
+
+Today the watcher starts when you sign in to Windows. v0.6.9 adds the other choice the user asked
+for: start it when Codex starts. Codex already starts this plugin's own MCP server whenever it opens,
+so that server can start the watcher when none is running - through the same launcher sign-in uses,
+never while an install or an update is in progress, and never a second copy. Nothing new is
+registered with Windows for it: no scheduled task, no WMI subscription, no process left resident to
+wait for Codex. It is off until it is turned on, in the Dashboard.
+
+Two facts decide whether it can ship in v0.6.9, and both are measured before it is built: when Codex
+actually starts its MCP servers, and what happens to a watcher started that way when the ChatGPT app
+closes. If either means it cannot keep the standards the product keeps, it moves to the advanced
+edition of v0.6.10 instead of being bent to fit.
+
+### A shorter README
+
+The README had grown to a thousand lines. It becomes the short version - what the product does, how
+to install it, the one limitation to know, where everything else is - and the full text moves, as it
+was, to [the guide](GUIDE.md), in both languages.
 
 ---
 
@@ -294,7 +314,7 @@ nothing else: no feature, and no change anybody could see.
 
 ### v0.6.10 — Advanced features: more than any program like this offers
 
-v0.6.9 goes further than every release so far. It is planned to offer, aggressively, as many
+v0.6.10 goes further than every release so far. It is planned to offer, aggressively, as many
 capabilities as any comparable program does, and more: before it is built, the tools that do anything
 like this are surveyed, and everything any of them offers goes on the list.
 
@@ -333,6 +353,36 @@ Where the list starts, from the earlier plan:
 - subagent recovery,
 - every further failure category that can be recovered,
 - broader recovery wherever Codex allows it.
+
+### Compatibility reports from others
+
+Today only the maintainer records which Codex versions this product works with, using a separate
+management program. From v0.6.10 anyone can contribute a report, and none of them can be made up
+without it showing:
+
+- **A report is what the program measured, not what a person typed.** The program runs the checks on
+  the contributor's own machine and writes the report itself: the Codex version and the engine's
+  fingerprint it read, each check it ran and its result. The fields a person might be tempted to
+  choose - which tier a version earns, whether a check counts as exercised - are derived from the
+  measurements, and the repository derives them again when the report arrives, so a hand-edited
+  conclusion does not survive.
+- **A report arrives as a pull request, and is checked as data.** A check that runs on every such pull
+  request reads the files without running anything in them, accepts only new files under the
+  contributor's own GitHub name (the one who opened it), rejects a report whose version, fingerprint
+  or dates are not plausible, and refuses a duplicate. A maintainer still reviews and merges each one,
+  and a report found to be wrong can be withdrawn, in the open.
+- **What others report is shown, and changes nothing.** It is listed apart from Verified and Checked,
+  as reported by others, with how many reports agree. It never raises a version to Verified or
+  Checked, and it never changes what the product lets itself do: those tiers stay the maintainer's
+  own, earned the way they are today.
+
+This is honest about its limit: nothing can prove a report was not fabricated on the contributor's
+own machine. So what others report informs, and only the maintainer's own evidence decides.
+
+The management program stays a program of its own, and its features also come into the advanced
+edition, so a person using that edition can record and submit a report without a second tool. The
+standard edition sends nothing and gains nothing here: a report goes to GitHub only when its author
+opens the pull request.
 
 ### Also planned for v0.6.10
 
@@ -558,13 +608,15 @@ The tray icon without its badge
         ↓
 
 v0.6.9
-The window's lag, on its own
+The window's lag
++ starting with Codex, and a shorter README
 
         ↓
 
 v0.6.10-alpha → v0.6.10
 Python modularization and a tidier landing page on GitHub, in a pre-release
 + advanced features, more than any program like this, in two editions, in the final
++ compatibility reports from others
 + design audit, a choice of appearance
 
         ↓

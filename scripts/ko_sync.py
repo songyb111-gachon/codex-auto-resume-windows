@@ -69,8 +69,9 @@ def relink(text: str, english: str, base: str) -> str:
 # character class stops before a dot, so an absolute URL that merely ends in `.ko.md` - a
 # file on somebody else's host - cannot be rewritten, and a target cannot run across a
 # domain name. A first attempt rewrote the suffix wherever it appeared and edited prose
-# inside a fenced code block.
-KO_TARGET = r'(?!\w+:)((?:\./)?[\w/-]+)\.ko\.md'
+# inside a fenced code block. Leading `./` and `../` are allowed: docs/GUIDE.ko.md links to
+# `../SECURITY.ko.md`, and a pattern that stopped at the first dot left four dead links on ko.
+KO_TARGET = r'(?!\w+:)((?:\.{1,2}/)*[\w/-]+)\.ko\.md'
 
 
 def tracked_markdown(root: Path, expected_missing=()) -> list[Path]:

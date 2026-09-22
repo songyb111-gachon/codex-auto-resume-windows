@@ -225,6 +225,15 @@ class GeneratorTests(unittest.TestCase):
         self.assertIn("(docs/COMPARISON.md)", out)
         self.assertNotIn(".ko.md", out)
 
+    def test_a_link_up_out_of_docs_loses_the_ko_suffix_too(self):
+        # docs/GUIDE.ko.md links to ../SECURITY.ko.md; a pattern that stopped at the first
+        # dot left those links pointing at files ko does not have.
+        import ko_sync
+        out = ko_sync.relink("[a](../SECURITY.ko.md) [b](./PLUGIN.ko.md)", "GUIDE.md", "")
+        self.assertIn("(../SECURITY.md)", out)
+        self.assertIn("(./PLUGIN.md)", out)
+        self.assertNotIn(".ko.md", out)
+
     def test_it_rewrites_links_and_leaves_everything_else_alone(self):
         """The first version rewrote the suffix anywhere it appeared.
 
