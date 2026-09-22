@@ -560,6 +560,7 @@
   "timeline.col_time": "Heure",
   "timeline.empty": "Aucun enregistrement",
   "timeline.title": "Chronologie",
+  "tray.failed": "Une récupération a échoué",
   "tray.idle": "Rien en attente",
   "tray.next": "prochaine vérification dans {time}",
   "tray.paused": "En pause",

@@ -1,10 +1,10 @@
 # Changelog
 
-## v0.6.8 — A tray icon without its badge, and a red light that keeps breathing
+## v0.6.8 — A tray icon without its badge, and lights that never stop
 
 [The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.7...v0.6.8)
 
-Two things about lights, both asked for by name, and nothing about recovery.
+Three things about lights, each asked for by name, and nothing about what recovery does.
 
 ### One icon, not two
 
@@ -16,17 +16,34 @@ alone says the state, as it already did on the taskbar button, and the tray icon
 button are the same picture, frame for frame. The states are still told apart by the head: its
 colour, its breath and its sweep.
 
-### A red light that keeps breathing
+### Lights that never stop
 
-A failure's light pulsed once when it appeared and then held still. It now breathes for as long as
-the failure is shown, every 2.2 seconds - a little quicker than a recovery's 2.8 and monitoring's
-4.4 - with the same curve and glow as every other light. The window, the notification card, the
-tray icon and the taskbar button all take it from one table. Needing attention still pulses once
-and holds; Reduce motion, Windows' animation setting and High Contrast still hold every light still.
+Needing attention and a failure each pulsed once when they appeared and then held still. Now neither
+stops for as long as it lasts, with the same curve and glow as every other light:
+
+- **Needing attention** breathes slowly - every 5.6 seconds, slower than monitoring's 4.4 - in amber.
+- **A failure** breathes quickly - every 1.2 seconds, quicker than a recovery's 2.8 - in red. On the
+  tray icon and the taskbar button its head sweeps out along the ring and back as a recovery's does,
+  twice as quickly: once every 1.98 seconds, at full brightness.
+
+The window, the notification-area popup, the panel in Codex, the notification card, the tray icon
+and the taskbar button all take it from one table. Reduce motion, Windows' animation setting and High
+Contrast still hold every light still.
+
+### Red until you have seen it
+
+Until now nothing ever put the tray icon or the taskbar button in the failed state: a failed
+recovery was red on its notification card and in the lists' state chips, and never on either icon. Now a recovery that ends in a certain failure
+turns both red, sweeping, and they stay red until you have seen it - click the icon to open the
+popup, or bring the Dashboard to the front - or until a recovery is on its way afterwards (one that
+is handed back before anything is sent does not count). Hovering over
+the icon says *A recovery failed*, in all nine languages. When you last saw a failure is kept as one
+time in `config/failure-seen.json`, which the watcher sets when it starts, so failures from before
+this update never turn the icon red; PRIVACY.md lists what it holds.
 
 ### Also
 
-- The README's picture of the icon's motion has a fifth column, the failed icon breathing, and no
+- The README's picture of the icon's motion has a fifth column, the failed icon sweeping, and no
   badges.
 - The roadmap: the Python modularization becomes **v0.6.9-alpha**, a pre-release, and the final
   **v0.6.9** is the last Python release, after the repository-wide bug hunt. The Rust releases move

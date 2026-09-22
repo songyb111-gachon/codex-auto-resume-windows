@@ -560,6 +560,7 @@
   "timeline.col_time": "Hora",
   "timeline.empty": "Nada registrado",
   "timeline.title": "Linha do tempo",
+  "tray.failed": "Uma recuperação falhou",
   "tray.idle": "Nada aguardando",
   "tray.next": "próxima verificação em {time}",
   "tray.paused": "Pausado",

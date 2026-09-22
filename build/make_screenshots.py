@@ -1391,9 +1391,9 @@ def render_cards() -> list:
 # nothing on top since v0.6.8, as the icon has nothing), at the moments the icon's own timer shows one
 # (tray.icon_frame and icon_frame_ms, stepped as the frame timer steps), laid over a light and a dark taskbar. Five
 # states side by side - watching, recovering, needing attention, failed and paused - over a stretch of watching's
-# loop that begins two breaths before a sweep and is a whole number of its loops, recovering's cycles and failed's
-# breaths (`icon_motion_stretch`), so every column loops without a jump; attention pulses once at its start, as it
-# does when a problem arrives.
+# loop that begins two breaths before a sweep and is a whole number of its loops and of recovering's and a failure's
+# sweeps (`icon_motion_stretch`), so those columns loop without a jump. Attention's slow breath does not divide it:
+# where the picture starts again that column is within one level of 24 of where it began.
 #
 # Its manifest entry, `<icon motion>`, is keyed as the card's is: what is pictured (the states, the size, the grounds and the stretch of the loop) and the digest of the code that draws the frames - here the
 # definitions the frame table and the schedule are made of, followed name by name from the few the GIF calls
@@ -1679,7 +1679,7 @@ def icon_motion_stretch() -> tuple:
     where it left off; and it is a whole number of recovering's cycles, so that column does too - recovering sweeps
     every 2.88 s, which shares no short multiple with the 16 s loop, so the shortest stretch that closes for both
     is two loops. With v0.6.5's numbers: 3.2 s to 32 s, two breaths and a sweep, then three breaths and a sweep.
-    Since v0.6.8 it is a whole number of failed's breaths as well.
+    Since v0.6.8 it is a whole number of a failure's sweeps as well, which are twice as quick as recovering's.
     """
     from codex_auto_resume import brand, tray
     slot, motion = brand.GLOW["monitoring_ms"], tray.ICON_MOTION
@@ -1687,17 +1687,18 @@ def icon_motion_stretch() -> tuple:
     start = slot * max(0, motion["breaths"] - 2)
     for loops in range(1, 12):
         end = loop * loops
-        if end > start and _icon_recovering_closes(end - start, loop) \
-                and (end - start) % brand.GLOW[tray.ICON_BREATHS["failed"]] == 0:
+        if end > start and all(_icon_sweep_closes(state, end - start, loop) for state in ("recovering", "failed")):
             return start, end
-    raise ValueError("the GIF would jump where it loops: no stretch is a whole number of recovering's sweeps")
+    raise ValueError("the GIF would jump where it loops: no stretch is a whole number of recovering's and a "
+                     "failure's sweeps")
 
 
-def _icon_recovering_closes(length: int, loop: int) -> bool:
-    """Whether recovering is in the same phase `length` ms apart, so its column loops without a jump."""
+def _icon_sweep_closes(state: str, length: int, loop: int) -> bool:
+    """Whether a state that sweeps all the time is in the same phase `length` ms apart, so its column loops without
+    a jump."""
     from codex_auto_resume import tray
     for at in range(0, loop, 97):
-        if abs(tray.icon_turn("recovering", length + at) - tray.icon_turn("recovering", at)) > 1e-6:
+        if abs(tray.icon_turn(state, length + at) - tray.icon_turn(state, at)) > 1e-6:
             return False
     return True
 

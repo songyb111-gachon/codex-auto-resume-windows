@@ -2384,6 +2384,9 @@ namespace CodexAutoResume
                     // GitHub, and only its button makes one.
                     if (currentPage == "diagnostics") LoadCompatibility();
                 }
+                // On the Settings page nothing is read under the person editing it, but a failure still is: from the
+                // status alone, for the taskbar button and for seeing it (RefreshFailure, v0.6.8).
+                else if (ticks % 5 == 0) RefreshFailure();
                 // A language or theme changed elsewhere, or edits put back under a pending reopen.
                 TickReopen();
             };
@@ -3434,6 +3437,8 @@ namespace CodexAutoResume
         internal static string TrayActivity(Dictionary<string, object> status, List<object> pending, double now)
         {
             if (status == null || !Equals(Get(status, "watcher_running"), true)) return "idle";
+            // v0.6.8: a certain failure nobody has seen yet is red on the icon (tray.icon_state), and so it is here.
+            if (Equals(Get(status, "failure_unseen"), true)) return "failed";
             if (Equals(Get(status, "upgrade_pending"), true)) return "attention";
             var watcher = Map(status, "watcher");
             if (Equals(Get(watcher, "ticking"), false) || Str(watcher, "engine_state") == "incompatible" ||
@@ -3490,10 +3495,82 @@ namespace CodexAutoResume
                    code == "failed_retryable";
         }
 
-        /// The taskbar button told what the window read (TrayActivity), wherever the header light is told.
+        /// The taskbar button told what the window read (TrayActivity), wherever the header light is told. A failure is
+        /// seen the moment this window is in front (v0.6.8): it is acknowledged, not shown red to somebody already
+        /// looking at the Dashboard, and the clock asks again every second, so bringing the window forward is enough.
         private void TellTaskbar(Dictionary<string, object> status, List<object> pending, double now)
         {
+            if (status != null && Equals(Get(status, "failure_unseen"), true) && !auditing && ActiveForm == this)
+            {
+                AcknowledgeFailure();
+                status = new Dictionary<string, object>(status);
+                status["failure_unseen"] = false;
+            }
             if (taskbar != null) taskbar.Follow(TrayActivity(status, pending, now));
+        }
+
+        private bool acknowledging, acknowledged, readingFailure;
+        private int acknowledgedAt;
+        // However an acknowledgement went, the next is at least this far behind it: a write Windows refuses, or a
+        // failure the file cannot yet cover, is asked about again, never in a loop.
+        private const int AcknowledgeEveryMs = 10000;
+
+        /// Tells the watcher's side the failure was seen (control.acknowledge_failure), one call at a time and at most
+        /// every AcknowledgeEveryMs, and then reads again, so the next snapshot no longer says it.
+        private void AcknowledgeFailure()
+        {
+            if (acknowledging || (acknowledged && unchecked(Environment.TickCount - acknowledgedAt) < AcknowledgeEveryMs))
+                return;
+            acknowledging = true;
+            acknowledged = true;
+            acknowledgedAt = Environment.TickCount;
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            {
+                try { bridge.Call("failure-seen", null); }
+                catch (Exception) { }
+                MethodInvoker done = delegate
+                {
+                    acknowledging = false;
+                    if (currentPage == "settings" || snapshot == null) RefreshFailure();
+                    else RefreshAfterChange();
+                };
+                try
+                {
+                    if (IsHandleCreated && !IsDisposed) BeginInvoke(done);
+                    else acknowledging = false;
+                }
+                catch (Exception) { acknowledging = false; }
+            });
+        }
+
+        /// Whether a failure is unseen, from the status alone: where the clock reads no snapshot (the Settings page) or
+        /// has none yet. Only that one answer is taken - into the snapshot the clock tells the button from, or to the
+        /// button directly - so nothing on the page, and no edit on it, is touched.
+        private void RefreshFailure()
+        {
+            if (readingFailure || auditing) return;
+            readingFailure = true;
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            {
+                Dictionary<string, object> reply = null;
+                try { reply = bridge.Call("status", null); }
+                catch (Exception) { reply = null; }
+                MethodInvoker apply = delegate
+                {
+                    readingFailure = false;
+                    var status = Ok(reply) ? reply["status"] as Dictionary<string, object> : null;
+                    if (status == null) return;
+                    var held = snapshot != null ? Map(snapshot, "status") : null;
+                    if (held != null) held["failure_unseen"] = Equals(Get(status, "failure_unseen"), true);
+                    else TellTaskbar(status, null, Now());
+                };
+                try
+                {
+                    if (IsHandleCreated && !IsDisposed) BeginInvoke(apply);
+                    else readingFailure = false;
+                }
+                catch (Exception) { readingFailure = false; }
+            });
         }
 
         /// The selected task's safety checks, as the watcher last recorded them.
