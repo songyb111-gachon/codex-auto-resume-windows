@@ -396,6 +396,12 @@ ownership information. It never acquires a lock on the app's file.
   fails on a version the data checked or verified reads as *failed here* - the cause is then most
   likely this computer rather than that version - and it sends nothing, exactly as *incompatible*
   does. Anything that cannot prove that interface is refused rather than guessed at.
+- Your own machine can say something about a version too.
+  [codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter) is a separate,
+  public tool that turns this installation's own records into one report — counts, states and
+  times, no conversation text and no identifiers — which you read before you send it. Reports from
+  other people are kept apart from this project's own evidence and never raise a version to
+  *verified* or *checked*: showing them beside a version is v0.6.11's work.
 
 **Python is not required by either install route** — the installation brings its own runtime
 (Python 3.13.15), and the plugin's setup script is PowerShell. Python 3.12 or newer is needed only if
