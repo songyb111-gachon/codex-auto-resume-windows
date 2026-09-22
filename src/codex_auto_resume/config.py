@@ -74,6 +74,9 @@ class Paths:
         self.failure_seen_file = self.state_dir / "failure-seen.json"
         self.log_file = self.logs_dir / "auto-resume.log"
         self.error_log = self.logs_dir / "errors.log"
+        # v0.6.9: one line each time Codex starts the MCP server and it considers starting the
+        # watcher (control.start_for_codex). Trimmed, not rotated, like the launcher's launcher.log.
+        self.codex_start_log = self.logs_dir / "codex-start.log"
         self.entry_script = PROJECT_ROOT / "src" / "auto_resume.py"
         # Kept in the runtime home, not the versioned plugin cache: Windows reads the
         # icon lazily when it draws a toast, long after an update may have moved us.

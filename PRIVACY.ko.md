@@ -378,6 +378,9 @@ OpenTelemetry exporter(`otel.exporter`, `otel.trace_exporter`, `otel.metrics_exp
   않는 한 이것도 지웁니다;
 - `logs/` — 워처가 무엇을 했는지 사유 코드와 대화 UUID로 기록하는 `auto-resume.log`, 문제가 생겼을 때의
   Python traceback이 남는 `errors.log`, 실행될 때마다 한 줄씩(실패했다면 그 이유도) 남는 `launcher.log`.
+  v0.6.8 다음 릴리스부터는 `codex-start.log`도 있습니다. Codex가 플러그인의 MCP 서버를 시작할 때마다 한 줄씩,
+  그 프로세스의 id와 Windows가 그것을 무엇으로 감쌌는지, 정해진 결정 가운데 무엇을 택했는지만 적습니다.
+  경로도, 파일 이름도, 대화의 내용도 들어가지 않습니다.
 
 엔진 이벤트는 고정된 메시지 표로 만들어 기록합니다. 메인 로그에는 그 밖에 상태 디렉터리 경로(보통
 Windows 사용자 이름이 들어 있습니다)와 `codex --version`이 출력한 버전 문자열도 남습니다. v0.6.4까지는

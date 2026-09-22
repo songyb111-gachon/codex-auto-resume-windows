@@ -182,7 +182,7 @@ does not jump in brightness; the glow is the one thing that arrives with the mot
 | State | Colour | Light |
 | --- | --- | --- |
 | Monitoring | `active` | The cycle, every 4.4 s |
-| Waiting | `active` | Lit and still, with no glow |
+| Waiting | `active` | The cycle, every 4.4 s, as monitoring (since v0.6.9; until then lit and still, while the notification-area icon kept moving) |
 | Checking a task that has come due | `active` | Lit, with no glow, and a thin arc turning once every 1.6 s (in the Dashboard and the popup) |
 | Recovering | `active` | The cycle, every 2.8 s |
 | Needs a person | `attention` | The cycle, every 5.6 s, the slowest there is (since v0.6.8; until then once, over 1.4 s, then still) |

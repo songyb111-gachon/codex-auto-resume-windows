@@ -5886,8 +5886,8 @@ namespace CodexAutoResume
     /// not well is amber, and a failure red. Monitoring, recovering, attention and a failure run
     /// brand's cycle for as long as they last - attention slowest, a failure quickest: the dot
     /// dims toward the card and comes back with nothing spreading, and only then, lit, a small
-    /// glow spreads from its edge and draws back in. Waiting holds lit; checking also turns a
-    /// small arc. Until v0.6.8 a problem ran the cycle once and held. brand.glow() defines every number, for the popup and the
+    /// glow spreads from its edge and draws back in. Waiting breathes on monitoring's rhythm (until
+    /// v0.6.9 it held lit and still); checking holds lit and turns a small arc. Until v0.6.8 a problem ran the cycle once and held. brand.glow() defines every number, for the popup and the
     /// panel too. With motion reduced nothing moves and the dot holds lit with no glow; in High
     /// Contrast the dot is a system colour, unlit.
     internal sealed class HaloDot : Control
@@ -5931,8 +5931,8 @@ namespace CodexAutoResume
         /// Loops for as long as the state lasts.
         internal static bool Loops(string state)
         {
-            return state == "monitoring" || state == "checking" || state == "recovering" || state == "attention"
-                   || state == "failed";
+            // Brand's own rule, so the window's timer cannot drift from what brand.glow_moves says moves.
+            return Brand.GlowMoves(state, 0, false);
         }
 
         /// The glow's opacity for one frame, brand.glow()'s "opacity", or 0 when there is no glow.

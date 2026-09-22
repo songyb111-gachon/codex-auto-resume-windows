@@ -1,5 +1,53 @@
 # Changelog
 
+## v0.6.9-alpha — Starting with Codex, measured
+
+[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.8...v0.6.9-alpha)
+
+**A pre-release, and nothing is served it.** It is published from the `dev` branch as a GitHub
+pre-release, so `releases/latest` never answers with it and no installation is offered it; the
+plugin's own route installs what `main` says, which is still v0.6.8. It is here because two facts
+about starting with Codex can only be measured on a machine running the real thing. To leave it,
+run `Install.cmd` from any later release's archive.
+
+### Start when Codex starts
+
+The watcher has always started when you sign in to Windows. This adds the other choice: start it
+when Codex starts. Codex starts this plugin's MCP server whenever it opens, so that server starts
+the watcher when none is running - through the same launcher sign-in uses, only while the switch is
+on and never while an installation holds its lock. Codex starts the server more than once as it
+opens, so two of them can ask at the same moment; the watcher's own single-instance mutex answers
+that, and the second one exits without doing anything. Nothing new is registered with Windows for
+it: no scheduled task, no subscription, no process left resident to wait for Codex.
+The switch is off until you turn it on, in the Dashboard under Settings > Windows; it is not offered
+to Codex, so nothing a model does can turn it on.
+
+Each time Codex starts the server, one line goes into `logs\codex-start.log`: what Windows wrapped
+that process in, and what was decided. It carries no path, no name and nothing from a conversation.
+
+### The waiting light breathes
+
+A light that says the watcher is waiting for a reset held lit and still, while the notification-area
+icon - which draws that same state as watching - kept moving. It breathes now, on watching's rhythm,
+in the Dashboard, the panel in Codex, the notification-area popup and the notification card. Only the
+word beside it tells waiting and watching apart, as the icon has always had it.
+
+### The panel's picture shows the right light
+
+The animated pictures of the panel breathed the small dot in the Automatic recovery tile - which does
+not move in the product - and left the status light at the top still. The generator now animates the
+topmost status light on each surface, which is the one the product moves.
+
+### Also here
+
+- Codex accepts at most three suggested prompts and ignores the lot when there are more; this plugin
+  offered four, so none of them ever appeared. It offers three.
+- The README is the short version, and everything it used to hold is in `docs/GUIDE.md`.
+
+The archive's digest is in the release notes on GitHub; a pre-release is not pinned in
+`scripts/release.json`, so the bootstrap checks it against the published `.sha256` beside it and
+says so.
+
 ## v0.6.8 — A tray icon without its badge, and lights that never stop
 
 [The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.7...v0.6.8)

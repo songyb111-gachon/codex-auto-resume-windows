@@ -183,6 +183,12 @@ So, once the release is up:
 2. `Get-FileHash <zip> -Algorithm SHA256` — and check it against the published `.sha256`.
 3. Put that digest in `scripts/release.json` under the version, and commit.
 
+A planned pre-release - a suffixed tag such as `v0.6.9-alpha` - is not pinned at all. The
+table's keys are releases, `releases/latest` never answers with a pre-release, so nothing is
+served one, and the check that a tagged version carries a pin is told about it by the
+`prerelease` list in `scripts/release.json` instead. That list names the version under
+development and nothing else, so the next bump empties it.
+
 Until that commit exists, the plugin verifies against the published `.sha256` sidecar
 instead and says so when it runs. That is weaker — the sidecar comes from the same origin
 as the archive — so it is worth closing rather than leaving. The commit does not reach the

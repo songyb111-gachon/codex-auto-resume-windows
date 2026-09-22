@@ -194,8 +194,8 @@ watcher is doing, what is waiting and when it is next looked at, what finished a
 last week's numbers, the watcher's health, and the settings. The light in its header shows what
 the watcher is doing. While it is running and recovery is on, the light is cyan and blinks the
 way the notification-area icon does: while the watcher watches, the dot slowly dims and comes back,
-and once it is lit a small glow spreads from it and draws back in; it holds lit while the watcher
-waits, turns a small arc while it checks a task that has come due, and blinks a little faster
+and once it is lit a small glow spreads from it and draws back in; it breathes the same way while the
+watcher waits for a task's reset or retry, turns a small arc while it checks a task that has come due, and blinks a little faster
 while it recovers. Paused or stopped, it is plain grey; amber, blinking slowly for as long as it
 lasts, means it needs you. The word beside it
 always says which. **Theme**, under Settings > Appearance, draws the window, the popup and the
@@ -265,7 +265,7 @@ While the watcher is watching, the light breathes: one cycle every 4.4 seconds, 
 62% of its colour and back along a cosine, with a glow that rides that brightness and reaches 0.6 of
 the dot's radius past its edge. It is the same light in the window, in the notification-area popup,
 in the panel in Codex and on the notification card. A recovery in progress breathes it every 2.8
-seconds, attention every 5.6 and a failure every 1.2; waiting and checking hold it lit and still; Reduce motion, Windows' animation setting and
+seconds, attention every 5.6 and a failure every 1.2; waiting breathes as monitoring does and checking holds it lit and still; Reduce motion, Windows' animation setting and
 High Contrast hold it still too.
 
 <img src="images/icon-motion.png" alt="The notification-area icon's motion, drawn from the icon's own frames, on a light taskbar. From the left: watching, whose bright head breathes and then sweeps clockwise along the ring's white stroke and back, at full brightness; recovering, sweeping out and back all the time; needing attention, amber, breathing slowly in its place; failed, red, sweeping out and back twice as quickly as recovering and blinking as it goes; paused, grey and still" width="360">
@@ -656,7 +656,7 @@ The Settings page is split into five sections:
 
 | Section | What is in it |
 | --- | --- |
-| General | Interface language, starting at Windows sign-in, the notification-area icon, and which notifications appear |
+| General | Interface language, starting at Windows sign-in, starting when Codex starts, the notification-area icon, and which notifications appear |
 | Automatic recovery | Which classified kinds of interruption are recovered, one check box each |
 | Continuation message | The language and style of the message sent to Codex, your own Custom message, and a Preview of the exact text |
 | Appearance | The theme - Use system setting, Light or Dark - and Reduce motion |
@@ -666,8 +666,16 @@ Every kind of interruption the watcher recovers has a check box, ticked by defau
 that is temporarily unavailable (`auth_service_transient`) was recovered with no way to turn it off up
 to v0.6.2; it now has one, **Sign-in service failures**.
 
+**Start when Codex starts** (v0.6.9) is beside starting at sign-in and is off until you turn it on.
+Codex starts this plugin's own MCP server whenever it opens, and with this on that server starts the
+watcher if none is running - through the same launcher sign-in uses, never while an installation is
+under way, and never a second one. Nothing new is registered with Windows for it, and it changes
+nothing about what is recovered. Each time Codex starts the server, `logs\codex-start.log` gets one
+line saying what was decided.
+
 A switch turns on or off something that runs - notifications, the notification-area icon, Reduce
-motion, starting at sign-in, automatic recovery for one conversation - and a check box picks which
+motion, starting at sign-in, starting when Codex starts, automatic recovery for one conversation -
+and a check box picks which
 items of a list apply: the kinds of interruption above, and which notifications appear. A setting is
 the same kind in the Dashboard and in the panel.
 
@@ -736,7 +744,7 @@ real resume happen.
 
 Run `Uninstall.cmd` from a release archive, or ask Codex to uninstall auto resume.
 `Uninstall.cmd` keeps your settings and pending recoveries by default (it deletes its main and
-error logs; `logs\launcher.log` stays), so reinstalling picks them up; `Uninstall.cmd -Purge` deletes those too, or you can delete the installation folder
+error logs; `logs\launcher.log` and `logs\codex-start.log` stay), so reinstalling picks them up; `Uninstall.cmd -Purge` deletes those too, or you can delete the installation folder
 (by default `%USERPROFILE%\.codex-auto-resume\`) yourself. Asking Codex stops the watcher,
 removes its Windows registrations and the plugin, and keeps your settings and pending
 recoveries unless you ask it to delete them too; it leaves the installation folder, which still

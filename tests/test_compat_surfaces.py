@@ -361,7 +361,7 @@ class McpTests(unittest.TestCase):
                 self.assertEqual(srcscan.holders(forbidden), {package % name for name in holders})
 
     def test_no_experimental_setting_can_ever_be_offered_to_a_model(self):
-        """M9, for v0.6.10's opt-ins. The schema is generated from the settings module, so a
+        """M9, for v0.6.11's opt-ins. The schema is generated from the settings module, so a
         field in a user group would be exposed with no further review; this is the rule that
         stops that, written before any such field exists."""
         properties = mcpserver.settings_schema()["properties"]
@@ -502,7 +502,7 @@ class PrivacyTests(unittest.TestCase):
         binding from the version bump past 0.6.4 - the last version without the refresh - so
         a release cannot go out with the old sentence standing. Skipped, saying so, before."""
         manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8-sig"))
-        if compat.product_key(manifest["version"]) <= (0, 6, 4):
+        if compat.product_key(manifest["version"].split("-")[0]) <= (0, 6, 4):
             self.skipTest("binding from the version bump past 0.6.4: PRIVACY.md, SECURITY.md and "
                           "their .ko.md pairs must name the compatibility refresh before it ships")
         if generated_ko_branch():

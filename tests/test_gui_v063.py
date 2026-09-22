@@ -169,7 +169,7 @@ class AliveStateTests(unittest.TestCase):
 
     def test_every_state_that_moves_loops_and_nothing_pulses_once(self):
         self.assertEqual({state for state in STATES if self.answer["loops"][state]},
-                         {"monitoring", "checking", "recovering", "attention", "failed"})
+                         {"monitoring", "waiting", "checking", "recovering", "attention", "failed"})
         self.assertFalse(self.answer["once"], "HaloDot.PulsesOnce is gone since v0.6.8")
 
     def test_monitoring_breathes_the_dot_and_the_glow_rides_it(self):
@@ -195,10 +195,13 @@ class AliveStateTests(unittest.TestCase):
                 self.assertEqual(set(self.answer["dim"][state]["reduced"]), {0},
                                  "the dot dims with motion reduced")
 
-    def test_still_states_never_light_up_and_waiting_holds_lit(self):
-        for state in ("paused", "idle", "waiting"):
+    def test_still_states_never_light_up_and_waiting_breathes_as_monitoring(self):
+        for state in ("paused", "idle"):
             self.assertEqual(set(self.answer["opacity"][state]["moving"]), {0})
             self.assertEqual(set(self.answer["dim"][state]["moving"]), {0})
+        # v0.6.9: waiting held lit here while the icon kept moving; it is monitoring's breath now.
+        for kind in ("opacity", "dim"):
+            self.assertEqual(self.answer[kind]["waiting"]["moving"], self.answer[kind]["monitoring"]["moving"])
 
     def test_attention_and_a_failure_keep_breathing_where_they_used_to_pulse_once(self):
         """v0.6.8: amber is the slowest breath and red the quickest, on the window's own drawing of brand's curve,

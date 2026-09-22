@@ -655,7 +655,8 @@ class StatusLightTests(unittest.TestCase):
         # everywhere - which had been two thirds of the popup's radius and half of the panel's.
         expected = {"low": 0.35, "gamma": 2.2, "peak": 0.50, "reach_of_radius": 0.6,
                     "edge_alpha": 0.67, "near_at": 0.14, "near_alpha": 0.58, "far_at": 0.66,
-                    "far_alpha": 0.50, "monitoring_ms": 4400, "recovering_ms": 2800, "attention_ms": 5600,
+                    "far_alpha": 0.50, "monitoring_ms": 4400, "waiting_ms": 4400, "recovering_ms": 2800,
+                    "attention_ms": 5600,
                     "failed_ms": 1200, "arc_ms": 1600, "arc_alpha": 0.55}
         self.assertEqual({key: brand.GLOW[key] for key in expected}, expected)
         self.assertEqual(brand.STATUS_DOT, {"window": 5, "popup": 4.5, "panel": 6, "mini": 4})
@@ -753,7 +754,6 @@ class StatusLightTests(unittest.TestCase):
                 self.assertAlmostEqual(brand.glow(state, cycle)["dim"], 0.0)
                 self.assertAlmostEqual(brand.glow(state, cycle * 2)["dim"], 0.0)
                 self.assertAlmostEqual(brand.glow(state, cycle - 1)["dim"], 0.0, places=5)
-        self.assertEqual(brand.glow("waiting", 1234), {"dim": 0.0, "opacity": 0.0, "spread": 0.0, "arc": None})
 
     def test_recovering_runs_the_same_cycle_faster(self):
         self.assertLess(brand.GLOW["recovering_ms"], brand.GLOW["monitoring_ms"])
@@ -768,10 +768,10 @@ class StatusLightTests(unittest.TestCase):
         """v0.6.8, the user: "빨간 상태등일 때도 상태등이 움직이게 해줘", then "확인필요는 천천히 계속 부드럽게
         깜빡이고, 실패는 빠르게 움직이는거도 필요해". The same breath as the others, for as long as the state is
         shown however long ago it arrived; attention the slowest and a failure the quickest. Nothing pulses once."""
-        self.assertEqual(brand.GLOW_BREATHES, ("monitoring", "recovering", "attention", "failed"))
+        self.assertEqual(brand.GLOW_BREATHES, ("monitoring", "waiting", "recovering", "attention", "failed"))
         self.assertFalse(hasattr(brand, "GLOW_PULSES"))
         rhythms = sorted(brand.GLOW_BREATHES, key=lambda state: brand.GLOW[state + "_ms"])
-        self.assertEqual(rhythms, ["failed", "recovering", "monitoring", "attention"])
+        self.assertEqual(rhythms, ["failed", "recovering", "monitoring", "waiting", "attention"])
         for state in ("attention", "failed"):
             cycle = brand.GLOW[state + "_ms"]
             with self.subTest(state):
@@ -784,11 +784,17 @@ class StatusLightTests(unittest.TestCase):
                     self.assertTrue(brand.glow_moves(state, since))
                 self.assertFalse(brand.glow_moves(state, 5000, reduced=True))
 
-    def test_waiting_and_checking_hold_lit_with_no_glow(self):
-        frames = {tuple(sorted(brand.glow("waiting", elapsed, elapsed).items()))
-                  for elapsed in range(0, 9000, 333)}
-        self.assertEqual(frames, {(("arc", None), ("dim", 0.0), ("opacity", 0.0), ("spread", 0.0))})
-        self.assertFalse(brand.glow_moves("waiting", 0))
+    def test_waiting_breathes_exactly_as_monitoring_does(self):
+        """v0.6.9, the user, of the panel: "상태등이 맨위에 있는건 안 깜빡이네?". Waiting held lit and still
+        while the notification-area icon, which draws it as watching, kept moving. It is watching with something
+        to watch for, so it breathes as watching does, frame for frame, and only the word says which."""
+        self.assertEqual(brand.GLOW["waiting_ms"], brand.GLOW["monitoring_ms"])
+        for elapsed in range(0, 9000, 333):
+            self.assertEqual(brand.glow("waiting", elapsed), brand.glow("monitoring", elapsed), elapsed)
+        self.assertTrue(brand.glow_moves("waiting", 0))
+        self.assertFalse(brand.glow_moves("waiting", 0, reduced=True))
+
+    def test_checking_holds_lit_with_no_glow_and_turns_its_arc(self):
         for elapsed in range(0, 3200, 50):
             frame = brand.glow("checking", elapsed)
             self.assertEqual((frame["dim"], frame["opacity"], frame["spread"]), (0.0, 0.0, 0.0))

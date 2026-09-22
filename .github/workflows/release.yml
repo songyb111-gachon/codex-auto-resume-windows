@@ -28,10 +28,12 @@ name: release
 # steal, and only a real tag push reaches `publish`.
 on:
   push:
-    # A suffixed tag - v0.6.6-alpha, v0.6.6-beta - only ever renames a release that is already
-    # published; its archive is attached and its version is the plain one, so a build would
-    # refuse the tag and leave a red run. Nothing is built for one.
-    tags: ["v*", "!v*-*"]
+    # A suffixed tag - v0.6.6-alpha, v0.6.6-beta - used to only ever rename a release that was
+    # already published; its archive is attached and its version is the plain one, so a build
+    # would refuse the tag and leave a red run. Nothing is built for one. The one exception is a
+    # pre-release planned as one (v0.6.9-alpha): its manifest says the suffixed version, so it is
+    # built, and published as a pre-release that never becomes the latest release.
+    tags: ["v*", "!v*-*", "v*.*.*-alpha"]
   workflow_dispatch:
     inputs:
       ref:
@@ -93,8 +95,8 @@ jobs:
           # The version names files and a release, and later steps read it. It is checked
           # here, once, so nothing downstream ever handles a value shaped like anything
           # but a version.
-          if ($declared -notmatch '^\d+\.\d+\.\d+$') {
-            throw "plugin.json version '$declared' is not MAJOR.MINOR.PATCH"
+          if ($declared -notmatch '^\d+\.\d+\.\d+(-alpha)?$') {
+            throw "plugin.json version '$declared' is not MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-alpha"
           }
           if ($env:GITHUB_REF -like 'refs/tags/*') {
             $tagged = $env:GITHUB_REF -replace '^refs/tags/v', ''
@@ -231,7 +233,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "bad version '$VERSION'"; exit 1; }
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-alpha)?$ ]] || { echo "bad version '$VERSION'"; exit 1; }
           [[ "$GITHUB_REF" == "refs/tags/v$VERSION" ]] || { echo "tag $GITHUB_REF does not match v$VERSION"; exit 1; }
           zip="dist/CodexAutoResume-v$VERSION-win-x64.zip"
           recorded="$(cut -d' ' -f1 "$zip.sha256")"
@@ -275,8 +277,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # A pre-release is published as one and never becomes the latest release: every
+          # installation's update check reads releases/latest, and none may be offered it.
+          prerelease=()
+          if [[ "$VERSION" == *-* ]]; then prerelease=(--prerelease --latest=false); fi
           gh release create "v$VERSION" \
             "dist/CodexAutoResume-v$VERSION-win-x64.zip" \
             "dist/CodexAutoResume-v$VERSION-win-x64.zip.sha256" \
             --title "v$VERSION" \
-            --notes-file dist/release-notes.md
+            --notes-file dist/release-notes.md "${prerelease[@]}"

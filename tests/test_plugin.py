@@ -122,6 +122,11 @@ class ManifestTests(unittest.TestCase):
         self.assertTrue(interface.get("defaultPrompt") or interface.get("default_prompt"))
         self.assertIsInstance(interface["capabilities"], list)
 
+    def test_there_are_no_more_default_prompts_than_codex_shows(self):
+        # Codex 26.915 logs "ignoring interface.defaultPrompt: maximum of 3 prompts is
+        # supported" and then shows none of them: four prompts cost all four.
+        self.assertLessEqual(len(self.manifest["interface"]["defaultPrompt"]), 3)
+
     def test_marketplace_points_at_the_repository_root(self):
         entry, = self.marketplace["plugins"]
         # Root-as-plugin keeps ONE copy of src/: the engine ships with the plugin and is

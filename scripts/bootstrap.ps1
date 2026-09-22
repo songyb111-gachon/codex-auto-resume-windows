@@ -194,8 +194,9 @@ function Get-PluginVersion {
     }
     $version = $manifest.version
     # Strict semver, because the version is spliced into a URL. Anything else stops here
-    # rather than reaching the network.
-    if ($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
+    # rather than reaching the network. The one suffix is the literal -alpha of a planned
+    # pre-release (v0.6.9-alpha), which names its own tag and archive.
+    if ($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(-alpha)?$') {
         throw ('The plugin manifest declares an unusable version: ' + $version)
     }
     return $version
@@ -248,20 +249,22 @@ function Assert-TrustedHost {
 
 function Get-VersionParts {
     param([string]$Version)
-    if ($Version -notmatch '^[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}$') {
+    if ($Version -notmatch '^([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,6})(-alpha)?$') {
         throw ('Not a version this product uses: ' + $Version)
     }
-    $parts = $Version.Split('.')
-    return @([int]$parts[0], [int]$parts[1], [int]$parts[2])
+    # A fourth part orders a pre-release just before its own release: 0.6.9-alpha < 0.6.9.
+    $stage = 1
+    if ($Matches[4]) { $stage = 0 }
+    return @([int]$Matches[1], [int]$Matches[2], [int]$Matches[3], $stage)
 }
 
 function Compare-ProductVersion {
     param([string]$Left, [string]$Right)
-    # -1, 0 or 1, as three integers. Compared as text, '0.10.0' sorts before '0.9.0' and
-    # the tenth minor release of a line would look like a downgrade.
+    # -1, 0 or 1, as integers. Compared as text, '0.10.0' sorts before '0.9.0' and the tenth
+    # minor release of a line would look like a downgrade.
     $a = Get-VersionParts $Left
     $b = Get-VersionParts $Right
-    for ($i = 0; $i -lt 3; $i++) {
+    for ($i = 0; $i -lt 4; $i++) {
         if ($a[$i] -lt $b[$i]) { return -1 }
         if ($a[$i] -gt $b[$i]) { return 1 }
     }
