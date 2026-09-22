@@ -47,6 +47,22 @@ Windows에서 `CODEX_AR_LIVE=1`을 설정하지 않는 한 건너뜁니다.
 정리되어 있고, 어떤 suite도 대신할 수 없는 확인 — 실제 설치, 실제 중단, 실제 전송 — 은
 [docs/LIVE_ACCEPTANCE.ko.md](docs/LIVE_ACCEPTANCE.ko.md)의 절차입니다.
 
+## 응답을 바이트 단위로 묶어 두기
+
+`tests/goldensession.py`는 두 front end가 받는 것을 통째로 기록합니다. 창이 보낼 수 있는 모든 브리지
+명령과 Codex 안 패널이 내놓는 모든 도구, 거절까지 포함해서입니다. 기록은 멈춰 세운 기계에서 나옵니다.
+시각 고정, 버전 고정, 영어, 얼어붙은 호환성 문서, 가짜 레지스트리, 그리고 `<HOME>`으로 적히는 임시 홈입니다.
+`tests/test_golden_replies.py`는 1바이트만 달라도 실패하고, 새 명령이나 새 도구에 골든이 아예 없을 때도
+실패합니다.
+
+이것은 v0.6.10-alpha 모듈화를 위해 있습니다. 그 단계에서 Python 구현 대부분이 파일 사이를 옮겨 다니지만,
+front end가 받는 것은 하나도 달라지면 안 됩니다. 응답이 정말로 바뀌어야 할 때는 같은 커밋에서 골든을 다시
+쓰고, 그 diff를 리뷰로 삼습니다.
+
+```bash
+py tests/goldensession.py --write
+```
+
 ## 창을 재기
 
 빠르기도 다른 주장과 같아서, 믿는 대신 확인하는 방법이 `build/measure_window.py`입니다. `gui/*.cs`를 임시

@@ -50,6 +50,22 @@ What a green run does and does not establish is set out capability by capability
 no suite can make - a real install, a real interruption, a real send - are the procedure in
 [`docs/LIVE_ACCEPTANCE.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/LIVE_ACCEPTANCE.md).
 
+## The replies, held to the byte
+
+`tests/goldensession.py` records both front-end surfaces in full - every bridge command the
+window can send and every tool the panel in Codex exposes, refusals included - from a machine
+held still: a fixed clock, a fixed version, English, the frozen compatibility document, a fake
+registry, a temporary home written out as `<HOME>`. `tests/test_golden_replies.py` fails on one
+byte of difference, and also fails when a new command or tool has no golden at all.
+
+It exists for the v0.6.10-alpha modularization, where most of the Python implementation moves
+between files and none of it may change what a front end is handed. When a reply is *meant* to
+change, rewrite the golden in the same commit and let the diff be the review:
+
+```bash
+py tests/goldensession.py --write
+```
+
 ## Measuring the window
 
 Speed is a claim like any other, and `build/measure_window.py` is how it is checked rather than
