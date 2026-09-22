@@ -84,6 +84,9 @@ codex plugin add codex-auto-resume@codex-auto-resume-windows
 
 ## 화면
 
+상태 불빛은 어디에 있든 숨을 쉽니다. 알림 카드, 대시보드, Codex 안의 패널, 알림 영역 아이콘 모두
+그렇고, 아래 그림들도 함께 숨 쉽니다.
+
 제품이 그리는 알림 카드입니다.
 
 <img src="docs/images/notification-card-ko.png" alt="밝은 테마의 알림 카드. 청록색 상태 불빛과 사용량 제한 칩이 달린 Codex Auto Resume, 작업 이름 example-project, 'Codex 사용량 한도에 도달했습니다. 08:42에 이 작업을 자동으로 재개합니다.'라는 줄, 대화의 정확한 식별자, 재개하지 않음과 대시보드 열기 버튼" width="388">

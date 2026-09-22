@@ -236,9 +236,9 @@ Reduce motion and High Contrast still hold every light still.
 
 ---
 
-## v0.6.9 — The window's lag, and starting with Codex
+## v0.6.9 — The window's lag, and starting with Codex 🚧
 
-**Next.**
+**In development.**
 
 First, and on its own terms: the window's responsiveness - the lag it still has, worst on some pages,
 and the loading that feels slower in every language but English (reported with v0.6.8). Each is
@@ -247,7 +247,7 @@ split rather than after it: the split's golden copies then hold the faster windo
 carries it, instead of the fix being made again on code that has just moved. It changes how fast the
 window is, and that is worth a release of its own, so it is one.
 
-### v0.6.9-alpha 🚧 — starting with Codex, measured (a pre-release)
+### v0.6.9-alpha ✅ — starting with Codex, measured (a pre-release)
 
 Two facts about starting with Codex cannot be read out of any source: when Codex starts a plugin's
 MCP server, and what becomes of a watcher that server started when Codex closes. Both are answers
@@ -257,20 +257,25 @@ work had to be split into, not a release of its own. Nothing is served it - `rel
 answers with a pre-release - and it is not on main, so the plugin's own route never offers it. It
 also carries the lights and the pictures below, which arrived with it.
 
-### Starting with Codex
+### Starting with Codex: measured, and not shipped
 
-Today the watcher starts when you sign in to Windows. v0.6.9 adds the other choice the user asked
-for: start it when Codex starts. Codex already starts this plugin's own MCP server whenever it opens,
-so that server can start the watcher when none is running - through the same launcher sign-in uses,
-never while an install or an update is in progress, and a second launch racing it exits at once on
-the watcher's single-instance mutex. Nothing new is
-registered with Windows for it: no scheduled task, no WMI subscription, no process left resident to
-wait for Codex. It is off until it is turned on, in the Dashboard.
+Today the watcher starts when you sign in to Windows. The other choice - start it when Codex starts -
+was built for v0.6.9-alpha and measured on a real machine, because two facts about it cannot be read
+out of any source. Both now have answers, from Codex 26.915 on 2026-09-23:
 
-Two facts decide whether it can ship in v0.6.9, and both are measured before it is built: when Codex
-actually starts its MCP servers, and what happens to a watcher started that way when the ChatGPT app
-closes. If either means it cannot keep the standards the product keeps, it moves to the advanced
-edition of v0.6.11 instead of being bent to fit.
+- **When does Codex start a plugin's MCP server?** About 22 seconds after the app opens, several
+  times, and it cancels each one a few seconds after it has listed its tools.
+- **What becomes of a watcher that server starts?** It is killed with the server. Codex runs each
+  MCP server in a Windows job object with `KILL_ON_JOB_CLOSE` and without `BREAKAWAY_OK`, so a
+  process started there cannot leave the job and dies when the job closes. Six starts were measured;
+  six watchers, each gone within about six seconds.
+
+A watcher killed a few seconds after it starts, over and over, is the opposite of what this product
+is: one that is stopped mid-tick cannot prove whether it sent a continuation. So the switch is not
+offered. `Control.start_for_codex` refuses where the job would end the watcher and writes what the
+job said to `logs/codex-start.log`, so the next Codex is one line away from being measured again, and
+the advanced edition builds it properly in v0.6.11 - starting a process outside the host's job is
+exactly the kind of thing that edition exists to let a person turn on.
 
 ### A shorter README
 

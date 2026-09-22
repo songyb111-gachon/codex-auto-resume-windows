@@ -599,6 +599,15 @@ class Control:
             return "not started: not installed"
         breakaway = bool(context.get("in_job") and context.get("breakaway_ok")
                          and not context.get("silent_breakaway_ok"))
+        # Measured on Codex 26.915 (v0.6.9-alpha, 2026-09-23): Codex runs each plugin's MCP server in a
+        # job object with KILL_ON_JOB_CLOSE and no BREAKAWAY_OK, and cancels that server a few seconds
+        # after it has listed its tools. A watcher started there is killed with it - six starts, six
+        # watchers, each dead within about six seconds - and a watcher killed mid-tick is exactly what
+        # this product does not do. So where the job would end it and will not let it leave, nothing is
+        # started: the line below is the whole answer for that Codex, and the switch is not offered.
+        leaves = breakaway or bool(context.get("silent_breakaway_ok"))
+        if context.get("kill_on_close") and not leaves:
+            return "not started: this Codex ends what its plugins start"
         # Looked at once more, as late as it can be: an installation may have begun meanwhile.
         if windows.install_in_progress() is not False:
             return "not started: an installation is in progress"

@@ -13,10 +13,10 @@ What this is deliberately not:
   attempt forward; it does not decide whether that attempt happens.
 * **Not a second database.** Nothing here writes SQL or reads the state file directly.
 
-The one thing this server does besides answering is start the watcher when Codex starts it, and
-only where a person turned **Start when Codex starts** on in the Dashboard (v0.6.9). That is a
-standing choice, not a tool: nothing here exposes it, `update_settings` refuses the setting, and
-starting a watcher decides nothing about any recovery - every gate still does.
+This server starts nothing. v0.6.9 measured whether it could start the watcher when Codex starts
+it - Codex runs each MCP server in a job object with KILL_ON_JOB_CLOSE and no breakaway, and every
+watcher started there died with the server seconds later - so `Control.start_for_codex` refuses and
+records what the job said. No surface offers the setting it would have read.
 
 The safety consequence matters more than the architecture: a model driving these tools
 cannot make recovery less careful. It cannot retry an unclassified failure, resolve a

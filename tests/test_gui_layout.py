@@ -835,9 +835,13 @@ class WindowCompositionTests(unittest.TestCase):
         read = self.method(self.window, "internal static Dictionary<string, object> Read(")
         self.assertIn("(string)stored != key) return null;", read)
         key = self.method(self.window, "internal static string Key(")
-        for part in ('"|window "', '"|settings "', '"|windows "', '"locales"', '"CODEX_AUTO_RESUME_LANG"'):
+        for part in ('"|window "', 'PreferencePart', '"|windows "', '"locales"', '"CODEX_AUTO_RESUME_LANG"'):
             with self.subTest(part):
                 self.assertIn(part, key)
+        # v0.6.9: the settings file's own digest is not in the key. The only thing in that file these
+        # words depend on is the Interface language, which is in it by name, and keying on the whole
+        # file made every save of anything - a theme, a limit - open the next window cold.
+        self.assertNotIn("sha.ComputeHash(stored)", key)
 
     def test_the_strings_cache_is_kept_in_config(self):
         """Uninstall -Purge removes config\\, and the product writes only its own config\\ and logs\\."""
@@ -1047,11 +1051,14 @@ Write-Cache $opening $korean
 [IO.File]::WriteAllBytes($settingsFile, $original)
 $out.cache.raceKeyBack = ($opening -eq (Get-CacheKey))
 $out.cache.raceNotKept = ($null -eq (Read-Cache $opening))
-# The same with the language unchanged: nothing is written under a key the settings have left.
+# A save that leaves the Interface language where it was - a theme, a limit, anything else - keeps
+# the key, so the cache written under it is still this installation's words (v0.6.9: the key used to
+# hold the whole settings file's digest, so every save of anything opened the next window cold).
 [IO.File]::WriteAllText($settingsFile, '{"interface_language": "system", "theme": "light"}', $utf8)
+$out.cache.otherSettingKeepsKey = ($opening -eq (Get-CacheKey))
 Write-Cache $opening $reply
+$out.cache.otherSettingKeepsCache = ($null -ne (Read-Cache $opening))
 [IO.File]::WriteAllBytes($settingsFile, $original)
-$out.cache.staleKeyNotWritten = ($null -eq (Read-Cache $opening))
 
 # A catalog corrected to a word of the same length, with its time put back: a release archive
 # gives every file the same fixed time, so an installed file's time says nothing.
@@ -1753,7 +1760,9 @@ class LayoutAuditTests(unittest.TestCase):
         cache = self.answer["cache"]
         self.assertTrue(cache["raceKeyBack"], "the settings were not put back as they were")
         self.assertTrue(cache["raceNotKept"], "the reply in the language saved meanwhile opens the next window")
-        self.assertTrue(cache["staleKeyNotWritten"], "a reply was written under a key the settings had left")
+        self.assertTrue(cache["otherSettingKeepsKey"],
+                        "a save that did not touch the Interface language moved the strings cache's key")
+        self.assertTrue(cache["otherSettingKeepsCache"], "and threw away words that were still right")
 
     def test_the_custom_message_follows_the_style_when_it_is_built_out_of_sight(self):
         window = self.answer["window"]
