@@ -3939,12 +3939,15 @@ namespace CodexAutoResume
                     string[] catalogs = Directory.Exists(locales) ? Directory.GetFiles(locales, "*.json") : new string[0];
                     Array.Sort(catalogs, StringComparer.OrdinalIgnoreCase);
                     foreach (string catalog in catalogs) Stamp(key, sha, catalog);
-                    // Read once, so the language is taken from the very bytes the digest is of.
+                    // Read once, so the language is taken from the very bytes the digest is of. The
+                    // file's own digest is deliberately not part of the key: the only thing in it these
+                    // words depend on is the Interface language, which is below - and keying on the
+                    // whole file made every save of any setting, the theme included, throw the cache
+                    // away and open the next window cold on a fresh interpreter.
                     string settings = Path.Combine(Path.Combine(root, "config"), "settings.json");
                     byte[] stored = File.Exists(settings) ? File.ReadAllBytes(settings) : null;
                     string preference = StoredPreference(stored);
                     if (preference == null) return null;
-                    key.Append("|settings ").Append(stored == null ? "-" : Convert.ToBase64String(sha.ComputeHash(stored)));
                     key.Append(PreferencePart).Append(preference);
                 }
                 foreach (string name in new[] { "CODEX_AUTO_RESUME_LANG", "LC_ALL", "LC_MESSAGES", "LANG" })

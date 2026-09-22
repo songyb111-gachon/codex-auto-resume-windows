@@ -85,14 +85,26 @@ class StartForCodexTests(unittest.TestCase):
                 self.assertIn("not started", self.control.start_for_codex())
         self.assertEqual(self.launches, [])
 
+    def test_a_job_that_would_end_the_watcher_starts_nothing(self):
+        """What Codex 26.915 does, measured: KILL_ON_JOB_CLOSE and no breakaway. Starting a watcher
+        there means starting one that is killed when Codex cancels the server a few seconds later, and
+        a watcher killed mid-tick cannot say whether it sent anything. So nothing is started."""
+        self.turn_on()
+        context = {"in_job": True, "kill_on_close": True, "breakaway_ok": False, "silent_breakaway_ok": False}
+        with patch.object(windows, "process_context", return_value=context):
+            line = self.control.start_for_codex()
+        self.assertIn("in a job (kill on close)", line)
+        self.assertTrue(line.endswith("not started: this Codex ends what its plugins start"))
+        self.assertEqual(self.launches, [])
+
     def test_it_leaves_a_job_that_lets_it(self):
         self.turn_on()
-        cases = (({"in_job": True, "breakaway_ok": True, "silent_breakaway_ok": False},
+        cases = (({"in_job": True, "kill_on_close": True, "breakaway_ok": True, "silent_breakaway_ok": False},
                   windows.CREATE_BREAKAWAY_FROM_JOB),
-                 # A job whose children leave anyway needs no request, and one that forbids it
-                 # would refuse the process: neither is asked.
-                 ({"in_job": True, "breakaway_ok": True, "silent_breakaway_ok": True}, 0),
-                 ({"in_job": True, "breakaway_ok": False, "silent_breakaway_ok": False}, 0),
+                 # A job whose children leave anyway needs no request, and one that keeps them but does
+                 # not end them is a job a watcher can live in.
+                 ({"in_job": True, "kill_on_close": True, "breakaway_ok": True, "silent_breakaway_ok": True}, 0),
+                 ({"in_job": True, "kill_on_close": False, "breakaway_ok": False, "silent_breakaway_ok": False}, 0),
                  ({"in_job": False}, 0))
         for context, flags in cases:
             with self.subTest(context=context):
@@ -127,7 +139,7 @@ class StartForCodexTests(unittest.TestCase):
                 raise PermissionError(5, "Access is denied")
             return FakeProcess()
 
-        context = {"in_job": True, "breakaway_ok": True, "silent_breakaway_ok": False}
+        context = {"in_job": True, "kill_on_close": True, "breakaway_ok": True, "silent_breakaway_ok": False}
         with patch.object(windows, "process_context", return_value=context), \
                 patch.object(control.Control, "_launch_watcher", launch):
             line = self.control.start_for_codex()
@@ -217,10 +229,15 @@ class ProcessContextTests(unittest.TestCase):
 
 
 class SurfaceTests(unittest.TestCase):
-    def test_only_the_dashboard_offers_it(self):
-        entry, = [entry for entry in settings.describe() if entry["name"] == "start_with_codex"]
-        self.assertEqual(entry["group"], "windows")
+    def test_no_surface_offers_it(self):
+        """Measured on Codex 26.915 (v0.6.9-alpha): a watcher started from the MCP server is killed with
+        that server, seconds later, because Codex runs it in a job with KILL_ON_JOB_CLOSE and no
+        breakaway. A switch that never leaves a watcher running is not shown, so `describe()` - which
+        the Dashboard, the panel and the MCP schema are all drawn from - does not carry it."""
+        self.assertIn("start_with_codex", settings.NOT_YET_OFFERED)
+        self.assertEqual([entry for entry in settings.describe() if entry["name"] == "start_with_codex"], [])
         self.assertNotIn("start_with_codex", mcpserver.settings_schema()["properties"])
+        self.assertIs(settings.DEFAULTS["start_with_codex"], False)
 
     def test_the_mcp_server_starts_it_only_for_an_installation(self):
         calls = []

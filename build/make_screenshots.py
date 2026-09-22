@@ -582,7 +582,7 @@ def render_panel(target: Path) -> None:
             cwd=workspace)
         if not shot.is_file():
             raise SystemExit("the renderer produced no image")
-        shutil.copyfile(shot, target)
+        copy_file(shot, target)
 
 
 # ---------------------------------------------------------------- settings window
@@ -679,9 +679,39 @@ def write_png(path: Path, width: int, height: int, bgra: bytes) -> None:
         return (struct.pack(">I", len(data)) + kind + data
                 + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF))
 
-    path.write_bytes(b"\x89PNG\r\n\x1a\n"
-                     + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
-                     + chunk(b"IDAT", zlib.compress(bytes(raw), 9)) + chunk(b"IEND", b""))
+    write_file(path, b"\x89PNG\r\n\x1a\n"
+               + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
+               + chunk(b"IDAT", zlib.compress(bytes(raw), 9)) + chunk(b"IEND", b""))
+
+
+# Windows occasionally refuses a write to a picture this generator has just written - EINVAL from a
+# scanner, a sync client or the shell still holding the file - and the same write succeeds a moment
+# later. A run takes a quarter of an hour, so one unlucky file must not end it; every picture written
+# or copied here goes through these two. Nothing else is retried: a path that is wrong stays wrong.
+WRITE_ATTEMPTS = 6
+WRITE_PAUSE = 0.4
+
+
+def write_file(path: Path, data: bytes) -> None:
+    for attempt in range(WRITE_ATTEMPTS):
+        try:
+            path.write_bytes(data)
+            return
+        except OSError:
+            if attempt == WRITE_ATTEMPTS - 1:
+                raise
+            time.sleep(WRITE_PAUSE)
+
+
+def copy_file(source, target) -> None:
+    for attempt in range(WRITE_ATTEMPTS):
+        try:
+            shutil.copyfile(source, target)
+            return
+        except OSError:
+            if attempt == WRITE_ATTEMPTS - 1:
+                raise
+            time.sleep(WRITE_PAUSE)
 
 
 # ------------------------------------------------------------------- animated PNG
@@ -785,7 +815,7 @@ def write_apng(path: Path, width: int, height: int, frames: list, alpha=None) ->
         sequence += 1
         previous = picture
     out += _png_chunk(b"IEND", b"")
-    path.write_bytes(bytes(out))
+    write_file(path, bytes(out))
 
 
 def read_png_rgb(path: Path) -> tuple:
@@ -1363,7 +1393,7 @@ def render_cards() -> list:
         for theme, (asset, copy) in card_paths(locale).items():
             render_card(asset or copy, locale, theme)
             if asset is not None:
-                shutil.copyfile(asset, copy)
+                copy_file(asset, copy)
             print("  %s  %s" % ((asset or copy).relative_to(ROOT), dimensions(asset or copy)))
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     drawing = card_drawing()
@@ -1573,7 +1603,7 @@ def breathe_pictures(paths=None) -> list:
             print("  %s  %s" % (path.relative_to(ROOT), dimensions(path)))
             copy = copies.get(path)
             if copy is not None:
-                shutil.copyfile(path, copy)
+                copy_file(path, copy)
                 done.append(copy)
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     for path in done:
@@ -1950,7 +1980,7 @@ def write_gif(path: Path, width: int, height: int, palette: list, frames: list) 
                                    for at in range(0, len(packed), 255)) + b"\x00"
         previous = canvas
     data += b"\x3B"
-    path.write_bytes(bytes(data))
+    write_file(path, bytes(data))
 
 
 def render_icon_motion(target: Path = ICON_MOTION_APNG) -> None:
@@ -2676,7 +2706,7 @@ def main(argv=None) -> int:
     print("  %s  %s" % (ICON_MOTION_APNG.relative_to(ROOT), dimensions(ICON_MOTION_APNG)))
 
     for source, copy in copies.items():
-        shutil.copyfile(source, copy)
+        copy_file(source, copy)
         print("copied         : %s -> %s" % (source.relative_to(ROOT), copy.relative_to(ROOT)))
 
     MANIFEST.write_text(json.dumps({

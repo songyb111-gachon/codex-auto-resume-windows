@@ -47,6 +47,21 @@ Windows에서 `CODEX_AR_LIVE=1`을 설정하지 않는 한 건너뜁니다.
 정리되어 있고, 어떤 suite도 대신할 수 없는 확인 — 실제 설치, 실제 중단, 실제 전송 — 은
 [docs/LIVE_ACCEPTANCE.ko.md](docs/LIVE_ACCEPTANCE.ko.md)의 절차입니다.
 
+## 창을 재기
+
+빠르기도 다른 주장과 같아서, 믿는 대신 확인하는 방법이 `build/measure_window.py`입니다. `gui/*.cs`를 임시
+폴더에 빌드한 뒤 진짜 창을 쪽마다, 구역마다 걷습니다. 화면 밖에서 브리지도 타이머도 없이 도는
+`SettingsForm.LayoutAudit`이며, 두 언어와 두 배율에서 재고 중앙값을 찍습니다.
+
+```bash
+py build/measure_window.py
+py build/measure_window.py --tree <다른 체크아웃>
+```
+
+시간은 기계의 것이므로 스위트는 그 값을 주장하지 않습니다. 스위트가 붙잡는 것은 그 빠르기가 나오는 동작입니다.
+예를 들어 `tests/test_gui_v069_idle.py`는 바뀌지 않은 스냅숏에 창이 목록을 다시 채우거나 안전 점검을 다시
+만들면 실패합니다. v0.6.8 다음 릴리스의 수치는 그 파일의 머리말과 변경 이력에 있습니다.
+
 ## 플러그인 메타데이터 검증
 
 플러그인 manifest, 마켓플레이스 인덱스, MCP 동반 파일은 `tests/test_plugin.py`가 다룹니다. 그중

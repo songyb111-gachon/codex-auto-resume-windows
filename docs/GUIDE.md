@@ -656,7 +656,7 @@ The Settings page is split into five sections:
 
 | Section | What is in it |
 | --- | --- |
-| General | Interface language, starting at Windows sign-in, starting when Codex starts, the notification-area icon, and which notifications appear |
+| General | Interface language, starting at Windows sign-in, the notification-area icon, and which notifications appear |
 | Automatic recovery | Which classified kinds of interruption are recovered, one check box each |
 | Continuation message | The language and style of the message sent to Codex, your own Custom message, and a Preview of the exact text |
 | Appearance | The theme - Use system setting, Light or Dark - and Reduce motion |
@@ -666,16 +666,8 @@ Every kind of interruption the watcher recovers has a check box, ticked by defau
 that is temporarily unavailable (`auth_service_transient`) was recovered with no way to turn it off up
 to v0.6.2; it now has one, **Sign-in service failures**.
 
-**Start when Codex starts** (v0.6.9) is beside starting at sign-in and is off until you turn it on.
-Codex starts this plugin's own MCP server whenever it opens, and with this on that server starts the
-watcher if none is running - through the same launcher sign-in uses, never while an installation is
-under way, and never a second one. Nothing new is registered with Windows for it, and it changes
-nothing about what is recovered. Each time Codex starts the server, `logs\codex-start.log` gets one
-line saying what was decided.
-
 A switch turns on or off something that runs - notifications, the notification-area icon, Reduce
-motion, starting at sign-in, starting when Codex starts, automatic recovery for one conversation -
-and a check box picks which
+motion, starting at sign-in, automatic recovery for one conversation - and a check box picks which
 items of a list apply: the kinds of interruption above, and which notifications appear. A setting is
 the same kind in the Dashboard and in the panel.
 

@@ -1,5 +1,83 @@
 # Changelog
 
+## v0.6.9 — The window stops making you wait, and a question answered by measuring
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.8...v0.6.9)
+
+### The window is faster, and looks exactly the same
+
+The window lagged, worst on some pages, and it was worse in every language but English. It was not
+drawing too much - it was doing the same work again and again:
+
+- The watcher's snapshot arrives every five seconds whether or not anything moved, and every time it
+  did, both lists rewrote every cell, invalidated themselves and re-measured up to 200 rows across
+  six columns - on pages nobody was looking at, because a snapshot is applied to every page that has
+  been built. The thirteen safety checks on Pending were rebuilt the same way, each rebuild handing
+  its card a full layout. Now each keeps a signature of what it drew, and identical rows and checks
+  are nothing to do.
+- Text was measured over and over: a label that wraps Korean never reached Windows' own measurement
+  cache, so every layout pass measured it again, and the cache that holds a wrapped line was smaller
+  than the Korean catalog, so it emptied itself in the middle of a page. Measurements are cached now,
+  and the wrap cache is eight times larger.
+- The countdowns were written into the Pending list every second whether or not that page was in
+  front; they are written where they can be seen, and once when it comes back.
+- Saving any setting - a theme, a limit - threw away the cache of the window's own words, so the next
+  open waited on a fresh interpreter. Only the Interface language does that now.
+- The shadow templates dropped all 128 of them on overflow and re-blurred everything; the oldest half
+  goes instead. A visibility check on a dozen hot paths went through reflection on every call; it is
+  bound once. A list drew two new brushes for every cell of every row, on every repaint; one brush
+  per colour is kept.
+
+Measured on the real compiled window, laying out every page and section, median of three runs:
+
+| | before | after |
+| --- | --- | --- |
+| English, 100% | 5.6 s | 2.8 s |
+| English, 150% | 6.4 s | 2.8 s |
+| Korean, 100% | 17.3 s | 3.5 s |
+| Korean, 150% | 13.3 s | 3.7 s |
+
+Korean was three times English; it is about a fifth slower now. **Nothing about the design changed.**
+Not a shadow, not a radius, not a light: the speed comes from doing the work once, not from drawing
+less. The pictures in this repository are made again from the same window, and the suite reads their
+pixels - the cards, the hairlines, the status light - as it always has.
+
+### Starting with Codex: asked, built, measured, and not shipped
+
+Starting the watcher when Codex starts - rather than only at Windows sign-in - was built for
+v0.6.9-alpha and measured on a real machine, because two things about it cannot be read out of any
+source. Codex 26.915 answered both: it starts a plugin's MCP server about 22 seconds after the app
+opens, several times, and cancels each within seconds; and it runs each one inside a Windows job
+object that ends everything that server started and forbids leaving it. Six starts were measured; six
+watchers, each dead within about six seconds.
+
+A watcher that is killed seconds after it starts, again and again, is the opposite of what this
+product is - one stopped mid-tick cannot prove whether it sent a continuation. So the switch is not
+offered. The code refuses where the job would end the watcher, and writes what the job said to
+`logs\codex-start.log`, so the next Codex is one line away from being measured again. The advanced
+edition (v0.6.11) is where starting a process outside the host's job belongs, for a person who turns
+it on.
+
+### The waiting light breathes, and the pictures show the right light
+
+A light that says the watcher is waiting for a reset held lit and still, while the notification-area
+icon - which draws that same state as watching - kept moving. It breathes now, on watching's rhythm,
+in the Dashboard, the panel in Codex, the notification-area popup and the notification card. And the
+animated pictures breathed the wrong dot: in the panel's they moved the small dot in the Automatic
+recovery tile, which never moves in the product, while the status light at the top stayed still. The
+generator takes the topmost light now, at any point of its breath, and the notification card's
+picture breathes with the rest.
+
+### Also here
+
+- Codex ignores a plugin's suggested prompts entirely when there are more than three, and this one
+  offered four, so none of them ever appeared. It offers three.
+- The README is the short version - what it does, how to install it, the one limitation, where
+  everything else is - and everything it used to hold is in [the guide](docs/GUIDE.md).
+- The roadmap gives the design audit and the choice of appearance a release of their own (v0.6.10's
+  final), which moves the advanced features and the two editions to v0.6.11 and everything after it
+  one number on.
+
 ## v0.6.9-alpha — Starting with Codex, measured
 
 [The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.8...v0.6.9-alpha)

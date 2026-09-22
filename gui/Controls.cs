@@ -358,10 +358,26 @@ namespace CodexAutoResume
         private static readonly System.Reflection.MethodInfo OwnState =
             typeof(Control).GetMethod("GetState", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
+        // The same method, bound once as a delegate. It is asked on a dozen hot paths - every layout of
+        // every row, card and page - and `MethodInfo.Invoke` boxes an argument array and walks the
+        // reflection layer each time, which is about a microsecond a call for an answer that is a bit
+        // test. Binding is done once, and falls back to the reflection call if it cannot be done at all.
+        private delegate bool StateOf(Control control, int bit);
+
+        private static readonly StateOf OwnStateCall = BindOwnState();
+
+        private static StateOf BindOwnState()
+        {
+            if (OwnState == null) return null;
+            try { return (StateOf)Delegate.CreateDelegate(typeof(StateOf), OwnState); }
+            catch (Exception) { return null; }
+        }
+
         /// Whether a control was told to be visible, which is whether layout makes room for it -
         /// whatever its parents are, and with or without a window.
         internal static bool OwnVisible(Control control)
         {
+            if (OwnStateCall != null) return OwnStateCall(control, 2);
             return OwnState == null ? control.Visible : (bool)OwnState.Invoke(control, new object[] { 2 });
         }
 
@@ -778,9 +794,58 @@ namespace CodexAutoResume
                 WrapParagraph(paragraphs[p], font, width, line, lines);
             }
             string result = lines.ToString();
-            if (wrapped.Count > 512) wrapped.Clear();
+            // 4096, from 512: the Korean catalog alone holds 567 strings that wrap, and a layout pass asks
+            // for several widths of each, so the old ceiling emptied the cache during a single page and
+            // every wipe re-ran the per-word measuring loop below.
+            if (wrapped.Count > 4096) wrapped.Clear();
             wrapped[key] = result;
             return result;
+        }
+
+        private static readonly Dictionary<int, SolidBrush> brushes = new Dictionary<int, SolidBrush>();
+
+        /// A brush of this colour, kept. Painting happens on one thread, and the window's lists drew two
+        /// new brushes for every cell of every row on every repaint - two hundred and forty of them for
+        /// one list - each allocated, used for one rectangle and thrown away. Never dispose what this
+        /// returns: it belongs to the window for as long as it runs, and there are only ever as many as
+        /// the palette has colours.
+        internal static SolidBrush Fill(Color colour)
+        {
+            SolidBrush found;
+            int key = colour.ToArgb();
+            if (brushes.TryGetValue(key, out found)) return found;
+            found = new SolidBrush(colour);
+            // A theme or a High Contrast change is what ever puts a new colour in here, so this holds a
+            // palette's worth. Past that they go, handles and all, rather than being left to a finaliser.
+            if (brushes.Count > 256)
+            {
+                foreach (SolidBrush old in brushes.Values) old.Dispose();
+                brushes.Clear();
+            }
+            brushes[key] = found;
+            return found;
+        }
+
+        private static readonly Dictionary<string, Size> measured = new Dictionary<string, Size>();
+
+        /// `TextRenderer.MeasureText`, remembered. The same label is measured several times in one layout
+        /// pass - a table asks for its preferred size at width 1, at 0 and at the real width, and a page
+        /// settles in up to four passes - and a Korean label is measured again every pass, because
+        /// `WrapLabel` wraps the text itself and so never reaches Label's own measurement cache.
+        internal static Size Measure(string text, Font font, int width, TextFormatFlags format)
+        {
+            if (font == null) return TextRenderer.MeasureText(text ?? "", font, new Size(width, int.MaxValue), format);
+            string key = width.ToString(System.Globalization.CultureInfo.InvariantCulture) + "|" +
+                         ((int)format).ToString(System.Globalization.CultureInfo.InvariantCulture) + "|" +
+                         font.Name + "|" +
+                         font.SizeInPoints.ToString("R", System.Globalization.CultureInfo.InvariantCulture) + "|" +
+                         ((int)font.Style).ToString(System.Globalization.CultureInfo.InvariantCulture) + "|" + text;
+            Size found;
+            if (measured.TryGetValue(key, out found)) return found;
+            found = TextRenderer.MeasureText(text ?? "", font, new Size(width, int.MaxValue), format);
+            if (measured.Count > 4096) measured.Clear();
+            measured[key] = found;
+            return found;
         }
 
         /// Whether a line of `text` may end at `at`, before its character there.
@@ -970,6 +1035,7 @@ namespace CodexAutoResume
         {
             internal Bitmap Image;
             internal int MiddleX = -1, MiddleY = -1;   // the column and row that stretch; -1 draws it whole
+            internal long Used;                        // when it was last stamped, for the eviction below
         }
 
         // Stamped with nearest-neighbour sampling on half-pixel centres, so a one-pixel strip
@@ -1091,6 +1157,22 @@ namespace CodexAutoResume
             cache.Clear();
         }
 
+        // How many templates have been stamped, so the oldest can be told from the newest.
+        private static long stamped;
+
+        /// Drops the half of the cache that has gone unused the longest, and disposes those bitmaps.
+        private static void ForgetOldest()
+        {
+            var keys = new List<long>(cache.Keys);
+            keys.Sort(delegate(long left, long right) { return cache[left].Used.CompareTo(cache[right].Used); });
+            for (int i = 0; i < keys.Count / 2; i++)
+            {
+                Template template = cache[keys[i]];
+                template.Image.Dispose();
+                cache.Remove(keys[i]);
+            }
+        }
+
         internal static int Cached
         {
             get { return cache.Count; }
@@ -1183,8 +1265,15 @@ namespace CodexAutoResume
             key = key * 16 + (int)Math.Round(fy * 8);
             key = key * 16384 + Math.Min(16383, (int)Math.Round(radius * 8));
             Template template;
-            if (cache.TryGetValue(key, out template)) return template;
-            if (cache.Count >= 128) Forget();
+            if (cache.TryGetValue(key, out template))
+            {
+                template.Used = ++stamped;
+                return template;
+            }
+            // Past the ceiling the oldest half goes, not all of it. Dropping every template meant a page
+            // whose mix of control sizes crossed 128 re-blurred its shadows again and again - the blur is
+            // the one expensive thing here, and the shapes a page uses are asked for over and over.
+            if (cache.Count >= 128) ForgetOldest();
             double dx, dy, blur, alpha;
             bool inset;
             Color tone;
@@ -1193,6 +1282,7 @@ namespace CodexAutoResume
                              : Outer(blur, alpha, tone, scale, width, height, radius, fx, fy);
             template.MiddleX = middleX;
             template.MiddleY = middleY;
+            template.Used = ++stamped;
             cache[key] = template;
             return template;
         }
@@ -1475,7 +1565,7 @@ namespace CodexAutoResume
         /// A ground's background: its colour, then the lifts that reach into the clip.
         internal static void Paint(Control ground, PaintEventArgs e)
         {
-            using (var brush = new SolidBrush(Colour(ground))) e.Graphics.FillRectangle(brush, e.ClipRectangle);
+            e.Graphics.FillRectangle(Soft.Fill(Colour(ground)), e.ClipRectangle);
             Stamps(ground, e.Graphics, e.ClipRectangle);
         }
 
@@ -5537,7 +5627,7 @@ namespace CodexAutoResume
             int width = proposedSize.Width > 1 ? proposedSize.Width : int.MaxValue;
             if (MaximumSize.Width > 0) width = Math.Min(width, MaximumSize.Width);
             int inner = width == int.MaxValue ? int.MaxValue : Math.Max(1, width - Padding.Horizontal);
-            Size text = TextRenderer.MeasureText(Lines(inner), Font, new Size(inner, int.MaxValue), Format);
+            Size text = Soft.Measure(Lines(inner), Font, inner, Format);
             var size = new Size(text.Width + Padding.Horizontal, text.Height + Padding.Vertical);
             if (MaximumSize.Width > 0) size.Width = Math.Min(size.Width, MaximumSize.Width);
             if (MaximumSize.Height > 0) size.Height = Math.Min(size.Height, MaximumSize.Height);

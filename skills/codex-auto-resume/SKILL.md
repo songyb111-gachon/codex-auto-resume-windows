@@ -252,9 +252,8 @@ notifications appear, the interface language, the theme (light, dark, or followi
 panel's own theme in Codex (`panel_theme`: the same as the theme, Codex's, light or dark), the
 continuation language, the message style
 (Minimal, Standard, Detailed or Custom), and whether a Custom message is one message for every
-interruption or one per kind. The window has five things `update_settings` does not offer: the
-notification-area icon, Reduce motion, the notification card, **Start when Codex starts**, and the
-Custom message text itself. If the user wants to
+interruption or one per kind. The window has four things `update_settings` does not offer: the
+notification-area icon, Reduce motion, the notification card, and the Custom message text itself. If the user wants to
 change what a Custom message says, tell them it is written in the Dashboard, under Settings >
 Continuation message.
 

@@ -57,12 +57,9 @@ display it, and Windows keeps them in its notification history.
   decides nothing but whether the icon is red. From v0.6.9 `logs/codex-start.log` holds one line
   each time Codex starts the plugin's MCP server and that server considers starting the watcher:
   what Windows wrapped the server in and what was decided, in fixed words, with no path in it.
-- From v0.6.9, with **Start when Codex starts** on, the watcher process itself: the MCP server
-  starts the same launcher Windows sign-in starts, and only while no watcher is running, no
-  installation holds its lock and the installation's launcher is there. It is a standing choice a
-  person makes in the Dashboard, never a tool a model can call - `update_settings` refuses it - so
-  no approval prompt stands between the two. Starting a watcher changes nothing about what may be
-  sent: every gate below still decides that.
+- Nothing, from the MCP server, since v0.6.9 measured what would happen: Codex runs each plugin's
+  MCP server in a job object that ends what that server starts, so the server starts no watcher and
+  writes one line saying so. Nothing else in this product starts a process from inside Codex.
 - One continuation message to one exact thread, through the official `codex queue` CLI. Its
   text is this product's message in the language and style you chose or, from v0.6.3, the
   Custom message you wrote in the Dashboard (see *The Custom message is written in the

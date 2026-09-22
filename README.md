@@ -86,6 +86,9 @@ Running either again upgrades or repairs it, and keeps anything already waiting 
 
 ## What it looks like
 
+The status light breathes wherever it is shown - on the card, in the Dashboard, in the panel inside
+Codex and on the notification-area icon - and the pictures below breathe with it.
+
 The notification card, as the product draws it:
 
 <img src="docs/images/notification-card.png" alt="The notification card in the light theme: Codex Auto Resume with a cyan status light and a Usage limit chip, the task example-project, the line Codex usage limit reached. This task will resume at 08:42., the conversation's exact identifier, and the buttons Don't resume and Open Dashboard" width="388">

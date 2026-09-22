@@ -693,7 +693,10 @@ class RowSourceTests(unittest.TestCase):
                 self.assertIsNone(re.search(r"static void Tile\(", source))
 
     def test_a_row_is_drawn_flat_with_its_hairline(self):
-        hairline = "e.Graphics.FillRectangle(brush, e.Bounds.Left, e.Bounds.Bottom - Soft.Hairline, e.Bounds.Width, Soft.Hairline);"
+        # v0.6.9 draws it with a kept brush (Soft.Fill) rather than one made for every cell; the hairline
+        # itself - full width, at the row's bottom, in Line - is what this holds.
+        hairline = ("e.Graphics.FillRectangle(Soft.Fill(Line), e.Bounds.Left, e.Bounds.Bottom - Soft.Hairline, "
+                    "e.Bounds.Width, Soft.Hairline);")
         cell = self.method(self.dashboard, "private void DrawCell(")
         self.assertIn("Color back = !selected ? Card : Palette.Contrast ? Palette.AccentSoft : Palette.Inset;", cell)
         self.assertIn(hairline, cell, "a full hairline under every row")
