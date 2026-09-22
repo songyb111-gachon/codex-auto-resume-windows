@@ -217,9 +217,9 @@ it still.
 
 ---
 
-## v0.6.8 — A tray icon without its badge, and lights that never stop 🚧
+## v0.6.8 — A tray icon without its badge, and lights that never stop ✅
 
-**In development, on the `dev` branch.**
+**Released.**
 
 The notification-area icon wore a small status dot in its corner that the window's taskbar button
 never had, so during a recovery the tray showed a second light the taskbar did not. The dot is gone:
@@ -237,6 +237,8 @@ Reduce motion and High Contrast still hold every light still.
 ---
 
 ## v0.6.9 — The window's lag
+
+**Next.**
 
 One thing, on its own, before anything moves: the window's responsiveness - the lag it still has,
 worst on some pages, and the loading that feels slower in every language but English (reported with
@@ -549,7 +551,7 @@ Compatibility in tiers: Verified, Checked, Compatible
 
         ↓
 
-v0.6.8  🚧 In development, on the dev branch
+v0.6.8  ✅ Released
 The tray icon without its badge
 + attention breathing slowly, a failure moving quickly
 
@@ -588,4 +590,4 @@ Final Rust audit and stabilization: the Rust bug hunt
 Maintenance
 ```
 
-This document records the current direction; v0.6.7 is out, and v0.6.8 is built on the `dev` branch.
+This document records the current direction; v0.6.8 is out, and v0.6.9 is next.
