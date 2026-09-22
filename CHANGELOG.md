@@ -46,13 +46,14 @@ this update never turn the icon red; PRIVACY.md lists what it holds.
 
 - The README's picture of the icon's motion has a fifth column, the failed icon sweeping, and no
   badges.
-- The roadmap: **v0.6.9** is advanced features - as many as any program like this offers, and
-  more: everything the product does today keeps today's constraints, and everything they made
-  impossible is built, off until you turn it on - in an advanced edition released beside the
-  standard one, which does not contain that code at all. **v0.6.10-alpha**, a pre-release, is the Python
-  modularization, and the final **v0.6.10** the last Python release, after the repository-wide bug
-  hunt. **v0.6.11-alpha** replaces the core with Rust as it is, the final **v0.6.11** makes it
-  Rust-native, and **v0.6.12** is the Rust bug hunt.
+- The roadmap: **v0.6.9** is the window's lag, on its own. **v0.6.10-alpha**, a pre-release, is the
+  Python modularization and nothing else; the final **v0.6.10** is advanced features - as many as any
+  program like this offers, and more: everything the product does today keeps today's constraints,
+  and everything they made impossible is built, off until you turn it on - in an advanced edition
+  released beside the standard one, which does not contain that code at all. **v0.6.11** is the bug
+  hunt over both editions, the last Python release. **v0.6.12-alpha** replaces the core with Rust as it
+  is, the final **v0.6.12** makes it Rust-native, and **v0.6.13** is the Rust bug hunt. A pre-release
+  is only ever a stage the work has to be split into that is not a release on its own.
 
 ## v0.6.7 — Compatibility in tiers, Failed here, and a notification card that breathes
 
