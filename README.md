@@ -161,6 +161,7 @@ its provenance marker), and Windows registrations that belong to this installati
 | [SECURITY.md](SECURITY.md) | The threat model and how to report a vulnerability. |
 | [SUPPORT.md](SUPPORT.md) | Where to report each kind of problem, and what not to paste into a public issue. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Tests, the release build, and the safety properties a change has to keep. |
+| [codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter) | A separate tool you can run to report how this product behaved on your machine, with your Codex version. It writes one file of counts, states and times - no conversation text, no identifiers, no paths - which you read before you send it. Such a report is counted under **Reported**, a grade of its own that never raises a version to verified or checked. |
 
 ## Credits and license
 
