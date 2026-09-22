@@ -653,6 +653,8 @@ def mark_class() -> str:
         raise ValueError("Brand.Mark breathes watching and attention on brand's rhythms for them")
     if tray.ICON_SWEEPS != ("watching", "recovering", "failed"):
         raise ValueError("Brand.Mark sweeps watching, recovering and failed")
+    if tray.ICON_TRAVEL_BREATHS != {"failed": "failed_ms"}:
+        raise ValueError("Brand.Mark blinks a failure's head as it sweeps, and nothing else's")
     dim = brand.rgb(tray.ICON_DIM_TOWARD)
     lines = [
         "\n",
@@ -662,9 +664,10 @@ def mark_class() -> str:
         "        /// shows them.\n",
         "        internal static class Mark\n",
         "        {\n",
-        "            // tray.ICON_MOTION. The icon also reads two of brand.GLOW's rhythms, which Brand declares:\n",
+        "            // tray.ICON_MOTION. The icon also reads three of brand.GLOW's rhythms, which Brand declares:\n",
         "            // GlowMonitoringMs (watching's breath, and so every slot of its loop and of recovering's and a\n",
-        "            // failure's sweeps) and GlowAttentionMs (attention's breath).\n",
+        "            // failure's sweeps), GlowAttentionMs (attention's breath) and GlowFailedMs (the blink a\n",
+        "            // failure's head keeps as it sweeps).\n",
         "            internal const int Breaths = %s;\n" % _literal("int", motion["breaths"]),
         "            internal const int SweepBreaths = %s;\n" % _literal("int", motion["sweep_breaths"]),
         "            internal const double SweepOut = %s;\n" % _literal("double", motion["sweep_out"]),
@@ -755,7 +758,8 @@ def mark_class() -> str:
         "\n",
         "            /// One frame, as (position, level) (tray.icon_frame): position 0 is the head in its place, the\n",
         "            /// others clockwise round the ring, and the top level its full colour, which it keeps through a\n",
-        "            /// sweep's whole cycle. With motion reduced every state is at rest. sinceEnteredMs is read by\n",
+        "            /// sweep's whole cycle - but a failure's, which blinks as it goes (tray.ICON_TRAVEL_BREATHS).\n",
+        "            /// With motion reduced every state is at rest. sinceEnteredMs is read by\n",
         "            /// nothing since v0.6.8, when the one-time pulse went.\n",
         "            internal static void Frame(string state, double elapsedMs, double sinceEnteredMs, bool reduced,\n",
         "                                       out int position, out int level)\n",
@@ -767,6 +771,7 @@ def mark_class() -> str:
         "                if (turn >= 0)\n",
         "                {\n",
         "                    position = (int)Math.Round(turn / (360.0 / Positions)) % Positions;\n",
+        '                    if (state == "failed") level = BreathLevel(elapsedMs, GlowFailedMs);\n',
         "                    return;\n",
         "                }\n",
         '                if (state == "watching") level = BreathLevel(elapsedMs, GlowMonitoringMs);\n',

@@ -22,7 +22,8 @@ the moment they open (`_adopt_settings`), rather than waiting for the watcher's 
 Since v0.6.5 the icon itself moves, in its own simpler language than the windows' status light (see "the icon's
 motion" below): while it watches, the mark's head breathes and then sweeps along the white stroke and back; while a
 continuation is being sent it keeps sweeping; paused, it is grey and still. Since v0.6.8 needing attention is
-amber and breathes slowly for as long as it lasts, and a failure is red and sweeps twice as quickly as recovering.
+amber and breathes slowly for as long as it lasts, and a failure is red and sweeps twice as quickly as recovering,
+blinking as it goes.
 Frames are composed from a table built off this thread, swapped with NIM_MODIFY up to ICON_MOTION's rates, and
 nothing moves under Reduce motion, Windows' animation setting, High Contrast or battery saver, while the session is
 locked, or while Windows' own settings for the icon say it sits in the overflow flyout (`tray_place.IconPlacement`: on
@@ -222,7 +223,10 @@ def prefer_app_mode(mode) -> bool:
 #   attention   needs a person: amber, breathing in its place on brand's attention rhythm (5.6 s), the slowest
 #               breath there is, for as long as it lasts;
 #   failed      a failure: the danger colour, sweeping out and back like recovering but twice as quickly - a sweep
-#               every 1.98 s - at full brightness and never breathing, for as long as it lasts.
+#               every 1.98 s - and blinking as it goes, on the red light's own 1.2 s breath, for as long as it lasts:
+#               the one state whose head breathes while it travels (the user: "실패시에는 깜빡이면서 움직이면
+#               좋겠는데"); watching and recovering keep v0.6.5's rule below. The two keep different time, neither
+#               a whole number of the other ("달라야해 / 같으면 안 예뻐"): they meet again only every 39.6 s.
 #
 # Until v0.6.8 attention and a failure pulsed once and held. The user: "빨간 상태등일 때도 상태등이 움직이게
 # 해줘", then "확인필요는 천천히 계속 부드럽게 깜빡이고, 실패는 빠르게 움직이는거도 필요해" - and, asked which,
@@ -238,8 +242,9 @@ def prefer_app_mode(mode) -> bool:
 # head's brightness: no room for a halo here. The shape and the taskbar handling are as ever, and since v0.6.8 no
 # badge sits on top: the head is the only thing that says the state, on the tray as on the taskbar button.
 #
-# Of brand.GLOW the icon reads two rhythms and nothing else: monitoring_ms (watching's breath, and so every slot
-# of its loop and of recovering's and a failure's sweeps) and attention_ms (attention's breath). Its own numbers are
+# Of brand.GLOW the icon reads three rhythms and nothing else: monitoring_ms (watching's breath, and so every slot
+# of its loop and of recovering's and a failure's sweeps), attention_ms (attention's breath) and failed_ms (the blink
+# a failure's head keeps as it sweeps). Its own numbers are
 # ICON_MOTION's, not in brand.GLOW, every key of which is the windows' status light's; the taskbar button reads them from Brand.Mark.
 ICON_STATES = ("watching", "recovering", "idle", "attention", "failed")
 # The icon's state as a brand status-light state: its colour and its rhythm. Every value is a
@@ -254,6 +259,8 @@ ICON_FOR_LIGHT = {"monitoring": "watching", "waiting": "watching", "checking": "
 ICON_BREATHS = {"watching": "monitoring_ms", "attention": "attention_ms"}
 # The states whose head sweeps: watching between its breaths, recovering and a failure all the time.
 ICON_SWEEPS = ("watching", "recovering", "failed")
+# The one state whose head breathes as it sweeps, and the rhythm: a failure blinks on the red light's own breath.
+ICON_TRAVEL_BREATHS = {"failed": "failed_ms"}
 ICON_MOTION = {
     # watching: `breaths` breaths of the head, then a sweep in a slot of `sweep_breaths` of them - `sweep_out` of
     # that slot going out, as much coming back, `sweep_hold` of it held at the far end and the rest of it at home.
@@ -353,7 +360,8 @@ def icon_frame(state, elapsed_ms, since_entered_ms=None, *, reduced=False) -> tu
     """(head position, breathing level) for one frame: a pure function of the state and the clock.
 
     Position 0 is the head in its place, positions counting on clockwise round the ring, and a sweep reaches the
-    one nearest ICON_SWEEP; the top level is the head's full colour, which it has for a sweep's whole cycle. With
+    one nearest ICON_SWEEP; the top level is the head's full colour, which it has for a sweep's whole cycle - but a
+    failure's, which blinks as it goes (ICON_TRAVEL_BREATHS). With
     motion reduced every state is its rest: the head in its place at full colour, so the states differ by colour
     only. `since_entered_ms`, how long the state has been shown, is what a problem's one pulse ran on until v0.6.8;
     nothing reads it now, and it is still taken so its callers are unchanged.
@@ -363,7 +371,9 @@ def icon_frame(state, elapsed_ms, since_entered_ms=None, *, reduced=False) -> tu
         return (0, top)
     turn = icon_turn(state, elapsed_ms)
     if turn is not None:
-        return (int(round(turn / (360.0 / positions))) % positions, top)
+        level = (_breath_level(elapsed_ms, brand.GLOW[ICON_TRAVEL_BREATHS[state]]) if state in ICON_TRAVEL_BREATHS
+                 else top)
+        return (int(round(turn / (360.0 / positions))) % positions, level)
     if state in ICON_BREATHS:
         return (0, _breath_level(elapsed_ms, brand.GLOW[ICON_BREATHS[state]]))
     return (0, top)

@@ -2,8 +2,8 @@
 
 The icon speaks a smaller language than the windows' status light: watching breathes three times and
 then sweeps out along the white stroke and back, recovering keeps sweeping, paused is grey and still,
-and since v0.6.8 attention is amber and breathes slowly while a failure is red and sweeps twice as quickly
-as recovering. Everything that decides a frame is a pure function of the
+and since v0.6.8 attention is amber and breathes slowly while a failure is red, sweeps twice as quickly
+as recovering and blinks as it goes. Everything that decides a frame is a pure function of the
 state and a clock, tested here as tables; the frames are pure pixels, pinned by a digest; and the
 icon's own timer, its swaps and its HICONs are exercised on Windows against a fake shell, where a
 leak would show.
@@ -347,14 +347,18 @@ class PhaseTests(unittest.TestCase):
                     self.assertAlmostEqual(tray.icon_turn(state, start + out + ms), tray.ICON_SWEEP)
                 self.assertLess(tray.icon_turn(state, start + out - 1), tray.ICON_SWEEP)
                 self.assertLess(tray.icon_turn(state, start + out + hold + 1), tray.ICON_SWEEP)
-                # Home is 0, not "not sweeping at all": the head is in its place at full brightness and stays there.
+                # Home is 0, not "not sweeping at all": the head is in its place - at full brightness, but a
+                # failure's, which blinks there as everywhere - and stays there.
                 for ms in range(0, int(home), 17):
                     at = start + 2 * out + hold + ms
                     self.assertEqual(tray.icon_turn(state, at), 0.0)
-                    self.assertEqual(tray.icon_frame(state, at), (0, TOP))
+                    self.assertEqual(tray.icon_frame(state, at)[0], 0)
+                    if state not in tray.ICON_TRAVEL_BREATHS:
+                        self.assertEqual(tray.icon_frame(state, at), (0, TOP))
 
     def test_the_head_never_breathes_while_it_travels(self):
-        """Watching's sweep and recovering's are at full brightness in every frame of them."""
+        """Watching's sweep and recovering's are at full brightness in every frame of them (a failure's alone blinks,
+        at the user's word: see test_a_failure_sweeps_like_recovering_twice_as_quickly_for_as_long_as_it_lasts)."""
         for elapsed in range(0, 3 * LOOP, 7):
             turning = tray.icon_turn("watching", elapsed) is not None
             with self.subTest(elapsed=elapsed):
@@ -362,10 +366,10 @@ class PhaseTests(unittest.TestCase):
                     self.assertEqual(tray.icon_frame("watching", elapsed)[1], TOP)
                 else:
                     self.assertEqual(tray.icon_frame("watching", elapsed)[0], 0, "no turn while it breathes")
+        self.assertEqual(tray.ICON_TRAVEL_BREATHS, {"failed": "failed_ms"})
         for elapsed in range(0, 40000, 13):
-            for state in ("recovering", "failed"):
-                with self.subTest(state=state, elapsed=elapsed):
-                    self.assertEqual(tray.icon_frame(state, elapsed)[1], TOP)
+            with self.subTest(recovering=elapsed):
+                self.assertEqual(tray.icon_frame("recovering", elapsed)[1], TOP)
 
     def test_every_hand_over_is_at_full_brightness(self):
         """Every hand-over has the head at full brightness in its place, so nothing jumps where a breath gives way to
@@ -412,21 +416,40 @@ class PhaseTests(unittest.TestCase):
         self.assertLess(next_y, home_y)
 
     def test_a_failure_sweeps_like_recovering_twice_as_quickly_for_as_long_as_it_lasts(self):
-        """v0.6.8, the user: "실패는 빠르게 움직이는거도 필요해", and asked which, that the head moves too. Red sweeps
-        recovering's shape in half its time - out, a moment at the far end, back, a moment at home - at full
-        brightness, never breathing, however long ago the failure arrived; Reduce motion holds it lit at home."""
+        """v0.6.8, the user: "실패는 빠르게 움직이는거도 필요해", and asked which, that the head moves too; then
+        "실패시에는 깜빡이면서 움직이면 좋겠는데". Red sweeps recovering's shape in half its time - out, a moment at
+        the far end, back, a moment at home - and blinks as it goes, on the red light's own breath (brand's failed_ms),
+        however long ago the failure arrived; Reduce motion holds it lit at home."""
         start, out, hold, back, home = SWEEPS["failed"]
+        blink = brand.GLOW["failed_ms"]
         self.assertEqual(tray.ICON_SWEEPS, ("watching", "recovering", "failed"))
-        self.assertNotIn("failed", tray.ICON_BREATHS)
+        self.assertNotIn("failed", tray.ICON_BREATHS, "it never breathes standing still: it always travels")
+        self.assertEqual(tray.ICON_TRAVEL_BREATHS, {"failed": "failed_ms"})
         furthest = round(tray.ICON_SWEEP / (360.0 / MOTION["positions"]))
         for since in (0, 5000, None):
             for loop in (0, 7):
                 at = loop * cycle_ms("failed")
                 with self.subTest(since=since, loop=loop):
-                    self.assertEqual(tray.icon_frame("failed", at, since), (0, TOP))
-                    self.assertEqual(tray.icon_frame("failed", at + out, since), (furthest, TOP))
-                    self.assertEqual(tray.icon_frame("failed", at + 2 * out + hold + home / 2.0, since), (0, TOP))
+                    self.assertEqual(tray.icon_frame("failed", at, since)[0], 0)
+                    self.assertEqual(tray.icon_frame("failed", at + out, since)[0], furthest)
+                    self.assertEqual(tray.icon_frame("failed", at + 2 * out + hold + home / 2.0, since)[0], 0)
                     self.assertEqual(tray.icon_frame_ms("failed", at + out / 2.0, since), MOTION["turn_frame_ms"])
+        # The sweep and the blink keep different time, and neither is a whole number of the other, so the blink
+        # lands somewhere new on every sweep - the user: "움직이는 주기랑 깜빡이는 주기가 ... 달라야해 / 같으면 안
+        # 예뻐". 1.98 s against 1.2 s: the two meet again only every 39.6 s.
+        sweep = int(cycle_ms("failed"))
+        self.assertNotEqual(sweep, blink)
+        self.assertNotEqual(sweep % blink, 0)
+        self.assertNotEqual(blink % sweep, 0)
+        self.assertEqual(math.lcm(sweep, blink), 39600)
+        # The blink is the breath: full at each of its starts, lowest halfway, whatever the head is doing.
+        for index in range(12):
+            with self.subTest(blink=index):
+                self.assertEqual(tray.icon_frame("failed", index * blink)[1], TOP)
+                self.assertEqual(tray.icon_frame("failed", index * blink + blink / 2.0)[1], 0)
+        seen = {tray.icon_frame("failed", elapsed) for elapsed in range(0, 3 * int(cycle_ms("failed")), 11)}
+        self.assertEqual({level for _, level in seen}, set(range(TOP + 1)))
+        self.assertTrue(any(position == furthest and level < TOP for position, level in seen), "it blinks far out too")
         self.assertEqual(tray.icon_frame("failed", out, 0, reduced=True), (0, TOP))
         self.assertIsNone(tray.icon_frame_ms("failed", out, 0, reduced=True))
 

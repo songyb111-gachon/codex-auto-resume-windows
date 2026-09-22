@@ -576,9 +576,10 @@ namespace CodexAutoResume
         /// shows them.
         internal static class Mark
         {
-            // tray.ICON_MOTION. The icon also reads two of brand.GLOW's rhythms, which Brand declares:
+            // tray.ICON_MOTION. The icon also reads three of brand.GLOW's rhythms, which Brand declares:
             // GlowMonitoringMs (watching's breath, and so every slot of its loop and of recovering's and a
-            // failure's sweeps) and GlowAttentionMs (attention's breath).
+            // failure's sweeps), GlowAttentionMs (attention's breath) and GlowFailedMs (the blink a
+            // failure's head keeps as it sweeps).
             internal const int Breaths = 3;
             internal const int SweepBreaths = 2;
             internal const double SweepOut = 0.4;
@@ -658,7 +659,8 @@ namespace CodexAutoResume
 
             /// One frame, as (position, level) (tray.icon_frame): position 0 is the head in its place, the
             /// others clockwise round the ring, and the top level its full colour, which it keeps through a
-            /// sweep's whole cycle. With motion reduced every state is at rest. sinceEnteredMs is read by
+            /// sweep's whole cycle - but a failure's, which blinks as it goes (tray.ICON_TRAVEL_BREATHS).
+            /// With motion reduced every state is at rest. sinceEnteredMs is read by
             /// nothing since v0.6.8, when the one-time pulse went.
             internal static void Frame(string state, double elapsedMs, double sinceEnteredMs, bool reduced,
                                        out int position, out int level)
@@ -670,6 +672,7 @@ namespace CodexAutoResume
                 if (turn >= 0)
                 {
                     position = (int)Math.Round(turn / (360.0 / Positions)) % Positions;
+                    if (state == "failed") level = BreathLevel(elapsedMs, GlowFailedMs);
                     return;
                 }
                 if (state == "watching") level = BreathLevel(elapsedMs, GlowMonitoringMs);

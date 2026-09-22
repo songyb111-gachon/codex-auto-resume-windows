@@ -256,8 +256,8 @@ breathes while it travels, and it never crosses the gap at the top of the ring. 
 in progress it sweeps out and back over and over, twice as quickly - once every 3.96 seconds -
 without breathing. Paused, it is grey and still; when something needs you it turns amber and
 breathes slowly in its place, every 5.6 seconds, for as long as it lasts; after a recovery fails it
-turns red and sweeps out and back like a recovery, twice as quickly - once every 1.98 seconds - and
-stays red until you have seen it: click the icon to open the popup, or bring the Dashboard to the
+turns red and sweeps out and back like a recovery, twice as quickly - once every 1.98 seconds -
+blinking as it goes, every 1.2 seconds, and stays red until you have seen it: click the icon to open the popup, or bring the Dashboard to the
 front. A recovery that starts afterwards clears it as well. Nothing moves under Reduce motion, Windows' animation setting, High Contrast or battery
 saver, while the session is locked, or while Windows keeps the icon in the overflow area, where
 nobody would see it. While the settings window is open, its taskbar button moves the same way and
@@ -272,7 +272,7 @@ in the panel in Codex and on the notification card. A recovery in progress breat
 seconds, attention every 5.6 and a failure every 1.2; waiting and checking hold it lit and still; Reduce motion, Windows' animation setting and
 High Contrast hold it still too.
 
-<img src="docs/images/icon-motion.png" alt="The notification-area icon's motion, drawn from the icon's own frames, on a light taskbar. From the left: watching, whose bright head breathes and then sweeps clockwise along the ring's white stroke and back, at full brightness; recovering, sweeping out and back all the time; needing attention, amber, breathing slowly in its place; failed, red, sweeping out and back twice as quickly as recovering; paused, grey and still" width="360">
+<img src="docs/images/icon-motion.png" alt="The notification-area icon's motion, drawn from the icon's own frames, on a light taskbar. From the left: watching, whose bright head breathes and then sweeps clockwise along the ring's white stroke and back, at full brightness; recovering, sweeping out and back all the time; needing attention, amber, breathing slowly in its place; failed, red, sweeping out and back twice as quickly as recovering and blinking as it goes; paused, grey and still" width="360">
 
 A single click on the icon opens a small popup beside it, and another click closes it: the
 watcher's state, how many tasks are waiting and recovering, the next check, up to three waiting
