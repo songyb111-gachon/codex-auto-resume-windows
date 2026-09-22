@@ -154,6 +154,11 @@ Codex 안의 패널입니다. Codex 창을 찍은 사진이 아니라, 플러그
 - 보안 모델과 취약점 신고: [SECURITY.ko.md](SECURITY.ko.md)
 - 변경 이력: [CHANGELOG.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/CHANGELOG.ko.md)
 - 기여자: [CONTRIBUTORS.ko.md](CONTRIBUTORS.ko.md)
+- 내 PC에서 이 제품이 어떻게 동작했는지 보고하기(별도 도구):
+  [codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter). 횟수와 상태와
+  시각만 담은 파일 하나를 쓰고, 보내기 전에 내가 먼저 읽습니다. 대화 내용도 식별자도 경로도 들어가지
+  않습니다. 그렇게 온 보고는 **보고됨**이라는 별도 등급으로만 세며, 어떤 버전도 검증됨이나 점검됨으로
+  올리지 않습니다.
 
 ## 만든 사람과 라이선스
 

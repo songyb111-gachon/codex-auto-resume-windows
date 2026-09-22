@@ -285,14 +285,14 @@ was, to [the guide](GUIDE.md), in both languages.
 
 ---
 
-## v0.6.10 — Python modularization, then the design settled
+## v0.6.10 — Python modularization, then the design settled and a grade for what others report
 
 **Next.**
 
 
 v0.6.10 arrives in two stages: **v0.6.10-alpha**, a pre-release, is the modularization and nothing
-else; the final **v0.6.10** is the design audit and the choice of appearance, built on the boundaries
-the alpha leaves. A pre-release is for a stage the work has to be split into that is not a release on
+else; the final **v0.6.10** is the design audit, the choice of appearance and the new Reported grade,
+built on the boundaries the alpha leaves. A pre-release is for a stage the work has to be split into that is not a release on
 its own, and the modularization is that: it changes nothing anybody could see, so it is not worth a
 release by itself, and it has to be finished and published before what is built on it. The design is
 the opposite - it changes what everything looks like - so it is a release.
@@ -333,8 +333,8 @@ nothing else: no feature, and no change anybody could see.
 
 ### v0.6.10 — The design audit, and a choice of appearance
 
-The final v0.6.10 is the design, settled, and nothing else. It is a release of its own because it is
-worth one: it changes what every surface looks like, which is exactly what a person sees. It sits
+The final v0.6.10 is the design, settled, and the one new word that comes with it - Reported, below.
+It is a release of its own because it is worth one: it changes what every surface looks like, which is exactly what a person sees. It sits
 here and not elsewhere for four reasons. After the alpha, because four looks in light and dark are
 only safe to build once the drawing lives in modules. Before the two editions, so both inherit one
 settled design instead of being audited twice. Before Rust, so the port copies a finished look. And
@@ -350,6 +350,48 @@ right first.
 - a choice of appearance: today's design, the same without motion, v0.6.2's plainer look (with
   today's status light), and a fully plain one - each in light and dark,
 - then the advanced features and the two editions above.
+
+---
+
+### Compatibility reports from others
+
+The two programs that carry this now exist, outside the product and outside its releases: the
+maintainer's own management program, and
+[codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter), which anyone can
+run on their own machine to write one report and send it. What is left for v0.6.10 is this
+repository's side of it - the check that reads such a pull request as data, and showing what arrives
+beside a version. None of it can be made up without it showing:
+
+- **A report is what the program measured, not what a person typed.** The program runs the checks on
+  the contributor's own machine and writes the report itself: the Codex version and the engine's
+  fingerprint it read, each check it ran and its result. The fields a person might be tempted to
+  choose - which tier a version earns, whether a check counts as exercised - are derived from the
+  measurements, and the repository derives them again when the report arrives, so a hand-edited
+  conclusion does not survive.
+- **A report arrives as a pull request, and is checked as data.** A check that runs on every such pull
+  request reads the files without running anything in them, accepts only new files under the
+  contributor's own GitHub name (the one who opened it), rejects a report whose version, fingerprint
+  or dates are not plausible, and refuses a duplicate. A maintainer still reviews and merges each one,
+  and a report found to be wrong can be withdrawn, in the open.
+- **What others report is shown, and changes nothing.** It has a grade of its own, *Reported*, which
+  stands beside the ladder of Verified, Checked, Compatible and Failed here and never becomes one of
+  them. It is listed beside the version, with the number of machines that said the same thing: N
+  reported it working, M reported a failure, K reported nothing either way. A report is counted as
+  worked when at least one of its records was delivered and ended in the state `recovered`; as failed
+  when at least one delivered record ended in `recovery_turn_failed`, `failed` or `terminal_failure`;
+  and as neither when nothing was delivered. One report can be counted in both columns when different
+  records say different things, and that is shown rather than resolved. Reported never raises a
+  version to Verified or Checked - a version whose own evidence says nothing stays Compatible however
+  many reports arrive - and it never changes what the product lets itself do: those tiers stay the
+  maintainer's own, earned the way they are today.
+
+This is honest about its limit: nothing can prove a report was not fabricated on the contributor's
+own machine. So what others report informs, and only the maintainer's own evidence decides.
+
+The management program stays a program of its own, and its features also come into the advanced
+edition, so a person using that edition can record and submit a report without a second tool. The
+standard edition sends nothing and gains nothing here: a report goes to GitHub only when its author
+opens the pull request.
 
 ---
 
@@ -397,35 +439,10 @@ Where the list starts, from the earlier plan:
 
 ### Compatibility reports from others
 
-The two programs that carry this now exist, outside the product and outside its releases: the
-maintainer's own management program, and
-[codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter), which anyone can
-run on their own machine to write one report and send it. What is left for v0.6.11 is this
-repository's side of it - the check that reads such a pull request as data, and showing what arrives
-beside a version. None of it can be made up without it showing:
-
-- **A report is what the program measured, not what a person typed.** The program runs the checks on
-  the contributor's own machine and writes the report itself: the Codex version and the engine's
-  fingerprint it read, each check it ran and its result. The fields a person might be tempted to
-  choose - which tier a version earns, whether a check counts as exercised - are derived from the
-  measurements, and the repository derives them again when the report arrives, so a hand-edited
-  conclusion does not survive.
-- **A report arrives as a pull request, and is checked as data.** A check that runs on every such pull
-  request reads the files without running anything in them, accepts only new files under the
-  contributor's own GitHub name (the one who opened it), rejects a report whose version, fingerprint
-  or dates are not plausible, and refuses a duplicate. A maintainer still reviews and merges each one,
-  and a report found to be wrong can be withdrawn, in the open.
-- **What others report is shown, and changes nothing.** It is listed apart from Verified and Checked,
-  as reported by others, with how many reports agree. It never raises a version to Verified or
-  Checked, and it never changes what the product lets itself do: those tiers stay the maintainer's
-  own, earned the way they are today.
-
-This is honest about its limit: nothing can prove a report was not fabricated on the contributor's
-own machine. So what others report informs, and only the maintainer's own evidence decides.
-
-The management program stays a program of its own, and its features also come into the advanced
-edition, so a person using that edition can record and submit a report without a second tool. The
-standard edition sends nothing and gains nothing here: a report goes to GitHub only when its author
+The grade itself, and everything this repository does with a report, is v0.6.10's, above.
+What belongs here is the advanced edition's own half of it: that edition records and sends a
+report without a second program, so a person using it needs no separate tool. The standard
+edition sends nothing and gains nothing here - a report goes to GitHub only when its author
 opens the pull request.
 
 ---
