@@ -54,7 +54,7 @@
     "CI does not translate anything. A person decides what the Korean should say."
   ],
   "reviewed": {
-    "CHANGELOG.md": "57f05f4323d47d9f32ba3ac453f2d79d7e2bf39a3a19926489cb8b5dea189f07",
+    "CHANGELOG.md": "c20db62a63834646d42b02e17ff5a10841edbb0a59d0d58f4ce62cb687e4d1e4",
     "CONTRIBUTING.md": "ce4e7f2342e4c185b240ee8cc3632bc48c4157552653e89633c4e1abc47b1241",
     "CONTRIBUTORS.md": "698f3d4fb75b30354e1c6749d4702c0e5e36149c640d90dc18a8dfa6842d0c3b",
     "PRIVACY.md": "8b3decff3baba54c078da075d849d6aab0b4853741eb168e07a589f1994b1468",
@@ -66,8 +66,8 @@
     "docs/DEVELOPMENT.md": "ec06f0c2f5bdf6995cd813baf4331fc5ce6ad538921809ecfd737648915037a8",
     "docs/PLUGIN.md": "274d84280740076f445d137250c6b6b2f9a0d631e09a6130e29df35d2faa2bdb",
     "docs/VERIFY.md": "0083bdaf0bcd058729c267c7823e4ef009b41f76ff9adc524b691546dd406678",
-    "docs/FEATURE_MATRIX.md": "b6f46d8bb513ff656cd818bca1fb06b0b06fb0ef64e49e61fe6ccd37a375c94b",
+    "docs/FEATURE_MATRIX.md": "b5b9ac154582bcc13ccad3f943f199282355e974842b9186c8766183ded741ed",
     "docs/LIVE_ACCEPTANCE.md": "1a94c108c121113a200b30ebc1f82fa3e26d395261cc810580b3e12a91d779ff",
-    "docs/ROADMAP.md": "1c0342d8781f0ba90ee9aae07eaafe4658a44967a8131afe0eea055b0e8bdb21"
+    "docs/ROADMAP.md": "88584d088ddfc1486c766873e90840174b28ae19ca0a04a85c07130f5d0e0164"
   }
 }

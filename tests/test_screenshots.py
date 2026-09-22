@@ -30,7 +30,7 @@ Three kinds of input, and the difference matters:
   name from anywhere else, wherever those live - so moving one between modules cannot fire
   it and changing one does.
 * The **notification card** is hashed the same way: by what it says, built by the watcher's
-  own builder, and by the definitions that draw it - its own modules, wherever v0.6.10 moves
+  own builder, and by the definitions that draw it - its own modules, wherever v0.6.10-alpha moves
   them, pooled with the popup's renderer and palette, which paint it.
 
 So this fires whenever something the picture is drawn from changed - not, as an earlier
@@ -1197,7 +1197,7 @@ class CardPictureTests(unittest.TestCase):
                 self.assertNotEqual(self.drawing(changed), before, what + " did not move the digest")
 
     def test_moving_the_card_into_ui_card_leaves_the_digest(self):
-        """v0.6.10 moves the card into `ui/card/`: its layout and its motion leave `notice_card.py`
+        """v0.6.10-alpha moves the card into `ui/card/`: its layout and its motion leave `notice_card.py`
         for their own modules, with the imports that follow them, and comments change on the way."""
         real = self.real()
         before = self.drawing(real)
@@ -1284,9 +1284,10 @@ class IconMotionPictureTests(unittest.TestCase):
                 self.assertEqual(mine, theirs,
                                  "the committed picture is not the generator's; "
                                  "run build/make_screenshots.py --icon")
-        # 512 KiB since v0.6.8, from 300: attention and a failure now move for as long as they last, where each used
-        # to hold still after one pulse, so two more of the five columns change in almost every picture.
-        self.assertLess(len(committed), 512 * 1024)
+        # 768 KiB since v0.6.8, from 300: attention and a failure now move for as long as they last, where each used
+        # to hold still after one pulse, and a failure blinks as it sweeps, so two more of the five columns change in
+        # almost every picture.
+        self.assertLess(len(committed), 768 * 1024)
         # An APNG since v0.6.6: a PNG whose first frame is what a viewer without animation shows, so the
         # badge's gradient and the ring's edges keep their colours instead of sharing 255 of them.
         self.assertEqual(committed[:8], b"\x89PNG\r\n\x1a\n")
@@ -1448,7 +1449,7 @@ class IconMotionPictureTests(unittest.TestCase):
                 self.assertEqual(self.drawing(changed), before, what + " moved the entry")
 
     def test_moving_the_motion_into_a_module_of_its_own_leaves_the_entry(self):
-        """v0.6.10 splits the package; the motion leaving tray.py for its own module, with the imports that follow it,
+        """v0.6.10-alpha splits the package; the motion leaving tray.py for its own module, with the imports that follow it,
         is the same GIF."""
         real = self.real()
         before = self.drawing(real)
