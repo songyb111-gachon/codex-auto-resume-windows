@@ -79,7 +79,8 @@ class StateTests(unittest.TestCase):
         self.assertEqual(brand.status_fill("watching"), "idle")
         self.assertIn("monitoring", brand.GLOW_BREATHES)
         self.assertIn("recovering", brand.GLOW_BREATHES)
-        self.assertEqual(set(brand.GLOW_PULSES), {"attention", "failed"})
+        self.assertIn("failed", brand.GLOW_BREATHES)
+        self.assertEqual(set(brand.GLOW_PULSES), {"attention"})
 
     def test_anything_unknown_is_idle_grey(self):
         for unknown in ("", None, "stopped", "monitoring", "paused"):
@@ -398,11 +399,27 @@ class PhaseTests(unittest.TestCase):
         self.assertGreater(next_x, home_x)
         self.assertLess(next_y, home_y)
 
-    def test_paused_is_still_and_a_problem_pulses_once_then_holds(self):
+    def test_a_failure_breathes_in_its_place_a_little_quicker_than_watching(self):
+        """v0.6.8: red never sits still. The head stays home and breathes on brand's failed rhythm for as long as
+        the failure lasts, however long ago it arrived; Reduce motion holds it lit."""
+        cycle = brand.GLOW["failed_ms"]
+        self.assertEqual(tray.ICON_BREATHS, {"watching": "monitoring_ms", "failed": "failed_ms"})
+        self.assertLess(cycle, brand.GLOW["recovering_ms"])
+        for since in (0, 5000, None):
+            with self.subTest(since=since):
+                self.assertEqual(tray.icon_frame("failed", 0, since), (0, TOP))
+                self.assertEqual(tray.icon_frame("failed", cycle / 2.0, since), (0, 0))
+                self.assertEqual(tray.icon_frame("failed", 7 * cycle, since), (0, TOP))
+                self.assertEqual(tray.icon_frame_ms("failed", cycle / 2.0, since), MOTION["breathe_frame_ms"])
+                self.assertIsNone(tray.icon_turn("failed", cycle / 2.0))
+        self.assertEqual(tray.icon_frame("failed", cycle / 2.0, 0, reduced=True), (0, TOP))
+        self.assertIsNone(tray.icon_frame_ms("failed", cycle / 2.0, 0, reduced=True))
+
+    def test_paused_is_still_and_attention_pulses_once_then_holds(self):
         for elapsed in (0, 777, 15000, 29000):
             self.assertEqual(tray.icon_frame("idle", elapsed, 0), (0, TOP))
         pulse = brand.GLOW["attention_ms"]
-        for state in ("attention", "failed"):
+        for state in ("attention",):
             with self.subTest(state):
                 self.assertEqual(tray.icon_frame(state, 12345, 0), (0, TOP))
                 self.assertEqual(tray.icon_frame(state, 12345, pulse / 2.0), (0, 0))
@@ -506,14 +523,18 @@ class FrameTests(unittest.TestCase):
             self.assertLess(abs(difference), 8.0, (position, angle, expected))
         self.assertEqual(frames.compose(0, accent), home)
 
-    def test_the_badge_is_composited_last_exactly_as_the_badge_icon_does(self):
+    def test_nothing_is_drawn_on_top_of_the_mark(self):
+        """v0.6.8: no badge. The frame is the mark and its head, and the corner a badge sat in is the .ico's own."""
+        self.assertFalse(hasattr(popup, "BADGE"))
+        self.assertFalse(hasattr(popup, "composite_badge"))
+        self.assertFalse(hasattr(popup, "badge_icon"))
+        self.assertFalse(hasattr(tray, "badge_token"))
         for size, frames in self.frames.items():
-            for token in ("waiting", "active", "paused", "attention"):
-                with self.subTest(size=size, token=token):
-                    colour = brand.rgb(brand.LIGHT[token])
-                    expected = bytearray(frames.compose(5, (10, 200, 30)))
-                    popup.composite_badge(expected, size, size, colour)
-                    self.assertEqual(frames.compose(5, (10, 200, 30), colour), bytes(expected))
+            with self.subTest(size=size):
+                frame = frames.compose(0, brand.rgb(brand.ICON_ACCENT))
+                ground = frames.ground
+                corner = [(y * size + x) * 4 for y in range(size * 3 // 4, size) for x in range(size * 3 // 4, size)]
+                self.assertEqual([frame[at:at + 4] for at in corner], [ground[at:at + 4] for at in corner])
 
     def test_a_colour_touches_the_head_and_nothing_else(self):
         frames = self.frames[24]
@@ -534,9 +555,8 @@ class FrameTests(unittest.TestCase):
             for position in range(MOTION["positions"]):
                 digest.update(frames.compose(position, colour))
             for level in range(TOP + 1):
-                digest.update(frames.compose(0, tray.icon_level_colour(colour, level),
-                                             brand.rgb(brand.LIGHT["waiting"])))
-        self.assertEqual(digest.hexdigest(), "461a614326a9a7f0713638bda31adb47158b1cafec9f900d36a95ae4ac514cc0")
+                digest.update(frames.compose(0, tray.icon_level_colour(colour, level)))
+        self.assertEqual(digest.hexdigest(), "13b12a2b3495a8fe52a1f15a627433eb568b0c08e0f636449de001248635a8ee")
 
     def test_composed_frames_are_kept_and_the_store_is_bounded(self):
         frames = tray.IconFrames(16)
@@ -697,11 +717,13 @@ class ObserveTests(unittest.TestCase):
         self.assertFalse(icon._motion_allowed)
         self.assertEqual(asked, [])
 
-    def test_the_badge_token_is_the_one_the_badge_always_had(self):
+    def test_the_icon_keeps_no_badge_state(self):
         icon, _ = self.observe({"enabled": True, "waiting": 2, "next_at": time.time() + 60})
-        self.assertEqual(icon._badge_token, "waiting")
+        self.assertEqual(icon._icon_state, "watching")
         icon, _ = self.observe({"enabled": True, "running": 1})
-        self.assertEqual((icon._icon_state, icon._badge_token), ("recovering", "active"))
+        self.assertEqual(icon._icon_state, "recovering")
+        self.assertFalse(hasattr(icon, "_badge_token"))
+        self.assertFalse(hasattr(icon, "_badge"))
 
     def test_a_locked_or_disconnected_session_stops_it_and_unlocking_lets_it_go(self):
         icon = tray.Tray(strings={})
@@ -969,7 +991,6 @@ class SwapTests(unittest.TestCase):
         icon._frames = tray.IconFrames(16)
         icon._icon_state = "recovering"
         icon._motion_allowed = True
-        icon._badge_token = "active"
         icon._notify_icon = lambda: True                   # the shell is not told
         icon._sync_motion = lambda: None
         return icon
@@ -1034,16 +1055,15 @@ class SwapTests(unittest.TestCase):
         finally:
             tray._dll("user32").DestroyIcon(icon._frame_icon)
 
-    def test_the_old_path_s_badged_copy_goes_with_the_first_frame(self):
+    def test_the_first_frame_replaces_the_ico_and_keeps_it(self):
         icon = self.make()
         icon._icon_state = "watching"
-        badge = popup._icon_from_pixels(bytes(16 * 16 * 4), 16, 16)
-        icon._badge = icon._shown_icon = badge
+        icon._shown_icon = icon._icon
         changed, replaced = icon._frame_for(time.monotonic())
         try:
             self.assertTrue(changed)
-            self.assertIn(badge, replaced)
-            self.assertIsNone(icon._badge)
+            self.assertEqual(replaced, [None])                  # the .ico is the icon's own, never destroyed here
+            self.assertEqual(icon._icon, 1)
             self.assertIs(icon._shown_icon, icon._frame_icon)
         finally:
             user32 = tray._dll("user32")
@@ -1064,14 +1084,12 @@ class LiveMotionTests(unittest.TestCase):
                 time.sleep(0.05)
             self.assertTrue(icon._frames)
             self.assertEqual(icon._icon_state, "idle")
-            self.assertEqual(icon._frame_key[1], tray.icon_head_colour("idle"))
-            self.assertEqual(icon._frame_key[2], "paused")
+            self.assertEqual(icon._frame_key, (0, tray.icon_head_colour("idle")))   # and no badge on it
             self.assertIsNone(icon._motion_ms)                   # grey and still: no frame timer
         finally:
             icon.stop()
         self.assertFalse(icon._thread.is_alive())
         self.assertIsNone(icon._frame_icon)
-        self.assertIsNone(icon._badge)
 
     def test_without_its_own_ico_the_icon_builds_no_frames(self):
         icon = tray.Tray(icon_path=ROOT / "no-such.ico", strings={})

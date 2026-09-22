@@ -655,7 +655,7 @@ class StatusLightTests(unittest.TestCase):
         # everywhere - which had been two thirds of the popup's radius and half of the panel's.
         expected = {"low": 0.35, "gamma": 2.2, "peak": 0.50, "reach_of_radius": 0.6,
                     "edge_alpha": 0.67, "near_at": 0.14, "near_alpha": 0.58, "far_at": 0.66,
-                    "far_alpha": 0.50, "monitoring_ms": 4400, "recovering_ms": 2800,
+                    "far_alpha": 0.50, "monitoring_ms": 4400, "recovering_ms": 2800, "failed_ms": 2200,
                     "attention_ms": 1400, "arc_ms": 1600, "arc_alpha": 0.55}
         self.assertEqual({key: brand.GLOW[key] for key in expected}, expected)
         self.assertEqual(brand.STATUS_DOT, {"window": 5, "popup": 4.5, "panel": 6, "mini": 4})
@@ -688,7 +688,7 @@ class StatusLightTests(unittest.TestCase):
     def test_the_glow_rides_the_brightness(self):
         """It takes no turn of its own: out when the dot is lit, gone when the dot is at its lowest, and
         never anywhere the brightness has not put it. Squared, so it keeps to the top of the breath."""
-        for state, since in (("monitoring", False), ("recovering", False), ("attention", True), ("failed", True)):
+        for state, since in (("monitoring", False), ("recovering", False), ("failed", False), ("attention", True)):
             with self.subTest(state):
                 pairs = []
                 for elapsed, frame in self.cycle(state, since=since):
@@ -765,6 +765,24 @@ class StatusLightTests(unittest.TestCase):
         self.assertTrue(brand.glow_moves("recovering"))
         self.assertTrue(brand.glow_moves("monitoring"))
 
+    def test_a_failure_breathes_a_little_quicker_than_anything_else(self):
+        """v0.6.8, the user: "빨간 상태등일 때도 상태등이 움직이게 해줘. 다른거 보다 조금 빠르게". The same breath
+        as the others, for as long as the failure is shown, and quicker than recovering's; attention keeps
+        its one pulse."""
+        self.assertIn("failed", brand.GLOW_BREATHES)
+        self.assertEqual(brand.GLOW_PULSES, ("attention",))
+        self.assertLess(brand.GLOW["failed_ms"], brand.GLOW["recovering_ms"])
+        self.assertLess(brand.GLOW["recovering_ms"], brand.GLOW["monitoring_ms"])
+        for step in range(0, 100):
+            fraction = step / 100.0
+            for since in (None, 0, 5000, 99999):
+                self.assertFrame(brand.glow("failed", 3 * brand.GLOW["failed_ms"] + fraction * brand.GLOW["failed_ms"],
+                                            since),
+                                 brand.glow("monitoring", fraction * brand.GLOW["monitoring_ms"]))
+        for since in (None, 0, 700, 5000, 99999):
+            self.assertTrue(brand.glow_moves("failed", since))
+        self.assertFalse(brand.glow_moves("failed", 5000, reduced=True))
+
     def test_waiting_and_checking_hold_lit_with_no_glow(self):
         frames = {tuple(sorted(brand.glow("waiting", elapsed, elapsed).items()))
                   for elapsed in range(0, 9000, 333)}
@@ -782,7 +800,7 @@ class StatusLightTests(unittest.TestCase):
 
     def test_an_alarm_runs_the_cycle_once_and_then_holds_lit(self):
         pulse, still = brand.GLOW["attention_ms"], {"dim": 0.0, "opacity": 0.0, "spread": 0.0, "arc": None}
-        for state in ("attention", "failed"):
+        for state in ("attention",):
             with self.subTest(state):
                 for since in range(0, pulse, 20):
                     self.assertFrame(brand.glow(state, 5000, since),

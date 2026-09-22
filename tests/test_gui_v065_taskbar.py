@@ -986,8 +986,22 @@ class TaskbarMarkTests(unittest.TestCase):
                 self.assertNotEqual(entry["walk"][0][1], self.answer["own"]["big"])
                 self.small_is_still(entry["walk"])
 
-    def test_a_problem_pulses_once_and_then_holds_its_colour(self):
-        for light in ("attention", "failed"):
+    def test_a_failure_keeps_breathing_a_little_quicker(self):
+        """v0.6.8: red never holds still. Past the 1.4 s attention's pulse lasts it is still breathing, on brand's
+        failed rhythm, and the frame timer never stops while the failure is shown."""
+        entry = self.answer["failed"]
+        walk = entry["walk"]
+        self.assertEqual(entry["state"], "failed")
+        self.assertTrue(entry["moving"])
+        self.assertEqual(entry["interval"], tray.ICON_MOTION["breathe_frame_ms"])
+        after = [row for row in walk if row[0] >= brand.GLOW["attention_ms"]]
+        self.assertGreaterEqual(len({row[2] for row in after}), 4, "it stopped breathing after one pulse")
+        self.assertTrue(all(row[5] for row in walk), "the timer stopped")
+        self.assertTrue(entry["movingAfter"])
+        self.small_is_still(walk)
+
+    def test_attention_pulses_once_and_then_holds_its_colour(self):
+        for light in ("attention",):
             entry = self.answer[light]
             walk = entry["walk"]
             with self.subTest(light=light):

@@ -54,20 +54,20 @@
     "CI does not translate anything. A person decides what the Korean should say."
   ],
   "reviewed": {
-    "CHANGELOG.md": "1fc7069f473f418ad9014dacd3509bf1fbfd6a7af8ee6d95ff31ad976b25fd98",
+    "CHANGELOG.md": "62fadd930953adeb8934187481edc8c5715852e58cba2fad236b3266d0888f23",
     "CONTRIBUTING.md": "ce4e7f2342e4c185b240ee8cc3632bc48c4157552653e89633c4e1abc47b1241",
     "CONTRIBUTORS.md": "698f3d4fb75b30354e1c6749d4702c0e5e36149c640d90dc18a8dfa6842d0c3b",
     "PRIVACY.md": "b2a96ae7f86dabdb4b96fd6d58b2f469c711faa8248f6431ee8ac3e001bf20b4",
-    "README.md": "543ce01b793377deaa3668c7751d063d7316df34cc81808d7764a014def812a9",
+    "README.md": "64bd43950840892c031e1fd6e26ab0d7f53caeb3372588107d4592ca8cd380ef",
     "SECURITY.md": "5270df5f6d06ac1211fb1ae2388ba99395336003484a3c9677bc629f928980d2",
     "SUPPORT.md": "fdb8542c3ee6a3a14f813a41c38a4cba6b2e7df0ca06fd846b269c57a7abbcc6",
-    "docs/BRAND.md": "b2b1a9799b1e3f86d159ed08dcceda7cac9db23fe6213f79732521bbbff5db73",
+    "docs/BRAND.md": "34522e7840851dc6e88add5836b50cc90d5363e5ef49af39e7b0891716aba9c5",
     "docs/COMPARISON.md": "1c09dbcfc848333912aa0967d443ab0b293c54965dba1510f798e491338e3a11",
     "docs/DEVELOPMENT.md": "ec06f0c2f5bdf6995cd813baf4331fc5ce6ad538921809ecfd737648915037a8",
     "docs/PLUGIN.md": "274d84280740076f445d137250c6b6b2f9a0d631e09a6130e29df35d2faa2bdb",
     "docs/VERIFY.md": "0083bdaf0bcd058729c267c7823e4ef009b41f76ff9adc524b691546dd406678",
-    "docs/FEATURE_MATRIX.md": "6b6f84597f6f9cfe2c63dda076bca80f612171be7a7040650e1ca10bbc8cafd5",
+    "docs/FEATURE_MATRIX.md": "e62cfa26e7ec11cb8a315a27f8ada20e12ddd3fc42940240b47126c6d643ebf5",
     "docs/LIVE_ACCEPTANCE.md": "1a94c108c121113a200b30ebc1f82fa3e26d395261cc810580b3e12a91d779ff",
-    "docs/ROADMAP.md": "abbcc85d7e7e4dcee05d9fc0fd048aaedd76e50b2d608abb23ac043e5290070f"
+    "docs/ROADMAP.md": "1d1542ee8e2a75c30ce8295118ea80f85636f447d2fd79a0a87274f30bdd5ba2"
   }
 }

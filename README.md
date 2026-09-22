@@ -242,18 +242,20 @@ pages then offer **Turn on for this conversation**:
 <img src="docs/images/settings-window.png" alt="The Continuation message section of the Dashboard's Settings page: the continuation language, the four message styles with Standard selected, and a Preview of the message sent for a usage limit" width="680">
 
 While the watcher runs it also puts an icon in the notification area. It belongs to the watcher
-process itself, so it appears when one starts and goes when it stops, and it wears a small badge
-for the state the watcher is in. Its tooltip says whether recovery is paused, how many recoveries
+process itself, so it appears when one starts and goes when it stops. Its mark alone says what the
+watcher is doing - it wears no badge - so it is the same picture as the settings window's taskbar
+button. Its tooltip says whether recovery is paused, how many recoveries
 are waiting, how many are running in Codex and how long until the next check.
 
 The icon moves, in the mark it already has. While the watcher watches, the head - the bright dot at
-the end of the ring - breathes, dimming toward the badge's deep blue and back every 4.4 seconds, and
+the end of the ring - breathes, dimming toward the icon's deep blue and back every 4.4 seconds, and
 after three breaths it sweeps along the ring's white stroke and back, clockwise, at full
 brightness: 3.52 seconds out, a moment at the far end, 3.52 seconds back and 1.54 at home. It never
 breathes while it travels, and it never crosses the gap at the top of the ring. While a recovery is
 in progress it sweeps out and back over and over, twice as quickly - once every 3.96 seconds -
-without breathing. Paused, it is grey and still; when something needs you it takes that colour, pulses once
-and holds. Nothing moves under Reduce motion, Windows' animation setting, High Contrast or battery
+without breathing. Paused, it is grey and still; when something needs you it turns amber, pulses once
+and holds; after a failure it turns red and keeps breathing, every 2.2 seconds - a little quicker than
+anything else. Nothing moves under Reduce motion, Windows' animation setting, High Contrast or battery
 saver, while the session is locked, or while Windows keeps the icon in the overflow area, where
 nobody would see it. While the settings window is open, its taskbar button moves the same way and
 stops for the same reasons.
@@ -264,10 +266,10 @@ While the watcher is watching, the light breathes: one cycle every 4.4 seconds, 
 62% of its colour and back along a cosine, with a glow that rides that brightness and reaches 0.6 of
 the dot's radius past its edge. It is the same light in the window, in the notification-area popup,
 in the panel in Codex and on the notification card. A recovery in progress breathes it every 2.8
-seconds; waiting and checking hold it lit and still; Reduce motion, Windows' animation setting and
+seconds and a failure every 2.2; waiting and checking hold it lit and still; Reduce motion, Windows' animation setting and
 High Contrast hold it still too.
 
-<img src="docs/images/icon-motion.png" alt="The notification-area icon's motion, drawn from the icon's own frames, on a light taskbar. From the left: watching, whose bright head breathes and then sweeps clockwise along the ring's white stroke and back, at full brightness; recovering, sweeping out and back all the time under a cyan badge; needing attention, amber under an amber badge, pulsing once and then still; paused, grey under a grey badge and still" width="288">
+<img src="docs/images/icon-motion.png" alt="The notification-area icon's motion, drawn from the icon's own frames, on a light taskbar. From the left: watching, whose bright head breathes and then sweeps clockwise along the ring's white stroke and back, at full brightness; recovering, sweeping out and back all the time; needing attention, amber, pulsing once and then still; failed, red, breathing every 2.2 seconds; paused, grey and still" width="360">
 
 A single click on the icon opens a small popup beside it, and another click closes it: the
 watcher's state, how many tasks are waiting and recovering, the next check, up to three waiting

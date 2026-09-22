@@ -29,7 +29,7 @@ High Contrast outranks any theme. A language or theme stored while the watcher r
 shows the next time it opens (`theme_setting`, `vocabulary`, `Popup.follow_settings`).
 
 The file is in two halves. The top half is pure - wording, ordering, placement, hit
-testing, focus order, motion, the icon badge's pixels, the shape of every shadow - and is
+testing, focus order, motion, the shape of every shadow - and is
 tested on any platform.
 The bottom half is the Win32 window and its GDI+ renderer, and only runs on Windows.
 """
@@ -82,9 +82,6 @@ ATTENTION_OVERLAYS = frozenset({"compatibility_blocked", "compatibility_failed_h
 DOT_FILL = {state: brand.status_fill(state) for state in STATES}
 STATE_INK = {"monitoring": "accent", "waiting": "waiting", "checking": "accent",
              "recovering": "accent", "paused": "paused", "attention": "warning"}
-# The icon's badge. Plain monitoring has none: an icon that always wears a dot says nothing.
-BADGE = {"monitoring": None, "waiting": "waiting", "checking": "waiting", "recovering": "active",
-         "paused": "paused", "attention": "attention"}
 # A reason chip's text colour; its ground is that colour mixed CHIP_ALPHA of the way into the
 # card's surface, as the panel mixes it, whatever the chip sits on.
 CHIP_ALPHA = 0.12
@@ -256,7 +253,7 @@ def activity(status, rows, now) -> str:
 
 
 def snapshot_activity(snapshot, now, *, attention=False) -> str:
-    """The same word from the icon's own tick snapshot, for the badge."""
+    """The same word from the icon's own tick snapshot, for the icon's state (tray.icon_state)."""
     snapshot = snapshot or {}
     if attention:
         return "attention"
@@ -612,38 +609,6 @@ def next_glides(seen, previous, glides, now_ms, *, animate=True) -> dict:
     return running
 
 
-# ---------------------------------------------------------------------------- the badge
-def composite_badge(pixels, width, height, colour) -> None:
-    """Draw a state dot into an icon's pixels, in place.
-
-    `pixels` is top-down BGRA with straight alpha, as icon bitmaps are. The dot sits in the
-    bottom-right corner inside a transparent cut-out, so it reads on a light taskbar and a
-    dark one without a coloured ring of its own.
-    """
-    red, green, blue = colour
-    cut = max(2.5, width * 0.25)
-    ring = max(1.0, width / 16.0)
-    dot = cut - ring
-    cx, cy = width - cut, height - cut
-    for y in range(max(0, int(cy - cut - 1)), height):
-        for x in range(max(0, int(cx - cut - 1)), width):
-            distance = math.hypot(x + 0.5 - cx, y + 0.5 - cy)
-            cover_cut = max(0.0, min(1.0, cut - distance + 0.5))
-            if cover_cut <= 0:
-                continue
-            cover_dot = max(0.0, min(1.0, dot - distance + 0.5))
-            index = (y * width + x) * 4
-            alpha = pixels[index + 3] / 255.0 * (1.0 - cover_cut)
-            out = cover_dot + alpha * (1.0 - cover_dot)
-            if out <= 0:
-                pixels[index:index + 4] = bytes(4)
-                continue
-            for offset, value in ((0, blue), (1, green), (2, red)):
-                mixed = (value * cover_dot + pixels[index + offset] * alpha * (1.0 - cover_dot)) / out
-                pixels[index + offset] = int(round(mixed))
-            pixels[index + 3] = int(round(out * 255))
-
-
 # ---------------------------------------------------------------------------- elevation
 # The panel's raised and inset surfaces, as images GDI+ can stamp. A CSS blur B is a Gaussian
 # with sigma B/2, and across a straight edge its coverage is Phi(-d / sigma) - what
@@ -775,7 +740,7 @@ def contrast_colour(token) -> str:
 # (AppsUseLightTheme: 0 is dark, anything else or nothing at all is light), and High Contrast
 # outranks every choice. The popup resolves it each time it opens, again whenever Windows says a
 # setting changed while it is open, and whenever it reads the settings - so a new choice, or a
-# flip of Windows' mode, never needs the watcher restarted. The icon and its badge do not change.
+# flip of Windows' mode, never needs the watcher restarted. The icon does not change.
 THEME_SYSTEM = "system"
 THEME_CHOICES = (THEME_SYSTEM,) + brand.THEMES
 
@@ -2247,44 +2212,6 @@ class Renderer:
             gdi32.GdiFlush()
 
 
-# ------------------------------------------------------------------------ the icon badge
-def badge_icon(base_icon, token):
-    """A new HICON: `base_icon` with a dot in the colour `token`. The caller destroys it.
-
-    Returns None when the base icon has no colour bitmap to draw on.
-    """
-    _declare()
-    user32, gdi32 = _dll("user32"), _dll("gdi32")
-    info = ICONINFO()
-    if not base_icon or not user32.GetIconInfo(base_icon, C.byref(info)):
-        return None
-    colour_bitmap, mask_bitmap = info.hbmColor, info.hbmMask
-    try:
-        if not colour_bitmap:
-            return None
-        shape = BITMAP()
-        if not gdi32.GetObjectW(colour_bitmap, C.sizeof(BITMAP), C.byref(shape)):
-            return None
-        width, height = shape.bmWidth, abs(shape.bmHeight)
-        pixels = _read_pixels(colour_bitmap, width, height)
-        if pixels is None:
-            return None
-        if not any(pixels[3::4]):
-            # An icon without an alpha channel: its mask says what is transparent.
-            mask = _read_pixels(mask_bitmap, width, height) if mask_bitmap else None
-            for index in range(3, len(pixels), 4):
-                pixels[index] = 0 if mask is not None and mask[index - 3] else 255
-        # Always the light palette: the icon and its badge are the same whatever the Theme setting,
-        # because the taskbar they sit on is Windows' to colour, not this product's.
-        composite_badge(pixels, width, height, brand.rgb(brand.LIGHT[token]))
-        return _icon_from_pixels(pixels, width, height)
-    finally:
-        if colour_bitmap:
-            gdi32.DeleteObject(colour_bitmap)
-        if mask_bitmap:
-            gdi32.DeleteObject(mask_bitmap)
-
-
 def _bitmap_info(width, height):
     info = BITMAPINFO()
     info.bmiHeader.biSize = C.sizeof(BITMAPINFOHEADER)
@@ -2293,19 +2220,6 @@ def _bitmap_info(width, height):
     info.bmiHeader.biPlanes = 1
     info.bmiHeader.biBitCount = 32
     return info
-
-
-def _read_pixels(bitmap, width, height):
-    gdi32 = _dll("gdi32")
-    dc = gdi32.CreateCompatibleDC(None)
-    try:
-        buffer = (C.c_ubyte * (width * height * 4))()
-        info = _bitmap_info(width, height)
-        if gdi32.GetDIBits(dc, bitmap, 0, height, buffer, C.byref(info), 0) != height:
-            return None
-        return bytearray(buffer)
-    finally:
-        gdi32.DeleteDC(dc)
 
 
 def _icon_from_pixels(pixels, width, height):

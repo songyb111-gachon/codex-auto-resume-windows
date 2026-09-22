@@ -219,6 +219,7 @@ namespace CodexAutoResume
         internal const double GlowFarAlpha = 0.5;
         internal const double GlowMonitoringMs = 4400;
         internal const double GlowRecoveringMs = 2800;
+        internal const double GlowFailedMs = 2200;
         internal const double GlowAttentionMs = 1400;
         internal const double GlowArcMs = 1600;
         internal const double GlowArcAlpha = 0.55;
@@ -272,13 +273,15 @@ namespace CodexAutoResume
                 return reduced || Light(elapsedMs % GlowMonitoringMs / GlowMonitoringMs, out dim, out opacity, out spread);
             if (state == "recovering")
                 return reduced || Light(elapsedMs % GlowRecoveringMs / GlowRecoveringMs, out dim, out opacity, out spread);
+            if (state == "failed")
+                return reduced || Light(elapsedMs % GlowFailedMs / GlowFailedMs, out dim, out opacity, out spread);
             if (state == "waiting") return true;
             if (state == "checking")
             {
                 arc = reduced ? GlowArcStillAt : elapsedMs % GlowArcMs / GlowArcMs * 360.0;
                 return true;
             }
-            if (state == "attention" || state == "failed")
+            if (state == "attention")
                 return reduced || !(sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs)
                        || Light(sinceEnteredMs / GlowAttentionMs, out dim, out opacity, out spread);
             return false;
@@ -288,8 +291,8 @@ namespace CodexAutoResume
         internal static bool GlowMoves(string state, double sinceEnteredMs, bool reduced)
         {
             if (reduced) return false;
-            if (state == "monitoring" || state == "recovering" || state == "checking") return true;
-            return (state == "attention" || state == "failed") && sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs;
+            if (state == "monitoring" || state == "recovering" || state == "failed" || state == "checking") return true;
+            return (state == "attention") && sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs;
         }
 
         /// The light at `fraction` of one breath (brand.glow_phase): a cosine in light, raised to
@@ -575,9 +578,9 @@ namespace CodexAutoResume
         /// shows them.
         internal static class Mark
         {
-            // tray.ICON_MOTION. The icon also reads two of brand.GLOW's rhythms, which Brand declares:
-            // GlowMonitoringMs (watching's breath, and so every slot of its loop and recovering's sweep)
-            // and GlowAttentionMs (a problem's one pulse).
+            // tray.ICON_MOTION. The icon also reads three of brand.GLOW's rhythms, which Brand declares:
+            // GlowMonitoringMs (watching's breath, and so every slot of its loop and recovering's sweep),
+            // GlowFailedMs (a failure's breath) and GlowAttentionMs (attention's one pulse).
             internal const int Breaths = 3;
             internal const int SweepBreaths = 2;
             internal const double SweepOut = 0.4;
@@ -671,6 +674,7 @@ namespace CodexAutoResume
                     return;
                 }
                 if (state == "watching") level = BreathLevel(elapsedMs, GlowMonitoringMs);
+                else if (state == "failed") level = BreathLevel(elapsedMs, GlowFailedMs);
                 else if (Pulsing(state, sinceEnteredMs)) level = BreathLevel(sinceEnteredMs, GlowAttentionMs);
             }
 
@@ -679,14 +683,15 @@ namespace CodexAutoResume
             {
                 if (reduced) return -1;
                 if (Turn(state, elapsedMs) >= 0) return TurnFrameMs;
-                if (state == "watching" || Pulsing(state, sinceEnteredMs)) return BreatheFrameMs;
+                if (state == "watching" || state == "failed" || Pulsing(state, sinceEnteredMs))
+                    return BreatheFrameMs;
                 return -1;
             }
 
-            /// Whether a problem's one pulse is still running (tray._pulsing).
+            /// Whether attention's one pulse is still running (tray._pulsing).
             private static bool Pulsing(string state, double sinceEnteredMs)
             {
-                return (state == "attention" || state == "failed") && sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs;
+                return (state == "attention") && sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs;
             }
 
             /// Full colour at the start of a cycle, dimmest halfway, full again (tray._breath_level).

@@ -30,7 +30,7 @@ Three kinds of input, and the difference matters:
   name from anywhere else, wherever those live - so moving one between modules cannot fire
   it and changing one does.
 * The **notification card** is hashed the same way: by what it says, built by the watcher's
-  own builder, and by the definitions that draw it - its own modules, wherever v0.6.8 moves
+  own builder, and by the definitions that draw it - its own modules, wherever v0.6.9 moves
   them, pooled with the popup's renderer and palette, which paint it.
 
 So this fires whenever something the picture is drawn from changed - not, as an earlier
@@ -1197,7 +1197,7 @@ class CardPictureTests(unittest.TestCase):
                 self.assertNotEqual(self.drawing(changed), before, what + " did not move the digest")
 
     def test_moving_the_card_into_ui_card_leaves_the_digest(self):
-        """v0.6.8 moves the card into `ui/card/`: its layout and its motion leave `notice_card.py`
+        """v0.6.9 moves the card into `ui/card/`: its layout and its motion leave `notice_card.py`
         for their own modules, with the imports that follow them, and comments change on the way."""
         real = self.real()
         before = self.drawing(real)
@@ -1408,7 +1408,8 @@ class IconMotionPictureTests(unittest.TestCase):
             "the breath's depth": ("tray.py", '"dim": 0.6,', '"dim": 0.5,'),
             "the breath's rhythm": ("brand.py", glow.group(0), '"monitoring_ms": %d' % (int(glow.group(1)) + 100)),
             "the mark's accent": ("brand.py", 'ICON_ACCENT = "#4FE0F5"', 'ICON_ACCENT = "#4FE0F6"'),
-            "the badge": ("tray_popup.py", "cut = max(2.5, width * 0.25)", "cut = max(2.5, width * 0.3)"),
+            "a failure's rhythm": ("brand.py", '"failed_ms": 2200,', '"failed_ms": 2000,'),
+            "which states breathe in place": ("tray.py", '"failed": "failed_ms"}', '"failed": "recovering_ms"}'),
         }
         for what, (name, old, new) in moves.items():
             changed = dict(real)
@@ -1431,11 +1432,11 @@ class IconMotionPictureTests(unittest.TestCase):
                 self.assertEqual(self.drawing(changed), before, what + " moved the entry")
 
     def test_moving_the_motion_into_a_module_of_its_own_leaves_the_entry(self):
-        """v0.6.8 splits the package; the motion leaving tray.py for its own module, with the imports that follow it,
+        """v0.6.9 splits the package; the motion leaving tray.py for its own module, with the imports that follow it,
         is the same GIF."""
         real = self.real()
         before = self.drawing(real)
-        names = ("ICON_MOTION", "ICON_SWEEP", "_breath_level", "icon_turn", "_pulsing", "icon_frame", "icon_frame_ms",
+        names = ("ICON_BREATHS", "ICON_MOTION", "ICON_SWEEP", "_breath_level", "icon_turn", "_pulsing", "icon_frame", "icon_frame_ms",
                  "IconFrames")
         rest, moved = PopupDrawingTests.cut(real["tray.py"], *names)
         moved_files = dict(real, **{

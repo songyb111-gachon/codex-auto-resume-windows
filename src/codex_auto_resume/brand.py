@@ -346,8 +346,9 @@ STATUS_SYSTEM = {"monitoring": "Highlight", "waiting": "Highlight", "checking": 
 # screen's gamma, a glow that rides the brightness, and a reach that is a share of the dot rather than a count of
 # pixels. docs/BRAND.md sets out why each of those is what it is.
 #
-# Monitoring runs it every monitoring_ms, recovering every recovering_ms, and a problem once, in attention_ms, when
-# it is first shown, then holds lit. A cycle begins and ends at the top, where a still light also sits, so a light
+# Monitoring runs it every monitoring_ms, recovering every recovering_ms, a failure every failed_ms - a little
+# quicker than recovering, so a red light never sits still (v0.6.8; the user: "빨간 상태등일 때도 상태등이
+# 움직이게 해줘. 다른거 보다 조금 빠르게") - and attention once, in attention_ms, when it is first shown, then holds lit. A cycle begins and ends at the top, where a still light also sits, so a light
 # that starts moving does not jump in brightness; the glow is the one thing that arrives with the motion. Waiting
 # and checking hold lit with no glow (checking turns its arc), as does every light under Reduce motion or Windows'
 # animation setting; High Contrast is a solid dot. The glow is a falloff, never a disc: at its peak, `peak` times
@@ -360,15 +361,15 @@ GLOW = {
     # gets past the dot's edge.
     "low": 0.35, "gamma": 2.2, "peak": 0.50, "reach_of_radius": 0.6,
     "edge_alpha": 0.67, "near_at": 0.14, "near_alpha": 0.58, "far_at": 0.66, "far_alpha": 0.50,
-    "monitoring_ms": 4400, "recovering_ms": 2800, "attention_ms": 1400,
+    "monitoring_ms": 4400, "recovering_ms": 2800, "failed_ms": 2200, "attention_ms": 1400,
     # Checking also turns the arc every surface already drew: `arc_gap` past the dot's edge,
     # `arc_width` wide, `arc_sweep` degrees long, in `active` at `arc_alpha`. With motion
     # reduced it holds at `arc_still_at` degrees.
     "arc_ms": 1600, "arc_alpha": 0.55, "arc_gap": 3, "arc_width": 1.6, "arc_sweep": 100,
     "arc_still_at": 300,
 }
-GLOW_BREATHES = ("monitoring", "recovering")
-GLOW_PULSES = ("attention", "failed")
+GLOW_BREATHES = ("monitoring", "recovering", "failed")
+GLOW_PULSES = ("attention",)
 
 
 def _number(value) -> str:
