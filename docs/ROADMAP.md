@@ -236,9 +236,9 @@ Reduce motion and High Contrast still hold every light still.
 
 ---
 
-## v0.6.9 — The window's lag, and starting with Codex 🚧
+## v0.6.9 — The window's lag, and starting with Codex ✅
 
-**In development.**
+**Released.**
 
 First, and on its own terms: the window's responsiveness - the lag it still has, worst on some pages,
 and the loading that feels slower in every language but English (reported with v0.6.8). Each is
@@ -286,6 +286,9 @@ was, to [the guide](GUIDE.md), in both languages.
 ---
 
 ## v0.6.10 — Python modularization, then the design settled
+
+**Next.**
+
 
 v0.6.10 arrives in two stages: **v0.6.10-alpha**, a pre-release, is the modularization and nothing
 else; the final **v0.6.10** is the design audit and the choice of appearance, built on the boundaries
@@ -339,7 +342,11 @@ the audit before the choice, because the other looks are derived from today's, s
 right first.
 
 - a design audit of the panel in Codex, the app, the notification-area popup and the notification
-  card, side by side in light and dark, fixing everything that does not yet look like one product,
+  card, side by side in light and dark, fixing everything that does not yet look like one product -
+  among them every light that says a state and does not move: the panel's 8 px dot on the Automatic
+  recovery tile is still while the status light above it breathes, and the user's rule is that a
+  light which says the product is running does not sit still. The pictures follow: the generator
+  animates one light per picture today, and will animate every light a surface moves,
 - a choice of appearance: today's design, the same without motion, v0.6.2's plainer look (with
   today's status light), and a fully plain one - each in light and dark,
 - then the advanced features and the two editions above.
@@ -634,9 +641,9 @@ The tray icon without its badge
 
         ↓
 
-v0.6.9
-The window's lag
-+ starting with Codex, and a shorter README
+v0.6.9  ✅ Released
+The window's lag, measured
++ starting with Codex: measured and not shipped, and a shorter README
 
         ↓
 
@@ -673,4 +680,4 @@ Final Rust audit and stabilization: the Rust bug hunt
 Maintenance
 ```
 
-This document records the current direction; v0.6.8 is out, and v0.6.9 is next.
+This document records the current direction; v0.6.9 is out, and v0.6.10 is next.
