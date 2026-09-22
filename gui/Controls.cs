@@ -5931,13 +5931,13 @@ namespace CodexAutoResume
         /// Loops for as long as the state lasts.
         internal static bool Loops(string state)
         {
-            return state == "monitoring" || state == "checking" || state == "recovering";
+            return state == "monitoring" || state == "checking" || state == "recovering" || state == "failed";
         }
 
         /// Pulses once, when the state is entered.
         internal static bool PulsesOnce(string state)
         {
-            return state == "attention" || state == "failed";
+            return state == "attention";
         }
 
         /// The glow's opacity for one frame, brand.glow()'s "opacity", or 0 when there is no glow.

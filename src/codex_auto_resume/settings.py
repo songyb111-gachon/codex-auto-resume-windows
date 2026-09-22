@@ -124,7 +124,7 @@ FIELDS = {
     # `notifications` and `notify_<event>`. It changes nothing about recovery.
     "notification_card": (True, _boolean),
     # First in Appearance, so it comes before Reduce motion wherever the schema is listed.
-    # Changes nothing but colours; the notification-area icon and its badge stay as they are.
+    # Changes nothing but colours; the notification-area icon stays as it is.
     "theme": (DEFAULT_THEME, lambda v, d: _choice(v, d, THEMES)),
     # The panel in Codex's own light or dark, or "same" as the Theme above (the default).
     "panel_theme": (DEFAULT_PANEL_THEME, lambda v, d: _choice(v, d, PANEL_THEMES)),

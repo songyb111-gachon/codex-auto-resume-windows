@@ -170,9 +170,8 @@ class AliveStateTests(unittest.TestCase):
 
     def test_only_the_working_states_loop_and_only_the_alarms_pulse_once(self):
         self.assertEqual({state for state in STATES if self.answer["loops"][state]},
-                         {"monitoring", "checking", "recovering"})
-        self.assertEqual({state for state in STATES if self.answer["once"][state]},
-                         {"attention", "failed"})
+                         {"monitoring", "checking", "recovering", "failed"})
+        self.assertEqual({state for state in STATES if self.answer["once"][state]}, {"attention"})
 
     def test_monitoring_breathes_the_dot_and_the_glow_rides_it(self):
         dims, glows = self.answer["dim"]["monitoring"]["moving"], self.answer["opacity"]["monitoring"]["moving"]

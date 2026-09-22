@@ -1,4 +1,4 @@
-# Codex Auto Resume roadmap: v0.6.7 → v0.6.13
+# Codex Auto Resume roadmap: v0.6.7 → v0.6.12
 
 This is the current development direction for Codex Auto Resume after v0.6.6.
 
@@ -76,7 +76,7 @@ Recovery decides exactly what it decided in v0.6.3.
 **Released.**
 
 v0.6.5 carries the Codex Compatibility Registry and the interface work that came out of using
-v0.6.4, and lays the groundwork for splitting the Python implementation, which moves to v0.6.8.
+v0.6.4, and lays the groundwork for splitting the Python implementation, which moved to v0.6.9's alpha.
 
 ### Codex Compatibility Registry
 
@@ -215,12 +215,36 @@ it still.
 
 ---
 
-## v0.6.8 — Python modularization
+## v0.6.8 — A tray icon without its badge, and a red light that moves 🚧
 
-**Next.**
+**In development, on the `dev` branch.**
 
-v0.6.8 is planned as the major structural cleanup of the Python implementation. It was the main
-part of v0.6.5 in the earlier plan; v0.6.5 ships its groundwork, and the split itself moves here.
+The notification-area icon wore a small status dot in its corner that the window's taskbar button
+never had, so during a recovery the tray showed a second light the taskbar did not. The dot is gone:
+the head of the mark says the state on its own, and the tray icon and the taskbar button are one
+picture.
+
+A failure's red light pulsed once and then held still. It now keeps breathing for as long as the
+failure is shown, every 2.2 seconds - a little quicker than recovering's 2.8 and monitoring's 4.4 -
+on every surface that shows it: the window, the notification card, the tray icon and the taskbar
+button. Needing attention still pulses once and holds; Reduce motion and High Contrast still hold
+every light still.
+
+---
+
+## v0.6.9 — Python modularization, then the final Python audit
+
+v0.6.9 is the last Python release, and it arrives in stages rather than in one drop:
+**v0.6.9-alpha**, a pre-release, carries the modularization; the final **v0.6.9** follows once the
+rest below is in and the whole repository has been through its bug hunt, and it is the Python
+reference implementation the Rust migration reproduces. Anything in between worth trying before the
+final ships as a pre-release of its own.
+
+### v0.6.9-alpha — Python modularization (a pre-release)
+
+The alpha is planned as the major structural cleanup of the Python implementation. It was the main
+part of v0.6.5 in the earlier plan, and then of v0.6.8; v0.6.5 ships its groundwork, and the split
+itself lands here.
 
 Before anything moves:
 
@@ -241,19 +265,17 @@ Main goals:
 
 The window's largest C# files may be split the same way, behind the same kind of safety net.
 
-The repository's landing page on GitHub is tidied in the same release, while paths are moving
+The repository's landing page on GitHub is tidied in the same stage, while paths are moving
 anyway, so that fewer files sit at its root.
 
-Bugs discovered during this refactor will be fixed with regression tests, but this release is
-**not intended to be the full repository-wide bug hunt**.
+Bugs discovered during this refactor will be fixed with regression tests, but the alpha is
+**not intended to be the full repository-wide bug hunt**; the final is.
 
----
-
-## v0.6.9 — Advanced / Experimental recovery capabilities
+### Advanced / Experimental recovery capabilities
 
 The existing conservative behavior will remain the default.
 
-v0.6.9 is planned to revisit recovery capabilities that were previously excluded because they
+On the way to the final, v0.6.9 is planned to revisit recovery capabilities that were previously excluded because they
 required weaker assumptions, insufficient evidence, or unsupported Codex behavior.
 
 Potential candidates include:
@@ -290,13 +312,11 @@ The principle remains:
 - a choice of appearance: today's design, the same without motion, v0.6.2's plainer look (with
   today's status light), and a fully plain one - each in light and dark.
 
----
+### v0.6.9 — Final Python audit and stabilization
 
-## v0.6.10 — Final Python audit and stabilization
+The final v0.6.9 is planned as the final comprehensive audit of the Python implementation.
 
-v0.6.10 is planned as the final comprehensive audit of the Python implementation.
-
-Unlike v0.6.8, this release is intentionally a broad bug hunt.
+Unlike the alpha, it is intentionally a broad bug hunt.
 
 Expected areas include:
 
@@ -324,9 +344,9 @@ for the Rust migration.
 
 ---
 
-## v0.6.11 — Complete Rust core replacement
+## v0.6.10 — Complete Rust core replacement
 
-v0.6.11 is planned to replace the production Python core with Rust.
+v0.6.10 is planned to replace the production Python core with Rust.
 
 The migration may happen incrementally during development, but the release itself is intended
 to switch to the completed Rust core rather than ship a long-lived mixed Python/Rust product.
@@ -335,7 +355,7 @@ The rule is:
 
 > **Replace the implementation, not the behavior.**
 
-The Rust implementation should reproduce v0.6.10 as closely as practical.
+The Rust implementation should reproduce the final v0.6.9 as closely as practical.
 
 Goals include:
 
@@ -378,13 +398,13 @@ deployment work.
 
 ---
 
-## v0.6.12 — Rust-native restructuring and optimization
+## v0.6.11 — Rust-native restructuring and optimization
 
-v0.6.11 will prioritize behavioral parity.
+v0.6.10 will prioritize behavioral parity.
 
 That may leave some Python-shaped architecture inside the first Rust implementation.
 
-v0.6.12 is planned to make the codebase more naturally Rust-oriented.
+v0.6.11 is planned to make the codebase more naturally Rust-oriented.
 
 Potential work includes:
 
@@ -404,9 +424,9 @@ This is not intended to be the final full-system bug hunt.
 
 ---
 
-## v0.6.13 — Final Rust audit and stabilization
+## v0.6.12 — Final Rust audit and stabilization
 
-v0.6.13 is planned as the final comprehensive stabilization pass.
+v0.6.12 is planned as the final comprehensive stabilization pass.
 
 Expected focus includes:
 
@@ -444,7 +464,7 @@ The intended final stack is:
 
 There is currently **no planned v0.7.0 feature cycle**.
 
-After v0.6.13, the project is expected to move primarily into maintenance:
+After v0.6.12, the project is expected to move primarily into maintenance:
 
 - Codex compatibility updates,
 - Compatibility Registry updates,
@@ -489,35 +509,31 @@ Compatibility in tiers: Verified, Checked, Compatible
 
         ↓
 
-v0.6.8
-Python modularization
-+ a tidier landing page on GitHub
+v0.6.8  🚧 In development, on the dev branch
+The tray icon without its badge
++ a red light that keeps breathing
 
         ↓
 
-v0.6.9
-Advanced / Experimental recovery capabilities
-+ design audit, a choice of appearance
-
-        ↓
-
-v0.6.10
-Final Python audit and stabilization
+v0.6.9-alpha → v0.6.9
+Python modularization and a tidier landing page on GitHub, in a pre-release
++ advanced / experimental recovery, design audit, a choice of appearance
++ the final Python audit, in the final
 → freeze Python reference behavior
 
         ↓
 
-v0.6.11
+v0.6.10
 Complete Rust core replacement
 
         ↓
 
-v0.6.12
+v0.6.11
 Rust-native restructuring and optimization
 
         ↓
 
-v0.6.13
+v0.6.12
 Final Rust audit and stabilization
 → final stable Rust baseline
 
@@ -526,4 +542,4 @@ Final Rust audit and stabilization
 Maintenance
 ```
 
-This document records the current direction; v0.6.7 is out, and v0.6.8 is next.
+This document records the current direction; v0.6.7 is out, and v0.6.8 is built on the `dev` branch.

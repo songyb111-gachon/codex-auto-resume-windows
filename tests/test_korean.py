@@ -89,7 +89,9 @@ PLANS = {"ROADMAP.ko.md"}
 
 
 def version_key(version: str) -> tuple:
-    return tuple(int(part) for part in version.lstrip("v").split("."))
+    """A version in order, a pre-release just before its release: v0.6.9-alpha, then v0.6.9."""
+    number, _, suffix = version.lstrip("v").partition("-")
+    return tuple(int(part) for part in number.split(".")) + (0 if suffix else 1,)
 
 
 def versions_named_as_current(current: str) -> list:

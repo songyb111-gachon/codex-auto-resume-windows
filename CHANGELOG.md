@@ -1,5 +1,37 @@
 # Changelog
 
+## v0.6.8 — A tray icon without its badge, and a red light that keeps breathing
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.7...v0.6.8)
+
+Two things about lights, both asked for by name, and nothing about recovery.
+
+### One icon, not two
+
+The notification-area icon wore a small status dot in its bottom-right corner - cyan while a
+recovery ran, amber for attention, grey when paused - that the settings window's taskbar button
+never had. So during a recovery the tray showed a second light beside the mark's own moving head,
+and the two icons looked as if they said different things. The dot is gone. The head of the mark
+alone says the state, as it already did on the taskbar button, and the tray icon and the taskbar
+button are the same picture, frame for frame. The states are still told apart by the head: its
+colour, its breath and its sweep.
+
+### A red light that keeps breathing
+
+A failure's light pulsed once when it appeared and then held still. It now breathes for as long as
+the failure is shown, every 2.2 seconds - a little quicker than a recovery's 2.8 and monitoring's
+4.4 - with the same curve and glow as every other light. The window, the notification card, the
+tray icon and the taskbar button all take it from one table. Needing attention still pulses once
+and holds; Reduce motion, Windows' animation setting and High Contrast still hold every light still.
+
+### Also
+
+- The README's picture of the icon's motion has a fifth column, the failed icon breathing, and no
+  badges.
+- The roadmap: the Python modularization becomes **v0.6.9-alpha**, a pre-release, and the final
+  **v0.6.9** is the last Python release, after the repository-wide bug hunt. The Rust releases move
+  up one, to v0.6.10 - v0.6.12.
+
 ## v0.6.7 — Compatibility in tiers, Failed here, and a notification card that breathes
 
 [The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.6...v0.6.7)

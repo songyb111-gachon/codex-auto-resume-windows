@@ -653,8 +653,10 @@ def mark_class() -> str:
         raise ValueError("every status light has an icon state, and anything else is idle")
     unknown = tray.icon_head_colour("an unknown state")
     pulses = [state for state in tray.ICON_STATES if tray.icon_brand_state(state) in brand.GLOW_PULSES]
-    if pulses != ["attention", "failed"]:
-        raise ValueError("Brand.Mark pulses attention and failed once, which are brand's pulses")
+    if pulses != ["attention"]:
+        raise ValueError("Brand.Mark pulses attention once, which is brand's one pulse")
+    if tray.ICON_BREATHS != {"watching": "monitoring_ms", "failed": "failed_ms"}:
+        raise ValueError("Brand.Mark breathes watching and failed on brand's rhythms for them")
     dim = brand.rgb(tray.ICON_DIM_TOWARD)
     lines = [
         "\n",
@@ -664,9 +666,9 @@ def mark_class() -> str:
         "        /// shows them.\n",
         "        internal static class Mark\n",
         "        {\n",
-        "            // tray.ICON_MOTION. The icon also reads two of brand.GLOW's rhythms, which Brand declares:\n",
-        "            // GlowMonitoringMs (watching's breath, and so every slot of its loop and recovering's sweep)\n",
-        "            // and GlowAttentionMs (a problem's one pulse).\n",
+        "            // tray.ICON_MOTION. The icon also reads three of brand.GLOW's rhythms, which Brand declares:\n",
+        "            // GlowMonitoringMs (watching's breath, and so every slot of its loop and recovering's sweep),\n",
+        "            // GlowFailedMs (a failure's breath) and GlowAttentionMs (attention's one pulse).\n",
         "            internal const int Breaths = %s;\n" % _literal("int", motion["breaths"]),
         "            internal const int SweepBreaths = %s;\n" % _literal("int", motion["sweep_breaths"]),
         "            internal const double SweepOut = %s;\n" % _literal("double", motion["sweep_out"]),
@@ -771,6 +773,7 @@ def mark_class() -> str:
         "                    return;\n",
         "                }\n",
         '                if (state == "watching") level = BreathLevel(elapsedMs, GlowMonitoringMs);\n',
+        '                else if (state == "failed") level = BreathLevel(elapsedMs, GlowFailedMs);\n',
         "                else if (Pulsing(state, sinceEnteredMs)) level = BreathLevel(sinceEnteredMs, GlowAttentionMs);\n",
         "            }\n",
         "\n",
@@ -779,11 +782,12 @@ def mark_class() -> str:
         "            {\n",
         "                if (reduced) return -1;\n",
         "                if (Turn(state, elapsedMs) >= 0) return TurnFrameMs;\n",
-        '                if (state == "watching" || Pulsing(state, sinceEnteredMs)) return BreatheFrameMs;\n',
+        '                if (state == "watching" || state == "failed" || Pulsing(state, sinceEnteredMs))\n',
+        "                    return BreatheFrameMs;\n",
         "                return -1;\n",
         "            }\n",
         "\n",
-        "            /// Whether a problem's one pulse is still running (tray._pulsing).\n",
+        "            /// Whether attention's one pulse is still running (tray._pulsing).\n",
         "            private static bool Pulsing(string state, double sinceEnteredMs)\n",
         "            {\n",
         "                return (%s) && sinceEnteredMs >= 0 && sinceEnteredMs < GlowAttentionMs;\n" % _condition(pulses),

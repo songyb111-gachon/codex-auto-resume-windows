@@ -185,7 +185,8 @@ does not jump in brightness; the glow is the one thing that arrives with the mot
 | Waiting | `active` | Lit and still, with no glow |
 | Checking a task that has come due | `active` | Lit, with no glow, and a thin arc turning once every 1.6 s (in the Dashboard and the popup) |
 | Recovering | `active` | The cycle, every 2.8 s |
-| Needs a person, failed | `attention`, `danger` | The cycle once, over 1.4 s, when it is first shown; then lit and still, with no glow |
+| Failed | `danger` | The cycle, every 2.2 s - a little quicker than recovering, so a red light never sits still (since v0.6.8) |
+| Needs a person | `attention` | The cycle once, over 1.4 s, when it is first shown; then lit and still, with no glow |
 | Paused, stopped | `paused`, `idle` | A grey dot that never moves |
 
 Three cuts were wrong in three directions before this one, and the user named each: the first
@@ -232,14 +233,17 @@ crossing the gap at the top of the ring, so the head is always somewhere the rin
 breathes while it travels, and every hand-over is at full brightness, where a breath and the sweep's
 slot both begin and end. While a recovery is in progress it sweeps out and back over and over, twice
 as quickly - 1.76 s out, a moment at the far end, 1.76 s back and 0.33 s at home, a sweep every
-3.96 s - at full brightness and without breathing; paused it is grey and still; a problem is its
-colour, one pulse on `GLOW`'s attention rhythm, then held. The motion adds no shape and no colour:
+3.96 s - at full brightness and without breathing; paused it is grey and still; needing a person it
+is amber, one pulse on `GLOW`'s attention rhythm, then held; failed it is red and breathes in its
+place on `GLOW`'s failed rhythm for as long as the failure lasts. The motion adds no shape and no colour:
 the frames are the mark itself, drawn from `ICON_SHAPE` by the same rasteriser as the `.ico`, with
 the head moved - 24 positions round the ring, fifteen degrees apart, of which the 20 from its own
 place clockwise to the stroke's far end are the ones a sweep uses - and recoloured - 24 levels of
 brightness, a tint of the head and never a stored frame - and at rest the icon is exactly the icon
-it has always been. Of `GLOW` the icon reads two rhythms and nothing else: the monitoring breath,
-which is every slot of its loop and of recovering's sweep, and the attention pulse. Its own few
+it has always been. Of `GLOW` the icon reads three rhythms and nothing else: the monitoring breath,
+which is every slot of its loop and of recovering's sweep, the failed breath and the attention
+pulse. Since v0.6.8 nothing is drawn on top of the mark - no status badge in its corner - so the
+notification-area icon and the window's taskbar button are one picture. Its own few
 numbers - how many breaths come before a sweep, how long its slot is and how that slot is spent, the
 head's positions, the breath's levels and the frame rates - are `tray.py`'s `ICON_MOTION`,
 deliberately not `brand.py`'s, because every `GLOW` key is generated into the window's status light,
@@ -266,7 +270,7 @@ for word - so the Theme draws the panel only while the panel's own says so, and 
 the popup and the notification card always. Only the panel reads it, so the resolution is one
 function, the panel's `applyTheme`, and anything it does not know is *Same as Theme*.
 
-The notification-area icon and its badge do not change with either setting;
+The notification-area icon does not change with either setting;
 they sit on the taskbar, not on any of the three surfaces. When the icon's head takes a state's
 colour it is the one made to read on the icon's own deep-blue badge: the dark palette's
 `attention` and `danger`, and the light palette's `idle` grey, whose dark value all but vanishes
