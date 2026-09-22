@@ -397,9 +397,12 @@ Where the list starts, from the earlier plan:
 
 ### Compatibility reports from others
 
-Today only the maintainer records which Codex versions this product works with, using a separate
-management program. From v0.6.11 anyone can contribute a report, and none of them can be made up
-without it showing:
+The two programs that carry this now exist, outside the product and outside its releases: the
+maintainer's own management program, and
+[codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter), which anyone can
+run on their own machine to write one report and send it. What is left for v0.6.11 is this
+repository's side of it - the check that reads such a pull request as data, and showing what arrives
+beside a version. None of it can be made up without it showing:
 
 - **A report is what the program measured, not what a person typed.** The program runs the checks on
   the contributor's own machine and writes the report itself: the Codex version and the engine's
