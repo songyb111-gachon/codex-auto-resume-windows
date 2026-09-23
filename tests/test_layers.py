@@ -70,7 +70,8 @@ LAYER = {_q(name): layer for layer, names in {
     "engine": ("engine", "engine.announce", "engine.detect", "engine.dispatch",
                "engine.freshness", "engine.options", "engine.outcome", "engine.reconcile"),
     "control": ("control", "diagnostics"),
-    "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcpui", "app", "tray", "tray_popup", "brand",
+    "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcpui", "mcp", "app", "tray",
+              "tray_popup", "brand",
               "notice_card", "notice_window", "notifier",
               # v0.6.10-alpha: what every surface writes the same way.
               "ui", "ui.words",

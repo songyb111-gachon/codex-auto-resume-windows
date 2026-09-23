@@ -49,8 +49,13 @@ GUID_ALLOWLIST = {"gui/app.manifest",
                   "src/codex_auto_resume/shortcut.py",
                   "src/codex_auto_resume/notify.py"}
 
-TEXT_SUFFIXES = {".py", ".md", ".txt", ".json", ".ps1", ".cmd", ".cs", ".yml", ".yaml",
-                 ".toml", ".cfg", ".ini", ".manifest", ".gitattributes", ".gitignore"}
+# `.css` and `.js` since v0.6.10-alpha: the settings panel's stylesheet and script were
+# 2,173 lines inside `mcpui.py` and are files of their own now. They are still shipped code
+# a browser runs, so they are read here like any other - without these two the scans below
+# would quietly stop seeing them.
+TEXT_SUFFIXES = {".py", ".md", ".txt", ".json", ".ps1", ".cmd", ".cs", ".css", ".js",
+                 ".yml", ".yaml", ".toml", ".cfg", ".ini", ".manifest", ".gitattributes",
+                 ".gitignore"}
 
 
 def tracked_text_files():
