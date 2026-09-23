@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
-import re
 import sys
 import unittest
 
@@ -39,9 +38,6 @@ ROOT = Path(_HERE).parent
 # holds a docstring and the re-exports and nothing else.
 FRONTS = {"mcpserver": mcpserver, "tray_popup": tray_popup}
 
-# Words that are not attribute reads: `tray_popup.py` in prose, `mcpserver.py` in a path.
-NOT_A_NAME = {"py"}
-
 
 def readers():
     """Every file that could name a front: the package, the build scripts, and the suite.
@@ -55,16 +51,71 @@ def readers():
     return files
 
 
+def one_dot(path: Path) -> str | None:
+    """What a single leading dot means in this file, or None if it is not the package's."""
+    if not path.as_posix().endswith(".py") or srcscan.PACKAGE not in path.parts:
+        return None
+    module = srcscan.module_name(path)
+    return module if path.name == "__init__.py" else module.rsplit(".", 1)[0]
+
+
+def bound_to(tree, front: str, dot: str | None = None) -> set:
+    """The names this file binds to the front module itself, however it imports it.
+
+    `dot` is what a single leading dot means here, because the package's own files reach a
+    front relatively - `from . import tray_popup` from beside it, `from .. import tray_popup`
+    from inside a subpackage - and those are most of the reads there are. Resolving the dots
+    is the difference between this scan seeing the product and seeing only the suite.
+    """
+    target = srcscan.PACKAGE + "." + front
+    names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names |= {alias.asname or alias.name for alias in node.names
+                      if alias.name == target}
+        elif isinstance(node, ast.ImportFrom):
+            if node.level and dot is None:
+                continue                              # a relative import outside the package
+            if node.level:
+                here = dot
+                for _ in range(node.level - 1):
+                    here = here.rsplit(".", 1)[0]
+                base = here + "." + node.module if node.module else here
+            else:
+                base = node.module or ""
+            if base == srcscan.PACKAGE:
+                names |= {alias.asname or alias.name for alias in node.names
+                          if alias.name == front}
+    return names
+
+
+def attributes_of(tree, names: set):
+    """`x.name` for every `x` in `names`, and only where `x` is the module.
+
+    Read from the tree rather than the text, which matters more than it sounds. `tray.` opens
+    half the interface catalogue's keys - `say(strings, "tray.title")` - and `control.` opens
+    every use of the control layer through an instance, `self.control.get_status()`. Both are
+    text that looks exactly like a read of a front and is not one; only the shape tells them
+    apart. It also means `tray_popup.py` in a sentence is a string, not the name `py`.
+    """
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
+                and node.value.id in names):
+            yield node.attr
+
+
 def reads(front: str) -> dict:
     """{name: [the files that read `front`.name]}, over every file above."""
-    pattern = re.compile(r"\b%s\.([A-Za-z_][A-Za-z0-9_]*)" % re.escape(front))
     found: dict[str, list[str]] = {}
     for path in readers():
         if path.name == "test_reexports.py":
             continue                                  # its own prose names them
-        for name in pattern.findall(path.read_text(encoding="utf-8")):
-            if name not in NOT_A_NAME:
-                found.setdefault(name, []).append(path.name)
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        names = bound_to(tree, front, one_dot(path))
+        if not names:
+            continue
+        for name in attributes_of(tree, names):
+            found.setdefault(name, []).append(path.name)
     return found
 
 
@@ -78,12 +129,35 @@ class ReExportTests(unittest.TestCase):
         self.assertEqual(missing, {}, "re-export it, or stop reading it there")
 
     def test_the_scan_finds_something_to_check(self):
-        """Not vacuous: each front is really read by name, in numbers."""
+        """Not vacuous: each front is really read by name, in numbers, and the reads it finds
+        include the ones made relatively from inside the package."""
         for front in FRONTS:
             with self.subTest(front):
                 self.assertGreater(len(reads(front)), 10)
         self.assertIn("USER_GROUPS", reads("mcpserver"))
-        self.assertIn("_icon_from_pixels", reads("tray_popup"))
+        popup = reads("tray_popup")
+        self.assertIn("_icon_from_pixels", popup)
+        # tray.py reaches it with `from . import tray_popup`, inside a method; resolving that
+        # dot is what makes this scan read the product rather than only the suite.
+        self.assertIn("tray.py", popup["_icon_from_pixels"])
+
+    def test_the_scan_reads_the_tree_and_not_the_text(self):
+        """The two shapes that look like a read of a front and are not.
+
+        `say(strings, "tray.title")` is a catalogue key - half the interface's keys begin with
+        a module's name - and `self.control.get_status()` is the control layer through an
+        instance. A scan over the text counts both; this one counts neither, which is why a
+        front may be named after something the vocabulary also talks about.
+        """
+        source = ("from codex_auto_resume import tray\n"
+                  "def f(self, strings):\n"
+                  "    say(strings, 'tray.title')\n"
+                  "    other = self.tray.stop\n"
+                  "    return tray.Tray, other\n")
+        tree = ast.parse(source)
+        names = bound_to(tree, "tray")
+        self.assertEqual(names, {"tray"})
+        self.assertEqual(sorted(attributes_of(tree, names)), ["Tray"])
 
     def test_a_front_holds_no_code_of_its_own(self):
         """It is a name other programs hold and a list of re-exports. Anything else in it is
@@ -107,28 +181,18 @@ class ReExportTests(unittest.TestCase):
 
 def product_reads(front: str) -> dict:
     """`front`.name as the product and its build scripts spell it - not the suite."""
-    pattern = re.compile(r"\b%s\.([A-Za-z_][A-Za-z0-9_]*)" % re.escape(front))
     found: dict[str, list[str]] = {}
     inside = "codex_auto_resume/%s/" % front
     for path in list(srcscan.package_files()) + sorted((ROOT / "build").glob("*.py")):
         if inside in path.as_posix():
             continue                                   # the package's own files
-        for name in pattern.findall(path.read_text(encoding="utf-8")):
-            if name not in NOT_A_NAME:
-                found.setdefault(name, []).append(path.name)
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        names = bound_to(tree, front, one_dot(path))
+        if not names:
+            continue
+        for name in attributes_of(tree, names):
+            found.setdefault(name, []).append(path.name)
     return found
-
-
-def aliases(tree, front: str) -> set:
-    """The names a test module binds to `front` itself."""
-    names = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == srcscan.PACKAGE:
-            names |= {alias.asname or alias.name for alias in node.names if alias.name == front}
-        elif isinstance(node, ast.Import):
-            names |= {alias.asname or alias.name for alias in node.names
-                      if alias.name == srcscan.PACKAGE + "." + front}
-    return names
 
 
 class PatchPointTests(unittest.TestCase):
@@ -151,7 +215,7 @@ class PatchPointTests(unittest.TestCase):
                 continue
             tree = ast.parse(path.read_text(encoding="utf-8"))
             for front in FRONTS:
-                names = aliases(tree, front)
+                names = bound_to(tree, front)
                 if not names:
                     continue
                 for node in ast.walk(tree):
