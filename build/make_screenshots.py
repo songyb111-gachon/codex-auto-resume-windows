@@ -107,10 +107,12 @@ COPIES = {PANEL: DOCS / "settings-panel.png", SETTINGS: DOCS / "settings-window.
 # when it changes what it computes.
 WINDOW_INPUTS = (
     ".codex-plugin/plugin.json",          # the version in the footer, and the version resource
-    "gui/SettingsApp.cs",                 # the window's layout and wording
-    "gui/Dashboard.cs",                   # the Dashboard pages
-    "gui/Controls.cs",                    # the soft controls both are drawn with
-    "gui/Brand.cs",                       # its palette
+    # Its C#, as one input: the compile list is `gui/window.sources` since v0.6.10-alpha,
+    # and naming the four files here would be the eighteenth copy of that list - one that
+    # goes quietly out of date the day the window is split into more files. `window_digest`
+    # below hashes every compiled source in compile order, so a file added to the window is
+    # an input without anybody adding it here.
+    "<window sources>",
     "gui/app.manifest",                   # its DPI awareness, and so its size
     "assets/codex-auto-resume.ico",       # the mark in the title bar, which is captured
     "build/capture_window.ps1",           # how much of the window is captured
@@ -2578,7 +2580,8 @@ def render_inputs() -> dict:
     will still fire this check unnecessarily. That is a real cost and it is the smaller one:
     the alternative is not noticing that the picture is wrong.
     """
-    inputs = {name: input_digest(ROOT / name) for name in WINDOW_INPUTS}
+    inputs = {name: (window_digest() if name == "<window sources>" else input_digest(ROOT / name))
+              for name in WINDOW_INPUTS}
     # One entry per locale, each rendered with that locale pinned.
     #
     # A single unpinned entry made the digest depend on the machine: the catalog is
@@ -2611,6 +2614,24 @@ def render_inputs() -> dict:
 # Hashed as bytes, because that is what they are. Everything else is source text.
 BINARY_INPUTS = (".ico", ".png", ".zip")
 
+
+
+def window_sources() -> list:
+    """The window's compile list, read from `gui/window.sources`, in compile order."""
+    names = [line.split("#", 1)[0].strip()
+             for line in (ROOT / "gui" / "window.sources").read_text(encoding="utf-8").splitlines()]
+    return [name for name in names if name]
+
+
+def window_digest() -> str:
+    """One digest over every compiled source, in compile order.
+
+    The order is part of it: csc takes its sources in the order given, and the release is
+    reproducible byte for byte, so two builds that compile the same files differently are two
+    different windows.
+    """
+    return sha256("".join("%s\0%s\0" % (name, input_digest(ROOT / name))
+                          for name in window_sources()).encode("utf-8"))
 
 def input_digest(path: Path) -> str:
     """Hash an input in a way a fresh checkout can reproduce.

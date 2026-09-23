@@ -55,6 +55,7 @@ from test_gui_layout import fullest_snapshot
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "build"))
 import make_brand                                    # noqa: E402
+import guiscan
 
 GUI = ROOT / "gui"
 ICO = ROOT / "assets" / "codex-auto-resume.ico"
@@ -698,7 +699,7 @@ class TaskbarMarkTests(unittest.TestCase):
         exe = work / "CodexAutoResumeSettings.exe"
         subprocess.run([str(CSC), "/nologo", "/target:winexe", "/platform:x64", "/out:" + str(exe),
                         "/reference:System.dll", "/reference:System.Drawing.dll", "/reference:System.Windows.Forms.dll",
-                        *[str(GUI / name) for name in ("SettingsApp.cs", "Dashboard.cs", "Controls.cs", "Brand.cs")]],
+                        *[str(path) for path in guiscan.sources()]],
                        check=True, capture_output=True, timeout=300)
         reply = {"ok": True, "language": "en", "strings": l10n.catalog("en"), "endonyms": dict(l10n.ENDONYMS),
                  "preference": "en", "system_language": "en"}

@@ -32,6 +32,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+import guiscan
 
 from codex_auto_resume import brand, l10n, machine, settings
 
@@ -268,9 +269,12 @@ class FooterTests(unittest.TestCase):
     """
 
     def setUp(self):
+        # By braces. This used to end at "the next `private void `" - a string that stops
+        # appearing the day the method after it is a `private static void`, after which the
+        # slice ran to the end of the file and every assertion below was made about the whole
+        # window rather than about the footer.
         self.source = SETTINGS.read_text(encoding="utf-8")
-        start = self.source.index("private void BuildFooter()")
-        self.method = self.source[start:self.source.index("private void ", start + 10)]
+        self.method = guiscan.member_body("SettingsForm", "BuildFooter")
 
     def test_the_height_is_measured_rather_than_derived_from_a_font(self):
         self.assertNotIn('MeasureText("Ag", Font).Height + Px(46)', self.method,
@@ -336,8 +340,7 @@ class NumericInsetTests(unittest.TestCase):
 
     def setUp(self):
         self.source = SETTINGS.read_text(encoding="utf-8")
-        start = self.source.index("private void GiveTextRoom(")
-        self.method = self.source[start:self.source.index("private static void ", start)]
+        self.method = guiscan.member_body("SettingsForm", "GiveTextRoom")
 
     def test_the_margin_goes_to_the_edit_control_underneath(self):
         self.assertIn("EM_SETMARGINS", self.method)
@@ -1412,8 +1415,7 @@ class LayoutAuditTests(unittest.TestCase):
         subprocess.run([str(CSC), "/nologo", "/target:winexe", "/platform:x64", "/out:" + str(exe),
                         "/reference:System.dll", "/reference:System.Drawing.dll",
                         "/reference:System.Windows.Forms.dll",
-                        *[str(ROOT / "gui" / name)
-                          for name in ("SettingsApp.cs", "Dashboard.cs", "Controls.cs", "Brand.cs")]],
+                        *[str(path) for path in guiscan.sources()]],
                        check=True, capture_output=True, timeout=300)
         current = dict(settings.defaults(), continuation_style="custom", custom_message_mode="per_reason")
         (work / "schema.json").write_text(json.dumps(settings.describe(), ensure_ascii=False), encoding="utf-8")
