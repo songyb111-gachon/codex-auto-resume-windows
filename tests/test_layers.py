@@ -62,6 +62,8 @@ LAYER = {_q(name): layer for layer, names in {
                  "store.errors", "store.journal", "store.legacy", "store.migrations",
                  "store.policy", "store.records", "store.reporting", "store.schema",
                  "store.session", "store.validate", "store.watcher",
+                 # v0.6.10-alpha: the Win32 handles and declarations more than one module needs.
+                 "win", "win.dll",
                  # v0.6.10-alpha: source.py became source/, and every part of it reads Codex.
                  "source.errors", "source.history", "source.labels",
                  "source.paths", "source.payload", "source.schema", "source.values"),
@@ -69,7 +71,9 @@ LAYER = {_q(name): layer for layer, names in {
                "engine.freshness", "engine.options", "engine.outcome", "engine.reconcile"),
     "control": ("control", "diagnostics"),
     "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcpui", "app", "tray", "tray_popup", "brand",
-              "notice_card", "notice_window", "notifier"),
+              "notice_card", "notice_window", "notifier",
+              # v0.6.10-alpha: what every surface writes the same way.
+              "ui", "ui.words"),
 }.items() for name in names}
 
 # The roles the target rules speak of: today's modules, and the packages the split moves them
@@ -83,7 +87,10 @@ UI = {_q(name) for name in ("tray", "tray_popup", "brand", "notice_card", "notic
 MCP = {_q("mcpserver"), _q("mcpui"), _q("mcp")}
 # What the UI may reach: the control layer, the public status mapping (machine, until it is
 # split into domain/), the i18n layer and the brand - and itself.
-UI_MAY_IMPORT = {_q("control"), _q("machine"), _q("domain.public"), _q("l10n"), _q("interface")} | UI
+# v0.6.10-alpha adds win/: the Win32 declarations a surface registers its window with, which
+# the icon used to own and the other two imported out of it - the cycle that is now gone.
+UI_MAY_IMPORT = ({_q("control"), _q("machine"), _q("domain.public"), _q("l10n"), _q("interface"),
+                  _q("win"), _q("win.dll")} | UI)
 PURE_STDLIB = {"__future__", "abc", "collections", "dataclasses", "decimal", "enum", "fractions", "functools",
                "hashlib", "itertools", "json", "math", "numbers", "operator", "re", "string", "textwrap",
                "types", "typing", "uuid"}
@@ -111,9 +118,6 @@ LAZY_CYCLES = {
     frozenset({_q("windows"), _q("compatio")}):
         "windows.verified_versions reads the bundled baseline through compatio, and compatio's "
         "probes read windows",
-    frozenset({_q("tray"), _q("tray_popup"), _q("notice_window"), _q("notice_card")}):
-        "tray_popup and notice_window take tray's Win32 structures (and the popup its countdown) "
-        "at load, and tray opens both inside functions",
 }
 
 # Every import made inside a function, with what it is for. Three kinds, and the test checks
@@ -147,8 +151,11 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
     ("notify", "startup"): ("cost", "the AUMID only: startup owns every per-user registration, and a "
                                     "process that only formats a message should not load it"),
     ("shortcut", "startup"): ("cost", "the default AUMID only, as for notify"),
-    ("tray", "notice_window"): ("cycle", "notice_window takes tray's Win32 structures at load"),
-    ("tray", "tray_popup"): ("cycle", "tray_popup takes tray's countdown and Win32 structures at load"),
+    # Since v0.6.10-alpha neither closes a cycle - the Win32 declarations and the countdown
+    # moved to win/ and ui/ - so both are what they always looked like: a window the icon opens
+    # only when somebody asks for it.
+    ("tray", "notice_window"): ("cost", "the notification card, opened when one is shown"),
+    ("tray", "tray_popup"): ("cost", "the popup, built when the icon is clicked"),
     ("windows", "compatio"): ("cycle", "VERIFIED_VERSIONS is read from the bundled baseline"),
     ("windows", "config"): ("cost", "the product version for the App Server's clientInfo, when a Protocol opens"),
 }.items()}

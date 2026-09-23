@@ -1081,32 +1081,41 @@ class PopupDrawingTests(unittest.TestCase):
         self.assertNotEqual(changed["tray.py"], moved["tray.py"])
         self.assertEqual(self.digest(changed), before, "the icon's own tooltip is not the popup's drawing")
 
-    def test_folding_the_real_dll_caches_and_structures_into_win_leaves_the_digest(self):
-        """Step 9 on the real modules: the popup's private DLL cache and the Win32 structures
-        it takes from the icon move into `win/dll.py`, each importer taking them back by name.
-        The key is the same; a change to the icon's real countdown is not."""
+    def test_what_the_popup_takes_from_win_and_ui_is_in_the_key(self):
+        """Step 9, done: the popup's DLL cache and the Win32 declarations it registers its
+        window with live in `win/dll.py`, and the countdown it draws in `ui/words.py`. Neither
+        is one of the popup's own modules, and what it takes from each by name is in the key
+        all the same - so a change to either moves the pictures, and this is where that is
+        checked on the real tree rather than on a made-up one.
+
+        The move itself left the key where it was; that was rehearsed here before it happened,
+        and the rehearsal is gone because the arrangement it described is the one on disk.
+        """
         package = ROOT / "src" / "codex_auto_resume"
-        real = {name: (package / name).read_text(encoding="utf-8") for name in ("tray_popup.py", "brand.py", "tray.py")}
         imported = [entry.split(" | ")[0] for entry in self.generator.imported_definitions(
             package, self.generator.popup_code_files(package))]
-        self.assertIn("countdown", imported)
-        self.assertIn("GUID", imported)
+        for name in ("countdown", "GUID", "WNDCLASSW"):
+            with self.subTest(name):
+                self.assertIn(name, imported, "%s is drawn with, so it belongs in the key" % name)
+        # `win.library()` is not, and should not be: the popup calls it through the package
+        # rather than by name, and what it hands back is handles. Handles draw nothing; the
+        # declarations above and the countdown below are what a picture depends on.
+
+        real = {name: (package / name).read_text(encoding="utf-8")
+                for name in ("tray_popup.py", "brand.py", "tray.py", "ui/words.py", "win/dll.py")}
         before = self.digest(real)
-        popup, cache = self.cut(real["tray_popup.py"], "_DLLS", "_dll")
-        tray, structures = self.cut(real["tray.py"], "LRESULT", "WNDPROC", "WNDCLASSW", "GUID")
-        imports = "from .tray import GUID, LRESULT, WNDCLASSW, WNDPROC"
-        self.assertIn(imports, popup)
-        moved = {
-            "tray_popup.py": popup.replace(imports, imports.replace(".tray", ".win.dll")) + "\nfrom .win.dll import _dll\n",
-            "brand.py": real["brand.py"],
-            "tray.py": tray + "\nfrom .win.dll import GUID, LRESULT, WNDCLASSW, WNDPROC\n",
-            "win/__init__.py": "",
-            "win/dll.py": "import ctypes as C\nfrom ctypes import wintypes as W\n\n" + structures + cache,
-        }
-        self.assertEqual(self.digest(moved), before)
-        recounted = dict(real, **{"tray.py": real["tray.py"].replace('"%ds" % secs', '"%d s" % secs', 1)})
-        self.assertNotEqual(recounted["tray.py"], real["tray.py"])
-        self.assertNotEqual(self.digest(recounted), before)
+        for what, (name, old, new) in {
+                "the countdown the popup shows": ("ui/words.py", '"%ds" % secs', '"%d s" % secs'),
+                "a declaration it registers": ("win/dll.py", "C.c_ssize_t", "C.c_longlong")}.items():
+            changed = dict(real)
+            self.assertIn(old, changed[name], what)
+            changed[name] = changed[name].replace(old, new, 1)
+            with self.subTest(what):
+                self.assertNotEqual(self.digest(changed), before, what + " did not move the digest")
+        # And the icon's own tooltip is still not the popup's drawing.
+        changed = dict(real, **{"tray.py": real["tray.py"].replace('"tray.title"', '"tray.name"', 1)})
+        self.assertNotEqual(changed["tray.py"], real["tray.py"])
+        self.assertEqual(self.digest(changed), before, "the icon's own tooltip is not the popup's")
 
     def test_the_spelling_of_a_tree_does_not_depend_on_the_python(self):
         """3.13 changed `ast.dump`'s default to leave empty fields out; the digest leaves them out
@@ -1230,7 +1239,10 @@ class CardPictureTests(unittest.TestCase):
     def real(self):
         package = ROOT / "src" / "codex_auto_resume"
         return {name: (package / name).read_text(encoding="utf-8")
-                for name in ("notice_card.py", "notice_window.py", "tray_popup.py", "brand.py", "tray.py")}
+                for name in ("notice_card.py", "notice_window.py", "tray_popup.py", "brand.py",
+                             # v0.6.10-alpha: the countdown and the Win32 declarations the card's
+                             # window is registered with moved here, and the digest follows them.
+                             "tray.py", "ui/words.py", "win/dll.py")}
 
     def test_the_patterns_cover_the_card_the_package_it_moves_into_and_the_popup_it_is_painted_by(self):
         with tempfile.TemporaryDirectory() as root:

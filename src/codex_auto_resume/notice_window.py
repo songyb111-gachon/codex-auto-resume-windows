@@ -37,11 +37,11 @@ import os
 import threading
 import time
 
-from . import brand, notice_card, notice_presence, tray_popup
+from . import brand, notice_card, notice_presence, tray_popup, win
 
 if os.name == "nt":
     from ctypes import wintypes as W
-    from .tray import LRESULT, WNDCLASSW, WNDPROC
+    from .win.dll import LRESULT, WNDCLASSW, WNDPROC
 else:                                              # pragma: no cover - the pure half only
     W = None
 
@@ -71,7 +71,6 @@ PIXEL_FORMAT_32BPP_PARGB = 0x000E200B
 INTERPOLATION_HIGH_QUALITY_BILINEAR, PIXEL_OFFSET_HALF, COMPOSITING_HIGH_SPEED = 6, 4, 1
 UNIT_PIXEL = 2
 
-_DLLS = {}
 _DECLARED = False
 _DECLARE_LOCK = threading.Lock()
 # GDI+ objects this module makes itself (the popup's renderer and shadow images count their own
@@ -89,11 +88,7 @@ def gdiplus_objects() -> int:
     return _LIVE["objects"]
 
 
-def _dll(name):
-    """This module's own handles, so its argument types never change another module's."""
-    if name not in _DLLS:
-        _DLLS[name] = C.WinDLL(name, use_last_error=True)
-    return _DLLS[name]
+_dll = win.library()      # handles of this module's own
 
 
 def _on_a_worker_thread(target, *args):

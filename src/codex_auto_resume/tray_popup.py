@@ -42,8 +42,8 @@ import os
 import threading
 import time
 
-from . import brand, l10n, machine, reasons
-from .tray import countdown
+from . import brand, l10n, machine, reasons, win
+from .ui.words import countdown
 
 # ---------------------------------------------------------------------------- the pure half
 WIDTH = 360                  # device-independent pixels at 96 DPI: the card and 12 px around it
@@ -1024,7 +1024,7 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
 # ============================================================================ the Win32 half
 if os.name == "nt":
     from ctypes import wintypes as W
-    from .tray import GUID, LRESULT, WNDCLASSW, WNDPROC
+    from .win.dll import GUID, LRESULT, WNDCLASSW, WNDPROC
 else:                                              # pragma: no cover - the pure half only
     W = None
 
@@ -1094,16 +1094,9 @@ def _pack(rgb, alpha=1.0) -> int:
     return (max(0, min(255, int(round(alpha * 255)))) << 24) | (red << 16) | (green << 8) | blue
 
 
-_DLLS = {}
 _DECLARED = False
 _DECLARE_LOCK = threading.Lock()
-
-
-def _dll(name):
-    """This module's own handles, so its argument types never change another module's."""
-    if name not in _DLLS:
-        _DLLS[name] = C.WinDLL(name, use_last_error=True)
-    return _DLLS[name]
+_dll = win.library()      # handles of this module's own
 
 
 if os.name == "nt":

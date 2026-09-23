@@ -1046,8 +1046,11 @@ class SafetyTests(unittest.TestCase):
                     stdlib.add(entry.target)
                 elif entry.target not in self.modules and not is_popup_module(entry.target):
                     package.add(entry.target)
-        self.assertLessEqual(package, {"codex_auto_resume." + name
-                                       for name in ("brand", "l10n", "machine", "reasons", "tray")})
+        # v0.6.10-alpha: `win` holds the Win32 handles and window declarations that used to be
+        # the icon's, and `ui.words` the countdown both surfaces write - neither can act.
+        self.assertLessEqual(package, {"codex_auto_resume"} | {"codex_auto_resume." + name
+                                       for name in ("brand", "l10n", "machine", "reasons", "tray",
+                                                    "ui", "ui.words", "win", "win.dll")})
         for forbidden in ("engine", "backend", "windows", "store", "source", "app", "continuation",
                           "notify", "control", "controlcli", "mcpserver"):
             for name in package:

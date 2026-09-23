@@ -23,15 +23,9 @@ import os
 import sys
 import time
 
-_DLLS = {}
+from . import win
 
-
-def _dll(name):
-    """This module's own handle on a system DLL, for the reason tray.py keeps its own: argument
-    types set on `ctypes.windll` would be set for every other module in the process too."""
-    if name not in _DLLS:
-        _DLLS[name] = C.WinDLL(name, use_last_error=True)
-    return _DLLS[name]
+_dll = win.library()      # handles of this module's own
 
 
 class GUID(C.Structure):
