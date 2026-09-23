@@ -118,11 +118,13 @@ class TreeTests(unittest.TestCase):
         domain = srcscan.PACKAGE + ".domain"
         importers = {module for module, path in srcscan.modules().items() if not module.startswith(domain)
                      and any(entry.target.startswith(domain + ".") for entry in srcscan.imports(path))}
-        self.assertIn(srcscan.PACKAGE + ".store", importers)
+        # v0.6.10-alpha: the store is a package, so the module that reads identifiers through
+        # domain/ is store.validate rather than store itself.
+        self.assertIn(srcscan.PACKAGE + ".store.validate", importers)
         self.assertEqual(implied, {("auto_resume", srcscan.PACKAGE, False, True)}
                          | {(module, domain, False, True) for module in importers})
         self.assertIn(srcscan.PACKAGE, srcscan.import_graph()["auto_resume"])
-        self.assertIn(domain, srcscan.import_graph()[srcscan.PACKAGE + ".store"])
+        self.assertIn(domain, srcscan.import_graph()[srcscan.PACKAGE + ".store.validate"])
 
 
 class NoOneFileScanTests(unittest.TestCase):

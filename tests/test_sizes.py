@@ -55,7 +55,6 @@ def hold(test):
 OVERSIZED = {
     "codex_auto_resume/tray_popup.py": 2858,
     "codex_auto_resume/mcpui.py": 2332,
-    "codex_auto_resume/store.py": 1565,
     "codex_auto_resume/tray.py": 1209,
     "codex_auto_resume/engine.py": 1083,
     "codex_auto_resume/brand.py": 979,
