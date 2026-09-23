@@ -109,7 +109,7 @@ class ThemeResolutionTests(unittest.TestCase):
         self.assertEqual(popup.theme_setting(), "system")
         popup.adopt_settings({"theme": "light", "reduce_motion": True, "interface_language": "ko"})
         self.assertEqual(popup.theme_setting(), "light")
-        self.assertIs(popup._reduce_motion_setting, True)
+        self.assertIs(popup.theme._reduce_motion_setting, True)
         popup.adopt_settings(None)                                   # nothing to adopt changes nothing
         self.assertEqual(popup.theme_setting(), "light")
 
@@ -417,12 +417,12 @@ class NextOpenTests(unittest.TestCase):
         self.icon._adopt_settings()
         self.assertEqual(self.icon.strings, interface.STRINGS["ko"])
         self.assertEqual(popup.theme_setting(), "dark")
-        self.assertIs(popup._reduce_motion_setting, True)
+        self.assertIs(popup.theme._reduce_motion_setting, True)
         self.control.store(interface_language="pt-BR", theme="light", reduce_motion=False)
         self.icon._adopt_settings()
         self.assertEqual(self.icon.strings, interface.STRINGS["pt-BR"])
         self.assertEqual(popup.theme_setting(), "light")
-        self.assertIs(popup._reduce_motion_setting, False)
+        self.assertIs(popup.theme._reduce_motion_setting, False)
         self.assertEqual(self.logged, [])
 
     def test_an_unchanged_file_is_not_read_again(self):
@@ -787,10 +787,10 @@ class PopupThemeTests(unittest.TestCase):
     def setUp(self):
         restore_preferences(self)
         self.mode = {"light": False}
-        patcher = unittest.mock.patch.object(popup, "apps_use_light_theme", lambda: self.mode["light"])
+        patcher = unittest.mock.patch.object(popup.theme, "apps_use_light_theme", lambda: self.mode["light"])
         patcher.start()
         self.addCleanup(patcher.stop)
-        contrast = unittest.mock.patch.object(popup, "high_contrast", lambda: False)
+        contrast = unittest.mock.patch.object(popup.theme, "high_contrast", lambda: False)
         contrast.start()
         self.addCleanup(contrast.stop)
 
@@ -854,7 +854,7 @@ class PopupThemeTests(unittest.TestCase):
 
     def test_high_contrast_wins_in_the_window_too(self):
         popup.set_theme("dark")
-        with unittest.mock.patch.object(popup, "high_contrast", lambda: True):
+        with unittest.mock.patch.object(popup.theme, "high_contrast", lambda: True):
             window = self.window()
             window.show(activate=False, origin=OFFSCREEN)
             self.pump(0.1)
