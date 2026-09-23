@@ -113,9 +113,14 @@ class TreeTests(unittest.TestCase):
         self.assertTrue(top)
         self.assertEqual({name for name in top if not name.startswith(tray_popup.__name__ + ".")},
                          {"__future__"})
-        icon = {(entry.target, entry.lazy) for entry in srcscan.imports(srcscan.modules()[tray.__name__])}
+        # Since v0.6.10-alpha the icon is a package too, and the popup is reached from the four
+        # files that need it rather than from one - always inside a function, because building
+        # a popup is what a click costs and the icon must not pay it to start.
+        icon = {(entry.target, entry.lazy)
+                for name in ("tray.animation", "tray.cards", "tray.clicks", "tray.menu")
+                for entry in srcscan.imports(srcscan.modules()["codex_auto_resume." + name])}
         self.assertIn(("codex_auto_resume.tray_popup", True), icon)      # inside a function
-        self.assertNotIn(("codex_auto_resume", False), icon, "`from . import x` names x, not the package")
+        self.assertNotIn(("codex_auto_resume", False), icon, "`from .. import x` names x, not the package")
         self.assertIn("codex_auto_resume.cli", srcscan.import_graph()["auto_resume"])
         self.assertIn("codex_auto_resume.tray_popup", srcscan.closure("codex_auto_resume.tray"))
         self.assertNotIn("codex_auto_resume.tray_popup", srcscan.closure("codex_auto_resume.tray", lazy=False))

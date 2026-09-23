@@ -191,7 +191,7 @@ class ProcessTests(unittest.TestCase):
         "codex_auto_resume/compatio.py": "`codex --version`, `codex queue --help`, and the bootstrap's -Compatibility fetch",
         "codex_auto_resume/pwsh.py": "the one place PowerShell is run",
         "codex_auto_resume/control.py": "starts the watcher, detached (a lazy import in start_watcher)",
-        "codex_auto_resume/tray.py": "opens the settings window from the icon",
+        "codex_auto_resume/tray/dashboard.py": "opens the settings window from the icon",
         "codex_auto_resume/notify.py": "catches SubprocessError from pwsh.run",
         "codex_auto_resume/shortcut.py": "catches SubprocessError from pwsh.run",
     }

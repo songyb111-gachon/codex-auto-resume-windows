@@ -75,6 +75,11 @@ LAYER = {_q(name): layer for layer, names in {
               "mcp", "mcp.server", "mcp.tools",
               "tray_popup", "brand",
               "notice_card", "notice_window", "notifier",
+              # v0.6.10-alpha: tray.py became tray/ - the same icon in eleven files, all of
+              # them the front. `UI` below covers them by prefix.
+              "tray.animation", "tray.cards", "tray.clicks", "tray.dashboard", "tray.icon",
+              "tray.menu", "tray.model", "tray.motion", "tray.stored", "tray.win32",
+              "tray.words",
               # v0.6.10-alpha: what every surface writes the same way.
               "ui", "ui.words",
               # v0.6.10-alpha: tray_popup.py became tray_popup/ - the same popup in twelve
@@ -116,8 +121,9 @@ UI_EXCEPTIONS = {
                                        "category is recoverable and whether it has a reset time",
     (_q("notice_window"), _q("notice_presence")): "the card reads battery saver and the message duration "
                                                   "from the presence probes, which are Windows adapters",
-    (_q("tray"), _q("tray_place")): "the icon asks where Windows keeps it and whether battery saver is on "
-                                    "before it moves; both are Windows adapters (win/ takes them at step 9)",
+    (_q("tray.animation"), _q("tray_place")): "the icon asks where Windows keeps it and whether battery "
+                                              "saver is on before it moves; both are Windows adapters "
+                                              "(win/ takes them at step 9)",
 }
 
 # Import cycles, which exist only through imports made inside functions. Each is removed by
@@ -163,8 +169,13 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
     # Since v0.6.10-alpha neither closes a cycle - the Win32 declarations and the countdown
     # moved to win/ and ui/ - so both are what they always looked like: a window the icon opens
     # only when somebody asks for it.
-    ("tray", "notice_window"): ("cost", "the notification card, opened when one is shown"),
-    ("tray", "tray_popup"): ("cost", "the popup, built when the icon is clicked"),
+    ("tray.animation", "tray_popup"): ("cost", "a frame's drawing, only while the icon moves"),
+    ("tray.cards", "tray_popup"): ("cost", "the card's look, only when one is shown"),
+    ("tray.cards", "notice_window"): ("cost", "the card's window, only when one is shown"),
+    ("tray.clicks", "tray_popup"): ("cost", "the popup, built when the icon is clicked"),
+    ("tray.menu", "tray_popup"): ("cost", "the theme the menu is drawn in, only when it opens"),
+    ("tray.motion", "tray_popup"): ("cost", "whether the popup asks for attention"),
+    ("tray.stored", "tray_popup"): ("cost", "the popup's theme and motion, adopted with the settings"),
     ("windows", "compatio"): ("cycle", "VERIFIED_VERSIONS is read from the bundled baseline"),
     ("windows", "config"): ("cost", "the product version for the App Server's clientInfo, when a Protocol opens"),
 }.items()}
