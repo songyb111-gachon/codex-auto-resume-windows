@@ -54,7 +54,10 @@ APP_TREES = ("src", "scripts", "skills", ".codex-plugin", ".agents", "assets")
 # capability would fall back to the local checks alone. Checked after the copy, and the
 # baseline is also parsed by the validator that will read it, so a build cannot ship data
 # the product would refuse.
-REQUIRED_APP_FILES = ("src/codex_auto_resume/data/codex_compat.json",)
+REQUIRED_APP_FILES = ("src/codex_auto_resume/data/codex_compat.json",
+                      # Without these the panel in Codex is an empty white rectangle.
+                      "src/codex_auto_resume/mcp/assets/panel.css",
+                      "src/codex_auto_resume/mcp/assets/panel.js")
 # Built, not copied from the working tree: see build/make_gui.ps1.
 GUI_EXE = "CodexAutoResumeSettings.exe"
 # Codex only accepts a plugin MCP command that is a bare executable name or a path

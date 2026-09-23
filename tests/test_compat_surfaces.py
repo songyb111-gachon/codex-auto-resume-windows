@@ -352,13 +352,19 @@ class McpTests(unittest.TestCase):
         # tool body moved out of mcpserver.py cannot take one with it unseen. (The panel's
         # `compat-refresh` is the CSS class of a help paragraph, not a command.)
         package = "codex_auto_resume/%s.py"
-        for forbidden, holders in (("compat-import", {"controlcli"}),
-                                   ("compat-refresh", {"controlcli", "mcpui"}),
-                                   ("run_refresh", {"compatio", "controlcli"}),
-                                   ("import_document", {"cli", "compatio", "controlcli"}),
-                                   ("bootstrap.ps1", {"compatio", "controlcli"})):
+        # v0.6.10-alpha moved the panel's stylesheet and script out of `mcpui.py` into
+        # `mcp/assets/`, and `srcscan.holders` reads those too - so `compat-refresh`, which is
+        # the CSS class of a help paragraph, is found where it now lives rather than nowhere.
+        for forbidden, holders in (("compat-import", {package % "controlcli"}),
+                                   ("compat-refresh", {package % "controlcli",
+                                                       "codex_auto_resume/mcp/assets/panel.css",
+                                                       "codex_auto_resume/mcp/assets/panel.js"}),
+                                   ("run_refresh", {package % "compatio", package % "controlcli"}),
+                                   ("import_document", {package % "cli", package % "compatio",
+                                                        package % "controlcli"}),
+                                   ("bootstrap.ps1", {package % "compatio", package % "controlcli"})):
             with self.subTest(forbidden):
-                self.assertEqual(srcscan.holders(forbidden), {package % name for name in holders})
+                self.assertEqual(srcscan.holders(forbidden), holders)
 
     def test_no_experimental_setting_can_ever_be_offered_to_a_model(self):
         """M9, for v0.6.11's opt-ins. The schema is generated from the settings module, so a
@@ -534,9 +540,21 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn(Path(name).parts[0], self.builder.APP_TREES)
 
     def test_a_payload_without_valid_data_stops_the_build(self):
+        data = "src/codex_auto_resume/data/codex_compat.json"
         with tempfile.TemporaryDirectory() as folder:
             stage = Path(folder)
-            target = stage / "payload" / "app" / "src" / "codex_auto_resume" / "data" / "codex_compat.json"
+            app = stage / "payload" / "app"
+            target = app / data
+            with self.assertRaises(SystemExit):
+                self.builder.check_app_files(stage)
+            # Every other file the build requires is there; the registry's data is the one
+            # under test. Written this way so a file added to REQUIRED_APP_FILES - the panel's
+            # stylesheet and script were, in v0.6.10-alpha - does not have to be named again.
+            for name in self.builder.REQUIRED_APP_FILES:
+                if name == data:
+                    continue
+                (app / name).parent.mkdir(parents=True, exist_ok=True)
+                (app / name).write_bytes((ROOT / name).read_bytes())
             with self.assertRaises(SystemExit):
                 self.builder.check_app_files(stage)
             target.parent.mkdir(parents=True)
@@ -545,6 +563,10 @@ class ReleaseTests(unittest.TestCase):
                 self.builder.check_app_files(stage)
             target.write_bytes(compatio.BUNDLED.read_bytes())
             self.builder.check_app_files(stage)
+            # And a payload that has the data but not the panel's own files is refused too.
+            (app / "src/codex_auto_resume/mcp/assets/panel.js").unlink()
+            with self.assertRaises(SystemExit):
+                self.builder.check_app_files(stage)
 
     def test_the_smoke_test_checks_the_shipped_data(self):
         text = (ROOT / "build" / "smoke_archive.py").read_text(encoding="utf-8")
