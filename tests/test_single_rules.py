@@ -618,7 +618,7 @@ RULES = {
     "what a claim costs": (
         lambda node: isinstance(node, ast.IfExp) and constant(node.body, 0) and constant(node.orelse, 1)
         and any(calls("is_usage")(child) for child in ast.walk(node.test)),
-        {"store.py": "_claim_cost"}),
+        {"store/validate.py": "_claim_cost"}),
     "a budget counter charged or refunded in SQL by hand": (
         lambda node: isinstance(node, ast.Constant) and isinstance(node.value, str) and bool(re.search(
             r"(recovery_attempts|chain_continuations)\s*=\s*(max\(0,\s*)?\1\s*[-+]", node.value)),

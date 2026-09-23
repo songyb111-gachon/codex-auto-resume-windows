@@ -55,7 +55,13 @@ LAYER = {_q(name): layer for layer, names in {
     "domain": ("failures", "reasons", "machine", "domain", "domain.ids", "domain.vocabulary"),
     "policy": ("", "settings", "continuation", "l10n", "messages", "interface", "config", "logbook"),
     "adapters": ("store", "openstate", "source", "windows", "compat", "compatio", "startup", "shortcut",
-                 "pwsh", "notify", "notice_presence", "tray_place"),
+                 "pwsh", "notify", "notice_presence", "tray_place",
+                 # v0.6.10-alpha: store.py became store/. Every part of it is the same layer
+                 # the one module was, and `STORE` below covers them by prefix.
+                 "store.actions", "store.claims", "store.columns", "store.downgrade",
+                 "store.errors", "store.journal", "store.legacy", "store.migrations",
+                 "store.policy", "store.records", "store.reporting", "store.schema",
+                 "store.session", "store.validate", "store.watcher"),
     "engine": ("engine",),
     "control": ("control", "diagnostics"),
     "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcpui", "app", "tray", "tray_popup", "brand",
