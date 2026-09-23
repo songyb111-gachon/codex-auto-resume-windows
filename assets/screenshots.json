@@ -30,7 +30,7 @@
     "assets/codex-auto-resume.ico": "45c3f3a0d02d78f9be0b80532eedc2f524cd7ebe1056007dacdb286ca743bd52",
     "build/capture_window.ps1": "27bd4d1e0b16b4b7cc08247b8b4c69e8d027538f8760532776d80b072a7ecfa9",
     "build/make_gui.ps1": "7846ef0e6b380b2467a4c00de3c5b46602cd9a3aa7d28fbf4bc85b0e88c985fb",
-    "build/make_screenshots.py": "f02020ee0486055b849eb5183864ac6818edad65e32dcf9d87384636b3930cf7",
+    "build/make_screenshots.py": "90155c04547c70ede62d45675b57e78839eaf64e7f2e0b140660b2237d06742b",
     "<bridge envelope:en>": "d1e35d0ec7e3bfd9947c400c2fd521a384769715cca6464053301de364623948",
     "<panel render:en>": "6b8bbb50116e90499f452d33f4b9c899adbaa79f0c2ad8d0fae53ed463179b82",
     "<popup render:en>": "9a52dba899a32c1b068e96abc6b0f3f613fa4934016c44450aac84d69e1f493a",
@@ -51,8 +51,8 @@
     "<panel render:de>": "0a4a6b8f3f9a470c9ee73f3cd96d065fd34c767ffeabf230aa94db0dce597422",
     "<popup render:de>": "2df33c6696a1d5e39ed97cef634810d92366aa1de7029528998fdd78b3c0bb48",
     "<card render:de>": "9a8976a00f855c6cdb91f92d98e812b46cf136622a9a574cba923030692d0888",
-    "<icon motion>": "bdb063e8c9af6a16baf0f3c39db4d0306d59f646b1218f205c054c5df792e27d",
-    "<light motion>": "6a928626cf787c7d23b20ec6be1e10dae637fcdfdbe51939fd881258c741bc5c"
+    "<icon motion>": "b93f03d2a615543d8a5bec2ca3108f80d5fa62ad3036621a5111d2a6c869dbd1",
+    "<light motion>": "80c99ec0e25319f80875a7e5538e8609927a8cf23984a83447a8e6c659924b24"
   },
   "images": {
     "assets/screenshot-panel.png": {

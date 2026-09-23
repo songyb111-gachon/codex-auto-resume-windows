@@ -51,8 +51,8 @@ class ListingTests(unittest.TestCase):
         self.assertEqual(Path(codex_auto_resume.__file__).resolve(),
                          srcscan.modules()[srcscan.PACKAGE].resolve())
         self.assertEqual(srcscan.module_name(srcscan.SRC / "codex_auto_resume" / "cli.py"), "codex_auto_resume.cli")
-        self.assertEqual(srcscan.files_of("codex_auto_resume.brand"),
-                         [srcscan.modules()["codex_auto_resume.brand"]])
+        self.assertEqual(srcscan.files_of("codex_auto_resume.machine"),
+                         [srcscan.modules()["codex_auto_resume.machine"]])
         # A package gives every file in it: since v0.6.10-alpha the popup is thirteen, and a
         # rule written about `tray_popup` covers all of them without naming one.
         self.assertEqual(len(srcscan.files_of("codex_auto_resume.tray_popup")), 13)
