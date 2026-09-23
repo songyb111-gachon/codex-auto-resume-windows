@@ -40,7 +40,7 @@ import frozen_registry  # noqa: E402
 from codex_auto_resume import config, machine, windows  # noqa: E402
 from codex_auto_resume.app import App  # noqa: E402
 from codex_auto_resume.engine import Engine  # noqa: E402
-from codex_auto_resume.source import LocalSource  # noqa: E402
+from codex_auto_resume.codex import LocalSource  # noqa: E402
 from codex_auto_resume.store import Store  # noqa: E402
 
 

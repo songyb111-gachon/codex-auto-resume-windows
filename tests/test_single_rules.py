@@ -41,7 +41,7 @@ from test_control_v3 import detection, legacy_store_module  # noqa: E402
 from test_store import QUEUE, _StoreCase  # noqa: E402
 
 from codex_auto_resume import (cli, compat, config, continuation, control, controlcli,  # noqa: E402
-                               mcpserver, notify, reasons, settings, source, store as store_module,
+                               codex, mcpserver, notify, reasons, settings, store as store_module,
                                tray, windows)
 from codex_auto_resume.app import App  # noqa: E402
 from codex_auto_resume.engine import Engine  # noqa: E402
@@ -500,7 +500,7 @@ class EpochTests(unittest.TestCase):
                           4102444801, 253402300799, Stamp(1700000000)])
 
     def test_codex_history_accepts_2000_to_2100(self):
-        self.assertEqual(accepted_by(source.epoch),
+        self.assertEqual(accepted_by(codex.epoch),
                          [946684800, 1700000000, 1.7e9, 1700000000.5, 4102444800])
 
     def test_the_app_servers_usage_windows_accept_whole_seconds_to_2100(self):
@@ -521,7 +521,7 @@ class EpochTests(unittest.TestCase):
         """Also drift, and kept: the callers that ask math.isfinite raise its OverflowError
         for a whole number past float range, where the App Server's reading only says no."""
         huge = 2 ** 1100
-        for check in (lambda: store_module._timestamp(huge, "at"), lambda: source.epoch(huge),
+        for check in (lambda: store_module._timestamp(huge, "at"), lambda: codex.epoch(huge),
                       lambda: compat._epoch_or_none(huge)):
             with self.assertRaises(OverflowError):
                 check()

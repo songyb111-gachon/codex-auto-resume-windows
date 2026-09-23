@@ -117,6 +117,11 @@ def bound_to(tree, front: str, dot: str | None = None) -> set:
     front relatively - `from . import tray_popup` from beside it, `from .. import tray_popup`
     from inside a subpackage - and those are most of the reads there are. Resolving the dots
     is the difference between this scan seeing the product and seeing only the suite.
+
+    `front` is a dotted name, not a bare one, because a front does not have to sit directly
+    under the package: `ui.popup` is one. The statement is resolved to an absolute name and
+    compared whole, so `from codex_auto_resume.ui import popup` and `from ..ui import popup`
+    are both found - which they were not while this compared a bare name against the package.
     """
     target = srcscan.PACKAGE + "." + front
     names = set()
@@ -134,9 +139,8 @@ def bound_to(tree, front: str, dot: str | None = None) -> set:
                 base = here + "." + node.module if node.module else here
             else:
                 base = node.module or ""
-            if base == srcscan.PACKAGE:
-                names |= {alias.asname or alias.name for alias in node.names
-                          if alias.name == front}
+            names |= {alias.asname or alias.name for alias in node.names
+                      if base + "." + alias.name == target}
     return names
 
 

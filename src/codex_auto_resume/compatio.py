@@ -35,7 +35,7 @@ import tempfile
 import time
 
 from . import compat, config, machine
-from . import source as codex_source
+from . import codex as codex_source
 
 BUNDLED = Path(__file__).resolve().parent / "data" / "codex_compat.json"
 REFRESH_TIMEOUT_SECONDS = 150

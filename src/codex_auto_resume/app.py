@@ -14,7 +14,7 @@ import uuid
 from . import compatio, config, l10n, notifier, settings as policy
 from .engine import Engine
 from .logbook import LOGGER_NAME, EngineLog, setup_logging
-from .source import LocalSource
+from .codex import LocalSource
 from .openstate import open_state
 from .store import SCHEMA_VERSION, RecordSchemaMismatch, StateFromNewerVersion, Store, StoreError
 from .windows import AdapterError, Backend, HomeLock, Mutex, StopEvent, WakeEvent, wait_any

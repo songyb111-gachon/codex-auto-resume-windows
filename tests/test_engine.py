@@ -35,7 +35,7 @@ if _HERE not in sys.path:
 from codexsim import APP, BASE, RESET, USAGE_ERROR, CodexHome, SimBackend, new_id, transient_error  # noqa: E402
 from codex_auto_resume import machine, settings  # noqa: E402
 from codex_auto_resume.engine import BACKOFF_LADDER, Engine, backoff_delay  # noqa: E402
-from codex_auto_resume.source import LocalSource, detect  # noqa: E402
+from codex_auto_resume.codex import LocalSource, detect  # noqa: E402
 from codex_auto_resume.store import Store  # noqa: E402
 
 SRC = str(Path(__file__).resolve().parents[1] / "src")

@@ -222,7 +222,7 @@ class ManifestTests(unittest.TestCase):
         from codex_auto_resume.control import records as control_records
         from codex_auto_resume import (compatio, config, continuation, control, controlcli, l10n,
                                        machine, settings, startup, windows)
-        from codex_auto_resume.source import LocalSource
+        from codex_auto_resume.codex import LocalSource
         from codex_auto_resume.store import Store
 
         def changed(owner, name, change):

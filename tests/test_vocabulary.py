@@ -79,7 +79,7 @@ LISTS = {
     "failures.USAGE_LIMIT": "usage_limit",
     "failures.UNKNOWN": "unknown",
     "store.ENGINE_STATES": ("set", 6, "a40ef34f9adea697"),
-    "source.KNOWN_STATUSES": ("set", 4, "23d2734c27812d29"),
+    "codex.KNOWN_STATUSES": ("set", 4, "23d2734c27812d29"),
     "logbook.STATE_CODES": ("set", 27, "5cac947c5c3bb648"),
     "control.ERROR_CODES": ("set", 23, "f5946a4030e69cad"),
     "control.FALLBACK_CODE": "request_failed",
@@ -345,13 +345,13 @@ class HomeTests(unittest.TestCase):
 
     def test_the_words_spelled_beside_a_vocabulary_are_its_members(self):
         from codex_auto_resume import (compat, continuation, control, failures, l10n, machine, mcpserver,
-                                       settings, source, tray_popup, windows)
+                                       codex, settings, tray_popup, windows)
         self.assertLessEqual(set(v.WithdrawReason), set(v.ReasonCode))
         self.assertEqual(list(compat.COARSE.values()), list(v.EngineState))
         self.assertEqual(list(mcpserver.Server.START_WORDING), ["running", "already-running", "exited", "unconfirmed"])
         self.assertEqual(set(mcpserver.Server.START_WORDING), set(v.WatcherStartState))
         self.assertLessEqual(tray_popup.ATTENTION_OVERLAYS, set(v.Overlay))
-        self.assertEqual(source.KNOWN_STATUSES, set(v.TurnStatus) - {v.TurnStatus.OTHER})
+        self.assertEqual(codex.KNOWN_STATUSES, set(v.TurnStatus) - {v.TurnStatus.OTHER})
         self.assertEqual(l10n.CHOICES, (l10n.SYSTEM,) + tuple(v.Locale))
         self.assertEqual(settings.CONTINUATION_LANGUAGES, (settings.FOLLOW_INTERFACE,) + tuple(v.Locale))
         for word, cls in ((machine.PASS, v.GateResult), (machine.WAIT, v.GateResult), (machine.BLOCK, v.GateResult),

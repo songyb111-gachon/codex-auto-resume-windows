@@ -355,7 +355,7 @@ class NotARecoveryEngineTests(ControlTestCase):
         control_files = srcscan.files_of("codex_auto_resume.control")
         for path in control_files:
             text = srcscan.read(path)
-            for module in ("engine", "source"):
+            for module in ("engine", "codex"):
                 with self.subTest(file=srcscan.relative(path), module=module):
                     self.assertEqual(re.findall(r"(?m)^[ \t]*from \.+%s\b.*" % module, text), [])
                     self.assertEqual(re.findall(r"(?m)^[ \t]*from \.+ import .*\b%s\b.*" % module, text), [])
@@ -369,7 +369,7 @@ class NotARecoveryEngineTests(ControlTestCase):
         # them, once it is a package (`engine.dispatch`) - are exactly the ones that always
         # have, and control is not one of them. A package's own modules importing each other
         # are not counted.
-        guarded = {name: "codex_auto_resume." + name for name in ("engine", "source")}
+        guarded = {name: "codex_auto_resume." + name for name in ("engine", "codex")}
 
         def within(name, root):
             return name == root or name.startswith(root + ".")
@@ -395,7 +395,7 @@ class NotARecoveryEngineTests(ControlTestCase):
             # Since v0.6.10-alpha the engine is a package, and the one module of it that reads
             # Codex directly is `engine/detect.py` - the exception `tests/test_layers.py`
             # names, in the place it now lives.
-            "source": {package % name for name in ("app", "compatio", "controlcli")}
+            "codex": {package % name for name in ("app", "compatio", "controlcli")}
                       | {"codex_auto_resume/engine/detect.py"},
         }, "the set of modules that reach the engine or the source has changed")
 

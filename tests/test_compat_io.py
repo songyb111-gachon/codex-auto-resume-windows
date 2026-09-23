@@ -24,7 +24,7 @@ if _HERE not in sys.path:
 from codexsim import CodexHome  # noqa: E402
 from test_compat_characterization import (HELP_CHANGED, T1, FakeCodex, Fixture)  # noqa: E402
 from codex_auto_resume import compat, compatio, config, machine, windows  # noqa: E402
-from codex_auto_resume.source import LocalSource  # noqa: E402
+from codex_auto_resume.codex import LocalSource  # noqa: E402
 from codex_auto_resume.store import Store  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]

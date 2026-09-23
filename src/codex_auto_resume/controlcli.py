@@ -235,7 +235,7 @@ def _labels():
     addressed by what is shown here.
     """
     try:
-        from .source import LocalSource
+        from .codex import LocalSource
         return LocalSource(config.codex_home())
     except Exception:
         return None
