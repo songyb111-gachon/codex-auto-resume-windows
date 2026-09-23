@@ -16,6 +16,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import guiscan
 
 ROOT = Path(__file__).resolve().parents[1]
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
@@ -64,7 +65,7 @@ class ParserRobustnessTests(unittest.TestCase):
                         "/reference:System.dll", "/reference:System.Drawing.dll",
                         "/reference:System.Windows.Forms.dll",
                         # The settings window's sources, as build/make_gui.ps1 lists them.
-                        *[str(ROOT / "gui" / name) for name in ("SettingsApp.cs", "Dashboard.cs", "Controls.cs", "Brand.cs")]],
+                        *[str(path) for path in guiscan.sources()]],
                        check=True, capture_output=True, timeout=180)
         env = dict(os.environ, CAR_EXE=str(exe))
         result = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", PROBE],

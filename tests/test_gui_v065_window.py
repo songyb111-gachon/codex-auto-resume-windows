@@ -28,6 +28,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+import guiscan
 
 from codex_auto_resume import brand, l10n
 
@@ -302,8 +303,7 @@ class WindowReviewTests(unittest.TestCase):
         subprocess.run([str(CSC), "/nologo", "/target:winexe", "/platform:x64", "/out:" + str(exe),
                         "/reference:System.dll", "/reference:System.Drawing.dll",
                         "/reference:System.Windows.Forms.dll",
-                        *[str(ROOT / "gui" / name)
-                          for name in ("SettingsApp.cs", "Dashboard.cs", "Controls.cs", "Brand.cs")]],
+                        *[str(path) for path in guiscan.sources()]],
                        check=True, capture_output=True, timeout=300)
 
         def reply(locale):

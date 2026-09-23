@@ -55,6 +55,7 @@ _HERE = str(Path(__file__).resolve().parent)
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)        # srcscan lives next to this file
 
+import guiscan
 import srcscan  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -201,14 +202,21 @@ class ManifestTests(unittest.TestCase):
         """
         generator = self.generator()
         inputs = set(generator.WINDOW_INPUTS)
-        build = (ROOT / "build" / "make_gui.ps1").read_text(encoding="utf-8")
-        window = re.search(r"Build -Name 'CodexAutoResumeSettings\.exe'.*?-Sources @\(([^\n]*)", build, re.S)
-        compiled = {"gui/" + name for name in re.findall(r"gui\\([A-Za-z]+\.cs)", window.group(1))}
+        # `gui/window.sources`, not a regex over the build script. That regex read
+        # `gui\\([A-Za-z]+\.cs)` out of the `-Sources` line, and its character class holds no
+        # digit and no dot: a source named `Controls2.cs` or `Dashboard.Pages.cs` was missed
+        # silently, and this test then said the window's inputs were complete. Since
+        # v0.6.10-alpha the build reads the same file, so there is one answer to compare with.
+        compiled = set(guiscan.manifest())
         self.assertIn("gui/Dashboard.cs", compiled)
         self.assertIn("gui/SettingsApp.cs", compiled)
-        expected = compiled | {"gui/app.manifest", "assets/codex-auto-resume.ico",
-                               ".codex-plugin/plugin.json", "build/capture_window.ps1",
-                               "build/make_gui.ps1", "build/make_screenshots.py"}
+        # The sources are one input, `<window sources>`, whose value is every compiled file
+        # in compile order - so a file added to the window is an input without this list, or
+        # any other, being edited.
+        self.assertIn("<window sources>", inputs)
+        expected = {"<window sources>", "gui/app.manifest", "assets/codex-auto-resume.ico",
+                    ".codex-plugin/plugin.json", "build/capture_window.ps1",
+                    "build/make_gui.ps1", "build/make_screenshots.py"}
         self.assertEqual(sorted(expected - inputs), [],
                          "the window is compiled from these, so a change to one of them "
                          "must mark the screenshots stale")

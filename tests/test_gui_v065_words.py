@@ -23,6 +23,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+import guiscan
 
 from codex_auto_resume import l10n, settings
 
@@ -211,7 +212,7 @@ class WordTests(unittest.TestCase):
         exe = work / "CodexAutoResumeSettings.exe"
         subprocess.run([str(CSC), "/nologo", "/target:winexe", "/platform:x64", "/out:" + str(exe),
                         "/reference:System.dll", "/reference:System.Drawing.dll", "/reference:System.Windows.Forms.dll",
-                        *[str(GUI / name) for name in ("SettingsApp.cs", "Dashboard.cs", "Controls.cs", "Brand.cs")]],
+                        *[str(path) for path in guiscan.sources()]],
                        check=True, capture_output=True, timeout=300)
         ko = l10n.catalog("ko")
         cls.texts = sorted({text for text in ko.values() if HANGUL.search(text) and len(text) >= 40 and "\n" not in text})
