@@ -16,9 +16,12 @@ was the one place a test could replace what the popup asks Windows. After it, th
 asks holds its own reference, and patching the package changes nothing - the test passes,
 having tested the machine it meant to replace. Nineteen lines in this suite replaced something
 as `tray_popup.<name>`; eight of them, in seven places, reached the popup's own code and had
-quietly stopped working. Hence the rule below: a name may be patched on the package only if
-something outside the package really reads it there, and where the caller is the popup's own,
-the module that holds it is named instead.
+quietly stopped working.
+
+Both of those happen to every module that becomes a package, so both rules are held for all of
+them in `tests/test_names.py` and `tests/test_reexports.py`. What is here is what is the
+popup's own: the surface it gives, the order its files are layered in, and the six of them
+that may not touch Windows.
 """
 from __future__ import annotations
 
@@ -86,39 +89,7 @@ SURFACE = {
 }
 
 
-def readers() -> list[Path]:
-    """Every file outside the popup that could read a name off it: the package, and the scripts
-    beside it that draw the documentation's pictures. Not `build/stage/`, which is a copy of a
-    release being made and holds the code as it was."""
-    files = [path for path in srcscan.package_files()
-             if PACKAGE.replace(".", "/") not in path.as_posix()]
-    files += [path for path in sorted((ROOT / "build").glob("*.py"))]
-    return files
 
-
-def read_off_the_package() -> dict[str, list[str]]:
-    """`tray_popup.<name>` as the product and its build scripts spell it, and where."""
-    found: dict[str, list[str]] = {}
-    for path in readers():
-        for name in re.findall(r"\btray_popup\.([A-Za-z_][A-Za-z0-9_]*)", srcscan.read(path)):
-            found.setdefault(name, []).append(path.name)
-    return found
-
-
-def suite_files():
-    for path in sorted(Path(_HERE).glob("test_*.py")):
-        yield path, ast.parse(path.read_text(encoding="utf-8"))
-
-
-def aliases(tree) -> set[str]:
-    """The names this test module binds to the popup package itself."""
-    names = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == srcscan.PACKAGE:
-            names |= {alias.asname or alias.name for alias in node.names if alias.name == "tray_popup"}
-        elif isinstance(node, ast.Import):
-            names |= {alias.asname or alias.name for alias in node.names if alias.name == PACKAGE}
-    return names
 
 
 class SurfaceTests(unittest.TestCase):
@@ -134,13 +105,6 @@ class SurfaceTests(unittest.TestCase):
     def test_the_twelve_modules_are_all_there_and_nothing_else_is(self):
         listed = {srcscan.module_name(path).split(".")[-1] for path in srcscan.files_of(PACKAGE)}
         self.assertEqual(listed, set(MODULES) | {"tray_popup"})
-
-    def test_every_name_the_product_reads_off_the_popup_is_there(self):
-        """The failure this catches is silent: `tray_popup._icon_from_pixels` went missing in
-        the split, and the icon logged one line and drew itself the old way."""
-        missing = {name: where for name, where in read_off_the_package().items()
-                   if name not in ("py",) and not hasattr(tray_popup, name)}
-        self.assertEqual(missing, {})
 
     def inside(self):
         """{module: the modules of the popup it imports from}."""
@@ -197,44 +161,6 @@ class SurfaceTests(unittest.TestCase):
                         if isinstance(target, ast.Name):
                             owners.setdefault(target.id, []).append(module)
         self.assertEqual({name: where for name, where in owners.items() if len(where) > 1}, {})
-
-
-class PatchPointTests(unittest.TestCase):
-    """Where the suite replaces what the popup asks Windows, it must replace what is read."""
-
-    def patches(self):
-        """(file, line, name) for every `patch.object(<the package>, "<name>", ...)` and every
-        `<the package>.<name> = ...` in the suite."""
-        for path, tree in suite_files():
-            names = aliases(tree)
-            if not names:
-                continue
-            for node in ast.walk(tree):
-                if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                        and node.func.attr == "object" and len(node.args) >= 2
-                        and isinstance(node.args[0], ast.Name) and node.args[0].id in names
-                        and isinstance(node.args[1], ast.Constant)):
-                    yield path.name, node.lineno, node.args[1].value
-                elif isinstance(node, ast.Assign):
-                    for target in node.targets:
-                        if (isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name)
-                                and target.value.id in names):
-                            yield path.name, target.lineno, target.attr
-
-    def test_a_patch_on_the_package_reaches_something(self):
-        """`patch.object(tray_popup, "high_contrast", ...)` reaches the icon, which asks the
-        package; it does not reach the popup window, which asks `theme` - the module it is in.
-        A patch nothing reads is a test of nothing, so name the module that holds the caller."""
-        read = read_off_the_package()
-        stray = ["%s:%d patches tray_popup.%s, which only the popup itself reads" % site
-                 for site in self.patches() if site[2] not in read]
-        self.assertEqual(stray, [])
-
-    def test_the_rule_is_not_vacuous(self):
-        patched = {name for _, _, name in self.patches()}
-        self.assertIn("high_contrast", patched)          # the icon asks the package: allowed
-        self.assertTrue(patched <= set(read_off_the_package()))
-        self.assertNotIn("message_face", patched, "only fonts.py calls it; patch it there")
 
 
 if __name__ == "__main__":

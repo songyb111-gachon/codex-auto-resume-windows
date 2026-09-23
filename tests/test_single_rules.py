@@ -45,6 +45,7 @@ from codex_auto_resume import (cli, compat, config, continuation, control, contr
                                tray, windows)
 from codex_auto_resume.app import App  # noqa: E402
 from codex_auto_resume.engine import Engine  # noqa: E402
+from codex_auto_resume.mcp import server as mcp_server  # noqa: E402
 from codex_auto_resume.machine import STATES, WATCHED  # noqa: E402
 from codex_auto_resume.store import (LegacyStore, StateFromNewerVersion, Store, StoreError,  # noqa: E402
                                      UpgradePending)
@@ -387,7 +388,8 @@ class InstalledHomeTests(unittest.TestCase):
             return made.call_args.args[0]
 
         def server():
-            with patch.object(mcpserver, "Control") as made, patch.object(mcpserver, "Server"):
+            # `main` reads both from `mcp/server.py`; the module named here re-exports them.
+            with patch.object(mcp_server, "Control") as made, patch.object(mcp_server, "Server"):
                 mcpserver.main([])
             return made.call_args.args[0]
 
@@ -422,7 +424,7 @@ class Utf8Tests(unittest.TestCase):
     def test_the_mcp_server_states_it_on_both_streams_and_tolerates_only_a_missing_method(self):
         def run(out, into):
             with patch.object(sys, "stdout", out), patch.object(sys, "stdin", into), \
-                    patch.object(mcpserver, "Control"), patch.object(mcpserver, "Server"):
+                    patch.object(mcp_server, "Control"), patch.object(mcp_server, "Server"):
                 mcpserver.main(["--home", "x"])
 
         out, into = _Stream(), _Stream()

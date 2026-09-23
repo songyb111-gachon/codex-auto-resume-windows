@@ -87,6 +87,63 @@ def unresolved(tree: ast.AST) -> list:
     return sorted(set(missing))
 
 
+class ImportTests(unittest.TestCase):
+    """The other half of the same problem: a name that is imported, from nowhere.
+
+    `from .mcpui import settings_page` meant `codex_auto_resume.mcpui` while the code sat in
+    `codex_auto_resume/`, and `codex_auto_resume.mcp.mcpui` the moment it moved one level
+    down - a module that does not exist. It was inside a method, under a handler that turns
+    any exception into one JSON-RPC error, so the panel simply stopped opening. Every step
+    left moves code between depths, and a relative import is the thing that changes meaning
+    when it travels.
+    """
+
+    def test_every_import_of_this_package_names_a_module_that_is_there(self):
+        known = set(srcscan.modules())
+        missing = []
+        for path in srcscan.package_files():
+            for entry in srcscan.imports(path):
+                if entry.internal and entry.implied is False and entry.target not in known:
+                    missing.append("%s:%d imports %s" % (srcscan.relative(path), entry.line,
+                                                         entry.target))
+        self.assertEqual(missing, [], "a relative import that moved kept its old depth")
+
+    def test_a_bare_relative_import_names_a_module_that_is_there(self):
+        """`from . import compat, compatio` names two modules of the package the file is in.
+
+        Moved one level down it named `mcp.compat` and `mcp.compatio`, neither of which
+        exists - and `srcscan` reports that statement as reaching the package, because a name
+        it cannot resolve to a module falls back to the package the statement names. So the
+        test above cannot see this one, and it is the same mistake: it sat inside a `try` that
+        turns any exception into `summary = None`, and the compatibility summary quietly left
+        `get_status`.
+        """
+        known, broken = set(srcscan.modules()), []
+        for path in srcscan.package_files():
+            module = srcscan.module_name(path)
+            inside = module if Path(path).name == "__init__.py" else module.rsplit(".", 1)[0]
+            for node in ast.walk(srcscan.package_asts()[path]):
+                if not isinstance(node, ast.ImportFrom) or node.module is not None:
+                    continue
+                here = inside
+                for _ in range(node.level - 1):
+                    here = here.rsplit(".", 1)[0]
+                for alias in node.names:
+                    if here + "." + alias.name not in known:
+                        broken.append("%s:%d from %s import %s" % (
+                            srcscan.relative(path), node.lineno, "." * node.level, alias.name))
+        self.assertEqual(broken, [], "it names no module of that package")
+
+    def test_the_check_reads_the_imports_inside_functions_too(self):
+        """That one was lazy, which is how it survived being imported at all."""
+        lazy = [entry for path in srcscan.package_files() for entry in srcscan.imports(path)
+                if entry.lazy and entry.internal]
+        self.assertTrue(lazy)
+        server = srcscan.modules()["codex_auto_resume.mcp.server"]
+        self.assertIn("codex_auto_resume.mcpui",
+                      {entry.target for entry in srcscan.imports(server) if entry.lazy})
+
+
 class NameTests(unittest.TestCase):
     def test_no_module_uses_a_name_nothing_gives_it(self):
         offenders = []

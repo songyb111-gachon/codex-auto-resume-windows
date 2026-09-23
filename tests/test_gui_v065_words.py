@@ -180,7 +180,7 @@ $form.GetField('dpiScale', $static).SetValue($null, $systemScale)
 
 
 def breaks_anywhere(char) -> bool:
-    """tray_popup._breaks_anywhere: Chinese and Japanese are set without spaces."""
+    """tray_popup.words._breaks_anywhere: Chinese and Japanese are set without spaces."""
     code = ord(char)
     return 0x2E80 <= code <= 0x9FFF or 0xF900 <= code <= 0xFAFF or 0xFF00 <= code <= 0xFFEF
 

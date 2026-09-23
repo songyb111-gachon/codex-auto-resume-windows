@@ -70,7 +70,9 @@ LAYER = {_q(name): layer for layer, names in {
     "engine": ("engine", "engine.announce", "engine.detect", "engine.dispatch",
                "engine.freshness", "engine.options", "engine.outcome", "engine.reconcile"),
     "control": ("control", "diagnostics"),
-    "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcpui", "mcp", "app", "tray",
+    "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcpui", "app", "tray",
+              # v0.6.10-alpha: mcpserver.py's body became mcp/, beside the panel's own files.
+              "mcp", "mcp.server", "mcp.tools",
               "tray_popup", "brand",
               "notice_card", "notice_window", "notifier",
               # v0.6.10-alpha: what every surface writes the same way.
@@ -151,9 +153,9 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
     ("controlcli", "source"): ("cost", "display labels read from Codex's history; a source that fails "
                                        "costs the names, never the listing"),
     ("diagnostics", "compatio"): ("cost", "the compatibility section of the export only"),
-    ("mcpserver", "compat"): ("cost", "the compatibility summary in get_status only"),
-    ("mcpserver", "compatio"): ("cost", "the compatibility summary in get_status only"),
-    ("mcpserver", "mcpui"): ("cost", "the panel's page, only when Codex reads the resource"),
+    ("mcp.server", "compat"): ("cost", "the compatibility summary in get_status only"),
+    ("mcp.server", "compatio"): ("cost", "the compatibility summary in get_status only"),
+    ("mcp.server", "mcpui"): ("cost", "the panel's page, only when Codex reads the resource"),
     ("notify", "reasons"): ("cost", "a reason's label, for a transient toast only"),
     ("notify", "startup"): ("cost", "the AUMID only: startup owns every per-user registration, and a "
                                     "process that only formats a message should not load it"),
