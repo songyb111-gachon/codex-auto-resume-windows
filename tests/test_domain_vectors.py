@@ -90,7 +90,9 @@ def detected(completed, ordinal) -> str:
     low, high = machine.EPOCH_CODEX
     if low <= completed <= high:
         return source.detect(row)["interruption_id"]
-    with patch.object(source, "epoch", return_value=True):
+    # Patched where it is used, not where it is re-exported: `normalize` reads the time, and
+    # since v0.6.10-alpha it lives in `source/values.py` and holds its own reference to `epoch`.
+    with patch.object(source.values, "epoch", return_value=True):
         return source.detect(row)["interruption_id"]
 
 

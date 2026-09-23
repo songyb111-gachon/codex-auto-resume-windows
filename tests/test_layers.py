@@ -61,7 +61,10 @@ LAYER = {_q(name): layer for layer, names in {
                  "store.actions", "store.claims", "store.columns", "store.downgrade",
                  "store.errors", "store.journal", "store.legacy", "store.migrations",
                  "store.policy", "store.records", "store.reporting", "store.schema",
-                 "store.session", "store.validate", "store.watcher"),
+                 "store.session", "store.validate", "store.watcher",
+                 # v0.6.10-alpha: source.py became source/, and every part of it reads Codex.
+                 "source.errors", "source.history", "source.labels",
+                 "source.paths", "source.payload", "source.schema", "source.values"),
     "engine": ("engine",),
     "control": ("control", "diagnostics"),
     "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcpui", "app", "tray", "tray_popup", "brand",
