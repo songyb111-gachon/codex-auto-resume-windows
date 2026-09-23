@@ -94,7 +94,9 @@ class TreeTests(unittest.TestCase):
 
     def test_imports_resolve_to_modules_and_say_when_they_run(self):
         popup = {(entry.target, entry.lazy) for entry in srcscan.imports(srcscan.modules()[tray_popup.__name__])}
-        self.assertIn(("codex_auto_resume.tray", False), popup)          # from .tray import countdown
+        # Until v0.6.10-alpha this named `.tray`, for the countdown - the import that made the
+        # popup load the icon to draw a clock, and half of a cycle. It is `ui.words` now.
+        self.assertIn(("codex_auto_resume.ui.words", False), popup)
         self.assertIn(("codex_auto_resume.brand", False), popup)         # from . import brand, ...
         self.assertIn(("ctypes", False), popup)
         icon = {(entry.target, entry.lazy) for entry in srcscan.imports(srcscan.modules()[tray.__name__])}
@@ -123,14 +125,23 @@ class TreeTests(unittest.TestCase):
         # outside `domain/` that imports from it loads `domain/__init__.py` with it.
         implied = {(srcscan.module_name(path), entry.target, entry.lazy, entry.internal)
                    for path in srcscan.package_files() for entry in srcscan.imports(path) if entry.implied}
+        # Every subpackage, not one of them: v0.6.10-alpha made several, and the rule is the
+        # same for each - a module outside it that imports from it loads its __init__ too.
+        modules = srcscan.modules()
+        packages = {name for name in modules
+                    if any(other.startswith(name + ".") for other in modules)} - {srcscan.PACKAGE}
+        self.assertIn(srcscan.PACKAGE + ".domain", packages, "domain/ is a package")
+        expected = {("auto_resume", srcscan.PACKAGE, False, True)}
+        for package in packages:
+            for module, path in modules.items():
+                if module.startswith(package) or not any(
+                        entry.target.startswith(package + ".") for entry in srcscan.imports(path)):
+                    continue
+                expected.add((module, package, False, True))
+        self.assertEqual(implied, expected)
         domain = srcscan.PACKAGE + ".domain"
-        importers = {module for module, path in srcscan.modules().items() if not module.startswith(domain)
-                     and any(entry.target.startswith(domain + ".") for entry in srcscan.imports(path))}
-        # v0.6.10-alpha: the store is a package, so the module that reads identifiers through
-        # domain/ is store.validate rather than store itself.
-        self.assertIn(srcscan.PACKAGE + ".store.validate", importers)
-        self.assertEqual(implied, {("auto_resume", srcscan.PACKAGE, False, True)}
-                         | {(module, domain, False, True) for module in importers})
+        # Not vacuous: the module that reads identifiers through domain/ is store.validate
+        # since the store became a package, and it does load domain/ with it.
         self.assertIn(srcscan.PACKAGE, srcscan.import_graph()["auto_resume"])
         self.assertIn(domain, srcscan.import_graph()[srcscan.PACKAGE + ".store.validate"])
 

@@ -46,8 +46,10 @@ import sys
 import threading
 import time
 
-from . import brand, machine
+from . import brand, machine, win
 from .tray_place import IconPlacement, battery_saver
+from .ui.words import countdown
+from .win.dll import GUID, LRESULT, WNDCLASSW, WNDPROC
 
 WM_DESTROY = 0x0002
 WM_CLOSE = 0x0010
@@ -102,35 +104,7 @@ MENU_OPEN, MENU_TOGGLE, MENU_STOP, MENU_PENDING = 1, 2, 3, 4
 APP_MODE_DEFAULT, APP_MODE_FORCE_DARK = 0, 2
 UXTHEME_SET_PREFERRED_APP_MODE, UXTHEME_FLUSH_MENU_THEMES = 135, 136
 DARK_MENU_BUILD = 18362
-_DLLS = {}
-
-
-def _dll(name):
-    """This module's own handle on a system DLL.
-
-    `ctypes.windll` is shared by the whole process, and the argument types set here
-    would silently change how every other module's calls into the same DLL convert
-    their arguments. A private handle keeps these declarations to this file.
-    """
-    if name not in _DLLS:
-        _DLLS[name] = C.WinDLL(name, use_last_error=True)
-    return _DLLS[name]
-
-LRESULT = C.c_ssize_t
-WNDPROC = C.WINFUNCTYPE(LRESULT, W.HWND, W.UINT, W.WPARAM, W.LPARAM)
-
-
-class WNDCLASSW(C.Structure):
-    _fields_ = [("style", W.UINT), ("lpfnWndProc", WNDPROC), ("cbClsExtra", C.c_int),
-                ("cbWndExtra", C.c_int), ("hInstance", W.HINSTANCE), ("hIcon", W.HICON),
-                ("hCursor", W.HANDLE), ("hbrBackground", W.HBRUSH), ("lpszMenuName", W.LPCWSTR),
-                ("lpszClassName", W.LPCWSTR)]
-
-
-class GUID(C.Structure):
-    _fields_ = [("Data1", W.DWORD), ("Data2", W.WORD), ("Data3", W.WORD), ("Data4", C.c_ubyte * 8)]
-
-
+_dll = win.library()      # handles of this module's own
 class NOTIFYICONDATAW(C.Structure):
     _fields_ = [("cbSize", W.DWORD), ("hWnd", W.HWND), ("uID", W.UINT), ("uFlags", W.UINT),
                 ("uCallbackMessage", W.UINT), ("hIcon", W.HICON), ("szTip", W.WCHAR * TIP_CHARS),
@@ -142,18 +116,6 @@ class NOTIFYICONDATAW(C.Structure):
 class MSG(C.Structure):
     _fields_ = [("hwnd", W.HWND), ("message", W.UINT), ("wParam", W.WPARAM), ("lParam", W.LPARAM),
                 ("time", W.DWORD), ("pt", W.POINT)]
-
-
-def countdown(seconds: float) -> str:
-    """A short, locale-neutral duration: 45s, 12:04, 3:05:00."""
-    seconds = max(0, int(seconds))
-    hours, rest = divmod(seconds, 3600)
-    minutes, secs = divmod(rest, 60)
-    if hours:
-        return "%d:%02d:%02d" % (hours, minutes, secs)
-    if minutes:
-        return "%d:%02d" % (minutes, secs)
-    return "%ds" % secs
 
 
 def tooltip(snapshot: dict, strings: dict, now: float) -> str:

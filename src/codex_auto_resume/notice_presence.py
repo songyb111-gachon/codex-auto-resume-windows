@@ -45,6 +45,7 @@ from __future__ import annotations
 import ctypes as C
 import os
 
+
 # QUERY_USER_NOTIFICATION_STATE
 QUNS_NOT_PRESENT = 1
 QUNS_BUSY = 2
@@ -118,6 +119,10 @@ def card_allowed(*, setting, tray_present, notification_state, notification_mode
 
 
 # ------------------------------------------------------------------------- the probes
+# This module keeps its own five lines rather than calling `win.library()`, and the reason is
+# the rule above it: these probes import nothing of this package at all, so that what decides
+# whether a card may be shown can be read in one file. A shared helper is the better rule
+# everywhere else; here the self-containment is worth more than the line saved.
 _DLLS = {}
 
 

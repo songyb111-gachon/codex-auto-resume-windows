@@ -1164,7 +1164,10 @@ class SafetyTests(unittest.TestCase):
     """The envelope of the card's two modules (B-D11), modelled on the popup's."""
 
     CARD = ("notice_card.py", "notice_window.py")
-    ALLOWED = {"brand", "l10n", "machine", "reasons", "tray", "tray_popup", "notice_card", "notice_presence"}
+    # `win` and `ui` joined the list in v0.6.10-alpha: the Win32 declarations the card registers
+    # its window with, and the words every surface writes the same way. Neither can act.
+    ALLOWED = {"brand", "l10n", "machine", "reasons", "tray", "tray_popup", "notice_card",
+               "notice_presence", "ui", "ui.words", "win", "win.dll"}
     STDLIB = {"__future__", "collections", "ctypes", "ctypes.wintypes", "math", "os", "threading", "time"}
 
     def tree(self, name):
