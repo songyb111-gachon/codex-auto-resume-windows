@@ -54,7 +54,7 @@ def _q(name):
 LAYER = {_q(name): layer for layer, names in {
     "domain": ("failures", "reasons", "machine", "domain", "domain.ids", "domain.vocabulary"),
     "policy": ("", "settings", "continuation", "l10n", "messages", "interface", "config", "logbook"),
-    "adapters": ("store", "openstate", "source", "windows", "compat", "compatio", "startup", "shortcut",
+    "adapters": ("store", "openstate", "codex", "windows", "compat", "compatio", "startup", "shortcut",
                  "pwsh", "notify", "notice_presence", "tray_place",
                  # v0.6.10-alpha: store.py became store/. Every part of it is the same layer
                  # the one module was, and `STORE` below covers them by prefix.
@@ -65,8 +65,8 @@ LAYER = {_q(name): layer for layer, names in {
                  # v0.6.10-alpha: the Win32 handles and declarations more than one module needs.
                  "win", "win.dll",
                  # v0.6.10-alpha: source.py became source/, and every part of it reads Codex.
-                 "source.errors", "source.history", "source.labels",
-                 "source.paths", "source.payload", "source.schema", "source.values"),
+                 "codex.errors", "codex.history", "codex.labels",
+                 "codex.paths", "codex.payload", "codex.schema", "codex.values"),
     "engine": ("engine", "engine.announce", "engine.detect", "engine.dispatch",
                "engine.freshness", "engine.options", "engine.outcome", "engine.reconcile"),
     # v0.6.10-alpha: control.py became control/, ten files, `Control` composed from eight
@@ -101,7 +101,7 @@ LAYER = {_q(name): layer for layer, names in {
 # into (PLANNED, which need not exist yet). Each name covers itself and everything inside it.
 PLANNED = {_q(name) for name in ("codex", "win", "ui", "mcp", "domain.public")}
 STORE = {_q("store"), _q("openstate")}              # openstate moves into store/ as store/open.py
-CODEX = {_q("source"), _q("windows"), _q("codex")}         # Codex's files and processes
+CODEX = {_q("codex"), _q("windows"), _q("codex")}         # Codex's files and processes
 WIN = {_q(name) for name in ("windows", "startup", "shortcut", "pwsh", "notify", "notice_presence",
                              "tray_place", "win")}
 UI = {_q(name) for name in ("tray", "tray_popup", "brand", "notice_card", "notice_window", "ui")}
@@ -119,7 +119,7 @@ PURE_STDLIB = {"__future__", "abc", "collections", "dataclasses", "decimal", "en
 # Target rules that do not hold yet: the real edges that break them. Each fails the test the
 # day it no longer exists, so these only shrink.
 ENGINE_EXCEPTIONS = {
-    (_q("engine.detect"), _q("source")): "source.detect() is imported and called directly rather than "
+    (_q("engine.detect"), _q("codex")): "source.detect() is imported and called directly rather than "
                                           "reached through the source the engine is given "
                                           "(engine/ports.py, step 8)",
 }
@@ -163,7 +163,7 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
     ("controlcli", "compatio"): ("cost", "the three compatibility commands only"),
     ("controlcli", "diagnostics"): ("cost", "the diagnostics command only"),
     ("controlcli", "interface"): ("cost", "the strings request only: the window's catalogue"),
-    ("controlcli", "source"): ("cost", "display labels read from Codex's history; a source that fails "
+    ("controlcli", "codex"): ("cost", "display labels read from Codex's history; a source that fails "
                                        "costs the names, never the listing"),
     ("diagnostics", "compatio"): ("cost", "the compatibility section of the export only"),
     ("mcp.server", "compat"): ("cost", "the compatibility summary in get_status only"),
@@ -191,7 +191,7 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
 def within(name, roles):
     """True when `name` is one of `roles` or a module inside one of them.
 
-    `codex_auto_resume.store.claims` is within `store`; `codex_auto_resume.sourcery` is not
+    `codex_auto_resume.store.claims` is within `store`; `codex_auto_resume.codexry` is not
     within `source`."""
     return any(name == role or name.startswith(role + ".") for role in roles)
 

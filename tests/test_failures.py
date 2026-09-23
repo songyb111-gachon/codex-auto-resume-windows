@@ -14,7 +14,7 @@ import tempfile
 import unittest
 
 from codex_auto_resume import failures
-from codex_auto_resume.source import LocalSource, _label, detect
+from codex_auto_resume.codex import LocalSource, _label, detect
 
 FIXTURE = {
     "thread_id": "0a1b2c3d-0001-7000-8000-000000000001",

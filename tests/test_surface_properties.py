@@ -410,7 +410,7 @@ class JournalIsWriteOnlyTests(unittest.TestCase):
         # Asked of every tracked file but the two readers named below - so of the engine, the
         # runtime, the source and the classifier however they are split, and of any module a
         # decision is moved to.
-        for name in ("engine", "app", "source", "failures"):
+        for name in ("engine", "app", "codex", "failures"):
             self.assertTrue(srcscan.files_of("codex_auto_resume." + name), name)
         readers = {"codex_auto_resume/control/records.py", "codex_auto_resume/diagnostics.py"}
         for path in srcscan.package_files():
