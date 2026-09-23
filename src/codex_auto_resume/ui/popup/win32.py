@@ -10,8 +10,8 @@ from ctypes import wintypes as W
 import ctypes as C
 import os
 import threading
-from .. import win
-from ..win.dll import GUID, LRESULT, WNDCLASSW
+from ... import win
+from ...win.dll import GUID, LRESULT, WNDCLASSW
 
 
 WM_ACTIVATE, WM_PAINT, WM_CLOSE, WM_ERASEBKGND = 0x0006, 0x000F, 0x0010, 0x0014

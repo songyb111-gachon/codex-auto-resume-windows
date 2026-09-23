@@ -26,7 +26,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from codex_auto_resume import compat, control, l10n, mcpserver, mcpui      # noqa: E402
+from codex_auto_resume import compat, control, l10n, mcpserver      # noqa: E402
+from codex_auto_resume.mcp import panel as mcpui
 from test_mcpui_v063 import declared                                        # noqa: E402
 from test_mcpui_v064 import run_page, say, snapshot                          # noqa: E402
 

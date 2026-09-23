@@ -20,7 +20,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from codex_auto_resume import app, config, control, controlcli, tray
+from codex_auto_resume import app, config, control, controlcli
+from codex_auto_resume.ui import tray
 from codex_auto_resume.control import seen  # where the mutex is taken
 from codex_auto_resume.store import Store
 

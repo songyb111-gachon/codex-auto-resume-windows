@@ -1293,7 +1293,7 @@ class BridgeImportTests(unittest.TestCase):
     """
 
     NOT_LOADED = ("codex_auto_resume.app", "codex_auto_resume.notify",
-                  "codex_auto_resume.tray_popup", "xml.sax")
+                  "codex_auto_resume.ui.popup", "xml.sax")
     PROGRAM = ("import json, sys\n"
                "sys.path.insert(0, sys.argv[1])\n"
                "from codex_auto_resume.controlcli import main\n"

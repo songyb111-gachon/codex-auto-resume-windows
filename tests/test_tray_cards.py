@@ -27,8 +27,9 @@ import types
 import unittest
 from unittest.mock import patch
 
-from codex_auto_resume import (config, l10n, notice_card, notice_presence, notifier, notify, settings, tray,
-                               tray_popup)
+from codex_auto_resume import (config, l10n, notice_card, notice_presence, notifier, notify,
+                               settings)
+from codex_auto_resume.ui import popup as tray_popup, tray
 from test_notice_card import ALLOWED, EVENTS, FULL, THREAD, build, captured_xml
 
 ROOT = Path(__file__).resolve().parents[1]

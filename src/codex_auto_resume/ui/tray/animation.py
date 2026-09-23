@@ -11,7 +11,7 @@ import ctypes as C
 import threading
 import time
 
-from ..tray_place import IconPlacement, battery_saver
+from ...tray_place import IconPlacement, battery_saver
 from .motion import (build_icon_frames,
                      icon_frame,
                      icon_frame_ms,
@@ -72,7 +72,7 @@ class AnimationMixin:
         since = (now - self._state_since) * 1000.0
         allowed = False
         if icon_frame_ms(state, (now - self._epoch) * 1000.0, since) is not None:
-            from .. import tray_popup
+            from .. import popup as tray_popup
             self._adopt_reduce_motion(tray_popup)
             allowed = icon_motion_allowed(reduced=tray_popup.reduced_motion(), contrast=tray_popup.high_contrast(),
                                           battery_saver=battery_saver(),
@@ -104,7 +104,7 @@ class AnimationMixin:
         if key == self._frame_key and self._frame_icon:
             return False, []
         try:
-            from .. import tray_popup
+            from .. import popup as tray_popup
             pixels = frames.compose(position, head)
             tray_popup._declare()                  # the GDI calls' types
             made = tray_popup._icon_from_pixels(pixels, frames.size, frames.size)

@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 import subprocess
 
-from .. import machine
+from ... import machine
 
 
 

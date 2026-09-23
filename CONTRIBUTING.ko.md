@@ -223,7 +223,7 @@ v0.6.0에서 새로 생겼습니다. v0.5.0부터 v0.5.7까지의 모든 압축 
 
 색상, 아이콘, 그리고 그것들을 담고 있는 생성 파일은
 [docs/BRAND.ko.md](docs/BRAND.ko.md)에서 다룹니다. 요약하면 이렇습니다. 팔레트는
-`src/codex_auto_resume/brand.py`에 있고, `gui/Brand.cs`와 `assets/brand/icon.svg`는 거기서
+`src/codex_auto_resume/brand/`에 있고, `gui/Brand.cs`와 `assets/brand/icon.svg`는 거기서
 생성되며, `tests/test_brand.py`가 둘을 다시 생성해 비교합니다. 창이나 패널 스타일시트에 색상 리터럴을
 직접 쓰지 마세요. 그것을 검사하는 테스트도 있지만 `gui/SettingsApp.cs`만 읽습니다. 그 테스트도, 크기를
 픽셀로 직접 적은 것을 잡아내는 테스트도 `gui/Dashboard.cs`는 보지 않으므로, 그 파일에 색상이나 픽셀

@@ -5,7 +5,7 @@ why they are not methods on it.
 """
 from __future__ import annotations
 
-from .. import machine
+from ... import machine
 
 
 

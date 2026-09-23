@@ -195,9 +195,9 @@ class ReExportTests(unittest.TestCase):
         busy = [front for front in FRONTS if len(reads(front)) > 10]
         self.assertGreaterEqual(len(busy), 2, sorted(FRONTS))
         self.assertIn("USER_GROUPS", reads("mcpserver"))
-        popup = reads("tray_popup")
+        popup = reads("ui.popup")
         self.assertIn("_icon_from_pixels", popup)
-        # The icon reaches it with `from .. import tray_popup`, inside a method; resolving that
+        # The icon reaches it with `from .. import popup`, inside a method; resolving that
         # dot is what makes this scan read the product rather than only the suite.
         self.assertIn("animation.py", popup["_icon_from_pixels"])
 
@@ -317,8 +317,8 @@ class PatchPointTests(unittest.TestCase):
     def test_the_rule_is_not_vacuous(self):
         patched = {(front, name) for _, _, front, name in self.patches()}
         # The icon asks the package for this one, so patching the package is right.
-        self.assertIn(("tray_popup", "high_contrast"), patched)
-        self.assertNotIn(("tray_popup", "message_face"), patched, "only fonts.py calls it")
+        self.assertIn(("ui.popup", "high_contrast"), patched)
+        self.assertNotIn(("ui.popup", "message_face"), patched, "only fonts.py calls it")
         self.assertNotIn(("mcpserver", "Control"), patched, "only mcp/server.py calls it")
 
 

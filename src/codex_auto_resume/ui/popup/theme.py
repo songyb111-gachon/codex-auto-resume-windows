@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from ctypes import wintypes as W
 import ctypes as C
-from .. import brand
+from ... import brand
 from .win32 import (HCF_HIGHCONTRASTON,
                     HIGHCONTRASTW,
                     HKEY_CURRENT_USER,

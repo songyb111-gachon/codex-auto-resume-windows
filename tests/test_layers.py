@@ -74,27 +74,27 @@ LAYER = {_q(name): layer for layer, names in {
     "control": ("control", "control.actions", "control.codexstart", "control.errors",
                 "control.layer", "control.policy", "control.preview", "control.records",
                 "control.seen", "control.state", "control.watcher", "diagnostics"),
-    "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcpui", "app", "tray",
+    "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcp.panel", "app", "ui.tray",
               # v0.6.10-alpha: mcpserver.py's body became mcp/, beside the panel's own files.
               "mcp", "mcp.server", "mcp.tools",
-              "tray_popup", "brand",
+              "ui.popup", "brand",
               "notice_card", "notice_window", "notifier",
               # v0.6.10-alpha: brand.py became brand/ - one palette in nine files.
               "brand.checkbox", "brand.colour", "brand.css", "brand.elevation", "brand.light",
               "brand.mark", "brand.motion", "brand.scale", "brand.tokens",
               # v0.6.10-alpha: tray.py became tray/ - the same icon in eleven files, all of
               # them the front. `UI` below covers them by prefix.
-              "tray.animation", "tray.cards", "tray.clicks", "tray.dashboard", "tray.icon",
-              "tray.menu", "tray.model", "tray.motion", "tray.stored", "tray.win32",
-              "tray.words",
+              "ui.tray.animation", "ui.tray.cards", "ui.tray.clicks", "ui.tray.dashboard", "ui.tray.icon",
+              "ui.tray.menu", "ui.tray.model", "ui.tray.motion", "ui.tray.stored", "ui.tray.win32",
+              "ui.tray.words",
               # v0.6.10-alpha: what every surface writes the same way.
               "ui", "ui.words",
               # v0.6.10-alpha: tray_popup.py became tray_popup/ - the same popup in twelve
               # files, all of them the front. `UI` below covers them by prefix.
-              "tray_popup.elevation", "tray_popup.fonts", "tray_popup.gdiplus",
-              "tray_popup.layout", "tray_popup.model", "tray_popup.motion",
-              "tray_popup.placement", "tray_popup.renderer", "tray_popup.theme",
-              "tray_popup.win32", "tray_popup.window", "tray_popup.words"),
+              "ui.popup.elevation", "ui.popup.fonts", "ui.popup.gdiplus",
+              "ui.popup.layout", "ui.popup.model", "ui.popup.motion",
+              "ui.popup.placement", "ui.popup.renderer", "ui.popup.theme",
+              "ui.popup.win32", "ui.popup.window", "ui.popup.words"),
 }.items() for name in names}
 
 # The roles the target rules speak of: today's modules, and the packages the split moves them
@@ -104,8 +104,8 @@ STORE = {_q("store"), _q("openstate")}              # openstate moves into store
 CODEX = {_q("codex"), _q("windows"), _q("codex")}         # Codex's files and processes
 WIN = {_q(name) for name in ("windows", "startup", "shortcut", "pwsh", "notify", "notice_presence",
                              "tray_place", "win")}
-UI = {_q(name) for name in ("tray", "tray_popup", "brand", "notice_card", "notice_window", "ui")}
-MCP = {_q("mcpserver"), _q("mcpui"), _q("mcp")}
+UI = {_q(name) for name in ("brand", "notice_card", "notice_window", "ui")}
+MCP = {_q("mcpserver"), _q("mcp")}
 # What the UI may reach: the control layer, the public status mapping (machine, until it is
 # split into domain/), the i18n layer and the brand - and itself.
 # v0.6.10-alpha adds win/: the Win32 declarations a surface registers its window with, which
@@ -124,11 +124,11 @@ ENGINE_EXCEPTIONS = {
                                           "(engine/ports.py, step 8)",
 }
 UI_EXCEPTIONS = {
-    (_q("tray_popup.model"), _q("reasons")): "the popup asks the reason registry for a label key, whether a "
+    (_q("ui.popup.model"), _q("reasons")): "the popup asks the reason registry for a label key, whether a "
                                        "category is recoverable and whether it has a reset time",
     (_q("notice_window"), _q("notice_presence")): "the card reads battery saver and the message duration "
                                                   "from the presence probes, which are Windows adapters",
-    (_q("tray.animation"), _q("tray_place")): "the icon asks where Windows keeps it and whether battery "
+    (_q("ui.tray.animation"), _q("tray_place")): "the icon asks where Windows keeps it and whether battery "
                                               "saver is on before it moves; both are Windows adapters "
                                               "(win/ takes them at step 9)",
 }
@@ -152,11 +152,15 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
     ("", "config"): ("cost", "__version__ is resolved on demand, so importing the package reads no manifest"),
     ("app", "control"): ("cost", "only a card's button and the icon's thread use the control layer"),
     ("app", "interface"): ("cost", "the icon's catalogue, when the icon starts or the language changes"),
-    ("app", "tray"): ("cost", "the notification-area icon, only in a watcher that shows one"),
-    ("app", "tray_popup"): ("cost", "the popup's theme and motion, adopted only by a running watcher"),
+    ("app", "ui.tray"): ("cost", "the notification-area icon, only in a watcher that shows one"),
+    # Reaching `ui.tray` loads `ui/__init__.py` with it, and since v0.6.10-alpha the icon
+    # is inside `ui/`, so the package above it is an edge these two did not have before.
+    ("app", "ui"): ("cost", "the package above the icon, loaded with it"),
+    ("cli", "ui"): ("cost", "the package above the icon, loaded with it"),
+    ("app", "ui.popup"): ("cost", "the popup's theme and motion, adopted only by a running watcher"),
     ("cli", "control"): ("cost", "the diagnostics command is the only one that goes through control"),
     ("cli", "diagnostics"): ("cost", "only the diagnostics command writes the export"),
-    ("cli", "tray"): ("cost", "activate opens the settings window through the icon's helper"),
+    ("cli", "ui.tray"): ("cost", "activate opens the settings window through the icon's helper"),
     ("compatio", "windows"): ("cycle", "the registry's API and discovery checks read the adapter"),
     ("config", "settings"): ("cost", "nearly everything imports config; the settings schema, and the "
                                      "catalogs behind it, load only when settings are read or written"),
@@ -168,7 +172,7 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
     ("diagnostics", "compatio"): ("cost", "the compatibility section of the export only"),
     ("mcp.server", "compat"): ("cost", "the compatibility summary in get_status only"),
     ("mcp.server", "compatio"): ("cost", "the compatibility summary in get_status only"),
-    ("mcp.server", "mcpui"): ("cost", "the panel's page, only when Codex reads the resource"),
+    ("mcp.server", "mcp.panel"): ("cost", "the panel's page, only when Codex reads the resource"),
     ("notify", "reasons"): ("cost", "a reason's label, for a transient toast only"),
     ("notify", "startup"): ("cost", "the AUMID only: startup owns every per-user registration, and a "
                                     "process that only formats a message should not load it"),
@@ -176,13 +180,13 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
     # Since v0.6.10-alpha neither closes a cycle - the Win32 declarations and the countdown
     # moved to win/ and ui/ - so both are what they always looked like: a window the icon opens
     # only when somebody asks for it.
-    ("tray.animation", "tray_popup"): ("cost", "a frame's drawing, only while the icon moves"),
-    ("tray.cards", "tray_popup"): ("cost", "the card's look, only when one is shown"),
-    ("tray.cards", "notice_window"): ("cost", "the card's window, only when one is shown"),
-    ("tray.clicks", "tray_popup"): ("cost", "the popup, built when the icon is clicked"),
-    ("tray.menu", "tray_popup"): ("cost", "the theme the menu is drawn in, only when it opens"),
-    ("tray.motion", "tray_popup"): ("cost", "whether the popup asks for attention"),
-    ("tray.stored", "tray_popup"): ("cost", "the popup's theme and motion, adopted with the settings"),
+    ("ui.tray.animation", "ui.popup"): ("cost", "a frame's drawing, only while the icon moves"),
+    ("ui.tray.cards", "ui.popup"): ("cost", "the card's look, only when one is shown"),
+    ("ui.tray.cards", "notice_window"): ("cost", "the card's window, only when one is shown"),
+    ("ui.tray.clicks", "ui.popup"): ("cost", "the popup, built when the icon is clicked"),
+    ("ui.tray.menu", "ui.popup"): ("cost", "the theme the menu is drawn in, only when it opens"),
+    ("ui.tray.motion", "ui.popup"): ("cost", "whether the popup asks for attention"),
+    ("ui.tray.stored", "ui.popup"): ("cost", "the popup's theme and motion, adopted with the settings"),
     ("windows", "compatio"): ("cycle", "VERIFIED_VERSIONS is read from the bundled baseline"),
     ("windows", "config"): ("cost", "the product version for the App Server's clientInfo, when a Protocol opens"),
 }.items()}
@@ -318,7 +322,7 @@ class LayerTests(unittest.TestCase):
 
     def test_neither_the_mcp_server_nor_the_ui_imports_codex(self):
         importers = members(MCP | UI)
-        self.assertLessEqual({_q("tray_popup"), _q("mcpui"), _q("mcpserver")}, importers)
+        self.assertLessEqual({_q("ui.popup"), _q("mcp.panel"), _q("mcpserver")}, importers)
         for module in sorted(importers):
             for entry in srcscan.imports(srcscan.modules()[module]):
                 with self.subTest(module=module, imports=entry.target):

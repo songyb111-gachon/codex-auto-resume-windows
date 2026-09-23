@@ -259,7 +259,7 @@ the attestation records which event started the run.
 
 Colours, the icon and the generated files that carry them are covered in
 [`docs/BRAND.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/BRAND.md).
-The short version: the palette lives in `src/codex_auto_resume/brand.py`, `gui/Brand.cs`
+The short version: the palette lives in `src/codex_auto_resume/brand/`, `gui/Brand.cs`
 and `assets/brand/icon.svg` are generated from it, and `tests/test_brand.py` regenerates
 both and compares. Do not write a colour literal into the window or the panel stylesheet.
 There is a test for that too, but it reads `gui/SettingsApp.cs` only — neither it nor the

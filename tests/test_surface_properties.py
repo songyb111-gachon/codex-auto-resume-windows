@@ -223,7 +223,7 @@ class TrayMenuTests(unittest.TestCase):
     """
 
     def setUp(self):
-        from codex_auto_resume import tray
+        from codex_auto_resume.ui import tray
         self.tray = tray
         self.calls = []
         self.icon = tray.Tray(

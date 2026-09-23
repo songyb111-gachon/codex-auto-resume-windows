@@ -131,7 +131,7 @@ class MenuMixin:
         if not self._menu_theming:
             return
         try:
-            from .. import tray_popup
+            from .. import popup as tray_popup
             look = tray_popup.appearance(tray_popup.theme_setting(), tray_popup.apps_use_light_theme(),
                                          tray_popup.high_contrast())
             mode = menu_app_mode(look)

@@ -6,7 +6,7 @@ without a screen.
 """
 from __future__ import annotations
 
-from .. import brand
+from ... import brand
 from .words import unbroken
 
 

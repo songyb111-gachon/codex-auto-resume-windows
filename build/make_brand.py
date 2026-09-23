@@ -15,7 +15,7 @@ v0.6.4: `Brand` is the light theme and `Brand.Dark` its twin, with the same name
 that changes with the theme.
 
 v0.6.5: `Brand.Mark` is the notification-area icon's motion for the window's taskbar button - the
-icon's rule, its numbers and its frames, from `codex_auto_resume.tray`. The frames are the icon's
+icon's rule, its numbers and its frames, from `codex_auto_resume.ui.tray`. The frames are the icon's
 own pixels (tray.IconFrames), written as strings: one drawing, and nothing for the window to render.
 
 Run: python build/make_brand.py
@@ -30,7 +30,8 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from codex_auto_resume import brand, tray      # noqa: E402
+from codex_auto_resume import brand      # noqa: E402
+from codex_auto_resume.ui import tray
 
 TARGET = ROOT / "gui" / "Brand.cs"
 
@@ -658,7 +659,7 @@ def mark_class() -> str:
     lines = [
         "\n",
         "        /// The notification-area icon's motion on the window's taskbar button (v0.6.5), from\n",
-        "        /// codex_auto_resume.tray: the icon's five states and the one each status light is drawn as, its\n",
+        "        /// codex_auto_resume.ui.tray: the icon's five states and the one each status light is drawn as, its\n",
         "        /// rhythms, and its frames at each .ico entry the window's big icon is up to 300%. TaskbarMark\n",
         "        /// shows them.\n",
         "        internal static class Mark\n",

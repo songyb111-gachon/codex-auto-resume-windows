@@ -8,8 +8,8 @@ from __future__ import annotations
 import ctypes as C
 from ctypes import wintypes as W
 
-from .. import win
-from ..win.dll import GUID
+from ... import win
+from ...win.dll import GUID
 from .words import TIP_CHARS
 
 

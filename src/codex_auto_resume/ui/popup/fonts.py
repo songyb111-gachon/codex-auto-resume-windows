@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import ctypes as C
 import os
-from .. import brand
+from ... import brand
 from .win32 import NONCLIENTMETRICSW, SPI_GETNONCLIENTMETRICS, _declare, _dll
 
 

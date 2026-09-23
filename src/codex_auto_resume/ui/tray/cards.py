@@ -19,7 +19,8 @@ class CardsMixin:
         if self.inbox is None:
             return
         try:
-            from .. import notice_window, tray_popup
+            from ... import notice_window
+            from .. import popup as tray_popup
             self._cards = notice_window.CardStack(on_action=self.on_notice_action,
                                                   on_complete=self.on_notice_complete, log=self.log,
                                                   anchor=lambda: tray_popup.icon_rect(self._hwnd, 1),
@@ -31,7 +32,7 @@ class CardsMixin:
     def _card_look(self):
         """How the next card is drawn: the Theme and Reduce motion stored now, as the popup and the
         menu take them up when they open (`_adopt_settings`), then Windows' own answers."""
-        from .. import notice_window
+        from ... import notice_window
         self._adopt_settings()
         return notice_window.look()
 

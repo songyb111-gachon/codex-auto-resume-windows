@@ -335,7 +335,7 @@ FUNCTION = re.compile(r"^function\s+([\w$]+)\s*\(", re.M)
 
 def panel_script() -> str:
     """The panel's own script, as `mcpui.settings_page` serves it: the one script that is not data."""
-    from codex_auto_resume import mcpui
+    from codex_auto_resume.mcp import panel as mcpui
 
     page = mcpui.settings_page()
     scripts = re.findall(r"<script>(.*?)</script>", page, re.S)

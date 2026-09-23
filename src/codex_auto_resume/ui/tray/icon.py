@@ -59,7 +59,7 @@ from .win32 import (CALLBACK,
                     WTS_SESSION_UNLOCK,
                     _dll)
 from .words import tooltip
-from ..win.dll import LRESULT, WNDCLASSW, WNDPROC
+from ...win.dll import LRESULT, WNDCLASSW, WNDPROC
 
 
 class Tray(MenuMixin, StoredMixin, CardsMixin, ClicksMixin, AnimationMixin):

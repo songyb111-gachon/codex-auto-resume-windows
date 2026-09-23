@@ -9,7 +9,7 @@ from __future__ import annotations
 from ctypes import wintypes as W
 import ctypes as C
 import math
-from .. import brand
+from ... import brand
 from .elevation import lift_coverage, recipe_shadows, shadow_step, tile_ground, well_coverage
 from .fonts import _Fonts
 from .gdiplus import _Canvas, _Painter, _ShadowImage, _gdiplus_acquire, _gdiplus_release

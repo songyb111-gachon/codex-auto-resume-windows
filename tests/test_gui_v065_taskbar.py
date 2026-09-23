@@ -46,7 +46,9 @@ import time
 import types
 import unittest
 
-from codex_auto_resume import brand, control, l10n, machine, tray, tray_popup
+from codex_auto_resume import brand, control, l10n, machine
+from codex_auto_resume.ui import tray
+from codex_auto_resume.ui import popup as tray_popup
 
 from test_gui_layout import fullest_snapshot
 

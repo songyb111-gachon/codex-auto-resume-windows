@@ -5,7 +5,7 @@ the notification card, so that "3m 20s" is spelled one way wherever this product
 """
 from __future__ import annotations
 
-from ..ui.words import countdown  # noqa: F401
+from ..words import countdown  # noqa: F401
 
 
 TIP_CHARS = 128

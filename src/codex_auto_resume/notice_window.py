@@ -13,7 +13,7 @@ from whatever somebody is doing, whatever they click:
   it reaches past the card and over the taskbar, and a shadow must never eat a click on a tray
   icon or the clock;
 * the **card**, owned by its shadow so it always stands above it: the popup's card, drawn by the
-  popup's own renderer (`tray_popup.Renderer`) at the monitor's scale and then given its rounded
+  popup's own renderer (`popup.Renderer`) at the monitor's scale and then given its rounded
   corners in alpha. Its two buttons are the toast's two buttons.
 
 A frame is one scaled blit of the card, one stamp of the shadow at its depth and one `UpdateLayeredWindow`
@@ -37,7 +37,8 @@ import os
 import threading
 import time
 
-from . import brand, notice_card, notice_presence, tray_popup, win
+from . import brand, notice_card, notice_presence, win
+from .ui import popup
 
 if os.name == "nt":
     from ctypes import wintypes as W
@@ -74,7 +75,7 @@ UNIT_PIXEL = 2
 _DECLARED = False
 _DECLARE_LOCK = threading.Lock()
 # GDI+ objects this module makes itself (the popup's renderer and shadow images count their own
-# in tray_popup.gdiplus_objects): the leak tests read both.
+# in popup.gdiplus_objects): the leak tests read both.
 _LIVE = {"objects": 0}
 _LIVE_LOCK = threading.Lock()
 
@@ -204,7 +205,7 @@ def screen(anchor=None) -> dict:
     primary. Work area and monitor rectangles in physical pixels, and that monitor's DPI."""
     _declare()
     user32 = _dll("user32")
-    with tray_popup._PerMonitorDpi():
+    with popup._PerMonitorDpi():
         icon = None
         try:
             icon = anchor() if anchor else None
@@ -234,9 +235,9 @@ def screen(anchor=None) -> dict:
 
 def look() -> dict:
     """How cards are drawn now: theme, High Contrast and whether anything may move."""
-    contrast = tray_popup.high_contrast()
-    theme = tray_popup.effective_theme(tray_popup.theme_setting(), tray_popup.apps_use_light_theme())
-    reduced = bool(tray_popup.reduced_motion() or contrast or notice_presence.battery_saver())
+    contrast = popup.high_contrast()
+    theme = popup.effective_theme(popup.theme_setting(), popup.apps_use_light_theme())
+    reduced = bool(popup.reduced_motion() or contrast or notice_presence.battery_saver())
     return {"theme": theme, "contrast": contrast, "reduced": reduced}
 
 
@@ -284,7 +285,7 @@ class _Layer:
     def push(self, x, y, alpha):
         """Put the DIB on screen at (x, y) with the whole window at `alpha` (0-1)."""
         blend = BLENDFUNCTION(AC_SRC_OVER, 0, max(0, min(255, int(round(alpha * 255)))), AC_SRC_ALPHA)
-        with tray_popup._PerMonitorDpi():
+        with popup._PerMonitorDpi():
             ok = _dll("user32").UpdateLayeredWindow(self.hwnd, None, C.byref(W.POINT(int(x), int(y))),
                                                     C.byref(SIZE(self.width, self.height)), self.dc,
                                                     C.byref(W.POINT(0, 0)), 0, C.byref(blend), ULW_ALPHA)
@@ -359,10 +360,10 @@ class _Image:
 
 
 # ------------------------------------------------------------------------------ one card
-class _CardRenderer(tray_popup.Renderer if os.name == "nt" else object):
+class _CardRenderer(popup.Renderer if os.name == "nt" else object):
     """The popup's renderer, and brand's own fill for a light the popup never shows.
 
-    The popup's six states have their fills in `tray_popup.DOT_FILL`; a card can also say that
+    The popup's six states have their fills in `popup.DOT_FILL`; a card can also say that
     an attempt failed, which brand draws in `danger` (brand.STATUS_FILL). Everything else - the
     dot's dimming, the glow's falloff and its size, High Contrast's system colour - is the
     popup's own drawing.
@@ -370,7 +371,7 @@ class _CardRenderer(tray_popup.Renderer if os.name == "nt" else object):
 
     def _halo(self, paint, item, scale, frame):
         state = item["state"]
-        if self.contrast or state in tray_popup.DOT_FILL:
+        if self.contrast or state in popup.DOT_FILL:
             return super()._halo(paint, item, scale, frame)
         self._light(paint, item["cx"], item["cy"], brand.STATUS_DOT["popup"], scale,
                     brand.status_fill(state), frame)
@@ -444,7 +445,7 @@ class Card:
     def _create_windows(self):
         user32, stack = _dll("user32"), self.stack
         width, height = self.size
-        with tray_popup._PerMonitorDpi():
+        with popup._PerMonitorDpi():
             base = WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST
             shadow = user32.CreateWindowExW(base | WS_EX_TRANSPARENT, stack.class_name, "", WS_POPUP,
                                             0, 0, width + 2 * self.margin, height + 2 * self.margin,
@@ -506,15 +507,15 @@ class Card:
         if images is None:
             images = []
             for shadow in placed:
-                mask = tray_popup.lift_coverage(width, height, radius, shadow.blur * self.scale)
-                images.append(tray_popup._ShadowImage(mask, brand.rgb(shadow.colour), shadow.alpha))
+                mask = popup.lift_coverage(width, height, radius, shadow.blur * self.scale)
+                images.append(popup._ShadowImage(mask, brand.rgb(shadow.colour), shadow.alpha))
             self._shadow_images[level] = images
         with _Surface(layer) as surface:
             surface.gp.GdipSetInterpolationMode(surface.graphics, 5)        # nearest: stretched middles stay exact
             for shadow, image in zip(reversed(placed), reversed(images)):
                 extent = image.extent
-                image.stamp(surface, self.margin - extent + tray_popup.shadow_step(shadow.dx * self.scale),
-                            self.margin - extent + tray_popup.shadow_step(shadow.dy * self.scale),
+                image.stamp(surface, self.margin - extent + popup.shadow_step(shadow.dx * self.scale),
+                            self.margin - extent + popup.shadow_step(shadow.dy * self.scale),
                             width + 2 * extent, height + 2 * extent, middle=False)
         self._drawn_level = level
 
@@ -552,7 +553,7 @@ class Card:
     def hit(self, lparam):
         x = C.c_short(lparam & 0xFFFF).value
         y = C.c_short((lparam >> 16) & 0xFFFF).value
-        return tray_popup.hit_test(self.plan["targets"], x, y) if self.plan else None
+        return popup.hit_test(self.plan["targets"], x, y) if self.plan else None
 
     def close(self):
         user32 = _dll("user32")
@@ -580,7 +581,7 @@ class CardStack:
     """Every card on screen, on the icon's thread. `wake` is the one method another thread calls.
 
     `on_action(uri)` is called on a worker thread when a card's button is clicked; `anchor()`
-    returns the icon's rectangle or None (`tray_popup.icon_rect`); `inbox` is the notifier's
+    returns the icon's rectangle or None (`popup.icon_rect`); `inbox` is the notifier's
     Inbox, which this stack attaches itself to once its window exists; `on_complete(notice,
     shown)` ends each notice it took, once, on a worker thread (see the module's docstring).
     `worker(target, *args)` runs a callback off the icon's thread (a short daemon thread unless
@@ -665,12 +666,12 @@ class CardStack:
 
     def _acquire_gdiplus(self):
         if not self._gdiplus:
-            tray_popup._gdiplus_acquire()
+            popup._gdiplus_acquire()
             self._gdiplus = True
 
     def _release_gdiplus(self):
         if self._gdiplus:
-            tray_popup._gdiplus_release()
+            popup._gdiplus_release()
             self._gdiplus = False
 
     # ---- showing

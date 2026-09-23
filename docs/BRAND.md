@@ -44,7 +44,7 @@ frames from it.
 
 ## Where a colour comes from
 
-`src/codex_auto_resume/brand.py` and nowhere else — and since v0.6.3, every size, radius and
+`src/codex_auto_resume/brand/` and nowhere else — and since v0.6.3, every size, radius and
 duration as well.
 
 | Surface | How it gets the palette |

@@ -47,7 +47,7 @@ class StoredMixin:
             values = self._stored_settings()
             if values is None:
                 return
-            from .. import tray_popup
+            from .. import popup as tray_popup
             tray_popup.adopt_settings(values)
             strings = tray_popup.vocabulary(values.get("interface_language"))
             with self._lock:

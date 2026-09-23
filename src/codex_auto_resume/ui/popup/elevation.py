@@ -6,7 +6,7 @@ shadows each frame would cost more than it draws.
 from __future__ import annotations
 
 import math
-from .. import brand
+from ... import brand
 
 
 # v0.6.5: depth inside the card (requirement 11). Until then everything on the popup's card was

@@ -35,8 +35,16 @@ import types
 import unittest
 from unittest.mock import MagicMock, patch
 
-from codex_auto_resume import (brand, l10n, notice_card, notice_presence, notifier, notify,
-                               pwsh, reasons, settings, tray_popup)
+from codex_auto_resume import (brand,
+                               l10n,
+                               notice_card,
+                               notice_presence,
+                               notifier,
+                               notify,
+                               pwsh,
+                               reasons,
+                               settings)
+from codex_auto_resume.ui import popup as tray_popup
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src" / "codex_auto_resume"
@@ -1267,7 +1275,7 @@ class SettingTests(unittest.TestCase):
         its default, but no surface offers it; wiring the card fails this test until the name
         leaves settings.NOT_YET_OFFERED, and taking the wiring out fails it the other way."""
         app_source = (SRC / "app.py").read_text(encoding="utf-8")
-        tray_source = (SRC / "tray" / "cards.py").read_text(encoding="utf-8")
+        tray_source = (SRC / "ui" / "tray" / "cards.py").read_text(encoding="utf-8")
         wired = "notifier.deliver(" in app_source and "notice_window.CardStack(" in tray_source
         offered = [entry for entry in settings.describe() if entry["name"] == notifier.CARD_SETTING]
         self.assertEqual(bool(offered), wired)
@@ -1364,7 +1372,7 @@ class WindowsTests(unittest.TestCase):
 
     def pump(self, seconds=0.05):
         import ctypes
-        from codex_auto_resume import tray
+        from codex_auto_resume.ui import tray
         user32 = ctypes.WinDLL("user32")
         user32.PeekMessageW.argtypes = [ctypes.POINTER(tray.MSG), ctypes.c_void_p, ctypes.c_uint,
                                         ctypes.c_uint, ctypes.c_uint]

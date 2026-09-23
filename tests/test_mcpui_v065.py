@@ -28,7 +28,8 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tests"))
 
 import srcscan                                                             # noqa: E402
-from codex_auto_resume import brand, l10n, mcpui                          # noqa: E402
+from codex_auto_resume import brand, l10n                          # noqa: E402
+from codex_auto_resume.mcp import panel as mcpui
 from codex_auto_resume import settings as policy                          # noqa: E402
 from test_mcpui_v063 import (FORCED, REDUCED, RULES, ROOT_TOKENS, SUPPORTS_MIX,  # noqa: E402
                              cubic_bezier, declared)
@@ -846,7 +847,7 @@ class MotionStyleTests(unittest.TestCase):
         # Brand's, emitted with the scale; the panel names it and never writes a curve of its own.
         self.assertEqual(ROOT_TOKENS["--transition-ease"], brand.css_ease())
         self.assertEqual(ROOT_TOKENS["--transition"], "%dms" % brand.MOTION["transition_ms"])
-        source = (ROOT / "src" / "codex_auto_resume" / "mcpui.py").read_text(encoding="utf-8")
+        source = (ROOT / "src" / "codex_auto_resume" / "mcp" / "panel.py").read_text(encoding="utf-8")
         self.assertNotIn("--transition-ease:", source)
         self.assertNotIn("--transition:", source)
         # One file of the package writes either token - `brand/css.py`, which is the one file
@@ -1053,7 +1054,7 @@ class ScriptTests(unittest.TestCase):
 
 # ------------------------------------------------------------------------------------ tiles
 try:
-    from codex_auto_resume import tray_popup
+    from codex_auto_resume.ui import popup as tray_popup
 except Exception:                                                         # pragma: no cover - not Windows
     tray_popup = None
 
