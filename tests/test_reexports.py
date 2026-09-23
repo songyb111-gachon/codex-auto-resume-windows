@@ -15,11 +15,13 @@ It has happened twice, on the two fronts there are:
   which is the good case, and is the reason this test reads the suite too.
 
 So the rule, over the product, its build scripts and the suite alike: a name read off a front
-has to be a name the front gives. The list of fronts below grows as the remaining steps land.
+has to be a name the front gives. The fronts are found by their shape rather than listed, so
+the next step that moves a module out from under its name joins them by moving it.
 """
 from __future__ import annotations
 
 import ast
+from importlib import import_module
 from pathlib import Path
 import sys
 import unittest
@@ -30,13 +32,62 @@ for entry in (str(Path(_HERE).parent / "src"), _HERE):
         sys.path.insert(0, entry)
 
 import srcscan  # noqa: E402
-from codex_auto_resume import mcpserver, tray_popup  # noqa: E402
 
 ROOT = Path(_HERE).parent
 
-# The modules whose code moved into a package of the same name. Each keeps its own file, which
-# holds a docstring and the re-exports and nothing else.
-FRONTS = {"mcpserver": mcpserver, "tray_popup": tray_popup}
+
+def fronts() -> dict:
+    """{name: (the module, the package its code lives in)}, found rather than listed.
+
+    A front has a shape: its body is a docstring and imports and nothing else, and everything
+    it imports from inside this package comes from one subpackage. That is what a module looks
+    like once its code has moved out from under it and it is holding the name.
+
+    Found rather than listed on purpose. A hand-written list is a thing to forget, and the
+    day it is forgotten is the day a front stops being checked - which is the failure this
+    whole file exists to catch. The next step that moves a module joins these by moving it.
+    """
+    found = {}
+    for name, path in srcscan.modules().items():
+        if not name.startswith(srcscan.PACKAGE + "."):
+            continue
+        body = [node for node in srcscan.package_asts()[path].body
+                if not isinstance(node, (ast.Import, ast.ImportFrom))]
+        if not {type(node).__name__ for node in body} <= {"Expr", "If"}:
+            continue                                   # it holds code of its own
+        inside = {entry.target for entry in srcscan.imports(path)
+                  if entry.internal and not entry.implied and entry.target != name}
+        if not inside:
+            continue                                   # it re-exports nothing
+        package = one_package(inside)
+        if package is None:
+            continue                                   # what it imports is not one subpackage
+        found[name[len(srcscan.PACKAGE) + 1:]] = (import_module(name), package)
+    return found
+
+
+def one_package(targets: set):
+    """The one subpackage every target lives in, or None if there is not one.
+
+    The modules' own parents, not the targets - with a single target the two differ, and it is
+    the parent that is the package. `codex_auto_resume` itself does not count: a front's code
+    has to have moved somewhere, and everything is inside the package already.
+    """
+    parts = [target.rsplit(".", 1)[0].split(".") for target in targets]
+    shared = []
+    for index in range(min(len(part) for part in parts)):
+        here = {part[index] for part in parts}
+        if len(here) != 1:
+            break
+        shared.append(here.pop())
+    package = ".".join(shared)
+    if not package.startswith(srcscan.PACKAGE + "."):
+        return None
+    return package if any(other.startswith(package + ".") for other in srcscan.modules()) else None
+
+
+FRONTS = {name: module for name, (module, _package) in fronts().items()}
+PACKAGE_OF = {name: package for name, (_module, package) in fronts().items()}
 
 
 def readers():
@@ -129,11 +180,16 @@ class ReExportTests(unittest.TestCase):
         self.assertEqual(missing, {}, "re-export it, or stop reading it there")
 
     def test_the_scan_finds_something_to_check(self):
-        """Not vacuous: each front is really read by name, in numbers, and the reads it finds
-        include the ones made relatively from inside the package."""
-        for front in FRONTS:
-            with self.subTest(front):
-                self.assertGreater(len(reads(front)), 10)
+        """Not vacuous: fronts are found, and some of them are read in numbers.
+
+        Not every front is. `ui` and `win` are re-export files too - the shape is the same -
+        and almost nothing reaches them by name, because what is inside them is imported
+        directly. They are held to the rule anyway, which costs nothing and means the rule
+        arrives before the reads do.
+        """
+        self.assertGreaterEqual(len(FRONTS), 2, "the shape found no front at all")
+        busy = [front for front in FRONTS if len(reads(front)) > 10]
+        self.assertGreaterEqual(len(busy), 2, sorted(FRONTS))
         self.assertIn("USER_GROUPS", reads("mcpserver"))
         popup = reads("tray_popup")
         self.assertIn("_icon_from_pixels", popup)
@@ -182,9 +238,11 @@ class ReExportTests(unittest.TestCase):
 def product_reads(front: str) -> dict:
     """`front`.name as the product and its build scripts spell it - not the suite."""
     found: dict[str, list[str]] = {}
-    inside = "codex_auto_resume/%s/" % front
+    # The package a front's code lives in is not always named after it: `mcpserver`'s is
+    # `mcp/`. Asking the front which one it re-exports from is the only way that stays true.
+    own = PACKAGE_OF[front].replace(".", "/") + "/"
     for path in list(srcscan.package_files()) + sorted((ROOT / "build").glob("*.py")):
-        if inside in path.as_posix():
+        if own in path.as_posix():
             continue                                   # the package's own files
         tree = ast.parse(path.read_text(encoding="utf-8"))
         names = bound_to(tree, front, one_dot(path))
