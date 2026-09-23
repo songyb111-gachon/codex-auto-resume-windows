@@ -1,0 +1,165 @@
+{
+  "tool": "get_status",
+  "cases": [
+    {
+      "case": "the status, with the registry's summary under watcher",
+      "arguments": {},
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "Auto recovery enabled, watcher running, 2 pending, version <version>."
+            }
+          ],
+          "structuredContent": {
+            "version": "<version>",
+            "enabled": true,
+            "watcher_running": true,
+            "watcher": {
+              "running": true,
+              "ticking": true,
+              "engine_state": "unknown",
+              "last_tick_at": 1799999999.0,
+              "last_tick_ok": true,
+              "code_version": "<version>",
+              "pid": 4242,
+              "started_at": 1799994600.0,
+              "compatibility": {
+                "status": "absent",
+                "overall": "unknown",
+                "acting": null,
+                "source": "none",
+                "sequence": null,
+                "cache": null,
+                "checked_at": null,
+                "capabilities": {
+                  "engine_present": {
+                    "state": "UNKNOWN",
+                    "reason": "report_absent"
+                  },
+                  "exact_thread_recovery": {
+                    "state": "UNKNOWN",
+                    "reason": "report_absent"
+                  },
+                  "usage_limit_detection": {
+                    "state": "UNKNOWN",
+                    "reason": "report_absent"
+                  },
+                  "usage_reset_hint": {
+                    "state": "UNKNOWN",
+                    "reason": "report_absent"
+                  },
+                  "usage_probe": {
+                    "state": "UNKNOWN",
+                    "reason": "report_absent"
+                  },
+                  "thread_eligibility": {
+                    "state": "UNKNOWN",
+                    "reason": "report_absent"
+                  },
+                  "loaded_state_detection": {
+                    "state": "UNKNOWN",
+                    "reason": "report_absent"
+                  },
+                  "recovery_turn_tracking": {
+                    "state": "UNKNOWN",
+                    "reason": "report_absent"
+                  },
+                  "queue_withdraw": {
+                    "state": "UNKNOWN",
+                    "reason": "report_absent"
+                  },
+                  "outcome_observation": {
+                    "state": "UNKNOWN",
+                    "reason": "report_absent"
+                  },
+                  "transient_classification": {
+                    "state": "UNKNOWN",
+                    "reason": "report_absent"
+                  },
+                  "projection_freshness": {
+                    "state": "UNKNOWN",
+                    "reason": "report_absent"
+                  },
+                  "empty_response_recovery": {
+                    "state": "UNKNOWN",
+                    "reason": "report_absent"
+                  },
+                  "not_loaded_recovery": {
+                    "state": "UNKNOWN",
+                    "reason": "report_absent"
+                  },
+                  "goal_continuation": {
+                    "state": "UNKNOWN",
+                    "reason": "report_absent"
+                  },
+                  "subagent_recovery": {
+                    "state": "UNKNOWN",
+                    "reason": "report_absent"
+                  }
+                }
+              }
+            },
+            "upgrade_pending": false,
+            "startup_enabled": false,
+            "pending": 2,
+            "states": {
+              "completed_no_progress": 1,
+              "recovered": 4,
+              "retry_budget_exhausted": 1,
+              "stopped_by_user": 1,
+              "waiting_backoff": 1,
+              "waiting_reset": 1
+            },
+            "codes": {
+              "waiting_reset": 1,
+              "scheduled": 1
+            },
+            "failure_unseen": false,
+            "settings": {
+              "max_recovery_attempts": 4,
+              "max_no_progress": 3,
+              "max_chain_continuations": 6,
+              "retry_timing": "normal",
+              "detection_lookback_hours": 6.0,
+              "notifications": true,
+              "show_tray": true,
+              "notification_card": true,
+              "start_with_codex": false,
+              "theme": "light",
+              "panel_theme": "same",
+              "reduce_motion": false,
+              "codex_exe": null,
+              "recover_usage_limit": true,
+              "recover_network_transient": true,
+              "recover_timeout": true,
+              "recover_rate_limit_transient": true,
+              "recover_server_5xx": true,
+              "recover_stream_interrupted": true,
+              "recover_auth_service_transient": true,
+              "notify_interruption": true,
+              "notify_starting": true,
+              "notify_result": true,
+              "notify_stopped": true,
+              "interface_language": "system",
+              "continuation_language": "follow",
+              "continuation_style": "standard",
+              "custom_message_mode": "global",
+              "custom_message": null,
+              "custom_message_usage_limit": null,
+              "custom_message_rate_limit_transient": null,
+              "custom_message_network_transient": null,
+              "custom_message_timeout": null,
+              "custom_message_server_5xx": null,
+              "custom_message_stream_interrupted": null,
+              "custom_message_auth_service_transient": null
+            }
+          }
+        }
+      }
+    }
+  ]
+}

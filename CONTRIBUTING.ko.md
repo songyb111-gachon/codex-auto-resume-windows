@@ -47,22 +47,6 @@ Windows에서 `CODEX_AR_LIVE=1`을 설정하지 않는 한 건너뜁니다.
 정리되어 있고, 어떤 suite도 대신할 수 없는 확인 — 실제 설치, 실제 중단, 실제 전송 — 은
 [docs/LIVE_ACCEPTANCE.ko.md](docs/LIVE_ACCEPTANCE.ko.md)의 절차입니다.
 
-## 응답을 바이트 단위로 묶어 두기
-
-`tests/goldensession.py`는 두 front end가 받는 것을 통째로 기록합니다. 창이 보낼 수 있는 모든 브리지
-명령과 Codex 안 패널이 내놓는 모든 도구, 거절까지 포함해서입니다. 기록은 멈춰 세운 기계에서 나옵니다.
-시각 고정, 버전 고정, 영어, 얼어붙은 호환성 문서, 가짜 레지스트리, 그리고 `<HOME>`으로 적히는 임시 홈입니다.
-`tests/test_golden_replies.py`는 1바이트만 달라도 실패하고, 새 명령이나 새 도구에 골든이 아예 없을 때도
-실패합니다.
-
-이것은 v0.6.10-alpha 모듈화를 위해 있습니다. 그 단계에서 Python 구현 대부분이 파일 사이를 옮겨 다니지만,
-front end가 받는 것은 하나도 달라지면 안 됩니다. 응답이 정말로 바뀌어야 할 때는 같은 커밋에서 골든을 다시
-쓰고, 그 diff를 리뷰로 삼습니다.
-
-```bash
-py tests/goldensession.py --write
-```
-
 ## 창을 재기
 
 빠르기도 다른 주장과 같아서, 믿는 대신 확인하는 방법이 `build/measure_window.py`입니다. `gui/*.cs`를 임시
@@ -414,8 +398,9 @@ Python 패키지는 계층으로 짜여 있고, import는 한 방향으로만 �
 절대 향하지 않습니다.
 
 - **도메인** — 부수 효과가 없는 규칙입니다. 실패를 어떻게 분류하는지(`failures.py`), 어떤 이유가 복구
-  가능한지(`reasons.py`), 저장된 상태가 사람에게 무엇으로 보이는지(`machine.py`). 표준 라이브러리만,
-  그중에서도 시계·파일·프로세스에 닿지 않는 부분만 씁니다.
+  가능한지(`reasons.py`), 저장된 상태가 사람에게 무엇으로 보이는지(`machine.py`), 그리고 이것들이
+  옮겨 가고 있는 `domain/` 패키지 - 모든 식별자(`domain/ids.py`)와 닫힌 단어 목록 전부
+  (`domain/vocabulary.py`). 표준 라이브러리만, 그중에서도 시계·파일·프로세스에 닿지 않는 부분만 씁니다.
 - **정책과 번역** — 설정 스키마, continuation 작성기, 카탈로그, 경로와 제품 버전, 로그.
 - **어댑터** — 바깥에 닿는 모든 것입니다. store, Codex의 파일과 프로세스, Windows(레지스트리, 시작
   메뉴 바로 가기, PowerShell, 알림), 호환성 레지스트리.
@@ -447,6 +432,33 @@ Python 패키지는 계층으로 짜여 있고, import는 한 방향으로만 �
 로그인 시 실행 항목에 들어 있습니다)와 `src/codex_auto_resume/cli.py`(사용자 홈에 이미 설치된 예전
 런처가 둘 다 찾습니다), 그리고 설정 창, MCP 런처, bootstrap, 릴리스 검사가 부르는 모듈 이름이 그렇습니다.
 `tests/test_structural_invariants.py`가 이것들을 고정합니다.
+
+브리지와 MCP 서버가 돌려주는 답도 약속입니다. 설정 창과 Codex 안의 패널은 그 답을 필드 이름으로
+읽고, 그 이름 말고는 Python과 이어 주는 것이 없습니다. `tests/golden/`에는 브리지 명령마다, MCP
+도구마다 파일이 하나씩 있으며, `tests/wiregolden.py`가 시계·경로·기계를 고정한 임시 설치본에서
+만듭니다. `tests/test_wire_goldens.py`는 실행할 때마다 이 파일들을 다시 만들어 바이트 단위로 비교하고,
+`tests/test_consumer_fields.py`는 창이나 패널이 어느 골든 답에도 없는 필드를 읽으면 실패합니다. 코드를
+옮겨도 이 파일들은 하나도 달라지지 않아야 합니다. 답을 바꾸려는 변경은
+`python -X utf8 tests/wiregolden.py --write`로 파일들을 다시 만들고, 그 diff도 변경과 함께 리뷰합니다.
+
+어떤 규칙은 일부러 한곳에만 둡니다. 레코드가 어느 대기 상태로 돌아가는지, 클레임 하나가 예산을 얼마나
+쓰는지, 레코드가 Codex의 대기열에 들어 있을 수 있는지, 명령이 상태를 어떻게 여는지, 어느 설정이
+사용자가 직접 쓴 글인지 같은 것들입니다. `tests/test_single_rules.py`는 호출하는 곳마다 각 규칙에서
+무엇을 받는지 고정하고, 패키지 어디에든 같은 규칙의 두 번째 구현이 생기면 실패합니다. 규칙을 다시
+쓰지 말고 이미 있는 것을 부르세요. `machine.waiting_state`, `machine.may_be_queued`,
+`openstate.open_state`, `settings.is_custom_text`, 그리고 그 테스트가 이름을 대는 나머지입니다. JSON을
+쓰는 곳은 모두 `allow_nan=False`를 넘기고 `default`는 넘기지 않으며, `tests/test_json_writers.py`가
+이를 검사합니다. JSON이 아닌 값은 글로 적어 보낼 것이 아니라, 그 값을 만드는 곳에서 고칠 버그입니다.
+
+식별자를 읽는 것도 그런 규칙 가운데 하나입니다. 대화 ID, 중단 ID, continuation이 지니는 마커,
+클라이언트 ID는 `domain/ids.py`를 통해서만 읽으며, 중단 ID를 계산하는 것도 이 모듈입니다. 두 곳이 서로
+다른 표기를 받아들여야 한다면, 각자 패턴을 따로 두지 않고 파서가 매개변수를 받습니다.
+`tests/test_domain_vectors.py`는 그 ID들과 게이트 벡터, `settings.json`의 정확한 바이트, 그리고 읽는
+곳마다 무엇을 받아들이는지를 고정합니다. 상태, 코드, 이유, 게이트, 분류, 거절, 선택지 같은 닫힌 단어
+목록은 `domain/vocabulary.py`에 목록마다 `StrEnum` 하나로 있습니다. 목록을 쓰던 모듈은 그 목록을 예전
+이름 그대로, enum으로 만들어 둡니다(`machine.STATES = frozenset(RecordState)`). 그래서 단어는 한곳에서만
+더합니다. `tests/test_vocabulary.py`는 모든 목록을 그 멤버에, 모든 멤버를 자기 문자열과 똑같이
+해시되고 비교되고 쓰이는 것에 묶어 둡니다.
 
 ## 커밋과 pull request
 

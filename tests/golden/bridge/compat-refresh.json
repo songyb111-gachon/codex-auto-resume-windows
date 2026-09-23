@@ -1,0 +1,297 @@
+{
+  "command": "compat-refresh",
+  "cases": [
+    {
+      "case": "the bootstrap refreshed the data",
+      "argument": {},
+      "reply": {
+        "ok": true,
+        "result": {
+          "answer": "refreshed",
+          "sequence": 2,
+          "reason": null,
+          "compatibility": {
+            "status": "ok",
+            "overall": "unknown",
+            "acting": null,
+            "checked_at": 1800000000.0,
+            "engine": {
+              "found": false,
+              "version": null
+            },
+            "data": {
+              "bundled": "ok",
+              "bundled_sequence": 1,
+              "cache": "absent",
+              "cache_sequence": null,
+              "cache_origin": null,
+              "fetched_at": null,
+              "source": "bundled",
+              "expired": false
+            },
+            "checks": {
+              "official_location": "UNAVAILABLE",
+              "version_runs": "UNAVAILABLE",
+              "single_candidate": "UNAVAILABLE",
+              "queue_flags": "UNAVAILABLE",
+              "state_schema": "PASS",
+              "history_schema": "PASS",
+              "queue_schema": "PASS",
+              "projection_table": "PASS",
+              "sessions_directory": "PASS",
+              "lock_directory": "PASS",
+              "restart_manager": "PASS",
+              "protocol_usage_method": "PASS",
+              "protocol_delete_method": "PASS"
+            },
+            "capabilities": {
+              "engine_present": {
+                "state": "UNKNOWN",
+                "reason": "local_check_unavailable",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "exact_thread_recovery": {
+                "state": "UNKNOWN",
+                "reason": "local_check_unavailable",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "usage_limit_detection": {
+                "state": "COMPATIBLE",
+                "reason": "local_checks_passed",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "usage_reset_hint": {
+                "state": "COMPATIBLE",
+                "reason": "local_checks_passed",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "usage_probe": {
+                "state": "UNKNOWN",
+                "reason": "local_check_unavailable",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "thread_eligibility": {
+                "state": "COMPATIBLE",
+                "reason": "local_checks_passed",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "loaded_state_detection": {
+                "state": "COMPATIBLE",
+                "reason": "local_checks_passed",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "recovery_turn_tracking": {
+                "state": "COMPATIBLE",
+                "reason": "local_checks_passed",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "queue_withdraw": {
+                "state": "UNKNOWN",
+                "reason": "local_check_unavailable",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "outcome_observation": {
+                "state": "COMPATIBLE",
+                "reason": "local_checks_passed",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "transient_classification": {
+                "state": "COMPATIBLE",
+                "reason": "local_checks_passed",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "projection_freshness": {
+                "state": "COMPATIBLE",
+                "reason": "local_checks_passed",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "empty_response_recovery": {
+                "state": "UNKNOWN",
+                "reason": "not_implemented",
+                "source": "local",
+                "tier": "unsupported"
+              },
+              "not_loaded_recovery": {
+                "state": "UNKNOWN",
+                "reason": "not_implemented",
+                "source": "local",
+                "tier": "unsupported"
+              },
+              "goal_continuation": {
+                "state": "UNKNOWN",
+                "reason": "not_implemented",
+                "source": "local",
+                "tier": "unsupported"
+              },
+              "subagent_recovery": {
+                "state": "UNKNOWN",
+                "reason": "not_implemented",
+                "source": "local",
+                "tier": "unsupported"
+              }
+            },
+            "live": true
+          }
+        }
+      }
+    },
+    {
+      "case": "the bootstrap's line and its exit code disagree",
+      "argument": {},
+      "reply": {
+        "ok": true,
+        "result": {
+          "answer": "failed",
+          "sequence": null,
+          "reason": null,
+          "compatibility": {
+            "status": "ok",
+            "overall": "unknown",
+            "acting": null,
+            "checked_at": 1800000000.0,
+            "engine": {
+              "found": false,
+              "version": null
+            },
+            "data": {
+              "bundled": "ok",
+              "bundled_sequence": 1,
+              "cache": "absent",
+              "cache_sequence": null,
+              "cache_origin": null,
+              "fetched_at": null,
+              "source": "bundled",
+              "expired": false
+            },
+            "checks": {
+              "official_location": "UNAVAILABLE",
+              "version_runs": "UNAVAILABLE",
+              "single_candidate": "UNAVAILABLE",
+              "queue_flags": "UNAVAILABLE",
+              "state_schema": "PASS",
+              "history_schema": "PASS",
+              "queue_schema": "PASS",
+              "projection_table": "PASS",
+              "sessions_directory": "PASS",
+              "lock_directory": "PASS",
+              "restart_manager": "PASS",
+              "protocol_usage_method": "PASS",
+              "protocol_delete_method": "PASS"
+            },
+            "capabilities": {
+              "engine_present": {
+                "state": "UNKNOWN",
+                "reason": "local_check_unavailable",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "exact_thread_recovery": {
+                "state": "UNKNOWN",
+                "reason": "local_check_unavailable",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "usage_limit_detection": {
+                "state": "COMPATIBLE",
+                "reason": "local_checks_passed",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "usage_reset_hint": {
+                "state": "COMPATIBLE",
+                "reason": "local_checks_passed",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "usage_probe": {
+                "state": "UNKNOWN",
+                "reason": "local_check_unavailable",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "thread_eligibility": {
+                "state": "COMPATIBLE",
+                "reason": "local_checks_passed",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "loaded_state_detection": {
+                "state": "COMPATIBLE",
+                "reason": "local_checks_passed",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "recovery_turn_tracking": {
+                "state": "COMPATIBLE",
+                "reason": "local_checks_passed",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "queue_withdraw": {
+                "state": "UNKNOWN",
+                "reason": "local_check_unavailable",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "outcome_observation": {
+                "state": "COMPATIBLE",
+                "reason": "local_checks_passed",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "transient_classification": {
+                "state": "COMPATIBLE",
+                "reason": "local_checks_passed",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "projection_freshness": {
+                "state": "COMPATIBLE",
+                "reason": "local_checks_passed",
+                "source": "local",
+                "tier": "conservative"
+              },
+              "empty_response_recovery": {
+                "state": "UNKNOWN",
+                "reason": "not_implemented",
+                "source": "local",
+                "tier": "unsupported"
+              },
+              "not_loaded_recovery": {
+                "state": "UNKNOWN",
+                "reason": "not_implemented",
+                "source": "local",
+                "tier": "unsupported"
+              },
+              "goal_continuation": {
+                "state": "UNKNOWN",
+                "reason": "not_implemented",
+                "source": "local",
+                "tier": "unsupported"
+              },
+              "subagent_recovery": {
+                "state": "UNKNOWN",
+                "reason": "not_implemented",
+                "source": "local",
+                "tier": "unsupported"
+              }
+            },
+            "live": true
+          }
+        }
+      }
+    }
+  ]
+}

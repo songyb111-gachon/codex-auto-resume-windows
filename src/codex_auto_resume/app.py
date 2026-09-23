@@ -11,11 +11,12 @@ import time
 import traceback
 import uuid
 
-from . import compatio, config, messages, notifier, settings as policy
+from . import compatio, config, l10n, notifier, settings as policy
 from .engine import Engine
 from .logbook import LOGGER_NAME, EngineLog, setup_logging
 from .source import LocalSource
-from .store import SCHEMA_VERSION, StateFromNewerVersion, Store, StoreError, UpgradePending
+from .openstate import open_state
+from .store import SCHEMA_VERSION, RecordSchemaMismatch, StateFromNewerVersion, Store, StoreError
 from .windows import AdapterError, Backend, HomeLock, Mutex, StopEvent, WakeEvent, wait_any
 
 EXIT_OK = 0
@@ -36,8 +37,6 @@ WATCH_SECONDS = 1.0
 WAKE_COALESCE_SECONDS = 5.0
 # A store that cannot be opened is retried with a growing wait, up to this.
 OPEN_RETRY_MAX_SECONDS = 60.0
-UPGRADE_PENDING = ("Upgrade pending: an older watcher still owns the state. Use Stop watcher, "
-                   "then Start watcher, or sign out and back in.")
 # What the log says about the engine it just accepted, in the word the gate reads for it -
 # from the registry data in force (compatio.engine_word), the bundled baseline and an
 # imported cache alike, so it never contradicts the compatibility line that follows it.
@@ -107,7 +106,7 @@ class App:
         self.settings = config.load_settings(paths)
         # Everything this process says - the icon, its menu, every notification - is in the
         # Interface language the user stored, which is `system` until they choose.
-        from . import l10n, tray_popup
+        from . import tray_popup
         l10n.set_preference(self.settings.get("interface_language"))
         # Reduce motion and, since v0.6.5, the Theme: the notification card is drawn in it before
         # anybody has opened the popup, which is where the icon used to take it up first.
@@ -133,22 +132,12 @@ class App:
 
     # ------------------------------------------------------------ components
     def open_store(self, *, check: bool = False) -> Store:
-        """Open the state for one command, as any per-call opener must.
+        """Open the state for one command, as any per-call opener must (openstate.open_state).
 
-        An older schema is upgraded only while holding the watcher's mutex, which proves
-        no watcher is running - an older watcher would otherwise be writing rows the
-        upgrade is changing. If a watcher does hold it, it can only be an older one (a
-        current watcher upgrades at start), and the command is refused until it stops.
+        An older schema is upgraded only under the watcher's mutex, and while an older watcher
+        holds it the command is refused (UpgradePending) until that watcher stops.
         """
-        try:
-            return Store(self.paths.state_dir, check=check)
-        except UpgradePending:
-            pass
-        try:
-            with self.mutex(timeout=0.0):
-                return Store(self.paths.state_dir, migrate=True, check=True)
-        except AdapterError:
-            raise UpgradePending(UPGRADE_PENDING) from None
+        return open_state(self.paths.state_dir, legacy="never", check=check)
 
     def backend(self) -> Backend:
         if self._backend is None:
@@ -217,7 +206,7 @@ class App:
     def engine(self, store: Store, *, dispatch_lock=None) -> Engine:
         source = self.source()
         kwargs = {"log": EngineLog(self.logger), "notify": Toasts(self._notifier(source), self.logger),
-                  "language": messages.language(), "engine_state": self.engine_state,
+                  "language": l10n.current(), "engine_state": self.engine_state,
                   "home_lock": lambda: self._home_lock is not None and self._home_lock.held}
         if dispatch_lock is not None:
             kwargs["dispatch_lock"] = dispatch_lock
@@ -254,7 +243,7 @@ class App:
         from . import tray_popup
         tray_popup.adopt_settings(values)
         if values.get("interface_language") != previous:
-            from . import interface, l10n
+            from . import interface
             l10n.set_preference(values.get("interface_language"))
             if self._tray is not None:
                 # The icon's words change with the language. Nothing else about the icon
@@ -522,15 +511,13 @@ class App:
                         last_enabled = enabled
                     engine.tick()
                     ok = True
-                except StateFromNewerVersion:
+                except (StateFromNewerVersion, RecordSchemaMismatch):
+                    # A newer version's state, or its rows met mid-tick: never a corruption,
+                    # and never something this version should keep trying to read.
                     self.logger.info("schema_newer_than_watcher; exiting so the installed version can start")
                     exit_code = EXIT_SCHEMA_NEWER
                     break
-                except StoreError as exc:
-                    if "record schema" in str(exc):
-                        self.logger.info("schema_newer_than_watcher; exiting so the installed version can start")
-                        exit_code = EXIT_SCHEMA_NEWER
-                        break
+                except StoreError:
                     self._record_failure("tick")
                 except Exception:
                     self._record_failure("initialising Codex adapter" if engine is None else "tick")

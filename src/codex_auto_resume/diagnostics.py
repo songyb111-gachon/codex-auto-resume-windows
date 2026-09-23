@@ -28,11 +28,14 @@ import sys
 import time
 
 from . import config, interface, logbook, machine, startup
+from .domain import ids
+from .settings import is_custom_text
 
-UUID_RE = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
+# A conversation id wherever a line holds one, in either case.
+UUID_RE = re.compile(r"\b" + ids.uuid_pattern(any_case=True) + r"\b")
 # Record ids are 64 hex characters; the log prints their first 12. Any run of 12 to 64
 # hex characters is aliased: over-redacting a hash is harmless, missing an id is not.
-KEY_RE = re.compile(r"\b[0-9a-f]{12,64}\b")
+KEY_RE = re.compile(r"\b[0-9a-f]{12,%d}\b" % ids.INTERRUPTION_ID_LENGTH)
 PATH_RE = re.compile(r"(?:[A-Za-z]:[\\/]|\\\\\?\\|\\\\)[^\s'\"<>|]*")
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 LOG_LINES = 300
@@ -58,6 +61,12 @@ class Redactor:
         if self._user:
             value = re.sub(re.escape(self._user), "<user>", value, flags=re.IGNORECASE)
         return value
+
+    def unexpected(self, value) -> str:
+        """What the bundle writes for a value that is not JSON - there should be none: its
+        text, redacted like a log line, so a path or a user name in it never reaches the file
+        and an odd value never costs the export."""
+        return self.text(str(value))
 
 
 def _record(row, redact: Redactor) -> dict:
@@ -163,9 +172,9 @@ def _compatibility(control) -> dict:
         return {"status": "invalid", "error": type(exc).__name__}
 
 
-def collect(control, *, now=None) -> dict:
+def collect(control, *, now=None, redact=None) -> dict:
     """The whole bundle, redacted. Works with the watcher stopped and Codex closed."""
-    redact = Redactor()
+    redact = redact or Redactor()
     now = time.time() if now is None else now
     bundle = {
         "format": "codex-auto-resume-diagnostics/1",
@@ -183,7 +192,7 @@ def collect(control, *, now=None) -> dict:
     # A Custom message is the user's own writing and may say anything, so the bundle records
     # only whether each one is set. What was sent is not something a bug report needs.
     for name in list(settings):
-        if name.startswith("custom_message") and name != "custom_message_mode":
+        if is_custom_text(name):
             settings[name] = "<set>" if settings.get(name) else None
     bundle["settings"] = settings
     try:
@@ -217,10 +226,14 @@ def write(control, target: Path) -> Path:
     target = Path(target)
     if target.exists():
         raise FileExistsError("refusing to overwrite %s" % target.name)
-    bundle = collect(control)
+    redact = Redactor()
+    # Written whole or not at all: the text is made before the file is, so a value that
+    # cannot be written leaves no half a bundle behind to block the next attempt's name.
+    text = json.dumps(collect(control, redact=redact), indent=1, ensure_ascii=False, allow_nan=False,
+                      default=redact.unexpected)
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("x", encoding="utf-8") as stream:
-        json.dump(bundle, stream, indent=1, ensure_ascii=False, default=str)
+        stream.write(text)
     return target
 
 

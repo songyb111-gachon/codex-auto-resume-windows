@@ -20,6 +20,11 @@ Three layers, kept apart on purpose:
 from __future__ import annotations
 
 import json
+import math
+
+from .domain.vocabulary import (Actor, EventCode, GateName, GateResult, Overlay, Page, PublicCode,
+                                ReasonCode, RecordState, TurnStatus, WithdrawReason)
+from .failures import USAGE_LIMIT
 
 # ----------------------------------------------------------------------- stored states
 WAITING = frozenset({
@@ -45,7 +50,8 @@ TERMINAL = frozenset({
     "cancelled", "superseded", "superseded_by_user", "failed", "submission_unknown",
     "terminal_failure",
 }) | EXHAUSTED | OUTCOMES
-STATES = WAITING | CLAIMED | IN_FLIGHT | OBSERVING | TERMINAL
+# Every stored state, each in exactly one of the groups above (tests/test_vocabulary.py).
+STATES = frozenset(RecordState)
 
 # The 18 states schema 2 knew, for the downgrade path.
 V2_STATES = frozenset({
@@ -56,6 +62,20 @@ V2_STATES = frozenset({
 
 # Anything from a claim onwards may have reached Codex. Every gate treats it so.
 POSSIBLY_SENT = CLAIMED | IN_FLIGHT | OBSERVING | TERMINAL
+# Everything that may be sitting in Codex's queue, or may have just left it: what the watch
+# follows. An uncertain submission is followed whether or not it still owns a queue row.
+WATCHED = CLAIMED | IN_FLIGHT | frozenset({"submission_unknown"})
+
+
+def may_be_queued(state, queue_id) -> bool:
+    """Whether a record may be sitting in Codex's queue right now: claimed, queued, taken back
+    without proof that it never ran, or an uncertain submission that still owns a queue row.
+
+    The store counts these on a conversation before it lets another of its records be
+    claimed, and the engine watches every second while any exists. One rule, so a state
+    added here is added to both.
+    """
+    return state in CLAIMED | IN_FLIGHT or (state == "submission_unknown" and queue_id is not None)
 
 # Moves a plain `Store.update` may make. Everything else is either a dedicated store
 # operation (reserve, release_claim, release_withdrawn, restore_budget and
@@ -106,52 +126,66 @@ def plain_move_allowed(old: str, new: str) -> bool:
     return new in PLAIN_MOVES.get(old, frozenset())
 
 
+# Each caller's window of a plausible time, in seconds since 1970. They do not agree, and
+# that is kept as it is - known drift, for v0.6.8 to settle: see epoch().
+EPOCH_STORE = (0, 253402300799)            # the store: the epoch to the last second of 9999
+EPOCH_CODEX = (946684800, 4102444800)      # Codex's history and the registry: 2000 to 2100
+EPOCH_USAGE = (1, 4102444800)              # the App Server's usage windows: to 2100
+
+
+def epoch(value, low, high, *, integer: bool = False, exact: bool = False,
+          finite: bool = True) -> bool:
+    """Whether `value` is a plausible time: a number of seconds from `low` to `high`, both
+    included, so never a NaN or an infinity. A boolean is never a time; `integer` takes
+    whole seconds only, and `exact` takes `int` and `float` themselves and no subclass.
+    `finite` asks math.isfinite first, as the store, Codex's history and the registry's
+    report always have - which raises OverflowError for an int too large to be a float,
+    where the window alone would only say no.
+
+    The one reading of a time. Its callers bring their own window and their own strictness,
+    because they disagree and unifying them would change what some caller accepts: the store
+    takes anything up to the year 9999 and a subclass of int, Codex's history takes 2000 to
+    2100 and no subclass, the App Server's usage windows take whole seconds only - so a reset
+    Codex reports as 1.7e9 is dropped there and kept by the store. That disagreement is
+    recorded as known drift for v0.6.8, not resolved here.
+    """
+    if type(value) is bool or not isinstance(value, (int, float)):
+        return False
+    if exact and type(value) not in ((int,) if integer else (int, float)):
+        return False
+    if integer and not isinstance(value, int):
+        return False
+    if finite and not math.isfinite(value):
+        return False
+    return low <= value <= high
+
+
+def waiting_state(record: dict, now: float) -> str:
+    """The wait a record goes back to when it returns to waiting at `now`.
+
+    A usage limit waits for a stored reset that is still ahead, and polls once it has passed
+    - from the very moment it is reached; every other failure backs off. The engine sends a
+    record back here after a send that never started or a withdrawal, and a restored budget
+    comes back here too: one rule, so a change to it cannot leave either on the old one.
+    """
+    if record.get("category") == USAGE_LIMIT:
+        reset = record.get("reset_at")
+        return "waiting_reset" if reset is not None and reset > now else "waiting_poll"
+    return "waiting_backoff"
+
+
 # ---------------------------------------------------------------------------- reasons
-WITHDRAW_REASONS = frozenset({
-    "cancel", "paused", "paused_unknown", "thread_disabled", "superseded", "superseded_by_user",
-    "user_queued_input", "not_loaded", "expired", "projection_stale", "duplicate_owner",
-})
+WITHDRAW_REASONS = frozenset(WithdrawReason)
 SUPERSEDE_WITHDRAWALS = frozenset({"superseded", "superseded_by_user", "user_queued_input"})
-TURN_STATUSES = frozenset({"inProgress", "completed", "failed", "interrupted", "other"})
-ACTORS = frozenset({"engine", "gui", "cli", "toast", "mcp"})
+TURN_STATUSES = frozenset(TurnStatus)
+ACTORS = frozenset(Actor)
 
 # Every reason the engine or the store writes. The journal stores only these; anything
 # else is recorded as "other" rather than refused, because a journal entry must never
 # be the thing that stops a state change from committing.
-REASONS = frozenset({
-    # waiting
-    "desktop_app_unavailable", "notLoaded", "loaded_state_unknown", "loaded_recheck_failed",
-    "usage_unavailable", "usage_unknown", "usage_recheck_failed", "daily_submission_cap",
-    "thread_submission_cooldown", "queue_process_not_started", "projection_stale",
-    "user_input_queued", "waiting_reset", "other_recovery_in_flight", "released_before_send",
-    "released_after_withdrawal", "budget_restored", "retry_now",
-    # stops
-    "recovery_budget", "no_progress_budget", "chain_cap", "queue_launch_retry_limit",
-    "later_turn_exists", "latest_turn_changed", "parent_cancelled", "parent_handed_over",
-    "user_cancelled", "usage_never_available", "usage_not_restored_after_reset",
-    "duplicate_owner", "category_disabled",
-    # sending and receipts
-    "awaiting_delivery_receipt", "queue_result_unknown_do_not_resend",
-    "no_receipt_do_not_resend", "multiple_matching_queue_items", "queue_cleanup_unconfirmed",
-    "withdraw_unconfirmed", "duplicate_marker", "ambiguous_receipt", "queued_item_edited",
-    "owned_queue_removed", "turn_without_user_item", "post_send_bookkeeping_failed",
-    # outcomes
-    "marker_not_turn_initiator", "user_joined", "stale_turn_row", "unknown_turn_status",
-    "outcome_deadline", "correlation_conflict", "progress_observed", "no_progress_observed",
-    # `progress_then_turn_failed` is a recovery that worked and was interrupted again -
-    # usually by the next usage limit, which Codex records on the turn as a failure. The
-    # record is `recovered`, because it was; this reason is how the journal keeps the
-    # distinction that the turn itself did not end cleanly.
-    "turn_failed", "progress_then_turn_failed", "turn_interrupted",
-}) | WITHDRAW_REASONS
+REASONS = frozenset(ReasonCode)
 
-EVENT_CODES = frozenset({
-    "detected", "state", "claim", "submitted", "release_claim", "withdraw",
-    "release_withdrawn", "correlated", "continuation_after_user_turn",
-    "dispatched_despite_delete", "dispatched_while_paused", "cancel", "cancel_requested",
-    "reset_budget", "retry_now", "identity_drift", "hidden", "migrated",
-    "disabled_threads_with_pending", "thread_enabled", "other",
-})
+EVENT_CODES = frozenset(EventCode)
 # Bits for `events.flags`. Integers only: nothing a person wrote can be stored here.
 FLAG_AFTER_USER_WORK = 1
 FLAG_USER_JOINED = 2
@@ -183,12 +217,7 @@ def turn_status(value) -> str | None:
 WAITING_CODES = frozenset({
     "waiting_reset", "waiting_usage", "waiting_thread", "scheduled", "failed_retryable",
 })
-PUBLIC_CODES = WAITING_CODES | frozenset({
-    "submission_claimed", "submitted", "withdrawing", "turn_running", "turn_finishing",
-    "recovered", "no_progress", "handed_over", "recovery_failed", "stopped_by_user",
-    "outcome_unverified", "delivered_legacy", "cancelled", "superseded", "exhausted",
-    "failed_terminal", "submission_unknown",
-})
+PUBLIC_CODES = frozenset(PublicCode)
 _DIRECT = {
     "waiting_reset": "waiting_reset", "waiting_poll": "waiting_reset",
     "waiting_for_usage": "waiting_usage",
@@ -236,9 +265,14 @@ def public_reason(record: dict):
     return reason_code(record.get("last_error"))
 
 
+# The settings window's pages, in the order it shows them: the ones a notification's button
+# or the icon may open it on. A closed list, because the page is spliced into a command line -
+# nothing else may ever reach it, whatever a caller passes.
+PAGES = tuple(Page)
+
+
 # ----------------------------------------------------------------------------- overlays
-OVERLAYS = ("cancel_pending", "paused", "thread_disabled", "compatibility_blocked",
-            "compatibility_failed_here", "engine_unavailable", "watcher_not_ticking")
+OVERLAYS = tuple(Overlay)
 
 
 def overlays(record: dict, *, enabled=True, thread_enabled=True, watcher=None) -> list:
@@ -284,12 +318,8 @@ def describe(record: dict, **surroundings) -> dict:
 
 # -------------------------------------------------------------------------------- gates
 PASS, WAIT, BLOCK, UNKNOWN = "PASS", "WAIT", "BLOCK", "UNKNOWN"
-GATE_RESULTS = frozenset({PASS, WAIT, BLOCK, UNKNOWN})
-GATES = (
-    "consent", "engine_compatible", "single_owner", "submission_safe", "identity",
-    "known_failure", "schedule", "chain_budget", "attempt_budget", "no_progress_budget",
-    "thread_available", "no_newer_user_work", "usage",
-)
+GATE_RESULTS = frozenset(GateResult)
+GATES = tuple(GateName)
 NOT_CHECKED = "not_checked"
 GATE_REASONS = REASONS | frozenset({
     NOT_CHECKED, "paused", "thread_disabled", "cancel_requested", "not_due", "possibly_sent",
@@ -366,7 +396,7 @@ def encode_gates(vector: dict) -> str:
         if result not in GATE_RESULTS:
             result = UNKNOWN
         clean[name] = [result, reason if reason in GATE_REASONS else "other"]
-    return json.dumps(clean, separators=(",", ":"), sort_keys=True)
+    return json.dumps(clean, separators=(",", ":"), sort_keys=True, allow_nan=False)
 
 
 def decode_gates(text) -> dict:

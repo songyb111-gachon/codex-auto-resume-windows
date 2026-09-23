@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-import subprocess
 import sys
 
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
@@ -230,7 +229,6 @@ def parse_command(command: str) -> list[str]:
     if os.name != "nt":
         raise StartupError("Windows registry autostart is only available on Windows")
     import ctypes
-    from ctypes import wintypes
 
     shell32 = ctypes.windll.shell32
     shell32.CommandLineToArgvW.restype = ctypes.POINTER(ctypes.c_wchar_p)

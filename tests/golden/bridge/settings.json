@@ -1,0 +1,50 @@
+{
+  "command": "settings",
+  "cases": [
+    {
+      "case": "the stored settings",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "settings": {
+          "max_recovery_attempts": 4,
+          "max_no_progress": 3,
+          "max_chain_continuations": 6,
+          "retry_timing": "normal",
+          "detection_lookback_hours": 6.0,
+          "notifications": true,
+          "show_tray": true,
+          "notification_card": true,
+          "start_with_codex": false,
+          "theme": "light",
+          "panel_theme": "same",
+          "reduce_motion": false,
+          "codex_exe": null,
+          "recover_usage_limit": true,
+          "recover_network_transient": true,
+          "recover_timeout": true,
+          "recover_rate_limit_transient": true,
+          "recover_server_5xx": true,
+          "recover_stream_interrupted": true,
+          "recover_auth_service_transient": true,
+          "notify_interruption": true,
+          "notify_starting": true,
+          "notify_result": true,
+          "notify_stopped": true,
+          "interface_language": "system",
+          "continuation_language": "follow",
+          "continuation_style": "standard",
+          "custom_message_mode": "global",
+          "custom_message": null,
+          "custom_message_usage_limit": null,
+          "custom_message_rate_limit_transient": null,
+          "custom_message_network_transient": null,
+          "custom_message_timeout": null,
+          "custom_message_server_5xx": null,
+          "custom_message_stream_interrupted": null,
+          "custom_message_auth_service_transient": null
+        }
+      }
+    }
+  ]
+}

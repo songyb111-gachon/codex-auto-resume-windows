@@ -1,0 +1,708 @@
+{
+  "tool": "open_settings",
+  "cases": [
+    {
+      "case": "the panel's snapshot",
+      "arguments": {},
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "Auto recovery is on; the watcher is running; 2 pending."
+            }
+          ],
+          "structuredContent": {
+            "status": {
+              "version": "<version>",
+              "enabled": true,
+              "watcher_running": true,
+              "watcher": {
+                "running": true,
+                "ticking": true,
+                "engine_state": "unknown",
+                "last_tick_at": 1799999999.0,
+                "last_tick_ok": true,
+                "code_version": "<version>",
+                "pid": 4242,
+                "started_at": 1799994600.0,
+                "compatibility": {
+                  "status": "absent",
+                  "overall": "unknown",
+                  "acting": null,
+                  "source": "none",
+                  "sequence": null,
+                  "cache": null,
+                  "checked_at": null,
+                  "capabilities": {
+                    "engine_present": {
+                      "state": "UNKNOWN",
+                      "reason": "report_absent"
+                    },
+                    "exact_thread_recovery": {
+                      "state": "UNKNOWN",
+                      "reason": "report_absent"
+                    },
+                    "usage_limit_detection": {
+                      "state": "UNKNOWN",
+                      "reason": "report_absent"
+                    },
+                    "usage_reset_hint": {
+                      "state": "UNKNOWN",
+                      "reason": "report_absent"
+                    },
+                    "usage_probe": {
+                      "state": "UNKNOWN",
+                      "reason": "report_absent"
+                    },
+                    "thread_eligibility": {
+                      "state": "UNKNOWN",
+                      "reason": "report_absent"
+                    },
+                    "loaded_state_detection": {
+                      "state": "UNKNOWN",
+                      "reason": "report_absent"
+                    },
+                    "recovery_turn_tracking": {
+                      "state": "UNKNOWN",
+                      "reason": "report_absent"
+                    },
+                    "queue_withdraw": {
+                      "state": "UNKNOWN",
+                      "reason": "report_absent"
+                    },
+                    "outcome_observation": {
+                      "state": "UNKNOWN",
+                      "reason": "report_absent"
+                    },
+                    "transient_classification": {
+                      "state": "UNKNOWN",
+                      "reason": "report_absent"
+                    },
+                    "projection_freshness": {
+                      "state": "UNKNOWN",
+                      "reason": "report_absent"
+                    },
+                    "empty_response_recovery": {
+                      "state": "UNKNOWN",
+                      "reason": "report_absent"
+                    },
+                    "not_loaded_recovery": {
+                      "state": "UNKNOWN",
+                      "reason": "report_absent"
+                    },
+                    "goal_continuation": {
+                      "state": "UNKNOWN",
+                      "reason": "report_absent"
+                    },
+                    "subagent_recovery": {
+                      "state": "UNKNOWN",
+                      "reason": "report_absent"
+                    }
+                  }
+                }
+              },
+              "upgrade_pending": false,
+              "startup_enabled": false,
+              "pending": 2,
+              "states": {
+                "completed_no_progress": 1,
+                "recovered": 4,
+                "retry_budget_exhausted": 1,
+                "stopped_by_user": 1,
+                "waiting_backoff": 1,
+                "waiting_reset": 1
+              },
+              "codes": {
+                "waiting_reset": 1,
+                "scheduled": 1
+              },
+              "failure_unseen": false,
+              "settings": {
+                "max_recovery_attempts": 4,
+                "max_no_progress": 3,
+                "max_chain_continuations": 6,
+                "retry_timing": "normal",
+                "detection_lookback_hours": 6.0,
+                "notifications": true,
+                "show_tray": true,
+                "notification_card": true,
+                "start_with_codex": false,
+                "theme": "light",
+                "panel_theme": "same",
+                "reduce_motion": false,
+                "codex_exe": null,
+                "recover_usage_limit": true,
+                "recover_network_transient": true,
+                "recover_timeout": true,
+                "recover_rate_limit_transient": true,
+                "recover_server_5xx": true,
+                "recover_stream_interrupted": true,
+                "recover_auth_service_transient": true,
+                "notify_interruption": true,
+                "notify_starting": true,
+                "notify_result": true,
+                "notify_stopped": true,
+                "interface_language": "system",
+                "continuation_language": "follow",
+                "continuation_style": "standard",
+                "custom_message_mode": "global",
+                "custom_message": null,
+                "custom_message_usage_limit": null,
+                "custom_message_rate_limit_transient": null,
+                "custom_message_network_transient": null,
+                "custom_message_timeout": null,
+                "custom_message_server_5xx": null,
+                "custom_message_stream_interrupted": null,
+                "custom_message_auth_service_transient": null
+              }
+            },
+            "schema": [
+              {
+                "name": "max_recovery_attempts",
+                "default": 4,
+                "type": "integer",
+                "min": 1,
+                "max": 20,
+                "group": "limits"
+              },
+              {
+                "name": "max_no_progress",
+                "default": 3,
+                "type": "integer",
+                "min": 1,
+                "max": 10,
+                "group": "limits"
+              },
+              {
+                "name": "max_chain_continuations",
+                "default": 6,
+                "type": "integer",
+                "min": 1,
+                "max": 10,
+                "group": "limits"
+              },
+              {
+                "name": "retry_timing",
+                "default": "normal",
+                "type": "string",
+                "choices": [
+                  "conservative",
+                  "normal",
+                  "aggressive"
+                ],
+                "group": "limits"
+              },
+              {
+                "name": "detection_lookback_hours",
+                "default": 6.0,
+                "type": "number",
+                "min": 0.0,
+                "max": 168.0,
+                "group": "advanced"
+              },
+              {
+                "name": "notifications",
+                "default": true,
+                "type": "boolean",
+                "group": "notifications",
+                "master": true
+              },
+              {
+                "name": "show_tray",
+                "default": true,
+                "type": "boolean",
+                "group": "windows"
+              },
+              {
+                "name": "notification_card",
+                "default": true,
+                "type": "boolean",
+                "group": "windows"
+              },
+              {
+                "name": "theme",
+                "default": "system",
+                "type": "string",
+                "choices": [
+                  "system",
+                  "light",
+                  "dark"
+                ],
+                "group": "appearance"
+              },
+              {
+                "name": "panel_theme",
+                "default": "same",
+                "type": "string",
+                "choices": [
+                  "same",
+                  "system",
+                  "light",
+                  "dark"
+                ],
+                "group": "appearance"
+              },
+              {
+                "name": "reduce_motion",
+                "default": false,
+                "type": "boolean",
+                "group": "appearance"
+              },
+              {
+                "name": "codex_exe",
+                "default": null,
+                "type": "string",
+                "group": "advanced"
+              },
+              {
+                "name": "recover_usage_limit",
+                "default": true,
+                "type": "boolean",
+                "group": "recovery",
+                "category": "usage_limit"
+              },
+              {
+                "name": "recover_network_transient",
+                "default": true,
+                "type": "boolean",
+                "group": "recovery",
+                "category": "network_transient"
+              },
+              {
+                "name": "recover_timeout",
+                "default": true,
+                "type": "boolean",
+                "group": "recovery",
+                "category": "timeout"
+              },
+              {
+                "name": "recover_rate_limit_transient",
+                "default": true,
+                "type": "boolean",
+                "group": "recovery",
+                "category": "rate_limit_transient"
+              },
+              {
+                "name": "recover_server_5xx",
+                "default": true,
+                "type": "boolean",
+                "group": "recovery",
+                "category": "server_5xx"
+              },
+              {
+                "name": "recover_stream_interrupted",
+                "default": true,
+                "type": "boolean",
+                "group": "recovery",
+                "category": "stream_interrupted"
+              },
+              {
+                "name": "recover_auth_service_transient",
+                "default": true,
+                "type": "boolean",
+                "group": "recovery",
+                "category": "auth_service_transient"
+              },
+              {
+                "name": "notify_interruption",
+                "default": true,
+                "type": "boolean",
+                "group": "notifications",
+                "master": false
+              },
+              {
+                "name": "notify_starting",
+                "default": true,
+                "type": "boolean",
+                "group": "notifications",
+                "master": false
+              },
+              {
+                "name": "notify_result",
+                "default": true,
+                "type": "boolean",
+                "group": "notifications",
+                "master": false
+              },
+              {
+                "name": "notify_stopped",
+                "default": true,
+                "type": "boolean",
+                "group": "notifications",
+                "master": false
+              },
+              {
+                "name": "interface_language",
+                "default": "system",
+                "type": "string",
+                "choices": [
+                  "system",
+                  "en",
+                  "ko",
+                  "ja",
+                  "zh-CN",
+                  "zh-TW",
+                  "es",
+                  "de",
+                  "fr",
+                  "pt-BR"
+                ],
+                "group": "general"
+              },
+              {
+                "name": "continuation_language",
+                "default": "follow",
+                "type": "string",
+                "choices": [
+                  "follow",
+                  "en",
+                  "ko",
+                  "ja",
+                  "zh-CN",
+                  "zh-TW",
+                  "es",
+                  "de",
+                  "fr",
+                  "pt-BR"
+                ],
+                "group": "continuation"
+              },
+              {
+                "name": "continuation_style",
+                "default": "standard",
+                "type": "string",
+                "choices": [
+                  "minimal",
+                  "standard",
+                  "detailed",
+                  "custom"
+                ],
+                "group": "continuation"
+              },
+              {
+                "name": "custom_message_mode",
+                "default": "global",
+                "type": "string",
+                "choices": [
+                  "global",
+                  "per_reason"
+                ],
+                "group": "continuation"
+              },
+              {
+                "name": "custom_message",
+                "default": null,
+                "type": "string",
+                "group": "continuation",
+                "multiline": true,
+                "max_length": 2000
+              },
+              {
+                "name": "custom_message_usage_limit",
+                "default": null,
+                "type": "string",
+                "group": "continuation",
+                "multiline": true,
+                "max_length": 2000,
+                "category": "usage_limit"
+              },
+              {
+                "name": "custom_message_rate_limit_transient",
+                "default": null,
+                "type": "string",
+                "group": "continuation",
+                "multiline": true,
+                "max_length": 2000,
+                "category": "rate_limit_transient"
+              },
+              {
+                "name": "custom_message_network_transient",
+                "default": null,
+                "type": "string",
+                "group": "continuation",
+                "multiline": true,
+                "max_length": 2000,
+                "category": "network_transient"
+              },
+              {
+                "name": "custom_message_timeout",
+                "default": null,
+                "type": "string",
+                "group": "continuation",
+                "multiline": true,
+                "max_length": 2000,
+                "category": "timeout"
+              },
+              {
+                "name": "custom_message_server_5xx",
+                "default": null,
+                "type": "string",
+                "group": "continuation",
+                "multiline": true,
+                "max_length": 2000,
+                "category": "server_5xx"
+              },
+              {
+                "name": "custom_message_stream_interrupted",
+                "default": null,
+                "type": "string",
+                "group": "continuation",
+                "multiline": true,
+                "max_length": 2000,
+                "category": "stream_interrupted"
+              },
+              {
+                "name": "custom_message_auth_service_transient",
+                "default": null,
+                "type": "string",
+                "group": "continuation",
+                "multiline": true,
+                "max_length": 2000,
+                "category": "auth_service_transient"
+              }
+            ],
+            "settings": {
+              "max_recovery_attempts": 4,
+              "max_no_progress": 3,
+              "max_chain_continuations": 6,
+              "retry_timing": "normal",
+              "detection_lookback_hours": 6.0,
+              "notifications": true,
+              "show_tray": true,
+              "notification_card": true,
+              "start_with_codex": false,
+              "theme": "light",
+              "panel_theme": "same",
+              "reduce_motion": false,
+              "codex_exe": null,
+              "recover_usage_limit": true,
+              "recover_network_transient": true,
+              "recover_timeout": true,
+              "recover_rate_limit_transient": true,
+              "recover_server_5xx": true,
+              "recover_stream_interrupted": true,
+              "recover_auth_service_transient": true,
+              "notify_interruption": true,
+              "notify_starting": true,
+              "notify_result": true,
+              "notify_stopped": true,
+              "interface_language": "system",
+              "continuation_language": "follow",
+              "continuation_style": "standard",
+              "custom_message_mode": "global",
+              "custom_message": null,
+              "custom_message_usage_limit": null,
+              "custom_message_rate_limit_transient": null,
+              "custom_message_network_transient": null,
+              "custom_message_timeout": null,
+              "custom_message_server_5xx": null,
+              "custom_message_stream_interrupted": null,
+              "custom_message_auth_service_transient": null
+            },
+            "pending": [
+              {
+                "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+                "thread_id": "11111111-1111-7111-8111-111111111111",
+                "state": "waiting_reset",
+                "code": "waiting_reset",
+                "reason": null,
+                "overlays": [],
+                "eligible_at": 1800002540.0,
+                "terminal": false,
+                "category": "usage_limit",
+                "detected_at": 1799998500.0,
+                "reset_at": 1800002540.0,
+                "next_retry_at": 1799998500.0,
+                "recovery_attempts": 0,
+                "no_progress_count": 0,
+                "chain_continuations": 0,
+                "chain_origin_id": "7777777777777777777777777777777777777777777777777777777777777777",
+                "parent_interruption_id": null,
+                "budget_resets": 0,
+                "budget_resets_left": 3,
+                "cancel_requested": false,
+                "recovery_turn_status": null,
+                "user_joined": false,
+                "after_user_work": false,
+                "outcome_at": null,
+                "first_queued_at": null,
+                "gates": {
+                  "consent": [
+                    "PASS",
+                    "ok"
+                  ],
+                  "engine_compatible": [
+                    "PASS",
+                    "ok"
+                  ],
+                  "single_owner": [
+                    "PASS",
+                    "ok"
+                  ],
+                  "submission_safe": [
+                    "PASS",
+                    "ok"
+                  ],
+                  "identity": [
+                    "PASS",
+                    "ok"
+                  ],
+                  "known_failure": [
+                    "PASS",
+                    "ok"
+                  ],
+                  "schedule": [
+                    "WAIT",
+                    "waiting_reset"
+                  ],
+                  "chain_budget": [
+                    "PASS",
+                    "ok"
+                  ],
+                  "attempt_budget": [
+                    "PASS",
+                    "ok"
+                  ],
+                  "no_progress_budget": [
+                    "PASS",
+                    "ok"
+                  ],
+                  "thread_available": [
+                    "UNKNOWN",
+                    "not_checked"
+                  ],
+                  "no_newer_user_work": [
+                    "UNKNOWN",
+                    "not_checked"
+                  ],
+                  "usage": [
+                    "UNKNOWN",
+                    "not_checked"
+                  ]
+                },
+                "gates_at": 1799999960.0,
+                "thread_enabled": true,
+                "name": null,
+                "project": null,
+                "cwd_basename": null
+              },
+              {
+                "interruption_id": "8888888888888888888888888888888888888888888888888888888888888888",
+                "thread_id": "22222222-2222-7222-8222-222222222222",
+                "state": "waiting_backoff",
+                "code": "scheduled",
+                "reason": null,
+                "overlays": [],
+                "eligible_at": 1800000095.0,
+                "terminal": false,
+                "category": "network_transient",
+                "detected_at": 1799999950.0,
+                "reset_at": null,
+                "next_retry_at": 1800000095.0,
+                "recovery_attempts": 0,
+                "no_progress_count": 0,
+                "chain_continuations": 0,
+                "chain_origin_id": "8888888888888888888888888888888888888888888888888888888888888888",
+                "parent_interruption_id": null,
+                "budget_resets": 0,
+                "budget_resets_left": 3,
+                "cancel_requested": false,
+                "recovery_turn_status": null,
+                "user_joined": false,
+                "after_user_work": false,
+                "outcome_at": null,
+                "first_queued_at": null,
+                "gates": {
+                  "consent": [
+                    "PASS",
+                    "ok"
+                  ],
+                  "engine_compatible": [
+                    "PASS",
+                    "ok"
+                  ],
+                  "single_owner": [
+                    "PASS",
+                    "ok"
+                  ],
+                  "submission_safe": [
+                    "PASS",
+                    "ok"
+                  ],
+                  "identity": [
+                    "PASS",
+                    "ok"
+                  ],
+                  "known_failure": [
+                    "PASS",
+                    "ok"
+                  ],
+                  "schedule": [
+                    "WAIT",
+                    "not_due"
+                  ],
+                  "chain_budget": [
+                    "PASS",
+                    "ok"
+                  ],
+                  "attempt_budget": [
+                    "PASS",
+                    "ok"
+                  ],
+                  "no_progress_budget": [
+                    "PASS",
+                    "ok"
+                  ],
+                  "thread_available": [
+                    "UNKNOWN",
+                    "not_checked"
+                  ],
+                  "no_newer_user_work": [
+                    "UNKNOWN",
+                    "not_checked"
+                  ],
+                  "usage": [
+                    "UNKNOWN",
+                    "not_checked"
+                  ]
+                },
+                "gates_at": 1799999960.0,
+                "thread_enabled": true,
+                "name": null,
+                "project": null,
+                "cwd_basename": null
+              }
+            ],
+            "reasons": [
+              "usage_limit",
+              "rate_limit_transient",
+              "network_transient",
+              "timeout",
+              "server_5xx",
+              "stream_interrupted",
+              "auth_service_transient"
+            ],
+            "endonyms": {
+              "en": "English",
+              "ko": "한국어",
+              "ja": "日本語",
+              "zh-CN": "简体中文",
+              "zh-TW": "繁體中文",
+              "es": "Español",
+              "de": "Deutsch",
+              "fr": "Français",
+              "pt-BR": "Português (Brasil)"
+            },
+            "system_language": "en"
+          },
+          "_meta": {
+            "openai/outputTemplate": "ui://codex-auto-resume/settings"
+          }
+        }
+      }
+    }
+  ]
+}

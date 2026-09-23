@@ -16,20 +16,17 @@ from __future__ import annotations
 from contextlib import contextmanager
 import math
 from pathlib import Path
-import re
 import sqlite3
 import statistics as _statistics
 import time
 from typing import Any, Iterator
-from uuid import UUID
 
 from . import failures, machine
-from .machine import CLAIMED, EXHAUSTED, IN_FLIGHT, OBSERVING, STATES, TERMINAL, WAITING
+from .domain import ids, vocabulary
+from .machine import CLAIMED, EXHAUSTED, IN_FLIGHT, OBSERVING, STATES, TERMINAL, WAITING, WATCHED
 
 
 SCHEMA_VERSION = 3
-_KEY = re.compile(r"[A-Za-z0-9_-]{1,128}\Z")
-_CLIENT_ID = re.compile(r"[A-Za-z0-9-]{1,64}\Z")
 
 # Schema 1 and 2 columns, in their original order.
 _V2_COLUMNS = (
@@ -94,7 +91,7 @@ _MUTABLE = frozenset({
 })
 _NEEDS_RECOVERY_TURN = OBSERVING | {"recovered", "completed_no_progress",
                                     "recovery_turn_failed", "stopped_by_user"}
-ENGINE_STATES = frozenset({"verified", "checked", "structurally_compatible", "failed_here", "incompatible", "unknown"})
+ENGINE_STATES = frozenset(vocabulary.EngineState)
 
 # The journal is bounded both ways, and never loses the story of a record still running.
 EVENT_LIMIT = 5000
@@ -109,33 +106,30 @@ MAX_BUDGET_RESETS = 3
 class StoreError(RuntimeError):
     """Invalid or unavailable local state; automatic resumes must stop."""
 
-
 class UpgradePending(StoreError):
     """The state is an older schema and this caller may not migrate it."""
-
 
 class StateFromNewerVersion(StoreError):
     """The state was written by a newer version of this tool. Never a corruption."""
 
+class RecordSchemaMismatch(StoreError):
+    """A row has columns this version never wrote: a newer version changed the state."""
+
 
 # ------------------------------------------------------------------------- validators
 def _uuid(value: Any, name: str) -> str:
-    if not isinstance(value, str):
-        raise StoreError(f"Invalid {name}")
-    try:
-        parsed = UUID(value)
-    except ValueError as exc:
-        raise StoreError(f"Invalid {name}") from exc
-    if str(parsed) != value:
+    problem = ids.uuid_problem(value)
+    if problem == ids.NOT_CANONICAL:
         raise StoreError(f"Invalid {name}: canonical UUID required")
+    if problem is not None:
+        raise StoreError(f"Invalid {name}")
     return value
 
 
 def _timestamp(value: Any, name: str, *, nullable: bool = False) -> Any:
     if value is None and nullable:
         return None
-    if (isinstance(value, bool) or not isinstance(value, (int, float))
-            or not math.isfinite(value) or value < 0 or value > 253402300799):
+    if not machine.epoch(value, *machine.EPOCH_STORE):
         raise StoreError(f"Invalid {name}")
     return value
 
@@ -169,9 +163,9 @@ def _choice(value: Any, name: str, allowed) -> Any:
 
 def _validated_record(row: dict[str, Any]) -> dict[str, Any]:
     if set(row) != set(_RECORD_COLUMNS):
-        raise StoreError("Invalid record schema")
+        raise RecordSchemaMismatch("Invalid record schema")
     key = row["interruption_id"]
-    if not isinstance(key, str) or not _KEY.fullmatch(key):
+    if not ids.is_interruption_id(key, as_stored=True):
         raise StoreError("Invalid interruption_id")
     _uuid(row["thread_id"], "thread_id")
     _uuid(row["turn_id"], "turn_id")
@@ -196,21 +190,19 @@ def _validated_record(row: dict[str, Any]) -> dict[str, Any]:
     _short_text(row["gate_eval"], "gate_eval", 4000, nullable=True)
     if not isinstance(row["state"], str) or row["state"] not in STATES:
         raise StoreError("Unknown record state")
-    if row["marker"] != f"[codex-auto-resume:{key}]":
+    if row["marker"] != ids.marker(key):
         raise StoreError("Invalid record marker")
     for field in ("queue_id", "recovery_turn_id"):
         if row[field] is not None:
             _uuid(row[field], field)
-    if row["recovery_client_id"] is not None and (
-            not isinstance(row["recovery_client_id"], str)
-            or not _CLIENT_ID.fullmatch(row["recovery_client_id"])):
+    if row["recovery_client_id"] is not None and not ids.is_client_id(row["recovery_client_id"]):
         raise StoreError("Invalid recovery_client_id")
     _choice(row["recovery_turn_status"], "recovery_turn_status", machine.TURN_STATUSES)
     _choice(row["withdraw_reason"], "withdraw_reason", machine.WITHDRAW_REASONS)
     parent = row["parent_interruption_id"]
-    if parent is not None and (not isinstance(parent, str) or not _KEY.fullmatch(parent)):
+    if parent is not None and not ids.is_interruption_id(parent, as_stored=True):
         raise StoreError("Invalid parent_interruption_id")
-    if not isinstance(row["chain_origin_id"], str) or not _KEY.fullmatch(row["chain_origin_id"]):
+    if not ids.is_interruption_id(row["chain_origin_id"], as_stored=True):
         raise StoreError("Invalid chain_origin_id")
     state = row["state"]
     if state in CLAIMED | IN_FLIGHT | OBSERVING and row["submitted_at"] is None:
@@ -234,6 +226,14 @@ def _sql(value):
 
 def is_usage(row: dict) -> bool:
     return row.get("category") == failures.USAGE_LIMIT
+
+
+def _claim_cost(row, refund: bool = False) -> str:
+    """What one claim costs a record's budgets - an attempt, which a usage limit never spends,
+    and a link of its chain - as the SET clause that charges it or gives it back, never below 0."""
+    cost = (("recovery_attempts", 0 if is_usage(row) else 1), ("chain_continuations", 1))
+    template = "%s=max(0, %s-%d)" if refund else "%s=%s+%d"
+    return ", ".join(template % (column, column, amount) for column, amount in cost)
 
 
 # What each schema-3 state means to a schema-2 reader. "resumed" meant "our message was
@@ -717,8 +717,7 @@ class Store:
 
     @staticmethod
     def _row(connection, interruption_id) -> dict | None:
-        value = connection.execute(
-            "SELECT * FROM interruptions WHERE interruption_id=?", (interruption_id,)).fetchone()
+        value = connection.execute("SELECT * FROM interruptions WHERE interruption_id=?", (interruption_id,)).fetchone()
         return None if value is None else _validated_record(dict(value))
 
     def _now(self, at) -> float:
@@ -785,7 +784,7 @@ class Store:
             result.append({
                 "event_id": row["event_id"] if isinstance(row["event_id"], int) else None,
                 "at": _finite(row["at"], 0.0),
-                "interruption_id": key if isinstance(key, str) and _KEY.fullmatch(key) else None,
+                "interruption_id": key if ids.is_interruption_id(key, as_stored=True) else None,
                 "code": machine.event_code(row["code"]),
                 "from_state": row["from_state"] if row["from_state"] in STATES else None,
                 "to_state": row["to_state"] if row["to_state"] in STATES else None,
@@ -898,7 +897,7 @@ class Store:
             **record, "detected_at": now, "state": state, "retry_count": 0,
             "next_retry_at": now if next_retry_at is None else next_retry_at,
             "resumed_at": None, "last_error": None,
-            "marker": f"[codex-auto-resume:{key}]", "queue_id": None,
+            "marker": ids.marker(key), "queue_id": None,
             "submitted_at": None, "attempt_count": 0, "cancel_requested": False,
             "recovery_attempts": 0, "no_progress_count": 0,
             "recovery_turn_id": None, "recovery_client_id": None, "recovery_turn_status": None,
@@ -1075,11 +1074,9 @@ class Store:
 
     @staticmethod
     def _others_in_flight(connection, thread_id, exclude) -> int:
-        return connection.execute(
-            "SELECT count(*) FROM interruptions WHERE thread_id=? AND interruption_id<>? AND "
-            "(state IN ('submitting','queued','withdrawn_unconfirmed') OR "
-            "(state='submission_unknown' AND queue_id IS NOT NULL))",
-            (thread_id, exclude)).fetchone()[0]
+        return sum(machine.may_be_queued(state, queue_id) for state, queue_id in connection.execute(
+            "SELECT state, queue_id FROM interruptions WHERE thread_id=? AND interruption_id<>?",
+            (thread_id, exclude)))
 
     def others_in_flight(self, thread_id: str, exclude: str) -> int:
         with self._read() as connection:
@@ -1192,13 +1189,10 @@ class Store:
                         (encoded, now, interruption_id))
                 return False, refusal[0], refusal[1]
             connection.execute(
-                "UPDATE interruptions SET state='submitting', attempt_count=attempt_count+1, "
-                "recovery_attempts=recovery_attempts+?, chain_continuations=chain_continuations+1, "
-                "submitted_at=?, last_claim_at=?, last_error=NULL, "
-                "gate_eval=coalesce(?, gate_eval), gate_eval_at=coalesce(?, gate_eval_at) "
-                "WHERE interruption_id=?",
-                (0 if is_usage(row) else 1, now, now, encoded,
-                 now if encoded is not None else None, interruption_id))
+                "UPDATE interruptions SET state='submitting', attempt_count=attempt_count+1, %s, "
+                "submitted_at=?, last_claim_at=?, last_error=NULL, gate_eval=coalesce(?, gate_eval), "
+                "gate_eval_at=coalesce(?, gate_eval_at) WHERE interruption_id=?" % _claim_cost(row),
+                (now, now, encoded, now if encoded is not None else None, interruption_id))
             self._event(connection, now, "claim", record=row, from_state=row["state"],
                         to_state="submitting")
             return True, None, None
@@ -1231,13 +1225,10 @@ class Store:
                     or row["submitted_at"] is None):
                 return False
             connection.execute(
-                "UPDATE interruptions SET state=?, submitted_at=NULL, last_error=?, next_retry_at=?, "
-                "recovery_attempts=max(0, recovery_attempts-?), "
-                "chain_continuations=max(0, chain_continuations-1), "
+                "UPDATE interruptions SET state=?, submitted_at=NULL, last_error=?, next_retry_at=?, %s, "
                 "cancel_requested=CASE WHEN ?='cancelled' THEN 1 ELSE cancel_requested END "
-                "WHERE interruption_id=?",
-                (target, reason, now if next_retry_at is None else next_retry_at,
-                 0 if is_usage(row) else 1, target, interruption_id))
+                "WHERE interruption_id=?" % _claim_cost(row, refund=True),
+                (target, reason, now if next_retry_at is None else next_retry_at, target, interruption_id))
             self._event(connection, now, "release_claim", record=row, from_state="submitting",
                         to_state=target, reason=reason, actor=actor)
             return True
@@ -1255,11 +1246,10 @@ class Store:
         _uuid(recovery_turn_id, "recovery_turn_id")
         if state not in ("turn_started", "handed_over"):
             raise StoreError("Invalid correlation state")
-        client = client_id if isinstance(client_id, str) and _CLIENT_ID.fullmatch(client_id) else None
+        client = client_id if ids.is_client_id(client_id) else None
         with self._transaction() as connection:
             row = self._row(connection, interruption_id)
-            if row is None or row["state"] not in {"submitting", "queued", "withdrawn_unconfirmed",
-                                                   "submission_unknown"}:
+            if row is None or row["state"] not in WATCHED:
                 return False
             if row["recovery_turn_id"] not in (None, recovery_turn_id):
                 return False
@@ -1315,11 +1305,9 @@ class Store:
             connection.execute(
                 "UPDATE interruptions SET state=?, submitted_at=NULL, queue_id=NULL, "
                 "withdraw_reason=NULL, withdrawn_at=NULL, withdraw_deleted=0, withdraw_failures=0, "
-                "last_error='released_after_withdrawal', next_retry_at=?, "
-                "recovery_attempts=max(0, recovery_attempts-?), "
-                "chain_continuations=max(0, chain_continuations-1) WHERE interruption_id=?",
-                (target, now if next_retry_at is None else next_retry_at,
-                 0 if is_usage(row) else 1, interruption_id))
+                "last_error='released_after_withdrawal', next_retry_at=?, %s WHERE interruption_id=?"
+                % _claim_cost(row, refund=True), (target, now if next_retry_at is None else next_retry_at,
+                                                  interruption_id))
             self._event(connection, now, "release_withdrawn", record=row,
                         from_state="withdrawn_unconfirmed", to_state=target, reason="paused",
                         flags=machine.FLAG_WITHDRAW_DELETED)
@@ -1396,9 +1384,6 @@ class Store:
                     self._event(connection, now, "cancel", record=row, from_state=row["state"],
                                 to_state="cancelled", reason="user_cancelled", actor=actor)
 
-    # v0.5 name: the thread-wide cancel.
-    cancel = cancel_thread
-
     def restore_budget(self, interruption_id: str, now: float, **options) -> bool:
         return self.restore_budget_detailed(interruption_id, now, **options)[0]
 
@@ -1431,10 +1416,7 @@ class Store:
                 return False, "possibly_sent"
             if row["budget_resets"] >= max_resets:
                 return False, "reset_limit"
-            if is_usage(row):
-                target = "waiting_reset" if row["reset_at"] is not None and row["reset_at"] > now else "waiting_poll"
-            else:
-                target = "waiting_backoff"
+            target = machine.waiting_state(row, now)
             connection.execute(
                 "UPDATE interruptions SET state=?, recovery_attempts=0, no_progress_count=0, "
                 "retry_count=0, chain_continuations=0, budget_resets=budget_resets+1, "

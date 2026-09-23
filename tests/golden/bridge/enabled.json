@@ -1,0 +1,49 @@
+{
+  "command": "enabled",
+  "cases": [
+    {
+      "case": "paused",
+      "argument": {
+        "enabled": false
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "enabled": false
+        }
+      }
+    },
+    {
+      "case": "on again",
+      "argument": {
+        "enabled": true
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "enabled": true
+        }
+      }
+    },
+    {
+      "case": "the string \"false\" is refused, not read as true",
+      "argument": {
+        "enabled": "false"
+      },
+      "reply": {
+        "ok": false,
+        "error": "enabled must be true or false",
+        "error_code": "invalid_enabled"
+      }
+    },
+    {
+      "case": "a missing flag is refused",
+      "argument": {},
+      "reply": {
+        "ok": false,
+        "error": "enabled must be true or false",
+        "error_code": "invalid_enabled"
+      }
+    }
+  ]
+}

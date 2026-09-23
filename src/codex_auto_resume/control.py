@@ -21,9 +21,10 @@ import math
 import os
 from pathlib import Path
 import time
-import uuid
 
-from . import config, machine, settings, startup
+from . import config, continuation, machine, reasons, settings, startup
+from .domain import ids, vocabulary
+from .openstate import UPGRADE_PENDING, open_state
 from .store import (MAX_BUDGET_RESETS, TERMINAL, LegacyStore, StateFromNewerVersion, Store,
                     StoreError, UpgradePending)
 from .windows import AdapterError, Mutex, StopEvent, WakeEvent
@@ -52,8 +53,6 @@ CANCEL_RETRY_SECONDS = 30.0
 # A heartbeat older than this, from a watcher that holds the mutex, is not ticking.
 TICK_STALE_SECONDS = 180.0
 
-UPGRADE_PENDING = ("Upgrade pending: an older watcher still owns the state. Use Stop watcher, "
-                   "then Start watcher, or sign out and back in.")
 NEWER_STATE = ("The recovery state was written by a newer version of Codex Auto Resume. "
                "Update this installation; do not delete the state.")
 
@@ -68,13 +67,7 @@ NEWER_STATE = ("The recovery state was written by a newer version of Codex Auto 
 # every member in every language, and the tests refuse both a raise whose code is not here
 # and a code that reaches the catalogs without a sentence to say it, so a new refusal
 # cannot quietly arrive untranslated.
-ERROR_CODES = frozenset({
-    "invalid_id", "invalid_thread_id", "invalid_enabled", "no_such_interruption",
-    "not_installed", "start_failed", "store_unavailable", "newer_state", "upgrade_pending",
-    "state_busy", "not_exhausted", "cancel_requested", "possibly_sent", "reset_limit",
-    "already_finished", "being_sent", "in_flight", "observing", "cannot_continue",
-    "cannot_check_now", "file_exists", "request_failed", "thread_mismatch",
-})
+ERROR_CODES = frozenset(vocabulary.ErrorCode)
 # The code for a refusal with nothing more specific to say, and the one every caller may
 # assume is present. A rejection carrying no code at all would leave a front end holding
 # the English sentence with no way to say it, which is the gap the codes exist to close,
@@ -140,21 +133,20 @@ def _refusal(table: dict, detail) -> tuple:
 
 def _identifier(value, name="interruption id") -> str:
     """Interruption ids are opaque lowercase hex. Nothing else addresses a record."""
-    text = str(value or "").strip().lower()
-    if len(text) != 64 or any(character not in "0123456789abcdef" for character in text):
+    key = ids.read_interruption_id(str(value or ""))
+    if key is None:
         raise ControlError("invalid %s" % name, code="invalid_id")
-    return text
+    return key
 
 
 def _thread_id(value) -> str:
-    try:
-        parsed = uuid.UUID(str(value))
-    except (ValueError, AttributeError, TypeError):
-        raise ControlError("thread id must be a canonical UUID",
-                           code="invalid_thread_id") from None
-    if str(parsed) != str(value):
-        raise ControlError("thread id must be lowercase canonical UUID text",
-                           code="invalid_thread_id")
+    """Any value, read as its text, that is a thread id; a UUID written another way is refused
+    with a sentence saying so."""
+    problem = ids.uuid_problem(value, as_text=True)
+    if problem == ids.MALFORMED:
+        raise ControlError("thread id must be a canonical UUID", code="invalid_thread_id")
+    if problem is not None:
+        raise ControlError("thread id must be lowercase canonical UUID text", code="invalid_thread_id")
     return str(value)
 
 
@@ -224,7 +216,7 @@ def _replace_seen(path, value) -> bool:
         return False
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            json.dump({"seen_at": value}, handle)
+            json.dump({"seen_at": value}, handle, allow_nan=False)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, path)
@@ -283,6 +275,10 @@ def _note_line(path: Path, text: str) -> None:
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     except (OSError, ValueError):
         pass
+
+
+def _unavailable(exc) -> ControlError:
+    return ControlError("local state is unavailable: %s" % exc, code="store_unavailable")
 
 
 class Control:
@@ -404,36 +400,21 @@ class Control:
 
     # ------------------------------------------------------------------- state
     def _open(self, *, legacy_ok: bool = False):
-        """The state, opened the way every per-call opener must open it.
+        """The state, opened as every per-call opener opens it (openstate.open_state).
 
-        An older schema is upgraded only while holding the watcher's single-instance
-        mutex, which proves no watcher is using it. If a watcher holds the mutex it is
-        an older one, and until it stops only the actions that reduce automation are
-        offered (`legacy_ok`); everything else says the upgrade is pending.
+        While an older watcher still holds an older state, only the actions that reduce
+        automation are offered its store (`legacy_ok`); everything else says the upgrade is
+        pending. A failed upgrade is reported as the state being unavailable.
         """
         try:
-            return Store(self.paths.state_dir, check=False)
+            return open_state(self.paths.state_dir, legacy="if_reducing", reducing=legacy_ok,
+                              upgrade_failed=_unavailable)
         except UpgradePending:
-            pass
+            raise ControlError(UPGRADE_PENDING, code="upgrade_pending") from None
         except StateFromNewerVersion:
             raise ControlError(NEWER_STATE, code="newer_state") from None
         except StoreError as exc:
-            raise ControlError("local state is unavailable: %s" % exc,
-                               code="store_unavailable") from None
-        try:
-            with Mutex(str(self.paths.state_dir), timeout=0.0):
-                return Store(self.paths.state_dir, migrate=True, check=True)
-        except AdapterError:
-            pass
-        except StoreError as exc:
-            raise ControlError("local state is unavailable: %s" % exc,
-                               code="store_unavailable") from None
-        if legacy_ok:
-            try:
-                return LegacyStore(self.paths.state_dir)
-            except StoreError:
-                pass
-        raise ControlError(UPGRADE_PENDING, code="upgrade_pending")
+            raise _unavailable(exc) from None
 
     def watcher_running(self):
         """True / False / None, where None means the probe itself was unavailable.
@@ -918,7 +899,6 @@ class Control:
         The text comes from `continuation.for_settings`, the same function the watcher calls
         when it sends. There is no second rendering of a continuation anywhere.
         """
-        from . import continuation, reasons
         # Malformed requests, which only a front end with a bug can make. Like a value the
         # settings validator refuses, they carry the generic code and say exactly what was
         # wrong in the sentence.
@@ -936,7 +916,7 @@ class Control:
                 problem = "unknown setting: %s" % ", ".join(unknown)
                 raise ControlError(problem, code="request_failed")
             for name, value in changes.items():
-                is_text = name.startswith("custom_message") and name != "custom_message_mode"
+                is_text = settings.is_custom_text(name)
                 if is_text and value is not None and not (isinstance(value, str) and not value.strip()):
                     try:
                         continuation.validate_custom(value)

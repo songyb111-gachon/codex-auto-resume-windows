@@ -1,0 +1,417 @@
+{
+  "command": "pending-all",
+  "cases": [
+    {
+      "case": "every record, finished ones too, without names",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "pending": [
+          {
+            "interruption_id": "1111111111111111111111111111111111111111111111111111111111111111",
+            "thread_id": "33333333-3333-7333-8333-333333333333",
+            "state": "recovered",
+            "code": "recovered",
+            "reason": null,
+            "overlays": [],
+            "eligible_at": null,
+            "terminal": true,
+            "category": "server_5xx",
+            "detected_at": 1799568000.0,
+            "reset_at": null,
+            "next_retry_at": 1799568060.0,
+            "recovery_attempts": 1,
+            "no_progress_count": 0,
+            "chain_continuations": 1,
+            "chain_origin_id": "1111111111111111111111111111111111111111111111111111111111111111",
+            "parent_interruption_id": null,
+            "budget_resets": 0,
+            "budget_resets_left": 3,
+            "cancel_requested": false,
+            "recovery_turn_status": null,
+            "user_joined": false,
+            "after_user_work": false,
+            "outcome_at": 1799568620.0,
+            "first_queued_at": 1799568060.0,
+            "gates": null,
+            "gates_at": null,
+            "thread_enabled": true,
+            "name": null,
+            "project": null,
+            "cwd_basename": null
+          },
+          {
+            "interruption_id": "2222222222222222222222222222222222222222222222222222222222222222",
+            "thread_id": "11111111-1111-7111-8111-111111111111",
+            "state": "recovered",
+            "code": "recovered",
+            "reason": null,
+            "overlays": [],
+            "eligible_at": null,
+            "terminal": true,
+            "category": "usage_limit",
+            "detected_at": 1799654400.0,
+            "reset_at": null,
+            "next_retry_at": 1799654460.0,
+            "recovery_attempts": 0,
+            "no_progress_count": 0,
+            "chain_continuations": 1,
+            "chain_origin_id": "2222222222222222222222222222222222222222222222222222222222222222",
+            "parent_interruption_id": null,
+            "budget_resets": 0,
+            "budget_resets_left": 3,
+            "cancel_requested": false,
+            "recovery_turn_status": null,
+            "user_joined": false,
+            "after_user_work": false,
+            "outcome_at": 1799655020.0,
+            "first_queued_at": 1799654460.0,
+            "gates": null,
+            "gates_at": null,
+            "thread_enabled": true,
+            "name": null,
+            "project": null,
+            "cwd_basename": null
+          },
+          {
+            "interruption_id": "3333333333333333333333333333333333333333333333333333333333333333",
+            "thread_id": "44444444-4444-7444-8444-444444444444",
+            "state": "completed_no_progress",
+            "code": "no_progress",
+            "reason": null,
+            "overlays": [],
+            "eligible_at": null,
+            "terminal": true,
+            "category": "network_transient",
+            "detected_at": 1799740800.0,
+            "reset_at": null,
+            "next_retry_at": 1799740860.0,
+            "recovery_attempts": 1,
+            "no_progress_count": 0,
+            "chain_continuations": 1,
+            "chain_origin_id": "3333333333333333333333333333333333333333333333333333333333333333",
+            "parent_interruption_id": null,
+            "budget_resets": 0,
+            "budget_resets_left": 3,
+            "cancel_requested": false,
+            "recovery_turn_status": null,
+            "user_joined": false,
+            "after_user_work": false,
+            "outcome_at": 1799741420.0,
+            "first_queued_at": 1799740860.0,
+            "gates": null,
+            "gates_at": null,
+            "thread_enabled": true,
+            "name": null,
+            "project": null,
+            "cwd_basename": null
+          },
+          {
+            "interruption_id": "4444444444444444444444444444444444444444444444444444444444444444",
+            "thread_id": "22222222-2222-7222-8222-222222222222",
+            "state": "recovered",
+            "code": "recovered",
+            "reason": null,
+            "overlays": [],
+            "eligible_at": null,
+            "terminal": true,
+            "category": "server_5xx",
+            "detected_at": 1799827200.0,
+            "reset_at": null,
+            "next_retry_at": 1799827260.0,
+            "recovery_attempts": 1,
+            "no_progress_count": 0,
+            "chain_continuations": 1,
+            "chain_origin_id": "4444444444444444444444444444444444444444444444444444444444444444",
+            "parent_interruption_id": null,
+            "budget_resets": 0,
+            "budget_resets_left": 3,
+            "cancel_requested": false,
+            "recovery_turn_status": null,
+            "user_joined": false,
+            "after_user_work": false,
+            "outcome_at": 1799827820.0,
+            "first_queued_at": 1799827260.0,
+            "gates": null,
+            "gates_at": null,
+            "thread_enabled": true,
+            "name": null,
+            "project": null,
+            "cwd_basename": null
+          },
+          {
+            "interruption_id": "5555555555555555555555555555555555555555555555555555555555555555",
+            "thread_id": "44444444-4444-7444-8444-444444444444",
+            "state": "stopped_by_user",
+            "code": "stopped_by_user",
+            "reason": null,
+            "overlays": [],
+            "eligible_at": null,
+            "terminal": true,
+            "category": "network_transient",
+            "detected_at": 1799967600.0,
+            "reset_at": null,
+            "next_retry_at": 1799967660.0,
+            "recovery_attempts": 1,
+            "no_progress_count": 0,
+            "chain_continuations": 1,
+            "chain_origin_id": "5555555555555555555555555555555555555555555555555555555555555555",
+            "parent_interruption_id": null,
+            "budget_resets": 0,
+            "budget_resets_left": 3,
+            "cancel_requested": false,
+            "recovery_turn_status": null,
+            "user_joined": false,
+            "after_user_work": false,
+            "outcome_at": 1799967800.0,
+            "first_queued_at": 1799967660.0,
+            "gates": null,
+            "gates_at": null,
+            "thread_enabled": true,
+            "name": null,
+            "project": null,
+            "cwd_basename": null
+          },
+          {
+            "interruption_id": "6666666666666666666666666666666666666666666666666666666666666666",
+            "thread_id": "33333333-3333-7333-8333-333333333333",
+            "state": "recovered",
+            "code": "recovered",
+            "reason": null,
+            "overlays": [],
+            "eligible_at": null,
+            "terminal": true,
+            "category": "usage_limit",
+            "detected_at": 1799989200.0,
+            "reset_at": null,
+            "next_retry_at": 1799989260.0,
+            "recovery_attempts": 0,
+            "no_progress_count": 0,
+            "chain_continuations": 1,
+            "chain_origin_id": "6666666666666666666666666666666666666666666666666666666666666666",
+            "parent_interruption_id": null,
+            "budget_resets": 0,
+            "budget_resets_left": 3,
+            "cancel_requested": false,
+            "recovery_turn_status": null,
+            "user_joined": false,
+            "after_user_work": false,
+            "outcome_at": 1799989820.0,
+            "first_queued_at": 1799989260.0,
+            "gates": null,
+            "gates_at": null,
+            "thread_enabled": true,
+            "name": null,
+            "project": null,
+            "cwd_basename": null
+          },
+          {
+            "interruption_id": "9999999999999999999999999999999999999999999999999999999999999999",
+            "thread_id": "55555555-5555-7555-8555-555555555555",
+            "state": "retry_budget_exhausted",
+            "code": "exhausted",
+            "reason": null,
+            "overlays": [],
+            "eligible_at": null,
+            "terminal": true,
+            "category": "server_5xx",
+            "detected_at": 1799992800.0,
+            "reset_at": null,
+            "next_retry_at": 1799992860.0,
+            "recovery_attempts": 4,
+            "no_progress_count": 0,
+            "chain_continuations": 0,
+            "chain_origin_id": "9999999999999999999999999999999999999999999999999999999999999999",
+            "parent_interruption_id": null,
+            "budget_resets": 0,
+            "budget_resets_left": 3,
+            "cancel_requested": false,
+            "recovery_turn_status": null,
+            "user_joined": false,
+            "after_user_work": false,
+            "outcome_at": null,
+            "first_queued_at": null,
+            "gates": null,
+            "gates_at": null,
+            "thread_enabled": false,
+            "name": null,
+            "project": null,
+            "cwd_basename": null
+          },
+          {
+            "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+            "thread_id": "11111111-1111-7111-8111-111111111111",
+            "state": "waiting_reset",
+            "code": "waiting_reset",
+            "reason": null,
+            "overlays": [],
+            "eligible_at": 1800002540.0,
+            "terminal": false,
+            "category": "usage_limit",
+            "detected_at": 1799998500.0,
+            "reset_at": 1800002540.0,
+            "next_retry_at": 1799998500.0,
+            "recovery_attempts": 0,
+            "no_progress_count": 0,
+            "chain_continuations": 0,
+            "chain_origin_id": "7777777777777777777777777777777777777777777777777777777777777777",
+            "parent_interruption_id": null,
+            "budget_resets": 0,
+            "budget_resets_left": 3,
+            "cancel_requested": false,
+            "recovery_turn_status": null,
+            "user_joined": false,
+            "after_user_work": false,
+            "outcome_at": null,
+            "first_queued_at": null,
+            "gates": {
+              "consent": [
+                "PASS",
+                "ok"
+              ],
+              "engine_compatible": [
+                "PASS",
+                "ok"
+              ],
+              "single_owner": [
+                "PASS",
+                "ok"
+              ],
+              "submission_safe": [
+                "PASS",
+                "ok"
+              ],
+              "identity": [
+                "PASS",
+                "ok"
+              ],
+              "known_failure": [
+                "PASS",
+                "ok"
+              ],
+              "schedule": [
+                "WAIT",
+                "waiting_reset"
+              ],
+              "chain_budget": [
+                "PASS",
+                "ok"
+              ],
+              "attempt_budget": [
+                "PASS",
+                "ok"
+              ],
+              "no_progress_budget": [
+                "PASS",
+                "ok"
+              ],
+              "thread_available": [
+                "UNKNOWN",
+                "not_checked"
+              ],
+              "no_newer_user_work": [
+                "UNKNOWN",
+                "not_checked"
+              ],
+              "usage": [
+                "UNKNOWN",
+                "not_checked"
+              ]
+            },
+            "gates_at": 1799999960.0,
+            "thread_enabled": true,
+            "name": null,
+            "project": null,
+            "cwd_basename": null
+          },
+          {
+            "interruption_id": "8888888888888888888888888888888888888888888888888888888888888888",
+            "thread_id": "22222222-2222-7222-8222-222222222222",
+            "state": "waiting_backoff",
+            "code": "scheduled",
+            "reason": null,
+            "overlays": [],
+            "eligible_at": 1800000095.0,
+            "terminal": false,
+            "category": "network_transient",
+            "detected_at": 1799999950.0,
+            "reset_at": null,
+            "next_retry_at": 1800000095.0,
+            "recovery_attempts": 0,
+            "no_progress_count": 0,
+            "chain_continuations": 0,
+            "chain_origin_id": "8888888888888888888888888888888888888888888888888888888888888888",
+            "parent_interruption_id": null,
+            "budget_resets": 0,
+            "budget_resets_left": 3,
+            "cancel_requested": false,
+            "recovery_turn_status": null,
+            "user_joined": false,
+            "after_user_work": false,
+            "outcome_at": null,
+            "first_queued_at": null,
+            "gates": {
+              "consent": [
+                "PASS",
+                "ok"
+              ],
+              "engine_compatible": [
+                "PASS",
+                "ok"
+              ],
+              "single_owner": [
+                "PASS",
+                "ok"
+              ],
+              "submission_safe": [
+                "PASS",
+                "ok"
+              ],
+              "identity": [
+                "PASS",
+                "ok"
+              ],
+              "known_failure": [
+                "PASS",
+                "ok"
+              ],
+              "schedule": [
+                "WAIT",
+                "not_due"
+              ],
+              "chain_budget": [
+                "PASS",
+                "ok"
+              ],
+              "attempt_budget": [
+                "PASS",
+                "ok"
+              ],
+              "no_progress_budget": [
+                "PASS",
+                "ok"
+              ],
+              "thread_available": [
+                "UNKNOWN",
+                "not_checked"
+              ],
+              "no_newer_user_work": [
+                "UNKNOWN",
+                "not_checked"
+              ],
+              "usage": [
+                "UNKNOWN",
+                "not_checked"
+              ]
+            },
+            "gates_at": 1799999960.0,
+            "thread_enabled": true,
+            "name": null,
+            "project": null,
+            "cwd_basename": null
+          }
+        ]
+      }
+    }
+  ]
+}

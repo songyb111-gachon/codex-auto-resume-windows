@@ -236,7 +236,7 @@ class ManifestTests(unittest.TestCase):
             "locales/*.json, l10n.py, interface.py - a word of the window":
                 lambda: changed(l10n, "catalog", lambda words: dict(
                     words, **{"nav.pending": words["nav.pending"] + "!"})),
-            "messages.py - which language the window is resolved to":
+            "l10n.py - which language the window is resolved to":
                 lambda: patch.object(l10n, "resolve", return_value="ko"),
             "startup.py - the start-at-sign-in value":
                 several(lambda: patch.object(startup, "current_value", return_value="registered"),

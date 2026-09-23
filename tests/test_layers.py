@@ -52,10 +52,10 @@ def _q(name):
 
 # Every module, placed. A new module has to be given a layer here before anything else.
 LAYER = {_q(name): layer for layer, names in {
-    "domain": ("failures", "reasons", "machine"),
-    "policy": ("", "settings", "continuation", "l10n", "interface", "messages", "config", "logbook"),
-    "adapters": ("store", "source", "windows", "compat", "compatio", "startup", "shortcut", "pwsh",
-                 "notify", "notice_presence", "tray_place"),
+    "domain": ("failures", "reasons", "machine", "domain", "domain.ids", "domain.vocabulary"),
+    "policy": ("", "settings", "continuation", "l10n", "messages", "interface", "config", "logbook"),
+    "adapters": ("store", "openstate", "source", "windows", "compat", "compatio", "startup", "shortcut",
+                 "pwsh", "notify", "notice_presence", "tray_place"),
     "engine": ("engine",),
     "control": ("control", "diagnostics"),
     "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcpui", "app", "tray", "tray_popup", "brand",
@@ -65,7 +65,7 @@ LAYER = {_q(name): layer for layer, names in {
 # The roles the target rules speak of: today's modules, and the packages the split moves them
 # into (PLANNED, which need not exist yet). Each name covers itself and everything inside it.
 PLANNED = {_q(name) for name in ("codex", "win", "ui", "mcp", "domain.public")}
-STORE = {_q("store")}
+STORE = {_q("store"), _q("openstate")}              # openstate moves into store/ as store/open.py
 CODEX = {_q("source"), _q("windows"), _q("codex")}         # Codex's files and processes
 WIN = {_q(name) for name in ("windows", "startup", "shortcut", "pwsh", "notify", "notice_presence",
                              "tray_place", "win")}
@@ -73,8 +73,7 @@ UI = {_q(name) for name in ("tray", "tray_popup", "brand", "notice_card", "notic
 MCP = {_q("mcpserver"), _q("mcpui"), _q("mcp")}
 # What the UI may reach: the control layer, the public status mapping (machine, until it is
 # split into domain/), the i18n layer and the brand - and itself.
-UI_MAY_IMPORT = {_q("control"), _q("machine"), _q("domain.public"), _q("l10n"), _q("interface"),
-                 _q("messages")} | UI
+UI_MAY_IMPORT = {_q("control"), _q("machine"), _q("domain.public"), _q("l10n"), _q("interface")} | UI
 PURE_STDLIB = {"__future__", "abc", "collections", "dataclasses", "decimal", "enum", "fractions", "functools",
                "hashlib", "itertools", "json", "math", "numbers", "operator", "re", "string", "textwrap",
                "types", "typing", "uuid"}
@@ -109,45 +108,34 @@ LAZY_CYCLES = {
 # Every import made inside a function, with what it is for. Three kinds, and the test checks
 # each claim against the import graph:
 #   cost       it defers loading a module the importer would not otherwise load;
-#   redundant  the module is loaded with the importer anyway; the import only sits where the
-#              name is used, and could move to the top;
+#   redundant  the module is loaded with the importer anyway, so the import belongs at the top
+#              of the file (the ten there were have been moved there; none is left);
 #   cycle      it closes one of LAZY_CYCLES above.
 LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, imported), (kind, reason) in {
     ("", "config"): ("cost", "__version__ is resolved on demand, so importing the package reads no manifest"),
     ("app", "control"): ("cost", "only a card's button and the icon's thread use the control layer"),
     ("app", "interface"): ("cost", "the icon's catalogue, when the icon starts or the language changes"),
-    ("app", "l10n"): ("redundant", "messages loads it; kept beside the two places that set the Interface language"),
     ("app", "tray"): ("cost", "the notification-area icon, only in a watcher that shows one"),
     ("app", "tray_popup"): ("cost", "the popup's theme and motion, adopted only by a running watcher"),
     ("cli", "control"): ("cost", "the diagnostics command is the only one that goes through control"),
     ("cli", "diagnostics"): ("cost", "only the diagnostics command writes the export"),
-    ("cli", "store"): ("redundant", "downgrade_to_v2, for downgrade-state only"),
     ("cli", "tray"): ("cost", "activate opens the settings window through the icon's helper"),
-    ("cli", "windows"): ("redundant", "resource_users for doctor, WakeEvent for compat"),
     ("compatio", "windows"): ("cycle", "the registry's API and discovery checks read the adapter"),
     ("config", "settings"): ("cost", "nearly everything imports config; the settings schema, and the "
                                      "catalogs behind it, load only when settings are read or written"),
-    ("control", "continuation"): ("redundant", "preview_continuation only; settings has loaded it"),
-    ("control", "reasons"): ("redundant", "preview_continuation only; settings has loaded it"),
     ("controlcli", "compatio"): ("cost", "the three compatibility commands only"),
     ("controlcli", "diagnostics"): ("cost", "the diagnostics command only"),
     ("controlcli", "interface"): ("cost", "the strings request only: the window's catalogue"),
-    ("controlcli", "l10n"): ("redundant", "beside interface for the strings request"),
     ("controlcli", "source"): ("cost", "display labels read from Codex's history; a source that fails "
                                        "costs the names, never the listing"),
-    ("controlcli", "windows"): ("redundant", "WakeEvent after an import; control has loaded it"),
     ("diagnostics", "compatio"): ("cost", "the compatibility section of the export only"),
     ("mcpserver", "compat"): ("cost", "the compatibility summary in get_status only"),
     ("mcpserver", "compatio"): ("cost", "the compatibility summary in get_status only"),
-    ("mcpserver", "config"): ("redundant", "main() finds the installed home; control has loaded it"),
-    ("mcpserver", "l10n"): ("redundant", "the panel's language; settings has loaded it"),
     ("mcpserver", "mcpui"): ("cost", "the panel's page, only when Codex reads the resource"),
-    ("notify", "l10n"): ("redundant", "a reason's label in a toast; messages has loaded it"),
     ("notify", "reasons"): ("cost", "a reason's label, for a transient toast only"),
     ("notify", "startup"): ("cost", "the AUMID only: startup owns every per-user registration, and a "
                                     "process that only formats a message should not load it"),
     ("shortcut", "startup"): ("cost", "the default AUMID only, as for notify"),
-    ("tray", "machine"): ("cost", "snapshot_from only"),
     ("tray", "notice_window"): ("cycle", "notice_window takes tray's Win32 structures at load"),
     ("tray", "tray_popup"): ("cycle", "tray_popup takes tray's countdown and Win32 structures at load"),
     ("windows", "compatio"): ("cycle", "VERIFIED_VERSIONS is read from the bundled baseline"),

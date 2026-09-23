@@ -10,7 +10,8 @@ and three parts of it are worth naming.
 exactly one locale. `"system"` still reads the same source the desktop app itself uses,
 so an unconfigured install speaks whatever Codex speaks. An explicit choice is obeyed
 even when Windows disagrees, because a person who picked Japanese on a Korean machine
-meant it.
+meant it. Nothing infers a language from an IP address, a time zone, a user name, a
+country or a keyboard layout.
 
 **Which tag means which catalog.** Windows says `ko-KR`, `zh-Hans-CN`, `pt-PT`,
 `es-419`. Nine catalogs cannot each be a list of every tag that should reach them, so
@@ -41,13 +42,15 @@ import os
 from pathlib import Path
 import re
 
+from .domain.vocabulary import Locale
+
 # The environment override the whole product honours, kept at its original name
 # because it is documented and people have it in scripts.
 ENV_LANG = "CODEX_AUTO_RESUME_LANG"
 
 # The languages the product's own interface is shipped in. English is first because it
 # is the source catalog, not because it is preferred.
-LOCALES = ("en", "ko", "ja", "zh-CN", "zh-TW", "es", "de", "fr", "pt-BR")
+LOCALES = tuple(Locale)
 DEFAULT = "en"
 # What a settings field may hold. `system` is stored as a choice in its own right so
 # that "follow Windows" survives a Windows language change, which storing the resolved
@@ -303,6 +306,20 @@ def text(key: str, locale: str = DEFAULT, **fields) -> str:
     for name, supplied in fields.items():
         value = value.replace("{%s}" % name, str(supplied))
     return value
+
+
+# The plugin's own sentences - setup output and the notifications - live in the same catalogs
+# under a `msg.` prefix, so a name like `cancelled` cannot collide with a settings label. They
+# were reached through a `messages` module that only re-exported this one; these two are what
+# it added.
+def messages(locale: str) -> dict:
+    """The plugin's own sentences in one locale, keyed without their `msg.` prefix."""
+    return {key[len("msg."):]: value for key, value in catalog(locale).items() if key.startswith("msg.")}
+
+
+def message(key: str, environ=None) -> str:
+    """One of the plugin's own sentences, in the language this process speaks."""
+    return text("msg." + key, current(environ))
 
 
 def placeholders(value: str) -> frozenset:

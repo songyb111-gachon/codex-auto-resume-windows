@@ -1,0 +1,27 @@
+{
+  "command": "failure-seen",
+  "cases": [
+    {
+      "case": "every failure so far marked as seen",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "seen_at": 1800000000.0,
+          "written": true
+        }
+      }
+    },
+    {
+      "case": "again, with nothing new to see",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "seen_at": 1800000000.0,
+          "written": true
+        }
+      }
+    }
+  ]
+}

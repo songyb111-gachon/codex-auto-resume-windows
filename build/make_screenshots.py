@@ -2184,7 +2184,15 @@ def render_window(targets: dict) -> dict:
         # or even open, the user's. It finds the Codex engine the compatibility report is
         # bound to under LOCALAPPDATA, pointed at the scratch installation's own for the
         # same reason; and the product's own overrides are unset, as for the envelope.
-        environment = dict(os.environ, CODEX_HOME=str(codex), LOCALAPPDATA=str(local.resolve()))
+        # The window is told the moment these records were seeded at, and reads it instead of its
+        # own clock (Soft.StillNow). Every page is then photographed at one moment rather than at
+        # whatever second its capture began, so a countdown reads the same on the Overview and on
+        # Pending. The records themselves are still seeded at the real clock, because the bridge
+        # behind the window runs with the real one: what moves between two runs is the wall-clock
+        # time printed in History, and pinning that means giving the product a clock it can be
+        # told, which is not something to add for a picture.
+        environment = dict(os.environ, CODEX_HOME=str(codex), LOCALAPPDATA=str(local.resolve()),
+                           CODEX_AR_STILL_NOW=repr(now))
         for override in (config.ENV_HOME, config.ENV_CODEX_EXE):
             environment.pop(override, None)
         holder = subprocess.Popen(
@@ -2221,13 +2229,14 @@ def render_window(targets: dict) -> dict:
 # ------------------------------------------------------------ what the window is shown
 # The window's Python half, as the window receives it (see WINDOW_INPUTS).
 #
-# `window_envelopes` builds the installation `render_window` builds - the stored settings in
-# the pinned theme, the Dashboard's records written by the product's own store, the
-# synthetic Codex home the names come from, the compatibility report the watcher's evaluator
-# writes for it, the watcher's mutex held and its heartbeat written, recovery switched on
-# through the bridge - and asks the bridge, through the same `serve` loop the window keeps
-# open, what the window asks to draw the photographed pages.
+# `window_envelopes` builds the installation `render_window` builds (`pinned_installation`) -
+# the stored settings in the pinned theme, the Dashboard's records written by the product's
+# own store, the synthetic Codex home the names come from, the compatibility report the
+# watcher's evaluator writes for it, the watcher's mutex held and its heartbeat written,
+# recovery switched on through the bridge - and asks the bridge, through the same `serve` loop
+# the window keeps open, what the window asks to draw the photographed pages.
 # The canonical text of the answers is the envelope; its hash is the manifest entry.
+# The wire goldens (`tests/wiregolden.py`) ask every other command of the same installation.
 #
 # It has to come out the same on every machine and every run, and the answers carry four
 # things that would not. Each is pinned or rewritten, never dropped, so the envelope still
@@ -2417,6 +2426,80 @@ def _canonical(value, spellings):
     return value
 
 
+def workspace_spellings(workspace: Path) -> list:
+    """The rewriting for an answer given in `workspace`: the four directories above, pinned."""
+    return _spellings(("<scratch>", workspace), ("<checkout>", ROOT),
+                      ("<temp>", tempfile.gettempdir()), ("<profile>", Path.home()))
+
+
+def serve_lines(surface, text: str) -> str:
+    """What `controlcli.serve` - the loop the window keeps open - writes for `text`, as written."""
+    from codex_auto_resume import controlcli
+
+    answer = io.StringIO()
+    controlcli.serve(surface, io.StringIO(text), answer)
+    return answer.getvalue()
+
+
+def ask(surface, command, argument=None) -> dict:
+    """One request through `serve_lines`, and its reply."""
+    sent = json.dumps({"id": 1, "command": command, "argument": argument})
+    return json.loads(serve_lines(surface, sent + "\n"))["reply"]
+
+
+@contextmanager
+def pinned_installation(workspace: Path, *, watching: bool = True, engine: bool = True):
+    """The installation the envelope asks, built in `workspace`, with the machine pinned.
+
+    Yields the `Control` the bridge answers for, with recovery switched on through the bridge.
+    Everything listed above is pinned for as long as it is open, and put back whole after it,
+    the l10n language preference included. `tests/wiregolden.py` asks its questions of the same
+    installation under the same pins, so the wire goldens and the envelope cannot disagree about
+    what a scratch installation says; `watching=False` leaves the watcher's mutex free.
+    """
+    from unittest.mock import patch
+
+    from codex_auto_resume import control
+
+    home, codex, local = workspace / "home", workspace / "codex", workspace / "LocalAppData"
+    paths = config.Paths(home)
+    previous = l10n.preference()
+    with ExitStack() as stack:
+        stack.enter_context(frozen_registry().frozen())
+        # The clock first, and before anything is written: the store stamps a row it is not given
+        # a time for with `time.time`, and the History page showed those - so a picture taken at
+        # 08:55 and the same picture taken at 09:10 differed by the clock alone.
+        stack.enter_context(patch.object(time, "time", return_value=ENVELOPE_NOW))
+        stack.enter_context(patch.object(
+            time, "localtime", side_effect=lambda seconds=None: time.gmtime(
+                ENVELOPE_NOW if seconds is None else seconds)))
+        # The part of `scratch_installation` the bridge reads: the settings it stores. The
+        # interpreter and the compiled window are not read by any answer.
+        write_settings(home)
+        seed_window_state(home, codex, ENVELOPE_NOW)
+        # `engine=False` is the wire goldens': no engine to discover and no report about one, so
+        # a live check finds none on every machine and the answers are the same everywhere.
+        word = seed_compatibility(home, codex, local, ENVELOPE_NOW) if engine else "unknown"
+        # Put back whole when the envelope is done, including the two removed here.
+        stack.enter_context(patch.dict(os.environ, {"CODEX_HOME": str(codex),
+                                                    "LOCALAPPDATA": str(local.resolve())}))
+        for override in (config.ENV_HOME, config.ENV_CODEX_EXE):
+            os.environ.pop(override, None)
+        stack.enter_context(_registry_stand_in())
+        if watching:
+            stack.enter_context(_watcher_mutex_held(paths))
+        write_heartbeat(paths, ENVELOPE_NOW, word)
+        surface = control.Control(paths)
+        # Switched on through the bridge before anything is read, as `render_window` does.
+        switched = ask(surface, "enabled", {"enabled": True})
+        if not switched.get("ok"):
+            raise RuntimeError("the scratch installation could not be switched on: %r" % switched)
+        try:
+            yield surface
+        finally:
+            l10n.set_preference(previous)
+
+
 def window_envelopes(locales) -> dict:
     """Locale -> the canonical text of what the bridge tells the window, one line per read.
 
@@ -2424,59 +2507,21 @@ def window_envelopes(locales) -> dict:
     the bridge wrote them, because the window lists some objects in that order (the
     Statistics page's kinds of interruption), with only the pinned values above rewritten.
     """
-    from unittest.mock import patch
-
-    from codex_auto_resume import control, controlcli
-
     envelopes = {}
-    with tempfile.TemporaryDirectory() as name, ExitStack() as stack:
-        stack.enter_context(frozen_registry().frozen())
+    with tempfile.TemporaryDirectory() as name:
         workspace = Path(name)
-        home, codex, local = workspace / "home", workspace / "codex", workspace / "LocalAppData"
-        # The part of `scratch_installation` the bridge reads: the settings it stores. The
-        # interpreter and the compiled window are not read by any answer.
-        write_settings(home)
-        seed_window_state(home, codex, ENVELOPE_NOW)
-        word = seed_compatibility(home, codex, local, ENVELOPE_NOW)
-        paths = config.Paths(home)
-        # Put back whole when the envelope is done, including the two removed here.
-        stack.enter_context(patch.dict(os.environ, {"CODEX_HOME": str(codex),
-                                                    "LOCALAPPDATA": str(local.resolve())}))
-        for override in (config.ENV_HOME, config.ENV_CODEX_EXE):
-            os.environ.pop(override, None)
-        stack.enter_context(patch.object(time, "time", return_value=ENVELOPE_NOW))
-        stack.enter_context(patch.object(
-            time, "localtime", side_effect=lambda seconds=None: time.gmtime(
-                ENVELOPE_NOW if seconds is None else seconds)))
-        stack.enter_context(_registry_stand_in())
-        stack.enter_context(_watcher_mutex_held(paths))
-        write_heartbeat(paths, ENVELOPE_NOW, word)
-        surface = control.Control(paths)
-
-        def ask(command, argument=None):
-            sent = json.dumps({"id": 1, "command": command, "argument": argument})
-            answer = io.StringIO()
-            controlcli.serve(surface, io.StringIO(sent + "\n"), answer)
-            return json.loads(answer.getvalue())["reply"]
-
-        # Switched on through the bridge before anything is read, as `render_window` does.
-        switched = ask("enabled", {"enabled": True})
-        if not switched.get("ok"):
-            raise RuntimeError("the scratch installation could not be switched on: %r" % switched)
-        spellings = _spellings(("<scratch>", workspace), ("<checkout>", ROOT),
-                               ("<temp>", tempfile.gettempdir()), ("<profile>", Path.home()))
-        previous = l10n.preference()
-        try:
+        with pinned_installation(workspace) as surface:
+            spellings = workspace_spellings(workspace)
             for locale in locales:
                 os.environ[l10n.ENV_LANG] = locale
                 lines, replies = [], {}
                 for command, argument in WINDOW_READS:
-                    replies[command] = ask(command, argument)
+                    replies[command] = ask(surface, command, argument)
                     lines.append((command, argument, replies[command]))
                 preview = preview_request((replies["describe"] or {}).get("schema") or [],
                                           (replies["settings"] or {}).get("settings") or {})
                 if preview is not None:
-                    lines.append(preview + (ask(*preview),))
+                    lines.append(preview + (ask(surface, *preview),))
                 # The photographed pages show a product that works. A read that failed here
                 # would be photographed failing too, so it stops the generator instead.
                 failed = [command for command, _argument, reply in lines
@@ -2488,8 +2533,6 @@ def window_envelopes(locales) -> dict:
                                 "reply": _canonical(reply, spellings)},
                                ensure_ascii=False, separators=(",", ":"))
                     for command, argument, reply in lines) + "\n"
-        finally:
-            l10n.set_preference(previous)
     return envelopes
 
 

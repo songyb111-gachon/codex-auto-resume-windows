@@ -49,8 +49,9 @@ import json
 from pathlib import Path
 import sys
 
-from . import config
+from . import config, l10n
 from .control import FALLBACK_CODE, Control, ControlError
+from .windows import WakeEvent
 
 # Commands with no argument, and commands that take one JSON object.
 PLAIN = ("status", "settings", "describe", "defaults", "pending", "pending-all", "start-watcher",
@@ -77,17 +78,28 @@ STDIN_ARGUMENT = "-"
 GENERIC_ERROR = "the request could not be completed"
 
 
-def _use_utf8() -> None:
-    """State the protocol's encoding, whatever the machine's code page is.
+def use_utf8(stream, newline=chr(10)) -> None:
+    """Say UTF-8 on one of this process's streams: the one place a front end's wire states
+    its encoding, for the bridge and the MCP server alike.
 
-    `reconfigure` wins over `PYTHONIOENCODING` because it happens at runtime, which is
-    the point: the contract belongs to the protocol, not to the environment that started
-    it. Guarded because a replaced stream - a test's StringIO, a pytest capture - has no
-    `reconfigure`, and the protocol is a string protocol at that level anyway.
+    `reconfigure` wins over `PYTHONIOENCODING` because it happens at runtime, which is the
+    point: the contract belongs to the protocol, not to the environment that started it.
+    `newline=None` leaves the stream's own line handling as it is. What `reconfigure` raises
+    is raised; each caller decides what it tolerates.
+    """
+    stream.reconfigure(encoding="utf-8", **({} if newline is None else {"newline": newline}))
+
+
+def _use_utf8() -> None:
+    """State the protocol's encoding on both streams, whatever the machine's code page is.
+
+    Guarded stream by stream, because a replaced stream - a test's StringIO, a pytest
+    capture - has no `reconfigure`, and the protocol is a string protocol at that level
+    anyway.
     """
     for stream in (sys.stdout, sys.stdin):
         try:
-            stream.reconfigure(encoding="utf-8", newline=chr(10))
+            use_utf8(stream)
         except (AttributeError, ValueError, OSError):
             pass
 
@@ -104,10 +116,37 @@ def _rejected(message: str, code: str = FALLBACK_CODE) -> dict:
     return {"ok": False, "error": message, "error_code": code}
 
 
+# What `json.dumps` raises for something it cannot write as strict JSON: a value that is not
+# JSON, a NaN or an infinity, a structure that refers to itself or nests too deep.
+UNWRITABLE = (TypeError, ValueError, RecursionError)
+
+
+def encode(*candidates) -> str:
+    """The first of `candidates` that can be written as strict JSON, as one line.
+
+    Strict: no NaN and no infinity, which the settings window's parser and serde_json both
+    refuse, and nothing that is not JSON - there is no `default`, so such a value raises
+    rather than reaching a front end as its str(). The bridge and the MCP server write every
+    line through this and pass their own structured refusal as the last candidate, so a
+    reply that cannot be written is still answered and the loop lives. The last candidate is
+    written unguarded: it is the caller's plain refusal, and if even that fails it should.
+    """
+    for candidate in candidates[:-1]:
+        try:
+            return json.dumps(candidate, ensure_ascii=False, allow_nan=False)
+        except UNWRITABLE:
+            continue
+    return json.dumps(candidates[-1], ensure_ascii=False, allow_nan=False)
+
+
 def _emit(payload) -> int:
     """Write one reply object as one line. The one-shot form's only way out."""
-    json.dump(payload, sys.stdout, ensure_ascii=False, default=str)
-    sys.stdout.write("\n")
+    try:
+        line = encode(payload)
+    except UNWRITABLE:
+        payload = _rejected(GENERIC_ERROR)
+        line = encode(payload)
+    sys.stdout.write(line + "\n")
     return 0 if not isinstance(payload, dict) or payload.get("ok", True) else 1
 
 
@@ -152,11 +191,17 @@ def _argument(raw, stream):
         raise ControlError("argument must be JSON") from None
 
 
-def _days(payload):
+# How many days a statistics request may cover. The MCP tool publishes the same two numbers.
+DAYS = (1, 3650)
+
+
+def statistics_days(payload):
+    """A statistics request's `days`: absent, or a number from 1 to 3650. The one check of it,
+    for the bridge and the MCP server alike."""
     days = payload.get("days")
     if days is not None and (isinstance(days, bool) or not isinstance(days, (int, float))
-                             or not 1 <= days <= 3650):
-        raise ControlError("days must be a number from 1 to 3650")
+                             or not DAYS[0] <= days <= DAYS[1]):
+        raise ControlError("days must be a number from %d to %d" % DAYS)
     return days
 
 
@@ -241,7 +286,6 @@ def _compat_import(control: Control, payload: dict) -> dict:
     woke = False
     if result.get("imported"):
         try:
-            from .windows import WakeEvent
             woke = bool(WakeEvent(str(control.paths.state_dir)).signal())
         except Exception:
             woke = False
@@ -280,7 +324,7 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
             # it changes speaks the new one. A window that is already open asked once, when it
             # was built, and keeps that language until it is opened again; its Settings page
             # says so when a new language is saved.
-            from . import interface, l10n
+            from . import interface
             l10n.set_preference(control.get_settings().get("interface_language"))
             return {"ok": True, "language": interface.language(), "strings": interface.catalog(),
                     "preference": l10n.preference(), "system_language": l10n.from_system(),
@@ -339,7 +383,7 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
         if command == "timeline":
             return {"ok": True, "result": control.timeline(payload.get("interruption_id"))}
         if command == "statistics":
-            return {"ok": True, "result": control.statistics(_days(payload))}
+            return {"ok": True, "result": control.statistics(statistics_days(payload))}
         if command == "thread-enabled":
             return {"ok": True, "result": control.set_thread_enabled(payload.get("thread_id"),
                                                                      _flag(payload))}
@@ -415,8 +459,11 @@ def serve(control: Control, stream_in, stream_out) -> int:
             # pipe and a request that is never answered. No detail, for the same reason
             # `dispatch` gives none.
             reply = _rejected(GENERIC_ERROR)
-        json.dump({"id": request_id, "reply": reply}, stream_out, ensure_ascii=False, default=str)
-        stream_out.write("\n")
+        # A reply that cannot be written is answered with the generic refusal, and an id that
+        # cannot be echoed - JSON has no NaN or infinity - is answered as null.
+        refusal = _rejected(GENERIC_ERROR)
+        stream_out.write(encode({"id": request_id, "reply": reply}, {"id": request_id, "reply": refusal},
+                                {"id": None, "reply": reply}, {"id": None, "reply": refusal}) + "\n")
         stream_out.flush()
     return 0
 
@@ -443,12 +490,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv=None) -> int:
     _use_utf8()
     args = build_parser().parse_args(argv)
-    home = args.home
-    if not home:
-        # The installed layout keeps state one level above the application directory.
-        root = config.PROJECT_ROOT
-        home = str(root.parent) if root.name == "app" else None
-    control = Control(home)
+    control = Control(args.home or config.installed_home())
     if args.command == "serve":
         return serve(control, sys.stdin, sys.stdout)
     try:

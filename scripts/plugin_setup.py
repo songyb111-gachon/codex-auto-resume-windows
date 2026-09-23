@@ -38,12 +38,12 @@ EXIT_ERROR = 1
 EXIT_UNCONFIRMED = 2
 
 sys.path.insert(0, str(PLUGIN_ROOT / "src"))
-from codex_auto_resume import config, control, messages, startup      # noqa: E402
+from codex_auto_resume import config, control, l10n, startup          # noqa: E402
 from codex_auto_resume.app import App                        # noqa: E402
 
 
 def say(key: str) -> None:
-    print(messages.text(key))
+    print(l10n.message(key))
 
 
 def bullet() -> str:
@@ -134,7 +134,7 @@ def install_launcher(home: Path, mode: str) -> Path:
     if icon.is_file():
         shutil.copyfile(icon, home / ICON_NAME)
     payload = {"mode": mode, "plugin_name": PLUGIN_NAME, "plugin_root": str(PLUGIN_ROOT), "home": str(home)}
-    (home / RUNTIME_CONFIG).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    (home / RUNTIME_CONFIG).write_text(json.dumps(payload, indent=2, allow_nan=False), encoding="utf-8")
     # Claim the root, so that later on something can prove this directory is ours before
     # deleting the program files in it. The installer asks with `verify-home`.
     config.Paths(home).claim_home()
@@ -262,7 +262,7 @@ def cmd_setup(args) -> int:
     print()
     say("ready_defaults")
     for key in ("ready_b1", "ready_b2", "ready_b3", "ready_b4"):
-        print("  " + bullet() + " " + messages.text(key))
+        print("  " + bullet() + " " + l10n.message(key))
     print()
     confirmed = started in ("running", "already-running")
     if incomplete:

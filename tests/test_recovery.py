@@ -25,7 +25,8 @@ if _HERE not in sys.path:
 from codexsim import CodexHome, new_id, transient_error  # noqa: E402
 from codex_auto_resume import failures, machine, settings  # noqa: E402
 from codex_auto_resume.engine import TRANSIENT_BACKOFF, transient_delay  # noqa: E402
-from codex_auto_resume.source import detect, valid_uuid  # noqa: E402
+from codex_auto_resume.domain.ids import is_uuid as valid_uuid  # noqa: E402
+from codex_auto_resume.source import detect  # noqa: E402
 from codex_auto_resume.store import Store  # noqa: E402
 from test_engine import (BASE, RESET, T1, T2, TURN_A, TURN_B, TURN_C, Harness,  # noqa: E402
                          dispatch_and_fail, fail_turn)

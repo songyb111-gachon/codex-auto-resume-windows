@@ -318,7 +318,7 @@ class NoBrowserTests(unittest.TestCase):
     FORBIDDEN = re.compile(
         r"\bWebBrowser\b|\bWebView2?\b|\bCoreWebView\b|\bChromium\b|\bCefSharp\b|"
         r"\bHttpListener\b|\bTcpListener\b|\bSocket\s*\(|\bHttpServer\b|"
-        # Not the bare word "Electron": `messages.py` names it while explaining which
+        # Not the bare word "Electron": `l10n.py` names it while explaining which
         # Windows API it calls, and a rule that cannot tell a sentence from a dependency is
         # a rule somebody deletes. What would actually arrive is a second runtime, and
         # `test_no_second_runtime_is_in_the_release` looks for that instead.

@@ -1,0 +1,24 @@
+{
+  "tool": "resume_auto_recovery",
+  "cases": [
+    {
+      "case": "on again",
+      "arguments": {},
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "Automatic recovery is on again. Every check still applies."
+            }
+          ],
+          "structuredContent": {
+            "enabled": true
+          }
+        }
+      }
+    }
+  ]
+}

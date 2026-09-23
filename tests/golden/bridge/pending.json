@@ -1,0 +1,186 @@
+{
+  "command": "pending",
+  "cases": [
+    {
+      "case": "what is waiting, with the names Codex gives the conversations",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "pending": [
+          {
+            "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+            "thread_id": "11111111-1111-7111-8111-111111111111",
+            "state": "waiting_reset",
+            "code": "waiting_reset",
+            "reason": null,
+            "overlays": [],
+            "eligible_at": 1800002540.0,
+            "terminal": false,
+            "category": "usage_limit",
+            "detected_at": 1799998500.0,
+            "reset_at": 1800002540.0,
+            "next_retry_at": 1799998500.0,
+            "recovery_attempts": 0,
+            "no_progress_count": 0,
+            "chain_continuations": 0,
+            "chain_origin_id": "7777777777777777777777777777777777777777777777777777777777777777",
+            "parent_interruption_id": null,
+            "budget_resets": 0,
+            "budget_resets_left": 3,
+            "cancel_requested": false,
+            "recovery_turn_status": null,
+            "user_joined": false,
+            "after_user_work": false,
+            "outcome_at": null,
+            "first_queued_at": null,
+            "gates": {
+              "consent": [
+                "PASS",
+                "ok"
+              ],
+              "engine_compatible": [
+                "PASS",
+                "ok"
+              ],
+              "single_owner": [
+                "PASS",
+                "ok"
+              ],
+              "submission_safe": [
+                "PASS",
+                "ok"
+              ],
+              "identity": [
+                "PASS",
+                "ok"
+              ],
+              "known_failure": [
+                "PASS",
+                "ok"
+              ],
+              "schedule": [
+                "WAIT",
+                "waiting_reset"
+              ],
+              "chain_budget": [
+                "PASS",
+                "ok"
+              ],
+              "attempt_budget": [
+                "PASS",
+                "ok"
+              ],
+              "no_progress_budget": [
+                "PASS",
+                "ok"
+              ],
+              "thread_available": [
+                "UNKNOWN",
+                "not_checked"
+              ],
+              "no_newer_user_work": [
+                "UNKNOWN",
+                "not_checked"
+              ],
+              "usage": [
+                "UNKNOWN",
+                "not_checked"
+              ]
+            },
+            "gates_at": 1799999960.0,
+            "thread_enabled": true,
+            "name": "example-project",
+            "project": null,
+            "cwd_basename": null
+          },
+          {
+            "interruption_id": "8888888888888888888888888888888888888888888888888888888888888888",
+            "thread_id": "22222222-2222-7222-8222-222222222222",
+            "state": "waiting_backoff",
+            "code": "scheduled",
+            "reason": null,
+            "overlays": [],
+            "eligible_at": 1800000095.0,
+            "terminal": false,
+            "category": "network_transient",
+            "detected_at": 1799999950.0,
+            "reset_at": null,
+            "next_retry_at": 1800000095.0,
+            "recovery_attempts": 0,
+            "no_progress_count": 0,
+            "chain_continuations": 0,
+            "chain_origin_id": "8888888888888888888888888888888888888888888888888888888888888888",
+            "parent_interruption_id": null,
+            "budget_resets": 0,
+            "budget_resets_left": 3,
+            "cancel_requested": false,
+            "recovery_turn_status": null,
+            "user_joined": false,
+            "after_user_work": false,
+            "outcome_at": null,
+            "first_queued_at": null,
+            "gates": {
+              "consent": [
+                "PASS",
+                "ok"
+              ],
+              "engine_compatible": [
+                "PASS",
+                "ok"
+              ],
+              "single_owner": [
+                "PASS",
+                "ok"
+              ],
+              "submission_safe": [
+                "PASS",
+                "ok"
+              ],
+              "identity": [
+                "PASS",
+                "ok"
+              ],
+              "known_failure": [
+                "PASS",
+                "ok"
+              ],
+              "schedule": [
+                "WAIT",
+                "not_due"
+              ],
+              "chain_budget": [
+                "PASS",
+                "ok"
+              ],
+              "attempt_budget": [
+                "PASS",
+                "ok"
+              ],
+              "no_progress_budget": [
+                "PASS",
+                "ok"
+              ],
+              "thread_available": [
+                "UNKNOWN",
+                "not_checked"
+              ],
+              "no_newer_user_work": [
+                "UNKNOWN",
+                "not_checked"
+              ],
+              "usage": [
+                "UNKNOWN",
+                "not_checked"
+              ]
+            },
+            "gates_at": 1799999960.0,
+            "thread_enabled": true,
+            "name": "example-service",
+            "project": null,
+            "cwd_basename": null
+          }
+        ]
+      }
+    }
+  ]
+}
