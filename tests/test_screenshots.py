@@ -108,17 +108,23 @@ REGENERATE = ("the screenshots no longer match the source they were rendered fro
 
 def real_modules(*names) -> dict:
     """The named modules of the package as {path: text}, with the popup's own files listed
-    rather than named.
+    rather than named, and any other package among `names` listed the same way.
 
-    Until v0.6.10-alpha the popup was one file and these tests named it. It is a package now,
-    so a file added to `tray_popup/` joins the digest - and these tests - without one of them
-    being edited; naming it would mean a new module silently left out of what a picture is
-    hashed from.
+    Until v0.6.10-alpha the popup was one file and these tests named it; the icon was another.
+    They are packages now, so a file added to either joins the digest - and these tests -
+    without one of them being edited. Naming a file would mean a new module silently left out
+    of what a picture is hashed from, which is the one mistake these tests cannot make.
     """
     package = ROOT / "src" / "codex_auto_resume"
-    files = {path.relative_to(package).as_posix(): path.read_text(encoding="utf-8")
-             for path in sorted((package / "tray_popup").rglob("*.py"))}
-    files.update({name: (package / name).read_text(encoding="utf-8") for name in names})
+
+    def listed(where: Path) -> dict:
+        return {path.relative_to(package).as_posix(): path.read_text(encoding="utf-8")
+                for path in sorted(where.rglob("*.py"))}
+
+    files = listed(package / "tray_popup")
+    for name in names:
+        files.update(listed(package / name) if (package / name).is_dir()
+                     else {name: (package / name).read_text(encoding="utf-8")})
     return files
 
 
@@ -1121,7 +1127,7 @@ class PopupDrawingTests(unittest.TestCase):
         # rather than by name, and what it hands back is handles. Handles draw nothing; the
         # declarations above and the countdown below are what a picture depends on.
 
-        real = real_modules("brand.py", "tray.py", "ui/words.py", "win/dll.py")
+        real = real_modules("brand.py", "tray", "ui/words.py", "win/dll.py")
         before = self.digest(real)
         for what, (name, old, new) in {
                 "the countdown the popup shows": ("ui/words.py", '"%ds" % secs', '"%d s" % secs'),
@@ -1132,8 +1138,9 @@ class PopupDrawingTests(unittest.TestCase):
             with self.subTest(what):
                 self.assertNotEqual(self.digest(changed), before, what + " did not move the digest")
         # And the icon's own tooltip is still not the popup's drawing.
-        changed = dict(real, **{"tray.py": real["tray.py"].replace('"tray.title"', '"tray.name"', 1)})
-        self.assertNotEqual(changed["tray.py"], real["tray.py"])
+        changed = dict(real, **{"tray/words.py":
+                                real["tray/words.py"].replace('"tray.title"', '"tray.name"', 1)})
+        self.assertNotEqual(changed["tray/words.py"], real["tray/words.py"])
         self.assertEqual(self.digest(changed), before, "the icon's own tooltip is not the popup's")
 
     def test_the_spelling_of_a_tree_does_not_depend_on_the_python(self):
@@ -1259,7 +1266,7 @@ class CardPictureTests(unittest.TestCase):
         # v0.6.10-alpha: the countdown and the Win32 declarations the card's window is
         # registered with moved into ui/ and win/, and the digest follows them.
         return real_modules("notice_card.py", "notice_window.py", "brand.py",
-                            "tray.py", "ui/words.py", "win/dll.py")
+                            "tray", "ui/words.py", "win/dll.py")
 
     def test_the_patterns_cover_the_card_the_package_it_moves_into_and_the_popup_it_is_painted_by(self):
         with tempfile.TemporaryDirectory() as root:
@@ -1498,7 +1505,7 @@ class IconMotionPictureTests(unittest.TestCase):
             return self.generator.icon_drawing(root)
 
     def real(self):
-        return real_modules("tray.py", "brand.py", "notice_card.py")
+        return real_modules("tray", "brand.py", "notice_card.py")
 
     def test_the_entry_moves_when_the_motion_or_the_mark_changes_and_not_otherwise(self):
         from codex_auto_resume import tray
@@ -1508,22 +1515,22 @@ class IconMotionPictureTests(unittest.TestCase):
         turn_ms = '"turn_frame_ms": %d,' % tray.ICON_MOTION["turn_frame_ms"]
         glow = re.search(r'"monitoring_ms": (\d+)', real["brand.py"])
         moves = {
-            "the way it turns": ("tray.py", 'ICON_SHAPE["arc_end"] - 360.0 * position', 'ICON_SHAPE["arc_end"] + 360.0 * position'),
-            "the breaths before a sweep": ("tray.py", '"breaths": 3,', '"breaths": 4,'),
-            "the sweep's slot": ("tray.py", '"sweep_breaths": 2,', '"sweep_breaths": 3,'),
-            "how much of the slot it travels": ("tray.py", '"sweep_out": 0.4,', '"sweep_out": 0.45,'),
-            "the pause at the far end": ("tray.py", '"sweep_hold": 0.025,', '"sweep_hold": 0.05,'),
-            "recovering's rest at home": ("tray.py", '"recover_rest": 0.075,', '"recover_rest": 0.1,'),
+            "the way it turns": ("tray/motion.py", 'ICON_SHAPE["arc_end"] - 360.0 * position', 'ICON_SHAPE["arc_end"] + 360.0 * position'),
+            "the breaths before a sweep": ("tray/motion.py", '"breaths": 3,', '"breaths": 4,'),
+            "the sweep's slot": ("tray/motion.py", '"sweep_breaths": 2,', '"sweep_breaths": 3,'),
+            "how much of the slot it travels": ("tray/motion.py", '"sweep_out": 0.4,', '"sweep_out": 0.45,'),
+            "the pause at the far end": ("tray/motion.py", '"sweep_hold": 0.025,', '"sweep_hold": 0.05,'),
+            "recovering's rest at home": ("tray/motion.py", '"recover_rest": 0.075,', '"recover_rest": 0.1,'),
             "how far along the stroke it goes": ("brand.py", '"arc_start": 125.0, "arc_end": 55.0,',
                                                  '"arc_start": 130.0, "arc_end": 55.0,'),
-            "the frame rate while it travels": ("tray.py", turn_ms, turn_ms.replace(",", "1,")),
-            "the breath's depth": ("tray.py", '"dim": 0.6,', '"dim": 0.5,'),
+            "the frame rate while it travels": ("tray/motion.py", turn_ms, turn_ms.replace(",", "1,")),
+            "the breath's depth": ("tray/motion.py", '"dim": 0.6,', '"dim": 0.5,'),
             "the breath's rhythm": ("brand.py", glow.group(0), '"monitoring_ms": %d' % (int(glow.group(1)) + 100)),
             "the mark's accent": ("brand.py", 'ICON_ACCENT = "#4FE0F5"', 'ICON_ACCENT = "#4FE0F6"'),
             "attention's rhythm": ("brand.py", '"attention_ms": 5600,', '"attention_ms": 6600,'),
-            "which states breathe in place": ("tray.py", '"attention": "attention_ms"}', '"attention": "recovering_ms"}'),
-            "how quickly a failure sweeps": ("tray.py", '"failed_slot": 0.5,', '"failed_slot": 0.6,'),
-            "what a failure blinks on": ("tray.py", 'ICON_TRAVEL_BREATHS = {"failed": "failed_ms"}',
+            "which states breathe in place": ("tray/motion.py", '"attention": "attention_ms"}', '"attention": "recovering_ms"}'),
+            "how quickly a failure sweeps": ("tray/motion.py", '"failed_slot": 0.5,', '"failed_slot": 0.6,'),
+            "what a failure blinks on": ("tray/motion.py", 'ICON_TRAVEL_BREATHS = {"failed": "failed_ms"}',
                                          'ICON_TRAVEL_BREATHS = {"failed": "attention_ms"}'),
         }
         for what, (name, old, new) in moves.items():
@@ -1533,11 +1540,11 @@ class IconMotionPictureTests(unittest.TestCase):
             with self.subTest(what):
                 self.assertNotEqual(self.drawing(changed), before, what + " did not move the entry")
         stays = {
-            "the icon's menu": ("tray.py", "MENU_OPEN, MENU_TOGGLE, MENU_STOP, MENU_PENDING = 1, 2, 3, 4",
+            "the icon's menu": ("tray/menu.py", "MENU_OPEN, MENU_TOGGLE, MENU_STOP, MENU_PENDING = 1, 2, 3, 4",
                                 "MENU_OPEN, MENU_TOGGLE, MENU_STOP, MENU_PENDING = 1, 2, 3, 5"),
             "the popup's renderer": ("tray_popup/renderer.py", "class Renderer:", "class Renderer:\n    painted = True\n"),
             "the notification card": ("notice_card.py", "DARK_ENOUGH = 0.05", "DARK_ENOUGH = 0.06"),
-            "a comment on the motion": ("tray.py", "# The badge's own deep blue", "# The badge's deep blue"),
+            "a comment on the motion": ("tray/motion.py", "# The badge's own deep blue", "# The badge's deep blue"),
         }
         for what, (name, old, new) in stays.items():
             changed = dict(real)
@@ -1553,9 +1560,9 @@ class IconMotionPictureTests(unittest.TestCase):
         before = self.drawing(real)
         names = ("ICON_BREATHS", "ICON_SWEEPS", "ICON_TRAVEL_BREATHS", "ICON_MOTION", "ICON_SWEEP", "_breath_level", "icon_turn", "icon_frame",
                  "icon_frame_ms", "IconFrames")
-        rest, moved = PopupDrawingTests.cut(real["tray.py"], *names)
+        rest, moved = PopupDrawingTests.cut(real["tray/motion.py"], *names)
         moved_files = dict(real, **{
-            "tray.py": rest + "\nfrom .ui.tray.motion import %s\n" % ", ".join(names),
+            "tray/motion.py": rest + "\nfrom ..ui.tray.motion import %s\n" % ", ".join(names),
             "ui/__init__.py": "",
             "ui/tray/__init__.py": '"""The notification-area icon."""\n',
             "ui/tray/motion.py": ("from __future__ import annotations\nimport math\n"

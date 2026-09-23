@@ -193,9 +193,9 @@ class ReExportTests(unittest.TestCase):
         self.assertIn("USER_GROUPS", reads("mcpserver"))
         popup = reads("tray_popup")
         self.assertIn("_icon_from_pixels", popup)
-        # tray.py reaches it with `from . import tray_popup`, inside a method; resolving that
+        # The icon reaches it with `from .. import tray_popup`, inside a method; resolving that
         # dot is what makes this scan read the product rather than only the suite.
-        self.assertIn("tray.py", popup["_icon_from_pixels"])
+        self.assertIn("animation.py", popup["_icon_from_pixels"])
 
     def test_the_scan_reads_the_tree_and_not_the_text(self):
         """The two shapes that look like a read of a front and are not.

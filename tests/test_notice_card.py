@@ -1263,11 +1263,11 @@ class SettingTests(unittest.TestCase):
     def test_the_switch_is_offered_exactly_when_something_draws_the_card(self):
         """A switch that changes nothing must not be on the Dashboard. The card is drawn once the
         watcher hands notices to the notifier (app.py) and the icon's thread hosts the stack
-        (tray.py) - both, or the card never shows. Until then `notification_card` exists, with
+        (tray/cards.py) - both, or the card never shows. Until then `notification_card` exists, with
         its default, but no surface offers it; wiring the card fails this test until the name
         leaves settings.NOT_YET_OFFERED, and taking the wiring out fails it the other way."""
         app_source = (SRC / "app.py").read_text(encoding="utf-8")
-        tray_source = (SRC / "tray.py").read_text(encoding="utf-8")
+        tray_source = (SRC / "tray" / "cards.py").read_text(encoding="utf-8")
         wired = "notifier.deliver(" in app_source and "notice_window.CardStack(" in tray_source
         offered = [entry for entry in settings.describe() if entry["name"] == notifier.CARD_SETTING]
         self.assertEqual(bool(offered), wired)
