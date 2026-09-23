@@ -264,11 +264,20 @@ class PatchPointTests(unittest.TestCase):
     "Control")` in `test_bridge_encoding.py` would have. So: a name may be patched on a front
     only if something outside the front's package really reads it there; otherwise the test
     names the module that holds the caller.
+
+    The shape scanned for is deliberately wider than `patch.object`. `test_screenshots.py`
+    wraps it in a helper - `changed(control, "describe_record", ...)` - and that one slipped
+    through when the control layer was split, which is exactly the kind of miss this test
+    exists to prevent. Any call whose first two arguments are a front and a name is counted,
+    and so is a plain assignment onto one; a read shaped that way (`getattr`) is not counted,
+    since the names it would raise are already covered by the re-export rule above.
     """
+
+    READS = ("getattr", "hasattr", "delattr")
 
     def patches(self):
         """(file, line, front, name) for every patch aimed at a front, however it is written."""
-        for path in sorted((ROOT / "tests").glob("test_*.py")):
+        for path in sorted((ROOT / "tests").glob("*.py")):
             if path.name == "test_reexports.py":
                 continue
             tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -277,11 +286,17 @@ class PatchPointTests(unittest.TestCase):
                 if not names:
                     continue
                 for node in ast.walk(tree):
-                    if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                            and node.func.attr == "object" and len(node.args) >= 2
-                            and isinstance(node.args[0], ast.Name) and node.args[0].id in names
-                            and isinstance(node.args[1], ast.Constant)):
-                        yield path.name, node.lineno, front, node.args[1].value
+                    if isinstance(node, ast.Call):
+                        called = getattr(node.func, "attr", getattr(node.func, "id", ""))
+                        if (called not in self.READS and len(node.args) >= 2
+                                and isinstance(node.args[0], ast.Name)
+                                and node.args[0].id in names
+                                and isinstance(node.args[1], ast.Constant)
+                                and isinstance(node.args[1].value, str)
+                                # A name, not a sentence: `skipUnless(tray_popup, "the popup
+                                # draws only on Windows")` has this shape and patches nothing.
+                                and node.args[1].value.isidentifier()):
+                            yield path.name, node.lineno, front, node.args[1].value
                     elif isinstance(node, ast.Assign):
                         for target in node.targets:
                             if (isinstance(target, ast.Attribute)
