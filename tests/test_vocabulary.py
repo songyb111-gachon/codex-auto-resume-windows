@@ -147,9 +147,9 @@ RETURNED = {
     ("Backend.send", "error_code"): {"queue_preflight_failed", "queue_consent_refused", "queue_spawn_failed",
                                      "queue_response_unconfirmed", "queue_timeout", "queue_result_unknown"},
     ("Backend.loaded", None): {"loaded", "notLoaded", "unknown"},
-    ("Control.start_watcher", "state"): {"already-running"},
+    ("WatcherMixin.start_watcher", "state"): {"already-running"},
     ("await_watcher", "state"): {"running", "exited", "unconfirmed"},
-    ("Control.stop_watcher", "state"): {"not-running"},
+    ("WatcherMixin.stop_watcher", "state"): {"not-running"},
     ("await_stopped", "state"): {"stopped", "still-finishing", "unknown"},
 }
 
@@ -238,8 +238,8 @@ HOMES = {
     v.GateResult: ("list", "machine.GATE_RESULTS"),
     v.FailureCategory: ("list", "failures.CATEGORIES"),
     v.EngineState: ("list", "store.ENGINE_STATES", "compat.ENGINE_STATES"),
-    v.WatcherStartState: ("returned", ("Control.start_watcher", "state"), ("await_watcher", "state")),
-    v.WatcherStopState: ("returned", ("Control.stop_watcher", "state"), ("await_stopped", "state")),
+    v.WatcherStartState: ("returned", ("WatcherMixin.start_watcher", "state"), ("await_watcher", "state")),
+    v.WatcherStopState: ("returned", ("WatcherMixin.stop_watcher", "state"), ("await_stopped", "state")),
     v.ErrorCode: ("list", "control.ERROR_CODES"),
     v.ContinuationStyle: ("list", "continuation.STYLES"),
     v.CustomMode: ("list", "continuation.CUSTOM_MODES"),

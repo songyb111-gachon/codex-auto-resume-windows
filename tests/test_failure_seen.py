@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 import sys
 import tempfile
@@ -20,6 +21,7 @@ import unittest
 from unittest.mock import patch
 
 from codex_auto_resume import app, config, control, controlcli, tray
+from codex_auto_resume.control import seen  # where the mutex is taken
 from codex_auto_resume.store import Store
 
 _HERE = str(Path(__file__).resolve().parent)
@@ -130,12 +132,12 @@ class SeenFileTests(ControlTestCase):
 
     def test_the_write_is_a_new_file_of_a_name_nobody_can_plant(self):
         names = []
-        real = control.os.replace
+        real = os.replace
 
         def spy(source, target):
             names.append(Path(source).name)
             return real(source, target)
-        with patch.object(control.os, "replace", spy):
+        with patch.object(os, "replace", spy):
             self.control.acknowledge_failure(1000.0)
             self.control.acknowledge_failure(2000.0)
         self.assertEqual(len(names), 2)
@@ -156,7 +158,7 @@ class SeenFileTests(ControlTestCase):
 
             def __exit__(self, *unused):
                 taken.append("released")
-        with patch.object(control, "Mutex", Lock):
+        with patch.object(seen, "Mutex", Lock):
             self.control.acknowledge_failure(1000.0)
         self.assertEqual(taken, [str(self.paths.failure_seen_file), "released"])
 
@@ -269,10 +271,10 @@ class WatcherTests(ControlTestCase):
         watcher = app.App.__new__(app.App)
         watcher.paths = self.paths
         watcher.logger = type("Log", (), {"info": lambda *args: None})()
-        with patch.object(control.time, "time", return_value=5000.0):
+        with patch.object(time, "time", return_value=5000.0):
             watcher._failure_baseline()
         self.assertEqual(control.Control(self.paths).failure_seen_at(), 5000.0)
-        with patch.object(control.time, "time", return_value=9000.0):
+        with patch.object(time, "time", return_value=9000.0):
             watcher._failure_baseline()
         self.assertEqual(control.Control(self.paths).failure_seen_at(), 5000.0, "a baseline never moves a time")
 

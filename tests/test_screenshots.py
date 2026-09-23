@@ -219,6 +219,7 @@ class ManifestTests(unittest.TestCase):
             self.assertIn("<bridge envelope:%s>" % locale, self.manifest["inputs"])
 
         import codexsim
+        from codex_auto_resume.control import records as control_records
         from codex_auto_resume import (compatio, config, continuation, control, controlcli, l10n,
                                        machine, settings, startup, windows)
         from codex_auto_resume.source import LocalSource
@@ -263,8 +264,11 @@ class ManifestTests(unittest.TestCase):
             "startup.py - the start-at-sign-in value":
                 several(lambda: patch.object(startup, "current_value", return_value="registered"),
                         lambda: patch.object(startup, "belongs_to", return_value=True)),
-            "control.py - what a row carries":
-                lambda: changed(control, "describe_record", lambda row: dict(row, budget_resets_left=0)),
+            # `control/records.py`, not the front: `_described` calls `describe_record` from
+            # its own module, so a change made on the front would reach nothing.
+            "control/records.py - what a row carries":
+                lambda: changed(control_records, "describe_record",
+                                lambda row: dict(row, budget_resets_left=0)),
             "machine.py - which public status a row shows":
                 lambda: changed(machine, "public_code", lambda code: "failed_retryable"),
             "controlcli.py - the envelope the window unpacks":

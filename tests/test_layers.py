@@ -69,7 +69,11 @@ LAYER = {_q(name): layer for layer, names in {
                  "source.paths", "source.payload", "source.schema", "source.values"),
     "engine": ("engine", "engine.announce", "engine.detect", "engine.dispatch",
                "engine.freshness", "engine.options", "engine.outcome", "engine.reconcile"),
-    "control": ("control", "diagnostics"),
+    # v0.6.10-alpha: control.py became control/, ten files, `Control` composed from eight
+    # mixins. `layer` is where the composition lives, so that the front holds no code.
+    "control": ("control", "control.actions", "control.codexstart", "control.errors",
+                "control.layer", "control.policy", "control.preview", "control.records",
+                "control.seen", "control.state", "control.watcher", "diagnostics"),
     "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcpui", "app", "tray",
               # v0.6.10-alpha: mcpserver.py's body became mcp/, beside the panel's own files.
               "mcp", "mcp.server", "mcp.tools",

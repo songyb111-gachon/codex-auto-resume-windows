@@ -28,7 +28,9 @@ import time
 import unittest
 from unittest.mock import call, patch
 
-from codex_auto_resume import config, control, controlcli, settings, startup
+from codex_auto_resume import (config, control, controlcli, settings,
+                               startup, store as store_module)
+from codex_auto_resume.control import watcher  # where the waits and the stop event are read
 from codex_auto_resume.store import Store, StoreError
 from codex_auto_resume.windows import AdapterError, Mutex
 
@@ -186,7 +188,7 @@ class PendingTests(ControlTestCase):
         self.assertIsNone(listed[0]["name"])
         self.assertEqual(listed[0]["interruption_id"], KEY)
         # A record that was never reset has every reset still available.
-        self.assertEqual(listed[0]["budget_resets_left"], control.MAX_BUDGET_RESETS)
+        self.assertEqual(listed[0]["budget_resets_left"], store_module.MAX_BUDGET_RESETS)
 
     def test_a_failing_identity_lookup_does_not_break_the_listing(self):
         # Labels are decoration. A source that raises must cost a name, not the list.
@@ -379,7 +381,11 @@ class NotARecoveryEngineTests(ControlTestCase):
                     if within(entry.target, root) and not within(module, root):
                         importers.setdefault(name, set()).add(srcscan.relative(path))
         control = {srcscan.relative(path) for path in control_files}
-        self.assertIn("codex_auto_resume/control.py", control)
+        # Every file of the layer, not the one it used to be: since v0.6.10-alpha the
+        # rule has ten files to hold rather than one, and a new one joins by being there.
+        self.assertIn("codex_auto_resume/control/__init__.py", control)
+        self.assertIn("codex_auto_resume/control/watcher.py", control)
+        self.assertGreaterEqual(len(control), 10)
         for name, found in sorted(importers.items()):
             with self.subTest(guarded=name):
                 self.assertEqual(sorted(found & control), [], "control imports the %s" % name)
@@ -1052,10 +1058,10 @@ class StartWatcherReportingTests(ControlTestCase):
     def setUp(self):
         super().setUp()
         (self.home / "watcher-launcher.py").write_text("# launcher" + chr(10), encoding="utf-8")
-        patcher = patch.object(control, "WATCHER_START_TIMEOUT", 0.05)
+        patcher = patch.object(watcher, "WATCHER_START_TIMEOUT", 0.05)
         patcher.start()
         self.addCleanup(patcher.stop)
-        interval = patch.object(control, "WATCHER_START_INTERVAL", 0)
+        interval = patch.object(watcher, "WATCHER_START_INTERVAL", 0)
         interval.start()
         self.addCleanup(interval.stop)
 
@@ -1117,12 +1123,12 @@ class StopWatcherTests(ControlTestCase):
     def setUp(self):
         super().setUp()
         for name, value in (("WATCHER_STOP_TIMEOUT", 0.05), ("WATCHER_STOP_INTERVAL", 0)):
-            guard = patch.object(control, name, value)
+            guard = patch.object(watcher, name, value)
             guard.start()
             self.addCleanup(guard.stop)
         # The event stands in for the real one: these tests describe this layer, not a
         # Windows named object, and no watcher is ever started to be stopped.
-        events = patch.object(control, "StopEvent")
+        events = patch.object(watcher, "StopEvent")
         self.event = events.start()
         self.addCleanup(events.stop)
         self.event.return_value.signal.return_value = True
