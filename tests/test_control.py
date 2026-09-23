@@ -386,7 +386,11 @@ class NotARecoveryEngineTests(ControlTestCase):
         package = "codex_auto_resume/%s.py"
         self.assertEqual(importers, {
             "engine": {package % "app"},
-            "source": {package % name for name in ("app", "compatio", "controlcli", "engine")},
+            # Since v0.6.10-alpha the engine is a package, and the one module of it that reads
+            # Codex directly is `engine/detect.py` - the exception `tests/test_layers.py`
+            # names, in the place it now lives.
+            "source": {package % name for name in ("app", "compatio", "controlcli")}
+                      | {"codex_auto_resume/engine/detect.py"},
         }, "the set of modules that reach the engine or the source has changed")
 
 

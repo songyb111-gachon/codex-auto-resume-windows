@@ -74,7 +74,15 @@ class TreeTests(unittest.TestCase):
                 self.assertTrue(defined)
                 self.assertLessEqual(defined, found)
                 if module is engine:
-                    self.assertIn("Engine.dispatch", found)
+                    # Not vacuous: a method inside a class is found. Since v0.6.10-alpha the
+                    # engine is a package whose own file holds the loop, and `dispatch` lives
+                    # in the mixin it moved to - so both are asked for, where each now is.
+                    self.assertIn("Engine.tick", found)
+                    inside = srcscan.package_asts()[srcscan.modules()[engine.__name__ + ".dispatch"]]
+                    self.assertIn("DispatchMixin.dispatch",
+                                  {name for node, name in srcscan.qualnames(inside).items()
+                                   if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                                        ast.ClassDef))})
 
     def test_a_node_belongs_to_the_function_around_it(self):
         tree = ast.parse("def outer():\n    def inner():\n        call()\n    return inner\n"
