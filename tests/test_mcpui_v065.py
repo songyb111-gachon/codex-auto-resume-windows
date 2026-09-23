@@ -849,10 +849,11 @@ class MotionStyleTests(unittest.TestCase):
         source = (ROOT / "src" / "codex_auto_resume" / "mcpui.py").read_text(encoding="utf-8")
         self.assertNotIn("--transition-ease:", source)
         self.assertNotIn("--transition:", source)
-        # Brand is the one file of the package that writes either token, so the panel's style
-        # cannot move to a module of its own and start writing a curve there.
+        # One file of the package writes either token - `brand/css.py`, which is the one file
+        # of the palette that writes CSS at all - so the panel's style cannot move to a module
+        # of its own and start writing a curve there.
         for token in ("--transition-ease:", "--transition:"):
-            self.assertEqual(srcscan.holders(token), {"codex_auto_resume/brand.py"}, token)
+            self.assertEqual(srcscan.holders(token), {"codex_auto_resume/brand/css.py"}, token)
         # An ease-out: it leaves at once and settles, and it is the path brand.ease() gives the
         # window and the popup.
         for step in range(101):

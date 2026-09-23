@@ -79,6 +79,9 @@ LAYER = {_q(name): layer for layer, names in {
               "mcp", "mcp.server", "mcp.tools",
               "tray_popup", "brand",
               "notice_card", "notice_window", "notifier",
+              # v0.6.10-alpha: brand.py became brand/ - one palette in nine files.
+              "brand.checkbox", "brand.colour", "brand.css", "brand.elevation", "brand.light",
+              "brand.mark", "brand.motion", "brand.scale", "brand.tokens",
               # v0.6.10-alpha: tray.py became tray/ - the same icon in eleven files, all of
               # them the front. `UI` below covers them by prefix.
               "tray.animation", "tray.cards", "tray.clicks", "tray.dashboard", "tray.icon",
