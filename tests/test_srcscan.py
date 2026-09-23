@@ -148,7 +148,11 @@ class TreeTests(unittest.TestCase):
         expected = {("auto_resume", srcscan.PACKAGE, False, True)}
         for package in packages:
             for module, path in modules.items():
-                if module.startswith(package) or not any(
+                # `module.startswith(package)` would be wrong, and was until v0.6.10-alpha made
+                # a package whose name is a prefix of a module's: `mcpserver` is not inside
+                # `mcp/`, and the day it was treated as though it were, this test asked for the
+                # one implied import it should have asked for.
+                if module == package or module.startswith(package + ".") or not any(
                         entry.target.startswith(package + ".") for entry in srcscan.imports(path)):
                     continue
                 expected.add((module, package, False, True))

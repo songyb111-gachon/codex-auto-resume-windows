@@ -794,7 +794,7 @@ class ErrorCodeTests(ControlTestCase):
         # away before any control call - take the fallback code by leaving it out. Nothing else
         # may: every other refusal names its code, and these are the only files that do not.
         self.assertEqual({where for where, node in raises if (where, node) not in coded},
-                         {"codex_auto_resume/controlcli.py", "codex_auto_resume/mcpserver.py"},
+                         {"codex_auto_resume/controlcli.py", "codex_auto_resume/mcp/server.py"},
                          "a refusal outside the two front ends' framing carries no code")
         named = set()
         for where, node in coded:

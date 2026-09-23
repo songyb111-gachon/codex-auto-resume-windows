@@ -128,6 +128,7 @@ class WireEncodingTests(unittest.TestCase):
         import io
         from unittest.mock import patch
         from codex_auto_resume import controlcli, mcpserver
+        from codex_auto_resume.mcp import server as mcp_server
 
         class Stream(io.StringIO):
             def __init__(self):
@@ -142,10 +143,13 @@ class WireEncodingTests(unittest.TestCase):
         for name, run in mains.items():
             with self.subTest(name):
                 out, into = Stream(), Stream()
+                # `mcpserver` is the path other programs name; since v0.6.10-alpha the code is
+                # `mcp/server.py`, which holds its own `Control` and `Server`, so these are
+                # replaced where `main` reads them rather than on the module that re-exports it.
                 with patch.object(sys, "stdout", out), patch.object(sys, "stdin", into), \
-                        patch.object(controlcli, "Control"), patch.object(mcpserver, "Control"), \
+                        patch.object(controlcli, "Control"), patch.object(mcp_server, "Control"), \
                         patch.object(controlcli, "dispatch", return_value={"ok": True}), \
-                        patch.object(mcpserver, "Server"):
+                        patch.object(mcp_server, "Server"):
                     run()
                 self.assertEqual((out.encodings, into.encodings), (["utf-8"], ["utf-8"]),
                                  "a redirected stream on Windows takes the ANSI code page "
