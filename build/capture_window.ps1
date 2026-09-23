@@ -39,6 +39,8 @@ Add-Type -Namespace CaptureNative -Name Win -MemberDefinition @'
 [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr dc, uint flags);
 [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr c);
 [DllImport("user32.dll")] public static extern bool RedrawWindow(IntPtr h, IntPtr rect, IntPtr region, uint flags);
+[DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
+[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
 [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr h);
 public struct RECT { public int L, T, R, B; }
 public struct POINT { public int X, Y; }
@@ -48,10 +50,18 @@ public struct POINT { public int X, Y; }
 # already have been given real coordinates.
 [void][CaptureNative.Win]::SetProcessDpiAwarenessContext([IntPtr](-4))
 
-if ($Arguments) {
-    $process = Start-Process $Exe -ArgumentList $Arguments -PassThru
-} else {
-    $process = Start-Process $Exe -PassThru
+# Every status light is held at the brightest moment of its breath (Soft.StillLightMs), so the
+# same window photographed twice comes out the same. Without it a picture changed whenever it
+# was taken, and the difference looked like a change to the source.
+$env:CODEX_AR_STILL_LIGHT = '0'
+try {
+    if ($Arguments) {
+        $process = Start-Process $Exe -ArgumentList $Arguments -PassThru
+    } else {
+        $process = Start-Process $Exe -PassThru
+    }
+} finally {
+    Remove-Item Env:\CODEX_AR_STILL_LIGHT -ErrorAction SilentlyContinue
 }
 try {
     Start-Sleep -Seconds $Wait
@@ -64,6 +74,13 @@ try {
     # published with v0.5.7 shows no status dot. RDW_INVALIDATE | RDW_ERASE |
     # RDW_ALLCHILDREN | RDW_UPDATENOW | RDW_FRAME makes the capture independent of when the
     # window last got round to painting.
+    # The caption is Windows', and it is drawn light when the window is active and grey when it
+    # is not - so a picture taken while this window happened to hold the foreground came out
+    # different from one taken while it did not, for a reason that has nothing to do with the
+    # source. Every picture is taken of an inactive window: WM_NCACTIVATE(FALSE) paints the
+    # frame as the window looks when somebody is working elsewhere, which is also how a
+    # screenshot in a document is read.
+    [void][CaptureNative.Win]::SendMessage($handle, 0x0086, [IntPtr]::Zero, [IntPtr]::Zero)
     [void][CaptureNative.Win]::RedrawWindow($handle, [IntPtr]::Zero, [IntPtr]::Zero, 0x0001 -bor 0x0004 -bor 0x0080 -bor 0x0100 -bor 0x0400)
     Start-Sleep -Milliseconds 300
 

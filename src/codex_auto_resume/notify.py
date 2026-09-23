@@ -21,7 +21,8 @@ from __future__ import annotations
 import subprocess
 import time
 
-from . import messages, pwsh
+from . import l10n, machine, pwsh
+from .domain import ids
 
 SCHEME = "codex-auto-resume"
 # The toast is sent under our own AppUserModelID, so Windows attributes it to
@@ -39,7 +40,6 @@ def aumid() -> str:
     from .startup import AUMID
     return AUMID
 TIMEOUT_SECONDS = 20
-INTERRUPTION_ID_LENGTH = 64
 
 _SCRIPT = """
 $ErrorActionPreference = 'Stop'
@@ -80,10 +80,7 @@ def parse_cancel_uri(uri: str) -> str | None:
     values = parse_qs(parts.query).get("i") or []
     if len(values) != 1:
         return None
-    candidate = values[0].strip().lower()
-    if len(candidate) != INTERRUPTION_ID_LENGTH or any(c not in "0123456789abcdef" for c in candidate):
-        return None
-    return candidate
+    return ids.read_interruption_id(values[0])
 
 
 def open_uri(page: str = "pending") -> str:
@@ -113,10 +110,9 @@ def parse_open_uri(uri: str) -> str | None:
     if len(values) != 1:
         return None
     page = values[0].strip().lower()
-    # The same closed list the icon uses, spelled out here so this module does not have to
-    # import the icon's window code to validate a string.
-    return page if page in ("overview", "pending", "history", "statistics", "diagnostics",
-                            "settings") else None
+    # The same closed list the icon uses, from where both can read it without importing the
+    # other's window code.
+    return page if page in machine.PAGES else None
 
 
 # Windows shows at most five buttons on a toast. This product never needs more than two.
@@ -192,7 +188,7 @@ def headline(identity) -> str:
         value = identity.get(key)
         if isinstance(value, str) and value.strip():
             return value.strip()
-    return messages.text("toast_unnamed")
+    return l10n.message("toast_unnamed")
 
 
 # Windows renders at most three <text> elements in a ToastGeneric binding; a fourth is
@@ -217,7 +213,7 @@ def _origin_line(identity, used: str, thread_id: str) -> str:
     The thread id shares a line with the project because a separate line for it would
     be a fourth, and Windows would drop one. It is never omitted.
     """
-    thread = messages.text("toast_thread").format(uuid=thread_id)
+    thread = l10n.message("toast_thread").format(uuid=thread_id)
     secondary = _second_line(identity, used)
     return (secondary + "  ·  " + thread) if secondary else thread
 
@@ -246,22 +242,22 @@ def scheduled_content(thread_id: str, interruption_id: str, reset_at: float | No
     usage = category == "usage_limit"
     title = headline(identity)
     if usage:
-        body = (messages.text("toast_usage_at").format(time=_local_time(reset_at)) if reset_at
-                else messages.text("toast_usage_soon"))
-        button = messages.text("toast_button_cancel")
+        body = (l10n.message("toast_usage_at").format(time=_local_time(reset_at)) if reset_at
+                else l10n.message("toast_usage_soon"))
+        button = l10n.message("toast_button_cancel")
     else:
         # The reason, named. "Temporary rate limit" and "server error" are different things
         # to the person reading, and the classifier already knows which one this was. The
         # label is the normalised one from the reason registry - never the error text.
-        from . import l10n, reasons
-        label = l10n.text(reasons.label_key(category), messages.language())
-        body = label + " · " + messages.text("toast_transient")
-        button = messages.text("toast_button_no_retry")
+        from . import reasons
+        label = l10n.text(reasons.label_key(category), l10n.current())
+        body = label + " · " + l10n.message("toast_transient")
+        button = l10n.message("toast_button_no_retry")
     # Order matters: the reason must come before the identifiers, because a line that
     # does not fit is lost and losing the reason makes the notification pointless.
     return _content(title, _origin_line(identity, title, thread_id),
                     button=button, uri=cancel_uri(interruption_id), extra=[body],
-                    more=[(messages.text("toast_button_open"), open_uri("pending"))])
+                    more=[(l10n.message("toast_button_open"), open_uri("pending"))])
 
 
 def scheduled(thread_id: str, interruption_id: str, reset_at: float | None,
@@ -275,9 +271,9 @@ def scheduled(thread_id: str, interruption_id: str, reset_at: float | None,
 
 
 def cancelled_content(thread_id: str) -> dict:
-    return _content(messages.text("toast_cancelled_title"),
-                    messages.text("toast_thread").format(uuid=thread_id),
-                    extra=[messages.text("toast_cancelled_body")])
+    return _content(l10n.message("toast_cancelled_title"),
+                    l10n.message("toast_thread").format(uuid=thread_id),
+                    extra=[l10n.message("toast_cancelled_body")])
 
 
 def cancelled(thread_id: str) -> bool:
@@ -293,7 +289,7 @@ def cancelled(thread_id: str) -> bool:
 def starting_content(thread_id: str, identity=None) -> dict:
     return _content(headline(identity),
                     _origin_line(identity, headline(identity), thread_id),
-                    extra=[messages.text("toast_starting_body")])
+                    extra=[l10n.message("toast_starting_body")])
 
 
 def starting(thread_id: str, identity=None) -> bool:
@@ -302,9 +298,9 @@ def starting(thread_id: str, identity=None) -> bool:
 
 
 def resumed_content(thread_id: str, identity=None) -> dict:
-    return _content(messages.text("toast_resumed_title"),
-                    _origin_line(identity, messages.text("toast_resumed_title"), thread_id),
-                    extra=[messages.text("toast_resumed_body")])
+    return _content(l10n.message("toast_resumed_title"),
+                    _origin_line(identity, l10n.message("toast_resumed_title"), thread_id),
+                    extra=[l10n.message("toast_resumed_body")])
 
 
 def resumed(thread_id: str, identity=None) -> bool:
@@ -313,8 +309,8 @@ def resumed(thread_id: str, identity=None) -> bool:
 
 
 def attempt_failed_content(thread_id: str, identity=None, *, certain: bool = True) -> dict:
-    title = messages.text("toast_failed_title") if certain else messages.text("toast_unknown_title")
-    body = messages.text("toast_failed_body") if certain else messages.text("toast_unknown_body")
+    title = l10n.message("toast_failed_title") if certain else l10n.message("toast_unknown_title")
+    body = l10n.message("toast_failed_body") if certain else l10n.message("toast_unknown_body")
     return _content(title, _origin_line(identity, title, thread_id), extra=[body])
 
 
@@ -329,10 +325,10 @@ def attempt_failed(thread_id: str, identity=None, *, certain: bool = True) -> bo
 
 
 def stopped_content(thread_id: str, identity=None, *, reason: str | None = None) -> dict:
-    title = messages.text("toast_exhausted_title")
-    body = (messages.text("toast_no_progress_body") if reason == "no_progress"
-            else messages.text("toast_exhausted_body") if reason == "attempts"
-            else messages.text("toast_stopped_body"))
+    title = l10n.message("toast_exhausted_title")
+    body = (l10n.message("toast_no_progress_body") if reason == "no_progress"
+            else l10n.message("toast_exhausted_body") if reason == "attempts"
+            else l10n.message("toast_stopped_body"))
     return _content(title, _origin_line(identity, title, thread_id), extra=[body])
 
 

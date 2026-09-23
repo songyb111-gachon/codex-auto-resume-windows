@@ -6,6 +6,7 @@ import io
 import logging
 import os
 from pathlib import Path
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -544,6 +545,61 @@ class WatcherLoopTests(unittest.TestCase):
         self.assertTrue(app.paths.compat_report_file.is_file())
         self.assertEqual(app.engine_state(), "unknown")
 
+    def test_a_row_from_a_newer_version_hands_the_watcher_over(self):
+        """A newer version that changed the state under a running watcher leaves rows this
+        one cannot read. The watcher exits with EXIT_SCHEMA_NEWER, so the launcher starts
+        the installed version, and only for that: any other store failure in a tick is
+        recorded and the watcher carries on.
+
+        What decides is the error's type. A plain StoreError that merely says "record schema"
+        is an ordinary failure: the watcher used to match those words in the message, which a
+        reworded message, or another error that happened to contain them, would have
+        changed."""
+        from codex_auto_resume.app import EXIT_OK, EXIT_SCHEMA_NEWER
+        from codex_auto_resume.store import StateFromNewerVersion
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.addCleanup(_reset_logging)
+        home = Path(temp.name)
+        scratch = {"LOCALAPPDATA": str(home / "none"), "CODEX_HOME": str(home / "codex")}
+        with patch.dict(os.environ, scratch):
+            app = App(config.Paths(home), console=False)
+
+        def newer_rows(store):
+            store.register({"thread_id": THREAD, "turn_id": "0a1b2c3d-0002-7000-8000-000000000002",
+                            "completed_at": 110.0, "started_at": 105.0, "ordinal": 2,
+                            "interruption_id": "a" * 64, "reset_at": 150.0,
+                            "limit_type": "codex.primary", "uncertain": True}, 111.0)
+            with contextlib.closing(sqlite3.connect(app.paths.state_dir / "state.sqlite")) as db:
+                db.execute("ALTER TABLE interruptions ADD COLUMN from_a_newer_version TEXT")
+                db.commit()
+            store.all_records()
+
+        def other_failure(store):
+            raise StoreError("State transaction failed")
+
+        def newer_state(store):
+            raise StateFromNewerVersion("newer schema")
+
+        def the_words_alone(store):
+            raise StoreError("Invalid record schema")
+
+        for tick, expected in ((newer_rows, EXIT_SCHEMA_NEWER), (other_failure, EXIT_OK),
+                               (newer_state, EXIT_SCHEMA_NEWER), (the_words_alone, EXIT_OK)):
+            with self.subTest(tick=tick.__name__):
+                for leftover in app.paths.state_dir.glob("state.sqlite*"):
+                    leftover.unlink()
+
+                def engine(store, **kwargs):
+                    return type("Engine", (), {"tick": lambda self_inner: tick(store)})()
+
+                with patch.dict(os.environ, scratch), \
+                     patch.object(App, "engine", side_effect=engine), \
+                     patch.object(App, "wake_event", side_effect=AdapterError("unavailable")), \
+                     patch.object(App, "_start_tray", return_value=None), \
+                     patch.object(App, "mutex"), patch.object(App, "stop_event"):
+                    self.assertEqual(app.run(once=True), expected)
+
     def test_poll_interval_survives_store_read_failure(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)       # runs AFTER _reset_logging (LIFO): file handle freed first
@@ -662,6 +718,36 @@ class DiscoveryTests(unittest.TestCase):
                 self.assertEqual(config.discover_codex_exe(str(explicit), lambda p: None), explicit.resolve())
                 with self.assertRaises(config.ConfigError):
                     config.discover_codex_exe(str(bin_dir / "missing.exe"), lambda p: None)
+
+    def test_a_refusal_names_the_checks_that_failed_and_no_version(self):
+        """When no build passes, the message says which engine check refused each one, by
+        its reason code, and repeats nothing else an exception said. It names no version:
+        none has been required to match since v0.2.0, and the Compatibility Registry that
+        replaced the pin never requires one either. A build named explicitly is refused by
+        its check's own error, which is the check's code."""
+        refusals = {"aaaa": AdapterError("unsupported_codex_location"),
+                    "bbbb": AdapterError("codex_binary_unavailable"),
+                    "cccc": RuntimeError("C:\\Users\\someone\\codex.exe could not be read")}
+
+        def refuse(path):
+            raise refusals[path.parent.name]
+
+        with tempfile.TemporaryDirectory() as temp:
+            bin_dir = Path(temp) / "OpenAI" / "Codex" / "bin"
+            for name in refusals:
+                (bin_dir / name).mkdir(parents=True)
+                (bin_dir / name / "codex.exe").write_bytes(b"")
+            with patch.dict(os.environ, {"LOCALAPPDATA": temp}, clear=False):
+                with self.assertRaises(config.ConfigError) as caught:
+                    config.discover_codex_exe(None, refuse)
+                with self.assertRaises(AdapterError) as named:
+                    config.discover_codex_exe(str(bin_dir / "bbbb" / "codex.exe"), refuse)
+        message = str(caught.exception)
+        self.assertIn("(check_failed, codex_binary_unavailable, unsupported_codex_location)", message)
+        self.assertIn("`codex --version`", message)
+        self.assertNotIn("someone", message)
+        self.assertNotRegex(message, r"\d+\.\d+", "a version pin in the refusal")
+        self.assertEqual(str(named.exception), "codex_binary_unavailable")
 
 
 class EntryPointTests(unittest.TestCase):

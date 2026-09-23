@@ -29,15 +29,16 @@ import re
 import time
 
 from . import failures, l10n, reasons
+from .domain.vocabulary import ContinuationStyle, CustomMode
 
 # Minimal is short on purpose and says nothing about the cause. Standard names the
 # safely known reason. Detailed asks for the work to be continued from where it
 # stopped. Custom is the user's own words.
-STYLES = ("minimal", "standard", "detailed", "custom")
+STYLES = tuple(ContinuationStyle)
 DEFAULT_STYLE = "standard"
 
 # One message for everything, or one per interruption category.
-CUSTOM_MODES = ("global", "per_reason")
+CUSTOM_MODES = tuple(CustomMode)
 DEFAULT_CUSTOM_MODE = "global"
 
 # Long enough for a paragraph somebody actually wants to send, short enough that it

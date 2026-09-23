@@ -26,7 +26,8 @@ from codex_auto_resume import store as store_module
 from codex_auto_resume.machine import (
     CLAIMED, EXHAUSTED, IN_FLIGHT, OBSERVING, OUTCOMES, PLAIN_MOVES, STATES, TERMINAL, WAITING,
 )
-from codex_auto_resume.store import StateFromNewerVersion, Store, StoreError, UpgradePending
+from codex_auto_resume.store import (RecordSchemaMismatch, StateFromNewerVersion, Store, StoreError,
+                                     UpgradePending)
 
 
 THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
@@ -327,11 +328,12 @@ class StoreTests(_StoreCase):
         self.assertFalse(self.store.reserve(key, 200))
 
     def test_cancel_only_target_thread_and_keep_sent_for_reconciliation(self):
-        """The thread-wide cancel is `cancel_thread`; `cancel` stays as its v0.5 name."""
-        self.assertEqual(Store.cancel, Store.cancel_thread)
+        """The thread-wide cancel is `cancel_thread`. Its v0.5 name, `cancel`, is gone: nothing but
+        the tests still called it."""
+        self.assertFalse(hasattr(Store, "cancel"))
         self.store.register(failure(), 111)
         self.store.register(failure("b" * 64, OTHER), 111)
-        self.store.cancel(THREAD, 115)
+        self.store.cancel_thread(THREAD, 115)
         self.assertFalse(self.store.thread_enabled(THREAD))
         self.assertEqual(self.store.get("a" * 64)["state"], "cancelled")
         self.assertEqual(len(self.store.pending()), 1)
@@ -419,6 +421,20 @@ class StoreTests(_StoreCase):
         # Section 2.4: a corruption is never reported as "state from a newer version".
         self.assertNotIsInstance(caught.exception, StateFromNewerVersion)
         self.assertEqual((self.root / "state.sqlite").read_bytes(), b"not a sqlite file")
+
+    def test_a_row_with_a_column_this_version_does_not_know_is_a_record_schema_error(self):
+        """What a watcher reads when a newer version has changed the state under it: its
+        rows carry a column this version never wrote. The read fails closed, and the error is
+        the one the watcher hands over on rather than a corruption."""
+        self.store.register(failure(), 111)
+        self.db.execute("ALTER TABLE interruptions ADD COLUMN from_a_newer_version TEXT")
+        for read in (lambda: self.store.get("a" * 64), self.store.all_records, self.store.pending,
+                     lambda: self.store.history(include_hidden=True)):
+            with self.subTest(read=read), self.assertRaises(StoreError) as caught:
+                read()
+            self.assertEqual(str(caught.exception), "Invalid record schema")
+            self.assertIsInstance(caught.exception, RecordSchemaMismatch)
+            self.assertNotIsInstance(caught.exception, StateFromNewerVersion)
 
     def test_newer_schema_and_unknown_record_state_fail_closed(self):
         self.store.register(failure(), 111)

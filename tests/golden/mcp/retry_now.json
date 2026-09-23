@@ -1,0 +1,52 @@
+{
+  "tool": "retry_now",
+  "cases": [
+    {
+      "case": "a usage limit whose reset is still ahead",
+      "arguments": {
+        "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777"
+      },
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "The usage reset is at a later time; the watcher checks then, and every safety check still applies. The watcher still revalidates it, still needs the conversation open, and still refuses anything uncertain."
+            }
+          ],
+          "structuredContent": {
+            "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+            "state": "waiting_reset",
+            "eligible_at": 1800002540.0,
+            "woke": false,
+            "note": "the usage reset is at a later time; the watcher checks then, and every safety check still applies"
+          }
+        }
+      }
+    },
+    {
+      "case": "a recovered one has already finished",
+      "arguments": {
+        "interruption_id": "6666666666666666666666666666666666666666666666666666666666666666"
+      },
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "isError": true,
+          "content": [
+            {
+              "type": "text",
+              "text": "that recovery has already finished"
+            }
+          ],
+          "structuredContent": {
+            "error_code": "already_finished"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "tool": "start_watcher",
+  "cases": [
+    {
+      "case": "a watcher already holds the mutex",
+      "arguments": {},
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "It was already running; nothing to do."
+            }
+          ],
+          "structuredContent": {
+            "started": false,
+            "confirmed": true,
+            "state": "already-running",
+            "reason": "already running"
+          }
+        }
+      }
+    }
+  ]
+}

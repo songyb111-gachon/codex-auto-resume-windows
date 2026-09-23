@@ -1,0 +1,116 @@
+{
+  "tool": "preview_recovery_message",
+  "cases": [
+    {
+      "case": "the first reason, under the stored settings",
+      "arguments": {
+        "category": "usage_limit"
+      },
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "The task was interrupted because the usage limit was reached. Please retry."
+            }
+          ],
+          "structuredContent": {
+            "preview": {
+              "category": "usage_limit",
+              "locale": "en",
+              "style": "standard",
+              "source": null,
+              "text": "The task was interrupted because the usage limit was reached. Please retry.",
+              "refusal": null,
+              "refusal_code": null,
+              "refusal_detail": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "a language and a style for the preview alone",
+      "arguments": {
+        "category": "network_transient",
+        "changes": {
+          "continuation_language": "ko",
+          "continuation_style": "detailed"
+        }
+      },
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "이전 작업이 일시적인 네트워크 문제로 중단되었습니다. 현재 대화의 기존 맥락과 실제 작업 상태를 확인한 뒤, 이미 완료된 작업은 반복하지 말고 중단된 지점에서 같은 작업을 계속 진행해주세요."
+            }
+          ],
+          "structuredContent": {
+            "preview": {
+              "category": "network_transient",
+              "locale": "ko",
+              "style": "detailed",
+              "source": null,
+              "text": "이전 작업이 일시적인 네트워크 문제로 중단되었습니다. 현재 대화의 기존 맥락과 실제 작업 상태를 확인한 뒤, 이미 완료된 작업은 반복하지 말고 중단된 지점에서 같은 작업을 계속 진행해주세요.",
+              "refusal": null,
+              "refusal_code": null,
+              "refusal_detail": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "Custom text is not previewable from Codex",
+      "arguments": {
+        "category": "usage_limit",
+        "changes": {
+          "custom_message": "중단된 작업을 이어서 진행해 주세요."
+        }
+      },
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "isError": true,
+          "content": [
+            {
+              "type": "text",
+              "text": "only language and style can be previewed from Codex"
+            }
+          ],
+          "structuredContent": {
+            "error_code": "request_failed"
+          }
+        }
+      }
+    },
+    {
+      "case": "a kind that is never recovered",
+      "arguments": {
+        "category": "unclassified"
+      },
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "isError": true,
+          "content": [
+            {
+              "type": "text",
+              "text": "a preview is only available for a recoverable kind of interruption"
+            }
+          ],
+          "structuredContent": {
+            "error_code": "request_failed"
+          }
+        }
+      }
+    }
+  ]
+}

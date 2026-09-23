@@ -6,7 +6,6 @@ import logging
 import os
 from pathlib import Path
 import re
-import tempfile
 
 # The plugin manifest, relative to the installation it describes. It is the one place the
 # product version is written, and the one file every layout has at its root: a checkout, the
@@ -54,6 +53,13 @@ OWNER_TEXT = "Created by codex-auto-resume. Deleting this file makes `uninstall`
 
 class ConfigError(RuntimeError):
     """Static reason only; never includes file contents."""
+
+
+def installed_home() -> str | None:
+    """The runtime home of an installed copy: the directory above `app/`, which holds its
+    state, settings and logs. None for a checkout, which is its own home (Paths decides).
+    The bridge and the MCP server start with no --home and find theirs here."""
+    return str(PROJECT_ROOT.parent) if PROJECT_ROOT.name == "app" else None
 
 
 class Paths:

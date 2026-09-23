@@ -50,22 +50,6 @@ What a green run does and does not establish is set out capability by capability
 no suite can make - a real install, a real interruption, a real send - are the procedure in
 [`docs/LIVE_ACCEPTANCE.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/LIVE_ACCEPTANCE.md).
 
-## The replies, held to the byte
-
-`tests/goldensession.py` records both front-end surfaces in full - every bridge command the
-window can send and every tool the panel in Codex exposes, refusals included - from a machine
-held still: a fixed clock, a fixed version, English, the frozen compatibility document, a fake
-registry, a temporary home written out as `<HOME>`. `tests/test_golden_replies.py` fails on one
-byte of difference, and also fails when a new command or tool has no golden at all.
-
-It exists for the v0.6.10-alpha modularization, where most of the Python implementation moves
-between files and none of it may change what a front end is handed. When a reply is *meant* to
-change, rewrite the golden in the same commit and let the diff be the review:
-
-```bash
-py tests/goldensession.py --write
-```
-
 ## Measuring the window
 
 Speed is a claim like any other, and `build/measure_window.py` is how it is checked rather than
@@ -466,8 +450,9 @@ never up.
 
 - **Domain** — the rules with no side effects: how a failure is classified (`failures.py`),
   which reasons are recoverable (`reasons.py`), and how a stored state becomes what a person is
-  shown (`machine.py`). The standard library only, and only the parts of it that touch no
-  clock, file or process.
+  shown (`machine.py`), with the `domain/` package they are moving into: every identifier
+  (`domain/ids.py`) and every closed list of words (`domain/vocabulary.py`). The standard
+  library only, and only the parts of it that touch no clock, file or process.
 - **Policy and translation** — the settings schema, the continuation builder, the catalogs,
   paths and the product version, and the log.
 - **Adapters** — everything that touches the outside: the store, Codex's files and processes,
@@ -503,6 +488,37 @@ Some paths are contracts with programs outside the package and do not move:
 older launcher, already installed in a user's home, looks for both), and the module names
 the settings window, the MCP launcher, the bootstrap and the release check call.
 `tests/test_structural_invariants.py` pins them.
+
+What the bridge and the MCP server answer is a contract too: the settings window and the
+panel in Codex read those answers by field name, and nothing else connects them to the Python.
+`tests/golden/` holds one file per bridge command and per MCP tool, made by
+`tests/wiregolden.py` in a scratch installation with the clock, the paths and the machine
+pinned. `tests/test_wire_goldens.py` makes them again on every run and compares them byte for
+byte, and `tests/test_consumer_fields.py` fails when the window or the panel reads a field no
+golden answer carries. Moving code leaves every one of them exactly as it was. A change that
+means to alter an answer regenerates them with `python -X utf8 tests/wiregolden.py --write`,
+and the diff is reviewed with the change.
+
+Some rules are stated in one place on purpose: which wait a record goes back to, what a claim
+costs its budgets, whether a record may be sitting in Codex's queue, how a command opens the
+state, which settings are the user's own words, and a few more. `tests/test_single_rules.py`
+pins what every caller gets from each of them, and fails when a second implementation of one
+appears anywhere in the package. Call the one that exists - `machine.waiting_state`,
+`machine.may_be_queued`, `openstate.open_state`, `settings.is_custom_text` and the rest the
+test names - rather than writing the rule again. Every JSON writer passes `allow_nan=False`
+and no `default`, which `tests/test_json_writers.py` checks: a value that is not JSON is a bug
+to fix where the value is made, not text to write.
+
+Reading an identifier is one of those rules. A conversation id, an interruption id, the marker
+a continuation carries and a client id are read only through `domain/ids.py`, which also
+computes an interruption's id; where two readers accept different spellings, the parser takes a
+parameter rather than the reader keeping a pattern of its own. `tests/test_domain_vectors.py`
+holds the exact bytes of those ids, the gate vector and `settings.json`, and what each reader
+takes. The closed lists of words - states, codes, reasons, gates, categories, refusals,
+choices - are one `StrEnum` each in `domain/vocabulary.py`. The module that used a list keeps
+it under its old name, made from the enum (`machine.STATES = frozenset(RecordState)`), so a
+word is added in one place; `tests/test_vocabulary.py` holds every list to its members and
+every member to hashing, comparing and being written exactly as its string.
 
 ## Commit and pull requests
 

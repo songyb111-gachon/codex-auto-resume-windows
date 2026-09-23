@@ -14,12 +14,13 @@ import re
 import sys
 
 from . import machine
+from .domain import ids
 
 LOGGER_NAME = "codex_auto_resume"
 MAX_BYTES = 1_000_000
 BACKUP_COUNT = 5
-_UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\Z")
-_HEX = re.compile(r"[0-9a-f]{1,64}\Z")
+# A detail is printed if it is hex no longer than an interruption id, or a count of seconds.
+_HEX = re.compile(r"[0-9a-f]{1,%d}\Z" % ids.INTERRUPTION_ID_LENGTH)
 _DIGITS = re.compile(r"[0-9]{1,12}\Z")
 
 
@@ -135,7 +136,7 @@ def render(thread_id, code, reason, detail=None) -> str:
     }
     text = template.format(**values)
     prefix = ""
-    if isinstance(thread_id, str) and _UUID.fullmatch(thread_id):
+    if ids.is_uuid(thread_id):
         prefix = "thread " + thread_id + ": "
     return "\n".join(prefix + line for line in text.split("\n"))
 

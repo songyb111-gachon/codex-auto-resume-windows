@@ -1,0 +1,58 @@
+{
+  "command": "thread-enabled",
+  "cases": [
+    {
+      "case": "one conversation switched off",
+      "argument": {
+        "thread_id": "11111111-1111-7111-8111-111111111111",
+        "enabled": false
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "thread_id": "11111111-1111-7111-8111-111111111111",
+          "enabled": false
+        }
+      }
+    },
+    {
+      "case": "and on again",
+      "argument": {
+        "thread_id": "11111111-1111-7111-8111-111111111111",
+        "enabled": true
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "thread_id": "11111111-1111-7111-8111-111111111111",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "case": "an id in capitals is refused",
+      "argument": {
+        "thread_id": "11111111-1111-7111-8111-111111111111",
+        "enabled": true
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "thread_id": "11111111-1111-7111-8111-111111111111",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "case": "a missing flag is refused",
+      "argument": {
+        "thread_id": "11111111-1111-7111-8111-111111111111"
+      },
+      "reply": {
+        "ok": false,
+        "error": "enabled must be true or false",
+        "error_code": "invalid_enabled"
+      }
+    }
+  ]
+}

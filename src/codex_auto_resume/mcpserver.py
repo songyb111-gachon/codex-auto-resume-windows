@@ -33,8 +33,9 @@ import json
 import math
 import sys
 
-from . import settings as policy
+from . import config, controlcli, l10n, reasons as _reasons, settings as policy
 from .control import Control, ControlError
+from .domain import ids
 
 PROTOCOL_VERSION = "2025-06-18"
 SUPPORTED_PROTOCOLS = (PROTOCOL_VERSION, "2025-03-26", "2024-11-05")
@@ -55,7 +56,7 @@ def _identifier_schema(title: str) -> dict:
     return {"type": "string", "title": title,
             "description": "The exact interruption id, as listed by list_pending. "
                            "Never a title, a project name, or 'the most recent one'.",
-            "pattern": "^[0-9a-fA-F]{64}$"}
+            "pattern": ids.INTERRUPTION_ID_SCHEMA}
 
 
 # Settings groups a person can change from a front end. Anything else is not offered to
@@ -92,7 +93,7 @@ def settings_schema() -> dict:
         # and style only choose among texts this product ships or the user wrote; the text
         # itself is written in the Windows Dashboard, where the person typing it is the
         # person it will speak for.
-        if name.startswith("custom_message") and name != "custom_message_mode":
+        if policy.is_custom_text(name):
             continue
         described = {"boolean": {"type": "boolean"},
                      "integer": {"type": "integer"},
@@ -261,7 +262,7 @@ TOOLS = [
                        "its later interruptions, and cancel what it has waiting. Only "
                        "ever reduces automation.",
         "inputSchema": {"type": "object",
-                        "properties": {"thread_id": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                        "properties": {"thread_id": {"type": "string", "pattern": ids.THREAD_ID_SCHEMA,
                                               "description": "The conversation's exact thread id from list_pending"}},
                         "required": ["thread_id"], "additionalProperties": False},
         "annotations": {"readOnlyHint": False, "destructiveHint": False,
@@ -274,7 +275,7 @@ TOOLS = [
                        "Nothing is sent by this; every check still applies. This turns "
                        "automation back on, so Codex asks the user first.",
         "inputSchema": {"type": "object",
-                        "properties": {"thread_id": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                        "properties": {"thread_id": {"type": "string", "pattern": ids.THREAD_ID_SCHEMA,
                                               "description": "The conversation's exact thread id from list_pending"}},
                         "required": ["thread_id"], "additionalProperties": False},
         "annotations": {"readOnlyHint": False, "destructiveHint": True,
@@ -286,7 +287,8 @@ TOOLS = [
         "description": "Counts of interruptions and how their recoveries ended, and "
                        "median waits, over the last N days or all time. Content-free.",
         "inputSchema": {"type": "object",
-                        "properties": {"days": {"type": "number", "minimum": 1, "maximum": 3650}},
+                        "properties": {"days": {"type": "number", "minimum": controlcli.DAYS[0],
+                                                "maximum": controlcli.DAYS[1]}},
                         "additionalProperties": False},
         "annotations": {"readOnlyHint": True, "destructiveHint": False,
                         "idempotentHint": True, "openWorldHint": False},
@@ -314,8 +316,6 @@ TOOLS = [
                         "idempotentHint": True, "openWorldHint": False},
     },
 ]
-
-from . import reasons as _reasons  # noqa: E402 - the Preview tool's schema names them
 
 # Preview, read-only. It sends nothing and saves nothing: it returns the text the watcher
 # would send for one kind of interruption under the current settings, or under a language
@@ -389,8 +389,8 @@ class Server:
     def _write(self, payload) -> None:
         if payload is None:
             return
-        json.dump(payload, self.stream_out, ensure_ascii=False, default=str)
-        self.stream_out.write("\n")
+        failed = self._error(payload.get("id"), INTERNAL_ERROR, "the request could not be completed")
+        self.stream_out.write(controlcli.encode(payload, failed, dict(failed, id=None)) + "\n")
         self.stream_out.flush()
 
     def _dispatch(self, message):
@@ -488,7 +488,6 @@ class Server:
         uri = params.get("uri")
         if uri != SETTINGS_UI:
             raise LookupError("unknown resource")
-        from . import l10n
         from .mcpui import settings_page
         l10n.set_preference(self.control.get_settings().get("interface_language"))
         return {"contents": [{"uri": SETTINGS_UI, "mimeType": "text/html+skybridge",
@@ -564,7 +563,6 @@ class Server:
 
     def _snapshot(self) -> dict:
         """Everything the settings panel needs, in one read."""
-        from . import l10n
         settings = self.control.get_settings()
         l10n.set_preference(settings.get("interface_language"))
         return {"status": self._status(),
@@ -656,11 +654,7 @@ class Server:
                            "sent; every check still applies.", result)
 
     def _tool_get_recovery_statistics(self, arguments) -> dict:
-        days = arguments.get("days")
-        if days is not None and (isinstance(days, bool) or not isinstance(days, (int, float))
-                                 or not 1 <= days <= 3650):
-            raise ControlError("days must be a number from 1 to 3650")
-        result = self.control.statistics(days)
+        result = self.control.statistics(controlcli.statistics_days(arguments))
         rate = result.get("success_rate")
         return self._reply("%d interruptions, %d continuations sent, %d recovered; success rate %s." % (
             result["interruptions_detected"], result["continuations_submitted"],
@@ -713,15 +707,11 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="codex-auto-resume-mcp", add_help=True)
     parser.add_argument("--home", help="runtime home (default: the installed location)")
     args = parser.parse_args(argv)
-    home = args.home
-    if not home:
-        from . import config
-        root = config.PROJECT_ROOT
-        home = str(root.parent) if root.name == "app" else None
+    home = args.home or config.installed_home()
     # Line buffering keeps a reply from sitting in a buffer while the client waits.
     try:
-        sys.stdout.reconfigure(encoding="utf-8", newline="\n")
-        sys.stdin.reconfigure(encoding="utf-8")
+        controlcli.use_utf8(sys.stdout)
+        controlcli.use_utf8(sys.stdin, newline=None)
     except AttributeError:
         pass
     control = Control(home)

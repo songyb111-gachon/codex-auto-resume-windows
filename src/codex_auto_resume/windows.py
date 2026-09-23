@@ -18,7 +18,9 @@ import re
 import subprocess as S
 import threading
 import time
-import uuid
+
+from . import machine
+from .domain import ids, vocabulary
 
 NO_WINDOW = 0x08000000 if os.name == "nt" else 0
 # A Codex update bumps the version string, which alone must not disable auto-resume.
@@ -28,9 +30,9 @@ NO_WINDOW = 0x08000000 if os.name == "nt" else 0
 REQUIRED_QUEUE_FLAGS = ("--thread", "--message")
 # The only App Server methods the finite helper may call.
 PROTOCOL_METHODS = ("initialize", "account/rateLimits/read", "thread/queue/delete")
-# The local-check vocabulary of the Compatibility Registry (compat.RESULTS), spelled here so
-# the adapter does not import the registry to describe its own probes.
-PASS, FAIL, UNAVAILABLE = "PASS", "FAIL", "UNAVAILABLE"
+# The Compatibility Registry's local-check words, which the adapter's own probes answer with.
+PASS, FAIL, UNAVAILABLE = (vocabulary.LocalResult.PASS, vocabulary.LocalResult.FAIL,
+                           vocabulary.LocalResult.UNAVAILABLE)
 _VERIFIED = None
 
 
@@ -58,7 +60,7 @@ class AdapterError(RuntimeError):
 
 
 def canonical_uuid(value):
-    if not isinstance(value, str) or str(uuid.UUID(value)) != value:
+    if not ids.is_uuid(value):
         raise ValueError("invalid_uuid")
     return value
 
@@ -609,10 +611,6 @@ class HomeLock:
             self._fd = None
 
 
-def _epoch(value):
-    return value if type(value) is int and 0 < value <= 4102444800 else None
-
-
 def parse_usage(value):
     """Allowlist numeric usage fields. Never retain account IDs, banners or credits."""
     unknown = {"available": None, "reset_at": None, "limit_type": "unknown", "reason": "usage_snapshot_unknown"}
@@ -645,10 +643,12 @@ def parse_usage(value):
             duration = window.get("windowDurationMins")
             if duration is not None and (type(duration) is not int or duration <= 0):
                 return unknown
-            if window.get("resetsAt") is not None and _epoch(window["resetsAt"]) is None:
+            resets_at = window.get("resetsAt")
+            if resets_at is not None and not machine.epoch(
+                    resets_at, *machine.EPOCH_USAGE, integer=True, exact=True, finite=False):
                 return unknown
             entry = {"bucket": safe_id, "window": slot, "used_percent": used,
-                     "window_minutes": duration, "reset_at": _epoch(window.get("resetsAt"))}
+                     "window_minutes": duration, "reset_at": resets_at}
             windows.append(entry)
             if used >= 100:
                 blocked.append(entry)
@@ -712,7 +712,7 @@ class Protocol:
 
     def _write(self, payload):
         with self.write_lock:
-            self.process.stdin.write(json.dumps(payload, ensure_ascii=False) + "\n")
+            self.process.stdin.write(json.dumps(payload, ensure_ascii=False, allow_nan=False) + "\n")
             self.process.stdin.flush()
 
     def _read(self):

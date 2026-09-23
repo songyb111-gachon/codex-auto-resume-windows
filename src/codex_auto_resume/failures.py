@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import re
 
+from .domain.vocabulary import FailureCategory
+
 USAGE_LIMIT = "usage_limit"
 UNKNOWN = "unknown"
 
@@ -28,7 +30,8 @@ TERMINAL = frozenset({
     "terminal_user", "terminal_permission", "terminal_policy",
     "terminal_invalid", "terminal_auth", "terminal_failure",
 })
-CATEGORIES = TRANSIENT | TERMINAL | {USAGE_LIMIT, UNKNOWN}
+# Every category, each one of the above, the usage limit or unknown (tests/test_vocabulary.py).
+CATEGORIES = frozenset(FailureCategory)
 
 # The `CodexErrorInfo` variants this engine build actually defines. Verified against
 # codex-cli 0.153.4; an unlisted variant classifies as `unknown` and stops.

@@ -44,7 +44,7 @@ from dataclasses import dataclass
 import re
 import threading
 
-from . import l10n, messages, notice_presence, notify, reasons
+from . import l10n, notice_presence, notify, reasons
 
 # The setting that turns the card off (settings.py, the "windows" group, default on).
 CARD_SETTING = "notification_card"
@@ -124,7 +124,7 @@ def _notice(kind, content, *, key, chip=None, chip_tone=None, line=None) -> Noti
                   line=line if line is not None else (extra[0] if extra else ""),
                   origin=content["body"], chip=chip, chip_tone=chip_tone,
                   actions=toast_actions(content), content=_frozen(content),
-                  locale=messages.language(), key=key)
+                  locale=l10n.current(), key=key)
 
 
 def build(event, detail, identity=None):
@@ -144,8 +144,8 @@ def build(event, detail, identity=None):
                                            detail.get("reset_at"), category, identity)
         # The card names the reason in its chip, so its line is the sentence without the label
         # the toast has to put in front of it. Both are words the toast already says.
-        line = None if category == "usage_limit" else messages.text("toast_transient")
-        chip = l10n.text(reasons.label_key(category), messages.language())
+        line = None if category == "usage_limit" else l10n.message("toast_transient")
+        chip = l10n.text(reasons.label_key(category), l10n.current())
         return _notice("interruption", content, key=thread_id, chip=chip, chip_tone="waiting", line=line)
     if event == "starting":
         return _notice("starting", notify.starting_content(thread_id, identity), key=thread_id)

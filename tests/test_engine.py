@@ -705,7 +705,7 @@ class EngineScenarioTests(EngineCase):
 
     def test_cancel_pending_thread_never_queues(self):
         self.ready_after_reset()
-        self.h.store.cancel(T1, self.h.now)
+        self.h.store.cancel_thread(T1, self.h.now)
         self.h.tick()
         self.assert_no_send()
         self.assertEqual(self.h.record()["state"], "cancelled")

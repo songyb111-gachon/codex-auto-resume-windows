@@ -292,6 +292,57 @@ namespace CodexAutoResume
         /// This product's own "Reduce motion" setting, adopted when the settings are read.
         internal static bool ReduceMotionSetting;
 
+        /// The moment of its breath every status light is held at, in milliseconds, or -1 for the
+        /// light's own clock - which is what anybody running the product gets.
+        ///
+        /// A picture of a light that breathes is taken at whatever moment the capture happened to
+        /// fall on, so the same window photographed twice came out with the dot at two different
+        /// brightnesses and every screenshot in the repository changed for a reason that was not
+        /// the source. CODEX_AR_STILL_LIGHT=&lt;ms&gt; holds the breath still at that moment;
+        /// build/capture_window.ps1 sets it to 0, where the breath is brightest. Read once, at
+        /// start, and never set by the product itself.
+        internal static readonly double StillLightMs = ReadStillLight();
+
+        /// The moment the window is to believe it is, in seconds since 1970, or -1 for the real
+        /// clock - which is what anybody running the product gets.
+        ///
+        /// The window works out a countdown itself, from the times in an answer against now, so a
+        /// picture of the same pinned records taken a minute later showed one minute less and the
+        /// screenshot changed for a reason that was not the source. CODEX_AR_STILL_NOW=&lt;epoch&gt;
+        /// makes the window read that moment instead; build/make_screenshots.py sets it to the
+        /// moment its records are seeded at. Read once, at start, and never set by the product.
+        internal static readonly double StillNow = ReadStillNow();
+
+        private static double ReadStillNow()
+        {
+            try
+            {
+                double seconds;
+                string set = Environment.GetEnvironmentVariable("CODEX_AR_STILL_NOW");
+                if (!string.IsNullOrEmpty(set) &&
+                    double.TryParse(set, System.Globalization.NumberStyles.Float,
+                                    System.Globalization.CultureInfo.InvariantCulture, out seconds) &&
+                    seconds > 0) return seconds;
+            }
+            catch (Exception) { }
+            return -1;
+        }
+
+        private static double ReadStillLight()
+        {
+            try
+            {
+                double ms;
+                string set = Environment.GetEnvironmentVariable("CODEX_AR_STILL_LIGHT");
+                if (!string.IsNullOrEmpty(set) &&
+                    double.TryParse(set, System.Globalization.NumberStyles.Float,
+                                    System.Globalization.CultureInfo.InvariantCulture, out ms) &&
+                    ms >= 0 && ms < 1000000) return ms;
+            }
+            catch (Exception) { }
+            return -1;
+        }
+
         /// Windows' "Animation effects" switch as ReduceMotion reads it: Windows, asked each time
         /// (WindowsAnimationEffects). The window never sets it. It is the one input a probe stands its own
         /// answer in, so motion is tested alike on every machine - GitHub's Windows runner has the switch
@@ -6074,6 +6125,7 @@ namespace CodexAutoResume
             if (!Visible || !IsHandleCreated || Soft.ReduceMotion) return false;
             Form form = FindForm();
             if (form != null && form.WindowState == FormWindowState.Minimized) return false;
+            if (Soft.StillLightMs >= 0) return false;      // held still for a picture
             return Brand.GlowMoves(state, clock.Elapsed.TotalMilliseconds - enteredAt, false);
         }
 
@@ -6099,7 +6151,8 @@ namespace CodexAutoResume
         {
             Graphics g = e.Graphics;
             g.Clear(Parent != null ? Ground.Colour(Parent) : Palette.Card);
-            double since = clock.Elapsed.TotalMilliseconds - enteredAt;
+            double since = Soft.StillLightMs >= 0 ? Soft.StillLightMs
+                                                  : clock.Elapsed.TotalMilliseconds - enteredAt;
             double dim, opacity, spread, arc;
             bool lit = Brand.Glow(state, since, since, Soft.ReduceMotion, out dim, out opacity, out spread, out arc);
             Color colour = DotColour(state);

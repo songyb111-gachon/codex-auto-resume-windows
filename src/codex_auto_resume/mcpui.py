@@ -2292,7 +2292,7 @@ def panel_catalogs() -> dict:
 
 
 def _script_json(value) -> str:
-    return json.dumps(value, ensure_ascii=False, default=str).replace("<", "\\u003c")
+    return json.dumps(value, ensure_ascii=False, allow_nan=False).replace("<", "\\u003c")
 
 
 def settings_page(data=None, theme=None) -> str:

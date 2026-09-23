@@ -1,0 +1,135 @@
+{
+  "tool": "get_recovery_timeline",
+  "cases": [
+    {
+      "case": "one recovery, from detection to its outcome",
+      "arguments": {
+        "interruption_id": "6666666666666666666666666666666666666666666666666666666666666666"
+      },
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "6 events."
+            }
+          ],
+          "structuredContent": {
+            "interruption_id": "6666666666666666666666666666666666666666666666666666666666666666",
+            "chain_origin_id": "6666666666666666666666666666666666666666666666666666666666666666",
+            "events": [
+              {
+                "event_id": 30,
+                "at": 1799989200.0,
+                "interruption_id": "6666666666666666666666666666666666666666666666666666666666666666",
+                "code": "detected",
+                "from_state": null,
+                "to_state": "waiting_backoff",
+                "reason": null,
+                "actor": "engine",
+                "turn_ref": "failed",
+                "flags": 0,
+                "value": null,
+                "to_code": "scheduled"
+              },
+              {
+                "event_id": 31,
+                "at": 1799989260.0,
+                "interruption_id": "6666666666666666666666666666666666666666666666666666666666666666",
+                "code": "claim",
+                "from_state": "waiting_backoff",
+                "to_state": "submitting",
+                "reason": null,
+                "actor": "engine",
+                "turn_ref": null,
+                "flags": 0,
+                "value": null,
+                "to_code": "submission_claimed"
+              },
+              {
+                "event_id": 32,
+                "at": 1799989261.0,
+                "interruption_id": "6666666666666666666666666666666666666666666666666666666666666666",
+                "code": "submitted",
+                "from_state": "submitting",
+                "to_state": "queued",
+                "reason": null,
+                "actor": "engine",
+                "turn_ref": null,
+                "flags": 0,
+                "value": null,
+                "to_code": "submitted"
+              },
+              {
+                "event_id": 33,
+                "at": 1799989264.0,
+                "interruption_id": "6666666666666666666666666666666666666666666666666666666666666666",
+                "code": "correlated",
+                "from_state": "queued",
+                "to_state": "turn_started",
+                "reason": null,
+                "actor": "engine",
+                "turn_ref": "recovery",
+                "flags": 0,
+                "value": null,
+                "to_code": "turn_running"
+              },
+              {
+                "event_id": 34,
+                "at": 1799989810.0,
+                "interruption_id": "6666666666666666666666666666666666666666666666666666666666666666",
+                "code": "state",
+                "from_state": "turn_started",
+                "to_state": "turn_completed",
+                "reason": null,
+                "actor": "engine",
+                "turn_ref": null,
+                "flags": 0,
+                "value": null,
+                "to_code": "turn_finishing"
+              },
+              {
+                "event_id": 35,
+                "at": 1799989820.0,
+                "interruption_id": "6666666666666666666666666666666666666666666666666666666666666666",
+                "code": "state",
+                "from_state": "turn_completed",
+                "to_state": "recovered",
+                "reason": null,
+                "actor": "engine",
+                "turn_ref": null,
+                "flags": 0,
+                "value": null,
+                "to_code": "recovered"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "case": "no such interruption",
+      "arguments": {
+        "interruption_id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "isError": true,
+          "content": [
+            {
+              "type": "text",
+              "text": "no such interruption"
+            }
+          ],
+          "structuredContent": {
+            "error_code": "no_such_interruption"
+          }
+        }
+      }
+    }
+  ]
+}

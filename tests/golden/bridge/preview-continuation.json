@@ -1,0 +1,95 @@
+{
+  "command": "preview-continuation",
+  "cases": [
+    {
+      "case": "the first reason, under the stored settings",
+      "argument": {
+        "category": "usage_limit"
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "category": "usage_limit",
+          "locale": "en",
+          "style": "standard",
+          "source": null,
+          "text": "The task was interrupted because the usage limit was reached. Please retry.",
+          "refusal": null,
+          "refusal_code": null,
+          "refusal_detail": null
+        }
+      }
+    },
+    {
+      "case": "a style chosen and not saved",
+      "argument": {
+        "category": "network_transient",
+        "changes": {
+          "continuation_style": "detailed"
+        }
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "category": "network_transient",
+          "locale": "en",
+          "style": "detailed",
+          "source": null,
+          "text": "The previous attempt was interrupted by a temporary network problem. Check the existing conversation context and the current state of the work, then continue the same task from where it stopped without repeating work that is already complete.",
+          "refusal": null,
+          "refusal_code": null,
+          "refusal_detail": null
+        }
+      }
+    },
+    {
+      "case": "a Custom message that could not be stored is reported beside the preview",
+      "argument": {
+        "category": "usage_limit",
+        "changes": {
+          "continuation_style": "custom",
+          "custom_message_mode": "global",
+          "custom_message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "category": "usage_limit",
+          "locale": "en",
+          "style": "custom",
+          "source": "standard",
+          "text": "The task was interrupted because the usage limit was reached. Please retry.",
+          "refusal": "A custom message can be at most 2000 characters; this one is 2001.",
+          "refusal_code": "too_long",
+          "refusal_detail": "2001"
+        }
+      }
+    },
+    {
+      "case": "a kind that is never recovered",
+      "argument": {
+        "category": "unclassified"
+      },
+      "reply": {
+        "ok": false,
+        "error": "a preview is only available for a recoverable kind of interruption",
+        "error_code": "request_failed"
+      }
+    },
+    {
+      "case": "a setting that does not exist",
+      "argument": {
+        "category": "usage_limit",
+        "changes": {
+          "no_such_setting": 1
+        }
+      },
+      "reply": {
+        "ok": false,
+        "error": "unknown setting: no_such_setting",
+        "error_code": "request_failed"
+      }
+    }
+  ]
+}
