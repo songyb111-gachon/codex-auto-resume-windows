@@ -1,0 +1,1999 @@
+{
+  "fresh": {
+    "user_version": 3,
+    "tables": {
+      "events": {
+        "columns": [
+          {
+            "name": "event_id",
+            "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 1
+          },
+          {
+            "name": "at",
+            "type": "REAL",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "interruption_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "chain_origin_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "code",
+            "type": "TEXT",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "from_state",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "to_state",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "reason",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "actor",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "turn_ref",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "flags",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "value",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          }
+        ],
+        "indexes": {
+          "events_record": {
+            "unique": false,
+            "columns": [
+              "interruption_id",
+              "at"
+            ]
+          }
+        }
+      },
+      "interruptions": {
+        "columns": [
+          {
+            "name": "interruption_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 1
+          },
+          {
+            "name": "thread_id",
+            "type": "TEXT",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "turn_id",
+            "type": "TEXT",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "completed_at",
+            "type": "REAL",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "started_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "ordinal",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "detected_at",
+            "type": "REAL",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "reset_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "limit_type",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "uncertain",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "state",
+            "type": "TEXT",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "retry_count",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "next_retry_at",
+            "type": "REAL",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "resumed_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "last_error",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "marker",
+            "type": "TEXT",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "queue_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "submitted_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "attempt_count",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "cancel_requested",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "category",
+            "type": "TEXT",
+            "notnull": true,
+            "default": "'usage_limit'",
+            "primary_key": 0
+          },
+          {
+            "name": "recovery_attempts",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "no_progress_count",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "recovery_turn_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "recovery_client_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "recovery_turn_status",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "user_joined",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "after_user_work",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "legacy",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "withdraw_reason",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "withdrawn_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "withdraw_deleted",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "withdraw_failures",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "turn_started_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "outcome_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "first_queued_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "last_claim_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "parent_interruption_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "chain_origin_id",
+            "type": "TEXT",
+            "notnull": true,
+            "default": "''",
+            "primary_key": 0
+          },
+          {
+            "name": "chain_first_detected_at",
+            "type": "REAL",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "chain_continuations",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "budget_resets",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "retry_now_count",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "usage_unavailable_seconds",
+            "type": "REAL",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "usage_probe_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "gate_eval",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "gate_eval_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "history_hidden_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          }
+        ],
+        "indexes": {
+          "interruptions_chain": {
+            "unique": false,
+            "columns": [
+              "chain_origin_id"
+            ]
+          },
+          "interruptions_claims": {
+            "unique": false,
+            "columns": [
+              "thread_id",
+              "last_claim_at"
+            ]
+          },
+          "interruptions_recovery_turn": {
+            "unique": true,
+            "columns": [
+              "recovery_turn_id"
+            ]
+          },
+          "interruptions_thread": {
+            "unique": false,
+            "columns": [
+              "thread_id"
+            ]
+          },
+          "interruptions_thread_turn": {
+            "unique": false,
+            "columns": [
+              "thread_id",
+              "turn_id"
+            ]
+          }
+        }
+      },
+      "settings": {
+        "columns": [
+          {
+            "name": "singleton",
+            "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 1
+          },
+          {
+            "name": "enabled",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "armed_at",
+            "type": "REAL",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "poll_seconds",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          }
+        ],
+        "indexes": {}
+      },
+      "threads": {
+        "columns": [
+          {
+            "name": "thread_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 1
+          },
+          {
+            "name": "enabled",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          }
+        ],
+        "indexes": {}
+      },
+      "watcher_status": {
+        "columns": [
+          {
+            "name": "singleton",
+            "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 1
+          },
+          {
+            "name": "pid",
+            "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "session_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "started_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "last_tick_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "last_tick_ok",
+            "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "engine_state",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "code_version",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          }
+        ],
+        "indexes": {}
+      }
+    }
+  },
+  "upgraded-from-v0.5.0": {
+    "user_version": 3,
+    "tables": {
+      "events": {
+        "columns": [
+          {
+            "name": "event_id",
+            "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 1
+          },
+          {
+            "name": "at",
+            "type": "REAL",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "interruption_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "chain_origin_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "code",
+            "type": "TEXT",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "from_state",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "to_state",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "reason",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "actor",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "turn_ref",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "flags",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "value",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          }
+        ],
+        "indexes": {
+          "events_record": {
+            "unique": false,
+            "columns": [
+              "interruption_id",
+              "at"
+            ]
+          }
+        }
+      },
+      "interruptions": {
+        "columns": [
+          {
+            "name": "interruption_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 1
+          },
+          {
+            "name": "thread_id",
+            "type": "TEXT",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "turn_id",
+            "type": "TEXT",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "completed_at",
+            "type": "REAL",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "started_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "ordinal",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "detected_at",
+            "type": "REAL",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "reset_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "limit_type",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "uncertain",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "state",
+            "type": "TEXT",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "retry_count",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "next_retry_at",
+            "type": "REAL",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "resumed_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "last_error",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "marker",
+            "type": "TEXT",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "queue_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "submitted_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "attempt_count",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "cancel_requested",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "category",
+            "type": "TEXT",
+            "notnull": true,
+            "default": "'usage_limit'",
+            "primary_key": 0
+          },
+          {
+            "name": "recovery_attempts",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "no_progress_count",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "recovery_turn_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "recovery_client_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "recovery_turn_status",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "user_joined",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "after_user_work",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "legacy",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "withdraw_reason",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "withdrawn_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "withdraw_deleted",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "withdraw_failures",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "turn_started_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "outcome_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "first_queued_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "last_claim_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "parent_interruption_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "chain_origin_id",
+            "type": "TEXT",
+            "notnull": true,
+            "default": "''",
+            "primary_key": 0
+          },
+          {
+            "name": "chain_first_detected_at",
+            "type": "REAL",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "chain_continuations",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "budget_resets",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "retry_now_count",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "usage_unavailable_seconds",
+            "type": "REAL",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "usage_probe_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "gate_eval",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "gate_eval_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "history_hidden_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          }
+        ],
+        "indexes": {
+          "interruptions_chain": {
+            "unique": false,
+            "columns": [
+              "chain_origin_id"
+            ]
+          },
+          "interruptions_claims": {
+            "unique": false,
+            "columns": [
+              "thread_id",
+              "last_claim_at"
+            ]
+          },
+          "interruptions_recovery_turn": {
+            "unique": true,
+            "columns": [
+              "recovery_turn_id"
+            ]
+          },
+          "interruptions_thread": {
+            "unique": false,
+            "columns": [
+              "thread_id"
+            ]
+          },
+          "interruptions_thread_turn": {
+            "unique": false,
+            "columns": [
+              "thread_id",
+              "turn_id"
+            ]
+          }
+        }
+      },
+      "settings": {
+        "columns": [
+          {
+            "name": "singleton",
+            "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 1
+          },
+          {
+            "name": "enabled",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "armed_at",
+            "type": "REAL",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "poll_seconds",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          }
+        ],
+        "indexes": {}
+      },
+      "threads": {
+        "columns": [
+          {
+            "name": "thread_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 1
+          },
+          {
+            "name": "enabled",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          }
+        ],
+        "indexes": {}
+      },
+      "watcher_status": {
+        "columns": [
+          {
+            "name": "singleton",
+            "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 1
+          },
+          {
+            "name": "pid",
+            "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "session_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "started_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "last_tick_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "last_tick_ok",
+            "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "engine_state",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "code_version",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          }
+        ],
+        "indexes": {}
+      }
+    }
+  },
+  "upgraded-from-v0.5.7": {
+    "user_version": 3,
+    "tables": {
+      "events": {
+        "columns": [
+          {
+            "name": "event_id",
+            "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 1
+          },
+          {
+            "name": "at",
+            "type": "REAL",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "interruption_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "chain_origin_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "code",
+            "type": "TEXT",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "from_state",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "to_state",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "reason",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "actor",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "turn_ref",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "flags",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "value",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          }
+        ],
+        "indexes": {
+          "events_record": {
+            "unique": false,
+            "columns": [
+              "interruption_id",
+              "at"
+            ]
+          }
+        }
+      },
+      "interruptions": {
+        "columns": [
+          {
+            "name": "interruption_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 1
+          },
+          {
+            "name": "thread_id",
+            "type": "TEXT",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "turn_id",
+            "type": "TEXT",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "completed_at",
+            "type": "REAL",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "started_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "ordinal",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "detected_at",
+            "type": "REAL",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "reset_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "limit_type",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "uncertain",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "state",
+            "type": "TEXT",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "retry_count",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "next_retry_at",
+            "type": "REAL",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "resumed_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "last_error",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "marker",
+            "type": "TEXT",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "queue_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "submitted_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "attempt_count",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "cancel_requested",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "category",
+            "type": "TEXT",
+            "notnull": true,
+            "default": "'usage_limit'",
+            "primary_key": 0
+          },
+          {
+            "name": "recovery_attempts",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "no_progress_count",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "recovery_turn_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "recovery_client_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "recovery_turn_status",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "user_joined",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "after_user_work",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "legacy",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "withdraw_reason",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "withdrawn_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "withdraw_deleted",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "withdraw_failures",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "turn_started_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "outcome_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "first_queued_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "last_claim_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "parent_interruption_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "chain_origin_id",
+            "type": "TEXT",
+            "notnull": true,
+            "default": "''",
+            "primary_key": 0
+          },
+          {
+            "name": "chain_first_detected_at",
+            "type": "REAL",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "chain_continuations",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "budget_resets",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "retry_now_count",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "usage_unavailable_seconds",
+            "type": "REAL",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "usage_probe_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "gate_eval",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "gate_eval_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "history_hidden_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          }
+        ],
+        "indexes": {
+          "interruptions_chain": {
+            "unique": false,
+            "columns": [
+              "chain_origin_id"
+            ]
+          },
+          "interruptions_claims": {
+            "unique": false,
+            "columns": [
+              "thread_id",
+              "last_claim_at"
+            ]
+          },
+          "interruptions_recovery_turn": {
+            "unique": true,
+            "columns": [
+              "recovery_turn_id"
+            ]
+          },
+          "interruptions_thread": {
+            "unique": false,
+            "columns": [
+              "thread_id"
+            ]
+          },
+          "interruptions_thread_turn": {
+            "unique": false,
+            "columns": [
+              "thread_id",
+              "turn_id"
+            ]
+          }
+        }
+      },
+      "settings": {
+        "columns": [
+          {
+            "name": "singleton",
+            "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 1
+          },
+          {
+            "name": "enabled",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "armed_at",
+            "type": "REAL",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "poll_seconds",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          }
+        ],
+        "indexes": {}
+      },
+      "threads": {
+        "columns": [
+          {
+            "name": "thread_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 1
+          },
+          {
+            "name": "enabled",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          }
+        ],
+        "indexes": {}
+      },
+      "watcher_status": {
+        "columns": [
+          {
+            "name": "singleton",
+            "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 1
+          },
+          {
+            "name": "pid",
+            "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "session_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "started_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "last_tick_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "last_tick_ok",
+            "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "engine_state",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "code_version",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          }
+        ],
+        "indexes": {}
+      }
+    }
+  },
+  "downgraded-to-v2": {
+    "user_version": 2,
+    "tables": {
+      "interruptions": {
+        "columns": [
+          {
+            "name": "interruption_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 1
+          },
+          {
+            "name": "thread_id",
+            "type": "TEXT",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "turn_id",
+            "type": "TEXT",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "completed_at",
+            "type": "REAL",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "started_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "ordinal",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "detected_at",
+            "type": "REAL",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "reset_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "limit_type",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "uncertain",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "state",
+            "type": "TEXT",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "retry_count",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "next_retry_at",
+            "type": "REAL",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "resumed_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "last_error",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "marker",
+            "type": "TEXT",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "queue_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "submitted_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "attempt_count",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "cancel_requested",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "category",
+            "type": "TEXT",
+            "notnull": true,
+            "default": "'usage_limit'",
+            "primary_key": 0
+          },
+          {
+            "name": "recovery_attempts",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          },
+          {
+            "name": "no_progress_count",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": "0",
+            "primary_key": 0
+          }
+        ],
+        "indexes": {
+          "interruptions_thread": {
+            "unique": false,
+            "columns": [
+              "thread_id"
+            ]
+          }
+        }
+      },
+      "settings": {
+        "columns": [
+          {
+            "name": "singleton",
+            "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 1
+          },
+          {
+            "name": "enabled",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "armed_at",
+            "type": "REAL",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "poll_seconds",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          }
+        ],
+        "indexes": {}
+      },
+      "threads": {
+        "columns": [
+          {
+            "name": "thread_id",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 1
+          },
+          {
+            "name": "enabled",
+            "type": "INTEGER",
+            "notnull": true,
+            "default": null,
+            "primary_key": 0
+          }
+        ],
+        "indexes": {}
+      }
+    }
+  }
+}
