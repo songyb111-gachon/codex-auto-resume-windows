@@ -106,11 +106,11 @@ class App:
         self.settings = config.load_settings(paths)
         # Everything this process says - the icon, its menu, every notification - is in the
         # Interface language the user stored, which is `system` until they choose.
-        from . import tray_popup
+        from .ui import popup
         l10n.set_preference(self.settings.get("interface_language"))
         # Reduce motion and, since v0.6.5, the Theme: the notification card is drawn in it before
         # anybody has opened the popup, which is where the icon used to take it up first.
-        tray_popup.adopt_settings(self.settings)
+        popup.adopt_settings(self.settings)
         self._tray = None
         # v0.6.5: notices on their way to the notification card on the icon's thread. Nothing is
         # attached until the icon's thread hosts the card; until then, and whenever it cannot,
@@ -240,8 +240,8 @@ class App:
         previous = self.settings.get("interface_language")
         self.settings = values
         engine.apply_policy(values)
-        from . import tray_popup
-        tray_popup.adopt_settings(values)
+        from .ui import popup
+        popup.adopt_settings(values)
         if values.get("interface_language") != previous:
             from . import interface
             l10n.set_preference(values.get("interface_language"))
@@ -291,7 +291,7 @@ class App:
         (notifier.activate). What a cancel says afterwards goes out the way any notice does, and
         what the press did - or why it did nothing - is one line in this log, as the toast's is.
         """
-        from . import tray
+        from .ui import tray
         from .control import Control
         return notifier.activate(uri, control=Control(self.paths),
                                  open_dashboard=lambda page: tray.open_dashboard(self.paths.home, page),
@@ -561,7 +561,8 @@ class App:
         """The icon, if the user wants one. A tray that cannot start costs the icon only."""
         if os.name != "nt" or not self.settings.get("show_tray", True):
             return None
-        from . import interface, tray
+        from . import interface
+        from .ui import tray
         from .control import Control
         home = self.paths.home
 
@@ -596,7 +597,7 @@ class App:
         return icon_tray
 
     def _update_tray(self, icon_tray, store):
-        from . import tray
+        from .ui import tray
         try:
             icon_tray.update(tray.snapshot_from(store, time.time()))
         except Exception:

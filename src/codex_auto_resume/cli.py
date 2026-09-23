@@ -454,7 +454,7 @@ def cmd_activate(args) -> int:
     app = _app(args)
     page = notify.parse_open_uri(args.uri)
     if page is not None:
-        from . import tray
+        from .ui import tray
         opened = tray.open_dashboard(app.paths.home, page)
         app.logger.info("dashboard opened from a notification" if opened
                         else "activation: the Dashboard is not installed here")

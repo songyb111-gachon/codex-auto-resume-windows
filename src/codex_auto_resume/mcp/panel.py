@@ -51,9 +51,9 @@ import json
 from pathlib import Path
 import re
 
-from . import brand, interface, l10n
+from .. import brand, interface, l10n
 
-_ASSETS = Path(__file__).resolve().parent / "mcp" / "assets"
+_ASSETS = Path(__file__).resolve().parent / "assets"
 
 
 def _asset(name: str) -> str:
@@ -85,7 +85,7 @@ def css_shadow(shadow) -> str:
 
 def tile_elevation(theme) -> str:
     """`--elev-tile` for one theme: how a tile - a waiting task's row, the master switch's - stands on
-    its card. It is the popup's raised task tile (tray_popup.DEPTH), made of brand's recipes the same
+    its card. It is the popup's raised task tile (popup.DEPTH), made of brand's recipes the same
     way: brand's control lift and, where brand's card has one (dark), the card's inset top light, the
     one-pixel edge a drop alone cannot give a tile on a dark card at this size."""
     top_light = [shadow for shadow in brand.shadows("card", theme) if shadow.inset]

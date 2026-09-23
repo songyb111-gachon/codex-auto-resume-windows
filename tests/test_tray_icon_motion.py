@@ -27,8 +27,10 @@ import types
 import unittest
 import unittest.mock
 
-from codex_auto_resume import brand, control, tray, tray_place as place, tray_popup as popup
-from codex_auto_resume.tray import animation  # the module the icon's frames are drawn in
+from codex_auto_resume import brand, control, tray_place as place
+from codex_auto_resume.ui import tray
+from codex_auto_resume.ui import popup
+from codex_auto_resume.ui.tray import animation  # the module the icon's frames are drawn in
 
 ROOT = Path(__file__).resolve().parents[1]
 MOTION = tray.ICON_MOTION

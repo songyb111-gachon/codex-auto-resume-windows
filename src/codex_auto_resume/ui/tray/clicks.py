@@ -16,7 +16,7 @@ class ClicksMixin:
         if self.control is None or self._popup_failed:
             return None
         if self._popup is None:
-            from .. import tray_popup
+            from .. import popup as tray_popup
             with self._lock:
                 strings = dict(self.strings)
             self._popup = tray_popup.Popup(control=self.control, source=self.pending_source,

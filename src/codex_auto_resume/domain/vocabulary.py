@@ -424,7 +424,7 @@ class LoadedState(StrEnum):
 
 # ------------------------------------------------------------------------- the surfaces
 class ActivityState(StrEnum):
-    """The popup's word for what the watcher is doing (tray_popup.STATES)."""
+    """The popup's word for what the watcher is doing (popup.STATES)."""
     MONITORING = "monitoring"
     WAITING = "waiting"
     CHECKING = "checking"

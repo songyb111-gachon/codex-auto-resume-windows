@@ -27,7 +27,8 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "build"))
 sys.path.insert(0, str(ROOT / "assets"))
 
-from codex_auto_resume import brand, mcpui          # noqa: E402
+from codex_auto_resume import brand          # noqa: E402
+from codex_auto_resume.mcp import panel as mcpui
 import make_brand                                    # noqa: E402
 import make_icon                                     # noqa: E402
 

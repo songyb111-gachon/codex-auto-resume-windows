@@ -5,7 +5,7 @@ that fits in one language is not the same line in another.
 """
 from __future__ import annotations
 
-from .. import l10n
+from ... import l10n
 
 
 def say(strings, key, **fields) -> str:

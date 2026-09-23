@@ -12,7 +12,7 @@ from __future__ import annotations
 import math
 import time
 
-from .. import brand
+from ... import brand
 
 
 
@@ -101,7 +101,7 @@ def icon_state(snapshot, *, attention=False, failed=False) -> str:
     """
     if failed:
         return "failed"
-    from .. import tray_popup
+    from .. import popup as tray_popup
     word = tray_popup.snapshot_activity(snapshot, time.time(), attention=attention)
     return ICON_FOR_LIGHT.get(word, "idle")
 

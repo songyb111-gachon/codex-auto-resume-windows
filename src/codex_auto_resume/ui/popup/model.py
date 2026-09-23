@@ -7,9 +7,9 @@ the documentation's pictures be taken without a running watcher.
 from __future__ import annotations
 
 import time
-from .. import machine
-from .. import reasons
-from ..ui.words import countdown
+from ... import machine
+from ... import reasons
+from ..words import countdown
 from .words import one_line, say
 
 

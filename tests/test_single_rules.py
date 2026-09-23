@@ -40,9 +40,20 @@ import srcscan  # noqa: E402
 from test_control_v3 import detection, legacy_store_module  # noqa: E402
 from test_store import QUEUE, _StoreCase  # noqa: E402
 
-from codex_auto_resume import (cli, compat, config, continuation, control, controlcli,  # noqa: E402
-                               codex, mcpserver, notify, reasons, settings, store as store_module,
-                               tray, windows)
+from codex_auto_resume import (cli,
+                               compat,
+                               config,
+                               continuation,
+                               control,
+                               controlcli,
+                               codex,
+                               mcpserver,
+                               notify,
+                               reasons,
+                               settings,
+                               store as store_module,
+                               windows)
+from codex_auto_resume.ui import tray
 from codex_auto_resume.app import App  # noqa: E402
 from codex_auto_resume.engine import Engine  # noqa: E402
 from codex_auto_resume.mcp import server as mcp_server  # noqa: E402

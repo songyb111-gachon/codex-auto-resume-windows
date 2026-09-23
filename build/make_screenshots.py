@@ -65,7 +65,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "build"))
 
-from codex_auto_resume import config, l10n, mcpui                   # noqa: E402
+from codex_auto_resume import config, l10n                   # noqa: E402
+from codex_auto_resume.mcp import panel as mcpui
 from codex_auto_resume import settings as policy                    # noqa: E402
 
 ASSETS = ROOT / "assets"
@@ -659,7 +660,8 @@ def popup_rows() -> list:
 
 
 def popup_view(locale: str):
-    from codex_auto_resume import interface, tray_popup
+    from codex_auto_resume import interface
+    from codex_auto_resume.ui import popup as tray_popup
     strings = interface.STRINGS[locale]
     model = tray_popup.PopupModel(strings)
     model.apply_outcome(("read",), ("ok", {"rows": popup_rows(), "status": popup_status()}), POPUP_NOW)
@@ -881,7 +883,7 @@ def read_png(path: Path) -> tuple:
 
 
 def render_popup(target: Path, locale: str) -> None:
-    from codex_auto_resume import tray_popup
+    from codex_auto_resume.ui import popup as tray_popup
     strings, view = popup_view(locale)
     renderer = tray_popup.Renderer()
     renderer.theme = THEME                      # said, not left to the renderer's default
@@ -916,6 +918,9 @@ def render_popup(target: Path, locale: str) -> None:
 # `win/dll.py`, or from `tray.py` into it, with the import that brings it back, hashes the
 # same as well, without `win/` having to be one of the patterns - which would pool the rest
 # of that package, the icon's and the card's structures, into the popup's key.
+# `tray_popup.py` and `tray_popup/**` are kept although neither exists: this tuple has
+# always named both where a thing is and where it is going, so that the move itself is
+# never the change that makes a picture stale.
 POPUP_CODE = ("tray_popup.py", "tray_popup/**/*.py", "brand.py", "brand/**/*.py",
               "ui/popup/**/*.py", "ui/brand/**/*.py")
 
@@ -1338,7 +1343,8 @@ def _over(ground: bytearray, ground_width: int, layer: bytes, width: int, height
 
 def card_pixels(locale: str, theme: str):
     """(width, height, BGRA): the settled card and its floating shadow over the theme's canvas."""
-    from codex_auto_resume import brand, notice_card, notice_window, tray_popup
+    from codex_auto_resume import brand, notice_card, notice_window
+    from codex_auto_resume.ui import popup as tray_popup
     where = {"dpi": int(round(96 * CARD_SCALE)), "work": (0, 0, 0, 0), "monitor": (0, 0, 0, 0),
              "anchor": None}
     drawn = {"theme": theme, "contrast": False, "reduced": False}
@@ -1445,8 +1451,9 @@ ICON_MOTION_GROUNDS = (("light", "#EEF0F3"),)
 # picture of 10 ms or less for 100 ms, so moments of the states closer than this are one picture: the later one's.
 ICON_MOTION_SHORTEST = 2
 # What the GIF draws with, followed from these to everything they use (`icon_drawing`).
-ICON_ROOTS = (("tray", "IconFrames"), ("tray", "icon_frame"), ("tray", "icon_frame_ms"), ("tray", "icon_head_colour"),
-              ("tray", "icon_level_colour"), ("tray", "ICON_FOR_LIGHT"), ("brand", "rgb"))
+ICON_ROOTS = (("ui.tray", "IconFrames"), ("ui.tray", "icon_frame"), ("ui.tray", "icon_frame_ms"),
+              ("ui.tray", "icon_head_colour"), ("ui.tray", "icon_level_colour"),
+              ("ui.tray", "ICON_FOR_LIGHT"), ("brand", "rgb"))
 
 
 # --------------------------------------------------------- pictures that breathe
@@ -1737,7 +1744,8 @@ def icon_motion_stretch() -> tuple:
     is two loops. With v0.6.5's numbers: 3.2 s to 32 s, two breaths and a sweep, then three breaths and a sweep.
     Since v0.6.8 it is a whole number of a failure's sweeps as well, which are twice as quick as recovering's.
     """
-    from codex_auto_resume import brand, tray
+    from codex_auto_resume import brand
+    from codex_auto_resume.ui import tray
     slot, motion = brand.GLOW["monitoring_ms"], tray.ICON_MOTION
     loop = slot * (motion["breaths"] + motion["sweep_breaths"])
     start = slot * max(0, motion["breaths"] - 2)
@@ -1753,7 +1761,7 @@ def icon_motion_stretch() -> tuple:
 def _icon_sweep_closes(state: str, length: int, loop: int) -> bool:
     """Whether a state that sweeps all the time is in the same phase `length` ms apart, so its column loops without
     a jump."""
-    from codex_auto_resume import tray
+    from codex_auto_resume.ui import tray
     for at in range(0, loop, 97):
         if abs(tray.icon_turn(state, length + at) - tray.icon_turn(state, at)) > 1e-6:
             return False
@@ -1764,7 +1772,7 @@ def icon_timeline(state: str, start: float, end: float) -> list:
     """(ms from `start`, position, level) for each frame the icon's own timer shows in [start, end): stepped from the
     motion clock's zero, where the state is entered, by the interval each frame asks for (tray.icon_frame_ms). The
     frame on show at `start` comes first, at 0; a state that stops moving holds its last frame."""
-    from codex_auto_resume import tray
+    from codex_auto_resume.ui import tray
     shown, at = [], 0.0
     while at < end:
         position, level = tray.icon_frame(state, at, at)
@@ -1782,7 +1790,8 @@ def icon_timeline(state: str, start: float, end: float) -> list:
 def _icon_cell(frames, state: str, ground: str, position: int, level: int) -> bytes:
     """One state's picture on one ground, RGB: the icon's own frame - its head at `position` and `level` - laid over
     the ground with its straight alpha, in a cell ICON_MOTION_PAD wider each way."""
-    from codex_auto_resume import brand, tray
+    from codex_auto_resume import brand
+    from codex_auto_resume.ui import tray
     size, pad = ICON_MOTION_SIZE, ICON_MOTION_PAD
     cell = size + 2 * pad
     head = tray.icon_level_colour(tray.icon_head_colour(state), level)
@@ -1842,7 +1851,7 @@ def icon_motion_frames() -> dict:
     icon's own frames at 48 px (`_icon_cell`); a GIF holds 256 colours and these hold more - the badge's gradient
     and the ring's edges on two grounds - so they share at most 255 (`_median_cut`, weighted by how much of the GIF
     each colour covers), and the last index is kept for "as before"."""
-    from codex_auto_resume import tray
+    from codex_auto_resume.ui import tray
     start, end = icon_motion_stretch()
     length = end - start
     for state, word in ICON_MOTION_LIGHTS:

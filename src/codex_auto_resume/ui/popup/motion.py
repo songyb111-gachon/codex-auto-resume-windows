@@ -5,7 +5,7 @@ the popup, the window and the panel move alike.
 """
 from __future__ import annotations
 
-from .. import brand
+from ... import brand
 
 
 # ------------------------------------------------------------------------------- motion

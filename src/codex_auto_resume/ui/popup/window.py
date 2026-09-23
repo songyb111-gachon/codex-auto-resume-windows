@@ -11,8 +11,8 @@ import itertools
 import os
 import threading
 import time
-from .. import brand
-from ..win.dll import WNDCLASSW, WNDPROC
+from ... import brand
+from ...win.dll import WNDCLASSW, WNDPROC
 from .layout import WIDTH
 from .model import PopupModel, perform, select_action
 from .motion import animates, glide_amount, halo, next_glides

@@ -19,8 +19,10 @@ import time
 import unittest
 import unittest.mock
 
-from codex_auto_resume import brand, control, interface, l10n, settings, tray, tray_popup as popup
-from codex_auto_resume.tray import menu  # the module the icon's menu is built in
+from codex_auto_resume import brand, control, interface, l10n, settings
+from codex_auto_resume.ui import tray
+from codex_auto_resume.ui import popup
+from codex_auto_resume.ui.tray import menu  # the module the icon's menu is built in
 from test_tray_popup import EN, NOW, OTHER_THREAD, STATUS, FakeControl, measure, row
 
 SCALES = (1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5)
