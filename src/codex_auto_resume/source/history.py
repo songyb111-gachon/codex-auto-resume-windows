@@ -1,218 +1,32 @@
-"""Read-only adapter for the locally verified Codex 0.153.4 storage schema.
+"""Everything this product asks of Codex, in one file.
 
-This is deliberately an internal-schema adapter, not a public API. Unknown
-schemas and values fail closed. No prompt/error text escapes this module.
+Every statement sent to Codex's own state, history and queue is here, and
+`tests/test_codex_schema.py` fails if one appears anywhere else in the package. The reason is
+a reader's: somebody wondering what this thing reads of theirs should be able to answer it by
+opening one file, and `PRIVACY.md` makes that promise on this file's behalf.
+
+Everything is read-only - the connections are opened `mode=ro`, with `query_only` set - and
+nothing here writes to Codex, ever.
 """
 from __future__ import annotations
 
-from contextlib import contextmanager
 import json
-import math
 from pathlib import Path, PureWindowsPath
 import re
 import sqlite3
-
-from . import failures, machine
-from .domain import ids
-
-
-MAX_SCAN_BYTES = 8 * 1024 * 1024
-MAX_META_BYTES = 256 * 1024
-MAX_ITEM_BYTES = 1024 * 1024
-KNOWN_STATUSES = machine.TURN_STATUSES - {"other"}      # Codex's own four; "other" is ours
-# Item types that count as a turn having produced something. Anything Codex adds later
-# does not count until it is added here on purpose.
-PROGRESS_ITEM_TYPES = frozenset({"agentMessage", "commandExecution", "fileChange", "mcpToolCall"})
+from .. import failures, machine
+from ..domain import ids
+from .errors import SourceError
+from .labels import _label
+from .values import (KNOWN_STATUSES, MAX_ITEM_BYTES, MAX_META_BYTES,
+                     MAX_SCAN_BYTES, PROGRESS_ITEM_TYPES, _json,
+                     _turn_status, epoch, normalize)
+from .paths import _safe_path
+from .payload import (_choose_reset, _content_has_marker,
+                      _queue_has_marker, detect)
 
 
-def _turn_status(value):
-    if value is None:
-        return None
-    return value if value in KNOWN_STATUSES else "other"
-
-
-class SourceError(RuntimeError):
-    """Safe diagnostic: never include database contents or underlying errors."""
-
-
-def epoch(value) -> bool:
-    return machine.epoch(value, *machine.EPOCH_CODEX, exact=True)
-
-
-def _json(value):
-    if not isinstance(value, str) or len(value) > MAX_ITEM_BYTES:
-        return None
-    try:
-        return json.loads(value)
-    except (ValueError, RecursionError):
-        return None
-
-
-def normalize(row) -> dict | None:
-    """Normalize just the required scalar fields, discarding raw error text."""
-    if not isinstance(row, dict):
-        return None
-    tid, turn = row.get("thread_id"), row.get("turn_id")
-    status = row.get("status")
-    ordinal = row.get("ordinal", row.get("rollout_ordinal"))
-    if (not ids.is_uuid(tid) or not ids.is_uuid(turn)
-            or not isinstance(status, str) or status not in KNOWN_STATUSES
-            or type(ordinal) is not int or ordinal < 0):
-        return None
-    started, completed = row.get("started_at"), row.get("completed_at")
-    if not epoch(started) or (completed is not None and not epoch(completed)):
-        return None
-    if completed is not None and completed < started:
-        return None
-    if "category" in row:
-        # Already normalized once: keep the decision rather than reclassifying from
-        # fields that no longer exist, so normalize() stays idempotent.
-        category = row["category"] if row["category"] in failures.CATEGORIES else None
-    else:
-        if "error_json" in row:
-            err = _json(row["error_json"])
-            info = err.get("codexErrorInfo") if isinstance(err, dict) else None
-            text = err.get("message") if isinstance(err, dict) else None
-        else:
-            info = row.get("error_info", row.get("codexErrorInfo"))
-            text = row.get("message")
-        # The raw error is classified here and then dropped: only the category name
-        # continues past this point, so no error text can reach state, logs or a toast.
-        category = failures.classify(info, text) if status == "failed" else None
-    return {"thread_id": tid, "turn_id": turn, "status": status,
-            "started_at": started, "completed_at": completed,
-            "ordinal": ordinal, "category": category}
-
-
-def detect(row) -> dict | None:
-    """A failed turn this tool is willing to recover, or None.
-
-    `unknown` and every terminal category stop here: they are never registered, so
-    they can never be retried by a later change somewhere else in the pipeline.
-    """
-    normalized = normalize(row)
-    if (normalized is None or normalized["status"] != "failed"
-            or not failures.is_recoverable(normalized["category"] or "")
-            or normalized["completed_at"] is None):
-        return None
-    normalized["interruption_id"] = ids.interruption_id(
-        *(normalized[k] for k in ("thread_id", "turn_id", "completed_at", "ordinal")))
-    return normalized
-
-
-MAX_LABEL_CHARS = 72
-
-
-def _label(value):
-    """A display label, or None. Never a paragraph, never multi-line.
-
-    A defensive cap: if a future schema starts putting prompt-like text in the field
-    this reads, a long or multi-line value is dropped rather than shown. Control
-    characters are stripped so a label can never rearrange a notification.
-    """
-    if not isinstance(value, str):
-        return None
-    cleaned = "".join(character for character in value if character.isprintable()).strip()
-    if not cleaned or any(ch in value for ch in ("\n", "\r", "\t")):
-        return None
-    if len(cleaned) > MAX_LABEL_CHARS:
-        cleaned = cleaned[:MAX_LABEL_CHARS - 1].rstrip() + "…"
-    return cleaned
-
-
-def _safe_path(path: Path) -> Path:
-    # SQLite stores Windows extended paths; normalize before confinement checks.
-    raw = str(path)
-    if raw.startswith("\\\\?\\"):
-        raw = raw[4:]
-    return Path(raw).resolve()
-
-
-# Codex names its databases with a schema generation suffix (state_5, queue_1, ...).
-# An app update can bump that number, so the file is discovered by pattern and then
-# validated by the columns this tool actually reads. Extra columns are fine (Codex
-# adds them over time); a MISSING required column means the schema moved and we refuse.
-DB_KINDS = {
-    "state": (re.compile(r"state_(\d+)\.sqlite\Z"), {
-        "threads": {"id", "rollout_path", "source", "thread_source", "archived", "history_mode"},
-    }),
-    "history": (re.compile(r"thread_history_(\d+)\.sqlite\Z"), {
-        "thread_turns": {"thread_id", "turn_id", "status", "error_json", "started_at",
-                         "completed_at", "rollout_ordinal", "rollout_end_byte_offset",
-                         "first_user_item_id"},
-        "thread_items": {"thread_id", "turn_id", "item_id", "item_type", "item_json"},
-    }),
-    "queue": (re.compile(r"queue_(\d+)\.sqlite\Z"), {
-        "queued_items": {"id", "thread_id", "payload_json"},
-    }),
-}
-
-
-class LocalSource:
-    def __init__(self, codex_home: Path):
-        self.home = _safe_path(Path(codex_home))
-
-    def _connect(self, path):
-        connection = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=3)
-        connection.execute("PRAGMA query_only=ON")
-        connection.execute("PRAGMA trusted_schema=OFF")
-        connection.row_factory = sqlite3.Row
-        return connection
-
-    @staticmethod
-    def _schema_ok(connection, tables) -> bool:
-        for table, required in tables.items():
-            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table):
-                return False
-            found = {row[1] for row in connection.execute("PRAGMA table_info(%s)" % table)}
-            if not required <= found:
-                return False
-        return True
-
-    def resolve(self, kind: str) -> str:
-        """The newest generation, only if its current schema is supported.
-
-        Older files can survive a Codex migration. They are not a fallback: their
-        history and queue can be stale. Discover on every read so a running watcher
-        never stays attached to the pre-migration database.
-        """
-        pattern, tables = DB_KINDS[kind]
-        candidates = []
-        try:
-            for entry in self.home.iterdir():
-                match = pattern.fullmatch(entry.name)
-                if match and entry.is_file() and not entry.is_symlink():
-                    candidates.append((int(match.group(1)), entry))
-        except OSError:
-            raise SourceError("Codex local state unavailable or unsupported") from None
-        for _, path in sorted(candidates, key=lambda item: -item[0])[:1]:
-            connection = None
-            try:
-                connection = self._connect(_safe_path(path))
-                if self._schema_ok(connection, tables):
-                    return path.name
-            except (sqlite3.Error, OSError, ValueError):
-                continue
-            finally:
-                if connection is not None:
-                    connection.close()
-        raise SourceError("No Codex %s database with the required schema" % kind)
-
-    @contextmanager
-    def _db(self, kind):
-        connection = None
-        try:
-            path = _safe_path(self.home / self.resolve(kind))
-            if path.parent != self.home:
-                raise SourceError("Codex database path is outside configured home")
-            connection = self._connect(path)
-            yield connection
-        except (sqlite3.Error, OSError, ValueError):
-            raise SourceError("Codex local state unavailable or unsupported") from None
-        finally:
-            if connection is not None:
-                connection.close()
-
+class HistoryMixin:
     def _metadata(self, thread_id: str, strict: bool = False) -> Path | None:
         # strict=True (used by latest()) re-raises transient I/O as SourceError so the
         # engine defers instead of treating an unreadable rollout as "latest turn changed".
@@ -671,58 +485,3 @@ class LocalSource:
         except OSError:
             return {"table": True, "fresh": None}
         return {"table": True, "fresh": size == row[0]}
-
-
-def _content_has_marker(content, marker):
-    return isinstance(content, list) and any(
-        isinstance(item, dict) and item.get("type") == "text"
-        and isinstance(item.get("text"), str) and marker in item["text"]
-        for item in content)
-
-
-def _queue_has_marker(payload, marker):
-    if not isinstance(payload, dict):
-        return False
-    # TurnInput's serde shape is version-pinned; unknown shapes fail closed.
-    # protocol/src/turn_input.rs derives serde without tag/rename attributes:
-    # {"UserInput": {"content": [...], "client_id": ...}}.
-    content = payload.get("UserInput")
-    return (set(payload) == {"UserInput"} and isinstance(content, dict)
-            and _content_has_marker(content.get("content"), marker))
-
-
-def _choose_reset(buckets, completed_at):
-    blocked = []
-    ambiguity = False
-    for bucket, limits in buckets.items():
-        has_window = False
-        for name in ("primary", "secondary"):
-            window = limits.get(name)
-            if not isinstance(window, dict):
-                continue
-            used, reset = window.get("used_percent"), window.get("resets_at")
-            if type(used) not in (int, float) or not math.isfinite(used) or used < 0:
-                continue
-            has_window = True
-            if used >= 100:
-                if epoch(reset) and reset >= completed_at:
-                    blocked.append((reset, bucket + ":" + name))
-                else:
-                    ambiguity = True
-        if not has_window:
-            ambiguity = True
-    if blocked:
-        reset, limit = max(blocked)
-        return {"reset_at": reset, "limit_type": limit, "uncertain": ambiguity or len(blocked) > 1}
-    # Actual sample is codex primary=98%, immediately followed by premium=null.
-    # Preserve its corroborating reset ONLY when its own usage is high enough to
-    # plausibly be the block; a low-usage window's far-future reset must not delay
-    # the first eligibility check. A fresh live availability check is still required.
-    primary = buckets.get("codex", {}).get("primary")
-    if isinstance(primary, dict):
-        used = primary.get("used_percent")
-        reset = primary.get("resets_at")
-        if (type(used) in (int, float) and math.isfinite(used) and used >= 90
-                and epoch(reset) and reset >= completed_at):
-            return {"reset_at": reset, "limit_type": "codex:primary_hint", "uncertain": True}
-    return {"reset_at": None, "limit_type": "unknown", "uncertain": True}

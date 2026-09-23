@@ -6,9 +6,10 @@ therefore a promise in two directions: to Codex, that we read only these; and to
 suite, whose synthetic Codex home (`tests/codexsim.py`) must build exactly them, or the tests
 pass against a Codex that does not exist.
 
-v0.6.10-alpha moves `source.py` into `codex/`, so both are pinned here first: the required
-columns as a table, and the rule that every SQL statement in the package lives in one module,
-so "what we ask of Codex" stays something a reader can find in one file.
+v0.6.10-alpha splits `source.py` into `source/` and renames the package to `codex/` later, when
+`win/` is carved out of `windows.py` and every path moves at once. Both are pinned here first:
+the required columns as a table, and the rule that every SQL statement in the package lives in
+one module, so "what we ask of Codex" stays something a reader can find in one file.
 """
 from __future__ import annotations
 
@@ -93,7 +94,7 @@ class OneHomeForTheSqlTests(unittest.TestCase):
     """Every statement this product sends to Codex sits in one module.
 
     It is the only way a reader can answer "what does this thing read of mine?" by opening one
-    file - and v0.6.10-alpha moves that file into `codex/`, where the rule has to survive.
+    file, and the split had to keep it: the statements moved together, into `source/history.py`.
     """
 
     def modules_with_sql(self) -> dict:
@@ -110,8 +111,7 @@ class OneHomeForTheSqlTests(unittest.TestCase):
     # reader below owns everything asked of Codex; and the registry's probe asks Codex's schema
     # one question of its own - it belongs with the reader, and goes there when `compat/` is
     # built (step 11 of the plan), not before.
-    ALLOWED = {"codex_auto_resume/source.py": "everything asked of Codex",
-               "codex_auto_resume/codex/history.py": "everything asked of Codex, once moved",
+    ALLOWED = {"codex_auto_resume/source/history.py": "everything asked of Codex",
                "codex_auto_resume/compatio.py": "the registry's probe of Codex's own schema"}
 
     def test_only_the_modules_that_own_a_database_hold_sql(self):
@@ -130,8 +130,7 @@ class OneHomeForTheSqlTests(unittest.TestCase):
     def test_what_codex_is_asked_lives_in_one_module(self):
         found = self.modules_with_sql()
         reading_codex = {name: count for name, count in found.items()
-                         if name in ("codex_auto_resume/source.py",
-                                     "codex_auto_resume/codex/history.py")}
+                         if "source" in name or name.endswith("codex/history.py")}
         self.assertEqual(len(reading_codex), 1,
                          "the statements sent to Codex are split across %s" % sorted(reading_codex))
 

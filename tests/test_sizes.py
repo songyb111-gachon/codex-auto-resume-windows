@@ -62,7 +62,6 @@ OVERSIZED = {
     "codex_auto_resume/windows.py": 989,
     "codex_auto_resume/compat.py": 824,
     "codex_auto_resume/control.py": 1083,
-    "codex_auto_resume/source.py": 728,
     "codex_auto_resume/cli.py": 721,
     "codex_auto_resume/mcpserver.py": 736,
     "codex_auto_resume/compatio.py": 727,
