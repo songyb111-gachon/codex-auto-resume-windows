@@ -243,7 +243,7 @@ class IconHostTests(unittest.TestCase):
         # stored Reduce motion is what this test is about.
         with patch.object(tray_popup, "apps_use_light_theme", lambda: True), \
                 patch.object(tray_popup, "high_contrast", lambda: False), \
-                patch.object(tray_popup, "reduced_motion", lambda: bool(tray_popup._reduce_motion_setting)), \
+                patch.object(tray_popup, "reduced_motion", lambda: bool(tray_popup.theme._reduce_motion_setting)), \
                 patch.object(notice_presence, "battery_saver", lambda: False):
             look = icon._card_look()
             self.assertEqual(look, {"theme": "dark", "contrast": False, "reduced": True})

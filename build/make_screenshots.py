@@ -916,7 +916,8 @@ def render_popup(target: Path, locale: str) -> None:
 # `win/dll.py`, or from `tray.py` into it, with the import that brings it back, hashes the
 # same as well, without `win/` having to be one of the patterns - which would pool the rest
 # of that package, the icon's and the card's structures, into the popup's key.
-POPUP_CODE = ("tray_popup.py", "brand.py", "ui/popup/**/*.py", "ui/brand/**/*.py")
+POPUP_CODE = ("tray_popup.py", "tray_popup/**/*.py", "brand.py", "ui/popup/**/*.py",
+              "ui/brand/**/*.py")
 
 
 def code_files(patterns, package=None) -> list:

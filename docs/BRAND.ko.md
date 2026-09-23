@@ -49,7 +49,7 @@ v0.6.5는 재질을 움직이게 하고 팝업에 입체감을 주었습니다. 
 | --- | --- |
 | Codex 패널 | `mcpui.py`가 import 시점에 `brand.LIGHT`와 `brand.DARK`, 체크박스의 상태별 색까지 써 주는 `brand.css_scale()`, 그리고 두 테마의 그림자 레시피를 CSS로 써 주는 `brand.css_elevation()`으로 `:root` 블록을 만듭니다. |
 | 대시보드 | `build/make_brand.py`가 `gui/Brand.cs`를 생성합니다. 밝은 테마의 모든 토큰은 `Color`로, 테마에 따라 바뀌는 모든 것의 어두운 짝은 중첩 클래스 `Brand.Dark`에 같은 이름으로, 스케일과 레이아웃 크기와 그림자 레시피와 상태 불빛의 숫자는 상수로, 상태 불빛과 그림자와 체크박스의 상태별 규칙은 생성된 작은 메서드로 들어갑니다. `gui/Controls.cs`는 첫 컨트롤을 만들기 전에 테마 하나를 정하고, 브랜드 색은 밝은 색과 그 어두운 짝을 읽는 유일한 곳인 `Tokens` 클래스 하나를 거쳐 읽습니다. 고대비 모드를 반영하는 곳은 `Palette` 클래스 한 곳입니다. 생성된 파일을 커밋해 두므로, Python이 없는 기여자도 창이 어떤 모습일지 읽어 볼 수 있습니다. |
-| 알림 영역 팝업 | `tray_popup.py`가 `brand`를 import해, 열릴 때 정한 테마로 `brand.palette(theme)`, `brand.card_ground(theme)`, `brand.shadows(recipe, theme)`, 스케일, `brand.glow()`, `brand.ease()`를 써서 직접 그립니다. 알림 카드는 팝업의 카드이고, 팝업 자신의 렌더러가 그립니다. |
+| 알림 영역 팝업 | `tray_popup/`가 `brand`를 import해, 열릴 때 정한 테마로 `brand.palette(theme)`, `brand.card_ground(theme)`, `brand.shadows(recipe, theme)`, 스케일, `brand.glow()`, `brand.ease()`를 써서 직접 그립니다. 알림 카드는 팝업의 카드이고, 팝업 자신의 렌더러가 그립니다. |
 | 아이콘 | `assets/make_icon.py`가 아이콘 색 네 개와 `brand.ICON_SHAPE`를 import하고 `brand.icon_render()`로 래스터화합니다. 알림 영역 아이콘의 움직임 프레임은 워처 안(`tray.py`)에서 같은 도형과 같은 래스터화기로 만듭니다. |
 | 플러그인 카드 | `.codex-plugin/plugin.json`이 `brandColor`를 담고 있으며, `brand.BRAND`와 대조해 검사합니다. |
 

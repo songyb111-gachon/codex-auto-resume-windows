@@ -106,6 +106,22 @@ REGENERATE = ("the screenshots no longer match the source they were rendered fro
               "run `python build/make_screenshots.py`")
 
 
+def real_modules(*names) -> dict:
+    """The named modules of the package as {path: text}, with the popup's own files listed
+    rather than named.
+
+    Until v0.6.10-alpha the popup was one file and these tests named it. It is a package now,
+    so a file added to `tray_popup/` joins the digest - and these tests - without one of them
+    being edited; naming it would mean a new module silently left out of what a picture is
+    hashed from.
+    """
+    package = ROOT / "src" / "codex_auto_resume"
+    files = {path.relative_to(package).as_posix(): path.read_text(encoding="utf-8")
+             for path in sorted((package / "tray_popup").rglob("*.py"))}
+    files.update({name: (package / name).read_text(encoding="utf-8") for name in names})
+    return files
+
+
 def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -922,24 +938,28 @@ class PopupDrawingTests(unittest.TestCase):
 
     def test_the_patterns_cover_the_popup_the_palette_and_the_packages_they_move_into(self):
         with tempfile.TemporaryDirectory() as root:
-            for name in ("tray_popup.py", "brand.py", "ui/popup/layout.py", "ui/popup/win/rect.py",
-                         "ui/brand/tokens.py", "ui/tray/icon.py", "tray.py", "notice_card.py"):
+            for name in ("tray_popup.py", "tray_popup/window.py", "brand.py", "ui/popup/layout.py",
+                         "ui/popup/win/rect.py", "ui/brand/tokens.py", "ui/tray/icon.py", "tray.py",
+                         "notice_card.py"):
                 (Path(root) / name).parent.mkdir(parents=True, exist_ok=True)
                 (Path(root) / name).write_text("X = 1\n", encoding="utf-8")
             covered = [path.relative_to(root).as_posix()
                        for path in self.generator.popup_code_files(root)]
-        self.assertEqual(covered, ["brand.py", "tray_popup.py", "ui/brand/tokens.py",
-                                   "ui/popup/layout.py", "ui/popup/win/rect.py"])
+        self.assertEqual(covered, ["brand.py", "tray_popup.py", "tray_popup/window.py",
+                                   "ui/brand/tokens.py", "ui/popup/layout.py", "ui/popup/win/rect.py"])
 
     def test_today_the_patterns_find_every_tracked_popup_and_palette_module(self):
         package = ROOT / "src" / "codex_auto_resume"
         found = [path.relative_to(package).as_posix()
                  for path in self.generator.popup_code_files(package)]
         tracked = sorted(srcscan.relative(path).split("/", 1)[1] for path in srcscan.package_files()
-                         if re.fullmatch(r"codex_auto_resume/(tray_popup|brand|ui/(popup|brand)/.+)\.py",
+                         if re.fullmatch(r"codex_auto_resume/"
+                                         r"(tray_popup|brand|(tray_popup|ui/popup|ui/brand)/.+)\.py",
                                          srcscan.relative(path)))
         self.assertEqual(found, tracked)
-        self.assertIn("tray_popup.py", found)
+        # Every file of the popup, not the one it used to be: since v0.6.10-alpha it is thirteen.
+        self.assertEqual(len([name for name in found if name.startswith("tray_popup/")]), 13)
+        self.assertIn("tray_popup/renderer.py", found)
         self.assertIn("brand.py", found)
 
     def test_moving_definitions_between_modules_leaves_the_digest(self):
@@ -996,17 +1016,17 @@ class PopupDrawingTests(unittest.TestCase):
         """The same on the real modules: the palette's last function moved into `ui/brand/` and
         imported back leaves it; one real colour token changed does not."""
         package = ROOT / "src" / "codex_auto_resume"
-        popup = (package / "tray_popup.py").read_text(encoding="utf-8")
+        popup = real_modules()
         brand = (package / "brand.py").read_text(encoding="utf-8")
-        before = self.digest({"tray_popup.py": popup, "brand.py": brand})
+        before = self.digest(dict(popup, **{"brand.py": brand}))
         tree = ast.parse(brand)
         last = [node for node in tree.body if isinstance(node, ast.FunctionDef)][-1]
         lines = brand.splitlines(keepends=True)
         start = min([last.lineno] + [decorator.lineno for decorator in last.decorator_list]) - 1
         cut = "".join(lines[start:last.end_lineno])
         left = "".join(lines[:start] + lines[last.end_lineno:]) + "from .ui.brand.moved import %s\n" % last.name
-        moved = {"tray_popup.py": popup, "brand.py": left,
-                 "ui/brand/moved.py": "from ...brand import *  # noqa\n\n" + cut}
+        moved = dict(popup, **{"brand.py": left,
+                               "ui/brand/moved.py": "from ...brand import *  # noqa\n\n" + cut})
         self.assertEqual(self.digest(moved), before)
         token = next(node for node in tree.body if isinstance(node, ast.Assign)
                      and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)
@@ -1014,7 +1034,7 @@ class PopupDrawingTests(unittest.TestCase):
         lines[token.lineno - 1] = lines[token.lineno - 1].replace(token.value.value, "#123456", 1)
         recoloured = "".join(lines)
         self.assertNotEqual(recoloured, brand)
-        self.assertNotEqual(self.digest({"tray_popup.py": popup, "brand.py": recoloured}), before)
+        self.assertNotEqual(self.digest(dict(popup, **{"brand.py": recoloured})), before)
 
     TRAY = ('"""The icon."""\n'
             "import ctypes\n"
@@ -1101,8 +1121,7 @@ class PopupDrawingTests(unittest.TestCase):
         # rather than by name, and what it hands back is handles. Handles draw nothing; the
         # declarations above and the countdown below are what a picture depends on.
 
-        real = {name: (package / name).read_text(encoding="utf-8")
-                for name in ("tray_popup.py", "brand.py", "tray.py", "ui/words.py", "win/dll.py")}
+        real = real_modules("brand.py", "tray.py", "ui/words.py", "win/dll.py")
         before = self.digest(real)
         for what, (name, old, new) in {
                 "the countdown the popup shows": ("ui/words.py", '"%ds" % secs', '"%d s" % secs'),
@@ -1237,27 +1256,25 @@ class CardPictureTests(unittest.TestCase):
             return self.generator.card_drawing(root)
 
     def real(self):
-        package = ROOT / "src" / "codex_auto_resume"
-        return {name: (package / name).read_text(encoding="utf-8")
-                for name in ("notice_card.py", "notice_window.py", "tray_popup.py", "brand.py",
-                             # v0.6.10-alpha: the countdown and the Win32 declarations the card's
-                             # window is registered with moved here, and the digest follows them.
-                             "tray.py", "ui/words.py", "win/dll.py")}
+        # v0.6.10-alpha: the countdown and the Win32 declarations the card's window is
+        # registered with moved into ui/ and win/, and the digest follows them.
+        return real_modules("notice_card.py", "notice_window.py", "brand.py",
+                            "tray.py", "ui/words.py", "win/dll.py")
 
     def test_the_patterns_cover_the_card_the_package_it_moves_into_and_the_popup_it_is_painted_by(self):
         with tempfile.TemporaryDirectory() as root:
             for name in ("notice_card.py", "notice_window.py", "notice_presence.py", "notifier.py",
                          "ui/card/view.py", "ui/card/win/layer.py", "ui/popup/layout.py", "ui/brand/tokens.py",
-                         "tray_popup.py", "brand.py", "tray.py", "ui/tray/icon.py"):
+                         "tray_popup.py", "tray_popup/window.py", "brand.py", "tray.py", "ui/tray/icon.py"):
                 (Path(root) / name).parent.mkdir(parents=True, exist_ok=True)
                 (Path(root) / name).write_text("X = 1\n", encoding="utf-8")
             covered = [path.relative_to(root).as_posix() for path in self.generator.card_code_files(root)]
         self.assertEqual(covered, ["brand.py", "notice_card.py", "notice_window.py", "tray_popup.py",
-                                   "ui/brand/tokens.py", "ui/card/view.py", "ui/card/win/layer.py",
-                                   "ui/popup/layout.py"])
+                                   "tray_popup/window.py", "ui/brand/tokens.py", "ui/card/view.py",
+                                   "ui/card/win/layer.py", "ui/popup/layout.py"])
         today = [path.relative_to(ROOT / "src" / "codex_auto_resume").as_posix()
                  for path in self.generator.card_code_files()]
-        for name in ("notice_card.py", "notice_window.py", "tray_popup.py", "brand.py"):
+        for name in ("notice_card.py", "notice_window.py", "tray_popup/renderer.py", "brand.py"):
             self.assertIn(name, today)
 
     def test_a_change_to_what_draws_the_card_moves_the_digest(self):
@@ -1270,7 +1287,7 @@ class CardPictureTests(unittest.TestCase):
                 "the card's own light": ("notice_window.py", "brand.glow(self.vm[\"status\"], age, age,",
                                          "brand.glow(self.vm[\"status\"], age + 1, age,"),
                 "its floating shadow": ("notice_card.py", "DARK_ENOUGH = 0.05", "DARK_ENOUGH = 0.06"),
-                "the popup's renderer it is painted by": ("tray_popup.py", "class Renderer:",
+                "the popup's renderer it is painted by": ("tray_popup/renderer.py", "class Renderer:",
                                                           "class Renderer:\n    painted = True\n"),
                 "a colour token": ("brand.py", '"canvas":  "#E9EEF4"', '"canvas":  "#E9EEF5"')}.items():
             changed = dict(real)
@@ -1481,9 +1498,7 @@ class IconMotionPictureTests(unittest.TestCase):
             return self.generator.icon_drawing(root)
 
     def real(self):
-        package = ROOT / "src" / "codex_auto_resume"
-        return {name: (package / name).read_text(encoding="utf-8")
-                for name in ("tray.py", "tray_popup.py", "brand.py", "notice_card.py")}
+        return real_modules("tray.py", "brand.py", "notice_card.py")
 
     def test_the_entry_moves_when_the_motion_or_the_mark_changes_and_not_otherwise(self):
         from codex_auto_resume import tray
@@ -1520,7 +1535,7 @@ class IconMotionPictureTests(unittest.TestCase):
         stays = {
             "the icon's menu": ("tray.py", "MENU_OPEN, MENU_TOGGLE, MENU_STOP, MENU_PENDING = 1, 2, 3, 4",
                                 "MENU_OPEN, MENU_TOGGLE, MENU_STOP, MENU_PENDING = 1, 2, 3, 5"),
-            "the popup's renderer": ("tray_popup.py", "class Renderer:", "class Renderer:\n    painted = True\n"),
+            "the popup's renderer": ("tray_popup/renderer.py", "class Renderer:", "class Renderer:\n    painted = True\n"),
             "the notification card": ("notice_card.py", "DARK_ENOUGH = 0.05", "DARK_ENOUGH = 0.06"),
             "a comment on the motion": ("tray.py", "# The badge's own deep blue", "# The badge's deep blue"),
         }

@@ -53,7 +53,6 @@ def hold(test):
 # Today's length of each module over the budget, as a ceiling. Lower a ceiling in the commit
 # that shrinks its module; delete the entry when it is under the budget; never raise one.
 OVERSIZED = {
-    "codex_auto_resume/tray_popup.py": 2851,
     "codex_auto_resume/mcpui.py": 2332,
     "codex_auto_resume/tray.py": 1171,
     "codex_auto_resume/brand.py": 979,

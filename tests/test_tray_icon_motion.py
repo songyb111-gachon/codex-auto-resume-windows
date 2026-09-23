@@ -810,7 +810,7 @@ class StoredReduceMotionTests(unittest.TestCase):
             self.reads += 1
             return read()
         self.control.get_settings = counted
-        self.addCleanup(popup.set_reduce_motion, popup._reduce_motion_setting)
+        self.addCleanup(popup.set_reduce_motion, popup.theme._reduce_motion_setting)
         popup.set_reduce_motion(False)
         self.logged = []
         self.icon = tray.Tray(strings={}, control=self.control, log=self.logged.append)
@@ -821,7 +821,7 @@ class StoredReduceMotionTests(unittest.TestCase):
         """The motion half of one tick. Windows' animations on, no High Contrast, no battery saver
         and the icon on the taskbar: the product's own Reduce motion is all that can hold it."""
         self.icon._placement = types.SimpleNamespace(overflowed=lambda: False)   # never this machine's registry
-        with unittest.mock.patch.object(popup, "reduced_motion", lambda: popup._reduce_motion_setting), \
+        with unittest.mock.patch.object(popup, "reduced_motion", lambda: popup.theme._reduce_motion_setting), \
                 unittest.mock.patch.object(popup, "high_contrast", lambda: False), \
                 unittest.mock.patch.object(tray, "battery_saver", lambda: False), \
                 unittest.mock.patch.object(popup, "icon_rect", lambda hwnd, uid=1: (0, 0, 16, 16)):

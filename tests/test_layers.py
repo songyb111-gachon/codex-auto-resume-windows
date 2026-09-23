@@ -73,7 +73,13 @@ LAYER = {_q(name): layer for layer, names in {
     "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcpui", "app", "tray", "tray_popup", "brand",
               "notice_card", "notice_window", "notifier",
               # v0.6.10-alpha: what every surface writes the same way.
-              "ui", "ui.words"),
+              "ui", "ui.words",
+              # v0.6.10-alpha: tray_popup.py became tray_popup/ - the same popup in twelve
+              # files, all of them the front. `UI` below covers them by prefix.
+              "tray_popup.elevation", "tray_popup.fonts", "tray_popup.gdiplus",
+              "tray_popup.layout", "tray_popup.model", "tray_popup.motion",
+              "tray_popup.placement", "tray_popup.renderer", "tray_popup.theme",
+              "tray_popup.win32", "tray_popup.window", "tray_popup.words"),
 }.items() for name in names}
 
 # The roles the target rules speak of: today's modules, and the packages the split moves them
@@ -103,7 +109,7 @@ ENGINE_EXCEPTIONS = {
                                           "(engine/ports.py, step 8)",
 }
 UI_EXCEPTIONS = {
-    (_q("tray_popup"), _q("reasons")): "the popup asks the reason registry for a label key, whether a "
+    (_q("tray_popup.model"), _q("reasons")): "the popup asks the reason registry for a label key, whether a "
                                        "category is recoverable and whether it has a reset time",
     (_q("notice_window"), _q("notice_presence")): "the card reads battery saver and the message duration "
                                                   "from the presence probes, which are Windows adapters",
