@@ -115,7 +115,7 @@ class OneSenderTests(unittest.TestCase):
         # package makes, so an alias (`b = self.backend; b.send(...)`) is caught as well.
         sends = calls(lambda node: isinstance(node.func, ast.Attribute) and node.func.attr == "send")
         self.assertEqual([(where, name) for where, name, _ in sends],
-                         [("codex_auto_resume/engine.py", "Engine.dispatch")])
+                         [("codex_auto_resume/engine/dispatch.py", "DispatchMixin.dispatch")])
         receiver = sends[0][2].func.value
         self.assertEqual(getattr(receiver, "attr", getattr(receiver, "id", None)), "backend")
 

@@ -65,7 +65,8 @@ LAYER = {_q(name): layer for layer, names in {
                  # v0.6.10-alpha: source.py became source/, and every part of it reads Codex.
                  "source.errors", "source.history", "source.labels",
                  "source.paths", "source.payload", "source.schema", "source.values"),
-    "engine": ("engine",),
+    "engine": ("engine", "engine.announce", "engine.detect", "engine.dispatch",
+               "engine.freshness", "engine.options", "engine.outcome", "engine.reconcile"),
     "control": ("control", "diagnostics"),
     "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcpui", "app", "tray", "tray_popup", "brand",
               "notice_card", "notice_window", "notifier"),
@@ -90,8 +91,9 @@ PURE_STDLIB = {"__future__", "abc", "collections", "dataclasses", "decimal", "en
 # Target rules that do not hold yet: the real edges that break them. Each fails the test the
 # day it no longer exists, so these only shrink.
 ENGINE_EXCEPTIONS = {
-    (_q("engine"), _q("source")): "source.detect() is imported and called directly rather than reached "
-                                   "through the source the engine is given (engine/ports.py, step 8)",
+    (_q("engine.detect"), _q("source")): "source.detect() is imported and called directly rather than "
+                                          "reached through the source the engine is given "
+                                          "(engine/ports.py, step 8)",
 }
 UI_EXCEPTIONS = {
     (_q("tray_popup"), _q("reasons")): "the popup asks the reason registry for a label key, whether a "

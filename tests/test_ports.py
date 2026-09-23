@@ -30,10 +30,17 @@ import srcscan  # noqa: E402
 
 
 def module_source(name: str) -> str:
-    for path in srcscan.package_files():
-        if srcscan.relative(path).endswith("/%s.py" % name):
-            return srcscan.read(path)
-    raise AssertionError("no module named %s in the package" % name)
+    """The module's source - or, once it is a package, the source of all of it.
+
+    A seam is about what a layer asks of another, not about which file holds the call, so a
+    layer that becomes a package is read whole and the tables below do not move.
+    """
+    found = [srcscan.read(path) for path in srcscan.package_files()
+             if srcscan.relative(path).endswith("/%s.py" % name)
+             or "/%s/" % name in srcscan.relative(path)]
+    if not found:
+        raise AssertionError("no module named %s in the package" % name)
+    return "\n".join(found)
 
 
 def names_on(source: str, receivers: tuple) -> set:
