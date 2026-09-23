@@ -485,7 +485,9 @@ class App:
         exit_code = EXIT_OK
         if not once:
             self._failure_baseline()
-        tray = None if once else self._start_tray(stop)
+        # Not `tray`: `from . import tray` names the module in this file too, and a local
+        # that shadows a module name reads as that module to anything scanning the source.
+        icon = None if once else self._start_tray(stop)
         try:
             while True:
                 ok = False
@@ -524,8 +526,8 @@ class App:
                 self._heartbeat(store, session, started, ok)
                 if not once:
                     self._failure_baseline()            # made good at the next tick if a write was refused
-                if tray is not None:
-                    self._update_tray(tray, store)
+                if icon is not None:
+                    self._update_tray(icon, store)
                 last_tick = time.monotonic()
                 if once:
                     if engine is None:
@@ -538,8 +540,8 @@ class App:
         except KeyboardInterrupt:
             self.logger.info("interrupted; watcher exiting")
         finally:
-            if tray is not None:
-                tray.stop()
+            if icon is not None:
+                icon.stop()
             store.close()
             self.logger.info("watcher stopped")
         return exit_code
