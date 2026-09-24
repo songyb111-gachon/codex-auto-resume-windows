@@ -65,7 +65,9 @@ ITEM = {_q(name): item for item, names in {
     "watcher": ("app", "runtime", "runtime.app", "runtime.loop", "runtime.toasts"),
     "engine": ("engine", "engine.announce", "engine.detect", "engine.dispatch", "engine.freshness",
                "engine.options", "engine.outcome"),
-    "policy": ("failures", "reasons", "settings", "continuation", "openstate", "domain.gates"),
+    "policy": ("failures", "reasons", "settings", "continuation", "openstate", "domain.gates",
+               # what may be done at a tier, and with whose word: policy, not registry data
+               "compat.permits"),
     "machine": ("machine", "domain", "domain.errors", "domain.ids", "domain.public",
                 "domain.states", "domain.vocabulary"),
     "scheduler": ("engine.reconcile",),
@@ -75,7 +77,8 @@ ITEM = {_q(name): item for item, names in {
               "store.validate", "store.watcher"),
     "codex": ("codex", "codex.appserver", "codex.errors", "codex.history", "codex.labels",
               "codex.pairing", "codex.paths", "codex.payload", "codex.schema", "codex.transport",
-              "codex.usage", "codex.values", "compat", "compatio", "windows"),
+              "codex.usage", "codex.values", "compat", "compatio", "windows",
+              "compat.model", "compat.standing", "compat.report", "compat.files", "compat.cache", "compat.probes", "compat.views", "compat.evaluator"),
     "control": ("control", "control.actions", "control.codexstart", "control.errors",
                 "control.layer", "control.policy", "control.preview", "control.records",
                 "control.seen", "control.state", "control.watcher",
@@ -122,6 +125,8 @@ HOMELESS = {
 
 # Packages whose modules are not all one item. Only shrinks.
 STRADDLING = {
+    "compat": "compat/permits.py is the classifier's policy - what may be done at a tier - and "
+              "every other file of it is the registry the Codex adapter reads",
     "domain": "domain/gates.py is the classifier's policy, not the state machine's",
     "engine": "engine/reconcile.py is the scheduler's, not the recovery engine's",
     "ui": "ui/ holds the icon and the popup, which are two of the C# side's parts, and "
@@ -130,8 +135,6 @@ STRADDLING = {
 
 # Single modules doing two items' work, and what the second half is. Only shrinks.
 DOUBLE = {
-    "compat": "the registry's model and its data format, which the Codex adapter reads, and the "
-              "policy of what may be claimed of a version",
 }
 
 

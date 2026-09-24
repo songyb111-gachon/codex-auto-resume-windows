@@ -49,8 +49,10 @@ def verified_versions() -> tuple:
     global _VERIFIED
     if _VERIFIED is None:
         try:
-            from .. import compatio
-            _VERIFIED = tuple(compatio.bundled_verified_versions())
+            # compat/files.py directly, not the compatio front: through the front this
+            # loaded the registry's whole io half, whose probes import this adapter back.
+            from ..compat import files as registry_files
+            _VERIFIED = tuple(registry_files.bundled_verified_versions())
         except Exception:
             _VERIFIED = ()
     return _VERIFIED

@@ -683,7 +683,7 @@ RULES = {
         # The registry's evidence digest (compat.HEX64_RE) is spelled alike and is another kind
         # of thing: the SHA-256 of a document the registry cites, never a record's id.
         spells("0123456789abcdef", "[0-9a-f]{64}", "[0-9a-fA-F]{64}"),
-        {"domain/ids.py": "", "compat.py": ""}),
+        {"domain/ids.py": "", "compat/model.py": ""}),
     "an interruption's identity": (
         lambda node: calls("hex")(node) and isinstance(node.func.value, ast.Call)
         and getattr(node.func.value.func, "id", None) == "float",

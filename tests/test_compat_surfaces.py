@@ -359,10 +359,18 @@ class McpTests(unittest.TestCase):
                                    ("compat-refresh", {package % "controlcli",
                                                        "codex_auto_resume/mcp/assets/panel.css",
                                                        "codex_auto_resume/mcp/assets/panel.js"}),
-                                   ("run_refresh", {package % "compatio", package % "controlcli"}),
+                                   # compat/ holds the registry's io half since v0.6.10-alpha:
+                                   # the refresh in evaluator.py, the one writer in cache.py, the
+                                   # bootstrap's answers in files.py. compatio.py is their front.
+                                   ("run_refresh", {package % "compatio", package % "controlcli",
+                                                    "codex_auto_resume/compat/evaluator.py"}),
                                    ("import_document", {"codex_auto_resume/commands/status.py", package % "compatio",
-                                                        package % "controlcli"}),
-                                   ("bootstrap.ps1", {package % "compatio", package % "controlcli"})):
+                                                        package % "controlcli",
+                                                        "codex_auto_resume/compat/cache.py",
+                                                        "codex_auto_resume/compat/evaluator.py"}),
+                                   ("bootstrap.ps1", {package % "compatio", package % "controlcli",
+                                                      "codex_auto_resume/compat/evaluator.py",
+                                                      "codex_auto_resume/compat/files.py"})):
             with self.subTest(forbidden):
                 self.assertEqual(srcscan.holders(forbidden), holders)
 

@@ -58,6 +58,7 @@ if _HERE not in sys.path:
 import guiscan
 import srcscan  # noqa: E402
 from codex_auto_resume.domain import public as domain_public  # noqa: E402
+from codex_auto_resume.compat import files as compat_files, probes as compat_probes  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "assets" / "screenshots.json"
@@ -293,10 +294,14 @@ class ManifestTests(unittest.TestCase):
                 lambda: patch.object(codexsim.CodexHome, "add_thread",
                                      lambda sim, thread, *, name=None, **rest: real_add_thread(
                                          sim, thread, name=(name or "").upper(), **rest)),
-            "compatio.py - the local checks behind the Diagnostics card":
-                lambda: changed(compatio, "source_checks", lambda checks: dict(checks, queue_schema="FAIL")),
-            "tests/fixtures/codex_compat_frozen.json - the registry data the pictures are made with":
+            # compat/probes.py and compat/files.py since v0.6.10-alpha: the registry's parts
+            # call these through the module that defines them, and the pictures read
+            # load_bundled through the compatio front too - so both, for that one.
+            "compat/probes.py - the local checks behind the Diagnostics card":
+                lambda: changed(compat_probes, "source_checks", lambda checks: dict(checks, queue_schema="FAIL")),
+            "tests/fixtures/codex_compat_frozen.json - the registry data the pictures are made with": several(
                 lambda: patch.object(compatio, "load_bundled", return_value=(None, "missing")),
+                lambda: patch.object(compat_files, "load_bundled", return_value=(None, "missing"))),
         }
         if os.name == "nt":
             # Not acquired, so nothing holds it and the probe finds it free.

@@ -25,6 +25,10 @@ def frozen():
     # The cache is `codex/transport.py`'s; `windows` is the front, and setting a
     # name on a front reaches nothing.
     from codex_auto_resume.codex import transport
+    # Two places look `load_bundled` up since v0.6.10-alpha: compat/files.py, through which
+    # every part of the registry calls it, and the compatio front, through which the pictures
+    # and the tests read it. Both are replaced, or half the product reads the live data.
+    from codex_auto_resume.compat import files
     real = compatio.load_bundled
 
     def load_bundled(path=None, **options):
@@ -33,7 +37,8 @@ def frozen():
     cached = transport._VERIFIED
     transport._VERIFIED = None
     try:
-        with patch.object(compatio, "load_bundled", load_bundled):
+        with patch.object(compatio, "load_bundled", load_bundled), \
+                patch.object(files, "load_bundled", load_bundled):
             yield FROZEN
     finally:
         transport._VERIFIED = cached
