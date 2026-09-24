@@ -779,6 +779,14 @@ class PayloadDocumentTests(unittest.TestCase):
     """
 
     def test_every_document_the_readme_links_to_is_shipped(self):
+        # The archive is built from main, whose README is English. On the generated ko branch
+        # README.md is the Korean text - it links the Korean pages beside it, which is right
+        # there - and nothing is ever built or shipped from ko. Found by rehearsing the sync,
+        # which runs this suite on the generated tree before it publishes.
+        sys.path.insert(0, str(ROOT / "tests"))
+        import languages
+        if languages.generated_ko_branch():
+            self.skipTest("the generated ko branch's README is the Korean text; nothing ships from ko")
         import re
         builder = _load("make_release_payload", ROOT / "build" / "make_release.py")
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
