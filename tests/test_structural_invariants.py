@@ -1,7 +1,7 @@
 """Safety properties that used to rest on one file's text, asserted over the whole package.
 
 Each of these was true because of where a line sat - `engine.py` held the only call that hands
-a message to the backend, `codex/transport.py` the only argv that runs `codex queue`, `cli.py` the only
+a message to the backend, `codex/transport.py` the only argv that runs `codex queue`, `commands/base.py` the only
 mention of `--last` - and nothing would have noticed a second one appearing in another
 module. They are asserted here by qualified name across every tracked file (`srcscan`), so a
 function that moves keeps its guarantee, and a second site anywhere fails.
@@ -180,7 +180,9 @@ class OneSenderTests(unittest.TestCase):
                       for child in ast.walk(node)}
             found += [(srcscan.relative(path), names[node], id(node) in raised)
                       for node, value in srcscan.string_constants(tree) if "--last" in value]
-        self.assertEqual(found, [("codex_auto_resume/cli.py", "canonical_thread_id", True)])
+        # Where the command line checks a thread id, which is commands/base.py since cli.py's
+        # command bodies became commands/ in v0.6.10-alpha. Still one place, still refusing.
+        self.assertEqual(found, [("codex_auto_resume/commands/base.py", "canonical_thread_id", True)])
 
 
 class ProcessTests(unittest.TestCase):

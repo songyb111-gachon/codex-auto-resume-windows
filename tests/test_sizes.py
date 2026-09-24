@@ -55,7 +55,6 @@ def hold(test):
 OVERSIZED = {
     "codex_auto_resume/notice_window.py": 929,
     "codex_auto_resume/compat.py": 824,
-    "codex_auto_resume/cli.py": 721,
     "codex_auto_resume/compatio.py": 727,
 }
 
