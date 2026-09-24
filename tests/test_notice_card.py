@@ -1172,11 +1172,18 @@ class ShadowTests(unittest.TestCase):
 class SafetyTests(unittest.TestCase):
     """The envelope of the card's two modules (B-D11), modelled on the popup's."""
 
-    CARD = ("notice_card.py", "notice_window.py")
+    # Every file of the card, not the name it used to have: notice_window.py is a front since
+    # v0.6.10-alpha, and a safety scan of it alone would have checked 43 lines of imports while
+    # the card itself sat in ui/card/ unread.
+    CARD = ("notice_card.py", "notice_window.py", "ui/card/__init__.py", "ui/card/win32.py",
+            "ui/card/surfaces.py", "ui/card/card.py", "ui/card/stack.py")
     # `win` and `ui` joined the list in v0.6.10-alpha: the Win32 declarations the card registers
     # its window with, and the words every surface writes the same way. Neither can act.
     ALLOWED = {"brand", "l10n", "machine", "reasons", "tray", "tray_popup", "notice_card",
-               "notice_presence", "ui", "ui.words", "win", "win.dll"}
+               "notice_presence", "ui", "ui.words", "win", "win.dll",
+               # The card's own parts, and the popup whose renderer draws it (v0.6.10-alpha).
+               "popup", "win32", "surfaces", "card", "stack", "ui.card.win32",
+               "ui.card.surfaces", "ui.card.card", "ui.card.stack"}
     STDLIB = {"__future__", "collections", "ctypes", "ctypes.wintypes", "math", "os", "threading", "time"}
 
     def tree(self, name):
@@ -1358,8 +1365,13 @@ class WindowsTests(unittest.TestCase):
                     return 0
                 return record
 
-        proxy, original = User32(), window._dll
-        patcher = patch.object(window, "_dll", side_effect=lambda name: proxy if name == "user32" else original(name))
+        # On ui/card/win32.py, where every part of the card looks the handle cache up since
+        # v0.6.10-alpha. On the notice_window front this patch reached nothing, and every test
+        # built on this recorder recorded nothing - only the one that counts calls noticed.
+        from codex_auto_resume.ui.card import win32 as card_win32
+        proxy, original = User32(), card_win32._dll
+        patcher = patch.object(card_win32, "_dll",
+                               side_effect=lambda name: proxy if name == "user32" else original(name))
         patcher.start()
         self.addCleanup(patcher.stop)
         return calls

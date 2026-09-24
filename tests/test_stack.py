@@ -93,7 +93,8 @@ ITEM = {_q(name): item for item, names in {
               "ui.popup.layout", "ui.popup.model", "ui.popup.motion", "ui.popup.placement",
               "ui.popup.renderer", "ui.popup.theme", "ui.popup.win32", "ui.popup.window",
               "ui.popup.words"),
-    "notifications": ("notice_card", "notice_presence", "notice_window", "notifier", "notify"),
+    "notifications": ("notice_card", "notice_presence", "notice_window", "notifier", "notify",
+                      "ui.card", "ui.card.win32", "ui.card.surfaces", "ui.card.card", "ui.card.stack"),
     "words": ("l10n", "messages", "interface", "ui.words"),
     "brand": ("brand", "brand.checkbox", "brand.colour", "brand.css", "brand.elevation",
               "brand.light", "brand.mark", "brand.motion", "brand.scale", "brand.tokens"),
@@ -118,9 +119,6 @@ HOMELESS = {
     "machine": "domain/ is the state machine in every file but one, and that one - the gates "
                "a record passes before anything is sent - is the classifier's; so taking the "
                "package takes two items",
-    "notifications": "five flat modules, three of which (notice_card, notice_presence, "
-                     "notice_window) are one card split by what it touches rather than by what "
-                     "it is",
 }
 
 # Packages whose modules are not all one item. Only shrinks.

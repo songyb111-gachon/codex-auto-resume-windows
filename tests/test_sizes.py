@@ -53,7 +53,6 @@ def hold(test):
 # Today's length of each module over the budget, as a ceiling. Lower a ceiling in the commit
 # that shrinks its module; delete the entry when it is under the budget; never raise one.
 OVERSIZED = {
-    "codex_auto_resume/notice_window.py": 929,
 }
 
 
