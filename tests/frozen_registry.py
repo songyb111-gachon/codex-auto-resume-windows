@@ -21,19 +21,22 @@ FROZEN = Path(__file__).resolve().parent / "fixtures" / "codex_compat_frozen.jso
 def frozen():
     """Every read of the bundled document gets the frozen one, including the adapter's cached
     list of verified versions, which is read again on the way in and put back on the way out."""
-    from codex_auto_resume import compatio, windows
+    from codex_auto_resume import compatio
+    # The cache is `codex/transport.py`'s; `windows` is the front, and setting a
+    # name on a front reaches nothing.
+    from codex_auto_resume.codex import transport
     real = compatio.load_bundled
 
     def load_bundled(path=None, **options):
         return real(FROZEN if path is None or Path(path) == compatio.BUNDLED else path, **options)
 
-    cached = windows._VERIFIED
-    windows._VERIFIED = None
+    cached = transport._VERIFIED
+    transport._VERIFIED = None
     try:
         with patch.object(compatio, "load_bundled", load_bundled):
             yield FROZEN
     finally:
-        windows._VERIFIED = cached
+        transport._VERIFIED = cached
 
 
 _held = []

@@ -1,6 +1,7 @@
 """Safety tests: never launch Codex, send queues, inspect auth or control the app."""
 import ast
 from contextlib import contextmanager, nullcontext
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -8,6 +9,9 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from codex_auto_resume import windows as w
+# A patch has to reach the module that looks the name up, and `windows` is the front
+# since v0.6.10-alpha: setting a name on it reaches nothing, silently.
+from codex_auto_resume.codex import pairing, transport
 
 _HERE = str(Path(__file__).resolve().parent)
 if _HERE not in sys.path:
@@ -86,7 +90,7 @@ class BackendTests(unittest.TestCase):
         if users is None:
             users = [{"pid": 20, "created": 200}]
         with patch.object(self.backend, "app_identity", side_effect=identities or [APP, APP]), \
-             patch.object(w, "resource_users", return_value=users):
+             patch.object(transport, "resource_users", return_value=users):
             return self.backend.loaded(THREAD, APP)
 
     def test_loaded_requires_exact_app_owned_writer(self):
@@ -110,7 +114,7 @@ class BackendTests(unittest.TestCase):
 
     def test_resource_api_unavailable_fails_closed(self):
         with patch.object(self.backend, "app_identity", return_value=APP), \
-             patch.object(w, "resource_users", side_effect=w.AdapterError("resource_inventory_failed")):
+             patch.object(transport, "resource_users", side_effect=w.AdapterError("resource_inventory_failed")):
             self.assertEqual(self.backend.loaded(THREAD, APP), "unknown")
 
     def test_tool_never_acquires_the_apps_writer_lock(self):
@@ -130,8 +134,8 @@ class BackendTests(unittest.TestCase):
         native = r"C:\Program Files"
         rows = [{"pid": 10, "parent": 1, "path": native + r"\WindowsApps\OpenAI.Codex_26.901.5280.0_x64__2p2nqsd0c76g0\app\ChatGPT.exe"},
                 {"pid": 20, "parent": 10, "path": "codex.exe"}]
-        with patch.dict(w.os.environ, {"ProgramFiles": r"C:\Program Files (x86)", "ProgramW6432": native}), \
-             patch.object(w, "process_identity", side_effect=[{"pid": 10, "created": 100, "path": rows[0]["path"].lower()},
+        with patch.dict(os.environ, {"ProgramFiles": r"C:\Program Files (x86)", "ProgramW6432": native}), \
+             patch.object(pairing, "process_identity", side_effect=[{"pid": 10, "created": 100, "path": rows[0]["path"].lower()},
                                                               {"pid": 20, "created": 200, "path": "codex.exe"}]):
             pair = w.desktop_pair(rows, Path("codex.exe"))
         self.assertEqual(pair["pid"], 10)
@@ -145,7 +149,7 @@ class BackendTests(unittest.TestCase):
         Uses a path that really satisfies the location check, so that guard stays live.
         """
         exe = Path(self.LOCAL_APPDATA) / "OpenAI" / "Codex" / "bin" / "abcdef0123456789" / "codex.exe"
-        with patch.dict(w.os.environ, {"LOCALAPPDATA": self.LOCAL_APPDATA}):
+        with patch.dict(os.environ, {"LOCALAPPDATA": self.LOCAL_APPDATA}):
             backend = w.Backend(Path("state"), exe)
             results = {
                 ("--version",): MagicMock(returncode=0, stdout=version + "\n"),
@@ -159,22 +163,22 @@ class BackendTests(unittest.TestCase):
                 return results[tuple(argv[1:])]
 
             with patch.object(backend, "_environment", return_value={}), \
-                 patch.object(w.Path, "stat", return_value=MagicMock(st_size=1, st_mtime_ns=1)), \
-                 patch.object(w.S, "run", side_effect=fake_run):
+                 patch.object(Path, "stat", return_value=MagicMock(st_size=1, st_mtime_ns=1)), \
+                 patch.object(subprocess, "run", side_effect=fake_run):
                 backend._compatible()
         return backend
 
     def test_engine_outside_the_official_location_is_refused(self):
         backend = w.Backend(Path("state"), Path("C:\\elsewhere\\codex.exe"))
-        with patch.dict(w.os.environ, {"LOCALAPPDATA": self.LOCAL_APPDATA}), \
-             patch.object(w.S, "run") as run:
+        with patch.dict(os.environ, {"LOCALAPPDATA": self.LOCAL_APPDATA}), \
+             patch.object(subprocess, "run") as run:
             with self.assertRaises(w.AdapterError):
                 backend._compatible()
             run.assert_not_called()
 
     def test_verified_engine_version_is_trusted(self):
         """A version the registry verifies is labelled so - once its checks have passed."""
-        with patch.object(w, "verified_versions", return_value=("codex-cli 0.153.4",)):
+        with patch.object(transport, "verified_versions", return_value=("codex-cli 0.153.4",)):
             backend = self.compat("codex-cli 0.153.4")
         self.assertEqual(backend.engine_version, "codex-cli 0.153.4")
         self.assertTrue(backend.engine_verified)
@@ -183,7 +187,7 @@ class BackendTests(unittest.TestCase):
         """The pin used to skip the interface probe. A failed local check always wins now:
         no registry entry, bundled or fetched, can vouch for a build whose `codex queue` no
         longer takes the flags this tool drives."""
-        with patch.object(w, "verified_versions", return_value=("codex-cli 0.153.4",)):
+        with patch.object(transport, "verified_versions", return_value=("codex-cli 0.153.4",)):
             for kwargs in ({"queue_help_ok": False}, {"queue_rc": 2}):
                 with self.subTest(**kwargs), self.assertRaises(w.AdapterError) as caught:
                     self.compat("codex-cli 0.153.4", **kwargs)
@@ -195,8 +199,11 @@ class BackendTests(unittest.TestCase):
         evidence rule wanted a recording that states its version - and data published since
         may verify some; either way the adapter says what the document says."""
         from codex_auto_resume import compat, compatio
-        w._VERIFIED = None
-        self.addCleanup(setattr, w, "_VERIFIED", None)
+        # The cache lives with the definition (codex/transport.py), so the reset has to
+        # reach it there: `w` is the front, and setting a name on a front reaches nothing.
+        from codex_auto_resume.codex import transport
+        transport._VERIFIED = None
+        self.addCleanup(setattr, transport, "_VERIFIED", None)
         live, _state = compatio.load_bundled()
         self.assertEqual(w.verified_versions(), compat.verified_versions(live))
         with frozen_registry.frozen():
@@ -205,31 +212,31 @@ class BackendTests(unittest.TestCase):
 
     def test_engine_checks_say_which_check_failed_and_never_raise(self):
         exe = Path(self.LOCAL_APPDATA) / "OpenAI" / "Codex" / "bin" / "abcdef0123456789" / "codex.exe"
-        with patch.dict(w.os.environ, {"LOCALAPPDATA": self.LOCAL_APPDATA}):
+        with patch.dict(os.environ, {"LOCALAPPDATA": self.LOCAL_APPDATA}):
             outside = w.Backend(Path("state"), Path("C:\\elsewhere\\codex.exe")).engine_checks()
             self.assertEqual((outside["official_location"], outside["version_runs"], outside["queue_flags"]),
                              (w.FAIL, w.UNAVAILABLE, w.UNAVAILABLE))
-            with patch.object(w.Path, "stat", side_effect=OSError("gone")):
+            with patch.object(Path, "stat", side_effect=OSError("gone")):
                 vanished = w.Backend(Path("state"), exe).engine_checks()
             self.assertEqual((vanished["official_location"], vanished["version_runs"]),
                              (w.PASS, w.UNAVAILABLE))
-            with patch.object(w.Path, "stat", return_value=MagicMock(st_size=1, st_mtime_ns=1)), \
-                 patch.object(w.S, "run", side_effect=subprocess.TimeoutExpired("codex", 10)):
+            with patch.object(Path, "stat", return_value=MagicMock(st_size=1, st_mtime_ns=1)), \
+                 patch.object(subprocess, "run", side_effect=subprocess.TimeoutExpired("codex", 10)):
                 slow = w.Backend(Path("state"), exe)
                 checks = slow.engine_checks()
             self.assertEqual(checks["version_runs"], w.UNAVAILABLE)
             self.assertIsNone(slow.engine_version, "nothing unproven is accepted")
             with self.assertRaises(w.AdapterError) as caught:
-                with patch.object(w.Path, "stat", return_value=MagicMock(st_size=1, st_mtime_ns=1)), \
-                     patch.object(w.S, "run", side_effect=OSError("no process")):
+                with patch.object(Path, "stat", return_value=MagicMock(st_size=1, st_mtime_ns=1)), \
+                     patch.object(subprocess, "run", side_effect=OSError("no process")):
                     w.Backend(Path("state"), exe)._compatible()
             self.assertEqual(str(caught.exception), "codex_binary_unavailable")
 
     def test_an_accepted_binary_is_not_probed_again_until_it_changes(self):
         backend = self.compat("codex-cli 0.199.0")
-        with patch.dict(w.os.environ, {"LOCALAPPDATA": self.LOCAL_APPDATA}), \
-             patch.object(w.Path, "stat", return_value=MagicMock(st_size=1, st_mtime_ns=1)), \
-             patch.object(w.S, "run") as run:
+        with patch.dict(os.environ, {"LOCALAPPDATA": self.LOCAL_APPDATA}), \
+             patch.object(Path, "stat", return_value=MagicMock(st_size=1, st_mtime_ns=1)), \
+             patch.object(subprocess, "run") as run:
             checks = backend.engine_checks()
             backend._compatible()
         run.assert_not_called()
@@ -255,7 +262,7 @@ class BackendTests(unittest.TestCase):
                 self.compat("codex-cli 0.199.0", **kwargs)
 
     def test_invalid_thread_id_never_launches(self):
-        with patch.object(w.S, "Popen") as popen:
+        with patch.object(subprocess, "Popen") as popen:
             for invalid in ("--last", THREAD + " & echo PWNED", "../state", "", None):
                 self.assertEqual(self.backend.send(invalid, "harmless")["outcome"], "not_started")
             popen.assert_not_called()
@@ -263,7 +270,7 @@ class BackendTests(unittest.TestCase):
     def test_queue_argv_exact_id_shell_disabled_and_no_telemetry(self):
         process = MagicMock(returncode=0)
         process.communicate.return_value = (f"Queued message {QUEUE} for thread {THREAD}.\n", None)
-        with patch.object(w.S, "Popen", return_value=process) as popen:
+        with patch.object(subprocess, "Popen", return_value=process) as popen:
             prompt = 'Harmless "quoted" ; $(no shell) & text'
             result = self.backend.send(THREAD, prompt)
         self.assertEqual(result, {"outcome": "accepted", "queue_id": QUEUE})
@@ -276,13 +283,13 @@ class BackendTests(unittest.TestCase):
         self.assertIn('otel.metrics_exporter="none"', argv)
 
     def test_spawn_failure_is_only_retryable_send_failure(self):
-        with patch.object(w.S, "Popen", side_effect=OSError("secret diagnostic")):
+        with patch.object(subprocess, "Popen", side_effect=OSError("secret diagnostic")):
             result = self.backend.send(THREAD, "harmless")
         self.assertEqual(result["outcome"], "not_started")
         self.assertNotIn("secret", repr(result))
 
     def test_final_consent_refusal_never_starts_queue_process(self):
-        with patch.object(w.S, "Popen") as popen:
+        with patch.object(subprocess, "Popen") as popen:
             result = self.backend.send(THREAD, "harmless", launch_guard=nullcontext(False))
         popen.assert_not_called()
         self.assertEqual(result, {"outcome": "not_started", "error_code": "queue_consent_refused"})
@@ -309,7 +316,7 @@ class BackendTests(unittest.TestCase):
             return (f"Queued message {QUEUE} for thread {THREAD}.\n", None)
 
         process.communicate.side_effect = receipt
-        with patch.object(w.S, "Popen", side_effect=launch):
+        with patch.object(subprocess, "Popen", side_effect=launch):
             result = self.backend.send(THREAD, "harmless", launch_guard=guard())
         self.assertEqual(result["outcome"], "accepted")
 
@@ -321,7 +328,7 @@ class BackendTests(unittest.TestCase):
 
         process = MagicMock(returncode=1)
         process.communicate.return_value = ("", None)
-        with patch.object(w.S, "Popen", return_value=process) as popen:
+        with patch.object(subprocess, "Popen", return_value=process) as popen:
             result = self.backend.send(THREAD, "harmless", launch_guard=guard())
         self.assertEqual(popen.call_count, 1)
         self.assertEqual(result["outcome"], "unknown")
@@ -330,7 +337,7 @@ class BackendTests(unittest.TestCase):
         for code, output in ((1, "secret diagnostic"), (0, f"Queued message {QUEUE} for thread {QUEUE}.")):
             process = MagicMock(returncode=code)
             process.communicate.return_value = (output, None)
-            with patch.object(w.S, "Popen", return_value=process):
+            with patch.object(subprocess, "Popen", return_value=process):
                 result = self.backend.send(THREAD, "harmless")
             self.assertEqual(result["outcome"], "unknown")
             self.assertNotIn("secret", repr(result))
@@ -339,7 +346,7 @@ class BackendTests(unittest.TestCase):
         process = MagicMock()
         process.communicate.side_effect = subprocess.TimeoutExpired("secret prompt", 45)
         process.kill.side_effect = OSError("already exited")
-        with patch.object(w.S, "Popen", return_value=process):
+        with patch.object(subprocess, "Popen", return_value=process):
             result = self.backend.send(THREAD, "harmless")
         self.assertEqual(result, {"outcome": "unknown", "error_code": "queue_timeout"})
 
