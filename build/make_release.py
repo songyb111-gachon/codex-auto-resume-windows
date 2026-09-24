@@ -70,8 +70,14 @@ MCP_EXE = "codex-auto-resume-mcp.exe"
 # English only: a release is built from a tag on main, and main holds no Korean document
 # (they are written on dev and read on the generated ko branch). The three Korean ones this
 # used to ship left with them; no published bootstrap requires any of them.
-APP_FILES = ("LICENSE", "README.md", "PRIVACY.md", "docs/SECURITY.md", "docs/SUPPORT.md",
-             "docs/CONTRIBUTING.md", "CONTRIBUTORS.md", "CHANGELOG.md", ".mcp.json")
+APP_FILES = ("LICENSE", "README.md", "docs/PRIVACY.md", "docs/SECURITY.md", "docs/SUPPORT.md",
+             "docs/CONTRIBUTING.md", "docs/CONTRIBUTORS.md", "docs/CHANGELOG.md", ".mcp.json")
+# Where an APP_FILES entry comes from when it is not at its own path in the repository. The
+# payload keeps `.mcp.json` at its root - every published bootstrap requires
+# payload/app/.mcp.json - while the repository keeps its source in build/, off the front page
+# and out of sight of tools that read a `.mcp.json` at a project's root and try to start a
+# server this checkout does not have.
+APP_SOURCES = {".mcp.json": "build/plugin-mcp.json"}
 LAUNCHER_FILES = ("Install.cmd", "Uninstall.cmd", "README.txt", "install.ps1")
 
 EXCLUDE_DIRS = {"__pycache__", ".git", ".github", "node_modules", ".pytest_cache",
@@ -125,7 +131,7 @@ def collect_app(stage: Path) -> int:
             shutil.copyfile(entry, destination)
             copied += 1
     for name in APP_FILES:
-        source = ROOT / name
+        source = ROOT / APP_SOURCES.get(name, name)
         if source.is_file():
             # Some ship from docs/ since v0.6.10-alpha, and copyfile makes no folders.
             (app / name).parent.mkdir(parents=True, exist_ok=True)
@@ -200,7 +206,8 @@ def declare_mcp_server(stage: Path) -> None:
     with a permanently failing server in their list.
 
     So the declaration is added here, to the copy that ships beside the runtime it
-    needs. `.mcp.json` itself stays in the repository, because a security-relevant
+    needs. `.mcp.json` itself stays in the repository (as build/plugin-mcp.json, see
+    APP_SOURCES), because a security-relevant
     declaration should be reviewable as source rather than assembled out of a string in
     a build script.
     """
@@ -224,7 +231,7 @@ def declare_mcp_server(stage: Path) -> None:
 def collect_launchers(stage: Path) -> int:
     count = 0
     for name in LAUNCHER_FILES:
-        source = ROOT / "install" / name
+        source = ROOT / "build" / "install" / name
         if not source.is_file():
             raise SystemExit("missing installer file: %s" % source)
         destination = stage / name if name != "install.ps1" else stage / "install" / "install.ps1"

@@ -96,15 +96,15 @@ def documents_here(names):
 
 
 DOCS = documents_here((
-    "README.md", "README.ko.md", "PRIVACY.md", "docs/SECURITY.md", "docs/SECURITY.ko.md",
-    "docs/SUPPORT.md", "docs/CONTRIBUTING.md", "CONTRIBUTORS.ko.md",
+    "README.md", "README.ko.md", "docs/PRIVACY.md", "docs/SECURITY.md", "docs/SECURITY.ko.md",
+    "docs/SUPPORT.md", "docs/CONTRIBUTING.md", "docs/CONTRIBUTORS.ko.md",
     "docs/PLUGIN.md", "docs/BRAND.md", "docs/COMPARISON.md",
     "docs/COMPARISON.ko.md", "docs/DEVELOPMENT.ko.md", "docs/GUIDE.md", "docs/GUIDE.ko.md",
     "skills/codex-auto-resume/SKILL.md"))
 
 # The changelog is a record of what past releases did and must not be rewritten to match
 # today; docs/DEVELOPMENT.md is the same, a history rather than a description.
-HISTORICAL = ("CHANGELOG.md", "docs/DEVELOPMENT.md")
+HISTORICAL = ("docs/CHANGELOG.md", "docs/DEVELOPMENT.md")
 
 
 def tracked(pattern: str):
@@ -130,7 +130,7 @@ class CodePropertyTests(unittest.TestCase):
         # download the pinned interpreter. Everything that ships may not, except the
         # bootstrap - which is the whole point of the bootstrap.
         reaching = set()
-        for path in tracked("scripts/*") + tracked("install/*") + tracked("src/*") + tracked("gui/*"):
+        for path in tracked("scripts/*") + tracked("build/install/*") + tracked("src/*") + tracked("gui/*"):
             try:
                 text = path.read_text(encoding="utf-8")
             except (UnicodeDecodeError, OSError):
@@ -151,7 +151,7 @@ class CodePropertyTests(unittest.TestCase):
                              r"www\.python\.org|agent-plugins\.org|schemas\.microsoft\.com|"
                              r"docs\.microsoft\.com|learn\.microsoft\.com)/?", re.I)
         offenders = []
-        for path in tracked("scripts/*") + tracked("install/*") + tracked("src/*"):
+        for path in tracked("scripts/*") + tracked("build/install/*") + tracked("src/*"):
             try:
                 text = path.read_text(encoding="utf-8")
             except (UnicodeDecodeError, OSError):
@@ -210,14 +210,14 @@ class WordingTests(unittest.TestCase):
                          "an absolute network claim with no nearby qualifier")
 
     def test_privacy_separates_the_runtime_from_the_install(self):
-        text = (ROOT / "PRIVACY.md").read_text(encoding="utf-8")
+        text = (ROOT / "docs" / "PRIVACY.md").read_text(encoding="utf-8")
         self.assertRegex(text, r"(?i)github", "PRIVACY.md must name GitHub")
         self.assertRegex(text, r"(?i)(?:download|fetch)", "PRIVACY.md must say a download happens")
         # The claim that survives, and must: nothing is uploaded.
         self.assertRegex(text, r"(?i)no telemetry")
 
     def test_privacy_does_not_claim_there_are_no_third_parties(self):
-        text = (ROOT / "PRIVACY.md").read_text(encoding="utf-8")
+        text = (ROOT / "docs" / "PRIVACY.md").read_text(encoding="utf-8")
         section = re.search(r"##\s*Third parties(.*?)(?:\n##|\Z)", text, re.S)
         self.assertIsNotNone(section, "PRIVACY.md lost its Third parties section")
         body = section.group(1)
@@ -258,7 +258,7 @@ class WordingTests(unittest.TestCase):
                    "v0.4.0", "v0.4.1", "v0.5.0", "v0.5.1", "v0.5.2", "v0.5.3", "v0.5.4", "v0.5.5",
                    "v0.5.6", "v0.5.7", "v0.6.0", "v0.6.1", "v0.6.2", "v0.6.3", "v0.6.4", "v0.6.5",
                    "v0.6.6", "v0.6.7", "v0.6.8", "v0.6.9")
-        text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        text = (ROOT / "docs" / "CHANGELOG.md").read_text(encoding="utf-8")
         missing = [tag for tag in shipped
                    if not re.search(r"^##\s+%s\b" % re.escape(tag), text, re.M)]
         self.assertEqual(missing, [], "the changelog has lost a released version's section")
@@ -289,7 +289,7 @@ class WordingTests(unittest.TestCase):
                 if tag != current and re.fullmatch(r"v\d+\.\d+\.\d+", tag)]
         if not tags:
             self.skipTest("no earlier tags visible in this checkout")
-        text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        text = (ROOT / "docs" / "CHANGELOG.md").read_text(encoding="utf-8")
         missing = [tag for tag in tags
                    if not re.search(r"^##\s+%s\b" % re.escape(tag), text, re.M)]
         self.assertEqual(missing, [], "a tagged release has no changelog section")

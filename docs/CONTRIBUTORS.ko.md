@@ -54,4 +54,4 @@
 저작권은 인간 관리자에게 있습니다. 안전 속성을 포함한 이 코드에 대한 책임은 도구가 아니라 관리자에게
 있습니다.
 
-단계별 개발 과정은 [docs/DEVELOPMENT.ko.md](docs/DEVELOPMENT.ko.md)를 참고하세요.
+단계별 개발 과정은 [docs/DEVELOPMENT.ko.md](DEVELOPMENT.ko.md)를 참고하세요.

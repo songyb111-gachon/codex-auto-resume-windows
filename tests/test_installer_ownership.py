@@ -7,7 +7,7 @@ used to act on a *name* - a directory called `app` under whatever `$InstallHome`
 at, a process called `codex-auto-resume-mcp.exe`, a marketplace called
 `codex-auto-resume-windows` - and a name is not ownership.
 
-These tests drive the real functions out of `install/install.ps1` rather than a copy of
+These tests drive the real functions out of `build/install/install.ps1` rather than a copy of
 them, by extracting the helper block and dot-sourcing it into a throwaway PowerShell
 process. That costs a second per test and buys the thing that matters: if someone edits
 the installer, these fail. A reimplementation in Python would only ever test itself.
@@ -30,7 +30,7 @@ import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-INSTALLER = ROOT / "install" / "install.ps1"
+INSTALLER = ROOT / "build" / "install" / "install.ps1"
 WINDOWS = os.name == "nt"
 
 # The block of pure helpers, lifted verbatim. Taking it by markers rather than by line
