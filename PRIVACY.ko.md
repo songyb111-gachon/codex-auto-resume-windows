@@ -503,4 +503,4 @@ Codex의 트래픽입니다. Codex에 다른 모델 제공자를 설정해 두�
 
 ## 문의
 
-이슈를 열어 주세요. 보안 신고 절차는 [SECURITY.md](docs/SECURITY.md)를 참고하세요.
+이슈를 열어 주세요. 보안 신고 절차는 [SECURITY.ko.md](docs/SECURITY.ko.md)를 참고하세요.

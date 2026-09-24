@@ -1457,8 +1457,10 @@ says what works in between.
   bundle; file-system paths, your Windows user name and anything shaped like an e-mail
   address are replaced. It sends nothing, and it refuses to overwrite an existing file. The
   exception is `errors.log`: it carries exception messages this product did not write, so
-  they are redacted the same way but not filtered, and the file says so at the top.
-  `auto_resume diagnostics` writes the same bundle from the command line.
+  they are redacted the same way but not filtered, and the file says so at the top. Once the
+  file is saved, the window says so too: "Diagnostics saved. Ids are aliases and paths are
+  removed; read the file before sharing it." `auto_resume diagnostics` writes the same
+  bundle from the command line.
 
 ### Codex can turn automation down on its own; turning it up asks you first
 
@@ -2307,7 +2309,8 @@ this project that no longer exists, and the install instructions contradicted th
   not to paste into a public issue.
 - **[CONTRIBUTING.md](docs/CONTRIBUTING.md)** — how to run the tests and build a release, the fixture
   conventions, and the safety properties a change has to keep.
-- **[README.ko.md](README.ko.md)** — a Korean README, linked from the English one.
+- **[README.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/ko/README.md)** — a Korean
+  README, linked from the English one.
 
 ### Repository hygiene
 
