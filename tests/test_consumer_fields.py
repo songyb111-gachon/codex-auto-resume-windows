@@ -43,6 +43,10 @@ import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "tests") not in sys.path:
+    sys.path.insert(0, str(ROOT / "tests"))
+
+import guiscan  # noqa: E402
 GOLDEN = ROOT / "tests" / "golden"
 GUI = ROOT / "gui"
 if str(ROOT / "src") not in sys.path:
@@ -69,7 +73,7 @@ def _under(shape, suffix):
     return [(source, path + suffix) for source, path in shape]
 
 
-RECEIVERS = {
+_RECEIVERS = {
     "gui/Dashboard.cs": {
         "reply": [("@", ""), REFUSAL],
         "result": [("@", "result")],
@@ -112,7 +116,7 @@ RECEIVERS = {
         # LayoutAudit's input: a dashboard reply, with the compatibility reply's view beside it.
         "snapshot": [("bridge:dashboard", ""), ("bridge:compatibility", "")],
     },
-    "gui/Controls.cs": {
+    "gui/SoftTheme.cs": {
         # Theme.Stored reads the settings file for the theme before the window has a bridge.
         "map": SETTINGS,
     },
@@ -130,34 +134,62 @@ RECEIVERS = {
 # Dictionaries the window indexes that hold no reply: its own pages, editors and sections, the
 # brand's motion table, a process's environment, the strings cache's entries, a reply copy it is
 # writing into.
-LOCAL = {
+_LOCAL = {
     "gui/Dashboard.cs": {"pages", "EnvironmentVariables", "map"},
     "gui/SettingsApp.cs": {"pages", "editors", "sections", "entry", "empty", "baseline"},
-    "gui/Controls.cs": {"MOTION"},
+    "gui/SoftTheme.cs": {"MOTION"},
 }
+
+# The window was two files until v0.6.10-alpha, when each became several. The three tables above
+# are keyed by file, and a read in `gui/DashboardPages.cs` is the read it was in
+# `gui/Dashboard.cs` - so each file is named as the half it came out of, and each table is
+# expanded over it. The distinction that matters is kept: the Dashboard and the Settings page
+# read different shapes. `UNCHECKED` and `KNOWN_DRIFT` below are keyed by the exact read
+# instead, so each of those names the file its read is in.
+HALVES = {
+    "gui/SettingsApp.cs": tuple(name for name in guiscan.group("settings")
+                                if name != "gui/SettingsApp.cs"),
+    "gui/Dashboard.cs": tuple(name for name in guiscan.group("dashboard")
+                              if name != "gui/Dashboard.cs"),
+}
+
+
+def _spread(table):
+    """One entry per file, from an entry per half."""
+    spread = dict(table)
+    for half, names in HALVES.items():
+        for name in names:
+            if half in table:
+                spread[name] = table[half]
+    return spread
+
+
+RECEIVERS = _spread(_RECEIVERS)
+LOCAL = _spread(_LOCAL)
 
 # Reads by a name computed from nothing literal, which no golden can check, each with its reason.
 UNCHECKED = {
-    ("gui/Dashboard.cs", "map", "key"): "the accessor helpers themselves (Number, Str, Items, Map)",
-    ("gui/Dashboard.cs", "capabilities", "name"): "each capability the report carries, in the "
+    ("gui/DashboardData.cs", "map", "key"): "the accessor helpers themselves (Number, Str, Items, Map)",
+    ("gui/DashboardCompat.cs", "capabilities", "name"): "each capability the report carries, in the "
                                                    "order the window lists them",
-    ("gui/Dashboard.cs", "gates", "name"): "each gate, in GateOrder, which "
+    ("gui/DashboardActions.cs", "gates", "name"): "each gate, in GateOrder, which "
                                             "tests/test_gui_decisions.py holds to machine.GATES",
-    ("gui/SettingsApp.cs", "current", "name"): "each field the schema names, read back by that name",
+    ("gui/SettingsPage.cs", "current", "name"): "each field the schema names, read back by that name",
 }
 
 # Dictionaries the window writes a request into, by setting name: a name written there is one the
 # bridge must store, or the whole Save is refused as an unknown setting.
-REQUESTS = {"gui/SettingsApp.cs": {"jsonValues"}}
+_REQUESTS = {"gui/SettingsApp.cs": {"jsonValues"}}
+REQUESTS = _spread(_REQUESTS)
 
 # Names a front end reads that no golden answer carries, each with what was decided about it:
 # (file, method or function, receiver, the keys and name read) -> the decision.
 KNOWN_DRIFT = {
-    ("gui/Dashboard.cs", "AfterUpdate", "reply", "result"):
+    ("gui/DashboardMaintenance.cs", "AfterUpdate", "reply", "result"):
         "status answers under `status`, never `result`; the next line falls back to `status`, so the "
         "read costs a lookup and nothing else. Kept: phase B changes no C#; the window's next change "
         "can drop it",
-    ("gui/Dashboard.cs", "UpdateCountdowns", "snapshot", "pending_error"):
+    ("gui/DashboardData.cs", "UpdateCountdowns", "snapshot", "pending_error"):
         "carried only when the dashboard's Pending part fails (dispatch writes `<part>_error` beside "
         "the parts that did not); no golden fails a part on purpose, and tests/test_control.py's "
         "test_a_dashboard_part_that_fails_costs_only_that_part pins that shape",
@@ -502,7 +534,12 @@ class ReadsAreFoundTests(unittest.TestCase):
     """The scanners find the reads this file is about, so the audit below is not an audit of nothing."""
 
     def test_the_window_reads_are_found(self):
-        found = {(read.file, read.receiver, ".".join(read.path + read.names)) for read in window_reads()}
+        # By the half rather than the file: each of the two became several in v0.6.10-alpha, and
+        # which of them a read ended up in is not what this is about.
+        half = {name: name for name in HALVES}
+        half.update({name: whole for whole, names in HALVES.items() for name in names})
+        found = {(half.get(read.file, read.file), read.receiver, ".".join(read.path + read.names))
+                 for read in window_reads()}
         for expected in (("gui/Dashboard.cs", "row", "interruption_id"),
                          ("gui/Dashboard.cs", "watcher", "last_tick_at"),
                          ("gui/Dashboard.cs", "reply", "result.answer"),
@@ -529,12 +566,12 @@ class ReadsAreFoundTests(unittest.TestCase):
 
     def test_a_read_is_narrowed_to_what_its_method_asks(self):
         read = next(read for read in window_reads()
-                    if read.file == "gui/Dashboard.cs" and read.receiver == "reply"
+                    if read.file in ("gui/Dashboard.cs",) + HALVES["gui/Dashboard.cs"] and read.receiver == "reply"
                     and read.path == ("result",) and read.names == ("state",))
         self.assertEqual(read.scope[1], ("stop-watcher",))
         # A helper handed a reply asks nothing itself, and is held to every reply.
         read = next(read for read in window_reads()
-                    if read.file == "gui/Dashboard.cs" and read.receiver == "reply"
+                    if read.file in ("gui/Dashboard.cs",) + HALVES["gui/Dashboard.cs"] and read.receiver == "reply"
                     and read.path == ("result",) and read.names == ("answer",))
         self.assertEqual(read.scope[1], ())
         # A script function is held to what the functions it calls ask too.
@@ -545,7 +582,8 @@ class ReadsAreFoundTests(unittest.TestCase):
 
     def test_a_request_the_window_builds_is_read_as_its_names(self):
         written = {read.names[0] for read in window_reads()
-                   if read.file == "gui/SettingsApp.cs" and read.receiver == "jsonValues"}
+                   if read.file in ("gui/SettingsApp.cs",) + HALVES["gui/SettingsApp.cs"]
+                   and read.receiver == "jsonValues"}
         self.assertIn("continuation_style", written)
 
 

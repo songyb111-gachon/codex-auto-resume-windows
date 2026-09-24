@@ -314,9 +314,9 @@ class WordSourceTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.dashboard = (GUI / "Dashboard.cs").read_text(encoding="utf-8")
-        cls.controls = (GUI / "Controls.cs").read_text(encoding="utf-8")
-        cls.window = (GUI / "SettingsApp.cs").read_text(encoding="utf-8")
+        cls.dashboard = guiscan.dashboard()
+        cls.controls = guiscan.controls()
+        cls.window = guiscan.settings()
 
     @staticmethod
     def method(source, signature):

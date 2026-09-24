@@ -19,7 +19,7 @@ from .win32 import (HCF_HIGHCONTRASTON,
 
 
 # ------------------------------------------------------------------------- High Contrast
-# With High Contrast on, the popup draws the way the settings window does (gui/Controls.cs,
+# With High Contrast on, the popup draws the way the settings window does (gui/SoftTheme.cs,
 # Palette): every token is the system colour below, and nothing is drawn that a system colour
 # cannot say - no shadow, no tint, no glow. The state dot takes brand's STATUS_SYSTEM.
 SYSTEM_COLOURS = {"Window": 5, "WindowFrame": 6, "WindowText": 8, "Highlight": 13, "HighlightText": 14,

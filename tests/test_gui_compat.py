@@ -39,8 +39,6 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 from codex_auto_resume import compat, control, controlcli, l10n              # noqa: E402
 
-DASHBOARD = ROOT / "gui" / "Dashboard.cs"
-SETTINGS = ROOT / "gui" / "SettingsApp.cs"
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
 POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
               / "WindowsPowerShell" / "v1.0" / "powershell.exe")
@@ -57,8 +55,8 @@ class RefreshRouteTests(unittest.TestCase):
     """Where the refresh can come from, and what it goes over."""
 
     def setUp(self):
-        self.dashboard = DASHBOARD.read_text(encoding="utf-8")
-        self.window = SETTINGS.read_text(encoding="utf-8")
+        self.dashboard = guiscan.dashboard()
+        self.window = guiscan.settings()
 
     def test_the_refresh_goes_over_the_one_shot_bridge_and_nothing_else_asks_for_it(self):
         both = self.dashboard + self.window
@@ -153,7 +151,7 @@ class WordsTests(unittest.TestCase):
     """Every word the card can show is in every language, from the registry's closed vocabularies."""
 
     def setUp(self):
-        self.dashboard = DASHBOARD.read_text(encoding="utf-8")
+        self.dashboard = guiscan.dashboard()
 
     def test_every_key_the_card_names_is_english(self):
         section = self.dashboard[self.dashboard.index("// ---------------------------------------------------------- compatibility"):

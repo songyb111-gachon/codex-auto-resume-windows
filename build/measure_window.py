@@ -84,7 +84,8 @@ def window_sources(tree) -> list:
                 ("SettingsApp.cs", "Dashboard.cs", "Controls.cs", "Brand.cs")]
     names = [line.split("#", 1)[0].strip()
              for line in manifest.read_text(encoding="utf-8").splitlines()]
-    return [name for name in names if name]
+    # The `[group]` markers are for the tests; the compiler is handed every source.
+    return [name for name in names if name and not name.startswith("[")]
 
 def measure(tree: Path) -> dict:
     sys.path.insert(0, str(tree / "src"))

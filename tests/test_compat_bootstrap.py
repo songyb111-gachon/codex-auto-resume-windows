@@ -20,6 +20,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import guiscan
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -254,7 +255,7 @@ class UpdateCheckTimeTests(unittest.TestCase):
         cls.given = {int(elapsed): seconds for elapsed, seconds in answer["given"].items()}
 
     def window_seconds(self):
-        text = (ROOT / "gui" / "Dashboard.cs").read_text(encoding="utf-8")
+        text = guiscan.dashboard()
         match = re.search(r"CheckMilliseconds\s*=\s*(\d+)\s*;", text)
         self.assertIsNotNone(match, "the window's wait for -CheckOnly is no longer where this looks")
         return int(match.group(1)) / 1000

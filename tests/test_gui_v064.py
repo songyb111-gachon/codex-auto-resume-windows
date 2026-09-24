@@ -868,7 +868,7 @@ class SourceRuleTests(unittest.TestCase):
     """Rules that hold for the source, so they fail without a compiler too."""
 
     def setUp(self):
-        self.controls = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
+        self.controls = guiscan.controls()
         self.code = "\n".join(line for line in self.controls.splitlines()
                               if not line.lstrip().startswith("//") and not line.lstrip().startswith("///"))
 

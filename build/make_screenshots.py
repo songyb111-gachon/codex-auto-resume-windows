@@ -2620,7 +2620,8 @@ def window_sources() -> list:
     """The window's compile list, read from `gui/window.sources`, in compile order."""
     names = [line.split("#", 1)[0].strip()
              for line in (ROOT / "gui" / "window.sources").read_text(encoding="utf-8").splitlines()]
-    return [name for name in names if name]
+    # The `[group]` markers divide the list for the tests; every source is compiled.
+    return [name for name in names if name and not name.startswith("[")]
 
 
 def window_digest() -> str:

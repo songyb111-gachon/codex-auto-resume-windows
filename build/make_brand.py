@@ -536,7 +536,7 @@ def dark_class() -> str:
 # ------------------------------------------------------------------ v0.6.5: the taskbar button
 # The window's big icon - the one Windows draws its taskbar button from - moves as the
 # notification-area icon does while the window is open. Brand.Mark is that icon's rule, numbers and
-# frames, and TaskbarMark in gui/Controls.cs shows them; tests/test_gui_v065_taskbar.py calls both
+# frames, and TaskbarMark in gui/Marks.cs shows them; tests/test_gui_v065_taskbar.py calls both
 # and holds them to tray.py's.
 #
 # The .ico's own entries the window's big icon is from 100% to 300%. The window makes it with new Icon(path), which
@@ -551,7 +551,7 @@ MARK_GROUND, MARK_HEAD, MARK_SAMPLES = 0, 1, 2
 
 
 def mark_frames(size: int) -> bytes:
-    """One size's frames as the window reads them (MarkFrames in gui/Controls.cs): tray.IconFrames' own.
+    """One size's frames as the window reads them (MarkFrames in gui/Marks.cs): tray.IconFrames' own.
 
     First the ground - the mark without its head, top-down BGRA with straight alpha - as runs of equal
     pixels: a count from 1 to 255, then blue, green, red and alpha. Then, for each head position in turn,

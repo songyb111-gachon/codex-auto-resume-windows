@@ -50,7 +50,7 @@ duration as well.
 | Surface | How it gets the palette |
 | --- | --- |
 | The Codex panel | `mcpui.py` builds its `:root` block at import from `brand.LIGHT` and `brand.DARK`, `brand.css_scale()` - which also writes the check box's colours for each of its states - and `brand.css_elevation()`, which writes the shadow recipes of both themes as CSS. |
-| The Dashboard | `build/make_brand.py` generates `gui/Brand.cs`: every light token as a `Color`, and in the nested class `Brand.Dark` the dark twin of everything that changes with the theme, under the same name; the scale, the layout sizes, the shadow recipes and the state light's numbers as constants; and the per-state rules of the state light, the shadows and the check box as small generated methods. `gui/Controls.cs` adopts one theme before its first control is made and reads the brand's colours through one `Tokens` class, the only place a light colour and its dark twin are read; its `Palette` class is also the one place High Contrast is honoured. The generated file is committed, so a contributor with no Python can still read what the window will look like. |
+| The Dashboard | `build/make_brand.py` generates `gui/Brand.cs`: every light token as a `Color`, and in the nested class `Brand.Dark` the dark twin of everything that changes with the theme, under the same name; the scale, the layout sizes, the shadow recipes and the state light's numbers as constants; and the per-state rules of the state light, the shadows and the check box as small generated methods. `gui/SoftTheme.cs` adopts one theme before the first control is made and reads the brand's colours through one `Tokens` class, the only place a light colour and its dark twin are read; its `Palette` class is also the one place High Contrast is honoured, and the other soft-control sources draw through both. The generated file is committed, so a contributor with no Python can still read what the window will look like. |
 | The notification-area popup | `tray_popup/` imports `brand` and draws with `brand.palette(theme)`, `brand.card_ground(theme)`, `brand.shadows(recipe, theme)`, the scale, `brand.glow()` and `brand.ease()` directly, in the theme it resolved when it opened. The notification card is the popup's card, drawn by the popup's own renderer. |
 | The icon | `assets/make_icon.py` imports the four icon colours and `brand.ICON_SHAPE`, and rasterises with `brand.icon_render()`; the notification-area icon's motion frames come from the same geometry and rasteriser inside the watcher (`tray.py`). |
 | The plugin card | `.codex-plugin/plugin.json` carries `brandColor`, checked against `brand.BRAND`. |
@@ -303,7 +303,7 @@ face is ours, a switch and a check box are drawn whole, and the scroll bar is ou
 what made a dark window honest, and why it arrived with them rather than before.
 
 High Contrast wins over any theme. In it the Dashboard drops its shadows and tints, stops its
-motion and draws with system colours throughout; `Palette` in `gui/Controls.cs` is where that swap
+motion and draws with system colours throughout; `Palette` in `gui/SoftTheme.cs` is where that swap
 happens. The popup makes the same swap, with the same mapping, and the panel has a forced-colors
 style, so its lights, switch knobs, check boxes and drop-down arrows stay visible. In all three the
 state light becomes a solid dot in a system colour, with no glow.
