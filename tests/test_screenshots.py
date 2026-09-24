@@ -55,7 +55,10 @@ _HERE = str(Path(__file__).resolve().parent)
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)        # srcscan lives next to this file
 
+import guiscan
 import srcscan  # noqa: E402
+from codex_auto_resume.domain import public as domain_public  # noqa: E402
+from codex_auto_resume.compat import files as compat_files, probes as compat_probes  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "assets" / "screenshots.json"
@@ -121,7 +124,7 @@ def real_modules(*names) -> dict:
         return {path.relative_to(package).as_posix(): path.read_text(encoding="utf-8")
                 for path in sorted(where.rglob("*.py"))}
 
-    files = listed(package / "tray_popup")
+    files = listed(package / "ui" / "popup")
     for name in names:
         files.update(listed(package / name) if (package / name).is_dir()
                      else {name: (package / name).read_text(encoding="utf-8")})
@@ -201,14 +204,21 @@ class ManifestTests(unittest.TestCase):
         """
         generator = self.generator()
         inputs = set(generator.WINDOW_INPUTS)
-        build = (ROOT / "build" / "make_gui.ps1").read_text(encoding="utf-8")
-        window = re.search(r"Build -Name 'CodexAutoResumeSettings\.exe'.*?-Sources @\(([^\n]*)", build, re.S)
-        compiled = {"gui/" + name for name in re.findall(r"gui\\([A-Za-z]+\.cs)", window.group(1))}
+        # `gui/window.sources`, not a regex over the build script. That regex read
+        # `gui\\([A-Za-z]+\.cs)` out of the `-Sources` line, and its character class holds no
+        # digit and no dot: a source named `Controls2.cs` or `Dashboard.Pages.cs` was missed
+        # silently, and this test then said the window's inputs were complete. Since
+        # v0.6.10-alpha the build reads the same file, so there is one answer to compare with.
+        compiled = set(guiscan.manifest())
         self.assertIn("gui/Dashboard.cs", compiled)
         self.assertIn("gui/SettingsApp.cs", compiled)
-        expected = compiled | {"gui/app.manifest", "assets/codex-auto-resume.ico",
-                               ".codex-plugin/plugin.json", "build/capture_window.ps1",
-                               "build/make_gui.ps1", "build/make_screenshots.py"}
+        # The sources are one input, `<window sources>`, whose value is every compiled file
+        # in compile order - so a file added to the window is an input without this list, or
+        # any other, being edited.
+        self.assertIn("<window sources>", inputs)
+        expected = {"<window sources>", "gui/app.manifest", "assets/codex-auto-resume.ico",
+                    ".codex-plugin/plugin.json", "build/capture_window.ps1",
+                    "build/make_gui.ps1", "build/make_screenshots.py"}
         self.assertEqual(sorted(expected - inputs), [],
                          "the window is compiled from these, so a change to one of them "
                          "must mark the screenshots stale")
@@ -219,9 +229,10 @@ class ManifestTests(unittest.TestCase):
             self.assertIn("<bridge envelope:%s>" % locale, self.manifest["inputs"])
 
         import codexsim
+        from codex_auto_resume.control import records as control_records
         from codex_auto_resume import (compatio, config, continuation, control, controlcli, l10n,
                                        machine, settings, startup, windows)
-        from codex_auto_resume.source import LocalSource
+        from codex_auto_resume.codex import LocalSource
         from codex_auto_resume.store import Store
 
         def changed(owner, name, change):
@@ -263,10 +274,16 @@ class ManifestTests(unittest.TestCase):
             "startup.py - the start-at-sign-in value":
                 several(lambda: patch.object(startup, "current_value", return_value="registered"),
                         lambda: patch.object(startup, "belongs_to", return_value=True)),
-            "control.py - what a row carries":
-                lambda: changed(control, "describe_record", lambda row: dict(row, budget_resets_left=0)),
-            "machine.py - which public status a row shows":
+            # `control/records.py`, not the front: `_described` calls `describe_record` from
+            # its own module, so a change made on the front would reach nothing.
+            "control/records.py - what a row carries":
+                lambda: changed(control_records, "describe_record",
+                                lambda row: dict(row, budget_resets_left=0)),
+            # describe calls public_code in domain/public.py, its own module; the counts
+            # still read it through the machine front. Both, so the change reaches every row.
+            "domain/public.py - which public status a row shows": several(
                 lambda: changed(machine, "public_code", lambda code: "failed_retryable"),
+                lambda: changed(domain_public, "public_code", lambda code: "failed_retryable")),
             "controlcli.py - the envelope the window unpacks":
                 lambda: changed(controlcli, "dispatch", lambda reply: dict(reply, extra=True)),
             "settings.py - the schema that decides which rows exist":
@@ -277,10 +294,14 @@ class ManifestTests(unittest.TestCase):
                 lambda: patch.object(codexsim.CodexHome, "add_thread",
                                      lambda sim, thread, *, name=None, **rest: real_add_thread(
                                          sim, thread, name=(name or "").upper(), **rest)),
-            "compatio.py - the local checks behind the Diagnostics card":
-                lambda: changed(compatio, "source_checks", lambda checks: dict(checks, queue_schema="FAIL")),
-            "tests/fixtures/codex_compat_frozen.json - the registry data the pictures are made with":
+            # compat/probes.py and compat/files.py since v0.6.10-alpha: the registry's parts
+            # call these through the module that defines them, and the pictures read
+            # load_bundled through the compatio front too - so both, for that one.
+            "compat/probes.py - the local checks behind the Diagnostics card":
+                lambda: changed(compat_probes, "source_checks", lambda checks: dict(checks, queue_schema="FAIL")),
+            "tests/fixtures/codex_compat_frozen.json - the registry data the pictures are made with": several(
                 lambda: patch.object(compatio, "load_bundled", return_value=(None, "missing")),
+                lambda: patch.object(compat_files, "load_bundled", return_value=(None, "missing"))),
         }
         if os.name == "nt":
             # Not acquired, so nothing holds it and the probe finds it free.
@@ -643,7 +664,7 @@ class ContentTests(unittest.TestCase):
         try:
             import make_screenshots
             from codex_auto_resume import settings as policy
-            from codex_auto_resume import tray_popup
+            from codex_auto_resume.ui import popup as tray_popup
         finally:
             sys.path.pop(0)
             sys.path.pop(0)
@@ -839,8 +860,8 @@ class EnvelopeTests(unittest.TestCase):
 
     def test_the_reads_are_the_ones_the_window_makes(self):
         """Only questions the window's own code asks, and each photographed page's."""
-        window = "".join((ROOT / "gui" / name).read_text(encoding="utf-8")
-                         for name in ("Dashboard.cs", "SettingsApp.cs"))
+        # Both halves, every file of each: the reads moved with the pages that make them.
+        window = guiscan.window()
         asked = set(re.findall(r'\b(?:Call|CallAsync|CallOnce|Send)\("([a-z-]+)"', window))
         commands = [line["command"] for line in self.lines]
         self.assertEqual(commands, ["strings", "describe", "settings", "status", "dashboard",
@@ -960,13 +981,15 @@ class PopupDrawingTests(unittest.TestCase):
                  for path in self.generator.popup_code_files(package)]
         tracked = sorted(srcscan.relative(path).split("/", 1)[1] for path in srcscan.package_files()
                          if re.fullmatch(r"codex_auto_resume/"
-                                         r"(tray_popup|brand|(tray_popup|ui/popup|ui/brand)/.+)\.py",
+                                         r"(brand|(brand|ui/popup|ui/brand)/.+)\.py",
                                          srcscan.relative(path)))
         self.assertEqual(found, tracked)
-        # Every file of the popup, not the one it used to be: since v0.6.10-alpha it is thirteen.
-        self.assertEqual(len([name for name in found if name.startswith("tray_popup/")]), 13)
-        self.assertIn("tray_popup/renderer.py", found)
-        self.assertIn("brand.py", found)
+        # Every file of each, not the one file each used to be: since v0.6.10-alpha the popup
+        # is thirteen and the palette is ten.
+        self.assertEqual(len([name for name in found if name.startswith("ui/popup/")]), 13)
+        self.assertEqual(len([name for name in found if name.startswith("brand/")]), 10)
+        self.assertIn("ui/popup/renderer.py", found)
+        self.assertIn("brand/tokens.py", found)
 
     def test_moving_definitions_between_modules_leaves_the_digest(self):
         before = self.digest({"tray_popup.py": self.POPUP, "brand.py": self.BRAND})
@@ -1021,26 +1044,30 @@ class PopupDrawingTests(unittest.TestCase):
     def test_moving_a_real_definition_of_the_palette_leaves_the_digest(self):
         """The same on the real modules: the palette's last function moved into `ui/brand/` and
         imported back leaves it; one real colour token changed does not."""
-        package = ROOT / "src" / "codex_auto_resume"
-        popup = real_modules()
-        brand = (package / "brand.py").read_text(encoding="utf-8")
-        before = self.digest(dict(popup, **{"brand.py": brand}))
-        tree = ast.parse(brand)
+        # Since v0.6.10-alpha the palette is a package; `tokens.py` is the file the colours
+        # themselves are in, and `colour.py` the arithmetic, so one of each is exercised here.
+        popup = real_modules("brand")
+        arithmetic, colours = "brand/colour.py", "brand/tokens.py"
+        before = self.digest(popup)
+        tree = ast.parse(popup[arithmetic])
         last = [node for node in tree.body if isinstance(node, ast.FunctionDef)][-1]
-        lines = brand.splitlines(keepends=True)
+        lines = popup[arithmetic].splitlines(keepends=True)
         start = min([last.lineno] + [decorator.lineno for decorator in last.decorator_list]) - 1
         cut = "".join(lines[start:last.end_lineno])
-        left = "".join(lines[:start] + lines[last.end_lineno:]) + "from .ui.brand.moved import %s\n" % last.name
-        moved = dict(popup, **{"brand.py": left,
+        left = "".join(lines[:start] + lines[last.end_lineno:]) + \
+            "from ..ui.brand.moved import %s\n" % last.name
+        moved = dict(popup, **{arithmetic: left,
                                "ui/brand/moved.py": "from ...brand import *  # noqa\n\n" + cut})
         self.assertEqual(self.digest(moved), before)
-        token = next(node for node in tree.body if isinstance(node, ast.Assign)
+        palette = ast.parse(popup[colours])
+        token = next(node for node in palette.body if isinstance(node, ast.Assign)
                      and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)
                      and re.fullmatch(r"#[0-9A-Fa-f]{6}", node.value.value))
-        lines[token.lineno - 1] = lines[token.lineno - 1].replace(token.value.value, "#123456", 1)
-        recoloured = "".join(lines)
-        self.assertNotEqual(recoloured, brand)
-        self.assertNotEqual(self.digest(dict(popup, **{"brand.py": recoloured})), before)
+        rows = popup[colours].splitlines(keepends=True)
+        rows[token.lineno - 1] = rows[token.lineno - 1].replace(token.value.value, "#123456", 1)
+        recoloured = "".join(rows)
+        self.assertNotEqual(recoloured, popup[colours])
+        self.assertNotEqual(self.digest(dict(popup, **{colours: recoloured})), before)
 
     TRAY = ('"""The icon."""\n'
             "import ctypes\n"
@@ -1127,7 +1154,7 @@ class PopupDrawingTests(unittest.TestCase):
         # rather than by name, and what it hands back is handles. Handles draw nothing; the
         # declarations above and the countdown below are what a picture depends on.
 
-        real = real_modules("brand.py", "tray", "ui/words.py", "win/dll.py")
+        real = real_modules("brand", "ui/tray", "ui/words.py", "win/dll.py")
         before = self.digest(real)
         for what, (name, old, new) in {
                 "the countdown the popup shows": ("ui/words.py", '"%ds" % secs', '"%d s" % secs'),
@@ -1138,9 +1165,9 @@ class PopupDrawingTests(unittest.TestCase):
             with self.subTest(what):
                 self.assertNotEqual(self.digest(changed), before, what + " did not move the digest")
         # And the icon's own tooltip is still not the popup's drawing.
-        changed = dict(real, **{"tray/words.py":
-                                real["tray/words.py"].replace('"tray.title"', '"tray.name"', 1)})
-        self.assertNotEqual(changed["tray/words.py"], real["tray/words.py"])
+        changed = dict(real, **{"ui/tray/words.py":
+                                real["ui/tray/words.py"].replace('"tray.title"', '"tray.name"', 1)})
+        self.assertNotEqual(changed["ui/tray/words.py"], real["ui/tray/words.py"])
         self.assertEqual(self.digest(changed), before, "the icon's own tooltip is not the popup's")
 
     def test_the_spelling_of_a_tree_does_not_depend_on_the_python(self):
@@ -1264,9 +1291,10 @@ class CardPictureTests(unittest.TestCase):
 
     def real(self):
         # v0.6.10-alpha: the countdown and the Win32 declarations the card's window is
-        # registered with moved into ui/ and win/, and the digest follows them.
-        return real_modules("notice_card.py", "notice_window.py", "brand.py",
-                            "tray", "ui/words.py", "win/dll.py")
+        # registered with moved into ui/ and win/, and the digest follows them; so does the
+        # card's window code, which notice_window.py became ui/card/ in the same release.
+        return real_modules("notice_card.py", "notice_window.py", "brand",
+                            "ui/tray", "ui/card", "ui/words.py", "win/dll.py")
 
     def test_the_patterns_cover_the_card_the_package_it_moves_into_and_the_popup_it_is_painted_by(self):
         with tempfile.TemporaryDirectory() as root:
@@ -1281,22 +1309,23 @@ class CardPictureTests(unittest.TestCase):
                                    "ui/card/win/layer.py", "ui/popup/layout.py"])
         today = [path.relative_to(ROOT / "src" / "codex_auto_resume").as_posix()
                  for path in self.generator.card_code_files()]
-        for name in ("notice_card.py", "notice_window.py", "tray_popup/renderer.py", "brand.py"):
+        for name in ("notice_card.py", "notice_window.py", "ui/popup/renderer.py",
+                     "brand/tokens.py"):
             self.assertIn(name, today)
 
     def test_a_change_to_what_draws_the_card_moves_the_digest(self):
         real = self.real()
         before = self.drawing(real)
         self.assertEqual(before, self.generator.card_drawing(),
-                         "the five modules are everything the card's digest reads today")
+                         "these are everything the card's digest reads today")
         for what, (name, old, new) in {
                 "the card's layout": ("notice_card.py", "button_h = px(32)", "button_h = px(34)"),
-                "the card's own light": ("notice_window.py", "brand.glow(self.vm[\"status\"], age, age,",
+                "the card's own light": ("ui/card/card.py", "brand.glow(self.vm[\"status\"], age, age,",
                                          "brand.glow(self.vm[\"status\"], age + 1, age,"),
                 "its floating shadow": ("notice_card.py", "DARK_ENOUGH = 0.05", "DARK_ENOUGH = 0.06"),
-                "the popup's renderer it is painted by": ("tray_popup/renderer.py", "class Renderer:",
+                "the popup's renderer it is painted by": ("ui/popup/renderer.py", "class Renderer:",
                                                           "class Renderer:\n    painted = True\n"),
-                "a colour token": ("brand.py", '"canvas":  "#E9EEF4"', '"canvas":  "#E9EEF5"')}.items():
+                "a colour token": ("brand/tokens.py", '"canvas":  "#E9EEF4"', '"canvas":  "#E9EEF5"')}.items():
             changed = dict(real)
             self.assertIn(old, changed[name], what)
             changed[name] = changed[name].replace(old, new, 1)
@@ -1406,7 +1435,8 @@ class IconMotionPictureTests(unittest.TestCase):
         """Two loops of watching from two breaths before a sweep, recovering's sweeps, attention's slow breath, a
         failure's quick sweeps and paused, as the icon's rules have them at each picture's moment - never breathing
         while it travels."""
-        from codex_auto_resume import brand, tray
+        from codex_auto_resume import brand
+        from codex_auto_resume.ui import tray
         g = self.generator
         start, end = g.icon_motion_stretch()
         top = tray.ICON_MOTION["levels"] - 1
@@ -1482,7 +1512,7 @@ class IconMotionPictureTests(unittest.TestCase):
         """The GIF starts again where its stretch ends: the same frame of every state, as watching's loop and a whole
         number of recovering's and a failure's turns have it - and attention, whose 5.6 s breath does not divide the
         stretch, within one level of 24 of the frame it began with."""
-        from codex_auto_resume import tray
+        from codex_auto_resume.ui import tray
         g = self.generator
         start, end = g.icon_motion_stretch()
         first = self.made["frames"][0][2]
@@ -1505,32 +1535,32 @@ class IconMotionPictureTests(unittest.TestCase):
             return self.generator.icon_drawing(root)
 
     def real(self):
-        return real_modules("tray", "brand.py", "notice_card.py")
+        return real_modules("ui/tray", "brand", "notice_card.py")
 
     def test_the_entry_moves_when_the_motion_or_the_mark_changes_and_not_otherwise(self):
-        from codex_auto_resume import tray
+        from codex_auto_resume.ui import tray
         real = self.real()
         before = self.drawing(real)
         self.assertEqual(before, self.generator.icon_drawing(), "the four modules hold everything the digest reads")
         turn_ms = '"turn_frame_ms": %d,' % tray.ICON_MOTION["turn_frame_ms"]
-        glow = re.search(r'"monitoring_ms": (\d+)', real["brand.py"])
+        glow = re.search(r'"monitoring_ms": (\d+)', real["brand/light.py"])
         moves = {
-            "the way it turns": ("tray/motion.py", 'ICON_SHAPE["arc_end"] - 360.0 * position', 'ICON_SHAPE["arc_end"] + 360.0 * position'),
-            "the breaths before a sweep": ("tray/motion.py", '"breaths": 3,', '"breaths": 4,'),
-            "the sweep's slot": ("tray/motion.py", '"sweep_breaths": 2,', '"sweep_breaths": 3,'),
-            "how much of the slot it travels": ("tray/motion.py", '"sweep_out": 0.4,', '"sweep_out": 0.45,'),
-            "the pause at the far end": ("tray/motion.py", '"sweep_hold": 0.025,', '"sweep_hold": 0.05,'),
-            "recovering's rest at home": ("tray/motion.py", '"recover_rest": 0.075,', '"recover_rest": 0.1,'),
-            "how far along the stroke it goes": ("brand.py", '"arc_start": 125.0, "arc_end": 55.0,',
+            "the way it turns": ("ui/tray/motion.py", 'ICON_SHAPE["arc_end"] - 360.0 * position', 'ICON_SHAPE["arc_end"] + 360.0 * position'),
+            "the breaths before a sweep": ("ui/tray/motion.py", '"breaths": 3,', '"breaths": 4,'),
+            "the sweep's slot": ("ui/tray/motion.py", '"sweep_breaths": 2,', '"sweep_breaths": 3,'),
+            "how much of the slot it travels": ("ui/tray/motion.py", '"sweep_out": 0.4,', '"sweep_out": 0.45,'),
+            "the pause at the far end": ("ui/tray/motion.py", '"sweep_hold": 0.025,', '"sweep_hold": 0.05,'),
+            "recovering's rest at home": ("ui/tray/motion.py", '"recover_rest": 0.075,', '"recover_rest": 0.1,'),
+            "how far along the stroke it goes": ("brand/mark.py", '"arc_start": 125.0, "arc_end": 55.0,',
                                                  '"arc_start": 130.0, "arc_end": 55.0,'),
-            "the frame rate while it travels": ("tray/motion.py", turn_ms, turn_ms.replace(",", "1,")),
-            "the breath's depth": ("tray/motion.py", '"dim": 0.6,', '"dim": 0.5,'),
-            "the breath's rhythm": ("brand.py", glow.group(0), '"monitoring_ms": %d' % (int(glow.group(1)) + 100)),
-            "the mark's accent": ("brand.py", 'ICON_ACCENT = "#4FE0F5"', 'ICON_ACCENT = "#4FE0F6"'),
-            "attention's rhythm": ("brand.py", '"attention_ms": 5600,', '"attention_ms": 6600,'),
-            "which states breathe in place": ("tray/motion.py", '"attention": "attention_ms"}', '"attention": "recovering_ms"}'),
-            "how quickly a failure sweeps": ("tray/motion.py", '"failed_slot": 0.5,', '"failed_slot": 0.6,'),
-            "what a failure blinks on": ("tray/motion.py", 'ICON_TRAVEL_BREATHS = {"failed": "failed_ms"}',
+            "the frame rate while it travels": ("ui/tray/motion.py", turn_ms, turn_ms.replace(",", "1,")),
+            "the breath's depth": ("ui/tray/motion.py", '"dim": 0.6,', '"dim": 0.5,'),
+            "the breath's rhythm": ("brand/light.py", glow.group(0), '"monitoring_ms": %d' % (int(glow.group(1)) + 100)),
+            "the mark's accent": ("brand/mark.py", 'ICON_ACCENT = "#4FE0F5"', 'ICON_ACCENT = "#4FE0F6"'),
+            "attention's rhythm": ("brand/light.py", '"attention_ms": 5600,', '"attention_ms": 6600,'),
+            "which states breathe in place": ("ui/tray/motion.py", '"attention": "attention_ms"}', '"attention": "recovering_ms"}'),
+            "how quickly a failure sweeps": ("ui/tray/motion.py", '"failed_slot": 0.5,', '"failed_slot": 0.6,'),
+            "what a failure blinks on": ("ui/tray/motion.py", 'ICON_TRAVEL_BREATHS = {"failed": "failed_ms"}',
                                          'ICON_TRAVEL_BREATHS = {"failed": "attention_ms"}'),
         }
         for what, (name, old, new) in moves.items():
@@ -1540,11 +1570,11 @@ class IconMotionPictureTests(unittest.TestCase):
             with self.subTest(what):
                 self.assertNotEqual(self.drawing(changed), before, what + " did not move the entry")
         stays = {
-            "the icon's menu": ("tray/menu.py", "MENU_OPEN, MENU_TOGGLE, MENU_STOP, MENU_PENDING = 1, 2, 3, 4",
+            "the icon's menu": ("ui/tray/menu.py", "MENU_OPEN, MENU_TOGGLE, MENU_STOP, MENU_PENDING = 1, 2, 3, 4",
                                 "MENU_OPEN, MENU_TOGGLE, MENU_STOP, MENU_PENDING = 1, 2, 3, 5"),
-            "the popup's renderer": ("tray_popup/renderer.py", "class Renderer:", "class Renderer:\n    painted = True\n"),
+            "the popup's renderer": ("ui/popup/renderer.py", "class Renderer:", "class Renderer:\n    painted = True\n"),
             "the notification card": ("notice_card.py", "DARK_ENOUGH = 0.05", "DARK_ENOUGH = 0.06"),
-            "a comment on the motion": ("tray/motion.py", "# The badge's own deep blue", "# The badge's deep blue"),
+            "a comment on the motion": ("ui/tray/motion.py", "# The badge's own deep blue", "# The badge's deep blue"),
         }
         for what, (name, old, new) in stays.items():
             changed = dict(real)
@@ -1554,20 +1584,20 @@ class IconMotionPictureTests(unittest.TestCase):
                 self.assertEqual(self.drawing(changed), before, what + " moved the entry")
 
     def test_moving_the_motion_into_a_module_of_its_own_leaves_the_entry(self):
-        """v0.6.10-alpha splits the package; the motion leaving tray.py for its own module, with the imports that follow it,
-        is the same GIF."""
+        """The move this was written for has happened - the motion left `tray.py` for
+        `ui/tray/motion.py` in v0.6.10-alpha, and this entry did not change - so it asks the
+        same question of the next move instead: the frame table leaving `motion.py` for a file
+        beside it, with the import that brings it back, is the same GIF."""
         real = self.real()
         before = self.drawing(real)
-        names = ("ICON_BREATHS", "ICON_SWEEPS", "ICON_TRAVEL_BREATHS", "ICON_MOTION", "ICON_SWEEP", "_breath_level", "icon_turn", "icon_frame",
-                 "icon_frame_ms", "IconFrames")
-        rest, moved = PopupDrawingTests.cut(real["tray/motion.py"], *names)
+        names = ("ICON_BREATHS", "ICON_SWEEPS", "ICON_TRAVEL_BREATHS", "ICON_MOTION", "ICON_SWEEP",
+                 "_breath_level", "icon_turn", "icon_frame", "icon_frame_ms", "IconFrames")
+        rest, moved = PopupDrawingTests.cut(real["ui/tray/motion.py"], *names)
         moved_files = dict(real, **{
-            "tray/motion.py": rest + "\nfrom ..ui.tray.motion import %s\n" % ", ".join(names),
-            "ui/__init__.py": "",
-            "ui/tray/__init__.py": '"""The notification-area icon."""\n',
-            "ui/tray/motion.py": ("from __future__ import annotations\nimport math\n"
-                                  "from ... import brand\nfrom ...tray import icon_brand_state\n\n"
-                                  + moved.replace("from . import tray_popup", "from ... import tray_popup")),
+            "ui/tray/motion.py": rest + "\nfrom .frames import %s\n" % ", ".join(names),
+            "ui/tray/frames.py": ("from __future__ import annotations\nimport math\n"
+                                  "from ... import brand\nfrom .motion import icon_brand_state\n\n"
+                                  + moved),
         })
         self.assertEqual(self.drawing(moved_files), before)
 

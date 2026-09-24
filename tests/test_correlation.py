@@ -25,7 +25,7 @@ import unittest
 
 from codex_auto_resume import machine
 from codex_auto_resume.engine import Engine
-from codex_auto_resume.source import LocalSource
+from codex_auto_resume.codex import LocalSource
 from codex_auto_resume.store import Store
 
 try:

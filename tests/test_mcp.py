@@ -22,7 +22,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from codex_auto_resume import config, control, mcpserver, mcpui, settings
+from codex_auto_resume import config, control, mcpserver, settings
+from codex_auto_resume.mcp import panel as mcpui
 from codex_auto_resume.store import Store
 
 THREAD = "0a1b2c3d-0001-7000-8000-000000000001"

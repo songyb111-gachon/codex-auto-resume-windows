@@ -128,7 +128,7 @@ Codex 안의 패널입니다. Codex 창을 찍은 사진이 아니라, 플러그
 보내는 것도 없습니다. 사용량 확인과 재개된 턴은 Codex를 통해 OpenAI로 가고, Codex에서 설치하면 GitHub에서
 릴리스를 내려받습니다. 무엇을 읽고 저장하고 보내는지는
 [PRIVACY.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/PRIVACY.ko.md)에, 위협 모델과 취약점 신고 방법은
-[SECURITY.ko.md](SECURITY.ko.md)에 있습니다.
+[SECURITY.ko.md](docs/SECURITY.ko.md)에 있습니다.
 
 ## 요구 사항
 
@@ -151,7 +151,7 @@ Codex 안의 패널입니다. Codex 창을 찍은 사진이 아니라, 플러그
 - 플러그인 계층, 설치 스크립트가 가져오고 확인하는 것: [docs/PLUGIN.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/PLUGIN.ko.md)
 - 같은 영역의 다른 프로젝트들과의 비교: [docs/COMPARISON.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/COMPARISON.ko.md)
 - 앞으로의 방향(약속이 아니라 계획): [docs/ROADMAP.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/ROADMAP.ko.md)
-- 보안 모델과 취약점 신고: [SECURITY.ko.md](SECURITY.ko.md)
+- 보안 모델과 취약점 신고: [SECURITY.ko.md](docs/SECURITY.ko.md)
 - 변경 이력: [CHANGELOG.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/CHANGELOG.ko.md)
 - 기여자: [CONTRIBUTORS.ko.md](CONTRIBUTORS.ko.md)
 - 내 PC에서 이 제품이 어떻게 동작했는지 보고하기(별도 도구):

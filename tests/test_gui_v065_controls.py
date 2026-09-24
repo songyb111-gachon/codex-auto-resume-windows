@@ -24,6 +24,7 @@ import re
 import subprocess
 import tempfile
 import unittest
+import guiscan
 
 from codex_auto_resume import brand
 
@@ -800,8 +801,7 @@ class ControlsTests(unittest.TestCase):
         subprocess.run([str(CSC), "/nologo", "/target:winexe", "/platform:x64", "/out:" + str(exe),
                         "/reference:System.dll", "/reference:System.Drawing.dll",
                         "/reference:System.Windows.Forms.dll",
-                        *[str(ROOT / "gui" / name)
-                          for name in ("SettingsApp.cs", "Dashboard.cs", "Controls.cs", "Brand.cs")]],
+                        *[str(path) for path in guiscan.sources()]],
                        check=True, capture_output=True, timeout=300)
         probe = work / "controls.ps1"
         probe.write_text(PROBE, encoding="utf-8")
@@ -1184,7 +1184,7 @@ class SourceRuleTests(unittest.TestCase):
     """Rules that hold for the source, so they fail without a compiler too."""
 
     def setUp(self):
-        self.controls = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
+        self.controls = guiscan.controls()
 
     def block(self, signature, end="\n        }\n"):
         start = self.controls.index(signature)
@@ -1224,7 +1224,7 @@ class SourceRuleTests(unittest.TestCase):
 
     def test_no_guid_shaped_text_but_made_up_ones_even_before_it_is_tracked(self):
         """tests/test_repo_hygiene.py holds every tracked file to made-up GUIDs, and a new file only once it is committed:
-        the IID of IAccessible, written as a string in Controls.cs and in this file's probe, turned the whole suite red.
+        the IID of IAccessible, written as a string in the window's controls and in this file's probe, turned the whole suite red.
         Windows' constants are built from their fields instead. Checked here for every window source and every window
         test, tracked or not."""
         import test_repo_hygiene as hygiene

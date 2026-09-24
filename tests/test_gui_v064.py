@@ -15,6 +15,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import guiscan
 
 from codex_auto_resume import brand
 
@@ -214,8 +215,7 @@ class MaterialTests(unittest.TestCase):
         subprocess.run([str(CSC), "/nologo", "/target:winexe", "/platform:x64", "/out:" + str(exe),
                         "/reference:System.dll", "/reference:System.Drawing.dll",
                         "/reference:System.Windows.Forms.dll",
-                        *[str(ROOT / "gui" / name)
-                          for name in ("SettingsApp.cs", "Dashboard.cs", "Controls.cs", "Brand.cs")]],
+                        *[str(path) for path in guiscan.sources()]],
                        check=True, capture_output=True, timeout=300)
         probe = work / "probe.ps1"
         probe.write_text(PROBE, encoding="utf-8")
@@ -428,8 +428,7 @@ def compile_window(work: Path) -> Path:
     subprocess.run([str(CSC), "/nologo", "/target:winexe", "/platform:x64", "/out:" + str(exe),
                     "/reference:System.dll", "/reference:System.Drawing.dll",
                     "/reference:System.Windows.Forms.dll",
-                    *[str(ROOT / "gui" / name)
-                      for name in ("SettingsApp.cs", "Dashboard.cs", "Controls.cs", "Brand.cs")]],
+                    *[str(path) for path in guiscan.sources()]],
                    check=True, capture_output=True, timeout=300)
     return exe
 
@@ -869,7 +868,7 @@ class SourceRuleTests(unittest.TestCase):
     """Rules that hold for the source, so they fail without a compiler too."""
 
     def setUp(self):
-        self.controls = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
+        self.controls = guiscan.controls()
         self.code = "\n".join(line for line in self.controls.splitlines()
                               if not line.lstrip().startswith("//") and not line.lstrip().startswith("///"))
 
@@ -904,17 +903,21 @@ class SourceRuleTests(unittest.TestCase):
         self.assertIn("Brand.StatusSystem(", halo)
 
     def test_every_ground_and_lifted_control_paints_behind_its_corners(self):
-        for name in ("SoftCard", "SoftButton", "SoftCombo", "SoftNumber", "ChoiceCard", "SoftTextArea", "SoftQuote"):
-            start = self.controls.index("internal sealed class %s " % name)
-            end = self.controls.find("\n    internal ", start + 10)
-            end = self.controls.find("\n    /// ", start + 10) if end < 0 else min(end, self.controls.find("\n    /// ", start + 10))
+        """By braces, not by the next declaration.
+
+        This used to end each class at whichever came first of the next `internal ` and the
+        next `/// ` - and where neither followed, `find` returned -1 and the slice became
+        empty, so `assertIn` was asked about nothing and the class went unchecked while the
+        test passed. `guiscan.type_body` raises where the type is not there instead.
+        """
+        for name in ("SoftCard", "SoftButton", "SoftCombo", "SoftNumber", "ChoiceCard",
+                     "SoftTextArea", "SoftQuote"):
             with self.subTest(name):
-                self.assertIn("Ground.PaintBehind(this", self.controls[start:end])
+                self.assertIn("Ground.PaintBehind(this", guiscan.type_body(name))
 
     def test_the_grounds_are_buffered_and_opaque(self):
         for name in ("SoftStack", "SoftRows", "SoftPage", "SoftFlow", "SoftCard", "ChoiceGroup"):
-            start = self.controls.index("internal sealed class %s " % name)
-            body = self.controls[start:self.controls.index("\n    }\n", start)]
+            body = guiscan.type_body(name)
             with self.subTest(name):
                 self.assertIn("ISoftGround", body.splitlines()[0])
                 self.assertIn("ControlStyles.OptimizedDoubleBuffer", body)

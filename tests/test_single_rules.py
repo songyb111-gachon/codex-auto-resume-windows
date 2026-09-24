@@ -40,9 +40,20 @@ import srcscan  # noqa: E402
 from test_control_v3 import detection, legacy_store_module  # noqa: E402
 from test_store import QUEUE, _StoreCase  # noqa: E402
 
-from codex_auto_resume import (cli, compat, config, continuation, control, controlcli,  # noqa: E402
-                               mcpserver, notify, reasons, settings, source, store as store_module,
-                               tray, windows)
+from codex_auto_resume import (cli,
+                               compat,
+                               config,
+                               continuation,
+                               control,
+                               controlcli,
+                               codex,
+                               mcpserver,
+                               notify,
+                               reasons,
+                               settings,
+                               store as store_module,
+                               windows)
+from codex_auto_resume.ui import tray
 from codex_auto_resume.app import App  # noqa: E402
 from codex_auto_resume.engine import Engine  # noqa: E402
 from codex_auto_resume.mcp import server as mcp_server  # noqa: E402
@@ -500,7 +511,7 @@ class EpochTests(unittest.TestCase):
                           4102444801, 253402300799, Stamp(1700000000)])
 
     def test_codex_history_accepts_2000_to_2100(self):
-        self.assertEqual(accepted_by(source.epoch),
+        self.assertEqual(accepted_by(codex.epoch),
                          [946684800, 1700000000, 1.7e9, 1700000000.5, 4102444800])
 
     def test_the_app_servers_usage_windows_accept_whole_seconds_to_2100(self):
@@ -521,7 +532,7 @@ class EpochTests(unittest.TestCase):
         """Also drift, and kept: the callers that ask math.isfinite raise its OverflowError
         for a whole number past float range, where the App Server's reading only says no."""
         huge = 2 ** 1100
-        for check in (lambda: store_module._timestamp(huge, "at"), lambda: source.epoch(huge),
+        for check in (lambda: store_module._timestamp(huge, "at"), lambda: codex.epoch(huge),
                       lambda: compat._epoch_or_none(huge)):
             with self.assertRaises(OverflowError):
                 check()
@@ -616,7 +627,7 @@ RULES = {
     "which wait a record goes back to": (
         lambda node: isinstance(node, ast.IfExp) and constant(node.body, "waiting_reset")
         and constant(node.orelse, "waiting_poll") and compares(node.test, ast.Gt),
-        {"machine.py": "waiting_state"}),
+        {"domain/states.py": "waiting_state"}),
     "what a claim costs": (
         lambda node: isinstance(node, ast.IfExp) and constant(node.body, 0) and constant(node.orelse, 1)
         and any(calls("is_usage")(child) for child in ast.walk(node.test)),
@@ -627,7 +638,7 @@ RULES = {
         {}),
     "whether a record may be in Codex's queue": (
         may_be_queued_shape,
-        {"machine.py": "may_be_queued"}),
+        {"domain/states.py": "may_be_queued"}),
     "the states the watch follows, written out": (
         lambda node: listed(node) == set(WATCHED),
         {}),
@@ -637,8 +648,9 @@ RULES = {
     "upgrading the state": (
         lambda node: calls("Store")(node) and any(keyword.arg == "migrate" and constant(keyword.value, True)
                                                    for keyword in node.keywords),
-        # The watcher's own opening holds the mutex already and upgrades at start.
-        {"openstate.py": "open_state", "app.py": "App._open_for_watcher"}),
+        # The watcher's own opening holds the mutex already and upgrades at start. Its loop
+        # is runtime/loop.py since v0.6.10-alpha, mixed into App.
+        {"openstate.py": "open_state", "runtime/loop.py": "WatchLoop._open_for_watcher"}),
     "which settings are the user's own words": (
         lambda node: calls("startswith")(node) and bool(node.args) and isinstance(node.args[0], ast.Constant)
         and str(node.args[0].value).startswith("custom_message"),
@@ -658,7 +670,7 @@ RULES = {
         {"domain/vocabulary.py": "Page"}),
     "a plausible time's bounds": (
         lambda node: constant(node, 253402300799, 946684800, 4102444800),
-        {"machine.py": ""}),
+        {"domain/states.py": ""}),
     # Step 3: every identifier is read in domain/ids.py.
     "parsing a UUID": (
         calls("UUID"),
@@ -671,7 +683,7 @@ RULES = {
         # The registry's evidence digest (compat.HEX64_RE) is spelled alike and is another kind
         # of thing: the SHA-256 of a document the registry cites, never a record's id.
         spells("0123456789abcdef", "[0-9a-f]{64}", "[0-9a-fA-F]{64}"),
-        {"domain/ids.py": "", "compat.py": ""}),
+        {"domain/ids.py": "", "compat/model.py": ""}),
     "an interruption's identity": (
         lambda node: calls("hex")(node) and isinstance(node.func.value, ast.Call)
         and getattr(node.func.value.func, "id", None) == "float",

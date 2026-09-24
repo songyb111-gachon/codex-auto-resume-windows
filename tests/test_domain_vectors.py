@@ -47,7 +47,7 @@ if _HERE not in sys.path:
 from test_store import failure, raw, raw_row  # noqa: E402
 
 from codex_auto_resume import (cli, control, diagnostics, logbook, machine, mcpserver,  # noqa: E402
-                               notify, settings, source, store as store_module, windows)
+                               codex, notify, settings, store as store_module, windows)
 from codex_auto_resume.control import ControlError  # noqa: E402
 from codex_auto_resume.domain import ids  # noqa: E402
 from codex_auto_resume.store import Store, StoreError  # noqa: E402
@@ -83,17 +83,17 @@ VECTORS = {
 
 
 def detected(completed, ordinal) -> str:
-    """The id `source.detect` gives the failure. Codex's history only holds times from 2000 to
+    """The id `codex.detect` gives the failure. Codex's history only holds times from 2000 to
     2100, so for the vectors outside that window the window is opened: the id has none."""
     row = {"thread_id": THREAD, "turn_id": TURN, "status": "failed", "started_at": completed - 1,
            "completed_at": completed, "ordinal": ordinal, "category": "usage_limit"}
     low, high = machine.EPOCH_CODEX
     if low <= completed <= high:
-        return source.detect(row)["interruption_id"]
+        return codex.detect(row)["interruption_id"]
     # Patched where it is used, not where it is re-exported: `normalize` reads the time, and
-    # since v0.6.10-alpha it lives in `source/values.py` and holds its own reference to `epoch`.
-    with patch.object(source.values, "epoch", return_value=True):
-        return source.detect(row)["interruption_id"]
+    # since v0.6.10-alpha it lives in `codex/values.py` and holds its own reference to `epoch`.
+    with patch.object(codex.values, "epoch", return_value=True):
+        return codex.detect(row)["interruption_id"]
 
 
 def reference(thread_id, turn_id, completed, ordinal) -> str:
@@ -143,8 +143,8 @@ class MarkerTests(unittest.TestCase):
                      "[codex-auto-resume:%s]" % KEY[:-1], "[codex-auto-resume:rec-0001]",
                      "[codex-auto-resume: %s]" % KEY, "codex-auto-resume:%s" % KEY, None):
             try:
-                source.LocalSource._identity(THREAD, text)
-            except source.SourceError:
+                codex.LocalSource._identity(THREAD, text)
+            except codex.SourceError:
                 continue
             accepted.append(text)
         self.assertEqual(accepted, ["[codex-auto-resume:%s]" % KEY])
@@ -309,7 +309,7 @@ def answer(call):
 def normalized(value) -> bool:
     row = {"thread_id": value, "turn_id": TURN, "status": "failed", "started_at": 1e9,
            "completed_at": 1e9 + 1, "ordinal": 1, "category": "usage_limit"}
-    return source.normalize(row) is not None
+    return codex.normalize(row) is not None
 
 
 class ThreadIdTests(unittest.TestCase):
@@ -449,9 +449,9 @@ class InterruptionIdAcceptanceTests(unittest.TestCase):
         for name, value in KEYS.items():
             if isinstance(value, str):
                 with self.subTest(name):
-                    self.assertEqual(answer(lambda: source.LocalSource._identity(THREAD, "[codex-auto-resume:%s]" % value)),
+                    self.assertEqual(answer(lambda: codex.LocalSource._identity(THREAD, "[codex-auto-resume:%s]" % value)),
                                      ("ok", None) if name == "exact"
-                                     else (source.SourceError, "Invalid delivery identity", None))
+                                     else (codex.SourceError, "Invalid delivery identity", None))
 
     def test_the_store_keeps_any_key_it_has_ever_kept(self):
         for field in ("interruption_id", "parent_interruption_id", "chain_origin_id"):

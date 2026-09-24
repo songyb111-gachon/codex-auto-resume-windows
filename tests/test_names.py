@@ -90,7 +90,7 @@ def unresolved(tree: ast.AST) -> list:
 class ImportTests(unittest.TestCase):
     """The other half of the same problem: a name that is imported, from nowhere.
 
-    `from .mcpui import settings_page` meant `codex_auto_resume.mcpui` while the code sat in
+    `from .mcpui import settings_page` meant `codex_auto_resume.mcp.panel` while the code sat in
     `codex_auto_resume/`, and `codex_auto_resume.mcp.mcpui` the moment it moved one level
     down - a module that does not exist. It was inside a method, under a handler that turns
     any exception into one JSON-RPC error, so the panel simply stopped opening. Every step
@@ -140,7 +140,7 @@ class ImportTests(unittest.TestCase):
                 if entry.lazy and entry.internal]
         self.assertTrue(lazy)
         server = srcscan.modules()["codex_auto_resume.mcp.server"]
-        self.assertIn("codex_auto_resume.mcpui",
+        self.assertIn("codex_auto_resume.mcp.panel",
                       {entry.target for entry in srcscan.imports(server) if entry.lazy})
 
 
@@ -155,7 +155,7 @@ class NameTests(unittest.TestCase):
     def test_the_scan_reads_the_whole_package(self):
         """Through srcscan, so a module in a subpackage is read like any other."""
         read = {srcscan.relative(path) for path in srcscan.package_asts()}
-        self.assertIn("codex_auto_resume/tray_popup/renderer.py", read)
+        self.assertIn("codex_auto_resume/ui/popup/renderer.py", read)
         self.assertIn("codex_auto_resume/engine/dispatch.py", read)
         self.assertGreater(len(read), 60)
 

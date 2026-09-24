@@ -33,7 +33,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from codex_auto_resume import brand, interface, l10n, mcpserver, mcpui, reasons   # noqa: E402
+from codex_auto_resume import brand, interface, l10n, mcpserver, reasons   # noqa: E402
+from codex_auto_resume.mcp import panel as mcpui
 from codex_auto_resume import settings as policy                                   # noqa: E402
 from test_mcpui_v063 import (FORCED, RULES, ROOT_TOKENS, declared, javascript_function,  # noqa: E402
                              painted, run_javascript)

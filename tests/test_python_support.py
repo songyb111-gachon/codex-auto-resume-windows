@@ -164,16 +164,16 @@ class BundledRuntimeTests(unittest.TestCase):
 class DocumentedMinimumTests(unittest.TestCase):
     def test_the_documents_state_the_minimum_the_policy_names(self):
         minimum = POLICY["minimum"]
-        for name in ("README.md", "CONTRIBUTING.md"):
+        for name in ("README.md", "docs/CONTRIBUTING.md"):
             with self.subTest(name):
                 self.assertIn("Python %s" % minimum,
                               (ROOT / name).read_text(encoding="utf-8"))
 
     def test_no_document_promises_an_older_interpreter(self):
         older = ["3.%d" % minor for minor in range(7, int(POLICY["minimum"].split(".")[1]))]
-        names = ["README.md", "CONTRIBUTING.md"]
+        names = ["README.md", "docs/CONTRIBUTING.md"]
         if not generated_ko_branch():
-            names += ["README.ko.md", "CONTRIBUTING.ko.md"]
+            names += ["README.ko.md", "docs/CONTRIBUTING.ko.md"]
         for name in names:
             text = (ROOT / name).read_text(encoding="utf-8")
             for version in older:

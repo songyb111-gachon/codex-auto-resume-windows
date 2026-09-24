@@ -573,7 +573,7 @@ namespace CodexAutoResume
         }
 
         /// The notification-area icon's motion on the window's taskbar button (v0.6.5), from
-        /// codex_auto_resume.tray: the icon's five states and the one each status light is drawn as, its
+        /// codex_auto_resume.ui.tray: the icon's five states and the one each status light is drawn as, its
         /// rhythms, and its frames at each .ico entry the window's big icon is up to 300%. TaskbarMark
         /// shows them.
         internal static class Mark

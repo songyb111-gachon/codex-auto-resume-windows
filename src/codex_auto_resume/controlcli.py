@@ -50,6 +50,10 @@ from pathlib import Path
 import sys
 
 from . import config, l10n
+# Read at the top since v0.6.10-alpha: `windows` is the front of the Codex adapter now, and
+# the adapter and this reader are one package, so this module was loaded here either way. It
+# was deferred when the two were apart and it was a cost.
+from .codex import LocalSource
 from .control import FALLBACK_CODE, Control, ControlError
 from .windows import WakeEvent
 
@@ -235,7 +239,6 @@ def _labels():
     addressed by what is shown here.
     """
     try:
-        from .source import LocalSource
         return LocalSource(config.codex_home())
     except Exception:
         return None

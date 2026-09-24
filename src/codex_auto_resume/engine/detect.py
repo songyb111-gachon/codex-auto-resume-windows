@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from .. import failures, machine
 from ..machine import OBSERVING, TERMINAL, WAITING, WATCHED
-from ..source import detect
+from ..codex import detect
 
 
 class DetectMixin:

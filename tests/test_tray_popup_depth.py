@@ -17,7 +17,8 @@ import os
 import time
 import unittest
 
-from codex_auto_resume import brand, interface, l10n, tray_popup as popup
+from codex_auto_resume import brand, interface, l10n
+from codex_auto_resume.ui import popup
 from test_tray_popup import EN, NOW, STATUS, measure, row
 
 ROWS = [row("a", "waiting_reset", "usage_limit", eligible=NOW + 3600, reset=NOW + 3600, name="Add translations"),

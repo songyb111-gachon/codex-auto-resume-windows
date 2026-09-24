@@ -24,7 +24,10 @@ if _HERE not in sys.path:
 from codexsim import CodexHome  # noqa: E402
 from test_compat_characterization import (HELP_CHANGED, T1, FakeCodex, Fixture)  # noqa: E402
 from codex_auto_resume import compat, compatio, config, machine, windows  # noqa: E402
-from codex_auto_resume.source import LocalSource  # noqa: E402
+from codex_auto_resume.codex import LocalSource  # noqa: E402
+# Where the registry's parts call the local checks since v0.6.10-alpha; a patch on the
+# compatio front would reach none of them.
+from codex_auto_resume.compat import probes as compat_probes  # noqa: E402
 from codex_auto_resume.store import Store  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -137,7 +140,7 @@ class ImportTests(Scratch):
     def test_a_crash_mid_write_leaves_the_old_file_and_no_temporary(self):
         compatio.import_document(self.paths, self.write_document(registry_document(BASE + 4)), now=self.now)
         before = self.paths.compat_cache_file.read_bytes()
-        with patch.object(compatio.os, "replace", side_effect=OSError("power cut")):
+        with patch.object(os, "replace", side_effect=OSError("power cut")):
             result = compatio.import_document(self.paths, self.write_document(registry_document(BASE + 5)),
                                               now=self.now)
         self.assertEqual(result["reason"], "write_failed")
@@ -366,7 +369,8 @@ class EvaluatorTests(unittest.TestCase):
         evaluator = fixture.app._compat
         calls = []
         real = compatio.source_checks
-        with patch.object(compatio, "source_checks", side_effect=lambda s: calls.append(1) or real(s)):
+        with patch.object(compat_probes, "source_checks",
+                          side_effect=lambda s: calls.append(1) or real(s)):
             fixture.settle()
             fixture.settle()
             self.assertEqual(calls, [], "nothing changed, nothing re-read")
@@ -416,7 +420,7 @@ class TimeTests(Scratch):
         super().setUp()
         self.exe = self.root / "codex.exe"
         self.exe.write_bytes(b"MZ")
-        guard = patch.object(compatio, "api_checks", return_value={})
+        guard = patch.object(compat_probes, "api_checks", return_value={})
         guard.start()
         self.addCleanup(guard.stop)
 

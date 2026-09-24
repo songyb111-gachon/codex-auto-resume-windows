@@ -60,7 +60,7 @@ def documentation_gaps(texts) -> list:
 
     Shape-based, like tests/test_privacy_claims.py: names and nearby qualifiers rather than
     exact sentences, so a rewrite that is still true passes and one that is not fails."""
-    privacy, security = texts.get("PRIVACY.md", ""), texts.get("SECURITY.md", "")
+    privacy, security = texts.get("PRIVACY.md", ""), texts.get("docs/SECURITY.md", "")
     gaps = []
     if REFRESH_HOST not in privacy:
         gaps.append("PRIVACY.md does not name %s" % REFRESH_HOST)
@@ -78,7 +78,7 @@ def documentation_gaps(texts) -> list:
         gaps.append("PRIVACY.md describes Check for updates without the refresh it now makes")
     if not re.search(r"(?i)compatibility (?:data )?refresh", security):
         gaps.append("SECURITY.md does not name the compatibility refresh")
-    for name in ("PRIVACY.ko.md", "SECURITY.ko.md"):
+    for name in ("PRIVACY.ko.md", "docs/SECURITY.ko.md"):
         if REFRESH_HOST not in texts.get(name, ""):
             gaps.append("%s does not name %s" % (name, REFRESH_HOST))
     gaps.extend(status_disclosure_gaps(texts))
@@ -359,10 +359,18 @@ class McpTests(unittest.TestCase):
                                    ("compat-refresh", {package % "controlcli",
                                                        "codex_auto_resume/mcp/assets/panel.css",
                                                        "codex_auto_resume/mcp/assets/panel.js"}),
-                                   ("run_refresh", {package % "compatio", package % "controlcli"}),
-                                   ("import_document", {package % "cli", package % "compatio",
-                                                        package % "controlcli"}),
-                                   ("bootstrap.ps1", {package % "compatio", package % "controlcli"})):
+                                   # compat/ holds the registry's io half since v0.6.10-alpha:
+                                   # the refresh in evaluator.py, the one writer in cache.py, the
+                                   # bootstrap's answers in files.py. compatio.py is their front.
+                                   ("run_refresh", {package % "compatio", package % "controlcli",
+                                                    "codex_auto_resume/compat/evaluator.py"}),
+                                   ("import_document", {"codex_auto_resume/commands/status.py", package % "compatio",
+                                                        package % "controlcli",
+                                                        "codex_auto_resume/compat/cache.py",
+                                                        "codex_auto_resume/compat/evaluator.py"}),
+                                   ("bootstrap.ps1", {package % "compatio", package % "controlcli",
+                                                      "codex_auto_resume/compat/evaluator.py",
+                                                      "codex_auto_resume/compat/files.py"})):
             with self.subTest(forbidden):
                 self.assertEqual(srcscan.holders(forbidden), holders)
 
@@ -453,8 +461,8 @@ class PrivacyTests(unittest.TestCase):
     def test_the_gap_rule_knows_a_documented_refresh_from_an_undocumented_one(self):
         undocumented = {"PRIVACY.md": "Pressing *Check for updates* makes one HTTPS request. "
                                       "It is a HEAD request, so no page is read.",
-                        "SECURITY.md": "No update check runs unless you press the button.",
-                        "PRIVACY.ko.md": "", "SECURITY.ko.md": ""}
+                        "docs/SECURITY.md": "No update check runs unless you press the button.",
+                        "PRIVACY.ko.md": "", "docs/SECURITY.ko.md": ""}
         self.assertEqual(len(documentation_gaps(undocumented)), 9)
         documented = {
             "PRIVACY.md": "Pressing *Check for updates* asks github.com, and then fetches the Codex "
@@ -463,11 +471,11 @@ class PrivacyTests(unittest.TestCase):
                           "writes config/compatibility.json.\n\n"
                           "- from `get_status`: the version and, as codes only, the Codex "
                           "compatibility summary;\n",
-            "SECURITY.md": "No update check and no compatibility refresh runs unless you press "
+            "docs/SECURITY.md": "No update check and no compatibility refresh runs unless you press "
                            "the button; the data comes from raw.githubusercontent.com.",
             "PRIVACY.ko.md": "raw.githubusercontent.com compat-cache.json\n\n"
                              "- `get_status`: 버전, 그리고 코드로만 된 Codex 호환성 요약;\n",
-            "SECURITY.ko.md": "raw.githubusercontent.com"}
+            "docs/SECURITY.ko.md": "raw.githubusercontent.com"}
         self.assertEqual(documentation_gaps(documented), [])
 
     def test_the_status_rule_reads_the_get_status_item_and_nothing_else(self):
@@ -514,14 +522,15 @@ class PrivacyTests(unittest.TestCase):
         if generated_ko_branch():
             # The Korean half of the rule, asked of the files that hold the Korean text here. The
             # English half is main's to answer, where the English is.
-            for name in ("PRIVACY.md", "SECURITY.md"):
+            for name in ("PRIVACY.md", "docs/SECURITY.md"):
                 with self.subTest(name):
                     self.assertIn(REFRESH_HOST, (ROOT / name).read_text(encoding="utf-8"),
                                   "%s holds the Korean text on this branch, and it must still name %s"
                                   % (name, REFRESH_HOST))
             return
         texts = {name: (ROOT / name).read_text(encoding="utf-8") if (ROOT / name).is_file() else ""
-                 for name in ("PRIVACY.md", "SECURITY.md", "PRIVACY.ko.md", "SECURITY.ko.md")}
+                 for name in ("PRIVACY.md", "docs/SECURITY.md", "PRIVACY.ko.md",
+                              "docs/SECURITY.ko.md")}
         self.assertEqual(documentation_gaps(texts), [])
 
 

@@ -6,7 +6,7 @@ therefore a promise in two directions: to Codex, that we read only these; and to
 suite, whose synthetic Codex home (`tests/codexsim.py`) must build exactly them, or the tests
 pass against a Codex that does not exist.
 
-v0.6.10-alpha splits `source.py` into `source/` and renames the package to `codex/` later, when
+v0.6.10-alpha splits `codex.py` into `source/` and renames the package to `codex/` later, when
 `win/` is carved out of `windows.py` and every path moves at once. Both are pinned here first:
 the required columns as a table, and the rule that every SQL statement in the package lives in
 one module, so "what we ask of Codex" stays something a reader can find in one file.
@@ -27,7 +27,7 @@ for entry in (str(Path(_HERE).parent / "src"), _HERE):
 
 import codexsim  # noqa: E402
 import srcscan  # noqa: E402
-from codex_auto_resume import source  # noqa: E402
+from codex_auto_resume import codex  # noqa: E402
 
 # Every column the product reads, per database, as `LocalSource.DB_KINDS` requires them. A
 # column added here is a new thing asked of Codex; a column taken away is one we stop needing.
@@ -52,7 +52,7 @@ SQL = re.compile(r"\b(SELECT|INSERT INTO|UPDATE|DELETE FROM|CREATE TABLE|PRAGMA)
 class RequiredColumnTests(unittest.TestCase):
     def test_the_product_asks_for_exactly_these_columns(self):
         found = {kind: {table: set(columns) for table, columns in tables.items()}
-                 for kind, (_pattern, tables) in source.DB_KINDS.items()}
+                 for kind, (_pattern, tables) in codex.DB_KINDS.items()}
         self.assertEqual(found, REQUIRED,
                          "what the watcher needs of Codex moved; say so here in the same commit")
 
@@ -63,7 +63,7 @@ class RequiredColumnTests(unittest.TestCase):
             for kind, tables in REQUIRED.items():
                 # `resolve` answers with the file's name, not its path: the reader joins it to
                 # the Codex home itself, and so does this.
-                name = source.LocalSource(home.root).resolve(kind)
+                name = codex.LocalSource(home.root).resolve(kind)
                 connection = sqlite3.connect(home.root / name)
                 try:
                     for table, columns in tables.items():
@@ -79,15 +79,15 @@ class RequiredColumnTests(unittest.TestCase):
         """The reason the table above is a promise and not a preference."""
         with tempfile.TemporaryDirectory() as folder:
             home = codexsim.CodexHome(Path(folder))
-            path = home.root / source.LocalSource(home.root).resolve("queue")
+            path = home.root / codex.LocalSource(home.root).resolve("queue")
             connection = sqlite3.connect(path)
             try:
                 connection.execute("ALTER TABLE queued_items RENAME COLUMN payload_json TO payload")
                 connection.commit()
             finally:
                 connection.close()
-            with self.assertRaises(source.SourceError):
-                source.LocalSource(home.root).resolve("queue")
+            with self.assertRaises(codex.SourceError):
+                codex.LocalSource(home.root).resolve("queue")
 
 
 class OneHomeForTheSqlTests(unittest.TestCase):
@@ -111,8 +111,9 @@ class OneHomeForTheSqlTests(unittest.TestCase):
     # reader below owns everything asked of Codex; and the registry's probe asks Codex's schema
     # one question of its own - it belongs with the reader, and goes there when `compat/` is
     # built (step 11 of the plan), not before.
-    ALLOWED = {"codex_auto_resume/source/history.py": "everything asked of Codex",
-               "codex_auto_resume/compatio.py": "the registry's probe of Codex's own schema"}
+    ALLOWED = {"codex_auto_resume/codex/history.py": "everything asked of Codex",
+               # compatio.py's probes are compat/probes.py since v0.6.10-alpha.
+               "codex_auto_resume/compat/probes.py": "the registry's probe of Codex's own schema"}
 
     def test_only_the_modules_that_own_a_database_hold_sql(self):
         found = self.modules_with_sql()

@@ -37,10 +37,10 @@ for entry in (str(Path(_HERE).parent / "src"), _HERE):
         sys.path.insert(0, entry)
 
 import srcscan  # noqa: E402
-from codex_auto_resume import tray_popup  # noqa: E402
+from codex_auto_resume.ui import popup as tray_popup  # noqa: E402
 
 ROOT = Path(_HERE).parent
-PACKAGE = "codex_auto_resume.tray_popup"
+PACKAGE = "codex_auto_resume.ui.popup"
 
 # The twelve files, in the order `__init__` re-exports them: the six that ask Windows nothing,
 # then Windows and what is drawn with it. It is a dependency order, and the test below holds it
@@ -104,14 +104,14 @@ class SurfaceTests(unittest.TestCase):
 
     def test_the_twelve_modules_are_all_there_and_nothing_else_is(self):
         listed = {srcscan.module_name(path).split(".")[-1] for path in srcscan.files_of(PACKAGE)}
-        self.assertEqual(listed, set(MODULES) | {"tray_popup"})
+        self.assertEqual(listed, set(MODULES) | {"popup"})
 
     def inside(self):
         """{module: the modules of the popup it imports from}."""
         found = {}
         for path in srcscan.files_of(PACKAGE):
             module = srcscan.module_name(path).split(".")[-1]
-            if module == "tray_popup":
+            if module == "popup":
                 continue
             uses = set()
             for node in ast.walk(srcscan.package_asts()[path]):
@@ -151,7 +151,7 @@ class SurfaceTests(unittest.TestCase):
         owners: dict[str, list[str]] = {}
         for path in srcscan.files_of(PACKAGE):
             module = srcscan.module_name(path).split(".")[-1]
-            if module == "tray_popup":
+            if module == "popup":
                 continue
             for node in srcscan.package_asts()[path].body:
                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):

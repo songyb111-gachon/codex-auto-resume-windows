@@ -117,6 +117,11 @@ def bound_to(tree, front: str, dot: str | None = None) -> set:
     front relatively - `from . import tray_popup` from beside it, `from .. import tray_popup`
     from inside a subpackage - and those are most of the reads there are. Resolving the dots
     is the difference between this scan seeing the product and seeing only the suite.
+
+    `front` is a dotted name, not a bare one, because a front does not have to sit directly
+    under the package: `ui.popup` is one. The statement is resolved to an absolute name and
+    compared whole, so `from codex_auto_resume.ui import popup` and `from ..ui import popup`
+    are both found - which they were not while this compared a bare name against the package.
     """
     target = srcscan.PACKAGE + "." + front
     names = set()
@@ -134,9 +139,8 @@ def bound_to(tree, front: str, dot: str | None = None) -> set:
                 base = here + "." + node.module if node.module else here
             else:
                 base = node.module or ""
-            if base == srcscan.PACKAGE:
-                names |= {alias.asname or alias.name for alias in node.names
-                          if alias.name == front}
+            names |= {alias.asname or alias.name for alias in node.names
+                      if base + "." + alias.name == target}
     return names
 
 
@@ -191,9 +195,9 @@ class ReExportTests(unittest.TestCase):
         busy = [front for front in FRONTS if len(reads(front)) > 10]
         self.assertGreaterEqual(len(busy), 2, sorted(FRONTS))
         self.assertIn("USER_GROUPS", reads("mcpserver"))
-        popup = reads("tray_popup")
+        popup = reads("ui.popup")
         self.assertIn("_icon_from_pixels", popup)
-        # The icon reaches it with `from .. import tray_popup`, inside a method; resolving that
+        # The icon reaches it with `from .. import popup`, inside a method; resolving that
         # dot is what makes this scan read the product rather than only the suite.
         self.assertIn("animation.py", popup["_icon_from_pixels"])
 
@@ -264,11 +268,20 @@ class PatchPointTests(unittest.TestCase):
     "Control")` in `test_bridge_encoding.py` would have. So: a name may be patched on a front
     only if something outside the front's package really reads it there; otherwise the test
     names the module that holds the caller.
+
+    The shape scanned for is deliberately wider than `patch.object`. `test_screenshots.py`
+    wraps it in a helper - `changed(control, "describe_record", ...)` - and that one slipped
+    through when the control layer was split, which is exactly the kind of miss this test
+    exists to prevent. Any call whose first two arguments are a front and a name is counted,
+    and so is a plain assignment onto one; a read shaped that way (`getattr`) is not counted,
+    since the names it would raise are already covered by the re-export rule above.
     """
+
+    READS = ("getattr", "hasattr", "delattr")
 
     def patches(self):
         """(file, line, front, name) for every patch aimed at a front, however it is written."""
-        for path in sorted((ROOT / "tests").glob("test_*.py")):
+        for path in sorted((ROOT / "tests").glob("*.py")):
             if path.name == "test_reexports.py":
                 continue
             tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -277,11 +290,17 @@ class PatchPointTests(unittest.TestCase):
                 if not names:
                     continue
                 for node in ast.walk(tree):
-                    if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                            and node.func.attr == "object" and len(node.args) >= 2
-                            and isinstance(node.args[0], ast.Name) and node.args[0].id in names
-                            and isinstance(node.args[1], ast.Constant)):
-                        yield path.name, node.lineno, front, node.args[1].value
+                    if isinstance(node, ast.Call):
+                        called = getattr(node.func, "attr", getattr(node.func, "id", ""))
+                        if (called not in self.READS and len(node.args) >= 2
+                                and isinstance(node.args[0], ast.Name)
+                                and node.args[0].id in names
+                                and isinstance(node.args[1], ast.Constant)
+                                and isinstance(node.args[1].value, str)
+                                # A name, not a sentence: `skipUnless(tray_popup, "the popup
+                                # draws only on Windows")` has this shape and patches nothing.
+                                and node.args[1].value.isidentifier()):
+                            yield path.name, node.lineno, front, node.args[1].value
                     elif isinstance(node, ast.Assign):
                         for target in node.targets:
                             if (isinstance(target, ast.Attribute)
@@ -298,8 +317,8 @@ class PatchPointTests(unittest.TestCase):
     def test_the_rule_is_not_vacuous(self):
         patched = {(front, name) for _, _, front, name in self.patches()}
         # The icon asks the package for this one, so patching the package is right.
-        self.assertIn(("tray_popup", "high_contrast"), patched)
-        self.assertNotIn(("tray_popup", "message_face"), patched, "only fonts.py calls it")
+        self.assertIn(("ui.popup", "high_contrast"), patched)
+        self.assertNotIn(("ui.popup", "message_face"), patched, "only fonts.py calls it")
         self.assertNotIn(("mcpserver", "Control"), patched, "only mcp/server.py calls it")
 
 
