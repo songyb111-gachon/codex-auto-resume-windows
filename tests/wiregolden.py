@@ -191,10 +191,16 @@ def _bootstrap(line: str, code: int):
 
 def _registry_document(workspace, *, sequence_offset=1, name="codex_compat.json", **changes) -> str:
     """A registry document for `compat-import`: the bundled baseline, one sequence on, in force
-    at the pinned clock."""
-    from codex_auto_resume import compatio
+    at the pinned clock.
 
-    document = json.loads(Path(compatio.BUNDLED).read_text(encoding="utf-8"))
+    The frozen baseline, not the live file. The installation these answers are recorded in
+    already reads the frozen one (`pinned_installation`), and this read the live file beside it
+    - so each import's sequence was the live sequence plus one, and publishing compatibility data
+    moved the golden. On 2026-09-25 that refused the first publish since the goldens were made:
+    sequence 3 made `compat-import` answer 4 where 3 was recorded."""
+    import frozen_registry
+
+    document = json.loads(Path(frozen_registry.FROZEN).read_text(encoding="utf-8"))
     document.update(sequence=document["sequence"] + sequence_offset,
                     published_at="2027-01-01T00:00:00Z", expires_at="2027-03-31T00:00:00Z")
     document.update(changes)
