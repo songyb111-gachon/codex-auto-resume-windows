@@ -1,6 +1,6 @@
 # 기여
 
-> 🌐 한국어 문서입니다. English version: [`main` 브랜치의 CONTRIBUTING.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/CONTRIBUTING.md)
+> 🌐 한국어 문서입니다. English version: [`main` 브랜치의 CONTRIBUTING.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/CONTRIBUTING.md)
 
 들여다봐 주셔서 감사합니다. 이 도구는 작고 의도적으로 보수적으로 만들어져 있어서, 가장 도움이 되는
 기여는 대개 재현 절차가 있는 버그 신고와 안전 속성을 그대로 지키는 수정입니다.
@@ -17,11 +17,13 @@
   어긋나면 `tests/test_python_support.py`가 실패합니다.
 - 유닛 테스트 이상을 실행하려면 ChatGPT/Codex 데스크톱 앱.
 - 창과 MCP 런처(`gui/McpLauncher.cs`), 이 작은 C# 실행 파일 두 개를 빌드하려면 .NET Framework
-  4.8(지원되는 모든 Windows에 이미 들어 있습니다). 창은 소스 네 개에서 컴파일됩니다.
-  `gui/SettingsApp.cs`가 창 자체와 설정 페이지를, `gui/Dashboard.cs`가 페이지 이동과 개요, 대기 중,
-  기록, 통계, 진단 페이지를, `gui/Controls.cs`가 두 파일이 그리는 데 쓰는 부드러운 카드, 버튼, 체크박스,
-  선택 컨트롤을, `gui/Brand.cs`가 팔레트를 담당합니다. `build/make_gui.ps1`이 네 파일을 모두 지정하므로,
-  창 소스를 새로 만들면 거기에도 추가해야 합니다.
+  4.8(지원되는 모든 Windows에 이미 들어 있습니다). 창 자체는 `gui/SettingsApp.cs`(창과 설정 페이지)와
+  `gui/Dashboard.cs`(페이지 이동과 개요, 대기 중, 기록, 통계, 진단 페이지)이고, 두 파일이 그리는 데 쓰는
+  부드러운 컨트롤은 `gui/SoftTheme.cs`(색과 크기와 모션), `gui/SoftDepth.cs`(그림자),
+  `gui/SoftLayout.cs`(무엇이 무엇을 담는지), `gui/SoftFields.cs`(버튼, 체크박스, 선택, 텍스트),
+  `gui/SoftCombo.cs`(드롭다운), `gui/SoftList.cs`, `gui/Marks.cs`(상태 불빛)입니다. `gui/Brand.cs`는
+  생성된 팔레트입니다. 컴파일 목록은 `gui/window.sources` 한 곳에만 있습니다. 창 소스를 새로 만들면
+  그 파일 하나에만 추가하면 되고, `build/make_gui.ps1`과 모든 테스트가 그 파일을 읽습니다.
 
 여기 있는 어느 것도 관리자 권한이 필요하지 않습니다.
 
@@ -397,10 +399,13 @@ python build/make_screenshots.py --cards
 Python 패키지는 계층으로 짜여 있고, import는 한 방향으로만 향합니다. 아래나 옆으로는 향해도 위로는
 절대 향하지 않습니다.
 
-- **도메인** — 부수 효과가 없는 규칙입니다. 실패를 어떻게 분류하는지(`failures.py`), 어떤 이유가 복구
-  가능한지(`reasons.py`), 저장된 상태가 사람에게 무엇으로 보이는지(`machine.py`), 그리고 이것들이
-  옮겨 가고 있는 `domain/` 패키지 - 모든 식별자(`domain/ids.py`)와 닫힌 단어 목록 전부
-  (`domain/vocabulary.py`). 표준 라이브러리만, 그중에서도 시계·파일·프로세스에 닿지 않는 부분만 씁니다.
+- **도메인** — 부수 효과가 없는 규칙이고, `domain/`에 모여 있습니다. 저장되는 상태와 그 사이의
+  허용된 이동(`domain/states.py`), 무언가 보내지기 전에 기록이 통과해야 하는 게이트
+  (`domain/gates.py`), 기록 하나가 사람에게 무엇으로 보이는지(`domain/public.py`), 모든
+  식별자(`domain/ids.py`)와 닫힌 단어 목록 전부(`domain/vocabulary.py`), 그리고 그 옆에 실패를
+  어떻게 분류하는지(`failures.py`)와 어떤 이유가 복구 가능한지(`reasons.py`)가 있습니다.
+  `machine.py`는 앞의 셋을 덮는 앞면입니다. 표준 라이브러리만, 그중에서도 시계·파일·프로세스에
+  닿지 않는 부분만 씁니다.
 - **정책과 번역** — 설정 스키마, continuation 작성기, 카탈로그, 경로와 제품 버전, 로그.
 - **어댑터** — 바깥에 닿는 모든 것입니다. store, Codex의 파일과 프로세스, Windows(레지스트리, 시작
   메뉴 바로 가기, PowerShell, 알림), 호환성 레지스트리.
@@ -418,6 +423,21 @@ Python 패키지는 계층으로 짜여 있고, import는 한 방향으로만 �
 파일에는 함수 안에서 하는 import가 이유와 함께 모두 적혀 있어, 새로 하나를 더하면 거기에도 한 줄이
 필요합니다. `tests/test_sizes.py`는 모든 모듈에 700줄의 예산을 주고, 이미 그보다 긴 모듈은 정확히 지금
 길이로 묶어 둡니다. 모듈을 줄인 커밋은 그 상한도 함께 낮추므로, 다시 커질 수 없습니다.
+
+`tests/test_stack.py`는 다른 질문을 합니다. 호출이 어느 방향을 향하느냐가 아니라, 그 코드가 어느
+실행 파일 안에 들어가느냐입니다. `docs/ROADMAP.md`는 Rust 코어가 어떤 여덟 부분으로 지어질 계획인지
+적어 두었고, 그 파일은 모든 모듈을 그중 정확히 하나에 — 또는 Windows 화면이 계속 가지는 부분이나 둘 다
+아닌 몇 부분에 — 배치합니다. 그리고 네 가지로 그 배치를 묶어 두며, 네 목록 모두 줄어들기만 합니다.
+자기 패키지가 없는 부분, 모듈이 한 부분으로 모이지 않는 패키지, 두 부분의 일을 함께 하는 모듈, 그리고
+어느 부분이 어느 부분을 호출하는지의 그래프입니다. 계층이 맞으면서도 두 부분에 걸친 모듈이 있을 수
+있으므로, 모듈을 새로 만들면 `test_layers.py`뿐 아니라 거기에도 한 줄이 필요합니다.
+
+창의 C#도 같은 방식으로 묶어 둡니다. `gui/window.sources`가 컴파일 목록이고 그것이 적힌 유일한
+곳이며, `[settings]`, `[dashboard]`, `[controls]`, `[generated]`로 나뉩니다. `tests/guiscan.py`가
+그것을 읽고, 창의 코드에 대한 규칙은 파일 이름이 아니라 그룹을 묻습니다. 그래서 그룹에 파일을 더하면
+그 그룹에 대한 모든 규칙이 함께 적용됩니다. `guiscan.type_body`와 `guiscan.member_body`는 타입이나
+멤버를 중괄호로 찾고, 없으면 예외를 올립니다. "다음 `private void`까지"로 자르던 방식은 그러지
+않았습니다.
 
 소스 자체에 대해 무언가를 단언하는 테스트 — 보내는 것은 워처뿐이다, 팝업은 제출할 수 있는 어떤 것에도
 닿지 않는다, 어떤 모듈도 자기만의 PowerShell 명령을 만들지 않는다 — 는 `tests/srcscan.py`를 통해

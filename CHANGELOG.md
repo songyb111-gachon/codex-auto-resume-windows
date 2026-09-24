@@ -1920,7 +1920,7 @@ mistake, unreported, on the install path, where it was worse.
   ours.
 - The same rule already covered the sign-in entry, the notification identity, the Start
   Menu shortcut and the notification handler as of v0.5.3.
-  [SECURITY.md](SECURITY.md) now states it once, for every kind of resource.
+  [SECURITY.md](docs/SECURITY.md) now states it once, for every kind of resource.
 
 ### Removing says what actually happened
 
@@ -2002,8 +2002,8 @@ files and two languages.
 - **Fixed: it keeps state outside its own directory.** The sign-in value, the notification
   sender identity, the notification button's URL handler and the Start Menu entry are all
   per-user Windows registrations, and they are now listed where the storage is described.
-- **Fixed: [SUPPORT.md](SUPPORT.md) pointed at a private security channel** that
-  [SECURITY.md](SECURITY.md) says does not exist.
+- **Fixed: [SUPPORT.md](docs/SUPPORT.md) pointed at a private security channel** that
+  [SECURITY.md](docs/SECURITY.md) says does not exist.
 - **Fixed: `docs/PLUGIN.md` claimed nothing downloaded is passed to a shell** — while the
   bootstrap runs the installer out of the archive it has just unpacked. The claim that holds
   is narrower: nothing from the network is *piped into* a shell.
@@ -2202,9 +2202,9 @@ this project that no longer exists, and the install instructions contradicted th
 
 - **[PRIVACY.md](PRIVACY.md)** — what is read, what is stored, and the short answer to what is
   sent anywhere: nothing. No telemetry, no analytics, no update check, no outbound requests.
-- **[SUPPORT.md](SUPPORT.md)** — where to report each kind of problem, what to include, and what
+- **[SUPPORT.md](docs/SUPPORT.md)** — where to report each kind of problem, what to include, and what
   not to paste into a public issue.
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** — how to run the tests and build a release, the fixture
+- **[CONTRIBUTING.md](docs/CONTRIBUTING.md)** — how to run the tests and build a release, the fixture
   conventions, and the safety properties a change has to keep.
 - **[README.ko.md](README.ko.md)** — a Korean README, linked from the English one.
 

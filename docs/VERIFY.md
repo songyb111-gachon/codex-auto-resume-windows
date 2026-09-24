@@ -493,4 +493,4 @@ If either one blocks you, please open an issue naming the file and the message.
 
 Verifying tells you the file is the one this project published. It does not tell you the
 code is safe; for what the code is allowed to do, and how that is enforced, see
-[`SECURITY.md`](../SECURITY.md).
+[`SECURITY.md`](SECURITY.md).

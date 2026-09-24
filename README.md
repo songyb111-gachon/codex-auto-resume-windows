@@ -131,7 +131,7 @@ anything unclassified is left alone, and whenever it cannot be sure, it waits ra
 reads Codex's own state read-only, and never resends a message that may already have been delivered.
 The watcher itself has no network code and nothing is sent to this project: the usage check and the
 resumed turn go to OpenAI through Codex, and setting it up from Codex downloads the release from
-GitHub. [PRIVACY.md](PRIVACY.md) says what is read, stored and sent, and [SECURITY.md](SECURITY.md)
+GitHub. [PRIVACY.md](PRIVACY.md) says what is read, stored and sent, and [SECURITY.md](docs/SECURITY.md)
 gives the threat model and how to report a vulnerability.
 
 ## Requirements
@@ -158,9 +158,9 @@ its provenance marker), and Windows registrations that belong to this installati
 | [docs/COMPARISON.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/COMPARISON.md) | Other projects in this space, and what each does better than this one. |
 | [docs/ROADMAP.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/ROADMAP.md) | Where the project is heading, release by release: a planned direction, not a promise. |
 | [PRIVACY.md](PRIVACY.md) | What is read, what is stored, and what is sent anywhere. |
-| [SECURITY.md](SECURITY.md) | The threat model and how to report a vulnerability. |
-| [SUPPORT.md](SUPPORT.md) | Where to report each kind of problem, and what not to paste into a public issue. |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Tests, the release build, and the safety properties a change has to keep. |
+| [SECURITY.md](docs/SECURITY.md) | The threat model and how to report a vulnerability. |
+| [SUPPORT.md](docs/SUPPORT.md) | Where to report each kind of problem, and what not to paste into a public issue. |
+| [CONTRIBUTING.md](docs/CONTRIBUTING.md) | Tests, the release build, and the safety properties a change has to keep. |
 | [codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter) | A separate tool you can run to report how this product behaved on your machine, with your Codex version. It writes one file of counts, states and times - no conversation text, no identifiers, no paths - which you read before you send it. Such a report is counted under **Reported**, a grade of its own that never raises a version to verified or checked. |
 
 ## Credits and license
