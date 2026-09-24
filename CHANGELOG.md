@@ -4,11 +4,11 @@
 
 [The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.9...v0.6.10-alpha)
 
-**A pre-release, and nothing is served it.** It is published from the `dev` branch as a GitHub
-pre-release, so `releases/latest` never answers with it and no installation is offered it; the
-plugin's own route installs what `main` says, which is still v0.6.9. It is here because it is a
-stage the v0.6.10 work has to be split into and is not a release on its own: nothing a person can
-see changes. The window draws what it drew, the popup renders the same pixels, the panel serves the
+**A pre-release, published from `main`.** It is a GitHub pre-release, so `releases/latest` never
+answers with it and an installed copy's update check never offers it. It is on `main`, though, and
+the plugin's own route installs what `main`'s manifest says, so an installation made that way gets
+it - and behaves as v0.6.9 did. It is here because it is a stage the v0.6.10 work has to be split
+into and is not a release on its own: nothing a person can see changes but the version it names. The window draws what it drew, the popup renders the same pixels, the panel serves the
 same script, and every reply on the wire carries the same fields - `tests/golden/` holds each one
 to the byte. To leave it, run `Install.cmd` from any later release's archive.
 
