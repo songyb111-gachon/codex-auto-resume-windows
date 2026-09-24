@@ -1,7 +1,7 @@
 """Safety properties that used to rest on one file's text, asserted over the whole package.
 
 Each of these was true because of where a line sat - `engine.py` held the only call that hands
-a message to the backend, `windows.py` the only argv that runs `codex queue`, `cli.py` the only
+a message to the backend, `codex/transport.py` the only argv that runs `codex queue`, `cli.py` the only
 mention of `--last` - and nothing would have noticed a second one appearing in another
 module. They are asserted here by qualified name across every tracked file (`srcscan`), so a
 function that moves keeps its guarantee, and a second site anywhere fails.
@@ -127,7 +127,7 @@ class OneSenderTests(unittest.TestCase):
                        and "queue" in constants(node))
         sending = [(where, name, node) for where, name, node in spawns if "--message" in constants(node)]
         self.assertEqual([(where, name) for where, name, _ in sending],
-                         [("codex_auto_resume/windows.py", "Backend.send")])
+                         [("codex_auto_resume/codex/transport.py", "Backend.send")])
         self.assertEqual(sending[0][2].func.attr, "Popen")
         self.assertLessEqual({"--thread", "--message"}, constants(sending[0][2]))
         for where, name, node in spawns:
@@ -150,10 +150,10 @@ class OneSenderTests(unittest.TestCase):
                 if any(id(text_node) in inside and QUEUE_WORD.search(text) for text_node, text in texts):
                     found.add((srcscan.relative(path), scope))
         self.assertEqual(found, {
-            ("codex_auto_resume/windows.py", "Backend.send"),                  # codex queue --thread --message
-            ("codex_auto_resume/windows.py", "Backend._queue_interface_ok"),   # codex queue --help
+            ("codex_auto_resume/codex/transport.py", "Backend.send"),                 # codex queue --thread --message
+            ("codex_auto_resume/codex/transport.py", "Backend._queue_interface_ok"),  # codex queue --help
             # An App Server request (`client.call`), not a process: it withdraws a queued message.
-            ("codex_auto_resume/windows.py", "Backend.delete_queue"),
+            ("codex_auto_resume/codex/transport.py", "Backend.delete_queue"),
         })
 
     def test_the_message_argument_is_spelled_only_where_the_queue_is_run(self):
@@ -166,8 +166,8 @@ class OneSenderTests(unittest.TestCase):
             found |= {(srcscan.relative(path), names[node]) for node, text in spelled(tree)
                       if MESSAGE_ARGUMENT.search(text)}
         self.assertEqual(found, {
-            ("codex_auto_resume/windows.py", "Backend.send"),
-            ("codex_auto_resume/windows.py", ""),                               # REQUIRED_QUEUE_FLAGS
+            ("codex_auto_resume/codex/transport.py", "Backend.send"),
+            ("codex_auto_resume/codex/transport.py", ""),                       # REQUIRED_QUEUE_FLAGS
         })
 
     def test_last_is_named_only_to_be_refused(self):
@@ -188,7 +188,10 @@ class ProcessTests(unittest.TestCase):
     # module that only names its exception type. A module leaving this list is a deletion to
     # make here; a module joining it is a new way to start a process, and needs a reason.
     SUBPROCESS = {
-        "codex_auto_resume/windows.py": "the Codex adapter: `codex queue`, the App Server, the process inventory",
+        # v0.6.10-alpha: windows.py was these three, and the platform under them, in one file.
+        "codex_auto_resume/codex/transport.py": "the Codex adapter: `codex --version` and `codex queue`",
+        "codex_auto_resume/codex/appserver.py": "the Codex adapter: the App Server's finite stdio process",
+        "codex_auto_resume/codex/pairing.py": "the Codex adapter: the process inventory, through PowerShell",
         "codex_auto_resume/compatio.py": "`codex --version`, `codex queue --help`, and the bootstrap's -Compatibility fetch",
         "codex_auto_resume/pwsh.py": "the one place PowerShell is run",
         "codex_auto_resume/control/watcher.py": "starts the watcher, detached (a lazy import in start_watcher)",

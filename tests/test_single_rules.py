@@ -627,7 +627,7 @@ RULES = {
     "which wait a record goes back to": (
         lambda node: isinstance(node, ast.IfExp) and constant(node.body, "waiting_reset")
         and constant(node.orelse, "waiting_poll") and compares(node.test, ast.Gt),
-        {"machine.py": "waiting_state"}),
+        {"domain/states.py": "waiting_state"}),
     "what a claim costs": (
         lambda node: isinstance(node, ast.IfExp) and constant(node.body, 0) and constant(node.orelse, 1)
         and any(calls("is_usage")(child) for child in ast.walk(node.test)),
@@ -638,7 +638,7 @@ RULES = {
         {}),
     "whether a record may be in Codex's queue": (
         may_be_queued_shape,
-        {"machine.py": "may_be_queued"}),
+        {"domain/states.py": "may_be_queued"}),
     "the states the watch follows, written out": (
         lambda node: listed(node) == set(WATCHED),
         {}),
@@ -669,7 +669,7 @@ RULES = {
         {"domain/vocabulary.py": "Page"}),
     "a plausible time's bounds": (
         lambda node: constant(node, 253402300799, 946684800, 4102444800),
-        {"machine.py": ""}),
+        {"domain/states.py": ""}),
     # Step 3: every identifier is read in domain/ids.py.
     "parsing a UUID": (
         calls("UUID"),
