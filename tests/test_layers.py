@@ -91,6 +91,8 @@ LAYER = {_q(name): layer for layer, names in {
               "mcp", "mcp.server", "mcp.tools",
               "ui.popup", "brand",
               "notice_card", "notice_window", "notifier",
+              # v0.6.10-alpha: notice_window.py became ui/card/, the last module over budget.
+              "ui.card", "ui.card.win32", "ui.card.surfaces", "ui.card.card", "ui.card.stack",
               # v0.6.10-alpha: brand.py became brand/ - one palette in nine files.
               "brand.checkbox", "brand.colour", "brand.css", "brand.elevation", "brand.light",
               "brand.mark", "brand.motion", "brand.scale", "brand.tokens",
@@ -138,8 +140,12 @@ ENGINE_EXCEPTIONS = {
 UI_EXCEPTIONS = {
     (_q("ui.popup.model"), _q("reasons")): "the popup asks the reason registry for a label key, whether a "
                                        "category is recoverable and whether it has a reset time",
-    (_q("notice_window"), _q("notice_presence")): "the card reads battery saver and the message duration "
-                                                  "from the presence probes, which are Windows adapters",
+    # The card is ui/card/ since v0.6.10-alpha; these two of its files read the probes.
+    (_q("ui.card.win32"), _q("notice_presence")): "the card reads battery saver and the message "
+                                                  "duration from the presence probes, which are "
+                                                  "Windows adapters",
+    (_q("ui.card.stack"), _q("notice_presence")): "the card stack asks the same probes before it "
+                                                  "shows a card",
     (_q("ui.tray.animation"), _q("tray_place")): "the icon asks where Windows keeps it and whether battery "
                                               "saver is on before it moves; both are Windows adapters "
                                               "(win/ takes them at step 9)",
