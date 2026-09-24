@@ -1291,9 +1291,10 @@ class CardPictureTests(unittest.TestCase):
 
     def real(self):
         # v0.6.10-alpha: the countdown and the Win32 declarations the card's window is
-        # registered with moved into ui/ and win/, and the digest follows them.
+        # registered with moved into ui/ and win/, and the digest follows them; so does the
+        # card's window code, which notice_window.py became ui/card/ in the same release.
         return real_modules("notice_card.py", "notice_window.py", "brand",
-                            "ui/tray", "ui/words.py", "win/dll.py")
+                            "ui/tray", "ui/card", "ui/words.py", "win/dll.py")
 
     def test_the_patterns_cover_the_card_the_package_it_moves_into_and_the_popup_it_is_painted_by(self):
         with tempfile.TemporaryDirectory() as root:
@@ -1316,10 +1317,10 @@ class CardPictureTests(unittest.TestCase):
         real = self.real()
         before = self.drawing(real)
         self.assertEqual(before, self.generator.card_drawing(),
-                         "the five modules are everything the card's digest reads today")
+                         "these are everything the card's digest reads today")
         for what, (name, old, new) in {
                 "the card's layout": ("notice_card.py", "button_h = px(32)", "button_h = px(34)"),
-                "the card's own light": ("notice_window.py", "brand.glow(self.vm[\"status\"], age, age,",
+                "the card's own light": ("ui/card/card.py", "brand.glow(self.vm[\"status\"], age, age,",
                                          "brand.glow(self.vm[\"status\"], age + 1, age,"),
                 "its floating shadow": ("notice_card.py", "DARK_ENOUGH = 0.05", "DARK_ENOUGH = 0.06"),
                 "the popup's renderer it is painted by": ("ui/popup/renderer.py", "class Renderer:",
