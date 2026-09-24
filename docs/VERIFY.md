@@ -181,7 +181,7 @@ not use the file at all and re-runs setup instead, unless you also pass `-Force`
 The v0.6.3 archive is checked like any other, before it is extracted: the steps above, with
 v0.6.3's own file and values. v0.6.2's pin on `main` vouches for v0.6.2's file and nothing
 else. v0.6.3 is published and its own pin is committed, so step 3 has a digest to compare
-with, and so are v0.6.5, v0.6.6, v0.6.7, v0.6.8, v0.6.9 and their pins. A release that has just been published has no
+with, and so are v0.6.4, v0.6.5, v0.6.6, v0.6.7, v0.6.8, v0.6.9 and their pins. A release that has just been published has no
 pin for a little while - until the pin is committed, step 3 has nothing to compare its archive
 with, which is the case [a new release has no pin for a while](#what-is-not-verified)
 describes.
@@ -378,16 +378,17 @@ Python Software Foundation's, and Microsoft's on the two Visual C++ runtime DLLs
 (`vcruntime140.dll` and `vcruntime140_1.dll`).
 
 - **The process that starts at sign-in is the signed interpreter.** For an installation from
-the release archive with sign-in start on, Windows starts its bundled `pythonw.exe`. The Python
-code it runs is this project's own and is not signed. - **What is not signed:** the settings
-window `CodexAutoResumeSettings.exe`, the MCP launcher `codex-auto-resume-mcp.exe` that Codex
-starts for the plugin's tools and panel, `Install.cmd` and `Uninstall.cmd`, and the project's
-scripts. A `.cmd` file cannot carry an Authenticode signature at all. - From v0.6.0, the two
-executables carry a version resource, so **Properties → Details** shows the product name, the
-version, and a copyright line naming the author. That ships in v0.6.0; the executables in
-v0.5.0 through v0.5.7 were built without that product information. It is text in the file, not
-a signature: anyone can write it, and Windows' security prompts still name the publisher as
-unknown.
+  the release archive with sign-in start on, Windows starts its bundled `pythonw.exe`. The
+  Python code it runs is this project's own and is not signed.
+- **What is not signed:** the settings window `CodexAutoResumeSettings.exe`, the MCP launcher
+  `codex-auto-resume-mcp.exe` that Codex starts for the plugin's tools and panel,
+  `Install.cmd` and `Uninstall.cmd`, and the project's scripts. A `.cmd` file cannot carry an
+  Authenticode signature at all.
+- From v0.6.0, the two executables carry a version resource, so **Properties → Details**
+  shows the product name, the version, and a copyright line naming the author. That ships in
+  v0.6.0; the executables in v0.5.0 through v0.5.7 were built without that product
+  information. It is text in the file, not a signature: anyone can write it, and Windows'
+  security prompts still name the publisher as unknown.
 
 What you may see because of that:
 

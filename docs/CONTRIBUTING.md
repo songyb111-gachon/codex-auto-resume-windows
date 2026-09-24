@@ -206,8 +206,9 @@ So, once the release is up:
 A planned pre-release - a suffixed tag such as `v0.6.9-alpha` - is not pinned at all. The
 table's keys are releases, `releases/latest` never answers with a pre-release, so nothing is
 served one, and the check that a tagged version carries a pin is told about it by the
-`prerelease` list in `scripts/release.json` instead. That list names the version under
-development and nothing else, so the next bump empties it.
+`prerelease` list in `scripts/release.json` instead. That list may name the version under
+development and nothing else, so the next bump has to remove the entry
+(`tests/test_convergence.py` fails until it does).
 
 Until that commit exists, the plugin verifies against the published `.sha256` sidecar
 instead and says so when it runs. That is weaker — the sidecar comes from the same origin
@@ -309,13 +310,29 @@ has been translated and imported, or marked as reviewed. An import that loses or
 placeholder is refused. Nothing here reaches the network, and a test holds the localization
 modules and this tool to that.
 
-## The Korean branch is generated
+## Branches and languages
 
-`ko` is built from `main`, by `.github/workflows/sync-ko.yml`, every time main's tests
-pass — and it is force-updated. A pull request against `ko` cannot be merged and an edit
-made there is lost at the next sync, so please do not spend an evening on one.
+Three branches carry the documents three ways:
 
-It was an independent fork until v0.5.5, with its own copy of the engine, the installer,
+- **`dev`** holds every document in both languages: `X.md` and its Korean sibling `X.ko.md`,
+  written and reviewed in the same commit. Work happens here, and every Korean check runs here.
+- **`main`** is English only. It is the repository's front page, the branch the plugin
+  installs from and the one releases are tagged on. It receives dev by a *promotion*, never a
+  fast-forward: `python scripts/promote.py to-main --title "..."` merges dev, deletes every
+  `*.ko.md`, and names the dev commit in a `Korean-sources:` trailer. What main receives on its
+  own - the compatibility data, published by pull request - goes back with
+  `python scripts/promote.py into-dev`, which keeps dev's Korean documents exactly as they were.
+- **`ko`** is generated from `main`, by `.github/workflows/sync-ko.yml`, every time main's
+  tests pass - and it is force-updated: main's code, with the Korean sources of the dev commit
+  main was promoted from written over the English pages. A pull request against `ko` cannot be
+  merged and an edit made there is lost at the next sync, so please do not spend an evening on
+  one.
+
+CI holds the split: on a push to `main` no `*.ko.md` may exist, and on a push to `dev` every
+mapped one must (`tests/languages.py`, `tests/test_korean.py`), so dev cannot quietly skip its
+Korean checks and main cannot grow a Korean file back.
+
+`ko` was an independent fork until v0.5.5, with its own copy of the engine, the installer,
 the workflows and the tests. It ended up three releases behind while still telling Korean
 readers that the tool made no network request and that installing meant downloading a
 release archive. That is what a second copy of a codebase does when somebody has to
@@ -324,13 +341,14 @@ remember to merge it.
 So the code on `ko` is main's code, and the only difference is the language of the
 documents. To change something there:
 
-- **code, installer, workflows, tests** — change them on `main`; they reach `ko` unchanged.
-- **Korean prose** — change the `.ko.md` file on `main`. `scripts/ko_branch.json` maps each
-  one to the English page it replaces. What stays English is listed there too, with the
+- **code, installer, workflows, tests** — change them on `dev`; they reach `main` at the
+  next promotion and `ko` at the sync after it.
+- **Korean prose** — change the `.ko.md` file on `dev`, beside its English page.
+  `scripts/ko_branch.json` maps each one to the English page it replaces. What stays English is listed there too, with the
   reason: the licence, because a translated licence is a second licence, and the Codex
   skill, because it instructs Codex rather than a person.
 
-`python scripts/ko_sync.py --check` shows what a sync would do without writing anything.
+`python scripts/ko_sync.py --check` on dev shows what a sync would do without writing anything.
 Adding a Korean page means adding the file and its mapping entry in the same commit;
 `tests/test_korean.py` fails if a Korean page exists that nothing maps.
 

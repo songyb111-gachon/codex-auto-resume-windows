@@ -20,6 +20,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +28,12 @@ POLICY = json.loads((ROOT / "scripts" / "python_support.json").read_text(encodin
 WORKFLOWS = ROOT / ".github" / "workflows"
 
 VERSION = re.compile(r"^3\.\d+$")
+
+
+_TESTS = str(Path(__file__).resolve().parent)
+if _TESTS not in sys.path:
+    sys.path.insert(0, _TESTS)
+import languages  # noqa: E402
 
 
 def generated_ko_branch() -> bool:
@@ -37,10 +44,7 @@ def generated_ko_branch() -> bool:
     there to open. Keyed on the marker being tracked, as the other suites do, because a
     stray local run of the generator leaves an untracked copy that must not excuse anything.
     """
-    listed = subprocess.run(
-        ["git", "-C", str(ROOT), "ls-files", "--", ".github/GENERATED-BRANCH.md"],
-        capture_output=True, text=True, encoding="utf-8")
-    return bool(listed.returncode == 0 and listed.stdout.strip())
+    return languages.generated_ko_branch()
 
 
 def workflow(name: str) -> str:
@@ -172,7 +176,9 @@ class DocumentedMinimumTests(unittest.TestCase):
     def test_no_document_promises_an_older_interpreter(self):
         older = ["3.%d" % minor for minor in range(7, int(POLICY["minimum"].split(".")[1]))]
         names = ["README.md", "docs/CONTRIBUTING.md"]
-        if not generated_ko_branch():
+        # dev holds the Korean pair too; main is English only, and ko has the Korean text
+        # under the English names above.
+        if languages.both_languages():
             names += ["README.ko.md", "docs/CONTRIBUTING.ko.md"]
         for name in names:
             text = (ROOT / name).read_text(encoding="utf-8")
