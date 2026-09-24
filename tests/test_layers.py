@@ -52,7 +52,10 @@ def _q(name):
 
 # Every module, placed. A new module has to be given a layer here before anything else.
 LAYER = {_q(name): layer for layer, names in {
-    "domain": ("failures", "reasons", "machine", "domain", "domain.ids", "domain.vocabulary"),
+    # v0.6.10-alpha: machine.py became domain/{states,gates,public}.py, which is what its own
+    # docstring called "three layers, kept apart on purpose", said in the tree.
+    "domain": ("failures", "reasons", "machine", "domain", "domain.errors", "domain.gates",
+               "domain.ids", "domain.public", "domain.states", "domain.vocabulary"),
     "policy": ("", "settings", "continuation", "l10n", "messages", "interface", "config", "logbook"),
     "adapters": ("store", "openstate", "codex", "windows", "compat", "compatio", "startup", "shortcut",
                  "pwsh", "notify", "notice_presence", "tray_place",
@@ -62,11 +65,13 @@ LAYER = {_q(name): layer for layer, names in {
                  "store.errors", "store.journal", "store.legacy", "store.migrations",
                  "store.policy", "store.records", "store.reporting", "store.schema",
                  "store.session", "store.validate", "store.watcher",
-                 # v0.6.10-alpha: the Win32 handles and declarations more than one module needs.
-                 "win", "win.dll",
-                 # v0.6.10-alpha: source.py became source/, and every part of it reads Codex.
-                 "codex.errors", "codex.history", "codex.labels",
-                 "codex.paths", "codex.payload", "codex.schema", "codex.values"),
+                 # v0.6.10-alpha: the Win32 the product calls, which windows.py was half of.
+                 "win", "win.dll", "win.homelock", "win.inventory", "win.kernel", "win.sync",
+                 # v0.6.10-alpha: source.py became source/, and every part of it reads Codex;
+                 # windows.py's other half - the CLI, the App Server, the pairing - joined it.
+                 "codex.appserver", "codex.errors", "codex.history", "codex.labels",
+                 "codex.pairing", "codex.paths", "codex.payload", "codex.schema",
+                 "codex.transport", "codex.usage", "codex.values"),
     "engine": ("engine", "engine.announce", "engine.detect", "engine.dispatch",
                "engine.freshness", "engine.options", "engine.outcome", "engine.reconcile"),
     # v0.6.10-alpha: control.py became control/, ten files, `Control` composed from eight
@@ -137,9 +142,10 @@ UI_EXCEPTIONS = {
 # the split (win/dll.py for the icon's shared Win32 structures, compat/ and win/ for the
 # registry and the adapter), and until then is listed here exactly.
 LAZY_CYCLES = {
-    frozenset({_q("windows"), _q("compatio")}):
-        "windows.verified_versions reads the bundled baseline through compatio, and compatio's "
-        "probes read windows",
+    frozenset({_q("codex.transport"), _q("compatio"), _q("windows")}):
+        "codex.transport.verified_versions reads the bundled baseline through compatio, and "
+        "compatio's probes read the adapter through the `windows` front - which is what puts "
+        "three modules in the cycle rather than two",
 }
 
 # Every import made inside a function, with what it is for. Three kinds, and the test checks
@@ -167,8 +173,6 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
     ("controlcli", "compatio"): ("cost", "the three compatibility commands only"),
     ("controlcli", "diagnostics"): ("cost", "the diagnostics command only"),
     ("controlcli", "interface"): ("cost", "the strings request only: the window's catalogue"),
-    ("controlcli", "codex"): ("cost", "display labels read from Codex's history; a source that fails "
-                                       "costs the names, never the listing"),
     ("diagnostics", "compatio"): ("cost", "the compatibility section of the export only"),
     ("mcp.server", "compat"): ("cost", "the compatibility summary in get_status only"),
     ("mcp.server", "compatio"): ("cost", "the compatibility summary in get_status only"),
@@ -187,8 +191,10 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
     ("ui.tray.menu", "ui.popup"): ("cost", "the theme the menu is drawn in, only when it opens"),
     ("ui.tray.motion", "ui.popup"): ("cost", "whether the popup asks for attention"),
     ("ui.tray.stored", "ui.popup"): ("cost", "the popup's theme and motion, adopted with the settings"),
-    ("windows", "compatio"): ("cycle", "VERIFIED_VERSIONS is read from the bundled baseline"),
-    ("windows", "config"): ("cost", "the product version for the App Server's clientInfo, when a Protocol opens"),
+    ("codex.transport", "compatio"): ("cycle", "the versions the bundled registry verifies are "
+                                                "read from the bundled baseline"),
+    ("codex.appserver", "config"): ("cost", "the product version for the App Server's clientInfo, "
+                                            "when a Protocol opens"),
 }.items()}
 
 

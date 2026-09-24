@@ -22,9 +22,14 @@ from __future__ import annotations
 from pathlib import Path
 import re
 import subprocess
+import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "tests") not in sys.path:
+    sys.path.insert(0, str(ROOT / "tests"))
+
+import srcscan  # noqa: E402
 
 # Modules that could open a socket. `urllib.parse` is pure string handling and is fine;
 # anything that could actually connect is not.
@@ -83,8 +88,8 @@ def documents_here(names):
 
 
 DOCS = documents_here((
-    "README.md", "README.ko.md", "PRIVACY.md", "SECURITY.md", "SECURITY.ko.md",
-    "SUPPORT.md", "CONTRIBUTING.md", "CONTRIBUTORS.ko.md",
+    "README.md", "README.ko.md", "PRIVACY.md", "docs/SECURITY.md", "docs/SECURITY.ko.md",
+    "docs/SUPPORT.md", "docs/CONTRIBUTING.md", "CONTRIBUTORS.ko.md",
     "docs/PLUGIN.md", "docs/BRAND.md", "docs/COMPARISON.md",
     "docs/COMPARISON.ko.md", "docs/DEVELOPMENT.ko.md", "docs/GUIDE.md", "docs/GUIDE.ko.md",
     "skills/codex-auto-resume/SKILL.md"))
@@ -158,7 +163,10 @@ class CodePropertyTests(unittest.TestCase):
         else. It is a small thing that would be easy to drop in a refactor and hard to
         notice missing.
         """
-        text = (ROOT / "src" / "codex_auto_resume" / "windows.py").read_text(encoding="utf-8")
+        # The environment every `codex` subprocess is started with, wherever the adapter was
+        # written: `windows.py` is a front since v0.6.10-alpha and holds no code, so reading it
+        # by name would have held this to eleven lines of imports while passing.
+        text = "\n".join(srcscan.read(path) for path in srcscan.package_files())
         for required in ('OTEL_SDK_DISABLED', 'analytics.enabled=false',
                          'otel.exporter="none"', 'otel.log_user_prompt=false',
                          'chatgpt_base_url="https://chatgpt.com/backend-api/"'):
