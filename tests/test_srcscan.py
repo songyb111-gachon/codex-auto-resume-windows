@@ -20,7 +20,10 @@ if _HERE not in sys.path:
 
 import srcscan  # noqa: E402
 import codex_auto_resume  # noqa: E402
-from codex_auto_resume import engine, windows  # noqa: E402
+from codex_auto_resume import engine  # noqa: E402
+# Not `windows`: it is a front since v0.6.10-alpha and defines nothing, so as a sample it
+# would prove nothing. The adapter's class and its methods are in codex/transport.py.
+from codex_auto_resume.codex import transport  # noqa: E402
 from codex_auto_resume.ui import tray
 from codex_auto_resume.ui import popup as tray_popup
 from codex_auto_resume.ui.popup import model as popup_model, window as popup_window  # noqa: E402
@@ -64,7 +67,7 @@ class ListingTests(unittest.TestCase):
 
 class TreeTests(unittest.TestCase):
     def test_qualified_names_are_the_ones_python_gives(self):
-        for module in (engine, windows, popup_window):
+        for module in (engine, transport, popup_window):
             with self.subTest(module.__name__):
                 tree = srcscan.package_asts()[srcscan.modules()[module.__name__]]
                 found = {name for node, name in srcscan.qualnames(tree).items()
