@@ -117,6 +117,31 @@ class PromotionTests(unittest.TestCase):
         self.assertEqual(self.repo.tree("main")["docs/X.md"], self.repo.tree("dev")["docs/X.md"])
         self.assertIn(dev, self.repo.git("log", "-1", "--format=%B", "main"))
 
+    def test_notes_that_imitate_the_trailer_are_refused(self):
+        self.repo.git("checkout", "-q", "main")
+        with self.assertRaises(promote.Refused):
+            promote.to_main(self.repo.root, "dev", "Promote",
+                            "How ko finds its Korean:\nKorean-sources: the dev commit, below.")
+        self.assertEqual(self.repo.git("status", "--porcelain").strip(), "")
+
+    def test_main_that_already_is_dev_has_nothing_to_promote(self):
+        self.repo.git("checkout", "-q", "-B", "main", "dev")
+        with self.assertRaises(promote.Refused):
+            promote.to_main(self.repo.root, "dev", "Promote")
+        self.assertEqual(self.repo.git("status", "--porcelain").strip(), "",
+                         "a refusal must not leave the Korean files staged for deletion")
+
+    def test_a_failed_commit_leaves_main_as_it_was(self):
+        self.repo.git("checkout", "-q", "main")
+        hook = self.repo.root / ".git" / "hooks" / "pre-commit"
+        hook.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+        hook.chmod(0o755)
+        before = self.repo.git("rev-parse", "HEAD")
+        with self.assertRaises(promote.Refused):
+            promote.to_main(self.repo.root, "dev", "Promote")
+        self.assertEqual(self.repo.git("rev-parse", "HEAD"), before)
+        self.assertEqual(self.repo.git("status", "--porcelain").strip(), "")
+
     def test_dev_that_already_contains_main_has_nothing_to_take(self):
         self.repo.git("checkout", "-q", "dev")
         self.assertIsNone(promote.into_dev(self.repo.root, "main"))
@@ -151,6 +176,18 @@ class BringKoreanTests(unittest.TestCase):
     def test_a_checkout_that_has_them_is_left_alone(self):
         self.repo.git("checkout", "-q", "dev")
         self.assertEqual(ko_sync.bring_korean(self.repo.root), [])
+
+    def test_the_last_trailer_is_the_one(self):
+        """A line in the prose above the trailer - a squash-merged message quoting one, say -
+        must not break the sync or outvote the promotion's own."""
+        real = ko_sync.korean_sources_commit(self.repo.root)
+        self.repo.write({"data.json": "{}\n"})
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "data\n\nKorean-sources: is how ko finds its text")
+        with self.assertRaises(SystemExit):
+            ko_sync.korean_sources_commit(self.repo.root)
+        self.repo.git("reset", "-q", "--hard", "HEAD~1")
+        self.assertEqual(ko_sync.korean_sources_commit(self.repo.root), real)
 
     def test_no_trailer_no_sources(self):
         self.repo.git("checkout", "-q", "-b", "stray", "main~1")

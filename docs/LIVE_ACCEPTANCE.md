@@ -27,7 +27,7 @@ An empty `docs/evidence/live/` is not a pass. It means nothing has been accepted
   `.sha256` published beside it. The version in `.codex-plugin/plugin.json` is the version
   every evidence file has to claim, so accept a build whose manifest already says the
   number that is about to be released. The installation step 13 upgrades from is the last
-  published release.
+  published release that is not a pre-release - the one `releases/latest` answers with.
 - **What v0.6.3 adds is checked inside these steps.** [What v0.6.3 adds, and where to write
   it down](#what-v063-adds-and-where-to-write-it-down) names the step each check belongs to
   and the file whose note records it; read it before step 3.
@@ -443,7 +443,8 @@ Run value is gone (`Get-ItemProperty HKCU:\Software\Microsoft\Windows\CurrentVer
 Then install the same or a newer archive over the installation — the ordinary upgrade
 path — and look again.
 
-Start from an installation of the last published release and install the archive you are
+Start from an installation of the last published release that is not a pre-release (the one
+`releases/latest` answers with) and install the archive you are
 accepting over it. Unless its CHANGELOG entry says otherwise, the release you are accepting
 changes no setting you had and adds none. Read Settings afterwards —
 **Interface language**, **Theme**, **Message style** and any Custom message should be what they

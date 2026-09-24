@@ -210,12 +210,15 @@ def korean_sources_commit(root: Path) -> str:
     log = git(root, "log", "--first-parent", "--format=%H%x00%B%x01", "HEAD")
     for entry in log.split(chr(1)):
         _, _, body = entry.strip().partition(chr(0))
-        for line in body.splitlines():
-            if line.startswith(TRAILER):
-                sha = line[len(TRAILER):].strip()
-                if not re.fullmatch(r"[0-9a-f]{40}", sha):
-                    raise SystemExit("a %s trailer names %r, which is not a commit" % (TRAILER, sha))
-                return sha
+        # The trailer is the message's last line of its kind: promote.py writes it after the
+        # title and the notes, and refuses notes that contain the key, so an earlier line in
+        # the prose can neither break the sync nor outvote the real one.
+        found = [line for line in body.splitlines() if line.startswith(TRAILER)]
+        if found:
+            sha = found[-1][len(TRAILER):].strip()
+            if not re.fullmatch(r"[0-9a-f]{40}", sha):
+                raise SystemExit("a %s trailer names %r, which is not a commit" % (TRAILER, sha))
+            return sha
     raise SystemExit("this checkout has no Korean sources and no %s trailer names a dev commit "
                      "that has them; main is promoted with scripts/promote.py" % TRAILER)
 
