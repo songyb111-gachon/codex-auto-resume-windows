@@ -39,9 +39,12 @@ from codex_auto_resume.control import (actions, codexstart, layer, policy,  # no
 
 PACKAGE = "codex_auto_resume.control"
 
-# The ten, in the order `__init__` imports them, which is their dependency order.
+# The ten, in the order `__init__` imports them, which is their dependency order - and
+# `wire`, the eleventh, which `__init__` does not import: the shapes the layer hands every
+# surface, written down as types, imported by the tests that hold them to the goldens and by
+# nothing that runs.
 MODULES = ("errors", "state", "seen", "policy", "records", "preview", "actions",
-           "codexstart", "watcher", "layer")
+           "codexstart", "watcher", "layer", "wire")
 
 MIXINS = (state.StateMixin, seen.SeenMixin, policy.SettingsMixin, records.RecordsMixin,
           preview.PreviewMixin, actions.ActionsMixin, codexstart.CodexStartMixin,
@@ -72,7 +75,7 @@ def siblings(module: str) -> set:
 
 
 class ShapeTests(unittest.TestCase):
-    def test_the_ten_are_all_there_and_nothing_else_is(self):
+    def test_the_eleven_are_all_there_and_nothing_else_is(self):
         listed = {srcscan.module_name(path).split(".")[-1] for path in srcscan.files_of(PACKAGE)}
         self.assertEqual(listed, set(MODULES) | {"control"})
 

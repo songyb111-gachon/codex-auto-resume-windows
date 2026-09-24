@@ -34,8 +34,13 @@ LONG = "That could not be done." + "\r\n\r\n" + "\r\n".join(
     "  at CodexAutoResume.Bridge.Call(String command, String argument) line %d" % line
     for line in range(1, 61))
 
+# Both probes print what the dialog showed, in every language, so they speak UTF-8 and are read
+# as UTF-8: left to the console, the child wrote in whatever code page the parent console had,
+# and the test decoded that with this machine's locale - which failed on a Korean machine whose
+# console was UTF-8, and passed everywhere else by luck.
 PROBE = r"""
 $ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [Windows.Forms.Application]::EnableVisualStyles()
@@ -146,7 +151,8 @@ class DialogTests(unittest.TestCase):
                                 "CAR_QUESTION": QUESTION, "CAR_NOTICE": NOTICE, "CAR_LONG": LONG})
             done = subprocess.run([str(POWERSHELL), "-NoProfile", "-ExecutionPolicy", "Bypass",
                                    "-Command", PROBE],
-                                  capture_output=True, text=True, timeout=300, env=environment)
+                                  capture_output=True, text=True, encoding="utf-8",
+                                  errors="replace", timeout=300, env=environment)
         if done.returncode != 0:
             raise AssertionError(done.stdout + done.stderr)
         cls.answer = json.loads(done.stdout.strip().splitlines()[-1])
@@ -257,6 +263,7 @@ AFFIRMS = ("action.cancel", "action.cancel_all", "action.reset_budget", "action.
 
 FIT_PROBE = r"""
 $ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [Windows.Forms.Application]::EnableVisualStyles()
@@ -371,7 +378,8 @@ class DialogFitTests(unittest.TestCase):
             environment.update({"CAR_EXE": str(EXE), "CAR_CASES": str(written), "CAR_WORK": work})
             done = subprocess.run([str(POWERSHELL), "-NoProfile", "-ExecutionPolicy", "Bypass",
                                    "-Command", FIT_PROBE],
-                                  capture_output=True, text=True, timeout=600, env=environment)
+                                  capture_output=True, text=True, encoding="utf-8",
+                                  errors="replace", timeout=600, env=environment)
         if done.returncode != 0:
             raise AssertionError(done.stdout + done.stderr)
         cls.answer = json.loads(done.stdout.strip().splitlines()[-1])
