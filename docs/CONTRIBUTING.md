@@ -18,11 +18,14 @@ properties intact.
 - The ChatGPT/Codex desktop app, if you want to run anything beyond the unit tests.
 - .NET Framework 4.8 (already on every supported Windows) to build the two small C#
   executables — the window and the MCP launcher (`gui/McpLauncher.cs`). The window is
-  compiled from four sources: `gui/SettingsApp.cs` for the form and the Settings page,
-  `gui/Dashboard.cs` for the navigation and the Overview, Pending, History, Statistics and
-  Diagnostics pages, `gui/Controls.cs` for the soft cards, buttons, check boxes and choices
-  both are drawn with, and `gui/Brand.cs` for the palette. `build/make_gui.ps1` names all
-  four; a new window source has to be added there.
+  `gui/SettingsApp.cs` for the form and the Settings page and `gui/Dashboard.cs` for the
+  navigation and the Overview, Pending, History, Statistics and Diagnostics pages; the soft
+  controls both are drawn with are `gui/SoftTheme.cs` (the colours, sizes and motion),
+  `gui/SoftDepth.cs` (the shadows), `gui/SoftLayout.cs` (what holds what), `gui/SoftFields.cs`
+  (buttons, check boxes, choices and text), `gui/SoftCombo.cs` (the drop-down),
+  `gui/SoftList.cs` and `gui/Marks.cs` (the status light); and `gui/Brand.cs` is the palette,
+  generated. The compile list is `gui/window.sources` and only there — a new window source is
+  added to that one file, and `build/make_gui.ps1` and every test read it.
 
 Nothing here needs administrator rights.
 
@@ -266,8 +269,9 @@ There is a test for that too, but it reads `gui/SettingsApp.cs` only — neither
 test that catches sizes written in raw pixels looks at `gui/Dashboard.cs`, so a colour or a
 raw pixel size written there is on you. Other tests do read that file: every Paint handler
 must sit on a buffered control, every class that draws itself must be double-buffered, and
-the long-lived bridge's command line is executed for real. `gui/Controls.cs`, which draws the
-soft controls both files use, has a test of its own that refuses a hexadecimal colour literal.
+the long-lived bridge's command line is executed for real. The soft-control sources both files
+draw with have a test of their own that refuses a hexadecimal colour literal, and it reads
+whichever of them `gui/window.sources` names, so splitting one into two does not narrow it.
 
 ## The MCP declaration is added at build time
 
@@ -448,11 +452,13 @@ what you are trying to achieve — there is usually a way to get there that keep
 The Python package is built in layers, and its imports point one way: down or sideways,
 never up.
 
-- **Domain** — the rules with no side effects: how a failure is classified (`failures.py`),
-  which reasons are recoverable (`reasons.py`), and how a stored state becomes what a person is
-  shown (`machine.py`), with the `domain/` package they are moving into: every identifier
-  (`domain/ids.py`) and every closed list of words (`domain/vocabulary.py`). The standard
-  library only, and only the parts of it that touch no clock, file or process.
+- **Domain** — the rules with no side effects, gathered in `domain/`: the stored states and
+  the legal moves between them (`domain/states.py`), the gates a record passes before
+  anything is sent (`domain/gates.py`), what a person is shown for a record
+  (`domain/public.py`), every identifier (`domain/ids.py`) and every closed list of words
+  (`domain/vocabulary.py`), beside how a failure is classified (`failures.py`) and which
+  reasons are recoverable (`reasons.py`). `machine.py` is the front over the first three.
+  The standard library only, and only the parts of it that touch no clock, file or process.
 - **Policy and translation** — the settings schema, the continuation builder, the catalogs,
   paths and the product version, and the log.
 - **Adapters** — everything that touches the outside: the store, Codex's files and processes,
@@ -473,6 +479,22 @@ moving code under a new name does not take it out of a rule. The same file lists
 made inside a function, with its reason; a new one needs a line there. `tests/test_sizes.py`
 gives every module a budget of 700 lines, and holds each module already over it to exactly the
 length it has now: a commit that shrinks one lowers its ceiling, so it cannot grow back.
+
+`tests/test_stack.py` asks the other question: not which way a call points, but which binary
+the code ends up inside. `docs/ROADMAP.md` names the eight parts the Rust core is planned to be
+built from, and that file places every module on exactly one of them — or on one of the parts
+the Windows interface keeps, or on the few that are neither. It then holds the placement four
+ways, each of which only shrinks: items with no package of their own, packages whose modules
+are not all one item, single modules doing two items' work, and the graph of which item calls
+which. A module can sit in the right layer and still belong to two items, so a new one needs a
+line there as well as in `test_layers.py`.
+
+The window's C# is held the same way. `gui/window.sources` is the compile list and the only
+place it is written, divided into `[settings]`, `[dashboard]`, `[controls]` and `[generated]`;
+`tests/guiscan.py` reads it, and a rule about the window's code asks for a group rather than
+naming a file, so a file added to a group joins every rule about it. `guiscan.type_body` and `guiscan.member_body`
+find a type or a member by its braces and raise where it is not there — which is what a slice
+that ended at "the next `private void`" did not.
 
 A test that asserts something about the source itself — that only the watcher sends, that the
 popup reaches nothing that can submit, that no module builds its own PowerShell command —

@@ -1,6 +1,6 @@
 # 지원
 
-> 🌐 한국어 문서입니다. English version: [`main` 브랜치의 SUPPORT.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/SUPPORT.md)
+> 🌐 한국어 문서입니다. English version: [`main` 브랜치의 SUPPORT.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/SUPPORT.md)
 
 무언가 제대로 동작하지 않나요?
 [이슈](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues)를 열어 주세요.

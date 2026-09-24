@@ -4,7 +4,7 @@
 아래의 과거 차이는 해당하는 릴리스를 밝혀 적습니다. 아직 게시되지 않은 소스 변경은 이미 게시된 어떤
 릴리스의 바이트도 바꾸지 않습니다.
 
-> 🌐 한국어 문서입니다. English version: [`main` 브랜치의 SECURITY.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/SECURITY.md)
+> 🌐 한국어 문서입니다. English version: [`main` 브랜치의 SECURITY.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/SECURITY.md)
 
 이 문서는 이 도구가 무엇을 건드릴 수 있는지, 그것을 어떻게 강제하는지, 릴리스를 어떻게 만들고 어떻게
 확인할 수 있는지, 어떻게 검토했는지, 그리고 실제로 무엇을 발견하고 고쳤는지를 설명합니다.

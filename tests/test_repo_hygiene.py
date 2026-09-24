@@ -124,8 +124,8 @@ class RepositoryHygieneTests(unittest.TestCase):
 
     def test_the_fixture_conventions_are_documented(self):
         # A rule nobody can find is a rule that gets broken. CONTRIBUTING has to say it.
-        contributing = ROOT / "CONTRIBUTING.md"
-        self.assertTrue(contributing.is_file(), "CONTRIBUTING.md should document the conventions")
+        contributing = ROOT / "docs" / "CONTRIBUTING.md"
+        self.assertTrue(contributing.is_file(), "docs/CONTRIBUTING.md should document the conventions")
         text = contributing.read_text(encoding="utf-8")
         self.assertIn("ExampleUser", text)
         self.assertIn("0a1b2c3d", text)

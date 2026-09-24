@@ -66,8 +66,9 @@ GUI_EXE = "CodexAutoResumeSettings.exe"
 MCP_EXE = "codex-auto-resume-mcp.exe"
 # Every top-level document the shipped README links to, so the installed copy does not
 # promise a privacy policy that is not beside it. Asserted by tests/test_plugin.py.
-APP_FILES = ("LICENSE", "README.md", "README.ko.md", "PRIVACY.md", "SECURITY.md",
-             "SECURITY.ko.md", "SUPPORT.md", "CONTRIBUTING.md", "CONTRIBUTORS.md",
+APP_FILES = ("LICENSE", "README.md", "README.ko.md", "PRIVACY.md", "docs/SECURITY.md",
+             "docs/SECURITY.ko.md", "docs/SUPPORT.md", "docs/CONTRIBUTING.md",
+             "CONTRIBUTORS.md",
              "CONTRIBUTORS.ko.md", "CHANGELOG.md", ".mcp.json")
 LAUNCHER_FILES = ("Install.cmd", "Uninstall.cmd", "README.txt", "install.ps1")
 
