@@ -45,9 +45,9 @@ Windows에서 `CODEX_AR_LIVE=1`을 설정하지 않는 한 건너뜁니다.
 받아 오는 이유가 이것입니다). `tests/test_mcp.py`는 패널 자신의 코드를 돌리려면 Node가,
 `tests/test_reproducible.py`와 `tests/test_gui_json.py`는 Windows에 내장된 C# 컴파일러가 필요합니다.
 
-초록불이 무엇을 말해 주고 무엇을 말해 주지 않는지는 기능별로 [docs/FEATURE_MATRIX.ko.md](docs/FEATURE_MATRIX.ko.md)에
+초록불이 무엇을 말해 주고 무엇을 말해 주지 않는지는 기능별로 [docs/FEATURE_MATRIX.ko.md](FEATURE_MATRIX.ko.md)에
 정리되어 있고, 어떤 suite도 대신할 수 없는 확인 — 실제 설치, 실제 중단, 실제 전송 — 은
-[docs/LIVE_ACCEPTANCE.ko.md](docs/LIVE_ACCEPTANCE.ko.md)의 절차입니다.
+[docs/LIVE_ACCEPTANCE.ko.md](LIVE_ACCEPTANCE.ko.md)의 절차입니다.
 
 ## 창을 재기
 
@@ -151,7 +151,7 @@ Get-Content .\build\dist\CodexAutoResume-v<version>-win-x64.zip.sha256
 [`main`에 있는 `scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json)의
 해당 버전 항목과 비교합니다. 다르면 `make_gui.ps1`이 출력한 `compiler` 줄과 두 실행 파일의 다이제스트를,
 GitHub가 그 로그를 아직 보관하고 있는 동안 릴리스 실행 로그의 같은 줄과 비교하고, 두 압축 파일 안의
-파일들을 비교하세요. [docs/VERIFY.ko.md](docs/VERIFY.ko.md)에 둘 다 풀지 않고 비교하는 코드가 있습니다.
+파일들을 비교하세요. [docs/VERIFY.ko.md](VERIFY.ko.md)에 둘 다 풀지 않고 비교하는 코드가 있습니다.
 안의 파일이 모두 같은데도 압축 파일의 다이제스트가 다르다면, 압축 파일을 쓴 Python과 zlib를 살펴보세요.
 소스에 `build/normalize_pe.py`가 없는 태그는 이 모든 것보다 앞선 것이라서 - 지금까지 게시된 모든
 릴리스, 곧 v0.5.0부터 v0.5.7까지가 그렇습니다 - 그 실행 파일은 일치하지 않습니다.
@@ -206,7 +206,7 @@ GitHub의 "immutable releases"가 아닙니다 - 저장소 설정이며, GitHub�
 아니라고 표시합니다. 그래서 쓰기 권한이 있는 사람은 여전히 asset을 손으로 바꿀 수 있습니다. 그런
 일이 있었다면 드러나게 해 주는 것은 `main`에 고정된 다이제스트, 그리고 릴리스 워크플로와 태그를
 지정해 확인한 빌드 provenance attestation이고,
-[docs/VERIFY.ko.md](docs/VERIFY.ko.md)가 사용자에게 둘 다 확인하라고 하는 이유가 그것입니다.
+[docs/VERIFY.ko.md](VERIFY.ko.md)가 사용자에게 둘 다 확인하라고 하는 이유가 그것입니다.
 
 수동 실행은 여전히 있습니다. v0.6.0부터는 dry run입니다. 아무 ref나 가리키면 읽기 전용 토큰으로 빌드하고, 테스트하고, 검증한 뒤 압축 파일을 워크플로
 artifact로 남깁니다. 게시 작업은 태그 push일 때만 실행되므로, main 브랜치 워크플로를 수동 실행해서는 릴리스를 만들거나 바꿀 수 없습니다. 이것은
@@ -224,7 +224,7 @@ v0.6.0에서 새로 생겼습니다. v0.5.0부터 v0.5.7까지의 모든 압축 
 ### 시각적인 것을 바꿀 때
 
 색상, 아이콘, 그리고 그것들을 담고 있는 생성 파일은
-[docs/BRAND.ko.md](docs/BRAND.ko.md)에서 다룹니다. 요약하면 이렇습니다. 팔레트는
+[docs/BRAND.ko.md](BRAND.ko.md)에서 다룹니다. 요약하면 이렇습니다. 팔레트는
 `src/codex_auto_resume/brand/`에 있고, `gui/Brand.cs`와 `assets/brand/icon.svg`는 거기서
 생성되며, `tests/test_brand.py`가 둘을 다시 생성해 비교합니다. 창이나 패널 스타일시트에 색상 리터럴을
 직접 쓰지 마세요. 그것을 검사하는 테스트도 있지만 `gui/SettingsApp.cs`만 읽습니다. 그 테스트도, 크기를

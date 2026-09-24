@@ -420,7 +420,7 @@ class OfferedWithItsHelpTests(unittest.TestCase):
             key = "help." + entry["name"]
             if key in helps and ('"%s"' % key) not in window:
                 missing.append(key)
-        self.assertEqual(missing, [], "gui/SettingsApp.cs draws these switches without the help line the "
+        self.assertEqual(missing, [], "gui/SettingsPage.cs draws these switches without the help line the "
                                       "catalogs have for them; beside `if (name == \"reduce_motion\")` add "
                                       "`if (name == \"notification_card\") host.Controls.Add(HelpText(S("
                                       "\"help.notification_card\", ...)));`")

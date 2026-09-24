@@ -57,6 +57,7 @@ if _HERE not in sys.path:
 
 import guiscan
 import srcscan  # noqa: E402
+from codex_auto_resume.domain import public as domain_public  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "assets" / "screenshots.json"
@@ -277,8 +278,11 @@ class ManifestTests(unittest.TestCase):
             "control/records.py - what a row carries":
                 lambda: changed(control_records, "describe_record",
                                 lambda row: dict(row, budget_resets_left=0)),
-            "machine.py - which public status a row shows":
+            # describe calls public_code in domain/public.py, its own module; the counts
+            # still read it through the machine front. Both, so the change reaches every row.
+            "domain/public.py - which public status a row shows": several(
                 lambda: changed(machine, "public_code", lambda code: "failed_retryable"),
+                lambda: changed(domain_public, "public_code", lambda code: "failed_retryable")),
             "controlcli.py - the envelope the window unpacks":
                 lambda: changed(controlcli, "dispatch", lambda reply: dict(reply, extra=True)),
             "settings.py - the schema that decides which rows exist":

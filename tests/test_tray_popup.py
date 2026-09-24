@@ -24,6 +24,7 @@ if _HERE not in sys.path:
     sys.path.insert(0, _HERE)        # srcscan lives next to this file
 
 import srcscan  # noqa: E402
+import guiscan  # noqa: E402
 from codex_auto_resume import brand, control, interface, l10n  # noqa: E402
 from codex_auto_resume.ui import tray
 from codex_auto_resume.ui import popup
@@ -911,7 +912,7 @@ class FontTests(unittest.TestCase):
         self.assertEqual(popup.font_candidates("ko", 600, None)[0], ("Malgun Gothic", 700))
 
     def test_emphasis_follows_the_windows_own_rule(self):
-        """Soft.Weighted in gui/Controls.cs: a Segoe UI face's own semibold family, the face's
+        """Soft.Weighted in the window's controls (gui/SoftTheme.cs): a Segoe UI face's own semibold family, the face's
         bold otherwise (Malgun Gothic and the other UI faces have no semibold)."""
         self.assertEqual(popup.font_candidates("en", 600, "Segoe UI"),
                          (("Segoe UI Semibold", 400), ("Segoe UI", 600)))
@@ -924,7 +925,7 @@ class FontTests(unittest.TestCase):
                          ((MALGUN_LOCALIZED, 400), ("Segoe UI Variable Text", 400), ("Segoe UI", 400)))
         self.assertIn('family.StartsWith("Segoe UI", StringComparison.Ordinal) && '
                       '!family.EndsWith("Semibold", StringComparison.Ordinal)',
-                      (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8"))
+                      guiscan.controls())
 
     def test_the_three_surfaces_start_from_the_same_face(self):
         """One product: the window's every font is a variant of Windows' message font, the panel's
@@ -932,7 +933,7 @@ class FontTests(unittest.TestCase):
         Putting "Segoe UI" ahead of `system-ui` in the panel would part the panel from the window
         on every Windows whose UI font is not Segoe UI - a Korean one among them."""
         from codex_auto_resume.mcp import panel as mcpui
-        controls = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
+        controls = guiscan.controls()
         self.assertIn("if (baseFont == null) baseFont = SystemFonts.MessageBoxFont;", controls)
         stack = re.search(r"--font:\s*([^;]+);", mcpui._STYLE).group(1)
         self.assertEqual(stack.split(",")[0].strip(), "system-ui")

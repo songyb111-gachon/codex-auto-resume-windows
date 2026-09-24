@@ -351,7 +351,7 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(result, {"outcome": "unknown", "error_code": "queue_timeout"})
 
     def test_delete_rejects_invalid_identity_before_server_spawn(self):
-        with patch.object(w, "Protocol") as protocol:
+        with patch.object(transport, "Protocol") as protocol:
             self.assertFalse(self.backend.delete_queue(THREAD, "--last"))
             protocol.assert_not_called()
 

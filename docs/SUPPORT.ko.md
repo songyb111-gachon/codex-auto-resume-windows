@@ -67,7 +67,7 @@ python src\auto_resume.py status
 이 도구가 그것을 깨울 수 있는 검증된 방법은 없습니다. 후보로 꼽히는 App Server 경로(예를 들어
 `thread/resume`)는 이 도구가 의도적으로 쓰지 않습니다. 워처는 사용자가 그 대화를 직접 열 때까지
 `waiting_for_loaded_thread`에서 기다렸다가, 그다음부터는 알아서 이어 갑니다. 이 내용은 근거가 된 실측과
-함께 [README](README.md#please-read-this-limitation-first)에 정리되어 있습니다.
+함께 [README](../README.md#please-read-this-limitation-first)에 정리되어 있습니다.
 
 **분류되지 않은 장애는 절대 재시도하지 않습니다.** 이 도구가 이름 붙일 수 없는 방식으로 Codex가
 실패했다면, 의도적으로 아무것도 하지 않습니다. 빠뜨린 것이 아니라 핵심 설계 선택입니다 — 다만 분류할
@@ -95,7 +95,7 @@ Codex에게 플러그인의 `reset_recovery_budget` tool을 `list_pending`에 �
 프로그램을 막을 수도 있습니다. 로그인할 때 실행되는 프로세스는 함께 담긴 `pythonw.exe`이며, 여기에는
 Python Software Foundation의 서명이 그대로 있습니다. `python.exe`와 인터프리터의 DLL, 확장 모듈도
 마찬가지입니다(인터프리터에 딸린 Visual C++ 런타임 DLL 두 개는 Microsoft가 서명했습니다). 무엇이든
-허용하기 전에, [docs/VERIFY.ko.md](docs/VERIFY.ko.md)("릴리스 검증하기")에 적힌 대로 압축 파일부터
+허용하기 전에, [docs/VERIFY.ko.md](VERIFY.ko.md)("릴리스 검증하기")에 적힌 대로 압축 파일부터
 확인하세요.
 
 **워처가 시작되지 않거나, 상태가 `unknown`으로 나옵니다.** 로그에 `named_object_squatted`가 있다면, 사용자보다 낮은 권한으로 도는 다른

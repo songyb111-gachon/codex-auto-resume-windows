@@ -123,7 +123,7 @@ $CompatibilityHosts = @('raw.githubusercontent.com')
 $CompatibilityMaxBytes = 262144
 
 # The refresh that rides on an update check shares that check's time. The settings window
-# waits 120 s for -CheckOnly (gui/Dashboard.cs, CheckMilliseconds) and calls anything slower
+# waits 120 s for -CheckOnly (gui/DashboardMaintenance.cs, CheckMilliseconds) and calls anything slower
 # "running", and the update answer is printed after the refresh - so the refresh must be
 # over, or never started, well inside that, whatever the network does. The HEAD to
 # github.com alone can take its 60 s plus a name lookup, which -TimeoutSec does not count.

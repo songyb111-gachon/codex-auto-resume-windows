@@ -125,6 +125,8 @@ def collect_app(stage: Path) -> int:
     for name in APP_FILES:
         source = ROOT / name
         if source.is_file():
+            # Some ship from docs/ since v0.6.10-alpha, and copyfile makes no folders.
+            (app / name).parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, app / name)
             copied += 1
     return copied

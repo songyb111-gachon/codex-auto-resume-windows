@@ -70,7 +70,7 @@ conversation is `notLoaded`, and there is no verified way for this tool to wake 
 candidate App Server routes, such as `thread/resume`, are ones this tool deliberately does not
 use. The watcher waits at `waiting_for_loaded_thread` until you open that conversation
 yourself, then continues on its own. This is documented in the
-[README](README.md#please-read-this-limitation-first) with the measurement behind it.
+[README](../README.md#please-read-this-limitation-first) with the measurement behind it.
 
 **An unclassified failure is never retried.** If Codex failed in a way this tool cannot name, it
 deliberately does nothing. That is the core design choice, not an oversight — but if you think a

@@ -211,9 +211,8 @@ def parts_of(name: str) -> list[str]:
     """Every declaration of `name`, with its body, in compile order.
 
     A list rather than one block, because the window's main type really is several. The window
-    is one `partial class SettingsForm` written across `SettingsApp.cs` and `Dashboard.cs` in
-    four parts, and a rule about "the form" that read one of them would be reading a quarter
-    of it. Nested private types repeat legitimately too - three `struct`s share a name with
+    is one `partial class SettingsForm` written in ten parts across the window's sources, and a
+    rule about "the form" that read one of them would be reading a tenth of it. Nested private types repeat legitimately too - three `struct`s share a name with
     another class's, and each is that class's own.
     """
     found = []
