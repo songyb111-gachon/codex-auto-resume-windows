@@ -12,7 +12,7 @@
         "result": {
           "imported": true,
           "reason": null,
-          "sequence": 3,
+          "sequence": 2,
           "cache": "ok",
           "woke_watcher": false
         }
@@ -28,7 +28,7 @@
         "result": {
           "imported": false,
           "reason": "rollback",
-          "sequence": 2,
+          "sequence": 1,
           "cache": null,
           "woke_watcher": false
         }
