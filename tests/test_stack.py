@@ -80,6 +80,8 @@ ITEM = {_q(name): item for item, names in {
                 "control.layer", "control.policy", "control.preview", "control.records",
                 "control.seen", "control.state", "control.watcher",
                 "auto_resume", "cli", "controlcli", "diagnostics",
+                "commands", "commands.base", "commands.install", "commands.records",
+                "commands.status", "commands.watcher",
                 "mcp", "mcp.panel", "mcp.server", "mcp.tools", "mcpserver"),
     "tray": ("ui", "ui.tray", "ui.tray.animation", "ui.tray.cards", "ui.tray.clicks",
              "ui.tray.dashboard", "ui.tray.icon", "ui.tray.menu", "ui.tray.model",
@@ -128,8 +130,6 @@ STRADDLING = {
 
 # Single modules doing two items' work, and what the second half is. Only shrinks.
 DOUBLE = {
-    "cli": "the command line's parsing and its command bodies, which are the control layer's "
-           "work done a second way",
     "compat": "the registry's model and its data format, which the Codex adapter reads, and the "
               "policy of what may be claimed of a version",
 }
@@ -233,12 +233,14 @@ UNWANTED = {
                           "raising - a C#-side question answered on the Rust side",
     ("notifications", "tray"): "the card is hosted on the icon's thread, so the two Windows "
                                "surfaces know about each other; both are C#'s",
-    ("control", "watcher"): "cli.py builds the watcher's App to run its commands, so the command "
-                            "line - placed on control - reaches the watcher's composition root",
-    ("control", "tray"): "cli.py's `activate` opens the Dashboard through the icon's helper "
-                         "(ui.tray), for a click on a notification",
-    ("control", "notifications"): "cli.py parses a toast's activation and registers the "
-                                  "notification protocol through notify",
+    ("control", "watcher"): "the command line runs every command through the watcher's App - "
+                            "commands/base.py builds it - and takes its exit codes from there, so "
+                            "the command line, placed on control, reaches the composition root",
+    ("control", "tray"): "commands/watcher.py's `activate` opens the Dashboard through the icon's "
+                         "helper (ui.tray), for a click on a notification",
+    ("control", "notifications"): "commands/watcher.py parses a toast's activation and "
+                                  "commands/install.py registers the notification protocol, both "
+                                  "through notify",
 }
 
 

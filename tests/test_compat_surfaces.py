@@ -360,7 +360,7 @@ class McpTests(unittest.TestCase):
                                                        "codex_auto_resume/mcp/assets/panel.css",
                                                        "codex_auto_resume/mcp/assets/panel.js"}),
                                    ("run_refresh", {package % "compatio", package % "controlcli"}),
-                                   ("import_document", {package % "cli", package % "compatio",
+                                   ("import_document", {"codex_auto_resume/commands/status.py", package % "compatio",
                                                         package % "controlcli"}),
                                    ("bootstrap.ps1", {package % "compatio", package % "controlcli"})):
             with self.subTest(forbidden):

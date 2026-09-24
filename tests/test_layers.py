@@ -82,6 +82,9 @@ LAYER = {_q(name): layer for layer, names in {
     "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcp.panel", "app", "ui.tray",
               # v0.6.10-alpha: app.py became runtime/ - the wiring, the loop and the toasts.
               "runtime", "runtime.app", "runtime.loop", "runtime.toasts",
+              # v0.6.10-alpha: cli.py's command bodies became commands/; cli.py is the parser.
+              "commands", "commands.base", "commands.install", "commands.records",
+              "commands.status", "commands.watcher",
               # v0.6.10-alpha: mcpserver.py's body became mcp/, beside the panel's own files.
               "mcp", "mcp.server", "mcp.tools",
               "ui.popup", "brand",
@@ -165,11 +168,11 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
     # Reaching `ui.tray` loads `ui/__init__.py` with it, and since v0.6.10-alpha the icon
     # is inside `ui/`, so the package above it is an edge these two did not have before.
     ("runtime.app", "ui"): ("cost", "the package above the icon, loaded with it"),
-    ("cli", "ui"): ("cost", "the package above the icon, loaded with it"),
+    ("commands.watcher", "ui"): ("cost", "the package above the icon, loaded with it"),
     ("runtime.app", "ui.popup"): ("cost", "the popup's theme and motion, adopted only by a running watcher"),
-    ("cli", "control"): ("cost", "the diagnostics command is the only one that goes through control"),
-    ("cli", "diagnostics"): ("cost", "only the diagnostics command writes the export"),
-    ("cli", "ui.tray"): ("cost", "activate opens the settings window through the icon's helper"),
+    ("commands.install", "control"): ("cost", "the diagnostics command is the only one that goes through control"),
+    ("commands.install", "diagnostics"): ("cost", "only the diagnostics command writes the export"),
+    ("commands.watcher", "ui.tray"): ("cost", "activate opens the settings window through the icon's helper"),
     ("compatio", "windows"): ("cycle", "the registry's API and discovery checks read the adapter"),
     ("config", "settings"): ("cost", "nearly everything imports config; the settings schema, and the "
                                      "catalogs behind it, load only when settings are read or written"),
