@@ -7,8 +7,11 @@ archive. Nobody chose that; it is what a second copy of a codebase does when a p
 to remember to merge it.
 
 So the branch is generated now, and these are the invariants that keep it honest. They run
-on `main`, against the Korean sources, because that is where the Korean text lives - there
-is no checkout of ko to test, by design.
+on `dev`, against the Korean sources, because that is where the Korean text is written and
+reviewed beside the English. `main` is English only - a promotion deletes every `*.ko.md`
+(scripts/promote.py) - so there the Korean halves skip, saying where they run, and the English
+halves (the mapping, staleness, the roadmap's marks) still hold. `tests/languages.py` says which
+of the three branches a checkout is, and refuses a tree that is none of them.
 
 Deliberately not asserted: that a Korean page says the same *sentences* as its English
 counterpart. Translations reorganise, and a test that demanded line-for-line agreement
@@ -28,6 +31,9 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 MAPPING = ROOT / "scripts" / "ko_branch.json"
 sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "tests"))
+
+import languages  # noqa: E402
 
 
 # The notice the generator writes, and the only honest way to tell the two branches apart.
@@ -60,10 +66,17 @@ def skip_if_generated() -> None:
     # does not remove. If mere presence were the switch, that one stray run would silently
     # disarm every invariant below - on main, where they are the only thing checking the
     # Korean text - and the suite would still report success.
-    listed = subprocess.run(["git", "-C", str(ROOT), "ls-files", "--", str(NOTICE_NAME)],
-                            capture_output=True, text=True, encoding="utf-8")
-    if listed.returncode == 0 and listed.stdout.strip():
-        raise unittest.SkipTest("this is the generated ko branch; the sources live on main")
+    if languages.generated_ko_branch():
+        raise unittest.SkipTest("this is the generated ko branch; the sources live on dev")
+
+
+def skip_unless_korean_sources() -> None:
+    """For a test that reads the Korean sources themselves: dev has them, and main - English
+    only since the owner asked for a front page in one language - does not. A tree holding some
+    and not others fails in `languages.english_only()` instead of skipping."""
+    skip_if_generated()
+    if languages.english_only():
+        raise unittest.SkipTest(languages.ON_DEV)
 
 
 def mapping() -> dict:
@@ -119,10 +132,14 @@ class MappingTests(unittest.TestCase):
         self.mapping = mapping()
 
     def test_every_korean_document_is_mapped(self):
-        """A Korean page nobody mapped is a page that never reaches Korean readers."""
+        """A Korean page nobody mapped is a page that never reaches Korean readers. On main
+        there are none at all: the promotion deleted them, and one that came back is a mistake."""
         declared = set(self.mapping["documents"])
         present = {str(path.relative_to(ROOT)).replace("\\", "/")
                    for path in korean_documents()}
+        if languages.english_only():
+            self.assertEqual(present, set(), "main carries no Korean document")
+            return
         self.assertEqual(present, declared,
                          "add it to scripts/ko_branch.json, or delete it")
 
@@ -190,13 +207,44 @@ class MappingTests(unittest.TestCase):
                    & set(self.mapping["intentionally_english"]))
         self.assertEqual(overlap, set())
 
+    def test_no_english_document_links_a_korean_source(self):
+        """main is English only, so a relative link from an English page to a `.ko.md` is a
+        dead link there - on the front page, where it would be seen first. An English page
+        points Korean readers at the generated branch instead (`blob/ko/...`)."""
+        import ko_sync
+        listing = subprocess.run(["git", "-C", str(ROOT), "ls-files", "-z", "--", "*.md"],
+                                 capture_output=True, text=True, encoding="utf-8")
+        offenders = []
+        for name in [n for n in listing.stdout.split(chr(0)) if n]:
+            if name.endswith(".ko.md") or not (ROOT / name).is_file():
+                continue
+            text = (ROOT / name).read_text(encoding="utf-8")
+            prose = "".join(part for index, part in enumerate(ko_sync.CODE.split(text))
+                            if index % 2 == 0)
+            for found in ko_sync.LINK.finditer(prose):
+                target = (found.group(1) or found.group(2)).partition("#")[0]
+                if target.endswith(".ko.md"):
+                    offenders.append("%s -> %s" % (name, target))
+        self.assertEqual(offenders, [], "link the ko branch (blob/ko/...) instead")
+
+    def test_no_korean_document_links_main_for_a_korean_page(self):
+        """main will not have it. A Korean page links its Korean siblings relatively, and the
+        generator rewrites those for ko, where its dead-link check then verifies them."""
+        if languages.english_only():
+            self.skipTest(languages.ON_DEV)
+        absolute = re.compile(re.escape(self.mapping["english_on_main"]) + r"[\w./-]+\.ko\.md")
+        offenders = ["%s: %s" % (path.name, found.group(0))
+                     for path in korean_documents()
+                     for found in absolute.finditer(path.read_text(encoding="utf-8"))]
+        self.assertEqual(offenders, [])
+
 
 class GeneratorTests(unittest.TestCase):
     """What the sync does, checked without pushing anything anywhere."""
 
     def setUp(self):
         # `build(check=True)` reads the Korean sources to decide what it would write.
-        skip_if_generated()
+        skip_unless_korean_sources()
 
     def test_it_touches_no_code(self):
         import ko_sync
@@ -211,6 +259,11 @@ class GeneratorTests(unittest.TestCase):
         import ko_sync
         changed = set(ko_sync.build(ROOT, check=True))
         self.assertTrue(set(mapping()["documents"].values()) <= changed)
+
+
+
+class LinkRuleTests(unittest.TestCase):
+    """The generator's link rules, which need no Korean source and run on every branch."""
 
     def test_a_link_to_the_english_sibling_becomes_a_link_to_main(self):
         import ko_sync
@@ -258,9 +311,27 @@ class GeneratorTests(unittest.TestCase):
         self.assertTrue(out.startswith(fenced), "prose in a code block must survive")
         self.assertIn('href="%sREADME.md"' % base, out)
 
+    def test_an_anchored_link_between_korean_documents_keeps_its_anchor(self):
+        # README.ko.md links `docs/GUIDE.ko.md#언어`; the first pattern wanted `)` right after
+        # `.ko.md` and left it dead on ko.
+        import ko_sync
+        out = ko_sync.drop_ko_suffix('[a](docs/GUIDE.ko.md#언어) <a href="../README.ko.md#x">b</a>')
+        self.assertIn("(docs/GUIDE.md#언어)", out)
+        self.assertIn('href="../README.md#x"', out)
+
+    def test_the_english_sibling_is_reached_by_its_whole_path(self):
+        # docs/GUIDE.ko.md links `GUIDE.md` beside it; the file name alone made main's URL
+        # blob/main/GUIDE.md, a 404 that only reads as a link.
+        import ko_sync
+        out = ko_sync.relink("[e](GUIDE.md#y) <a href=\"GUIDE.md\">E</a>", "docs/GUIDE.md", "https://m/")
+        self.assertIn("(https://m/docs/GUIDE.md#y)", out)
+        self.assertIn('href="https://m/docs/GUIDE.md"', out)
+
     def test_the_workflow_builds_from_the_tested_commit(self):
         """`github.sha` on a workflow_run event is main's head, not what was tested."""
         text = (ROOT / ".github" / "workflows" / "sync-ko.yml").read_text(encoding="utf-8")
+        self.assertIn("--bring-korean", text,
+                      "main is English only; the sync must bring the Korean sources from dev")
         self.assertIn("github.event.workflow_run.head_sha", text)
         self.assertIn("workflow_run.conclusion == 'success'", text)
         self.assertIn("head_branch == 'main'", text)
@@ -275,7 +346,7 @@ class ClaimTests(unittest.TestCase):
     """The claims where being out of date would mislead a Korean reader."""
 
     def setUp(self):
-        skip_if_generated()
+        skip_unless_korean_sources()
         self.readme = (ROOT / "README.ko.md").read_text(encoding="utf-8")
         self.security = (ROOT / "docs" / "SECURITY.ko.md").read_text(encoding="utf-8")
 
@@ -384,7 +455,8 @@ class RoadmapTests(unittest.TestCase):
     def setUp(self):
         skip_if_generated()
         self.english = (ROOT / "docs" / "ROADMAP.md").read_text(encoding="utf-8")
-        self.korean = (ROOT / "docs" / "ROADMAP.ko.md").read_text(encoding="utf-8")
+        self.korean = (None if languages.english_only()
+                       else (ROOT / "docs" / "ROADMAP.ko.md").read_text(encoding="utf-8"))
 
     def test_the_roadmap_marks_releases_by_the_manifest(self):
         from codex_auto_resume import config
@@ -418,9 +490,47 @@ class RoadmapTests(unittest.TestCase):
         self.assertLessEqual(len(set(marked)), 1, "more than one release is marked in development")
 
     def test_the_korean_roadmap_marks_what_the_english_one_marks(self):
+        if self.korean is None:
+            self.skipTest(languages.ON_DEV)
         self.assertEqual([mark for _, mark in roadmap_marks(self.korean)],
                          [mark for _, mark in roadmap_marks(self.english)],
                          "docs/ROADMAP.ko.md marks releases differently from docs/ROADMAP.md")
+
+
+class BranchTests(unittest.TestCase):
+    """Each branch holds the languages it should - asked of CI's own branch name, so dev can never
+    quietly skip its Korean checks by losing its Korean files, and main can never grow one back."""
+
+    def test_the_branch_holds_the_languages_it_should(self):
+        rule = languages.branch_rule()
+        if rule is None or languages.generated_ko_branch():
+            self.skipTest("not a push to main or dev (a tag, a pull request, the ko sync, or a local run)")
+        if rule == "english":
+            self.assertTrue(languages.english_only(), "main must carry no Korean document")
+        else:
+            self.assertTrue(languages.both_languages(), "dev must carry every Korean source")
+
+    def test_a_tree_with_some_korean_sources_is_refused(self):
+        """Neither branch: a half-deleted checkout. It must fail, not skip."""
+        import tempfile
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch)
+            (root / "scripts").mkdir()
+            (root / "scripts" / "ko_branch.json").write_text(json.dumps(
+                {"documents": {"A.ko.md": "A.md", "B.ko.md": "B.md"}}), encoding="utf-8")
+            (root / "A.ko.md").write_text("가", encoding="utf-8")
+            with mock.patch.object(languages, "ROOT", root), \
+                    mock.patch.object(languages, "MAPPING", root / "scripts" / "ko_branch.json"), \
+                    mock.patch.object(languages, "generated_ko_branch", lambda: False):
+                with self.assertRaises(AssertionError):
+                    languages.english_only()
+                (root / "B.ko.md").write_text("나", encoding="utf-8")
+                self.assertFalse(languages.english_only())
+                self.assertTrue(languages.both_languages())
+                for name in ("A.ko.md", "B.ko.md"):
+                    (root / name).unlink()
+                self.assertTrue(languages.english_only())
 
 
 if __name__ == "__main__":

@@ -791,26 +791,19 @@ class PayloadDocumentTests(unittest.TestCase):
         self.assertEqual(missing, [], "the payload README links to documents it does not ship")
 
     def test_the_shipped_documents_all_exist(self):
-        """Every document the payload names, except the Korean ones on the ko branch.
-
-        A release is always built from a tag on `main`, where all of them exist. The
-        generated `ko` branch has written each Korean document over its English sibling
-        and deleted the original, so asserting the `.ko.md` names there fails on a
-        checkout that is behaving exactly as designed - and `collect_app` already skips
-        a name it cannot find, so the payload is correct either way.
-        """
+        """Every document the payload names, on every branch: they are English, and each
+        branch has an English copy of it - dev and main beside the Korean or without it, ko
+        under the same name with the Korean text in it."""
         builder = _load("make_release_payload", ROOT / "build" / "make_release.py")
-        # Tracked, not merely present: a stray local `ko_sync.py --root .` leaves the
-        # marker behind untracked, and that must not excuse a genuinely missing document.
-        import subprocess
-        listed = subprocess.run(
-            ["git", "-C", str(ROOT), "ls-files", "--", ".github/GENERATED-BRANCH.md"],
-            capture_output=True, text=True, encoding="utf-8")
-        generated = bool(listed.returncode == 0 and listed.stdout.strip())
         for name in builder.APP_FILES:
-            if generated and name.endswith(".ko.md"):
-                continue
             self.assertTrue((ROOT / name).is_file(), name)
+
+    def test_the_payload_ships_no_korean_document(self):
+        """A release is built from a tag on main, and main is English only. A `.ko.md` here
+        would fail that build - `collect_app` skips a name it cannot find, so the failure
+        would be a document silently missing from the archive instead."""
+        builder = _load("make_release_payload", ROOT / "build" / "make_release.py")
+        self.assertEqual([name for name in builder.APP_FILES if name.endswith(".ko.md")], [])
 
 
 class VersionConsistencyTests(unittest.TestCase):

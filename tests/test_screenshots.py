@@ -340,20 +340,20 @@ class CopyTests(unittest.TestCase):
 
     def test_each_readme_shows_its_own_locale(self):
         # On the generated ko branch README.md holds the Korean text and shows the Korean
-        # pictures, so the name-to-locale map below describes main, not that branch.
-        import subprocess
-        listed = subprocess.run(
-            ["git", "-C", str(ROOT), "ls-files", "--", ".github/GENERATED-BRANCH.md"],
-            capture_output=True, text=True, encoding="utf-8")
-        if listed.returncode == 0 and listed.stdout.strip():
+        # pictures, so the name-to-locale map below describes dev, not that branch.
+        import languages
+        if languages.generated_ko_branch():
             self.skipTest("the generated ko branch renames the READMEs")
+        # main is English only: its README is held to the English pictures, and the Korean
+        # one is dev's to answer. Anywhere else a missing README fails, rather than skipping.
+        english_only = languages.english_only()
         """Korean prose over English screenshots is the defect this release removed.
 
         On the generated `ko` branch README.ko.md *is* README.md, so only one of these
         names resolves there and opening the other would raise rather than fail.
         """
         for name, locale in READMES.items():
-            if not (ROOT / name).is_file():
+            if english_only and name.endswith(".ko.md"):
                 continue
             body = (ROOT / name).read_text(encoding="utf-8")
             for copy in list(COPIES[locale].values()) + list(CARD_COPIES[locale].values()):
