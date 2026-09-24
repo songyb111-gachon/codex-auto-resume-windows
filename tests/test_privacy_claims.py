@@ -30,6 +30,7 @@ if str(ROOT / "tests") not in sys.path:
     sys.path.insert(0, str(ROOT / "tests"))
 
 import srcscan  # noqa: E402
+import languages  # noqa: E402
 
 # Modules that could open a socket. `urllib.parse` is pure string handling and is fine;
 # anything that could actually connect is not.
@@ -71,20 +72,27 @@ def generated_ko_branch() -> bool:
     text. Keyed on the marker being *tracked*, because a stray local run of the generator
     leaves an untracked copy behind and that must not excuse anything.
     """
-    listed = subprocess.run(
-        ["git", "-C", str(ROOT), "ls-files", "--", ".github/GENERATED-BRANCH.md"],
-        capture_output=True, text=True, encoding="utf-8")
-    return bool(listed.returncode == 0 and listed.stdout.strip())
+    return languages.generated_ko_branch()
 
 
 def documents_here(names):
-    """The subset of `names` this checkout actually has.
+    """The subset of `names` this checkout is meant to have.
 
     On the generated `ko` branch each Korean source has been written over its English
-    sibling and then removed, so naming both here would mean opening a file that is not
-    there. The English name still resolves - it is the Korean text, under that name.
+    sibling and then removed - the English name resolves, and it is the Korean text - and
+    main is English only. So a `.ko.md` name is dropped on those two, and nowhere else. Any
+    other name that is not here is an error: this used to drop whatever it could not find,
+    which would have let a deleted document leave every check below without a word.
     """
-    return tuple(name for name in names if (ROOT / name).is_file())
+    korean_absent = languages.generated_ko_branch() or languages.english_only()
+    kept = []
+    for name in names:
+        if name.endswith(".ko.md") and korean_absent:
+            continue
+        if not (ROOT / name).is_file():
+            raise AssertionError("%s is named for the privacy checks and is not here" % name)
+        kept.append(name)
+    return tuple(kept)
 
 
 DOCS = documents_here((

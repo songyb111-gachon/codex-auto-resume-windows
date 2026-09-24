@@ -8,7 +8,7 @@
 [![license: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![languages: 9](https://img.shields.io/badge/languages-9-0891b2)](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/GUIDE.md#languages)
 
-<sub>🇰🇷 <a href="README.ko.md">한국어 README</a> · The app speaks nine languages: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil)</sub>
+<sub>🇰🇷 <a href="https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/ko/README.md">한국어 README</a> · The app speaks nine languages: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil)</sub>
 
 Codex stops mid-task and tells you to try again at 6:34 AM. You are asleep at 6:34 AM, and in
 the morning the task is exactly where it stopped.
@@ -161,6 +161,7 @@ its provenance marker), and Windows registrations that belong to this installati
 | [SECURITY.md](docs/SECURITY.md) | The threat model and how to report a vulnerability. |
 | [SUPPORT.md](docs/SUPPORT.md) | Where to report each kind of problem, and what not to paste into a public issue. |
 | [CONTRIBUTING.md](docs/CONTRIBUTING.md) | Tests, the release build, and the safety properties a change has to keep. |
+| [CHANGELOG.md](CHANGELOG.md) | What each release changed. |
 | [codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter) | A separate tool you can run to report how this product behaved on your machine, with your Codex version. It writes one file of counts, states and times - no conversation text, no identifiers, no paths - which you read before you send it. Such a report is counted under **Reported**, a grade of its own that never raises a version to verified or checked. |
 
 ## Credits and license

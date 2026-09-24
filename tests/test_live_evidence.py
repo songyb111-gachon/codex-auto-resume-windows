@@ -36,6 +36,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import live_evidence                                          # noqa: E402
 
+_TESTS = str(Path(__file__).resolve().parent)
+if _TESTS not in sys.path:
+    sys.path.insert(0, _TESTS)
+import languages  # noqa: E402
+
 DOCUMENT = ROOT / "docs" / "LIVE_ACCEPTANCE.md"
 KOREAN = ROOT / "docs" / "LIVE_ACCEPTANCE.ko.md"
 EVIDENCE = ROOT / "docs" / "evidence" / "live"
@@ -52,10 +57,7 @@ def generated_branch() -> bool:
     Keyed on the marker being tracked, because a stray local run of the generator leaves
     an untracked copy behind and that must not excuse anything.
     """
-    listed = subprocess.run(
-        ["git", "-C", str(ROOT), "ls-files", "--", ".github/GENERATED-BRANCH.md"],
-        capture_output=True, text=True, encoding="utf-8")
-    return bool(listed.returncode == 0 and listed.stdout.strip())
+    return languages.generated_ko_branch()
 
 # Never the manifest's version: a test that happened to agree with the product would pass
 # whether or not the check it is about still exists.
@@ -466,9 +468,11 @@ class DocumentTests(unittest.TestCase):
         """The Korean page is its own document, not a gloss - but the step ids are
         machine values, and a Korean reader writing files from it has to produce files
         the same validator accepts."""
-        if not KOREAN.is_file():
+        if generated_branch():
             # On the generated `ko` branch the Korean text lives under the English name.
-            raise unittest.SkipTest("no Korean source here; this checkout is not main")
+            raise unittest.SkipTest("the generated ko branch holds the Korean text under the English name")
+        if languages.english_only():
+            raise unittest.SkipTest(languages.ON_DEV)
         self.assertEqual(document_steps(KOREAN), set(live_evidence.STEPS))
         self.assertEqual(document_table(KOREAN), dict(live_evidence.STEPS))
 

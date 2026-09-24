@@ -7,16 +7,22 @@ request and that installing meant downloading a release archive. Nobody decided 
 is simply what a second copy of a codebase does.
 
 So there is no second copy any more. The code on ko is main's code at a tested commit, and
-the only difference is which language the documents are written in: each Korean file on
-main replaces its English sibling, and the Korean original is removed so the branch has
-one document per subject rather than two.
+the only difference is which language the documents are written in: each Korean source
+replaces its English sibling, and the Korean original is removed so the branch has one
+document per subject rather than two.
 
-    python scripts/ko_sync.py [--root .] [--check]
+The Korean sources are written on `dev`, beside the English, and reviewed in the same commit.
+`main` is English only: the promotion that brings dev to main deletes every `*.ko.md` and
+names the dev commit it came from in a `Korean-sources:` trailer (scripts/promote.py). So a
+checkout of main holds no Korean at all, and `--bring-korean` fetches the sources that
+belong to it - the ones of that dev commit - before the rewrite.
+
+    python scripts/ko_sync.py [--root .] [--bring-korean] [--check]
 
 `--check` reports what would change and writes nothing, which is what the test suite runs.
 
 Deliberately not a translator. Every Korean sentence on ko was written by a person and is
-reviewable on main; nothing here generates prose, and nothing here calls a service.
+reviewable on dev; nothing here generates prose, and nothing here calls a service.
 """
 from __future__ import annotations
 
@@ -38,12 +44,12 @@ next sync, without a conflict and without a warning.
 
 * The code, the installer, the workflows and the tests are main's, at the commit named in
   the sync commit message.
-* The documents are main's Korean ones - `README.ko.md` becomes `README.md`, and so on.
-  `scripts/ko_branch.json` on main is the mapping, and its `not_yet_translated` list says
-  which pages are still English here.
+* The documents are the Korean sources of the `dev` commit that main was promoted from -
+  `README.ko.md` becomes `README.md`, and so on. `scripts/ko_branch.json` is the mapping, and
+  its `intentionally_english` list says which pages stay English here, and why.
 
-To change something on this branch, change it on `main`: the English source for code, or
-the `.ko.md` file for Korean prose.
+To change something on this branch, change it on `dev`: the English source for code, or the
+`.ko.md` file beside it for Korean prose. main is English only, and ko follows main.
 """
 
 
@@ -54,14 +60,22 @@ def load_mapping(root: Path) -> dict:
 def relink(text: str, english: str, base: str) -> str:
     """Point "the English version" at main, now that this file has taken its name.
 
-    On main, `README.ko.md` links to `README.md` next to it. On ko that same file *is*
+    On dev, `README.ko.md` links to `README.md` next to it. On ko that same file *is*
     `README.md`, so the link would point at itself - which is exactly what the old ko
     branch did, for four releases. Relative links to the English sibling therefore become
     absolute links to main's copy, which is the only place it still exists.
+
+    `english` is the sibling's repository path. The link names it as the Korean file does -
+    by its file name, beside it - but the URL needs the whole path: `docs/GUIDE.ko.md`
+    linking `GUIDE.md` must reach `blob/main/docs/GUIDE.md`, and the file name alone gave a
+    404 that no dead-link check could see, because it only reads relative links. An anchor
+    after the name is kept.
     """
-    name = re.escape(english)
-    text = re.sub(r'href="(?:\./)?%s"' % name, 'href="%s%s"' % (base, english), text)
-    text = re.sub(r'\]\((?:\./)?%s\)' % name, '](%s%s)' % (base, english), text)
+    name = re.escape(Path(english).name)
+    text = re.sub(r'href="(?:\./)?%s(#[^"]*)?"' % name,
+                  lambda found: 'href="%s%s%s"' % (base, english, found.group(1) or ""), text)
+    text = re.sub(r'\]\((?:\./)?%s(#[^)\s]*)?\)' % name,
+                  lambda found: '](%s%s%s)' % (base, english, found.group(1) or ""), text)
     return drop_ko_suffix(text)
 
 
@@ -119,9 +133,13 @@ def drop_ko_suffix(text: str) -> str:
       file is the same defect one layer up. Rewriting only the target is how the old ko
       branch came to link to itself for four releases.
     """
+    # An anchor after the name is kept: README.ko.md links `docs/GUIDE.ko.md#언어`, and a
+    # pattern that demanded `)` straight after `.ko.md` left that link dead on ko.
     def rewrite(chunk: str) -> str:
-        chunk = re.sub(r'\]\(%s\)' % KO_TARGET, lambda f: "](%s.md)" % f.group(1), chunk)
-        chunk = re.sub(r'href="%s"' % KO_TARGET, lambda f: 'href="%s.md"' % f.group(1), chunk)
+        chunk = re.sub(r'\]\(%s(#[^)\s]*)?\)' % KO_TARGET,
+                       lambda f: "](%s.md%s)" % (f.group(1), f.group(2) or ""), chunk)
+        chunk = re.sub(r'href="%s(#[^"]*)?"' % KO_TARGET,
+                       lambda f: 'href="%s.md%s"' % (f.group(1), f.group(2) or ""), chunk)
         return re.sub(r'\[%s\]' % KO_TARGET, lambda f: "[%s.md]" % f.group(1), chunk)
 
     return "".join(part if index % 2 else rewrite(part)
@@ -174,12 +192,79 @@ def stale_translations(root: Path) -> list[str]:
     return stale
 
 
+TRAILER = "Korean-sources:"
+
+
+def git(root: Path, *args: str, check: bool = True) -> str:
+    done = subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True,
+                          encoding="utf-8")
+    if check and done.returncode != 0:
+        raise SystemExit("git %s failed: %s" % (" ".join(args), done.stderr.strip()))
+    return done.stdout
+
+
+def korean_sources_commit(root: Path) -> str:
+    """The dev commit main was last promoted from: the newest `Korean-sources:` trailer on
+    HEAD's first-parent history. First-parent, because dev's own commits are in main's history
+    too, as second parents of the promotions, and none of them may answer for main."""
+    log = git(root, "log", "--first-parent", "--format=%H%x00%B%x01", "HEAD")
+    for entry in log.split(chr(1)):
+        _, _, body = entry.strip().partition(chr(0))
+        # The trailer is the message's last line of its kind: promote.py writes it after the
+        # title and the notes, and refuses notes that contain the key, so an earlier line in
+        # the prose can neither break the sync nor outvote the real one.
+        found = [line for line in body.splitlines() if line.startswith(TRAILER)]
+        if found:
+            sha = found[-1][len(TRAILER):].strip()
+            if not re.fullmatch(r"[0-9a-f]{40}", sha):
+                raise SystemExit("a %s trailer names %r, which is not a commit" % (TRAILER, sha))
+            return sha
+    raise SystemExit("this checkout has no Korean sources and no %s trailer names a dev commit "
+                     "that has them; main is promoted with scripts/promote.py" % TRAILER)
+
+
+def bring_korean(root: Path) -> list[str]:
+    """Put the Korean sources back into a checkout of main, from the dev commit it came from.
+
+    Nothing to do on dev, where they are. On main - none of them here - they are read from
+    the trailer's commit, which must be an ancestor of HEAD: a trailer is text, and text
+    alone must not be able to publish a tree nobody promoted. A checkout holding some of them
+    and not others is neither branch, and is refused.
+
+    The English pages must be the ones those sources were written against. A promotion makes
+    them identical; anything main changed afterwards that a Korean source translates shows
+    here as a difference, and is refused rather than published under a stale translation.
+    """
+    sources = sorted(load_mapping(root)["documents"])
+    present = [name for name in sources if (root / name).is_file()]
+    if present and len(present) != len(sources):
+        raise SystemExit("this checkout holds some Korean sources and not others: "
+                         + ", ".join(sorted(set(sources) - set(present))) + " missing")
+    if present:
+        return []
+    commit = korean_sources_commit(root)
+    if subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", commit, "HEAD"],
+                      capture_output=True).returncode != 0:
+        raise SystemExit("%s names %s, which is not in this checkout's history" % (TRAILER, commit))
+    mapping = load_mapping(root)
+    moved = [english for english in sorted(mapping["documents"].values())
+             if git(root, "rev-parse", "HEAD:" + english).strip()
+             != git(root, "rev-parse", "%s:%s" % (commit, english), check=False).strip()]
+    if moved:
+        raise SystemExit("main changed pages the Korean sources of %s translate, after that "
+                         "promotion: %s. Change them on dev and promote again."
+                         % (commit[:12], ", ".join(moved)))
+    git(root, "checkout", commit, "--", *sources)
+    return sources
+
+
 def build(root: Path, *, check: bool = False) -> list[str]:
     """Rewrite a checkout of main into ko's tree. Returns what it changed.
 
-    Always run against a checkout of *main*: the Korean sources it reads only exist
-    there. Running it twice over the same tree is not idempotent and is not meant to be -
-    the workflow starts from a fresh checkout of a tested commit every time.
+    Run against a checkout that holds the Korean sources: dev itself, or main after
+    `bring_korean` has put back the ones it was promoted with. Running it twice over the
+    same tree is not idempotent and is not meant to be - the workflow starts from a fresh
+    checkout of a tested commit every time.
     """
     mapping = load_mapping(root)
     base = mapping["english_on_main"]
@@ -188,8 +273,9 @@ def build(root: Path, *, check: bool = False) -> list[str]:
         origin, destination = root / source, root / target
         if not origin.is_file():
             raise SystemExit("%s is listed in %s but does not exist; run this against a "
-                             "checkout of main" % (source, MAPPING_NAME))
-        wanted = relink(origin.read_text(encoding="utf-8"), destination.name, base)
+                             "checkout of dev, or of main with --bring-korean"
+                             % (source, MAPPING_NAME))
+        wanted = relink(origin.read_text(encoding="utf-8"), target, base)
         changed.append(target)
         if check:
             continue
@@ -293,6 +379,9 @@ def main(argv=None) -> int:
     parser.add_argument("--root", default=".", help="checkout to rewrite in place")
     parser.add_argument("--check", action="store_true",
                         help="report what would change and write nothing")
+    parser.add_argument("--bring-korean", action="store_true",
+                        help="on an English-only checkout of main, first put back the Korean "
+                             "sources of the dev commit it was promoted from")
     parser.add_argument("--reviewed", nargs="+", metavar="ENGLISH",
                         help="record that these English documents' translations are current")
     args = parser.parse_args(argv)
@@ -311,6 +400,9 @@ def main(argv=None) -> int:
         (root / MAPPING_NAME).write_text(
             _json.dumps(mapping, indent=2, ensure_ascii=False) + chr(10), encoding="utf-8")
         return 0
+    if args.bring_korean:
+        for name in bring_korean(root):
+            print("brought " + name)
     changed = build(root, check=args.check)
     for name in changed:
         print(("would replace " if args.check else "replaced ") + name)

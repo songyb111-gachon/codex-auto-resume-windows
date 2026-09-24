@@ -16,7 +16,13 @@ import ast
 from pathlib import Path
 import re
 import subprocess
+import sys
 import unittest
+
+_TESTS = str(Path(__file__).resolve().parent)
+if _TESTS not in sys.path:
+    sys.path.insert(0, _TESTS)
+import languages  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 MATRIX = ROOT / "docs" / "FEATURE_MATRIX.md"
@@ -171,8 +177,8 @@ class CitationTests(unittest.TestCase):
     def test_the_korean_matrix_levels_the_same_number_of_rows(self):
         """The two documents are siblings; a row that gains a level in one and not the
         other is how they start describing different products."""
-        if not KOREAN.is_file():
-            self.skipTest("docs/FEATURE_MATRIX.ko.md is not in this checkout")
+        if languages.generated_ko_branch() or languages.english_only():
+            self.skipTest(languages.ON_DEV)
         korean = KOREAN.read_text(encoding="utf-8")
         counts = {}
         for name, text in (("en", self.text), ("ko", korean)):
