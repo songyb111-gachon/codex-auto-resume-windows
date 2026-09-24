@@ -99,9 +99,15 @@ jobs:
             exit 1
           fi
 
+      # main is English only: the promotion from dev deleted every *.ko.md and named the dev
+      # commit in a `Korean-sources:` trailer (scripts/promote.py). The Korean sources that
+      # belong to this commit are that dev commit's, and it is in main's own history - the
+      # promotion's second parent - so the full-depth checkout above already has it. The
+      # generator refuses a trailer outside that history, and English that main changed after
+      # the promotion, rather than publish Korean written against something else.
       - name: Replace the English documents with their Korean counterparts
         shell: bash
-        run: python scripts/ko_sync.py --root .
+        run: python scripts/ko_sync.py --root . --bring-korean
 
       # Staged before anything looks at the tree, not as part of committing it.
       #

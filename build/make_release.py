@@ -66,10 +66,12 @@ GUI_EXE = "CodexAutoResumeSettings.exe"
 MCP_EXE = "codex-auto-resume-mcp.exe"
 # Every top-level document the shipped README links to, so the installed copy does not
 # promise a privacy policy that is not beside it. Asserted by tests/test_plugin.py.
-APP_FILES = ("LICENSE", "README.md", "README.ko.md", "PRIVACY.md", "docs/SECURITY.md",
-             "docs/SECURITY.ko.md", "docs/SUPPORT.md", "docs/CONTRIBUTING.md",
-             "CONTRIBUTORS.md",
-             "CONTRIBUTORS.ko.md", "CHANGELOG.md", ".mcp.json")
+#
+# English only: a release is built from a tag on main, and main holds no Korean document
+# (they are written on dev and read on the generated ko branch). The three Korean ones this
+# used to ship left with them; no published bootstrap requires any of them.
+APP_FILES = ("LICENSE", "README.md", "PRIVACY.md", "docs/SECURITY.md", "docs/SUPPORT.md",
+             "docs/CONTRIBUTING.md", "CONTRIBUTORS.md", "CHANGELOG.md", ".mcp.json")
 LAUNCHER_FILES = ("Install.cmd", "Uninstall.cmd", "README.txt", "install.ps1")
 
 EXCLUDE_DIRS = {"__pycache__", ".git", ".github", "node_modules", ".pytest_cache",

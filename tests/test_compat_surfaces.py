@@ -22,6 +22,7 @@ _HERE = str(Path(__file__).resolve().parent)
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 from test_compat_characterization import FakeCodex, Fixture  # noqa: E402
+import languages  # noqa: E402
 import srcscan  # noqa: E402
 from codex_auto_resume import (compat, compatio, config, control, controlcli, diagnostics,  # noqa: E402
                                mcpserver, settings, windows)
@@ -41,18 +42,12 @@ REFRESH_HOST = "raw.githubusercontent.com"
 
 
 def generated_ko_branch() -> bool:
-    """Whether this checkout is the generated `ko` branch, the way tests/test_privacy_claims.py
-    and tests/test_python_support.py ask it: by the marker being *tracked*, because a stray local
-    run of the generator leaves an untracked copy behind and that must not excuse anything.
-
-    There, each Korean document has been written over its English sibling and removed, so the
-    root PRIVACY.md and SECURITY.md are the Korean text and there is no English to hold to English
-    wording. This module did not ask, and it was the one failure that kept ko from syncing."""
-    import subprocess
-    listed = subprocess.run(
-        ["git", "-C", str(ROOT), "ls-files", "--", ".github/GENERATED-BRANCH.md"],
-        capture_output=True, text=True, encoding="utf-8")
-    return bool(listed.returncode == 0 and listed.stdout.strip())
+    """Whether this checkout is the generated `ko` branch. There, each Korean document has been
+    written over its English sibling and removed, so the root PRIVACY.md and SECURITY.md are the
+    Korean text and there is no English to hold to English wording. This module did not ask once,
+    and it was the one failure that kept ko from syncing. `tests/languages.py` answers it for
+    every test, together with the other question - whether this is English-only main."""
+    return languages.generated_ko_branch()
 
 
 def documentation_gaps(texts) -> list:
@@ -78,10 +73,13 @@ def documentation_gaps(texts) -> list:
         gaps.append("PRIVACY.md describes Check for updates without the refresh it now makes")
     if not re.search(r"(?i)compatibility (?:data )?refresh", security):
         gaps.append("SECURITY.md does not name the compatibility refresh")
+    # The Korean pair, when the texts hold it: dev does; main is English only, and its
+    # Korean halves are dev's to answer. A Korean key given as "" is still a Korean text that
+    # says nothing, and is a gap.
     for name in ("PRIVACY.ko.md", "docs/SECURITY.ko.md"):
-        if REFRESH_HOST not in texts.get(name, ""):
+        if name in texts and REFRESH_HOST not in texts[name]:
             gaps.append("%s does not name %s" % (name, REFRESH_HOST))
-    gaps.extend(status_disclosure_gaps(texts))
+    gaps.extend(status_disclosure_gaps(texts, korean="PRIVACY.ko.md" in texts))
     return gaps
 
 
@@ -92,15 +90,17 @@ def status_item(text):
     return found.group(0) if found else None
 
 
-def status_disclosure_gaps(texts) -> list:
+def status_disclosure_gaps(texts, korean: bool = True) -> list:
     """What PRIVACY.md and PRIVACY.ko.md owe the compatibility summary `get_status` carries.
 
     `get_status` (and `open_settings`, which returns the same status) puts compat.mcp_view's
     summary into the Codex conversation, which Codex sends on. The item that says what
     `get_status` returns must name the summary and say it is codes only. Shape-based, and in
-    either language, because the generated `ko` branch holds Korean under the English name."""
+    either language, because the generated `ko` branch holds Korean under the English name.
+    `korean=False` on English-only main, where PRIVACY.ko.md does not exist; anywhere else a
+    missing Korean item is a gap, never a pass by substitution."""
     gaps = []
-    for name in ("PRIVACY.md", "PRIVACY.ko.md"):
+    for name in ("PRIVACY.md", "PRIVACY.ko.md") if korean else ("PRIVACY.md",):
         item = status_item(texts.get(name, ""))
         if item is None:
             gaps.append("%s has no item saying what get_status returns" % name)
@@ -503,11 +503,14 @@ class PrivacyTests(unittest.TestCase):
         summary = compat.mcp_view(compat.unusable_view("absent"))
         self.assertTrue({"status", "overall", "acting", "source", "sequence", "cache", "checked_at",
                          "capabilities"} >= set(summary))
-        texts = {name: (ROOT / name).read_text(encoding="utf-8")
-                 for name in ("PRIVACY.md", "PRIVACY.ko.md") if (ROOT / name).is_file()}
-        self.assertIn("PRIVACY.md", texts)
-        texts.setdefault("PRIVACY.ko.md", texts["PRIVACY.md"])
-        self.assertEqual(status_disclosure_gaps(texts), [])
+        # dev holds both; main is English only; on ko, PRIVACY.md is the Korean text. The
+        # English copy used to stand in for a missing Korean one here, which let a deleted
+        # PRIVACY.ko.md pass - now the Korean half is asked only where it must exist.
+        korean = languages.both_languages()
+        texts = {"PRIVACY.md": (ROOT / "PRIVACY.md").read_text(encoding="utf-8")}
+        if korean:
+            texts["PRIVACY.ko.md"] = (ROOT / "PRIVACY.ko.md").read_text(encoding="utf-8")
+        self.assertEqual(status_disclosure_gaps(texts, korean=korean), [])
 
     def test_the_documents_name_the_refresh_before_it_ships(self):
         """The refresh is a request PRIVACY.md does not describe yet: it still says the
@@ -528,9 +531,10 @@ class PrivacyTests(unittest.TestCase):
                                   "%s holds the Korean text on this branch, and it must still name %s"
                                   % (name, REFRESH_HOST))
             return
-        texts = {name: (ROOT / name).read_text(encoding="utf-8") if (ROOT / name).is_file() else ""
-                 for name in ("PRIVACY.md", "docs/SECURITY.md", "PRIVACY.ko.md",
-                              "docs/SECURITY.ko.md")}
+        names = ["PRIVACY.md", "docs/SECURITY.md"]
+        if languages.both_languages():
+            names += ["PRIVACY.ko.md", "docs/SECURITY.ko.md"]
+        texts = {name: (ROOT / name).read_text(encoding="utf-8") for name in names}
         self.assertEqual(documentation_gaps(texts), [])
 
 
