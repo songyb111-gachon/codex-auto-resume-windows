@@ -80,6 +80,8 @@ LAYER = {_q(name): layer for layer, names in {
                 "control.layer", "control.policy", "control.preview", "control.records",
                 "control.seen", "control.state", "control.watcher", "diagnostics"),
     "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcp.panel", "app", "ui.tray",
+              # v0.6.10-alpha: app.py became runtime/ - the wiring, the loop and the toasts.
+              "runtime", "runtime.app", "runtime.loop", "runtime.toasts",
               # v0.6.10-alpha: mcpserver.py's body became mcp/, beside the panel's own files.
               "mcp", "mcp.server", "mcp.tools",
               "ui.popup", "brand",
@@ -156,14 +158,15 @@ LAZY_CYCLES = {
 #   cycle      it closes one of LAZY_CYCLES above.
 LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, imported), (kind, reason) in {
     ("", "config"): ("cost", "__version__ is resolved on demand, so importing the package reads no manifest"),
-    ("app", "control"): ("cost", "only a card's button and the icon's thread use the control layer"),
-    ("app", "interface"): ("cost", "the icon's catalogue, when the icon starts or the language changes"),
-    ("app", "ui.tray"): ("cost", "the notification-area icon, only in a watcher that shows one"),
+    ("runtime.app", "control"): ("cost", "only a card's button and the icon's thread use the control layer"),
+    ("runtime.loop", "control"): ("cost", "only a card's button and the icon's thread use the control layer"),
+    ("runtime.app", "interface"): ("cost", "the icon's catalogue, when the icon starts or the language changes"),
+    ("runtime.app", "ui.tray"): ("cost", "the notification-area icon, only in a watcher that shows one"),
     # Reaching `ui.tray` loads `ui/__init__.py` with it, and since v0.6.10-alpha the icon
     # is inside `ui/`, so the package above it is an edge these two did not have before.
-    ("app", "ui"): ("cost", "the package above the icon, loaded with it"),
+    ("runtime.app", "ui"): ("cost", "the package above the icon, loaded with it"),
     ("cli", "ui"): ("cost", "the package above the icon, loaded with it"),
-    ("app", "ui.popup"): ("cost", "the popup's theme and motion, adopted only by a running watcher"),
+    ("runtime.app", "ui.popup"): ("cost", "the popup's theme and motion, adopted only by a running watcher"),
     ("cli", "control"): ("cost", "the diagnostics command is the only one that goes through control"),
     ("cli", "diagnostics"): ("cost", "only the diagnostics command writes the export"),
     ("cli", "ui.tray"): ("cost", "activate opens the settings window through the icon's helper"),
