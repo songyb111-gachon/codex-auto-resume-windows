@@ -265,13 +265,14 @@ Colours, the icon and the generated files that carry them are covered in
 The short version: the palette lives in `src/codex_auto_resume/brand/`, `gui/Brand.cs`
 and `assets/brand/icon.svg` are generated from it, and `tests/test_brand.py` regenerates
 both and compares. Do not write a colour literal into the window or the panel stylesheet.
-There is a test for that too, but it reads `gui/SettingsApp.cs` only — neither it nor the
-test that catches sizes written in raw pixels looks at `gui/Dashboard.cs`, so a colour or a
-raw pixel size written there is on you. Other tests do read that file: every Paint handler
-must sit on a buffered control, every class that draws itself must be double-buffered, and
-the long-lived bridge's command line is executed for real. The soft-control sources both files
-draw with have a test of their own that refuses a hexadecimal colour literal, and it reads
-whichever of them `gui/window.sources` names, so splitting one into two does not narrow it.
+`tests/test_gui_theme.py` refuses one - a literal, a named colour, or a light brand colour
+drawn directly - in every hand-written source of the window: the `[settings]`, `[dashboard]`
+and `[controls]` groups of `gui/window.sources`, so a file added to a group is covered without
+an edit. The test that catches sizes written in raw pixels (`tests/test_brand.py`) reads the
+`[settings]` half only, so a raw pixel size written in the Dashboard's files is on you. Other
+tests do read those: every Paint handler must sit on a buffered control, every class that
+draws itself must be double-buffered, and the long-lived bridge's command line is executed for
+real.
 
 ## The MCP declaration is added at build time
 
