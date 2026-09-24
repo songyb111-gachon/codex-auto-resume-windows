@@ -398,8 +398,12 @@ class NotARecoveryEngineTests(ControlTestCase):
             # names, in the place it now lives.
             # `windows` is the front of the Codex adapter since v0.6.10-alpha and imports the
             # package it re-exports; it holds no logic of its own.
-            "codex": {package % name for name in ("compatio", "controlcli", "windows")}
-                      | {"codex_auto_resume/engine/detect.py", "codex_auto_resume/runtime/app.py"},
+            # The registry's io half reads Codex's databases for its local checks: compat/cache.py,
+            # evaluator.py and views.py since v0.6.10-alpha, which compatio.py was.
+            "codex": {package % name for name in ("controlcli", "windows")}
+                      | {"codex_auto_resume/engine/detect.py", "codex_auto_resume/runtime/app.py",
+                         "codex_auto_resume/compat/cache.py", "codex_auto_resume/compat/evaluator.py",
+                         "codex_auto_resume/compat/views.py"},
         }, "the set of modules that reach the engine or the source has changed")
 
 

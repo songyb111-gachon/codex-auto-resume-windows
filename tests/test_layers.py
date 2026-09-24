@@ -58,6 +58,8 @@ LAYER = {_q(name): layer for layer, names in {
                "domain.ids", "domain.public", "domain.states", "domain.vocabulary"),
     "policy": ("", "settings", "continuation", "l10n", "messages", "interface", "config", "logbook"),
     "adapters": ("store", "openstate", "codex", "windows", "compat", "compatio", "startup", "shortcut",
+                 # v0.6.10-alpha: compat.py and compatio.py became compat/.
+                 "compat.model", "compat.standing", "compat.report", "compat.permits", "compat.files", "compat.cache", "compat.probes", "compat.views", "compat.evaluator",
                  "pwsh", "notify", "notice_presence", "tray_place",
                  # v0.6.10-alpha: store.py became store/. Every part of it is the same layer
                  # the one module was, and `STORE` below covers them by prefix.
@@ -146,12 +148,10 @@ UI_EXCEPTIONS = {
 # Import cycles, which exist only through imports made inside functions. Each is removed by
 # the split (win/dll.py for the icon's shared Win32 structures, compat/ and win/ for the
 # registry and the adapter), and until then is listed here exactly.
-LAZY_CYCLES = {
-    frozenset({_q("codex.transport"), _q("compatio"), _q("windows")}):
-        "codex.transport.verified_versions reads the bundled baseline through compatio, and "
-        "compatio's probes read the adapter through the `windows` front - which is what puts "
-        "three modules in the cycle rather than two",
-}
+# None left. The last one - codex.transport -> compatio -> the registry's probes -> windows ->
+# codex.transport - went in v0.6.10-alpha, when the adapter began reading the bundled
+# registry's verified versions from compat/files.py instead of through the compatio front.
+LAZY_CYCLES = {}
 
 # Every import made inside a function, with what it is for. Three kinds, and the test checks
 # each claim against the import graph:
@@ -173,7 +173,8 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
     ("commands.install", "control"): ("cost", "the diagnostics command is the only one that goes through control"),
     ("commands.install", "diagnostics"): ("cost", "only the diagnostics command writes the export"),
     ("commands.watcher", "ui.tray"): ("cost", "activate opens the settings window through the icon's helper"),
-    ("compatio", "windows"): ("cycle", "the registry's API and discovery checks read the adapter"),
+    ("compat.probes", "windows"): ("cost", "the registry's API and discovery checks read the "
+                                           "adapter, only when they run"),
     ("config", "settings"): ("cost", "nearly everything imports config; the settings schema, and the "
                                      "catalogs behind it, load only when settings are read or written"),
     ("controlcli", "compatio"): ("cost", "the three compatibility commands only"),
@@ -197,8 +198,10 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
     ("ui.tray.menu", "ui.popup"): ("cost", "the theme the menu is drawn in, only when it opens"),
     ("ui.tray.motion", "ui.popup"): ("cost", "whether the popup asks for attention"),
     ("ui.tray.stored", "ui.popup"): ("cost", "the popup's theme and motion, adopted with the settings"),
-    ("codex.transport", "compatio"): ("cycle", "the versions the bundled registry verifies are "
-                                                "read from the bundled baseline"),
+    ("codex.transport", "compat.files"): ("cost", "the versions the bundled registry verifies, "
+                                                     "read once from the bundled baseline"),
+    ("codex.transport", "compat"): ("cost", "the package compat/files.py is in, which Python loads "
+                                            "to reach it; its front is the pure model"),
     ("codex.appserver", "config"): ("cost", "the product version for the App Server's clientInfo, "
                                             "when a Protocol opens"),
 }.items()}

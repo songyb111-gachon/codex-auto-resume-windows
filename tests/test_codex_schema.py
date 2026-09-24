@@ -112,7 +112,8 @@ class OneHomeForTheSqlTests(unittest.TestCase):
     # one question of its own - it belongs with the reader, and goes there when `compat/` is
     # built (step 11 of the plan), not before.
     ALLOWED = {"codex_auto_resume/codex/history.py": "everything asked of Codex",
-               "codex_auto_resume/compatio.py": "the registry's probe of Codex's own schema"}
+               # compatio.py's probes are compat/probes.py since v0.6.10-alpha.
+               "codex_auto_resume/compat/probes.py": "the registry's probe of Codex's own schema"}
 
     def test_only_the_modules_that_own_a_database_hold_sql(self):
         found = self.modules_with_sql()

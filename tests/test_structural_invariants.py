@@ -194,7 +194,10 @@ class ProcessTests(unittest.TestCase):
         "codex_auto_resume/codex/transport.py": "the Codex adapter: `codex --version` and `codex queue`",
         "codex_auto_resume/codex/appserver.py": "the Codex adapter: the App Server's finite stdio process",
         "codex_auto_resume/codex/pairing.py": "the Codex adapter: the process inventory, through PowerShell",
-        "codex_auto_resume/compatio.py": "`codex --version`, `codex queue --help`, and the bootstrap's -Compatibility fetch",
+        # compatio.py's refresh became compat/evaluator.py in v0.6.10-alpha; the front imports
+        # no process module at all.
+        "codex_auto_resume/compat/evaluator.py": "`codex --version`, `codex queue --help`, and the "
+                                                 "bootstrap's -Compatibility fetch",
         "codex_auto_resume/pwsh.py": "the one place PowerShell is run",
         "codex_auto_resume/control/watcher.py": "starts the watcher, detached (a lazy import in start_watcher)",
         "codex_auto_resume/ui/tray/dashboard.py": "opens the settings window from the icon",

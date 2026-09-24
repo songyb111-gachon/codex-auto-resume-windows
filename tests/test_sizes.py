@@ -54,8 +54,6 @@ def hold(test):
 # that shrinks its module; delete the entry when it is under the budget; never raise one.
 OVERSIZED = {
     "codex_auto_resume/notice_window.py": 929,
-    "codex_auto_resume/compat.py": 824,
-    "codex_auto_resume/compatio.py": 727,
 }
 
 
