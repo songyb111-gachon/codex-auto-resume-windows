@@ -131,7 +131,7 @@ The archive carries its own Python runtime, so there is nothing to install first
 recommended settings are already on when it finishes. `Install.cmd` downloads nothing itself:
 it registers the Codex plugin from the files in the archive, so this route gets the panel too.
 It does ask Codex to refresh marketplaces, though. The installer in v0.5.7 and earlier asks
-Codex to refresh every Git marketplace you have configured. The current v0.6.0
+Codex to refresh every Git marketplace you have configured. From v0.6.0 the
 installer names only this product's marketplace, which does nothing for the local
 registration it has just made; Codex fetches only if an earlier GitHub registration of that
 marketplace survived the repoint.

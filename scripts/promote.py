@@ -67,7 +67,12 @@ def require_clean_branch(root: Path, branch: str) -> None:
 
 def to_main(root: Path, dev: str, title: str, body: str = "") -> str:
     require_clean_branch(root, "main")
+    if TRAILER in title or TRAILER in body:
+        raise Refused("the title and notes may not contain %r; the promotion writes that line "
+                      "itself, and ko's generator reads the last one" % TRAILER)
     dev_sha = git(root, "rev-parse", dev + "^{commit}").strip()
+    if dev_sha == git(root, "rev-parse", "HEAD").strip():
+        raise Refused("main is already %s; there is nothing to promote" % dev)
     if subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", "HEAD", dev_sha],
                       capture_output=True).returncode != 0:
         raise Refused("%s does not contain main yet. On dev, run `promote.py into-dev` (which "
@@ -85,7 +90,7 @@ def to_main(root: Path, dev: str, title: str, body: str = "") -> str:
         if done.returncode != 0:
             raise Refused("git commit failed: " + (done.stderr or done.stdout).strip())
     except BaseException:
-        git(root, "merge", "--abort", check=False)
+        restore(root)
         raise
     difference = git(root, "diff", "--name-status", "--no-renames", dev_sha, "HEAD").splitlines()
     expected = sorted("D\t" + path for path in korean)
@@ -96,6 +101,18 @@ def to_main(root: Path, dev: str, title: str, body: str = "") -> str:
     if korean_blobs(root, "HEAD"):
         raise Refused("a Korean document is still on main")
     return git(root, "rev-parse", "HEAD").strip()
+
+
+def restore(root: Path) -> None:
+    """Put the checkout back as it was before a promotion that did not finish. A merge that
+    recorded nothing - dev already in main - leaves no MERGE_HEAD for `merge --abort` to act on,
+    and the staged deletions of every Korean file would stay; the checkout was clean when this
+    started (require_clean_branch), so resetting to HEAD loses nothing."""
+    merging = subprocess.run(["git", "-C", str(root), "rev-parse", "-q", "--verify", "MERGE_HEAD"],
+                             capture_output=True).returncode == 0
+    if merging:
+        git(root, "merge", "--abort", check=False)
+    git(root, "reset", "-q", "--hard", "HEAD", check=False)
 
 
 def into_dev(root: Path, main: str) -> str | None:

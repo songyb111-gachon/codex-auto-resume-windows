@@ -79,7 +79,24 @@ def both_languages() -> bool:
 
 
 def branch_rule() -> str | None:
-    """What CI says this checkout must hold, from the branch it is testing: "english" on main,
-    "both" on dev, None elsewhere (a tag, a pull request, a local run)."""
-    name = os.environ.get("GITHUB_REF_NAME", "")
+    """What CI says this checkout must hold: "english" for main, "both" for dev, None when CI
+    names no branch this tree is (a tag, a dispatch, the ko sync, a local run).
+
+    Asked of the tree actually checked out, not of the branch a workflow happens to run on:
+    `release.yml` dispatched from main can check out dev (`inputs.ref`), and holding that tree to
+    main's rule was a false red. So on a push the rule applies only when HEAD is the pushed commit,
+    and on a pull request it is the base's rule - the tree tested is the merge into that base, so
+    a pull request that would take Korean off dev, or put it back on main, fails before it lands.
+    """
+    event = os.environ.get("GITHUB_EVENT_NAME", "")
+    if event == "pull_request":
+        name = os.environ.get("GITHUB_BASE_REF", "")
+    elif event == "push":
+        head = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True,
+                              text=True, encoding="utf-8").stdout.strip()
+        if not head or head != os.environ.get("GITHUB_SHA", ""):
+            return None
+        name = os.environ.get("GITHUB_REF_NAME", "")
+    else:
+        return None
     return {"main": "english", "dev": "both"}.get(name)

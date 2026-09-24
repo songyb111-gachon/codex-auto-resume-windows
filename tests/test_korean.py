@@ -504,11 +504,35 @@ class BranchTests(unittest.TestCase):
     def test_the_branch_holds_the_languages_it_should(self):
         rule = languages.branch_rule()
         if rule is None or languages.generated_ko_branch():
-            self.skipTest("not a push to main or dev (a tag, a pull request, the ko sync, or a local run)")
+            self.skipTest("CI names no branch this tree is: a tag, a dispatch, the ko sync, or a local run")
         if rule == "english":
             self.assertTrue(languages.english_only(), "main must carry no Korean document")
         else:
             self.assertTrue(languages.both_languages(), "dev must carry every Korean source")
+
+    def test_the_rule_follows_the_tree_that_was_checked_out(self):
+        """A push is held to its branch only when HEAD is the pushed commit; a pull request to its
+        base; anything else to nothing."""
+        from unittest import mock
+        head = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True,
+                              text=True, encoding="utf-8").stdout.strip()
+        cases = [
+            ({"GITHUB_EVENT_NAME": "push", "GITHUB_REF_NAME": "main", "GITHUB_SHA": head}, "english"),
+            ({"GITHUB_EVENT_NAME": "push", "GITHUB_REF_NAME": "dev", "GITHUB_SHA": head}, "both"),
+            ({"GITHUB_EVENT_NAME": "push", "GITHUB_REF_NAME": "main", "GITHUB_SHA": "0" * 40}, None),
+            ({"GITHUB_EVENT_NAME": "pull_request", "GITHUB_REF_NAME": "7/merge",
+              "GITHUB_BASE_REF": "dev"}, "both"),
+            ({"GITHUB_EVENT_NAME": "pull_request", "GITHUB_BASE_REF": "main"}, "english"),
+            ({"GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REF_NAME": "main"}, None),
+            ({"GITHUB_EVENT_NAME": "workflow_run", "GITHUB_REF_NAME": "main"}, None),
+            ({"GITHUB_EVENT_NAME": "push", "GITHUB_REF_NAME": "v0.6.10", "GITHUB_SHA": head}, None),
+        ]
+        import os
+        kept = {key: value for key, value in os.environ.items() if not key.startswith("GITHUB_")}
+        for env, expected in cases:
+            # Every other GITHUB_ variable goes, PATH and the rest stay: git must still run.
+            with self.subTest(env), mock.patch.dict("os.environ", dict(kept, **env), clear=True):
+                self.assertEqual(languages.branch_rule(), expected)
 
     def test_a_tree_with_some_korean_sources_is_refused(self):
         """Neither branch: a half-deleted checkout. It must fail, not skip."""
