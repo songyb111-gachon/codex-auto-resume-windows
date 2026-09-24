@@ -849,7 +849,7 @@ Codex에 등록된 이 플러그인과 마켓플레이스를 남기며, 이 중 
 마찬가지로, 그 문장은 재개된 대화에 보내져 대화의 일부가 되고 그 대화와 함께 OpenAI로 갑니다. 그러니
 대화에 넣고 싶지 않은 내용은 쓰지 마세요. 화면 번역은 제품과 함께 설치되는 로컬 파일이며, 언어를
 고르거나 바꾸는 일로 네트워크 요청이 생기지는 않습니다. 자세한 내용은
-[PRIVACY.ko.md](../PRIVACY.ko.md)를
+[PRIVACY.ko.md](PRIVACY.ko.md)를
 참고하세요.
 
 ## 알려진 제한
@@ -926,8 +926,8 @@ Software Foundation의 서명을 유지합니다.
 - 팔레트와 마크, 그리고 각각이 왜 그런 모습인지: [docs/BRAND.ko.md](BRAND.ko.md)
 - 어떻게 만들었는지, loaded/notLoaded 제한 뒤의 실측까지: [docs/DEVELOPMENT.ko.md](DEVELOPMENT.ko.md)
 - 앞으로 릴리스마다 나아갈 방향(약속이 아니라 계획): [docs/ROADMAP.ko.md](ROADMAP.ko.md)
-- 릴리스마다 무엇이 바뀌었는지: [CHANGELOG.ko.md](../CHANGELOG.ko.md)
-- 무엇을 읽고, 무엇을 저장하고, 무엇이 어디로 가는지: [PRIVACY.ko.md](../PRIVACY.ko.md)
+- 릴리스마다 무엇이 바뀌었는지: [CHANGELOG.ko.md](CHANGELOG.ko.md)
+- 무엇을 읽고, 무엇을 저장하고, 무엇이 어디로 가는지: [PRIVACY.ko.md](PRIVACY.ko.md)
 - 위협 모델, 적대적 검토 결과, 취약점을 알리는 방법: [SECURITY.ko.md](SECURITY.ko.md)
 - 문제 종류마다 어디에 알릴지, 공개 이슈에 붙여넣으면 안 되는 것: [SUPPORT.ko.md](SUPPORT.ko.md)
 - 테스트, 릴리스 빌드, fixture 규칙, 그리고 변경이 지켜야 할 안전 속성: [CONTRIBUTING.ko.md](CONTRIBUTING.ko.md)
@@ -942,7 +942,7 @@ Software Foundation의 서명을 유지합니다.
   테스트를 넓히고, 정확성 버그를 고치고, 보안 감사와 적대적 감사를 했습니다.
 
 OpenAI Codex와 Anthropic Claude Code는 AI 개발 도구이지, 사람 기여자나 GitHub 계정이 아닙니다.
-자세한 역할 구분은 [CONTRIBUTORS.ko.md](../CONTRIBUTORS.ko.md)에, loaded/notLoaded 제한 뒤의 실측을
+자세한 역할 구분은 [CONTRIBUTORS.ko.md](CONTRIBUTORS.ko.md)에, loaded/notLoaded 제한 뒤의 실측을
 포함한 개발 과정은 [docs/DEVELOPMENT.ko.md](DEVELOPMENT.ko.md)에 있습니다.
 
 ## 라이선스

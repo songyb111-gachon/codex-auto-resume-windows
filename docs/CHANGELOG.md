@@ -174,7 +174,7 @@ picture breathes with the rest.
 - Codex ignores a plugin's suggested prompts entirely when there are more than three, and this one
   offered four, so none of them ever appeared. It offers three.
 - The README is the short version - what it does, how to install it, the one limitation, where
-  everything else is - and everything it used to hold is in [the guide](docs/GUIDE.md).
+  everything else is - and everything it used to hold is in [the guide](GUIDE.md).
 - The roadmap gives the design audit and the choice of appearance a release of their own (v0.6.10's
   final), which moves the advanced features and the two editions to v0.6.11 and everything after it
   one number on.
@@ -2023,7 +2023,7 @@ mistake, unreported, on the install path, where it was worse.
   ours.
 - The same rule already covered the sign-in entry, the notification identity, the Start
   Menu shortcut and the notification handler as of v0.5.3.
-  [SECURITY.md](docs/SECURITY.md) now states it once, for every kind of resource.
+  [SECURITY.md](SECURITY.md) now states it once, for every kind of resource.
 
 ### Removing says what actually happened
 
@@ -2105,8 +2105,8 @@ files and two languages.
 - **Fixed: it keeps state outside its own directory.** The sign-in value, the notification
   sender identity, the notification button's URL handler and the Start Menu entry are all
   per-user Windows registrations, and they are now listed where the storage is described.
-- **Fixed: [SUPPORT.md](docs/SUPPORT.md) pointed at a private security channel** that
-  [SECURITY.md](docs/SECURITY.md) says does not exist.
+- **Fixed: [SUPPORT.md](SUPPORT.md) pointed at a private security channel** that
+  [SECURITY.md](SECURITY.md) says does not exist.
 - **Fixed: `docs/PLUGIN.md` claimed nothing downloaded is passed to a shell** — while the
   bootstrap runs the installer out of the archive it has just unpacked. The claim that holds
   is narrower: nothing from the network is *piped into* a shell.
@@ -2271,7 +2271,7 @@ drifted. The palette now lives in one module; `gui/Brand.cs` and the panel's sty
 generated from it, and tests regenerate both and compare, so a hand-edit fails the suite
 instead of shipping. A test also sweeps every tracked file for the retired colours, because
 that is how a colour survives a rebrand: in a document nobody reopened.
-[`docs/BRAND.md`](docs/BRAND.md) records the decisions.
+[`docs/BRAND.md`](BRAND.md) records the decisions.
 
 ## v0.5.1 — Say what the product actually is
 
@@ -2305,9 +2305,9 @@ this project that no longer exists, and the install instructions contradicted th
 
 - **[PRIVACY.md](PRIVACY.md)** — what is read, what is stored, and the short answer to what is
   sent anywhere: nothing. No telemetry, no analytics, no update check, no outbound requests.
-- **[SUPPORT.md](docs/SUPPORT.md)** — where to report each kind of problem, what to include, and what
+- **[SUPPORT.md](SUPPORT.md)** — where to report each kind of problem, what to include, and what
   not to paste into a public issue.
-- **[CONTRIBUTING.md](docs/CONTRIBUTING.md)** — how to run the tests and build a release, the fixture
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — how to run the tests and build a release, the fixture
   conventions, and the safety properties a change has to keep.
 - **[README.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/ko/README.md)** — a Korean
   README, linked from the English one.
@@ -2400,7 +2400,7 @@ manifest field, MCP surface or hook can address it. A Codex-native form at the m
 interruption is now technically possible and is still not shipped, for a stated reason rather
 than a technical one - it would push a form into whatever conversation happens to be open, about
 a different one that failed, only when Codex is running, and only where a remote feature gate is
-on. Nothing was faked in its place. See [docs/PLUGIN.md](docs/PLUGIN.md).
+on. Nothing was faked in its place. See [docs/PLUGIN.md](PLUGIN.md).
 
 ### Three ways an install could quietly stop working
 
@@ -2603,7 +2603,7 @@ the code. The watcher was not running, and the settings panel was the only thing
 
 - A checkbox inside the Codex usage-limit notice. There is no official plugin API that can place a
   control there, and the alternatives are all forms of injection or GUI automation this project does
-  not use. No substitute GUI was built. See [docs/PLUGIN.md](docs/PLUGIN.md) for the evidence.
+  not use. No substitute GUI was built. See [docs/PLUGIN.md](PLUGIN.md) for the evidence.
 
 ### Also
 

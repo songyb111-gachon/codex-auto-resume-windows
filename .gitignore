@@ -12,8 +12,7 @@ env/
 
 # Generated, per-machine runtime state and logs are never source.
 config/
-logs/*
-!logs/.gitkeep
+logs/
 
 # Scratch work from other local sessions; never part of the published tool.
 comparison/

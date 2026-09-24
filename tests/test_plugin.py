@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / ".codex-plugin" / "plugin.json"
 MARKETPLACE = ROOT / ".agents" / "plugins" / "marketplace.json"
 SKILL = ROOT / "skills" / "codex-auto-resume" / "SKILL.md"
-MCP_COMPANION = ROOT / ".mcp.json"
+MCP_COMPANION = ROOT / "build" / "plugin-mcp.json"
 PLUGIN_NAME = "codex-auto-resume"
 OURS = "codex-auto-resume-windows"   # the marketplace this product ships under
 
@@ -552,7 +552,7 @@ class ReleaseNotesTests(unittest.TestCase):
 
     def setUp(self):
         self.notes = _load("release_notes", ROOT / "build" / "release_notes.py")
-        self.changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.changelog = (ROOT / "docs" / "CHANGELOG.md").read_text(encoding="utf-8")
         self.version = json.loads(MANIFEST.read_text(encoding="utf-8"))["version"]
 
     def test_the_current_version_has_a_changelog_section(self):
@@ -566,6 +566,27 @@ class ReleaseNotesTests(unittest.TestCase):
     def test_the_section_stops_at_the_next_release(self):
         body = self.notes.section(self.changelog, self.version)
         self.assertNotIn("\n## v", body)
+
+    def test_the_changelogs_links_are_rebased_to_the_root_for_the_release_body(self):
+        """The changelog is written from docs/, and a release body is read from the root: every
+        relative link would otherwise point one folder too high, in every release from then on."""
+        body = ("See [the guide](GUIDE.md#languages), [the README](../README.md), "
+                '<img src="images/card.png">, [x](https://example.invalid/a.md), [top](#top) '
+                "and `GUIDE.md` in code.")
+        out = self.notes.rebase(body)
+        self.assertIn("(docs/GUIDE.md#languages)", out)
+        self.assertIn("(README.md)", out)
+        self.assertIn('src="docs/images/card.png"', out)
+        self.assertIn("(https://example.invalid/a.md)", out)
+        self.assertIn("(#top)", out)
+        self.assertIn("`GUIDE.md`", out, "code is not a link")
+
+    def test_every_relative_link_in_the_current_notes_resolves_from_the_root(self):
+        import re
+        body = self.notes.rebase(self.notes.section(self.changelog, self.version))
+        for target in re.findall(r"\]\(([^)\s#:]+)(?:#[^)]*)?\)", body):
+            with self.subTest(target):
+                self.assertTrue((ROOT / target).exists(), "%s is dead in the release body" % target)
 
     def test_an_unknown_version_is_refused_not_invented(self):
         with self.assertRaises(SystemExit):
@@ -804,7 +825,8 @@ class PayloadDocumentTests(unittest.TestCase):
         under the same name with the Korean text in it."""
         builder = _load("make_release_payload", ROOT / "build" / "make_release.py")
         for name in builder.APP_FILES:
-            self.assertTrue((ROOT / name).is_file(), name)
+            # `.mcp.json` ships under that name and is kept as build/plugin-mcp.json.
+            self.assertTrue((ROOT / builder.APP_SOURCES.get(name, name)).is_file(), name)
 
     def test_the_payload_ships_no_korean_document(self):
         """A release is built from a tag on main, and main is English only. A `.ko.md` here
@@ -846,7 +868,7 @@ class VersionConsistencyTests(unittest.TestCase):
 
     def test_the_changelog_leads_with_this_version(self):
         import re
-        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        changelog = (ROOT / "docs" / "CHANGELOG.md").read_text(encoding="utf-8")
         first = re.search(r"^##\s+v(\S+)", changelog, re.MULTILINE)
         self.assertEqual(first.group(1), self.manifest["version"])
 

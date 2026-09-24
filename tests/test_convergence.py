@@ -47,8 +47,8 @@ def block(text, start, end):
     return text[first:text.index(end, first)]
 
 
-CHANGELOG_TEXT = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-INSTALLER = ROOT / "install" / "install.ps1"
+CHANGELOG_TEXT = (ROOT / "docs" / "CHANGELOG.md").read_text(encoding="utf-8")
+INSTALLER = ROOT / "build" / "install" / "install.ps1"
 WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
 
 
@@ -365,7 +365,7 @@ class BootstrapTests(unittest.TestCase):
     def test_no_shipped_powershell_asks_for_that_cmdlet(self):
         """The installer runs in the same places the bootstrap does."""
         for script in sorted((ROOT / "scripts").glob("*.ps1")) + \
-                sorted((ROOT / "install").glob("*.ps1")):
+                sorted((ROOT / "build" / "install").glob("*.ps1")):
             with self.subTest(script.name):
                 body = script.read_text(encoding="utf-8")
                 calls = [line for line in body.splitlines()

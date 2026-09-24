@@ -22,7 +22,7 @@ import zipfile
 from codex_auto_resume.store import SCHEMA_VERSION, Store, StoreError
 
 ROOT = Path(__file__).resolve().parents[1]
-INSTALL_DIR = ROOT / "install"
+INSTALL_DIR = ROOT / "build" / "install"
 PS1 = INSTALL_DIR / "install.ps1"
 BOOTSTRAP = ROOT / "scripts" / "bootstrap.ps1"
 JOURNAL = ".codex-auto-resume-install-journal.json"

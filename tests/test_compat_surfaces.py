@@ -40,6 +40,14 @@ def a_document(sequence=5, **extra):
 
 REFRESH_HOST = "raw.githubusercontent.com"
 
+# The documents these rules read, by the name their messages use. The privacy policy moved into
+# docs/ with the rest when the front page was tidied; the names stay what a reader recognises.
+DOCUMENTS = {"PRIVACY.md": "docs/PRIVACY.md", "PRIVACY.ko.md": "docs/PRIVACY.ko.md"}
+
+
+def read(name: str) -> str:
+    return (ROOT / DOCUMENTS.get(name, name)).read_text(encoding="utf-8")
+
 
 def generated_ko_branch() -> bool:
     """Whether this checkout is the generated `ko` branch. There, each Korean document has been
@@ -507,9 +515,9 @@ class PrivacyTests(unittest.TestCase):
         # English copy used to stand in for a missing Korean one here, which let a deleted
         # PRIVACY.ko.md pass - now the Korean half is asked only where it must exist.
         korean = languages.both_languages()
-        texts = {"PRIVACY.md": (ROOT / "PRIVACY.md").read_text(encoding="utf-8")}
+        texts = {"PRIVACY.md": read("PRIVACY.md")}
         if korean:
-            texts["PRIVACY.ko.md"] = (ROOT / "PRIVACY.ko.md").read_text(encoding="utf-8")
+            texts["PRIVACY.ko.md"] = read("PRIVACY.ko.md")
         self.assertEqual(status_disclosure_gaps(texts, korean=korean), [])
 
     def test_the_documents_name_the_refresh_before_it_ships(self):
@@ -527,14 +535,14 @@ class PrivacyTests(unittest.TestCase):
             # English half is main's to answer, where the English is.
             for name in ("PRIVACY.md", "docs/SECURITY.md"):
                 with self.subTest(name):
-                    self.assertIn(REFRESH_HOST, (ROOT / name).read_text(encoding="utf-8"),
+                    self.assertIn(REFRESH_HOST, read(name),
                                   "%s holds the Korean text on this branch, and it must still name %s"
                                   % (name, REFRESH_HOST))
             return
         names = ["PRIVACY.md", "docs/SECURITY.md"]
         if languages.both_languages():
             names += ["PRIVACY.ko.md", "docs/SECURITY.ko.md"]
-        texts = {name: (ROOT / name).read_text(encoding="utf-8") for name in names}
+        texts = {name: read(name) for name in names}
         self.assertEqual(documentation_gaps(texts), [])
 
 

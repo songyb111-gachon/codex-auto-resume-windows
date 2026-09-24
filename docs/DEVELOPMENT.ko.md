@@ -118,5 +118,5 @@ Claude Code가 미완성 프로토타입을 인수해 검토하고, 건전한 �
 
 ## 크레딧
 
-[`../CONTRIBUTORS.ko.md`](../CONTRIBUTORS.ko.md)를 참고하세요. OpenAI Codex와 Anthropic Claude Code는 AI 개발
+[`../CONTRIBUTORS.ko.md`](CONTRIBUTORS.ko.md)를 참고하세요. OpenAI Codex와 Anthropic Claude Code는 AI 개발
 도구이지 인간 기여자나 GitHub 계정이 아닙니다. 저작권은 인간 관리자에게 있습니다.

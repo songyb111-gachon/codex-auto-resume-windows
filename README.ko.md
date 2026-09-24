@@ -127,7 +127,7 @@ Codex 안의 패널입니다. Codex 창을 찍은 사진이 아니라, 플러그
 이미 전달됐을 수도 있는 메시지는 다시 보내지 않습니다. 워처 자체에는 네트워크 코드가 없고 이 프로젝트로
 보내는 것도 없습니다. 사용량 확인과 재개된 턴은 Codex를 통해 OpenAI로 가고, Codex에서 설치하면 GitHub에서
 릴리스를 내려받습니다. 무엇을 읽고 저장하고 보내는지는
-[PRIVACY.ko.md](PRIVACY.ko.md)에, 위협 모델과 취약점 신고 방법은
+[PRIVACY.ko.md](docs/PRIVACY.ko.md)에, 위협 모델과 취약점 신고 방법은
 [SECURITY.ko.md](docs/SECURITY.ko.md)에 있습니다.
 
 ## 요구 사항
@@ -151,12 +151,12 @@ Codex 안의 패널입니다. Codex 창을 찍은 사진이 아니라, 플러그
 - 플러그인 계층, 설치 스크립트가 가져오고 확인하는 것, 업데이트와 제거: [docs/PLUGIN.ko.md](docs/PLUGIN.ko.md)
 - 같은 영역의 다른 프로젝트들, 그리고 각각이 이 제품보다 잘하는 점: [docs/COMPARISON.ko.md](docs/COMPARISON.ko.md)
 - 앞으로의 방향(약속이 아니라 계획): [docs/ROADMAP.ko.md](docs/ROADMAP.ko.md)
-- 무엇을 읽고, 무엇을 저장하고, 무엇을 어디로 보내는지: [PRIVACY.ko.md](PRIVACY.ko.md)
+- 무엇을 읽고, 무엇을 저장하고, 무엇을 어디로 보내는지: [PRIVACY.ko.md](docs/PRIVACY.ko.md)
 - 보안 모델과 취약점 신고: [SECURITY.ko.md](docs/SECURITY.ko.md)
 - 문제 종류별로 어디에 신고하는지, 그리고 공개 이슈에 붙여넣으면 안 되는 것: [SUPPORT.ko.md](docs/SUPPORT.ko.md)
 - 테스트, 릴리스 빌드, 그리고 변경이 지켜야 하는 안전 속성: [CONTRIBUTING.ko.md](docs/CONTRIBUTING.ko.md)
-- 변경 이력: [CHANGELOG.ko.md](CHANGELOG.ko.md)
-- 기여자: [CONTRIBUTORS.ko.md](CONTRIBUTORS.ko.md)
+- 변경 이력: [CHANGELOG.ko.md](docs/CHANGELOG.ko.md)
+- 기여자: [CONTRIBUTORS.ko.md](docs/CONTRIBUTORS.ko.md)
 - 이 제품이 내 PC와 내 Codex 버전에서 어떻게 동작했는지 보고하기(별도 도구):
   [codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter). 횟수와 상태와
   시각만 담은 파일 하나를 쓰고, 보내기 전에 내가 먼저 읽습니다. 대화 내용도 식별자도 경로도 들어가지
@@ -166,6 +166,6 @@ Codex 안의 패널입니다. Codex 창을 찍은 사진이 아니라, 플러그
 ## 만든 사람과 라이선스
 
 **송영빈**이 두 AI 개발 도구, OpenAI Codex와 Anthropic Claude Code의 도움을 받아 만들었습니다. 자세한 내용은
-[CONTRIBUTORS.ko.md](CONTRIBUTORS.ko.md)에 있습니다.
+[CONTRIBUTORS.ko.md](docs/CONTRIBUTORS.ko.md)에 있습니다.
 
 MIT. [LICENSE](LICENSE)를 참고하세요.
