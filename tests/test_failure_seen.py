@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 import sys
 import tempfile
+import guiscan
 import unittest
 from unittest.mock import patch
 
@@ -378,7 +379,7 @@ class WindowSourceTests(unittest.TestCase):
     """The settings window: red on its taskbar button by the icon's rule, and seen once it is in front."""
 
     def setUp(self):
-        self.dashboard = (ROOT / "gui" / "Dashboard.cs").read_text(encoding="utf-8")
+        self.dashboard = guiscan.dashboard()
 
     def test_the_taskbar_button_is_red_for_the_same_status_key(self):
         activity = self.dashboard[self.dashboard.index("internal static string TrayActivity("):]

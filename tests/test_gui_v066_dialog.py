@@ -18,6 +18,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import guiscan
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -149,8 +150,7 @@ class DialogTests(unittest.TestCase):
         if done.returncode != 0:
             raise AssertionError(done.stdout + done.stderr)
         cls.answer = json.loads(done.stdout.strip().splitlines()[-1])
-        cls.controls = (ROOT / "gui" / "Dashboard.cs").read_text(encoding="utf-8")
-        cls.settings = (ROOT / "gui" / "SettingsApp.cs").read_text(encoding="utf-8")
+        cls.window = guiscan.window()
 
     def test_a_question_is_answered_by_the_button_that_names_the_action(self):
         taken, left = self.answer["taken"], self.answer["left"]
@@ -238,12 +238,15 @@ class DialogTests(unittest.TestCase):
                 self.assertLessEqual(top + height, work[1] + work[3] + 1, "and never under the taskbar")
 
     def test_no_message_box_is_left_in_the_window(self):
-        self.assertNotIn("MessageBox.Show", self.controls, "the Dashboard's are the window's own now")
-        # One is left, and on purpose: it is raised before there is a window, a theme or a catalog.
-        self.assertEqual(self.settings.count("MessageBox.Show"), 1)
-        at = self.settings.index("MessageBox.Show")
-        self.assertIn("not installed in this location", self.settings[at:at + 200])
-        self.assertIn("no window yet", self.settings[at - 400:at], "and it says why it is still Windows'")
+        # One in the whole window, and on purpose: it is raised before there is a window, a
+        # theme or a catalog to ask the question with. Counted over both halves of the window
+        # rather than over the two files this was written for, so a MessageBox added to any
+        # of the nine others is this test failing rather than this test not looking.
+        self.assertEqual(self.window.count("MessageBox.Show"), 1,
+                         "every other question the window asks is drawn by the window")
+        at = self.window.index("MessageBox.Show")
+        self.assertIn("not installed in this location", self.window[at:at + 200])
+        self.assertIn("no window yet", self.window[at - 400:at], "and it says why it is still Windows'")
 
 
 # Every label the window can put on the button that acts. `action.failed` is a sentence, not a

@@ -17,6 +17,7 @@ import importlib
 from pathlib import Path
 import re
 import sys
+import guiscan
 import unittest
 
 _HERE = str(Path(__file__).resolve().parent)
@@ -295,7 +296,7 @@ class PinnedPathTests(unittest.TestCase):
                     self.assertIn(name, text)
                     self.assertTrue((ROOT / "src" / name.replace("payload/app/src/", "").replace("\\", "/")).is_file())
         stamp = re.search(r'foreach \(string name in new\[\] \{([^}]*)\}\)',
-                          (ROOT / "gui" / "SettingsApp.cs").read_text(encoding="utf-8"))
+                          guiscan.settings())
         stamped = re.findall(r'"([^"]+)"', stamp.group(1))
         self.assertEqual(stamped, ["interface.py", "l10n.py", "settings.py", "config.py", "controlcli.py"])
         for name in stamped:

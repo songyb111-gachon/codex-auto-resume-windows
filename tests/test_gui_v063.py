@@ -230,11 +230,10 @@ class ReviewedRulesTests(unittest.TestCase):
     minimized window or a particular width, which is how each one got past."""
 
     def setUp(self):
-        self.dashboard = (ROOT / "gui" / "Dashboard.cs").read_text(encoding="utf-8")
-        self.window = (ROOT / "gui" / "SettingsApp.cs").read_text(encoding="utf-8")
-        self.controls = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
-        self.card = self.controls[self.controls.index("internal sealed class ChoiceCard"):
-                                  self.controls.index("internal sealed class ChoiceGroup")]
+        self.dashboard = guiscan.dashboard()
+        self.window = guiscan.settings()
+        self.controls = guiscan.controls()
+        self.card = guiscan.type_body("ChoiceCard")
 
     @staticmethod
     def method(source, signature):
@@ -287,9 +286,9 @@ class ReviewedRulesTests(unittest.TestCase):
 
 class KeptInStepTests(unittest.TestCase):
     def setUp(self):
-        self.dashboard = (ROOT / "gui" / "Dashboard.cs").read_text(encoding="utf-8")
-        self.window = (ROOT / "gui" / "SettingsApp.cs").read_text(encoding="utf-8")
-        self.controls = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
+        self.dashboard = guiscan.dashboard()
+        self.window = guiscan.settings()
+        self.controls = guiscan.controls()
 
     def test_why_it_is_waiting_lists_the_watchers_checks_in_its_order(self):
         declared = re.search(r"GateOrder\s*=\s*\{([^}]*)\}", self.dashboard)
@@ -313,7 +312,7 @@ class KeptInStepTests(unittest.TestCase):
 
     def test_the_soft_controls_take_every_colour_from_the_palette(self):
         literal = re.findall(r"Color\.FromArgb\(\s*0x", self.controls)
-        self.assertEqual(literal, [], "a hexadecimal colour in Controls.cs belongs in brand.py")
+        self.assertEqual(literal, [], "a hexadecimal colour in the window's controls belongs in brand.py")
         self.assertNotIn("DeviceDpi", "\n".join(line for line in self.controls.splitlines()
                                                  if not line.lstrip().startswith("//")))
 

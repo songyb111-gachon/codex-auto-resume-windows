@@ -27,6 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tests"))
 
+import guiscan                                                             # noqa: E402
 import srcscan                                                             # noqa: E402
 from codex_auto_resume import brand, l10n                          # noqa: E402
 from codex_auto_resume.mcp import panel as mcpui
@@ -87,8 +88,9 @@ def choices(name):
 
 LANGS = choices("interface_language")
 
-# The window's list, which the panel's is the same as: gui/Controls.cs, read as it is.
-CONTROLS = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
+# The window's list, which the panel's is the same as: the window's control sources,
+# concatenated in compile order, whichever files `gui/window.sources` names them in.
+CONTROLS = guiscan.controls()
 # How many rows a list shows before it scrolls (SoftCombo's MaxDropDownItems), and how long letters typed
 # one after another make one search (SoftCombo.TypeAhead).
 ROWS = 12
@@ -691,7 +693,7 @@ def sides(value: str):
 
 class OneListTests(unittest.TestCase):
     """The drop-down list is one design on both surfaces: the panel's is drawn by the numbers the
-    Windows Dashboard's SoftDropList is drawn by (gui/Controls.cs, read here as it is), each on its own
+    Windows Dashboard's SoftDropList is drawn by (gui/SoftCombo.cs, read through guiscan), each on its own
     surface's type - the window's field is set in the system's message font, this one's in the panel's."""
 
     PAD = brand.SPACING["s"]

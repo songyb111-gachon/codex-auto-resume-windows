@@ -25,6 +25,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import guiscan
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -157,7 +158,7 @@ class WireEncodingTests(unittest.TestCase):
 
     def test_the_settings_window_decodes_what_the_bridge_encodes(self):
         """The other half of the contract, in the caller that reads it."""
-        source = (ROOT / "gui" / "SettingsApp.cs").read_text(encoding="utf-8")
+        source = guiscan.settings()
         self.assertIn("StandardOutputEncoding = Encoding.UTF8", source,
                       "the window must decode the encoding the bridge declares")
 

@@ -851,8 +851,8 @@ class EnvelopeTests(unittest.TestCase):
 
     def test_the_reads_are_the_ones_the_window_makes(self):
         """Only questions the window's own code asks, and each photographed page's."""
-        window = "".join((ROOT / "gui" / name).read_text(encoding="utf-8")
-                         for name in ("Dashboard.cs", "SettingsApp.cs"))
+        # Both halves, every file of each: the reads moved with the pages that make them.
+        window = guiscan.window()
         asked = set(re.findall(r'\b(?:Call|CallAsync|CallOnce|Send)\("([a-z-]+)"', window))
         commands = [line["command"] for line in self.lines]
         self.assertEqual(commands, ["strings", "describe", "settings", "status", "dashboard",

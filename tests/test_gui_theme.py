@@ -1328,8 +1328,12 @@ class ThemeSourceRuleTests(unittest.TestCase):
     THEMED = ("StatusFill", "CheckFill", "CheckEdge", "CheckMark", "ElevationCount", "ElevationShadow")
 
     def setUp(self):
-        self.sources = {name: (GUI / name).read_text(encoding="utf-8")
-                        for name in ("Controls.cs", "SettingsApp.cs", "Dashboard.cs")}
+        # Every hand-written source of the window, by its repository-relative path. Named one by
+        # one until v0.6.10-alpha, which meant a file split off Controls.cs left these rules -
+        # no light colour drawn directly, no colour written as a literal - holding of the files
+        # that happened to be listed. `gui/Brand.cs` is left out because it is generated from
+        # the Python palette and is the one place those colours legitimately are.
+        self.sources = {name: guiscan.read(name) for name in guiscan.handwritten()}
 
     @staticmethod
     def code(text):
@@ -1345,9 +1349,9 @@ class ThemeSourceRuleTests(unittest.TestCase):
         everything else draws from Palette or Tokens. A `Brand.Surface` left in a paint method is a light
         patch in a dark window."""
         pattern = re.compile(r"\bBrand\.(%s)\b" % "|".join(self.COLOURS))
-        adopt = self.block(self.sources["Controls.cs"], "internal static void Adopt(bool dark)", "\n        }\n")
+        adopt = guiscan.member_body("Tokens", "Adopt")
         for name, text in self.sources.items():
-            code = self.code(text.replace(adopt, "") if name == "Controls.cs" else text)
+            code = self.code(text.replace(adopt, ""))
             with self.subTest(name):
                 self.assertEqual(pattern.findall(code), [], "a light brand colour drawn directly")
         self.assertEqual(len(re.findall(r"= Brand\.Dark\.\w+;", adopt)), len(self.COLOURS))
@@ -1375,65 +1379,66 @@ class ThemeSourceRuleTests(unittest.TestCase):
                 self.assertEqual(literal.findall(code), [])
 
     def test_high_contrast_is_asked_of_windows_each_time(self):
-        controls = self.sources["Controls.cs"]
-        asked = self.block(controls, "internal static bool HighContrast()", "\n        }\n")
+        controls = guiscan.read("SoftTheme.cs")
+        asked = guiscan.member_body("Theme", "HighContrast")
         self.assertIn("SystemParametersInfo(SPI_GETHIGHCONTRAST", asked)
         # Through the one input a probe may answer (Theme.HighContrastOn), which ships as Windows' own answer, which the
         # window's first theme reads too, and which nothing in the window sets.
-        self.assertIn("ContrastOn()", self.block(controls, "internal static string Current(", "\n        }\n"))
+        self.assertIn("ContrastOn()", guiscan.member_body("Theme", "Current"))
         self.assertIn("internal static Func<bool> HighContrastOn = HighContrast;", controls)
-        self.assertIn("on != null ? on() : HighContrast()", self.block(controls, "internal static bool ContrastOn()", "\n        }\n"))
+        self.assertIn("on != null ? on() : HighContrast()", guiscan.member_body("Theme", "ContrastOn"))
         self.assertIn("Adopt(CodexAutoResume.Theme.ContrastOn() ?", controls)
         for name, text in self.sources.items():
             with self.subTest(name):
-                self.assertEqual(self.code(text).count("HighContrastOn ="), 1 if name == "Controls.cs" else 0)
+                self.assertEqual(self.code(text).count("HighContrastOn ="),
+                                 1 if name == "gui/SoftTheme.cs" else 0)
         uses = sum(self.code(text).count("SystemInformation.HighContrast") for text in self.sources.values())
         self.assertEqual(uses, 1, "SystemInformation.HighContrast only as the fallback, where Windows cannot be asked")
         self.assertIn("SystemInformation.HighContrast", self.code(asked))
 
     def test_the_version_is_text_not_a_fill(self):
-        window = self.sources["SettingsApp.cs"]
+        window = guiscan.settings()
         self.assertIn("versionText.ForeColor = Secondary;", window)
         for name, text in self.sources.items():
             with self.subTest(name):
                 self.assertIsNone(re.search(r"ForeColor\s*=\s*(?:Palette\.|Tokens\.)?Idle\b", self.code(text)))
 
     def test_the_theme_is_adopted_before_the_first_control_is_made(self):
-        main = self.block(self.sources["SettingsApp.cs"], "internal static int Main(string[] argv)", "\n        }\n")
+        main = self.block(guiscan.settings(), "internal static int Main(string[] argv)", "\n        }\n")
         adopt = main.index("Palette.Adopt(Theme.Current(Theme.Opened));")
         self.assertLess(main.index("SettingsForm.ParseArguments(argv)"), adopt)
         self.assertLess(adopt, main.index("new SettingsForm("))
         self.assertIn("request.Theme ?? Theme.Stored(root)", main)
-        controls = self.sources["Controls.cs"]
-        resolve = self.block(controls, "internal static string Resolve(", "\n        }\n")
+        controls = guiscan.read("SoftTheme.cs")
+        resolve = guiscan.member_body("Theme", "Resolve")
         self.assertLess(resolve.index("if (highContrast) return Contrast;"), resolve.index("Preference(preference)"),
                         "High Contrast wins over every choice")
         self.assertIn(r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", controls)
         self.assertIn('"AppsUseLightTheme"', controls)
 
     def test_the_title_bar_goes_dark_with_the_immersive_dark_mode_attribute(self):
-        controls = self.sources["Controls.cs"]
+        controls = guiscan.controls()
         self.assertIn("internal const int DarkTitleBarAttribute = 20;", controls)
         self.assertIn("internal const int DarkTitleBarAttributeBefore20H1 = 19;", controls)
-        title = self.block(controls, "internal static void TitleBar(Form form)", "\n        }\n")
+        title = guiscan.member_body("Soft", "TitleBar")
         self.assertIn("if (!Palette.Dark || form == null) return;", title)
         self.assertLess(title.index("DarkTitleBarAttribute, ref on"), title.index("DarkTitleBarAttributeBefore20H1, ref on"))
-        self.assertIn("Soft.TitleBar(this);", self.sources["SettingsApp.cs"])
-        self.assertIn("Soft.TitleBar(dialog);", self.sources["Dashboard.cs"], "the Timeline dialog too")
+        self.assertIn("Soft.TitleBar(this);", guiscan.settings())
+        self.assertIn("Soft.TitleBar(dialog);", guiscan.dashboard(), "the Timeline dialog too")
 
     def test_every_elevation_reads_each_shadows_own_inset_flag(self):
         """Dark's card mixes outer shadows with an inset top light; a recipe's name says nothing."""
-        elevation = self.block(self.sources["Controls.cs"], "internal static class Elevation")
+        elevation = guiscan.type_body("Elevation")
         self.assertNotIn("id >= 4", elevation)
         self.assertNotIn("First(", elevation)
         self.assertIn("Tokens.Dark ? Brand.Dark.ElevationShadow(", elevation)
-        card = self.block(self.sources["Controls.cs"], "internal sealed class SoftCard ")
+        card = guiscan.type_body("SoftCard")
         self.assertIn('Soft.Body(e.Graphics, ClientRectangle, radius, Palette.Card, Palette.Line, "card");', card)
         self.assertIn("BackColor = Palette.Card;", card)
 
     def test_the_window_reopens_on_a_save_a_change_elsewhere_and_windows_app_mode(self):
-        window = self.sources["SettingsApp.cs"]
-        dashboard = self.sources["Dashboard.cs"]
+        window = guiscan.settings()
+        dashboard = guiscan.dashboard()
         save = self.block(window, "private void Save()", "\n        }\n")
         self.assertLess(save.index("startupBaseline = startAtSignIn;"), save.index("CheckReopen(false);"))
         self.assertLess(save.index("CheckReopen(false);"), save.index("RefreshStatusAsync("))
@@ -1472,8 +1477,9 @@ class ThemeSourceRuleTests(unittest.TestCase):
         self.assertLess(save.index("reopenFocus = focus;"), save.index("CheckReopen(false);"))
         self.assertIn("PlaceOnScreen(request.Bounds, Screen.FromRectangle(request.Bounds).WorkingArea, MinimumSize, request.Frame)",
                       window)
-        self.assertNotIn("Mutex", window[window.index("// ------------------------------------------------------------------ reopening"):
-                                          window.index("// ------------------------------------------------------------------ layout audit")],
+        # The reopening is its own file since v0.6.10-alpha: what this sliced out of SettingsApp.cs
+        # between two banners, the banner that explains it included.
+        self.assertNotIn("Mutex", guiscan.read("WindowReopen.cs"),
                          "nothing single-instance stands between the two windows")
 
     def test_the_window_has_no_single_instance_rule_to_refuse_the_new_one(self):
@@ -1488,26 +1494,25 @@ class ThemeSourceRuleTests(unittest.TestCase):
                                  "a mutex other than the installer's lock")
 
     def test_the_note_about_a_pending_reopen_sits_in_the_save_card(self):
-        footer = self.block(self.sources["SettingsApp.cs"], "private void BuildFooter()", "\n        }\n")
+        footer = self.block(guiscan.settings(), "private void BuildFooter()", "\n        }\n")
         self.assertIn("savebar.Controls.Add(reopenNote, 1, 0);", footer)
         self.assertIn("reopenNote.LiveSetting = AutomationLiveSetting.Polite;", footer)
         english = json.loads((ROOT / "src" / "codex_auto_resume" / "locales" / "en.json").read_text(encoding="utf-8"))
-        note = self.block(self.sources["SettingsApp.cs"], "private void ShowReopenNote(bool show)", "\n        }\n")
+        note = self.block(guiscan.settings(), "private void ShowReopenNote(bool show)", "\n        }\n")
         self.assertIn('"note.reopen_pending"', note)
         self.assertIn(english["note.reopen_pending"], note.replace("\n", " ").replace('"', "").replace("  ", " "))
 
     def test_the_check_box_is_one_control_class_with_a_kind(self):
-        controls = self.sources["Controls.cs"]
-        check = self.block(controls, "internal sealed class SoftCheck ")
+        check = guiscan.type_body("SoftCheck")
         self.assertIn("internal bool Box", check)
         self.assertIn("AccessibleRole = AccessibleRole.CheckButton;", check)
         self.assertIn("if (Focused && ShowFocusCues)", check)
-        draw = self.block(controls, "internal static void DrawBox(", "\n        }\n")
+        draw = guiscan.member_body("SoftCheck", "DrawBox")
         self.assertLess(draw.index("if (Palette.Contrast)"), draw.index("Tokens.Dark ? Brand.Dark.CheckFill("))
         self.assertIn("well = false;", draw[:draw.index("else")], "no shadow in High Contrast")
         self.assertIn("pen.LineJoin = LineJoin.Miter;", draw)
         self.assertIn("LineCap.Flat", draw)
-        window = self.sources["SettingsApp.cs"]
+        window = guiscan.settings()
         self.assertIn("NewCheck(Humanise(name), Equals(Get(current, name), true), IsListItem(name));", window)
         self.assertIn('NewCheck(S("field.startup", "Run at Windows sign-in"), false, false);', window)
         self.assertNotIn('ChoiceCombo(field, current, "choice.");', window)

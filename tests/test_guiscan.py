@@ -7,7 +7,7 @@ to being one list, to naming files that are there, and to nobody quietly adding 
 the window compiles and no test reads.
 
 The second half holds the finding, which matters more than it sounds. Twenty test classes take
-a slice of `Controls.cs` or `SettingsApp.cs` by searching for text, and a slice that ends at
+a slice of a control source or `SettingsApp.cs` by searching for text, and a slice that ends at
 "the next `private void `" is a slice that widens to the end of the file the day that string
 stops appearing between the two anchors - with every assertion inside it still passing, over
 the wrong code. `type_body` and `member_body` find a block by its braces and raise where they
@@ -95,13 +95,19 @@ class SliceTests(unittest.TestCase):
         self.assertEqual(body.count("{"), body.count("}"))
         self.assertLess(len(body.splitlines()), 200, "a member, not half the file")
 
-    def test_the_window_is_one_partial_class_in_four_parts(self):
-        """`SettingsForm` is written across `SettingsApp.cs` and `Dashboard.cs`, so a rule
-        that read one declaration of it would be reading a quarter of the window. Worth
-        pinning before any C# file is split: the parts are what a split has to keep together
-        or deliberately move."""
+    def test_the_window_is_one_partial_class_in_as_many_parts_as_it_has_files(self):
+        """`SettingsForm` is written across both halves of the window, so a rule that read one
+        declaration of it reads a fraction of the window - a quarter when there were four
+        parts in two files, an eleventh now. That is what `parts_of` is for, and it is why
+        the split could happen at all: a partial class is written wherever it is convenient
+        to read, and the compiler sees one type."""
         parts = guiscan.parts_of("SettingsForm")
-        self.assertEqual(len(parts), 4)
+        holders = [name for name in guiscan.window_sources()
+                   if "partial class SettingsForm" in guiscan.read(name)]
+        self.assertEqual(len(parts), len(holders))
+        self.assertGreater(len(parts), 4, "it was four, in two files, before v0.6.10-alpha")
+        self.assertEqual(sorted(set(guiscan.window_sources()) - set(holders)),
+                         ["gui/WindowJson.cs"], "the one window source that is not the form")
         for part in parts:
             with self.subTest(part.splitlines()[0].strip()[:40]):
                 self.assertIn("partial", part.splitlines()[0])
@@ -135,11 +141,18 @@ class SliceTests(unittest.TestCase):
     def test_each_source_says_how_much_of_the_window_it_is(self):
         """What a split works from: the types a file declares directly, which is what moves."""
         counts = {source: len(guiscan.top_level(source)) for source in guiscan.manifest()}
-        self.assertEqual(sum(counts.values()), 57)
-        self.assertEqual(counts["gui/Controls.cs"], 37, "the file a split starts with")
+        declared = [name for source in guiscan.manifest() for name in guiscan.top_level(source)]
+        self.assertEqual(len(set(declared)), 54, "the window's types")
+        self.assertEqual(len(declared) - len(set(declared)), 9,
+                         "`partial class SettingsForm` written once per file that holds part "
+                         "of it, which is ten of the window's eleven sources")
         for source, count in counts.items():
             with self.subTest(source):
                 self.assertGreater(count, 0)
+                # Controls.cs held 37 of the 57 before v0.6.10-alpha split it in seven. A
+                # ceiling rather than an exact count, so adding a type is an ordinary edit
+                # and gathering a third of the window into one file again is not.
+                self.assertLessEqual(count, 12, "%s holds too much of the window" % source)
 
 
 if __name__ == "__main__":

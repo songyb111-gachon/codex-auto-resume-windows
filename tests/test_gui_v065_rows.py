@@ -675,9 +675,10 @@ class RowSourceTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.sources = {name: (GUI / name).read_text(encoding="utf-8")
-                       for name in ("Controls.cs", "Dashboard.cs", "SettingsApp.cs")}
-        cls.dashboard = cls.sources["Dashboard.cs"]
+        # Every hand-written source of the window, so a file split off Controls.cs cannot
+        # quietly keep a piece of the tiles this holds the window clear of.
+        cls.sources = {name: guiscan.read(name) for name in guiscan.handwritten()}
+        cls.dashboard = guiscan.dashboard()
 
     def method(self, source, signature):
         start = source.index(signature)

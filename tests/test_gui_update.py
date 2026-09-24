@@ -176,7 +176,7 @@ class ButtonTests(unittest.TestCase):
     """
 
     def setUp(self):
-        self.source = (ROOT / "gui" / "Dashboard.cs").read_text(encoding="utf-8")
+        self.source = guiscan.dashboard()
 
     def test_diagnostics_offers_the_check(self):
         self.assertIn('S("action.check_updates", "Check for updates...")', self.source)

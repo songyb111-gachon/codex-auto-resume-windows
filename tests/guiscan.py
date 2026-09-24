@@ -10,7 +10,7 @@ was not the one being shipped, while passing.
 `gui/window.sources` is the one list now. This reads it, and reads the files it names.
 
 It also answers the other question those tests ask badly. Twenty test classes take a slice of
-`Controls.cs` or `SettingsApp.cs` by searching for text - a declaration, then the next
+a control source or `SettingsApp.cs` by searching for text - a declaration, then the next
 declaration - and at least two of them re-aim silently when the text between moves: a slice
 that ends at "the next `private void `" widens to the end of the file the day that string
 stops appearing, and every assertion inside it goes on passing over the wrong code. `type_body`
@@ -32,6 +32,22 @@ MANIFEST = GUI / "window.sources"
 
 # Built by the same script from its own single source, and not part of the window.
 SEPARATE = ("gui/McpLauncher.cs",)
+
+# The groups `gui/window.sources` divides the compile list into, and what each one means:
+#
+#   settings    the process, the bridge, the frame and the Settings page - what
+#               `SettingsApp.cs` was
+#   dashboard   the navigation and its five pages - what `Dashboard.cs` was
+#   controls    the soft controls both halves are drawn with - what `Controls.cs` was
+#   generated   written by `build/make_brand.py` from the Python palette
+#
+# `settings` and `dashboard` together are the window's own code, `window()` below. A rule about
+# what a person may write - no colour written out, no browser control, no keyboard automation -
+# is a rule about the first three; `generated` is where the palette's values legitimately are.
+# Before v0.6.10-alpha each of those rules named the file it meant, so the split had to move
+# them all at once; a group is what they name now.
+GROUPS = ("settings", "dashboard", "controls", "generated")
+HALVES = ("settings", "dashboard")
 
 
 class ScanError(RuntimeError):
@@ -56,18 +72,42 @@ def tracked() -> tuple[str, ...]:
 
 
 @lru_cache(maxsize=None)
-def manifest() -> tuple[str, ...]:
-    """The compile list, in the order csc is given it."""
+def groups() -> dict[str, tuple[str, ...]]:
+    """The compile list by group, each in the order csc is given it."""
     if not MANIFEST.is_file():
         raise ScanError("gui/window.sources is missing")
-    names = []
+    found: dict[str, list[str]] = {}
+    group = None
     for line in MANIFEST.read_text(encoding="utf-8").splitlines():
         line = line.split("#", 1)[0].strip()
-        if line:
-            names.append(line)
+        if not line:
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            group = line[1:-1]
+            found.setdefault(group, [])
+        elif group is None:
+            raise ScanError("%s is listed before any [group]" % line)
+        else:
+            found[group].append(line)
+    missing = [name for name in GROUPS if name not in found]
+    if missing:
+        raise ScanError("gui/window.sources has no %s" % ", ".join("[%s]" % n for n in missing))
+    return {name: tuple(paths) for name, paths in found.items()}
+
+
+def group(name: str) -> tuple[str, ...]:
+    """One group's sources, in compile order."""
+    if name not in groups():
+        raise ScanError("gui/window.sources has no [%s]" % name)
+    return groups()[name]
+
+
+def manifest() -> tuple[str, ...]:
+    """The compile list, in the order csc is given it."""
+    names = tuple(name for paths in groups().values() for name in paths)
     if not names:
         raise ScanError("gui/window.sources names no source")
-    return tuple(names)
+    return names
 
 
 def sources() -> list[Path]:
@@ -103,6 +143,46 @@ def whole() -> str:
     For the rules that are about the window rather than about one of its files - no browser
     control, no keyboard automation - which is most of them."""
     return "\n".join(read(name) for name in manifest())
+
+
+def text(name: str) -> str:
+    """One group's sources, concatenated in compile order."""
+    return "\n".join(read(source) for source in group(name))
+
+
+def window_sources() -> tuple[str, ...]:
+    """The window's own sources - both halves - in compile order."""
+    return tuple(source for half in HALVES for source in group(half))
+
+
+def handwritten() -> tuple[str, ...]:
+    """Every compiled source a person writes, in compile order: the window, then its controls."""
+    return window_sources() + group("controls")
+
+
+def controls() -> str:
+    """`[controls]`, concatenated in compile order.
+
+    Until v0.6.10-alpha this was one file, `gui/Controls.cs`, and eleven tests named it - so the
+    day it was split in seven, eleven rules about what the window's controls may contain would
+    each have gone on holding of a seventh of them, while passing.
+    """
+    return text("controls")
+
+
+def settings() -> str:
+    """`[settings]`: what `SettingsApp.cs` was before it became five files."""
+    return text("settings")
+
+
+def dashboard() -> str:
+    """`[dashboard]`: what `Dashboard.cs` was before it became six files."""
+    return text("dashboard")
+
+
+def window() -> str:
+    """Both halves: what `SettingsApp.cs` and `Dashboard.cs` were before they became eleven."""
+    return "\n".join(read(source) for source in window_sources())
 
 
 def _block(text: str, start: int) -> str:

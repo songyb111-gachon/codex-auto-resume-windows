@@ -5,7 +5,7 @@ while the window is open ("윈도우 아래 앱 켜있을때 아이콘도 트레
 
   * Windows draws the taskbar button from the window's big icon (WM_SETICON, ICON_BIG) - measured on Windows 11 at
     150%: the 48 px big icon, drawn at 36 - and reads it again only when the window's small icon changes; a new big
-    icon alone never reached the button. So TaskbarMark (gui/Controls.cs) sets each frame as the big icon and then
+    icon alone never reached the button. So TaskbarMark (gui/Marks.cs) sets each frame as the big icon and then
     sets the small icon again with the other of two handles to one image. The small icon - the title bar's, which the
     documentation screenshots capture - never changes by a pixel;
   * the state is the tray icon's for the same watcher. The window reads what the icon's popup reads (get_status and
@@ -1132,9 +1132,9 @@ class TaskbarMarkTests(unittest.TestCase):
                 self.assertEqual(rows[name][0], light)
 
     def test_the_window_makes_its_mark_only_with_its_own_icon_and_asks_it_again_every_second(self):
-        settings = (GUI / "SettingsApp.cs").read_text(encoding="utf-8")
-        dashboard = (GUI / "Dashboard.cs").read_text(encoding="utf-8")
-        controls = (GUI / "Controls.cs").read_text(encoding="utf-8")
+        settings = guiscan.settings()
+        dashboard = guiscan.dashboard()
+        controls = guiscan.controls()
         block = settings[settings.index('string icon = Path.Combine(root, "codex-auto-resume.ico");'):]
         block = block[:block.index("catch (Exception)")]
         self.assertIn("Icon = new Icon(icon);", block)
@@ -1183,7 +1183,7 @@ class TaskbarMarkTests(unittest.TestCase):
         """
         from codex_auto_resume import startup
 
-        settings = (GUI / "SettingsApp.cs").read_text(encoding="utf-8")
+        settings = guiscan.settings()
         self.assertIn("SetCurrentProcessExplicitAppUserModelID", settings)
         self.assertIn('SetCurrentProcessExplicitAppUserModelID("CodexAutoResume.Settings")', settings)
         # The window's identity is its own: sharing the watcher's would resolve to the installer's shortcut again.
