@@ -81,6 +81,34 @@ C++ 런타임 DLL 두 개에는 Microsoft의 서명입니다. [코드 서명](#�
    것이든 빌드해 게시하고 attestation을 기록할 수 있었습니다. 어떤 이벤트가 그 실행을 시작했는지는 attestation에 기록됩니다. v0.6.0부터의
    워크플로는 태그 push일 때만 게시하며, 이 변경은 v0.6.0에서 새로 들어왔습니다.
 
+   **GitHub CLI가 없다면** 같은 증명을 `sigstore-python`으로 확인할 수 있고, 여기서 쓴 것도
+   그것입니다. 쓰고 버릴 가상 환경에 설치한 뒤, 직접 잰 해시에 대한 번들을 받아 검증하면 됩니다.
+
+   ```powershell
+   py -3 -m venv .\sigstore-venv
+   .\sigstore-venv\Scripts\python.exe -m pip install sigstore
+   $digest = (Get-FileHash .\CodexAutoResume-vX.Y.Z-win-x64.zip -Algorithm SHA256).Hash.ToLower()
+   $url = "https://api.github.com/repos/songyb111-gachon/codex-auto-resume-windows/attestations/sha256:$digest"
+   (Invoke-WebRequest $url -UseBasicParsing).Content |
+       ConvertFrom-Json | ForEach-Object { $_.attestations[0].bundle } |
+       ConvertTo-Json -Depth 40 | Set-Content bundle.sigstore.json -Encoding utf8
+   .\sigstore-venv\Scripts\python.exe -m sigstore verify identity `
+       --bundle bundle.sigstore.json `
+       --cert-identity "https://github.com/songyb111-gachon/codex-auto-resume-windows/.github/workflows/release.yml@refs/tags/vX.Y.Z" `
+       --cert-oidc-issuer "https://token.actions.githubusercontent.com" `
+       .\CodexAutoResume-vX.Y.Z-win-x64.zip
+   ```
+
+   `gh attestation verify`가 묻는 것과 같은 질문을 다른 길로 묻습니다. 수명이 짧은 Fulcio 인증서로
+   만든 서명, 그 인증서가 Sigstore 뿌리까지 이어지는 사슬, 거기 박힌 인증서 투명성 타임스탬프,
+   그리고 Rekor 투명성 로그의 항목입니다. v0.6.0에서는 넷 다 통과했고,
+   [`docs/evidence/attestation-verified-2026-09-13.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/evidence/attestation-verified-2026-09-13.json)이
+   그 실행을 기록하고 있습니다. 인증서가 담고 있던 신원, 검사가 헛돌지 않음을 보이려고 쓴 변조 대조
+   아홉 가지, 그리고 그래도 알려 주지 않는 세 가지가 적혀 있습니다. Sigstore 뿌리는 처음 쓸 때
+   그대로 믿는다는 것, 번들에 별도의 타임스탬프 기관이 없다는 것, 그리고 증명이 말하는 것은 어떤
+   워크플로가 이 바이트를 만들었다는 것이지 그 워크플로가 자기가 말하는 것을 만든다는 것은 아니라는
+   것입니다.
+
 직접 한 확인이 모두 일치할 때에만 압축을 풀고 `Install.cmd`를 실행하세요. 하나라도 어긋나면 풀지
 마세요. 파일을 지우고, 버전과 얻은 값을 적어 이슈를 열어 주세요.
 
@@ -93,34 +121,6 @@ v0.5.0과 v0.5.1은 `sha256` 고정 표보다 먼저 나왔으므로 항목이 �
 릴리스 페이지의 다이제스트만 적용됩니다(attestation도 없습니다). 그 밖에 릴리스 페이지에는 있지만
 표에 없는 버전은 최근에 게시되어 고정 커밋이 아직 들어오지 않은 것입니다. 그 커밋을 기다리거나, `.sha256`과 attestation이
 각각 무엇을 증명하고 무엇을 증명하지 못하는지 알고서 그 둘에 기댈 수 있습니다.
-
-GitHub CLI가 없다면 같은 증명을 `sigstore-python`으로 확인할 수 있고, 여기서 쓴 것도 그것입니다.
-쓰고 버릴 가상 환경에 설치한 뒤, 직접 잰 해시에 대한 번들을 받아 검증하면 됩니다.
-
-```powershell
-py -3 -m venv .\sigstore-venv
-.\sigstore-venv\Scripts\python.exe -m pip install sigstore
-$digest = (Get-FileHash .\CodexAutoResume-vX.Y.Z-win-x64.zip -Algorithm SHA256).Hash.ToLower()
-$url = "https://api.github.com/repos/songyb111-gachon/codex-auto-resume-windows/attestations/sha256:$digest"
-(Invoke-WebRequest $url -UseBasicParsing).Content |
-    ConvertFrom-Json | ForEach-Object { $_.attestations[0].bundle } |
-    ConvertTo-Json -Depth 40 | Set-Content bundle.sigstore.json -Encoding utf8
-.\sigstore-venv\Scripts\python.exe -m sigstore verify identity `
-    --bundle bundle.sigstore.json `
-    --cert-identity "https://github.com/songyb111-gachon/codex-auto-resume-windows/.github/workflows/release.yml@refs/tags/vX.Y.Z" `
-    --cert-oidc-issuer "https://token.actions.githubusercontent.com" `
-    .\CodexAutoResume-vX.Y.Z-win-x64.zip
-```
-
-`gh attestation verify`가 묻는 것과 같은 질문을 다른 길로 묻습니다. 수명이 짧은 Fulcio 인증서로
-만든 서명, 그 인증서가 Sigstore 뿌리까지 이어지는 사슬, 거기 박힌 인증서 투명성 타임스탬프,
-그리고 Rekor 투명성 로그의 항목입니다. v0.6.0에서는 넷 다 통과했고,
-[`docs/evidence/attestation-verified-2026-09-13.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/evidence/attestation-verified-2026-09-13.json)이
-그 실행을 기록하고 있습니다. 인증서가 담고 있던 신원, 검사가 헛돌지 않음을 보이려고 쓴 변조 대조
-아홉 가지, 그리고 그래도 알려 주지 않는 세 가지가 적혀 있습니다. Sigstore 뿌리는 처음 쓸 때
-그대로 믿는다는 것, 번들에 별도의 타임스탬프 기관이 없다는 것, 그리고 증명이 말하는 것은 어떤
-워크플로가 이 바이트를 만들었다는 것이지 그 워크플로가 자기가 말하는 것을 만든다는 것은 아니라는
-것입니다.
 
 | 확인 | 알 수 있는 것 | 알 수 없는 것 |
 | --- | --- | --- |
@@ -168,8 +168,8 @@ attestation은 확인하지 않습니다. 이미 설치된 버전과 같으면 `
 
 v0.6.3의 압축 파일도 다른 것과 똑같이, 풀기 전에 위의 단계대로 v0.6.3 자신의 파일과 값으로
 확인합니다. `main`에 고정된 v0.6.2의 값은 v0.6.2의 파일만 보증할 뿐 다른 것은 보증하지 않습니다. v0.6.3은
-게시되었고 그 고정값도 커밋되었으므로 3단계에는 견줄 다이제스트가 있고, v0.6.5, v0.6.6, v0.6.7, v0.6.8과 이번 릴리스, 그리고 그
-고정값들도 마찬가지입니다. 막 게시된 릴리스는 한동안 고정값이 없습니다. 그 고정값이 커밋되기 전까지 3단계에는
+게시되었고 그 고정값도 커밋되었으므로 3단계에는 견줄 다이제스트가 있고, v0.6.4, v0.6.5, v0.6.6, v0.6.7, v0.6.8, v0.6.9와
+그 고정값들도 마찬가지입니다. 막 게시된 릴리스는 한동안 고정값이 없습니다. 그 고정값이 커밋되기 전까지 3단계에는
 그 압축 파일과 견줄 것이 없고, 그것은 아래의 [새 릴리스에는 한동안 고정값이 없습니다](#확인되지-않은-것)가
 말하는 경우입니다.
 
@@ -445,5 +445,4 @@ DLL 두 개(`vcruntime140.dll`과 `vcruntime140_1.dll`)에는 Microsoft의 서�
 
 검증은 그 파일이 이 프로젝트가 게시한 파일이라는 것을 알려 줍니다. 코드가 안전하다는 것까지 알려
 주지는 않습니다. 코드가 무엇을 할 수 있고 그것이 어떻게 강제되는지는
-[SECURITY.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/SECURITY.ko.md)를
-보세요.
+[SECURITY.ko.md](SECURITY.ko.md)를 보세요.

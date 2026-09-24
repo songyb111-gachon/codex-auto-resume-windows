@@ -4,7 +4,7 @@ Everything about Codex Auto Resume in one place. The [README](../README.md) is t
 
 **Automatically resume the exact same Codex task on Windows after a usage limit resets.**
 
-<sub>🇰🇷 <a href="GUIDE.ko.md">한국어 안내서</a> · The app speaks nine languages: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil)</sub>
+<sub>🇰🇷 <a href="https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/ko/docs/GUIDE.md">한국어 안내서</a> · The app speaks nine languages: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil)</sub>
 
 Codex stops mid-task and tells you to try again at 6:34 AM. You are asleep at 6:34 AM, and in
 the morning the task is exactly where it stopped.
@@ -43,7 +43,7 @@ v0.6.0).
 
 **Not the only tool in this space, and not the right one for everybody.** If you want the widest
 possible recovery, an agent other than Codex, or a platform other than Windows, one of the
-others will suit you better — [`docs/COMPARISON.md`](COMPARISON.md) is a map of nine of
+others will suit you better — [`docs/COMPARISON.md`](COMPARISON.md) is a map of ten of
 them, re-surveyed on 2026-09-12, saying what each does better than this one.
 
 ## Install
@@ -310,7 +310,7 @@ conversation", and which the command line prints beside the state. It
 will not use GUI automation, will not force the conversation open, and will not queue a message on
 the off chance.
 
-This is not fully unattended auto-resume across app restarts, and this README will not pretend otherwise.
+This is not fully unattended auto-resume across app restarts, and this guide will not pretend otherwise.
 
 ## Project direction
 
@@ -634,7 +634,8 @@ Details worth knowing:
   and `first_user_message` hold the raw first prompt on this schema and are never read.
 - Notifications are in the interface language.
 - It is best effort. If it cannot be shown, the resume still happens exactly as it would have.
-- They are attributed to **Codex Auto Resume**, with this project's own icon. That takes two
+- They are attributed to **Codex Auto Resume**, with this project's own icon, not to PowerShell
+  or Python. That takes two
   registrations, not one: an AppUserModelID under `HKCU\Software\Classes\AppUserModelId` supplies
   the name and icon, and a Start Menu shortcut carrying the same id is what makes Windows draw
   the toast at all. Without the shortcut the platform accepts the notification, logs it, and
@@ -755,7 +756,7 @@ holds the program files, for you to delete. `Uninstall.cmd` also removes this pr
 marketplace from Codex while it still points at this installation.
 
 From a source checkout, the same command-line tool also deletes this tool's own state and logs
-(`--keep-logs` keeps the logs):
+(`--keep-logs` keeps the logs; `--keep-state` keeps settings and pending recoveries):
 
 ```bash
 python src\auto_resume.py uninstall
@@ -796,7 +797,8 @@ Python writes inside its own program folder). Turning start-at-sign-in on or off
 settings changes the per-user Run value, and Windows keeps the notifications it shows in its
 notification history. One thing it writes elsewhere, and only when asked: **Export
 diagnostics...** on the Diagnostics page, and `diagnostics` on the command line, write one
-redacted JSON bundle to a path you choose; it sends nothing and refuses to overwrite an
+redacted JSON bundle to a path you choose (ids replaced by aliases; paths, the Windows user name
+and anything shaped like an e-mail address removed); it sends nothing and refuses to overwrite an
 existing file. What it asks Codex to do, through official interfaces: queue one continuation
 message for one exact thread (`codex queue`), and withdraw that same queued message if it has
 to (the App Server's `thread/queue/delete`). Installing asks the `codex` CLI to register this
@@ -922,6 +924,7 @@ changing a language makes no network request. [PRIVACY.md](../PRIVACY.md) has th
 ## Known limitations
 
 - Only threads already loaded in the app can be auto-resumed. Unloaded threads wait for you to open them.
+- Windows only: it works with the Windows ChatGPT/Codex desktop app, on Windows 10/11.
 - The blocking usage bucket cannot always be identified with certainty, so live availability is
   re-checked immediately before sending rather than trusted from history.
 - Codex app updates are survivable but not guaranteed. Database files are found by schema generation
@@ -1000,6 +1003,7 @@ issue; diagnosing a problem does not need them.
 | [docs/BRAND.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/BRAND.md) | The palette, the mark, and why each is what it is. |
 | [docs/DEVELOPMENT.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/DEVELOPMENT.md) | How it was built, including the measurements behind the loaded/notLoaded limitation. |
 | [docs/ROADMAP.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/ROADMAP.md) | Where the project is heading, release by release: a planned direction, not a promise. |
+| [CHANGELOG.md](../CHANGELOG.md) | What each release changed. |
 | [PRIVACY.md](../PRIVACY.md) | What is read, what is stored, and what is sent anywhere. |
 | [SECURITY.md](SECURITY.md) | The threat model and how to report a vulnerability. |
 | [SUPPORT.md](SUPPORT.md) | Where to report each kind of problem, and what not to paste into a public issue. |

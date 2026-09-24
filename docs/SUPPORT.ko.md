@@ -67,7 +67,7 @@ python src\auto_resume.py status
 이 도구가 그것을 깨울 수 있는 검증된 방법은 없습니다. 후보로 꼽히는 App Server 경로(예를 들어
 `thread/resume`)는 이 도구가 의도적으로 쓰지 않습니다. 워처는 사용자가 그 대화를 직접 열 때까지
 `waiting_for_loaded_thread`에서 기다렸다가, 그다음부터는 알아서 이어 갑니다. 이 내용은 근거가 된 실측과
-함께 [README](../README.md#please-read-this-limitation-first)에 정리되어 있습니다.
+함께 [README](../README.ko.md#먼저-읽어야-할-제한-사항)에 정리되어 있습니다.
 
 **분류되지 않은 장애는 절대 재시도하지 않습니다.** 이 도구가 이름 붙일 수 없는 방식으로 Codex가
 실패했다면, 의도적으로 아무것도 하지 않습니다. 빠뜨린 것이 아니라 핵심 설계 선택입니다 — 다만 분류할
@@ -105,6 +105,6 @@ Python Software Foundation의 서명이 그대로 있습니다. `python.exe`와 
 
 ## 보안 문제
 
-다른 이슈와 똑같이 이슈를 열어 주세요. [SECURITY.md](SECURITY.md)도 보안 문제를 그렇게 신고해 달라고
+다른 이슈와 똑같이 이슈를 열어 주세요. [SECURITY.ko.md](SECURITY.ko.md)도 보안 문제를 그렇게 신고해 달라고
 하며, 이 프로젝트가 따로 안내하는 비공개 채널은 없습니다. 그래도 먼저 읽어 보세요. 이 도구가 무엇을
 건드릴 수 있는지 적어 두었고, 대개는 그것만으로 발견한 것이 실제 문제인지 예상된 동작인지 가릴 수 있습니다.

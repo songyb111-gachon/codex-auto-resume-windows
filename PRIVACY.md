@@ -135,13 +135,13 @@ marketplace at this installation, replacing whatever source that name had. The i
 then asks Codex to refresh marketplaces, and how far that reaches depends on the version:
 
 - From v0.6.0, the installer runs `codex plugin marketplace upgrade codex-auto-resume-windows`
-— this product's marketplace, by name, and not the form that refreshes every Git marketplace
-you have configured. For the local marketplace just registered, that command does nothing; it
-only has an effect if an earlier registration under that name is still in place, and then Codex
-refreshes it from wherever that registration points (normally GitHub). This is new in v0.6.0. -
-The installers of v0.4.0 through v0.5.7 run `codex plugin marketplace upgrade` with no name.
-Codex's own help describes that form as upgrading all the Git marketplaces you have configured,
-so installing one of those releases can contact other marketplaces' hosts as well as GitHub.
+  — this product's marketplace, by name, and not the form that refreshes every Git marketplace
+  you have configured. For the local marketplace just registered, that command does nothing; it
+  only has an effect if an earlier registration under that name is still in place, and then Codex
+  refreshes it from wherever that registration points (normally GitHub). This is new in v0.6.0.
+- The installers of v0.4.0 through v0.5.7 run `codex plugin marketplace upgrade` with no name.
+  Codex's own help describes that form as upgrading all the Git marketplaces you have configured,
+  so installing one of those releases can contact other marketplaces' hosts as well as GitHub.
 
 GitHub therefore sees an ordinary download request, with the IP address and User-Agent
 described above, and counts it in the repository's public download total; no wording here

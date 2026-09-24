@@ -6,7 +6,7 @@
 [![latest release](https://img.shields.io/github/v/release/songyb111-gachon/codex-auto-resume-windows?label=release)](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest)
 [![platform: Windows 10/11](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4)](#설치)
 [![license: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![languages: 9](https://img.shields.io/badge/languages-9-0891b2)](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/GUIDE.ko.md#언어)
+[![languages: 9](https://img.shields.io/badge/languages-9-0891b2)](docs/GUIDE.ko.md#언어)
 
 <sub>🇺🇸 <a href="README.md">English README</a> · 프로그램은 아홉 개 언어로 표시됩니다: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil)</sub>
 
@@ -19,7 +19,7 @@ Codex Auto Resume는 한도가 풀릴 때까지 기다렸다가, 이어 가도 �
 때만 그렇게 합니다. **모든 실패를 재시도하지는 않습니다.**
 
 이 페이지는 짧은 안내입니다. 모든 설정, 알림, 명령줄, 안전 모델과 개인정보까지 전부 담은 내용은
-**[전체 안내서](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/GUIDE.ko.md)**에 있습니다.
+**[전체 안내서](docs/GUIDE.ko.md)**에 있습니다.
 
 |  |  |
 | --- | --- |
@@ -63,7 +63,7 @@ codex plugin add codex-auto-resume@codex-auto-resume-windows
 
    출력된 값이 압축 파일 옆에 게시된 `.sha256` 파일의 값, 그리고
    [`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json)에 그 버전용으로 기록된 값과 같아야 합니다.
-   자세한 확인 방법은 [docs/VERIFY.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.ko.md)에 있습니다.
+   자세한 확인 방법은 [docs/VERIFY.ko.md](docs/VERIFY.ko.md)에 있습니다.
 3. 압축을 풀고 `Install.cmd`를 실행합니다.
 
 ### 어느 쪽이든
@@ -109,7 +109,7 @@ Codex 안의 패널입니다. Codex 창을 찍은 사진이 아니라, 플러그
 
 <img src="docs/images/icon-motion.png" alt="알림 영역 아이콘의 움직임을 아이콘 자신의 프레임으로 그린 모습(밝은 작업 표시줄). 왼쪽부터 감시 중(밝은 머리가 숨 쉰 뒤 가장 밝은 채로 고리의 흰 획을 따라 시계 방향으로 쓸고 갔다가 돌아옵니다), 복구 중(계속 나갔다 돌아옵니다), 확인 필요(주황색으로 제자리에서 천천히 숨 쉽니다), 실패(빨간색으로 복구 중보다 두 배 빠르게 나갔다 돌아오면서 깜빡입니다), 일시 정지(회색으로 멈춰 있습니다)" width="360">
 
-모든 부분을 모든 테마와 언어로 보려면 [전체 안내서](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/GUIDE.ko.md#화면)를 보세요.
+모든 부분을 모든 테마와 언어로 보려면 [전체 안내서](docs/GUIDE.ko.md#화면)를 보세요.
 
 ## 먼저 읽어야 할 제한 사항
 
@@ -118,7 +118,7 @@ Codex 안의 패널입니다. Codex 창을 찍은 사진이 아니라, 플러그
 방법은 없습니다. 그런 메시지는 나중에 그 대화를 다시 불러올 때 Codex가 전달할 수도 있습니다. 그래서 이
 도구는 방금 불러와 있음을 확인한 대화에만 메시지를 넣고, 불러오지 않은 대화는 **사용자가 앱에서 그 대화를
 직접 열어야만** 이어 갑니다. 화면 자동 조작을 쓰거나, 대화를 억지로 열거나, 혹시나 해서 메시지를 넣지
-않습니다. 그 근거가 된 측정은 [전체 안내서](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/GUIDE.ko.md#먼저-읽어야-할-제한-사항)에 있습니다.
+않습니다. 그 근거가 된 측정은 [전체 안내서](docs/GUIDE.ko.md#먼저-읽어야-할-제한-사항)에 있습니다.
 
 ## 안전과 개인정보
 
@@ -127,7 +127,7 @@ Codex 안의 패널입니다. Codex 창을 찍은 사진이 아니라, 플러그
 이미 전달됐을 수도 있는 메시지는 다시 보내지 않습니다. 워처 자체에는 네트워크 코드가 없고 이 프로젝트로
 보내는 것도 없습니다. 사용량 확인과 재개된 턴은 Codex를 통해 OpenAI로 가고, Codex에서 설치하면 GitHub에서
 릴리스를 내려받습니다. 무엇을 읽고 저장하고 보내는지는
-[PRIVACY.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/PRIVACY.ko.md)에, 위협 모델과 취약점 신고 방법은
+[PRIVACY.ko.md](PRIVACY.ko.md)에, 위협 모델과 취약점 신고 방법은
 [SECURITY.ko.md](docs/SECURITY.ko.md)에 있습니다.
 
 ## 요구 사항
@@ -145,16 +145,19 @@ Codex 안의 패널입니다. Codex 창을 찍은 사진이 아니라, 플러그
 
 ## 더 알아보기
 
-- **[전체 안내서](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/GUIDE.ko.md)**: 위의 모든 내용과 모든 설정, 알림, 안전 모델, 개인정보
-- 내려받은 압축 파일 확인과 릴리스 다시 빌드하기: [docs/VERIFY.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.ko.md)
-- 이 제품이 한다고 말하는 모든 것과 그 근거 등급: [docs/FEATURE_MATRIX.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/FEATURE_MATRIX.ko.md)
-- 플러그인 계층, 설치 스크립트가 가져오고 확인하는 것: [docs/PLUGIN.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/PLUGIN.ko.md)
-- 같은 영역의 다른 프로젝트들과의 비교: [docs/COMPARISON.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/COMPARISON.ko.md)
-- 앞으로의 방향(약속이 아니라 계획): [docs/ROADMAP.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/ROADMAP.ko.md)
+- **[전체 안내서](docs/GUIDE.ko.md)**: 위의 모든 내용과 모든 설정, 알림, 안전 모델, 개인정보
+- 내려받은 압축 파일 확인과 릴리스 다시 빌드하기: [docs/VERIFY.ko.md](docs/VERIFY.ko.md)
+- 이 제품이 한다고 말하는 모든 것과 그 근거 등급: [docs/FEATURE_MATRIX.ko.md](docs/FEATURE_MATRIX.ko.md)
+- 플러그인 계층, 설치 스크립트가 가져오고 확인하는 것, 업데이트와 제거: [docs/PLUGIN.ko.md](docs/PLUGIN.ko.md)
+- 같은 영역의 다른 프로젝트들, 그리고 각각이 이 제품보다 잘하는 점: [docs/COMPARISON.ko.md](docs/COMPARISON.ko.md)
+- 앞으로의 방향(약속이 아니라 계획): [docs/ROADMAP.ko.md](docs/ROADMAP.ko.md)
+- 무엇을 읽고, 무엇을 저장하고, 무엇을 어디로 보내는지: [PRIVACY.ko.md](PRIVACY.ko.md)
 - 보안 모델과 취약점 신고: [SECURITY.ko.md](docs/SECURITY.ko.md)
-- 변경 이력: [CHANGELOG.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/CHANGELOG.ko.md)
+- 문제 종류별로 어디에 신고하는지, 그리고 공개 이슈에 붙여넣으면 안 되는 것: [SUPPORT.ko.md](docs/SUPPORT.ko.md)
+- 테스트, 릴리스 빌드, 그리고 변경이 지켜야 하는 안전 속성: [CONTRIBUTING.ko.md](docs/CONTRIBUTING.ko.md)
+- 변경 이력: [CHANGELOG.ko.md](CHANGELOG.ko.md)
 - 기여자: [CONTRIBUTORS.ko.md](CONTRIBUTORS.ko.md)
-- 내 PC에서 이 제품이 어떻게 동작했는지 보고하기(별도 도구):
+- 이 제품이 내 PC와 내 Codex 버전에서 어떻게 동작했는지 보고하기(별도 도구):
   [codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter). 횟수와 상태와
   시각만 담은 파일 하나를 쓰고, 보내기 전에 내가 먼저 읽습니다. 대화 내용도 식별자도 경로도 들어가지
   않습니다. 그렇게 온 보고는 **보고됨**이라는 별도 등급으로만 세며, 어떤 버전도 검증됨이나 점검됨으로
