@@ -23,6 +23,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+import guiscan
 
 from codex_auto_resume import l10n, settings
 
@@ -180,7 +181,7 @@ $form.GetField('dpiScale', $static).SetValue($null, $systemScale)
 
 
 def breaks_anywhere(char) -> bool:
-    """tray_popup._breaks_anywhere: Chinese and Japanese are set without spaces."""
+    """tray_popup.words._breaks_anywhere: Chinese and Japanese are set without spaces."""
     code = ord(char)
     return 0x2E80 <= code <= 0x9FFF or 0xF900 <= code <= 0xFAFF or 0xFF00 <= code <= 0xFFEF
 
@@ -211,7 +212,7 @@ class WordTests(unittest.TestCase):
         exe = work / "CodexAutoResumeSettings.exe"
         subprocess.run([str(CSC), "/nologo", "/target:winexe", "/platform:x64", "/out:" + str(exe),
                         "/reference:System.dll", "/reference:System.Drawing.dll", "/reference:System.Windows.Forms.dll",
-                        *[str(GUI / name) for name in ("SettingsApp.cs", "Dashboard.cs", "Controls.cs", "Brand.cs")]],
+                        *[str(path) for path in guiscan.sources()]],
                        check=True, capture_output=True, timeout=300)
         ko = l10n.catalog("ko")
         cls.texts = sorted({text for text in ko.values() if HANGUL.search(text) and len(text) >= 40 and "\n" not in text})
@@ -313,9 +314,9 @@ class WordSourceTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.dashboard = (GUI / "Dashboard.cs").read_text(encoding="utf-8")
-        cls.controls = (GUI / "Controls.cs").read_text(encoding="utf-8")
-        cls.window = (GUI / "SettingsApp.cs").read_text(encoding="utf-8")
+        cls.dashboard = guiscan.dashboard()
+        cls.controls = guiscan.controls()
+        cls.window = guiscan.settings()
 
     @staticmethod
     def method(source, signature):

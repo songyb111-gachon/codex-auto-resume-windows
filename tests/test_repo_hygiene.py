@@ -49,8 +49,13 @@ GUID_ALLOWLIST = {"gui/app.manifest",
                   "src/codex_auto_resume/shortcut.py",
                   "src/codex_auto_resume/notify.py"}
 
-TEXT_SUFFIXES = {".py", ".md", ".txt", ".json", ".ps1", ".cmd", ".cs", ".yml", ".yaml",
-                 ".toml", ".cfg", ".ini", ".manifest", ".gitattributes", ".gitignore"}
+# `.css` and `.js` since v0.6.10-alpha: the settings panel's stylesheet and script were
+# 2,173 lines inside `mcpui.py` and are files of their own now. They are still shipped code
+# a browser runs, so they are read here like any other - without these two the scans below
+# would quietly stop seeing them.
+TEXT_SUFFIXES = {".py", ".md", ".txt", ".json", ".ps1", ".cmd", ".cs", ".css", ".js",
+                 ".yml", ".yaml", ".toml", ".cfg", ".ini", ".manifest", ".gitattributes",
+                 ".gitignore"}
 
 
 def tracked_text_files():
@@ -119,8 +124,8 @@ class RepositoryHygieneTests(unittest.TestCase):
 
     def test_the_fixture_conventions_are_documented(self):
         # A rule nobody can find is a rule that gets broken. CONTRIBUTING has to say it.
-        contributing = ROOT / "CONTRIBUTING.md"
-        self.assertTrue(contributing.is_file(), "CONTRIBUTING.md should document the conventions")
+        contributing = ROOT / "docs" / "CONTRIBUTING.md"
+        self.assertTrue(contributing.is_file(), "docs/CONTRIBUTING.md should document the conventions")
         text = contributing.read_text(encoding="utf-8")
         self.assertIn("ExampleUser", text)
         self.assertIn("0a1b2c3d", text)

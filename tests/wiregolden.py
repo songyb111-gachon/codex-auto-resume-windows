@@ -163,9 +163,11 @@ def _watcher_does_not_let_go(_workspace):
 
     The mutex is held by the envelope's helper thread, which no stop event reaches, so the
     answer is the one the full ten seconds give; only the waiting is left out."""
-    from codex_auto_resume import control
+    # `control/watcher.py` is where `await_stopped` reads the wait; the front re-exports the
+    # name but nothing reads it there, so patching the front would wait the full ten seconds.
+    from codex_auto_resume.control import watcher as control_watcher
 
-    with patch.object(control, "WATCHER_STOP_TIMEOUT", 0.0):
+    with patch.object(control_watcher, "WATCHER_STOP_TIMEOUT", 0.0):
         yield
 
 

@@ -445,5 +445,5 @@ DLL 두 개(`vcruntime140.dll`과 `vcruntime140_1.dll`)에는 Microsoft의 서�
 
 검증은 그 파일이 이 프로젝트가 게시한 파일이라는 것을 알려 줍니다. 코드가 안전하다는 것까지 알려
 주지는 않습니다. 코드가 무엇을 할 수 있고 그것이 어떻게 강제되는지는
-[SECURITY.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/SECURITY.ko.md)를
+[SECURITY.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/SECURITY.ko.md)를
 보세요.

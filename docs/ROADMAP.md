@@ -297,12 +297,11 @@ its own, and the modularization is that: it changes nothing anybody could see, s
 release by itself, and it has to be finished and published before what is built on it. The design is
 the opposite - it changes what everything looks like - so it is a release.
 
-### v0.6.10-alpha — Python modularization (a pre-release)
+### v0.6.10-alpha 🚧 — Python modularization (a pre-release)
 
-The alpha is planned as the major structural cleanup of the Python implementation. It was the main
-part of v0.6.5 in the earlier plan, and then of v0.6.8 and v0.6.9; v0.6.5 ships its groundwork, and the split
-itself lands here. Until it does, the line ceilings hold nothing back: a module may grow as the
-features before it need. From the alpha on they hold again.
+The alpha is the major structural cleanup of the Python implementation. It was the main part of
+v0.6.5 in the earlier plan, and then of v0.6.8 and v0.6.9; v0.6.5 shipped its groundwork, and the
+split itself is here. The line ceilings hold again from the alpha on, and no module is over them.
 
 Before anything moves:
 
@@ -329,6 +328,14 @@ anyway, so that fewer files sit at its root.
 Bugs discovered during this refactor will be fixed with regression tests, but the alpha is
 **not intended to be the full repository-wide bug hunt**; v0.6.12 is. It is the modularization and
 nothing else: no feature, and no change anybody could see.
+
+What it carries: the modules that were over their ceiling are packages in the plan's layout -
+`codex/`, `win/`, `domain/`, `runtime/`, `commands/`, `compat/` and `ui/card/` among them - each old
+module kept as a front that still answers every name it had, and no import cycle is left. The
+replies the window and the panel receive are written down as types and held to the golden copies
+both ways. The window's three hand-written C# files are eighteen, grouped by half in
+`gui/window.sources`, and the contributor documents moved into `docs/`. `tests/test_stack.py` names
+the Rust part every module becomes, and fails when a placement stops being true.
 
 
 ### v0.6.10 — The design audit, and a choice of appearance

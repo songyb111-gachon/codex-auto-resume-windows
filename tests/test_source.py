@@ -10,7 +10,7 @@ import tempfile
 import unittest
 import uuid
 
-from codex_auto_resume.source import LocalSource, SourceError, detect, normalize, _choose_reset
+from codex_auto_resume.codex import LocalSource, SourceError, detect, normalize, _choose_reset
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import codexsim  # noqa: E402  (a real Codex home; lives next to this file)
@@ -887,7 +887,7 @@ class StaticQueryTests(unittest.TestCase):
         wherever it is, and named here so it cannot arrive unnoticed."""
         readers = {line.split(":")[0] for line, sql in _sql_strings()
                    if re.search(r"\b(thread_items|queued_items)\b", sql)}
-        self.assertEqual(readers, {"codex_auto_resume/source.py"})
+        self.assertEqual(readers, {"codex_auto_resume/codex/history.py"})
 
     def test_T11_checker_catches_an_unbounded_query(self):
         """The static checker itself: a bound that sits only in a sub-query does not

@@ -28,7 +28,9 @@ import time
 import unittest
 from unittest.mock import call, patch
 
-from codex_auto_resume import config, control, controlcli, settings, startup
+from codex_auto_resume import (config, control, controlcli, settings,
+                               startup, store as store_module)
+from codex_auto_resume.control import watcher  # where the waits and the stop event are read
 from codex_auto_resume.store import Store, StoreError
 from codex_auto_resume.windows import AdapterError, Mutex
 
@@ -186,7 +188,7 @@ class PendingTests(ControlTestCase):
         self.assertIsNone(listed[0]["name"])
         self.assertEqual(listed[0]["interruption_id"], KEY)
         # A record that was never reset has every reset still available.
-        self.assertEqual(listed[0]["budget_resets_left"], control.MAX_BUDGET_RESETS)
+        self.assertEqual(listed[0]["budget_resets_left"], store_module.MAX_BUDGET_RESETS)
 
     def test_a_failing_identity_lookup_does_not_break_the_listing(self):
         # Labels are decoration. A source that raises must cost a name, not the list.
@@ -353,7 +355,7 @@ class NotARecoveryEngineTests(ControlTestCase):
         control_files = srcscan.files_of("codex_auto_resume.control")
         for path in control_files:
             text = srcscan.read(path)
-            for module in ("engine", "source"):
+            for module in ("engine", "codex"):
                 with self.subTest(file=srcscan.relative(path), module=module):
                     self.assertEqual(re.findall(r"(?m)^[ \t]*from \.+%s\b.*" % module, text), [])
                     self.assertEqual(re.findall(r"(?m)^[ \t]*from \.+ import .*\b%s\b.*" % module, text), [])
@@ -367,7 +369,7 @@ class NotARecoveryEngineTests(ControlTestCase):
         # them, once it is a package (`engine.dispatch`) - are exactly the ones that always
         # have, and control is not one of them. A package's own modules importing each other
         # are not counted.
-        guarded = {name: "codex_auto_resume." + name for name in ("engine", "source")}
+        guarded = {name: "codex_auto_resume." + name for name in ("engine", "codex")}
 
         def within(name, root):
             return name == root or name.startswith(root + ".")
@@ -379,14 +381,29 @@ class NotARecoveryEngineTests(ControlTestCase):
                     if within(entry.target, root) and not within(module, root):
                         importers.setdefault(name, set()).add(srcscan.relative(path))
         control = {srcscan.relative(path) for path in control_files}
-        self.assertIn("codex_auto_resume/control.py", control)
+        # Every file of the layer, not the one it used to be: since v0.6.10-alpha the
+        # rule has ten files to hold rather than one, and a new one joins by being there.
+        self.assertIn("codex_auto_resume/control/__init__.py", control)
+        self.assertIn("codex_auto_resume/control/watcher.py", control)
+        self.assertGreaterEqual(len(control), 10)
         for name, found in sorted(importers.items()):
             with self.subTest(guarded=name):
                 self.assertEqual(sorted(found & control), [], "control imports the %s" % name)
         package = "codex_auto_resume/%s.py"
         self.assertEqual(importers, {
-            "engine": {package % "app"},
-            "source": {package % name for name in ("app", "compatio", "controlcli", "engine")},
+            # The watcher's composition root, which is runtime/app.py since v0.6.10-alpha.
+            "engine": {"codex_auto_resume/runtime/app.py"},
+            # Since v0.6.10-alpha the engine is a package, and the one module of it that reads
+            # Codex directly is `engine/detect.py` - the exception `tests/test_layers.py`
+            # names, in the place it now lives.
+            # `windows` is the front of the Codex adapter since v0.6.10-alpha and imports the
+            # package it re-exports; it holds no logic of its own.
+            # The registry's io half reads Codex's databases for its local checks: compat/cache.py,
+            # evaluator.py and views.py since v0.6.10-alpha, which compatio.py was.
+            "codex": {package % name for name in ("controlcli", "windows")}
+                      | {"codex_auto_resume/engine/detect.py", "codex_auto_resume/runtime/app.py",
+                         "codex_auto_resume/compat/cache.py", "codex_auto_resume/compat/evaluator.py",
+                         "codex_auto_resume/compat/views.py"},
         }, "the set of modules that reach the engine or the source has changed")
 
 
@@ -710,8 +727,8 @@ class SwitchFlagTests(ControlTestCase):
                 self.assertIs(self.control.get_status()["enabled"], wanted)
 
     def test_what_the_window_actually_sends_is_accepted_verbatim(self):
-        # The exact argument bytes the two windows build: `Dashboard.cs` for the pause
-        # switch, `SettingsApp.cs` for run at sign-in. Parsed the way the bridge parses
+        # The exact argument bytes the two windows build: `DashboardActions.cs` for the pause
+        # switch, `SettingsPage.cs` for run at sign-in. Parsed the way the bridge parses
         # them, so the test fails if either the wire or this rule moves.
         for raw, wanted in (('{"enabled":true}', True), ('{"enabled":false}', False)):
             with self.subTest(raw=raw):
@@ -790,7 +807,7 @@ class ErrorCodeTests(ControlTestCase):
         # away before any control call - take the fallback code by leaving it out. Nothing else
         # may: every other refusal names its code, and these are the only files that do not.
         self.assertEqual({where for where, node in raises if (where, node) not in coded},
-                         {"codex_auto_resume/controlcli.py", "codex_auto_resume/mcpserver.py"},
+                         {"codex_auto_resume/controlcli.py", "codex_auto_resume/mcp/server.py"},
                          "a refusal outside the two front ends' framing carries no code")
         named = set()
         for where, node in coded:
@@ -1048,10 +1065,10 @@ class StartWatcherReportingTests(ControlTestCase):
     def setUp(self):
         super().setUp()
         (self.home / "watcher-launcher.py").write_text("# launcher" + chr(10), encoding="utf-8")
-        patcher = patch.object(control, "WATCHER_START_TIMEOUT", 0.05)
+        patcher = patch.object(watcher, "WATCHER_START_TIMEOUT", 0.05)
         patcher.start()
         self.addCleanup(patcher.stop)
-        interval = patch.object(control, "WATCHER_START_INTERVAL", 0)
+        interval = patch.object(watcher, "WATCHER_START_INTERVAL", 0)
         interval.start()
         self.addCleanup(interval.stop)
 
@@ -1113,12 +1130,12 @@ class StopWatcherTests(ControlTestCase):
     def setUp(self):
         super().setUp()
         for name, value in (("WATCHER_STOP_TIMEOUT", 0.05), ("WATCHER_STOP_INTERVAL", 0)):
-            guard = patch.object(control, name, value)
+            guard = patch.object(watcher, name, value)
             guard.start()
             self.addCleanup(guard.stop)
         # The event stands in for the real one: these tests describe this layer, not a
         # Windows named object, and no watcher is ever started to be stopped.
-        events = patch.object(control, "StopEvent")
+        events = patch.object(watcher, "StopEvent")
         self.event = events.start()
         self.addCleanup(events.stop)
         self.event.return_value.signal.return_value = True
@@ -1181,9 +1198,11 @@ class StopWatcherTests(ControlTestCase):
         # adapter stopping its own finite helper (a `codex queue` that outlived its timeout,
         # an App Server it started), so a way to end a process appearing in any other file -
         # a control function moved there included - fails here.
-        own_helper = {"codex_auto_resume/windows.py"}
+        # One holder each, named: the App Server the adapter started, and the `codex queue`
+        # that outlived its timeout. Two files since v0.6.10-alpha split windows.py.
         for call, holders in (("os.kill", set()), ("taskkill", set()), ("TerminateProcess", set()),
-                              (".terminate(", own_helper), (".kill(", own_helper)):
+                              (".terminate(", {"codex_auto_resume/codex/appserver.py"}),
+                              (".kill(", {"codex_auto_resume/codex/transport.py"})):
             with self.subTest(call):
                 self.assertEqual(srcscan.holders(call), holders, call)
         for path in srcscan.files_of("codex_auto_resume.control"):
@@ -1283,7 +1302,7 @@ class BridgeImportTests(unittest.TestCase):
     """
 
     NOT_LOADED = ("codex_auto_resume.app", "codex_auto_resume.notify",
-                  "codex_auto_resume.tray_popup", "xml.sax")
+                  "codex_auto_resume.ui.popup", "xml.sax")
     PROGRAM = ("import json, sys\n"
                "sys.path.insert(0, sys.argv[1])\n"
                "from codex_auto_resume.controlcli import main\n"

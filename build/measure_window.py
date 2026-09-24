@@ -70,6 +70,23 @@ ConvertTo-Json $out -Compress
 """
 
 
+
+def window_sources(tree) -> list:
+    """The window's compile list, as the tree being measured spells it.
+
+    Read from that tree rather than from this one: this script compiles a checkout of another
+    version to compare it with today's, and a list taken from here would compile the old
+    sources in the new order - or name a file that version did not have.
+    """
+    manifest = tree / "gui" / "window.sources"
+    if not manifest.is_file():                       # before v0.6.10-alpha it was written out
+        return ["gui/" + name for name in
+                ("SettingsApp.cs", "Dashboard.cs", "Controls.cs", "Brand.cs")]
+    names = [line.split("#", 1)[0].strip()
+             for line in manifest.read_text(encoding="utf-8").splitlines()]
+    # The `[group]` markers are for the tests; the compiler is handed every source.
+    return [name for name in names if name and not name.startswith("[")]
+
 def measure(tree: Path) -> dict:
     sys.path.insert(0, str(tree / "src"))
     sys.path.insert(0, str(tree / "tests"))
@@ -81,8 +98,7 @@ def measure(tree: Path) -> dict:
     subprocess.run([str(CSC), "/nologo", "/target:winexe", "/platform:x64", "/out:" + str(exe),
                     "/reference:System.dll", "/reference:System.Drawing.dll",
                     "/reference:System.Windows.Forms.dll"]
-                   + [str(tree / "gui" / name)
-                      for name in ("SettingsApp.cs", "Dashboard.cs", "Controls.cs", "Brand.cs")],
+                   + [str(tree / name) for name in window_sources(tree)],
                    check=True, capture_output=True, timeout=600)
     current = dict(settings.defaults(), continuation_style="custom", custom_message_mode="per_reason")
     (work / "schema.json").write_text(json.dumps(settings.describe(), ensure_ascii=False), encoding="utf-8")

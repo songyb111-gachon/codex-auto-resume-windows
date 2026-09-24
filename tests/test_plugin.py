@@ -778,13 +778,15 @@ class PayloadDocumentTests(unittest.TestCase):
     beside it. Cheap to get wrong again the next time a document is added.
     """
 
-    def test_every_top_level_document_the_readme_links_to_is_shipped(self):
+    def test_every_document_the_readme_links_to_is_shipped(self):
         import re
         builder = _load("make_release_payload", ROOT / "build" / "make_release.py")
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        linked = {target for target in re.findall(r"\]\(([^)#:]+?\.md)\)", readme)
-                  if "/" not in target}
-        self.assertTrue(linked, "the README links to no top-level document at all")
+        # Every relative link, folders included: CONTRIBUTING, SECURITY and SUPPORT ship from
+        # docs/ since v0.6.10-alpha, and a filter that kept only top-level names stopped
+        # covering exactly the three that moved.
+        linked = set(re.findall(r"\]\(([^)#:]+?\.md)\)", readme))
+        self.assertTrue(linked, "the README links to no document at all")
         missing = sorted(name for name in linked if name not in builder.APP_FILES)
         self.assertEqual(missing, [], "the payload README links to documents it does not ship")
 

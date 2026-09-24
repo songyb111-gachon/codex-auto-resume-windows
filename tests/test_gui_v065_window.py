@@ -28,6 +28,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+import guiscan
 
 from codex_auto_resume import brand, l10n
 
@@ -302,8 +303,7 @@ class WindowReviewTests(unittest.TestCase):
         subprocess.run([str(CSC), "/nologo", "/target:winexe", "/platform:x64", "/out:" + str(exe),
                         "/reference:System.dll", "/reference:System.Drawing.dll",
                         "/reference:System.Windows.Forms.dll",
-                        *[str(ROOT / "gui" / name)
-                          for name in ("SettingsApp.cs", "Dashboard.cs", "Controls.cs", "Brand.cs")]],
+                        *[str(path) for path in guiscan.sources()]],
                        check=True, capture_output=True, timeout=300)
 
         def reply(locale):
@@ -448,8 +448,8 @@ class WindowSourceTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.dashboard = (ROOT / "gui" / "Dashboard.cs").read_text(encoding="utf-8")
-        cls.controls = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
+        cls.dashboard = guiscan.dashboard()
+        cls.controls = guiscan.controls()
 
     def method(self, source, signature):
         start = source.index(signature)
@@ -465,8 +465,7 @@ class WindowSourceTests(unittest.TestCase):
         self.assertNotIn("PerformLayout", follow)
 
     def test_a_transition_repaints_only_where_it_is_told(self):
-        transition = self.controls[self.controls.index("internal sealed class Transition "):]
-        transition = transition[:transition.index("\n    }\n")]
+        transition = guiscan.type_body("Transition")
         self.assertIn("internal Func<Rectangle> Where;", transition)
         self.assertNotIn("PerformLayout", transition)
 
@@ -483,10 +482,9 @@ class WindowSourceTests(unittest.TestCase):
         self.assertNotIn("SystemParametersInfo", reduced, "Windows is asked through the input, not beside it")
         asked = self.method(self.controls, "internal static bool WindowsAnimationEffects()")
         self.assertIn("SPI_GETCLIENTAREAANIMATION", asked)
-        window = (ROOT / "gui" / "SettingsApp.cs").read_text(encoding="utf-8")
-        for name, source in (("Controls.cs", self.controls), ("Dashboard.cs", self.dashboard), ("SettingsApp.cs", window)):
-            with self.subTest(name):
-                self.assertEqual(source.count("WindowsAnimates ="), 1 if name == "Controls.cs" else 0)
+        # Once in the whole window, wherever it is written: what matters is that there is one
+        # place it is set, not which file that place is in.
+        self.assertEqual(guiscan.whole().count("WindowsAnimates ="), 1)
 
 
 if __name__ == "__main__":

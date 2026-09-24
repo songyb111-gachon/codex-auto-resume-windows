@@ -12,7 +12,8 @@ import tempfile
 import time
 import unittest
 
-from codex_auto_resume import interface, tray
+from codex_auto_resume import interface
+from codex_auto_resume.ui import tray
 from codex_auto_resume.store import Store
 
 ROOT = Path(__file__).resolve().parents[1]

@@ -56,7 +56,7 @@ class RegistryAgreementTests(unittest.TestCase):
                 if (isinstance(node, ast.Compare) and any(isinstance(op, ast.NotIn) for op in node.ops)
                         and any("CONFIGURABLE_CATEGORIES" in ast.unparse(side) for side in node.comparators)):
                     found.add((srcscan.relative(path), names[node]))
-        self.assertEqual(found, {("codex_auto_resume/engine.py", "Engine.recovers")})
+        self.assertEqual(found, {("codex_auto_resume/engine/options.py", "OptionsMixin.recovers")})
         switched_off = engine.Engine(None, None, None)
         switched_off.apply_policy({"recover_" + category: False for category in settings.CONFIGURABLE_CATEGORIES})
         for category in reasons.RECOVERABLE:

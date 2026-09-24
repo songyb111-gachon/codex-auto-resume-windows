@@ -964,7 +964,7 @@ set CODEX_AR_LIVE=1 && python -m unittest tests.test_integration_live
 
 ## Security
 
-See [SECURITY.md](../SECURITY.md) for the full model, the review process, and the issues that were
+See [SECURITY.md](SECURITY.md) for the full model, the review process, and the issues that were
 found and fixed. In short: the recovery runtime has no network code and reads no credentials;
 it reads Codex's state read-only, opens none of Codex's files for writing, and makes its
 changes to Codex's state by asking Codex through official interfaces; what reaches OpenAI is
@@ -1001,9 +1001,9 @@ issue; diagnosing a problem does not need them.
 | [docs/DEVELOPMENT.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/DEVELOPMENT.md) | How it was built, including the measurements behind the loaded/notLoaded limitation. |
 | [docs/ROADMAP.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/ROADMAP.md) | Where the project is heading, release by release: a planned direction, not a promise. |
 | [PRIVACY.md](../PRIVACY.md) | What is read, what is stored, and what is sent anywhere. |
-| [SECURITY.md](../SECURITY.md) | The threat model and how to report a vulnerability. |
-| [SUPPORT.md](../SUPPORT.md) | Where to report each kind of problem, and what not to paste into a public issue. |
-| [CONTRIBUTING.md](../CONTRIBUTING.md) | Tests, the release build, fixture conventions, and the safety properties a change has to keep. |
+| [SECURITY.md](SECURITY.md) | The threat model and how to report a vulnerability. |
+| [SUPPORT.md](SUPPORT.md) | Where to report each kind of problem, and what not to paste into a public issue. |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Tests, the release build, fixture conventions, and the safety properties a change has to keep. |
 
 ## Development and credits
 

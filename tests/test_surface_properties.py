@@ -223,7 +223,7 @@ class TrayMenuTests(unittest.TestCase):
     """
 
     def setUp(self):
-        from codex_auto_resume import tray
+        from codex_auto_resume.ui import tray
         self.tray = tray
         self.calls = []
         self.icon = tray.Tray(
@@ -410,9 +410,9 @@ class JournalIsWriteOnlyTests(unittest.TestCase):
         # Asked of every tracked file but the two readers named below - so of the engine, the
         # runtime, the source and the classifier however they are split, and of any module a
         # decision is moved to.
-        for name in ("engine", "app", "source", "failures"):
+        for name in ("engine", "app", "codex", "failures"):
             self.assertTrue(srcscan.files_of("codex_auto_resume." + name), name)
-        readers = {"codex_auto_resume/control.py", "codex_auto_resume/diagnostics.py"}
+        readers = {"codex_auto_resume/control/records.py", "codex_auto_resume/diagnostics.py"}
         for path in srcscan.package_files():
             if srcscan.relative(path) in readers:
                 continue
@@ -427,15 +427,18 @@ class JournalIsWriteOnlyTests(unittest.TestCase):
                 continue
             if ".events(" in path.read_text(encoding="utf-8"):
                 readers.add(path.name)
-        # store.py defines it; these two call it. Nothing else in the runtime does.
-        self.assertEqual(readers, {"control.py", "diagnostics.py"},
+        # The store defines it; these two call it, and nothing else in the runtime does.
+        # Since v0.6.10-alpha the control layer's caller is `control/records.py`, which is
+        # the file the timeline lives in.
+        self.assertEqual(readers, {"records.py", "diagnostics.py"},
                          "the set of things that read the journal has changed")
 
     def test_the_timeline_is_the_only_control_call_that_reads_it(self):
-        control = (ROOT / "src" / "codex_auto_resume" / "control.py").read_text(encoding="utf-8")
+        records = (ROOT / "src" / "codex_auto_resume" / "control"
+                   / "records.py").read_text(encoding="utf-8")
         # One call site, inside `timeline`.
-        self.assertEqual(control.count(".events("), 1)
-        timeline = control[control.index("def timeline"):]
+        self.assertEqual(records.count(".events("), 1)
+        timeline = records[records.index("def timeline"):]
         self.assertIn(".events(", timeline[:timeline.index("\n    def ")])
         # By qualified name, across the package: the timeline and the diagnostics export are
         # the only two functions that call it, wherever either of them lives.
@@ -445,7 +448,7 @@ class JournalIsWriteOnlyTests(unittest.TestCase):
             callers.update(names[node] for node in ast.walk(tree)
                            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
                            and node.func.attr == "events")
-        self.assertEqual(callers, {"Control.timeline", "collect"})
+        self.assertEqual(callers, {"RecordsMixin.timeline", "collect"})
 
 
 @unittest.skipUnless(WINDOWS and POWERSHELL.is_file(), "the shortcut is a Windows .lnk")

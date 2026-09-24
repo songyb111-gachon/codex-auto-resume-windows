@@ -273,7 +273,7 @@ class CliTests(unittest.TestCase):
         and it reads the Codex home's schema. With CODEX_HOME unset that home is the real
         %USERPROFILE%\\.codex, so this class names its own - and the read is replaced by a
         recorder here, so even a mistake in the environment opens nothing."""
-        from codex_auto_resume import compatio
+        from codex_auto_resume.compat import probes as compat_probes
         homes = []
 
         def record(source):
@@ -282,7 +282,8 @@ class CliTests(unittest.TestCase):
                                                      "projection_table", "sessions_directory",
                                                      "lock_directory")}
         self.cli("enable")
-        with patch.object(compatio, "source_checks", side_effect=record):
+        # Where the loop's evaluator calls it: compat/probes.py, through the module.
+        with patch.object(compat_probes, "source_checks", side_effect=record):
             code, _, _ = self.cli("run", "--once")
         self.assertEqual(code, 1)
         self.assertTrue(homes, "the loop evaluated compatibility")

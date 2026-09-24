@@ -566,7 +566,7 @@ Windows는 세 줄까지만 그리고 나머지는 버리므로, 네 줄이 아�
 - **쓰지 않는 것:** GUI 자동화, 마우스·키보드 시뮬레이션, OCR, 화면 스크래핑, 접근성 API 클릭,
   바이너리 패치, DLL 주입, 프로세스 메모리 조작, 자격 증명 추출.
 
-자세한 내용과 적대적 검토 결과는 [SECURITY.ko.md](../SECURITY.ko.md)에 있습니다.
+자세한 내용과 적대적 검토 결과는 [SECURITY.ko.md](SECURITY.ko.md)에 있습니다.
 
 ## 알려진 제한
 
@@ -676,9 +676,9 @@ Windows 등록과 플러그인을 제거하며, 함께 지워 달라고 하지 �
 
 ## 도움말 · 보안
 
-- 문제 신고와 진단 방법: [SUPPORT.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/SUPPORT.ko.md)
-- 보안 모델, 검토 과정, 발견되어 고친 문제: [SECURITY.ko.md](../SECURITY.ko.md)
-- 기여 방법: [CONTRIBUTING.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/CONTRIBUTING.ko.md)
+- 문제 신고와 진단 방법: [SUPPORT.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/SUPPORT.ko.md)
+- 보안 모델, 검토 과정, 발견되어 고친 문제: [SECURITY.ko.md](SECURITY.ko.md)
+- 기여 방법: [CONTRIBUTING.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/CONTRIBUTING.ko.md)
 
 요약하면, 복구 런타임에는 네트워크 코드가 없고 자격 증명을 읽지 않습니다. Codex의 상태는 읽기 전용으로 읽고, Codex의 파일은 어느 것도 쓰기 모드로 열지
 않으며, Codex의 상태를 바꿀 때는 공식 인터페이스로 Codex에 요청합니다. OpenAI에 닿는 것은 Codex 자신의 통신이고, 불확실하면 보내지 않고 멈추며,
@@ -700,7 +700,7 @@ Software Foundation의 서명을 유지합니다.
 
 ## 그 밖의 문서
 
-- 보안 모델과 적대적 검토 결과: [SECURITY.ko.md](../SECURITY.ko.md)
+- 보안 모델과 적대적 검토 결과: [SECURITY.ko.md](SECURITY.ko.md)
 - 무엇을 읽고, 무엇을 저장하고, 무엇이 어디로 가는지: [PRIVACY.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/PRIVACY.ko.md)
 - 내려받은 압축 파일을 확인하고 릴리스를 직접 다시 빌드하는 방법, 그리고 그 확인이 증명하는 것과 증명하지 못하는 것: [docs/VERIFY.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.ko.md)
 - 플러그인 계층, 설치 스크립트가 가져올 수 있는 것과 확인하는 것, 업데이트와 제거의 수명 주기, 사용량 한도 안내에 체크박스를 넣지 못하는 이유: [docs/PLUGIN.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/PLUGIN.ko.md)

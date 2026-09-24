@@ -27,8 +27,10 @@ import types
 import unittest
 from unittest.mock import patch
 
-from codex_auto_resume import (config, l10n, notice_card, notice_presence, notifier, notify, settings, tray,
-                               tray_popup)
+from codex_auto_resume import (config, l10n, notice_card, notice_presence, notifier, notify,
+                               settings)
+from codex_auto_resume.ui import popup as tray_popup, tray
+from codex_auto_resume.ui.card import win32 as card_win32
 from test_notice_card import ALLOWED, EVENTS, FULL, THREAD, build, captured_xml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -243,7 +245,7 @@ class IconHostTests(unittest.TestCase):
         # stored Reduce motion is what this test is about.
         with patch.object(tray_popup, "apps_use_light_theme", lambda: True), \
                 patch.object(tray_popup, "high_contrast", lambda: False), \
-                patch.object(tray_popup, "reduced_motion", lambda: bool(tray_popup._reduce_motion_setting)), \
+                patch.object(tray_popup, "reduced_motion", lambda: bool(tray_popup.theme._reduce_motion_setting)), \
                 patch.object(notice_presence, "battery_saver", lambda: False):
             look = icon._card_look()
             self.assertEqual(look, {"theme": "dark", "contrast": False, "reduced": True})
@@ -305,7 +307,10 @@ class EntranceTests(unittest.TestCase):
                 return record
 
         layer = types.SimpleNamespace(width=4, height=4, bits=ctypes.c_void_p(0))
-        with patch.object(notice_window, "_dll", lambda name: Recorder()):
+        # The handle cache every part of the card looks up in ui/card/win32.py, since
+        # v0.6.10-alpha: on the notice_window front the patch reached nothing, and the real
+        # GDI+ ran instead of the recorder.
+        with patch.object(card_win32, "_dll", lambda name: Recorder()):
             with notice_window._Surface(layer):
                 pass
         quality = [args[-1] for name, args in calls if name == "GdipSetCompositingQuality"]

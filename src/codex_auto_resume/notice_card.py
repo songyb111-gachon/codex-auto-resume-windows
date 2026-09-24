@@ -41,9 +41,10 @@ from __future__ import annotations
 from collections import namedtuple
 import math
 
-from . import brand, l10n, tray_popup
+from . import brand, l10n
+from .ui import popup
 
-WIDTH = tray_popup.WIDTH                       # the popup's width, so the two are one product
+WIDTH = popup.WIDTH                       # the popup's width, so the two are one product
 CARD_WIDTH = WIDTH - 2 * brand.SPACING["m"]    # the card itself: exactly the popup's card
 MAX_CARDS = 3
 FRAME_MS = 16                                  # frames only while something moves
@@ -90,9 +91,9 @@ def view(notice) -> dict:
         "status": notice.status,
         "chip": notice.chip,
         "chip_tone": notice.chip_tone or "waiting",
-        "title": tray_popup.one_line(notice.title),
+        "title": popup.one_line(notice.title),
         "line": notice.line,
-        "origin": tray_popup.one_line(notice.origin, 200),
+        "origin": popup.one_line(notice.origin, 200),
         "actions": actions,
         "locale": notice.locale if notice.locale in l10n.LOCALES else l10n.DEFAULT,
     }
@@ -111,7 +112,7 @@ def texts(vm) -> list:
 def layout(vm, scale, measure) -> dict:
     """Every rectangle the card draws, in device pixels, with the card at (0, 0).
 
-    The items are the kinds `tray_popup.Renderer` draws (card, halo, chip, panel, text,
+    The items are the kinds `popup.Renderer` draws (card, halo, chip, panel, text,
     button), so the card is painted by the popup's own renderer and materials. `measure` is
     the renderer's: (role, text, width, wrap) -> (width, height). The title and the chip end in
     an ellipsis rather than wrap; the reason line wraps, because it is the reason the card
@@ -135,7 +136,7 @@ def layout(vm, scale, measure) -> dict:
                       "colour": colour, "wrap": wrap, "align": align, "target": target})
 
     # The header: the status light in the popup's mark box, the product, and the reason's chip.
-    mark = px(tray_popup.MARK)
+    mark = px(popup.MARK)
     text_left = left + mark + px(space["s"])
     _, product_h = measure("label", vm["product"], inner, False)
     chip_rect = None
@@ -439,7 +440,7 @@ def stack_direction(edge, y, height, work) -> int:
 def stack_positions(sizes, work, monitor, anchor=None, *, gap, spacing) -> tuple:
     """Where the cards go, newest first: ([(x, y), ...], edge). Physical pixels.
 
-    The newest card is where the popup would open beside the anchor (`tray_popup.place`): on the
+    The newest card is where the popup would open beside the anchor (`popup.place`): on the
     taskbar's side of the monitor that has the notification area, inside the work area. Each
     older one stands `spacing` further from the corner - upward from a taskbar at the bottom,
     left or right (the notification area is at the bottom end of a vertical taskbar), downward
@@ -452,9 +453,9 @@ def stack_positions(sizes, work, monitor, anchor=None, *, gap, spacing) -> tuple
     one at 100%) the stack is two cards, or one; the newest always has its place.
     """
     if not sizes:
-        return [], tray_popup.taskbar_edge(work, monitor, anchor)
+        return [], popup.taskbar_edge(work, monitor, anchor)
     first_w, first_h = sizes[0]
-    x0, y0, edge = tray_popup.place((first_w, first_h), work, monitor, anchor, None, gap=gap)
+    x0, y0, edge = popup.place((first_w, first_h), work, monitor, anchor, None, gap=gap)
     upward = stack_direction(edge, y0, first_h, work) < 0
     positions = [(x0, y0)]
     edge_x = x0 + first_w                                # cards line up on the corner's side

@@ -14,11 +14,15 @@ import ctypes
 import os
 from pathlib import Path
 import tempfile
+import sys
 import time
 import unittest
 import unittest.mock
 
-from codex_auto_resume import brand, control, interface, l10n, settings, tray, tray_popup as popup
+from codex_auto_resume import brand, control, interface, l10n, settings
+from codex_auto_resume.ui import tray
+from codex_auto_resume.ui import popup
+from codex_auto_resume.ui.tray import menu  # the module the icon's menu is built in
 from test_tray_popup import EN, NOW, OTHER_THREAD, STATUS, FakeControl, measure, row
 
 SCALES = (1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5)
@@ -109,7 +113,7 @@ class ThemeResolutionTests(unittest.TestCase):
         self.assertEqual(popup.theme_setting(), "system")
         popup.adopt_settings({"theme": "light", "reduce_motion": True, "interface_language": "ko"})
         self.assertEqual(popup.theme_setting(), "light")
-        self.assertIs(popup._reduce_motion_setting, True)
+        self.assertIs(popup.theme._reduce_motion_setting, True)
         popup.adopt_settings(None)                                   # nothing to adopt changes nothing
         self.assertEqual(popup.theme_setting(), "light")
 
@@ -417,12 +421,12 @@ class NextOpenTests(unittest.TestCase):
         self.icon._adopt_settings()
         self.assertEqual(self.icon.strings, interface.STRINGS["ko"])
         self.assertEqual(popup.theme_setting(), "dark")
-        self.assertIs(popup._reduce_motion_setting, True)
+        self.assertIs(popup.theme._reduce_motion_setting, True)
         self.control.store(interface_language="pt-BR", theme="light", reduce_motion=False)
         self.icon._adopt_settings()
         self.assertEqual(self.icon.strings, interface.STRINGS["pt-BR"])
         self.assertEqual(popup.theme_setting(), "light")
-        self.assertIs(popup._reduce_motion_setting, False)
+        self.assertIs(popup.theme._reduce_motion_setting, False)
         self.assertEqual(self.logged, [])
 
     def test_an_unchanged_file_is_not_read_again(self):
@@ -447,8 +451,8 @@ class NextOpenTests(unittest.TestCase):
         self.control.store(interface_language="ja")
         fake = FakeUser32()
         # The menu's look is MenuThemeTests' business; here Windows is never asked.
-        with unittest.mock.patch.object(tray, "_dll", lambda name: fake), \
-                unittest.mock.patch.object(tray, "prefer_app_mode", lambda mode: False):
+        with unittest.mock.patch.object(menu, "_dll", lambda name: fake), \
+                unittest.mock.patch.object(menu, "prefer_app_mode", lambda mode: False):
             self.icon._menu()
         self.assertEqual(self.logged, [])
         ja = interface.STRINGS["ja"]
@@ -519,8 +523,8 @@ class MenuThemeTests(unittest.TestCase):
                 raise answer
             return answer
         fake = RecordingUser32(self.events)
-        with unittest.mock.patch.object(tray, "_dll", lambda name: fake), \
-                unittest.mock.patch.object(tray, "prefer_app_mode", prefer):
+        with unittest.mock.patch.object(menu, "_dll", lambda name: fake), \
+                unittest.mock.patch.object(menu, "prefer_app_mode", prefer):
             self.icon._menu()
         return [text for _, text in fake.items if text]
 
@@ -600,12 +604,12 @@ class MenuThemeTests(unittest.TestCase):
             names.append(name)
             return Uxtheme()
 
-        with unittest.mock.patch.object(tray, "_dll", dll):
+        with unittest.mock.patch.object(menu, "_dll", dll):
             for build, expected in ((17763, False), (18362, True), (26200, True)):
                 version = unittest.mock.Mock(build=build)
                 with self.subTest(build=build), \
-                        unittest.mock.patch.object(tray.sys, "getwindowsversion", lambda: version, create=True), \
-                        unittest.mock.patch.object(tray.os, "name", "nt"):
+                        unittest.mock.patch.object(sys, "getwindowsversion", lambda: version, create=True), \
+                        unittest.mock.patch.object(os, "name", "nt"):
                     del calls[:], names[:]
                     self.assertIs(tray.prefer_app_mode(tray.APP_MODE_FORCE_DARK), expected)
                     if not expected:
@@ -616,7 +620,7 @@ class MenuThemeTests(unittest.TestCase):
                         (tray.UXTHEME_SET_PREFERRED_APP_MODE, (tray.APP_MODE_FORCE_DARK,), (ctypes.c_int,), ctypes.c_int),
                         (tray.UXTHEME_FLUSH_MENU_THEMES, (), (), None)])
         self.assertEqual((tray.UXTHEME_SET_PREFERRED_APP_MODE, tray.UXTHEME_FLUSH_MENU_THEMES), (135, 136))
-        with unittest.mock.patch.object(tray.os, "name", "posix"):
+        with unittest.mock.patch.object(os, "name", "posix"):
             self.assertIs(tray.prefer_app_mode(tray.APP_MODE_FORCE_DARK), False)
 
 
@@ -787,10 +791,10 @@ class PopupThemeTests(unittest.TestCase):
     def setUp(self):
         restore_preferences(self)
         self.mode = {"light": False}
-        patcher = unittest.mock.patch.object(popup, "apps_use_light_theme", lambda: self.mode["light"])
+        patcher = unittest.mock.patch.object(popup.theme, "apps_use_light_theme", lambda: self.mode["light"])
         patcher.start()
         self.addCleanup(patcher.stop)
-        contrast = unittest.mock.patch.object(popup, "high_contrast", lambda: False)
+        contrast = unittest.mock.patch.object(popup.theme, "high_contrast", lambda: False)
         contrast.start()
         self.addCleanup(contrast.stop)
 
@@ -854,7 +858,7 @@ class PopupThemeTests(unittest.TestCase):
 
     def test_high_contrast_wins_in_the_window_too(self):
         popup.set_theme("dark")
-        with unittest.mock.patch.object(popup, "high_contrast", lambda: True):
+        with unittest.mock.patch.object(popup.theme, "high_contrast", lambda: True):
             window = self.window()
             window.show(activate=False, origin=OFFSCREEN)
             self.pump(0.1)
