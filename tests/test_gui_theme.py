@@ -1489,7 +1489,7 @@ class ThemeSourceRuleTests(unittest.TestCase):
             named = re.findall(r'\bnew\s+(?:System\.Threading\.)?Mutex\(\s*\w+\s*,\s*"([^"]*)"', code)
             with self.subTest(name):
                 self.assertEqual(len(made), len(named), "a mutex whose name cannot be read here")
-                # The installer's lock, which Repair takes (Dashboard.cs), is the only one.
+                # The installer's lock, which Repair takes (DashboardMaintenance.cs), is the only one.
                 self.assertEqual([m for m in named if m != "Local\\\\CodexAutoResume.Install"], [],
                                  "a mutex other than the installer's lock")
 

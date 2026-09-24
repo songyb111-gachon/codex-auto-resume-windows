@@ -489,7 +489,10 @@ def seed_compatibility(home: Path, codex: Path, local: Path, now: float) -> str:
         stack.enter_context(frozen_registry().frozen())
         stack.enter_context(patch.dict(os.environ, {"LOCALAPPDATA": str(local.resolve())}))
         os.environ.pop(config.ENV_CODEX_EXE, None)
-        stack.enter_context(patch.object(windows, "S", _CodexProcesses(exe)))
+        # Where Backend looks `S` up: codex/transport.py since v0.6.10-alpha. On the windows
+        # front the patch would reach nothing, and the pictures would run the real `codex`.
+        from codex_auto_resume.codex import transport
+        stack.enter_context(patch.object(transport, "S", _CodexProcesses(exe)))
         if os.name != "nt":
             stack.enter_context(patch.object(windows.Backend, "engine_checks", _checked_as_on_windows))
             stack.enter_context(patch.object(windows, "restart_manager_available", return_value=True))

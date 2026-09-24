@@ -395,7 +395,9 @@ class NotARecoveryEngineTests(ControlTestCase):
             # Since v0.6.10-alpha the engine is a package, and the one module of it that reads
             # Codex directly is `engine/detect.py` - the exception `tests/test_layers.py`
             # names, in the place it now lives.
-            "codex": {package % name for name in ("app", "compatio", "controlcli")}
+            # `windows` is the front of the Codex adapter since v0.6.10-alpha and imports the
+            # package it re-exports; it holds no logic of its own.
+            "codex": {package % name for name in ("app", "compatio", "controlcli", "windows")}
                       | {"codex_auto_resume/engine/detect.py"},
         }, "the set of modules that reach the engine or the source has changed")
 
@@ -720,8 +722,8 @@ class SwitchFlagTests(ControlTestCase):
                 self.assertIs(self.control.get_status()["enabled"], wanted)
 
     def test_what_the_window_actually_sends_is_accepted_verbatim(self):
-        # The exact argument bytes the two windows build: `Dashboard.cs` for the pause
-        # switch, `SettingsApp.cs` for run at sign-in. Parsed the way the bridge parses
+        # The exact argument bytes the two windows build: `DashboardActions.cs` for the pause
+        # switch, `SettingsPage.cs` for run at sign-in. Parsed the way the bridge parses
         # them, so the test fails if either the wire or this rule moves.
         for raw, wanted in (('{"enabled":true}', True), ('{"enabled":false}', False)):
             with self.subTest(raw=raw):
@@ -1191,9 +1193,11 @@ class StopWatcherTests(ControlTestCase):
         # adapter stopping its own finite helper (a `codex queue` that outlived its timeout,
         # an App Server it started), so a way to end a process appearing in any other file -
         # a control function moved there included - fails here.
-        own_helper = {"codex_auto_resume/windows.py"}
+        # One holder each, named: the App Server the adapter started, and the `codex queue`
+        # that outlived its timeout. Two files since v0.6.10-alpha split windows.py.
         for call, holders in (("os.kill", set()), ("taskkill", set()), ("TerminateProcess", set()),
-                              (".terminate(", own_helper), (".kill(", own_helper)):
+                              (".terminate(", {"codex_auto_resume/codex/appserver.py"}),
+                              (".kill(", {"codex_auto_resume/codex/transport.py"})):
             with self.subTest(call):
                 self.assertEqual(srcscan.holders(call), holders, call)
         for path in srcscan.files_of("codex_auto_resume.control"):

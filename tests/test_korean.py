@@ -79,7 +79,7 @@ VERSION = re.compile(r"v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?")
 # a version names it. Those are history, and history that must not mention the newest release
 # is not history. The rule is about *current-facing* prose claiming a version that nothing will
 # update - the same split the English side draws in tests/test_privacy_claims.py.
-HISTORICAL = {"CHANGELOG.ko.md", "docs/CONTRIBUTING.ko.md", "DEVELOPMENT.ko.md"}
+HISTORICAL = {"CHANGELOG.ko.md", "CONTRIBUTING.ko.md", "DEVELOPMENT.ko.md"}  # file names
 # A roadmap is a plan written in versions, and every version it names becomes the current one in
 # its turn. Under the prose rule the release that moves the manifest would fail on headings that
 # are still right, and the only way through would be to write each future release as "the one

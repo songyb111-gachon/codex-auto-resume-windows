@@ -30,6 +30,7 @@ A module can sit in the right layer and still belong to two items, and `windows.
 """
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 import sys
 import unittest
@@ -106,11 +107,11 @@ HOMELESS = {
               "scheduler's - so taking the package takes two items, and the engine has no "
               "package that is only its own",
     "scheduler": "engine/reconcile.py is what became of a send; the backoff ladders, the poll "
-                 "intervals, the due times and the cooldowns are in engine/, machine.py and "
+                 "intervals, the due times and the cooldowns are in engine/, domain/ and "
                  "settings.py, and no file gathers them",
     "policy": "failures.py classifies and reasons.py names, but what may be sent, when, and "
               "under which edition is decided across settings.py, control/policy.py and the "
-              "gate_* half of machine.py",
+              "domain/gates.py",
     "machine": "domain/ is the state machine in every file but one, and that one - the gates "
                "a record passes before anything is sent - is the classifier's; so taking the "
                "package takes two items",
@@ -129,8 +130,6 @@ STRADDLING = {
 
 # Single modules doing two items' work, and what the second half is. Only shrinks.
 DOUBLE = {
-    "machine": "the state machine (the states and the legal moves) and the policy gates "
-               "(gate_* and GATE_REASONS) and the public projection every surface reads",
     "app": "the composition root that wires the product together, and the watcher loop it runs",
     "cli": "the command line's parsing and its command bodies, which are the control layer's "
            "work done a second way",
@@ -237,10 +236,12 @@ UNWANTED = {
                           "raising - a C#-side question answered on the Rust side",
     ("notifications", "tray"): "the card is hosted on the icon's thread, so the two Windows "
                                "surfaces know about each other; both are C#'s",
-    ("control", "watcher"): "control/watcher.py starts the watcher and asks whether it runs, so "
-                            "the layer every surface calls reaches the process above it",
-    ("control", "tray"): "control/codexstart.py writes what the icon shows when Codex starts",
-    ("control", "notifications"): "control/seen.py decides whether a card is still owed",
+    ("control", "watcher"): "cli.py builds the watcher's App to run its commands, so the command "
+                            "line - placed on control - reaches the watcher's composition root",
+    ("control", "tray"): "cli.py's `activate` opens the Dashboard through the icon's helper "
+                         "(ui.tray), for a click on a notification",
+    ("control", "notifications"): "cli.py parses a toast's activation and registers the "
+                                  "notification protocol through notify",
 }
 
 
@@ -273,10 +274,17 @@ class PlacementTests(unittest.TestCase):
                          "a package gained or lost a second item; update STRADDLING")
 
     def test_each_module_said_to_do_two_items_work_is_still_there(self):
+        """And still holds code. A module split into a front keeps its name and holds nothing,
+        so an entry for it would go on claiming a straddle that is gone - which is how
+        `machine` stayed on this list for a commit after domain/ took it apart."""
         modules = {short(name) for name in srcscan.modules()}
         for name in sorted(DOUBLE):
             with self.subTest(name):
                 self.assertIn(name, modules, "DOUBLE names a module that is gone")
+                tree = srcscan.package_asts()[srcscan.modules()[_q(name)]]
+                self.assertTrue(any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                                      ast.ClassDef)) for node in tree.body),
+                                "DOUBLE names a module that is only a front now")
 
 
 class CrateGraphTests(unittest.TestCase):
