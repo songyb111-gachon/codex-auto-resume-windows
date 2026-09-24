@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import tempfile
+import guiscan
 import unittest
 from unittest.mock import patch
 
@@ -412,14 +413,14 @@ class OfferedWithItsHelpTests(unittest.TestCase):
 
     def test_every_offered_setting_with_a_help_line_is_drawn_with_it(self):
         from codex_auto_resume import l10n
-        window = (Path(__file__).resolve().parents[1] / "gui" / "SettingsApp.cs").read_text(encoding="utf-8")
+        window = guiscan.settings()
         helps = l10n.catalog("en")
         missing = []
         for entry in settings.describe():
             key = "help." + entry["name"]
             if key in helps and ('"%s"' % key) not in window:
                 missing.append(key)
-        self.assertEqual(missing, [], "gui/SettingsApp.cs draws these switches without the help line the "
+        self.assertEqual(missing, [], "gui/SettingsPage.cs draws these switches without the help line the "
                                       "catalogs have for them; beside `if (name == \"reduce_motion\")` add "
                                       "`if (name == \"notification_card\") host.Controls.Add(HelpText(S("
                                       "\"help.notification_card\", ...)));`")

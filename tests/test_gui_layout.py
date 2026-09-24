@@ -32,12 +32,11 @@ import subprocess
 import tempfile
 import time
 import unittest
+import guiscan
 
 from codex_auto_resume import brand, l10n, machine, settings
 
 ROOT = Path(__file__).resolve().parents[1]
-SETTINGS = ROOT / "gui" / "SettingsApp.cs"
-DASHBOARD = ROOT / "gui" / "Dashboard.cs"
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
 POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
               / "WindowsPowerShell" / "v1.0" / "powershell.exe")
@@ -45,7 +44,7 @@ POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
 
 class RowLayoutTests(unittest.TestCase):
     def setUp(self):
-        self.source = SETTINGS.read_text(encoding="utf-8")
+        self.source = guiscan.settings()
         start = self.source.index("private Control NewRow(")
         self.row = self.source[start:self.source.index("private string Humanise(", start)]
 
@@ -97,7 +96,7 @@ class WatcherStartReportingTests(unittest.TestCase):
     """The window may not say the watcher is running on the strength of a launch."""
 
     def setUp(self):
-        self.source = SETTINGS.read_text(encoding="utf-8")
+        self.source = guiscan.settings()
         start = self.source.index("private void StartWatcher()")
         # Both halves: the click handler that dispatches, and the continuation that
         # BeginInvoke brings back to the UI thread.
@@ -150,7 +149,7 @@ class BufferedPaintTests(unittest.TestCase):
         # Both files of the window. Since v0.6.4 the strips draw no rule of their own - the
         # header and footer are cards on grounds, which are buffered by construction - so there
         # may be no handler left at all; any that returns is held to the rule.
-        source = SETTINGS.read_text(encoding="utf-8") + DASHBOARD.read_text(encoding="utf-8")
+        source = guiscan.window()
         self.assertRegex(source, r"\.Paint \+=|override void OnPaint\(",
                          "nothing in the window paints itself - the patterns are wrong")
         painters = sorted(set(re.findall(r"(\w+)\.Paint \+=", source)))
@@ -163,7 +162,7 @@ class BufferedPaintTests(unittest.TestCase):
 
     def test_every_control_that_draws_itself_is_buffered(self):
         """A control class with its own OnPaint - the outcome chart - is the same painter."""
-        source = SETTINGS.read_text(encoding="utf-8") + DASHBOARD.read_text(encoding="utf-8")
+        source = guiscan.window()
         classes = re.split(r"\n\s*(?:internal|public|private)\s+(?:sealed\s+)?(?:partial\s+)?class\s+", source)
         drawn = [body for body in classes if "override void OnPaint(" in body]
         self.assertTrue(drawn, "no OnPaint override found - the pattern is wrong")
@@ -188,7 +187,7 @@ class PersistentBridgeTests(unittest.TestCase):
         import json
         import subprocess
         import sys
-        source = DASHBOARD.read_text(encoding="utf-8")
+        source = guiscan.dashboard()
         start = source.index("private void StartLocked()")
         method = source[start:source.index("internal void Stop()", start)]
         self.assertIn('info.Arguments = "-c " + Bridge.Quote(code)', method,
@@ -217,7 +216,7 @@ class OneShotBridgeTests(unittest.TestCase):
     """
 
     def setUp(self):
-        source = SETTINGS.read_text(encoding="utf-8")
+        source = guiscan.settings()
         start = source.index("internal Dictionary<string, object> Call(string command, string argument)")
         self.method = source[start:source.index("internal static string Quote(", start)]
 
@@ -268,9 +267,12 @@ class FooterTests(unittest.TestCase):
     """
 
     def setUp(self):
-        self.source = SETTINGS.read_text(encoding="utf-8")
-        start = self.source.index("private void BuildFooter()")
-        self.method = self.source[start:self.source.index("private void ", start + 10)]
+        # By braces. This used to end at "the next `private void `" - a string that stops
+        # appearing the day the method after it is a `private static void`, after which the
+        # slice ran to the end of the file and every assertion below was made about the whole
+        # window rather than about the footer.
+        self.source = guiscan.settings()
+        self.method = guiscan.member_body("SettingsForm", "BuildFooter")
 
     def test_the_height_is_measured_rather_than_derived_from_a_font(self):
         self.assertNotIn('MeasureText("Ag", Font).Height + Px(46)', self.method,
@@ -335,9 +337,8 @@ class NumericInsetTests(unittest.TestCase):
     """
 
     def setUp(self):
-        self.source = SETTINGS.read_text(encoding="utf-8")
-        start = self.source.index("private void GiveTextRoom(")
-        self.method = self.source[start:self.source.index("private static void ", start)]
+        self.source = guiscan.settings()
+        self.method = guiscan.member_body("SettingsForm", "GiveTextRoom")
 
     def test_the_margin_goes_to_the_edit_control_underneath(self):
         self.assertIn("EM_SETMARGINS", self.method)
@@ -516,8 +517,8 @@ class WindowCompositionTests(unittest.TestCase):
     """v0.6.4's window: v0.6.2's proportions, the panel's material, and the speed it lost."""
 
     def setUp(self):
-        self.window = SETTINGS.read_text(encoding="utf-8")
-        self.dashboard = DASHBOARD.read_text(encoding="utf-8")
+        self.window = guiscan.settings()
+        self.dashboard = guiscan.dashboard()
 
     @staticmethod
     def method(source, signature):
@@ -551,7 +552,7 @@ class WindowCompositionTests(unittest.TestCase):
         """A see-through row asked its card to repaint its background - shadow and all - for
         every repaint of the row and of each label in it: 540 card backgrounds, 11 s, in one
         measured session of v0.6.3."""
-        for name, source in (("SettingsApp.cs", self.window), ("Dashboard.cs", self.dashboard)):
+        for name, source in (("[settings]", self.window), ("[dashboard]", self.dashboard)):
             with self.subTest(name):
                 self.assertNotIn("Color.Transparent", source)
 
@@ -595,7 +596,7 @@ class WindowCompositionTests(unittest.TestCase):
         one, whatever the control itself was told - as `Enabled` does under a disabled parent. A
         write skipped because the getter already agreed left the Custom card showing under the
         Standard style, and History's thread button beside a row it did not apply to."""
-        for name, source in (("SettingsApp.cs", self.window), ("Dashboard.cs", self.dashboard)):
+        for name, source in (("[settings]", self.window), ("[dashboard]", self.dashboard)):
             with self.subTest(name):
                 self.assertNotRegex(source, r"\.(?:Visible|Enabled)\s*!=")
 
@@ -630,7 +631,7 @@ class WindowCompositionTests(unittest.TestCase):
                 self.assertGreaterEqual(right, need[2])
                 self.assertGreaterEqual(bottom, need[3])
         self.assertIn("page.Padding = CardRoom();", self.method(self.dashboard, "private Panel Page("))
-        controls = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
+        controls = guiscan.controls()
         see_through = self.method(controls, "internal static bool SeeThrough(")
         self.assertIn("if (Scrolling(control)) return false;", see_through,
                       "a scrolled card must not leave its shadow outside the page")
@@ -643,7 +644,7 @@ class WindowCompositionTests(unittest.TestCase):
     def test_nothing_in_the_window_scrolls_on_windows_own_bar(self):
         """Every page, the Settings section page and the gate list scroll on the soft bar (SoftPage),
         and every list on its own clipped away behind it (SoftListHost)."""
-        for name, source in (("SettingsApp.cs", self.window), ("Dashboard.cs", self.dashboard)):
+        for name, source in (("[settings]", self.window), ("[dashboard]", self.dashboard)):
             with self.subTest(name):
                 self.assertNotRegex(source, r"\.AutoScroll\s*=\s*true")
         self.assertIn("sectionScroll.Scrolls = true;", self.window)
@@ -666,7 +667,7 @@ class WindowCompositionTests(unittest.TestCase):
         self.assertIn("explainList.Dock = DockStyle.Top;", explain, "the checks are as tall as they are, inside the scroller")
         self.assertIn("explain.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));", explain,
                       "the scroller takes what the heading and the time leave")
-        controls = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
+        controls = guiscan.controls()
         measure = self.method(controls, "private int Measure(")
         self.assertIn("else if (child.Dock == DockStyle.Fill) stacked += Math.Max(0, child.MinimumSize.Height);", measure,
                       "a filling child - the list and the explanation - counts at its minimum, so it gives way")
@@ -732,7 +733,7 @@ class WindowCompositionTests(unittest.TestCase):
         self.assertNotIn("OverviewRest", self.dashboard + self.window,
                          "no space of its own under the rows, past the padding every page keeps under its last card")
         self.assertIn("internal const int OverviewComfort = Brand.SpaceXl;", self.dashboard)
-        controls = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
+        controls = guiscan.controls()
         measure = self.method(controls, "private int Measure(")
         self.assertIn("else if (child.Dock == DockStyle.Fill) stacked += Math.Max(0, child.MinimumSize.Height);", measure,
                       "the page counts a grid that fills it at its MinimumSize")
@@ -784,7 +785,7 @@ class WindowCompositionTests(unittest.TestCase):
         self.assertIn("form.AuditTimeline(snapshot, findings);", self.window)
 
     def test_a_page_shows_its_bar_by_what_fits_without_it_and_not_by_what_showed_before(self):
-        controls = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
+        controls = guiscan.controls()
         page = controls[controls.index("internal sealed class SoftPage"):controls.index("internal interface ISoftScroller")]
         layout = self.method(page, "protected override void OnLayout(")
         self.assertLess(layout.index("if (scrolls && !moving) overflow = false;"), layout.index("base.OnLayout(levent);"),
@@ -1412,8 +1413,7 @@ class LayoutAuditTests(unittest.TestCase):
         subprocess.run([str(CSC), "/nologo", "/target:winexe", "/platform:x64", "/out:" + str(exe),
                         "/reference:System.dll", "/reference:System.Drawing.dll",
                         "/reference:System.Windows.Forms.dll",
-                        *[str(ROOT / "gui" / name)
-                          for name in ("SettingsApp.cs", "Dashboard.cs", "Controls.cs", "Brand.cs")]],
+                        *[str(path) for path in guiscan.sources()]],
                        check=True, capture_output=True, timeout=300)
         current = dict(settings.defaults(), continuation_style="custom", custom_message_mode="per_reason")
         (work / "schema.json").write_text(json.dumps(settings.describe(), ensure_ascii=False), encoding="utf-8")

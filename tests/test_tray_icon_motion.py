@@ -27,7 +27,10 @@ import types
 import unittest
 import unittest.mock
 
-from codex_auto_resume import brand, control, tray, tray_place as place, tray_popup as popup
+from codex_auto_resume import brand, control, tray_place as place
+from codex_auto_resume.ui import tray
+from codex_auto_resume.ui import popup
+from codex_auto_resume.ui.tray import animation  # the module the icon's frames are drawn in
 
 ROOT = Path(__file__).resolve().parents[1]
 MOTION = tray.ICON_MOTION
@@ -661,8 +664,8 @@ class TimerTests(unittest.TestCase):
 
     def sync(self, icon, now):
         fake = FakeUser32()
-        with unittest.mock.patch.object(tray, "_dll", lambda name: fake), \
-                unittest.mock.patch.object(tray.time, "monotonic", lambda: now):
+        with unittest.mock.patch.object(animation, "_dll", lambda name: fake), \
+                unittest.mock.patch.object(time, "monotonic", lambda: now):
             icon._sync_motion()
         return fake
 
@@ -728,7 +731,8 @@ class ObserveTests(unittest.TestCase):
             return rect
         with unittest.mock.patch.object(popup, "reduced_motion", lambda: asked.append("reduced") or reduced), \
                 unittest.mock.patch.object(popup, "high_contrast", lambda: asked.append("contrast") or contrast), \
-                unittest.mock.patch.object(tray, "battery_saver", lambda: asked.append("saver") or saver), \
+                unittest.mock.patch.object(animation, "battery_saver", \
+                                           lambda: asked.append("saver") or saver), \
                 unittest.mock.patch.object(popup, "icon_rect", rect_of):
             icon._observe(snapshot)
         return icon, asked
@@ -810,7 +814,7 @@ class StoredReduceMotionTests(unittest.TestCase):
             self.reads += 1
             return read()
         self.control.get_settings = counted
-        self.addCleanup(popup.set_reduce_motion, popup._reduce_motion_setting)
+        self.addCleanup(popup.set_reduce_motion, popup.theme._reduce_motion_setting)
         popup.set_reduce_motion(False)
         self.logged = []
         self.icon = tray.Tray(strings={}, control=self.control, log=self.logged.append)
@@ -821,9 +825,9 @@ class StoredReduceMotionTests(unittest.TestCase):
         """The motion half of one tick. Windows' animations on, no High Contrast, no battery saver
         and the icon on the taskbar: the product's own Reduce motion is all that can hold it."""
         self.icon._placement = types.SimpleNamespace(overflowed=lambda: False)   # never this machine's registry
-        with unittest.mock.patch.object(popup, "reduced_motion", lambda: popup._reduce_motion_setting), \
+        with unittest.mock.patch.object(popup, "reduced_motion", lambda: popup.theme._reduce_motion_setting), \
                 unittest.mock.patch.object(popup, "high_contrast", lambda: False), \
-                unittest.mock.patch.object(tray, "battery_saver", lambda: False), \
+                unittest.mock.patch.object(animation, "battery_saver", lambda: False), \
                 unittest.mock.patch.object(popup, "icon_rect", lambda hwnd, uid=1: (0, 0, 16, 16)):
             self.icon._observe(snapshot or {"enabled": True})
         return self.icon._motion_allowed
@@ -1073,8 +1077,9 @@ class SwapTests(unittest.TestCase):
         icon = self.make()
         clock = [icon._epoch]
         with unittest.mock.patch.object(popup, "_icon_from_pixels", making), \
-                unittest.mock.patch.object(tray, "_dll", lambda name: spy if name == "user32" else original(name)), \
-                unittest.mock.patch.object(tray.time, "monotonic", lambda: clock[0]):
+                unittest.mock.patch.object(animation, "_dll", \
+                                           lambda name: spy if name == "user32" else original(name)), \
+                unittest.mock.patch.object(time, "monotonic", lambda: clock[0]):
             for _ in range(20):                                    # warm the cache and the GDI heaps
                 clock[0] += 0.2
                 icon._animate()

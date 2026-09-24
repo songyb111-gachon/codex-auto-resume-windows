@@ -35,8 +35,17 @@ import types
 import unittest
 from unittest.mock import MagicMock, patch
 
-from codex_auto_resume import (brand, l10n, notice_card, notice_presence, notifier, notify,
-                               pwsh, reasons, settings, tray_popup)
+from codex_auto_resume import (brand,
+                               l10n,
+                               notice_card,
+                               notice_presence,
+                               notifier,
+                               notify,
+                               pwsh,
+                               reasons,
+                               settings)
+from codex_auto_resume.ui import popup as tray_popup
+import srcscan  # noqa: E402 - tests/, beside this file
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src" / "codex_auto_resume"
@@ -1163,8 +1172,18 @@ class ShadowTests(unittest.TestCase):
 class SafetyTests(unittest.TestCase):
     """The envelope of the card's two modules (B-D11), modelled on the popup's."""
 
-    CARD = ("notice_card.py", "notice_window.py")
-    ALLOWED = {"brand", "l10n", "machine", "reasons", "tray", "tray_popup", "notice_card", "notice_presence"}
+    # Every file of the card, not the name it used to have: notice_window.py is a front since
+    # v0.6.10-alpha, and a safety scan of it alone would have checked 43 lines of imports while
+    # the card itself sat in ui/card/ unread.
+    CARD = ("notice_card.py", "notice_window.py", "ui/card/__init__.py", "ui/card/win32.py",
+            "ui/card/surfaces.py", "ui/card/card.py", "ui/card/stack.py")
+    # `win` and `ui` joined the list in v0.6.10-alpha: the Win32 declarations the card registers
+    # its window with, and the words every surface writes the same way. Neither can act.
+    ALLOWED = {"brand", "l10n", "machine", "reasons", "tray", "tray_popup", "notice_card",
+               "notice_presence", "ui", "ui.words", "win", "win.dll",
+               # The card's own parts, and the popup whose renderer draws it (v0.6.10-alpha).
+               "popup", "win32", "surfaces", "card", "stack", "ui.card.win32",
+               "ui.card.surfaces", "ui.card.card", "ui.card.stack"}
     STDLIB = {"__future__", "collections", "ctypes", "ctypes.wintypes", "math", "os", "threading", "time"}
 
     def tree(self, name):
@@ -1260,12 +1279,13 @@ class SettingTests(unittest.TestCase):
     def test_the_switch_is_offered_exactly_when_something_draws_the_card(self):
         """A switch that changes nothing must not be on the Dashboard. The card is drawn once the
         watcher hands notices to the notifier (app.py) and the icon's thread hosts the stack
-        (tray.py) - both, or the card never shows. Until then `notification_card` exists, with
+        (tray/cards.py) - both, or the card never shows. Until then `notification_card` exists, with
         its default, but no surface offers it; wiring the card fails this test until the name
         leaves settings.NOT_YET_OFFERED, and taking the wiring out fails it the other way."""
-        app_source = (SRC / "app.py").read_text(encoding="utf-8")
-        tray_source = (SRC / "tray.py").read_text(encoding="utf-8")
-        wired = "notifier.deliver(" in app_source and "notice_window.CardStack(" in tray_source
+        # Asked of the whole package: the watcher's side moved from app.py to runtime/app.py in
+        # v0.6.10-alpha, and a test that read app.py by name would have concluded the card was
+        # unwired - and so demanded the switch be taken off the Dashboard.
+        wired = bool(srcscan.holders("notifier.deliver(")) and bool(srcscan.holders("notice_window.CardStack("))
         offered = [entry for entry in settings.describe() if entry["name"] == notifier.CARD_SETTING]
         self.assertEqual(bool(offered), wired)
         self.assertEqual(notifier.CARD_SETTING not in settings.NOT_YET_OFFERED, wired)
@@ -1345,8 +1365,13 @@ class WindowsTests(unittest.TestCase):
                     return 0
                 return record
 
-        proxy, original = User32(), window._dll
-        patcher = patch.object(window, "_dll", side_effect=lambda name: proxy if name == "user32" else original(name))
+        # On ui/card/win32.py, where every part of the card looks the handle cache up since
+        # v0.6.10-alpha. On the notice_window front this patch reached nothing, and every test
+        # built on this recorder recorded nothing - only the one that counts calls noticed.
+        from codex_auto_resume.ui.card import win32 as card_win32
+        proxy, original = User32(), card_win32._dll
+        patcher = patch.object(card_win32, "_dll",
+                               side_effect=lambda name: proxy if name == "user32" else original(name))
         patcher.start()
         self.addCleanup(patcher.stop)
         return calls
@@ -1361,7 +1386,7 @@ class WindowsTests(unittest.TestCase):
 
     def pump(self, seconds=0.05):
         import ctypes
-        from codex_auto_resume import tray
+        from codex_auto_resume.ui import tray
         user32 = ctypes.WinDLL("user32")
         user32.PeekMessageW.argtypes = [ctypes.POINTER(tray.MSG), ctypes.c_void_p, ctypes.c_uint,
                                         ctypes.c_uint, ctypes.c_uint]

@@ -18,6 +18,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import guiscan
 
 ROOT = Path(__file__).resolve().parents[1]
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
@@ -251,8 +252,7 @@ class DecisionTests(unittest.TestCase):
         subprocess.run([str(CSC), "/nologo", "/target:winexe", "/platform:x64",
                         "/out:" + str(exe), "/reference:System.dll",
                         "/reference:System.Drawing.dll", "/reference:System.Windows.Forms.dll",
-                        *[str(ROOT / "gui" / name)
-                          for name in ("SettingsApp.cs", "Dashboard.cs", "Controls.cs", "Brand.cs")]],
+                        *[str(path) for path in guiscan.sources()]],
                        check=True, capture_output=True, timeout=300)
         probe = work / "probe.ps1"
         probe.write_text(PROBE, encoding="utf-8")

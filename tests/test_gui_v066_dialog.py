@@ -18,6 +18,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import guiscan
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,8 +34,13 @@ LONG = "That could not be done." + "\r\n\r\n" + "\r\n".join(
     "  at CodexAutoResume.Bridge.Call(String command, String argument) line %d" % line
     for line in range(1, 61))
 
+# Both probes print what the dialog showed, in every language, so they speak UTF-8 and are read
+# as UTF-8: left to the console, the child wrote in whatever code page the parent console had,
+# and the test decoded that with this machine's locale - which failed on a Korean machine whose
+# console was UTF-8, and passed everywhere else by luck.
 PROBE = r"""
 $ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [Windows.Forms.Application]::EnableVisualStyles()
@@ -145,12 +151,12 @@ class DialogTests(unittest.TestCase):
                                 "CAR_QUESTION": QUESTION, "CAR_NOTICE": NOTICE, "CAR_LONG": LONG})
             done = subprocess.run([str(POWERSHELL), "-NoProfile", "-ExecutionPolicy", "Bypass",
                                    "-Command", PROBE],
-                                  capture_output=True, text=True, timeout=300, env=environment)
+                                  capture_output=True, text=True, encoding="utf-8",
+                                  errors="replace", timeout=300, env=environment)
         if done.returncode != 0:
             raise AssertionError(done.stdout + done.stderr)
         cls.answer = json.loads(done.stdout.strip().splitlines()[-1])
-        cls.controls = (ROOT / "gui" / "Dashboard.cs").read_text(encoding="utf-8")
-        cls.settings = (ROOT / "gui" / "SettingsApp.cs").read_text(encoding="utf-8")
+        cls.window = guiscan.window()
 
     def test_a_question_is_answered_by_the_button_that_names_the_action(self):
         taken, left = self.answer["taken"], self.answer["left"]
@@ -238,12 +244,15 @@ class DialogTests(unittest.TestCase):
                 self.assertLessEqual(top + height, work[1] + work[3] + 1, "and never under the taskbar")
 
     def test_no_message_box_is_left_in_the_window(self):
-        self.assertNotIn("MessageBox.Show", self.controls, "the Dashboard's are the window's own now")
-        # One is left, and on purpose: it is raised before there is a window, a theme or a catalog.
-        self.assertEqual(self.settings.count("MessageBox.Show"), 1)
-        at = self.settings.index("MessageBox.Show")
-        self.assertIn("not installed in this location", self.settings[at:at + 200])
-        self.assertIn("no window yet", self.settings[at - 400:at], "and it says why it is still Windows'")
+        # One in the whole window, and on purpose: it is raised before there is a window, a
+        # theme or a catalog to ask the question with. Counted over both halves of the window
+        # rather than over the two files this was written for, so a MessageBox added to any
+        # of the nine others is this test failing rather than this test not looking.
+        self.assertEqual(self.window.count("MessageBox.Show"), 1,
+                         "every other question the window asks is drawn by the window")
+        at = self.window.index("MessageBox.Show")
+        self.assertIn("not installed in this location", self.window[at:at + 200])
+        self.assertIn("no window yet", self.window[at - 400:at], "and it says why it is still Windows'")
 
 
 # Every label the window can put on the button that acts. `action.failed` is a sentence, not a
@@ -254,6 +263,7 @@ AFFIRMS = ("action.cancel", "action.cancel_all", "action.reset_budget", "action.
 
 FIT_PROBE = r"""
 $ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [Windows.Forms.Application]::EnableVisualStyles()
@@ -368,7 +378,8 @@ class DialogFitTests(unittest.TestCase):
             environment.update({"CAR_EXE": str(EXE), "CAR_CASES": str(written), "CAR_WORK": work})
             done = subprocess.run([str(POWERSHELL), "-NoProfile", "-ExecutionPolicy", "Bypass",
                                    "-Command", FIT_PROBE],
-                                  capture_output=True, text=True, timeout=600, env=environment)
+                                  capture_output=True, text=True, encoding="utf-8",
+                                  errors="replace", timeout=600, env=environment)
         if done.returncode != 0:
             raise AssertionError(done.stdout + done.stderr)
         cls.answer = json.loads(done.stdout.strip().splitlines()[-1])

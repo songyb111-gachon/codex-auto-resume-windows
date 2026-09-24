@@ -31,7 +31,8 @@ if _HERE not in sys.path:
     sys.path.insert(0, _HERE)        # srcscan lives next to this file
 
 import srcscan  # noqa: E402
-from codex_auto_resume import control, controlcli, interface, l10n, mcpui   # noqa: E402
+from codex_auto_resume import control, controlcli, interface, l10n   # noqa: E402
+from codex_auto_resume.mcp import panel as mcpui
 
 
 def env(*tags, override=None):

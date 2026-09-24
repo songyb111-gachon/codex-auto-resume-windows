@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import sys
 import time
+import guiscan
 import unittest
 from unittest.mock import patch
 
@@ -26,7 +27,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from codex_auto_resume import compat, control, l10n, mcpserver, mcpui      # noqa: E402
+from codex_auto_resume import compat, control, l10n, mcpserver      # noqa: E402
+from codex_auto_resume.mcp import panel as mcpui
 from test_mcpui_v063 import declared                                        # noqa: E402
 from test_mcpui_v064 import run_page, say, snapshot                          # noqa: E402
 
@@ -211,7 +213,7 @@ class CardTests(unittest.TestCase):
         unusable = dict(compat.mcp_view(compat.unusable_view("engine_changed")), acting="incompatible", cache="expired")
         self.assertEqual(page(with_compat(unusable))["callout"], [ENGLISH["compat.status.engine_changed"]])
         # The same caveats as the window's card names, no more and no fewer.
-        dashboard = (ROOT / "gui" / "Dashboard.cs").read_text(encoding="utf-8")
+        dashboard = guiscan.dashboard()
         window = re.search(r'if \((cache == "[a-z_]+"(?: \|\| cache == "[a-z_]+")*)\)', dashboard).group(1)
         self.assertEqual(set(re.findall(r'"([a-z_]+)"', window)), set(caveats))
         self.assertEqual(set(caveats), set(compat.CACHE_STATES) - {"absent", "ok"})

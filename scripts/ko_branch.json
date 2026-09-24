@@ -20,10 +20,10 @@
   "documents": {
     "README.ko.md": "README.md",
     "CHANGELOG.ko.md": "CHANGELOG.md",
-    "CONTRIBUTING.ko.md": "CONTRIBUTING.md",
+    "docs/CONTRIBUTING.ko.md": "docs/CONTRIBUTING.md",
     "PRIVACY.ko.md": "PRIVACY.md",
-    "SECURITY.ko.md": "SECURITY.md",
-    "SUPPORT.ko.md": "SUPPORT.md",
+    "docs/SECURITY.ko.md": "docs/SECURITY.md",
+    "docs/SUPPORT.ko.md": "docs/SUPPORT.md",
     "CONTRIBUTORS.ko.md": "CONTRIBUTORS.md",
     "docs/BRAND.ko.md": "docs/BRAND.md",
     "docs/COMPARISON.ko.md": "docs/COMPARISON.md",
@@ -55,21 +55,21 @@
     "CI does not translate anything. A person decides what the Korean should say."
   ],
   "reviewed": {
-    "CHANGELOG.md": "7d152ff94684e0d6ff2cccdf6751f3f284b370de1433d3f81544d8576b83034c",
-    "CONTRIBUTING.md": "0c771ec01035479caeb71b5e6e5590876a89df29d0fa5dc6c0b1b76b4aec1a1b",
+    "CHANGELOG.md": "d11ac46fb378f5eed13bc543152ec7f1af9cec363ffc7d500449d78fa9519292",
+    "docs/CONTRIBUTING.md": "db47e74e707f815ee51e66237388ba80cacef94ad1bde5b99c00e569c08ba32f",
     "CONTRIBUTORS.md": "698f3d4fb75b30354e1c6749d4702c0e5e36149c640d90dc18a8dfa6842d0c3b",
-    "PRIVACY.md": "4fb109620daba951e0a315c8a5597597805f0f9333ae957723e4d7cad523cf45",
-    "README.md": "096ebf8a28d6392431454d36bb8a60c369e6c705f2a790e08a66b29160154f47",
-    "SECURITY.md": "0f8d85df3a2d7b129e319df833a137dd439c61396bc2903a8b276845eaa80e12",
-    "SUPPORT.md": "fdb8542c3ee6a3a14f813a41c38a4cba6b2e7df0ca06fd846b269c57a7abbcc6",
-    "docs/BRAND.md": "4df183065f6cf181d3844aeacc4b5095fdf9baf680431386b5074fb6068749cd",
-    "docs/COMPARISON.md": "1c09dbcfc848333912aa0967d443ab0b293c54965dba1510f798e491338e3a11",
+    "PRIVACY.md": "ecefd83d30fd5c9d15b600b215cd07ae599e0031b8356866c68a14253a84d92f",
+    "README.md": "e22dc60e4b5dc3d59a81e83cd39d771ac35def64eda8c04f1bfe452addcf21b8",
+    "docs/SECURITY.md": "0f8d85df3a2d7b129e319df833a137dd439c61396bc2903a8b276845eaa80e12",
+    "docs/SUPPORT.md": "7833488b0467b1afa997380e3cc9c0f6a3b1cfa25d488db50f9ec0774c4c08e4",
+    "docs/BRAND.md": "d8c4cf78d441f443f3c48fba12eb815394d1c55757cd2b303f439325e6c532e6",
+    "docs/COMPARISON.md": "99b9b8628280f09c97455a1100aa045ee10f60f032f220f7fd2dfd814bffec93",
     "docs/DEVELOPMENT.md": "ec06f0c2f5bdf6995cd813baf4331fc5ce6ad538921809ecfd737648915037a8",
     "docs/PLUGIN.md": "cdba24ecd4c65416bf1038b2e4bacd94340771bc97b6b4a88a59e249c6c18b61",
-    "docs/VERIFY.md": "09915508bf21ffaca44a0a1bf6fe27b0c6d4ea9eb7561e7a64b093084e34bae9",
-    "docs/FEATURE_MATRIX.md": "6d844be2efd5e792fb92230b0806554b45f5cc3554c77b9a09cb476cb2ded0c8",
+    "docs/VERIFY.md": "33fa6fe15f6cc717a158b98054283b14d020eb96c0be4faa638824cb7ca05e28",
+    "docs/FEATURE_MATRIX.md": "7716f1266c1e4dcc4b1e6541610c99535af77dba82ac3d3b23d46e03b0ad59ea",
     "docs/LIVE_ACCEPTANCE.md": "1a94c108c121113a200b30ebc1f82fa3e26d395261cc810580b3e12a91d779ff",
-    "docs/ROADMAP.md": "03f55d912fda29c0660351fe06482eda37173e730d156e6e8aac1e0a4dd4a8c7",
-    "docs/GUIDE.md": "73a1e085cb3524bcc2346a737be31069c99363db15ef70b06b76c1a532ee2907"
+    "docs/ROADMAP.md": "634ca36dfc833fbfe3ee5c469ea40c7119dc8d52716d741d57482a9aadc0ea5c",
+    "docs/GUIDE.md": "3d00a14a0125df051fe0d9f1896b6bf69c3d0072c234e62d11f7f4340264766f"
   }
 }

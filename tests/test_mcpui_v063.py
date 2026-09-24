@@ -34,8 +34,15 @@ if _HERE not in sys.path:
 
 import srcscan  # noqa: E402
 
-from codex_auto_resume import (brand, compat, continuation, control, l10n, machine,  # noqa: E402
-                               mcpserver, mcpui, reasons)
+from codex_auto_resume import (brand,
+                               compat,
+                               continuation,
+                               control,
+                               l10n,
+                               machine,
+                               mcpserver,
+                               reasons)
+from codex_auto_resume.mcp import panel as mcpui
 from codex_auto_resume import settings as policy                              # noqa: E402
 
 NODE = shutil.which("node")
@@ -499,7 +506,7 @@ class MaterialTests(unittest.TestCase):
                  if isinstance(target, ast.Name)}
         self.assertFalse({"_ELEVATION_LIGHT", "_ELEVATION_DARK"} & bound)
         self.assertEqual(srcscan.holders("var(--shadow-dark)"), set())
-        source = (ROOT / "src" / "codex_auto_resume" / "mcpui.py").read_text(encoding="utf-8")
+        source = (ROOT / "src" / "codex_auto_resume" / "mcp" / "panel.py").read_text(encoding="utf-8")
         self.assertNotIn("var(--shadow-dark)", source)
         self.assertIn('.replace("@ELEVATION_LIGHT@", brand.css_elevation("light"))', source)
         self.assertIn('.replace("@ELEVATION_DARK@", brand.css_elevation("dark"))', source)

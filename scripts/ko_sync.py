@@ -141,7 +141,9 @@ def keep_english_anchor(text: str, targets, base: str) -> str:
     destination for a Korean reader, which is the whole point of the branch.
     """
     for target in targets:
-        pattern = r'\]\((?:\./)?%s#([\w%%-]+)\)' % re.escape(target)
+        # `../` too: SUPPORT.md moved into docs/ in v0.6.10-alpha and links to the README
+        # one folder up.
+        pattern = r'\]\((?:\./|\.\./)?%s#([\w%%-]+)\)' % re.escape(target)
         text = re.sub(pattern,
                       lambda found: "](%s%s#%s)" % (base, target, found.group(1)), text)
     return text

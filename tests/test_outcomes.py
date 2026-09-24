@@ -34,7 +34,7 @@ import srcscan  # noqa: E402
 from codex_auto_resume import machine  # noqa: E402
 from codex_auto_resume.control import Control  # noqa: E402
 from codex_auto_resume.engine import Engine  # noqa: E402
-from codex_auto_resume.source import LocalSource  # noqa: E402
+from codex_auto_resume.codex import LocalSource  # noqa: E402
 from codex_auto_resume.store import Store, StoreError  # noqa: E402
 
 DAY = 86400.0

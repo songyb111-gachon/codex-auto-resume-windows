@@ -77,6 +77,25 @@ def on_disk() -> list[Path]:
     return sorted(path for path in SRC.rglob("*.py") if "__pycache__" not in path.parts)
 
 
+# Code the product ships that Python does not parse. Since v0.6.10-alpha the settings panel's
+# stylesheet and script are files rather than two raw strings inside `mcpui.py`, and the scans
+# that read the product's text - `holders` below, and every rule about a word living in exactly
+# one place - have to keep reading them, or 2,172 lines stopped being checked the day they
+# moved. Suffixes, not names, so the next asset is covered by existing.
+SHIPPED_SUFFIXES = (".css", ".js")
+
+
+@lru_cache(maxsize=None)
+def _shipped_files() -> tuple[Path, ...]:
+    return tuple(ROOT / name for name in tracked()
+                 if name.endswith(SHIPPED_SUFFIXES) and (ROOT / name).is_file())
+
+
+def text_files() -> list[Path]:
+    """Every tracked file under `src/` that holds code, whatever language it is written in."""
+    return sorted(_package_files() + _shipped_files())
+
+
 def relative(path: Path) -> str:
     """`codex_auto_resume/cli.py`: the path from `src/`, with forward slashes."""
     return Path(path).resolve().relative_to(SRC.resolve()).as_posix()
@@ -242,10 +261,14 @@ def closure(*roots: str, lazy: bool = True) -> set:
 
 def holders(needle) -> set:
     """The files (as `relative` spells them) whose text contains `needle`: a string, or a
-    compiled pattern that must match somewhere."""
+    compiled pattern that must match somewhere.
+
+    Over `text_files()`, so the panel's stylesheet and script are read like the modules. A rule
+    that says a word lives in exactly two files means the whole of what ships, not the half of
+    it that happens to be Python."""
     if isinstance(needle, re.Pattern):
-        return {relative(path) for path in _package_files() if needle.search(read(path))}
-    return {relative(path) for path in _package_files() if needle in read(path)}
+        return {relative(path) for path in text_files() if needle.search(read(path))}
+    return {relative(path) for path in text_files() if needle in read(path)}
 
 
 def string_constants(tree: ast.AST):

@@ -24,10 +24,12 @@ if _HERE not in sys.path:
     sys.path.insert(0, _HERE)        # srcscan lives next to this file
 
 import srcscan  # noqa: E402
-from codex_auto_resume import brand, control, interface, l10n, tray, tray_popup as popup  # noqa: E402
+import guiscan  # noqa: E402
+from codex_auto_resume import brand, control, interface, l10n  # noqa: E402
+from codex_auto_resume.ui import tray
+from codex_auto_resume.ui import popup
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "src" / "codex_auto_resume" / "tray_popup.py"
 NOW = 1_800_000_000.0
 THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
 OTHER_THREAD = "0a1b2c3d-0001-7000-8000-000000000002"
@@ -542,11 +544,11 @@ class MotionTests(unittest.TestCase):
         cycle = self.GLOW["monitoring_ms"] / 1000.0
         darkest = 100.0 + cycle * 0.5
         widest = 100.0 + cycle
-        with unittest.mock.patch.object(popup.time, "monotonic", return_value=100.0):
+        with unittest.mock.patch.object(popup.window.time, "monotonic", return_value=100.0):
             self.assertEqual(shown.frame()["dim"], 0.0)                    # the top, where the still light is
-        with unittest.mock.patch.object(popup.time, "monotonic", return_value=darkest):
+        with unittest.mock.patch.object(popup.window.time, "monotonic", return_value=darkest):
             self.assertAlmostEqual(shown.frame()["dim"], 1.0 - brand.glow_floor())
-        with unittest.mock.patch.object(popup.time, "monotonic", return_value=widest):
+        with unittest.mock.patch.object(popup.window.time, "monotonic", return_value=widest):
             self.assertAlmostEqual(shown.frame()["opacity"], self.GLOW["peak"])
 
 
@@ -655,9 +657,9 @@ class ElevationTests(unittest.TestCase):
         self.assertLess(worst, 1.5)
 
     def test_a_well_is_shaded_at_its_top_and_its_light_is_the_shade_turned_round(self):
-        popup._MASKS.clear()
+        popup.elevation._MASKS.clear()
         light = popup.well_coverage(38, 20, 10, 6, -2, -2)["coverage"]
-        popup._MASKS.clear()
+        popup.elevation._MASKS.clear()
         dark = popup.well_coverage(38, 20, 10, 6, 2, 2)
         self.assertEqual(light, dark["coverage"][::-1])
         data, width = dark["coverage"], dark["width"]
@@ -666,14 +668,14 @@ class ElevationTests(unittest.TestCase):
 
     def test_every_body_longer_than_its_corners_shares_one_mask(self):
         """A mask is keyed on the box it is made from, so a taller card or a wider button finds it."""
-        popup._MASKS.clear()
+        popup.elevation._MASKS.clear()
         card = popup.lift_coverage(336, 400, 16, 14)
         self.assertTrue(popup.lift_coverage(336, 520, 16, 14) is card, "a taller card made a mask of its own")
         self.assertTrue(popup.lift_coverage(298, 401, 16, 14) is card, "a narrower card made a mask of its own")
         well = popup.well_coverage(146, 30, 10, 6, 2, 2)
         self.assertTrue(popup.well_coverage(230, 30, 10, 6, 2, 2) is well, "a wider well made a mask of its own")
         # The light shadow is the shade turned round, whatever body the shade was made for.
-        with unittest.mock.patch.object(popup, "_rounded_distance", side_effect=AssertionError("made again")):
+        with unittest.mock.patch.object(popup.elevation, "_rounded_distance", side_effect=AssertionError("made again")):
             turned = popup.well_coverage(260, 30, 10, 6, -2, -2)
         self.assertEqual(turned["coverage"], well["coverage"][::-1])
         # A body shorter than its corners keeps a mask of its own, and every mask is the one it
@@ -684,12 +686,12 @@ class ElevationTests(unittest.TestCase):
                   ("well", (36, 18, 9, 6, 2, 2)), ("well", (220, 45, 15, 9, -3, -3)),
                   ("well", (30, 45, 15, 9, 3, 3))]
         make = {"lift": popup.lift_coverage, "well": popup.well_coverage}
-        popup._MASKS.clear()
+        popup.elevation._MASKS.clear()
         together = [make[kind](*args) for kind, args in bodies]
         self.assertEqual(together[1]["width"] - 2 * together[1]["extent"], 20)
         self.assertEqual(together[2]["height"] - 2 * together[2]["extent"], 21)
         for (kind, args), mask in zip(bodies, together):
-            popup._MASKS.clear()
+            popup.elevation._MASKS.clear()
             alone = make[kind](*args)
             with self.subTest(kind=kind, args=args):
                 self.assertEqual({name: alone[name] for name in ("width", "height", "centre", "extent", "coverage")},
@@ -900,7 +902,7 @@ class FontTests(unittest.TestCase):
             # Windows could not be asked: the panel's next choices, as before.
             for nothing in (None, ""):
                 self.assertEqual(popup.font_faces(locale, nothing), ("Segoe UI Variable Text", "Segoe UI"))
-        with unittest.mock.patch.object(popup, "message_face", return_value=MALGUN_LOCALIZED):
+        with unittest.mock.patch.object(popup.fonts, "message_face", return_value=MALGUN_LOCALIZED):
             self.assertEqual(popup.font_faces("en")[0], MALGUN_LOCALIZED)
             self.assertEqual(popup.font_faces("ko")[0], "Malgun Gothic")
 
@@ -910,7 +912,7 @@ class FontTests(unittest.TestCase):
         self.assertEqual(popup.font_candidates("ko", 600, None)[0], ("Malgun Gothic", 700))
 
     def test_emphasis_follows_the_windows_own_rule(self):
-        """Soft.Weighted in gui/Controls.cs: a Segoe UI face's own semibold family, the face's
+        """Soft.Weighted in the window's controls (gui/SoftTheme.cs): a Segoe UI face's own semibold family, the face's
         bold otherwise (Malgun Gothic and the other UI faces have no semibold)."""
         self.assertEqual(popup.font_candidates("en", 600, "Segoe UI"),
                          (("Segoe UI Semibold", 400), ("Segoe UI", 600)))
@@ -923,21 +925,22 @@ class FontTests(unittest.TestCase):
                          ((MALGUN_LOCALIZED, 400), ("Segoe UI Variable Text", 400), ("Segoe UI", 400)))
         self.assertIn('family.StartsWith("Segoe UI", StringComparison.Ordinal) && '
                       '!family.EndsWith("Semibold", StringComparison.Ordinal)',
-                      (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8"))
+                      guiscan.controls())
 
     def test_the_three_surfaces_start_from_the_same_face(self):
         """One product: the window's every font is a variant of Windows' message font, the panel's
         stack starts with `system-ui`, which resolves to it, and the popup asks Windows for it.
         Putting "Segoe UI" ahead of `system-ui` in the panel would part the panel from the window
         on every Windows whose UI font is not Segoe UI - a Korean one among them."""
-        from codex_auto_resume import mcpui
-        controls = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
+        from codex_auto_resume.mcp import panel as mcpui
+        controls = guiscan.controls()
         self.assertIn("if (baseFont == null) baseFont = SystemFonts.MessageBoxFont;", controls)
         stack = re.search(r"--font:\s*([^;]+);", mcpui._STYLE).group(1)
         self.assertEqual(stack.split(",")[0].strip(), "system-ui")
         panel = [face.strip().strip('"') for face in stack.split(",")[1:3]]
         self.assertEqual(popup.font_faces("en", MALGUN_LOCALIZED)[1:], tuple(panel))
-        self.assertIn("SPI_GETNONCLIENTMETRICS", SOURCE.read_text(encoding="utf-8"))
+        popup_source = "".join(srcscan.read(path) for path in srcscan.files_of(popup.__name__))
+        self.assertIn("SPI_GETNONCLIENTMETRICS", popup_source)
 
     @unittest.skipUnless(os.name == "nt", "asks Windows")
     def test_the_popup_asks_windows_for_the_font_the_window_is_drawn_in(self):
@@ -993,7 +996,7 @@ class FontTests(unittest.TestCase):
 # (PLAN-v2 M1): one popup module may import another, and everything else any of them imports
 # is held to one allowlist - so code moved out of tray_popup.py either lands in a module this
 # still reads, or in one the popup has to import from, which the allowlist refuses.
-POPUP_MODULES = ("codex_auto_resume.tray_popup", "codex_auto_resume.ui.popup")
+POPUP_MODULES = ("codex_auto_resume.ui.popup", "codex_auto_resume.ui.popup")
 
 
 def is_popup_module(name):
@@ -1034,8 +1037,8 @@ class SafetyTests(unittest.TestCase):
                     is_popup_module(inner) and name in srcscan.ancestors(inner) for inner in self.modules))
         self.assertNotIn(srcscan.PACKAGE, self.modules)
         self.assertTrue(is_popup_module("codex_auto_resume.ui.popup.layout"))
-        for outside in ("codex_auto_resume.tray_popup_theme", "codex_auto_resume.ui.popups",
-                        "codex_auto_resume.ui", "codex_auto_resume.tray"):
+        for outside in ("codex_auto_resume.ui.popup_theme", "codex_auto_resume.ui.popups",
+                        "codex_auto_resume.ui", "codex_auto_resume.ui.tray"):
             self.assertFalse(is_popup_module(outside), outside)
 
     def test_it_imports_nothing_that_can_submit(self):
@@ -1046,8 +1049,11 @@ class SafetyTests(unittest.TestCase):
                     stdlib.add(entry.target)
                 elif entry.target not in self.modules and not is_popup_module(entry.target):
                     package.add(entry.target)
-        self.assertLessEqual(package, {"codex_auto_resume." + name
-                                       for name in ("brand", "l10n", "machine", "reasons", "tray")})
+        # v0.6.10-alpha: `win` holds the Win32 handles and window declarations that used to be
+        # the icon's, and `ui.words` the countdown both surfaces write - neither can act.
+        self.assertLessEqual(package, {"codex_auto_resume"} | {"codex_auto_resume." + name
+                                       for name in ("brand", "l10n", "machine", "reasons", "tray",
+                                                    "ui", "ui.words", "win", "win.dll")})
         for forbidden in ("engine", "backend", "windows", "store", "source", "app", "continuation",
                           "notify", "control", "controlcli", "mcpserver"):
             for name in package:
@@ -1295,8 +1301,8 @@ class WindowsTests(unittest.TestCase):
 
     def test_high_contrast_holds_the_glow_still(self):
         window = self.make()
-        original = popup.high_contrast
-        popup.high_contrast = lambda: True
+        original = popup.theme.high_contrast
+        popup.theme.high_contrast = lambda: True
         try:
             window.show(activate=False, origin=(-32000, -32000))
             self.pump(0.2)
@@ -1305,7 +1311,7 @@ class WindowsTests(unittest.TestCase):
             self.assertFalse(window._frame_running)
             self.assertTrue(window._renderer.contrast)
         finally:
-            popup.high_contrast = original
+            popup.theme.high_contrast = original
             window.destroy()
 
     def test_the_renderer_lets_go_of_every_gdiplus_object(self):
@@ -1510,7 +1516,7 @@ class WindowsTests(unittest.TestCase):
         """A popup with nothing in flight - paused, so no light that moves - shown off screen, with
         motion allowed whatever this machine's own animation setting is. Until v0.6.9 it was waiting,
         which held still then and breathes now."""
-        patcher = unittest.mock.patch.object(popup, "reduced_motion", lambda: False)
+        patcher = unittest.mock.patch.object(popup.theme, "reduced_motion", lambda: False)
         patcher.start()
         self.addCleanup(patcher.stop)
         paused = dict(copy.deepcopy(STATUS), enabled=False)
@@ -1678,7 +1684,7 @@ class ReduceMotionSettingTests(unittest.TestCase):
         for value in (False, None, "true", 1):
             with self.subTest(value=value):
                 popup.set_reduce_motion(value)
-                self.assertIs(popup._reduce_motion_setting, False)
+                self.assertIs(popup.theme._reduce_motion_setting, False)
 
 
 if __name__ == "__main__":

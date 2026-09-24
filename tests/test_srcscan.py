@@ -20,7 +20,13 @@ if _HERE not in sys.path:
 
 import srcscan  # noqa: E402
 import codex_auto_resume  # noqa: E402
-from codex_auto_resume import engine, tray, tray_popup, windows  # noqa: E402
+from codex_auto_resume import engine  # noqa: E402
+# Not `windows`: it is a front since v0.6.10-alpha and defines nothing, so as a sample it
+# would prove nothing. The adapter's class and its methods are in codex/transport.py.
+from codex_auto_resume.codex import transport  # noqa: E402
+from codex_auto_resume.ui import tray
+from codex_auto_resume.ui import popup as tray_popup
+from codex_auto_resume.ui.popup import model as popup_model, window as popup_window  # noqa: E402
 
 
 class ListingTests(unittest.TestCase):
@@ -50,13 +56,18 @@ class ListingTests(unittest.TestCase):
         self.assertEqual(Path(codex_auto_resume.__file__).resolve(),
                          srcscan.modules()[srcscan.PACKAGE].resolve())
         self.assertEqual(srcscan.module_name(srcscan.SRC / "codex_auto_resume" / "cli.py"), "codex_auto_resume.cli")
-        self.assertEqual(srcscan.files_of("codex_auto_resume.tray_popup"),
-                         [srcscan.modules()["codex_auto_resume.tray_popup"]])
+        self.assertEqual(srcscan.files_of("codex_auto_resume.machine"),
+                         [srcscan.modules()["codex_auto_resume.machine"]])
+        # A package gives every file in it: since v0.6.10-alpha the popup is thirteen, and a
+        # rule written about `tray_popup` covers all of them without naming one.
+        self.assertEqual(len(srcscan.files_of("codex_auto_resume.ui.popup")), 13)
+        self.assertIn(srcscan.modules()["codex_auto_resume.ui.popup.window"],
+                      srcscan.files_of("codex_auto_resume.ui.popup"))
 
 
 class TreeTests(unittest.TestCase):
     def test_qualified_names_are_the_ones_python_gives(self):
-        for module in (engine, windows, tray_popup):
+        for module in (engine, transport, popup_window):
             with self.subTest(module.__name__):
                 tree = srcscan.package_asts()[srcscan.modules()[module.__name__]]
                 found = {name for node, name in srcscan.qualnames(tree).items()
@@ -74,7 +85,15 @@ class TreeTests(unittest.TestCase):
                 self.assertTrue(defined)
                 self.assertLessEqual(defined, found)
                 if module is engine:
-                    self.assertIn("Engine.dispatch", found)
+                    # Not vacuous: a method inside a class is found. Since v0.6.10-alpha the
+                    # engine is a package whose own file holds the loop, and `dispatch` lives
+                    # in the mixin it moved to - so both are asked for, where each now is.
+                    self.assertIn("Engine.tick", found)
+                    inside = srcscan.package_asts()[srcscan.modules()[engine.__name__ + ".dispatch"]]
+                    self.assertIn("DispatchMixin.dispatch",
+                                  {name for node, name in srcscan.qualnames(inside).items()
+                                   if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                                        ast.ClassDef))})
 
     def test_a_node_belongs_to_the_function_around_it(self):
         tree = ast.parse("def outer():\n    def inner():\n        call()\n    return inner\n"
@@ -85,16 +104,32 @@ class TreeTests(unittest.TestCase):
         self.assertEqual(calls, {"call": "outer.<locals>.inner", "other": "C.m"})
 
     def test_imports_resolve_to_modules_and_say_when_they_run(self):
-        popup = {(entry.target, entry.lazy) for entry in srcscan.imports(srcscan.modules()[tray_popup.__name__])}
-        self.assertIn(("codex_auto_resume.tray", False), popup)          # from .tray import countdown
-        self.assertIn(("codex_auto_resume.brand", False), popup)         # from . import brand, ...
-        self.assertIn(("ctypes", False), popup)
-        icon = {(entry.target, entry.lazy) for entry in srcscan.imports(srcscan.modules()[tray.__name__])}
-        self.assertIn(("codex_auto_resume.tray_popup", True), icon)      # inside a function
-        self.assertNotIn(("codex_auto_resume", False), icon, "`from . import x` names x, not the package")
+        # Until v0.6.10-alpha the countdown was imported from `.tray` - the import that made
+        # the popup load the icon to draw a clock, and half of a cycle. It is `ui.words` now,
+        # and since the split it is asked for by the one file that writes a line of text.
+        popup = {(entry.target, entry.lazy) for entry in srcscan.imports(srcscan.modules()[popup_model.__name__])}
+        self.assertIn(("codex_auto_resume.ui.words", False), popup)
+        window = {(entry.target, entry.lazy) for entry in srcscan.imports(srcscan.modules()[popup_window.__name__])}
+        self.assertIn(("codex_auto_resume.brand", False), window)        # from .. import brand
+        self.assertIn(("ctypes", False), window)
+        # The package's own file holds no code: it is what `tray_popup.<name>` still reads as,
+        # and every import in it names a file beside it.
+        top = {entry.target for entry in srcscan.imports(srcscan.modules()[tray_popup.__name__])}
+        self.assertTrue(top)
+        self.assertEqual({name for name in top if not name.startswith(tray_popup.__name__ + ".")},
+                         {"__future__"})
+        # Since v0.6.10-alpha the icon is a package too, and the popup is reached from the four
+        # files that need it rather than from one - always inside a function, because building
+        # a popup is what a click costs and the icon must not pay it to start.
+        icon = {(entry.target, entry.lazy)
+                for name in ("ui.tray.animation", "ui.tray.cards", "ui.tray.clicks",
+                             "ui.tray.menu")
+                for entry in srcscan.imports(srcscan.modules()["codex_auto_resume." + name])}
+        self.assertIn(("codex_auto_resume.ui.popup", True), icon)      # inside a function
+        self.assertNotIn(("codex_auto_resume", False), icon, "`from .. import x` names x, not the package")
         self.assertIn("codex_auto_resume.cli", srcscan.import_graph()["auto_resume"])
-        self.assertIn("codex_auto_resume.tray_popup", srcscan.closure("codex_auto_resume.tray"))
-        self.assertNotIn("codex_auto_resume.tray_popup", srcscan.closure("codex_auto_resume.tray", lazy=False))
+        self.assertIn("codex_auto_resume.ui.popup", srcscan.closure("codex_auto_resume.ui.tray"))
+        self.assertNotIn("codex_auto_resume.ui.popup", srcscan.closure("codex_auto_resume.ui.tray", lazy=False))
 
     def test_an_import_loads_the_packages_above_what_it_names(self):
         """Importing `ui.popup.layout` runs `ui/__init__.py` first, whatever the statement
@@ -115,14 +150,33 @@ class TreeTests(unittest.TestCase):
         # outside `domain/` that imports from it loads `domain/__init__.py` with it.
         implied = {(srcscan.module_name(path), entry.target, entry.lazy, entry.internal)
                    for path in srcscan.package_files() for entry in srcscan.imports(path) if entry.implied}
+        # Every subpackage, not one of them: v0.6.10-alpha made several, and the rule is the
+        # same for each - a module outside it that imports from it loads its __init__ too.
+        modules = srcscan.modules()
+        packages = {name for name in modules
+                    if any(other.startswith(name + ".") for other in modules)} - {srcscan.PACKAGE}
+        self.assertIn(srcscan.PACKAGE + ".domain", packages, "domain/ is a package")
+        expected = {("auto_resume", srcscan.PACKAGE, False, True)}
+        for package in packages:
+            for module, path in modules.items():
+                # `module.startswith(package)` would be wrong, and was until v0.6.10-alpha made
+                # a package whose name is a prefix of a module's: `mcpserver` is not inside
+                # `mcp/`, and the day it was treated as though it were, this test asked for the
+                # one implied import it should have asked for.
+                reaching = [entry for entry in srcscan.imports(path)
+                            if entry.target.startswith(package + ".")]
+                if module == package or module.startswith(package + ".") or not reaching:
+                    continue
+                # As lazy as the statement that implies it: `from .ui import tray` inside a
+                # function loads `ui/__init__.py` when that function runs and not before, and
+                # since v0.6.10-alpha two modules reach `ui/` exactly that way.
+                expected.add((module, package, all(entry.lazy for entry in reaching), True))
+        self.assertEqual(implied, expected)
         domain = srcscan.PACKAGE + ".domain"
-        importers = {module for module, path in srcscan.modules().items() if not module.startswith(domain)
-                     and any(entry.target.startswith(domain + ".") for entry in srcscan.imports(path))}
-        self.assertIn(srcscan.PACKAGE + ".store", importers)
-        self.assertEqual(implied, {("auto_resume", srcscan.PACKAGE, False, True)}
-                         | {(module, domain, False, True) for module in importers})
+        # Not vacuous: the module that reads identifiers through domain/ is store.validate
+        # since the store became a package, and it does load domain/ with it.
         self.assertIn(srcscan.PACKAGE, srcscan.import_graph()["auto_resume"])
-        self.assertIn(domain, srcscan.import_graph()[srcscan.PACKAGE + ".store"])
+        self.assertIn(domain, srcscan.import_graph()[srcscan.PACKAGE + ".store.validate"])
 
 
 class NoOneFileScanTests(unittest.TestCase):

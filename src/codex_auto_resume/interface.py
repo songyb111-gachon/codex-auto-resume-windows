@@ -12,7 +12,7 @@ strings rather than choosing for themselves:
     l10n.current()               decides once, from the Windows preferred UI languages
         |
         +-- controlcli `strings` -> the standalone window, over the bridge it already uses
-        +-- mcpui.settings_page  -> the Codex panel, embedded in the page it already seeds
+        +-- panel.settings_page  -> the Codex panel, embedded in the page it already seeds
 
 Neither surface guesses. The C# window does not read the registry and the panel's
 JavaScript does not look at `navigator.language`, because a product that speaks Korean in
