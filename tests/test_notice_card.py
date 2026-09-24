@@ -45,6 +45,7 @@ from codex_auto_resume import (brand,
                                reasons,
                                settings)
 from codex_auto_resume.ui import popup as tray_popup
+import srcscan  # noqa: E402 - tests/, beside this file
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src" / "codex_auto_resume"
@@ -1274,9 +1275,10 @@ class SettingTests(unittest.TestCase):
         (tray/cards.py) - both, or the card never shows. Until then `notification_card` exists, with
         its default, but no surface offers it; wiring the card fails this test until the name
         leaves settings.NOT_YET_OFFERED, and taking the wiring out fails it the other way."""
-        app_source = (SRC / "app.py").read_text(encoding="utf-8")
-        tray_source = (SRC / "ui" / "tray" / "cards.py").read_text(encoding="utf-8")
-        wired = "notifier.deliver(" in app_source and "notice_window.CardStack(" in tray_source
+        # Asked of the whole package: the watcher's side moved from app.py to runtime/app.py in
+        # v0.6.10-alpha, and a test that read app.py by name would have concluded the card was
+        # unwired - and so demanded the switch be taken off the Dashboard.
+        wired = bool(srcscan.holders("notifier.deliver(")) and bool(srcscan.holders("notice_window.CardStack("))
         offered = [entry for entry in settings.describe() if entry["name"] == notifier.CARD_SETTING]
         self.assertEqual(bool(offered), wired)
         self.assertEqual(notifier.CARD_SETTING not in settings.NOT_YET_OFFERED, wired)

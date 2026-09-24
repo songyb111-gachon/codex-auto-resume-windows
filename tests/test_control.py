@@ -391,14 +391,15 @@ class NotARecoveryEngineTests(ControlTestCase):
                 self.assertEqual(sorted(found & control), [], "control imports the %s" % name)
         package = "codex_auto_resume/%s.py"
         self.assertEqual(importers, {
-            "engine": {package % "app"},
+            # The watcher's composition root, which is runtime/app.py since v0.6.10-alpha.
+            "engine": {"codex_auto_resume/runtime/app.py"},
             # Since v0.6.10-alpha the engine is a package, and the one module of it that reads
             # Codex directly is `engine/detect.py` - the exception `tests/test_layers.py`
             # names, in the place it now lives.
             # `windows` is the front of the Codex adapter since v0.6.10-alpha and imports the
             # package it re-exports; it holds no logic of its own.
-            "codex": {package % name for name in ("app", "compatio", "controlcli", "windows")}
-                      | {"codex_auto_resume/engine/detect.py"},
+            "codex": {package % name for name in ("compatio", "controlcli", "windows")}
+                      | {"codex_auto_resume/engine/detect.py", "codex_auto_resume/runtime/app.py"},
         }, "the set of modules that reach the engine or the source has changed")
 
 

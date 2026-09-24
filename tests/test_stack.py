@@ -62,7 +62,7 @@ def _q(name: str) -> str:
 
 # Every module, placed. A new module is given an item here before anything else.
 ITEM = {_q(name): item for item, names in {
-    "watcher": ("app",),
+    "watcher": ("app", "runtime", "runtime.app", "runtime.loop", "runtime.toasts"),
     "engine": ("engine", "engine.announce", "engine.detect", "engine.dispatch", "engine.freshness",
                "engine.options", "engine.outcome"),
     "policy": ("failures", "reasons", "settings", "continuation", "openstate", "domain.gates"),
@@ -101,8 +101,6 @@ ITEM = {_q(name): item for item, names in {
 # Items with no package of their own: their code is spread over modules placed elsewhere, so
 # the port begins by gathering it. Only shrinks.
 HOMELESS = {
-    "watcher": "app.py is the composition root and the loop at once; the loop, the toasts it "
-               "raises and the single-instance guard are one file with the wiring",
     "engine": "engine/ is the recovery engine's in every file but one, and that one is the "
               "scheduler's - so taking the package takes two items, and the engine has no "
               "package that is only its own",
@@ -130,7 +128,6 @@ STRADDLING = {
 
 # Single modules doing two items' work, and what the second half is. Only shrinks.
 DOUBLE = {
-    "app": "the composition root that wires the product together, and the watcher loop it runs",
     "cli": "the command line's parsing and its command bodies, which are the control layer's "
            "work done a second way",
     "compat": "the registry's model and its data format, which the Codex adapter reads, and the "

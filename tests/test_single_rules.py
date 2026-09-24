@@ -648,8 +648,9 @@ RULES = {
     "upgrading the state": (
         lambda node: calls("Store")(node) and any(keyword.arg == "migrate" and constant(keyword.value, True)
                                                    for keyword in node.keywords),
-        # The watcher's own opening holds the mutex already and upgrades at start.
-        {"openstate.py": "open_state", "app.py": "App._open_for_watcher"}),
+        # The watcher's own opening holds the mutex already and upgrades at start. Its loop
+        # is runtime/loop.py since v0.6.10-alpha, mixed into App.
+        {"openstate.py": "open_state", "runtime/loop.py": "WatchLoop._open_for_watcher"}),
     "which settings are the user's own words": (
         lambda node: calls("startswith")(node) and bool(node.args) and isinstance(node.args[0], ast.Constant)
         and str(node.args[0].value).startswith("custom_message"),
