@@ -23,8 +23,12 @@ import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+_HERE = str(Path(__file__).resolve().parent)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)        # guiscan lives next to this file
 sys.path.insert(0, str(ROOT / "build"))
 
+import guiscan  # noqa: E402
 import normalize_pe  # noqa: E402
 
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
@@ -172,8 +176,8 @@ class RandomlyNamedClassTests(unittest.TestCase):
 
     def test_the_shipped_window_source_has_no_long_string_switch(self):
         # The same rule, read from the source, so it fails without a compiler too.
-        for name in ("Controls.cs", "SettingsApp.cs", "Dashboard.cs", "Brand.cs"):
-            text = (ROOT / "gui" / name).read_text(encoding="utf-8")
+        for name in guiscan.manifest():
+            text = guiscan.read(name)
             for match in re.finditer(r"\bswitch\s*\(", text):
                 start = text.find("{", match.end())
                 depth, end = 0, start

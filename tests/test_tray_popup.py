@@ -24,7 +24,10 @@ if _HERE not in sys.path:
     sys.path.insert(0, _HERE)        # srcscan lives next to this file
 
 import srcscan  # noqa: E402
-from codex_auto_resume import brand, control, interface, l10n, tray, tray_popup as popup  # noqa: E402
+import guiscan  # noqa: E402
+from codex_auto_resume import brand, control, interface, l10n  # noqa: E402
+from codex_auto_resume.ui import tray
+from codex_auto_resume.ui import popup
 
 ROOT = Path(__file__).resolve().parents[1]
 NOW = 1_800_000_000.0
@@ -909,7 +912,7 @@ class FontTests(unittest.TestCase):
         self.assertEqual(popup.font_candidates("ko", 600, None)[0], ("Malgun Gothic", 700))
 
     def test_emphasis_follows_the_windows_own_rule(self):
-        """Soft.Weighted in gui/Controls.cs: a Segoe UI face's own semibold family, the face's
+        """Soft.Weighted in the window's controls (gui/SoftTheme.cs): a Segoe UI face's own semibold family, the face's
         bold otherwise (Malgun Gothic and the other UI faces have no semibold)."""
         self.assertEqual(popup.font_candidates("en", 600, "Segoe UI"),
                          (("Segoe UI Semibold", 400), ("Segoe UI", 600)))
@@ -922,15 +925,15 @@ class FontTests(unittest.TestCase):
                          ((MALGUN_LOCALIZED, 400), ("Segoe UI Variable Text", 400), ("Segoe UI", 400)))
         self.assertIn('family.StartsWith("Segoe UI", StringComparison.Ordinal) && '
                       '!family.EndsWith("Semibold", StringComparison.Ordinal)',
-                      (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8"))
+                      guiscan.controls())
 
     def test_the_three_surfaces_start_from_the_same_face(self):
         """One product: the window's every font is a variant of Windows' message font, the panel's
         stack starts with `system-ui`, which resolves to it, and the popup asks Windows for it.
         Putting "Segoe UI" ahead of `system-ui` in the panel would part the panel from the window
         on every Windows whose UI font is not Segoe UI - a Korean one among them."""
-        from codex_auto_resume import mcpui
-        controls = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
+        from codex_auto_resume.mcp import panel as mcpui
+        controls = guiscan.controls()
         self.assertIn("if (baseFont == null) baseFont = SystemFonts.MessageBoxFont;", controls)
         stack = re.search(r"--font:\s*([^;]+);", mcpui._STYLE).group(1)
         self.assertEqual(stack.split(",")[0].strip(), "system-ui")
@@ -993,7 +996,7 @@ class FontTests(unittest.TestCase):
 # (PLAN-v2 M1): one popup module may import another, and everything else any of them imports
 # is held to one allowlist - so code moved out of tray_popup.py either lands in a module this
 # still reads, or in one the popup has to import from, which the allowlist refuses.
-POPUP_MODULES = ("codex_auto_resume.tray_popup", "codex_auto_resume.ui.popup")
+POPUP_MODULES = ("codex_auto_resume.ui.popup", "codex_auto_resume.ui.popup")
 
 
 def is_popup_module(name):
@@ -1034,8 +1037,8 @@ class SafetyTests(unittest.TestCase):
                     is_popup_module(inner) and name in srcscan.ancestors(inner) for inner in self.modules))
         self.assertNotIn(srcscan.PACKAGE, self.modules)
         self.assertTrue(is_popup_module("codex_auto_resume.ui.popup.layout"))
-        for outside in ("codex_auto_resume.tray_popup_theme", "codex_auto_resume.ui.popups",
-                        "codex_auto_resume.ui", "codex_auto_resume.tray"):
+        for outside in ("codex_auto_resume.ui.popup_theme", "codex_auto_resume.ui.popups",
+                        "codex_auto_resume.ui", "codex_auto_resume.ui.tray"):
             self.assertFalse(is_popup_module(outside), outside)
 
     def test_it_imports_nothing_that_can_submit(self):

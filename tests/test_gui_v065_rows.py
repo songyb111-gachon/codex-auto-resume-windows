@@ -41,6 +41,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+import guiscan
 
 from codex_auto_resume import brand, l10n
 
@@ -408,7 +409,7 @@ class RowTests(unittest.TestCase):
         exe = work / "CodexAutoResumeSettings.exe"
         subprocess.run([str(CSC), "/nologo", "/target:winexe", "/platform:x64", "/out:" + str(exe),
                         "/reference:System.dll", "/reference:System.Drawing.dll", "/reference:System.Windows.Forms.dll",
-                        *[str(GUI / name) for name in ("SettingsApp.cs", "Dashboard.cs", "Controls.cs", "Brand.cs")]],
+                        *[str(path) for path in guiscan.sources()]],
                        check=True, capture_output=True, timeout=300)
         cls.catalog = l10n.catalog("en")
         reply = {"ok": True, "language": "en", "strings": cls.catalog, "endonyms": dict(l10n.ENDONYMS),
@@ -674,9 +675,10 @@ class RowSourceTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.sources = {name: (GUI / name).read_text(encoding="utf-8")
-                       for name in ("Controls.cs", "Dashboard.cs", "SettingsApp.cs")}
-        cls.dashboard = cls.sources["Dashboard.cs"]
+        # Every hand-written source of the window, so a file split off Controls.cs cannot
+        # quietly keep a piece of the tiles this holds the window clear of.
+        cls.sources = {name: guiscan.read(name) for name in guiscan.handwritten()}
+        cls.dashboard = guiscan.dashboard()
 
     def method(self, source, signature):
         start = source.index(signature)

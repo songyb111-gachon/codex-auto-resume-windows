@@ -79,7 +79,7 @@ LISTS = {
     "failures.USAGE_LIMIT": "usage_limit",
     "failures.UNKNOWN": "unknown",
     "store.ENGINE_STATES": ("set", 6, "a40ef34f9adea697"),
-    "source.KNOWN_STATUSES": ("set", 4, "23d2734c27812d29"),
+    "codex.KNOWN_STATUSES": ("set", 4, "23d2734c27812d29"),
     "logbook.STATE_CODES": ("set", 27, "5cac947c5c3bb648"),
     "control.ERROR_CODES": ("set", 23, "f5946a4030e69cad"),
     "control.FALLBACK_CODE": "request_failed",
@@ -133,9 +133,9 @@ LISTS = {
     "windows.PASS": "PASS",
     "windows.FAIL": "FAIL",
     "windows.UNAVAILABLE": "UNAVAILABLE",
-    "tray.ICON_STATES": ("tuple", 5, "e94d5138669400b3"),
-    "tray_popup.STATES": ("tuple", 6, "b38c816dbd792bf5"),
-    "tray_popup.ATTENTION_OVERLAYS": ("set", 4, "a707a2b300127033"),
+    "ui.tray.ICON_STATES": ("tuple", 5, "e94d5138669400b3"),
+    "ui.popup.STATES": ("tuple", 6, "b38c816dbd792bf5"),
+    "ui.popup.ATTENTION_OVERLAYS": ("set", 4, "a707a2b300127033"),
     "notifier.STATUS": ("dict", 7, "ed71f4ec9cabc7bc"),
     "mcpserver.Server.START_WORDING": ("dict", 4, "f15e04a780f57870"),
 }
@@ -147,17 +147,34 @@ RETURNED = {
     ("Backend.send", "error_code"): {"queue_preflight_failed", "queue_consent_refused", "queue_spawn_failed",
                                      "queue_response_unconfirmed", "queue_timeout", "queue_result_unknown"},
     ("Backend.loaded", None): {"loaded", "notLoaded", "unknown"},
-    ("Control.start_watcher", "state"): {"already-running"},
+    ("WatcherMixin.start_watcher", "state"): {"already-running"},
     ("await_watcher", "state"): {"running", "exited", "unconfirmed"},
-    ("Control.stop_watcher", "state"): {"not-running"},
+    ("WatcherMixin.stop_watcher", "state"): {"not-running"},
     ("await_stopped", "state"): {"stopped", "still-finishing", "unknown"},
 }
 
 
 def value_of(name):
-    module, _, attribute = name.partition(".")
-    value = importlib.import_module("codex_auto_resume." + module)
-    for part in attribute.split("."):
+    """The value `codex_auto_resume.<name>` names, however deep the module part goes.
+
+    The longest importable prefix is imported and the rest is read off it. Taking only the
+    first segment would work by accident for a module inside a package: `ui.popup.STATES`
+    would import `codex_auto_resume.ui` and find `popup` on it only because some earlier test
+    in the same process had imported it and Python had set the attribute on the parent. The
+    whole suite would pass and this file alone would fail.
+    """
+    parts = name.split(".")
+    value, taken = None, 0
+    for count in range(len(parts), 0, -1):
+        try:
+            value = importlib.import_module("codex_auto_resume." + ".".join(parts[:count]))
+        except ImportError:
+            continue
+        taken = count
+        break
+    if value is None:
+        raise ImportError("no module of codex_auto_resume is named in %r" % name)
+    for part in parts[taken:]:
         value = getattr(value, part)
     return value
 
@@ -238,8 +255,8 @@ HOMES = {
     v.GateResult: ("list", "machine.GATE_RESULTS"),
     v.FailureCategory: ("list", "failures.CATEGORIES"),
     v.EngineState: ("list", "store.ENGINE_STATES", "compat.ENGINE_STATES"),
-    v.WatcherStartState: ("returned", ("Control.start_watcher", "state"), ("await_watcher", "state")),
-    v.WatcherStopState: ("returned", ("Control.stop_watcher", "state"), ("await_stopped", "state")),
+    v.WatcherStartState: ("returned", ("WatcherMixin.start_watcher", "state"), ("await_watcher", "state")),
+    v.WatcherStopState: ("returned", ("WatcherMixin.stop_watcher", "state"), ("await_stopped", "state")),
     v.ErrorCode: ("list", "control.ERROR_CODES"),
     v.ContinuationStyle: ("list", "continuation.STYLES"),
     v.CustomMode: ("list", "continuation.CUSTOM_MODES"),
@@ -250,8 +267,8 @@ HOMES = {
     v.SendOutcome: ("returned", ("Backend.send", "outcome")),
     v.SendError: ("returned", ("Backend.send", "error_code")),
     v.LoadedState: ("returned", ("Backend.loaded", None)),
-    v.ActivityState: ("list", "tray_popup.STATES"),
-    v.IconState: ("list", "tray.ICON_STATES"),
+    v.ActivityState: ("list", "ui.popup.STATES"),
+    v.IconState: ("list", "ui.tray.ICON_STATES"),
     v.NoticeKind: ("keys", "notifier.STATUS"),
     v.CompatState: ("list", "compat.STATES"),
     v.LocalResult: ("list", "compat.RESULTS"),
@@ -344,14 +361,23 @@ class HomeTests(unittest.TestCase):
                         self.assertEqual(value, frozenset(cls), home)
 
     def test_the_words_spelled_beside_a_vocabulary_are_its_members(self):
-        from codex_auto_resume import (compat, continuation, control, failures, l10n, machine, mcpserver,
-                                       settings, source, tray_popup, windows)
+        from codex_auto_resume import (compat,
+                                       continuation,
+                                       control,
+                                       failures,
+                                       l10n,
+                                       machine,
+                                       mcpserver,
+                                       codex,
+                                       settings,
+                                       windows)
+        from codex_auto_resume.ui import popup as tray_popup
         self.assertLessEqual(set(v.WithdrawReason), set(v.ReasonCode))
         self.assertEqual(list(compat.COARSE.values()), list(v.EngineState))
         self.assertEqual(list(mcpserver.Server.START_WORDING), ["running", "already-running", "exited", "unconfirmed"])
         self.assertEqual(set(mcpserver.Server.START_WORDING), set(v.WatcherStartState))
         self.assertLessEqual(tray_popup.ATTENTION_OVERLAYS, set(v.Overlay))
-        self.assertEqual(source.KNOWN_STATUSES, set(v.TurnStatus) - {v.TurnStatus.OTHER})
+        self.assertEqual(codex.KNOWN_STATUSES, set(v.TurnStatus) - {v.TurnStatus.OTHER})
         self.assertEqual(l10n.CHOICES, (l10n.SYSTEM,) + tuple(v.Locale))
         self.assertEqual(settings.CONTINUATION_LANGUAGES, (settings.FOLLOW_INTERFACE,) + tuple(v.Locale))
         for word, cls in ((machine.PASS, v.GateResult), (machine.WAIT, v.GateResult), (machine.BLOCK, v.GateResult),

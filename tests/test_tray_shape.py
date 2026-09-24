@@ -29,10 +29,10 @@ for entry in (str(Path(_HERE).parent / "src"), _HERE):
         sys.path.insert(0, entry)
 
 import srcscan  # noqa: E402
-from codex_auto_resume import tray  # noqa: E402
-from codex_auto_resume.tray import animation, cards, clicks, icon, menu, stored  # noqa: E402
+from codex_auto_resume.ui import tray  # noqa: E402
+from codex_auto_resume.ui.tray import animation, cards, clicks, icon, menu, stored  # noqa: E402
 
-PACKAGE = "codex_auto_resume.tray"
+PACKAGE = "codex_auto_resume.ui.tray"
 
 # The eleven, in the order `__init__` imports them, which is their dependency order.
 MODULES = ("words", "model", "motion", "win32", "menu", "stored", "cards", "clicks",

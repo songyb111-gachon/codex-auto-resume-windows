@@ -20,6 +20,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import guiscan
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,7 +28,8 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "build"))
 sys.path.insert(0, str(ROOT / "assets"))
 
-from codex_auto_resume import brand, mcpui          # noqa: E402
+from codex_auto_resume import brand          # noqa: E402
+from codex_auto_resume.mcp import panel as mcpui
 import make_brand                                    # noqa: E402
 import make_icon                                     # noqa: E402
 
@@ -421,7 +423,7 @@ class SurfaceTests(unittest.TestCase):
         self.assertRegex(mcpui._STYLE, r"body\s*\{[^}]*background:\s*var\(--canvas\)")
 
     def test_settings_window_writes_no_colour_of_its_own(self):
-        source = (ROOT / "gui" / "SettingsApp.cs").read_text(encoding="utf-8")
+        source = guiscan.settings()
         stray = [line.strip() for line in source.splitlines()
                  if "Color.FromArgb" in line]
         self.assertEqual(stray, [], "colours belong in brand.py, not in the window")
@@ -437,7 +439,7 @@ class WindowScalingTests(unittest.TestCase):
     """
 
     def setUp(self):
-        self.source = (ROOT / "gui" / "SettingsApp.cs").read_text(encoding="utf-8")
+        self.source = guiscan.settings()
 
     def test_no_size_or_padding_is_written_in_raw_pixels(self):
         # `new Size(a, b)` and `new Padding(...)` with bare integers are the shape that

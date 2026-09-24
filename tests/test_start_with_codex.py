@@ -203,7 +203,9 @@ class ProcessContextTests(unittest.TestCase):
         # A name of the test's own: the real installer lock is never touched. Opened and never
         # created, a name nobody holds stays a name nobody holds.
         name = "Local\\CodexAutoResume.Install.test-%d" % os.getpid()
-        with patch.object(windows, "INSTALL_LOCK", name):
+        # Where install_in_progress reads it: win/homelock.py. On the windows front the name
+        # would be replaced and the real installer lock looked at instead.
+        with patch("codex_auto_resume.win.homelock.INSTALL_LOCK", name):
             self.assertIs(windows.install_in_progress(), False)
             self.assertIs(windows.install_in_progress(), False, "the first look created it")
             held, release = threading.Event(), threading.Event()

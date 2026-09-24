@@ -180,7 +180,7 @@ class Server:
         uri = params.get("uri")
         if uri != SETTINGS_UI:
             raise LookupError("unknown resource")
-        from ..mcpui import settings_page
+        from .panel import settings_page
         l10n.set_preference(self.control.get_settings().get("interface_language"))
         return {"contents": [{"uri": SETTINGS_UI, "mimeType": "text/html+skybridge",
                               "text": settings_page()}]}

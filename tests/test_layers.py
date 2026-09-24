@@ -52,9 +52,14 @@ def _q(name):
 
 # Every module, placed. A new module has to be given a layer here before anything else.
 LAYER = {_q(name): layer for layer, names in {
-    "domain": ("failures", "reasons", "machine", "domain", "domain.ids", "domain.vocabulary"),
+    # v0.6.10-alpha: machine.py became domain/{states,gates,public}.py, which is what its own
+    # docstring called "three layers, kept apart on purpose", said in the tree.
+    "domain": ("failures", "reasons", "machine", "domain", "domain.errors", "domain.gates",
+               "domain.ids", "domain.public", "domain.states", "domain.vocabulary"),
     "policy": ("", "settings", "continuation", "l10n", "messages", "interface", "config", "logbook"),
-    "adapters": ("store", "openstate", "source", "windows", "compat", "compatio", "startup", "shortcut",
+    "adapters": ("store", "openstate", "codex", "windows", "compat", "compatio", "startup", "shortcut",
+                 # v0.6.10-alpha: compat.py and compatio.py became compat/.
+                 "compat.model", "compat.standing", "compat.report", "compat.permits", "compat.files", "compat.cache", "compat.probes", "compat.views", "compat.evaluator",
                  "pwsh", "notify", "notice_presence", "tray_place",
                  # v0.6.10-alpha: store.py became store/. Every part of it is the same layer
                  # the one module was, and `STORE` below covers them by prefix.
@@ -62,43 +67,59 @@ LAYER = {_q(name): layer for layer, names in {
                  "store.errors", "store.journal", "store.legacy", "store.migrations",
                  "store.policy", "store.records", "store.reporting", "store.schema",
                  "store.session", "store.validate", "store.watcher",
-                 # v0.6.10-alpha: the Win32 handles and declarations more than one module needs.
-                 "win", "win.dll",
-                 # v0.6.10-alpha: source.py became source/, and every part of it reads Codex.
-                 "source.errors", "source.history", "source.labels",
-                 "source.paths", "source.payload", "source.schema", "source.values"),
+                 # v0.6.10-alpha: the Win32 the product calls, which windows.py was half of.
+                 "win", "win.dll", "win.homelock", "win.inventory", "win.kernel", "win.sync",
+                 # v0.6.10-alpha: source.py became source/, and every part of it reads Codex;
+                 # windows.py's other half - the CLI, the App Server, the pairing - joined it.
+                 "codex.appserver", "codex.errors", "codex.history", "codex.labels",
+                 "codex.pairing", "codex.paths", "codex.payload", "codex.schema",
+                 "codex.transport", "codex.usage", "codex.values"),
     "engine": ("engine", "engine.announce", "engine.detect", "engine.dispatch",
                "engine.freshness", "engine.options", "engine.outcome", "engine.reconcile"),
-    "control": ("control", "diagnostics"),
-    "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcpui", "app", "tray",
+    # v0.6.10-alpha: control.py became control/, ten files, `Control` composed from eight
+    # mixins. `layer` is where the composition lives, so that the front holds no code.
+    "control": ("control", "control.actions", "control.codexstart", "control.errors",
+                "control.layer", "control.policy", "control.preview", "control.records",
+                "control.seen", "control.state", "control.watcher", "control.wire", "diagnostics"),
+    "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcp.panel", "app", "ui.tray",
+              # v0.6.10-alpha: app.py became runtime/ - the wiring, the loop and the toasts.
+              "runtime", "runtime.app", "runtime.loop", "runtime.toasts",
+              # v0.6.10-alpha: cli.py's command bodies became commands/; cli.py is the parser.
+              "commands", "commands.base", "commands.install", "commands.records",
+              "commands.status", "commands.watcher",
               # v0.6.10-alpha: mcpserver.py's body became mcp/, beside the panel's own files.
               "mcp", "mcp.server", "mcp.tools",
-              "tray_popup", "brand",
+              "ui.popup", "brand",
               "notice_card", "notice_window", "notifier",
+              # v0.6.10-alpha: notice_window.py became ui/card/, the last module over budget.
+              "ui.card", "ui.card.win32", "ui.card.surfaces", "ui.card.card", "ui.card.stack",
+              # v0.6.10-alpha: brand.py became brand/ - one palette in nine files.
+              "brand.checkbox", "brand.colour", "brand.css", "brand.elevation", "brand.light",
+              "brand.mark", "brand.motion", "brand.scale", "brand.tokens",
               # v0.6.10-alpha: tray.py became tray/ - the same icon in eleven files, all of
               # them the front. `UI` below covers them by prefix.
-              "tray.animation", "tray.cards", "tray.clicks", "tray.dashboard", "tray.icon",
-              "tray.menu", "tray.model", "tray.motion", "tray.stored", "tray.win32",
-              "tray.words",
+              "ui.tray.animation", "ui.tray.cards", "ui.tray.clicks", "ui.tray.dashboard", "ui.tray.icon",
+              "ui.tray.menu", "ui.tray.model", "ui.tray.motion", "ui.tray.stored", "ui.tray.win32",
+              "ui.tray.words",
               # v0.6.10-alpha: what every surface writes the same way.
               "ui", "ui.words",
               # v0.6.10-alpha: tray_popup.py became tray_popup/ - the same popup in twelve
               # files, all of them the front. `UI` below covers them by prefix.
-              "tray_popup.elevation", "tray_popup.fonts", "tray_popup.gdiplus",
-              "tray_popup.layout", "tray_popup.model", "tray_popup.motion",
-              "tray_popup.placement", "tray_popup.renderer", "tray_popup.theme",
-              "tray_popup.win32", "tray_popup.window", "tray_popup.words"),
+              "ui.popup.elevation", "ui.popup.fonts", "ui.popup.gdiplus",
+              "ui.popup.layout", "ui.popup.model", "ui.popup.motion",
+              "ui.popup.placement", "ui.popup.renderer", "ui.popup.theme",
+              "ui.popup.win32", "ui.popup.window", "ui.popup.words"),
 }.items() for name in names}
 
 # The roles the target rules speak of: today's modules, and the packages the split moves them
 # into (PLANNED, which need not exist yet). Each name covers itself and everything inside it.
 PLANNED = {_q(name) for name in ("codex", "win", "ui", "mcp", "domain.public")}
 STORE = {_q("store"), _q("openstate")}              # openstate moves into store/ as store/open.py
-CODEX = {_q("source"), _q("windows"), _q("codex")}         # Codex's files and processes
+CODEX = {_q("codex"), _q("windows"), _q("codex")}         # Codex's files and processes
 WIN = {_q(name) for name in ("windows", "startup", "shortcut", "pwsh", "notify", "notice_presence",
                              "tray_place", "win")}
-UI = {_q(name) for name in ("tray", "tray_popup", "brand", "notice_card", "notice_window", "ui")}
-MCP = {_q("mcpserver"), _q("mcpui"), _q("mcp")}
+UI = {_q(name) for name in ("brand", "notice_card", "notice_window", "ui")}
+MCP = {_q("mcpserver"), _q("mcp")}
 # What the UI may reach: the control layer, the public status mapping (machine, until it is
 # split into domain/), the i18n layer and the brand - and itself.
 # v0.6.10-alpha adds win/: the Win32 declarations a surface registers its window with, which
@@ -112,16 +133,20 @@ PURE_STDLIB = {"__future__", "abc", "collections", "dataclasses", "decimal", "en
 # Target rules that do not hold yet: the real edges that break them. Each fails the test the
 # day it no longer exists, so these only shrink.
 ENGINE_EXCEPTIONS = {
-    (_q("engine.detect"), _q("source")): "source.detect() is imported and called directly rather than "
+    (_q("engine.detect"), _q("codex")): "source.detect() is imported and called directly rather than "
                                           "reached through the source the engine is given "
                                           "(engine/ports.py, step 8)",
 }
 UI_EXCEPTIONS = {
-    (_q("tray_popup.model"), _q("reasons")): "the popup asks the reason registry for a label key, whether a "
+    (_q("ui.popup.model"), _q("reasons")): "the popup asks the reason registry for a label key, whether a "
                                        "category is recoverable and whether it has a reset time",
-    (_q("notice_window"), _q("notice_presence")): "the card reads battery saver and the message duration "
-                                                  "from the presence probes, which are Windows adapters",
-    (_q("tray.animation"), _q("tray_place")): "the icon asks where Windows keeps it and whether battery "
+    # The card is ui/card/ since v0.6.10-alpha; these two of its files read the probes.
+    (_q("ui.card.win32"), _q("notice_presence")): "the card reads battery saver and the message "
+                                                  "duration from the presence probes, which are "
+                                                  "Windows adapters",
+    (_q("ui.card.stack"), _q("notice_presence")): "the card stack asks the same probes before it "
+                                                  "shows a card",
+    (_q("ui.tray.animation"), _q("tray_place")): "the icon asks where Windows keeps it and whether battery "
                                               "saver is on before it moves; both are Windows adapters "
                                               "(win/ takes them at step 9)",
 }
@@ -129,11 +154,10 @@ UI_EXCEPTIONS = {
 # Import cycles, which exist only through imports made inside functions. Each is removed by
 # the split (win/dll.py for the icon's shared Win32 structures, compat/ and win/ for the
 # registry and the adapter), and until then is listed here exactly.
-LAZY_CYCLES = {
-    frozenset({_q("windows"), _q("compatio")}):
-        "windows.verified_versions reads the bundled baseline through compatio, and compatio's "
-        "probes read windows",
-}
+# None left. The last one - codex.transport -> compatio -> the registry's probes -> windows ->
+# codex.transport - went in v0.6.10-alpha, when the adapter began reading the bundled
+# registry's verified versions from compat/files.py instead of through the compatio front.
+LAZY_CYCLES = {}
 
 # Every import made inside a function, with what it is for. Three kinds, and the test checks
 # each claim against the import graph:
@@ -143,25 +167,29 @@ LAZY_CYCLES = {
 #   cycle      it closes one of LAZY_CYCLES above.
 LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, imported), (kind, reason) in {
     ("", "config"): ("cost", "__version__ is resolved on demand, so importing the package reads no manifest"),
-    ("app", "control"): ("cost", "only a card's button and the icon's thread use the control layer"),
-    ("app", "interface"): ("cost", "the icon's catalogue, when the icon starts or the language changes"),
-    ("app", "tray"): ("cost", "the notification-area icon, only in a watcher that shows one"),
-    ("app", "tray_popup"): ("cost", "the popup's theme and motion, adopted only by a running watcher"),
-    ("cli", "control"): ("cost", "the diagnostics command is the only one that goes through control"),
-    ("cli", "diagnostics"): ("cost", "only the diagnostics command writes the export"),
-    ("cli", "tray"): ("cost", "activate opens the settings window through the icon's helper"),
-    ("compatio", "windows"): ("cycle", "the registry's API and discovery checks read the adapter"),
+    ("runtime.app", "control"): ("cost", "only a card's button and the icon's thread use the control layer"),
+    ("runtime.loop", "control"): ("cost", "only a card's button and the icon's thread use the control layer"),
+    ("runtime.app", "interface"): ("cost", "the icon's catalogue, when the icon starts or the language changes"),
+    ("runtime.app", "ui.tray"): ("cost", "the notification-area icon, only in a watcher that shows one"),
+    # Reaching `ui.tray` loads `ui/__init__.py` with it, and since v0.6.10-alpha the icon
+    # is inside `ui/`, so the package above it is an edge these two did not have before.
+    ("runtime.app", "ui"): ("cost", "the package above the icon, loaded with it"),
+    ("commands.watcher", "ui"): ("cost", "the package above the icon, loaded with it"),
+    ("runtime.app", "ui.popup"): ("cost", "the popup's theme and motion, adopted only by a running watcher"),
+    ("commands.install", "control"): ("cost", "the diagnostics command is the only one that goes through control"),
+    ("commands.install", "diagnostics"): ("cost", "only the diagnostics command writes the export"),
+    ("commands.watcher", "ui.tray"): ("cost", "activate opens the settings window through the icon's helper"),
+    ("compat.probes", "windows"): ("cost", "the registry's API and discovery checks read the "
+                                           "adapter, only when they run"),
     ("config", "settings"): ("cost", "nearly everything imports config; the settings schema, and the "
                                      "catalogs behind it, load only when settings are read or written"),
     ("controlcli", "compatio"): ("cost", "the three compatibility commands only"),
     ("controlcli", "diagnostics"): ("cost", "the diagnostics command only"),
     ("controlcli", "interface"): ("cost", "the strings request only: the window's catalogue"),
-    ("controlcli", "source"): ("cost", "display labels read from Codex's history; a source that fails "
-                                       "costs the names, never the listing"),
     ("diagnostics", "compatio"): ("cost", "the compatibility section of the export only"),
     ("mcp.server", "compat"): ("cost", "the compatibility summary in get_status only"),
     ("mcp.server", "compatio"): ("cost", "the compatibility summary in get_status only"),
-    ("mcp.server", "mcpui"): ("cost", "the panel's page, only when Codex reads the resource"),
+    ("mcp.server", "mcp.panel"): ("cost", "the panel's page, only when Codex reads the resource"),
     ("notify", "reasons"): ("cost", "a reason's label, for a transient toast only"),
     ("notify", "startup"): ("cost", "the AUMID only: startup owns every per-user registration, and a "
                                     "process that only formats a message should not load it"),
@@ -169,22 +197,26 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
     # Since v0.6.10-alpha neither closes a cycle - the Win32 declarations and the countdown
     # moved to win/ and ui/ - so both are what they always looked like: a window the icon opens
     # only when somebody asks for it.
-    ("tray.animation", "tray_popup"): ("cost", "a frame's drawing, only while the icon moves"),
-    ("tray.cards", "tray_popup"): ("cost", "the card's look, only when one is shown"),
-    ("tray.cards", "notice_window"): ("cost", "the card's window, only when one is shown"),
-    ("tray.clicks", "tray_popup"): ("cost", "the popup, built when the icon is clicked"),
-    ("tray.menu", "tray_popup"): ("cost", "the theme the menu is drawn in, only when it opens"),
-    ("tray.motion", "tray_popup"): ("cost", "whether the popup asks for attention"),
-    ("tray.stored", "tray_popup"): ("cost", "the popup's theme and motion, adopted with the settings"),
-    ("windows", "compatio"): ("cycle", "VERIFIED_VERSIONS is read from the bundled baseline"),
-    ("windows", "config"): ("cost", "the product version for the App Server's clientInfo, when a Protocol opens"),
+    ("ui.tray.animation", "ui.popup"): ("cost", "a frame's drawing, only while the icon moves"),
+    ("ui.tray.cards", "ui.popup"): ("cost", "the card's look, only when one is shown"),
+    ("ui.tray.cards", "notice_window"): ("cost", "the card's window, only when one is shown"),
+    ("ui.tray.clicks", "ui.popup"): ("cost", "the popup, built when the icon is clicked"),
+    ("ui.tray.menu", "ui.popup"): ("cost", "the theme the menu is drawn in, only when it opens"),
+    ("ui.tray.motion", "ui.popup"): ("cost", "whether the popup asks for attention"),
+    ("ui.tray.stored", "ui.popup"): ("cost", "the popup's theme and motion, adopted with the settings"),
+    ("codex.transport", "compat.files"): ("cost", "the versions the bundled registry verifies, "
+                                                     "read once from the bundled baseline"),
+    ("codex.transport", "compat"): ("cost", "the package compat/files.py is in, which Python loads "
+                                            "to reach it; its front is the pure model"),
+    ("codex.appserver", "config"): ("cost", "the product version for the App Server's clientInfo, "
+                                            "when a Protocol opens"),
 }.items()}
 
 
 def within(name, roles):
     """True when `name` is one of `roles` or a module inside one of them.
 
-    `codex_auto_resume.store.claims` is within `store`; `codex_auto_resume.sourcery` is not
+    `codex_auto_resume.store.claims` is within `store`; `codex_auto_resume.codexry` is not
     within `source`."""
     return any(name == role or name.startswith(role + ".") for role in roles)
 
@@ -311,7 +343,7 @@ class LayerTests(unittest.TestCase):
 
     def test_neither_the_mcp_server_nor_the_ui_imports_codex(self):
         importers = members(MCP | UI)
-        self.assertLessEqual({_q("tray_popup"), _q("mcpui"), _q("mcpserver")}, importers)
+        self.assertLessEqual({_q("ui.popup"), _q("mcp.panel"), _q("mcpserver")}, importers)
         for module in sorted(importers):
             for entry in srcscan.imports(srcscan.modules()[module]):
                 with self.subTest(module=module, imports=entry.target):

@@ -27,8 +27,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tests"))
 
+import guiscan                                                             # noqa: E402
 import srcscan                                                             # noqa: E402
-from codex_auto_resume import brand, l10n, mcpui                          # noqa: E402
+from codex_auto_resume import brand, l10n                          # noqa: E402
+from codex_auto_resume.mcp import panel as mcpui
 from codex_auto_resume import settings as policy                          # noqa: E402
 from test_mcpui_v063 import (FORCED, REDUCED, RULES, ROOT_TOKENS, SUPPORTS_MIX,  # noqa: E402
                              cubic_bezier, declared)
@@ -86,8 +88,9 @@ def choices(name):
 
 LANGS = choices("interface_language")
 
-# The window's list, which the panel's is the same as: gui/Controls.cs, read as it is.
-CONTROLS = (ROOT / "gui" / "Controls.cs").read_text(encoding="utf-8")
+# The window's list, which the panel's is the same as: the window's control sources,
+# concatenated in compile order, whichever files `gui/window.sources` names them in.
+CONTROLS = guiscan.controls()
 # How many rows a list shows before it scrolls (SoftCombo's MaxDropDownItems), and how long letters typed
 # one after another make one search (SoftCombo.TypeAhead).
 ROWS = 12
@@ -690,7 +693,7 @@ def sides(value: str):
 
 class OneListTests(unittest.TestCase):
     """The drop-down list is one design on both surfaces: the panel's is drawn by the numbers the
-    Windows Dashboard's SoftDropList is drawn by (gui/Controls.cs, read here as it is), each on its own
+    Windows Dashboard's SoftDropList is drawn by (gui/SoftCombo.cs, read through guiscan), each on its own
     surface's type - the window's field is set in the system's message font, this one's in the panel's."""
 
     PAD = brand.SPACING["s"]
@@ -846,13 +849,14 @@ class MotionStyleTests(unittest.TestCase):
         # Brand's, emitted with the scale; the panel names it and never writes a curve of its own.
         self.assertEqual(ROOT_TOKENS["--transition-ease"], brand.css_ease())
         self.assertEqual(ROOT_TOKENS["--transition"], "%dms" % brand.MOTION["transition_ms"])
-        source = (ROOT / "src" / "codex_auto_resume" / "mcpui.py").read_text(encoding="utf-8")
+        source = (ROOT / "src" / "codex_auto_resume" / "mcp" / "panel.py").read_text(encoding="utf-8")
         self.assertNotIn("--transition-ease:", source)
         self.assertNotIn("--transition:", source)
-        # Brand is the one file of the package that writes either token, so the panel's style
-        # cannot move to a module of its own and start writing a curve there.
+        # One file of the package writes either token - `brand/css.py`, which is the one file
+        # of the palette that writes CSS at all - so the panel's style cannot move to a module
+        # of its own and start writing a curve there.
         for token in ("--transition-ease:", "--transition:"):
-            self.assertEqual(srcscan.holders(token), {"codex_auto_resume/brand.py"}, token)
+            self.assertEqual(srcscan.holders(token), {"codex_auto_resume/brand/css.py"}, token)
         # An ease-out: it leaves at once and settles, and it is the path brand.ease() gives the
         # window and the popup.
         for step in range(101):
@@ -1052,7 +1056,7 @@ class ScriptTests(unittest.TestCase):
 
 # ------------------------------------------------------------------------------------ tiles
 try:
-    from codex_auto_resume import tray_popup
+    from codex_auto_resume.ui import popup as tray_popup
 except Exception:                                                         # pragma: no cover - not Windows
     tray_popup = None
 

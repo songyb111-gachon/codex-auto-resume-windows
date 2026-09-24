@@ -77,7 +77,7 @@ class LiveReadOnlyTests(unittest.TestCase):
 
     def test_detection_pass_is_read_only_and_never_sends(self):
         import time
-        from codex_auto_resume.source import LocalSource
+        from codex_auto_resume.codex import LocalSource
         source = LocalSource(self.home)
         # Reads the real history read-only; returns eligible interruptions (possibly none).
         failures = source.latest_failures(time.time() - 30 * 86400)

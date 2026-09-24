@@ -27,6 +27,7 @@ from __future__ import annotations
 import ctypes
 import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -40,7 +41,7 @@ import frozen_registry  # noqa: E402
 from codex_auto_resume import config, machine, windows  # noqa: E402
 from codex_auto_resume.app import App  # noqa: E402
 from codex_auto_resume.engine import Engine  # noqa: E402
-from codex_auto_resume.source import LocalSource  # noqa: E402
+from codex_auto_resume.codex import LocalSource  # noqa: E402
 from codex_auto_resume.store import Store  # noqa: E402
 
 
@@ -131,7 +132,7 @@ class Fixture:
         case.addCleanup(guard.stop)
         for name in (config.ENV_CODEX_EXE, config.ENV_HOME):
             os.environ.pop(name, None)
-        runner = patch.object(windows.S, "run", side_effect=self.codex.run)
+        runner = patch.object(subprocess, "run", side_effect=self.codex.run)
         runner.start()
         case.addCleanup(runner.stop)
         self.app = App(self.paths, codex_home=self.home.root, console=False, enable_logging=False)
