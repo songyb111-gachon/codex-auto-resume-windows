@@ -81,7 +81,7 @@ ITEM = {_q(name): item for item, names in {
               "compat.model", "compat.standing", "compat.report", "compat.files", "compat.cache", "compat.probes", "compat.views", "compat.evaluator"),
     "control": ("control", "control.actions", "control.codexstart", "control.errors",
                 "control.layer", "control.policy", "control.preview", "control.records",
-                "control.seen", "control.state", "control.watcher",
+                "control.seen", "control.state", "control.watcher", "control.wire",
                 "auto_resume", "cli", "controlcli", "diagnostics",
                 "commands", "commands.base", "commands.install", "commands.records",
                 "commands.status", "commands.watcher",

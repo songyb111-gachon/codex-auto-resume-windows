@@ -195,8 +195,29 @@ KNOWN_DRIFT = {
         "test_a_dashboard_part_that_fails_costs_only_that_part pins that shape",
 }
 
-# Step 4's TypedDicts, by the receiver they type: {(file, receiver): TypedDict}. Empty until then.
-TYPED = {}
+# The typed contracts (control/wire.py, v0.6.10-alpha), by the receiver they type. Every name a
+# receiver here is read by has to be a key of its contract; tests/test_wire_types.py holds each
+# contract to the goldens the other way. A receiver whose shape has no contract - a whole reply,
+# the settings map, which the schema types instead - is simply not listed.
+from codex_auto_resume.control import wire  # noqa: E402
+
+_ROW, _COMPAT = wire.PendingRow, wire.CompatView
+_TYPED = {
+    "gui/Dashboard.cs": {
+        "row": _ROW, "chosen": _ROW, "fresh": _ROW, "Tag": _ROW,
+        "item": wire.TimelineEvent,
+        "status": wire.StatusSnapshot, "watcher": wire.WatcherView,
+        "view": _COMPAT, "live": _COMPAT, "report": _COMPAT, "compatLive": _COMPAT,
+        "engine": wire.CompatEngine, "data": wire.CompatData, "entry": wire.CompatCapability,
+        "week": wire.Statistics, "stats": wire.Statistics, "outcomes": wire.Outcomes,
+    },
+    "gui/SettingsApp.cs": {
+        "status": wire.StatusSnapshot,
+        "field": wire.SchemaField, "styleField": wire.SchemaField,
+    },
+}
+TYPED = {(name, receiver): contract for name, table in _spread(_TYPED).items()
+         for receiver, contract in table.items()}
 
 
 # ------------------------------------------------------------------------------ the goldens

@@ -80,7 +80,7 @@ LAYER = {_q(name): layer for layer, names in {
     # mixins. `layer` is where the composition lives, so that the front holds no code.
     "control": ("control", "control.actions", "control.codexstart", "control.errors",
                 "control.layer", "control.policy", "control.preview", "control.records",
-                "control.seen", "control.state", "control.watcher", "diagnostics"),
+                "control.seen", "control.state", "control.watcher", "control.wire", "diagnostics"),
     "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcp.panel", "app", "ui.tray",
               # v0.6.10-alpha: app.py became runtime/ - the wiring, the loop and the toasts.
               "runtime", "runtime.app", "runtime.loop", "runtime.toasts",
