@@ -424,6 +424,28 @@ old identifier line — before anything noticed. If you photograph one for an is
 photograph a real conversation: it shows the conversation's identifier, and a screenshot of a
 real one publishes it permanently.
 
+**Every surface is pictured from one set of records at one moment.** The window's sample
+records (`seed_window_state`) are written once, at the moment the popup and the panel are drawn
+at, and read back the way each surface reads them: the popup's rows and the panel's rows are the
+window's two waiting recoveries, with the same names, states and times, and the panel's page is
+told that moment and reads clock times in UTC, as the card does. So a countdown, a chip and a count
+say the same on all four pictures.
+
+**To audit the look, draw both themes side by side.** The committed pictures are the light theme's
+only. For a change to how the product looks, draw contact sheets of the window's Overview and
+Pending pages, the top of the panel, the popup and the card, in the light and the dark theme, every
+surface at the scale the window is captured at:
+
+```
+python build/make_screenshots.py --audit <folder>
+python build/make_screenshots.py --audit <another folder> --before <folder>
+```
+
+The second form adds a before-and-after sheet per theme. It needs what a whole run needs - Windows,
+Edge and the compiled window, run from PowerShell - and writes only into the folder it is given: it
+refuses a folder in `docs/` or `assets/` and never touches the manifest. The window is captured from
+a scratch installation, as for the published pictures, so your own installation is never touched.
+
 ## Fixtures and privacy
 
 Everything committed here is public, including test fixtures and documentation examples. They
