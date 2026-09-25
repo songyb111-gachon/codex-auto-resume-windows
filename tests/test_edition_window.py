@@ -264,6 +264,19 @@ class WindowTests(unittest.TestCase):
         for data in (self.standard, self.advanced):
             self.assertEqual(normalize_pe.normalise(data), data)
 
+    def test_both_windows_are_windows_programs_and_the_launcher_a_console_one(self):
+        """The subsystem in each PE's optional header. The icon and WindowReopen start the
+        settings window by name, so a window built /target:exe in either edition would open a
+        console beside it; the MCP launcher speaks over stdio and is a console program. Nothing
+        read this before, so an -Edition advanced build that slipped would have gone unseen."""
+        def subsystem(data):
+            header = int.from_bytes(data[0x3C:0x40], "little")
+            self.assertEqual(data[header:header + 4], b"PE\x00\x00")
+            return int.from_bytes(data[header + 24 + 68:header + 24 + 70], "little")
+        launcher = (self.work / "standard" / LAUNCHER).read_bytes()
+        self.assertEqual([subsystem(data) for data in (self.standard, self.advanced, launcher)],
+                         [2, 2, 3], "IMAGE_SUBSYSTEM_WINDOWS_GUI is 2, _WINDOWS_CUI 3")
+
     def test_each_window_names_its_edition_in_its_version_resource(self):
         read = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", READ_VERSION],
                               capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
