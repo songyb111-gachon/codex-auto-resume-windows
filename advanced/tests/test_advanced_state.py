@@ -16,6 +16,7 @@ from pathlib import Path
 import sqlite3
 import subprocess
 import sys
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -149,6 +150,57 @@ class FileTests(StateCase):
         self.assertFalse(state.exists())
         self.assertEqual(state.arming(), {})
         self.assertEqual(sorted(path.name for path in target.iterdir()), before)
+
+
+class ThreadTests(StateCase):
+    """One process's state serves every thread of that process. The MCP server asks P9 on its
+    start-for-codex thread and answers tool calls on its main one; the watcher's engine and its
+    tray popup share one plug. The connection belonged to whichever thread opened it, so a
+    disarm from MCP was refused and the badge said nothing was on."""
+
+    def elsewhere(self, work):
+        errors, answers = [], []
+
+        def run():
+            try:
+                answers.append(work())
+            except Exception as exc:                   # the failure is the finding
+                errors.append(exc)
+        thread = threading.Thread(target=run)
+        thread.start()
+        thread.join()
+        self.assertEqual(errors, [])
+        return answers[0]
+
+    def test_a_state_opened_on_one_thread_is_read_and_written_on_another(self):
+        state = self.state()
+        state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1, at=self.now)
+        self.assertEqual(self.elsewhere(lambda: state.arming()["test_wake"]["state"]), ArmingState.SHADOW)
+        moved = self.elsewhere(lambda: state.move("test_wake", ArmingState.OFF, actor=Actor.MCP,
+                                                  reason=OffReason.DISARMED, at=self.now)[0])
+        self.assertTrue(moved)
+        self.assertEqual(state.arming()["test_wake"]["state"], ArmingState.OFF)
+
+    def test_threads_at_once_each_have_a_whole_transaction(self):
+        state = self.state()
+        state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1, at=self.now)
+        before = len(state.journal())
+        errors = []
+
+        def writer():
+            try:
+                for _ in range(25):
+                    state.note(JournalCode.OTHER, at=self.now)
+                    state.arming()
+            except Exception as exc:
+                errors.append(exc)
+        threads = [threading.Thread(target=writer) for _ in range(6)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual(errors, [])
+        self.assertEqual(len(state.journal()) - before, 150)
 
 
 class ClosedWordTests(StateCase):
