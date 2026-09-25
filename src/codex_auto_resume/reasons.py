@@ -86,7 +86,10 @@ _ENTRIES = (
     _reason("terminal_invalid", recoverable=False, order=55),
     _reason("terminal_failure", recoverable=False, order=56),
     # Reserved (failures.RESERVED): nothing produces it. Its label stays so a row that names
-    # it still reads; it has no switch, no continuation text and no Custom message.
+    # it still reads; it has no switch, no continuation text and no Custom message. The old
+    # switch's label, field.recover_auth_service_transient, stays in the catalogs too, for the
+    # one page that still reads it: Statistics lists the kinds it counted by field.recover_<kind>
+    # (tests/test_reasons.py says so, and fails when that reader changes).
     _reason("auth_service_transient", recoverable=False, order=57),
 )
 

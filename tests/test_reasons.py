@@ -141,6 +141,21 @@ class ReachabilityTests(unittest.TestCase):
                 self.assertIsNone(entry.detailed_key)
                 self.assertFalse(entry.configurable)
 
+    def test_its_old_switch_label_stays_only_for_the_page_that_still_reads_it(self):
+        """`field.recover_<name>` of a reserved name labels no setting any more, and a stored row is
+        labelled by its reason (`reason.<name>`). It stays in all nine catalogs for one reader: the
+        Dashboard's Statistics lists the kinds it counted by `field.recover_<kind>`
+        (DashboardActions.ApplyStatistics), and a stored row may name the reserved kind. The reason
+        label's own fallback (DashboardData) reads it as well. Should the Statistics reader change,
+        this fails, and the key can go from the catalogs and the basis files."""
+        statistics = (Path(__file__).resolve().parents[1] / "gui" / "DashboardActions.cs").read_text(
+            encoding="utf-8")
+        self.assertIn('S("field.recover_" + pair.Key, pair.Key)', statistics)
+        for category in failures.RESERVED:
+            for locale in l10n.LOCALES:
+                with self.subTest(category=category, locale=locale):
+                    self.assertTrue(l10n._read(locale).get("field.recover_" + category, "").strip())
+
 
 class EntryTests(unittest.TestCase):
     def test_every_label_and_message_key_exists_in_english(self):
