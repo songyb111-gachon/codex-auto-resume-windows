@@ -144,7 +144,11 @@ SAFE_VERSION_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9 ._+()-]{0,79}")
 TIMESTAMP_RE = re.compile(r"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z")
 DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 ADVISORY_ID_RE = re.compile(r"CAR-\d{4}-\d{4}")
-EVIDENCE_RE = re.compile(r"docs/evidence/[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*\.json")
+# Evidence is the maintainer's own. docs/evidence/community/ holds other people's reports,
+# which count towards Reported beside the ladder and never towards a tier, so a claim may not
+# cite one: a document that does is refused whole (tests/test_compat.py). The folder is
+# refused in any letter case, as Windows would open it in any.
+EVIDENCE_RE = re.compile(r"docs/evidence/(?!(?i:community)(?:/|$))[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*\.json")
 HEX64_RE = re.compile(r"[0-9a-f]{64}")
 
 
