@@ -51,15 +51,22 @@ namespace CodexAutoResume
             compatChecked = Fact(facts, S("compat.checked", "Checked"));
             compatData = Fact(facts, S("compat.data", "Data in force"));
             // What the view cannot vouch for - no report, one too old, an engine that changed, a watcher still acting on
-            // what it found when it started, refreshed data that expired - in the accent, as the upgrade note above is.
-            compatNotice = HelpText("");
-            compatNotice.ForeColor = Accent;
-            // Every group on the card - the facts, this, the parts, what the words mean, the refresh - the scale's
-            // medium step apart, as the button is from what its card holds (LeadGap).
+            // what it found when it started, refreshed data that expired - each notice a callout of its own, as the
+            // panel sets the same notices apart (SoftCallout, v0.6.10). Until then they were one block of help text in
+            // the accent, and the two surfaces said the same thing two ways.
+            compatNotice = new SoftStack();
+            compatNotice.ColumnCount = 1;
+            compatNotice.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            compatNotice.AutoSize = true;
+            compatNotice.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            compatNotice.Dock = DockStyle.Fill;
+            compatNotice.BackColor = Card;
+            // Every group on the card - the facts, these, the parts, what the words mean, the refresh - the scale's
+            // medium step apart, as the button is from what its card holds (LeadGap). As wide as the card, which is
+            // the page's width: at the help text's 600 px a sentence of this card broke in two with most of the card
+            // empty beside it.
             compatNotice.Margin = Pad(0, Brand.SpaceM, 0, 0);
-            // As wide as the card, which is the page's width: at the help text's 600 px a sentence of this card broke
-            // in two with most of the card empty beside it.
-            compatNotice.MaximumSize = Size.Empty;
+            compatNotice.Visible = false;
             card.Controls.Add(compatNotice);
             // The parts, in two lists side by side: rows as the panel's settings rows are, a hairline between each two
             // and the state as a chip at the end (GateList, as Why it is waiting draws its checks).
@@ -179,7 +186,7 @@ namespace CodexAutoResume
             {
                 string nothing = compatUnreadable ? S("pending.unavailable", "This cannot be read right now") : "-";
                 compatOverall.Text = compatEngine.Text = compatChecked.Text = compatData.Text = compatUnreadable ? S("diag.unknown", "unknown") : "-";
-                SetLines(compatNotice, compatUnreadable ? new List<string> { nothing } : notices);
+                SetCallouts(compatNotice, compatUnreadable ? new List<string> { nothing } : notices);
                 ShowParts(shown);
                 SetLines(compatLegend, notices);
                 return;
@@ -205,7 +212,7 @@ namespace CodexAutoResume
             string cache = usable ? Str(Map(view, "data"), "cache") : null;
             if (cache == "expired" || cache == "from_the_future" || cache == "rejected" || cache == "superseded" || cache == "from_newer_product")
                 notices.Add(S("compat.cache." + cache, cache.Replace('_', ' ')));
-            SetLines(compatNotice, notices);
+            SetCallouts(compatNotice, notices);
             var capabilities = Map(view, "capabilities");
             // The words the card shows, explained: the overall's and the parts', when there are parts to show. A view that
             // cannot be used is unknown for the one reason its notice gives, which the legend's reason would contradict.
@@ -262,6 +269,37 @@ namespace CodexAutoResume
             if (source == "none" || !(sequence is double)) return said;
             return S("compat.source_sequence", "{source}, #{sequence}").Replace("{source}", said)
                    .Replace("{sequence}", ((int)(double)sequence).ToString(CultureInfo.InvariantCulture));
+        }
+
+        /// A callout for each notice, in order, the scale's medium step apart as the panel's are, and nothing - no room
+        /// taken - while there are none (v0.6.10). The callouts are made again only when what they say changed, and
+        /// the old ones let go of; its own visibility decides, as SetLines' does.
+        private void SetCallouts(TableLayoutPanel stack, List<string> notices)
+        {
+            var said = new List<string>();
+            foreach (Control callout in stack.Controls) said.Add(callout.AccessibleName ?? "");
+            if (string.Join("\n", said.ToArray()) != string.Join("\n", notices.ToArray()))
+            {
+                stack.SuspendLayout();
+                var old = new List<Control>();
+                foreach (Control callout in stack.Controls) old.Add(callout);
+                stack.Controls.Clear();
+                foreach (Control callout in old) callout.Dispose();
+                stack.RowStyles.Clear();
+                stack.RowCount = Math.Max(1, notices.Count);
+                for (int row = 0; row < notices.Count; row++)
+                {
+                    var callout = new SoftCallout(notices[row]);
+                    callout.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
+                    callout.Margin = new Padding(0, row == 0 ? 0 : Px(Brand.SpaceM), 0, 0);
+                    stack.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                    stack.Controls.Add(callout, 0, row);
+                }
+                stack.ResumeLayout();
+                if (stack.Parent != null) stack.Parent.PerformLayout();
+            }
+            bool any = notices.Count > 0;
+            if (Soft.OwnVisible(stack) != any) stack.Visible = any;
         }
 
         /// Lines of text in a label that says nothing, and takes no room, while it has none. Its own visibility, not

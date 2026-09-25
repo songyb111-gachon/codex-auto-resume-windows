@@ -205,6 +205,10 @@ class WordsTests(unittest.TestCase):
     def test_the_card_is_laid_out_as_the_windows_other_cards_are(self):
         build = method(self.dashboard, "private TableLayoutPanel BuildCompatibility()")
         self.assertIn('MakeCard(S("compat.title", "Codex compatibility"))', build)
+        self.assertIn("compatNotice = new SoftStack();", build, "the notices are callouts, one each (v0.6.10)")
+        self.assertNotIn("compatNotice.ForeColor", build, "no longer help text in the accent")
+        self.assertEqual(self.dashboard.count("SetCallouts(compatNotice, "), 2)
+        self.assertNotIn("SetLines(compatNotice", self.dashboard)
         self.assertIn("Facts(card)", build, "facts as the Health card has them")
         self.assertIn("compatLeft = CompatList();", build)
         self.assertIn("compatButton.Anchor = AnchorStyles.Left | AnchorStyles.Bottom;", build,
@@ -272,11 +276,15 @@ function Get-Rows($list) {
     return @($rows | ForEach-Object { ($_ -join '|') })
 }
 function Look($window) {
+    # What the view cannot vouch for: a callout each since v0.6.10, read as the lines they say.
     $notice = Get-Field $window 'compatNotice'
+    $callouts = @($notice.Controls | ForEach-Object { $_ })
     $legend = Get-Field $window 'compatLegend'
     return @{ overall = [string](Get-Field $window 'compatOverall').Text; engine = [string](Get-Field $window 'compatEngine').Text
               checked = [string](Get-Field $window 'compatChecked').Text; data = [string](Get-Field $window 'compatData').Text
-              notice = [string]$notice.Text; noticeShown = (Test-Own $notice); legend = [string]$legend.Text; legendShown = (Test-Own $legend)
+              notice = [string](($callouts | ForEach-Object { [string]$_.AccessibleName }) -join "`n"); noticeShown = (Test-Own $notice)
+              callouts = @($callouts | ForEach-Object { [string]$_.GetType().Name })
+              legend = [string]$legend.Text; legendShown = (Test-Own $legend)
               left = @(Get-Rows (Get-Field $window 'compatLeft')); right = @(Get-Rows (Get-Field $window 'compatRight'))
               listsShown = (Test-Own (Get-Field $window 'compatLists'))
               note = [string](Get-Field $window 'compatNote').Text; button = [string](Get-Field $window 'compatButton').Text
@@ -313,6 +321,18 @@ Invoke-Window $early 'ApplyCompatibility' @((Read-Json 'rich.json'), $false) | O
 Invoke-Window $early 'ShowPage' @('diagnostics') | Out-Null
 $out.cards.early = Look $early
 $early.Dispose()
+# The fullest card's callouts, made of the brand's numbers (v0.6.10).
+$calloutWindow = New-Window $english
+Invoke-Window $calloutWindow 'ShowPage' @('diagnostics') | Out-Null
+Invoke-Window $calloutWindow 'ApplyCompatibility' @((Read-Json 'rich.json'), $false) | Out-Null
+$out.callouts = @(@((Get-Field $calloutWindow 'compatNotice').Controls | ForEach-Object { $_ }) | ForEach-Object {
+    @{ type = [string]$_.GetType().Name; padding = @($_.Padding.Left, $_.Padding.Top, $_.Padding.Right, $_.Padding.Bottom)
+       anchor = [string]$_.Anchor; margin = @($_.Margin.Left, $_.Margin.Top, $_.Margin.Right, $_.Margin.Bottom)
+       text = [string]$_.AccessibleName; role = [string]$_.AccessibleRole; children = [int]$_.Controls.Count
+       ink = [int]$_.ForeColor.ToArgb(); back = [int]$_.BackColor.ToArgb() } })
+$out.dpi = [double]$form.GetProperty('DpiScale', $static).GetValue($null, $null)
+$out.contrast = [bool]$assembly.GetType('CodexAutoResume.Palette', $true).GetField('Contrast', $static).GetValue($null)
+$calloutWindow.Dispose()
 
 # The live check a refresh answered with stands until a report as new arrives.
 Invoke-Window $window 'ApplyCompatibility' @((Read-Json 'live.json'), $true) | Out-Null
@@ -570,6 +590,42 @@ class CardTests(unittest.TestCase):
         self.assertEqual(card["notice"].splitlines(), [ENGLISH["diag.compat_acting_differs"], ENGLISH["compat.cache.expired"]])
         self.assertTrue(card["noticeShown"])
         self.assertEqual(self.card("early"), card, "a view read before the page was built is shown once it is")
+
+    def test_each_notice_is_a_callout_of_its_own_made_of_the_brands_numbers(self):
+        """v0.6.10 (F11): the notices the panel sets apart as callouts the window sets apart the same way - a callout
+        each (SoftCallout): the accent's soft tint, padded LAYOUT's `callout_pad` with the badge and `callout_gap` before
+        the words, which are in ink, Korean broken between its words (Soft.Wrap) and read out as the callout's name, and
+        the scale's medium step between two. Until then they were one block of help text in the accent, and the
+        callout's numbers went unused."""
+        rich = self.card("rich")
+        self.assertEqual(rich["callouts"], ["SoftCallout", "SoftCallout"])
+        self.assertEqual(self.card("ok")["callouts"], [], "nothing to say: no callout and no room")
+        self.assertEqual(self.card("unreadable")["callouts"], ["SoftCallout"])
+        callouts = self.answer["callouts"]
+        self.assertEqual([callout["text"] for callout in callouts],
+                         [ENGLISH["diag.compat_acting_differs"], ENGLISH["compat.cache.expired"]])
+        from codex_auto_resume import brand
+        scale = self.answer["dpi"]
+
+        def px(value):
+            return int(round(value * scale))                   # Math.Round, to even as Python's round is
+
+        top, right, bottom, left = brand.padding("callout_pad")
+        start = px(left + brand.LAYOUT["callout_badge"] + brand.LAYOUT["callout_gap"])
+        for index, callout in enumerate(callouts):
+            with self.subTest(index=index):
+                self.assertEqual(callout["type"], "SoftCallout")
+                self.assertEqual(callout["padding"], [start, px(top), px(right), px(bottom)])
+                self.assertEqual(callout["margin"], [0, 0 if index == 0 else px(brand.SPACING["m"]), 0, 0])
+                self.assertEqual(set(callout["anchor"].replace(" ", "").split(",")), {"Top", "Left", "Right"})
+                self.assertEqual((callout["role"], callout["children"]), ("StaticText", 0),
+                                 "it draws its notice itself and says it as its name")
+                if not self.answer["contrast"]:
+                    def argb(colour):
+                        value = 0xFF000000 | int(colour.lstrip("#"), 16)
+                        return value - (1 << 32)
+                    self.assertEqual(callout["back"], argb(brand.LIGHT["accent_soft"]))
+                    self.assertEqual(callout["ink"], argb(brand.LIGHT["ink"]))
 
     def test_a_card_updated_while_another_page_shows_keeps_no_line_it_no_longer_has(self):
         """Visible answers false for every label on a page that is not on screen, so the card asks for its own."""

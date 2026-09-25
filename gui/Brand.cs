@@ -89,6 +89,8 @@ namespace CodexAutoResume
         internal const int HeroPadBottom = 16;
         internal const int HeroPadLeft = 20;
         internal const int HeroGap = 4;
+        internal const int LightInset = 9;
+        internal const int LightGap = 14;
         internal const int SavebarPadTop = 10;
         internal const int SavebarPadRight = 12;
         internal const int SavebarPadBottom = 10;

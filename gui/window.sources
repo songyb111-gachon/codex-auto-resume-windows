@@ -49,6 +49,7 @@ gui/SoftLayout.cs
 gui/SoftFields.cs
 gui/SoftCombo.cs
 gui/SoftList.cs
+gui/SoftCallout.cs
 gui/Marks.cs
 
 [generated]

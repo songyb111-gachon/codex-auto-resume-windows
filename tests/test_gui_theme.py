@@ -489,6 +489,22 @@ foreach ($theme in @('light', 'dark')) {
     $versionText = Get-Field $window 'versionText'
     $entry.version = @{ fore = [int]$versionText.ForeColor.ToArgb()
                         card = [int]$paletteType.GetField('Card', $static).GetValue($null).ToArgb() }
+    # The Statistics page's outcomes (v0.6.10): a bar each, in the colour History draws the outcome's word in -
+    # [code, word, its tone, what the bar is filled with, History's tone for a row of that code].
+    $null = Invoke-Window $window 'ApplyStatistics' @($parse.Invoke($null, [object[]]@([IO.File]::ReadAllText((Join-Path $work 'statistics.json'), $utf8))))
+    $chartType = $assembly.GetType('CodexAutoResume.OutcomeChart', $true)
+    $barType = $assembly.GetType('CodexAutoResume.OutcomeChart+Bar', $true)
+    $fillOf = $chartType.GetMethod('Fill', $static)
+    $toneFor = $formType.GetMethod('ToneFor', $static)
+    $entry.outcomes = @()
+    foreach ($bar in $chartType.GetField('Bars', $instance).GetValue((Get-Field $window 'chart'))) {
+        $row = [Collections.Generic.Dictionary[string,object]]::new()
+        $row['code'] = [string]$barType.GetField('Code', $instance).GetValue($bar)
+        $entry.outcomes += ,@([string]$row['code'], [string]$barType.GetField('Label', $instance).GetValue($bar),
+                              [int]$barType.GetField('Tone', $instance).GetValue($bar).ToArgb(),
+                              [int]$fillOf.Invoke($null, [object[]]@($bar)).ToArgb(),
+                              [int]$toneFor.Invoke($null, [object[]]@(,$row)).ToArgb())
+    }
     $out.window[$theme] = $entry
     $window.Dispose()
 }
@@ -790,6 +806,11 @@ PLACES = [
 ]
 
 
+# The outcomes the Statistics page counts, in the store's own words (store.statistics()["outcomes"]).
+OUTCOMES = ("cancelled", "delivered_legacy", "exhausted", "failed_terminal", "handed_over", "no_progress",
+            "outcome_unverified", "recovered", "recovery_failed", "stopped_by_user", "submission_unknown", "superseded")
+
+
 @unittest.skipUnless(CSC.is_file() and POWERSHELL.is_file(), "needs the in-box compiler and PowerShell")
 class WindowThemeTests(unittest.TestCase):
     @classmethod
@@ -814,6 +835,11 @@ class WindowThemeTests(unittest.TestCase):
         (work / "schema.json").write_text(json.dumps(settings.describe(), ensure_ascii=False), encoding="utf-8")
         (work / "settings.json").write_text(json.dumps(settings.defaults(), ensure_ascii=False), encoding="utf-8")
         (work / "snapshot.json").write_text(json.dumps(fullest_snapshot(time.time()), ensure_ascii=False), encoding="utf-8")
+        # Every outcome the Statistics page counts, each a different number, as the store's statistics() gives them.
+        (work / "statistics.json").write_text(json.dumps(
+            {"interruptions_detected": 99, "continuations_submitted": 90, "success_rate": 0.5, "success_denominator": 20,
+             "outcomes": {code: index + 1 for index, code in enumerate(OUTCOMES)}, "by_category": {"usage_limit": 99},
+             "retry_now_requests": 0}), encoding="utf-8")
         probe = work / "probe.ps1"
         probe.write_text(PROBE, encoding="utf-8")
         cls.booleans = [entry["name"] for entry in settings.describe() if entry["type"] == "boolean"] + ["__startup"]
@@ -1131,6 +1157,34 @@ class WindowThemeTests(unittest.TestCase):
                 self.assertEqual(card, brand.card_ground(theme).upper())
                 self.assertEqual(fore, tokens["muted"].upper())
                 self.assertGreaterEqual(brand.contrast(fore, card), 4.5, "%s on %s" % (fore, card))
+
+    def test_each_outcome_s_bar_is_the_colour_history_draws_its_word_in(self):
+        """v0.6.10 (F12): the Statistics page draws each outcome's bar in the tone History gives the outcome's word -
+        recovered green, finished without progress amber, stopped by you grey, failed red - where every bar was the
+        accent's blue; the word stays beside its bar. Each tone reads at 3:1 or better on the card, as a graphic must,
+        in light and in dark."""
+        tones = {"recovered": "success", "delivered_legacy": "success", "no_progress": "warning",
+                 "exhausted": "warning", "handed_over": "warning", "outcome_unverified": "warning",
+                 "submission_unknown": "warning", "recovery_failed": "danger", "failed_terminal": "danger",
+                 "stopped_by_user": "paused", "cancelled": "paused", "superseded": "paused"}
+        self.assertEqual(sorted(tones), sorted(OUTCOMES))
+        from codex_auto_resume.store import Store
+        with tempfile.TemporaryDirectory() as temp, Store(Path(temp) / "state") as store:
+            self.assertEqual(sorted(store.statistics()["outcomes"]), sorted(OUTCOMES), "every outcome the store counts")
+        for theme, tokens in (("light", brand.LIGHT), ("dark", brand.DARK)):
+            bars = self.answer["window"][theme]["outcomes"]
+            with self.subTest(theme):
+                self.assertEqual(sorted(code for code, *_ in bars), sorted(OUTCOMES), "a bar for every outcome")
+                self.assertEqual([code for code, *_ in bars],
+                                 sorted(OUTCOMES, key=lambda code: -(OUTCOMES.index(code) + 1)), "most first")
+                for code, word, tone, fill, history in bars:
+                    with self.subTest(code=code):
+                        self.assertEqual(word, l10n.catalog("en")["code." + code])
+                        self.assertEqual(tone, history, "History's tone for the same outcome")
+                        self.assertEqual(fill, tone)
+                        self.assertEqual(tone, argb(tokens[tones[code]]))
+                        self.assertGreaterEqual(brand.contrast(tokens[tones[code]], brand.card_ground(theme)), 3.0)
+                self.assertGreater(len({tone for _, _, tone, _, _ in bars}), 1, "not one colour for every outcome")
 
     def test_nothing_in_the_dark_window_keeps_a_light_colour(self):
         """Every opaque colour on every control of every page, built and filled, is one of the dark
