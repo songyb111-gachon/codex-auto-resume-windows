@@ -106,7 +106,7 @@ the installation directory. The last two are described below the table.
 | `resume_auto_recovery` | Undoes a global pause. | yes |
 | `enable_conversation_recovery` | Switches recovery back on for one exact conversation. Nothing is sent; every check still applies. | yes |
 | `update_settings` | Changes user-facing settings: the Interface language, the recovery categories, the limits, the notifications, the continuation message's language, style and Custom mode, and the theme. Not the Custom message text itself (below). | yes |
-| `restore_default_settings` | Puts every setting back to its recommended value. | yes |
+| `restore_default_settings` | Puts every setting back to its recommended value - the Design to Soft and Reduce motion off among them, though Codex can set neither. | yes |
 | `cancel_recovery` | Stops the named interruption and every record that continues it. One that was never sent is cancelled outright; one that may already be in Codex is marked, and the watcher takes back whatever is still queued - a turn already running is not stopped. The conversation itself stays switched on. | yes |
 | `reset_recovery_budget` | Returns an exhausted record to waiting, as above. | yes |
 | `clear_recovery_history` | Hides finished recoveries from the history. Deletes nothing and cancels nothing; a recovery that may still change stays visible, and hidden rows still count for every safety check. | yes |
@@ -147,7 +147,11 @@ destructive, so it does not request approval through that annotation, and `get_s
 reports the installation directory as `home`. Nor does `update_settings` offer the preferences
 that belong to Windows - the notification-area icon (`show_tray`), Reduce motion
 (`reduce_motion`) and, from v0.6.5, the notification card (`notification_card`) - which the
-panel does not show either. From v0.6.4 it does offer the theme, and from v0.6.6 the panel's own
+panel does not show either. From v0.6.10 it does not offer the Design (`design`) either, and
+refuses it from a client that sends it anyway, alone or beside a setting it does offer: the
+Design decides what moves on every surface - Soft without motion stops it and Soft starts it
+again - so it is the Dashboard's, as Reduce motion is. The panel draws in both and changes
+neither. From v0.6.4 it does offer the theme, and from v0.6.6 the panel's own
 theme beside it (`panel_theme`): the two appearance settings the panel shows. No tool refreshes or imports the Codex compatibility data: that happens only from
 the window's Diagnostics page, its update check, or the command line.
 
