@@ -105,6 +105,10 @@ Pending page's check results still read *OK*, *Waiting*, *Blocked* and *Unknown*
 - **One set of records, one moment.** The panel, the popup, the card and the Dashboard are pictured
   from one set of records at one set of offsets, so a countdown, a chip and a count say the same on
   all four; until now the panel's rows both said *due now* and the popup had a row the others did not.
+- **The same window, the same picture.** The Dashboard is photographed with Windows' keyboard cues
+  hidden, as it looks to a person using the mouse. A new window takes the focus ring's state from how
+  the last input reached the machine, so the Settings picture had a ring round the Overview tab in some
+  releases and none in others, with nothing in the source changed.
 - **Every light that moves, moving.** A picture's status lights move as the product moves them: the
   popup and the card frame by frame by their own renderers, and the panel's two lights and the
   Dashboard's drawn over the capture, each on the ground it stands on, for exactly one cycle - a
