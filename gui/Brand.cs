@@ -15,6 +15,11 @@
 //
 // Brand.Mark (v0.6.5) is the notification-area icon's motion for the window's taskbar button: the
 // icon's states, rhythms and frames from src/codex_auto_resume/tray.py, the frames as its own pixels.
+//
+// v0.6.10: the four designs (src/codex_auto_resume/brand/design.py). Brand and Brand.Dark are Soft's,
+// which Still draws in too; Brand.Classic and Brand.Plain, each with its own Dark, carry the colours,
+// the card's ground and the check box of the designs that have their own, under the same names. The
+// Design rules below say what else each design draws and what moves in it, by the design's name.
 
 using System;
 using System.Drawing;
@@ -68,9 +73,11 @@ namespace CodexAutoResume
         internal const double TransitionEaseY1 = 1;
         internal const double TransitionEaseX2 = 0.68;
         internal const double TransitionEaseY2 = 1;
+        internal const int AccentBar = 3;
 
         internal const string HexAccent = "#1257B8";
         internal const string HexBrand = "#1257B8";
+        internal const string DesignDefault = "soft";
 
         // The panel's sizes, in CSS px (brand.LAYOUT). A padding is written Top, Right, Bottom, Left.
         internal const int PagePadTop = 16;
@@ -452,6 +459,88 @@ namespace CodexAutoResume
             return false;
         }
 
+        /// A stored Design (v0.6.10) as the settings layer reads it: "soft", "still", "classic", "plain" exactly, and "soft" for
+        /// anything else - a missing value, another case, another type.
+        internal static string DesignOf(object value)
+        {
+            string text = value as string;
+            if (text == "soft" || text == "still" || text == "classic" || text == "plain") return text;
+            return DesignDefault;
+        }
+
+        /// The design whose colours a design draws in: its own, or soft's (brand.DESIGN_TOKENS).
+        internal static string DesignColours(string design)
+        {
+            if (design == "classic") return "classic";
+            if (design == "plain") return "plain";
+            return DesignDefault;
+        }
+
+        /// Whether a design draws shadows, sunken wells and a card lifted a step off the canvas (brand.DESIGN's depth).
+        internal static bool DesignDepth(string design)
+        {
+            if (design == "classic" || design == "plain") return false;
+            return true;
+        }
+
+        /// Whether a design draws the glow round the status light while the light moves (brand.DESIGN's glow).
+        internal static bool DesignGlow(string design)
+        {
+            if (design == "still" || design == "plain") return false;
+            return true;
+        }
+
+        /// Whether a design moves the status light at all - its breath, and checking's arc (brand.DESIGN's breathes).
+        internal static bool DesignBreathes(string design)
+        {
+            if (design == "still") return false;
+            return true;
+        }
+
+        /// Whether a design moves a control when it changes - a switch, a check box, a list rising open, the scroll (brand.DESIGN's glides).
+        internal static bool DesignGlides(string design)
+        {
+            if (design == "still" || design == "classic" || design == "plain") return false;
+            return true;
+        }
+
+        /// Whether a design draws v0.6.2's accent bar inside each card's left hairline and under the current tab (brand.DESIGN's accent_bar).
+        internal static bool DesignAccentBar(string design)
+        {
+            if (design == "classic") return true;
+            return false;
+        }
+
+        /// A design's corner radius for one of brand.RADII's roles ("card", "control", "chip", "small", "check"), in CSS px
+        /// (brand.DESIGN_RADII) - never larger than soft's. 0 for a role there is none of.
+        internal static int DesignRadius(string design, string role)
+        {
+            if (design == "classic")
+            {
+                if (role == "card") return 8;
+                if (role == "control") return 7;
+                if (role == "chip") return 999;
+                if (role == "small") return 6;
+                if (role == "check") return 4;
+                return 0;
+            }
+            if (design == "plain")
+            {
+                if (role == "card") return 8;
+                if (role == "control") return 4;
+                if (role == "chip") return 999;
+                if (role == "small") return 4;
+                if (role == "check") return 4;
+                return 0;
+            }
+            if (role == "card") return 16;
+            if (role == "control") return 11;
+            if (role == "chip") return 999;
+            if (role == "small") return 7;
+            if (role == "check") return 5;
+            return 0;
+        }
+
         /// The dark theme (brand.DARK and the dark elevation), under the same names Brand gives the
         /// light one. The Codex panel in dark is what it is held to.
         internal static class Dark
@@ -571,6 +660,226 @@ namespace CodexAutoResume
                     return false;
                 }
                 return false;
+            }
+        }
+
+        /// Classic's colours (brand.palette(theme, "classic")), under the names Brand gives Soft's: its card's ground
+        /// and its check box too, and Classic.Dark its dark twin. Its status light is Brand's, as every design's is.
+        internal static class Classic
+        {
+            internal static readonly Color Ink           = Color.FromArgb(0x0F, 0x1B, 0x2D);  // #0F1B2D, text
+            internal static readonly Color Muted         = Color.FromArgb(0x5A, 0x6B, 0x7F);  // #5A6B7F, secondary text
+            internal static readonly Color Line          = Color.FromArgb(0xDC, 0xE3, 0xEC);  // #DCE3EC, hairlines and card edges
+            internal static readonly Color Surface       = Color.FromArgb(0xFF, 0xFF, 0xFF);  // #FFFFFF, cards
+            internal static readonly Color Canvas        = Color.FromArgb(0xF2, 0xF5, 0xF9);  // #F2F5F9, the window behind them
+            internal static readonly Color Accent        = Color.FromArgb(0x12, 0x57, 0xB8);  // #1257B8, anything to read or to click
+            internal static readonly Color OnAccent      = Color.FromArgb(0xFF, 0xFF, 0xFF);  // #FFFFFF, text drawn on the accent
+            internal static readonly Color Active        = Color.FromArgb(0x06, 0xB6, 0xD4);  // #06B6D4, fill only: running
+            internal static readonly Color Idle          = Color.FromArgb(0x94, 0xA3, 0xB8);  // #94A3B8, fill only: stopped
+            internal static readonly Color Raised        = Color.FromArgb(0xFF, 0xFF, 0xFF);  // #FFFFFF, a control resting on a card
+            internal static readonly Color Inset         = Color.FromArgb(0xF2, 0xF5, 0xF9);  // #F2F5F9, pressed, selected, a well
+            internal static readonly Color ShadowDark    = Color.FromArgb(0xB7, 0xC4, 0xD4);  // #B7C4D4, shadow below and right of a raised surface
+            internal static readonly Color ShadowLight   = Color.FromArgb(0xFF, 0xFF, 0xFF);  // #FFFFFF, highlight above and left of it
+            internal static readonly Color AccentSoft    = Color.FromArgb(0xE7, 0xEE, 0xF8);  // #E7EEF8, a quiet accent ground
+            internal static readonly Color Focus         = Color.FromArgb(0x12, 0x57, 0xB8);  // #1257B8, keyboard focus ring
+            internal static readonly Color Attention     = Color.FromArgb(0xB4, 0x53, 0x09);  // #B45309, fill only: needs a person
+            internal static readonly Color Success       = Color.FromArgb(0x15, 0x70, 0x45);  // #157045, recovered
+            internal static readonly Color Waiting       = Color.FromArgb(0x1A, 0x5F, 0xA8);  // #1A5FA8, waiting for a reset or retry
+            internal static readonly Color Warning       = Color.FromArgb(0x9A, 0x4A, 0x06);  // #9A4A06, needs a decision soon
+            internal static readonly Color Danger        = Color.FromArgb(0xB4, 0x23, 0x18);  // #B42318, stopped or failed
+            internal static readonly Color Paused        = Color.FromArgb(0x55, 0x65, 0x7A);  // #55657A, deliberately quiet
+            internal static readonly Color AccentHover   = Color.FromArgb(0x13, 0x5D, 0xC5);  // #135DC5, the primary button under the pointer
+            internal static readonly Color AccentPressed = Color.FromArgb(0x12, 0x50, 0xA7);  // #1250A7, the primary button pressed
+            internal static readonly Color CardGround    = Color.FromArgb(0xFF, 0xFF, 0xFF);  // #FFFFFF, a card's own ground: surface lifted toward raised
+
+            /// The check box's fill (brand.CHECKBOX): the well unchecked, the accent checked, the surface
+            /// when disabled. `on` is checked; draw the inset elevation inside the border when CheckWell.
+            internal static Color CheckFill(bool on, bool enabled)
+            {
+                if (!on && enabled) return Inset;
+                if (on && enabled) return Accent;
+                return Surface;
+            }
+
+            /// The check box's hairline edge: muted unchecked, where nothing inside says it is a box.
+            internal static Color CheckEdge(bool on, bool enabled)
+            {
+                if (!on && enabled) return Muted;
+                if (on && enabled) return Accent;
+                return Line;
+            }
+
+            /// The check mark's colour, or false when the box has no mark.
+            internal static bool CheckMark(bool on, bool enabled, out Color mark)
+            {
+                mark = Color.Empty;
+                if (on && enabled) { mark = OnAccent; return true; }
+                if (on && !enabled) { mark = Muted; return true; }
+                return false;
+            }
+
+            internal static class Dark
+            {
+                internal static readonly Color Ink           = Color.FromArgb(0xE8, 0xEE, 0xF6);  // #E8EEF6, text
+                internal static readonly Color Muted         = Color.FromArgb(0x9A, 0xAC, 0xBF);  // #9AACBF, secondary text
+                internal static readonly Color Line          = Color.FromArgb(0x2E, 0x3A, 0x4B);  // #2E3A4B, hairlines and card edges
+                internal static readonly Color Surface       = Color.FromArgb(0x19, 0x1F, 0x29);  // #191F29, cards
+                internal static readonly Color Canvas        = Color.FromArgb(0x0C, 0x11, 0x18);  // #0C1118, the window behind them
+                internal static readonly Color Accent        = Color.FromArgb(0x5C, 0xA2, 0xEE);  // #5CA2EE, anything to read or to click
+                internal static readonly Color OnAccent      = Color.FromArgb(0x08, 0x11, 0x1C);  // #08111C, text drawn on the accent
+                internal static readonly Color Active        = Color.FromArgb(0x35, 0xB5, 0xCC);  // #35B5CC, fill only: running
+                internal static readonly Color Idle          = Color.FromArgb(0x5F, 0x6E, 0x80);  // #5F6E80, fill only: stopped
+                internal static readonly Color Raised        = Color.FromArgb(0x19, 0x1F, 0x29);  // #191F29, a control resting on a card
+                internal static readonly Color Inset         = Color.FromArgb(0x0C, 0x11, 0x18);  // #0C1118, pressed, selected, a well
+                internal static readonly Color ShadowDark    = Color.FromArgb(0x05, 0x08, 0x0C);  // #05080C, shadow below and right of a raised surface
+                internal static readonly Color ShadowLight   = Color.FromArgb(0x27, 0x30, 0x3D);  // #27303D, highlight above and left of it
+                internal static readonly Color AccentSoft    = Color.FromArgb(0x1B, 0x2D, 0x45);  // #1B2D45, a quiet accent ground
+                internal static readonly Color Focus         = Color.FromArgb(0x5C, 0xA2, 0xEE);  // #5CA2EE, keyboard focus ring
+                internal static readonly Color Attention     = Color.FromArgb(0xE0, 0x9B, 0x57);  // #E09B57, fill only: needs a person
+                internal static readonly Color Success       = Color.FromArgb(0x5C, 0xC9, 0x8E);  // #5CC98E, recovered
+                internal static readonly Color Waiting       = Color.FromArgb(0x7D, 0xB6, 0xF5);  // #7DB6F5, waiting for a reset or retry
+                internal static readonly Color Warning       = Color.FromArgb(0xE8, 0xA7, 0x65);  // #E8A765, needs a decision soon
+                internal static readonly Color Danger        = Color.FromArgb(0xF2, 0x87, 0x7C);  // #F2877C, stopped or failed
+                internal static readonly Color Paused        = Color.FromArgb(0x9A, 0xAC, 0xBF);  // #9AACBF, deliberately quiet
+                internal static readonly Color AccentHover   = Color.FromArgb(0x62, 0xAD, 0xFF);  // #62ADFF, the primary button under the pointer
+                internal static readonly Color AccentPressed = Color.FromArgb(0x52, 0x90, 0xD3);  // #5290D3, the primary button pressed
+                internal static readonly Color CardGround    = Color.FromArgb(0x19, 0x1F, 0x29);  // #191F29, a card's own ground: surface lifted toward raised
+
+                /// The check box's fill (brand.CHECKBOX): the well unchecked, the accent checked, the surface
+                /// when disabled. `on` is checked; draw the inset elevation inside the border when CheckWell.
+                internal static Color CheckFill(bool on, bool enabled)
+                {
+                    if (!on && enabled) return Inset;
+                    if (on && enabled) return Accent;
+                    return Surface;
+                }
+
+                /// The check box's hairline edge: muted unchecked, where nothing inside says it is a box.
+                internal static Color CheckEdge(bool on, bool enabled)
+                {
+                    if (!on && enabled) return Muted;
+                    if (on && enabled) return Accent;
+                    return Line;
+                }
+
+                /// The check mark's colour, or false when the box has no mark.
+                internal static bool CheckMark(bool on, bool enabled, out Color mark)
+                {
+                    mark = Color.Empty;
+                    if (on && enabled) { mark = OnAccent; return true; }
+                    if (on && !enabled) { mark = Muted; return true; }
+                    return false;
+                }
+            }
+        }
+
+        /// Plain's colours (brand.palette(theme, "plain")), under the names Brand gives Soft's: its card's ground
+        /// and its check box too, and Plain.Dark its dark twin. Its status light is Brand's, as every design's is.
+        internal static class Plain
+        {
+            internal static readonly Color Ink           = Color.FromArgb(0x1B, 0x1B, 0x1B);  // #1B1B1B, text
+            internal static readonly Color Muted         = Color.FromArgb(0x5E, 0x5E, 0x5E);  // #5E5E5E, secondary text
+            internal static readonly Color Line          = Color.FromArgb(0xE0, 0xE0, 0xE0);  // #E0E0E0, hairlines and card edges
+            internal static readonly Color Surface       = Color.FromArgb(0xFF, 0xFF, 0xFF);  // #FFFFFF, cards
+            internal static readonly Color Canvas        = Color.FromArgb(0xF3, 0xF3, 0xF3);  // #F3F3F3, the window behind them
+            internal static readonly Color Accent        = Color.FromArgb(0x12, 0x57, 0xB8);  // #1257B8, anything to read or to click
+            internal static readonly Color OnAccent      = Color.FromArgb(0xFF, 0xFF, 0xFF);  // #FFFFFF, text drawn on the accent
+            internal static readonly Color Active        = Color.FromArgb(0x06, 0xB6, 0xD4);  // #06B6D4, fill only: running
+            internal static readonly Color Idle          = Color.FromArgb(0x94, 0xA3, 0xB8);  // #94A3B8, fill only: stopped
+            internal static readonly Color Raised        = Color.FromArgb(0xFF, 0xFF, 0xFF);  // #FFFFFF, a control resting on a card
+            internal static readonly Color Inset         = Color.FromArgb(0xF3, 0xF3, 0xF3);  // #F3F3F3, pressed, selected, a well
+            internal static readonly Color ShadowDark    = Color.FromArgb(0xB7, 0xC4, 0xD4);  // #B7C4D4, shadow below and right of a raised surface
+            internal static readonly Color ShadowLight   = Color.FromArgb(0xFF, 0xFF, 0xFF);  // #FFFFFF, highlight above and left of it
+            internal static readonly Color AccentSoft    = Color.FromArgb(0xDC, 0xE8, 0xF8);  // #DCE8F8, a quiet accent ground
+            internal static readonly Color Focus         = Color.FromArgb(0x1B, 0x1B, 0x1B);  // #1B1B1B, keyboard focus ring
+            internal static readonly Color Attention     = Color.FromArgb(0xB4, 0x53, 0x09);  // #B45309, fill only: needs a person
+            internal static readonly Color Success       = Color.FromArgb(0x15, 0x70, 0x45);  // #157045, recovered
+            internal static readonly Color Waiting       = Color.FromArgb(0x1A, 0x5F, 0xA8);  // #1A5FA8, waiting for a reset or retry
+            internal static readonly Color Warning       = Color.FromArgb(0x9A, 0x4A, 0x06);  // #9A4A06, needs a decision soon
+            internal static readonly Color Danger        = Color.FromArgb(0xB4, 0x23, 0x18);  // #B42318, stopped or failed
+            internal static readonly Color Paused        = Color.FromArgb(0x55, 0x65, 0x7A);  // #55657A, deliberately quiet
+            internal static readonly Color AccentHover   = Color.FromArgb(0x13, 0x5D, 0xC5);  // #135DC5, the primary button under the pointer
+            internal static readonly Color AccentPressed = Color.FromArgb(0x12, 0x50, 0xA7);  // #1250A7, the primary button pressed
+            internal static readonly Color CardGround    = Color.FromArgb(0xFF, 0xFF, 0xFF);  // #FFFFFF, a card's own ground: surface lifted toward raised
+
+            /// The check box's fill (brand.CHECKBOX): the well unchecked, the accent checked, the surface
+            /// when disabled. `on` is checked; draw the inset elevation inside the border when CheckWell.
+            internal static Color CheckFill(bool on, bool enabled)
+            {
+                if (!on && enabled) return Inset;
+                if (on && enabled) return Accent;
+                return Surface;
+            }
+
+            /// The check box's hairline edge: muted unchecked, where nothing inside says it is a box.
+            internal static Color CheckEdge(bool on, bool enabled)
+            {
+                if (!on && enabled) return Muted;
+                if (on && enabled) return Accent;
+                return Line;
+            }
+
+            /// The check mark's colour, or false when the box has no mark.
+            internal static bool CheckMark(bool on, bool enabled, out Color mark)
+            {
+                mark = Color.Empty;
+                if (on && enabled) { mark = OnAccent; return true; }
+                if (on && !enabled) { mark = Muted; return true; }
+                return false;
+            }
+
+            internal static class Dark
+            {
+                internal static readonly Color Ink           = Color.FromArgb(0xF3, 0xF3, 0xF3);  // #F3F3F3, text
+                internal static readonly Color Muted         = Color.FromArgb(0xAB, 0xAB, 0xAB);  // #ABABAB, secondary text
+                internal static readonly Color Line          = Color.FromArgb(0x3D, 0x3D, 0x3D);  // #3D3D3D, hairlines and card edges
+                internal static readonly Color Surface       = Color.FromArgb(0x2B, 0x2B, 0x2B);  // #2B2B2B, cards
+                internal static readonly Color Canvas        = Color.FromArgb(0x20, 0x20, 0x20);  // #202020, the window behind them
+                internal static readonly Color Accent        = Color.FromArgb(0x5C, 0xA2, 0xEE);  // #5CA2EE, anything to read or to click
+                internal static readonly Color OnAccent      = Color.FromArgb(0x08, 0x11, 0x1C);  // #08111C, text drawn on the accent
+                internal static readonly Color Active        = Color.FromArgb(0x35, 0xB5, 0xCC);  // #35B5CC, fill only: running
+                internal static readonly Color Idle          = Color.FromArgb(0x5F, 0x6E, 0x80);  // #5F6E80, fill only: stopped
+                internal static readonly Color Raised        = Color.FromArgb(0x2B, 0x2B, 0x2B);  // #2B2B2B, a control resting on a card
+                internal static readonly Color Inset         = Color.FromArgb(0x1C, 0x1C, 0x1C);  // #1C1C1C, pressed, selected, a well
+                internal static readonly Color ShadowDark    = Color.FromArgb(0x05, 0x08, 0x0C);  // #05080C, shadow below and right of a raised surface
+                internal static readonly Color ShadowLight   = Color.FromArgb(0x27, 0x30, 0x3D);  // #27303D, highlight above and left of it
+                internal static readonly Color AccentSoft    = Color.FromArgb(0x1B, 0x2D, 0x45);  // #1B2D45, a quiet accent ground
+                internal static readonly Color Focus         = Color.FromArgb(0xF3, 0xF3, 0xF3);  // #F3F3F3, keyboard focus ring
+                internal static readonly Color Attention     = Color.FromArgb(0xE0, 0x9B, 0x57);  // #E09B57, fill only: needs a person
+                internal static readonly Color Success       = Color.FromArgb(0x5C, 0xC9, 0x8E);  // #5CC98E, recovered
+                internal static readonly Color Waiting       = Color.FromArgb(0x7D, 0xB6, 0xF5);  // #7DB6F5, waiting for a reset or retry
+                internal static readonly Color Warning       = Color.FromArgb(0xE8, 0xA7, 0x65);  // #E8A765, needs a decision soon
+                internal static readonly Color Danger        = Color.FromArgb(0xF2, 0x87, 0x7C);  // #F2877C, stopped or failed
+                internal static readonly Color Paused        = Color.FromArgb(0x9A, 0xAC, 0xBF);  // #9AACBF, deliberately quiet
+                internal static readonly Color AccentHover   = Color.FromArgb(0x62, 0xAD, 0xFF);  // #62ADFF, the primary button under the pointer
+                internal static readonly Color AccentPressed = Color.FromArgb(0x52, 0x90, 0xD3);  // #5290D3, the primary button pressed
+                internal static readonly Color CardGround    = Color.FromArgb(0x2B, 0x2B, 0x2B);  // #2B2B2B, a card's own ground: surface lifted toward raised
+
+                /// The check box's fill (brand.CHECKBOX): the well unchecked, the accent checked, the surface
+                /// when disabled. `on` is checked; draw the inset elevation inside the border when CheckWell.
+                internal static Color CheckFill(bool on, bool enabled)
+                {
+                    if (!on && enabled) return Inset;
+                    if (on && enabled) return Accent;
+                    return Surface;
+                }
+
+                /// The check box's hairline edge: muted unchecked, where nothing inside says it is a box.
+                internal static Color CheckEdge(bool on, bool enabled)
+                {
+                    if (!on && enabled) return Muted;
+                    if (on && enabled) return Accent;
+                    return Line;
+                }
+
+                /// The check mark's colour, or false when the box has no mark.
+                internal static bool CheckMark(bool on, bool enabled, out Color mark)
+                {
+                    mark = Color.Empty;
+                    if (on && enabled) { mark = OnAccent; return true; }
+                    if (on && !enabled) { mark = Muted; return true; }
+                    return false;
+                }
             }
         }
 
