@@ -3,7 +3,7 @@
 The standard archive is built from a list of trees that does not name `advanced/`
 (build/make_release.py), so it cannot hold the advanced code - by construction. This is the
 proof that does not take the build script's word for it. It reads the archives that were built,
-the repository they were built from, and nothing else, and fails the build on any of six findings:
+the repository they were built from, and nothing else, and fails the build on any of seven findings:
 
   (a) an entry of the standard archive lies where the advanced edition's files go;
   (b) an entry of the standard archive is, byte for byte, a file of the advanced tree;
@@ -18,7 +18,11 @@ the repository they were built from, and nothing else, and fails the build on an
       removing it changes nothing;
   (f) an entry of the standard archive is missing from the advanced one, or differs there -
       except the settings window, which each edition builds for itself, and the manifest's
-      display name - or the advanced archive adds anything outside its own two places.
+      display name - or the advanced archive adds anything outside its own two places;
+  (g) a binary entry holds the package's, the skill's or the sentinel's name, in UTF-8 or
+      UTF-16, or is compiled Python outside the runtime - or is an archive the audit cannot
+      open. (a), (b), (c) and (g) read every member of an entry that is itself a ZIP (`expand`)
+      as they read an entry, so a zipped copy of the package is found where a copy would be.
 
 Run in the release build job after both archives are built:
 
@@ -344,6 +348,75 @@ def check_executables(standard: dict, advanced: Inventory) -> list:
     return found
 
 
+# Compiled Python is what a module of the package would be shipped as without its source. The
+# runtime's own standard library is compiled (payload/runtime/python3XX.zip), and nothing else
+# the standard archive ships is: make_release leaves every .pyc and .pyo of ours out.
+RUNTIME = "payload/runtime/"
+_BYTECODE = (".pyc", ".pyo")
+
+
+def _unreadable_archive(data: bytes) -> bool:
+    return data[:4] == b"PK\x03\x04"
+
+
+def expand(standard: dict, depth: int = 3) -> dict:
+    """Every entry, and every member of an entry that is itself a ZIP - a .zip, a .pyz, whatever
+    it is named - as `entry/member`, down to `depth` archives deep.
+
+    Where the standard archive holds a zipped copy of the package, stored or deflated, its files
+    are in there as they are: (a) finds the package's name in a member's path, (b) its bytes,
+    (c) and (g) what it spells. An entry that begins as a ZIP does and cannot be opened is kept
+    as it is, and (g) says so: what cannot be read proves nothing."""
+    found = dict(standard)
+    if depth <= 0:
+        return found
+    for name, data in standard.items():
+        try:
+            if not zipfile.is_zipfile(io.BytesIO(data)):
+                continue
+            with zipfile.ZipFile(io.BytesIO(data)) as inner:
+                members = {"%s/%s" % (name, info.filename): inner.read(info)
+                           for info in inner.infolist() if not info.is_dir()}
+        except Exception:                  # encrypted, a method zipfile lacks, or no ZIP at all
+            continue
+        found.update(expand(members, depth - 1))
+    return found
+
+
+def _compiled(name: str, data: bytes) -> bool:
+    """A .pyc or .pyo by its name, or by its header: a magic number of Python 3 and CRLF."""
+    if name.lower().endswith(_BYTECODE):
+        return True
+    return len(data) >= 16 and data[2:4] == b"\r\n" and 3000 <= int.from_bytes(data[:2], "little") < 4000
+
+
+def check_binaries(standard: dict) -> list:
+    """(g) What a binary entry holds: the package's, the skill's or the sentinel's name, as bytes
+    in UTF-8 or UTF-16 - a .pyc keeps its module's path, a data file its text - and whether it is
+    compiled Python outside the runtime, which a module of the package could be shipped as with
+    no name of it left in. `standard` is `expand`ed first by the caller. Our two executables are
+    (d)'s, which reads them for every name of the window."""
+    found = []
+    for name, data in standard.items():
+        if name in EXECUTABLES or text(data) is not None:
+            continue
+        if _compiled(name, data) and not name.startswith(RUNTIME):
+            found.append("(g) %s is compiled Python outside the runtime" % name)
+            continue
+        for strong in (PACKAGE, SKILL, SENTINEL):
+            if _holds(data, strong, word=False):
+                found.append("(g) %s holds %s" % (name, strong))
+        if _unreadable_archive(data):
+            try:
+                with zipfile.ZipFile(io.BytesIO(data)) as inner:
+                    readable = inner.testzip() is None
+            except Exception:
+                readable = False
+            if not readable:
+                found.append("(g) %s is an archive the audit cannot open" % name)
+    return found
+
+
 def check_rebuild(standard: Path, rebuilt: Path) -> list:
     """(e) The standard archive and the one built again without advanced/ are one file."""
     first, second = standard.read_bytes(), rebuilt.read_bytes()
@@ -441,13 +514,15 @@ def rebuild_standard(root: Path, work: Path) -> Path:
 
 # -------------------------------------------------------------------------------------- main
 def audit(standard: Path, advanced: Path, root: Path = ROOT, rebuild=rebuild_standard) -> list:
-    """Every finding, (a) to (f), as a sentence each. None means the standard archive holds
+    """Every finding, (a) to (g), as a sentence each. None means the standard archive holds
     nothing of the advanced edition, and the advanced one adds only its own."""
     tree = inventory(root)
     ours, theirs = entries(standard), entries(advanced)
-    found = check_paths(ours) + check_digests(ours, tree)
-    found += check_names(ours, tree)[0]
+    opened = expand(ours)
+    found = check_paths(opened) + check_digests(opened, tree)
+    found += check_names(opened, tree)[0]
     found += check_executables(ours, tree)
+    found += check_binaries(opened)
     with tempfile.TemporaryDirectory(prefix="edition-audit-") as work:
         found += check_rebuild(standard, rebuild(root, Path(work)))
     found += check_superset(ours, theirs)
@@ -472,7 +547,7 @@ def main(argv=None) -> int:
     if found:
         print("the standard archive is not proven free of the advanced edition")
         return 1
-    print("  (a)-(f) found nothing: the standard archive holds none of the advanced edition")
+    print("  (a)-(g) found nothing: the standard archive holds none of the advanced edition")
     return 0
 
 

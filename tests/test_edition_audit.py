@@ -181,6 +181,7 @@ class CleanPairTests(unittest.TestCase):
         self.assertEqual(used, {("payload/app/src/codex_auto_resume/edition.py", PACKAGE),
                                 ("install/install.ps1", PACKAGE)})
         self.assertEqual(audit.check_executables(standard, tree), [])
+        self.assertEqual(audit.check_binaries(audit.expand(standard)), [])
         self.assertEqual(audit.check_superset(standard, advanced), [])
 
     def test_the_whole_audit_reads_the_two_files(self):
@@ -269,6 +270,52 @@ class FaultTests(unittest.TestCase):
     def test_d_reads_only_our_executables(self):
         runtime = dict(self.standard, **{"payload/runtime/python.exe": b"MZ\x00ArmingPage\x00"})
         self.assertEqual(audit.check_executables(runtime, self.tree), [])
+
+    def zipped(self, members, method=zipfile.ZIP_DEFLATED) -> bytes:
+        data = io.BytesIO()
+        with zipfile.ZipFile(data, "w", method) as bundle:
+            for name, content in members.items():
+                bundle.writestr(name, content)
+        return data.getvalue()
+
+    def test_g_a_zipped_copy_of_the_package_is_opened_and_read_as_entries_are(self):
+        """Stored or deflated, and under a name of any kind: its files are there as they are,
+        and (a), (b) and (g) find them where they would find the files."""
+        entry = "payload/app/assets/data.zip"
+        for method in (zipfile.ZIP_DEFLATED, zipfile.ZIP_STORED):
+            with self.subTest(method=method):
+                data = self.zipped({"%s/plug.py" % PACKAGE: PLUG, "renamed/data.txt": PLUG}, method)
+                opened = audit.expand(dict(self.standard, **{entry: data}))
+                self.assertEqual(audit.check_paths(opened),
+                                 ["(a) %s/%s/plug.py lies where the advanced edition's files go"
+                                  % (entry, PACKAGE)])
+                self.assertEqual(len(audit.check_digests(opened, self.tree)), 2)
+                self.assertIn("(g) %s holds %s" % (entry, PACKAGE), audit.check_binaries(opened))
+                inside = audit.expand({"outer.zip": self.zipped({"inner.pyz": data})})
+                self.assertEqual(len(audit.check_digests(inside, self.tree)), 2, "an archive in an archive")
+
+    def test_g_compiled_python_outside_the_runtime_and_a_name_in_a_binary(self):
+        """A module compiled under a neutral name keeps no name of the package, so bytecode is
+        refused outside the runtime, whose standard library is the only compiled Python shipped."""
+        import importlib.util
+        import marshal
+        pyc = importlib.util.MAGIC_NUMBER + b"\x00" * 12 + marshal.dumps(compile(PLUG, "extra.py", "exec"))
+        runtime = self.zipped({"encodings/__init__.pyc": pyc})
+        found = audit.check_binaries(audit.expand(dict(self.standard, **{
+            "payload/app/src/codex_auto_resume/_x.pyc": pyc,
+            "payload/app/assets/renamed.bin": pyc,
+            "payload/app/assets/strings.dat": b"\x00\x01" + SKILL.encode("utf-16-le"),
+            "payload/runtime/python313.zip": runtime})))
+        self.assertEqual(sorted(found), [
+            "(g) payload/app/assets/renamed.bin is compiled Python outside the runtime",
+            "(g) payload/app/assets/strings.dat holds %s" % SKILL,
+            "(g) payload/app/src/codex_auto_resume/_x.pyc is compiled Python outside the runtime"])
+
+    def test_g_an_archive_the_audit_cannot_open_proves_nothing(self):
+        data = bytearray(self.zipped({"a.txt": b"x" * 4096}))
+        data[40] ^= 0xFF                                   # inside the member's compressed bytes
+        found = audit.check_binaries(audit.expand(dict(self.standard, **{"payload/app/x.zip": bytes(data)})))
+        self.assertEqual(found, ["(g) payload/app/x.zip is an archive the audit cannot open"])
 
     def test_e_the_same_file_or_a_list_of_what_differs(self):
         with tempfile.TemporaryDirectory() as work:
