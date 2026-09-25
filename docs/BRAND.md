@@ -144,10 +144,11 @@ custom properties from `brand.css_scale()`: `--radius-*`, `--space-*`, `--type-*
 browsers solve a cubic-bezier - `brand.ease()` in the popup, `Brand.Ease` in the window - so all
 three surfaces move a switch along the same path.
 
-A button and a chip are the same on every surface since v0.6.10: `LAYOUT`'s 34-pixel button and
-22-pixel chip padded 9 either side, their words at `TYPE_ROLES`' weight 500, which Windows draws
-regular. Until then the popup's and the notification card's buttons were 32 high and bold, and their
-chips bold and tighter, beside the window's and the panel's regular ones. A notice set apart is a
+A button and a chip are the same size on every surface since v0.6.10: `LAYOUT`'s 34-pixel button
+and 22-pixel chip padded 9 either side. Until then the popup's and the notification card's buttons
+were 32 high and their chips tighter. Their words keep each surface's own weight: bold (600) in the
+popup and on the card, as they always were, and `TYPE_ROLES`' 500 in the window and the panel - a
+weight Windows draws regular, which v0.6.10 tried on the popup and the card and gave back. A notice set apart is a
 callout on every surface: the `accent_soft` ground with the control's corners, an "i" badge in the
 accent, and the notice in ink, `callout_pad`, `callout_gap` and `callout_badge` apart. The window said
 the same notices in accent-coloured help text until v0.6.10, and the callout's numbers generated for

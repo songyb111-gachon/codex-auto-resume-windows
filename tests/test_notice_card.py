@@ -1101,11 +1101,11 @@ class LayoutTests(unittest.TestCase):
     def test_its_light_word_chip_and_buttons_stand_as_every_surface_s_do(self):
         """v0.6.10 (F7, F8): the light stands LAYOUT's `light_inset` from the card's content and `light_gap` from
         the product beside it, which is the popup's eyebrow - `label`, muted; a chip is `chip_height` high and
-        padded `chip_pad_x`, a button `button_height` high, both set at the window's and the panel's weight, under
-        600. Until then the product stood 14.5 px from the light, the chip was its text and 4 px high, the buttons
-        32, and both bold."""
-        self.assertLess(tray_popup.ROLES["chip"][1], 600)
-        self.assertLess(tray_popup.ROLES["button"][1], 600)
+        padded `chip_pad_x`, a button `button_height` high. Until then the product stood 14.5 px from the light, the
+        chip was its text and 4 px high and the buttons 32. Both stay bold (600), as they always were: v0.6.10 drew
+        them Regular for a while, and the owner gave that back."""
+        self.assertEqual(tray_popup.ROLES["chip"][1], 600)
+        self.assertEqual(tray_popup.ROLES["button"][1], 600)
         vm = notice_card.view(build("interruption", EVENTS[0][1]))
         self.assertEqual(len(vm["actions"]), 2)
         for scale in (1.0, 1.25, 1.5, 2.0):

@@ -560,15 +560,15 @@ class LayoutTests(unittest.TestCase):
                     self.assertAlmostEqual(halo["cy"], word["rect"][1] + line / 2.0, delta=0.5,
                                            msg="the light stands on the word's first line")
 
-    def test_buttons_and_chips_are_the_window_s_and_the_panel_s(self):
-        """v0.6.10 (F8): a button is LAYOUT's `button_height` high and a chip `chip_height`, padded `chip_pad_x`, and
-        both are set at a weight under 600 - drawn Regular, as the window's and the panel's are. Until then the popup's
-        buttons were 32 high and bold and its chips bold, shorter and tighter."""
-        self.assertLess(popup.ROLES["button"][1], 600)
-        self.assertLess(popup.ROLES["chip"][1], 600)
-        self.assertEqual(popup.ROLES["button"][1], brand.TYPE_ROLES["button"][1])
-        self.assertEqual(popup.ROLES["chip"][1], brand.TYPE_ROLES["chip"][1])
-        self.assertEqual(popup.font_candidates("en", popup.ROLES["button"][1], "Segoe UI"), (("Segoe UI", 400),))
+    def test_buttons_and_chips_are_the_window_s_size_and_stay_bold(self):
+        """v0.6.10 (F8): a button is LAYOUT's `button_height` high and a chip `chip_height`, padded `chip_pad_x`, as the
+        window's and the panel's are; until then the popup's buttons were 32 high and its chips shorter and tighter.
+        Both stay bold (600), the popup's own look: v0.6.10 set them at brand.TYPE_ROLES' 500, which is drawn Regular
+        here, and the owner gave that back."""
+        self.assertEqual(popup.ROLES["button"][1], 600)
+        self.assertEqual(popup.ROLES["chip"][1], 600)
+        self.assertEqual(popup.font_candidates("en", popup.ROLES["button"][1], "Segoe UI"),
+                         (("Segoe UI Semibold", 400), ("Segoe UI", 600)))
         for scale in (1.0, 1.25, 1.5, 1.75, 2.0):
             with self.subTest(scale=scale):
                 _, plan = self.plan(scale=scale)
