@@ -331,5 +331,42 @@ class SpendTests(LedgerCase):
         self.assertEqual(len(self.spends(plug)), 1, "the claim was granted, then given back: spent")
 
 
+
+class SubmissionUnknownTests(LedgerCase):
+    """A send a capability paid for that became submission_unknown turns it off - the tripwire's
+    word for "it may be in Codex, and nothing proves where"."""
+
+    def paid_send_with_an_unknown_result(self):
+        self.due()
+        plug = self.advanced()
+        self.arm(plug).answers["text"] = "Please go on."
+        self.plugged(plug)
+        h = self.h
+        h.backend.after_accept = "queue"
+        h.backend.default_outcome = "unknown"
+        # The queue process timed out, but Codex did enqueue the capability's message.
+        h.backend.on_send = lambda thread_id, prompt: h.home.enqueue(thread_id, prompt)
+        h.tick()
+        self.assertEqual(h.record()["state"], "submission_unknown")
+        self.assertEqual(len(self.spends(plug)), 1, "the capability paid for this send")
+        return plug
+
+    def test_it_trips_while_core_still_holds_the_record_unknown(self):
+        plug = self.paid_send_with_an_unknown_result()
+        self.h.tick(advance=1)
+        self.assertEqual(plug.runtime.state.arming()["test_wake"]["state"], ArmingState.OFF)
+
+    def test_it_trips_though_core_resolves_the_record_before_the_sweep_looks(self):
+        """The watch pass runs before P8 in the same tick, and core's own late-delivery case
+        moves the record on before the sweep sees it: read from the record's history, not its
+        state now, the send that was unknown is still found."""
+        plug = self.paid_send_with_an_unknown_result()
+        self.h.home.dispatch(self.h.record()["thread_id"])      # Codex runs the queued item
+        self.h.tick(advance=1)
+        self.assertNotEqual(self.h.record()["state"], "submission_unknown")
+        self.assertEqual(plug.runtime.state.arming()["test_wake"]["state"], ArmingState.OFF)
+        self.assertEqual(plug.runtime.state.arming()["test_wake"]["reason"], "submission_unknown")
+
+
 if __name__ == "__main__":
     unittest.main()

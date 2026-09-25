@@ -100,6 +100,24 @@ def standing(definition, row, policy, view) -> tuple:
     return stored, None, None
 
 
+def _was_unknown(core_view, key, since) -> bool:
+    """Whether core holds record `key` as submission_unknown, or moved it there at or after
+    `since`. A view that cannot answer says nothing either way."""
+    try:
+        record = core_view.get(key)
+    except Exception:
+        record = None
+    if isinstance(record, dict) and record.get("state") == SUBMISSION_UNKNOWN:
+        return True
+    try:
+        history = core_view.events(key)
+    except Exception:
+        return False
+    return any(isinstance(event, dict) and event.get("to_state") == SUBMISSION_UNKNOWN
+               and isinstance(event.get("at"), (int, float)) and event["at"] >= since
+               for event in history or ())
+
+
 def _view_of(paths):
     """The Compatibility Registry's view, as the watcher last wrote it, bound to the engine the
     settings name - what every front end shows."""
@@ -168,8 +186,13 @@ class Arming:
 
     def sweep(self, core_view) -> None:
         """Once a tick: every trip and reset `standing` finds, and the one it cannot find alone -
-        a send a capability paid for, since it was last turned on, that core now holds as
-        submission_unknown."""
+        a send a capability paid for, since it was last turned on, that core holds or held as
+        submission_unknown.
+
+        Held, not only holds: the tick observes before it asks P8, and core's own late-delivery
+        case - the queue's answer unknown, the item in Codex's queue all the same - moves the
+        record on in that same watch. Its state now would say nothing, so its journal is read
+        (engine/options.py, VIEW_READS)."""
         self.current()
         if not len(self.registry):
             return
@@ -185,11 +208,7 @@ class Arming:
             except StateError:
                 return
             for key in spent_on:
-                try:
-                    record = core_view.get(key)
-                except Exception:
-                    record = None
-                if isinstance(record, dict) and record.get("state") == SUBMISSION_UNKNOWN:
+                if _was_unknown(core_view, key, row["since"]):
                     self.trip(capability, OffReason.SUBMISSION_UNKNOWN)
                     break
 
