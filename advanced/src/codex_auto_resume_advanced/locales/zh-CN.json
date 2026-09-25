@@ -1,5 +1,8 @@
 {
   "_edition": "ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.",
+  "edition.badge": "高级版",
+  "edition.not_loaded": "高级版 - 未加载",
+  "edition.summary": "高级版 · 已开启 {n} 项",
   "all_off": "关闭所有高级功能",
   "field.departs": "偏离的标准",
   "field.does": "它做什么",

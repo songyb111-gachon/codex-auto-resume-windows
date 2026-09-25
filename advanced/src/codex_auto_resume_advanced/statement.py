@@ -29,6 +29,14 @@ DIRECTORY = Path(__file__).resolve().parent / "locales"
 FIELDS = tuple(Field)
 SENTINEL_KEY = "_edition"
 ALL_OFF_KEY = "all_off"
+# The edition badge, in this package's own words (decision C12). The status carries the code
+# `advanced` and the count of what is armed; a surface turns them into these. `summary` takes
+# `{n}`, the count. `not_loaded` is the word an installation whose package could not be loaded
+# shows - it is the standard edition then, and says so.
+BADGE_KEY = "edition.badge"
+NOT_LOADED_KEY = "edition.not_loaded"
+SUMMARY_KEY = "edition.summary"
+EDITION_KEYS = (BADGE_KEY, NOT_LOADED_KEY, SUMMARY_KEY)
 
 
 def key(capability, field) -> str:
@@ -77,6 +85,15 @@ class Catalogs:
         """One entry, filled in; None when no catalog has it."""
         value = self.catalog(l10n.current() if locale is None else locale).get(name)
         return None if value is None else l10n.fill(value, **fields)
+
+    def badge(self, on, locale=None, *, loaded=True) -> str | None:
+        """The edition badge for a surface to show beside the version: the word for a loaded
+        installation followed by how many capabilities are armed, or the not-loaded word for
+        one whose package could not be taken. The count comes from the status's `on`; the words
+        are this package's own, in `locale` or the one the process resolved to."""
+        if not loaded:
+            return self.text(NOT_LOADED_KEY, locale)
+        return self.text(SUMMARY_KEY, locale, n=on)
 
     def missing(self, definition) -> list:
         """(locale, field) for every field of `definition`'s statement a language does not have

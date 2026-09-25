@@ -1,10 +1,19 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""P10: what this edition adds to the bridge and to MCP.
+"""P10: what this edition adds to the status, the bridge and MCP.
+
+The edition badge is the first of them, and the only one this version shows: the word the
+version-bearing surfaces already carry gains one that says which edition this is
+(decision C12). Core asks the plug at the status, the tray snapshot and the diagnostics
+bundle, and the standard edition's NULL plug adds nothing there, so those surfaces are
+byte-identical to today; this edition adds `edition` and how many capabilities are armed
+(`on`, 0 while the registry is empty), in codes only - no version string, no path, no free
+text, because the status is part of what Codex sends on. The display word for each locale
+lives in this package's own catalogs (`edition.*`); core surfaces keep their own words.
 
 The bridge is the Dashboard's (controlcli.serve, the long-lived form; the one-shot form never
 reaches a plug). It is where a person reads a capability's statement and turns it on, watches
-it, turns it off, turns everything off, or lowers the global ceiling - every request made as
-the Dashboard.
+it, turns it off, turns everything off, lowers the global ceiling, or runs a measurement by
+hand (`measure <id>`, measure.py) - every request made as the Dashboard.
 
 MCP is a model's. It can list the capabilities, turn one off and turn all of them off, and that
 is all: turning something off only ever does less, as a Pause does. There is no tool that turns
@@ -19,9 +28,14 @@ free text, since a reply is part of what Codex sends on.
 from __future__ import annotations
 
 from codex_auto_resume import l10n
-from codex_auto_resume.domain.plug import DEFER, Surface
+from codex_auto_resume.domain.plug import DEFER, Edition, Surface
 
-from .vocabulary import Actor, ArmingState, BridgeCommand, McpTool, Refusal
+from .vocabulary import Actor, ArmingState, BridgeCommand, McpTool, Measurement, Refusal
+
+# The surfaces that show the version, where the edition badge sits beside it (decision C12).
+# Core adds nothing there in the standard edition, so each stays as it was; this edition puts
+# its badge under core's one "advanced" key, never in place of anything core shows.
+BADGE_SURFACES = frozenset({Surface.STATUS, Surface.TRAY, Surface.DIAGNOSTICS})
 
 # The arguments each bridge command takes. Anything else in a request refuses it.
 ARGUMENTS = {
@@ -32,6 +46,7 @@ ARGUMENTS = {
     BridgeCommand.ADVANCED_DISARM: frozenset({"capability"}),
     BridgeCommand.ADVANCED_DISARM_ALL: frozenset(),
     BridgeCommand.ADVANCED_CEILING: frozenset({"global_hourly", "generation"}),
+    BridgeCommand.MEASURE: frozenset({"measurement"}),
 }
 
 _NO_ARGUMENTS = {"type": "object", "properties": {}, "additionalProperties": False}
@@ -65,6 +80,8 @@ TOOLS = [
 
 def answer(runtime, name, facts):
     """What this edition shows on surface `name`, or DEFER."""
+    if name in BADGE_SURFACES:
+        return badge(runtime)
     if not isinstance(facts, dict):
         return DEFER
     if name == Surface.BRIDGE:
@@ -72,6 +89,22 @@ def answer(runtime, name, facts):
     if name == Surface.MCP:
         return mcp(runtime, facts)
     return DEFER
+
+
+# ---------------------------------------------------------------------------- the edition badge
+def badge(runtime) -> dict:
+    """Which edition this is, and how many capabilities are armed. Codes only.
+
+    `on` is 0 while the registry is empty, and reading it opens nothing then: a home where
+    nothing was ever turned on stays a home with no advanced state (state.AdvancedState). The
+    word a person reads is this package's own (`edition.*` in the catalogs); this is the token
+    core's own status uses for a machine value, so a front end says it in the reader's language.
+    """
+    try:
+        on = sum(state == ArmingState.ARMED for state in runtime.states().values())
+    except Exception:
+        on = 0
+    return {"edition": str(Edition.ADVANCED), "on": on}
 
 
 # ---------------------------------------------------------------------------- the Dashboard
@@ -99,8 +132,27 @@ def bridge(runtime, command, argument):
         return arming.disarm(argument.get("capability"), actor=Actor.DASHBOARD)
     if command == BridgeCommand.ADVANCED_DISARM_ALL:
         return arming.all_off(actor=Actor.DASHBOARD)
+    if command == BridgeCommand.MEASURE:
+        return measure(runtime, argument.get("measurement"))
     return arming.set_global_hourly(argument.get("global_hourly"), generation=argument.get("generation"),
                                     actor=Actor.DASHBOARD)
+
+
+def measure(runtime, measurement):
+    """Run one measurement the person named, and hand back what was recorded (measure.py).
+
+    The id has to be one of the M-list, or it is refused as an invalid request; running it opens
+    a real one-turn session and writes to the source tree, so it is the person's own action, made
+    from the Dashboard, and never a model's - no MCP tool reaches this."""
+    try:
+        which = Measurement(measurement)
+    except ValueError:
+        return {"done": False, "refusal": Refusal.INVALID_REQUEST}
+    try:
+        summary = runtime.run_measurement(which)
+    except Exception:
+        return {"done": False, "refusal": Refusal.STATE_UNAVAILABLE}
+    return dict(summary, done=True)
 
 
 # ---------------------------------------------------------------------------- a model

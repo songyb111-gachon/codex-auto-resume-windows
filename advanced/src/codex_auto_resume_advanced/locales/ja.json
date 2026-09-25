@@ -1,5 +1,8 @@
 {
   "_edition": "ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.",
+  "edition.badge": "アドバンス",
+  "edition.not_loaded": "アドバンス - 読み込み失敗",
+  "edition.summary": "アドバンス · {n} 件オン",
   "all_off": "すべての高度な機能をオフ",
   "field.departs": "外れる基準",
   "field.does": "何をするか",
