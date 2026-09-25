@@ -213,12 +213,14 @@ class EditionBuildTests(unittest.TestCase):
         self.assertEqual((self.ours[launcher], self.theirs[launcher]), (LAUNCHER, LAUNCHER))
 
     def test_the_audit_finds_nothing_in_the_pair(self):
-        """(a)-(d) and (f) on the two archives this build made; (e) needs a commit to rebuild
-        from and is held in tests/test_edition_audit.py."""
+        """(a)-(d), (f) and (g) on the two archives this build made; (e) needs a commit to
+        rebuild from and is held in tests/test_edition_audit.py."""
         tree = edition_audit.inventory()
-        found = (edition_audit.check_paths(self.ours) + edition_audit.check_digests(self.ours, tree)
-                 + edition_audit.check_names(self.ours, tree)[0]
+        opened = edition_audit.expand(self.ours)
+        found = (edition_audit.check_paths(opened) + edition_audit.check_digests(opened, tree)
+                 + edition_audit.check_names(opened, tree)[0]
                  + edition_audit.check_executables(self.ours, tree)
+                 + edition_audit.check_binaries(opened)
                  + edition_audit.check_superset(self.ours, self.theirs))
         self.assertEqual(found, [])
 
