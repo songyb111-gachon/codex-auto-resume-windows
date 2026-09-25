@@ -236,7 +236,8 @@ class DispatchMixin:
             if not claimed:
                 self._refused(current, gate, reason)
                 return
-            problem = self.presend_problem(self.store.get(key))
+            claim = self.store.get(key)
+            problem = self.presend_problem(claim)
             if problem is not None:
                 target, why, delay = problem
                 self.store.release_claim(key, target, why, self.clock(),
@@ -245,9 +246,12 @@ class DispatchMixin:
                 return
             self.log(current["thread_id"], "queue_submission_started", None)
             # Reservation is durable before any external process can accept the message.
+            # The conversation and the marker are the claimed row's, read back from the store
+            # after the claim - the row the pre-send look and the launch guard judged - and not
+            # the dict the plug's points were asked about before it.
             try:
-                response = sender.send(current["thread_id"],
-                                       message + "\n\n" + current["marker"],
+                response = sender.send(claim["thread_id"],
+                                       message + "\n\n" + claim["marker"],
                                        launch_guard=self.store.submission_guard(key))
             except Exception:
                 response = {"outcome": "unknown"}

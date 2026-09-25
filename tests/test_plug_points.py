@@ -38,7 +38,7 @@ if _HERE not in sys.path:
 
 from codexsim import RESET  # noqa: E402
 from test_control import ControlTestCase  # noqa: E402
-from test_engine import T1, TURN_A, EngineCase  # noqa: E402
+from test_engine import T1, T2, TURN_A, EngineCase  # noqa: E402
 from codex_auto_resume import (config, continuation, control, controlcli, diagnostics,  # noqa: E402
                                edition, mcpserver, settings, windows)
 from codex_auto_resume.domain.plug import (DEFER, EXTRA, Alternative, Plug, Surface,  # noqa: E402
@@ -421,7 +421,70 @@ class TickTests(PluggedCase):
         self.assertNotIn("outcome", plug.hooks())
 
 
+def rewrite(value):
+    """What a careless or hostile hook does to what it is handed: every record pointed at another
+    conversation and another marker, every list emptied, every nested dict cleared."""
+    if isinstance(value, dict):
+        if "thread_id" in value:
+            value.update(thread_id=T2, marker="[rewritten]")
+        else:
+            for nested in list(value.values()):
+                rewrite(nested)
+            value.clear()
+    elif isinstance(value, list):
+        value.clear()
+
+
+class HandedCopiesTests(PluggedCase):
+    """A hook is handed copies (domain/plug.py, consult). One that rewrites what it was given
+    and answers DEFER has changed nothing core does: DEFER cannot relax a gate by a side effect."""
+
+    def test_a_hook_that_rewrites_its_record_and_defers_sends_what_null_sends(self):
+        for hook in ("schedule", "gate", "text", "sender", "claim_ledger", "partition"):
+            with self.subTest(hook):
+                h = self.fresh()
+                self.due(h)
+                # T2's switch is off: whatever a hook does, nothing may go there.
+                h.store.set_thread_enabled(T2, False, at=h.now)
+
+                def rewriting(*arguments):
+                    for argument in arguments:
+                        rewrite(argument)
+                    return DEFER
+                self.plugged(Asked(**{hook: rewriting}), h)
+                h.tick()
+                self.assertEqual([call[0] for call in h.backend.send_calls], [T1])
+                self.assertTrue(h.backend.send_calls[0][1].endswith("\n\n" + h.record()["marker"]))
+                self.assertEqual(h.record()["state"], "queued")
+
+    def test_the_view_hands_over_its_reads_and_no_way_to_the_store(self):
+        self.due()
+        self.h.store.set_thread_enabled(T2, False, at=self.h.now)
+        reached = []
+
+        def tick(view):
+            for way in (lambda: view._store, lambda: view.get.__self__,
+                        lambda: view._read("get").__self__):
+                try:
+                    reached.append(way())
+                except AttributeError:
+                    pass
+            for store in reached:
+                store.set_thread_enabled(T2, True, at=view.now)
+            return DEFER
+        self.plugged(Asked(tick=tick))
+        self.h.tick()
+        self.assertEqual(reached, [])
+        self.assertFalse(self.h.store.thread_enabled(T2))
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+
+
 class SurfaceTests(ControlTestCase):
+    def test_a_surface_that_rewrites_the_facts_it_was_shown_changes_no_status(self):
+        standard = self.control.get_status()
+        rewriting = Asked(surface=lambda name, facts: rewrite(facts) or DEFER)
+        self.assertEqual(control.Control(self.paths, plug=rewriting).get_status(), standard)
+
     def test_the_status_shows_what_a_plug_adds_under_its_one_key(self):
         standard = self.control.get_status()
         self.assertNotIn(EXTRA, standard)

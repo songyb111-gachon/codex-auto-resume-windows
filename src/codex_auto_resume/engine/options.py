@@ -45,15 +45,28 @@ class StoreView:
     The reads, and nothing that writes: a plug is told what core holds and decides nothing by
     changing it. Each read is the store's own, looked up when it is used, so a view costs
     nothing until a plug reads through it.
+
+    The store is kept in a closure, not on an attribute, and a read is handed over as a function
+    of its own rather than the store's bound method: `view._store`, or a read's `__self__`, would
+    have been every write the store has.
     """
-    __slots__ = ("_store", "now")
+    __slots__ = ("now", "_read")
 
     def __init__(self, store, now):
-        self._store, self.now = store, now
+        self.now = now
+
+        def read(name):
+            method = getattr(store, name)
+
+            def call(*arguments, **keywords):
+                return method(*arguments, **keywords)
+            call.__name__ = call.__qualname__ = name
+            return call
+        self._read = read
 
     def __getattr__(self, name):
         if name in VIEW_READS:
-            return getattr(self._store, name)
+            return self._read(name)
         raise AttributeError(name)
 
 

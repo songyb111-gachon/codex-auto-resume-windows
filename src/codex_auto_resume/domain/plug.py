@@ -15,6 +15,9 @@ Three rules make an answer safe to take:
   relaxation yet: one joins a set in the commit that teaches core to carry it out.
 * A hook that fails costs its own answer and nothing else: `consult` puts NULL's answer in its
   place.
+* A hook is handed copies. What core reads again after asking - the record it sends, the due
+  records it goes on to try, the facts a surface shows - is never the object a hook was given, so
+  a hook that changes what it was handed and answers DEFER has changed nothing of core's.
 
 Core holds a plug only as `Guarded`, which asks every hook through `consult` and checks every
 value a hook hands back before core takes it. The engine, the store's claim, the control layer
@@ -28,6 +31,7 @@ beside the one interface that uses them, as the interface's own words.
 """
 from __future__ import annotations
 
+import copy
 from enum import StrEnum
 import json
 
@@ -235,6 +239,14 @@ class DamagedPlug(Plug):
         self.reason = PlugFailure(reason)
 
 
+def _handed(argument):
+    """What a hook is given of `argument`: a copy of core's own records and facts, and anything
+    else - a view, a connection, the backend - as it is, each being what its point hands over."""
+    if isinstance(argument, (dict, list)):
+        return copy.deepcopy(argument)
+    return argument
+
+
 def consult(plug, point, *arguments, failed=None):
     """Ask `plug` at `point`, the one way core asks.
 
@@ -242,11 +254,19 @@ def consult(plug, point, *arguments, failed=None):
     answer and nothing more; `failed`, if given, is told the point it happened at. At a decision
     point, an answer outside the point's closed set is DEFER: an unknown word, another point's
     word, or something that is not a word at all.
+
+    Every record and every fact goes to the hook as a copy (`_handed`). The row whose thread and
+    marker the send takes, the due list the tick goes on to try, the status a surface returns:
+    a hook that rewrote any of them and answered DEFER would have relaxed what core does through
+    a side effect, where DEFER says it changed nothing. NULL reads nothing, so it is given
+    core's own and nothing is copied for the standard edition.
     """
     point = Point(point)
     hook = HOOKS[point]
+    if plug is NULL:
+        return getattr(NULL, hook)(*arguments)
     try:
-        answer = getattr(plug, hook)(*arguments)
+        answer = getattr(plug, hook)(*(_handed(argument) for argument in arguments))
     except Exception:
         if failed is not None:
             failed(point)
@@ -282,9 +302,9 @@ class Guarded:
     It has a method for each of the plug's hooks, with the same arguments. A decision point
     answers DEFER or a member of its set; a value point answers DEFER or a value core can use,
     and anything else is DEFER - except at the sender, where it is core's own backend, because
-    there is always a send to hand the one message to. Nothing a hook does reaches past this.
-    `failures` counts the hooks that raised, which is how the claim tells a ledger that broke
-    from one that deferred (store/claims.py).
+    there is always a send to hand the one message to. Nothing a hook does reaches past this:
+    it is handed copies (`consult`). `failures` counts the hooks that raised, which is how the
+    claim tells a ledger that broke from one that deferred (store/claims.py).
     """
     __slots__ = ("plug", "failures")
 
