@@ -537,22 +537,17 @@ foreach ($theme in @('light', 'dark')) {
     $versionText = Get-Field $window 'versionText'
     $entry.version = @{ fore = [int]$versionText.ForeColor.ToArgb()
                         card = [int]$paletteType.GetField('Card', $static).GetValue($null).ToArgb() }
-    # The Statistics page's outcomes (v0.6.10): a bar each, in the colour History draws the outcome's word in -
-    # [code, word, its tone, what the bar is filled with, History's tone for a row of that code].
+    # The Statistics page's outcomes: a bar each, most first, every one in the one colour the chart fills its bars
+    # with - [word, count] for each bar, that colour, and the palette's accent.
     $null = Invoke-Window $window 'ApplyStatistics' @($parse.Invoke($null, [object[]]@([IO.File]::ReadAllText((Join-Path $work 'statistics.json'), $utf8))))
+    $chart = Get-Field $window 'chart'
     $chartType = $assembly.GetType('CodexAutoResume.OutcomeChart', $true)
-    $barType = $assembly.GetType('CodexAutoResume.OutcomeChart+Bar', $true)
-    $fillOf = $chartType.GetMethod('Fill', $static)
-    $toneFor = $formType.GetMethod('ToneFor', $static)
     $entry.outcomes = @()
-    foreach ($bar in $chartType.GetField('Bars', $instance).GetValue((Get-Field $window 'chart'))) {
-        $row = [Collections.Generic.Dictionary[string,object]]::new()
-        $row['code'] = [string]$barType.GetField('Code', $instance).GetValue($bar)
-        $entry.outcomes += ,@([string]$row['code'], [string]$barType.GetField('Label', $instance).GetValue($bar),
-                              [int]$barType.GetField('Tone', $instance).GetValue($bar).ToArgb(),
-                              [int]$fillOf.Invoke($null, [object[]]@($bar)).ToArgb(),
-                              [int]$toneFor.Invoke($null, [object[]]@(,$row)).ToArgb())
+    foreach ($bar in $chartType.GetField('Bars', $instance).GetValue($chart)) {
+        $entry.outcomes += ,@([string]$bar.Key, [int]$bar.Value)
     }
+    $entry.bars = @{ fill = [int]$chartType.GetField('BarColor', $instance).GetValue($chart).ToArgb()
+                     accent = [int]$paletteType.GetField('Accent', $static).GetValue($null).ToArgb() }
     $out.window[$theme] = $entry
     $window.Dispose()
 }
@@ -1269,33 +1264,25 @@ class WindowThemeTests(unittest.TestCase):
                 self.assertEqual(fore, tokens["muted"].upper())
                 self.assertGreaterEqual(brand.contrast(fore, card), 4.5, "%s on %s" % (fore, card))
 
-    def test_each_outcome_s_bar_is_the_colour_history_draws_its_word_in(self):
-        """v0.6.10 (F12): the Statistics page draws each outcome's bar in the tone History gives the outcome's word -
-        recovered green, finished without progress amber, stopped by you grey, failed red - where every bar was the
-        accent's blue; the word stays beside its bar. Each tone reads at 3:1 or better on the card, as a graphic must,
-        in light and in dark."""
-        tones = {"recovered": "success", "delivered_legacy": "success", "no_progress": "warning",
-                 "exhausted": "warning", "handed_over": "warning", "outcome_unverified": "warning",
-                 "submission_unknown": "warning", "recovery_failed": "danger", "failed_terminal": "danger",
-                 "stopped_by_user": "paused", "cancelled": "paused", "superseded": "paused"}
-        self.assertEqual(sorted(tones), sorted(OUTCOMES))
+    def test_every_outcome_s_bar_is_the_one_accent_colour(self):
+        """The Statistics page draws every outcome's bar in one colour, the accent, and the word beside each bar tells
+        the outcomes apart. v0.6.10 tried the colour History draws each outcome's word in, and the owner put the one
+        colour back, as the chart was before (86292a30); History's chips keep their colours. The accent reads at 3:1
+        or better on the card, as a graphic must, in light and in dark."""
         from codex_auto_resume.store import Store
         with tempfile.TemporaryDirectory() as temp, Store(Path(temp) / "state") as store:
             self.assertEqual(sorted(store.statistics()["outcomes"]), sorted(OUTCOMES), "every outcome the store counts")
+        words = l10n.catalog("en")
+        most_first = sorted(OUTCOMES, key=lambda code: -(OUTCOMES.index(code) + 1))
         for theme, tokens in (("light", brand.LIGHT), ("dark", brand.DARK)):
-            bars = self.answer["window"][theme]["outcomes"]
+            entry = self.answer["window"][theme]
             with self.subTest(theme):
-                self.assertEqual(sorted(code for code, *_ in bars), sorted(OUTCOMES), "a bar for every outcome")
-                self.assertEqual([code for code, *_ in bars],
-                                 sorted(OUTCOMES, key=lambda code: -(OUTCOMES.index(code) + 1)), "most first")
-                for code, word, tone, fill, history in bars:
-                    with self.subTest(code=code):
-                        self.assertEqual(word, l10n.catalog("en")["code." + code])
-                        self.assertEqual(tone, history, "History's tone for the same outcome")
-                        self.assertEqual(fill, tone)
-                        self.assertEqual(tone, argb(tokens[tones[code]]))
-                        self.assertGreaterEqual(brand.contrast(tokens[tones[code]], brand.card_ground(theme)), 3.0)
-                self.assertGreater(len({tone for _, _, tone, _, _ in bars}), 1, "not one colour for every outcome")
+                self.assertEqual([word for word, _ in entry["outcomes"]], [words["code." + code] for code in most_first],
+                                 "a bar for every outcome, beside its word, most first")
+                self.assertEqual([count for _, count in entry["outcomes"]], [OUTCOMES.index(code) + 1 for code in most_first])
+                self.assertEqual(entry["bars"]["fill"], entry["bars"]["accent"], "every bar in the accent")
+                self.assertEqual(entry["bars"]["fill"], argb(tokens["accent"]))
+                self.assertGreaterEqual(brand.contrast(tokens["accent"], brand.card_ground(theme)), 3.0)
 
     def test_nothing_in_the_dark_window_keeps_a_light_colour(self):
         """Every opaque colour on every control of every page, built and filled, is one of the dark
