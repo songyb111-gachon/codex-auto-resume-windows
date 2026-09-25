@@ -40,6 +40,7 @@
   "intentionally_english": {
     "LICENSE": "The authoritative licence text. A translation would be a second licence.",
     "skills/codex-auto-resume/SKILL.md": "Instructions Codex reads to operate the plugin, not prose a person reads. Translating it would make the two branches behave differently, which is exactly what generating ko from main exists to prevent.",
+    "advanced/skills/codex-auto-resume-advanced/SKILL.md": "The advanced edition's instructions to Codex, for the same reason as the standard skill's: what Codex reads is not translated, so the two branches behave alike.",
     ".github/GENERATED-BRANCH.md": "Written by the generator, for maintainers, and only exists on ko."
   },
   "_reviewed_comment": [
