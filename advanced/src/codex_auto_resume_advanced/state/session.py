@@ -98,11 +98,15 @@ class SessionMixin:
         if config.is_link(directory) or (directory.exists() and not self.paths.confined(directory)):
             raise StateError("the advanced state directory is a link or escapes the home")
         directory.mkdir(exist_ok=True)
-        if not self.paths.confined(directory):
-            raise StateError("the advanced state directory escapes the home")
         marker = directory / config.OWNER_MARKER
+        self._checked()
         if not marker.exists():
             marker.write_text(config.OWNER_TEXT, encoding="utf-8")
+
+    def _checked(self) -> None:
+        """The refusals `_directory` makes, and nothing it writes: what a read looks at."""
+        if config.is_link(self.directory) or not self.paths.confined(self.directory):
+            raise StateError("the advanced state directory is a link or escapes the home")
         if config.is_link(self.path):
             raise StateError("the advanced state is a link")
 
@@ -123,7 +127,8 @@ class SessionMixin:
         if not create and not self.exists():
             return None
         try:
-            self._directory()
+            # A read makes nothing: not the directory, not its marker, not the schema.
+            self._directory() if create else self._checked()
             was_present = self.path.exists()
             connection = sqlite3.connect(self.path, timeout=10, isolation_level=None,
                                          check_same_thread=False)
@@ -134,9 +139,9 @@ class SessionMixin:
             connection.execute("PRAGMA trusted_schema=OFF")
             connection.execute("PRAGMA foreign_keys=ON")
             connection.execute("PRAGMA synchronous=FULL")
-            connection.execute("BEGIN IMMEDIATE")
+            connection.execute("BEGIN IMMEDIATE" if create else "BEGIN")
             try:
-                self._prepare(connection, was_present)
+                prepared = self._prepare(connection, was_present, create)
                 connection.execute("COMMIT")
             except BaseException:
                 connection.execute("ROLLBACK")
@@ -146,6 +151,9 @@ class SessionMixin:
             if isinstance(exc, StateError):
                 raise
             raise StateError("cannot open the advanced state") from exc
+        if not prepared:
+            connection.close()
+            return None
         self._connection = connection
         return connection
 
@@ -156,10 +164,16 @@ class SessionMixin:
         return {name: tuple(row[1] for row in connection.execute("PRAGMA table_info(%s)" % name))
                 for name in names}
 
-    def _prepare(self, connection, was_present) -> None:
+    def _prepare(self, connection, was_present, create) -> bool:
+        """Whether the file is this schema, made now if `create` and there is none. False for a
+        file with no schema that a read found: an empty one - what a crash between making the
+        file and writing its schema leaves - is nothing turned on, and a read does not finish
+        making it, as core's store does not initialise an empty state.sqlite it opens."""
         version = connection.execute("PRAGMA user_version").fetchone()[0]
         tables = self._tables(connection)
         if version == 0 and not tables:
+            if not create:
+                return False
             if was_present and self.path.stat().st_size:
                 raise StateError("the advanced state is empty or uninitialized; refusing to reset it")
             for statement in STATEMENTS:
@@ -172,6 +186,7 @@ class SessionMixin:
             raise StateError("unsupported or malformed advanced state")
         if connection.execute("SELECT count(*) FROM meta").fetchone()[0] != 1:
             raise StateError("malformed advanced state")
+        return True
 
     def close(self) -> None:
         with self._lock:

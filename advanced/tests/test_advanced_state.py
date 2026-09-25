@@ -82,6 +82,25 @@ class FileTests(StateCase):
         state.note(JournalCode.OTHER)
         self.assertFalse(self.home.exists())
 
+    def test_a_read_makes_nothing_of_an_empty_file(self):
+        """A crash between making the file and writing its schema leaves it empty. A read of it
+        is a read of nothing - every capability off - and makes no schema and no marker, as a
+        read never makes the file; the next write finishes making it."""
+        self.paths.ensure()
+        self.paths.advanced_dir.mkdir()
+        empty = self.paths.advanced_dir / FILE_NAME
+        empty.write_bytes(b"")
+        marker = self.paths.advanced_dir / config.OWNER_MARKER
+        state = self.state()
+        self.assertEqual(state.meta(), {"generation": 0, "global_hourly": 12})
+        self.assertEqual(state.arming(), {})
+        self.assertEqual(state.journal(), [])
+        self.assertEqual(empty.stat().st_size, 0)
+        self.assertFalse(marker.exists())
+        state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1)
+        self.assertEqual(state.arming()["test_wake"]["state"], ArmingState.SHADOW)
+        self.assertTrue(marker.is_file())
+
     def test_it_lives_in_one_marked_directory_under_config(self):
         state = self.state()
         state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1)
