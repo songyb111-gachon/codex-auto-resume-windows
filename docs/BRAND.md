@@ -122,12 +122,12 @@ window and a card in Codex round their corners by the same amount.
 | --- | --- | --- |
 | `RADII` | card 16, control 11, chip 999, small 7, check 5 | Corners. A chip is a pill. |
 | `SPACING` | 4, 8, 12, 16, 24, 32 (`xs` to `xxl`) | Padding and gaps. |
-| `TYPE` | title 20, heading 14, body 12, small 11 | The Dashboard's and the popup's type sizes. |
+| `TYPE` | title 20, heading 14, body 12, small 11 | The popup's and the notification card's type sizes. The Dashboard keeps Windows' message font at its own sizes. |
 | `TYPE_SCALE`, `LINE_HEIGHT`, `TYPE_ROLES` | display 21, title 15, body 14, small 12.5, mono 13 | The panel's type. The native surfaces keep `TYPE`: a notification-area popup and a fixed-size window read better with smaller text than a panel inside Codex. |
-| `LAYOUT` | button 34 high, field 35, switch 40 × 22, check box 18 with 10 to its label, chip 22, card padding 16 × 18, page gap 14, and the rest | The sizes of the shared control recipes, taken from the panel. |
+| `LAYOUT` | button 34 high, field 35, switch 40 × 22, check box 18 with 10 to its label, chip 22, a status light 9 from where its line starts and 14 from its word, a callout padded 10 × 12 with an 18 badge, card padding 16 × 18, page gap 14, and the rest | The sizes of the shared control recipes, taken from the panel. |
 | `SHADOWS` | light card: offset (4, 4), blur 14, `shadow_dark` at 0.55, and offset (−4, −4), blur 14, `shadow_light` at 0.90; control: the same at offset 2, blur 6; inset: offset 2, blur 6, inside the edge. Dark card: offset (0, 1), blur 2, `shadow_dark` at 0.70, offset (0, 6), blur 18, at 0.35, and a one-pixel `shadow_light` line at 0.45 inside the top edge; control: offset (0, 1), blur 2, at 0.60; inset: the same inside the edge, at 0.55 | A lifted card, a raised control and a well. Small on purpose: exaggerated embossing is what makes soft interfaces unreadable. |
 | `STATUS_DOT`, `STATUS_FILL`, `GLOW` | dot radius: window 5, popup 4.5, panel 6; one cosine a cycle, taken in light and drawn through gamma 2.2; the dot keeps 35% of its light at the bottom; the glow rides it, reaching 0.6 of the radius at opacity 0.50 | The state light: its size, its colour for each state, its blink and its glow. |
-| `MOTION` | transition 160 ms on one curve, `ease` = cubic-bezier(0.33, 1, 0.68, 1), an ease-out | A switch's glide and a check box's fade on every surface, and the rise of an open drop-down list. |
+| `MOTION` | transition 160 ms on one curve, `ease` = cubic-bezier(0.33, 1, 0.68, 1), an ease-out | A switch's glide and a check box's fade on every surface, the rise of an open drop-down list, and since v0.6.10 the notification card's rise, return and slide, which had a curve of their own. |
 | `ICON_SHAPE` | ring 0.34 to 0.53 of the half-size; sweep from 125° round to 55°, leaving a 70° opening at the top; head radius 0.155; corners 0.30, or 0.24 below 32 px; 4 × 4 samples a pixel (`ICON_SUPERSAMPLE`) | The mark's geometry, in a square whose half-size is 1. |
 
 The window gets these as constants in `gui/Brand.cs` - `RadiusCard`, `SpaceM`, `TypeBody`,
@@ -137,6 +137,15 @@ custom properties from `brand.css_scale()`: `--radius-*`, `--space-*`, `--type-*
 `--size-*`, `--glow-*`, `--transition` and `--transition-ease`. The curve is solved the way
 browsers solve a cubic-bezier - `brand.ease()` in the popup, `Brand.Ease` in the window - so all
 three surfaces move a switch along the same path.
+
+A button and a chip are the same on every surface since v0.6.10: `LAYOUT`'s 34-pixel button and
+22-pixel chip padded 9 either side, their words at `TYPE_ROLES`' weight 500, which Windows draws
+regular. Until then the popup's and the notification card's buttons were 32 high and bold, and their
+chips bold and tighter, beside the window's and the panel's regular ones. A notice set apart is a
+callout on every surface: the `accent_soft` ground with the control's corners, an "i" badge in the
+accent, and the notice in ink, `callout_pad`, `callout_gap` and `callout_badge` apart. The window said
+the same notices in accent-coloured help text until v0.6.10, and the callout's numbers generated for
+it were used by nothing.
 
 Attention's breath is `--glow-attention-ms`, never `--attention`, because the
 palette already declares `--attention` as a colour on the same `:root`. Two custom properties
@@ -228,10 +237,13 @@ is a falloff, never a disc: at its peak its alpha is 0.50 times 0.67 at the dot'
 the reach, in straight lines between, so it holds near half strength and then fades; it never dips
 and rises again, because a gap between a dot and a ring reads as a target. A smaller spread is the
 same falloff drawn smaller about the centre, so the glow grows out from under the dot. The largest
-reaches 8 pixels from the window's dot centre, well inside the 28-pixel column the window keeps
+reaches 8 pixels from the window's dot centre, well inside the 28-pixel box the window keeps
 for it at every scaling. Since v0.6.7 the notification card's light breathes on this same table
-too, its face drawn again at most every 80 ms, and Reduce motion and High Contrast keep it still;
-v0.6.6 drew it once, lit and still, on purpose. The light always has its word beside it.
+too, and Reduce motion and High Contrast keep it still; v0.6.6 drew it once, lit and still, on
+purpose. Since v0.6.10 it is drawn as the popup draws its own: only the band of rows the light
+stands in is drawn again, at the popup's frame rate, where the whole card was drawn again at most
+every 80 ms - a third of the processor time for more than twice the frames. The light always has
+its word beside it.
 
 All of it stops on request. The Dashboard and the popup stop every animation when **Reduce
 motion** is on (Settings > Appearance) or when Windows' own animation-effects switch is off, and
@@ -502,10 +514,19 @@ the ring rather than floating beside it.
 - **State leads.** In the Dashboard, the popup and the panel, what the watcher is doing is the
   first thing and the largest type. It used to be a muted sentence along the bottom of the
   window, under sixteen checkboxes — which put the one thing a person opens the window to check
-  below everything they did not come for.
+  below everything they did not come for. Since v0.6.10 the three headers are built as the
+  panel's is: the product as a muted eyebrow where there is one, then the light and the state's
+  word in ink, the light on the word's line. The popup used to title itself with the product's
+  name and say the state in a small coloured line under it, and the window's light stood between
+  its two lines. Every light with words beside it - those three and the notification card's -
+  stands `LAYOUT`'s `light_inset` from where its line starts and `light_gap` from its words,
+  where the gap was anything from 15 to 18.5 pixels.
 - **No colour without a word.** A state is a word on a chip tinted with its own colour, and the
-  dot always has its word beside it. `active` never carries text, which is why the popup keeps
-  separate tables for a dot's fill and its word's ink.
+  dot always has its word beside it. `active` never carries text, and since v0.6.10 a header's
+  word carries no state's colour at all: the light carries the colour, and the word, in ink, the
+  meaning. An outcome is one colour wherever it is shown - its word's chip in History and, since
+  v0.6.10, its bar on the Statistics page, beside the same word, where every bar was the accent's
+  blue; High Contrast keeps one system colour for the bars.
 - **Nothing depends on seeing a shadow.** Every card and control keeps a hairline edge, and the
   keyboard focus ring has its own token, `focus`.
 - **Order is an argument.** The panel runs: the state; then what is waiting, because it is the
