@@ -164,6 +164,20 @@ function Test-PathInside {
     return $c.StartsWith($p + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)
 }
 
+function Get-Edition {
+    <#
+        Which edition the tree whose `src` this is: the advanced one when the advanced
+        package is in it, the standard one otherwise. Nothing is stamped anywhere to say
+        which. It is the fact the product itself reads (src/codex_auto_resume/edition.py,
+        name()), and scripts/bootstrap.ps1 reads it the same way, so the three agree -
+        even about an installation whose advanced package would not load.
+    #>
+    param([string]$Src)
+    $package = Join-Path (Join-Path $Src 'codex_auto_resume_advanced') '__init__.py'
+    if (Test-Path -LiteralPath $package -PathType Leaf) { return 'advanced' }
+    return 'standard'
+}
+
 function Get-OwnedMcpProcess {
     <#
         Running MCP launchers that belong to an installation we are managing.
@@ -640,6 +654,10 @@ if ($Uninstall) {
 
 # -------------------------------------------------------------------------- install
 if (-not (Test-Path $Payload)) { Fail 'This installer is missing its payload folder.'; exit 1 }
+
+# Said before anything is done: which edition this archive installs. Every route in - Install.cmd,
+# the bootstrap, an update - passes here, so every install says it.
+Write-Host ('edition: ' + (Get-Edition -Src (Join-Path $Payload 'app\src')))
 
 $codex = Get-CodexCli
 if ($null -eq $codex) {

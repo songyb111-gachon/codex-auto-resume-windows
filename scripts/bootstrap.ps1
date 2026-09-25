@@ -464,6 +464,17 @@ function Test-Archive {
     } finally { $archive.Dispose() }
 }
 
+# Which edition the tree whose `src` this is: the advanced one when the advanced package is in it,
+# the standard one otherwise. Nothing is stamped anywhere to say which. It is the fact the product
+# itself reads (src/codex_auto_resume/edition.py, name()) and the installer reads the same way, so
+# the three agree about an installation - even one whose advanced package would not load.
+function Get-Edition {
+    param([string]$Src)
+    $package = Join-Path (Join-Path $Src 'codex_auto_resume_advanced') '__init__.py'
+    if (Test-Path -LiteralPath $package -PathType Leaf) { return 'advanced' }
+    return 'standard'
+}
+
 function Get-InstalledVersion {
     param([string]$Home_)
     $manifest = Join-Path $Home_ 'app\.codex-plugin\plugin.json'
@@ -580,6 +591,8 @@ if ($null -ne $standing -and $standing -ge 0 -and -not $Force) {
         Step 'Nothing was downloaded, and nothing was replaced with an older version.'
         Step 'Add -Force to install this version over it.'
     }
+    # The edition of what is checked over. An install says it through the installer it runs.
+    Write-Host ('edition: ' + (Get-Edition -Src (Join-Path $installHome 'app\src')))
     # Still converge. Re-running setup is the repair path: it re-registers the sign-in
     # entry and the notification handler against the installed runtime and starts the
     # watcher if it is not running. All of that is cheap, and any of it can be missing

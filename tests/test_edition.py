@@ -42,9 +42,12 @@ from codex_auto_resume.domain.plug import (DEFER, NULL, Alternative, DamagedPlug
 
 ROOT = srcscan.ROOT
 # Files the standard build copies that may spell the advanced package's name besides
-# src/codex_auto_resume/edition.py, each with why. None yet: the bootstrap and the installer will
-# have to spell its path to tell one edition's installation from the other's, and join here then.
-NAMED_BY: dict = {}
+# src/codex_auto_resume/edition.py, each with why. The installer spells it too, from build/install/,
+# which is no tree of the ones checked here; build/edition_audit.py's ALLOWED holds all three as
+# entries of the standard archive.
+NAMED_BY: dict = {
+    "scripts/bootstrap.ps1": "tells which edition a tree is by whether the package is in it",
+}
 
 
 def arguments(point) -> list:

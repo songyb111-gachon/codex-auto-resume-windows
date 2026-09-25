@@ -215,7 +215,9 @@ class BuildScriptTests(unittest.TestCase):
                           "AssemblyInformationalVersion", "AssemblyCopyright"):
             self.assertIn(attribute, script)
         self.assertIn(r".codex-plugin\plugin.json", script)
-        self.assertEqual(script.count("-Description '"), 2, "both executables are described")
+        # Both executables are described; the window by edition, since each edition has its own.
+        self.assertEqual(script.count("-Description "), 2, "both executables are described")
+        self.assertIn("-Description ('Codex Auto Resume settings (' + $EditionWord + ' edition)')", script)
 
     def test_the_release_build_proves_it_twice(self):
         workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
@@ -293,10 +295,14 @@ class VersionResourceTests(unittest.TestCase):
                 self.assertIn("MIT", found["LegalCopyright"])
 
     def test_each_executable_describes_itself(self):
-        """Two files with one description is how a launcher ends up labelled as the window."""
+        """Two files with one description is how a launcher ends up labelled as the window.
+
+        The window names its edition, as the Dashboard does beside the version (v0.6.11); the
+        launcher is one file in both editions and names none. tests/test_edition_window.py
+        reads the advanced window's."""
         descriptions = {name: found["FileDescription"] for name, found in self.fields.items()}
         self.assertEqual(descriptions, {
-            "CodexAutoResumeSettings.exe": "Codex Auto Resume settings",
+            "CodexAutoResumeSettings.exe": "Codex Auto Resume settings (Standard edition)",
             "codex-auto-resume-mcp.exe": "Codex Auto Resume MCP launcher",
         })
 

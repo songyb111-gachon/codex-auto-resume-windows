@@ -22,6 +22,15 @@ build/make_gui.ps1). Two builds from fresh clones of one commit, on one machine 
 same compiler, produced a byte-identical archive. That is all that has been shown: a
 build on another machine, or with another compiler build, has not been compared. Every
 archive published up to v0.5.7 was built before this and is not reproducible.
+
+Two editions, one build. `--edition standard` - the default - is the build as it always was,
+and reads nothing of the repository's `advanced/` tree: APP_TREES does not name it, and nothing
+is filtered out, so there is no exclusion anyone could forget. `--edition advanced` is that same
+build with ADVANCED_TREES added, its own settings window, and one display name changed in the
+payload manifest. Each edition is staged in a directory of its own under build/stage/, so
+building one never wipes the other. build/edition_audit.py proves from the two archives' bytes
+that the standard one holds nothing of the advanced edition, and that the advanced one differs
+from it only there.
 """
 from __future__ import annotations
 
@@ -37,6 +46,9 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 CACHE = ROOT / "build" / "cache"
 OUT = ROOT / "build" / "dist"
+# Where build/make_gui.ps1 leaves the executables, and where each edition's payload is staged.
+BUILT = ROOT / "build"
+STAGES = ROOT / "build" / "stage"
 
 # Pinned so the bundled runtime is a known build rather than whatever python.org serves
 # today. Verified against the published sigstore/spdx artefacts.
@@ -80,6 +92,28 @@ APP_FILES = ("LICENSE", "README.md", "docs/PRIVACY.md", "docs/SECURITY.md", "doc
 APP_SOURCES = {".mcp.json": "build/plugin-mcp.json"}
 LAUNCHER_FILES = ("Install.cmd", "Uninstall.cmd", "README.txt", "install.ps1")
 
+# The editions (src/codex_auto_resume/domain/plug.py, Edition). The advanced one is the standard
+# one plus what follows, and nothing is ever taken away from either.
+EDITIONS = ("standard", "advanced")
+# The advanced package and skill. Core takes the package only from beside itself, in the same
+# `src` directory (src/codex_auto_resume/edition.py), so that is where the payload puts it; the
+# skill goes beside the standard one, where Codex reads the plugin's skills.
+ADVANCED_PACKAGE = "codex_auto_resume_advanced"
+ADVANCED_SKILL = "codex-auto-resume-advanced"
+# What the advanced build adds, from where in the repository to where under payload/app. In the
+# repository both live under `advanced/`, outside every tree above: a plugin added from GitHub
+# never loads the skill (.codex-plugin/plugin.json reads ./skills/), and the standard build has
+# no path that reaches either.
+ADVANCED_TREES = (("advanced/src/" + ADVANCED_PACKAGE, "src/" + ADVANCED_PACKAGE),
+                  ("advanced/skills/" + ADVANCED_SKILL, "skills/" + ADVANCED_SKILL))
+# Without the package the archive is the standard edition under the advanced name, and without
+# its plug an installation of it runs as the standard edition with a badge that says so.
+REQUIRED_ADVANCED_FILES = ("src/%s/__init__.py" % ADVANCED_PACKAGE,
+                           "src/%s/plug.py" % ADVANCED_PACKAGE)
+# The word the advanced edition adds to the name Codex shows for the plugin: the badge its plug
+# carries (advanced/src/codex_auto_resume_advanced/plug.py).
+ADVANCED_WORD = "Advanced"
+
 EXCLUDE_DIRS = {"__pycache__", ".git", ".github", "node_modules", ".pytest_cache",
                 "comparison", "config", "logs", "build", "tests", ".venv", "venv"}
 EXCLUDE_SUFFIXES = {".pyc", ".pyo", ".log", ".sqlite", ".sqlite-wal", ".sqlite-shm"}
@@ -94,6 +128,17 @@ ZIP_TIMESTAMP = (2026, 1, 1, 0, 0, 0)
 def version() -> str:
     manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8-sig"))
     return str(manifest["version"])
+
+
+def archive_name(edition: str, release: str) -> str:
+    """The archive's file name, from the template scripts/release.json holds for its edition.
+
+    Every bootstrap builds the name it downloads from that same file, so the name a build writes
+    and the name an installation asks for cannot drift apart. The top-level `archive` is the
+    standard edition's, as it always was; the advanced one is a constant of its own."""
+    templates = json.loads((ROOT / "scripts" / "release.json").read_text(encoding="utf-8"))
+    template = templates["archive"] if edition == "standard" else templates[edition]["archive"]
+    return template.replace("{version}", release)
 
 
 def fetch_runtime() -> Path:
@@ -140,10 +185,34 @@ def collect_app(stage: Path) -> int:
     return copied
 
 
-def check_app_files(stage: Path) -> None:
+def collect_advanced(stage: Path) -> int:
+    """Add the advanced edition's package and skill to a payload collect_app has filled.
+
+    Copied the way collect_app copies a tree, by the same rule for what is wanted, and only
+    ever added: nothing already in the payload is replaced or removed here."""
+    app = stage / "payload" / "app"
+    copied = 0
+    for tree, placed in ADVANCED_TREES:
+        source = ROOT / tree
+        if not source.is_dir():
+            raise SystemExit("missing %s - the advanced edition is built from it" % tree)
+        for entry in sorted(source.rglob("*")):
+            if not entry.is_file() or not _wanted(entry.relative_to(ROOT)):
+                continue
+            destination = app / placed / entry.relative_to(source)
+            if destination.exists():
+                raise SystemExit("%s would replace a file of the standard payload" % destination)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(entry, destination)
+            copied += 1
+    return copied
+
+
+def check_app_files(stage: Path, edition: str = "standard") -> None:
     """Every required data file is in the payload, and the registry baseline validates."""
     app = stage / "payload" / "app"
-    for name in REQUIRED_APP_FILES:
+    required = REQUIRED_APP_FILES + (REQUIRED_ADVANCED_FILES if edition == "advanced" else ())
+    for name in required:
         if not (app / name).is_file():
             raise SystemExit("missing %s in the payload" % name)
     source = str(ROOT / "src")
@@ -167,16 +236,22 @@ def collect_runtime(stage: Path, archive: Path) -> int:
     return sum(1 for _ in runtime.rglob("*") if _.is_file())
 
 
-def collect_gui(stage: Path) -> int:
+def collect_gui(stage: Path, edition: str = "standard") -> int:
     r"""Place the settings window beside the runtime it drives.
 
     It resolves ``runtime\python.exe`` and ``app\src`` relative to its own directory,
     so it must sit at the root of the installed home - which is where the installer
     copies the whole payload folder.
+
+    Each edition has a window of its own: `make_gui.ps1 -Edition advanced` compiles the
+    advanced one into build/advanced/, beside the standard one and never over it. The MCP
+    launcher is one file, the same in both editions.
     """
-    source = ROOT / "build" / GUI_EXE
+    built = BUILT / "advanced" if edition == "advanced" else BUILT
+    source = built / GUI_EXE
     if not source.is_file():
-        raise SystemExit("missing %s - run build/make_gui.ps1 first" % GUI_EXE)
+        raise SystemExit("missing %s - run build/make_gui.ps1 -Edition %s first"
+                         % (source, edition))
     shutil.copyfile(source, stage / "payload" / GUI_EXE)
     # Required, not optional. The bootstrap's archive check names both files at the payload
     # root and refuses an archive carrying either a missing one or an extra one, so building
@@ -187,7 +262,7 @@ def collect_gui(stage: Path) -> int:
         raise SystemExit("missing assets/codex-auto-resume.ico - the payload root needs it")
     shutil.copyfile(icon, stage / "payload" / "codex-auto-resume.ico")
 
-    launcher = ROOT / "build" / MCP_EXE
+    launcher = BUILT / MCP_EXE
     if not launcher.is_file():
         raise SystemExit("missing %s - run build/make_gui.ps1 first" % MCP_EXE)
     destination = stage / "payload" / "app" / "mcp" / MCP_EXE
@@ -196,7 +271,7 @@ def collect_gui(stage: Path) -> int:
     return 3
 
 
-def declare_mcp_server(stage: Path) -> None:
+def declare_mcp_server(stage: Path, edition: str = "standard") -> None:
     """Wire the MCP server into the payload's manifest, and only the payload's.
 
     The server cannot run without the bundled interpreter, and only this installer puts
@@ -210,6 +285,11 @@ def declare_mcp_server(stage: Path) -> None:
     APP_SOURCES), because a security-relevant
     declaration should be reviewable as source rather than assembled out of a string in
     a build script.
+
+    The advanced edition's one difference in the manifest is made here too, in the one step
+    that rewrites it: its display name gains ADVANCED_WORD, so Codex's list of plugins says
+    which edition is installed. `name` and `version` stay as they are, because every bootstrap
+    checks both before it installs an archive (scripts/bootstrap.ps1, Test-Archive).
     """
     app = stage / "payload" / "app"
     companion = app / ".mcp.json"
@@ -224,6 +304,10 @@ def declare_mcp_server(stage: Path) -> None:
         ordered[key] = value
         if key == "skills":
             ordered["mcpServers"] = "./.mcp.json"
+    if edition == "advanced":
+        interface = dict(ordered["interface"])
+        interface["displayName"] = "%s %s" % (interface["displayName"], ADVANCED_WORD)
+        ordered["interface"] = interface
     manifest_path.write_text(json.dumps(ordered, indent=2, ensure_ascii=False) + "\n",
                              encoding="utf-8")
 
@@ -256,10 +340,13 @@ def write_archive(stage: Path, target: Path) -> Path:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Build the Windows release archive.")
     parser.add_argument("--output", default=str(OUT))
+    parser.add_argument("--edition", choices=EDITIONS, default="standard",
+                        help="the edition to build; standard, the default, is the build as it always was")
     args = parser.parse_args(argv)
+    edition = args.edition
 
     release = version()
-    stage = ROOT / "build" / "stage"
+    stage = STAGES / edition
     if stage.exists():
         shutil.rmtree(stage)
     stage.mkdir(parents=True)
@@ -267,18 +354,21 @@ def main(argv=None) -> int:
     archive = fetch_runtime()
     runtime_files = collect_runtime(stage, archive)
     app_files = collect_app(stage)
-    check_app_files(stage)
-    gui_files = collect_gui(stage)
+    if edition == "advanced":
+        app_files += collect_advanced(stage)
+    check_app_files(stage, edition)
+    gui_files = collect_gui(stage, edition)
     launcher_files = collect_launchers(stage)
-    declare_mcp_server(stage)
+    declare_mcp_server(stage, edition)
 
-    name = "CodexAutoResume-v%s-win-x64.zip" % release
+    name = archive_name(edition, release)
     target = write_archive(stage, Path(args.output) / name)
     digest = hashlib.sha256(target.read_bytes()).hexdigest()
     (target.parent / (name + ".sha256")).write_text(
         "%s  %s\n" % (digest, name), encoding="utf-8")
 
     print("version        : %s" % release)
+    print("edition        : %s" % edition)
     print("runtime files  : %d" % runtime_files)
     print("app files      : %d" % app_files)
     print("gui files      : %d" % gui_files)

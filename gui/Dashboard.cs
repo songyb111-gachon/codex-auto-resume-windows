@@ -672,6 +672,21 @@ namespace CodexAutoResume
         private string compatLiveOver;
         private bool compatUnreadable, loadingCompat, compatRefreshing;
 
+        // ------------------------------------------------------ the advanced edition
+        // Where the advanced edition's window joins this one (v0.6.11). Each is a `partial void`
+        // with no body in any source gui/window.sources lists. `make_gui.ps1 -Edition advanced`
+        // also compiles the sources advanced/gui/window.sources lists, and one of those may give
+        // it a body. With no body the compiler removes the declaration and every call to it, so
+        // the standard window does not hold a switched-off copy of either: it holds neither
+        // (build/edition_audit.py; tests/test_edition_window.py builds it both ways).
+        //
+        // The Dashboard's pages and navigation are built, and the snapshot is shown on those
+        // built so far.
+        partial void DashboardBuilt();
+        // A snapshot has been shown (ApplySnapshot), or there is none and the pages say so
+        // (MarkUnavailable, with null). A page of the advanced edition follows the same read.
+        partial void SnapshotApplied(Dictionary<string, object> reply);
+
         // ----------------------------------------------------------------- chrome
         private void BuildDashboard()
         {
@@ -744,6 +759,7 @@ namespace CodexAutoResume
                     e.Handled = true;
                 }
             };
+            DashboardBuilt();
         }
 
         private void ShowPage(string name)
