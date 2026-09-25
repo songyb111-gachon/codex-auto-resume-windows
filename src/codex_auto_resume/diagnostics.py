@@ -24,7 +24,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import platform
 import re
 import secrets
 import sys
@@ -152,7 +151,10 @@ def _installation(control) -> dict:
                            ("mcp_manifest", "app/.mcp.json"),
                            ("mcp_launcher", "app/mcp/codex-auto-resume-mcp.exe"),
                            ("settings_window", "CodexAutoResumeSettings.exe"),
-                           ("bundled_runtime", "runtime/python.exe")):
+                           ("bundled_runtime", "runtime/python.exe"),
+                           # The watcher runs under this one or not at all: without it nothing
+                           # is registered or started, rather than a console interpreter.
+                           ("windowless_runtime", "runtime/pythonw.exe")):
         try:
             found[name] = (home / relative).exists()
         except OSError:
@@ -189,6 +191,29 @@ def _redacted(value, redact: Redactor):
     return value
 
 
+def _system() -> dict:
+    """Which Windows, which Python, which processor - without starting a program to ask.
+
+    `platform.version()` and `platform.machine()` go through `platform.uname()`, which asks WMI
+    and, when WMI fails, runs `cmd /c ver` with `shell=True`. That fallback is hidden, but it is
+    still a console program started from wherever this runs - the settings window's bridge, the
+    command line, and in v0.6.11 perhaps the watcher - and this product starts nothing that could
+    put a console window on the screen (tests/test_no_console_windows.py bans the module). Both
+    answers are to hand without it: the build Windows reports to this process, which is the one
+    `platform.version()` prints (10.0.26200), and the processor Windows puts in the environment,
+    which is the one this runtime runs as (AMD64 for the x64 runtime even on an ARM64 machine).
+    `platform_version` is not used: it is kernel32.dll's file version, which an enablement
+    package leaves behind (10.0.26100 on the same machine).
+    """
+    getter = getattr(sys, "getwindowsversion", None)
+    windows = None
+    if getter is not None:
+        version = getter()
+        windows = "%d.%d.%d" % (version.major, version.minor, version.build)
+    machine = os.environ.get("PROCESSOR_ARCHITEW6432") or os.environ.get("PROCESSOR_ARCHITECTURE") or None
+    return {"windows": windows, "python": sys.version.split()[0], "machine": machine}
+
+
 def collect(control, *, now=None, redact=None) -> dict:
     """The whole bundle, redacted. Works with the watcher stopped and Codex closed."""
     redact = redact or Redactor()
@@ -201,8 +226,7 @@ def collect(control, *, now=None, redact=None) -> dict:
                  "errors.log holds exception messages that are not filtered - read it before "
                  "sharing this file."),
         "product": {"version": config.version()},
-        "system": {"windows": platform.version(), "python": sys.version.split()[0],
-                   "machine": platform.machine()},
+        "system": _system(),
     }
     settings = control.get_settings()
     settings = dict(settings, codex_exe="<set>" if settings.get("codex_exe") else None)

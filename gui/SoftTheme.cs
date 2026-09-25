@@ -34,6 +34,10 @@ namespace CodexAutoResume
         /// The most a settings file may hold and still be read: settings.MAX_SETTINGS_BYTES.
         internal const int MaxSettingsBytes = 256 * 1024;
 
+        /// v0.6.10's fourth design, which the settings layer reads as Soft with Reduce motion on
+        /// (settings.FOLDED_DESIGN, settings._fold_design) - a name the window reads in a stored file, never draws.
+        internal const string FoldedDesign = "still";
+
         private const int SPI_GETHIGHCONTRAST = 0x0042;
         private const int HCF_HIGHCONTRASTON = 0x0001;
 
@@ -132,11 +136,15 @@ namespace CodexAutoResume
         /// so it is "system" and "soft" here too, as is no file at all - a file the two read differently
         /// opened the window in one theme and had its first read reopen it in the other, every time it was
         /// opened. v0.6.10: the design is read in the same parse as the theme, never in a second read of its
-        /// own, so the two can never come from two versions of the file.
-        internal static void Stored(string root, out string theme, out string design)
+        /// own, so the two can never come from two versions of the file. v0.6.11: Reduce motion too, as
+        /// settings.load has it - true exactly, or a stored Still (FoldedDesign), whatever stands beside it - so a
+        /// window that opens on a Still, or on Reduce motion, holds its motion from its first frame and not only
+        /// once the bridge's settings read has come back (SettingsPage.AdoptSettings).
+        internal static void Stored(string root, out string theme, out string design, out bool reduceMotion)
         {
             theme = System;
             design = Brand.DesignDefault;
+            reduceMotion = false;
             try
             {
                 var file = new FileInfo(Path.Combine(Path.Combine(root, "config"), "settings.json"));
@@ -147,20 +155,28 @@ namespace CodexAutoResume
                 if (map == null) return;
                 object value;
                 string storedTheme = map.TryGetValue("theme", out value) ? Preference(value) : System;
-                string storedDesign = map.TryGetValue("design", out value) ? Design.Preference(value) : Brand.DesignDefault;
+                string storedDesign = Brand.DesignDefault;
+                bool storedMotion = map.TryGetValue("reduce_motion", out value) && Equals(value, true);
+                if (map.TryGetValue("design", out value))
+                {
+                    storedDesign = Design.Preference(value);
+                    if (Equals(value, FoldedDesign)) storedMotion = true;
+                }
                 theme = storedTheme;
                 design = storedDesign;
+                reduceMotion = storedMotion;
             }
             catch (Exception)
             {
                 theme = System;
                 design = Brand.DesignDefault;
+                reduceMotion = false;
             }
         }
     }
 
-    /// Which design the window is drawn in (v0.6.10): the Design setting - "soft", "still", "classic" or
-    /// "plain" - which says what is drawn and what moves (brand/design.py, read through Brand's Design rules).
+    /// Which design the window is drawn in (v0.6.10): the Design setting, which says what is drawn
+    /// (brand/design.py, read through Brand's Design rules) and never what moves - Soft.ReduceMotion says that.
     /// It is independent of the theme, so each design is drawn light or dark, and High Contrast replaces every
     /// design: its system colours, with no depth, glow or accent bar and Soft's corners. It is decided once, as
     /// the window opens, from the same read of the settings file as the theme (Theme.Stored), and a change of
@@ -170,8 +186,9 @@ namespace CodexAutoResume
         /// The Design preference the window opened with; set once, by Program.Main.
         internal static string Opened = Brand.DesignDefault;
 
-        /// A stored Design as the settings layer reads it: one of the four exactly, and "soft" for anything
-        /// else (Brand.DesignOf).
+        /// A stored Design as the settings layer reads it: one of Brand's designs exactly, and "soft" for
+        /// anything else (Brand.DesignOf) - v0.6.10's "still" too, whose Reduce motion the settings layer adds
+        /// (settings._migrate) and the window reads beside it in the same parse (Theme.Stored).
         internal static string Preference(object value)
         {
             return Brand.DesignOf(value);
@@ -186,16 +203,16 @@ namespace CodexAutoResume
         }
     }
 
-    /// The brand colours of the theme and design in effect - Soft's, which Still draws in too, or since v0.6.10 a
-    /// design's own - never a system colour. What High Contrast replaces is Palette's business; a few rules that name
+    /// The brand colours of the theme and design in effect - Soft's, or since v0.6.10 a design's own - never a
+    /// system colour. What High Contrast replaces is Palette's business; a few rules that name
     /// the High Contrast colour themselves (the scroll bar's) read the brand half here. Every colour is the one
     /// Brand.LookOf answers for the design and the theme: choosing a design's colours by its name is generated code
     /// (Brand.Look), and nothing here or anywhere else in the window names a design.
     internal static class Tokens
     {
         internal static bool Dark;
-        /// The design whose colours these are (Brand.DesignColours): Classic's and Plain's their own, and Soft's for
-        /// Soft and Still. Palette sets the design it draws in before it adopts a theme, and Adopt narrows it to this.
+        /// The design whose colours these are (Brand.DesignColours): a design's own where it has them, and Soft's
+        /// otherwise. Palette sets the design it draws in before it adopts a theme, and Adopt narrows it to this.
         internal static string Design = Brand.DesignDefault;
         /// The design and theme in effect, as Brand.LookOf answers them: the colours below and the check box's.
         internal static Brand.Look Look;
@@ -256,10 +273,9 @@ namespace CodexAutoResume
         /// "light", "dark" or "contrast".
         internal static string Theme = CodexAutoResume.Theme.Light;
         internal static bool Contrast;
-        /// The design the window is drawn in, one of Brand's four as Brand.DesignOf reads it (AdoptDesign).
+        /// The design the window is drawn in, one of Brand's designs as Brand.DesignOf reads it (AdoptDesign).
         internal static string Design = Brand.DesignDefault;
-        /// The design in the theme in effect, as Brand.LookOf answers it: what the flags below are read from, and
-        /// what the two motion gates ask (Soft.LightStill, Soft.ControlsStill).
+        /// The design in the theme in effect, as Brand.LookOf answers it: what the flags below are read from.
         internal static Brand.Look Look;
         /// Whether shadows, wells and a card's lift are drawn: the design has depth, and not High Contrast.
         internal static bool Depth;
@@ -353,7 +369,8 @@ namespace CodexAutoResume
         private const int GWL_STYLE = -16;
         private const int WS_VISIBLE = 0x10000000;
 
-        /// This product's own "Reduce motion" setting, adopted when the settings are read.
+        /// This product's own "Reduce motion" setting: read from the settings file as the window opens
+        /// (Theme.Stored, Program.Main), and adopted again when the bridge's settings read comes back.
         internal static bool ReduceMotionSetting;
 
         /// The moment of its breath every status light is held at, in milliseconds, or -1 for the
@@ -442,25 +459,6 @@ namespace CodexAutoResume
                 catch (Exception) { }
                 return false;
             }
-        }
-
-        // v0.6.10: motion is two gates, as on every surface (brand.light_moves, brand.controls_move). Each is held
-        // by every stopper ReduceMotion knows and by a design that does not move it; a design only ever takes
-        // motion away, so under Reduce motion no design moves anything, and Still holds exactly what Reduce
-        // motion holds.
-
-        /// Whether the status light holds still - its breath and checking's arc, in the window and on its taskbar
-        /// button: motion is reduced, or the design's light does not breathe (Still). Classic and Plain breathe.
-        internal static bool LightStill
-        {
-            get { return !Palette.Look.Breathes || ReduceMotion; }
-        }
-
-        /// Whether the controls change without moving - a switch or a check box, a list rising open, the scroll
-        /// glide: motion is reduced, or the design does not glide (Still; Classic and Plain glide as Soft does).
-        internal static bool ControlsStill
-        {
-            get { return !Palette.Look.Glides || ReduceMotion; }
         }
 
         internal static int Px(int atNinetySix)
@@ -1027,8 +1025,8 @@ namespace CodexAutoResume
     /// a switch leaves at once and settles softly.
     ///
     /// Nothing moves when motion is reduced (Soft.ReduceMotion: this product's setting, Windows'
-    /// animation effects, High Contrast), in a design whose controls do not glide (Soft.ControlsStill,
-    /// v0.6.10: Still), nor where it cannot be seen; the change is then immediate.
+    /// animation effects, High Contrast), in any design, nor where it cannot be seen; the change is then
+    /// immediate.
     internal static class Motion
     {
         /// A frame, in milliseconds: the soft scroll bar's glide rate.
@@ -1045,13 +1043,12 @@ namespace CodexAutoResume
             return Brand.Ease(t);
         }
 
-        /// Whether `control` may animate a change now: the controls may move (Soft.ControlsStill: motion is not
-        /// reduced, and the design glides), and it is on screen - its own window visible (Soft.Shown) and every
+        /// Whether `control` may animate a change now: motion is not reduced (Soft.ReduceMotion), and it is on screen - its own window visible (Soft.Shown) and every
         /// control it is in (Visible): a switch on a page or section not shown is not seen, and its change is
         /// immediate.
         internal static bool Allowed(Control control)
         {
-            if (control == null || Soft.ControlsStill || !control.IsHandleCreated || !Soft.Shown(control) || !control.Visible) return false;
+            if (control == null || Soft.ReduceMotion || !control.IsHandleCreated || !Soft.Shown(control) || !control.Visible) return false;
             Form form = control.FindForm();
             return form == null || (form.Visible && form.WindowState != FormWindowState.Minimized);
         }

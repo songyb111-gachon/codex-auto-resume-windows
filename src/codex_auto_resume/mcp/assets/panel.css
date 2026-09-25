@@ -531,13 +531,12 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
   .halo::before { display: none; }
 }
 
-/* v0.6.10: what each design moves, and Classic's mark, from brand.DESIGN (panel.design_rules). A design
-   whose light does not breathe (Still), and the product's own Reduce motion (`data-motion`, which until
-   then only the Dashboard, the popup, the card and the icon read), hold everything as the rule above
-   does; a design that does not glide (Still alone) changes a control and shows a list without
-   moving them; one with no glow (Plain) dims its light with nothing round it; and Classic draws v0.6.2's
-   accent bar inside each card's left hairline - a shadow, so nothing moves by its width. A design only
-   ever takes motion away: nothing here can start what the rule above or High Contrast stops. */
+/* v0.6.10: the product's own Reduce motion, and each design's marks, from brand.DESIGN
+   (panel.design_rules). Reduce motion (`data-motion`, which until then only the Dashboard, the popup,
+   the card and the icon read) holds everything as the rule above does, in every design, and no design
+   holds anything of its own; a design with no glow (Plain) dims its light with nothing round it; and
+   Classic draws v0.6.2's accent bar inside each card's left hairline - a shadow, so nothing moves by its
+   width. Nothing here can start what the rule above or High Contrast stops. */
 @DESIGN_MOTION@
 
 /* Windows High Contrast. The browser puts the person's system colours in place of the palette
