@@ -4,8 +4,6 @@
 
 [The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.10-alpha...v0.6.10)
 
-**In development.** This entry grows with the release and is final when v0.6.10 is tagged.
-
 ### The repository's front page, in one language
 
 - `main` - the front page, the plugin's install route, where releases are tagged - is English only.
@@ -14,7 +12,10 @@
   branch is built from main's code and the Korean sources of the dev commit it came from.
 - The front page lists sixteen entries: `CHANGELOG`, `PRIVACY` and `CONTRIBUTORS` are in `docs/`,
   the installer's source in `build/install/`, and the MCP declaration's in `build/plugin-mcp.json`.
-  The release archive's layout does not change.
+  In the release archive the installer and the MCP declaration stand where they stood, so no
+  published bootstrap sees a difference. The archive carries `CHANGELOG`, `PRIVACY` and
+  `CONTRIBUTORS` in `docs/`, where its README links them, and, built on English-only `main`, no
+  longer the Korean `README`, `SECURITY` and `CONTRIBUTORS`.
 - A section-by-section review of all sixteen document pairs found 62 places where the English and
   the Korean said different things; each is fixed in the language that was wrong, and the Korean
   guide now has every section the English one has.
@@ -22,8 +23,11 @@
 ### The design settled
 
 The look was audited as one product, with the Codex panel as the reference, from light and dark
-contact sheets of all four surfaces side by side. What people know stays: each header keeps its
-composition, its words and its places, and the popup's and the card's buttons and chips stay bold.
+contact sheets of all four surfaces side by side. What people know stays. Each header keeps its
+composition, its words and its places: the popup is titled *Codex Auto Resume* over its state, written
+in the state's colour; the Dashboard's light spans its headline and the line under it; and every light
+stands where it stood beside its words. The popup's and the card's buttons and chips stay bold, and the
+Pending page's check results still read *OK*, *Waiting*, *Blocked* and *Unknown*. What changed:
 
 - **One rule for a header's light.** The Dashboard, the popup and the panel light the same moment the
   same way, and the popup and the panel say the same word beside it, by one rule written down as 40
@@ -37,12 +41,21 @@ composition, its words and its places, and the popup's and the card's buttons an
   its checks here, the Dashboard's line under its headline and the panel's facts name that cause -
   *Watcher not responding* is new - where they said *Automatic recovery is on*. The Dashboard keeps its
   own words around it: *Watching for interruptions* over *… · 2 recoveries pending*.
+- **A state nobody confirmed is not called fine.** The popup read a status it could not read, or one
+  that did not say the watcher runs, as *Monitoring* or *Waiting*; it says *Needs your attention*
+  now, beside the grey light. The panel asks for attention, ranked above a pause, for a watcher that
+  runs but is not well, where it said *Monitoring*, *Waiting*, *Recovering* or *Paused*, and both it
+  and the popup do for an older watcher still owning the state. Where the status did not say whether
+  recovery is on, the popup took it as on; it says *Paused* now, and its button offers to resume. And
+  it says *Recovering* when the status counts records in Codex, not only when its list shows one.
 - **Every light that says the product is running moves.** The panel's Automatic recovery tile carries
   the state's light at a smaller size, where a dot that never moved used to be, and it breathes with the
   one above it, on one cycle that a redraw no longer sends back to the top. The panel's light dims
   toward the ground it stands on, so its glow is no longer a fifth weaker than the Dashboard's halfway
-  down a breath. The panel says *Checking*, with its turning arc, once a waiting task's time comes -
-  for one watcher pass, since it is drawn once and never sees the next one - and then *Waiting* again.
+  down a breath. While the panel is open, a clock of its own turns it to *Checking*, with its turning
+  arc, when a waiting task's time comes, and that task's row to *due now*; since the panel reads its
+  records once and never sees the watcher's next pass, it says so for one pass and then *Waiting*
+  again.
 - **One button size, one chip size, one callout.** Buttons are 34 px high on every surface, where the
   popup's and the card's were 32 px, and chips have one height and one padding; the popup's and the
   card's keep their bold words. The Diagnostics page's compatibility notices are the panel's callouts,
@@ -50,9 +63,14 @@ composition, its words and its places, and the popup's and the card's buttons an
   colour History writes that outcome's word in.
 - **One name for the window.** The window is the Dashboard wherever it is named - the icon's menu
   says *Open Dashboard*, as the popup and the card do - the popup's switch is *Auto-resume*, as the
-  Pending page's column is, and its rows count down to the *Next check*, in all nine languages.
+  Pending page's column is, and its rows count down to the *Next check*, in all nine languages. The
+  Settings help that the panel shows as well says *the Dashboard* where it said *this window* and
+  *here*, which in the panel meant the panel, and Reduce motion's help names everything it stops, the
+  panel in Codex included.
 - **The card's light costs less.** It is drawn as the popup draws its own, only the band of rows it
   stands in, at about twice the frames for between a quarter and a third of the processor time.
+  Hovering over it no longer sends its breath back to the top, and it rises in, comes back from a fade
+  and slides on the popup's own easing curve.
 
 ### Four designs
 
