@@ -159,13 +159,6 @@
             "category": "stream_interrupted"
           },
           {
-            "name": "recover_auth_service_transient",
-            "default": true,
-            "type": "boolean",
-            "group": "recovery",
-            "category": "auth_service_transient"
-          },
-          {
             "name": "notify_interruption",
             "default": true,
             "type": "boolean",
@@ -312,15 +305,6 @@
             "multiline": true,
             "max_length": 2000,
             "category": "stream_interrupted"
-          },
-          {
-            "name": "custom_message_auth_service_transient",
-            "default": null,
-            "type": "string",
-            "group": "continuation",
-            "multiline": true,
-            "max_length": 2000,
-            "category": "auth_service_transient"
           }
         ]
       }

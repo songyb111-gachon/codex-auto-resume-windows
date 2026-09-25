@@ -283,6 +283,7 @@ class FailureCategory(StrEnum):
     RATE_LIMIT_TRANSIENT = "rate_limit_transient"
     SERVER_5XX = "server_5xx"
     STREAM_INTERRUPTED = "stream_interrupted"
+    # Reserved since v0.6.10 (failures.RESERVED): nothing produces it; kept so a row naming it reads.
     AUTH_SERVICE_TRANSIENT = "auth_service_transient"
     TERMINAL_USER = "terminal_user"
     TERMINAL_PERMISSION = "terminal_permission"

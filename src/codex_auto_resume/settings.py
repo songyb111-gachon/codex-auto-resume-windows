@@ -36,14 +36,12 @@ CONFIGURABLE_CATEGORIES = (
     "rate_limit_transient",
     "server_5xx",
     "stream_interrupted",
-    # Added late, and for a while it was the one recoverable category with no switch.
-    # The engine recovers a category that has no switch - deliberately, because the
-    # classifier has already decided it is safe and a missing toggle is not an
-    # instruction to stop - so the effect was not that this went unrecovered. It was
-    # that the settings surface under-reported what the product does, and a user who
-    # turned everything off still had this one on with nowhere to see it. Adding the
-    # switch changes no default: it is on, exactly as it has been.
-    "auth_service_transient",
+    # Not `auth_service_transient`, from v0.6.10. v0.6.3 gave it a switch here, believing it
+    # the one recoverable category without one; but nothing in the classifier ever produced it,
+    # so the switch - and its Custom message - changed nothing and never could. It is reserved
+    # now (failures.RESERVED): no field, so describe() offers it on no surface, and a settings
+    # file that still carries `recover_auth_service_transient` or its Custom message loads as
+    # it always did, the two keys dropped on read like any key this build does not have.
 )
 
 # Notification events, each independently suppressible.

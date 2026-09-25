@@ -8,15 +8,17 @@ category is even a legitimate thing to offer a Custom message for.
 It exists because that half had been written five times. The engine knew that a usage
 limit was different from a dropped stream; the settings schema knew six categories were
 switchable; the Dashboard, the Codex panel and the notifications each carried their own
-idea of how to word them. Five copies of one mapping is how a category added to the
-classifier ends up recoverable, unswitchable and unnamed at the same time - which is
-exactly what happened to `auth_service_transient` between v0.5 and v0.6.2.
+idea of how to word them. Five copies of one mapping is how a category ends up
+recoverable, unswitchable and unnamed at the same time - which is what `auth_service_transient`
+looked like between v0.5 and v0.6.2. It was worse than that: nothing ever produced it, so the
+switch v0.6.3 gave it could never fire. v0.6.10 reserves it (failures.RESERVED).
 
 Two rules keep this from becoming a second classifier:
 
-* Every entry's `category` is a category `failures.py` actually produces, and every
+* Every entry's `category` is a category `failures.py` produces or reserves, and every
   category the classifier can recover has an entry. `tests/test_reasons.py` asserts
-  both directions, so neither file can grow a category the other has not heard of.
+  both directions, so neither file can grow a category the other has not heard of, and
+  that every recoverable category is one something produces.
 * Nothing here decides whether a recovery may proceed. `recoverable` restates what the
   classifier already concluded so that a surface can ask one question instead of
   importing two modules; it is not consulted by the engine's gates and cannot widen
@@ -73,7 +75,6 @@ _ENTRIES = (
     _reason("timeout", recoverable=True, order=4, configurable=True),
     _reason("server_5xx", recoverable=True, order=5, configurable=True),
     _reason("stream_interrupted", recoverable=True, order=6, configurable=True),
-    _reason("auth_service_transient", recoverable=True, order=7, configurable=True),
     # Present so that every category the classifier can produce has a label - a
     # Dashboard row for a failure nobody can recover still has to say something. None
     # of these carries continuation text, and none may be given a Custom message.
@@ -84,6 +85,9 @@ _ENTRIES = (
     _reason("terminal_user", recoverable=False, order=54),
     _reason("terminal_invalid", recoverable=False, order=55),
     _reason("terminal_failure", recoverable=False, order=56),
+    # Reserved (failures.RESERVED): nothing produces it. Its label stays so a row that names
+    # it still reads; it has no switch, no continuation text and no Custom message.
+    _reason("auth_service_transient", recoverable=False, order=57),
 )
 
 REASONS = {entry.category: entry for entry in _ENTRIES}

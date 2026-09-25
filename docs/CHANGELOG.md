@@ -132,6 +132,22 @@ composition, its words and its places, and the popup's and the card's buttons an
   state and five counts, every key always there - and `control/wire.py` names it
   (`CompatReported`). The MCP replies do not change.
 
+### Two claims corrected
+
+- **A check box that could never do anything is gone.** *Sign-in service failures*
+  (`auth_service_transient`) sat under Automatic recovery from v0.6.3, with a Custom message and a
+  place in the Preview, for a kind of interruption nothing produced: no error code, HTTP status or
+  message Codex records was ever classified as it. v0.6.3's entry below and the guide said it had been
+  recovered through v0.6.2 with no way to turn it off; it never was. The check box, its Custom message,
+  its place in the Preview and its switch in `update_settings` are gone from the Dashboard, the panel
+  and the MCP schema. The word stays, so a record that names it still reads, and a settings file that
+  carries `recover_auth_service_transient` or its Custom message loads as before, the two keys dropped;
+  a write that names either is refused. A test now fails if a kind nothing produces is made
+  recoverable again, and this one comes back only when a real Codex error is seen to carry it. On the
+  wire, every reply that carries the settings or their schema has the two fields fewer, the Preview's
+  kinds one fewer, and the two continuation sentences for it left the nine catalogs; the wire goldens
+  were regenerated on purpose.
+
 ## v0.6.10-alpha — Where every file goes when the core is Rust
 
 [The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.9...v0.6.10-alpha)
