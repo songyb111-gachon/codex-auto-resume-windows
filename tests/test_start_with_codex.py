@@ -195,7 +195,7 @@ class ProcessContextTests(unittest.TestCase):
 
     def test_the_installer_lock_is_the_installers(self):
         root = Path(__file__).resolve().parents[1]
-        for script in ("install/install.ps1", "scripts/bootstrap.ps1"):
+        for script in ("build/install/install.ps1", "scripts/bootstrap.ps1"):
             self.assertIn("'%s'" % windows.INSTALL_LOCK, (root / script).read_text(encoding="utf-8"), script)
 
     @unittest.skipUnless(os.name == "nt", "a Windows named mutex")

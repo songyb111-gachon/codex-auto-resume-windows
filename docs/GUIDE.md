@@ -919,7 +919,7 @@ A Custom continuation message is stored only in the local settings file in the i
 Like every continuation, though, what it says is sent into the resumed conversation, becomes part
 of it and reaches OpenAI with it, so do not write anything there you would not put in that
 conversation. The interface translations are local files installed with the product; choosing or
-changing a language makes no network request. [PRIVACY.md](../PRIVACY.md) has the details.
+changing a language makes no network request. [PRIVACY.md](PRIVACY.md) has the details.
 
 ## Known limitations
 
@@ -1003,8 +1003,8 @@ issue; diagnosing a problem does not need them.
 | [docs/BRAND.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/BRAND.md) | The palette, the mark, and why each is what it is. |
 | [docs/DEVELOPMENT.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/DEVELOPMENT.md) | How it was built, including the measurements behind the loaded/notLoaded limitation. |
 | [docs/ROADMAP.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/ROADMAP.md) | Where the project is heading, release by release: a planned direction, not a promise. |
-| [CHANGELOG.md](../CHANGELOG.md) | What each release changed. |
-| [PRIVACY.md](../PRIVACY.md) | What is read, what is stored, and what is sent anywhere. |
+| [CHANGELOG.md](CHANGELOG.md) | What each release changed. |
+| [PRIVACY.md](PRIVACY.md) | What is read, what is stored, and what is sent anywhere. |
 | [SECURITY.md](SECURITY.md) | The threat model and how to report a vulnerability. |
 | [SUPPORT.md](SUPPORT.md) | Where to report each kind of problem, and what not to paste into a public issue. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Tests, the release build, fixture conventions, and the safety properties a change has to keep. |
@@ -1020,7 +1020,7 @@ Built by **Youngbin Song** with the assistance of two AI development tools:
   and persistence, expanded the tests, fixed correctness bugs, and ran the security and adversarial audits.
 
 OpenAI Codex and Anthropic Claude Code are AI development tools, not human contributors or GitHub
-accounts. See [CONTRIBUTORS.md](../CONTRIBUTORS.md) for the full breakdown and
+accounts. See [CONTRIBUTORS.md](CONTRIBUTORS.md) for the full breakdown and
 [docs/DEVELOPMENT.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/DEVELOPMENT.md) for the development history, including the measurements behind
 the loaded/notLoaded limitation.
 

@@ -56,4 +56,4 @@ of the source deserve to know how it was produced. They are deliberately **not**
 Copyright is held by the human maintainer. Responsibility for the code, including its safety properties,
 rests with the maintainer, not with the tools.
 
-See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the phase-by-phase history.
+See [docs/DEVELOPMENT.md](DEVELOPMENT.md) for the phase-by-phase history.

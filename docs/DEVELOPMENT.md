@@ -121,5 +121,5 @@ Beyond code review, three empirical techniques were used:
 
 ## Credits
 
-See [`../CONTRIBUTORS.md`](../CONTRIBUTORS.md). OpenAI Codex and Anthropic Claude Code are AI development
+See [`../CONTRIBUTORS.md`](CONTRIBUTORS.md). OpenAI Codex and Anthropic Claude Code are AI development
 tools, not human contributors or GitHub accounts. Copyright is held by the human maintainer.
