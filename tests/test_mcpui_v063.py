@@ -41,7 +41,8 @@ from codex_auto_resume import (brand,
                                l10n,
                                machine,
                                mcpserver,
-                               reasons)
+                               reasons,
+                               runtime)
 from codex_auto_resume.mcp import panel as mcpui
 from codex_auto_resume import settings as policy                              # noqa: E402
 
@@ -341,7 +342,7 @@ class ActivityTests(unittest.TestCase):
     )
 
     def test_one_word_for_the_whole_product(self):
-        observed = run_javascript(["activity", "attentionCause", "due"], "process.stdout.write(JSON.stringify(%s.map("
+        observed = run_javascript(["activity", "attentionCause", "due", "checkingRow"], "process.stdout.write(JSON.stringify(%s.map("
                                   "function (c) {return activity(c[0], c[1]);})));" % json.dumps(
                                       [[status, rows] for status, rows, _ in self.CASES]))
         self.assertEqual(observed, [expected for _, _, expected in self.CASES])
@@ -363,9 +364,46 @@ class ActivityTests(unittest.TestCase):
             (dict(running, watcher={"ticking": False}), [{"code": "waiting_reset", "eligible_at": 900.0}], 1000.0,
              "attention"),
         )
-        observed = run_javascript(["activity", "attentionCause", "due"], "process.stdout.write(JSON.stringify(%s.map("
+        observed = run_javascript(["activity", "attentionCause", "due", "checkingRow"], "process.stdout.write(JSON.stringify(%s.map("
                                   "function (c) {return activity(c[0], c[1], c[2] === null ? undefined : c[2]);})));"
                                   % json.dumps([[status, rows, now] for status, rows, now, _ in cases]))
+        self.assertEqual(observed, [expected for _, _, _, expected in cases])
+
+    def test_the_page_says_checking_for_one_watcher_pass_after_what_it_read(self):
+        """The popup and the Dashboard read the record every second and leave checking at the watcher's next pass;
+        the panel reads it once. So it says checking for one pass - the watcher's own pace, DEFAULT_POLL - after the
+        later of the row's time and when it read the row, and then waiting, with the row still "due now": past that,
+        what it read no longer says what the watcher is doing (standard J7). The reviewer on F3: a panel left open
+        kept turning the arc for as long as it stayed open."""
+        self.assertIn("var CHECKING_HOLD = %d;" % runtime.DEFAULT_POLL, mcpui._SCRIPT)
+        hold = runtime.DEFAULT_POLL
+        running = {"watcher_running": True, "enabled": True, "pending": 1}
+        row = [{"code": "waiting_reset", "eligible_at": 1000.0}]
+        cases = (
+            # Read before the time came: checking from the time, for one pass.
+            (row, 1000.0, 900.0, "checking"),
+            (row, 1000.0 + hold - 0.001, 900.0, "checking"),
+            (row, 1000.0 + hold, 900.0, "waiting"),
+            (row, 1000.0 + 4 * 3600, 900.0, "waiting"),
+            # Read after it came, the watcher not yet at it: checking from the reading, for one pass.
+            (row, 1100.0, 1090.0, "checking"),
+            (row, 1090.0 + hold, 1090.0, "waiting"),
+            # Read as it is shown, as the popup and the Dashboard read theirs: checking.
+            (row, 1000.0 + 4 * 3600, 1000.0 + 4 * 3600, "checking"),
+            (row, 1000.0 + 4 * 3600, None, "checking"),
+            # Two rows: one still held keeps the page checking.
+            ([{"code": "waiting_reset", "eligible_at": 1000.0}, {"code": "scheduled", "eligible_at": 1020.0}],
+             1000.0 + hold + 5, 900.0, "checking"),
+            # Nothing before checking moves: a row in Codex is still recovering, whenever it was read.
+            ([{"code": "waiting_reset", "eligible_at": 1000.0}, {"code": "submitted"}], 1000.0 + 4 * 3600, 900.0,
+             "recovering"),
+        )
+        observed = run_javascript(["activity", "attentionCause", "due", "checkingRow"], "process.stdout.write("
+                                  "JSON.stringify(%s.map(function (c) {return activity(%s, c[0], c[1], "
+                                  "c[2] === null ? undefined : c[2]);})));"
+                                  % (json.dumps([[rows, now, read] for rows, now, read, _ in cases]),
+                                     json.dumps(running)),
+                                  prelude="var CHECKING_HOLD = %d;" % hold)
         self.assertEqual(observed, [expected for _, _, _, expected in cases])
 
     def test_every_state_has_a_word_and_a_halo(self):
@@ -453,11 +491,12 @@ class StyleTests(unittest.TestCase):
             if context == REDUCED and any("::after" in selector for selector in selectors):
                 self.assertNotIn("display", declarations, selectors)
 
-    def test_the_page_keeps_one_timer_and_only_for_a_time_to_come(self):
+    def test_the_page_keeps_one_timer_and_only_for_a_change_to_come(self):
         """Until v0.6.10 nothing on the page ticked, and so a task that came due while it was open stayed "waiting"
         beside a window and a popup that said "checking" (F3). The rule now: no frame loop and no interval - the
-        motion is the stylesheet's - and one timeout, which watchClock sets for the moment the soonest time a row
-        carries comes, and which retell() uses to say again what that time changes."""
+        motion is the stylesheet's - and one timeout, which watchClock sets for the soonest moment what the page says
+        of its rows changes - a time a row carries comes, or one watcher pass after it the page stops saying
+        checking - and which retell() uses to say again what that changes."""
         for forbidden in ("setInterval", "requestAnimationFrame"):
             self.assertNotIn(forbidden, mcpui._SCRIPT)
         self.assertEqual(mcpui._SCRIPT.count("setTimeout("), 1)
@@ -981,8 +1020,8 @@ class StatusLightTests(unittest.TestCase):
 
 
 # The panel's functions the hero and the tile are drawn with, and what they call.
-DRAWING = ["t", "fill", "element", "card", "activity", "attentionCause", "due", "lightFor", "lightNode", "lightClass",
-           "nextCheck", "heroFacts", "soonestFact", "showFacts", "renderHero", "renderRecovery"]
+DRAWING = ["t", "fill", "element", "card", "activity", "attentionCause", "due", "checkingRow", "lightFor", "lightNode",
+           "lightClass", "nextCheck", "heroFacts", "soonestFact", "showFacts", "renderHero", "renderRecovery"]
 
 
 @unittest.skipUnless(NODE, "needs Node to run the panel's own code")
@@ -995,7 +1034,9 @@ class HeroLightTests(unittest.TestCase):
                 setAttribute: function (name, value) { this.attributes[name] = value; },
                 appendChild: function (child) { this.children.push(child); return child; }};
       }};
-    """
+      // When the rows were read (the page's READ_AT): unset, at the clock each test draws at.
+      var READ_AT; var CHECKING_HOLD = %d;
+    """ % runtime.DEFAULT_POLL
     CASES = (
         ({"watcher_running": False, "enabled": True}, "attention", "idle"),
         ({"watcher_running": None, "enabled": True, "pending": 1}, "attention", "idle"),
@@ -1044,18 +1085,26 @@ class HeroLightTests(unittest.TestCase):
         self.assertEqual(observed, ["attention", "halo idle", [ENGLISH["status.not_running"], ENGLISH["status.pending_one"]]])
 
     def test_a_task_whose_time_has_come_is_checking_with_its_arc(self):
-        """v0.6.10 (F3): by the clock the page is drawn at, as the popup and the Dashboard say it."""
+        """v0.6.10 (F3): by the clock the page is drawn at, as the popup and the Dashboard say it - for one watcher
+        pass after the later of the task's time and the page's reading of it (the reviewer on F3)."""
         observed = run_javascript(DRAWING, """
           DATA = {pending: [{code: 'waiting_reset', eligible_at: 1000, overlays: []}]};
           var status = {watcher_running: true, enabled: true, pending: 1};
-          process.stdout.write(JSON.stringify([999, 1000, 1500].map(function (now) {
+          function draw(now) {
             var hero = renderHero(status, now);
             return [hero.state, hero.light, hero.node.children[1].children[0].className, hero.word.textContent];
-          })));
+          }
+          var fresh = [999, 1000, 1500].map(draw);
+          READ_AT = 990;
+          var read = [1000, 1029, 1030, 1500].map(draw);
+          process.stdout.write(JSON.stringify([fresh, read]));
         """, prelude=self.PRELUDE)
-        self.assertEqual(observed, [["waiting", "waiting", "halo waiting", ENGLISH["activity.waiting"]],
-                                    ["checking", "checking", "halo checking", ENGLISH["activity.checking"]],
-                                    ["checking", "checking", "halo checking", ENGLISH["activity.checking"]]])
+        waiting = ["waiting", "waiting", "halo waiting", ENGLISH["activity.waiting"]]
+        checking = ["checking", "checking", "halo checking", ENGLISH["activity.checking"]]
+        # Read at the clock it is drawn at, as the popup and the Dashboard read theirs.
+        self.assertEqual(observed[0], [waiting, checking, checking])
+        # Read at 990: checking from the task's time for one pass, then waiting.
+        self.assertEqual(observed[1], [checking, checking, waiting, waiting])
 
     def test_the_tile_s_light_is_the_hero_s_light_smaller(self):
         """v0.6.10 (F1): the Automatic recovery tile's light was a dot of its own that never moved - cyan while
@@ -1101,23 +1150,31 @@ class LightPhaseTests(unittest.TestCase):
         """, prelude="var LIGHT = {light: '', since: 0};")
         self.assertEqual(observed, [0, -2500, -8000, 0, -250, 0])
 
-    def test_the_timer_waits_for_the_soonest_time_still_to_come(self):
-        """The page's one timer (watchClock): for the soonest time a row carries that has not come, never for one
-        that has, none at all when nothing is to come, and never longer than a day - a timer asked to wait longer
-        than about 24.8 days fires at once."""
-        observed = run_javascript(["due", "untilDue"], """
+    def test_the_timer_waits_for_the_soonest_change_still_to_come(self):
+        """The page's one timer (watchClock): for the soonest of the times a row carries that have not come and the
+        moments one watcher pass after a row came due - or after the page read it, if later - when the page stops
+        saying checking (checkingRow); never for one that has passed, none at all when nothing is to come, and never
+        longer than a day - a timer asked to wait longer than about 24.8 days fires at once. Until the reviewer on
+        F3 it waited only for times to come, and a page that had turned to checking kept it for as long as it was
+        open."""
+        observed = run_javascript(["due", "untilChange"], """
           process.stdout.write(JSON.stringify([
-            untilDue([{eligible_at: 1060}, {eligible_at: 1010.5}, {eligible_at: 990}], 1000),
-            untilDue([{eligible_at: 990}, {eligible_at: null}, {}], 1000),
-            untilDue([], 1000),
-            untilDue(null, 1000),
-            untilDue([{eligible_at: 1000.0001}], 1000),
-            untilDue([{eligible_at: 1000 + 40 * 86400}], 1000),
-            untilDue([{eligible_at: 1060}], undefined)]));
-        """, prelude="var CLOCK_LONGEST = 86400000;")
-        self.assertEqual(observed, [10500, None, None, None, 1, 86400000, None])
+            untilChange([{eligible_at: 1060}, {eligible_at: 1010.5}, {eligible_at: 990}], 1000),
+            untilChange([{eligible_at: 1060}, {eligible_at: 1010.5}, {eligible_at: 990}], 1000, 950),
+            untilChange([{eligible_at: 990}, {eligible_at: null}, {}], 1000),
+            untilChange([{eligible_at: 990}, {eligible_at: null}, {}], 1000, 950),
+            untilChange([{eligible_at: 990}], 1000, 995),
+            untilChange([{eligible_at: 990}], 1020, 950),
+            untilChange([{eligible_at: 990}], 1000 + 4 * 3600, 950),
+            untilChange([], 1000, 950),
+            untilChange(null, 1000, 950),
+            untilChange([{eligible_at: 1000.0001}], 1000, 950),
+            untilChange([{eligible_at: 1000 + 40 * 86400}], 1000, 950),
+            untilChange([{eligible_at: 1060}], undefined, 950)]));
+        """, prelude="var CLOCK_LONGEST = 86400000; var CHECKING_HOLD = 30;")
+        self.assertEqual(observed, [10500, 10500, None, 20000, 25000, None, None, None, None, 1, 86400000, None])
         self.assertIn("var CLOCK_LONGEST = 86400000;", mcpui._SCRIPT)
-
+        self.assertIn("var CHECKING_HOLD = 30;", mcpui._SCRIPT)
 
 if __name__ == "__main__":
     unittest.main()
