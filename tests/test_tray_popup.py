@@ -123,18 +123,37 @@ class ViewModelTests(unittest.TestCase):
                               STATUS, EN, NOW)
         task = vm["tasks"][0]
         self.assertEqual(task["status"], EN["popup.until_reset"].replace("{time}", "1:02:05"))
-        self.assertEqual(task["check_label"], EN["popup.resume_usage"])
+        self.assertEqual(task["check_label"], EN["pending.col_resume"])
         self.assertEqual(task["reason"], EN["reason.usage_limit"])
         self.assertEqual(task["tone"], "waiting")
 
-    def test_every_other_interruption_counts_down_to_its_retry(self):
+    def test_every_other_interruption_counts_down_to_its_next_check(self):
         for category in ("network_transient", "rate_limit_transient", "timeout", "server_5xx",
                          "stream_interrupted", "auth_service_transient"):
             with self.subTest(category):
                 task = popup.view_model([row("a", category=category, eligible=NOW + 65)], STATUS, EN, NOW)["tasks"][0]
                 self.assertEqual(task["status"], EN["popup.until_retry"].replace("{time}", "1:05"))
-                self.assertEqual(task["check_label"], EN["popup.resume_transient"])
+                self.assertEqual(task["status"], "Next check · 1:05")
+                self.assertEqual(task["check_label"], EN["pending.col_resume"])
                 self.assertEqual(task["reason"], EN["reason." + category])
+
+    def test_the_popup_says_what_the_window_and_the_panel_say(self):
+        """v0.6.10: one word for one thing. A task's switch is Auto-resume, as the window's Pending
+        column and the panel's row call it, where the popup alone offered two sentences of its own
+        ("Automatically retry this task", "... resume this task when the limit resets"); and a row
+        counts down to the Next check its own summary names, where it said Next try."""
+        for locale in l10n.LOCALES:
+            strings = interface.STRINGS[locale]
+            with self.subTest(locale):
+                self.assertEqual(strings["popup.until_retry"], strings["popup.next_check"] + " · {time}")
+                self.assertEqual(strings["popup.next_check"], strings["pending.col_next"])
+                self.assertEqual(strings["popup.next_check"], strings["panel.col_next"])
+                rows = [row("a", "waiting_reset", "usage_limit", eligible=NOW + 60, reset=NOW + 60),
+                        row("b", eligible=NOW + 120, thread=OTHER_THREAD)]
+                for task in popup.view_model(rows, STATUS, strings, NOW)["tasks"]:
+                    self.assertEqual(task["check_label"], strings["pending.col_resume"])
+        for gone in ("popup.resume_transient", "popup.resume_usage"):
+            self.assertNotIn(gone, EN)
 
     def test_reaching_zero_only_says_the_watcher_looks_again(self):
         vm = popup.view_model([row("a", eligible=NOW - 5)], STATUS, EN, NOW)
@@ -189,10 +208,10 @@ class ViewModelTests(unittest.TestCase):
                                   strings["popup.next_check"]])
                 usage, transient = vm["tasks"]
                 self.assertEqual(usage["status"], strings["popup.until_reset"].replace("{time}", "1:00"))
-                self.assertEqual(usage["check_label"], strings["popup.resume_usage"])
+                self.assertEqual(usage["check_label"], strings["pending.col_resume"])
                 self.assertEqual(usage["reason"], strings["reason.usage_limit"])
                 self.assertEqual(transient["status"], strings["popup.until_retry"].replace("{time}", "2:00"))
-                self.assertEqual(transient["check_label"], strings["popup.resume_transient"])
+                self.assertEqual(transient["check_label"], strings["pending.col_resume"])
                 self.assertEqual(vm["toggle_text"], strings["action.pause"])
                 self.assertEqual(vm["dashboard_text"], strings["popup.open_dashboard"])
                 self.assertEqual(popup.view_model([], STATUS, strings, NOW)["empty"], strings["popup.nothing"])
@@ -200,7 +219,7 @@ class ViewModelTests(unittest.TestCase):
     def test_an_empty_vocabulary_still_speaks_english(self):
         vm = popup.view_model([row("a", eligible=NOW + 5)], STATUS, {}, NOW)
         self.assertEqual(vm["dashboard_text"], EN["popup.open_dashboard"])
-        self.assertEqual(vm["tasks"][0]["check_label"], EN["popup.resume_transient"])
+        self.assertEqual(vm["tasks"][0]["check_label"], EN["pending.col_resume"])
 
 
 class ActivityTests(unittest.TestCase):
@@ -482,9 +501,14 @@ class LayoutTests(unittest.TestCase):
         label's last line (the geometry in every language, at every scale and with labels far longer
         than any translation is tests/test_tray_popup_v064.py)."""
         line_h = measure("body", "Ag", 100, False)[1]
-        wrapped = 0
+        wrapped = single = 0
         for scale in (1.0, 1.25, 1.5, 1.75, 2.0):
-            _, plan = self.plan(scale=scale)
+            vm, _ = self.plan(scale=scale)
+            # Since v0.6.10 the label is the switch's short name, Auto-resume, one line in English where
+            # the popup's own sentence wrapped; the second row's is said six times over so that one label
+            # wraps and its last line can be told from its first.
+            vm["tasks"][1]["check_label"] = " ".join([vm["tasks"][1]["check_label"]] * 6)
+            plan = popup.layout(vm, scale, measure)
             switches = [item for item in plan["items"] if item["kind"] == "switch"]
             self.assertEqual(len(switches), 2)
             for switch in switches:
@@ -500,11 +524,13 @@ class LayoutTests(unittest.TestCase):
                     # Centred on the label's last line, however many lines it wraps to...
                     self.assertLessEqual(abs(label["rect"][3] - line_h / 2.0 - (top + bottom) / 2.0), 0.5)
                     wrapped += label["rect"][3] - label["rect"][1] > line_h
+                    single += label["rect"][3] - label["rect"][1] <= line_h
                     # ...and the lowest thing on its line: the line's hit rectangle ends its margin below it.
                     hit = dict(plan["targets"])[switch["target"]]
                     self.assertEqual(hit[3], bottom + round(4 * scale))
                     self.assertTrue(hit[0] <= label["rect"][0] and hit[1] <= label["rect"][1] and right <= hit[2])
         self.assertGreater(wrapped, 0, "no label wrapped, so nothing here tells the last line from the first")
+        self.assertGreater(single, 0, "the switch's own name is one line beside it")
 
     def test_the_header_is_the_panel_s_hero_and_the_glow_stays_on_the_card(self):
         """v0.6.10 (F7): the product is a muted eyebrow (`label`), and the state's word is the title - `title`, in
@@ -1547,8 +1573,9 @@ class WindowsTests(unittest.TestCase):
         try:
             strings = interface.STRINGS["ko"]
             renderer.use("ko", 1.0)
-            self.assertIn("\n", renderer.lines("body", strings["popup.resume_usage"], 140))
-            for key in ("popup.resume_usage", "popup.stale", "popup.zero_note", "action.pause"):
+            # The popup's longest line of its own; its switch's two long sentences went in v0.6.10.
+            self.assertIn("\n", renderer.lines("body", strings["popup.zero_note"], 140))
+            for key in ("popup.nothing", "popup.stale", "popup.zero_note", "action.pause"):
                 for width in (90, 140, 200, 260):
                     with self.subTest(key=key, width=width):
                         wrapped = renderer.lines("body", strings[key], width)

@@ -627,10 +627,10 @@ namespace CodexAutoResume
                 {
                     var result = Items(gates, name);
                     string code = result != null && result.Count > 0 ? Convert.ToString(result[0], CultureInfo.InvariantCulture) : "UNKNOWN";
-                    string word = code == "PASS" ? S("gate.result.pass", "OK")
-                                : code == "WAIT" ? S("gate.result.wait", "Waiting")
-                                : code == "BLOCK" ? S("gate.result.block", "Blocked")
-                                : S("gate.result.unknown", "Unknown");
+                    string word = code == "PASS" ? S("gate.result.pass", "passed")
+                                : code == "WAIT" ? S("gate.result.wait", "waiting")
+                                : code == "BLOCK" ? S("gate.result.block", "blocked")
+                                : S("gate.result.unknown", "unknown");
                     rows.Add(new[] { S("gate." + name, name.Replace('_', ' ')), word, code });
                 }
             explainList.SetRows(rows, S("explain.not_checked", "Not checked yet"));
