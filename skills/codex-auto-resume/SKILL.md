@@ -269,8 +269,8 @@ panel's own theme in Codex (`panel_theme`: the same as the theme, Codex's, light
 continuation language, the message style
 (Minimal, Standard, Detailed or Custom), and whether a Custom message is one message for every
 interruption or one per kind. The window has five things `update_settings` does not offer: the
-notification-area icon, Reduce motion, the Design (Soft, Soft without motion, Classic or Plain: it
-decides what moves, as Reduce motion does), the notification card, and the Custom message text itself.
+notification-area icon, Reduce motion (the one way to stop the animations), the Design (Soft, Classic
+or Plain), the notification card, and the Custom message text itself.
 If the user asks for any of them, say it is changed in the Dashboard, under Settings. If the user wants to
 change what a Custom message says, tell them it is written in the Dashboard, under Settings >
 Continuation message.

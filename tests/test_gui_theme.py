@@ -79,7 +79,16 @@ STORED = {
     # v0.6.10: the Design, read in the same parse as the theme, exactly as the settings layer reads it.
     "design": b'{"theme": "dark", "design": "classic"}',
     "design_only": b'{"design": "plain"}',
+    # v0.6.10's Still, which the window reads as Soft with Reduce motion on, as the settings layer does
+    # (settings._migrate), in the same parse - whatever Reduce motion said beside it, and with or without a version.
     "design_still": b'{"theme": "light", "design": "still"}',
+    "design_still_motion_off": b'{"config_version": 2, "design": "still", "reduce_motion": false}',
+    # v0.6.11: Reduce motion, read in the same parse, as settings.load reads it - true exactly.
+    "motion": b'{"reduce_motion": true, "theme": "dark"}',
+    "motion_off": b'{"config_version": 2, "reduce_motion": false, "design": "plain"}',
+    "motion_not_a_bool": b'{"reduce_motion": "true", "design": "classic"}',
+    "motion_damaged": b'{"reduce_motion": true, "theme": "dark"',
+    "design_still_other_case": b'{"design": "Still"}',
     "design_other_case": b'{"theme": "dark", "design": "Classic"}',
     "design_not_a_string": b'{"design": 1}',
     "design_null": b'{"design": null, "theme": "light"}',
@@ -135,7 +144,7 @@ ARGUMENTS = [
       "--focus=setting.a-b", "--focus=setting." + "a" * 65, "--focus=", "--focus=save "], {}),
     # v0.6.10: a Design by its own name exactly.
     (["--design=classic"], {"design": "classic"}),
-    (["--design=plain", "--design=still"], {"design": "still"}),
+    (["--design=plain", "--design=still"], {"design": "plain"}),       # v0.6.10's Still is no design now
     (["--design=soft", "--theme=dark"], {"design": "soft", "theme": "dark"}),
     (["--design=Classic", "--design=", "--design=bogus", "--design=soft ", "--design= plain", "--Design=plain"], {}),
 ]
@@ -165,7 +174,7 @@ DECISIONS = [
     # The design alone.
     (("en", "light", "soft", "en", "light", "classic", False, False, 0), REOPEN),
     (("en", "dark", "plain", "en", "dark", "soft", False, False, 0), REOPEN),
-    (("en", "light", "still", "en", "light", "still", True, True, 5), KEEP),
+    (("en", "light", "classic", "en", "light", "classic", True, True, 5), KEEP),
     (("en", "light", "soft", "en", "light", "plain", True, False, 0), ONCE_SAVED),
     (("en", "light", "soft", "en", "light", "classic", False, True, 0), REOPEN),
     (("en", "light", "soft", "en", "light", "classic", False, True, 1), REOPEN),
@@ -280,12 +289,14 @@ $out.apps = [int]$themeType.GetMethod('AppsUseLightTheme', $static).Invoke($null
 $stored = $themeType.GetMethod('Stored', $static)
 $out.stored = @{}
 $out.storedDesign = @{}
+$out.storedMotion = @{}
 foreach ($name in (ConvertFrom-Json $env:CAR_STORED)) {
     # Written by the test, as settings.load will read them: the theme and the design from one read (v0.6.10).
-    $call = [object[]]@([string](Join-Path $work ('stored-' + $name)), $null, $null)
+    $call = [object[]]@([string](Join-Path $work ('stored-' + $name)), $null, $null, $null)
     $null = $stored.Invoke($null, $call)
     $out.stored[[string]$name] = [string]$call[1]
     $out.storedDesign[[string]$name] = [string]$call[2]
+    $out.storedMotion[[string]$name] = [bool]$call[3]
 }
 $drawnOf = $assembly.GetType('CodexAutoResume.Design', $true).GetMethod('Drawn', $static)
 $out.drawn = @()
@@ -1001,28 +1012,36 @@ class WindowThemeTests(unittest.TestCase):
 
     def test_the_stored_design_is_read_as_the_settings_layer_reads_it_in_the_same_parse_as_the_theme(self):
         """v0.6.10. Both come out of one read of the file: a file the settings layer does not read is its defaults for
-        both, and a design that is not one of the four, exactly, is Soft - as settings.design_preference has it."""
+        both, and a design that is not one of them, exactly, is Soft - as settings.design_preference has it, v0.6.10's
+        Still among them."""
         for name in STORED:
             path = self.work / ("stored-" + name) / "config" / "settings.json"
             loaded = settings.load(path)
             with self.subTest(name):
                 self.assertEqual(self.answer["storedDesign"][name], settings.design_preference(loaded))
                 self.assertEqual(self.answer["stored"][name], settings.theme_preference(loaded))
+                self.assertIs(self.answer["storedMotion"][name], loaded["reduce_motion"])
         for name, theme, design in (("design", "dark", "classic"), ("design_only", "system", "plain"),
-                                    ("design_still", "light", "still"), ("design_other_case", "dark", "soft"),
+                                    ("design_still", "light", "soft"), ("design_other_case", "dark", "soft"),
                                     ("design_not_a_string", "system", "soft"), ("design_null", "light", "soft"),
                                     ("design_damaged", "system", "soft"), ("design_bom", "system", "soft"),
                                     ("dark", "dark", "soft"), ("missing", "system", "soft")):
             with self.subTest(spelled=name):
                 self.assertEqual((self.answer["stored"][name], self.answer["storedDesign"][name]), (theme, design))
+        for name, motion in (("design_still", True), ("design_still_motion_off", True), ("motion", True),
+                             ("motion_off", False), ("motion_not_a_bool", False), ("motion_damaged", False),
+                             ("design_still_other_case", False), ("design", False), ("missing", False)):
+            with self.subTest(motion=name):
+                self.assertIs(self.answer["storedMotion"][name], motion)
+        self.assertIn('internal const string FoldedDesign = "%s";' % settings.FOLDED_DESIGN, guiscan.read("SoftTheme.cs"))
         main = guiscan.member_body("Program", "Main")
-        self.assertEqual(main.count("Theme.Stored("), 1, "one read of the file, for both")
+        self.assertEqual(main.count("Theme.Stored("), 1, "one read of the file, for all three")
         stored = guiscan.member_body("Theme", "Stored")
         self.assertEqual(stored.count("ReadAllBytes("), 1)
         self.assertEqual(stored.count("Json.ParseDocument("), 1)
 
     def test_under_high_contrast_no_design_is_drawn_so_none_reopens_the_window(self):
-        expected = ["classic", "plain", "still", "soft", "soft", "soft", "soft", "soft"]
+        expected = ["classic", "plain", "soft", "soft", "soft", "soft", "soft", "soft"]
         self.assertEqual(len(DRAWN), len(expected))
         self.assertEqual(self.answer["drawn"], expected)
 
@@ -1236,7 +1255,7 @@ class WindowThemeTests(unittest.TestCase):
                               "chosen here, it is sent")
                 self.assertNotIn("design", json.loads(entry["designPutBack"]), "put back, it is not")
 
-    def test_the_design_is_a_drop_down_of_its_four_choices_in_their_own_words(self):
+    def test_the_design_is_a_drop_down_of_its_choices_in_their_own_words(self):
         english = l10n.catalog("en")
         for theme in ("light", "dark"):
             entry = self.answer["window"][theme]
@@ -1557,11 +1576,11 @@ class ThemeSourceRuleTests(unittest.TestCase):
     def test_no_hand_written_source_names_a_design(self):
         """v0.6.10. Which colours, check box, depth, glow, motion and corners a design has reaches the window from
         brand/design.py and brand/tokens.py, generated into gui/Brand.cs (Brand.LookOf) by build/make_brand.py, so the
-        four designs stay in step in the window as on every other surface. A design's name written as a string in the
+        designs stay in step in the window as on every other surface. A design's name written as a string in the
         window's own code is a choice made by hand beside the generated one - gui/SoftTheme.cs made it in ten branches
         until v0.6.10's final - and fails here, in any case. Comments may name a design; code may not."""
-        canary = '// "plain" in a comment\nif (Design == "classic" && dark) Say("Plain words", @"Still");'
-        self.assertEqual(design_names_written(canary), ["classic", "Still"], "the scan reports what it is for")
+        canary = '// "plain" in a comment\nif (Design == "classic" && dark) Say("Plain words", @"Plain");'
+        self.assertEqual(design_names_written(canary), ["classic", "Plain"], "the scan reports what it is for")
         for name in guiscan.handwritten():
             with self.subTest(name):
                 self.assertEqual(design_names_written(guiscan.read(name)), [], "a design named by hand")
@@ -1619,7 +1638,11 @@ class ThemeSourceRuleTests(unittest.TestCase):
         self.assertLess(adopt, main.index("new SettingsForm("))
         # v0.6.10: the theme and the design stored, from one read, each unless a reopen passed it on - and the design
         # adopted before the theme, so the palette is drawn in both before the first control.
-        read = main.index("Theme.Stored(root, out storedTheme, out storedDesign);")
+        read = main.index("Theme.Stored(root, out storedTheme, out storedDesign, out storedReduceMotion);")
+        # v0.6.11: and Reduce motion, from the same read, before the first control, so nothing moves before the
+        # bridge's first read confirms it (a stored Still, or Reduce motion, holds motion from the window's first frame).
+        self.assertLess(read, main.index("Soft.ReduceMotionSetting = storedReduceMotion;"))
+        self.assertLess(main.index("Soft.ReduceMotionSetting = storedReduceMotion;"), main.index("new SettingsForm("))
         self.assertLess(read, main.index("request.Theme ?? storedTheme"))
         self.assertLess(read, main.index("request.Design ?? storedDesign"))
         self.assertLess(main.index("Palette.AdoptDesign(Design.Opened);"), adopt)

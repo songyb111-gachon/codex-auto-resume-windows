@@ -347,12 +347,14 @@ class ToolBehaviourTests(McpTestCase):
                 response = self.call("update_settings", {name: not settings.DEFAULTS[name]})
                 self.assertIs(response["result"]["isError"], True)
                 self.assertEqual(self.control.get_settings()[name], settings.DEFAULTS[name])
-        # v0.6.10: the design, every one of its values - Still would stop motion, Soft start it again.
-        for value in settings.DESIGNS:
+        # v0.6.10: the design, every one of its values, and v0.6.10's Still, which is Reduce motion now: neither
+        # the design nor the motion it would have stopped is Codex's to change.
+        for value in settings.DESIGNS + ("still",):
             with self.subTest(design=value):
                 response = self.call("update_settings", {"design": value})
                 self.assertIs(response["result"]["isError"], True)
                 self.assertEqual(self.control.get_settings()["design"], settings.DEFAULTS["design"])
+                self.assertEqual(self.control.get_settings()["reduce_motion"], settings.DEFAULTS["reduce_motion"])
         # And never alongside a change Codex may make: the whole request is refused.
         response = self.call("update_settings", {"theme": "dark", "design": "plain"})
         self.assertIs(response["result"]["isError"], True)

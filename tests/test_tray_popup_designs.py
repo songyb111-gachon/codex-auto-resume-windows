@@ -2,25 +2,37 @@
 
 The popup draws in the stored design as it draws in the stored theme - taken up from every read and
 before every opening, and drawn again whole when it changes. Two things about it are held here
-beyond the colours. What moves is two gates: the light moves where the design breathes, the switches
-where it glides, and every stopper - Reduce motion, Windows' animation setting, High Contrast - holds
-both in every design, so a design can take motion away and never bring any back. And a design
-without depth draws no shadow at all: the canvas kept round the card for its lift is canvas, pixel
-for pixel, and no cached ground or shadow image survives a change of design.
+beyond the colours. What moves is no design's: the light and the switches move in every design, and
+every stopper - Reduce motion, Windows' animation setting, High Contrast - holds both in each. v0.6.10's
+Still, the one design that held them, is Reduce motion since v0.6.11: a stored Still is taken up as
+Soft with Reduce motion on and draws what Still drew. And a design without depth draws no shadow at
+all: the canvas kept round the card for its lift is canvas, pixel for pixel, and no cached ground or
+shadow image survives a change of design.
 """
 from __future__ import annotations
 
+import json
 import os
+from pathlib import Path
+import tempfile
 import time
 import unittest
 import unittest.mock
 
-from codex_auto_resume import brand
+from codex_auto_resume import brand, settings
 from codex_auto_resume.ui import popup
 from test_tray_popup import EN, NOW, STATUS, FakeControl
 from test_tray_popup_v064 import OFFSCREEN, pixel_reader, task_rows
 
 STATES = brand.GLOW_BREATHES + ("checking",)
+
+
+def stored_still() -> dict:
+    """What the settings layer hands a surface for a file v0.6.10 wrote with the Design Still."""
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "settings.json"
+        path.write_text(json.dumps({"config_version": 2, "theme": "light", "design": "still"}), encoding="utf-8")
+        return settings.load(path)
 
 
 def keep_preferences(case):
@@ -43,7 +55,7 @@ class AdoptedDesignTests(unittest.TestCase):
         for value in brand.DESIGNS:
             popup.adopt_settings({"design": value})
             self.assertEqual(popup.design_setting(), value)
-        for junk in ("Soft", "look", "", None, 3, True):
+        for junk in ("Soft", "look", "", None, 3, True, "still"):
             popup.adopt_settings({"design": junk})
             self.assertEqual(popup.design_setting(), "soft")
         popup.set_design("plain")
@@ -52,25 +64,23 @@ class AdoptedDesignTests(unittest.TestCase):
         self.assertEqual(popup.design_choice("classic"), "classic")
         self.assertEqual(popup.design_choice(["classic"]), "soft")
 
-    def test_still_holds_the_light_and_the_switches_and_classic_and_plain_hold_nothing(self):
-        """Only Still takes motion away; Classic and Plain move as Soft does (until a fix in v0.6.10 they held the
-        switches too)."""
-        expected = {"soft": (False, False), "still": (True, True), "classic": (False, False), "plain": (False, False)}
-        for design, (light, controls) in expected.items():
-            with self.subTest(design):
-                popup.adopt_settings({"design": design})
-                self.assertEqual((popup.light_still(), popup.controls_still()), (light, controls))
+    def test_a_stored_still_is_taken_up_as_soft_with_reduce_motion_on(self):
+        popup.adopt_settings(stored_still())
+        self.assertEqual(popup.design_setting(), "soft")
+        self.assertTrue(popup.reduced_motion())
 
-    def test_reduce_motion_holds_every_design_still(self):
+    def test_reduce_motion_alone_holds_motion_in_every_design(self):
         for design in brand.DESIGNS:
-            with self.subTest(design):
-                popup.adopt_settings({"design": design, "reduce_motion": True})
-                self.assertTrue(popup.light_still())
-                self.assertTrue(popup.controls_still())
+            for reduce_motion in (False, True):
+                with self.subTest(design=design, reduce_motion=reduce_motion):
+                    popup.adopt_settings({"design": design, "reduce_motion": reduce_motion})
+                    self.assertEqual(popup.reduced_motion(), reduce_motion)
+        for gone in ("light_still", "controls_still"):
+            self.assertFalse(hasattr(popup, gone), "no design holds motion, so there is no gate of its own")
 
 
 class WindowGateTests(unittest.TestCase):
-    """The window's two gates, over every design and every stopper: a truth table."""
+    """The window's one gate, over every design and every stopper: a truth table."""
 
     def setUp(self):
         keep_preferences(self)
@@ -86,7 +96,7 @@ class WindowGateTests(unittest.TestCase):
             shown._read_look()
         return shown
 
-    def test_the_light_moves_where_the_design_breathes_and_the_switches_where_it_glides(self):
+    def test_every_stopper_holds_every_design_and_nothing_else_does(self):
         for design in brand.DESIGNS:
             for reduce_motion in (False, True):
                 for windows_animates in (True, False):
@@ -96,8 +106,7 @@ class WindowGateTests(unittest.TestCase):
                         with self.subTest(design=design, reduce_motion=reduce_motion,
                                           windows_animates=windows_animates, contrast=contrast):
                             self.assertEqual(shown._design, design)
-                            self.assertEqual(shown._light_still, stopped or not brand.DESIGN[design]["breathes"])
-                            self.assertEqual(shown._controls_still, stopped or not brand.DESIGN[design]["glides"])
+                            self.assertEqual(shown._reduced, stopped)
 
     def frames(self, design, reduced, state):
         shown = object.__new__(popup.Popup)
@@ -108,10 +117,15 @@ class WindowGateTests(unittest.TestCase):
                 found.append(shown.frame())
         return found
 
-    def test_still_draws_every_frame_reduce_motion_draws(self):
+    def test_a_stored_still_draws_every_frame_v0610_still_drew(self):
+        """Still held the light as Reduce motion does, with no glow: glow(reduced=True) at every moment."""
+        values = stored_still()
+        shown = self.gates(values["design"], values["reduce_motion"], True, False)
         for state in STATES:
             with self.subTest(state):
-                self.assertEqual(self.frames("still", False, state), self.frames("soft", True, state))
+                held = self.frames(shown._design, shown._reduced, state)
+                self.assertEqual(held, [brand.glow(state, 0, reduced=True)] * len(held))
+                self.assertFalse(popup.animates(state, reduced=shown._reduced))
 
     def test_plain_dims_the_light_with_no_glow_and_classic_glows_as_soft_does(self):
         for state in brand.GLOW_BREATHES:
@@ -122,16 +136,16 @@ class WindowGateTests(unittest.TestCase):
                 self.assertGreater(len({round(frame["dim"], 4) for frame in plain}), 3)
                 self.assertEqual(classic, soft)
 
-    def test_a_switch_glides_in_every_design_but_still(self):
-        """Only Still ("Soft, without motion") holds a switch: Classic and Plain glide it as Soft does."""
+    def test_a_switch_glides_in_every_design_unless_a_stopper_holds_it(self):
         plan = {"items": [{"kind": "switch", "target": ("switch", "a"), "checked": True}]}
         for design in brand.DESIGNS:
-            shown = object.__new__(popup.Popup)
-            shown.visible, shown._reduced, shown._design = True, False, design
-            shown._switches, shown._glides = {("switch", "a"): False}, {}
-            shown._follow_switches(plan)
-            with self.subTest(design):
-                self.assertEqual(bool(shown._glides), design != "still")
+            for reduced in (False, True):
+                shown = object.__new__(popup.Popup)
+                shown.visible, shown._reduced, shown._design = True, reduced, design
+                shown._switches, shown._glides = {("switch", "a"): False}, {}
+                shown._follow_switches(plan)
+                with self.subTest(design=design, reduced=reduced):
+                    self.assertEqual(bool(shown._glides), not reduced)
 
 
 def rgb_at(pixel, x, y):
@@ -175,12 +189,11 @@ class DesignRendererTests(unittest.TestCase):
                         self.assertEqual(pixel(card[0] + 30, card[1] + 6),
                                          brand.rgb(brand.card_ground(theme, design)))
 
-    def test_soft_and_still_lift_the_card_off_the_canvas(self):
-        for design in ("soft", "still"):
-            _, plan, pixel = self.draw(design)
-            canvas = brand.rgb(brand.LIGHT["canvas"])
-            card = plan["card"]
-            self.assertNotEqual(pixel((card[0] + card[2]) // 2, card[3] + 4), canvas, design)
+    def test_soft_lifts_the_card_off_the_canvas(self):
+        _, plan, pixel = self.draw("soft")
+        canvas = brand.rgb(brand.LIGHT["canvas"])
+        card = plan["card"]
+        self.assertNotEqual(pixel((card[0] + card[2]) // 2, card[3] + 4), canvas)
 
     def test_a_design_switched_under_a_drawn_frame_leaves_no_shadow_behind(self):
         _, plan, pixel = self.draw("soft")
@@ -279,9 +292,10 @@ class PopupDesignTests(unittest.TestCase):
         canvas = window.render()
         self.assertEqual(window._renderer.design, "plain")
         self.assertEqual(pixel_reader(canvas, canvas.width)(1, 1), brand.rgb(brand.PLAIN_LIGHT["canvas"]))
-        self.assertFalse(window._controls_still, "Plain glides as Soft does")
-        self.assertFalse(window._light_still)
-        window.follow_settings(dict(theme="light", design="still"))
+        self.assertFalse(window._reduced, "Plain moves as Soft does")
+        # A Still stored by v0.6.10, as the settings layer hands it over: Soft, held by Reduce motion.
+        window.follow_settings(stored_still())
         window._update()
-        self.assertTrue(window._light_still)
+        self.assertEqual(window._design, "soft")
+        self.assertTrue(window._reduced)
         self.assertFalse(window._frame_running)
