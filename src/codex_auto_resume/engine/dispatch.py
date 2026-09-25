@@ -170,8 +170,8 @@ class DispatchMixin:
                    vector)
         return True
 
-    def _plugged_text(self, row, message, limits) -> str:
-        """P4: the plug's words for this continuation, or core's own `message`.
+    def _plugged_text(self, row, message, limits) -> tuple:
+        """P4: (the plug's words for this continuation, True), or (core's own `message`, False).
 
         Taken only as a person's Custom message is: they pass the same validator and are filled
         in the same way, for the same record, so they can say nothing a person could not have
@@ -180,16 +180,16 @@ class DispatchMixin:
         falls back to."""
         words = self.plug.text(row, message)
         if words is DEFER:
-            return message
+            return message, False
         try:
             _message.validate_custom(words)
             values = dict(self.policy_values, continuation_style="custom",
                           custom_message_mode="global", custom_message=words)
             if _message.source_for(row["category"], values, row=row, limits=limits) != "global":
-                return message
-            return _message.for_settings(row["category"], values, row=row, limits=limits)
+                return message, False
+            return _message.for_settings(row["category"], values, row=row, limits=limits), True
         except Exception:
-            return message
+            return message, False
 
     def dispatch(self, row, app, vector, limits):
         """Claim, re-check, send. The only method that sends: to core's backend, or to the
@@ -225,14 +225,18 @@ class DispatchMixin:
             except Exception:
                 self.log(current["thread_id"], "continuation_text_fallback", None)
                 message = _message.build(current["category"], locale=l10n.DEFAULT)
-            message = self._plugged_text(current, message, limits)
+            message, worded = self._plugged_text(current, message, limits)
             # P5, decided before the claim like the words: core's own backend, unless the plug
             # names a channel. The one binding of the one sender; whichever it is gets the one
             # send below, after the claim and the pre-send look, inside the launch guard.
             sender = self.plug.sender(current, self.backend)
             # P11 is asked inside the claim, once every check the store makes there has passed.
-            claimed, gate, reason = self.store.reserve_detailed(key, self.clock(), limits=limits,
-                                                                gates=vector, ledger=self.plug)
+            # The claim is told whether the send carries the plug's words or channel: those are
+            # paid for in its ledger, so a ledger that breaks holds the claim instead of letting
+            # them go out unpaid.
+            claimed, gate, reason = self.store.reserve_detailed(
+                key, self.clock(), limits=limits, gates=vector, ledger=self.plug,
+                carried=worded or sender is not self.backend)
             if not claimed:
                 self._refused(current, gate, reason)
                 return
