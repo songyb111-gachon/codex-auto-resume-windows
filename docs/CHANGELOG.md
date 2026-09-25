@@ -98,6 +98,11 @@ Pending page's check results still read *OK*, *Waiting*, *Blocked* and *Unknown*
   *Design* is German's word for the Theme.
 - **On the wire.** Every reply that carries the settings carries `design`, and the wire goldens were
   regenerated on purpose for it. The tool list did not change.
+- **Kept in step from one table.** What a design draws in the Dashboard - its colours and check box
+  in each theme, its depth, glow, motion and corners - is generated from the same design table and
+  colours the panel and the popup read (`Brand.LookOf` in `gui/Brand.cs`), where the Dashboard's own
+  code chose them in ten branches by the design's name; a test now fails if any of its own code names
+  a design. It draws exactly what it drew.
 
 ### The pictures
 

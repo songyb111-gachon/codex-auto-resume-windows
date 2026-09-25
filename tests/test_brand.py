@@ -1331,6 +1331,29 @@ for ($i = 0; $i -lt $designNames.Count; $i++) {
         'designradius|' + $i + '|' + $r + '|' + [int]$brand.GetMethod('DesignRadius', $flags).Invoke($null, [object[]]@($design, [string]$roles[$r]))
     }
 }
+# Brand.LookOf: every field of what it answers, and its check box, for each name in each theme.
+$lookOf = $brand.GetMethod('LookOf', $flags)
+$lookType = $assembly.GetType('CodexAutoResume.Brand+Look', $true)
+$each = [Reflection.BindingFlags]'Instance,NonPublic,Public'
+for ($i = 0; $i -lt $designNames.Count; $i++) {
+    foreach ($dark in @($false, $true)) {
+        $look = $lookOf.Invoke($null, [object[]]@([string]$designNames[$i], [bool]$dark))
+        foreach ($field in $lookType.GetFields($each)) {
+            $value = $field.GetValue($look)
+            if ($field.FieldType.FullName -eq 'System.Drawing.Color') { $value = Argb $value }
+            'look|' + $i + '|' + $dark + '|' + $field.Name + '|' + [string]$value
+        }
+        foreach ($on in @($false, $true)) {
+            foreach ($enabled in @($false, $true)) {
+                $fill = $lookType.GetMethod('CheckFill', $each).Invoke($look, [object[]]@($on, $enabled))
+                $edge = $lookType.GetMethod('CheckEdge', $each).Invoke($look, [object[]]@($on, $enabled))
+                $call = [object[]]@($on, $enabled, $null)
+                $marked = [bool]$lookType.GetMethod('CheckMark', $each).Invoke($look, $call)
+                'lookcheck|' + $i + '|' + $dark + '|' + $on + '|' + $enabled + '|' + (Argb $fill) + '|' + (Argb $edge) + '|' + $marked + '|' + (Argb $call[2])
+            }
+        }
+    }
+}
 $stored = (ConvertFrom-Json $env:CAR_DESIGN_STORED)
 for ($i = 0; $i -lt $stored.Count; $i++) {
     'designof|' + $i + '|' + [string]$brand.GetMethod('DesignOf', $flags).Invoke($null, [object[]]@(,$stored[$i]))
@@ -1563,6 +1586,48 @@ class GeneratedStatusLightTests(unittest.TestCase):
             with self.subTest(design=name, role=role):
                 self.assertEqual(int(value), brand.design_radii(design).get(role, 0))
                 self.assertLessEqual(int(value), brand.RADII.get(role, 0), "never rounder than Soft")
+
+    def test_look_of_is_a_design_in_a_theme_as_brand_says(self):
+        """Brand.LookOf, what the window adopts and the one thing its own code asks about a design (v0.6.10): for every
+        design in either theme, the colours, the card's ground and the check box of brand.palette(theme, design), brand.DESIGN's
+        answers and brand.DESIGN_RADII's corners - and nothing else; a name that is none is the default design, as DesignOf
+        reads it. Choosing them by the design's name is generated, so this is the whole of what the choice can say."""
+        rules = {"Depth": brand.design_depth, "Glow": brand.design_glow, "Breathes": brand.design_breathes,
+                 "Glides": brand.design_glides, "AccentBar": brand.design_accent_bar}
+        looks = {}
+        for index, dark, field, value in self.records.get("look", []):
+            looks.setdefault((int(index), dark), {})[field] = value
+        self.assertEqual(sorted(looks), sorted((index, dark) for index in range(len(self.DESIGN_NAMES))
+                                               for dark in ("False", "True")))
+        for (index, dark), found in looks.items():
+            name = self.DESIGN_NAMES[index]
+            design = name if name in brand.DESIGNS else brand.DEFAULT_DESIGN
+            theme = "dark" if dark == "True" else "light"
+            colours = {field: brand.palette(theme, design)[token] for field, token, _ in make_brand.FIELDS}
+            colours.update({field: function(theme, design) for field, function, _ in make_brand.DERIVED})
+            radii = {"Radius" + make_brand._camel(role): radius for role, radius in brand.design_radii(design).items()}
+            with self.subTest(design=name, theme=theme):
+                self.assertEqual(sorted(found), sorted(["Design", "Colours"] + list(colours) + list(rules) + list(radii)))
+                self.assertEqual(found["Design"], design)
+                self.assertIs(brand.palette(theme, found["Colours"]), brand.palette(theme, design))
+                self.assertEqual({field: "#" + found[field][-6:] for field in colours}, colours)
+                self.assertTrue(all(found[field].startswith("FF") for field in colours))
+                self.assertEqual({field: found[field] == "True" for field in rules},
+                                 {field: rule(design) for field, rule in rules.items()})
+                self.assertEqual({field: int(found[field]) for field in radii}, radii)
+        rows = self.records.get("lookcheck", [])
+        self.assertEqual(len(rows), len(self.DESIGN_NAMES) * 2 * 4)
+        for index, dark, on, enabled, fill, edge, marked, mark in rows:
+            name = self.DESIGN_NAMES[int(index)]
+            design = name if name in brand.DESIGNS else brand.DEFAULT_DESIGN
+            theme = "dark" if dark == "True" else "light"
+            expected = brand.check_box(on == "True", enabled == "True", theme, design)
+            with self.subTest(design=name, theme=theme, on=on, enabled=enabled):
+                self.assertEqual("#" + fill[-6:], expected["fill"])
+                self.assertEqual("#" + edge[-6:], expected["edge"])
+                self.assertEqual(marked == "True", expected["mark"] is not None)
+                if expected["mark"] is not None:
+                    self.assertEqual("#" + mark[-6:], expected["mark"])
 
     def test_a_stored_design_is_read_as_the_settings_layer_reads_it(self):
         from codex_auto_resume import settings

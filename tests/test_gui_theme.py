@@ -179,6 +179,29 @@ DRAWN = [("light", "classic"), ("dark", "plain"), ("light", "still"), ("contrast
          ("light", "Classic"), ("dark", None), ("contrast", "soft")]
 
 
+# C#'s comments, verbatim strings, strings and characters, in the order a reader meets them, so a quote inside a
+# comment or a comment marker inside a string is never taken for the other.
+CSHARP_TOKENS = re.compile(r'''(?P<comment>//[^\n]*|/\*.*?\*/)|(?P<verbatim>@"(?:[^"]|"")*")'''
+                           r'''|(?P<string>"(?:[^"\\\n]|\\.)*")|(?P<char>'(?:[^'\\\n]|\\.)')''', re.S)
+
+
+def string_literals(code: str) -> list:
+    """Every string literal in C# source, as its contents, comments skipped."""
+    found = []
+    for token in CSHARP_TOKENS.finditer(code):
+        if token.group("verbatim"):
+            found.append(token.group("verbatim")[2:-1].replace('""', '"'))
+        elif token.group("string"):
+            found.append(token.group("string")[1:-1])
+    return found
+
+
+def design_names_written(code: str) -> list:
+    """The string literals in C# source that are a design's name, in any case."""
+    names = {design.lower() for design in brand.DESIGNS}
+    return [text for text in string_literals(code) if text.strip().lower() in names]
+
+
 def argb(value: str) -> int:
     r, g, b = brand.rgb(value)
     return ((0xFF << 24) | (r << 16) | (g << 8) | b) - (1 << 32)
@@ -1509,33 +1532,39 @@ class ThemeSourceRuleTests(unittest.TestCase):
         return text[start:text.index(end, start)]
 
     def test_no_light_colour_is_drawn_outside_the_theme_it_was_adopted_from(self):
-        """Brand's light colours are read in one place - Tokens.Adopt, beside their dark twins - and
-        everything else draws from Palette or Tokens. A `Brand.Surface` left in a paint method is a light
-        patch in a dark window."""
-        pattern = re.compile(r"\bBrand\.(%s)\b" % "|".join(self.COLOURS))
-        adopt = guiscan.member_body("Tokens", "Adopt")
+        """Brand's colours, light or dark, are read in one place - Tokens.Adopt, from the Brand.Look that Brand.LookOf
+        answers for the design and the theme in effect - and everything else draws from Palette or Tokens. A
+        `Brand.Surface` left in a paint method is a light patch in a dark window. Until v0.6.10's final Adopt named
+        every colour of Brand, Brand.Dark and each design's classes itself; the choosing is generated now (Brand.Look)."""
+        pattern = re.compile(r"\bBrand\.(?:Dark\.)?(%s)\b" % "|".join(self.COLOURS))
         for name, text in self.sources.items():
-            code = self.code(text.replace(adopt, ""))
             with self.subTest(name):
-                self.assertEqual(pattern.findall(code), [], "a light brand colour drawn directly")
-        self.assertEqual(len(re.findall(r"= Brand\.Dark\.\w+;", adopt)), len(self.COLOURS))
-        self.assertEqual(len(re.findall(r"= Brand\.(?!Dark\.)\w+;", adopt)), len(self.COLOURS))
-        # v0.6.10: and each design with colours of its own, light and dark, beside them.
-        for design in ("Classic", "Plain"):
-            with self.subTest(design):
-                self.assertEqual(len(re.findall(r"= Brand\.%s\.Dark\.\w+;" % design, adopt)), len(self.COLOURS))
-                self.assertEqual(len(re.findall(r"= Brand\.%s\.(?!Dark\.)\w+;" % design, adopt)), len(self.COLOURS))
+                self.assertEqual(pattern.findall(self.code(text)), [], "a brand colour drawn directly")
+        adopt = guiscan.member_body("Tokens", "Adopt")
+        self.assertIn("Look = Brand.LookOf(Design, dark);", adopt)
+        self.assertEqual(sorted(field for field in re.findall(r"= Look\.(\w+);", adopt) if field != "Colours"),
+                         sorted(self.COLOURS), "every colour from the look, once")
 
     def test_no_drawing_code_names_a_designs_colours_outside_tokens(self):
-        """v0.6.10. A design's classes (Brand.Classic, Brand.Plain and their Dark twins) are read in Tokens alone - its
-        colours in Adopt, its check box beside them - and everything else draws from Palette or Tokens, so no paint
-        method can reach past the design in effect to another one's colours."""
-        tokens = guiscan.type_body("Tokens")
+        """v0.6.10. A design's classes (Brand.Classic, Brand.Plain and their Dark twins) are read by Brand.Look alone, in
+        generated code, and the window adopts what Brand.LookOf answers (Tokens, Palette), so no line of its own - no
+        paint method, and not Tokens either - can reach past the design in effect to another one's colours."""
         for name, text in self.sources.items():
-            code = self.code(text.replace(tokens, ""))
             with self.subTest(name):
-                self.assertEqual(re.findall(r"\bBrand\.(?:Classic|Plain)\b", code), [])
+                self.assertEqual(re.findall(r"\bBrand\.(?:Classic|Plain)\b", self.code(text)), [])
         self.assertIn("Tokens.Design = Design;", guiscan.member_body("Palette", "Adopt"))
+
+    def test_no_hand_written_source_names_a_design(self):
+        """v0.6.10. Which colours, check box, depth, glow, motion and corners a design has reaches the window from
+        brand/design.py and brand/tokens.py, generated into gui/Brand.cs (Brand.LookOf) by build/make_brand.py, so the
+        four designs stay in step in the window as on every other surface. A design's name written as a string in the
+        window's own code is a choice made by hand beside the generated one - gui/SoftTheme.cs made it in ten branches
+        until v0.6.10's final - and fails here, in any case. Comments may name a design; code may not."""
+        canary = '// "plain" in a comment\nif (Design == "classic" && dark) Say("Plain words", @"Still");'
+        self.assertEqual(design_names_written(canary), ["classic", "Still"], "the scan reports what it is for")
+        for name in guiscan.handwritten():
+            with self.subTest(name):
+                self.assertEqual(design_names_written(guiscan.read(name)), [], "a design named by hand")
 
     def test_every_theme_dependent_brand_rule_is_read_with_its_dark_twin(self):
         """A status colour, a check box's colours and an elevation recipe differ by theme, so each is
@@ -1693,10 +1722,10 @@ class ThemeSourceRuleTests(unittest.TestCase):
         self.assertIn("AccessibleRole = AccessibleRole.CheckButton;", check)
         self.assertIn("if (Focused && ShowFocusCues)", check)
         draw = guiscan.member_body("SoftCheck", "DrawBox")
-        # v0.6.10: the colours are the design's (Tokens.CheckFill, which reads Brand.Dark's beside Brand's for Soft and
-        # Still, and Classic's or Plain's otherwise), and the well is drawn only where the design has depth.
+        # v0.6.10: the colours are the design's (Tokens.CheckFill, which asks the Brand.Look of the design and theme in
+        # effect), and the well is drawn only where the design has depth.
         self.assertLess(draw.index("if (Palette.Contrast)"), draw.index("Tokens.CheckFill("))
-        self.assertIn("Tokens.Dark ? Brand.Dark.CheckFill(", guiscan.member_body("Tokens", "CheckFill"))
+        self.assertIn("return Look.CheckFill(on, enabled);", guiscan.member_body("Tokens", "CheckFill"))
         self.assertIn("well = Palette.Depth && Brand.CheckWell(on, enabled);", draw)
         self.assertIn("well = false;", draw[:draw.index("else")], "no shadow in High Contrast")
         self.assertIn("pen.LineJoin = LineJoin.Miter;", draw)
