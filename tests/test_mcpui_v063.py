@@ -341,13 +341,35 @@ class ActivityTests(unittest.TestCase):
     )
 
     def test_one_word_for_the_whole_product(self):
-        observed = run_javascript(["activity", "attentionCause"], "process.stdout.write(JSON.stringify(%s.map(function (c) "
-                                  "{return activity(c[0], c[1]);})));" % json.dumps(
+        observed = run_javascript(["activity", "attentionCause", "due"], "process.stdout.write(JSON.stringify(%s.map("
+                                  "function (c) {return activity(c[0], c[1]);})));" % json.dumps(
                                       [[status, rows] for status, rows, _ in self.CASES]))
         self.assertEqual(observed, [expected for _, _, expected in self.CASES])
 
+    def test_a_task_whose_time_has_come_is_checking_by_the_clock_it_is_given(self):
+        """v0.6.10 (F3): the popup's and the Dashboard's step, on the clock the page is given. Until then the panel
+        took none and said waiting; without one, nothing has come due."""
+        running = {"watcher_running": True, "enabled": True, "pending": 2}
+        cases = (
+            (running, [{"code": "waiting_reset", "eligible_at": 1000.0}], 999.5, "waiting"),
+            (running, [{"code": "waiting_reset", "eligible_at": 1000.0}], 1000.0, "checking"),
+            (running, [{"code": "scheduled", "eligible_at": 2000.0}, {"code": "waiting_reset", "eligible_at": 900.0}],
+             1000.0, "checking"),
+            (running, [{"code": "waiting_reset", "eligible_at": None}], 1000.0, "waiting"),
+            (running, [{"code": "waiting_reset", "eligible_at": 900.0}], None, "waiting"),
+            # The steps before it still come first: a row in Codex, a pause, a watcher that is not well.
+            (running, [{"code": "waiting_reset", "eligible_at": 900.0}, {"code": "submitted"}], 1000.0, "recovering"),
+            (dict(running, enabled=False), [{"code": "waiting_reset", "eligible_at": 900.0}], 1000.0, "paused"),
+            (dict(running, watcher={"ticking": False}), [{"code": "waiting_reset", "eligible_at": 900.0}], 1000.0,
+             "attention"),
+        )
+        observed = run_javascript(["activity", "attentionCause", "due"], "process.stdout.write(JSON.stringify(%s.map("
+                                  "function (c) {return activity(c[0], c[1], c[2] === null ? undefined : c[2]);})));"
+                                  % json.dumps([[status, rows, now] for status, rows, now, _ in cases]))
+        self.assertEqual(observed, [expected for _, _, _, expected in cases])
+
     def test_every_state_has_a_word_and_a_halo(self):
-        for state in ("monitoring", "waiting", "recovering", "paused", "attention"):
+        for state in ("monitoring", "waiting", "checking", "recovering", "paused", "attention"):
             with self.subTest(state):
                 self.assertIn("activity." + state, ENGLISH)
                 self.assertIn(".halo.%s" % state, mcpui._STYLE)
@@ -367,7 +389,7 @@ class ActivityTests(unittest.TestCase):
 class CatalogTests(unittest.TestCase):
     # Prefixes the script completes at runtime, and every value it can complete them with.
     DYNAMIC = {
-        "activity.": ("monitoring", "waiting", "recovering", "paused", "attention"),
+        "activity.": ("monitoring", "waiting", "checking", "recovering", "paused", "attention"),
         "reason.": reasons.RECOVERABLE,
         "choice.style.": continuation.STYLES,
         "help.style.": continuation.STYLES,
@@ -425,10 +447,24 @@ class StyleTests(unittest.TestCase):
         self.assertRegex(block, r"\*,\s*\*::before,\s*\*::after\s*\{[^}]*animation:\s*none\s*!important")
         self.assertRegex(block, r"\*,\s*\*::before,\s*\*::after\s*\{[^}]*transition:\s*none\s*!important")
         self.assertIn(".halo::before", block)
+        # The checking arc stops with every other animation, and stays: held still, it rests where the window's
+        # and the popup's does.
+        for context, selectors, declarations in RULES:
+            if context == REDUCED and any("::after" in selector for selector in selectors):
+                self.assertNotIn("display", declarations, selectors)
 
-    def test_nothing_on_the_page_ticks(self):
-        for forbidden in ("setInterval", "setTimeout", "requestAnimationFrame"):
+    def test_the_page_keeps_one_timer_and_only_for_a_time_to_come(self):
+        """Until v0.6.10 nothing on the page ticked, and so a task that came due while it was open stayed "waiting"
+        beside a window and a popup that said "checking" (F3). The rule now: no frame loop and no interval - the
+        motion is the stylesheet's - and one timeout, which watchClock sets for the moment the soonest time a row
+        carries comes, and which retell() uses to say again what that time changes."""
+        for forbidden in ("setInterval", "requestAnimationFrame"):
             self.assertNotIn(forbidden, mcpui._SCRIPT)
+        self.assertEqual(mcpui._SCRIPT.count("setTimeout("), 1)
+        self.assertIn("CLOCK = setTimeout(retell, wait);", javascript_function("watchClock"))
+        self.assertIn("clearTimeout(CLOCK);", javascript_function("watchClock"))
+        self.assertIn("watchClock();", javascript_function("render"))
+        self.assertIn("watchClock();", javascript_function("retell"))
 
     def test_the_scale_is_emitted_and_does_not_shadow_a_colour(self):
         scale = set(re.findall(r"(--[a-z-]+)\s*:", brand.css_scale()))
@@ -437,7 +473,10 @@ class StyleTests(unittest.TestCase):
         self.assertIn(brand.css_scale(), mcpui._STYLE)
         for name in ("--transition", "--glow-reach", "--glow-edge", "--glow-near", "--glow-far",
                      "--glow-outer", "--glow-edge-mix", "--glow-near-mix", "--glow-far-mix",
-                     "--glow-from", "--glow-monitoring-ms", "--glow-recovering-ms", "--glow-attention-ms"):
+                     "--glow-from", "--glow-monitoring-ms", "--glow-recovering-ms", "--glow-attention-ms",
+                     # v0.6.10: the checking arc's numbers, which until then were written and read by nothing.
+                     "--glow-arc-ms", "--glow-arc-mix", "--glow-arc-gap", "--glow-arc-width", "--glow-arc-sweep",
+                     "--glow-arc-still"):
             self.assertIn("var(%s)" % name, mcpui._STYLE)
         # Since v0.6.6 the breath's own numbers are in the keyframes, sampled from the curve, so the peak and
         # the dot's low are not variables the stylesheet reads any more.
@@ -497,9 +536,12 @@ V063_ELEVATION_DARK = (
 SUPPORTS_MIX = "@supports (color: color-mix(in srgb, red 50%, blue))"
 FORCED = "@media (forced-colors: active)"
 REDUCED = "@media (prefers-reduced-motion: reduce)"
-# Every state the light can be given a class for. `checking` is the window's and the popup's;
-# the panel draws it like the others should activity() ever say it.
+# Every state the light can be given a class for. `checking` was the window's and the popup's alone
+# until v0.6.10, when the panel's clock came (F3). No `failed`: no header shows red (J14).
 LIGHT_STATES = ("monitoring", "waiting", "checking", "recovering", "attention", "paused", "idle")
+# The panel's states whose light breathes and glows - brand.GLOW_BREATHES less `failed`, which the
+# panel never shows (the critic's correction to F1's test).
+BREATHING = ("monitoring", "waiting", "recovering", "attention")
 
 
 class MaterialTests(unittest.TestCase):
@@ -616,19 +658,35 @@ class StatusLightTests(unittest.TestCase):
         """Whether any of brand's frames for the state ever shows a glow."""
         return any((brand.glow(state, ms, ms) or {}).get("opacity", 0) > 0 for ms in range(0, 3200, 20))
 
+    def themes(self):
+        """Each theme's tokens as the bare root and a dark block leave them: light, and dark."""
+        dark = next(declarations for context, selectors, declarations in RULES
+                    if context == "" and selectors == (':root[data-theme="dark"]',))
+        return {"light": ROOT_TOKENS, "dark": dict(ROOT_TOKENS, **dark)}
+
     def test_the_light_is_a_flat_dot_of_the_size_it_always_had(self):
         self.assertEqual(declared(".halo", "width"), "%dpx" % (2 * brand.STATUS_DOT["panel"]))
         self.assertEqual(declared(".halo", "height"), declared(".halo", "width"))
-        self.assertEqual(declared(".dot", "width"), "%dpx" % (2 * brand.STATUS_DOT["mini"]))
-        self.assertEqual(declared(".dot", "height"), declared(".dot", "width"))
-        for selector in (".halo", ".dot"):
-            self.assertEqual(declared(selector, "border-radius"), "50%")
-        # No gradient core, highlight or ring: only the glow, behind it, is soft.
+        # v0.6.10 (F1): the Automatic recovery tile's light, the size its still dot had.
+        self.assertEqual(declared(".halo.mini", "width"), "%dpx" % (2 * brand.STATUS_DOT["mini"]))
+        self.assertEqual(declared(".halo.mini", "height"), declared(".halo.mini", "width"))
+        self.assertEqual(declared(".halo", "border-radius"), "50%")
+        # No gradient core, highlight or ring on the dot: only the glow behind it is soft, and the one thing drawn
+        # round it is checking's arc.
+        arcs = set()
         for context, selectors, declarations in RULES:
             for selector in selectors:
-                if re.match(r"\.(halo|dot)\b", selector) and "::before" not in selector:
+                if not re.match(r"\.halo\b", selector):
+                    continue
+                if "::after" in selector:
+                    arcs.add(selector)
+                elif "::before" not in selector:
                     self.assertFalse([value for value in declarations.values() if "gradient" in value], selector)
-                    self.assertNotIn("::after", selector)
+        self.assertEqual(arcs, {".halo.checking::after"})
+        # The still dot it replaced is gone from the stylesheet and the script.
+        self.assertFalse([selectors for context, selectors, declarations in RULES
+                          if any(re.match(r"\.dot\b", selector) for selector in selectors)])
+        self.assertNotRegex(mcpui._SCRIPT, r"'dot( |')")
 
     def test_each_state_is_filled_in_brands_colour_for_it(self):
         for state in LIGHT_STATES:
@@ -636,10 +694,14 @@ class StatusLightTests(unittest.TestCase):
                 selector = ".halo" if state == "idle" else ".halo." + state
                 self.assertEqual(declared(selector, "--halo-color"),
                                  "var(--%s)" % brand.status_fill(state).replace("_", "-"))
-        # The master row's small light, which knows only on, paused and off.
-        self.assertEqual(declared(".dot", "background"), "var(--%s)" % brand.status_fill("idle"))
-        self.assertEqual(declared(".dot.on", "background"), "var(--%s)" % brand.status_fill("waiting"))
-        self.assertEqual(declared(".dot.paused", "background"), "var(--%s)" % brand.status_fill("paused"))
+        # The tile's light has no colour, motion or glow of its own: it is the state's light, smaller.
+        for context, selectors, declarations in RULES:
+            for selector in selectors:
+                if ".mini" in selector:
+                    with self.subTest(selector=selector, context=context):
+                        self.assertEqual((context, selector), ("", ".halo.mini"))
+                        self.assertEqual(set(declarations), {"width", "height", "--glow-reach", "--glow-edge",
+                                                             "--glow-near", "--glow-far", "--glow-outer"})
 
     def test_only_a_light_that_is_on_glows(self):
         self.assertEqual(declared(".halo::before", "content"), "none")
@@ -648,16 +710,22 @@ class StatusLightTests(unittest.TestCase):
                    if context == "" and declarations.get("content") == '""'
                    for selector in selectors if selector.startswith(".halo.") and selector.endswith("::before")}
         self.assertEqual(glowing, {state for state in LIGHT_STATES if self.glows(state)})
-        self.assertEqual(glowing, {"monitoring", "waiting", "recovering", "attention"})
+        self.assertEqual(glowing, set(BREATHING))
         # Between its moments a glow is not there at all: nothing is lit round a still dot.
         self.assertEqual(self.static_opacity("monitoring"), 0.0)
         self.assertEqual(declared(".halo::before", "transform"), "scale(var(--glow-from))")
 
-    def test_the_glow_falls_off_as_brand_says_with_no_edge(self):
+    def falloff(self, dot, tokens):
+        """The glow's stops as (fraction of the outer radius, alpha), for a dot of `dot` px and the tokens it reads."""
+        def length(value, unit):
+            while "var(" in value:
+                value = re.sub(r"var\((--[a-z0-9-]+)\)", lambda match: tokens[match.group(1)], value)
+            self.assertTrue(value.endswith(unit), (value, unit))
+            return float(value[:-len(unit)])
+
         before = ".halo::before"
         self.assertEqual(declared(before, "inset"), "calc(-1 * var(--glow-reach))")
-        self.assertAlmostEqual(number("var(--glow-reach)", "px"), brand.glow_reach(brand.STATUS_DOT["panel"]))
-        dot = number(declared(".halo", "width"), "px") / 2
+        self.assertAlmostEqual(length("var(--glow-reach)", "px"), brand.glow_reach(dot))
         gradient = declared(before, "background")
         self.assertTrue(gradient.startswith("radial-gradient(circle closest-side, ") and gradient.endswith(")"))
         parts, depth, current = [], 0, ""
@@ -677,51 +745,87 @@ class StatusLightTests(unittest.TestCase):
             colour, position = stop.rsplit(" ", 1)
             mixed = re.fullmatch(r"color-mix\(in srgb, var\(--halo-color\) (.+), transparent\)", colour)
             alpha = (1.0 if colour == "var(--halo-color)" else 0.0 if colour == "transparent"
-                     else number(mixed.group(1), "%") / 100)
-            observed.append((number(position, "px") / outer, alpha))
+                     else length(mixed.group(1), "%") / 100)
+            observed.append((length(position, "px") / outer, alpha))
         observed.insert(0, (0.0, observed[0][1]))          # a gradient holds its first colour to the centre
+        return observed
+
+    def test_the_glow_falls_off_as_brand_says_with_no_edge(self):
+        dot = number(declared(".halo", "width"), "px") / 2
         expected = brand.glow_stops(dot)
+        observed = self.falloff(dot, ROOT_TOKENS)
         self.assertEqual(len(observed), len(expected))
         for (at, alpha), (want_at, want_alpha) in zip(observed, expected):
             self.assertAlmostEqual(at, want_at, places=6)
             self.assertAlmostEqual(alpha, want_alpha, places=6)
 
+    def test_the_tile_s_light_glows_as_far_as_brand_says_for_its_size(self):
+        """v0.6.10 (F1): the same falloff at the mini size - its reach and its stops are brand's for a 4 px radius,
+        written by brand.css_glow_geometry, and every other number of the breath is a share of the dot."""
+        mini = next(declarations for context, selectors, declarations in RULES
+                    if context == "" and selectors == (".halo.mini",))
+        dot = number(mini["width"], "px") / 2
+        self.assertEqual(dot, brand.STATUS_DOT["mini"])
+        self.assertAlmostEqual(float(mini["--glow-reach"][:-2]), brand.glow_reach(brand.STATUS_DOT["mini"]))
+        self.assertIn(brand.css_glow_geometry(brand.STATUS_DOT["mini"]), mcpui._STYLE)
+        observed = self.falloff(dot, dict(ROOT_TOKENS, **mini))
+        for (at, alpha), (want_at, want_alpha) in zip(observed, brand.glow_stops(dot)):
+            self.assertAlmostEqual(at, want_at, places=6)
+            self.assertAlmostEqual(alpha, want_alpha, places=6)
+        # The glow's scale with no spread, a share of the dot, is the same at both sizes.
+        self.assertAlmostEqual(number("var(--glow-from)"), dot / brand.glow_extent(dot))
+
     def keyframes(self, name):
+        """A keyframes rule's stops as (fraction of the cycle, declarations), in order."""
         frames = []
         for context, selectors, declarations in RULES:
             if context == "@keyframes " + name:
-                scale = 1.0
-                if "transform" in declarations:
-                    scale = float(re.fullmatch(r"scale\((.+)\)", resolve(declarations["transform"])).group(1))
                 for selector in selectors:
-                    frames.append((float(selector.rstrip("%")) / 100,
-                                   number(declarations["opacity"]), scale))
+                    at = {"from": 0.0, "to": 1.0}.get(selector)
+                    frames.append((float(selector.rstrip("%")) / 100 if at is None else at, declarations))
         self.assertTrue(frames, name)
-        return sorted(frames)
+        return sorted(frames, key=lambda frame: frame[0])
+
+    DIMMED = re.compile(r"color-mix\(in srgb, var\(--halo-color\) ([0-9.]+)%, var\(--halo-ground\)\)")
+
+    def breath(self, name):
+        """(fraction, level, scale) for each stop: glow-dot's share of the dot's own colour, or glow-spread's opacity
+        and scale."""
+        stops = []
+        for at, declarations in self.keyframes(name):
+            if name == "glow-dot":
+                self.assertEqual(set(declarations), {"background-color"})
+                share = float(self.DIMMED.fullmatch(declarations["background-color"]).group(1)) / 100
+                stops.append((at, share, 1.0))
+            else:
+                scale = float(re.fullmatch(r"scale\((.+)\)", resolve(declarations["transform"])).group(1))
+                stops.append((at, number(declarations["opacity"]), scale))
+        return stops
 
     def animation(self, selector):
-        value = resolve(declared(selector, "animation"))
-        name, duration, easing, count = re.fullmatch(r"(\S+) (\d+(?:\.\d+)?)ms (cubic-bezier\([^)]*\)|linear) (\S+)",
-                                                     value).groups()
-        return self.keyframes(name), float(duration), easing, count
+        written = declared(selector, "animation")
+        # Every light starts its cycle where the script puts it (v0.6.10, F2): one phase for the page's lights.
+        self.assertEqual(written.split()[3], "var(--light-delay)", written)
+        name, duration, count = re.fullmatch(r"(\S+) (\d+(?:\.\d+)?)ms linear -?\d+(?:\.\d+)?ms (\S+)",
+                                             resolve(written)).groups()
+        return self.breath(name), float(duration), count
 
     def frame(self, animation, elapsed):
-        frames, duration, easing, _ = animation
+        frames, duration, _ = animation
         progress = (elapsed % duration) / duration
         for (start, low, small), (end, high, large) in zip(frames, frames[1:]):
             if start <= progress <= end:
-                step = (progress - start) / (end - start)
                 # The curve is in the stops since v0.6.6, so what is between them is walked straight.
-                eased = step if easing == "linear" else cubic_bezier(easing, step)
-                return low + (high - low) * eased, small + (large - small) * eased
+                step = (progress - start) / (end - start)
+                return low + (high - low) * step, small + (large - small) * step
         raise AssertionError(progress)
 
     def light(self, state, elapsed):
-        """The dot's opacity, the glow's opacity and the glow's scale the stylesheet draws at `elapsed`."""
+        """How much of its colour the dot is drawn with, the glow's opacity and the glow's scale at `elapsed`."""
         dot = self.animation(".halo.%s" % state)
         glow = self.animation(".halo.%s::before" % state)
         for animation in (dot, glow):
-            self.assertEqual(animation[3], "infinite")
+            self.assertEqual(animation[2], "infinite")
             self.assertEqual(animation[1], brand.GLOW[state + "_ms"])
         return self.frame(dot, elapsed)[0], self.frame(glow, elapsed)[0], self.frame(glow, elapsed)[1]
 
@@ -732,16 +836,44 @@ class StatusLightTests(unittest.TestCase):
         self.assertAlmostEqual(drawn[2], brand.glow_radius(dot, frame["spread"]) / brand.glow_extent(dot), delta=0.002)
 
     def test_the_light_runs_brands_cycle_on_brands_curve(self):
-        # Sampled over two cycles against brand.glow(), which the window and the popup draw too: the dot's
-        # opacity over the card is its dimming, and the glow's opacity and scale are its spread. The easing is
-        # a Bezier, so each phase is a half-cosine only to within a small error. Attention loops too since
-        # v0.6.8, the slowest of the three, where it used to run the cycle once and hold.
-        for state in ("monitoring", "waiting", "recovering", "attention"):
+        # Sampled over two cycles against brand.glow(), which the window and the popup draw too: the share of its
+        # colour the dot is drawn with is its dimming, and the glow's opacity and scale are its spread. Attention
+        # loops too since v0.6.8, the slowest of the three, where it used to run the cycle once and hold.
+        for state in BREATHING:
             cycle = brand.GLOW[state + "_ms"]
             for step in range(193):
                 elapsed = cycle * 2 * step / 192
                 with self.subTest(state=state, elapsed=elapsed):
                     self.assertBrands(self.light(state, elapsed), brand.glow(state, elapsed))
+
+    def test_the_dot_dims_toward_its_ground_and_never_dims_its_glow(self):
+        """v0.6.10 (F2): the dot's colour is mixed with the ground under it - the card's under the state, the tile's
+        under the tile's light - as the window and the popup draw theirs. Until then the dot's element faded, and
+        the glow drawn inside it faded with it: halfway through a breath the panel's glow was about a fifth weaker
+        than theirs."""
+        for _, declarations in self.keyframes("glow-dot"):
+            self.assertNotIn("opacity", declarations)
+        for context, selectors, declarations in RULES:
+            for selector in selectors:
+                if re.match(r"\.halo\b", selector) and "::" not in selector:
+                    self.assertNotIn("opacity", declarations, selector)
+        self.assertEqual(declared(".hero", "--halo-ground"), "var(--card-ground)")
+        self.assertEqual(declared(".master", "--halo-ground"), "var(--raised)")
+        grounds = {"var(--card-ground)": brand.card_ground, "var(--raised)": lambda theme: brand.palette(theme)["raised"]}
+        for theme, tokens in self.themes().items():
+            for ground, ground_of in grounds.items():
+                under = painted(ground, tokens)
+                self.assertEqual(under, ground_of(theme))
+                for state in BREATHING:
+                    colour = brand.status_colour(state, theme)
+                    self.assertEqual(painted(declared(".halo." + state, "--halo-color"), tokens), colour)
+                    for at, declarations in self.keyframes("glow-dot"):
+                        with self.subTest(theme=theme, ground=ground, state=state, at=at):
+                            drawn = painted(declarations["background-color"].replace("var(--halo-color)", colour)
+                                            .replace("var(--halo-ground)", under), tokens)
+                            wanted = brand.mix(colour, under, brand.glow_phase(at)[0])
+                            for one, other in zip(brand.rgb(drawn), brand.rgb(wanted)):
+                                self.assertLessEqual(abs(one - other), 1)
 
     def test_attention_breathes_for_as_long_as_it_lasts_and_nothing_pulses_once(self):
         """v0.6.8: "확인필요는 천천히 계속 부드럽게 깜빡이고" - the hero no longer marks a light to run once."""
@@ -752,9 +884,10 @@ class StatusLightTests(unittest.TestCase):
 
     def test_checking_holds_lit_with_no_glow_and_waiting_breathes(self):
         # v0.6.9: waiting breathes on its own rhythm, which is monitoring's; checking still holds lit.
-        self.assertEqual(declared(".halo.waiting", "animation"), "glow-dot var(--glow-waiting-ms) linear infinite")
+        self.assertEqual(declared(".halo.waiting", "animation"),
+                         "glow-dot var(--glow-waiting-ms) linear var(--light-delay) infinite")
         self.assertEqual(declared(".halo.waiting::before", "animation"),
-                         "glow-spread var(--glow-waiting-ms) linear infinite")
+                         "glow-spread var(--glow-waiting-ms) linear var(--light-delay) infinite")
         for state in ("checking",):
             with self.subTest(state):
                 self.assertIsNone(declared(".halo.%s" % state, "animation"))
@@ -763,9 +896,60 @@ class StatusLightTests(unittest.TestCase):
                 self.assertEqual(brand.glow(state, 1234)["opacity"], 0.0)
                 self.assertEqual(brand.glow(state, 1234)["dim"], 0.0)
 
+    def test_checking_turns_brands_arc(self):
+        """v0.6.10 (F3): the arc the window and the popup turn round a task whose time has come. Until then the
+        stylesheet was written its numbers and read none of them, and a checking light here would have held still."""
+        after = ".halo.checking::after"
+        self.assertEqual(declared(after, "content"), '""')
+        self.assertEqual(declared(after, "animation"), "glow-arc var(--glow-arc-ms) linear var(--light-delay) infinite")
+        self.assertEqual(number("var(--glow-arc-ms)", "ms"), brand.GLOW["arc_ms"])
+        # One turn a cycle, clockwise, from where brand's arc starts: at 0 degrees, which is where it is at 0 ms.
+        self.assertEqual([(at, declarations) for at, declarations in self.keyframes("glow-arc")],
+                         [(0.0, {"transform": "rotate(0deg)"}), (1.0, {"transform": "rotate(360deg)"})])
+        for elapsed in (0, 400, 1200):
+            self.assertAlmostEqual(brand.glow("checking", elapsed)["arc"], elapsed / brand.GLOW["arc_ms"] * 360)
+        # Held still, it rests where the window's and the popup's does.
+        self.assertEqual(declared(after, "transform"), "rotate(var(--glow-arc-still))")
+        self.assertEqual(number("var(--glow-arc-still)", "deg"), brand.GLOW["arc_still_at"])
+        self.assertEqual(brand.glow("checking", 5000, reduced=True)["arc"], brand.GLOW["arc_still_at"])
+        # Their angles run clockwise from three o'clock, where a conic gradient starts once turned from twelve; the
+        # arc is `arc_sweep` of it, in the light's colour at `arc_alpha`.
+        self.assertEqual(declared(after, "background"),
+                         "conic-gradient(from 90deg, var(--halo-arc) 0deg var(--glow-arc-sweep), transparent 0deg)")
+        self.assertEqual(number("var(--glow-arc-sweep)", "deg"), brand.GLOW["arc_sweep"])
+        self.assertEqual(declared(after, "--halo-arc"),
+                         "color-mix(in srgb, var(--halo-color) var(--glow-arc-mix), transparent)")
+        self.assertAlmostEqual(number("var(--glow-arc-mix)", "%") / 100, brand.GLOW["arc_alpha"])
+        # The ring: its middle `arc_gap` past the dot's edge and `arc_width` wide, as their pens stroke it, each edge
+        # softened across one pixel centred on it - at both sizes of the light.
+        gap, width = number("var(--glow-arc-gap)", "px"), number("var(--glow-arc-width)", "px")
+        self.assertEqual((gap, width), (brand.GLOW["arc_gap"], brand.GLOW["arc_width"]))
+        self.assertEqual(declared(after, "inset"), "calc(-1 * (var(--glow-arc-gap) + var(--glow-arc-width) / 2 + 1px))")
+        mask = declared(after, "mask")
+        self.assertEqual(declared(after, "-webkit-mask"), mask)
+        stops = re.fullmatch(r"radial-gradient\(circle closest-side, transparent (calc\(.*?\)), #000 (calc\(.*?\)), "
+                             r"#000 (calc\(.*?\)), transparent (calc\(.*?\))\)", mask).groups()
+        for dot in (brand.STATUS_DOT["panel"], brand.STATUS_DOT["mini"]):
+            box = dot + gap + width / 2 + 1                 # closest-side of the box the inset makes
+
+            def at(position):
+                value = resolve(position).replace("100%", repr(box)).replace("px", "")
+                self.assertRegex(value, r"^calc\([0-9. +*/-]+\)$")
+                return eval(value[4:], {"__builtins__": {}})
+
+            inner_from, inner_to, outer_from, outer_to = (at(position) for position in stops)
+            with self.subTest(dot=dot):
+                self.assertAlmostEqual((inner_from + inner_to + outer_from + outer_to) / 4, dot + gap)
+                self.assertAlmostEqual((outer_from + outer_to) / 2 - (inner_from + inner_to) / 2, width)
+                self.assertAlmostEqual(inner_to - inner_from, 1.0)
+                self.assertAlmostEqual(outer_to - outer_from, 1.0)
+                self.assertLessEqual(outer_to, box)
+
     def test_with_less_motion_every_light_holds_lit_with_no_glow(self):
-        # Reduced motion removes the animations; what is left is the dot at full strength and no glow at all.
+        # Reduced motion removes the animations; what is left is the dot at full strength and no glow at all - and
+        # checking's arc, held where it rests.
         self.assertEqual(declared(".halo::before", "display", REDUCED), "none")
+        self.assertIsNone(declared(".halo.checking::after", "display", REDUCED))
         self.assertIsNone(declared(".halo", "opacity"))
         for state in LIGHT_STATES:
             frame = brand.glow(state, 5000, since_entered_ms=0, reduced=True)
@@ -782,14 +966,23 @@ class StatusLightTests(unittest.TestCase):
             with self.subTest(state):
                 selector = ".halo" if state == "idle" else ".halo." + state
                 self.assertEqual(declared(selector, "background", FORCED), system[brand.status_system(state)])
-        for selector, state in ((".dot", "idle"), (".dot.on", "waiting"), (".dot.paused", "paused")):
-            self.assertEqual(declared(selector, "background", FORCED), system[brand.status_system(state)])
-        for selector in (".halo", ".dot", "input.switch::before", "input.switch:checked"):
+        # The tile's light is the state's, in High Contrast too: nothing there names it apart.
+        self.assertFalse([selectors for context, selectors, declarations in RULES
+                          if context == FORCED and any(".mini" in selector for selector in selectors)])
+        # Checking's arc, still, in the light's own system colour - as the popup and the window draw it.
+        self.assertEqual(declared(".halo.checking::after", "--halo-arc", FORCED),
+                         system[brand.status_system("checking")])
+        for selector in (".halo", "input.switch::before", "input.switch:checked"):
             self.assertEqual(declared(selector, "forced-color-adjust", FORCED), "none", selector)
         # A rule that opts out of forced colours keeps its shadow unless it takes it off itself.
         for selector in (".card", ".savebar", "button", "select", "input", ".segment span", ".bubble",
                          ".segment input:checked + span", ".combo-box", ".combo-list", ".combo-option"):
             self.assertEqual(declared(selector, "box-shadow", FORCED), "none", selector)
+
+
+# The panel's functions the hero and the tile are drawn with, and what they call.
+DRAWING = ["t", "fill", "element", "card", "activity", "attentionCause", "due", "lightFor", "lightNode", "lightClass",
+           "nextCheck", "heroFacts", "soonestFact", "showFacts", "renderHero", "renderRecovery"]
 
 
 @unittest.skipUnless(NODE, "needs Node to run the panel's own code")
@@ -818,9 +1011,7 @@ class HeroLightTests(unittest.TestCase):
     )
 
     def test_the_hero_keeps_its_word_and_greys_the_light_of_a_stopped_watcher(self):
-        observed = run_javascript(
-            ["t", "fill", "element", "activity", "attentionCause", "lightFor", "nextCheck", "heroFacts",
-             "soonestFact", "renderHero"], """
+        observed = run_javascript(DRAWING, """
           DATA = {pending: []};
           process.stdout.write(JSON.stringify(%s.map(function (status) {
             var hero = renderHero(status).node;
@@ -843,9 +1034,7 @@ class HeroLightTests(unittest.TestCase):
         self.assertEqual(observed, ["attention", "idle", "idle", "attention", "idle"])
 
     def test_the_hero_reads_the_rows_for_its_light(self):
-        observed = run_javascript(
-            ["t", "fill", "element", "activity", "attentionCause", "lightFor", "nextCheck", "heroFacts",
-             "soonestFact", "renderHero"], """
+        observed = run_javascript(DRAWING, """
           DATA = {pending: [{code: 'scheduled', eligible_at: null, overlays: ['engine_unavailable']}]};
           var hero = renderHero({watcher_running: true, enabled: true, pending: 1}).node;
           var line = hero.children[1];
@@ -853,6 +1042,81 @@ class HeroLightTests(unittest.TestCase):
                                                hero.children[2].children.map(function (f) { return f.textContent; })]));
         """, prelude=self.PRELUDE)
         self.assertEqual(observed, ["attention", "halo idle", [ENGLISH["status.not_running"], ENGLISH["status.pending_one"]]])
+
+    def test_a_task_whose_time_has_come_is_checking_with_its_arc(self):
+        """v0.6.10 (F3): by the clock the page is drawn at, as the popup and the Dashboard say it."""
+        observed = run_javascript(DRAWING, """
+          DATA = {pending: [{code: 'waiting_reset', eligible_at: 1000, overlays: []}]};
+          var status = {watcher_running: true, enabled: true, pending: 1};
+          process.stdout.write(JSON.stringify([999, 1000, 1500].map(function (now) {
+            var hero = renderHero(status, now);
+            return [hero.state, hero.light, hero.node.children[1].children[0].className, hero.word.textContent];
+          })));
+        """, prelude=self.PRELUDE)
+        self.assertEqual(observed, [["waiting", "waiting", "halo waiting", ENGLISH["activity.waiting"]],
+                                    ["checking", "checking", "halo checking", ENGLISH["activity.checking"]],
+                                    ["checking", "checking", "halo checking", ENGLISH["activity.checking"]]])
+
+    def test_the_tile_s_light_is_the_hero_s_light_smaller(self):
+        """v0.6.10 (F1): the Automatic recovery tile's light was a dot of its own that never moved - cyan while
+        recovery was on, whatever the light above it said. It is that light now, read by the same rule at the same
+        moment, at the mini size."""
+        due = [{"code": "waiting_reset", "eligible_at": 1000, "overlays": []}]
+        cases = [(status, [], 2000) for status, _, _ in self.CASES] + [
+            ({"watcher_running": True, "enabled": True, "pending": 1}, due, 999),
+            ({"watcher_running": True, "enabled": True, "pending": 1}, due, 1000),
+            ({"watcher_running": True, "enabled": True, "pending": 1},
+             [{"code": "scheduled", "eligible_at": None, "overlays": ["engine_unavailable"]}], 2000)]
+        observed = run_javascript(DRAWING, """
+          process.stdout.write(JSON.stringify(%s.map(function (c) {
+            DATA = {pending: c[1]};
+            var hero = renderHero(c[0], c[2]);
+            var tile = renderRecovery(c[0], [], c[2]).children[1];
+            var light = tile.children[0].children[0].children[0];
+            return [hero.node.children[1].children[0].className, light.className, light.attributes['aria-hidden']];
+          })));
+        """ % json.dumps(cases), prelude=self.PRELUDE)
+        words = [state for _, state, _ in self.CASES] + ["waiting", "checking", "attention"]
+        lights = [light for _, _, light in self.CASES] + ["waiting", "checking", "idle"]
+        self.assertEqual(len(observed), len(words))
+        for (hero, tile, hidden), light in zip(observed, lights):
+            with self.subTest(light=light):
+                self.assertEqual(hero, "halo " + light)
+                self.assertEqual(tile, "halo mini " + light)
+                self.assertEqual(hidden, "true")
+        # Running with recovery on and something pending, as the old dot's "on" was: the waiting light, breathing.
+        self.assertIn("halo mini waiting", [tile for _, tile, _ in observed])
+
+
+@unittest.skipUnless(NODE, "needs Node to run the panel's own code")
+class LightPhaseTests(unittest.TestCase):
+    def test_the_light_keeps_its_phase_while_its_word_holds_and_starts_again_when_it_changes(self):
+        """v0.6.10 (F2): every draw built the light anew, and its breath jumped back to the top on any click even
+        when nothing it says had changed. The window and the popup keep the phase for as long as the state holds;
+        so does this page, as the negative delay that starts a new light where the old one was."""
+        observed = run_javascript(["lightDelay"], """
+          process.stdout.write(JSON.stringify([
+            lightDelay('waiting', 1000), lightDelay('waiting', 3500), lightDelay('waiting', 9000.4),
+            lightDelay('checking', 9100), lightDelay('checking', 9350), lightDelay('waiting', 9400)]));
+        """, prelude="var LIGHT = {light: '', since: 0};")
+        self.assertEqual(observed, [0, -2500, -8000, 0, -250, 0])
+
+    def test_the_timer_waits_for_the_soonest_time_still_to_come(self):
+        """The page's one timer (watchClock): for the soonest time a row carries that has not come, never for one
+        that has, none at all when nothing is to come, and never longer than a day - a timer asked to wait longer
+        than about 24.8 days fires at once."""
+        observed = run_javascript(["due", "untilDue"], """
+          process.stdout.write(JSON.stringify([
+            untilDue([{eligible_at: 1060}, {eligible_at: 1010.5}, {eligible_at: 990}], 1000),
+            untilDue([{eligible_at: 990}, {eligible_at: null}, {}], 1000),
+            untilDue([], 1000),
+            untilDue(null, 1000),
+            untilDue([{eligible_at: 1000.0001}], 1000),
+            untilDue([{eligible_at: 1000 + 40 * 86400}], 1000),
+            untilDue([{eligible_at: 1060}], undefined)]));
+        """, prelude="var CLOCK_LONGEST = 86400000;")
+        self.assertEqual(observed, [10500, None, None, None, 1, 86400000, None])
+        self.assertIn("var CLOCK_LONGEST = 86400000;", mcpui._SCRIPT)
 
 
 if __name__ == "__main__":

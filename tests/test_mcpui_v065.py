@@ -33,7 +33,7 @@ from codex_auto_resume import brand, l10n                          # noqa: E402
 from codex_auto_resume.mcp import panel as mcpui
 from codex_auto_resume import settings as policy                          # noqa: E402
 from test_mcpui_v063 import (FORCED, REDUCED, RULES, ROOT_TOKENS, SUPPORTS_MIX,  # noqa: E402
-                             cubic_bezier, declared)
+                             cubic_bezier, declared, javascript_function)
 from test_mcpui_v064 import run_page, say, snapshot                       # noqa: E402
 
 NODE = shutil.which("node")
@@ -879,13 +879,16 @@ class MotionStyleTests(unittest.TestCase):
                     self.assertEqual(declarations.get("transition-timing-function"), "var(--transition-ease)")
         # No other curve anywhere a transition or an animation is timed - except the status light's, whose
         # curve is in its keyframes since v0.6.6 (sampled from brand.glow_phase every 2.5% of the cycle), so
-        # what lies between two of them is walked straight rather than eased a second time.
+        # what lies between two of them is walked straight rather than eased a second time; and the checking
+        # arc's turn, which is even all the way round, as the window and the popup turn it (v0.6.10). Each starts
+        # where the script puts the page's one phase (--light-delay, v0.6.10).
         for where, selectors, declarations in RULES:
             for prop in ("transition", "transition-timing-function", "animation", "animation-timing-function"):
                 value = declarations.get(prop, "")
-                if value.startswith("glow-dot ") or value.startswith("glow-spread "):
+                if value.startswith(("glow-dot ", "glow-spread ", "glow-arc ")):
                     with self.subTest(selectors=selectors, prop=prop):
-                        self.assertRegex(value, r"^glow-(dot|spread) var\(--glow-[a-z]+-ms\) linear (infinite|1)$")
+                        self.assertRegex(value, r"^glow-(dot|spread|arc) var\(--glow-[a-z]+-ms\) linear "
+                                                r"var\(--light-delay\) (infinite|1)$")
                     continue
                 with self.subTest(selectors=selectors, prop=prop):
                     self.assertNotRegex(value, r"(?<![-\w])(ease|ease-in|ease-out|ease-in-out|linear|step-start"
@@ -1042,16 +1045,24 @@ class ScriptTests(unittest.TestCase):
         self.assertIn("var COMBO_ROWS = %d;" % ROWS, script)
         self.assertIn("var COMBO_TYPING_MS = %d;" % TYPING_MS, script)
         self.assertNotIn("COMBO_PAGE", script)
-        for forbidden in ("setInterval", "setTimeout", "requestAnimationFrame"):
+        for forbidden in ("setInterval", "requestAnimationFrame"):
             self.assertNotIn(forbidden, script)
+        # The page's one timeout is the clock's (watchClock, v0.6.10), never the list's: typing times its search by
+        # the moment each key comes, and nothing waits.
+        self.assertEqual(script.count("setTimeout("), 1)
+        self.assertIn("setTimeout(", javascript_function("watchClock"))
         # A pick is a select's own change, heard by whatever listens to the select.
         self.assertEqual(script.count("select.dispatchEvent(new Event('change', {bubbles: true}));"), 1)
 
     def test_the_status_light_is_still_brands(self):
-        # The light's numbers are brand's; this release's panel work redefines none of them.
+        # The light's numbers are brand's; this release's panel work redefines none of them. The one place a
+        # `--glow-*` is declared outside brand's scale is the tile's smaller light (v0.6.10), and that is brand's
+        # too: the glow's reach and stops for its radius, as brand.css_glow_geometry writes them.
         scale = brand.css_scale()
+        mini = brand.css_glow_geometry(brand.STATUS_DOT["mini"])
+        self.assertEqual(mcpui._STYLE.count(mini), 1)
         for name in re.findall(r"(--glow-[a-z-]+):", scale):
-            self.assertNotRegex(mcpui._STYLE.replace(scale, ""), re.escape(name) + r"\s*:")
+            self.assertNotRegex(mcpui._STYLE.replace(scale, "").replace(mini, ""), re.escape(name) + r"\s*:")
 
 
 # ------------------------------------------------------------------------------------ tiles

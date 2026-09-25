@@ -9,8 +9,10 @@ is the rule as a table - what a surface read, and the word and light it must sho
 runs every vector through each implementation in its own language:
 
   * the popup: `ui/popup/model.activity` and `light_for`, and the view the window draws from;
-  * the panel: `activity` and `lightFor` in `mcp/assets/panel.js`, run in Node - which, drawn once
-    and never redrawn, has no clock and so says waiting where the others say checking (`panel`);
+  * the panel: `activity` and `lightFor` in `mcp/assets/panel.js`, run in Node, on the table's `now` -
+    until v0.6.10 it took no clock, being drawn once, and said waiting where the others said checking
+    (a `panel` field in the vectors); since then the page reads its own clock by the same rule, and
+    its one timer reads it again when a time a row carries comes;
   * the window: `SettingsForm.ActivityWord`, `HeaderLight` and `Activity`, compiled with csc and
     called through reflection, as tests/test_gui_v065_taskbar.py calls it.
 
@@ -56,22 +58,17 @@ FACT_LANGUAGES = ("en", "ko")
 SEPARATOR = "\x1f"
 
 
-def panel_expected(vector):
-    """The word and light the panel shows: the vector's, except where it says the panel's own."""
-    own = vector.get("panel") or {}
-    return own.get("word", vector["word"]), own.get("light", vector["light"])
-
-
 @lru_cache(maxsize=None)
 def panel_answers():
-    """Each vector through the panel's own code: [word, light, {language: facts}]. Facts only where there is a
-    status, as the panel is always handed one."""
+    """Each vector through the panel's own code, at the table's `now`: [word, light, {language: facts}]. Facts only
+    where there is a status, as the panel is always handed one."""
     cases = [[vector["status"], vector["rows"]] for vector in VECTORS]
     catalogs = {language: l10n.catalog(language) for language in FACT_LANGUAGES}
-    return run_javascript(["t", "fill", "activity", "attentionCause", "lightFor", "heroFacts"], """
+    return run_javascript(["t", "fill", "activity", "due", "attentionCause", "lightFor", "heroFacts"], """
       var catalogs = %s;
+      var now = %s;
       var out = %s.map(function (c) {
-        var word = activity(c[0], c[1]);
+        var word = activity(c[0], c[1], now);
         var facts = {};
         if (c[0] !== null) {
           Object.keys(catalogs).forEach(function (language) {
@@ -82,7 +79,7 @@ def panel_answers():
         return [word, lightFor(c[0], word, c[1]), facts];
       });
       process.stdout.write(JSON.stringify(out));
-    """ % (json.dumps(catalogs, ensure_ascii=False), json.dumps(cases)))
+    """ % (json.dumps(catalogs, ensure_ascii=False), json.dumps(NOW), json.dumps(cases)))
 
 
 # ------------------------------------------------------------------------------------------ the table
@@ -141,15 +138,18 @@ class TableTests(unittest.TestCase):
                     self.assertEqual(row["code"] in moving, row["state"] not in machine.WAITING)
                     self.assertLessEqual(set(row["overlays"]), set(machine.OVERLAYS))
 
-    def test_the_panel_parts_only_where_a_time_has_come(self):
-        """The panel is drawn once from one tool result, so it has no clock to say a time has come by (the critic's
-        correction to F5): it says waiting, and each row says "due now". Nowhere else does it part."""
+    def test_the_panel_parts_nowhere(self):
+        """Until v0.6.10 the panel parted where a time had come: drawn once, with no clock, it said waiting where the
+        others said checking (the critic's correction to F5), and a `panel` field said so. It reads the page's clock
+        now (F3), and its one timer reads it again the moment a time a row carries comes, so no vector parts - and
+        the table still holds the moments that used to."""
         for vector in VECTORS:
             with self.subTest(vector["name"]):
-                if vector["word"] == "checking":
-                    self.assertEqual(vector.get("panel"), {"word": "waiting", "light": "waiting"})
-                else:
-                    self.assertNotIn("panel", vector)
+                self.assertNotIn("panel", vector)
+        checking = [vector for vector in VECTORS if vector["word"] == "checking"]
+        self.assertGreaterEqual(len(checking), 3)
+        self.assertTrue(any(row["eligible_at"] == NOW for vector in checking for row in vector["rows"]),
+                        "a time that comes this very second is checking")
 
     def test_the_taskbar_keeps_its_red_and_no_header_shows_it(self):
         with_taskbar = [vector for vector in VECTORS if "taskbar" in vector]
@@ -186,7 +186,7 @@ class PanelTests(unittest.TestCase):
         self.assertEqual(len(answers), len(VECTORS))
         for vector, (word, light, _) in zip(VECTORS, answers):
             with self.subTest(vector["name"]):
-                self.assertEqual((word, light), panel_expected(vector))
+                self.assertEqual((word, light), (vector["word"], vector["light"]))
 
     def test_a_running_watcher_that_needs_a_person_says_why_and_not_that_recovery_is_on(self):
         english = l10n.catalog("en")

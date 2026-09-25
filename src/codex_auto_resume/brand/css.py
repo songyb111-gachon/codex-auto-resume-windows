@@ -41,8 +41,11 @@ def css_scale() -> str:
     animation handed a colour for its duration simply does not run.
 
     `--type-*` is the panel's own type scale (TYPE_SCALE); the popup's TYPE is not a
-    stylesheet's business. The glow's stops, and `--glow-from` (its scale with no spread), are
-    written for the panel's dot; `--glow-dot-low` is the dot's opacity at its darkest.
+    stylesheet's business. The glow's stops (css_glow_geometry) are written for the panel's dot,
+    and the tile's smaller light writes its own under `.halo.mini`; `--glow-from`, the glow's scale
+    with no spread, is a share of the dot and so the same at both sizes. The checking arc's
+    numbers are `--glow-arc-*`: how long a turn takes, its colour's strength, how far past the
+    dot's edge it runs and how wide, how many degrees it sweeps and where it holds still.
     """
     parts = []
     for prefix, table in (("radius", RADII), ("space", SPACING), ("type", TYPE_SCALE)):
@@ -57,10 +60,7 @@ def css_scale() -> str:
     parts.append("--transition: %dms;" % MOTION["transition_ms"])
     parts.append("--transition-ease: %s;" % css_ease())
     dot, light = STATUS_DOT["panel"], GLOW
-    parts.append("--glow-reach: %s;" % _css_length(glow_reach(dot)))
-    for name, fraction in (("edge", 0.0), ("near", light["near_at"]), ("far", light["far_at"]),
-                           ("outer", 1.0)):
-        parts.append("--glow-%s: %s;" % (name, _css_length(dot + glow_reach(dot) * fraction)))
+    parts.append(css_glow_geometry(dot))
     for name in ("edge", "near", "far"):
         parts.append("--glow-%s-mix: %s%%;" % (name, _number(light[name + "_alpha"] * 100)))
     parts.append("--glow-from: %s;" % _number(dot / glow_extent(dot)))
@@ -68,7 +68,26 @@ def css_scale() -> str:
         parts.append("--glow-%s-ms: %dms;" % (state, light[state + "_ms"]))
     parts.append("--glow-arc-ms: %dms;" % light["arc_ms"])
     parts.append("--glow-arc-mix: %s%%;" % _number(light["arc_alpha"] * 100))
+    parts.append("--glow-arc-gap: %s;" % _css_length(light["arc_gap"]))
+    parts.append("--glow-arc-width: %s;" % _css_length(light["arc_width"]))
+    parts.append("--glow-arc-sweep: %sdeg;" % _number(light["arc_sweep"]))
+    parts.append("--glow-arc-still: %sdeg;" % _number(light["arc_still_at"]))
     parts.append(css_check_box())
+    return " ".join(parts)
+
+
+def css_glow_geometry(dot) -> str:
+    """Where the glow of a light `dot` px in radius reaches, and where its falloff's stops lie: `--glow-reach`, and
+    `--glow-edge`, `--glow-near`, `--glow-far` and `--glow-outer` measured from the dot's centre.
+
+    Written once in css_scale() for the panel's light and again, for the Automatic recovery tile's smaller one, under
+    `.halo.mini` (v0.6.10), whose glow the stylesheet's own rules then draw from it. The reach is a share of the dot,
+    so the two are the same light at two sizes; the breath needs nothing per size, its scale and its brightness being
+    shares too.
+    """
+    parts = ["--glow-reach: %s;" % _css_length(glow_reach(dot))]
+    for name, fraction in (("edge", 0.0), ("near", GLOW["near_at"]), ("far", GLOW["far_at"]), ("outer", 1.0)):
+        parts.append("--glow-%s: %s;" % (name, _css_length(dot + glow_reach(dot) * fraction)))
     return " ".join(parts)
 
 
@@ -77,23 +96,30 @@ GLOW_STOPS = 40             # keyframe stops a breath is written as: one every 2
 
 
 def css_glow_keyframes() -> str:
-    """GLOW's breath as the panel's keyframes: `glow-dot`, the dot's opacity over the card, and `glow-spread`, the
-    glow's opacity and scale.
+    """GLOW's breath as the panel's keyframes: `glow-dot`, the dot's colour drawn toward the ground it stands on,
+    `glow-spread`, the glow's opacity and scale, and `glow-arc`, one turn of the checking arc.
 
     A keyframe selector cannot read a custom property and CSS has no cosine, so the curve is sampled here from
-    glow_phase itself, every 5% of the cycle, and written out as stops. What the browser puts between two stops is a
-    straight line across a twentieth of a four-second breath, which is below what an eye can see; sampling is what
+    glow_phase itself, every 2.5% of the cycle, and written out as stops. What the browser puts between two stops is
+    a straight line across a fortieth of a four-second breath, which is below what an eye can see; sampling is what
     keeps the panel's light the same light as the window's rather than a hand-fitted lookalike.
+
+    The dot dims by mixing its colour with `--halo-ground`, the ground under it, and not by its opacity (v0.6.10).
+    The glow is drawn inside the dot's element, so an opacity on the dot multiplied the glow by the dot's brightness
+    as well, and halfway through a breath the panel's glow was a fifth weaker than the window's and the popup's,
+    which draw the two apart. A value inside a keyframe may read custom properties; its selector may not.
     """
     dot, spread, extent = [], [], glow_extent(STATUS_DOT["panel"])
     for step in range(GLOW_STOPS + 1):
         fraction = step / float(GLOW_STOPS)
         dim, out = glow_phase(fraction)
         at = "%s%%" % _number(fraction * 100)
-        dot.append("%s { opacity: %s; }" % (at, _number(1.0 - dim)))
+        dot.append("%s { background-color: color-mix(in srgb, var(--halo-color) %s%%, var(--halo-ground)); }"
+                   % (at, _number((1.0 - dim) * 100)))
         scale = glow_radius(STATUS_DOT["panel"], out) / extent
         spread.append("%s { opacity: %s; transform: scale(%s); }" % (at, _number(GLOW["peak"] * out), _number(scale)))
-    return ("@keyframes glow-dot { %s }\n@keyframes glow-spread { %s }"
+    return ("@keyframes glow-dot { %s }\n@keyframes glow-spread { %s }\n"
+            "@keyframes glow-arc { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }"
             % (" ".join(dot), " ".join(spread)))
 
 
