@@ -383,9 +383,34 @@ namespace CodexAutoResume
     /// A small bar chart of how recoveries ended, drawn to the same scale for every bar.
     internal sealed class OutcomeChart : Panel
     {
-        internal List<KeyValuePair<string, int>> Bars = new List<KeyValuePair<string, int>>();
-        internal Color BarColor, TextColor;
+        /// One bar: an outcome's code, its word, how many ended that way, and the colour History draws that word in
+        /// (SettingsForm.CodeTone) - since v0.6.10, when every bar was the accent's blue beside a History that told
+        /// the same outcomes apart. The word is always beside its bar, so no bar is told by its colour alone.
+        internal sealed class Bar
+        {
+            internal readonly string Code, Label;
+            internal readonly int Count;
+            internal readonly Color Tone;
+
+            internal Bar(string code, string label, int count, Color tone)
+            {
+                Code = code;
+                Label = label;
+                Count = count;
+                Tone = tone;
+            }
+        }
+
+        internal List<Bar> Bars = new List<Bar>();
+        internal Color TextColor;
         internal string EmptyText = "";
+
+        /// The colour a bar is filled with: its outcome's, or in High Contrast the one system colour every bar had
+        /// before, which the words beside the bars tell apart.
+        internal static Color Fill(Bar bar)
+        {
+            return Palette.Contrast ? Palette.Accent : bar.Tone;
+        }
 
         internal OutcomeChart()
         {
@@ -409,8 +434,8 @@ namespace CodexAutoResume
         internal void Describe()
         {
             var spoken = new List<string>();
-            foreach (var bar in Bars)
-                spoken.Add(bar.Key + " " + bar.Value.ToString(CultureInfo.CurrentCulture));
+            foreach (Bar bar in Bars)
+                spoken.Add(bar.Label + " " + bar.Count.ToString(CultureInfo.CurrentCulture));
             AccessibleDescription = spoken.Count == 0 ? EmptyText : string.Join(", ", spoken.ToArray());
         }
 
@@ -419,9 +444,8 @@ namespace CodexAutoResume
             base.OnPaint(e);
             e.Graphics.Clear(BackColor);
             int max = 0;
-            foreach (var bar in Bars) max = Math.Max(max, bar.Value);
+            foreach (Bar bar in Bars) max = Math.Max(max, bar.Count);
             using (var text = new SolidBrush(TextColor))
-            using (var fill = new SolidBrush(BarColor))
             {
                 if (max == 0)
                 {
@@ -430,17 +454,17 @@ namespace CodexAutoResume
                 }
                 int row = RowHeight();
                 int labelWidth = 0;
-                foreach (var bar in Bars)
-                    labelWidth = Math.Max(labelWidth, TextRenderer.MeasureText(bar.Key, Font).Width);
+                foreach (Bar bar in Bars)
+                    labelWidth = Math.Max(labelWidth, TextRenderer.MeasureText(bar.Label, Font).Width);
                 int numberWidth = TextRenderer.MeasureText("0000", Font).Width;
                 int track = Math.Max(Px(10), Width - labelWidth - numberWidth - Px(24));
                 int y = 0;
-                foreach (var bar in Bars)
+                foreach (Bar bar in Bars)
                 {
-                    TextRenderer.DrawText(e.Graphics, bar.Key, Font, new Point(0, y), TextColor);
-                    int length = (int)Math.Round(track * (bar.Value / (double)max));
-                    e.Graphics.FillRectangle(fill, labelWidth + Px(12), y + Px(3), Math.Max(Px(2), length), row - Px(12));
-                    TextRenderer.DrawText(e.Graphics, bar.Value.ToString(CultureInfo.CurrentCulture), Font,
+                    TextRenderer.DrawText(e.Graphics, bar.Label, Font, new Point(0, y), TextColor);
+                    int length = (int)Math.Round(track * (bar.Count / (double)max));
+                    e.Graphics.FillRectangle(Soft.Fill(Fill(bar)), labelWidth + Px(12), y + Px(3), Math.Max(Px(2), length), row - Px(12));
+                    TextRenderer.DrawText(e.Graphics, bar.Count.ToString(CultureInfo.CurrentCulture), Font,
                                           new Point(labelWidth + Px(18) + length, y), TextColor);
                     y += row;
                 }
@@ -637,9 +661,10 @@ namespace CodexAutoResume
         private Label diagVersion, diagWatcher, diagLastCheck, diagEngine, diagRecovery, diagStartup,
                       diagUpgrade, diagUpdate;
         private Button exportButton, repairButton, stopButton, updateButton;
-        // Codex compatibility (v0.6.5; BuildCompatibility): its facts, what the view cannot vouch for, the parts in two
-        // lists, what each state word means, and the refresh with what it last answered.
-        private Label compatOverall, compatEngine, compatChecked, compatData, compatNotice, compatLegend;
+        // Codex compatibility (v0.6.5; BuildCompatibility): its facts, what the view cannot vouch for - a callout each,
+        // since v0.6.10 - the parts in two lists, what each state word means, and the refresh with what it last answered.
+        private Label compatOverall, compatEngine, compatChecked, compatData, compatLegend;
+        private TableLayoutPanel compatNotice;
         private GateList compatLeft, compatRight;
         private Control compatLists;
         private NoteLabel compatNote;
@@ -1286,9 +1311,17 @@ namespace CodexAutoResume
         internal static Color ToneFor(Dictionary<string, object> row)
         {
             if (HasOverlay(row, "paused") || HasOverlay(row, "thread_disabled")) return Palette.Paused;
+            return CodeTone(Str(row, "code") ?? "");
+        }
+
+        /// The colour of a state's word by its code alone: History's chips, and since v0.6.10 the bar each outcome
+        /// has on the Statistics page (OutcomeChart), so an outcome is one colour wherever it is shown - recovered
+        /// green, finished without progress amber, stopped by you grey, failed red.
+        internal static Color CodeTone(string code)
+        {
             // Comparisons rather than a switch, for the reason in Controls.DotColour: a string
             // switch this long made the in-box compiler emit a randomly named class.
-            string code = Str(row, "code") ?? "";
+            code = code ?? "";
             if (code == "recovered" || code == "delivered_legacy") return Palette.Success;
             if (code == "waiting_reset" || code == "waiting_usage" || code == "waiting_thread" || code == "scheduled")
                 return Palette.Waiting;

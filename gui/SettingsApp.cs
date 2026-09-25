@@ -804,29 +804,38 @@ namespace CodexAutoResume
             hero.Padding = Pad(Brand.HeroPadLeft, Brand.HeroPadTop, Brand.HeroPadRight, Brand.HeroPadBottom);
             hero.ColumnCount = 3;
             hero.RowCount = 2;
-            // Wide enough for the dot and its glow at any scaling: an absolute 22 held a 24-pixel
-            // dot at 200% and sliced a third of it off.
-            hero.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, Px(28)));   // state dot and its glow
+            // The light stands where every header stands it (v0.6.10): Brand.LightInset from the card's
+            // content to the dot, and Brand.LightGap from the dot to the words. The dot is centred in a box
+            // of its own, which keeps the glow's room on each side of it at any scaling - an absolute 22
+            // once held a 24-pixel dot at 200% and sliced a third of it off - and the rest of the gap is the
+            // box's right margin. Until v0.6.10 the column was 28 and the words 15 px from the dot.
+            int lightBox = 2 * (int)Math.Round(Soft.PxF(Brand.LightInset + Brand.StatusDotRadius));
+            int lightColumn = (int)Math.Round(Soft.PxF(Brand.LightInset + 2 * Brand.StatusDotRadius + Brand.LightGap));
+            hero.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, lightColumn));   // the state's light, and its gap
             hero.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));   // what it is doing
             hero.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));        // the way out
             hero.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
             hero.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
 
             // Drawn rather than a glyph so the dot stays round and vertically centred at
-            // any scaling, and it carries the same state as the words beside it. It
-            // spans both rows because it describes the pair, not the first line. Its glow is
-            // the one thing in the window that moves, and only while there is something to
-            // show moving (see HaloDot); with motion reduced it holds still.
+            // any scaling, and it carries the same state as the words beside it. It stands
+            // on the headline's line, in the first row, as the panel's and the popup's light
+            // stands on its word's (v0.6.10); until then it spanned both rows and stood
+            // between the two lines. Its glow is the one thing in the window that moves, and
+            // only while there is something to show moving (see HaloDot); with motion reduced
+            // it holds still.
             var dot = stateDot;
             dot.Dock = DockStyle.Fill;
             dot.BackColor = Card;
-            dot.Margin = new Padding(0);
+            dot.Margin = new Padding(0, 0, lightColumn - lightBox, 0);
 
+            // The words start where the light's column ends, both lines alike.
             headline.Dock = DockStyle.Fill;
             headline.TextAlign = ContentAlignment.BottomLeft;
             headline.ForeColor = Ink;
             headline.Font = Soft.RoleFont("display");
             headline.AutoEllipsis = true;
+            headline.Margin = new Padding(0);
             headline.Text = "Loading...";
 
             detail.Dock = DockStyle.Fill;
@@ -850,20 +859,20 @@ namespace CodexAutoResume
             Pinned(startButton, hero);
 
             hero.Controls.Add(dot, 0, 0);
-            hero.SetRowSpan(dot, 2);
             hero.Controls.Add(headline, 1, 0);
             hero.Controls.Add(detail, 1, 1);
             hero.Controls.Add(startButton, 2, 0);
             hero.SetRowSpan(startButton, 2);
             header.Controls.Add(hero);
             // Measured, not a formula of the font: two lines of the taller of the two, each row
-            // half the card so the pair stays centred on the dot, and never less than the dot's
-            // glow or the Start button need. Again whenever the window's font changes.
+            // half the card, a line never less than the light's glow needs - the light stands in
+            // the first - and the pair never less than the Start button needs. Again whenever the
+            // window's font changes.
             EventHandler fit = delegate
             {
                 int line = Math.Max(headline.PreferredSize.Height, detail.PreferredSize.Height + detail.Margin.Vertical);
-                int body = Math.Max(2 * line, Math.Max(2 * HaloDot.Extent + Px(2),
-                                                      startButton.PreferredSize.Height + startButton.Margin.Vertical));
+                line = Math.Max(line, 2 * HaloDot.Extent + Px(2));
+                int body = Math.Max(2 * line, startButton.PreferredSize.Height + startButton.Margin.Vertical);
                 header.Height = body + hero.Padding.Vertical + header.Padding.Vertical;
             };
             fit(this, EventArgs.Empty);

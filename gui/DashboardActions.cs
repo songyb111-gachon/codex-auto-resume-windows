@@ -769,13 +769,15 @@ namespace CodexAutoResume
                 foreach (var pair in outcomes)
                 {
                     int count = Whole(pair.Value);
-                    if (count > 0) chart.Bars.Add(new KeyValuePair<string, int>(S("code." + pair.Key, pair.Key), count));
+                    // In the colour History draws the outcome's word in, beside the same word (v0.6.10).
+                    if (count > 0)
+                        chart.Bars.Add(new OutcomeChart.Bar(pair.Key, S("code." + pair.Key, pair.Key), count, CodeTone(pair.Key)));
                 }
             // Most common first, and as tall as its bars rather than a fixed box.
-            chart.Bars.Sort(delegate(KeyValuePair<string, int> a, KeyValuePair<string, int> b)
+            chart.Bars.Sort(delegate(OutcomeChart.Bar a, OutcomeChart.Bar b)
             {
-                int order = b.Value.CompareTo(a.Value);
-                return order != 0 ? order : string.CompareOrdinal(a.Key, b.Key);
+                int order = b.Count.CompareTo(a.Count);
+                return order != 0 ? order : string.CompareOrdinal(a.Label, b.Label);
             });
             chart.EmptyText = S("stats.none", "Nothing yet");
             chart.Font = Font;

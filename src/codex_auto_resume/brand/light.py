@@ -49,7 +49,7 @@ STATUS_SYSTEM = {"monitoring": "Highlight", "waiting": "Highlight", "checking": 
 # holds still under Reduce motion or Windows' animation setting; High Contrast is a solid dot. The glow is a falloff, never a disc: at its peak, `peak` times
 # `edge_alpha` at the dot's edge, `near_alpha` at `near_at` of the reach, `far_alpha` at `far_at`, nothing at the
 # reach, straight between; a smaller spread is that falloff drawn smaller about the centre, so it grows out from
-# under the dot, and at most it reaches 8 CSS px from the window's dot centre, inside the 28 px column kept for it.
+# under the dot, and at most it reaches 8 CSS px from the window's dot centre, inside the 28 px box kept for it.
 GLOW = {
     # The breath. `low` is how much light is left at the bottom of it, `gamma` turns light into what
     # an eye on a screen sees, `peak` is the glow's opacity at full brightness and `reach` how far it

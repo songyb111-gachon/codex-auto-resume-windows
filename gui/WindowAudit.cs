@@ -56,7 +56,9 @@ namespace CodexAutoResume
         ///     its columns share its width;
         ///   * a drop-down that is not one field high;
         ///   * text, a list's columns or other content that needs more room than it is drawn in,
-        ///     and a status light too small for its glow.
+        ///     and a status light too small for its glow;
+        ///   * the header's light off the headline's line, or not where every header stands it (AuditHero), with the
+        ///     Start button shown and without it.
         /// tests/test_gui_layout.py runs it in every language at five scalings.
         internal static string LayoutAudit(string schemaJson, string settingsJson, string stringsJson, string snapshotJson, double scale)
         {
@@ -65,6 +67,7 @@ namespace CodexAutoResume
             AuditedLists = 0;
             AuditedNotes = 0;
             AuditedShortest = 0;
+            AuditedHero = 0;
             AuditedAlike = 0;
             AuditedWraps = 0;
             System.Reflection.FieldInfo fallback = typeof(Control).GetField("defaultFont",
@@ -155,7 +158,10 @@ namespace CodexAutoResume
                     Materialise(form);
                     form.PerformLayout();
                     form.AuditPins("header", findings);
+                    form.AuditHero("header with Start", findings);
                     form.startButton.Visible = false;
+                    form.PerformLayout();
+                    form.AuditHero("header", findings);
                     // The reopen note, beside every button of the Settings page's save card, at the opening width
                     // and at the narrowest the window goes: 800 wide, less a sizable frame's 8 px on each side -
                     // each in both orders a window comes to a width in (AuditReopenNote).
@@ -555,6 +561,39 @@ namespace CodexAutoResume
         /// known to have looked at them.
         internal static int AuditedPins;
 
+        /// How many times the last LayoutAudit held the header's light to its place (AuditHero), so that a quiet
+        /// report is known to have looked.
+        internal static int AuditedHero;
+
+        /// The header's light where every header stands it (v0.6.10): on the headline's line - in the headline's
+        /// row alone, centred on its text within a pixel - Brand.LightInset from the card's content to the dot, and
+        /// Brand.LightGap from the dot to the words, which both lines start at. Until v0.6.10 the light spanned both
+        /// rows, between the two lines, and the words stood 15 px from it.
+        private void AuditHero(string where, List<string> findings)
+        {
+            AuditedHero++;
+            if (hero.GetPositionFromControl(stateDot).Row != hero.GetPositionFromControl(headline).Row ||
+                hero.GetRowSpan(stateDot) != 1)
+                findings.Add(where + " :: the light is not on the headline's row alone");
+            float dot = Soft.PxF(Brand.StatusDotRadius);
+            float cx = stateDot.Left + stateDot.Width / 2f, cy = stateDot.Top + stateDot.Height / 2f;
+            // The headline is drawn against its bottom (BottomLeft), one line of it.
+            int line = headline.PreferredSize.Height - headline.Padding.Vertical;
+            float text = headline.Bottom - headline.Padding.Bottom - line / 2f;
+            if (Math.Abs(cy - text) > 1)
+                findings.Add(where + " :: the light's centre is at " + cy + ", the headline's line at " + text);
+            float inset = cx - dot - hero.Padding.Left;
+            if (Math.Abs(inset - Soft.PxF(Brand.LightInset)) > 1)
+                findings.Add(where + " :: the light is " + inset + " from the card's content, not " + Soft.PxF(Brand.LightInset));
+            float gap = headline.Left + headline.Padding.Left - (cx + dot);
+            if (Math.Abs(gap - Soft.PxF(Brand.LightGap)) > 1)
+                findings.Add(where + " :: the words are " + gap + " from the light, not " + Soft.PxF(Brand.LightGap));
+            if (detail.Left + detail.Padding.Left != headline.Left + headline.Padding.Left)
+                findings.Add(where + " :: the two lines start apart, at " + headline.Left + " and " + detail.Left);
+            if (2 * HaloDot.Extent > Math.Min(stateDot.Width, stateDot.Height))
+                findings.Add(where + " :: the light's box is " + stateDot.Size + ", too small for its glow");
+        }
+
         private readonly HashSet<Control> auditedPins = new HashSet<Control>();
 
         /// Every pinned control on screen that is not in its corner or covers text (AuditPin), and every button an
@@ -740,6 +779,9 @@ namespace CodexAutoResume
             if (card != null) return Needs(card.HeightFor(c.Width), c.Height);
             var quote = c as SoftQuote;
             if (quote != null) return Needs(quote.GetPreferredSize(new Size(c.Width, 0)).Height, c.Height);
+            // A callout (v0.6.10): as tall as its notice wraps to at its width, with room for its longest word.
+            var callout = c as SoftCallout;
+            if (callout != null) return callout.Fits();
             var gates = c as GateList;
             if (gates != null) return inScroller ? null : Needs(gates.GetPreferredSize(new Size(c.Width, 0)).Height, c.Height);
             var list = c as ListView;
@@ -877,8 +919,8 @@ namespace CodexAutoResume
         private static string AuditName(Control control)
         {
             string text = (control.Text ?? "").Replace("\r", " ").Replace("\n", " ");
-            if (text.Length > 32) text = text.Substring(0, 32);
             if (text.Length == 0 && !string.IsNullOrEmpty(control.AccessibleName)) text = control.AccessibleName;
+            if (text.Length > 32) text = text.Substring(0, 32);
             return control.GetType().Name + (text.Length > 0 ? "'" + text + "'" : "");
         }
     }

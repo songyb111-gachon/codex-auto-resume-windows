@@ -891,8 +891,9 @@ $schema = [IO.File]::ReadAllText((Join-Path $work 'schema.json'), $utf8)
 $current = [IO.File]::ReadAllText((Join-Path $work 'settings.json'), $utf8)
 # The most the pages ever show (fullest_snapshot).
 $snapshot = [IO.File]::ReadAllText((Join-Path $work 'snapshot.json'), $utf8)
-$out = @{ audit = @{}; pins = @{}; lists = @{}; notes = @{}; shortest = @{}; canary = ''; cramped = ''; cache = @{} }
+$out = @{ audit = @{}; pins = @{}; lists = @{}; notes = @{}; shortest = @{}; hero = @{}; canary = ''; cramped = ''; cache = @{} }
 $auditedPins = $form.GetField('AuditedPins', $static)
+$auditedHero = $form.GetField('AuditedHero', $static)
 $auditedLists = $form.GetField('AuditedLists', $static)
 $auditedNotes = $form.GetField('AuditedNotes', $static)
 $auditedShortest = @('AuditedShortest', 'AuditedAlike', 'AuditedWraps' | ForEach-Object { $form.GetField($_, $static) })
@@ -903,6 +904,7 @@ foreach ($locale in (ConvertFrom-Json $env:CAR_LOCALES)) {
     $out.lists[$locale] = @{}
     $out.notes[$locale] = @{}
     $out.shortest[$locale] = @{}
+    $out.hero[$locale] = @{}
     foreach ($scale in (ConvertFrom-Json $env:CAR_SCALES)) {
         $key = ([double]$scale).ToString('0.00', [Globalization.CultureInfo]::InvariantCulture)
         $out.audit[$locale][$key] = [string]$audit.Invoke($null, [object[]]@($schema, $current, $catalog, $snapshot, [double]$scale))
@@ -910,6 +912,7 @@ foreach ($locale in (ConvertFrom-Json $env:CAR_LOCALES)) {
         $out.lists[$locale][$key] = if ($null -eq $auditedLists) { -1 } else { [int]$auditedLists.GetValue($null) }
         $out.notes[$locale][$key] = if ($null -eq $auditedNotes) { -1 } else { [int]$auditedNotes.GetValue($null) }
         $out.shortest[$locale][$key] = @($auditedShortest | ForEach-Object { if ($null -eq $_) { -1 } else { [int]$_.GetValue($null) } })
+        $out.hero[$locale][$key] = if ($null -eq $auditedHero) { -1 } else { [int]$auditedHero.GetValue($null) }
     }
 }
 # How tall the Overview's rows are (SettingsForm.OverviewHeights), for the rows' needs, the room, the rhythm and comfort.
@@ -1443,7 +1446,9 @@ class LayoutAuditTests(unittest.TestCase):
         canary = dict(l10n.catalog("en"), **{"field.theme": "W" * 400,
                                               "note.reopen_pending": " ".join(["The window reopens."] * 60),
                                               # The Diagnostics page's compatibility card, measured too.
-                                              "compat.source.cache": "V" * 400})
+                                              "compat.source.cache": "V" * 400,
+                                              # And a callout on it (v0.6.10), which no card could hold.
+                                              "compat.cache.expired": "X" * 400})
         (work / "strings-canary.json").write_text(json.dumps(reply("en", canary)), encoding="utf-8")
         cramped = dict(l10n.catalog("en"), **{"overview.waiting_count": " ".join(["{n} waiting"] * 60)})
         (work / "strings-cramped.json").write_text(json.dumps(reply("en", cramped)), encoding="utf-8")
@@ -1496,6 +1501,15 @@ class LayoutAuditTests(unittest.TestCase):
                 with self.subTest(locale=locale, scale=scale):
                     self.assertEqual(report, "", "\n" + "\n".join(report.splitlines()[:40]))
 
+    def test_the_header_s_light_was_held_to_its_line_in_every_language_at_every_scaling(self):
+        """v0.6.10 (F7): the header's light stands on the headline's line, where every header stands it -
+        LAYOUT's light_inset from the card's content and light_gap from the words (AuditHero). Its findings are in
+        the first test's reports; this holds the audit to having looked, with the Start button shown and without."""
+        for locale in l10n.LOCALES:
+            for scale in SCALES:
+                with self.subTest(locale=locale, scale=scale):
+                    self.assertEqual(self.answer["hero"][locale]["%.2f" % scale], 2)
+
     def test_the_audit_finds_what_does_not_fit(self):
         self.assertIn("Label'WWWW", self.answer["canary"],
                       "a 400-character label went unreported, so an empty report proves nothing")
@@ -1507,6 +1521,9 @@ class LayoutAuditTests(unittest.TestCase):
         self.assertRegex(self.answer["canary"], r"diagnostics/.*Label'VVVV",
                          "the compatibility card's data in force, 400 characters wide, went unreported, so a quiet "
                          "report on the card proves nothing")
+        self.assertRegex(self.answer["canary"], r"diagnostics/.*SoftCallout'XXXX[^\n]* :: a word needs ",
+                         "a callout's notice, 400 characters wide, went unreported, so a quiet report on the "
+                         "callouts proves nothing")
 
     def test_the_save_card_holds_the_reopen_note_whichever_order_the_window_came_to_its_width(self):
         """The card's height is worked out when the note is shown, and a window that has just been made

@@ -49,6 +49,11 @@ LAYOUT = {
     "card_first_gap": 6,            # the heading and the first thing under it
     "hero_pad": (16, 20),           # the state card at the top
     "hero_gap": 4,
+    # v0.6.10: a status light and the word beside it stand alike on every surface - this far from
+    # the line's start to the dot's edge, and this far from the dot's other edge to the word. Until
+    # then each surface had its own literals, and the word stood 15 to 18.5 px from its light.
+    "light_inset": 9,
+    "light_gap": 14,
     "savebar_pad": (10, 12),        # the save card at the bottom
     "row_pad": (11, 0),             # a setting: its name on the left, its control on the right
     "row_gap": 16,
