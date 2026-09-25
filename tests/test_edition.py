@@ -238,7 +238,12 @@ class GuardTests(unittest.TestCase):
         backend = object()
 
         class Channel:
-            def send(self, *_args, **_kwargs):
+            def __init__(self):
+                self.calls = []
+
+            def send(self, thread_id, prompt, *, launch_guard=None):
+                with launch_guard as permitted:
+                    self.calls.append((thread_id, prompt, permitted))
                 return {"outcome": "unknown"}
 
         class Lookup:
@@ -247,10 +252,52 @@ class GuardTests(unittest.TestCase):
                 raise RuntimeError("no")
 
         channel = Channel()
-        self.assertIs(guard(RecordingPlug(sender=channel)).sender({}, backend), channel)
+        held = guard(RecordingPlug(sender=channel)).sender({}, backend)
+        self.assertIsNot(held, backend)
+        self.assertIs(guard(RecordingPlug(sender=backend)).sender({}, backend), backend)
+        # The channel is called only inside the launch guard core hands the send, and only while
+        # it permits; it is handed a guard already held.
+        entered = []
+
+        @contextlib.contextmanager
+        def launch_guard(permitted):
+            entered.append(permitted)
+            yield permitted
+        self.assertEqual(held.send("t", "p", launch_guard=launch_guard(True)), {"outcome": "unknown"})
+        self.assertEqual(held.send("t", "p", launch_guard=launch_guard(False)),
+                         {"outcome": "not_started", "error_code": "queue_consent_refused"})
+        self.assertEqual((entered, channel.calls), ([True, False], [("t", "p", True)]))
         for answer in (None, "backend", object(), Lookup(), type("NotCallable", (), {"send": 1})()):
             with self.subTest(answer=answer):
                 self.assertIs(guard(RecordingPlug(sender=answer)).sender({}, backend), backend)
+
+    def test_a_strange_answer_is_a_failure_or_nothing_and_never_escapes_the_guard(self):
+        """An answer's own hashing, comparison and iteration are the plug's code running. At a
+        decision point one that raises is a hook that failed; at a surface it is nothing - a
+        surface is get_status and the Dashboard, which no answer may break."""
+        class Weird:
+            def __hash__(self):
+                raise ValueError("no hash")
+
+            def __eq__(self, other):
+                raise ValueError("no comparison")
+
+        class Iterating(dict):
+            def __iter__(self):
+                raise RuntimeError("iteration broke")
+
+            def items(self):
+                raise RuntimeError("items broke")
+
+        class Word(str):
+            pass
+
+        weird = guard(RecordingPlug(gate=Weird()))
+        self.assertIs(weird.gate("usage", {}, {}), DEFER)
+        self.assertEqual(weird.failures, 1)
+        for answer in (Iterating(a=1), {"a": Iterating(b=1)}, {Word("a"): 1}):
+            with self.subTest(answer=type(answer).__name__):
+                self.assertIs(guard(RecordingPlug(surface=answer)).surface(Surface.STATUS, {}), DEFER)
 
     def test_words_are_words(self):
         self.assertEqual(guard(RecordingPlug(text="go on")).text({}, "core's"), "go on")
