@@ -1029,12 +1029,12 @@ namespace CodexAutoResume
         private Dictionary<string, object> heroStatus;
         private bool heroHeld;
 
-        /// The header's light, word and facts, set together from one reading (v0.6.10). Until v0.6.10 the dot came
-        /// from Activity and the headline from the status alone, set in two places, so the two could disagree, and
-        /// the window said in its own words - "Watching for interruptions", "Watcher not running" - what the panel
-        /// and the popup said in theirs. Now the word is the one rule every header keeps (ActivityWord), in the
-        /// catalog's activity.<word>, the light is its light (HeaderLight: grey for a watcher not known to be
-        /// running, beside the word that asks for attention), and the facts under it are the panel's (HeroFacts).
+        /// The header's light, headline and facts, set together from one reading (v0.6.10). Until v0.6.10 the dot came
+        /// from Activity and the headline from the status alone, set in two places, so the two could disagree. The light
+        /// is the one rule every header keeps (ActivityWord, HeaderLight: grey for a watcher not known to be running,
+        /// amber for one that runs and is not well); the headline and the facts under it are the window's own words, as
+        /// they always were - "Watching for interruptions", "Automatic recovery is on · 2 recoveries pending" - except
+        /// that the facts never say recovery is on for a watcher that is not well: they name why (Headline, HeroFacts).
         ///
         /// Called every second by UpdateCountdowns, so it writes only what changed: a note written under the
         /// headline since the last read ("Saved.", "It started and stopped again") stays until the next read
@@ -1045,8 +1045,8 @@ namespace CodexAutoResume
             if (heroHeld) return;
             string word = ActivityWord(status, pending, now);
             stateDot.State = HeaderLight(status, pending, word);
-            string head = S("activity." + word, word);
-            string facts = string.Join("   ·   ", HeroFacts(strings, status, pending, word).ToArray());
+            string head = Headline(strings, status, pending);
+            string facts = string.Join("   ·   ", HeroFacts(strings, status, pending).ToArray());
             if (head == heroHead && facts == heroDetail) return;
             if (head != heroHead) headline.Text = heroHead = head;
             if (facts != heroDetail) detail.Text = heroDetail = facts;

@@ -833,9 +833,15 @@ class WindowCompositionTests(unittest.TestCase):
         self.assertNotIn('"attention"', status)
         hero = self.method(self.window, "private void Hero(")
         self.assertIn("stateDot.State = HeaderLight(status, pending, word);", hero)
+        # What "known to be running" is lives in one place (KnownRunning), which the headline reads as well, so a
+        # grey light never stands over "Watching for interruptions".
         light = self.method(self.dashboard, "internal static string HeaderLight(")
-        self.assertIn('if (!Equals(Get(status, "watcher_running"), true)) return "idle";', light)
-        self.assertIn('if (row != null && HasOverlay(row, "engine_unavailable")) return "idle";', light)
+        self.assertIn('return KnownRunning(status, pending) ? word : "idle";', light)
+        known = self.method(self.dashboard, "internal static bool KnownRunning(")
+        self.assertIn('if (!Equals(Get(status, "watcher_running"), true)) return false;', known)
+        self.assertIn('if (row != null && HasOverlay(row, "engine_unavailable")) return false;', known)
+        self.assertIn("if (!KnownRunning(status, pending)) return Said(strings, \"status.not_running\"",
+                      self.method(self.dashboard, "internal static string Headline("))
 
     def test_the_strings_cache_is_checked_before_it_is_used(self):
         constructor = self.window[self.window.index("private SettingsForm(PersistentBridge bridge, Dictionary<string, object> catalog"):]

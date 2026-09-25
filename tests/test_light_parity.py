@@ -19,8 +19,11 @@ runs every vector through each implementation in its own language:
   * the window: `SettingsForm.ActivityWord`, `HeaderLight` and `Activity`, compiled with csc and
     called through reflection, as tests/test_gui_v065_taskbar.py calls it.
 
-The words under the headline are one set too: the window's `HeroFacts` is held to the panel's
-`heroFacts`, in English and in Korean, from the catalogs the two are served.
+The window's words are its own: its headline (`SettingsForm.Headline`) says "Watching for
+interruptions", "Automatic recovery paused", "Watcher not running" or "Watcher status unknown" as it
+always has, and its facts (`HeroFacts`) keep their two-fact format - except that for a watcher that
+runs and is not well the first fact names the cause the panel's `heroFacts` names, in English and in
+Korean, from the catalogs the two are served, and never says recovery is on.
 
 The taskbar button (`SettingsForm.TrayActivity`) is not held to the table: it keeps the
 notification-area icon's own rule on purpose, with a failure nobody has seen red (standard J14),
@@ -224,7 +227,7 @@ $parse = $assembly.GetType('CodexAutoResume.Json', $true).GetMethod('Parse', $st
 $utf8 = New-Object Text.UTF8Encoding $false
 function Read-Json([string]$path) { return $parse.Invoke($null, [object[]]@([IO.File]::ReadAllText($path, $utf8))) }
 $methods = @{}
-foreach ($name in @('ActivityWord', 'HeaderLight', 'Activity', 'HeroFacts', 'TrayActivity')) {
+foreach ($name in @('ActivityWord', 'HeaderLight', 'Activity', 'Headline', 'HeroFacts', 'TrayActivity')) {
     $methods[$name] = $form.GetMethod($name, $static)
     if (-not $methods[$name]) { throw ('missing ' + $name) }
 }
@@ -241,13 +244,15 @@ foreach ($vector in $table['vectors']) {
     $activity = [string]$methods['Activity'].Invoke($null, [object[]]@($status, $rows, $now))
     $tray = [string]$methods['TrayActivity'].Invoke($null, [object[]]@($status, $rows, $now))
     $facts = @{}
+    $headlines = @{}
     if ($null -ne $status) {
         foreach ($language in $catalogs.Keys) {
-            $said = $methods['HeroFacts'].Invoke($null, [object[]]@($catalogs[$language], $status, $rows, $word))
+            $said = $methods['HeroFacts'].Invoke($null, [object[]]@($catalogs[$language], $status, $rows))
             $facts[[string]$language] = [string]::Join($separator, $said.ToArray())
+            $headlines[[string]$language] = [string]$methods['Headline'].Invoke($null, [object[]]@($catalogs[$language], $status, $rows))
         }
     }
-    $out += ,@([string]$vector['name'], $word, $light, $activity, $tray, $facts)
+    $out += ,@([string]$vector['name'], $word, $light, $activity, $tray, $facts, $headlines)
 }
 [IO.File]::WriteAllText($env:CAR_OUT, (ConvertTo-Json -InputObject $out -Depth 5 -Compress), $utf8)
 """
@@ -292,7 +297,7 @@ class WindowTests(unittest.TestCase):
         return zip(VECTORS, self.answer)
 
     def test_the_window_says_each_vector_s_word_and_light(self):
-        for vector, (_, word, light, activity, _, _) in self.rows():
+        for vector, (_, word, light, activity, _, _, _) in self.rows():
             with self.subTest(vector["name"]):
                 self.assertEqual(word, vector["word"])
                 self.assertEqual(light, vector["light"])
@@ -300,27 +305,60 @@ class WindowTests(unittest.TestCase):
                 self.assertEqual(activity, vector["light"])
 
     def test_the_taskbar_keeps_the_icon_s_rule_where_the_table_says(self):
-        for vector, (_, _, _, _, tray, _) in self.rows():
+        for vector, (_, _, _, _, tray, _, _) in self.rows():
             if "taskbar" in vector:
                 with self.subTest(vector["name"]):
                     self.assertEqual(tray, vector["taskbar"])
 
-    @unittest.skipUnless(NODE, "needs Node to run the panel's own code")
-    def test_the_window_s_facts_are_the_panel_s(self):
-        """The words under the headline, in each language the window and the panel are served: the same facts in
-        the same order. The panel's soonest check, a clock time, is its own (soonestFact) and not among them."""
-        for (vector, (_, _, _, _, _, facts)), (_, _, panel) in zip(self.rows(), panel_answers()):
-            if vector["status"] is None:
-                continue
-            for language in FACT_LANGUAGES:
+    def test_the_window_s_headline_is_its_own_words(self):
+        """The headline says what it always said, from the status and the rows: unknown when nothing says whether the
+        watcher runs, not running when it does not or a row is held for it not running, and otherwise watching or
+        paused. v0.6.10 put the activity word here for a while (Monitoring, Waiting, ...) and gave that back."""
+        for language in FACT_LANGUAGES:
+            catalog = l10n.catalog(language)
+            for vector, (_, _, _, _, _, _, headlines) in self.rows():
+                status = vector["status"]
+                if status is None:
+                    continue
+                running = status.get("watcher_running")
+                known = running is True and not any("engine_unavailable" in (row.get("overlays") or ())
+                                                    for row in vector["rows"] or ())
+                key = ("status.unknown" if running is None else "status.not_running" if not known
+                       else "status.watching" if status.get("enabled") is True else "status.paused")
                 with self.subTest(vector=vector["name"], language=language):
-                    self.assertEqual(facts[language].split(SEPARATOR), panel[language])
+                    self.assertEqual(headlines[language], catalog[key])
+
+    @unittest.skipUnless(NODE, "needs Node to run the panel's own code")
+    def test_the_window_s_facts_keep_their_format_and_name_the_panel_s_cause(self):
+        """The words under the headline, in each language the window is served: two facts, as they always were -
+        whether anything can be recovered, then what is waiting - with the pending count always said. For a watcher
+        that runs and is not well the first is the cause the panel names first, never "Automatic recovery is on"."""
+        for (vector, (_, _, _, _, _, facts, _)), (_, _, panel) in zip(self.rows(), panel_answers()):
+            status = vector["status"]
+            if status is None:
+                continue
+            known = status.get("watcher_running") is True and not any(
+                "engine_unavailable" in (row.get("overlays") or ()) for row in vector["rows"] or ())
+            count = status.get("pending") or 0
+            for language in FACT_LANGUAGES:
+                catalog = l10n.catalog(language)
+                pending = (catalog["status.pending_none"] if count == 0 else catalog["status.pending_one"] if count == 1
+                           else catalog["status.pending_many"].replace("{n}", str(count)))
+                first = (catalog["status.recovery_idle"] if not known
+                         else panel[language][0] if vector["word"] == "attention"
+                         else catalog["status.recovery_on"] if status.get("enabled") is True
+                         else catalog["status.recovery_paused"])
+                with self.subTest(vector=vector["name"], language=language):
+                    said = facts[language].split(SEPARATOR)
+                    self.assertEqual(said, [first, pending])
+                    if known and vector["word"] == "attention":
+                        self.assertNotEqual(said[0], catalog["status.recovery_on"])
 
     def test_every_fact_is_the_catalog_s(self):
         """Nothing under the headline is an English fallback in another language."""
         for language in FACT_LANGUAGES:
             said = set(l10n.catalog(language).values())
-            for vector, (_, _, _, _, _, facts) in self.rows():
+            for vector, (_, _, _, _, _, facts, _) in self.rows():
                 if vector["status"] is None:
                     continue
                 for fact in facts[language].split(SEPARATOR):

@@ -212,8 +212,12 @@ top - in the panel since v0.6.10, whose two lights share one cycle.
 | Failed | `danger` | The cycle, every 1.2 s, the quickest there is, so a red light never sits still (since v0.6.8) |
 | Paused, stopped | `paused`, `idle` | A grey dot that never moves |
 
-Which word and which light a header shows is one rule, the same in the Dashboard, the popup and the
-panel. Since v0.6.10 it is written down as test vectors, `tests/data/light_states.json`, and
+Which light a header shows is one rule, the same in the Dashboard, the popup and the panel, and so is
+the word the popup and the panel say beside it. The Dashboard keeps its own words, as it always has:
+its headline says *Watching for interruptions*, *Automatic recovery paused*, *Watcher not running* or
+*Watcher status unknown*, and the line under it *Automatic recovery is on · 2 recoveries pending* and
+the like - except that for a watcher that runs and is not well its first fact names the cause the
+panel names, never that recovery is on. Since v0.6.10 the rule is written down as test vectors, `tests/data/light_states.json`, and
 `tests/test_light_parity.py` runs each surface's own code against them; until then three copies
 told one moment three ways. In order: a watcher that is not running, or that nothing has confirmed
 is running - a record held for a watcher not running counts, whatever the status read a moment

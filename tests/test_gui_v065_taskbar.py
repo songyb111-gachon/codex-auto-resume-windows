@@ -1136,32 +1136,34 @@ class TaskbarMarkTests(unittest.TestCase):
             with self.subTest(light=name):
                 self.assertEqual(rows[name][0], light)
 
-    def test_the_header_s_light_word_and_facts_are_set_together(self):
-        """v0.6.10 (F6): one method (Hero) sets the dot, the headline and the line under it, from one reading. Until
-        then the headline was the status's own words - "Watching for interruptions" beside a waiting light, "Watcher not
-        running" where the panel and the popup said a person was needed - set somewhere else than the dot."""
+    def test_the_header_s_light_headline_and_facts_are_set_together(self):
+        """v0.6.10 (F6): one method (Hero) sets the dot, the headline and the line under it, from one reading, where
+        the dot and the headline were set in two places. The headline and the facts are the window's own words, as
+        they always were - "Watching for interruptions" over "Automatic recovery is on · N pending" - except that a
+        watcher that runs and is not well never has "Automatic recovery is on" under it: the first fact names why."""
         english = l10n.catalog("en")
-        words = {"monitoring": "monitoring", "waiting": "waiting", "checking": "checking", "recovering": "recovering",
-                 "withdrawing": "recovering", "paused": "paused", "stopped": "attention", "an older watcher": "attention",
-                 "not ticking": "attention", "incompatible": "attention", "unlisted, one sent": "recovering",
-                 "again": "waiting"}
+        lights = {"monitoring": "monitoring", "waiting": "waiting", "checking": "checking", "recovering": "recovering",
+                  "withdrawing": "recovering", "paused": "paused", "stopped": "idle", "an older watcher": "attention",
+                  "not ticking": "attention", "incompatible": "attention", "unlisted, one sent": "recovering",
+                  "again": "waiting"}
+        headlines = dict({name: "status.watching" for name in lights}, paused="status.paused",
+                         stopped="status.not_running")
         first = {"monitoring": "status.recovery_on", "waiting": "status.recovery_on", "checking": "status.recovery_on",
                  "recovering": "status.recovery_on", "withdrawing": "status.recovery_on", "paused": "status.recovery_paused",
-                 "stopped": "status.not_running", "an older watcher": "diag.upgrade_pending",
+                 "stopped": "status.recovery_idle", "an older watcher": "diag.upgrade_pending",
                  "not ticking": "status.not_responding", "incompatible": "overlay.compatibility_blocked",
                  "unlisted, one sent": "status.recovery_on", "again": "status.recovery_on"}
         rows = {name: (dot, headline, detail) for name, dot, _, _, headline, detail in self.answer["wired"]}
-        self.assertEqual(set(words), set(rows))
-        for name, word in words.items():
+        self.assertEqual(set(lights), set(rows))
+        for name, light in lights.items():
             with self.subTest(snapshot=name):
                 dot, headline, detail = rows[name]
-                self.assertEqual(headline, english["activity." + word])
-                self.assertEqual(dot, "idle" if name == "stopped" else word)
+                self.assertEqual(headline, english[headlines[name]])
+                self.assertEqual(dot, light)
                 facts = detail.split("   ·   ")
                 self.assertEqual(facts[0], english[first[name]])
-                pending = self.snapshot_cases[name]["status"]["pending"]
-                self.assertEqual(len(facts), 3 if name == "stopped" and pending else 2)
-        self.assertNotIn(english["status.watching"], {headline for _, headline, _ in rows.values()})
+                self.assertEqual(len(facts), 2, "the pending count is always the second fact")
+        self.assertNotIn(english["activity.monitoring"], {headline for _, headline, _ in rows.values()})
 
     def test_the_window_makes_its_mark_only_with_its_own_icon_and_asks_it_again_every_second(self):
         settings = guiscan.settings()
