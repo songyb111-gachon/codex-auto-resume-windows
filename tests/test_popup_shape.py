@@ -54,6 +54,8 @@ ASKS_WINDOWS_NOTHING = MODULES[:6]
 # nothing outside ever read it there. `light_for` since v0.6.10: the header's light apart from its word (F4).
 # `STATE_INK` went in v0.6.10, when the state's word became ink and its light alone carried the colour,
 # and `light_row` came: where a light and its word stand on a line, the popup's and the card's (F7).
+# The design came in v0.6.10 too (D5, D8): `set_design`, `design_setting` and `design_choice` beside the
+# theme's, and the two gates the design splits motion into, `light_still` and `controls_still`.
 SURFACE = {
     "APP_MODE_VALUE", "ATTENTION_OVERLAYS", "BITMAP", "BITMAPINFO", "BITMAPINFOHEADER",
     "CHIP_ALPHA", "CLICK_AWAY_SECONDS", "CONTRAST_COLOURS", "CONTROL_CALLS", "CS_DROPSHADOW",
@@ -80,12 +82,12 @@ SURFACE = {
     "WS_POPUP", "_Canvas", "_Fonts", "_Painter", "_PerMonitorDpi", "_ShadowImage", "_declare",
     "_dll", "_gdiplus_acquire", "_gdiplus_release", "_icon_from_pixels", "_pack", "activity",
     "adopt_settings", "animates", "appearance", "apps_use_light_theme", "busy_key",
-    "contrast_colour", "effective_theme", "focus_order", "font_candidates", "font_faces",
+    "contrast_colour", "controls_still", "design_choice", "design_setting", "effective_theme", "focus_order", "font_candidates", "font_faces",
     "gdiplus_objects", "glide_amount", "gui_resources", "halo", "high_contrast", "hit_test",
-    "icon_rect", "is_waiting", "layout", "lift_coverage", "light_for", "light_row", "locale_of",
+    "icon_rect", "is_waiting", "layout", "lift_coverage", "light_for", "light_row", "light_still", "locale_of",
     "message_face",
     "next_focus", "next_glides", "one_line", "perform", "place", "recipe_shadows",
-    "reduced_motion", "role_size", "say", "select_action", "set_reduce_motion", "set_theme",
+    "reduced_motion", "role_size", "say", "select_action", "set_design", "set_reduce_motion", "set_theme",
     "shadow_step", "share_columns", "snapshot_activity", "system_rgb", "task_item",
     "taskbar_edge", "theme_choice", "theme_setting", "tile_ground", "unbroken", "urgency",
     "view_model", "vocabulary", "well_coverage",

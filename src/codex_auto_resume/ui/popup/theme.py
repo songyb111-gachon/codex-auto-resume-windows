@@ -1,4 +1,4 @@
-"""Light or dark, motion or none, and the colours High Contrast takes over.
+"""Light or dark, the design, motion or none, and the colours High Contrast takes over.
 
 Each of these is a question for Windows, asked once and adopted - the popup never decides its
 own appearance while it is open.
@@ -106,10 +106,32 @@ def theme_setting() -> str:
     return _theme_setting
 
 
+# v0.6.10: the product's Design setting, adopted with the Theme: by the watcher when it reads its
+# settings, by the icon each time somebody opens the popup or its menu and on the tick that decides
+# whether it may move, and by the popup from every read. Anything that is not a design is Soft, as
+# the settings layer reads it.
+_design_setting = brand.DEFAULT_DESIGN
+
+
+def design_choice(value) -> str:
+    """The stored design as one of brand.DESIGNS; anything else is "soft", as settings reads it."""
+    return value if isinstance(value, str) and value in brand.DESIGNS else brand.DEFAULT_DESIGN
+
+
+def set_design(value) -> None:
+    global _design_setting
+    _design_setting = design_choice(value)
+
+
+def design_setting() -> str:
+    return _design_setting
+
+
 def adopt_settings(values) -> None:
-    """Take up the stored Theme and Reduce motion from a settings dict; anything else is ignored."""
+    """Take up the stored Theme, Design and Reduce motion from a settings dict; anything else is ignored."""
     if isinstance(values, dict):
         set_theme(values.get("theme"))
+        set_design(values.get("design"))
         set_reduce_motion(values.get("reduce_motion"))
 
 
@@ -139,6 +161,19 @@ def reduced_motion() -> bool:
         return not value.value
     except Exception:
         return False
+
+
+def light_still() -> bool:
+    """True when the status light holds still: the design's light does not breathe (Still), or Windows
+    or this product's Reduce motion asks for fewer animations. High Contrast, battery saver and the rest
+    are each surface's own to add; a design can only take motion away, never bring any back."""
+    return not brand.design_breathes(_design_setting) or reduced_motion()
+
+
+def controls_still() -> bool:
+    """True when the controls and the card change without moving: the design does not glide (Still,
+    Classic, Plain), or motion is reduced - the same stoppers as light_still()."""
+    return not brand.design_glides(_design_setting) or reduced_motion()
 
 
 def high_contrast() -> bool:

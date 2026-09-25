@@ -61,7 +61,8 @@ class Renderer:
         self.fonts = None
         self.contrast = False            # High Contrast: system colours, and no shadow, tint or glow
         self.theme = "light"             # v0.6.4: "light" or "dark", as the window resolved it
-        self._images = {}                # this scale and theme's shadow images, by shape, theme, colour, strength
+        self.design = "soft"             # v0.6.10: one of brand.DESIGNS, as the window adopted it
+        self._images = {}                # this scale, theme and design's shadow images, by shape and colour
         self._images_look = None
         self._ground_key = None
         self._ground_pixels = None
@@ -153,7 +154,7 @@ class Renderer:
                         grow = ring + max(1.0, scale)
                         rect = item["rect"]
                         paint.stroke_round((rect[0] - grow, rect[1] - grow, rect[2] + grow, rect[3] + grow),
-                                           item["radius"] + grow, self._argb("focus"), ring)
+                                           self._corner(item, scale) + grow, self._argb("focus"), ring)
         self._keep_halo_band(plan)
         return self.draw_halo(plan, frame, restore=False)
 
@@ -194,8 +195,35 @@ class Renderer:
         """The theme the colours come from: brand's name for it, and light for anything unknown."""
         return self.theme if self.theme in brand.THEMES else "light"
 
+    def _design(self):
+        """The design the drawing follows: brand's name for it, and Soft for anything unknown (v0.6.10)."""
+        return self.design if self.design in brand.DESIGNS else brand.DEFAULT_DESIGN
+
+    def _depth(self):
+        """Whether anything is drawn with depth - a lift, a well, a top light: the design has it and High
+        Contrast is off. Without it every surface is its fill and its hairline; the canvas kept round the
+        card for its lift is canvas, and no rectangle moves."""
+        return not self.contrast and brand.design_depth(self._design())
+
+    def _radii(self):
+        """The design's corner radii - Soft's in High Contrast, which replaces every design, so that it is
+        one look, pixel for pixel, whichever design is chosen."""
+        return brand.design_radii(brand.DEFAULT_DESIGN if self.contrast else self._design())
+
+    def _corner(self, item, scale):
+        """A laid-out item's corner in the design, in device px, rounded as the layout rounds Soft's; an item
+        that names no role keeps the radius it was laid out with."""
+        role = item.get("corner")
+        if role is None:
+            return item["radius"]
+        return int(round(self._radii()[role] * scale))
+
+    def _control_radius(self, scale):
+        """A control's corner in the design - a tile, a well, a note, a button - in device px."""
+        return self._radii()["control"] * scale
+
     def _tokens(self):
-        return brand.palette(self._theme())
+        return brand.palette(self._theme(), self._design())
 
     def _rgb(self, token):
         if self.contrast:
@@ -238,7 +266,7 @@ class Renderer:
             elif kind not in ("text", "focusable", "halo"):
                 parts.append((kind, item["rect"], item.get("radius"), item.get("tone"), item.get("checked"),
                               item.get("busy"), kind == "switch" and item["target"] in glides))
-        key = (plan["size"], scale, self._theme(), self._system_key(), tuple(parts))
+        key = (plan["size"], scale, self._theme(), self._design(), self._system_key(), tuple(parts))
         if self._ground_key == key and self._ground_pixels is not None:
             C.memmove(canvas.bits, self._ground_pixels, len(self._ground_pixels))
             return
@@ -253,7 +281,7 @@ class Renderer:
                     self._ground_item(paint, item, scale, pressed)
             for item in drawn:
                 if item["kind"] == "panel":
-                    self._lift(paint, "tile", item["rect"], brand.RADII["control"] * scale, scale)
+                    self._lift(paint, "tile", item["rect"], self._control_radius(scale), scale)
             for item in drawn:
                 if item["kind"] != "card":
                     self._ground_item(paint, item, scale, pressed)
@@ -265,27 +293,30 @@ class Renderer:
         hairline = max(1.0, round(scale))
         if kind == "card":
             # The panel's card: its lift, its ground (dark lifts it a step toward `raised`), dark's
-            # one-pixel top light inside the border, and the hairline.
-            rect, radius = item["rect"], item["radius"]
+            # one-pixel top light inside the border, and the hairline. In Classic, v0.6.2's accent bar.
+            rect, radius = item["rect"], self._corner(item, scale)
             self._lift(paint, "card", rect, radius, scale)
             ground = (self._argb("surface") if self.contrast
-                      else _pack(brand.rgb(brand.card_ground(self._theme()))))
+                      else _pack(brand.rgb(brand.card_ground(self._theme(), self._design()))))
             paint.fill_round(rect, radius, ground)
+            if not self.contrast and brand.design_accent_bar(self._design()):
+                self._accent_bar(paint, rect, radius, scale, ground)
             self._inner(paint, "card", rect, radius, scale)
             paint.stroke_round(rect, radius, self._argb("line"), hairline)
         elif kind == "panel":
             # A task row is a tile, raised off the card (DEPTH): its lift is already under it (see
             # _ground), then its ground - `raised`, a step brighter than the card's in dark - its top
             # light and the hairline, which stays because a shadow alone is not an edge for everybody.
-            rect, radius = item["rect"], brand.RADII["control"] * scale
-            ground = self._argb("raised") if self.contrast else _pack(brand.rgb(tile_ground(self._theme())))
+            rect, radius = item["rect"], self._control_radius(scale)
+            ground = (self._argb("raised") if self.contrast
+                      else _pack(brand.rgb(tile_ground(self._theme(), self._design()))))
             paint.fill_round(rect, radius, ground)
             self._inner(paint, "tile", rect, radius, scale)
             paint.stroke_round(rect, radius, self._argb("line"), hairline)
         elif kind == "well":
             # A value's field, sunken as the panel's are: the inset fill, the inset recipe inside the
             # border, and the hairline.
-            rect, radius = item["rect"], brand.RADII["control"] * scale
+            rect, radius = item["rect"], self._control_radius(scale)
             paint.fill_round(rect, radius, self._argb("inset"))
             self._well(paint, rect, radius, scale)
             paint.stroke_round(rect, radius, self._argb("line"), hairline)
@@ -293,7 +324,7 @@ class Renderer:
             paint.fill_round(item["rect"], 0, self._argb("line"))
         elif kind in ("chip", "note"):
             rect = item["rect"]
-            radius = (rect[3] - rect[1]) / 2.0 if kind == "chip" else brand.RADII["control"] * scale
+            radius = (rect[3] - rect[1]) / 2.0 if kind == "chip" else self._control_radius(scale)
             if self.contrast:
                 if kind == "note":                       # no tint to hold it together: an edge instead
                     paint.stroke_round(rect, radius, self._argb("line"), hairline)
@@ -306,13 +337,23 @@ class Renderer:
         elif kind == "switch":
             self._switch(paint, item, scale)
         elif kind == "button" and self._lifted(item, pressed):
-            self._lift(paint, "control", item["rect"], brand.RADII["control"] * scale, scale)
+            self._lift(paint, "control", item["rect"], self._control_radius(scale), scale)
+
+    def _accent_bar(self, paint, rect, radius, scale, ground):
+        """Classic's mark (v0.6.10): brand.ACCENT_BAR px of the accent just inside the card's left hairline,
+        following its corners - what v0.6.2's card drew, and what the panel draws as an inset shadow: the
+        inside of the border in the accent, and the same shape moved right by the bar in the card's ground."""
+        border = max(1.0, round(scale))
+        left, top, right, bottom = rect
+        inside, inner = (left + border, top + border, right - border, bottom - border), max(0.0, radius - border)
+        paint.fill_round(inside, inner, self._argb("accent"))
+        paint.fill_round((inside[0] + brand.ACCENT_BAR * scale, inside[1], inside[2], inside[3]), inner, ground)
 
     # ------------------------------------------------------------------ materials
     def _use_scale(self, scale):
-        """Shadow images are kept for one scale and one theme only, so neither a change of display nor
-        a flip of the theme can grow them."""
-        look = (scale, self._theme())
+        """Shadow images are kept for one scale, one theme and one design only, so neither a change of
+        display nor a flip of the theme or the design can grow them."""
+        look = (scale, self._theme(), self._design())
         if self._images_look != look:
             self._drop_images()
             self._images_look = look
@@ -323,13 +364,13 @@ class Renderer:
         self._images = {}
 
     def _image(self, mask, shadow):
-        # The theme is part of the key as well as the reason the images are dropped: a shadow's
-        # token is a different colour in each theme, and an image is that colour baked in.
-        theme = self._theme()
-        key = (mask["key"], theme, shadow.token, shadow.alpha)
+        # The theme and the design are part of the key as well as the reason the images are dropped: a
+        # shadow's token is a colour of the palette they choose, and an image is that colour baked in.
+        theme, design = self._theme(), self._design()
+        key = (mask["key"], theme, design, shadow.token, shadow.alpha)
         image = self._images.get(key)
         if image is None:
-            image = self._images[key] = _ShadowImage(mask, brand.rgb(brand.palette(theme)[shadow.token]),
+            image = self._images[key] = _ShadowImage(mask, brand.rgb(brand.palette(theme, design)[shadow.token]),
                                                      shadow.alpha)
         return image
 
@@ -337,12 +378,12 @@ class Renderer:
         """A raised body's outer shadows, the last listed first as CSS paints them; the body goes on top.
 
         Read from the theme's recipe shadow by shadow: dark's card mixes two drops with an inset top
-        light, which `_inner` draws once the body is filled.
+        light, which `_inner` draws once the body is filled. Nothing without depth.
         """
-        if self.contrast:
+        if not self._depth():
             return
         left, top, right, bottom = (int(value) for value in rect)
-        for shadow in reversed(recipe_shadows(recipe, self._theme())):
+        for shadow in reversed(recipe_shadows(recipe, self._theme(), self._design())):
             if shadow.inset:
                 continue
             image = self._image(lift_coverage(right - left, bottom - top, radius, shadow.blur * scale), shadow)
@@ -352,10 +393,11 @@ class Renderer:
                         right - left + 2 * extent, bottom - top + 2 * extent, middle=False)
 
     def _inner(self, paint, recipe, rect, radius, scale):
-        """A recipe's inset shadows inside a body's border, over its fill, as CSS paints them."""
-        if self.contrast:
+        """A recipe's inset shadows inside a body's border, over its fill, as CSS paints them. Nothing without depth."""
+        if not self._depth():
             return
-        inset = [shadow for shadow in reversed(recipe_shadows(recipe, self._theme())) if shadow.inset]
+        inset = [shadow for shadow in reversed(recipe_shadows(recipe, self._theme(), self._design()))
+                 if shadow.inset]
         if not inset:
             return
         border = int(max(1.0, round(scale)))
@@ -405,7 +447,7 @@ class Renderer:
     def _button(self, paint, item, scale, hover, pressed):
         """A button's face. Its lift is in the ground; pressed, it sinks into a well instead."""
         rect, target, primary = item["rect"], item["target"], item["primary"]
-        radius = brand.RADII["control"] * scale
+        radius = self._control_radius(scale)
         sunk = not item["busy"] and pressed == target
         if item["busy"]:
             fill, edge = "surface", "line"
