@@ -148,11 +148,11 @@ A button and a chip are the same size on every surface since v0.6.10: `LAYOUT`'s
 and 22-pixel chip padded 9 either side. Until then the popup's and the notification card's buttons
 were 32 high and their chips tighter. Their words keep each surface's own weight: bold (600) in the
 popup and on the card, as they always were, and `TYPE_ROLES`' 500 in the window and the panel - a
-weight Windows draws regular, which v0.6.10 tried on the popup and the card and gave back. A notice set apart is a
-callout on every surface: the `accent_soft` ground with the control's corners, an "i" badge in the
-accent, and the notice in ink, `callout_pad`, `callout_gap` and `callout_badge` apart. The window said
-the same notices in accent-coloured help text until v0.6.10, and the callout's numbers generated for
-it were used by nothing.
+weight Windows draws regular, which v0.6.10 tried on the popup and the card and gave back. A notice
+set apart is a callout on every surface: the `accent_soft` ground with the control's corners, an "i"
+badge in the accent, and the notice in ink, `callout_pad`, `callout_gap` and `callout_badge` apart.
+The window said the same notices in accent-coloured help text until v0.6.10, and the callout's
+numbers generated for it were used by nothing.
 
 Attention's breath is `--glow-attention-ms`, never `--attention`, because the
 palette already declares `--attention` as a colour on the same `:root`. Two custom properties

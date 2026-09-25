@@ -22,35 +22,35 @@
 ### The design settled
 
 The look was audited as one product, with the Codex panel as the reference, from light and dark
-contact sheets of all four surfaces side by side.
+contact sheets of all four surfaces side by side. What people know stays: each header keeps its
+composition, its words and its places, and the popup's and the card's buttons and chips stay bold.
 
-- **One rule for a header's light and word.** The Dashboard, the popup and the panel say what the
-  watcher is doing by one rule, written down as 40 test vectors that each surface's own code is run
-  against. A watcher that is not running, or not known to be, asks for your attention beside a grey
-  light that does not move - the popup used to breathe amber for a stopped watcher - and a record held
-  for a watcher that has stopped counts as one. The notification-area icon and the taskbar button keep
-  their own rule, in which a failure nobody has seen yet is red.
+- **One rule for a header's light.** The Dashboard, the popup and the panel light the same moment the
+  same way, and the popup and the panel say the same word beside it, by one rule written down as 40
+  test vectors that each surface's own code is run against. A watcher that is not running, or not
+  known to be, is a grey light that does not move - the popup used to breathe amber for a stopped
+  watcher - and a record held for a watcher that has stopped counts as one; a watcher that runs but is
+  not well is amber and breathing. The notification-area icon and the taskbar button keep their own
+  rule, in which a failure nobody has seen yet is red.
+- **Never "recovery is on" for a watcher that is not well.** Where the watcher runs but has stopped
+  responding, an older watcher still owns the state, or the Codex version is not supported or failed
+  its checks here, the Dashboard's line under its headline and the panel's facts name that cause -
+  *Watcher not responding* is new - where they said *Automatic recovery is on*. The Dashboard keeps its
+  own words around it: *Watching for interruptions* over *… · 2 recoveries pending*.
 - **Every light that says the product is running moves.** The panel's Automatic recovery tile carries
   the state's light at a smaller size, where a dot that never moved used to be, and it breathes with the
   one above it, on one cycle that a redraw no longer sends back to the top. The panel's light dims
   toward the ground it stands on, so its glow is no longer a fifth weaker than the Dashboard's halfway
   down a breath. The panel says *Checking*, with its turning arc, once a waiting task's time comes -
   for one watcher pass, since it is drawn once and never sees the next one - and then *Waiting* again.
-- **One header.** The Dashboard's, the popup's and the notification card's headers are the panel's:
-  the product's name as a muted line, then the light and the state's word in ink, the largest text on
-  the card, with the facts under it. Every light with words beside it stands as far from its line's
-  start and from its words on every surface. The Dashboard's headline says the panel's and the popup's
-  word - *Waiting* where it said *Watching for interruptions* - and a running watcher that needs you
-  says why.
-- **One button, one chip, one callout.** Buttons are 34 px high and of regular weight on every
-  surface, where the popup's and the card's were 32 px and bold, and chips have one height and one
-  padding. The Diagnostics page's compatibility notices are the panel's callouts, where they were a
-  block of accent-coloured text, and the Statistics chart draws each outcome in the colour History
-  writes that outcome's word in.
-- **One word for each thing.** The window is the Dashboard wherever it is named - the icon's menu
+- **One button size, one chip size, one callout.** Buttons are 34 px high on every surface, where the
+  popup's and the card's were 32 px, and chips have one height and one padding; the popup's and the
+  card's keep their bold words. The Diagnostics page's compatibility notices are the panel's callouts,
+  where they were a block of accent-coloured text, and the Statistics chart draws each outcome in the
+  colour History writes that outcome's word in.
+- **One name for the window.** The window is the Dashboard wherever it is named - the icon's menu
   says *Open Dashboard*, as the popup and the card do - the popup's switch is *Auto-resume*, as the
-  Pending page's column is, its rows count down to the *Next check*, and the results under *Why it is
-  waiting* are lowercase value words (*passed*, *waiting*, *blocked*, *unknown*), in all nine languages.
+  Pending page's column is, and its rows count down to the *Next check*, in all nine languages.
 - **The card's light costs less.** It is drawn as the popup draws its own, only the band of rows it
   stands in, at about twice the frames for between a quarter and a third of the processor time.
 
@@ -62,7 +62,8 @@ contact sheets of all four surfaces side by side.
   Reduce motion draws, chosen as a look; *Classic (v0.6.2)*, v0.6.2's flat cards with a hairline and a
   3 px accent bar down their left edge, its colours read from that release's tag, the current tab
   underlined, and the light breathing with its glow; and *Plain*, flat and neutral grey with the
-  product's accent, whose light dims with no glow. [BRAND.md](BRAND.md#four-designs) sets them out and
+  product's accent, whose light dims with no glow. Classic and Plain move as Soft does - switches
+  glide and the notification card rises in; only *Soft, without motion* takes motion away. [BRAND.md](BRAND.md#four-designs) sets them out and
   the [guide](GUIDE.md) shows the popup in each.
 - **A design changes paint, never layout.** Sizes, paddings, the light and the room kept for shadows
   are the same in all four, and corners are only ever smaller than Soft's; the Dashboard's layout

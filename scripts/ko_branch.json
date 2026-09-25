@@ -56,14 +56,14 @@
     "CI does not translate anything. A person decides what the Korean should say."
   ],
   "reviewed": {
-    "docs/CHANGELOG.md": "1bd4a8c6d25647a231d7102f2cf6e4e89351961cda230f27dc565f658e1d1a46",
+    "docs/CHANGELOG.md": "123dfdc43568eb75ce685e2ddac29d280947a3228ec9e8d30282a30dc754dab4",
     "docs/CONTRIBUTING.md": "377a43a58d1adcf76734c200b64351774e271d9e982a85a8ccd1e8d63aeb65a2",
     "docs/CONTRIBUTORS.md": "6e6d903179a297f8124d1f0f70c6b2b65478a69e4413075ee2412c2668a53563",
     "docs/PRIVACY.md": "df8302117b90496837f7d595e318d43b81bc54cb8094fd2b87b024474a42f816",
     "README.md": "579f80e905251d3bef3c4dc2911dda38b81d8a26d050c7c816b1ad20919e2ef9",
     "docs/SECURITY.md": "c7ea5a9cc2bbfb4bf48b4b5af2498bd59bb6d308f024af19e218485324a41aff",
     "docs/SUPPORT.md": "7833488b0467b1afa997380e3cc9c0f6a3b1cfa25d488db50f9ec0774c4c08e4",
-    "docs/BRAND.md": "1328f1eb22fb239808c96a26a45cde0fe3a2b9f738979e1e273ae1ac9b82e7b1",
+    "docs/BRAND.md": "44c0b6f4eab9b65c198bf0db134afe620141a29a7848165d895600e859a8865a",
     "docs/COMPARISON.md": "6e16cac43ed286434f100005c3d3ffcbae083088b2a5729d5459064ee8fd5385",
     "docs/DEVELOPMENT.md": "d7a114fdf11a5e8d1790b60425203b50f596c6f723037e4cbebe7048fa475463",
     "docs/PLUGIN.md": "f0f1dbbb27eee5d0e4d4d44163686b6a068e3c2a3f9a85ceb789db540b7f6a7b",
@@ -71,6 +71,6 @@
     "docs/FEATURE_MATRIX.md": "212ae874b9b5c97ee59b3aea60222e1b7eff55cdecdd18b05ca1386b9309ba1e",
     "docs/LIVE_ACCEPTANCE.md": "9e09353eefc136478a2f4d3cce1dffe916f82d1a7bd6deeafd567951838265f6",
     "docs/ROADMAP.md": "f2d9541129f7d19ed51e44a0ea05ef54d8b3064a773691ffdc2d76c0e5899b32",
-    "docs/GUIDE.md": "318b3ff541fac806639136e7c399adbaa08559a75d89dda36f0e978d6c62349c"
+    "docs/GUIDE.md": "c348e266127c9c94f2f2f343d8ec3a193de3f53a82e2629002e16d750c6352ae"
   }
 }
