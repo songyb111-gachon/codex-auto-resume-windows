@@ -1501,10 +1501,11 @@ class LayoutAuditTests(unittest.TestCase):
                 with self.subTest(locale=locale, scale=scale):
                     self.assertEqual(report, "", "\n" + "\n".join(report.splitlines()[:40]))
 
-    def test_the_header_s_light_was_held_to_its_line_in_every_language_at_every_scaling(self):
-        """v0.6.10 (F7): the header's light stands on the headline's line, where every header stands it -
-        LAYOUT's light_inset from the card's content and light_gap from the words (AuditHero). Its findings are in
-        the first test's reports; this holds the audit to having looked, with the Start button shown and without."""
+    def test_the_header_s_light_was_held_to_its_place_in_every_language_at_every_scaling(self):
+        """The header's light stands where it always has: spanning the headline and the line under it, centred on
+        the pair, in its own 28 px column (AuditHero; v0.6.10 stood it on the headline's line for a while and gave
+        that back). Its findings are in the first test's reports; this holds the audit to having looked, with the
+        Start button shown and without."""
         for locale in l10n.LOCALES:
             for scale in SCALES:
                 with self.subTest(locale=locale, scale=scale):

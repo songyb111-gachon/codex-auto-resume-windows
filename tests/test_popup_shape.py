@@ -52,8 +52,8 @@ ASKS_WINDOWS_NOTHING = MODULES[:6]
 # What `tray_popup.<name>` gave before the split, name for name. `countdown` is the one public
 # name not carried over: it was `from .ui.words import countdown`, re-exported by accident, and
 # nothing outside ever read it there. `light_for` since v0.6.10: the header's light apart from its word (F4).
-# `STATE_INK` went in v0.6.10, when the state's word became ink and its light alone carried the colour,
-# and `light_row` came: where a light and its word stand on a line, the popup's and the card's (F7).
+# `STATE_INK` went for a while in v0.6.10, when the state's word became ink (F7), and came back with the
+# popup's own header; so did `light_row`, which stood a light and its word alike on every surface.
 # The design came in v0.6.10 too (D5, D8): `set_design`, `design_setting` and `design_choice` beside the
 # theme's, and the two gates the design splits motion into, `light_still` and `controls_still`.
 SURFACE = {
@@ -71,7 +71,7 @@ SURFACE = {
     "PAINTSTRUCT", "PERSONALIZE_KEY", "PIXEL_FORMAT_32BPP_PARGB", "PIXEL_FORMAT_32BPP_RGB",
     "PointF", "Popup", "PopupModel", "REFRESH_TICKS", "ROLES", "RRF_RT_REG_DWORD", "Renderer",
     "SHADOW_MARGIN", "SPI_GETCLIENTAREAANIMATION", "SPI_GETHIGHCONTRAST",
-    "SPI_GETNONCLIENTMETRICS", "STALE_CODES", "STATES", "SWITCH_GAP",
+    "SPI_GETNONCLIENTMETRICS", "STALE_CODES", "STATES", "STATE_INK", "SWITCH_GAP",
     "SWP_NOACTIVATE", "SW_HIDE", "SW_SHOW", "SW_SHOWNOACTIVATE", "SYSTEM_COLOURS",
     "THEME_CHOICES", "THEME_SYSTEM", "TIMER_FIRST", "TIMER_FRAME", "TIMER_TICK", "TME_LEAVE",
     "TRACKMOUSEEVENT", "UNIT_PIXEL", "VK_DOWN", "VK_ESCAPE", "VK_RETURN", "VK_SHIFT",
@@ -84,7 +84,7 @@ SURFACE = {
     "adopt_settings", "animates", "appearance", "apps_use_light_theme", "busy_key",
     "contrast_colour", "controls_still", "design_choice", "design_setting", "effective_theme", "focus_order", "font_candidates", "font_faces",
     "gdiplus_objects", "glide_amount", "gui_resources", "halo", "high_contrast", "hit_test",
-    "icon_rect", "is_waiting", "layout", "lift_coverage", "light_for", "light_row", "light_still", "locale_of",
+    "icon_rect", "is_waiting", "layout", "lift_coverage", "light_for", "light_still", "locale_of",
     "message_face",
     "next_focus", "next_glides", "one_line", "perform", "place", "recipe_shadows",
     "reduced_motion", "role_size", "say", "select_action", "set_design", "set_reduce_motion", "set_theme",

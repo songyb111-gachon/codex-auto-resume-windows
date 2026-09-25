@@ -80,14 +80,10 @@ button, select, input { font: inherit; }
 
 /* State leads. Whether anything is being watched is the reason the panel gets opened,
    so it is the first thing on it and the largest type on it - a word, never a colour
-   alone, with the halo saying the same thing for a reader who glances. This is the header
-   every surface follows since v0.6.10 - the product as a muted eyebrow, then the light and
-   its word in ink - and the light stands where it does in the others: --size-light-inset
-   from the line's start to the dot and --size-light-gap from the dot to the word. */
+   alone, with the halo saying the same thing for a reader who glances. */
 .hero { display: grid; gap: var(--size-hero-gap); padding: var(--size-hero-pad); }
 .eyebrow { font-size: var(--type-small); color: var(--muted); }
-.hero-state { display: flex; align-items: center; gap: var(--size-light-gap);
-              padding: 8px 0 4px var(--size-light-inset); }
+.hero-state { display: flex; align-items: center; gap: 18px; padding: 8px 0 4px 9px; }
 .hero h1 { font-size: var(--type-display); line-height: var(--lh-display); font-weight: 600;
            letter-spacing: -.01em; }
 .facts { display: flex; flex-wrap: wrap; color: var(--muted); }
