@@ -171,8 +171,8 @@ def light_still() -> bool:
 
 
 def controls_still() -> bool:
-    """True when the controls and the card change without moving: the design does not glide (Still,
-    Classic, Plain), or motion is reduced - the same stoppers as light_still()."""
+    """True when the controls and the card change without moving: the design does not glide (Still;
+    Classic and Plain glide as Soft does), or motion is reduced - the same stoppers as light_still()."""
     return not brand.design_glides(_design_setting) or reduced_motion()
 
 

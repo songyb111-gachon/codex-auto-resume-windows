@@ -379,8 +379,8 @@ difference from there rather than deciding it:
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Soft | `LIGHT`, `DARK` | yes | yes | yes | yes | no | 16, 11, 7, 5 |
 | Soft, without motion | `LIGHT`, `DARK` | yes | no | no | no | no | 16, 11, 7, 5 |
-| Classic (v0.6.2) | `CLASSIC_LIGHT`, `CLASSIC_DARK` | no | yes | yes | no | yes | 8, 7, 6, 4 |
-| Plain | `PLAIN_LIGHT`, `PLAIN_DARK` | no | no | yes, dimming only | no | no | 8, 4, 4, 4 |
+| Classic (v0.6.2) | `CLASSIC_LIGHT`, `CLASSIC_DARK` | no | yes | yes | yes | yes | 8, 7, 6, 4 |
+| Plain | `PLAIN_LIGHT`, `PLAIN_DARK` | no | no | yes, dimming only | yes | no | 8, 4, 4, 4 |
 
 - **Depth** is the shadows, the sunken wells and the dark card lifted a step off its surface. Without
   it a surface is its fill and its hairline, as v0.6.2's were, and the notification card floats no
@@ -391,8 +391,10 @@ difference from there rather than deciding it:
   Every light that says the product is running moves in every design but Soft, without motion,
   which is Soft held still - every frame Reduce motion draws, chosen as a look.
 - **Controls glide** is a switch or a check box moving as it changes, a list rising open, the
-  scroll glide, and the notification card's entrance, exit and slide. Only Soft glides; in the
-  others a control simply changes.
+  scroll glide, and the notification card's entrance, exit and slide. Every design glides but Soft,
+  without motion, where a control simply changes: it is the one design that takes motion away.
+  Classic is v0.6.2's look with today's status light and today's motion, and Plain moves as Soft
+  does too.
 - **v0.6.2's marks** are Classic's: a 3 px accent bar inside each card's left hairline - an inset
   shadow in the panel, so nothing moves by its width - and the current tab underlined in the accent.
 - Chips are pills in every design.

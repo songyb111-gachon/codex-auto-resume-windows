@@ -217,7 +217,8 @@ raised and moves, as described above. *Soft, without motion* looks the same and 
 Reduce motion draws, chosen as a look. *Classic (v0.6.2)* is flat, as v0.6.2 was - white cards with a
 hairline and a thin accent bar down their left edge, the current tab underlined - and its light
 breathes with its glow. *Plain* is flat and grey, with smaller corners, and its light dims without a
-glow. The words, the layout and the sizes are the same in every design, and the Pending and History
+glow. Both move as Soft does - switches glide and the notification card rises in - since only *Soft,
+without motion* takes motion away. The words, the layout and the sizes are the same in every design, and the Pending and History
 lists stay plain rows in each. High Contrast replaces every design, and Reduce motion stops the
 motion in each. The Design is set in the Dashboard only: Codex draws the panel in it but cannot
 change it, and restoring the recommended settings puts it back to Soft. The popup in each design, in

@@ -88,7 +88,10 @@ class StylesheetTests(unittest.TestCase):
             self.assertNotIn("%s %s" % (STAMPED["classic"], part), animation_stopped)
         self.assertNotIn(STAMPED["classic"] + " .halo::before", hidden)
 
-    def test_only_soft_glides(self):
+    def test_only_still_holds_the_controls(self):
+        """Only Still ("Soft, without motion") takes motion away: Classic and Plain glide as Soft does - v0.6.2's
+        look with today's motion, the roadmap's ask - where for a while in v0.6.10 they held the controls too."""
+        self.assertEqual([design for design in brand.DESIGNS if not brand.design_glides(design)], ["still"])
         stopped = selectors_with("transition", "none !important")
         lists = selectors_with("animation", "none !important")
         for design in brand.DESIGNS:

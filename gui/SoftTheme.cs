@@ -517,7 +517,7 @@ namespace CodexAutoResume
         }
 
         /// Whether the controls change without moving - a switch or a check box, a list rising open, the scroll
-        /// glide: motion is reduced, or the design does not glide (Still, Classic, Plain).
+        /// glide: motion is reduced, or the design does not glide (Still; Classic and Plain glide as Soft does).
         internal static bool ControlsStill
         {
             get { return !Brand.DesignGlides(Palette.Design) || ReduceMotion; }
@@ -1088,7 +1088,7 @@ namespace CodexAutoResume
     ///
     /// Nothing moves when motion is reduced (Soft.ReduceMotion: this product's setting, Windows'
     /// animation effects, High Contrast), in a design whose controls do not glide (Soft.ControlsStill,
-    /// v0.6.10: Still, Classic, Plain), nor where it cannot be seen; the change is then immediate.
+    /// v0.6.10: Still), nor where it cannot be seen; the change is then immediate.
     internal static class Motion
     {
         /// A frame, in milliseconds: the soft scroll bar's glide rate.

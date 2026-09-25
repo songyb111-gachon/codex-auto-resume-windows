@@ -534,7 +534,7 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
 /* v0.6.10: what each design moves, and Classic's mark, from brand.DESIGN (panel.design_rules). A design
    whose light does not breathe (Still), and the product's own Reduce motion (`data-motion`, which until
    then only the Dashboard, the popup, the card and the icon read), hold everything as the rule above
-   does; a design that does not glide (Still, Classic, Plain) changes a control and shows a list without
+   does; a design that does not glide (Still alone) changes a control and shows a list without
    moving them; one with no glow (Plain) dims its light with nothing round it; and Classic draws v0.6.2's
    accent bar inside each card's left hairline - a shadow, so nothing moves by its width. A design only
    ever takes motion away: nothing here can start what the rule above or High Contrast stops. */

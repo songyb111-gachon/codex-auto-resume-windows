@@ -255,11 +255,11 @@ class IconHostTests(unittest.TestCase):
             os.utime(stored, ns=(time.time_ns(), time.time_ns() + 10_000_000))
             self.assertEqual(icon._card_look(), {"theme": "light", "design": "soft", "contrast": False,
                                                  "reduced": False, "light_still": False, "controls_still": False})
-            # Classic: the light breathes, the card itself comes and goes at once.
+            # Classic: the light breathes and the card comes and goes as Soft's does - only Still holds them.
             settings.update(stored, {"design": "classic"})
             os.utime(stored, ns=(time.time_ns(), time.time_ns() + 20_000_000))
             self.assertEqual(icon._card_look(), {"theme": "light", "design": "classic", "contrast": False,
-                                                 "reduced": False, "light_still": False, "controls_still": True})
+                                                 "reduced": False, "light_still": False, "controls_still": False})
             # Still: nothing moves, as with Reduce motion.
             settings.update(stored, {"design": "still"})
             os.utime(stored, ns=(time.time_ns(), time.time_ns() + 30_000_000))
