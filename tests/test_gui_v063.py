@@ -315,6 +315,27 @@ class KeptInStepTests(unittest.TestCase):
         for result in ("pass", "wait", "block", "unknown"):
             self.assertIn("gate.result." + result, english)
 
+    def test_a_checks_result_is_a_lowercase_value_word(self):
+        """Since v0.6.10 a check's result is a value word, as every state chip beside it is, and
+        lowercase where the language has case: Why it is waiting said OK, Waiting, Blocked and
+        Unknown beside lowercase state chips. The window's own fallback is the English word."""
+        from codex_auto_resume import l10n
+        results = ("pass", "wait", "block", "unknown")
+        for locale in l10n.LOCALES:
+            table = l10n.catalog(locale)
+            for result in results:
+                word = table["gate.result." + result]
+                with self.subTest(locale=locale, result=result):
+                    self.assertEqual(word[:1], word[:1].lower(), word)
+                    self.assertNotEqual(word.upper(), "OK", "a value word, not an acknowledgement")
+        english = l10n.catalog(l10n.DEFAULT)
+        self.assertEqual([english["gate.result." + result] for result in results],
+                         ["passed", "waiting", "blocked", "unknown"])
+        for result in results:
+            with self.subTest(fallback=result):
+                self.assertIn('S("gate.result.%s", %s)' % (result, json.dumps(english["gate.result." + result])),
+                              self.dashboard)
+
     def test_every_settings_group_the_window_shows_has_a_section(self):
         shown = {entry["group"] for entry in settings.describe()} - {"advanced"}
         placed = set(re.findall(r'group == "([a-z]+)"', self.window))

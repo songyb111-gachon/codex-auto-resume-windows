@@ -82,7 +82,7 @@ class MenuMixin:
             user32.AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, status)
             user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
             user32.AppendMenuW(menu, MF_STRING, MENU_OPEN,
-                               self.strings.get("menu.open", "Open Codex Auto Resume"))
+                               self.strings.get("menu.open", "Open Dashboard"))
             # Only while there is something to look at. An item that opens a page saying
             # nothing is waiting is an item that teaches people not to use the menu.
             waiting = int(snapshot.get("waiting", 0) or 0) + int(snapshot.get("running", 0) or 0)

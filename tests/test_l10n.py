@@ -122,6 +122,74 @@ class NotificationCardWordsTests(unittest.TestCase):
                 self.assertIn("Windows", table["help.notification_card"])
 
 
+class OneNameTests(unittest.TestCase):
+    """The window has one name, the Dashboard (v0.6.10).
+
+    It had four: the Dashboard, the Windows Dashboard, the Codex Auto Resume window and the Codex
+    Auto Resume settings window; the icon's menu said Open Codex Auto Resume beside a popup and a
+    card that said Open Dashboard. And help written from inside the window - "Used by this window"
+    - was shown in the panel in Codex too, where it is not that window. Only the window's title
+    bar and its Start Menu entry keep the product's name.
+    """
+
+    # Each language's one word for it. Spanish says Panel, capitalised as a name, beside "el panel de
+    # Codex": the notification's Abrir Panel is pinned byte for byte to what v0.6.4 raised.
+    DASHBOARD = {"en": "Dashboard", "ko": "대시보드", "ja": "ダッシュボード", "zh-CN": "仪表板",
+                 "zh-TW": "儀表板", "es": "Panel", "de": "Dashboard", "fr": "Tableau de bord",
+                 "pt-BR": "Dashboard"}
+    # Every sentence that names the window, on whichever surface shows it.
+    NAMING = ("menu.open", "popup.open_dashboard", "msg.toast_button_open", "popup.more",
+              "custom.dashboard_only", "help.interface_language", "help.theme", "help.reduce_motion",
+              "msg.setup_unconfirmed", "panel.compat_acting_differs", "panel.compat_refresh",
+              "panel.readonly")
+    # The window's own words, where "this window" is the window reading them.
+    WINDOW_ONLY = ("diag.update_reopen",)
+    THIS_WINDOW = {"en": "this window", "ko": "이 창"}
+
+    def test_every_language_has_its_word(self):
+        self.assertEqual(set(self.DASHBOARD), set(l10n.LOCALES))
+
+    def test_every_sentence_that_names_the_window_calls_it_the_dashboard(self):
+        for locale in l10n.available():
+            table = l10n._read(locale)
+            for key in self.NAMING:
+                with self.subTest(locale=locale, key=key):
+                    self.assertIn(self.DASHBOARD[locale], table[key])
+
+    def test_the_menu_the_popup_and_the_notifications_open_it_in_the_same_words(self):
+        for locale in l10n.available():
+            table = l10n._read(locale)
+            with self.subTest(locale):
+                self.assertEqual(table["menu.open"], table["popup.open_dashboard"])
+                self.assertEqual(table["msg.toast_button_open"], table["popup.open_dashboard"])
+
+    def test_no_other_name_is_left_in_the_words_or_the_panel(self):
+        english = l10n._read(l10n.DEFAULT)
+        panel = (ROOT / "src" / "codex_auto_resume" / "mcp" / "assets" / "panel.js").read_text(encoding="utf-8")
+        for name in ("settings window", "Codex Auto Resume window", "Windows Dashboard", "Open Codex Auto Resume"):
+            with self.subTest(name):
+                self.assertEqual([key for key, value in english.items() if name in value], [])
+                self.assertNotIn(name, panel)
+
+    def test_only_the_windows_own_words_say_this_window(self):
+        """A sentence the panel, the popup or a notification shows names the surfaces it means;
+        "this window" is right only where the window is the one saying it."""
+        for locale, phrase in self.THIS_WINDOW.items():
+            table = l10n._read(locale)
+            with self.subTest(locale):
+                self.assertEqual(sorted(key for key, value in table.items() if phrase in value),
+                                 sorted(self.WINDOW_ONLY))
+        import guiscan
+        window = guiscan.whole()
+        panel = (ROOT / "src" / "codex_auto_resume" / "mcp" / "assets" / "panel.js").read_text(encoding="utf-8")
+        python = "\n".join(srcscan.read(path) for path in srcscan.package_files())
+        for key in self.WINDOW_ONLY:
+            with self.subTest(key):
+                self.assertIn('"%s"' % key, window)
+                self.assertNotIn(key, panel)
+                self.assertNotIn(key, python)
+
+
 class LoaderTests(unittest.TestCase):
     def setUp(self):
         self.saved_cache = dict(l10n._CACHE)

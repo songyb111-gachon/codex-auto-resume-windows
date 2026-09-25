@@ -146,6 +146,8 @@ def task_item(row, strings, now) -> dict:
         status = say(strings, "activity.waiting")
     else:
         seconds = max(0.0, at - now)
+        # A reset is waited for; anything else is looked at again at the next check, the word the
+        # popup's own summary, the window and the panel use (popup.until_retry: "Next check · …").
         key = "popup.until_reset" if usage and row.get("reset_at") else "popup.until_retry"
         status = say(strings, key, time=countdown(seconds))
     overlays = set(row.get("overlays") or ())
@@ -165,7 +167,9 @@ def task_item(row, strings, now) -> dict:
         "tone": tone,
         "status": status,
         "at_zero": seconds is not None and seconds <= 0,
-        "check_label": say(strings, "popup.resume_usage" if usage else "popup.resume_transient"),
+        # The switch's own name, as the window's Pending column and the panel's row call it; the
+        # status line above it already says whether the task waits for a reset or a retry.
+        "check_label": say(strings, "pending.col_resume"),
         "checked": enabled,
         "busy": False,
     }

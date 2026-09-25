@@ -251,12 +251,12 @@ function setThreadRecovery(threadId, enable) {
 
 // Which settings this panel may write. The same rule the server generates the
 // update_settings schema by - the groups a person edits, and never Custom message text,
-// which is written in the Windows Dashboard by the person it will speak for - kept here so
+// which is written in the Dashboard by the person it will speak for - kept here so
 // the Save button cannot even assemble a request that carries it.
 function editable(entry) {
   var groups = ['general', 'recovery', 'limits', 'notifications', 'continuation'];
   // Of the appearance settings only the two themes, which the panel is drawn in. Reduce motion
-  // and the notification-area icon are Windows' own and stay in the Windows Dashboard.
+  // and the notification-area icon are Windows' own and stay in the Dashboard.
   var appearance = ['theme', 'panel_theme'];
   if (!entry || typeof entry.name !== 'string') return false;
   if (entry.group === 'appearance') return appearance.indexOf(entry.name) >= 0 && !entry.multiline;
@@ -1189,7 +1189,7 @@ function changeThread(row, shown, enable, controls) {
   });
 }
 
-// The Codex Compatibility Registry (v0.6.5), read-only, as the Windows Dashboard's Diagnostics page shows
+// The Codex Compatibility Registry (v0.6.5), read-only, as the Dashboard's Diagnostics page shows
 // it: for the Codex engine on this machine, which of the things this product does can be relied on, in
 // the registry's four words - each with what it means - with when that was checked and which data was in
 // force. Folded until it is opened; folded, its chip says the headline.
@@ -1276,7 +1276,7 @@ function renderCompatibility(status) {
   }
   if (usable && typeof view.acting === 'string' && view.acting !== view.overall) {
     notices.push(t('panel.compat_acting_differs',
-      'The watcher is still acting on what it found when it started. Stop it and start it again on the Diagnostics page of the Codex Auto Resume window to check again.'));
+      "The watcher is still acting on what it found when it started. Stop it and start it again on the Dashboard's Diagnostics page to check again."));
   }
   if (usable && COMPAT_CAVEATS.indexOf(view.cache) >= 0) {
     notices.push(t('compat.cache.' + view.cache, view.cache.replace(/_/g, ' ')));
@@ -1307,7 +1307,7 @@ function renderCompatibility(status) {
   });
   if (legend.children.length) body.appendChild(legend);
   body.appendChild(element('p', 'help compat-refresh', t('panel.compat_refresh',
-    'This data changes only when you ask: with Refresh compatibility data on the Diagnostics page of the Codex Auto Resume window, or with Check for updates.')));
+    "This data changes only when you ask: with Refresh compatibility data on the Dashboard's Diagnostics page, or with Check for updates.")));
   return fold.node;
 }
 
@@ -1322,7 +1322,7 @@ function renderGeneral(byName) {
       : endonym(choice)};
   });
   rows.appendChild(choiceField(entry, options,
-    t('help.interface_language', 'Used by this window, the notification-area popup, notifications and the panel in Codex.'),
+    t('help.interface_language', 'Used by the Dashboard, the notification-area popup, notifications and the panel in Codex.'),
     function (chosen) { if (HOOKS.follow) HOOKS.follow(chosen); }).row);
   node.appendChild(rows);
   return node;
@@ -1476,7 +1476,7 @@ function renderContinuation(byName) {
   }
 
   // Custom: which stored message is used, and what those messages say - shown, not
-  // editable. The text itself is written in the Windows Dashboard.
+  // editable. The text itself is written in the Dashboard.
   var stored = element('div', 'stored');
   var drawStored = function () {
     stored.textContent = '';
@@ -1510,7 +1510,7 @@ function renderContinuation(byName) {
   }
   custom.appendChild(stored);
   custom.appendChild(element('p', 'callout', t('custom.dashboard_only',
-    'Custom messages are written in the Windows Dashboard.')));
+    'Custom messages are written in the Dashboard.')));
   drawStored();
   showCustom();
   rows.appendChild(custom);
@@ -1763,7 +1763,7 @@ function render() {
   root.appendChild(page);
   // State first; then what is waiting, because it is the part that changes; then whether this
   // Codex can be relied on, folded; then what is configured, general to particular; then what
-  // the configuration will say; then how the panel looks, where the Windows Dashboard puts it too.
+  // the configuration will say; then how the panel looks, where the Dashboard puts it too.
   var hero = renderHero(status, now);
   HERO = hero;
   page.appendChild(hero.node);
@@ -1796,7 +1796,7 @@ function render() {
 
   if (!HOST) {
     message.textContent = t('panel.readonly',
-      'Read-only here. Use the Codex Auto Resume settings window to change these.');
+      'Read-only here. Use the Dashboard to change these.');
     return;
   }
 
