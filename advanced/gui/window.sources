@@ -1,0 +1,13 @@
+# ADVANCED-EDITION-CODE: in the advanced edition's build, never the standard one's.
+#
+# The advanced settings window's own sources: what its build compiles after every source
+# gui/window.sources names, one repository-relative path per line, in the order csc is given
+# them, under the one group `[advanced]`.
+#
+# The standard window is gui/window.sources and nothing else, and its build never reads this
+# file, so a type declared in a source listed here cannot reach the standard executable. No
+# source of the standard window names one either (advanced/tests/test_advanced_package.py).
+#
+# Empty until the advanced edition has a page of its own.
+
+[advanced]

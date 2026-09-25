@@ -299,6 +299,38 @@ class ReleaseManifestTests(unittest.TestCase):
             if digest is not None:
                 self.assertRegex(digest, r"^[0-9a-f]{64}$")
 
+    def test_the_advanced_edition_has_a_template_of_its_own(self):
+        """A second constant, pinned exactly as the first is, and never a variation of it. The
+        top-level keys stay the standard edition's: every published bootstrap builds the
+        standard archive's name from its own copy of `archive`, so that key cannot change what
+        it means."""
+        advanced = self.release["advanced"]
+        self.assertEqual(set(advanced), {"archive", "sha256", "since"})
+        self.assertEqual(advanced["archive"], "CodexAutoResume-Advanced-v{version}-win-x64.zip")
+        self.assertEqual(set(re.findall(r"\{(\w+)\}", advanced["archive"])), {"version"})
+        self.assertNotEqual(advanced["archive"], self.release["archive"])
+        self.assertEqual(advanced["since"], "0.6.11")
+        self.assertIsInstance(advanced["sha256"], dict)
+
+    def test_advanced_digests_are_real_and_pinned_with_the_standard_ones(self):
+        """The same shape as the standard table, only for versions the edition exists in, and
+        pinned in the same commit: a version with one edition's digest and not the other's is a
+        release verified by halves."""
+        def number(version):
+            return tuple(int(part) for part in version.split("."))
+        advanced = self.release["advanced"]
+        since = number(advanced["since"])
+        for version, digest in advanced["sha256"].items():
+            with self.subTest(version):
+                self.assertRegex(version, r"^\d+\.\d+\.\d+$")
+                self.assertGreaterEqual(number(version), since)
+                if digest is not None:
+                    self.assertRegex(digest, r"^[0-9a-f]{64}$")
+        standard = {version for version, digest in self.release["sha256"].items()
+                    if digest and number(version) >= since}
+        self.assertEqual({version for version, digest in advanced["sha256"].items() if digest},
+                         standard)
+
     def test_every_released_version_is_pinned(self):
         """Released versions carry a digest; the one being developed need not appear.
 

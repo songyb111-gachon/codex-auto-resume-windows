@@ -38,7 +38,7 @@ EXIT_ERROR = 1
 EXIT_UNCONFIRMED = 2
 
 sys.path.insert(0, str(PLUGIN_ROOT / "src"))
-from codex_auto_resume import config, control, l10n, startup          # noqa: E402
+from codex_auto_resume import config, control, edition, l10n, startup # noqa: E402
 from codex_auto_resume.app import App                        # noqa: E402
 
 
@@ -238,7 +238,12 @@ def cmd_setup(args) -> int:
     install_launcher(home, "plugin" if installed_as_plugin() else "local")
     # Both are reported when they fail. Ignoring them is how a setup that never prepared
     # the state, or never switched recovery on, used to end with "set up and running".
-    incomplete = (_cli_silent(home, ["--quiet", "install"]) != EXIT_OK)
+    # An edition change is the installer's to report and the new edition's to act on
+    # (`install --edition-from`); setup only carries it across.
+    prepare = ["--quiet", "install"]
+    if getattr(args, "edition_from", None):
+        prepare += ["--edition-from", args.edition_from]
+    incomplete = (_cli_silent(home, prepare) != EXIT_OK)
     # A repair must not undo a decision the user made. Turning recovery back on, or
     # adding a sign-in entry they removed, would do exactly that under the name of fixing
     # something - so --keep-state leaves the pause switch alone and only re-registers an
@@ -446,6 +451,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--keep-state", action="store_true",
                    help="repair registrations only; never change the pause state or add a "
                         "sign-in autostart that is not already there")
+    p.add_argument("--edition-from", choices=edition.EDITIONS, metavar="EDITION",
+                   help="the edition the installer replaced (standard or advanced)")
     sub.add_parser("status")
     sub.add_parser("pending")
     sub.add_parser("enable")
