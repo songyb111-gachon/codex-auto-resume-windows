@@ -22,6 +22,24 @@ def animates(state, since_entered_ms=0, *, reduced=False, design="soft") -> bool
     return brand.glow_moves(state, since_entered_ms, reduced=reduced, design=design)
 
 
+class MotionGates:
+    """What may move in the window, as two gates since the design split motion (v0.6.10): the status light
+    and the switches. Each is held by any stopper - `_reduced`: Reduce motion, Windows' animation setting,
+    High Contrast - and by a design that does not move it (brand.DESIGN): Still holds both, Classic and
+    Plain the switches. A design never moves what a stopper holds. `_design` is the design in effect,
+    Soft until the window first reads one."""
+
+    _design, _reduced = brand.DEFAULT_DESIGN, False
+
+    @property
+    def _light_still(self) -> bool:
+        return not brand.light_moves(self._design, stopped=self._reduced)
+
+    @property
+    def _controls_still(self) -> bool:
+        return not brand.controls_move(self._design, stopped=self._reduced)
+
+
 # v0.6.5: a task's switch glides when it changes - the knob slides end to end and the track
 # cross-fades between the grey well and the accent - in brand's one transition time, on brand's
 # one curve, as the window's and the panel's switches do. A glide is (started_ms, from, to), the
