@@ -33,10 +33,12 @@ def transient_delay(attempt: int) -> int:
     return TRANSIENT_BACKOFF[index]
 
 
-# What a plug is shown of the store, at P2 and P8: the reads the engine itself makes, and none
-# of its writes.
+# What a plug is shown of the store, at P2 and P8: the reads the engine itself makes, the
+# journal of what became of each record, and none of its writes. The journal is how a plug
+# learns a record passed through a state the watch has already moved it on from by the time P8
+# is asked - submission_unknown, above all, which a late delivery resolves in the same tick.
 VIEW_READS = frozenset({"get", "records_in", "settings", "thread_enabled", "others_in_flight",
-                        "recent_claims", "recent_claim_count", "claimed_on_thread"})
+                        "recent_claims", "recent_claim_count", "claimed_on_thread", "events"})
 
 
 class StoreView:
