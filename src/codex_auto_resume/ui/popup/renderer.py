@@ -14,7 +14,6 @@ from .elevation import lift_coverage, recipe_shadows, shadow_step, tile_ground, 
 from .fonts import _Fonts
 from .gdiplus import _Canvas, _Painter, _ShadowImage, _gdiplus_acquire, _gdiplus_release
 from .layout import layout as plan            # the method below shares its name
-from .model import STATES
 from .theme import SYSTEM_COLOURS, contrast_colour, system_rgb
 from .win32 import (DT_CALCRECT,
                     DT_CENTER,
@@ -33,8 +32,10 @@ from .win32 import (DT_CALCRECT,
 # is fill-only and never carries text, which is why the two tables are separate. The dot is
 # brand's status light, as in the window and the panel: every state in which the watcher runs
 # with recovery on is the `active` cyan it had before v0.6.3, a pause keeps its grey, and a
-# problem is amber. The word beside it, and its glow, tell the running states apart.
-DOT_FILL = {state: brand.status_fill(state) for state in STATES}
+# problem is amber. The word beside it, and its glow, tell the running states apart. Keyed by
+# light, not by word: brand's own table, so a watcher not known to be running is `idle` grey
+# (v0.6.10), which no word is.
+DOT_FILL = dict(brand.STATUS_FILL)
 
 
 # A reason chip's text colour; its ground is that colour mixed CHIP_ALPHA of the way into the

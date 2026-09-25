@@ -538,6 +538,7 @@
   "stats.period": "Période",
   "stats.retry_now": "Demandes « Réessayer maintenant »",
   "status.next_check": "prochaine vérification : {time}",
+  "status.not_responding": "Le surveillant ne répond pas",
   "status.not_running": "Surveillant arrêté",
   "status.paused": "Récupération automatique suspendue",
   "status.pending_many": "{n} récupérations en attente",

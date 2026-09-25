@@ -538,6 +538,7 @@
   "stats.period": "Período",
   "stats.retry_now": "Solicitudes de reintentar ahora",
   "status.next_check": "próxima comprobación: {time}",
+  "status.not_responding": "El monitor no responde",
   "status.not_running": "El monitor no se está ejecutando",
   "status.paused": "Recuperación automática en pausa",
   "status.pending_many": "{n} recuperaciones pendientes",

@@ -538,6 +538,7 @@
   "stats.period": "기간",
   "stats.retry_now": "지금 다시 확인 요청",
   "status.next_check": "다음 확인 {time}",
+  "status.not_responding": "워처가 응답하지 않음",
   "status.not_running": "워처가 실행 중이 아님",
   "status.paused": "자동 복구 일시 중지됨",
   "status.pending_many": "복구 {n}건 대기 중",

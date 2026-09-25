@@ -224,6 +224,31 @@ class ActivityTests(unittest.TestCase):
         self.assertEqual(popup.activity(dict(STATUS, watcher_running=False), [], NOW), "attention")
         self.assertEqual(popup.activity(dict(STATUS, watcher={"engine_state": "incompatible"}), [], NOW),
                          "attention")
+        # v0.6.10 (F5): an older watcher still owning the state needs a person here too, as in the window.
+        self.assertEqual(popup.activity(dict(STATUS, upgrade_pending=True), [], NOW), "attention")
+
+    def test_a_stopped_watcher_asks_for_attention_beside_a_light_that_is_off(self):
+        """v0.6.10 (F4): the word and the light are two things, as in the panel. A watcher that is not running, or
+        that nothing has confirmed is running, keeps the word that asks for a person, and its light is idle grey:
+        the window, the panel and the taskbar button drew it so, and only the popup drew an amber light that
+        breathed - a moving light claiming the product runs. Amber is for a watcher that runs and is not well."""
+        for status in (dict(STATUS, watcher_running=False), dict(STATUS, watcher_running=None),
+                       {"enabled": True}, None):
+            with self.subTest(status=status):
+                vm = popup.view_model([row("a", eligible=NOW + 5)], status, EN, NOW)
+                self.assertEqual(vm["state"], "attention")
+                self.assertEqual(vm["state_text"], EN["activity.attention"])
+                self.assertEqual(vm["light"], "idle")
+                self.assertFalse(popup.animates(vm["light"], 0))
+                self.assertIsNone(popup.halo(vm["light"], 1234, 1234))
+                self.assertEqual(popup.DOT_FILL[vm["light"]], "idle")
+        running = popup.view_model([], dict(STATUS, watcher={"running": True, "ticking": False}), EN, NOW)
+        self.assertEqual((running["state"], running["light"]), ("attention", "attention"))
+        self.assertTrue(popup.animates(running["light"], 0))
+        for word in popup.STATES:
+            with self.subTest(word=word):
+                self.assertEqual(popup.light_for(STATUS, word), word)
+                self.assertEqual(popup.light_for(dict(STATUS, watcher_running=False), word), "idle")
 
     def test_the_icon_s_word_follows_the_ticks_snapshot(self):
         self.assertEqual(popup.snapshot_activity({}, NOW), "monitoring")
@@ -538,7 +563,7 @@ class MotionTests(unittest.TestCase):
     def test_the_cycle_starts_with_the_state(self):
         """As the window's does: a light that starts moving leaves the still light, with no jump."""
         shown = object.__new__(popup.Popup)
-        shown._vm, shown._reduced, shown._state_since = {"state": "monitoring"}, False, 100.0
+        shown._vm, shown._reduced, shown._state_since = {"state": "monitoring", "light": "monitoring"}, False, 100.0
         # The two moments the cycle is read at, from the table rather than as seconds, so a
         # change of rhythm moves them with it: the fall's end (darkest) and the bloom's (widest).
         cycle = self.GLOW["monitoring_ms"] / 1000.0
@@ -550,6 +575,20 @@ class MotionTests(unittest.TestCase):
             self.assertAlmostEqual(shown.frame()["dim"], 1.0 - brand.glow_floor())
         with unittest.mock.patch.object(popup.window.time, "monotonic", return_value=widest):
             self.assertAlmostEqual(shown.frame()["opacity"], self.GLOW["peak"])
+
+    def test_the_frame_is_the_light_s_and_a_stopped_watcher_s_light_is_off(self):
+        """v0.6.10 (F4): the dot follows the light, not the word. A watcher not known to be running says
+        "Needs your attention" beside a grey dot that neither breathes nor glows, as in the window and the panel;
+        a moving light would say the product is running."""
+        shown = object.__new__(popup.Popup)
+        shown._vm, shown._reduced, shown._state_since = {"state": "attention", "light": "idle"}, False, 100.0
+        for moment in (100.0, 100.0 + self.GLOW["attention_ms"] / 2000.0, 100.0 + self.GLOW["attention_ms"] / 1000.0):
+            with unittest.mock.patch.object(popup.window.time, "monotonic", return_value=moment):
+                self.assertIsNone(shown.frame())
+        self.assertFalse(popup.animates("idle", 0))
+        shown._vm = {"state": "attention", "light": "attention"}
+        with unittest.mock.patch.object(popup.window.time, "monotonic", return_value=100.0):
+            self.assertIsNotNone(shown.frame())
 
 
 class SwitchGlideTests(unittest.TestCase):
@@ -602,6 +641,9 @@ class StatusLightTests(unittest.TestCase):
             self.assertEqual(popup.DOT_FILL[state], "active", state)      # the colour it had before v0.6.3
         self.assertEqual(popup.DOT_FILL["paused"], "paused")
         self.assertEqual(popup.DOT_FILL["attention"], "attention")
+        # v0.6.10 (F4): keyed by light, brand's table whole, so the grey of a watcher not known to be running is in it.
+        self.assertEqual(popup.DOT_FILL, brand.STATUS_FILL)
+        self.assertEqual(popup.DOT_FILL["idle"], "idle")
 
 
 # ---------------------------------------------------------------------------- elevation
@@ -1269,6 +1311,34 @@ class WindowsTests(unittest.TestCase):
             self.assertEqual(pixel(cx, cy), brand.rgb(brand.LIGHT["paused"]))
             for distance in (9, 12, 15):
                 self.assertEqual(pixel(cx + distance, cy), brand.rgb(brand.LIGHT["surface"]))
+        finally:
+            renderer.close()
+
+    def test_a_stopped_watcher_s_dot_is_idle_grey_with_no_glow_beside_its_amber_word(self):
+        """v0.6.10 (F4): drawn, not only decided. The halo item carries the light, and the dot is `idle` with
+        nothing round it at any moment of what would have been attention's breath; the word keeps its warning ink."""
+        renderer = popup.Renderer()
+        try:
+            vm = popup.view_model(self.ROWS, dict(STATUS, watcher_running=False), EN, NOW)
+            self.assertEqual((vm["state"], vm["light"]), ("attention", "idle"))
+            plan = renderer.layout(vm, 1.5, "en")
+            halo = next(item for item in plan["items"] if item["kind"] == "halo")
+            self.assertEqual(halo["state"], "idle")
+            word = next(item for item in plan["items"] if item["kind"] == "text" and item["text"] == vm["state_text"])
+            self.assertEqual(word["colour"], popup.STATE_INK["attention"])
+            cx, cy, width = int(halo["cx"]), int(halo["cy"]), plan["size"][0]
+            for moment in (0, brand.GLOW["attention_ms"] * 0.5, brand.GLOW["attention_ms"]):
+                canvas = renderer.draw(vm, plan, frame=popup.halo(vm["light"], moment, moment))
+                pixels = canvas.pixels()
+
+                def pixel(x, y):
+                    index = (y * width + x) * 4
+                    return pixels[index + 2], pixels[index + 1], pixels[index]
+
+                with self.subTest(moment=moment):
+                    self.assertEqual(pixel(cx, cy), brand.rgb(brand.LIGHT["idle"]))
+                    for distance in (9, 12, 15):
+                        self.assertEqual(pixel(cx + distance, cy), brand.rgb(brand.LIGHT["surface"]))
         finally:
             renderer.close()
 

@@ -538,6 +538,7 @@
   "stats.period": "Period",
   "stats.retry_now": "Retry now requests",
   "status.next_check": "next check {time}",
+  "status.not_responding": "Watcher not responding",
   "status.not_running": "Watcher not running",
   "status.paused": "Automatic recovery paused",
   "status.pending_many": "{n} recoveries pending",
