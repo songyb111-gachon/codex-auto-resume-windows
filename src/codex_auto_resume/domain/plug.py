@@ -86,6 +86,7 @@ class Surface(StrEnum):
     BRIDGE = "bridge"                        # a bridge command core has none of its own for
     DIAGNOSTICS = "diagnostics"              # the diagnostics export
     TRAY = "tray"                            # what the icon draws from
+    MCP = "mcp"                              # tools after core's own, and a call to one of them
 
 
 POINTS = tuple(Point)

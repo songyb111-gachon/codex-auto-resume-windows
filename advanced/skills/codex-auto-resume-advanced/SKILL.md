@@ -39,7 +39,9 @@ asks what the advanced edition does, say that. Do not describe capabilities from
   the user asks you to. A capability is turned on only in the Dashboard, by the user, after its
   statement; if they ask, tell them that is where it is.
 - Turning a capability off, or all advanced features at once, is always allowed, and only ever
-  does less. When a tool for it is available and the user asks, use it.
+  does less. When the user asks, use `disarm_advanced_capability` with the exact id
+  `list_advanced_capabilities` gives, or `disarm_all_advanced`. `list_advanced_capabilities`
+  only reads.
 - Pause stops every capability along with everything else.
 
 ## Moving between editions

@@ -28,6 +28,11 @@ is asked not to, but because no such call exists.
 Transport is newline-delimited JSON-RPC on stdin/stdout, which is what MCP's stdio
 transport is. Nothing but protocol messages may ever reach stdout: a stray print would
 corrupt the stream, so diagnostics go to stderr.
+
+The edition's plug may offer tools of its own after core's (P10, v0.6.11): each is checked as a
+declaration before a client sees it (`tools.plugged_tools`), its arguments are checked as core's
+are, and a call to it is answered by the plug and by nothing else. The standard edition's plug is
+never asked, so its list and its refusals are what they always were.
 """
 from __future__ import annotations
 
@@ -37,7 +42,8 @@ import sys
 
 from .. import config, controlcli, l10n, reasons as _reasons
 from ..control import Control, ControlError
-from .tools import RESOURCES, SETTINGS_UI, TOOLS, settings_schema
+from ..domain.plug import DEFER, Surface
+from .tools import RESOURCES, SETTINGS_UI, TOOLS, plugged_tools, settings_schema
 
 PROTOCOL_VERSION = "2025-06-18"
 SUPPORTED_PROTOCOLS = (PROTOCOL_VERSION, "2025-03-26", "2024-11-05")
@@ -133,7 +139,7 @@ class Server:
             if method == "ping":
                 return self._result(request_id, {})
             if method == "tools/list":
-                return self._result(request_id, {"tools": TOOLS})
+                return self._result(request_id, {"tools": TOOLS + self._plugged_tools()})
             if method == "resources/list":
                 return self._result(request_id, {"resources": RESOURCES})
             if method == "resources/templates/list":
@@ -219,6 +225,9 @@ class Server:
         if not isinstance(arguments, dict):
             raise ControlError("arguments must be an object")
         tool = next((tool for tool in TOOLS if tool["name"] == name), None)
+        plugged = None
+        if tool is None:
+            plugged = tool = next((tool for tool in self._plugged_tools() if tool["name"] == name), None)
         if tool is None:
             raise LookupError("unknown tool")
         offered = tool["inputSchema"]["properties"]
@@ -230,8 +239,38 @@ class Server:
         # layer; this flag used to coerce strings such as "false" to True.
         if "include_finished" in arguments and not isinstance(arguments["include_finished"], bool):
             raise ControlError("include_finished must be true or false")
+        if plugged is not None:
+            return self._plugged_call(name, arguments)
         handler = getattr(self, "_tool_" + name)
         return handler(arguments)
+
+    def _plugged_tools(self) -> list:
+        """P10: the tools the edition's plug offers after core's own, each checked as a
+        declaration first (`tools.plugged_tools`). Asked afresh each time, like the status, and
+        not at all in the standard edition."""
+        plug = self.control.plug
+        if plug.null:
+            return []
+        added = plug.surface(Surface.MCP, {"request": "tools"})
+        return plugged_tools(None if added is DEFER else added.get("tools"))
+
+    def _plugged_call(self, name, arguments) -> dict:
+        """A call to one of the plug's own tools, answered by the plug and by nothing else.
+
+        It answers a `summary` sentence and its `data`, the shape of every reply here, or a
+        `refused` sentence, which goes back as any refusal does: the model reads why, beside the
+        generic code, since only core's own refusals have words in every catalog. Anything else
+        is a request that could not be completed. Nothing here sends, claims or starts anything
+        for such a tool; what it does stays in the plug's own state."""
+        answer = self.control.plug.surface(Surface.MCP, {"request": "call", "tool": name,
+                                                          "arguments": dict(arguments)})
+        if answer is not DEFER:
+            refused, summary, data = answer.get("refused"), answer.get("summary"), answer.get("data")
+            if isinstance(refused, str) and refused.strip():
+                raise ControlError(refused[:300])
+            if isinstance(summary, str) and isinstance(data, dict):
+                return self._reply(summary[:500], data)
+        raise ControlError(controlcli.GENERIC_ERROR)
 
     def _status(self) -> dict:
         """The shared status, plus the Compatibility Registry's summary under `watcher`.

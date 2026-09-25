@@ -320,6 +320,19 @@ class LoaderTests(unittest.TestCase):
             with self.assertRaises(KeyError):
                 l10n.text("absent")
 
+    def test_a_catalog_anywhere_is_read_and_filled_by_the_same_rules(self):
+        """v0.6.11: the advanced edition keeps its words in a directory of its own, and they are
+        read by the one reader and filled by the one formatter core's are."""
+        path = self.directory / "anywhere.json"
+        for broken in ('{"a": "one", "a": "two"}', '{"a": 3}', '["a"]', '{"a": '):
+            with self.subTest(broken=broken):
+                path.write_text(broken, encoding="utf-8")
+                with self.assertRaises(l10n.CatalogError):
+                    l10n.read_catalog(path)
+        path.write_text(json.dumps({"on": "{n} on, {left} left"}), encoding="utf-8")
+        self.assertEqual(l10n.fill(l10n.read_catalog(path)["on"], n=2, other=5), "2 on, {left} left")
+        self.assertEqual(l10n._read(l10n.DEFAULT), l10n.read_catalog(l10n.DIRECTORY / "en.json"))
+
 
 class NormalizationTests(unittest.TestCase):
     CASES = {

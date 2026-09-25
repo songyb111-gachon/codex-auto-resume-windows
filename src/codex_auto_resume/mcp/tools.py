@@ -12,6 +12,8 @@ between these tools by reading them, so each says plainly what it will and will 
 """
 from __future__ import annotations
 
+import re
+
 from .. import controlcli, reasons as _reasons, settings as policy
 from ..domain import ids
 
@@ -326,6 +328,48 @@ TOOLS.append({
     "annotations": {"title": "Preview the recovery message", "readOnlyHint": True,
                     "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
 })
+
+# v0.6.11: what a tool the edition's plug offers (P10) is let through as. A name of its own, never
+# one of core's - so no plug can stand in for a tool whose description a model has learned to
+# trust - and a schema that names every argument and allows no other, which is what the server
+# checks a call against before the plug hears of it. The annotations say at least whether it
+# reads and whether it destroys, as every tool of core's does. What such a tool may do is its
+# edition's affair; a declaration that is not one of these shapes is not offered at all.
+PLUGGED_NAME = re.compile(r"[a-z][a-z0-9_]{2,63}")
+PLUGGED_KEYS = ("name", "title", "description", "inputSchema", "annotations")
+
+
+def _declared(tool, taken) -> bool:
+    if not isinstance(tool, dict):
+        return False
+    name, schema, notes = tool.get("name"), tool.get("inputSchema"), tool.get("annotations")
+    if (not isinstance(name, str) or not PLUGGED_NAME.fullmatch(name) or name in taken
+            or not isinstance(tool.get("description"), str)
+            or not isinstance(tool.get("title", ""), str)):
+        return False
+    if (not isinstance(schema, dict) or schema.get("type") != "object"
+            or schema.get("additionalProperties") is not False
+            or not isinstance(schema.get("properties"), dict)
+            or not all(isinstance(value, dict) for value in schema["properties"].values())):
+        return False
+    required = schema.get("required", [])
+    if not isinstance(required, list) or not all(isinstance(key, str) for key in required):
+        return False
+    return (set(required) <= set(schema["properties"]) and isinstance(notes, dict)
+            and all(isinstance(notes.get(hint), bool) for hint in ("readOnlyHint", "destructiveHint")))
+
+
+def plugged_tools(declared) -> list:
+    """The tools a plug declared that may be offered, in its order, each once and after core's."""
+    if not isinstance(declared, list):
+        return []
+    taken, kept = {tool["name"] for tool in TOOLS}, []
+    for tool in declared:
+        if _declared(tool, taken):
+            taken.add(tool["name"])
+            kept.append({key: tool[key] for key in PLUGGED_KEYS if key in tool})
+    return kept
+
 
 RESOURCES = [{
     "uri": SETTINGS_UI,

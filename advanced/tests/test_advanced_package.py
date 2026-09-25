@@ -66,7 +66,8 @@ class InterfaceTests(unittest.TestCase):
 
 
 class NeutralTests(unittest.TestCase):
-    """With no capability, the advanced edition is the standard one at every point."""
+    """With no capability, the advanced edition decides everything as the standard one does, and
+    adds only its own surfaces: the Dashboard's bridge commands and a model's MCP tools."""
 
     def test_every_point_answers_as_null(self):
         with tempfile.TemporaryDirectory() as home:
@@ -76,6 +77,18 @@ class NeutralTests(unittest.TestCase):
                     arguments = given(point)
                     self.assertIs(core.consult(made, point, *arguments),
                                   core.consult(core.NULL, point, *arguments))
+            self.assertEqual(list(Path(home).iterdir()), [], "nothing was read into being")
+
+    def test_it_adds_nothing_to_a_surface_core_already_has(self):
+        with tempfile.TemporaryDirectory() as home:
+            made = advanced.create(config.Paths(home))
+            for surface in (core.Surface.STATUS, core.Surface.DIAGNOSTICS, core.Surface.TRAY):
+                with self.subTest(surface):
+                    self.assertIs(made.surface(surface, {}), core.DEFER)
+            self.assertIs(made.surface(core.Surface.BRIDGE, {"command": "status", "argument": {}}),
+                          core.DEFER)
+            tools = made.surface(core.Surface.MCP, {"request": "tools"})["tools"]
+            self.assertEqual(len(tools), 3)
 
     def test_nothing_in_the_package_sends(self):
         """Only core acts. The one send is core's (engine/dispatch.py); a channel this package
@@ -86,7 +99,9 @@ class NeutralTests(unittest.TestCase):
                  and node.func.attr == "send"]
         self.assertEqual(sends, [])
 
-    def test_entering_the_edition_writes_nothing_yet(self):
+    def test_entering_the_edition_where_nothing_was_ever_on_writes_nothing(self):
+        """Every capability is turned off on entry (advanced/tests/test_advanced_arming.py); where
+        no advanced state was ever written, there is nothing to turn off."""
         with tempfile.TemporaryDirectory() as home:
             made = advanced.create(config.Paths(home))
             for previous in core.Edition:
