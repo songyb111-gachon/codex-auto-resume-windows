@@ -189,6 +189,19 @@ does not jump in brightness; the glow is the one thing that arrives with the mot
 | Failed | `danger` | The cycle, every 1.2 s, the quickest there is, so a red light never sits still (since v0.6.8) |
 | Paused, stopped | `paused`, `idle` | A grey dot that never moves |
 
+Which word and which light a header shows is one rule, the same in the Dashboard, the popup and the
+panel. Since v0.6.10 it is written down as test vectors, `tests/data/light_states.json`, and
+`tests/test_light_parity.py` runs each surface's own code against them; until then three copies
+told one moment three ways. In order: a watcher that is not running, or that nothing has confirmed
+is running, asks for attention beside a grey `idle` light that does not move; one that runs but is
+not well - an older watcher still owns the state, it has stopped ticking, or the engine is not
+supported or failed its checks here - is amber, and the line under the word says which; then
+paused; then recovering, for anything sent into Codex or being taken back out of it; then
+checking, once a task's time has come; then waiting; then monitoring. The panel is drawn once and
+has no clock, so where the other two say checking it says waiting, and the row says *due now*. The
+notification-area icon and the window's taskbar button keep their own rule, in which a failure
+nobody has seen yet is red; no header shows red.
+
 Three cuts were wrong in three directions before this one, and the user named each: the first
 breathed a glow round a dot that never changed, 7 pixels of it ("너무 많이 커지는거 같아"); v0.6.5
 made the dot itself blink, deep and quick ("너무 빠르게 깜빡이는거 같아 / 은은한 느낌이 있어야해
