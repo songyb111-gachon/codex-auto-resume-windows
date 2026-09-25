@@ -239,7 +239,7 @@ pages then offer **Turn on for this conversation**:
 
 While the watcher runs it also puts an icon in the notification area. It belongs to the watcher
 process itself, so it appears when one starts and goes when it stops. Its mark alone says what the
-watcher is doing - it wears no badge - so it is the same picture as the settings window's taskbar
+watcher is doing - it wears no badge - so it is the same picture as the Dashboard's taskbar
 button. Its tooltip says whether recovery is paused, how many recoveries
 are waiting, how many are running in Codex and how long until the next check - or, until you have
 seen it, that a recovery failed.
@@ -256,7 +256,7 @@ turns red and sweeps out and back like a recovery, twice as quickly - once every
 blinking as it goes, every 1.2 seconds, and stays red until you have seen it: click the icon to open the popup, or bring the Dashboard to the
 front. A recovery that starts afterwards clears it as well. Nothing moves under Reduce motion, Windows' animation setting, High Contrast or battery
 saver, while the session is locked, or while Windows keeps the icon in the overflow area, where
-nobody would see it. While the settings window is open, its taskbar button moves the same way and
+nobody would see it. While the Dashboard is open, its taskbar button moves the same way and
 stops for the same reasons.
 
 <img src="images/status-light.png" alt="The status light breathing on a card: a cyan dot that dims to about two thirds of its colour and comes back over 4.4 seconds, with a soft glow that grows out from under it as it brightens and is gone at the bottom of the breath" width="112">
@@ -272,7 +272,7 @@ High Contrast hold it still too.
 
 A single click on the icon opens a small popup beside it, and another click closes it: the
 watcher's state, how many tasks are waiting and recovering, the next check, up to three waiting
-tasks, each with its own switch bound to that task's exact interruption and conversation,
+tasks, each with its own **Auto-resume** switch bound to that task's exact interruption and conversation,
 **Pause recovery** or **Resume recovery**, and **Open Dashboard**. A click anywhere else, or Esc,
 closes it too. The popup runs inside the watcher process, on the icon's own thread, and goes
 through the same control layer as every other surface; nothing in it can send a continuation.
@@ -281,7 +281,7 @@ stops the watcher; it is drawn dark while the popup is. The popup and the menu t
 language or theme the next time they open, without restarting the watcher. The countdown only means the watcher looks again — nothing is sent because it
 reaches zero. The icon is on by default and can be switched off on the Settings page.
 
-<img src="images/tray-popup.png" alt="The notification-area popup: waiting, with the next check in a minute and a half and three waiting tasks, each with its kind of interruption, when it is next tried and a switch to resume or retry it automatically, and Pause recovery and Open Dashboard buttons" width="360">
+<img src="images/tray-popup.png" alt="The notification-area popup: waiting, with the next check in a minute and a half and three waiting tasks, each with its kind of interruption, when it is next checked and its Auto-resume switch, and Pause recovery and Open Dashboard buttons" width="360">
 
 Every window, the popup, the notifications and the panel inside Codex follow the interface
 language. The same popup in Korean, Japanese, Simplified Chinese and German:
@@ -459,7 +459,7 @@ is read-only: it shows the exact text the watcher would send for one kind of int
 current language and style or under ones named for the preview alone, and it saves nothing and sends
 nothing. Codex can change the interface language, the continuation language, the message style,
 including switching it to Custom, and the theme, but it cannot write a Custom message: that text is sent into your
-conversations automatically, so it is written only in the Windows Dashboard, under Settings >
+conversations automatically, so it is written only in the Dashboard, under Settings >
 Continuation message.
 
 Nothing that turns automation down is marked as needing your confirmation: pausing recovery, turning
@@ -613,7 +613,7 @@ own usage-limit notice; the watcher, however, is running. See [docs/PLUGIN.md](h
 why the notice itself cannot get a checkbox.
 
 A related choice is offered in two more places, each bound to the exact interruption and
-conversation it is shown beside: a switch on each task in the notification-area popup, and the
+conversation it is shown beside: an **Auto-resume** switch on each task in the notification-area popup, and the
 **Auto-resume** column on the Dashboard's Pending page. Rather than cancelling one interruption,
 that switch turns automatic recovery off for the task's conversation until it is switched
 back on. A click that reaches a task which has since finished, disappeared or turned out to belong
@@ -647,7 +647,7 @@ says and what the record holds can never disagree. An uncertain submission is re
 uncertain rather than as a failure that will be retried, because it is the one outcome that is
 deliberately never resent.
 
-Turn any of them off in the settings window, or from Codex, or with `update_settings`. Doing so
+Turn any of them off in the Dashboard, or from Codex, or with `update_settings`. Doing so
 changes nothing about whether a task is recovered.
 
 ## Settings

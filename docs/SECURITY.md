@@ -238,7 +238,7 @@ this product's plugin and marketplace).
 - **The Custom message is written in the Dashboard, and nowhere else.** New in v0.6.3. It is
   the one piece of text a person writes that this product then sends by itself, into that
   person's conversations, at every interruption it covers, while nobody is watching. So it is
-  written only through the local control layer the Windows Dashboard uses, and never through
+  written only through the local control layer the Dashboard uses, and never through
   the plugin's MCP tools: `update_settings` leaves the text fields out of its schema and
   refuses them by name when a client sends them anyway. A prompt-injected model that could
   write it would turn one injected instruction into a standing one, delivered at every future
