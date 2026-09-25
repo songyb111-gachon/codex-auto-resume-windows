@@ -1332,6 +1332,11 @@ function renderCompatibility(status) {
     if (shown.indexOf(state) >= 0) legend.appendChild(element('p', 'help', t('compat.meaning.' + state, state)));
   });
   if (legend.children.length) body.appendChild(legend);
+  // What others report of this Codex version (v0.6.10) is the Dashboard's to show, beside the version: this page is
+  // handed codes only - no version string, and no count of anyone's reports - so it says where to look instead, by
+  // the name the row has there (compat.reported, which each language's sentence carries word for word).
+  body.appendChild(element('p', 'help compat-reported', t('panel.compat_reported',
+    "What other people report about this Codex version is shown under Reported by others, beside the version on the Dashboard's Diagnostics page. It changes nothing here.")));
   body.appendChild(element('p', 'help compat-refresh', t('panel.compat_refresh',
     "This data changes only when you ask: with Refresh compatibility data on the Dashboard's Diagnostics page, or with Check for updates.")));
   return fold.node;

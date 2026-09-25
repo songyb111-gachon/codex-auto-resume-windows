@@ -288,7 +288,11 @@ function Look($window) {
               left = @(Get-Rows (Get-Field $window 'compatLeft')); right = @(Get-Rows (Get-Field $window 'compatRight'))
               listsShown = (Test-Own (Get-Field $window 'compatLists'))
               note = [string](Get-Field $window 'compatNote').Text; button = [string](Get-Field $window 'compatButton').Text
-              enabled = [bool](Get-Field $window 'compatButton').Enabled }
+              enabled = [bool](Get-Field $window 'compatButton').Enabled
+              reported = [string](Get-Field $window 'compatReported').Text
+              reportedInk = [int](Get-Field $window 'compatReported').ForeColor.ToArgb()
+              reportedType = [string](Get-Field $window 'compatReported').GetType().Name
+              engineType = [string](Get-Field $window 'compatEngine').GetType().Name }
 }
 $english = Read-Json 'strings-en.json'
 $out.cards = @{}
@@ -396,11 +400,28 @@ try {
     }
 } catch { $out.stands = 'failed: ' + $_.Exception.ToString() }
 
+# What others report, beside the version (v0.6.10): each state a view's `reported` can be in, on a window of its own
+# so the live check's stories above see the reads they always saw. And the colours it must and must not be drawn in.
+$reportedWindow = New-Window $english
+Invoke-Window $reportedWindow 'ShowPage' @('diagnostics') | Out-Null
+foreach ($name in @('ok', 'reported', 'reported_both', 'reported_rejected', 'reported_unusable', 'reported_unknown', 'reported_missing')) {
+    Invoke-Window $reportedWindow 'ApplyCompatibility' @((Read-Json ($name + '.json')), $false) | Out-Null
+    $out.cards['r_' + $name] = Look $reportedWindow
+}
+$palette = $assembly.GetType('CodexAutoResume.Palette', $true)
+$out.palette = @{}
+foreach ($name in @('Secondary', 'Ink', 'Success', 'Danger', 'Attention', 'Warning', 'Accent')) {
+    $out.palette[$name] = [int]$palette.GetField($name, $static).GetValue($null).ToArgb()
+}
+$reportedWindow.Dispose()
+
 # In Korean.
 $korean = New-Window (Read-Json 'strings-ko.json')
 Invoke-Window $korean 'ShowPage' @('diagnostics') | Out-Null
 Invoke-Window $korean 'ApplyCompatibility' @((Read-Json 'rich.json'), $false) | Out-Null
 $out.cards.korean = Look $korean
+Invoke-Window $korean 'ApplyCompatibility' @((Read-Json 'reported_both.json'), $false) | Out-Null
+$out.cards.koreanReported = Look $korean
 $korean.Dispose()
 
 [IO.File]::WriteAllText((Join-Path $work 'result.json'), ($out | ConvertTo-Json -Depth 6 -Compress), $utf8)
@@ -455,6 +476,18 @@ class CardTests(unittest.TestCase):
         views["stale4700"] = compat.unusable_view("stale", data=data, checked_at=now - 4700, engine=engine)
         views["live700"] = dict(views["live"], checked_at=now - 700)
         views["live4600"] = dict(views["live"], checked_at=now - 4600)
+        # What others report (v0.6.10), in each state the view's `reported` can be in; the bridge's own views say
+        # none_yet, from the frozen counts (views()). A view that cannot be used, or one naming a word Reported does
+        # not have, is shown as "-" whatever counts it carries; one from before v0.6.10 carries no `reported` at all.
+        def reported(view, state, **counts):
+            block = dict({"state": state, "reports": 0, "worked": 0, "failed": 0, "neither": 0, "both": 0}, **counts)
+            return dict(json.loads(json.dumps(view)), reported=block)
+        views["reported"] = reported(ok, "reported", reports=5, worked=3, failed=1, neither=1)
+        views["reported_both"] = reported(ok, "reported", reports=4, worked=3, failed=2, both=1)
+        views["reported_rejected"] = reported(ok, "rejected")
+        views["reported_unusable"] = reported(views["changed800"], "reported", reports=9, worked=9)
+        views["reported_unknown"] = reported(ok, "VERIFIED", reports=9, worked=9)
+        views["reported_missing"] = {key: value for key, value in json.loads(json.dumps(ok)).items() if key != "reported"}
         cls.views_ = views
         for name, view in views.items():
             (work / (name + ".json")).write_text(json.dumps(view), encoding="utf-8")
@@ -524,7 +557,14 @@ class CardTests(unittest.TestCase):
         """The views the bridge's `compatibility` command gives for the registry's hermetic fixture: before the
         watcher wrote a report, and after."""
         from test_compat_characterization import FakeCodex, Fixture
+        from codex_auto_resume.compat import reported
+        import frozen_registry
         case = unittest.TestCase()
+        # What others report is read from the frozen counts, which name no report of this fixture's Codex: the card
+        # says "none yet" whatever reports are filed later (tests/frozen_registry.py).
+        guard = patch.object(reported, "BUNDLED", frozen_registry.REPORTED)
+        guard.start()
+        case.addCleanup(guard.stop)
         try:
             fixture = Fixture(case, codex=FakeCodex(version="codex-cli 0.155.0"))
             ctl = control.Control(fixture.paths)
@@ -772,6 +812,83 @@ class CardTests(unittest.TestCase):
         self.assertIn(korean["compat.meaning.VERIFIED"], card["legend"].splitlines())
         self.assertEqual(card["data"], korean["compat.source_sequence"].replace("{source}", korean["compat.source.cache"])
                          .replace("{sequence}", "12"))
+
+    # ------------------------------------------------------------------ what others report (v0.6.10)
+    def test_what_others_report_is_said_beside_the_version_in_each_state(self):
+        """R10: the counts, words first so no language needs a plural; "counted in both" only when some report saw
+        both; "none yet"; the counts unreadable; and "-" - as the version itself is - for a view that cannot be used,
+        for a word Reported does not have, for a view from before it existed, and before anything was read."""
+        counts = ENGLISH["compat.reported.counts"]
+        self.assertEqual(self.card("r_reported")["reported"],
+                         counts.replace("{worked}", "3").replace("{failed}", "1").replace("{neither}", "1"))
+        self.assertEqual(self.card("r_reported")["reported"], "worked 3 · failed 1 · neither 1")
+        self.assertEqual(self.card("r_reported_both")["reported"],
+                         counts.replace("{worked}", "3").replace("{failed}", "2").replace("{neither}", "0")
+                         + " · " + ENGLISH["compat.reported.both"].replace("{both}", "1"))
+        self.assertEqual(self.card("r_ok")["reported"], ENGLISH["compat.reported.none_yet"],
+                         "the bridge's own view, from the frozen counts")
+        self.assertEqual(self.card("ok")["reported"], ENGLISH["compat.reported.none_yet"])
+        self.assertEqual(self.card("r_reported_rejected")["reported"], ENGLISH["compat.reported.rejected"])
+        for name in ("r_reported_unusable", "r_reported_unknown", "r_reported_missing", "unread", "unreadable", "absent",
+                     "engine_changed"):
+            with self.subTest(name):
+                self.assertEqual(self.card(name)["reported"], "-")
+        self.assertEqual(self.card("r_reported_unusable")["engine"], "-", "the version is not vouched for either")
+        korean = l10n.catalog("ko")
+        self.assertEqual(self.card("koreanReported")["reported"],
+                         korean["compat.reported.counts"].replace("{worked}", "3").replace("{failed}", "2")
+                         .replace("{neither}", "0") + " · " + korean["compat.reported.both"].replace("{both}", "1"))
+
+    def test_what_others_report_is_one_muted_line_and_never_a_state(self):
+        """F13 and R10: one line in the secondary text colour, as the fact names are - never the success or the danger
+        colour, never a chip, never a row among the parts - and never counted among the states the card shows."""
+        palette = self.answer["palette"]
+        self.assertNotIn(palette["Secondary"], (palette["Success"], palette["Danger"]))
+        for name in ("r_ok", "r_reported", "r_reported_both", "r_reported_rejected", "r_reported_unusable", "ok", "rich"):
+            card = self.card(name)
+            with self.subTest(name):
+                self.assertEqual(card["reportedInk"], palette["Secondary"])
+                self.assertNotIn(card["reportedInk"], (palette["Success"], palette["Danger"], palette["Attention"],
+                                                       palette["Warning"], palette["Accent"]))
+                self.assertEqual(card["reportedType"], card["engineType"], "a fact's plain label, as the version's is")
+        reported, ok = self.card("r_reported"), self.card("r_ok")
+        self.assertEqual((reported["left"], reported["right"]), (ok["left"], ok["right"]),
+                         "the parts are the same rows with the same tones, whatever others report")
+        self.assertEqual(reported["overall"], ok["overall"])
+        self.assertEqual(reported["notice"], ok["notice"])
+
+    def test_the_legend_says_what_the_line_means_after_the_ladders_words_only_while_it_shows_counts(self):
+        meaning = ENGLISH["compat.reported.meaning"]
+        ok = self.card("r_ok")["legend"].splitlines()
+        self.assertNotIn(meaning, ok)
+        for name in ("r_reported", "r_reported_both"):
+            with self.subTest(name):
+                self.assertEqual(self.card(name)["legend"].splitlines(), ok + [meaning], "last, after the ladder's")
+        for name in ("r_reported_rejected", "r_reported_unknown", "r_reported_missing"):
+            with self.subTest(name):
+                self.assertEqual(self.card(name)["legend"].splitlines(), ok)
+        self.assertFalse(self.card("r_reported_unusable")["legendShown"], "a view that cannot be used explains nothing")
+
+    def test_reported_is_never_a_word_of_the_ladder_in_the_source(self):
+        """By construction as well: Reported is not one of CompatStates, never passes through CompatState, and the
+        line it is drawn as is built from its own words and digits, with no tone."""
+        section = self.dashboard_source()
+        states = re.search(r"CompatStates =\s*\{([^}]*)\}", section).group(1)
+        self.assertNotIn("REPORTED", states)
+        self.assertNotIn('CompatState(Str(reported', section)
+        self.assertNotIn('"REPORTED"', section)
+        line = method(section, "internal string ReportedLine(")
+        for tone in ("PASS", "BLOCK", "UNKNOWN", "Success", "Danger", "Attention", "Warning", "chip", "Chip"):
+            self.assertNotIn(tone, line)
+        build = method(section, "private TableLayoutPanel BuildCompatibility()")
+        self.assertIn('compatReported = Fact(facts, S("compat.reported", "Reported by others"));', build)
+        self.assertIn("compatReported.ForeColor = Secondary;", build)
+        self.assertLess(build.index("compatEngine = Fact("), build.index("compatReported = Fact("))
+        self.assertLess(build.index("compatReported = Fact("), build.index("compatChecked = Fact("))
+
+    @staticmethod
+    def dashboard_source():
+        return guiscan.dashboard()
 
 
 if __name__ == "__main__":

@@ -59,6 +59,8 @@ function look() {
           legend: card.all(function (n) { return n.parentNode && n.parentNode.classList.contains('compat-legend'); })
                       .map(function (n) { return n.textContent; }),
           hint: card.all(function (n) { return n.classList.contains('compat-refresh'); }).map(function (n) { return n.textContent; }),
+          pointer: card.all(function (n) { return n.classList.contains('compat-reported'); })
+                       .map(function (n) { return [n.tagName, n.className, n.textContent]; }),
           buttons: card.all(function (n) { return n.tagName === 'button' || n.tagName === 'input'; }).length,
           place: ROOT_NODE.children[0].children.map(function (n) { return n.className; })};
 }
@@ -223,6 +225,19 @@ class CardTests(unittest.TestCase):
         self.assertEqual(seen["buttons"], 0)
         self.assertEqual(seen["hint"], [ENGLISH["panel.compat_refresh"]])
 
+    def test_it_says_where_what_others_report_is_shown_and_shows_none_of_it(self):
+        """v0.6.10: the summary a model reads carries no count of anyone's reports and no version, so the card
+        points to the Dashboard's row by its name - one muted help line, never a chip or a callout - in every
+        state the card can be in, and in the language the panel speaks."""
+        for view in (summary(), summary(status="stale"), summary(overall="incompatible", queue_withdraw="INCOMPATIBLE")):
+            seen = page(with_compat(view))
+            with self.subTest(view["status"], overall=view["overall"]):
+                self.assertEqual(seen["pointer"], [["p", "help compat-reported", ENGLISH["panel.compat_reported"]]])
+                self.assertNotIn(ENGLISH["panel.compat_reported"], seen["legend"] + seen["callout"])
+        korean = l10n.catalog("ko")
+        seen = page(with_compat(summary(), interface_language="ko"), locale="ko")
+        self.assertEqual([text for _tag, _class, text in seen["pointer"]], [korean["panel.compat_reported"]])
+
     def test_it_stays_open_across_a_redraw_once_opened(self):
         body = ("compatCard().open = true; compatCard().fire('toggle'); render();")
         self.assertIs(page(with_compat(summary()), body=body)["open"], True)
@@ -308,6 +323,23 @@ class NoRefreshTests(unittest.TestCase):
         self.assertIn("status.watcher.compatibility", card)
         self.assertIn("folding('compat'", card)
 
+    def test_the_card_never_reads_a_count_of_reports(self):
+        """v0.6.10: what others report never reaches the panel (compat.mcp_view leaves it out), and the card does
+        not look for it either - it points to the Dashboard instead."""
+        card = mcpui._SCRIPT[mcpui._SCRIPT.index("function renderCompatibility("):]
+        card = card[:card.index("\nfunction ", 1)]
+        self.assertIsNone(re.search(r"\bview\s*(?:\.\s*reported\b|\[\s*['\"]reported)", card))
+        self.assertIsNone(re.search(r"\.\s*(?:worked|failed|neither|both)\b(?!\s*=)", card))
+        self.assertIn("t('panel.compat_reported'", card)
+
+    def test_the_pointer_names_the_row_in_the_words_the_dashboard_uses(self):
+        """One wording (F13): the sentence carries the row's own label, compat.reported, word for word in every
+        language, so a person looking for it on the Dashboard finds the name they were given."""
+        for locale in l10n.LOCALES:
+            words = l10n._read(locale)
+            with self.subTest(locale):
+                self.assertIn(words["compat.reported"], words["panel.compat_reported"])
+
 
 class StyleTests(unittest.TestCase):
     def test_its_rows_are_the_settings_rows_in_one_column(self):
@@ -316,6 +348,7 @@ class StyleTests(unittest.TestCase):
                          "at the panel's width two columns wrapped most names onto a second line")
         self.assertEqual(declared(".compat-state", "flex"), "none", "a state is never cut to make room")
         self.assertEqual(declared(".compat-refresh", "margin-top"), "var(--space-m)")
+        self.assertEqual(declared(".compat-reported", "margin-top"), "var(--space-m)")
         self.assertIn("var(--space-", declared(".fold-end", "gap"))
         script = mcpui._SCRIPT
         self.assertIn("element('ul', 'toggles compat-rows')", script, "the switches' columns and hairlines")
@@ -324,7 +357,7 @@ class StyleTests(unittest.TestCase):
     def test_every_word_it_can_show_ships_in_every_language(self):
         names, prefixes = mcpui.panel_keys()
         wanted = ["compat.title", "compat.checked", "compat.data", "compat.status.invalid", "panel.compat_refresh",
-                  "panel.compat_acting_differs", "compat.source_sequence"]
+                  "panel.compat_acting_differs", "compat.source_sequence", "panel.compat_reported"]
         wanted += ["compat.cache." + state for state in compat.CACHE_STATES if state not in ("absent", "ok")]
         wanted += ["compat.state." + state for state in compat.STATES]
         wanted += ["compat.meaning." + state for state in compat.STATES]

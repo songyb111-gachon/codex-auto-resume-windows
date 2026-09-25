@@ -431,6 +431,8 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
 .compat-state { flex: none; }
 .compat-legend { display: grid; gap: var(--space-xs); margin-top: var(--space-m); }
 .compat .callout { margin: var(--space-m) 0 0; }
+/* Where what others report is shown (v0.6.10): muted help text like the refresh's, never a chip. */
+.compat-reported { margin-top: var(--space-m); }
 .compat-refresh { margin-top: var(--space-m); }
 
 /* What is waiting, as soft rows rather than a table. Wide content wraps inside its row;

@@ -240,7 +240,9 @@ class Server:
         closed sets - what the window's Diagnostics card shows, so the settings panel's card can
         say the same. No version string, no path and no free text - this reply is part of what
         Codex sends on - and there is deliberately no tool that refreshes or imports registry
-        data, so nothing a model reads can make this machine talk to GitHub.
+        data, so nothing a model reads can make this machine talk to GitHub. Nor what others
+        report of the version (v0.6.10): that is for a person, beside the version on the
+        Dashboard, and `compat.mcp_view` leaves it out.
         """
         status = self.control.get_status()
         try:

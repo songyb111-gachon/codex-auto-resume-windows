@@ -1,0 +1,21 @@
+{
+  "_comment": [
+    "A stand-in for data/reported.json, which tests of behaviour and the documentation's",
+    "pictures read instead of the live file (tests/frozen_registry.py). The live file changes",
+    "whenever a report is filed; a picture or a golden must not go stale because of that.",
+    "Sample counts for the one Codex version the pictures describe (build/make_screenshots.py,",
+    "CODEX_VERSION), so the Diagnostics card is photographed with its Reported row filled in.",
+    "Nobody filed these: they show what the row looks like, not what anyone reported."
+  ],
+  "format": "codex-auto-resume-reported/1",
+  "versions": [
+    {
+      "version": "codex-cli 0.153.4",
+      "reports": 5,
+      "worked": 3,
+      "failed": 1,
+      "neither": 1,
+      "both": 0
+    }
+  ]
+}
