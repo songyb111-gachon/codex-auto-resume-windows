@@ -657,6 +657,17 @@ class CacheOrigin(StrEnum):
     FILE = "file"
 
 
+class ReportedState(StrEnum):
+    """What other people's filed reports say of one Codex version (compat.reported.STATES).
+
+    Reported is a grade beside the ladder of CompatState and never on it: nothing that decides
+    reads it, and no member here is a state a capability can have."""
+    REPORTED = "reported"                    # at least one filed report names this version
+    NONE_YET = "none_yet"                    # the counts are readable and name it nowhere
+    UNAVAILABLE = "unavailable"              # no counts to read, or no version to look up
+    REJECTED = "rejected"                    # the counts file failed its own validation
+
+
 class RefreshAnswer(StrEnum):
     """What a request to refresh the registry data came to (compatio.REFRESH_ANSWERS)."""
     REFRESHED = "refreshed"
