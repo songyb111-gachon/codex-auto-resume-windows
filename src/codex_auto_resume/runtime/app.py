@@ -4,6 +4,9 @@ The log, the settings, the state, the Codex reader, the Windows backend, the eng
 and the notifications are all opened here and only here, so a caller is handed what it uses
 instead of reaching for it. What the watcher then does with them is `runtime/loop.py`, mixed
 into this class.
+
+So is the edition's plug: looked for once, and handed to the engine, the icon's control layer
+and a card's button alike, so everything one watcher does is asked of the same plug.
 """
 from __future__ import annotations
 
@@ -15,8 +18,9 @@ import time
 import traceback
 import uuid
 
-from .. import compatio, config, l10n, notifier, settings as policy
+from .. import compatio, config, edition, l10n, notifier, settings as policy
 from ..codex import LocalSource
+from ..domain.plug import DEFER, EXTRA, Surface, guard
 from ..engine import Engine
 from ..logbook import LOGGER_NAME, EngineLog, setup_logging
 from ..openstate import open_state
@@ -80,6 +84,15 @@ class App(WatchLoop):
         self._engine_state = None
         self._settings_stamp_seen = self._settings_stamp()
         self._home_lock = None
+        self._plug = None
+
+    @property
+    def plug(self):
+        """This process's plug, as core holds one (domain/plug.py): the edition's, looked for the
+        first time it is needed and the same object for the rest of the process's life."""
+        if getattr(self, "_plug", None) is None:
+            self._plug = guard(edition.plug(self.paths))
+        return self._plug
 
     # ------------------------------------------------------------ components
     def open_store(self, *, check: bool = False) -> Store:
@@ -161,7 +174,7 @@ class App(WatchLoop):
                   "home_lock": lambda: self._home_lock is not None and self._home_lock.held}
         if dispatch_lock is not None:
             kwargs["dispatch_lock"] = dispatch_lock
-        engine = Engine(store, source, self.backend(), **kwargs)
+        engine = Engine(store, source, self.backend(), plug=self.plug, **kwargs)
         engine.apply_policy(self.settings)
         return engine
 
@@ -244,7 +257,7 @@ class App(WatchLoop):
         """
         from ..ui import tray
         from ..control import Control
-        return notifier.activate(uri, control=Control(self.paths),
+        return notifier.activate(uri, control=Control(self.paths, plug=self.plug),
                                  open_dashboard=lambda page: tray.open_dashboard(self.paths.home, page),
                                  announce=lambda notice: notifier.deliver(
                                      notice, inbox=self._inbox,
@@ -299,7 +312,7 @@ class App(WatchLoop):
         home = self.paths.home
 
         def toggle(paused):
-            Control(self.paths).set_enabled(bool(paused))
+            Control(self.paths, plug=self.plug).set_enabled(bool(paused))
 
         icon = home / "codex-auto-resume.ico"
         if not icon.is_file():
@@ -318,7 +331,7 @@ class App(WatchLoop):
                               on_open=lambda: tray.open_dashboard(home), on_toggle=toggle,
                               on_pending=lambda: tray.open_dashboard(home, "pending"),
                               on_stop=lambda: StopEvent(str(self.paths.state_dir)).signal(),
-                              control=Control(self.paths), pending_source=names,
+                              control=Control(self.paths, plug=self.plug), pending_source=names,
                               on_dashboard=lambda: tray.open_dashboard(home, "pending"),
                               log=self.logger.info, inbox=self._inbox,
                               on_notice_action=self._notice_action,
@@ -331,6 +344,12 @@ class App(WatchLoop):
     def _update_tray(self, icon_tray, store):
         from ..ui import tray
         try:
-            icon_tray.update(tray.snapshot_from(store, time.time()))
+            snapshot = tray.snapshot_from(store, time.time())
+            # P10: what the edition's plug adds to what the icon draws from, under its one key.
+            # The icon draws nothing from it yet; the standard edition adds nothing at all.
+            added = self.plug.surface(Surface.TRAY, dict(snapshot))
+            if added is not DEFER:
+                snapshot[EXTRA] = added
+            icon_tray.update(snapshot)
         except Exception:
             pass

@@ -33,6 +33,9 @@ METHODS = {
     "observe_all", "observe_projections", "presend_problem", "projection_fresh", "recovers",
     "settle", "supersede_reason", "tick", "transition", "usage", "valid_interruption",
     "waiting_state", "watch", "watch_needed", "watch_record", "withdraw", "withdraw_reason",
+    # v0.6.11: the edition's plug asked at a gate core has passed (P3, P7), and for the words
+    # before the claim (P4).
+    "_held", "_plugged", "_plugged_text",
 }
 
 # What `from codex_auto_resume.engine import ...` has to keep answering (app.py, the tests).

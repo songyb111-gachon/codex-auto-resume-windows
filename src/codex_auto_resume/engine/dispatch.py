@@ -3,10 +3,17 @@
 `attempt` gathers the facts and evaluates the gates, `dispatch` claims the right to send and
 starts the queue process, and `presend_problem` is the look taken after the claim and before
 the process - the only moment where giving the claim back is still provably safe.
+
+The edition's plug is asked here at five points, every one of them after the consent gate: the
+schedule (P7) and the gates (P3) once core's own evaluation has passed, where the one thing it
+can answer yet is HOLD; the words (P4) and what the send is handed to (P5) before the claim;
+and its ledger (P11) inside the claim. Whatever it answers, the send is still this module's
+one call, made after the one claim, the pre-send look and inside the launch guard.
 """
 from __future__ import annotations
 
 from .. import continuation as _message, failures, l10n, machine
+from ..domain.plug import DEFER, Alternative
 from ..machine import OBSERVING, TERMINAL, WAITING, WATCHED
 from .options import backoff_delay
 from .reconcile import UNSENT
@@ -35,6 +42,9 @@ class DispatchMixin:
                 self._wait(row, "waiting_reset", "waiting_reset",
                            row["reset_at"] + self.options["reset_grace_seconds"] - now, vector)
             return
+        # P7: due by core's schedule, and the plug may say not yet.
+        if self._held("schedule", row, vector, self.plug.schedule(row, machine.eligible_at(row))):
+            return
         if row["state"] in ("waiting_reset", "waiting_poll"):
             self.log(row["thread_id"], "checking_eligibility", None)
         compatibility = self.engine_state()
@@ -54,6 +64,8 @@ class DispatchMixin:
             return
         if vector["submission_safe"][0] != machine.PASS:
             self._wait(row, "waiting_retry", "other_recovery_in_flight", poll, vector)
+            return
+        if self._plugged("submission_safe", row, vector):
             return
         if not self.valid_interruption(row):
             self.transition(row, *self.supersede_reason(row))
@@ -83,6 +95,11 @@ class DispatchMixin:
                 self.store.record_gates(row["interruption_id"], vector, now)
                 self._stop_for_budget(row, name, vector[name][1])
                 return
+        # The attempt budget is put to the plug with the pacing below, which is recorded under
+        # the same gate, so the plug hears each gate once.
+        for name in ("chain_budget", "no_progress_budget"):
+            if self._plugged(name, row, vector):
+                return
         app = self.backend.app_identity()
         if not app:
             vector["thread_available"] = machine.gate(machine.WAIT, "desktop_app_unavailable")
@@ -96,6 +113,8 @@ class DispatchMixin:
             self._wait(row, "waiting_for_loaded_thread", reason, poll, vector)
             return
         vector["thread_available"] = machine.gate(machine.PASS)
+        if self._plugged("thread_available", row, vector):
+            return
         if row["state"] != "waiting_for_usage":
             self.log(row["thread_id"], "loaded", None)
         if self.source.foreign_queued(row["thread_id"], row["marker"]):
@@ -118,6 +137,8 @@ class DispatchMixin:
             vector["attempt_budget"] = machine.gate(machine.WAIT, "thread_submission_cooldown")
             self._wait(row, "waiting_retry", "thread_submission_cooldown", cooldown, vector)
             return
+        if self._plugged("attempt_budget", row, vector):
+            return
         usage = self.usage()
         if usage.get("available") is not True:
             vector["usage"] = machine.gate(
@@ -127,10 +148,52 @@ class DispatchMixin:
             self._usage_wait(row, usage, now)
             return
         vector["usage"] = machine.gate(machine.PASS)
+        if self._plugged("usage", row, vector):
+            return
         self.dispatch(row, app, vector, limits)
 
+    def _plugged(self, name, row, vector) -> bool:
+        """P3: gate `name`, which core has just passed, put to the plug. True if it held."""
+        return self._held(name, row, vector, self.plug.gate(name, row, dict(vector)))
+
+    def _held(self, name, row, vector, answer) -> bool:
+        """Whether the plug's answer at gate `name` holds this record, which core would let go.
+
+        HOLD is the one answer a plug can give at a gate yet, and it only restricts: the gate
+        is recorded as waiting, and the record keeps its state and its reason for one more
+        poll, as on any wait of core's own. Every other answer lets core go on as it would
+        have with no plug at all."""
+        if answer is not Alternative.HOLD:
+            return False
+        vector[name] = machine.gate(machine.WAIT, machine.HELD)
+        self._wait(row, row["state"], row.get("last_error"), self.options["state_poll_seconds"],
+                   vector)
+        return True
+
+    def _plugged_text(self, row, message, limits) -> str:
+        """P4: the plug's words for this continuation, or core's own `message`.
+
+        Taken only as a person's Custom message is: they pass the same validator and are filled
+        in the same way, for the same record, so they can say nothing a person could not have
+        written in the Dashboard. Words that fail the validator, or fill in to nothing, are not
+        sent, and core's are - the person's own style, not the Standard text a Custom message
+        falls back to."""
+        words = self.plug.text(row, message)
+        if words is DEFER:
+            return message
+        try:
+            _message.validate_custom(words)
+            values = dict(self.policy_values, continuation_style="custom",
+                          custom_message_mode="global", custom_message=words)
+            if _message.source_for(row["category"], values, row=row, limits=limits) != "global":
+                return message
+            return _message.for_settings(row["category"], values, row=row, limits=limits)
+        except Exception:
+            return message
+
     def dispatch(self, row, app, vector, limits):
-        """Claim, re-check, send. The only method that can call `backend.send`."""
+        """Claim, re-check, send. The only method that sends: to core's backend, or to the
+        channel the plug names at P5, and either way through the one call below."""
         key = row["interruption_id"]
         with self.dispatch_lock():
             current = self.store.get(key)
@@ -162,8 +225,14 @@ class DispatchMixin:
             except Exception:
                 self.log(current["thread_id"], "continuation_text_fallback", None)
                 message = _message.build(current["category"], locale=l10n.DEFAULT)
+            message = self._plugged_text(current, message, limits)
+            # P5, decided before the claim like the words: core's own backend, unless the plug
+            # names a channel. The one binding of the one sender; whichever it is gets the one
+            # send below, after the claim and the pre-send look, inside the launch guard.
+            sender = self.plug.sender(current, self.backend)
+            # P11 is asked inside the claim, once every check the store makes there has passed.
             claimed, gate, reason = self.store.reserve_detailed(key, self.clock(), limits=limits,
-                                                                gates=vector)
+                                                                gates=vector, ledger=self.plug)
             if not claimed:
                 self._refused(current, gate, reason)
                 return
@@ -177,9 +246,9 @@ class DispatchMixin:
             self.log(current["thread_id"], "queue_submission_started", None)
             # Reservation is durable before any external process can accept the message.
             try:
-                response = self.backend.send(current["thread_id"],
-                                             message + "\n\n" + current["marker"],
-                                             launch_guard=self.store.submission_guard(key))
+                response = sender.send(current["thread_id"],
+                                       message + "\n\n" + current["marker"],
+                                       launch_guard=self.store.submission_guard(key))
             except Exception:
                 response = {"outcome": "unknown"}
             if not isinstance(response, dict):
@@ -230,6 +299,11 @@ class DispatchMixin:
                             delay=max(30, row["reset_at"] + self.options["reset_grace_seconds"] - self.clock()))
         elif gate == "submission_safe" and reason == "other_recovery_in_flight":
             self.transition(row, "waiting_retry", "other_recovery_in_flight",
+                            delay=self.options["state_poll_seconds"])
+        elif gate == "submission_safe" and reason == machine.HELD:
+            # The plug's ledger held the claim (P11): the record keeps its state and its reason
+            # for one more poll, as a gate the plug holds does.
+            self.transition(row, row["state"], row.get("last_error"),
                             delay=self.options["state_poll_seconds"])
 
     def presend_problem(self, claim):

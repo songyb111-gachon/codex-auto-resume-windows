@@ -11,6 +11,7 @@ from pathlib import Path
 import time
 
 from .. import config, machine, startup
+from ..domain.plug import DEFER, EXTRA, Surface
 from ..store import TERMINAL, LegacyStore, Store, StoreError
 from ..windows import AdapterError, Mutex, StopEvent
 from .errors import ControlError
@@ -305,7 +306,7 @@ class WatcherMixin:
                 marks = store.failure_marks()
             else:
                 pending = sum(count for state, count in counts.items() if state not in TERMINAL)
-        return {
+        status = {
             "version": _version(),
             "enabled": bool(stored["enabled"]),
             "watcher_running": watcher["running"],
@@ -319,3 +320,9 @@ class WatcherMixin:
             "failure_unseen": self.failure_unseen(marks),
             "settings": values,
         }
+        # P10: what the edition's plug shows beside this, under its one key - on the Dashboard,
+        # the panel and get_status alike. The standard edition adds nothing.
+        added = self.plug.surface(Surface.STATUS, dict(status))
+        if added is not DEFER:
+            status[EXTRA] = added
+        return status

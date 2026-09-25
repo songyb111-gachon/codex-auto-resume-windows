@@ -67,12 +67,14 @@ LISTS = {
     "machine.OVERLAYS": ("tuple", 7, "ec4b756213ffdd1a"),
     "machine.GATE_RESULTS": ("set", 4, "9a50f41ff116a706"),
     "machine.GATES": ("tuple", 13, "547089c399324718"),
-    "machine.GATE_REASONS": ("set", 75, "bb52a0048f24986e"),
+    # v0.6.11: `held`, a gate core passed and the edition's plug held (domain/plug.py, HOLD).
+    "machine.GATE_REASONS": ("set", 76, "ba3953d7dffacbdc"),
     "machine.PASS": "PASS",
     "machine.WAIT": "WAIT",
     "machine.BLOCK": "BLOCK",
     "machine.UNKNOWN": "UNKNOWN",
     "machine.NOT_CHECKED": "not_checked",
+    "machine.HELD": "held",
     "failures.CATEGORIES": ("set", 14, "05e7b8e16f528bde"),
     # v0.6.10: auth_service_transient, which nothing produces, left TRANSIENT for RESERVED.
     "failures.TRANSIENT": ("set", 5, "7c4f1306a8dcfc48"),
@@ -145,6 +147,8 @@ LISTS = {
     "edition.PLUG_FAILURES": ("tuple", 4, "4414d548d1f8f251"),
     "domain.plug.POINTS": ("tuple", 12, "da5e7ad28dca308c"),
     "domain.plug.ANSWERS": ("set", 1, "b4686ae67262ac33"),
+    "domain.plug.SURFACES": ("tuple", 4, "0a94ec20bd90bca3"),
+    "domain.plug.EXTRA": "advanced",
 }
 
 # The words a function hands back: (qualified name, the key of the dict it returns - or None
@@ -301,12 +305,13 @@ HOMES = {
     p.PlugFailure: ("list", "edition.PLUG_FAILURES"),
     p.Point: ("list", "domain.plug.POINTS"),
     p.Alternative: ("list", "domain.plug.ANSWERS"),
+    p.Surface: ("list", "domain.plug.SURFACES"),
 }
 
 
 def enums():
     """Every vocabulary the two modules define: `domain/vocabulary.py`, and `domain/plug.py`,
-    whose four are the plug interface's own and are held to every rule here all the same."""
+    whose five are the plug interface's own and are held to every rule here all the same."""
     return [value for module in (v, p) for value in vars(module).values()
             if inspect.isclass(value) and issubclass(value, StrEnum) and value is not StrEnum
             and value.__module__ == module.__name__]

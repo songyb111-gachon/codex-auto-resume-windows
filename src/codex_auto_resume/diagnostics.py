@@ -14,6 +14,9 @@ the tail of the logs - and it is redacted before it is written:
 The logs never contained prompts, replies or tool output. `errors.log` holds exception
 tracebacks whose messages are not filtered; they are redacted the same way, and the
 bundle says so, so the reader knows to look before sharing.
+
+What the edition's plug adds (P10) is redacted the same way too, word by word. The standard
+edition adds nothing, and its bundle is what it always was.
 """
 from __future__ import annotations
 
@@ -29,6 +32,7 @@ import time
 
 from . import config, interface, logbook, machine, startup
 from .domain import ids
+from .domain.plug import DEFER, EXTRA, Surface
 from .settings import is_custom_text
 
 # A conversation id wherever a line holds one, in either case.
@@ -174,6 +178,17 @@ def _compatibility(control) -> dict:
         return {"status": "invalid", "error": type(exc).__name__}
 
 
+def _redacted(value, redact: Redactor):
+    """A plug's fields with every word in them - keys too - redacted as a log line is."""
+    if isinstance(value, str):
+        return redact.text(value)
+    if isinstance(value, list):
+        return [_redacted(item, redact) for item in value]
+    if isinstance(value, dict):
+        return {redact.text(key): _redacted(item, redact) for key, item in value.items()}
+    return value
+
+
 def collect(control, *, now=None, redact=None) -> dict:
     """The whole bundle, redacted. Works with the watcher stopped and Codex closed."""
     redact = redact or Redactor()
@@ -216,6 +231,9 @@ def collect(control, *, now=None, redact=None) -> dict:
         bundle["state_error"] = redact.text(str(exc))[:200]
     bundle["installation"] = _installation(control)
     bundle["compatibility"] = _compatibility(control)
+    added = control.plug.surface(Surface.DIAGNOSTICS, {})
+    if added is not DEFER:
+        bundle[EXTRA] = _redacted(added, redact)
     logs = control.paths.logs_dir
     bundle["logs"] = {name: _tail(logs / name, redact)
                       for name in ("auto-resume.log", "errors.log", "launcher.log", "codex-start.log")
