@@ -19,6 +19,84 @@
   the Korean said different things; each is fixed in the language that was wrong, and the Korean
   guide now has every section the English one has.
 
+### The design settled
+
+The look was audited as one product, with the Codex panel as the reference, from light and dark
+contact sheets of all four surfaces side by side.
+
+- **One rule for a header's light and word.** The Dashboard, the popup and the panel say what the
+  watcher is doing by one rule, written down as 40 test vectors that each surface's own code is run
+  against. A watcher that is not running, or not known to be, asks for your attention beside a grey
+  light that does not move - the popup used to breathe amber for a stopped watcher - and a record held
+  for a watcher that has stopped counts as one. The notification-area icon and the taskbar button keep
+  their own rule, in which a failure nobody has seen yet is red.
+- **Every light that says the product is running moves.** The panel's Automatic recovery tile carries
+  the state's light at a smaller size, where a dot that never moved used to be, and it breathes with the
+  one above it, on one cycle that a redraw no longer sends back to the top. The panel's light dims
+  toward the ground it stands on, so its glow is no longer a fifth weaker than the Dashboard's halfway
+  down a breath. The panel says *Checking*, with its turning arc, once a waiting task's time comes -
+  for one watcher pass, since it is drawn once and never sees the next one - and then *Waiting* again.
+- **One header.** The Dashboard's, the popup's and the notification card's headers are the panel's:
+  the product's name as a muted line, then the light and the state's word in ink, the largest text on
+  the card, with the facts under it. Every light with words beside it stands as far from its line's
+  start and from its words on every surface. The Dashboard's headline says the panel's and the popup's
+  word - *Waiting* where it said *Watching for interruptions* - and a running watcher that needs you
+  says why.
+- **One button, one chip, one callout.** Buttons are 34 px high and of regular weight on every
+  surface, where the popup's and the card's were 32 px and bold, and chips have one height and one
+  padding. The Diagnostics page's compatibility notices are the panel's callouts, where they were a
+  block of accent-coloured text, and the Statistics chart draws each outcome in the colour History
+  writes that outcome's word in.
+- **One word for each thing.** The window is the Dashboard wherever it is named - the icon's menu
+  says *Open Dashboard*, as the popup and the card do - the popup's switch is *Auto-resume*, as the
+  Pending page's column is, its rows count down to the *Next check*, and the results under *Why it is
+  waiting* are lowercase value words (*passed*, *waiting*, *blocked*, *unknown*), in all nine languages.
+- **The card's light costs less.** It is drawn as the popup draws its own, only the band of rows it
+  stands in, at about twice the frames for between a quarter and a third of the processor time.
+
+### Four designs
+
+- **Design**, under Settings > Appearance in the Dashboard, draws the Dashboard, the popup, the
+  notification card and the panel in Codex one of four ways, each in light or dark as the Theme says:
+  *Soft*, the default and everything above; *Soft, without motion*, the same look held still - what
+  Reduce motion draws, chosen as a look; *Classic (v0.6.2)*, v0.6.2's flat cards with a hairline and a
+  3 px accent bar down their left edge, its colours read from that release's tag, the current tab
+  underlined, and the light breathing with its glow; and *Plain*, flat and neutral grey with the
+  product's accent, whose light dims with no glow. [BRAND.md](BRAND.md#four-designs) sets them out and
+  the [guide](GUIDE.md) shows the popup in each.
+- **A design changes paint, never layout.** Sizes, paddings, the light and the room kept for shadows
+  are the same in all four, and corners are only ever smaller than Soft's; the Dashboard's layout
+  audit finds every control where Soft's is in every design. The Pending and History lists stay flat
+  rows in each.
+- **No design can loosen a stopper.** High Contrast replaces every design, and Reduce motion, Windows'
+  animation setting and every other reason something holds still hold it in every design: a design
+  can take motion away, never add it. The notification-area icon holds still within a second of
+  *Soft, without motion* being saved, as it does for Reduce motion, and the panel now follows the
+  product's own Reduce motion as well as Codex's reduced-motion preference.
+- **Set in the Dashboard only.** Like Reduce motion, the Design decides what moves, so Codex cannot
+  change it: `update_settings` neither offers nor accepts it, and the panel draws in it and never sends
+  it. `restore_default_settings` puts it back to Soft. An upgrade changes nothing anyone can see: a
+  settings file without it reads as Soft. It is in all nine languages; in German it is *Stil*, since
+  *Design* is German's word for the Theme.
+- **On the wire.** Every reply that carries the settings carries `design`, and the wire goldens were
+  regenerated on purpose for it. The tool list did not change.
+
+### The pictures
+
+- **One set of records, one moment.** The panel, the popup, the card and the Dashboard are pictured
+  from one set of records at one set of offsets, so a countdown, a chip and a count say the same on
+  all four; until now the panel's rows both said *due now* and the popup had a row the others did not.
+- **Every light that moves, moving.** A picture's status lights move as the product moves them: the
+  popup and the card frame by frame by their own renderers, and the panel's two lights and the
+  Dashboard's drawn over the capture, each on the ground it stands on, for exactly one cycle - a
+  4.4-second breath takes 4.4 seconds, where it took 4.356. Until now one light a picture moved, and
+  in the panel's pictures not the one that moves in the product.
+- **Each design, pictured.** The Dashboard's Overview, the panel, the popup and the card in Soft,
+  without motion, Classic and Plain, in English and the light theme, beside Soft's own pictures.
+- **Before and after, light and dark.** `build/make_screenshots.py --audit` draws, for developers,
+  light and dark contact sheets of the four surfaces, and a before-and-after sheet of each, without
+  touching anything published.
+
 ### What others report
 
 - **Reported, beside the version.** The Dashboard's Diagnostics page says, in one muted line

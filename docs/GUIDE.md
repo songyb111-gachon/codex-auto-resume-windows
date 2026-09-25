@@ -182,7 +182,8 @@ Inside Codex, ask to *open auto resume settings* and the panel shows what is wai
 you change most of it, in sections for General, Recovery, Notifications, Continuation message
 and Appearance, with a Preview of the exact message the watcher would send and a switch for each
 waiting conversation. It follows Codex's light or dark theme unless you choose one under
-Appearance, and Codex's reduced-motion preference; a language or theme saved there applies at once.
+Appearance, and Codex's reduced-motion preference - and, from v0.6.10, the Reduce motion and the Design
+chosen in the Dashboard, which it draws in but does not offer; a language or theme saved there applies at once.
 A Custom message is shown there but not edited; that happens only in the Dashboard. This is the
 panel's own page, rendered from the exact resource the plugin serves to Codex, rather than a
 photograph of the Codex window around it:
@@ -209,6 +210,25 @@ and in the same place, but never over changes you have not saved. **Reduce motio
 Appearance, stops those animations, and Windows' own animation setting is always honoured; High
 Contrast mode drops the shadows and tints, whatever the theme. It is a native window; there is no
 local web server and nothing opens in a browser.
+
+**Design**, under Appearance from v0.6.10, draws the Dashboard, the popup, the notification card and
+the panel in Codex one of four ways; light or dark is still the Theme's. *Soft*, the default, is
+raised and moves, as described above. *Soft, without motion* looks the same and holds still: what
+Reduce motion draws, chosen as a look. *Classic (v0.6.2)* is flat, as v0.6.2 was - white cards with a
+hairline and a thin accent bar down their left edge, the current tab underlined - and its light
+breathes with its glow. *Plain* is flat and grey, with smaller corners, and its light dims without a
+glow. The words, the layout and the sizes are the same in every design, and the Pending and History
+lists stay plain rows in each. High Contrast replaces every design, and Reduce motion stops the
+motion in each. The Design is set in the Dashboard only: Codex draws the panel in it but cannot
+change it, and restoring the recommended settings puts it back to Soft. The popup in each design, in
+the light theme:
+
+| Soft | Soft, without motion | Classic (v0.6.2) | Plain |
+| --- | --- | --- | --- |
+| <img src="images/tray-popup.png" alt="The popup in the Soft design: raised cards on a blue-grey canvas, a well for the counts, and the cyan status light breathing with a soft glow" width="170"> | <img src="images/design-still-popup.png" alt="The popup in the Soft, without motion design: the same raised cards and well, with the cyan status light lit and still, with no glow" width="170"> | <img src="images/design-classic-popup.png" alt="The popup in the Classic design: flat white cards with a hairline and a thin accent bar down the card's left edge, and the cyan status light breathing with its glow" width="170"> | <img src="images/design-plain-popup.png" alt="The popup in the Plain design: flat white cards in neutral greys with smaller corners, and the cyan status light dimming and brightening with no glow" width="170"> |
+
+The Dashboard's Overview, the panel and the notification card are pictured in each design too
+(`docs/images/design-*.png`).
 
 The window pictures on this page are captured from a scratch installation holding synthetic
 records, in the light theme. They show what the windows look like; they do not show a real
@@ -687,7 +707,7 @@ The Settings page is split into five sections:
 | General | Interface language, starting at Windows sign-in, the notification-area icon, and which notifications appear |
 | Automatic recovery | Which classified kinds of interruption are recovered, one check box each |
 | Continuation message | The language and style of the message sent to Codex, your own Custom message, and a Preview of the exact text |
-| Appearance | The theme - Use system setting, Light or Dark - and Reduce motion |
+| Appearance | The theme - Use system setting, Light or Dark - the panel's Theme in Codex, the Design - Soft, Soft without motion, Classic (v0.6.2) or Plain - and Reduce motion |
 | Advanced | Attempts per interruption, when to give up after recoveries that produce nothing, continuations per task, and retry timing |
 
 Every kind of interruption the watcher recovers has a check box, ticked by default. A sign-in service
