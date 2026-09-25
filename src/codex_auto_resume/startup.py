@@ -28,10 +28,22 @@ def _winreg():
 
 
 def python_launcher() -> Path:
-    """pythonw.exe (no console window) from the interpreter running this code."""
+    """pythonw.exe beside the interpreter running this code - never python.exe.
+
+    What this names is started by Windows itself (the Run value at sign-in, the notification
+    button's protocol handler, the Start Menu entry) or detached, with no console to share.
+    python.exe there is a console program with nothing to hide its console: Windows opens a
+    console window for it, and for the watcher that window stays for the whole session. A Run
+    value cannot carry CREATE_NO_WINDOW. This used to fall back to python.exe without a word
+    when there was no pythonw.exe; it refuses instead, and every caller says so rather than
+    registering or starting a watcher someone would see (tests/test_no_console_windows.py).
+    """
     executable = Path(sys.executable).resolve()
     windowless = executable.with_name("pythonw.exe")
-    return windowless if windowless.is_file() else executable
+    if not windowless.is_file():
+        raise StartupError("no pythonw.exe beside %s: nothing is registered or started with a "
+                           "console interpreter, which would open a window" % executable.name)
+    return windowless
 
 
 def quote_argument(value) -> str:

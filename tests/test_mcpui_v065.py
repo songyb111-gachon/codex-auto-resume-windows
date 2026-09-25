@@ -621,7 +621,7 @@ def transitions():
 
 
 def stopping_rules():
-    """The rules outside an at-rule that stop every transition: each only under a design's or Reduce motion's stamp."""
+    """The rules outside an at-rule that stop every transition: each only under Reduce motion's stamp."""
     return [(selectors, declarations) for where, selectors, declarations in RULES
             if where == "" and declarations.get("transition") == "none !important"]
 
@@ -951,15 +951,16 @@ class MotionStyleTests(unittest.TestCase):
                     self.assertIn(prop, {"transform", "opacity", "visibility", "background-color", "border-color",
                                          "box-shadow", "color"})
 
-    def test_a_rule_that_stops_every_transition_stands_only_under_a_designs_or_reduce_motions_stamp(self):
-        """v0.6.10: outside the reduced-motion and High Contrast blocks, `transition: none` is said only for a
-        design that does not glide and for the product's own Reduce motion - never for the page as a whole."""
+    def test_a_rule_that_stops_every_transition_stands_only_under_reduce_motions_stamp(self):
+        """v0.6.10: outside the reduced-motion and High Contrast blocks, `transition: none` is said only for the
+        product's own Reduce motion - never for the page as a whole, and since v0.6.11 never for a design: v0.6.10's
+        Still, the one that did not glide, is Reduce motion now."""
         found = stopping_rules()
-        self.assertEqual(len(found), 2)
+        self.assertEqual(len(found), 1)
         for selectors, _ in found:
             for selector in selectors:
                 with self.subTest(selector):
-                    self.assertRegex(selector, r'^:root\[data-(design="(still|classic|plain)"|motion="reduced")\] ')
+                    self.assertRegex(selector, r'^:root\[data-motion="reduced"\] ')
 
 
 # ----------------------------------------------------------------------- a switch that asks first

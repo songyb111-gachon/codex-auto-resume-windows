@@ -371,7 +371,7 @@ class PanelThemeTests(unittest.TestCase):
 
 
 class DesignTests(unittest.TestCase):
-    """How every surface is drawn (v0.6.10): Soft, Soft without motion, Classic or Plain.
+    """How every surface is drawn (v0.6.10): Soft, Classic or Plain.
 
     Soft is what every surface drew before the setting existed, so it is the default and a settings
     file without the key reads as Soft: an upgrade changes nothing anybody can see, and the setting
@@ -381,7 +381,7 @@ class DesignTests(unittest.TestCase):
     def test_the_choices_the_default_and_the_vocabulary(self):
         from codex_auto_resume import brand
         from codex_auto_resume.domain.vocabulary import Design
-        self.assertEqual(settings.DESIGNS, ("soft", "still", "classic", "plain"))
+        self.assertEqual(settings.DESIGNS, ("soft", "classic", "plain"))
         self.assertEqual(settings.DESIGNS, tuple(Design))
         self.assertEqual(settings.DESIGNS, brand.DESIGNS)
         self.assertEqual(settings.DEFAULT_DESIGN, brand.DEFAULT_DESIGN)
@@ -408,7 +408,7 @@ class DesignTests(unittest.TestCase):
     def test_it_is_described_in_appearance_after_the_themes(self):
         entry = next(entry for entry in settings.describe() if entry["name"] == "design")
         self.assertEqual(entry, {"name": "design", "default": "soft", "type": "string",
-                                 "choices": ["soft", "still", "classic", "plain"], "group": "appearance"})
+                                 "choices": ["soft", "classic", "plain"], "group": "appearance"})
 
     def test_a_file_without_it_reads_as_soft_and_it_round_trips(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -428,6 +428,125 @@ class DesignTests(unittest.TestCase):
                             encoding="utf-8")
             loaded = settings.load(path)
             self.assertEqual((loaded["design"], loaded["max_no_progress"]), ("soft", 5))
+
+
+def released_settings_module(tag: str, scratch: Path) -> Path:
+    """The package exactly as a tagged release shipped it, extracted under `scratch`; its `src` folder.
+
+    Skipped where the tag is not in the checkout, except on CI, which fetches the tags: there a missing
+    tag is a failure, not a quiet skip (tests/test_control_v3.py, legacy_store_module)."""
+    import io
+    import os
+    import subprocess
+    import tarfile
+    root = Path(__file__).resolve().parents[1]
+    archive = subprocess.run(["git", "-C", str(root), "archive", "--format=tar", tag, "src/codex_auto_resume"],
+                             capture_output=True)
+    if archive.returncode != 0:
+        if os.environ.get("CI"):
+            raise AssertionError("%s is not in this checkout; CI must fetch the tags" % tag)
+        raise unittest.SkipTest("%s is not in this checkout" % tag)
+    with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as tar:
+        tar.extractall(scratch, filter="data")
+    return scratch / "src"
+
+
+class StillFoldTests(unittest.TestCase):
+    """v0.6.10's fourth design, Still, drew exactly what Soft draws under Reduce motion; since v0.6.11 it is Reduce
+    motion. A stored Still reads as Soft with Reduce motion on, so its owner keeps the picture they chose; a
+    request for it is refused, naming the designs there are, and every other refusal keeps v0.6.10's words; and
+    what this version writes, v0.6.10 still reads as that picture.
+    """
+
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.folder = Path(folder.name)
+        self.path = self.folder / "settings.json"
+
+    def write(self, **values):
+        self.path.write_text(json.dumps(dict({"config_version": 2}, **values)), encoding="utf-8")
+
+    def test_a_stored_still_reads_as_soft_with_reduce_motion_on(self):
+        for motion in (False, True, None, "yes"):
+            with self.subTest(reduce_motion=motion):
+                self.write(design="still", reduce_motion=motion, theme="dark", max_no_progress=5)
+                loaded = settings.load(self.path)
+                self.assertEqual((loaded["design"], loaded["reduce_motion"]), ("soft", True))
+                self.assertEqual((loaded["theme"], loaded["max_no_progress"]), ("dark", 5), "its neighbours kept")
+        self.write(design="still")                              # v0.6.10 wrote no Reduce motion beside it
+        self.assertEqual((settings.load(self.path)["design"], settings.load(self.path)["reduce_motion"]),
+                         ("soft", True))
+        self.assertEqual(settings.design_preference({"design": "still"}), "soft")
+        # A file with no version marker (v0.4's flat file, or one written by hand) keeps the picture too.
+        self.path.write_text(json.dumps({"design": "still", "reduce_motion": False, "theme": "dark"}),
+                             encoding="utf-8")
+        loaded = settings.load(self.path)
+        self.assertEqual((loaded["design"], loaded["reduce_motion"], loaded["theme"]), ("soft", True, "dark"))
+
+    def test_the_next_save_writes_the_fold_and_nothing_else_changes(self):
+        self.write(design="still", theme="light", notify_result=False)
+        settings.update(self.path, {"theme": "dark"})
+        stored = json.loads(self.path.read_text(encoding="utf-8"))
+        self.assertEqual((stored["design"], stored["reduce_motion"], stored["theme"], stored["notify_result"]),
+                         ("soft", True, "dark", False))
+        self.assertEqual(stored["config_version"], settings.CONFIG_VERSION)
+        # And Reduce motion is an ordinary setting again from then on: turned off, it stays off.
+        settings.update(self.path, {"reduce_motion": False})
+        self.assertEqual((settings.load(self.path)["design"], settings.load(self.path)["reduce_motion"]),
+                         ("soft", False))
+
+    def test_other_designs_keep_their_reduce_motion(self):
+        for design in settings.DESIGNS:
+            with self.subTest(design):
+                self.write(design=design, reduce_motion=False)
+                self.assertEqual((settings.load(self.path)["design"], settings.load(self.path)["reduce_motion"]),
+                                 (design, False))
+
+    def test_asking_for_still_is_refused_with_the_choices_there_are(self):
+        with self.assertRaises(settings.SettingsError) as caught:
+            settings.validate_update({"design": "still"})
+        self.assertEqual(str(caught.exception), "invalid value for design: expected one of soft, classic, plain")
+        self.write(design="plain")
+        before = self.path.read_bytes()
+        with self.assertRaises(settings.SettingsError):
+            settings.update(self.path, {"design": "still", "theme": "dark"})
+        self.assertEqual(self.path.read_bytes(), before, "a refused write writes nothing")
+        # Only the retired choice names the ones there are: every other refusal says what it said in v0.6.10.
+        for change, said in (({"design": "neon"}, "invalid value for design"),
+                             ({"theme": "sepia"}, "invalid value for theme"),
+                             ({"retry_timing": "soon"}, "invalid value for retry_timing"),
+                             ({"max_no_progress": 99}, "invalid value for max_no_progress")):
+            with self.subTest(change):
+                with self.assertRaises(settings.SettingsError) as caught:
+                    settings.validate_update(change)
+                self.assertEqual(str(caught.exception), said)
+
+    def test_what_this_version_writes_for_a_stored_still_loads_in_v0_6_10_as_that_picture(self):
+        """Going back to v0.6.10 after the fold loses nothing: its own settings.load, from its tag, in a process of
+        its own, reads what this version wrote as Soft with Reduce motion on - the picture Still drew there."""
+        import os
+        import subprocess
+        import sys
+        self.write(design="still", theme="dark")
+        settings.update(self.path, {"max_no_progress": 5})
+        source = released_settings_module("v0.6.10", self.folder / "release")
+        probe = ("import json, sys\n"
+                 "from pathlib import Path\n"
+                 "from codex_auto_resume import settings\n"
+                 "values = settings.load(Path(sys.argv[1]))\n"
+                 "print(json.dumps([values['design'], values['reduce_motion'], values['theme'],"
+                 " values['max_no_progress'], list(settings.DESIGNS)]))\n")
+        home = self.folder / "home"
+        home.mkdir()
+        environment = dict(os.environ, PYTHONPATH=str(source), **{name: str(home) for name in (
+            "USERPROFILE", "HOME", "LOCALAPPDATA", "APPDATA", "CODEX_HOME", "CODEX_AUTO_RESUME_HOME")})
+        done = subprocess.run([sys.executable, "-c", probe, str(self.path)], capture_output=True, text=True,
+                              encoding="utf-8", env=environment, cwd=str(self.folder))
+        self.assertEqual(done.returncode, 0, done.stderr[-2000:])
+        design, motion, theme, limit, known = json.loads(done.stdout)
+        self.assertIn("still", known, "the tag is v0.6.10, which had Still")
+        self.assertEqual((design, motion, theme, limit), ("soft", True, "dark", 5))
 
 
 class NotificationCardTests(unittest.TestCase):

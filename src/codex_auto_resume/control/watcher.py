@@ -215,8 +215,8 @@ class WatcherMixin:
         """Start the watcher the way the installer and sign-in do, and return its Popen.
 
         Raises ControlError `not_installed` when there is nothing to start - with `launcher_only`,
-        when the installation's stable launcher is missing, whatever else is there - and OSError
-        when Windows refuses the process.
+        when the installation's stable launcher is missing, whatever else is there, and when
+        there is no pythonw.exe to run it under - and OSError when Windows refuses the process.
         """
         import subprocess
 
@@ -226,11 +226,18 @@ class WatcherMixin:
         entry = launcher if launcher.is_file() else self.paths.entry_script
         if not Path(entry).is_file():
             raise ControlError("the watcher is not installed here", code="not_installed")
+        # DETACHED_PROCESS below is safe only because this is pythonw.exe, a GUI program: a
+        # detached python.exe would have no console to hand down, and anything it started
+        # plainly would open a window. python_launcher refuses rather than return python.exe.
+        try:
+            interpreter = startup.python_launcher()
+        except startup.StartupError as exc:
+            raise ControlError(str(exc), code="not_installed") from None
         flags = 0
         if os.name == "nt":
             flags = (getattr(subprocess, "DETACHED_PROCESS", 0)
                      | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | extra_flags)
-        arguments = [str(startup.python_launcher()), str(entry)]
+        arguments = [str(interpreter), str(entry)]
         if entry != launcher:
             # The stable launcher already knows its home; the raw entry point does not.
             arguments += ["--home", str(self.paths.home), "--quiet"]

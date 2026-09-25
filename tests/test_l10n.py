@@ -120,7 +120,7 @@ class DesignWordsTests(unittest.TestCase):
                     self.assertTrue(table[key].strip(), key)
                     if locale != l10n.DEFAULT and key != "choice.design.classic":
                         self.assertNotEqual(table[key], english[key], "translated, not copied: " + key)
-                # Four different words, and a name for the setting that neither theme has.
+                # Different words for each, and a name for the setting that neither theme has.
                 self.assertEqual(len(set(labels)), len(labels), labels)
                 self.assertNotIn(table["field.design"], (table["field.theme"], table["field.panel_theme"]))
                 # The help names each choice as the picker spells it, and Reduce motion by its name.
@@ -129,11 +129,16 @@ class DesignWordsTests(unittest.TestCase):
                 # Classic says which release it is.
                 self.assertIn("v0.6.2", table["choice.design.classic"])
 
-    def test_reduce_motion_names_every_surface_it_stops_and_the_design_it_has_nothing_to_stop_in(self):
+    def test_reduce_motion_names_every_surface_it_stops_and_no_design_escapes_it(self):
+        """Since v0.6.11 Reduce motion is the one way to stop motion, in every design: v0.6.10's "Soft, without motion"
+        is gone from every catalog, and neither its help nor the Design's names it or sets a design apart."""
+        from codex_auto_resume import settings
         for locale in l10n.available():
             table = l10n._read(locale)
             with self.subTest(locale):
-                self.assertIn(table["choice.design.still"], table["help.reduce_motion"])
+                self.assertNotIn("choice.design.still", table)
+                for choice in settings.DESIGNS:
+                    self.assertNotIn(table["choice.design." + choice], table["help.reduce_motion"])
                 self.assertIn("Codex", table["help.reduce_motion"])
                 self.assertIn("Windows", table["help.reduce_motion"])
         english = l10n._read(l10n.DEFAULT)["help.reduce_motion"]

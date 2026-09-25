@@ -17,6 +17,7 @@ the gap, so the head is always somewhere the ring is drawn.
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import os
 from pathlib import Path
@@ -27,7 +28,7 @@ import types
 import unittest
 import unittest.mock
 
-from codex_auto_resume import brand, control, tray_place as place
+from codex_auto_resume import brand, control, settings, tray_place as place
 from codex_auto_resume.ui import tray
 from codex_auto_resume.ui import popup
 from codex_auto_resume.ui.tray import animation  # the module the icon's frames are drawn in
@@ -883,11 +884,10 @@ class StoredReduceMotionTests(unittest.TestCase):
 
 
 class StoredDesignTests(StoredReduceMotionTests):
-    """v0.6.10: the Design saved from the window reaches the icon on the same tick as Reduce motion.
-
-    Still's light does not breathe, so storing Still holds the icon within a second, as storing Reduce
-    motion does; Classic and Plain breathe, so the icon keeps moving in them - and Reduce motion holds it
-    in any design. The icon's own pixels are the same in every design. (Every test of Reduce motion above
+    """The Design saved from the window never moves or holds the icon: every design moves it alike, and Reduce
+    motion holds it in each. v0.6.10's Still held it, and was taken up on this tick for that; since v0.6.11 a
+    Still stored by v0.6.10 reads as Reduce motion (settings._migrate), so it holds the icon at the next tick
+    as it always did. The icon's own pixels are the same in every design. (Every test of Reduce motion above
     runs here again, with the design's own below it.)
     """
 
@@ -897,37 +897,45 @@ class StoredDesignTests(StoredReduceMotionTests):
         popup.set_design("soft")
         self.control.update_settings({"design": "soft"})
 
-    def test_storing_still_holds_the_icon_at_the_next_tick(self):
+    def store_still(self):
+        """What v0.6.10 wrote when somebody chose Still: the design, and Reduce motion off beside it."""
+        path = self.control.settings_path()
+        before = path.stat().st_mtime_ns
+        stored = dict(json.loads(path.read_text(encoding="utf-8")), design="still", reduce_motion=False)
+        while path.stat().st_mtime_ns == before:                # never two writes inside one stamp
+            path.write_text(json.dumps(stored), encoding="utf-8")
+            time.sleep(0.01)
+
+    def test_a_still_stored_by_v0610_holds_the_icon_at_the_next_tick(self):
         self.assertTrue(self.tick())
-        self.store(design="still")
-        self.assertFalse(self.tick(), "Still's light does not breathe")
-        self.assertEqual(popup.design_setting(), "still")
-        self.store(design="soft")
+        self.store_still()
+        self.assertFalse(self.tick(), "a stored Still is Reduce motion")
+        self.assertTrue(popup.theme._reduce_motion_setting)
+        self.store(reduce_motion=False)
         self.assertTrue(self.tick())
         self.assertEqual(self.logged, [])
 
-    def test_classic_and_plain_keep_it_moving_and_reduce_motion_holds_them(self):
-        for design in ("classic", "plain"):
+    def test_every_design_keeps_it_moving_and_reduce_motion_holds_each(self):
+        for design in settings.DESIGNS:
             with self.subTest(design):
                 self.store(design=design, reduce_motion=False)
                 self.assertTrue(self.tick())
                 self.store(reduce_motion=True)
                 self.assertFalse(self.tick())
 
-    def test_a_read_that_fails_keeps_the_design_already_taken_up(self):
-        self.store(design="still")
-        self.assertFalse(self.tick())
-        with unittest.mock.patch.object(self.control, "get_settings", side_effect=OSError("locked")):
-            self.store(design="soft")
-            self.assertFalse(self.tick(), "an unreadable file does not undo the design it had")
-        self.assertEqual(popup.design_setting(), "still")
-        self.assertEqual(self.logged, ["tray settings read failed (OSError)"])
+    def test_the_motion_tick_takes_up_reduce_motion_and_not_the_design(self):
+        """The design is taken up where it is drawn - the popup and its menu opening, the watcher's read - and never
+        on the tick that decides whether the icon moves, which it no longer has any say in."""
+        self.store(design="plain")
+        self.tick()
+        self.assertEqual(popup.design_setting(), "soft")
 
-    def test_nothing_that_draws_the_icon_reads_the_design(self):
-        """The mark is not a theme token: the icon's frames are the brand's in every design, and only whether
-        they move follows it."""
+    def test_nothing_that_draws_or_moves_the_icon_reads_the_design(self):
+        """The mark is not a theme token: the icon's frames are the brand's in every design, and whether they
+        move is the stoppers' alone."""
         root = Path(__file__).resolve().parents[1] / "src" / "codex_auto_resume"
-        for path in (root / "ui" / "tray" / "motion.py", root / "brand" / "mark.py"):
+        for path in (root / "ui" / "tray" / "motion.py", root / "brand" / "mark.py",
+                     root / "ui" / "tray" / "animation.py"):
             with self.subTest(path.name):
                 self.assertNotIn("design", path.read_text(encoding="utf-8"))
 

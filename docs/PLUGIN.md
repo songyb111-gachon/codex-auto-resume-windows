@@ -152,10 +152,8 @@ reports the installation directory as `home`. Nor does `update_settings` offer t
 that belong to Windows - the notification-area icon (`show_tray`), Reduce motion
 (`reduce_motion`) and, from v0.6.5, the notification card (`notification_card`) - which the
 panel does not show either. From v0.6.10 it does not offer the Design (`design`) either, and
-refuses it from a client that sends it anyway, alone or beside a setting it does offer: the
-Design decides what moves on every surface - Soft without motion stops it and Soft starts it
-again - so it is the Dashboard's, as Reduce motion is. The panel draws in both and changes
-neither. From v0.6.4 it does offer the theme, and from v0.6.6 the panel's own
+refuses it from a client that sends it anyway, alone or beside a setting it does offer: it is
+the Dashboard's, as Reduce motion is. The panel draws in both and changes neither. From v0.6.4 it does offer the theme, and from v0.6.6 the panel's own
 theme beside it (`panel_theme`): the two appearance settings the panel shows. No tool refreshes or imports the Codex compatibility data: that happens only from
 the window's Diagnostics page, its update check, or the command line.
 

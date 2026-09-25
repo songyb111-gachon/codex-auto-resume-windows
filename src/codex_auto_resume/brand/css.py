@@ -220,8 +220,8 @@ def css_design_blocks(extra=None) -> str:
     which is the root, so they follow an `--elev-inset` of `none` only there. Without depth every `--elev-*`
     is `none` - never a list that ends up `none, inset ...`, which is not CSS - and so is whatever
     `extra(theme, design)` declares for the stylesheet's own elevations. Soft's own blocks are the base ones,
-    and a design that draws in Soft's colours with Soft's depth and radii (Still) needs none: what it changes
-    is motion, which is the stylesheet's rules, not its properties.
+    and a design that draws in Soft's colours with Soft's depth and radii needs none: whatever else it changed
+    would be the stylesheet's rules, not its properties.
     """
     blocks = []
     for design in DESIGNS:

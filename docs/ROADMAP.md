@@ -285,9 +285,9 @@ was, to [the guide](GUIDE.md), in both languages.
 
 ---
 
-## v0.6.10 — Python modularization, then the design settled and a grade for what others report
+## v0.6.10 — Python modularization, then the design settled and a grade for what others report ✅
 
-**Next.**
+**Released.**
 
 
 v0.6.10 arrives in two stages: **v0.6.10-alpha**, a pre-release, is the modularization and nothing
@@ -338,7 +338,7 @@ both ways. The window's three hand-written C# files are eighteen, grouped by hal
 the Rust part every module becomes, and fails when a placement stops being true.
 
 
-### v0.6.10 🚧 — The design audit, and a choice of appearance
+### v0.6.10 ✅ — The design audit, and a choice of appearance
 
 The final v0.6.10 is the design, settled, and the one new word that comes with it - Reported, below.
 It is a release of its own because it is worth one: it changes what every surface looks like, which is exactly what a person sees. It sits
@@ -429,6 +429,9 @@ opens the pull request.
 ---
 
 ## v0.6.11 — Advanced features in two editions
+
+**Next.**
+
 
 v0.6.11 goes further than every release so far. It is planned to offer, aggressively, as many
 capabilities as any comparable program does, and more: before it is built, the tools that do anything
@@ -700,9 +703,9 @@ The window's lag, measured
 
         ↓
 
-v0.6.10-alpha → v0.6.10
+v0.6.10-alpha → v0.6.10  ✅ Released
 Python modularization and a tidier landing page on GitHub, in a pre-release
-+ the design audit and a choice of appearance, in the final
++ the design settled, four designs and the Reported grade, in the final
 
         ↓
 
@@ -733,4 +736,4 @@ Final Rust audit and stabilization: the Rust bug hunt
 Maintenance
 ```
 
-This document records the current direction; v0.6.9 is out, and v0.6.10 is next.
+This document records the current direction; v0.6.10 is out, and v0.6.11 is next.

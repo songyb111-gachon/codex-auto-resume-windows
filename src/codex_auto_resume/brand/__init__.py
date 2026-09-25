@@ -35,9 +35,9 @@ reference. Every theme-dependent value is reachable by theme name - `palette(the
 `check_box(checked, enabled, theme)` - and the window gets the dark half generated as
 `Brand.Dark`. Which theme is in effect is the surfaces' business; High Contrast replaces both.
 
-## Four designs (v0.6.10)
+## Three designs (v0.6.10)
 
-The Design setting - Soft, Still, Classic, Plain - is independent of the theme, so each design comes in
+The Design setting - Soft, Classic, Plain - is independent of the theme, so each design comes in
 light and dark: `palette(theme, design)`, and every function above that takes a theme takes `design`
 too, defaulting to Soft, which draws exactly what it drew before. `design` says what else each one
 changes; High Contrast replaces every design.
@@ -48,7 +48,7 @@ order - each uses only what is above it. v0.6.10 added the tenth, `design`.
     colour      arithmetic on #RRGGBB, and nothing that decides a colour
     tokens      the identity ramp, the one brand colour, the two themes and each design's colours
     scale       sizes, type and the panel's layout: what is not colour and does not move
-    design      the four designs: depth, glow, breath, glides, the accent bar and the radii of each
+    design      the three designs: depth, glow, the accent bar and the radii of each
     motion      how long a change takes, and the one curve it takes it on
     elevation   the shadow recipes, and what a shadow does to a pixel
     checkbox    the check box and its tick
@@ -90,14 +90,10 @@ from .design import (ACCENT_BAR,
                      DEFAULT_DESIGN,
                      DESIGN,
                      DESIGN_RADII,
-                     controls_move,
                      design_accent_bar,
-                     design_breathes,
                      design_depth,
-                     design_glides,
                      design_glow,
-                     design_radii,
-                     light_moves)  # noqa: F401
+                     design_radii)  # noqa: F401
 from .motion import MOTION, _bezier, ease  # noqa: F401
 from .elevation import (CARD_LIFT,
                         SHADOWS,
