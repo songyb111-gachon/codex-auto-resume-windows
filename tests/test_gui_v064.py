@@ -891,7 +891,9 @@ class SourceRuleTests(unittest.TestCase):
                 body = self.body(signature)
                 self.assertRegex(body.split("{", 1)[1].lstrip(), r"^if \(!Palette\.Depth\b")
         adopt = guiscan.member_body("Palette", "Adopt")
-        self.assertIn("Depth = !Contrast && Brand.DesignDepth(Design);", adopt)
+        # The design's answer is Brand.LookOf's, the one lookup the window asks about a design (v0.6.10).
+        self.assertIn("Look = Brand.LookOf(Design, dark);", adopt)
+        self.assertIn("Depth = !Contrast && Look.Depth;", adopt)
 
     def test_the_status_light_is_a_flat_dot_and_its_glow_is_off_in_high_contrast(self):
         paint = self.body("protected override void OnPaint(PaintEventArgs e)\n        {\n            Graphics g = e.Graphics;\n            g.Clear(")
@@ -900,7 +902,7 @@ class SourceRuleTests(unittest.TestCase):
         # v0.6.10: the glow is Palette.Halo's - a design that has one, never High Contrast - and the dimming stays
         # High Contrast's alone, because it is the breath itself, which Plain keeps without a glow.
         self.assertIn("Palette.Halo", paint[:paint.index("Glow(g")], "no glow in High Contrast, nor in Still or Plain")
-        self.assertIn("Halo = !Contrast && Brand.DesignGlow(Design);", guiscan.member_body("Palette", "Adopt"))
+        self.assertIn("Halo = !Contrast && Look.Glow;", guiscan.member_body("Palette", "Adopt"))
         self.assertIn("Color fill = lit && dim > 0 && !Palette.Contrast ? Soft.WithAlpha(colour, 1 - dim) : colour;",
                       paint, "the dot dims toward the card it was cleared to, and never in High Contrast")
         halo = self.controls[self.controls.index("internal sealed class HaloDot"):]

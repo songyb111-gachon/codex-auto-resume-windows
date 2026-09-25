@@ -583,8 +583,9 @@ class DesignSourceRuleTests(unittest.TestCase):
                 self.assertEqual(re.findall(r"Soft\.ReduceMotion\b", code), [],
                                  "a motion reads Reduce motion without its design")
         controls = guiscan.controls()
-        for gate, rule in (("LightStill", "Brand.DesignBreathes(Palette.Design)"),
-                           ("ControlsStill", "Brand.DesignGlides(Palette.Design)")):
+        # The design's answer is Brand.LookOf's for the design in effect (Palette.Look), the one lookup the window asks.
+        for gate, rule in (("LightStill", "Palette.Look.Breathes"),
+                           ("ControlsStill", "Palette.Look.Glides")):
             start = controls.index("internal static bool %s\n" % gate)
             body = controls[start:controls.index("\n        }\n", start)]
             with self.subTest(gate):
