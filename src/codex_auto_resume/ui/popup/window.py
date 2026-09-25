@@ -19,7 +19,7 @@ from .motion import animates, glide_amount, halo, next_glides
 from .placement import focus_order, hit_test, next_focus, place
 from .renderer import Renderer
 from . import theme as look                # the three questions below are asked through it
-from .theme import adopt_settings, appearance, effective_theme, theme_setting
+from .theme import adopt_settings, appearance, design_setting, effective_theme, theme_setting
 from .win32 import (CS_DROPSHADOW,
                     DWMWA_USE_IMMERSIVE_DARK_MODE,
                     DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1,
@@ -87,6 +87,8 @@ class Popup:
     """The window itself. Created, shown, hidden and destroyed on the icon's thread only;
     `set_strings` is the one method another thread may call."""
 
+    _design = "soft"                     # until the first reading: Soft, as the settings read without one
+
     def __init__(self, *, control=None, source=None, strings=None, on_dashboard=None, log=None,
                  anchor=None):
         self.model = PopupModel(strings)
@@ -122,10 +124,11 @@ class Popup:
         self._frame_running = False
         self._state = None
         self._state_since = time.monotonic()
-        self._reduced = False
+        self._reduced = False            # a stopper: Reduce motion, Windows' animation setting, High Contrast
         self._contrast = False
         self._apps_light = None          # Windows' app mode when last asked: True, False or None
         self._theme = "light"            # the theme in effect: the setting, resolved against that mode
+        self._design = "soft"            # the design in effect, as the stored setting says (v0.6.10)
         self._framed_dark = None         # what DWM was last told about the window's frame
         self._tracking = False
         self._strings = None
@@ -255,18 +258,32 @@ class Popup:
 
         These three are the only questions this window asks Windows about how to look, and they
         go through `look` rather than by name: a test that draws without a screen replaces them,
-        and through the module there is one place to do it whichever file is asking.
+        and through the module there is one place to do it whichever file is asking. The design is
+        not one of them: it is the product's own setting, adopted with the theme.
         """
         self._contrast = look.high_contrast()
         self._apps_light = look.apps_use_light_theme()
         self._reduced = look.reduced_motion() or self._contrast
         self._theme = effective_theme(theme_setting(), self._apps_light)
+        self._design = design_setting()
+
+    # v0.6.10: what may move is two gates since the design split them - the status light, and the
+    # switches. Each is held by any stopper (`_reduced`), and each by a design that does not move it:
+    # Still holds both, Classic and Plain only the switches. A design never moves what a stopper holds.
+    @property
+    def _light_still(self) -> bool:
+        return not brand.light_moves(self._design, stopped=self._reduced)
+
+    @property
+    def _controls_still(self) -> bool:
+        return not brand.controls_move(self._design, stopped=self._reduced)
 
     def _follow_theme(self):
-        """The theme for the setting as it is now and the app mode last read; a change redraws everything."""
-        theme = effective_theme(theme_setting(), self._apps_light)
-        if theme != self._theme:
-            self._theme = theme
+        """The theme for the setting as it is now and the app mode last read, and the design as it is stored
+        now; a change of either redraws everything."""
+        theme, design = effective_theme(theme_setting(), self._apps_light), design_setting()
+        if (theme, design) != (self._theme, self._design):
+            self._theme, self._design = theme, design
             self._static_dirty = True
 
     def _frame_theme(self):
@@ -286,7 +303,7 @@ class Popup:
             pass                                   # a frame that stays light is not worth a failure
 
     def follow_settings(self, values):
-        """Take up what a read of the stored settings says: the language, the theme, Reduce motion.
+        """Take up what a read of the stored settings says: the language, the theme, the design, Reduce motion.
 
         The icon hands over the same things before each opening; this is for a change made while
         the popup is open, which then shows within one read.
@@ -404,7 +421,7 @@ class Popup:
         seen = {item["target"]: bool(item["checked"]) for item in plan["items"] if item["kind"] == "switch"}
         previous = self._switches if self.visible else None
         self._glides = next_glides(seen, previous, self._glides, time.monotonic() * 1000.0,
-                                   animate=self.visible and not self._reduced)
+                                   animate=self.visible and not self._controls_still)
         self._switches = seen if self.visible else None
 
     def _glide_amounts(self):
@@ -441,7 +458,8 @@ class Popup:
         user32 = _dll("user32")
         wanted = (self.visible and self._vm is not None
                   and (bool(self._glides)
-                       or animates(self._vm["light"], self._since_state_ms(), reduced=self._reduced)))
+                       or animates(self._vm["light"], self._since_state_ms(), reduced=self._light_still,
+                                   design=self._design)))
         if wanted and not self._frame_running:
             user32.SetTimer(self.hwnd, TIMER_FRAME, FRAME_MS, None)
             self._frame_running = True
@@ -454,16 +472,16 @@ class Popup:
         if self._vm is None:
             return None
         since = self._since_state_ms()
-        return halo(self._vm["light"], since, since, reduced=self._reduced)
+        return halo(self._vm["light"], since, since, reduced=self._light_still, design=self._design)
 
     def render(self):
         """Draw the current view into the canvas and return it (the tests read it back)."""
         if self._plan is None:
             self._rebuild(time.time())
-        look = (self._theme, self._contrast)
-        if (self._renderer.theme, self._renderer.contrast) != look:
+        look = (self._theme, self._design, self._contrast)
+        if (self._renderer.theme, self._renderer.design, self._renderer.contrast) != look:
             # The halo band saved with the last whole frame is in the old colours.
-            self._renderer.theme, self._renderer.contrast = look
+            self._renderer.theme, self._renderer.design, self._renderer.contrast = look
             self._static_dirty = True
         if self._glides:
             # A switch on the move is drawn over the ground every frame, and the frame after its
@@ -631,9 +649,9 @@ class Popup:
             # High Contrast, Windows' app mode ("ImmersiveColorSet") or its motion setting may have
             # changed. The registry is read again whatever the setting's name, which is cheap and
             # rare; an open window is repainted at once when what it draws with changed.
-            before = (self._contrast, self._theme)
+            before = (self._contrast, self._theme, self._design)
             self._read_look()
-            if (self._contrast, self._theme) != before or message == WM_SYSCOLORCHANGE:
+            if (self._contrast, self._theme, self._design) != before or message == WM_SYSCOLORCHANGE:
                 self._invalidate()
             if self.visible:
                 self._frame_theme()

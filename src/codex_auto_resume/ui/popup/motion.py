@@ -9,16 +9,17 @@ from ... import brand
 
 
 # ------------------------------------------------------------------------------- motion
-def halo(state, elapsed_ms, since_entered_ms=None, *, reduced=False):
+def halo(state, elapsed_ms, since_entered_ms=None, *, reduced=False, design="soft"):
     """The state dot's light for one frame, or None when it is off: brand's status light, which the window and the
     panel draw too. `dim` is how far the dot is drawn toward the card, `opacity` multiplies the glow's soft falloff,
-    `spread` is how far out the glow is and `arc` the checking arc's start angle in degrees, or None."""
-    return brand.glow(state, elapsed_ms, since_entered_ms, reduced=reduced)
+    `spread` is how far out the glow is and `arc` the checking arc's start angle in degrees, or None. In the design
+    (v0.6.10): Still holds it, and Plain dims it with no glow."""
+    return brand.glow(state, elapsed_ms, since_entered_ms, reduced=reduced, design=design)
 
 
-def animates(state, since_entered_ms=0, *, reduced=False) -> bool:
+def animates(state, since_entered_ms=0, *, reduced=False, design="soft") -> bool:
     """Whether the frame timer should run at all."""
-    return brand.glow_moves(state, since_entered_ms, reduced=reduced)
+    return brand.glow_moves(state, since_entered_ms, reduced=reduced, design=design)
 
 
 # v0.6.5: a task's switch glides when it changes - the knob slides end to end and the track
@@ -27,8 +28,9 @@ def animates(state, since_entered_ms=0, *, reduced=False) -> bool:
 # ends being how far on the switch is: 0 off, 1 on. It starts only when a switch the window has
 # already drawn is drawn the other way - which, for a change somebody asked for here, is when the
 # control layer has confirmed it: the press only fades the switch while the answer is awaited, so
-# it never moves and snaps back. With motion reduced, in High Contrast, while the window is hidden
-# and on the frame that opens it, a change is simply drawn in its new place.
+# it never moves and snaps back. With motion reduced, in High Contrast, in a design that does not
+# glide (v0.6.10: Still, Classic, Plain), while the window is hidden and on the frame that opens it,
+# a change is simply drawn in its new place.
 def glide_amount(glide, now_ms) -> tuple:
     """(how far on the switch is, whether the glide is over) at `now_ms`, eased."""
     started, begin, end = glide

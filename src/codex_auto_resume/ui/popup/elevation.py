@@ -33,7 +33,8 @@ from ... import brand
 # A tile's ground is `raised` in both themes, as the panel's rows and every resting button are: a
 # ground of the tile's own put the tiles a step above 'Pause recovery' in dark, so the button looked
 # sunk below them. When the panel's rows take the same lift, this belongs in brand.SHADOWS.
-# High Contrast draws none of it: system colours, hairlines, no shadow. Nothing here moves.
+# High Contrast draws none of it: system colours, hairlines, no shadow. Nothing here moves. Nor
+# does a design without depth (v0.6.10: Classic, Plain): a tile is its ground and its hairline.
 DEPTH = {
     "light": {"tile": brand.shadows("control", "light")},
     "dark": {"tile": brand.shadows("control", "dark")
@@ -41,16 +42,19 @@ DEPTH = {
 }
 
 
-def recipe_shadows(recipe, theme="light") -> tuple:
-    """A recipe's shadows in `theme`: the tile's (DEPTH, made of brand's) or brand's own (brand.SHADOWS)."""
+def recipe_shadows(recipe, theme="light", design="soft") -> tuple:
+    """A recipe's shadows in `theme`: the tile's (DEPTH, made of brand's) or brand's own (brand.SHADOWS).
+    None at all in a design without depth."""
     theme = brand.theme_name(theme)
+    if not brand.design_depth(design):
+        return ()
     own = DEPTH.get(theme, {}).get(recipe)
     return own if own is not None else brand.shadows(recipe, theme)
 
 
-def tile_ground(theme="light") -> str:
+def tile_ground(theme="light", design="soft") -> str:
     """A task tile's ground: brand's `raised`, as the panel's rows and a resting button stand on."""
-    return brand.palette(theme)["raised"]
+    return brand.palette(theme, design)["raised"]
 
 
 # ---------------------------------------------------------------------------- elevation

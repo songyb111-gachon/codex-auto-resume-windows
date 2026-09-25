@@ -200,7 +200,8 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
         row_bottom = line + check_h + row_pad
         items.append({"kind": "panel", "rect": (left, row_top, right, row_bottom)})
         items.extend(contents)
-        items.append({"kind": "focusable", "rect": hit, "target": target, "radius": px(brand.RADII["small"])})
+        items.append({"kind": "focusable", "rect": hit, "target": target, "radius": px(brand.RADII["small"]),
+                      "corner": "small"})
         y = row_bottom + px(space["s"])
 
     if vm["more"]:
@@ -264,8 +265,11 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
                       "colour": "on_accent" if primary else "ink", "wrap": wrapped, "align": "center",
                       "target": target})
         targets.append((target, rect))
-        items.append({"kind": "focusable", "rect": rect, "target": target, "radius": px(brand.RADII["control"])})
+        items.append({"kind": "focusable", "rect": rect, "target": target, "radius": px(brand.RADII["control"]),
+                      "corner": "control"})
     y += pad
     card = (margin, margin, total - margin, y)
-    items.insert(0, {"kind": "card", "rect": card, "radius": px(brand.RADII["card"])})
+    # `radius` is Soft's, and `corner` the role a design rounds it by (v0.6.10: the renderer asks
+    # brand.design_radii; the layout, and so every rectangle, is the same in every design).
+    items.insert(0, {"kind": "card", "rect": card, "radius": px(brand.RADII["card"]), "corner": "card"})
     return {"size": (total, y + margin), "card": card, "items": items, "targets": targets, "scale": scale}
