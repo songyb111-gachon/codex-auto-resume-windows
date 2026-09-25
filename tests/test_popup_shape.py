@@ -6,7 +6,7 @@ shape; a module has no class, so its shape is held here.
 
 Two ways a split module goes wrong, both silent:
 
-*A name stops being there.* Twelve files re-exported through one `__init__` is twelve chances
+*A name stops being there.* Thirteen files re-exported through one `__init__` is thirteen chances
 to leave one out, and `tray_popup._icon_from_pixels` - which the notification-area icon calls
 for every frame it draws - was left out exactly that way. The icon caught it and drew itself
 the old way for the rest of its life, logging one line nobody reads.
@@ -42,11 +42,13 @@ from codex_auto_resume.ui import popup as tray_popup  # noqa: E402
 ROOT = Path(_HERE).parent
 PACKAGE = "codex_auto_resume.ui.popup"
 
-# The twelve files, in the order `__init__` re-exports them: the six that ask Windows nothing,
+# The thirteen files, in the order `__init__` re-exports them: the six that ask Windows nothing,
 # then Windows and what is drawn with it. It is a dependency order, and the test below holds it
-# that way - so the list reads as the layering it is, rather than as twelve names.
+# that way - so the list reads as the layering it is, rather than as thirteen names. `messages` came
+# out of `window` in v0.6.10, the window's messages as a mixin it is made of, to give window.py room
+# under the line budget.
 MODULES = ("words", "model", "placement", "motion", "elevation", "layout",
-           "win32", "fonts", "theme", "gdiplus", "renderer", "window")
+           "win32", "fonts", "theme", "gdiplus", "renderer", "messages", "window")
 ASKS_WINDOWS_NOTHING = MODULES[:6]
 
 # What `tray_popup.<name>` gave before the split, name for name. `countdown` is the one public
@@ -107,7 +109,7 @@ class SurfaceTests(unittest.TestCase):
                   and name != "annotations"}          # `from __future__ import`
         self.assertEqual(public - SURFACE, set(), "a new name on the popup is a decision: add it above")
 
-    def test_the_twelve_modules_are_all_there_and_nothing_else_is(self):
+    def test_the_thirteen_modules_are_all_there_and_nothing_else_is(self):
         listed = {srcscan.module_name(path).split(".")[-1] for path in srcscan.files_of(PACKAGE)}
         self.assertEqual(listed, set(MODULES) | {"popup"})
 
@@ -151,7 +153,7 @@ class SurfaceTests(unittest.TestCase):
                     srcscan.modules()[PACKAGE + "." + module]))
 
     def test_no_two_modules_define_the_same_name(self):
-        """`__init__` re-exports twelve files in order, so a name in two of them would resolve
+        """`__init__` re-exports thirteen files in order, so a name in two of them would resolve
         to whichever is imported last - and moving a line between files would change it."""
         owners: dict[str, list[str]] = {}
         for path in srcscan.files_of(PACKAGE):

@@ -112,7 +112,9 @@ LAYER = {_q(name): layer for layer, names in {
               "ui.popup.elevation", "ui.popup.fonts", "ui.popup.gdiplus",
               "ui.popup.layout", "ui.popup.model", "ui.popup.motion",
               "ui.popup.placement", "ui.popup.renderer", "ui.popup.theme",
-              "ui.popup.win32", "ui.popup.window", "ui.popup.words"),
+              "ui.popup.win32", "ui.popup.window", "ui.popup.words",
+              # v0.6.10: the window's messages, out of window.py.
+              "ui.popup.messages"),
 }.items() for name in names}
 
 # The roles the target rules speak of: today's modules, and the packages the split moves them
