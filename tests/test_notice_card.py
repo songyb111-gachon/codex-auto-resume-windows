@@ -1098,12 +1098,12 @@ class LayoutTests(unittest.TestCase):
                         vm = notice_card.view(notice)
                         self.check(notice_card.layout(vm, scale, fake_measure(scale)), scale)
 
-    def test_its_light_word_chip_and_buttons_stand_as_every_surface_s_do(self):
-        """v0.6.10 (F7, F8): the light stands LAYOUT's `light_inset` from the card's content and `light_gap` from
-        the product beside it, which is the popup's eyebrow - `label`, muted; a chip is `chip_height` high and
-        padded `chip_pad_x`, a button `button_height` high. Until then the product stood 14.5 px from the light, the
-        chip was its text and 4 px high and the buttons 32. Both stay bold (600), as they always were: v0.6.10 drew
-        them Regular for a while, and the owner gave that back."""
+    def test_its_light_and_product_keep_their_place_and_its_chip_and_buttons_are_every_surface_s_size(self):
+        """The light and the product stand where they always have: the dot centred in the popup's MARK box at the
+        card's content, the product - `label`, muted - MARK and a small step from there (v0.6.10 moved both about
+        2 px right for a while, and gave it back). v0.6.10 (F8): a chip is `chip_height` high and padded
+        `chip_pad_x`, a button `button_height` high; until then the chip was its text and 4 px high and the buttons
+        32. Both stay bold (600), as they always were: v0.6.10 drew them Regular for a while, and gave that back."""
         self.assertEqual(tray_popup.ROLES["chip"][1], 600)
         self.assertEqual(tray_popup.ROLES["button"][1], 600)
         vm = notice_card.view(build("interruption", EVENTS[0][1]))
@@ -1115,10 +1115,9 @@ class LayoutTests(unittest.TestCase):
                 halo = next(item for item in plan["items"] if item["kind"] == "halo")
                 product = next(item for item in plan["items"] if item["kind"] == "text" and item["text"] == vm["product"])
                 self.assertEqual((product["role"], product["colour"]), ("label", "muted"))
-                dot = brand.STATUS_DOT["popup"] * scale
-                self.assertAlmostEqual(halo["cx"] - dot - left, brand.LAYOUT["light_inset"] * scale, delta=0.01)
-                self.assertAlmostEqual(product["rect"][0] - (halo["cx"] + dot), brand.LAYOUT["light_gap"] * scale,
-                                       delta=0.5)
+                mark = int(round(tray_popup.MARK * scale))
+                self.assertAlmostEqual(halo["cx"], left + mark / 2.0)
+                self.assertEqual(product["rect"][0], left + mark + int(round(brand.SPACING["s"] * scale)))
                 chip = next(item["rect"] for item in plan["items"] if item["kind"] == "chip")
                 self.assertEqual(chip[3] - chip[1], round(brand.LAYOUT["chip_height"] * scale))
                 label = next(item for item in plan["items"] if item["kind"] == "text" and item["role"] == "chip")

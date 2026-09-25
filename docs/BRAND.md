@@ -42,9 +42,9 @@ Windows. A notification can appear as the popup's own card beside the notificati
 mark's geometry moved into `brand.py` (`ICON_SHAPE`), because the watcher now draws the icon's
 frames from it.
 
-v0.6.10 settled that look and then drew it four ways. The audit made the three headers one recipe -
-the panel's - with one light rule, one button and chip, one callout and one word for each thing; and
-the **Design** setting draws the whole product as Soft (all of the above), Soft without motion,
+v0.6.10 settled that look and then drew it four ways. The audit gave every header one light rule, the
+buttons and chips one size, the notices one callout and the window one name, and left each header its
+own composition and words; and the **Design** setting draws the whole product as Soft (all of the above), Soft without motion,
 Classic (v0.6.2's flat cards with their accent bar) or Plain. The designs are data, so the audit's
 decisions hold in all four (see [Four designs](#four-designs)).
 
@@ -130,7 +130,7 @@ window and a card in Codex round their corners by the same amount.
 | `SPACING` | 4, 8, 12, 16, 24, 32 (`xs` to `xxl`) | Padding and gaps. |
 | `TYPE` | title 20, heading 14, body 12, small 11 | The popup's and the notification card's type sizes. The Dashboard keeps Windows' message font at its own sizes. |
 | `TYPE_SCALE`, `LINE_HEIGHT`, `TYPE_ROLES` | display 21, title 15, body 14, small 12.5, mono 13 | The panel's type. The native surfaces keep `TYPE`: a notification-area popup and a fixed-size window read better with smaller text than a panel inside Codex. |
-| `LAYOUT` | button 34 high, field 35, switch 40 × 22, check box 18 with 10 to its label, chip 22, a status light 9 from where its line starts and 14 from its word, a callout padded 10 × 12 with an 18 badge, card padding 16 × 18, page gap 14, and the rest | The sizes of the shared control recipes, taken from the panel. |
+| `LAYOUT` | button 34 high, field 35, switch 40 × 22, check box 18 with 10 to its label, chip 22, a callout padded 10 × 12 with an 18 badge, card padding 16 × 18, page gap 14, and the rest | The sizes of the shared control recipes, taken from the panel. |
 | `SHADOWS` | light card: offset (4, 4), blur 14, `shadow_dark` at 0.55, and offset (−4, −4), blur 14, `shadow_light` at 0.90; control: the same at offset 2, blur 6; inset: offset 2, blur 6, inside the edge. Dark card: offset (0, 1), blur 2, `shadow_dark` at 0.70, offset (0, 6), blur 18, at 0.35, and a one-pixel `shadow_light` line at 0.45 inside the top edge; control: offset (0, 1), blur 2, at 0.60; inset: the same inside the edge, at 0.55 | A lifted card, a raised control and a well. Small on purpose: exaggerated embossing is what makes soft interfaces unreadable. |
 | `STATUS_DOT`, `STATUS_FILL`, `GLOW` | dot radius: window 5, popup 4.5, panel 6; one cosine a cycle, taken in light and drawn through gamma 2.2; the dot keeps 35% of its light at the bottom; the glow rides it, reaching 0.6 of the radius at opacity 0.50 | The state light: its size, its colour for each state, its blink and its glow. |
 | `MOTION` | transition 160 ms on one curve, `ease` = cubic-bezier(0.33, 1, 0.68, 1), an ease-out | A switch's glide and a check box's fade on every surface, the rise of an open drop-down list, and since v0.6.10 the notification card's rise, return and slide, which had a curve of their own. |
@@ -618,17 +618,10 @@ the ring rather than floating beside it.
 - **State leads.** In the Dashboard, the popup and the panel, what the watcher is doing is the
   first thing and the largest type. It used to be a muted sentence along the bottom of the
   window, under sixteen checkboxes — which put the one thing a person opens the window to check
-  below everything they did not come for. Since v0.6.10 the three headers are built as the
-  panel's is: the product as a muted eyebrow where there is one, then the light and the state's
-  word in ink, the light on the word's line. The popup used to title itself with the product's
-  name and say the state in a small coloured line under it, and the window's light stood between
-  its two lines. Every light with words beside it - those three and the notification card's -
-  stands `LAYOUT`'s `light_inset` from where its line starts and `light_gap` from its words,
-  where the gap was anything from 15 to 18.5 pixels.
+  below everything they did not come for.
 - **No colour without a word.** A state is a word on a chip tinted with its own colour, and the
-  dot always has its word beside it. `active` never carries text, and since v0.6.10 a header's
-  word carries no state's colour at all: the light carries the colour, and the word, in ink, the
-  meaning. An outcome is one colour wherever it is shown - its word's chip in History and, since
+  dot always has its word beside it. `active` never carries text, which is why the popup keeps
+  separate tables for a dot's fill and its word's ink. An outcome is one colour wherever it is shown - its word's chip in History and, since
   v0.6.10, its bar on the Statistics page, beside the same word, where every bar was the accent's
   blue; High Contrast keeps one system colour for the bars.
 - **Reported beside the version, never a state.** Since v0.6.10 the Dashboard's Codex

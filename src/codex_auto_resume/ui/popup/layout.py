@@ -21,7 +21,7 @@ WIDTH = 360                  # device-independent pixels at 96 DPI: the card and
 SHADOW_MARGIN = 20
 
 
-MARK = 22                    # the least height of the line the state's light and word stand on
+MARK = 22                    # the box the state dot sits in, beside the product's name
 
 
 # v0.6.4: a task's switch is at the bottom right of its row, as the panel's is, level with its
@@ -29,12 +29,11 @@ MARK = 22                    # the least height of the line the state's light an
 SWITCH_GAP = 10
 
 
-def light_row(left, radius, scale) -> tuple:
-    """(the light's centre x, where its word begins) for a light of `radius` CSS px whose line starts at
-    `left`: brand.LAYOUT's `light_inset` from the line's start to the dot, and `light_gap` from the dot to
-    the word - on every surface that puts a word beside a light (v0.6.10). Device pixels."""
-    cx = left + (brand.LAYOUT["light_inset"] + radius) * scale
-    return cx, int(round(cx + (radius + brand.LAYOUT["light_gap"]) * scale))
+# The state line's colour, by the header's word: the look the popup has always had. The dot beside it is
+# the word's light (vm["light"]), which since v0.6.10 is grey and still for a watcher not known to be
+# running, whatever the word asks.
+STATE_INK = {"monitoring": "accent", "waiting": "waiting", "checking": "accent",
+             "recovering": "accent", "paused": "paused", "attention": "warning"}
 
 
 def share_columns(available, needs) -> list:
@@ -87,25 +86,25 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
         items.append({"kind": "text", "rect": rect, "role": role, "text": value, "colour": colour,
                       "wrap": wrap, "align": align, "target": target})
 
-    # Header, the panel's hero since v0.6.10: the product as a muted eyebrow, then the state's light and
-    # its word, in ink, the largest text on the card. The light carries the colour and the word the
-    # meaning, so the word is never coloured; until v0.6.10 the product's name was the title, the state
-    # a small coloured line under it, and the light was centred on the pair. The dot is the word's light
-    # (vm["light"]): a watcher not known to be running is a grey dot beside the word that asks for
-    # attention. It stands on the word's first line, however far the word wraps.
-    _, eyebrow_h = measure("label", vm["title"], inner, False)
-    text((left, y, right, y + eyebrow_h), "label", vm["title"], "muted")
-    y += eyebrow_h + px(space["xs"])
-    cx, text_left = light_row(left, brand.STATUS_DOT["popup"], scale)
+    # Header: the state dot, the product, the state in words - the product's name the title, the state a
+    # line under it in its colour (STATE_INK), and the dot centred on the pair, in its box. v0.6.10 tried
+    # the panel's hero here (the product a muted eyebrow over the state's word in ink) and gave it back:
+    # the look people know stays. The dot is the word's light (vm["light"]), grey and still for a watcher
+    # not known to be running, beside the words that ask for attention.
+    mark = px(MARK)
+    text_left = left + mark + px(space["s"] + 2)
     text_width = right - text_left
-    _, line_h = measure("title", "Ag", text_width, False)
-    _, word_h = measure("title", vm["state_text"], text_width, True)
-    row_h = max(px(MARK), line_h)
-    top = y + (row_h - line_h) // 2
-    items.append({"kind": "halo", "cx": cx, "cy": top + line_h / 2.0, "state": vm["light"],
+    _, title_h = measure("title", vm["title"], text_width, False)
+    _, state_h = measure("state", vm["state_text"], text_width, True)
+    stack = title_h + state_h
+    header_h = max(mark, stack)
+    top = y + (header_h - stack) // 2
+    items.append({"kind": "halo", "cx": left + mark / 2.0, "cy": y + header_h / 2.0, "state": vm["light"],
                   "radius": brand.glow_extent(brand.STATUS_DOT["popup"]) * scale})
-    text((text_left, top, right, top + word_h), "title", vm["state_text"], "ink", wrap=True)
-    y = max(y + row_h, top + word_h) + px(space["m"])
+    text((text_left, top, right, top + title_h), "title", vm["title"], "ink")
+    text((text_left, top + title_h, right, top + stack), "state", vm["state_text"],
+         STATE_INK.get(vm["state"], "ink"), wrap=True)
+    y += header_h + px(space["m"])
 
     # Summary: waiting, recovering, next check - three values read off a field, so since v0.6.5
     # they sit in one sunken well, as the panel's fields do, with a hairline between them. The

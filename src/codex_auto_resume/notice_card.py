@@ -140,11 +140,10 @@ def layout(vm, scale, measure) -> dict:
         items.append({"kind": "text", "rect": tuple(int(v) for v in rect), "role": role, "text": value,
                       "colour": colour, "wrap": wrap, "align": align, "target": target})
 
-    # The header: the status light, the product beside it in the popup's eyebrow (muted, `label`), and
-    # the reason's chip. The light and the word stand as they do in every header (popup.light_row):
-    # `light_inset` from the edge to the dot and `light_gap` from the dot to the word, since v0.6.10.
+    # The header: the status light in the popup's mark box, the product, and the reason's chip - where
+    # they have always stood (v0.6.10 moved the light and the product about 2 px right for a while).
     mark = px(popup.MARK)
-    cx, text_left = popup.light_row(left, brand.STATUS_DOT["popup"], scale)
+    text_left = left + mark + px(space["s"])
     _, product_h = measure("label", vm["product"], inner, False)
     chip_rect = None
     chip_w = chip_h = 0
@@ -157,7 +156,7 @@ def layout(vm, scale, measure) -> dict:
         chip_w = max(min(chip_text_w + 2 * chip_pad, room), min(chip_text_w + 2 * chip_pad, inner // 3))
         chip_h = max(px(brand.LAYOUT["chip_height"]), chip_text_h)
     header_h = max(mark, product_h, chip_h)
-    items.append({"kind": "halo", "cx": cx, "cy": y + header_h / 2.0, "state": vm["status"],
+    items.append({"kind": "halo", "cx": left + mark / 2.0, "cy": y + header_h / 2.0, "state": vm["status"],
                   "radius": brand.glow_extent(brand.STATUS_DOT["popup"]) * scale})
     product_right = right - (chip_w + px(space["s"]) if chip_w else 0)
     top = y + (header_h - product_h) // 2

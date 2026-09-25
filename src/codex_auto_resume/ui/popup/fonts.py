@@ -70,13 +70,14 @@ def font_candidates(locale, weight, system=_ASK_WINDOWS) -> tuple:
     return tuple(heavy) + (("Segoe UI Semibold", 400), ("Segoe UI", 600))
 
 
-# Font roles: size in px at 96 DPI and weight. The title - the state's word, since v0.6.10 - is
-# smaller than TYPE's because this is a flyout, not a window. A button and a chip are bold (600),
+# Font roles: size in px at 96 DPI and weight. The product line is smaller than TYPE's
+# title because this is a flyout, not a window. A button and a chip are bold (600),
 # the popup's and the notification card's own look: the sizes are brand's, as the window's and the
 # panel's are, but not the weight - brand.TYPE_ROLES' 500 is drawn Regular here (font_candidates),
 # which v0.6.10 tried and gave back.
 ROLES = {
     "title": (15, 600),
+    "state": (brand.TYPE["body"], 400),
     "label": (brand.TYPE["small"], 400),
     "value": (brand.TYPE["heading"], 600),
     "name": (brand.TYPE["body"], 600),

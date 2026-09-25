@@ -57,8 +57,8 @@ namespace CodexAutoResume
         ///   * a drop-down that is not one field high;
         ///   * text, a list's columns or other content that needs more room than it is drawn in,
         ///     and a status light too small for its glow;
-        ///   * the header's light off the headline's line, or not where every header stands it (AuditHero), with the
-        ///     Start button shown and without it.
+        ///   * the header's light not spanning its two lines, not centred on the pair, or not where it has always
+        ///     stood (AuditHero), with the Start button shown and without it.
         /// tests/test_gui_layout.py runs it in every language at five scalings.
         ///
         /// v0.6.10: it also writes down where everything is on every page and Settings section it lays out
@@ -608,34 +608,27 @@ namespace CodexAutoResume
         /// report is known to have looked.
         internal static int AuditedHero;
 
-        /// The header's light where every header stands it (v0.6.10): on the headline's line - in the headline's
-        /// row alone, centred on its text within a pixel - Brand.LightInset from the card's content to the dot, and
-        /// Brand.LightGap from the dot to the headline's first glyph, where the line under it starts its glyphs too
-        /// (TextInset: a label draws its glyphs a padding in from its edge). Until v0.6.10 the light spanned both
-        /// rows, between the two lines, and the headline's glyphs stood about 17 px from it.
+        /// The header's light where it has always stood: spanning both rows, centred between the headline and the line
+        /// under it within a pixel, in its own 28 px column at the card's content, with the headline and that line
+        /// starting where the column ends. v0.6.10 stood it on the headline's line alone, 14 px from the words, for a
+        /// while, and gave that back: nothing a person knows moves by a few pixels.
         private void AuditHero(string where, List<string> findings)
         {
             AuditedHero++;
-            if (hero.GetPositionFromControl(stateDot).Row != hero.GetPositionFromControl(headline).Row ||
-                hero.GetRowSpan(stateDot) != 1)
-                findings.Add(where + " :: the light is not on the headline's row alone");
-            float dot = Soft.PxF(Brand.StatusDotRadius);
+            TableLayoutPanelCellPosition at = hero.GetPositionFromControl(stateDot);
+            if (at.Row != hero.GetPositionFromControl(headline).Row || hero.GetRowSpan(stateDot) != 2)
+                findings.Add(where + " :: the light does not span the headline and the line under it");
             float cx = stateDot.Left + stateDot.Width / 2f, cy = stateDot.Top + stateDot.Height / 2f;
-            // The headline is drawn against its bottom (BottomLeft), one line of it.
-            int line = headline.PreferredSize.Height - headline.Padding.Vertical;
-            float text = headline.Bottom - headline.Padding.Bottom - line / 2f;
-            if (Math.Abs(cy - text) > 1)
-                findings.Add(where + " :: the light's centre is at " + cy + ", the headline's line at " + text);
-            float inset = cx - dot - hero.Padding.Left;
-            if (Math.Abs(inset - Soft.PxF(Brand.LightInset)) > 1)
-                findings.Add(where + " :: the light is " + inset + " from the card's content, not " + Soft.PxF(Brand.LightInset));
-            int headlineGlyph = headline.Left + headline.Padding.Left + TextInset(headline.Font);
-            int detailGlyph = detail.Left + detail.Padding.Left + TextInset(detail.Font);
-            float gap = headlineGlyph - (cx + dot);
-            if (Math.Abs(gap - Soft.PxF(Brand.LightGap)) > 1)
-                findings.Add(where + " :: the words are " + gap + " from the light, not " + Soft.PxF(Brand.LightGap));
-            if (Math.Abs(detailGlyph - headlineGlyph) > 1)
-                findings.Add(where + " :: the two lines start apart, at " + headlineGlyph + " and " + detailGlyph);
+            float pair = (headline.Top + detail.Bottom) / 2f;
+            if (Math.Abs(cy - pair) > 1)
+                findings.Add(where + " :: the light's centre is at " + cy + ", the pair's at " + pair);
+            if (hero.ColumnStyles.Count == 0 || (int)hero.ColumnStyles[0].Width != Px(28))
+                findings.Add(where + " :: the light's column is not 28 px wide");
+            if (Math.Abs(cx - (hero.Padding.Left + Px(28) / 2f)) > 1)
+                findings.Add(where + " :: the light's centre is " + (cx - hero.Padding.Left) + " from the card's content, not " +
+                             Px(28) / 2f);
+            if (headline.Left < stateDot.Right || detail.Left < stateDot.Right)
+                findings.Add(where + " :: the words start inside the light's column");
             if (2 * HaloDot.Extent > Math.Min(stateDot.Width, stateDot.Height))
                 findings.Add(where + " :: the light's box is " + stateDot.Size + ", too small for its glow");
         }
