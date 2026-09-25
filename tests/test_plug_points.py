@@ -29,6 +29,7 @@ import shutil
 import sqlite3
 import sys
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -361,6 +362,95 @@ class LedgerTests(PluggedCase):
         self.assertEqual(len(self.h.backend.send_calls), 1)
         self.assertEqual(self.spent(path), 0)
         self.assertEqual(engine.plug.failures, 1)
+
+    def test_a_ledger_can_write_its_own_database_and_nothing_of_cores(self):
+        """Handed the claim's connection, a ledger that defers could have switched a conversation
+        or recovery back on, and it would have committed with the claim: granted, not refused.
+        Every write, schema change and transaction statement outside its own database is refused
+        while it is asked, and what it was handed is dead once it has answered."""
+        self.due()
+        self.h.store.set_thread_enabled(T2, False, at=self.h.now)
+        path = str(Path(self.root).parent / "ledger.sqlite")
+        attempts = ("UPDATE threads SET enabled=1", "UPDATE settings SET enabled=1",
+                    "DELETE FROM interruptions", "INSERT INTO threads VALUES ('x', 1, 0)",
+                    "CREATE TABLE main.extra (x)", "CREATE TEMP TABLE scratch (x)",
+                    "CREATE TEMP TRIGGER t AFTER UPDATE ON main.interruptions "
+                    "BEGIN UPDATE main.threads SET enabled=1; END",
+                    "PRAGMA foreign_keys=OFF", "PRAGMA main.user_version=99",
+                    "RELEASE claim_ledger", "ROLLBACK TO claim_ledger", "COMMIT", "BEGIN",
+                    "DETACH DATABASE ledger")
+        done, kept = [], []
+
+        def claim_ledger(connection, record, now):
+            kept.append(connection)
+            connection.execute("ATTACH DATABASE ? AS ledger", (path,))
+            connection.execute("CREATE TABLE IF NOT EXISTS ledger.spent (id TEXT)")
+            connection.execute("INSERT INTO ledger.spent VALUES (?)", (record["interruption_id"],))
+            self.assertEqual([row[1] for row in connection.execute("PRAGMA database_list")][-1], "ledger")
+            for statement in attempts:
+                try:
+                    connection.execute(statement)
+                    done.append(statement)
+                except sqlite3.DatabaseError:
+                    pass
+            return DEFER
+        engine = self.plugged(Asked(claim_ledger=claim_ledger))
+        self.h.tick()
+        self.assertEqual(done, [])
+        self.assertEqual(engine.plug.failures, 0, "the ledger caught its refusals and deferred")
+        self.assertFalse(self.h.store.thread_enabled(T2))
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+        self.assertEqual(self.spent(path), 1)
+        with self.assertRaises(sqlite3.ProgrammingError):
+            kept[0].execute("UPDATE threads SET enabled=1")
+        # The claim's connection is core's again: its own writes go through.
+        self.h.store.set_thread_enabled(T2, True, at=self.h.now)
+        self.assertTrue(self.h.store.thread_enabled(T2))
+
+    def test_a_ledger_that_breaks_holds_a_claim_that_carries_the_plugs_words_or_channel(self):
+        """What the plug's words or its channel cost is paid in its ledger, before the claim is
+        granted. A ledger that raised paid nothing, so what it would have paid for is not sent;
+        a claim of core's own words, on core's own backend, costs the ledger's answer only."""
+        channel = Channel(None)
+        for answers, sends in (({"text": "Please go on with the {category} task."}, 0),
+                               ({"sender": channel}, 0), ({}, 1)):
+            with self.subTest(answers=sorted(answers)):
+                h = self.fresh()
+                self.due(h)
+                channel.h, channel.calls = h, []
+                before = h.record()
+                engine = self.plugged(Asked(claim_ledger=OSError("advanced.sqlite is locked"),
+                                            **answers), h)
+                h.tick()
+                self.assertEqual(len(h.backend.send_calls) + len(channel.calls), sends)
+                self.assertEqual(engine.plug.failures, 1)
+                if not sends:
+                    after = h.record()
+                    self.assertEqual((after["state"], after["attempt_count"]), (before["state"], 0))
+                    self.assertEqual(json.loads(after["gate_eval"])["submission_safe"], ["WAIT", "held"])
+
+    def test_a_hook_failing_on_another_thread_during_the_claim_is_not_the_ledger_breaking(self):
+        """`failures` is one count for every thread that holds the plug - the engine's, the
+        icon's, a card's. A surface that raised on the icon's thread while the ledger was
+        answering took back the ledger's spend, and the claim it had paid for still went."""
+        self.due()
+        path = str(Path(self.root).parent / "ledger.sqlite")
+        holder = {}
+
+        def claim_ledger(connection, record, now):
+            connection.execute("ATTACH DATABASE ? AS ledger", (path,))
+            connection.execute("CREATE TABLE IF NOT EXISTS ledger.spent (id TEXT, at REAL)")
+            connection.execute("INSERT INTO ledger.spent VALUES (?, ?)", (record["interruption_id"], now))
+            icon = threading.Thread(target=lambda: holder["engine"].plug.surface(Surface.TRAY, {}))
+            icon.start()
+            icon.join()
+            return DEFER
+        holder["engine"] = self.plugged(Asked(claim_ledger=claim_ledger,
+                                              surface=RuntimeError("the icon's surface broke")))
+        self.h.tick()
+        self.assertEqual(holder["engine"].plug.failures, 1)
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+        self.assertEqual(self.spent(path), 1, "the send was paid for")
 
     def test_the_standard_editions_claim_runs_no_statement_it_did_not_run(self):
         """NULL is never asked, so its claim is the claim there always was - statement for

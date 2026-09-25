@@ -303,8 +303,9 @@ class Guarded:
     answers DEFER or a member of its set; a value point answers DEFER or a value core can use,
     and anything else is DEFER - except at the sender, where it is core's own backend, because
     there is always a send to hand the one message to. Nothing a hook does reaches past this:
-    it is handed copies (`consult`). `failures` counts the hooks that raised, which is how the
-    claim tells a ledger that broke from one that deferred (store/claims.py).
+    it is handed copies (`consult`). `failures` counts the hooks that raised, over every caller
+    of this plug on every thread; the claim asks through `claim_ledger_checked` instead, which
+    says whether that one call raised (store/claims.py).
     """
     __slots__ = ("plug", "failures")
 
@@ -329,8 +330,12 @@ class Guarded:
     def _failed(self, _point):
         self.failures += 1
 
-    def _ask(self, point, *arguments):
-        return consult(self.plug, point, *arguments, failed=self._failed)
+    def _ask(self, point, *arguments, failed=None):
+        def told(where):
+            self._failed(where)
+            if failed is not None:
+                failed(where)
+        return consult(self.plug, point, *arguments, failed=told)
 
     def records(self, view):
         return self._ask(Point.RECORDS, view)
@@ -368,7 +373,17 @@ class Guarded:
         return fields(self._ask(Point.SURFACES, Surface(name), facts))
 
     def claim_ledger(self, connection, record, now):
-        return self._ask(Point.CLAIM_LEDGER, connection, record, now)
+        return self.claim_ledger_checked(connection, record, now)[0]
+
+    def claim_ledger_checked(self, connection, record, now):
+        """P11 as the claim asks it: the answer, and whether this very call raised.
+
+        Not `failures` read before and after: that counter is shared by every thread that holds
+        this plug - the engine's, the icon's, a card's - and a surface failing on one of them
+        while the ledger answered would have looked like the ledger breaking."""
+        broke = []
+        answer = self._ask(Point.CLAIM_LEDGER, connection, record, now, failed=broke.append)
+        return answer, bool(broke)
 
     def partition(self, records):
         return self._ask(Point.CONCURRENCY, records)

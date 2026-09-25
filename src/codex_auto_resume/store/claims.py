@@ -21,6 +21,67 @@ from .errors import StoreError
 from .validate import (_claim_cost, _finite, _timestamp, _uuid, _validated_record,
                        is_usage)
 
+# What a ledger may do on the claim's connection while it is asked (P11): read anything, attach
+# a database of its own, and write, create and drop there. Core's schemas - main, and temp,
+# where a trigger on core's tables could be left behind - are never written, and no transaction
+# or savepoint is begun, ended or rolled back: those are the claim's. A statement with no schema
+# to judge it by, other than the reads below, is refused.
+_CORE_SCHEMAS = (None, "main", "temp")
+_LEDGER_READS = frozenset({sqlite3.SQLITE_SELECT, sqlite3.SQLITE_READ, sqlite3.SQLITE_FUNCTION,
+                           sqlite3.SQLITE_RECURSIVE, sqlite3.SQLITE_ATTACH})
+_LEDGER_PRAGMAS = frozenset({"database_list", "table_info", "table_xinfo", "index_list",
+                             "index_info", "index_xinfo", "foreign_key_list", "user_version",
+                             "schema_version", "data_version", "application_id"})
+
+
+def _ledger_authorizer(action, first, second, schema, _trigger):
+    if action in _LEDGER_READS:
+        return sqlite3.SQLITE_OK
+    if action == sqlite3.SQLITE_PRAGMA and second is None and first in _LEDGER_PRAGMAS:
+        return sqlite3.SQLITE_OK
+    if action in (sqlite3.SQLITE_TRANSACTION, sqlite3.SQLITE_SAVEPOINT, sqlite3.SQLITE_DETACH):
+        return sqlite3.SQLITE_DENY
+    return sqlite3.SQLITE_DENY if schema in _CORE_SCHEMAS else sqlite3.SQLITE_OK
+
+
+class _Rows:
+    """A statement's rows, read out whole: no cursor, and so no way back to the connection."""
+    __slots__ = ("_rows",)
+
+    def __init__(self, rows):
+        self._rows = list(rows)
+
+    def fetchone(self):
+        return self._rows.pop(0) if self._rows else None
+
+    def fetchall(self):
+        rows, self._rows = self._rows, []
+        return rows
+
+    def __iter__(self):
+        return iter(self.fetchall())
+
+
+class _LedgerConnection:
+    """The claim's connection as a ledger is handed it: `execute`, and nothing else.
+
+    Not the connection itself, whose authorizer, row factory and transaction are the claim's to
+    set: a ledger holding it could have taken the authorizer off before it wrote. It is closed
+    once the ledger has answered, so one a ledger kept is no way into a later transaction."""
+    __slots__ = ("_execute", "close")
+
+    def __init__(self, connection):
+        live = [connection]
+
+        def execute(statement, parameters=()):
+            if not live:
+                raise sqlite3.ProgrammingError("the claim this connection was handed for is over")
+            return _Rows(live[0].execute(statement, parameters).fetchall())
+        self._execute, self.close = execute, live.clear
+
+    def execute(self, statement, parameters=()):
+        return self._execute(statement, parameters)
+
 
 class ClaimsMixin:
     def recent_claims(self, thread_id: str, since: float) -> list[float]:
@@ -89,13 +150,15 @@ class ClaimsMixin:
         return self.reserve_detailed(interruption_id, now, **options)[0]
 
     def reserve_detailed(self, interruption_id: str, now: float, *, limits: dict | None = None,
-                         gates: dict | None = None, ledger=None) -> tuple:
+                         gates: dict | None = None, ledger=None, carried: bool = False) -> tuple:
         """Claim a record for sending, re-checking every store-side gate in the claim.
 
         Returns (claimed, refusing_gate, reason). The gate vector - the engine's view of
         Codex plus the store's own checks made here - is persisted whether the claim is
         granted or refused, so an interface can show exactly why a record is waiting.
         `ledger` is the engine's plug (domain/plug.py), asked last (P11); None is NULL's.
+        `carried` says the send this claim leads to carries an answer the plug gave - its words
+        or its channel - which its ledger pays for (`_ledger_holds`).
         """
         _timestamp(now, "now")
         if gates is not None and limits is None:
@@ -125,7 +188,8 @@ class ClaimsMixin:
                 found = machine.first_refusal(vector)
                 if found is not None:
                     refusal = (found[0], found[1][1])
-            if refusal is None and not ledger.null and self._ledger_holds(connection, ledger, row, now):
+            if (refusal is None and not ledger.null
+                    and self._ledger_holds(connection, ledger, row, now, carried)):
                 # The edition counts a claim of its own on this conversation - one in flight, or
                 # the day's or the cooldown's - and the record waits, as behind one of core's.
                 vector["submission_safe"] = machine.gate(machine.WAIT, machine.HELD)
@@ -147,19 +211,35 @@ class ClaimsMixin:
             return True, None, None
 
     @staticmethod
-    def _ledger_holds(connection, ledger, row, now) -> bool:
+    def _ledger_holds(connection, ledger, row, now, carried=False) -> bool:
         """P11: whether the plug's ledger holds a claim every check of core's has granted.
 
         Asked inside the claim's transaction and on its connection, so what the plug counts -
         in a database of its own it attaches here - is counted under the same lock as core's
         rows. What it writes there commits with the claim and nothing else: a savepoint takes
-        it back if it holds the claim, which then spends nothing, or if its hook raised, which
-        then costs only its own answer. HOLD is all it can say; it can refuse, never grant.
+        it back if it holds the claim, which then spends nothing, or if its hook raised.
+        HOLD is all it can say; it can refuse, never grant - so it is handed `execute` alone,
+        under an authorizer that refuses every write to core's schemas and every transaction
+        statement (`_ledger_authorizer`). A ledger that deferred after switching a conversation
+        back on would otherwise have granted what the person had refused.
+
+        A hook that raised costs its own answer, and on a claim of core's own that is all: the
+        claim is granted as with no plug. On a claim that `carried` an answer of the plug's, the
+        failure is what that answer was to be paid with, so the claim is held and nothing the
+        plug chose goes out unpaid and uncounted. Whether this call raised is asked of this
+        call (`claim_ledger_checked`), not read from `failures`, which every thread holding the
+        plug adds to.
         """
-        failures = ledger.failures
         connection.execute("SAVEPOINT claim_ledger")
-        held = ledger.claim_ledger(connection, row, now) is Alternative.HOLD
-        if held or ledger.failures != failures:
+        handed = _LedgerConnection(connection)
+        connection.set_authorizer(_ledger_authorizer)
+        try:
+            answer, broke = ledger.claim_ledger_checked(handed, row, now)
+        finally:
+            connection.set_authorizer(None)
+            handed.close()
+        held = answer is Alternative.HOLD or (broke and carried)
+        if held or broke:
             connection.execute("ROLLBACK TO claim_ledger")
         connection.execute("RELEASE claim_ledger")
         return held
