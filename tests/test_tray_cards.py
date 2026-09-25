@@ -19,6 +19,7 @@ anywhere a screen shows it.
 from __future__ import annotations
 
 import ctypes
+import json
 import os
 from pathlib import Path
 import tempfile
@@ -248,23 +249,23 @@ class IconHostTests(unittest.TestCase):
                 patch.object(tray_popup, "reduced_motion", lambda: bool(tray_popup.theme._reduce_motion_setting)), \
                 patch.object(notice_presence, "battery_saver", lambda: False):
             look = icon._card_look()
-            # v0.6.10: the design too, and the two gates it splits motion into - both held by Reduce motion.
-            self.assertEqual(look, {"theme": "dark", "design": "soft", "contrast": False, "reduced": True,
-                                    "light_still": True, "controls_still": True})
+            # v0.6.10: the design too, which chooses paint only; what moves is `reduced`'s, in every design.
+            self.assertEqual(look, {"theme": "dark", "design": "soft", "contrast": False, "reduced": True})
             settings.update(stored, {"theme": "light", "reduce_motion": False})
             os.utime(stored, ns=(time.time_ns(), time.time_ns() + 10_000_000))
             self.assertEqual(icon._card_look(), {"theme": "light", "design": "soft", "contrast": False,
-                                                 "reduced": False, "light_still": False, "controls_still": False})
-            # Classic: the light breathes and the card comes and goes as Soft's does - only Still holds them.
+                                                 "reduced": False})
+            # Classic: the light breathes and the card comes and goes as Soft's does.
             settings.update(stored, {"design": "classic"})
             os.utime(stored, ns=(time.time_ns(), time.time_ns() + 20_000_000))
             self.assertEqual(icon._card_look(), {"theme": "light", "design": "classic", "contrast": False,
-                                                 "reduced": False, "light_still": False, "controls_still": False})
-            # Still: nothing moves, as with Reduce motion.
-            settings.update(stored, {"design": "still"})
+                                                 "reduced": False})
+            # A Still stored by v0.6.10: Soft, and nothing moves - it is Reduce motion (settings._migrate).
+            stored.write_text(json.dumps(dict(json.loads(stored.read_text(encoding="utf-8")),
+                                              design="still", reduce_motion=False)), encoding="utf-8")
             os.utime(stored, ns=(time.time_ns(), time.time_ns() + 30_000_000))
-            self.assertEqual(icon._card_look(), {"theme": "light", "design": "still", "contrast": False,
-                                                 "reduced": False, "light_still": True, "controls_still": True})
+            self.assertEqual(icon._card_look(), {"theme": "light", "design": "soft", "contrast": False,
+                                                 "reduced": True})
         self.addCleanup(tray_popup.set_design, "soft")
 
 

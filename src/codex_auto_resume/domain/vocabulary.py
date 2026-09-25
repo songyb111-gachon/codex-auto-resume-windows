@@ -372,10 +372,10 @@ class Theme(StrEnum):
 
 class Design(StrEnum):
     """How the surfaces are drawn, in either theme (settings.DESIGNS, brand.DESIGN): `soft` is the
-    design every surface drew until v0.6.10, `still` is Soft with nothing moving, `classic` is
-    v0.6.2's flat cards and `plain` flat neutral grey."""
+    design every surface drew until v0.6.10, `classic` is v0.6.2's flat cards and `plain` flat
+    neutral grey. v0.6.10's `still` is gone: a stored one reads as Soft with Reduce motion on
+    (settings._migrate)."""
     SOFT = "soft"
-    STILL = "still"
     CLASSIC = "classic"
     PLAIN = "plain"
 

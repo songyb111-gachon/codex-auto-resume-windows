@@ -99,7 +99,7 @@ namespace CodexAutoResume
         /// A Theme preference - "system", "light" or "dark" - that the window opens in instead of the
         /// stored one: `--theme=<name>`, which a window that reopens itself passes on (see Reopen).
         internal string Theme;
-        /// A Design - "soft", "still", "classic" or "plain" - that the window opens in instead of the stored
+        /// A Design - "soft", "classic" or "plain" - that the window opens in instead of the stored
         /// one: `--design=<name>` (v0.6.10), passed on by a reopen as the theme is.
         internal string Design;
         /// Where the window goes, in device pixels: `--bounds=<x>,<y>,<width>,<height>`.

@@ -76,10 +76,10 @@ PANEL_THEMES = (PANEL_THEME_SAME, THEME_SYSTEM, "light", "dark")
 DEFAULT_PANEL_THEME = PANEL_THEME_SAME
 
 # v0.6.10: how every surface is drawn, in whichever theme is in effect - Soft (the design they all
-# drew until then, so the default, and an upgrade changes nothing anybody can see), Soft without
-# motion, Classic (v0.6.2's flat cards) or Plain. brand.DESIGN says what each draws. It is not
-# called `look`: the drawing code already uses that name for what a surface resolved. High Contrast
-# outranks every design, and Reduce motion stops the motion in each.
+# drew until then, so the default, and an upgrade changes nothing anybody can see), Classic (v0.6.2's
+# flat cards) or Plain. brand.DESIGN says what each draws. It is not called `look`: the drawing code
+# already uses that name for what a surface resolved. High Contrast outranks every design, and Reduce
+# motion stops the motion in each; no design stops it on its own (see _migrate for the one that did).
 DESIGNS = tuple(Design)
 DEFAULT_DESIGN = "soft"
 
@@ -214,7 +214,9 @@ def is_custom_text(name) -> bool:
 # A refusal a person can act on. `validate_update` reports "invalid value for X" for
 # most fields, which is enough when the field is a number with a published range and
 # useless when it is free text: "invalid value for custom_message" does not say that
-# the problem is a placeholder that would have leaked the conversation.
+# the problem is a placeholder that would have leaked the conversation. A field with
+# published choices names them (`_refuse`), so a choice this version no longer has -
+# v0.6.10's design "still" - is answered with the ones it has.
 EXPLAIN = {name: lambda value: continuation.validate_custom(value)
            for name in FIELDS if is_custom_text(name)}
 
@@ -281,6 +283,9 @@ def _refuse(name: str, value):
             explain(value)
         except ValueError as exc:
             raise SettingsError(str(exc)) from None
+    choices = RANGES.get(name, {}).get("choices")
+    if choices:
+        raise SettingsError("invalid value for %s: expected one of %s" % (name, ", ".join(choices)))
     raise SettingsError("invalid value for %s" % name)
 
 
@@ -349,10 +354,11 @@ def theme_preference(values) -> str:
 
 
 def design_preference(values) -> str:
-    """The stored design - "soft", "still", "classic" or "plain" - never anything else.
+    """The stored design - "soft", "classic" or "plain" - never anything else.
 
     Read as the settings layer reads it, so a surface drawing from a settings dict it was handed
-    draws the design the watcher would: anything unreadable is Soft.
+    draws the design the watcher would: anything unreadable is Soft. A stored "still" is Soft here
+    as well, and the Reduce motion that keeps its picture is `load`'s to add (_migrate).
     """
     raw = values.get("design") if isinstance(values, dict) else None
     return _choice(raw, DEFAULT_DESIGN, DESIGNS)
@@ -379,6 +385,23 @@ def notification_enabled(values, event: str) -> bool:
 
 
 # --------------------------------------------------------------------- persistence
+# v0.6.10's fourth design. "still" was Soft with nothing moving, which on every surface is exactly
+# what Soft draws under Reduce motion; two ways to one picture only confused, so v0.6.11 folded it
+# into Reduce motion, the one way to stop motion. A file that stored it reads as Soft with Reduce
+# motion on - whatever Reduce motion said beside it - so the person keeps the picture they chose,
+# and the next save writes those two, which v0.6.10 also reads as that picture. CONFIG_VERSION does
+# not move: nothing else in the file changes meaning, and a file v0.6.10 wrote needs no marker to
+# say it may hold "still".
+FOLDED_DESIGN = "still"
+
+
+def _fold_design(raw: dict) -> dict:
+    """A stored Still as Soft with Reduce motion on; any other file as it is."""
+    if raw.get("design") != FOLDED_DESIGN:
+        return raw
+    return dict(raw, design=DEFAULT_DESIGN, reduce_motion=True)
+
+
 def _migrate(raw) -> dict:
     """Bring an older settings file forward without losing what the user chose."""
     if not isinstance(raw, dict):
@@ -388,7 +411,7 @@ def _migrate(raw) -> dict:
         # v0.4.x wrote a flat file with no version marker. Its field names that still
         # exist keep their values; everything else takes the new default.
         return {name: raw[name] for name in FIELDS if name in raw}
-    return raw
+    return _fold_design(raw)
 
 
 def load(path: Path) -> dict:

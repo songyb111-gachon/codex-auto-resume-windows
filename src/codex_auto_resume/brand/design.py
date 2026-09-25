@@ -1,6 +1,6 @@
-"""The four designs: what each draws, and what moves in it, as data.
+"""The three designs: what each draws, as data.
 
-v0.6.10. The Design setting draws the same product four ways, and every surface reads the
+v0.6.10. The Design setting draws the same product three ways, and every surface reads the
 difference from here rather than deciding it: the colours are tokens.py's (DESIGN_TOKENS), and
 everything else a design changes is a yes or no below, or a radius.
 """
@@ -11,41 +11,38 @@ from .tokens import design_name
 
 
 # ------------------------------------------------------------------- the designs
-# Five things a design decides, each yes or no:
+# Three things a design decides, each yes or no:
 #
 #   depth       shadows, sunken wells and a card lifted a step off the canvas (dark); without it
 #               a surface is its fill and its hairline
 #   glow        the soft falloff round the status light while it breathes
-#   breathes    the status light moves at all - its breath, and checking's turning arc
-#   glides      the controls move when they change: a switch or a check box, a list rising open,
-#               the scroll glide, and the notification card's entrance, exit and slide
 #   accent_bar  v0.6.2's marks: a 3 px accent bar inside each card's left hairline, and the current
 #               page's tab underlined in the accent
 #
-# Soft is the design every surface drew until this existed, and the default. Still is Soft with
-# nothing moving - exactly what Reduce motion draws, as a look rather than an accessibility
-# setting, and the only design that takes motion away. Classic is v0.6.2's flat cards with their
-# accent bar and today's status light, and Plain is flat and grey; both move as Soft does - the
-# light breathes, the switches and lists glide and the notification card rises in - except that
-# Plain's light dims without a glow: the only gradient on any surface is the glow, so Plain has none.
+# Soft is the design every surface drew until this existed, and the default. Classic is v0.6.2's
+# flat cards with their accent bar and today's status light, and Plain is flat and grey.
+#
+# What moves is not a design's to decide. Every design moves as Soft does - the light breathes, the
+# switches and lists glide and the notification card rises in - except that Plain's light dims
+# without a glow: the only gradient on any surface is the glow, so Plain has none. Since v0.6.11 the
+# stoppers alone hold motion. v0.6.10's fourth design, Still, was Soft with nothing moving - exactly
+# what Soft draws under Reduce motion - and two ways to one picture only confused, so a stored Still
+# now reads as Soft with Reduce motion on (settings._migrate) and Reduce motion is the one switch.
 #
 # A design changes paint and never layout: every size, padding, dot and reserved shadow margin is
-# the same in all four, and a radius is only ever smaller than Soft's, so nothing measured for Soft
+# the same in all three, and a radius is only ever smaller than Soft's, so nothing measured for Soft
 # can overflow in another design. High Contrast replaces every design, and Reduce motion, Windows'
-# animation setting and every other stopper stop motion in each: a design can only have less motion
-# than they allow, never more.
+# animation setting and every other stopper stop motion in each.
 DESIGN = {
-    "soft":    {"depth": True,  "glow": True,  "breathes": True,  "glides": True,  "accent_bar": False},
-    "still":   {"depth": True,  "glow": False, "breathes": False, "glides": False, "accent_bar": False},
-    "classic": {"depth": False, "glow": True,  "breathes": True,  "glides": True,  "accent_bar": True},
-    "plain":   {"depth": False, "glow": False, "breathes": True,  "glides": True,  "accent_bar": False},
+    "soft":    {"depth": True,  "glow": True,  "accent_bar": False},
+    "classic": {"depth": False, "glow": True,  "accent_bar": True},
+    "plain":   {"depth": False, "glow": False, "accent_bar": False},
 }
 # Corner radii, by RADII's roles. Classic's are v0.6.2's: an 8 px card and 7 px buttons, the small
 # radius its 6 px fields' (v0.6.2:mcpui.py), and pills stay pills. Plain's are Windows 11's: 8 px for
 # what stands alone and 4 px for a control.
 DESIGN_RADII = {
     "soft": dict(RADII),
-    "still": dict(RADII),
     "classic": {"card": 8, "control": 7, "chip": 999, "small": 6, "check": 4},
     "plain": {"card": 8, "control": 4, "chip": 999, "small": 4, "check": 4},
 }
@@ -68,16 +65,6 @@ def design_glow(design="soft") -> bool:
     return _rule(design, "glow")
 
 
-def design_breathes(design="soft") -> bool:
-    """Whether the status light moves in a design, when nothing else holds it still."""
-    return _rule(design, "breathes")
-
-
-def design_glides(design="soft") -> bool:
-    """Whether the controls and the card move when they change in a design, when nothing else holds them still."""
-    return _rule(design, "glides")
-
-
 def design_accent_bar(design="soft") -> bool:
     """Whether a design draws v0.6.2's accent bar on each card and underlines the current tab."""
     return _rule(design, "accent_bar")
@@ -86,14 +73,3 @@ def design_accent_bar(design="soft") -> bool:
 def design_radii(design="soft") -> dict:
     """A design's corner radii, by RADII's roles, in CSS px."""
     return DESIGN_RADII[design_name(design)]
-
-
-def light_moves(design="soft", *, stopped=False) -> bool:
-    """Whether the status light moves: the design breathes, and nothing stops it (`stopped` is every
-    stopper a surface knows of - Reduce motion, Windows' animation setting, High Contrast and the rest)."""
-    return design_breathes(design) and not stopped
-
-
-def controls_move(design="soft", *, stopped=False) -> bool:
-    """Whether the controls and the card move when they change: the design glides, and nothing stops it."""
-    return design_glides(design) and not stopped
