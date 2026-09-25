@@ -499,6 +499,37 @@ class UpgradeKeepsTheOwnersChoiceTests(unittest.TestCase):
         self.assertEqual(self.bootstrap.count("'setup'"), 1)
 
 
+@unittest.skipUnless(WINDOWS and POWERSHELL, "the installer is PowerShell on Windows")
+class LegacyBootstrapArgumentTests(unittest.TestCase):
+    """What a bootstrap still installed hands this installer, bound by the installer's own
+    parameters. Every published bootstrap from v0.5.2 to v0.6.10 splats its -NoStartup in an
+    array, which binds by position: the word landed in $PluginName, the sign-in start was
+    registered, and Codex was told of a plugin named -SkipStartup."""
+
+    PROBE = r"""
+$ErrorActionPreference = 'Stop'
+$text = [IO.File]::ReadAllText($env:CAR_INSTALLER)
+$first = $text.IndexOf('[CmdletBinding()]', [StringComparison]::Ordinal)
+$last = $text.IndexOf("`$ErrorActionPreference = 'Stop'", $first, [StringComparison]::Ordinal)
+$bound = [scriptblock]::Create($text.Substring($first, $last - $first) +
+    '; ([bool]$SkipStartup).ToString() + " " + $PluginName')
+$legacy = @(); $legacy += '-SkipStartup'
+$shouting = @(); $shouting += '-SKIPSTARTUP'
+$named = @{ SkipStartup = $true }
+$other = @{ PluginName = 'another-plugin' }
+@((& $bound @legacy), (& $bound @shouting), (& $bound @named), (& $bound), (& $bound @other)) -join '|'
+"""
+
+    def test_an_old_bootstraps_positional_word_is_the_switch_it_meant(self):
+        done = subprocess.run([POWERSHELL, "-NoProfile", "-NonInteractive", "-Command", self.PROBE],
+                              capture_output=True, text=True, encoding="utf-8", errors="replace",
+                              timeout=120, env=dict(os.environ, CAR_INSTALLER=str(PS1)))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(done.stdout.strip().split("|"),
+                         ["True codex-auto-resume", "True codex-auto-resume", "True codex-auto-resume",
+                          "False codex-auto-resume", "False another-plugin"])
+
+
 class CrashDuringTheCopyTests(unittest.TestCase):
     """A power cut between the move and the copy must not cost the only good tree.
 
