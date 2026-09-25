@@ -57,6 +57,16 @@ var HERO = null;
 // A timer asked to wait longer than about 24.8 days fires at once, and would again and again, so it
 // is never asked to wait longer than a day: it wakes, finds the time still to come, and waits again.
 var CLOCK_LONGEST = 86400000;
+// How long, in seconds, the page goes on saying checking once a task's time has come - or once it
+// read a task whose time already had (checkingRow): one pass of the watcher at its own pace
+// (runtime/loop.py DEFAULT_POLL, which a test holds this to). The popup and the Dashboard read the
+// record every second and leave checking at the pass that acts on it; this page reads it once. A
+// watcher run slower than that (`run --poll`) is still checking when the page stops saying so, which
+// says less than is true and never more.
+var CHECKING_HOLD = 30;
+// When the rows the page shows were read, on its clock, in seconds (readAt): set when it is served
+// them, and again whenever it reads the list anew.
+var READ_AT = readAt(DATA, Date.now() / 1000);
 
 // Every word on this panel comes from Python, in the language Python resolved. The panel
 // does not consult the browser's language: the notifications, the setup output, the
@@ -297,12 +307,14 @@ function previewArguments(category, read) {
 // tests/data/light_states.json holds all three to it (v0.6.10).
 //
 // `now` is the clock, in seconds, that "a time has come" is read by - the page's own, as the
-// popup and the Dashboard read theirs. Until v0.6.10 this page took none: it is drawn once, so it
-// said waiting where the other two said checking, and each row said "due now". Now the one timer
-// the page keeps (watchClock) reads the rows again the moment a time they carry comes, so a task
-// that comes due while the panel is open turns it to checking as it does them. Without a clock
-// nothing has come due.
-function activity(status, rows, now) {
+// popup and the Dashboard read theirs. `read` is when the rows were read, on that clock: the
+// others read theirs every second, so for them it is `now`, and it is when it is not given. Until
+// v0.6.10 this page took no clock: it is drawn once, so it said waiting where the other two said
+// checking, and each row said "due now". Now it says checking too, but only for as long as what
+// it read can still say so (checkingRow): the others leave checking at the watcher's next pass,
+// which they see and this page does not. The one timer the page keeps (watchClock) reads the rows
+// again when a time they carry comes, and when that stops. Without a clock nothing has come due.
+function activity(status, rows, now, read) {
   var moving = ['submission_claimed', 'submitted', 'withdrawing', 'turn_running', 'turn_finishing'];
   var codes = (status && status.codes) || {};
   var list = rows || [];
@@ -317,7 +329,7 @@ function activity(status, rows, now) {
     if (moving.indexOf(list[j].code) >= 0) return 'recovering';
   }
   for (var k = 0; k < list.length; k++) {
-    if (due(list[k], now)) return 'checking';
+    if (checkingRow(list[k], now, read)) return 'checking';
   }
   return (status.pending > 0 || list.length > 0) ? 'waiting' : 'monitoring';
 }
@@ -327,6 +339,18 @@ function activity(status, rows, now) {
 function due(row, now) {
   var at = row && row.eligible_at;
   return typeof at === 'number' && typeof now === 'number' && at <= now;
+}
+
+// Whether a row makes the page say checking at `now`: its time has come (due), and no more than one
+// watcher pass (CHECKING_HOLD) has gone by since the later of that time and `read`, when the row was
+// read. After that, what the page read no longer says what the watcher is doing - it has had its
+// pass at the task, and what it did is in a reading the page has not had - so the page says waiting
+// again, and the row "due now", which is still true (standard J7: a state is never overstated).
+// With no `read` the row was read at `now`, as the popup and the Dashboard read theirs.
+function checkingRow(row, now, read) {
+  if (!due(row, now)) return false;
+  if (typeof read !== 'number' || !isFinite(read)) return true;
+  return now < Math.max(row.eligible_at, read) + CHECKING_HOLD;
 }
 
 // Why a watcher that runs needs a person, or null when it does not: an older watcher still
@@ -1013,7 +1037,7 @@ function showFacts(facts, status, state, rows) {
 
 // `now` is the clock the word is read by (activity); render() reads it once for the whole page.
 function renderHero(status, now) {
-  var state = activity(status, DATA.pending, now);
+  var state = activity(status, DATA.pending, now, READ_AT);
   var hero = element('section', 'card hero');
   hero.setAttribute('data-state', state);
   // The product name is an eyebrow rather than a heading: inside Codex the panel is
@@ -1154,6 +1178,7 @@ function changeThread(row, shown, enable, controls) {
     return callTool('list_pending', {}).then(function (payload) {
       if (!Array.isArray(payload.pending)) return;
       DATA.pending = payload.pending;
+      READ_AT = Date.now() / 1000;
       if (DATA.status) DATA.status.pending = payload.pending.length;
     }, function () {});
   }, function (error) {
@@ -1334,7 +1359,7 @@ function renderRecovery(status, schema, now) {
   // The state's light, smaller, and never a light of its own (v0.6.10): until then a dot that
   // never moved sat here, cyan while the light above it breathed - and every light that says the
   // product is running moves. Read by the same rule at the same moment as the hero's.
-  text.appendChild(lightNode(lightFor(status, activity(status, DATA.pending, now), DATA.pending), true));
+  text.appendChild(lightNode(lightFor(status, activity(status, DATA.pending, now, READ_AT), DATA.pending), true));
   text.appendChild(element('span', null, !running
     ? t('status.recovery_idle', 'Nothing will be recovered until it is running')
     : status.enabled ? t('status.recovery_on', 'Automatic recovery is on')
@@ -1625,42 +1650,48 @@ function showLight(light) {
   }
 }
 
-// How long until the soonest time a row carries comes, in milliseconds from `now` (seconds), or null
-// when no row carries one still to come.
-function untilDue(rows, now) {
+// How long until what the page says of its rows can next change, in milliseconds from `now` (seconds):
+// the soonest time a row carries that is still to come, or the soonest moment a row whose time has come
+// stops making the page say checking (checkingRow, with the rows read at `read`). Null when neither is
+// still to come - and with no `read`, a row whose time has come has no such moment.
+function untilChange(rows, now, read) {
+  if (typeof now !== 'number' || !isFinite(now)) return null;
+  var known = typeof read === 'number' && isFinite(read);
   var soonest = null;
   (rows || []).forEach(function (row) {
     var at = row && row.eligible_at;
-    if (typeof at !== 'number' || !isFinite(at) || due(row, now)) return;
-    if (soonest === null || at < soonest) soonest = at;
+    if (typeof at !== 'number' || !isFinite(at)) return;
+    var next = !due(row, now) ? at : known ? Math.max(at, read) + CHECKING_HOLD : null;
+    if (next === null || next <= now) return;
+    if (soonest === null || next < soonest) soonest = next;
   });
-  if (soonest === null || typeof now !== 'number' || !isFinite(now)) return null;
+  if (soonest === null) return null;
   return Math.min(Math.max(1, Math.ceil((soonest - now) * 1000)), CLOCK_LONGEST);
 }
 
 // The page's one timer (v0.6.10). The page is drawn once, from one tool result, and nothing on it
-// counts down (nextCheck says why); but the one thing that result tells it about the future - when a
-// time a row carries will come - it keeps. It wakes once, when the soonest such time comes, says
-// again what that changes (retell), and waits for the next. A page whose rows carry no time still to
-// come keeps no timer at all.
+// counts down (nextCheck says why); but what that result tells it about the future it keeps: when a
+// time a row carries will come, and when, one watcher pass after that, what it read stops saying the
+// task is being checked. It wakes once, when the soonest of those comes, says again what that changes
+// (retell), and waits for the next. A page with neither still to come keeps no timer at all.
 function watchClock() {
   if (CLOCK !== null) clearTimeout(CLOCK);
   CLOCK = null;
-  var wait = DATA ? untilDue(DATA.pending, Date.now() / 1000) : null;
+  var wait = DATA ? untilChange(DATA.pending, Date.now() / 1000, READ_AT) : null;
   if (wait !== null) CLOCK = setTimeout(retell, wait);
 }
 
 // What a time coming changes, said again in place: the word and the light - a waiting task whose
-// time has come is checking, here as in the popup and the Dashboard - the facts under the word, and
-// each row's next check, now "due now". Nothing is drawn anew, which would take the keyboard from
-// wherever it was, and nothing is asked: what the watcher did about the task arrives with the next
-// tool result, as everything else on this page does.
+// time has come is checking, here as in the popup and the Dashboard, for one watcher pass, and then
+// waiting again - the facts under the word, and each row's next check, now "due now". Nothing is
+// drawn anew, which would take the keyboard from wherever it was, and nothing is asked: what the
+// watcher did about the task arrives with the next tool result, as everything else on this page does.
 function retell() {
   CLOCK = null;
   if (!DATA || !HERO) return;
   var status = DATA.status || {};
   var rows = DATA.pending;
-  var state = activity(status, rows, Date.now() / 1000);
+  var state = activity(status, rows, Date.now() / 1000, READ_AT);
   var light = lightFor(status, state, rows);
   eachNode(document.getElementById('root'), function (node) {
     if (node.classList && node.classList.contains('halo')) {
@@ -1681,6 +1712,18 @@ function retell() {
     showLight(light);
   }
   watchClock();
+}
+
+// When the rows in `data` were read, as best the page can tell at `now` (seconds): no later than
+// now, and - when the status says when the watcher last had a pass - no later than one pass after
+// that, since the watcher passes that often and the status was read after its last one. A page
+// Codex draws again from a tool result it kept, a day after the reading, is served that day-old
+// reading: by this, it knows the reading is old and says nothing is being checked.
+function readAt(data, now) {
+  var watcher = (data && data.status && data.status.watcher) || {};
+  var tick = watcher.last_tick_at;
+  if (typeof tick !== 'number' || !isFinite(tick)) return now;
+  return Math.min(now, tick + CHECKING_HOLD);
 }
 
 // Every element under `node`, depth first.

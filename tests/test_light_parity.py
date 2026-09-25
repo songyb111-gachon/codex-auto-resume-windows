@@ -9,10 +9,13 @@ is the rule as a table - what a surface read, and the word and light it must sho
 runs every vector through each implementation in its own language:
 
   * the popup: `ui/popup/model.activity` and `light_for`, and the view the window draws from;
-  * the panel: `activity` and `lightFor` in `mcp/assets/panel.js`, run in Node, on the table's `now` -
-    until v0.6.10 it took no clock, being drawn once, and said waiting where the others said checking
-    (a `panel` field in the vectors); since then the page reads its own clock by the same rule, and
-    its one timer reads it again when a time a row carries comes;
+  * the panel: `activity` and `lightFor` in `mcp/assets/panel.js`, run in Node, on the table's `now`
+    and read at it, as every vector is - until v0.6.10 it took no clock, being drawn once, and said
+    waiting where the others said checking (a `panel` field in the vectors); since then the page reads
+    its own clock by the same rule, and its one timer reads it again when a time a row carries comes.
+    Drawn once, it says checking for one watcher pass after the later of that time and its reading, and
+    then waiting (test_mcpui_v064 LightClockTests): the others see the pass that acts on the task and it
+    does not. No vector is read before `now`, so none parts;
   * the window: `SettingsForm.ActivityWord`, `HeaderLight` and `Activity`, compiled with csc and
     called through reflection, as tests/test_gui_v065_taskbar.py calls it.
 
@@ -29,6 +32,7 @@ from functools import lru_cache
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -43,7 +47,8 @@ if _HERE not in sys.path:
 import guiscan  # noqa: E402
 from test_mcpui_v063 import NODE, run_javascript  # noqa: E402
 
-from codex_auto_resume import brand, l10n, machine  # noqa: E402
+from codex_auto_resume import brand, l10n, machine, runtime  # noqa: E402
+from codex_auto_resume.mcp import panel as mcpui  # noqa: E402
 from codex_auto_resume.ui import popup  # noqa: E402
 from codex_auto_resume.ui.popup import model as popup_model  # noqa: E402
 
@@ -60,15 +65,16 @@ SEPARATOR = "\x1f"
 
 @lru_cache(maxsize=None)
 def panel_answers():
-    """Each vector through the panel's own code, at the table's `now`: [word, light, {language: facts}]. Facts only
-    where there is a status, as the panel is always handed one."""
+    """Each vector through the panel's own code, at the table's `now` and read at it, with the page's own watcher
+    pass: [word, light, {language: facts}]. Facts only where there is a status, as the panel is always handed one."""
     cases = [[vector["status"], vector["rows"]] for vector in VECTORS]
     catalogs = {language: l10n.catalog(language) for language in FACT_LANGUAGES}
-    return run_javascript(["t", "fill", "activity", "due", "attentionCause", "lightFor", "heroFacts"], """
+    hold = re.search(r"^var CHECKING_HOLD = \d+;$", mcpui._SCRIPT, re.M).group(0)
+    return run_javascript(["t", "fill", "activity", "due", "checkingRow", "attentionCause", "lightFor", "heroFacts"], """
       var catalogs = %s;
       var now = %s;
       var out = %s.map(function (c) {
-        var word = activity(c[0], c[1], now);
+        var word = activity(c[0], c[1], now, now);
         var facts = {};
         if (c[0] !== null) {
           Object.keys(catalogs).forEach(function (language) {
@@ -79,7 +85,7 @@ def panel_answers():
         return [word, lightFor(c[0], word, c[1]), facts];
       });
       process.stdout.write(JSON.stringify(out));
-    """ % (json.dumps(catalogs, ensure_ascii=False), json.dumps(NOW), json.dumps(cases)))
+    """ % (json.dumps(catalogs, ensure_ascii=False), json.dumps(NOW), json.dumps(cases)), prelude=hold)
 
 
 # ------------------------------------------------------------------------------------------ the table
@@ -142,7 +148,9 @@ class TableTests(unittest.TestCase):
         """Until v0.6.10 the panel parted where a time had come: drawn once, with no clock, it said waiting where the
         others said checking (the critic's correction to F5), and a `panel` field said so. It reads the page's clock
         now (F3), and its one timer reads it again the moment a time a row carries comes, so no vector parts - and
-        the table still holds the moments that used to."""
+        the table still holds the moments that used to. The panel's checking lasts one watcher pass from the later
+        of the row's time and its reading (the reviewer on F3); every vector is read at `now`, so a row whose time
+        came more than a pass before is still checking - which the table holds too."""
         for vector in VECTORS:
             with self.subTest(vector["name"]):
                 self.assertNotIn("panel", vector)
@@ -150,6 +158,9 @@ class TableTests(unittest.TestCase):
         self.assertGreaterEqual(len(checking), 3)
         self.assertTrue(any(row["eligible_at"] == NOW for vector in checking for row in vector["rows"]),
                         "a time that comes this very second is checking")
+        self.assertTrue(any(NOW - row["eligible_at"] > runtime.DEFAULT_POLL
+                            for vector in checking for row in vector["rows"] if row["eligible_at"] is not None),
+                        "a reading of a time that came more than a pass before is checking, as the others say")
 
     def test_the_taskbar_keeps_its_red_and_no_header_shows_it(self):
         with_taskbar = [vector for vector in VECTORS if "taskbar" in vector]

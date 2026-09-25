@@ -961,7 +961,9 @@ class PinnedControlMarkupTests(unittest.TestCase):
 class LightClockTests(unittest.TestCase):
     """v0.6.10: the page's two lights share one phase that a redraw does not reset (F2), and a task that comes due
     while the page is open turns it to checking, with its arc, as the popup and the Dashboard do - by the page's one
-    timer, which says it again in place (F3)."""
+    timer, which says it again in place (F3) - for one watcher pass after the later of the task's time and the
+    page's reading, and then waiting again, since the page never sees the pass that acts on it (the reviewer on
+    F3)."""
 
     # The page's clocks, the test's own: the wall clock the rows' times are read by, and the one the light's phase
     # is counted on. `Date` is shadowed for the whole script, so the global one is taken first.
@@ -999,7 +1001,7 @@ class LightClockTests(unittest.TestCase):
     def page(self, body, data):
         return run_page(self.LOOK + body, data=data, prelude=self.CLOCK)
 
-    def test_a_task_that_comes_due_while_the_page_is_open_turns_it_to_checking(self):
+    def test_a_task_that_comes_due_while_the_page_is_open_turns_it_to_checking_for_one_pass(self):
         observed = self.page("""
           var steps = [look()];
           NOW_MS += 60000; PERF_MS += 60000;
@@ -1008,8 +1010,15 @@ class LightClockTests(unittest.TestCase):
           NOW_MS += 30000; PERF_MS += 30000;
           runTimers();
           steps.push(look());
+          NOW_MS += 30000; PERF_MS += 30000;
+          runTimers();
+          steps.push(look());
+          NOW_MS += 4 * 3600000; PERF_MS += 4 * 3600000;
+          runTimers();
+          render();
+          steps.push(look());
           """ + say("steps"), self.data(60, 90))
-        waiting, checking, later = observed
+        waiting, checking, later, passed, hours = observed
         self.assertEqual((waiting["state"], waiting["word"]), ("waiting", ENGLISH["activity.waiting"]))
         self.assertEqual(waiting["lights"], ["halo waiting", "halo mini waiting"])
         self.assertNotIn(ENGLISH["panel.due"], waiting["due"])
@@ -1022,21 +1031,107 @@ class LightClockTests(unittest.TestCase):
         self.assertNotEqual(checking["due"][1], ENGLISH["panel.due"])
         self.assertIn(ENGLISH["status.next_check"].replace("{time}", ENGLISH["panel.due"]), checking["facts"])
         self.assertEqual(checking["delay"], "0ms", "a light that has just changed starts at the top of its cycle")
+        # The one timer now waits for the next change: the second time coming, and the first row's pass ending,
+        # at the same moment.
         self.assertEqual(checking["timers"], [30000])
-        # The next one's time comes too: nothing about the light changed, so its phase is left alone, and nothing
-        # is left to wait for.
+        # A pass on, the first row no longer says it is being checked, but the second has just come due: nothing
+        # about the light changed, so its phase is left alone, and the timer waits for the second row's pass.
         self.assertEqual(later["lights"], ["halo checking", "halo mini checking"])
         self.assertEqual(later["due"], [ENGLISH["panel.due"]] * 2)
         self.assertEqual(later["delay"], "0ms")
-        self.assertEqual(later["timers"], [])
+        self.assertEqual(later["timers"], [30000])
+        # That pass ends too. What the page read no longer says what the watcher is doing, so it says waiting
+        # again, the arc gone with the word; each row still says "due now", which is still true.
+        self.assertEqual((passed["state"], passed["word"]), ("waiting", ENGLISH["activity.waiting"]))
+        self.assertEqual(passed["lights"], ["halo waiting", "halo mini waiting"])
+        self.assertEqual(passed["due"], [ENGLISH["panel.due"]] * 2)
+        self.assertIn(ENGLISH["status.next_check"].replace("{time}", ENGLISH["panel.due"]), passed["facts"])
+        self.assertEqual(passed["delay"], "0ms", "a light that has just changed starts at the top of its cycle")
+        self.assertEqual(passed["timers"], [], "nothing is left to come")
+        # Hours later, and drawn again on the page's clock as a click would draw it: still no checking.
+        self.assertEqual(hours["state"], "waiting")
+        self.assertEqual(hours["lights"], ["halo waiting", "halo mini waiting"])
+        self.assertEqual(hours["timers"], [])
 
-    def test_a_page_with_no_time_to_come_keeps_no_timer(self):
-        for data, state in ((snapshot(), "waiting"), (self.data(-5), "checking"), (self.data(-5, 60), "checking")):
-            with self.subTest(state=state, rows=len(data["pending"])):
+    def test_a_page_opened_after_a_task_came_due_says_checking_for_one_pass_from_its_reading(self):
+        """The reviewer on F3: a page drawn just after a time had come turned the arc for as long as it was open."""
+        observed = self.page("""
+          var steps = [look()];
+          NOW_MS += 29999; PERF_MS += 29999;
+          render();
+          steps.push(look());
+          NOW_MS += 1; PERF_MS += 1;
+          runTimers();
+          steps.push(look());
+          NOW_MS += 4 * 3600000; PERF_MS += 4 * 3600000;
+          render();
+          steps.push(look());
+          """ + say("steps"), self.data(-5))
+        opened, redrawn, passed, hours = observed
+        self.assertEqual(opened["lights"], ["halo checking", "halo mini checking"])
+        self.assertEqual(opened["timers"], [30000], "one pass from when the page read it, not from the row's time")
+        self.assertEqual(redrawn["lights"], ["halo checking", "halo mini checking"])
+        self.assertEqual(redrawn["timers"], [1])
+        for moment in (passed, hours):
+            self.assertEqual((moment["state"], moment["word"]), ("waiting", ENGLISH["activity.waiting"]))
+            self.assertEqual(moment["lights"], ["halo waiting", "halo mini waiting"])
+            self.assertEqual(moment["due"], [ENGLISH["panel.due"]])
+            self.assertEqual(moment["timers"], [])
+
+    def test_a_reading_the_watcher_had_passed_long_before_says_nothing_is_being_checked(self):
+        """A page Codex draws again from a tool result it kept is served that old reading. The status says when the
+        watcher last had a pass, and a reading is never more than a pass after that: one read hours ago about a
+        task whose time had come then says waiting from the start, and keeps no timer. A reading a pass old or
+        less still says checking."""
+        for last_tick, state, timers in ((-3 * 3600, "waiting", []), (-10, "checking", [30000])):
+            data = self.data(-3 * 3600 - 60)
+            data["status"]["watcher"] = {"running": True, "ticking": True, "engine_state": "verified",
+                                         "last_tick_at": 1_800_000_000 + last_tick}
+            with self.subTest(last_tick=last_tick):
                 observed = self.page(say("look()"), data)
                 self.assertEqual(observed["state"], state)
                 self.assertEqual(observed["lights"], ["halo " + state, "halo mini " + state])
-                self.assertEqual(observed["timers"], [60000] if len(data["pending"]) == 2 else [])
+                self.assertEqual(observed["due"], [ENGLISH["panel.due"]])
+                self.assertEqual(observed["timers"], timers)
+
+    def test_reading_the_list_again_is_a_new_reading(self):
+        """Switching a conversation reads the list again (changeThread). A task still waiting after its time in
+        that reading is one the watcher has not yet acted on, so the page says checking again, for one pass from
+        that reading."""
+        observed = self.page("""
+          var steps = [look()];
+          NOW_MS += 45000; PERF_MS += 45000;
+          runTimers();
+          steps.push(look());
+          var row = DATA.pending[0];
+          window.openai.callTool = function (name, args) {
+            CALLS.push([name, args]);
+            if (name === 'enable_conversation_recovery') {
+              return Promise.resolve({structuredContent: {thread_id: args.thread_id, enabled: true}});
+            }
+            if (name === 'list_pending') return Promise.resolve({structuredContent: {pending: [row]}});
+            return new Promise(function () {});
+          };
+          changeThread(row, 'example-project', true, []);
+          await settle();
+          steps.push(look());
+          """ + say("steps"), self.data(-5))
+        opened, passed, reread = observed
+        self.assertEqual(opened["state"], "checking")
+        self.assertEqual((passed["state"], passed["timers"]), ("waiting", []))
+        self.assertEqual(reread["state"], "checking")
+        self.assertEqual(reread["lights"], ["halo checking", "halo mini checking"])
+        self.assertEqual(reread["timers"], [30000])
+
+    def test_the_page_keeps_one_timer_for_the_soonest_change_to_come(self):
+        for data, state, timers in ((snapshot(), "waiting", []), (self.data(-5), "checking", [30000]),
+                                    (self.data(-5, 60), "checking", [30000]), (self.data(-5, 20), "checking", [20000]),
+                                    (self.data(60), "waiting", [60000])):
+            with self.subTest(state=state, rows=[row["eligible_at"] for row in data["pending"]]):
+                observed = self.page(say("look()"), data)
+                self.assertEqual(observed["state"], state)
+                self.assertEqual(observed["lights"], ["halo " + state, "halo mini " + state])
+                self.assertEqual(observed["timers"], timers)
 
     def test_a_redraw_keeps_the_light_s_phase_and_a_new_light_starts_its_own(self):
         observed = self.page("""
