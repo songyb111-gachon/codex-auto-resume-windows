@@ -164,7 +164,7 @@ class CommandLineTests(unittest.TestCase):
         text = WORKFLOW.read_text(encoding="utf-8")
         step = text.index("run: python build/legacy_bootstraps.py")
         self.assertLess(text.index("run: python build/make_release.py"), step)
-        self.assertLess(step, text.index("Keep the archive even when nothing is published"))
+        self.assertLess(step, text.index("Keep the archives even when nothing is published"))
         self.assertIn("fetch-depth: 0", text[:step])
 
 

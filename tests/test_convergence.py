@@ -532,6 +532,83 @@ class BootstrapTests(unittest.TestCase):
                         + str(sorted(mine - theirs)))
 
 
+class EditionReleaseTests(unittest.TestCase):
+    """The release names, checks and tells apart the two editions' archives as the bootstrap does.
+
+    An installed copy fetches the archive its own release.json names for its edition, and
+    installs it only if its Test-Archive, asked for that edition, accepts it. The release
+    workflow names the same two archives in both of its jobs, checks the same entries in the
+    build job, and tells the editions apart in the publish job - which runs nothing of the
+    repository's, so it does that with `unzip` and `grep`. Two rules, written four times in
+    three languages: they drift, so they are compared here.
+    """
+
+    def setUp(self):
+        self.workflow = WORKFLOW.read_text(encoding="utf-8")
+        self.build = self.workflow[:self.workflow.index("\n  publish:")]
+        self.publish = self.workflow[self.workflow.index("\n  publish:"):]
+        release = json.loads(RELEASE.read_text(encoding="utf-8"))
+        self.templates = {"standard": release["archive"], "advanced": release["advanced"]["archive"]}
+        test_archive = block(BOOTSTRAP.read_text(encoding="utf-8"), "function Test-Archive", "\n}\n")
+        self.package = re.search(r"\$package = '([^']+)'", test_archive).group(1)
+        self.skill = re.search(r"\$skill = '([^']+)'", test_archive).group(1)
+
+    def step(self, text, name):
+        start = text.index("- name: %s\n" % name)
+        return text[start:text.index("\n      - name:", start)]
+
+    def test_both_jobs_name_each_archive_by_its_template(self):
+        for edition, template in self.templates.items():
+            with self.subTest(edition):
+                built = "build/dist/" + template.replace("{version}", "$($env:VERSION)")
+                self.assertIn('%s = "%s"' % (edition, built), self.build)
+                published = "dist/" + template.replace("{version}", "${{ needs.build.outputs.version }}")
+                self.assertIn(": %s\n" % published, self.publish)
+        named = re.findall(r'(?m)^ +(\w+) = "build/dist/[^"]+\.zip"\s*$', self.build)
+        self.assertEqual(named, list(self.templates), "the build job checks an archive of no edition")
+
+    def test_every_archive_is_held_to_the_required_list(self):
+        """The list itself is BootstrapTests' (test_required_contents_match_the_release_workflow);
+        this is that each edition's archive is held to it, since the bootstrap holds both."""
+        check = self.step(self.build, "Check each archive is what it claims to be")
+        self.assertLess(check.index("foreach ($edition in $archives.Keys)"),
+                        check.index("foreach ($required in @("))
+
+    def test_the_advanced_archive_needs_what_the_bootstrap_needs_of_it(self):
+        check = self.step(self.build, "Check each archive is what it claims to be")
+        self.assertIn("$package = '%s__init__.py'" % self.package, check)
+        self.assertIn("if ($edition -eq 'advanced' -and $names -notcontains $package)", check)
+
+    def test_the_publish_job_tells_the_editions_apart_by_the_bootstraps_rule(self):
+        check = self.step(self.publish, "Check each archive is its own edition")
+        for zip_ in ("$STANDARD_ZIP", "$ADVANCED_ZIP"):
+            self.assertIn('unzip -Z1 "%s" | tr \'\\\\\' \'/\'' % zip_, check)
+        found = re.search(r"grep -iE '([^']+)' <<<\"\$standard\"", check)
+        self.assertIsNotNone(found, "the standard archive's listing is not searched")
+        refused = re.compile(found.group(1), re.IGNORECASE)
+        # Every name the bootstrap refuses in a standard archive, in any case, and nothing of core.
+        for prefix in (self.package, self.skill):
+            for name in (prefix + "__init__.py", (prefix + "SKILL.md").upper()):
+                with self.subTest(name):
+                    self.assertIsNotNone(refused.search(name))
+        for name in ("payload/app/src/codex_auto_resume/edition.py",
+                     "payload/app/skills/codex-auto-resume/SKILL.md", "payload/runtime/python.exe"):
+            with self.subTest(name):
+                self.assertIsNone(refused.search(name))
+        self.assertIn("grep -qx '%s__init__.py' <<<\"$advanced\"" % self.package, check)
+
+    def test_both_editions_are_built_audited_and_checked_before_anything_is_kept(self):
+        order = [self.build.index(marker) for marker in (
+            "./build/make_gui.ps1 -Edition advanced",
+            "run: python build/make_release.py --edition standard",
+            "run: python build/make_release.py --edition advanced",
+            "- name: Check each archive is what it claims to be",
+            "run: python build/edition_audit.py",
+            "run: python build/legacy_bootstraps.py",
+            "- name: Keep the archives even when nothing is published")]
+        self.assertEqual(order, sorted(order))
+
+
 class ArgumentQuotingTests(unittest.TestCase):
     r"""A path with a space must survive the trip to `codex`.
 

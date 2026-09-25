@@ -222,11 +222,23 @@ class BuildScriptTests(unittest.TestCase):
     def test_the_release_build_proves_it_twice(self):
         workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
         self.assertIn("Check the executables are reproducible", workflow)
-        build = workflow.index("Build the settings window and the MCP launcher")
+        build = workflow.index("Build each edition's settings window and the MCP launcher")
         check = workflow.index("Check the executables are reproducible")
         archive = workflow.index("Build the release archive")
         self.assertLess(build, check)
         self.assertLess(check, archive)
+
+    def test_the_release_build_proves_both_editions_executables_twice(self):
+        """Each edition builds its own window, so each is built twice and compared: three
+        executables, known by folder as well as name, since the two windows share one."""
+        workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+        start = workflow.index("- name: Build each edition's settings window and the MCP launcher")
+        steps = workflow[start:workflow.index("- name: Build the release archive")]
+        self.assertEqual(steps.count("./build/make_gui.ps1 -Edition advanced"), 2, "built once, then again")
+        self.assertEqual(len(re.findall(r"\./build/make_gui\.ps1(?! -Edition)", steps)), 2)
+        self.assertIn("Get-ChildItem build/advanced -Filter *.exe", steps)
+        self.assertIn("if ($first.Count -ne 3)", steps)
+        self.assertIn('"$($exe.Directory.Name)/$($exe.Name)"', steps)
 
 
 @unittest.skipUnless(CSC.is_file() and POWERSHELL.is_file(),
