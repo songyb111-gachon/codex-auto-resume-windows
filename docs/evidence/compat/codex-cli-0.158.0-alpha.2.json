@@ -1,0 +1,107 @@
+{
+  "format": "codex-auto-resume-compat-evidence/1",
+  "codex_version": "codex-cli 0.158.0-alpha.2",
+  "verdict": "CHECKED",
+  "recorded_at": "2026-09-25T20:35:58Z",
+  "recorded_by": "codex-compat-admin, on the maintainer's own Windows machine",
+  "attribution": {
+    "rule": "a record counts for this version only when the product's engine reports before and after it - or the version installed now - name this version and no other",
+    "window": null,
+    "basis": null
+  },
+  "local_checks": {
+    "reports": 1,
+    "first": "2026-09-25T20:35:25Z",
+    "last": "2026-09-25T20:35:25Z",
+    "covers": [
+      "engine_present",
+      "exact_thread_recovery",
+      "loaded_state_detection",
+      "outcome_observation",
+      "projection_freshness",
+      "queue_withdraw",
+      "recovery_turn_tracking",
+      "thread_eligibility",
+      "transient_classification",
+      "usage_limit_detection",
+      "usage_probe",
+      "usage_reset_hint"
+    ]
+  },
+  "records": [],
+  "capabilities": {
+    "engine_present": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": "CHECKED"
+    },
+    "exact_thread_recovery": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": "CHECKED"
+    },
+    "loaded_state_detection": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": "CHECKED"
+    },
+    "outcome_observation": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": "CHECKED"
+    },
+    "projection_freshness": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": "CHECKED"
+    },
+    "queue_withdraw": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": "CHECKED"
+    },
+    "recovery_turn_tracking": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": "CHECKED"
+    },
+    "thread_eligibility": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": "CHECKED"
+    },
+    "transient_classification": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": "CHECKED"
+    },
+    "usage_limit_detection": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": "CHECKED"
+    },
+    "usage_probe": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": "CHECKED"
+    },
+    "usage_reset_hint": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": "CHECKED"
+    }
+  },
+  "note": "Content-free: counts, states and times from this machine's own records; no conversation text, identifiers or paths."
+}
