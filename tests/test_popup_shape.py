@@ -57,7 +57,8 @@ ASKS_WINDOWS_NOTHING = MODULES[:6]
 # `STATE_INK` went for a while in v0.6.10, when the state's word became ink (F7), and came back with the
 # popup's own header; so did `light_row`, which stood a light and its word alike on every surface.
 # The design came in v0.6.10 too (D5, D8): `set_design`, `design_setting` and `design_choice` beside the
-# theme's, and the two gates the design splits motion into, `light_still` and `controls_still`.
+# theme's, and for a while the two gates the design split motion into, `light_still` and `controls_still`,
+# which went in v0.6.11 when no design held motion any more.
 SURFACE = {
     "APP_MODE_VALUE", "ATTENTION_OVERLAYS", "BITMAP", "BITMAPINFO", "BITMAPINFOHEADER",
     "CHIP_ALPHA", "CLICK_AWAY_SECONDS", "CONTRAST_COLOURS", "CONTROL_CALLS", "CS_DROPSHADOW",
@@ -84,9 +85,9 @@ SURFACE = {
     "WS_POPUP", "_Canvas", "_Fonts", "_Painter", "_PerMonitorDpi", "_ShadowImage", "_declare",
     "_dll", "_gdiplus_acquire", "_gdiplus_release", "_icon_from_pixels", "_pack", "activity",
     "adopt_settings", "animates", "appearance", "apps_use_light_theme", "busy_key",
-    "contrast_colour", "controls_still", "design_choice", "design_setting", "effective_theme", "focus_order", "font_candidates", "font_faces",
+    "contrast_colour", "design_choice", "design_setting", "effective_theme", "focus_order", "font_candidates", "font_faces",
     "gdiplus_objects", "glide_amount", "gui_resources", "halo", "high_contrast", "hit_test",
-    "icon_rect", "is_waiting", "layout", "lift_coverage", "light_for", "light_still", "locale_of",
+    "icon_rect", "is_waiting", "layout", "lift_coverage", "light_for", "locale_of",
     "message_face",
     "next_focus", "next_glides", "one_line", "perform", "place", "recipe_shadows",
     "reduced_motion", "role_size", "say", "select_action", "set_design", "set_reduce_motion", "set_theme",

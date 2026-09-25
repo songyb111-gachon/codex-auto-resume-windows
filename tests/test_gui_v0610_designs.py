@@ -1,17 +1,17 @@
-r"""The window in the four designs (v0.6.10): Soft, Still, Classic and Plain.
+r"""The window in the designs (v0.6.10): Soft, Classic and Plain.
 
 * PALETTE (D12). Palette.Contrast meant two things until the designs came - draw in system colours, and draw no depth,
   glow or tint - and Classic and Plain need the second without the first. So Contrast is the system colours alone, and
   Depth, Halo and AccentBar are flags of their own that High Contrast also clears. A design's colours are its own class
   in Brand.cs, read in Tokens alone; its corners are never rounder than Soft's.
-* MOTION (D5). Two gates, as on every surface: the light moves when the design breathes and nothing stops it
-  (Soft.LightStill), the controls when the design glides and nothing stops them (Soft.ControlsStill). Still draws
-  exactly what Reduce motion draws; under Reduce motion no design moves anything. Plain's light still dims on its breath
-  - with no glow - because a light that says the product is running must move (the critic's correction to D12).
+* MOTION (D5). One gate, the stoppers' (Soft.ReduceMotion), in every design: no design moves or holds anything of its
+  own. v0.6.10 split it in two for Still, which drew exactly what Reduce motion draws; since v0.6.11 a stored Still is
+  Soft with Reduce motion on (settings._migrate), which the window draws as Still drew. Plain's light still dims on its
+  breath - with no glow - because a light that says the product is running must move (the critic's correction to D12).
 * MARKS (D14). Classic draws v0.6.2's accent bar inside each card's left hairline and underlines the current tab; Plain
   draws its current tab as a flat quiet-accent ground; neither draws a shadow or a well. Rows stay flat hairline rows.
 * LAYOUT (D15). A design changes paint and never layout: the layout audit, run in each design, writes down the same
-  place for everything, so an audit of one design is an audit of all four.
+  place for everything, so an audit of one design is an audit of all.
 
 The real compiled window is loaded and its own methods are called through reflection, as the other window tests do.
 Nothing is shown, no input is sent anywhere, and nothing of this machine's is read or changed: Windows' High Contrast
@@ -123,7 +123,7 @@ foreach ($design in (ConvertFrom-Json $env:CAR_DESIGNS)) {
     }
 }
 
-# ------------------------------------------------------------------ the two gates
+# ------------------------------------------------------------------ the one gate
 $out.motion = @()
 foreach ($design in (ConvertFrom-Json $env:CAR_DESIGNS)) {
     foreach ($reduced in @($false, $true)) {
@@ -133,7 +133,7 @@ foreach ($design in (ConvertFrom-Json $env:CAR_DESIGNS)) {
                 $animates.SetValue($null, [Said]::Answer([bool]$animating))
                 Look $design $(if ($contrast) { 'contrast' } else { 'light' })
                 $out.motion += ,@([string]$design, [bool]$reduced, [bool]$animating, [bool]$contrast,
-                                  [bool](Property 'Soft' 'LightStill'), [bool](Property 'Soft' 'ControlsStill'))
+                                  [bool](Property 'Soft' 'ReduceMotion'))
             }
         }
     }
@@ -178,6 +178,12 @@ foreach ($design in (ConvertFrom-Json $env:CAR_DESIGNS)) {
         }
     }
 }
+# A Still stored by v0.6.10, as the window takes it: the file's design as Design.Preference reads it, and the Reduce
+# motion the bridge's first read brings (settings._migrate).
+$reduce.SetValue($null, $true)
+Look 'still' 'light'
+$out.storedStill = @{ design = [string](Field 'Palette' 'Design'); frames = @{} }
+foreach ($state in (ConvertFrom-Json $env:CAR_LIGHT_STATES)) { $out.storedStill.frames[$state] = Frames $state }
 $reduce.SetValue($null, $false)
 
 # ------------------------------------------------------------------ a card on its ground, a tab, a box, a switch
@@ -365,7 +371,7 @@ class WindowDesignTests(unittest.TestCase):
                     self.assertEqual(entry["bar"], brand.design_accent_bar(design) and not contrast)
         self.assertFalse(self.answer["palette"]["classic|light"]["depth"])
         self.assertFalse(self.answer["palette"]["plain|dark"]["depth"])
-        self.assertTrue(self.answer["palette"]["still|light"]["depth"])
+        self.assertTrue(self.answer["palette"]["soft|light"]["depth"])
 
     def test_the_corners_are_the_designs_never_rounder_than_softs_and_softs_in_high_contrast(self):
         roles = ("card", "control", "small", "check")
@@ -397,28 +403,27 @@ class WindowDesignTests(unittest.TestCase):
                         if expected["mark"] is not None:
                             self.assertEqual(mark, argb(expected["mark"]))
 
-    # ------------------------------------------------------------------ the two gates (D5)
+    # ------------------------------------------------------------------ the one gate (D5)
 
-    def test_the_light_and_the_controls_move_by_the_design_and_every_stopper_holds_them(self):
+    def test_every_stopper_holds_motion_in_every_design_and_nothing_else_does(self):
         """The truth table: design, the product's Reduce motion, Windows' animation effects and High Contrast, against
-        brand.light_moves and brand.controls_move - the popup's, the card's, the icon's and the panel's gates too."""
+        the one gate - the popup's, the card's, the icon's and the panel's too: the design never moves the answer."""
         rows = self.answer["motion"]
         self.assertEqual(len(rows), len(DESIGNS) * 8)
-        for design, reduced, animating, contrast, light_still, controls_still in rows:
-            stopped = reduced or not animating or contrast
+        for design, reduced, animating, contrast, held in rows:
             with self.subTest(design=design, reduced=reduced, animating=animating, contrast=contrast):
-                self.assertEqual(light_still, not brand.light_moves(design, stopped=stopped))
-                self.assertEqual(controls_still, not brand.controls_move(design, stopped=stopped))
-                if stopped:
-                    self.assertTrue(light_still and controls_still, "a stopper holds every design")
+                self.assertEqual(held, reduced or not animating or contrast)
 
-    def test_under_still_the_light_is_every_frame_what_reduce_motion_draws(self):
+    def test_a_stored_still_draws_every_frame_v0610_still_drew(self):
+        """v0.6.10's Still held the light as Reduce motion does, in Soft's colours with no glow. A stored Still reaches
+        the window as Soft (Brand.DesignOf) with Reduce motion on, and the light is Soft's under Reduce motion, held."""
+        stored = self.answer["storedStill"]
+        self.assertEqual(stored["design"], "soft")
         for state in LIGHT_STATES:
-            still = self.answer["light"]["still|False|" + state]
-            held = self.answer["light"]["soft|True|" + state]
+            frames = stored["frames"][state]
             with self.subTest(state):
-                self.assertEqual(still, held)
-                self.assertEqual(len({tuple(frame) for frame in still}), 1, "Still's light does not move")
+                self.assertEqual(frames, self.answer["light"]["soft|True|" + state])
+                self.assertEqual(len({tuple(frame) for frame in frames}), 1, "the light does not move")
 
     def test_under_reduce_motion_no_design_moves_the_light(self):
         for design in DESIGNS:
@@ -454,7 +459,7 @@ class WindowDesignTests(unittest.TestCase):
     # ------------------------------------------------------------------ marks (D12, D14)
 
     def test_a_card_in_a_design_without_depth_leaves_its_ground_untouched(self):
-        """Soft and Still lift a card with a shadow; Classic and Plain draw the card and its hairline and nothing round
+        """Soft lifts a card with a shadow; Classic and Plain draw the card and its hairline and nothing round
         it: every pixel of the ground outside the card is the canvas."""
         for design in DESIGNS:
             for theme in brand.THEMES:
@@ -552,7 +557,7 @@ class WindowDesignTests(unittest.TestCase):
 
     def test_a_design_changes_paint_and_never_layout(self):
         """The layout audit in each design, English at 100%: where every control is on every page and Settings section
-        is the same text in all four, and so is the audit's report. So the audit test_gui_layout runs in every language
+        is the same text in all of them, and so is the audit's report. So the audit test_gui_layout runs in every language
         at every scaling holds for every design."""
         soft = self.answer["layout"]["soft"]
         self.assertGreater(soft["geometry"].count("\n"), 500, "the audit wrote down where things are")
@@ -569,28 +574,22 @@ class WindowDesignTests(unittest.TestCase):
 class DesignSourceRuleTests(unittest.TestCase):
     """Rules for the source, so they fail without a compiler too."""
 
-    def test_every_motion_in_the_window_reads_one_of_the_two_gates(self):
-        self.assertIn("if (control == null || Soft.ControlsStill ||", guiscan.member_body("Motion", "Allowed"))
-        self.assertIn("!Soft.ControlsStill", guiscan.member_body("SoftPage", "ScrollTo"))
+    def test_every_motion_in_the_window_reads_the_one_gate(self):
+        self.assertIn("if (control == null || Soft.ReduceMotion ||", guiscan.member_body("Motion", "Allowed"))
+        self.assertIn("!Soft.ReduceMotion", guiscan.member_body("SoftPage", "ScrollTo"))
         halo = guiscan.type_body("HaloDot")
-        self.assertIn("Soft.LightStill", guiscan.member_body("HaloDot", "ShouldRun"))
-        self.assertIn("Brand.Glow(state, since, since, Soft.LightStill,", halo)
-        self.assertIn("MotionAllowed(Soft.LightStill,", guiscan.member_body("TaskbarMark", "MayMove"))
-        # Nothing moves on Reduce motion alone any more: every reader goes through a gate that also asks the design.
+        self.assertIn("Soft.ReduceMotion", guiscan.member_body("HaloDot", "ShouldRun"))
+        self.assertIn("Brand.Glow(state, since, since, Soft.ReduceMotion,", halo)
+        self.assertIn("MotionAllowed(Soft.ReduceMotion,", guiscan.member_body("TaskbarMark", "MayMove"))
+        # No design decides what moves: the gates v0.6.10 had for it are gone, and neither Brand nor Palette.Look has
+        # a motion rule to ask.
         for name in guiscan.handwritten():
             code = "\n".join(line for line in guiscan.read(name).splitlines() if not line.lstrip().startswith("//"))
             with self.subTest(name):
-                self.assertEqual(re.findall(r"Soft\.ReduceMotion\b", code), [],
-                                 "a motion reads Reduce motion without its design")
-        controls = guiscan.controls()
-        # The design's answer is Brand.LookOf's for the design in effect (Palette.Look), the one lookup the window asks.
-        for gate, rule in (("LightStill", "Palette.Look.Breathes"),
-                           ("ControlsStill", "Palette.Look.Glides")):
-            start = controls.index("internal static bool %s\n" % gate)
-            body = controls[start:controls.index("\n        }\n", start)]
-            with self.subTest(gate):
-                self.assertIn(rule, body)
-                self.assertIn("ReduceMotion", body)
+                self.assertEqual(re.findall(r"\b(?:LightStill|ControlsStill|Look\.Breathes|Look\.Glides)\b", code), [])
+        generated = (guiscan.ROOT / "gui" / "Brand.cs").read_text(encoding="utf-8")
+        for rule in ("DesignBreathes", "DesignGlides", "Breathes", "Glides"):
+            self.assertNotRegex(generated, r"\b%s\b" % rule)
 
     def test_the_design_adds_nothing_to_what_the_window_asks_of_windows(self):
         """B16: no new question is asked of Windows. The design is a stored setting, read with the theme."""

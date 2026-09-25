@@ -901,7 +901,7 @@ class SourceRuleTests(unittest.TestCase):
                       "the dot is one solid colour")
         # v0.6.10: the glow is Palette.Halo's - a design that has one, never High Contrast - and the dimming stays
         # High Contrast's alone, because it is the breath itself, which Plain keeps without a glow.
-        self.assertIn("Palette.Halo", paint[:paint.index("Glow(g")], "no glow in High Contrast, nor in Still or Plain")
+        self.assertIn("Palette.Halo", paint[:paint.index("Glow(g")], "no glow in High Contrast, nor in Plain")
         self.assertIn("Halo = !Contrast && Look.Glow;", guiscan.member_body("Palette", "Adopt"))
         self.assertIn("Color fill = lit && dim > 0 && !Palette.Contrast ? Soft.WithAlpha(colour, 1 - dim) : colour;",
                       paint, "the dot dims toward the card it was cleared to, and never in High Contrast")
@@ -943,8 +943,8 @@ class SourceRuleTests(unittest.TestCase):
         page = page[:page.index("\n    }\n")]
         self.assertNotIn("AutoScroll", page, "the page scrolls itself; Windows' bar is never asked for")
         self.assertIn("public override Rectangle DisplayRectangle", page)
-        # v0.6.10: the controls' gate, which is Reduce motion's and the design's (Still does not glide).
-        self.assertIn("if (animate && !Soft.ControlsStill && IsHandleCreated && Soft.Shown(this))",
+        # Reduce motion's alone: v0.6.10 asked the design too, for Still, which is Reduce motion since v0.6.11.
+        self.assertIn("if (animate && !Soft.ReduceMotion && IsHandleCreated && Soft.Shown(this))",
                       self.body("internal void ScrollTo(int target, bool animate)"), "no glide with motion reduced")
 
 
