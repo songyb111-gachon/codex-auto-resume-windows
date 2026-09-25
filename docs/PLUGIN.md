@@ -158,7 +158,7 @@ refused; `preview_recovery_message` accepts only the four choices named in its r
 is what the text is for. The watcher later sends it into your conversations, on your behalf,
 when nobody is watching, so a model that had been talked into changing it by a page it read
 would turn one injected instruction into a standing one, delivered at every later interruption.
-The text is therefore written in the Windows Dashboard, by the person it will speak for. What
+The text is therefore written in the Dashboard, by the person it will speak for. What
 Codex can change - the language and the style - only chooses among texts this product ships or
 you wrote.
 
@@ -200,7 +200,7 @@ Dashboard and the popup share ([BRAND.md](BRAND.md)). Top to bottom:
 * **Notifications**, folded away: the switch for notifications, and a check box for each event.
 * **Continuation message**: the continuation language and the message style. Under *Custom* it
   shows which stored message is used and what it says, read-only, with a note that Custom
-  messages are written in the Windows Dashboard. The page has no text field for them, and
+  messages are written in the Dashboard. The page has no text field for them, and
   neither its Save request nor its Preview request can carry one.
 * **Preview**: the exact text for a chosen kind of interruption, from
   `preview_recovery_message`, following the language and style chosen but not yet saved. The
@@ -580,9 +580,8 @@ drawn as the product's own card beside the notification area wherever a card may
 the same words and the same two buttons, and as Windows' own notification everywhere else.
 
 **D — the notification-area popup.** A single click on the watcher's icon opens a compact popup
-listing what is waiting; each task has its own switch, *Automatically resume this task when the
-limit resets* (or *Automatically retry this task*), bound to that task's interruption and
-conversation ids.
+listing what is waiting; each task has its own switch, **Auto-resume** as on the Dashboard's
+Pending page, bound to that task's interruption and conversation ids.
 
 **E — the Dashboard's Pending page.** The **Auto-resume** column carries the same switch for every
 waiting task, beside **Why it is waiting** and the rest of the task's record.

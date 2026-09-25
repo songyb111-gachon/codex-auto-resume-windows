@@ -26,7 +26,7 @@ change directly.
 interruption, under the current language and style. It saves nothing and sends nothing.
 The user's own Custom message text cannot be written from Codex - not through
 `update_settings` and not through the preview. If the user wants to change it, tell them it
-is edited in the Windows Dashboard, under Settings > Continuation message.
+is edited in the Dashboard, under Settings > Continuation message.
 
 `resume_auto_recovery`, `enable_conversation_recovery`, `update_settings`,
 `restore_default_settings`, `cancel_recovery`, `reset_recovery_budget`, `start_watcher` and
@@ -279,9 +279,9 @@ until the next check - which is when the watcher looks again, not when anything 
 single click opens a small popup beside it with the same state, the next check, up to three
 waiting tasks - each with a switch that turns automatic recovery off or on for that
 task's conversation, refused if the task has since finished or changed - Pause or Resume, and
-Open Dashboard. Its right-click menu opens the window, pauses or resumes recovery, and stops
+Open Dashboard. Its right-click menu opens the Dashboard, pauses or resumes recovery, and stops
 the watcher. Nothing in the popup or the menu sends a continuation. It is on by default and can
-be switched off in that window's Settings page.
+be switched off on the Dashboard's Settings page.
 
 Do not offer to build any other interface. There is no checkbox inside the Codex usage-limit
 notice and none can be added through the Codex plugin API; see
@@ -360,7 +360,7 @@ To remove everything, in this order:
    leave it and tell the user where it points.
 4. Tell the user to delete `%USERPROFILE%\.codex-auto-resume`, which still holds the
    application, the bundled Python and the settings window. If Windows reports a file in use,
-   Codex or the settings window still has it open: close both and try again. Do not delete it
+   Codex or the Dashboard still has it open: close both and try again. Do not delete it
    for them without asking - if they skipped `--purge` it also holds their pending recoveries.
 
 Say which of the four you did. "Removed completely" is only true after all four.

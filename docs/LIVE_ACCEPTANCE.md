@@ -591,7 +591,7 @@ conversation, open the panel (*open auto resume settings*) and use its Preview f
 style. For the Custom text half, a Custom message has to be saved: if you are accepting with
 Standard, save a neutral one while recovery is paused, and restore Standard afterwards. The
 panel shows the message, offers no way to edit it, and says custom messages are written in
-the Windows Dashboard. Change an ordinary setting in the panel and save, then reopen the
+the Dashboard. Change an ordinary setting in the panel and save, then reopen the
 Dashboard. The panel does not refresh by itself, so reopen it before comparing. *A pass:* the
 panel's Preview matches the Dashboard's, the Custom text cannot be changed there, and saving
 in the panel left the Custom message as it was.

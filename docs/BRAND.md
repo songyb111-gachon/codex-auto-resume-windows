@@ -528,6 +528,17 @@ the ring rather than floating beside it.
   meaning. An outcome is one colour wherever it is shown - its word's chip in History and, since
   v0.6.10, its bar on the Statistics page, beside the same word, where every bar was the accent's
   blue; High Contrast keeps one system colour for the bars.
+- **One thing, one word.** The window is the Dashboard wherever it is named: in the icon's menu,
+  the popup, the card, the notifications, the panel in Codex and the help under a setting. A
+  sentence shown in the Dashboard and in the panel names the surfaces it means rather than saying
+  "this window", which is right only where the window is the one saying it; the title bar and the
+  Start Menu entry keep the product's name. Until v0.6.10 it was also the Windows Dashboard, the
+  Codex Auto Resume window and the settings window, and the icon's menu said Open Codex Auto
+  Resume. A task's switch is **Auto-resume** in the Dashboard, the panel and the popup, which
+  offered it as two longer sentences of its own; the popup's rows count down to the Next check
+  its summary names, where they said Next try. A chip's word is a value word, lowercase where the
+  language has case, as a state's is: **Why it is waiting** says passed, waiting, blocked and
+  unknown, where it said OK, Waiting, Blocked and Unknown.
 - **Nothing depends on seeing a shadow.** Every card and control keeps a hairline edge, and the
   keyboard focus ring has its own token, `focus`.
 - **Order is an argument.** The panel runs: the state; then what is waiting, because it is the
