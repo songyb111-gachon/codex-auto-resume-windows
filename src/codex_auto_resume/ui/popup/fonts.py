@@ -71,19 +71,19 @@ def font_candidates(locale, weight, system=_ASK_WINDOWS) -> tuple:
 
 
 # Font roles: size in px at 96 DPI and weight. The title - the state's word, since v0.6.10 - is
-# smaller than TYPE's because this is a flyout, not a window. A button and a chip are set at 500,
-# the weight the window and the panel set them at (brand.TYPE_ROLES), which GDI draws Regular
-# (font_candidates): until v0.6.10 the popup and the card set both at 600, bold beside the
-# window's and the panel's regular ones.
+# smaller than TYPE's because this is a flyout, not a window. A button and a chip are bold (600),
+# the popup's and the notification card's own look: the sizes are brand's, as the window's and the
+# panel's are, but not the weight - brand.TYPE_ROLES' 500 is drawn Regular here (font_candidates),
+# which v0.6.10 tried and gave back.
 ROLES = {
     "title": (15, 600),
     "label": (brand.TYPE["small"], 400),
     "value": (brand.TYPE["heading"], 600),
     "name": (brand.TYPE["body"], 600),
-    "chip": (brand.TYPE["small"], brand.TYPE_ROLES["chip"][1]),
+    "chip": (brand.TYPE["small"], 600),
     "body": (brand.TYPE["body"], 400),
     "small": (brand.TYPE["small"], 400),
-    "button": (brand.TYPE["body"], brand.TYPE_ROLES["button"][1]),
+    "button": (brand.TYPE["body"], 600),
 }
 
 
