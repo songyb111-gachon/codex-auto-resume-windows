@@ -825,15 +825,17 @@ class WindowCompositionTests(unittest.TestCase):
     def test_a_stopped_watcher_is_grey_before_there_is_a_snapshot_too(self):
         """Since v0.6.10 the dot is set with the words beside it (Hero), from the status alone until there is a
         snapshot, and its light is grey for a watcher not known to be running (HeaderLight) - the compiled rule is
-        tests/test_light_parity.py's; this holds the path to it."""
+        tests/test_light_parity.py's; this holds the path to it. The light reads the rows too: one held for a
+        watcher not running (engine_unavailable) is a stopped watcher's grey, whatever the status said."""
         status = self.method(self.window, "private void ApplyStatus(")
         self.assertRegex(status, r'heroStatus = snapshot != null && ReferenceEquals\(status, Map\(snapshot, "status"\)\) '
                                  r'\? null : status;\s+if \(heroStatus != null\) Hero\(status, null, Now\(\)\);')
         self.assertNotIn('"attention"', status)
         hero = self.method(self.window, "private void Hero(")
-        self.assertIn("stateDot.State = HeaderLight(status, word);", hero)
+        self.assertIn("stateDot.State = HeaderLight(status, pending, word);", hero)
         light = self.method(self.dashboard, "internal static string HeaderLight(")
-        self.assertIn('return Equals(Get(status, "watcher_running"), true) ? word : "idle";', light)
+        self.assertIn('if (!Equals(Get(status, "watcher_running"), true)) return "idle";', light)
+        self.assertIn('if (row != null && HasOverlay(row, "engine_unavailable")) return "idle";', light)
 
     def test_the_strings_cache_is_checked_before_it_is_used(self):
         constructor = self.window[self.window.index("private SettingsForm(PersistentBridge bridge, Dictionary<string, object> catalog"):]

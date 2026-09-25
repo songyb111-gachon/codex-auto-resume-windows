@@ -328,8 +328,16 @@ function attentionCause(status, rows) {
 // The status light for a state. Not quite the word: a watcher that is not running - or that
 // nothing has confirmed is running - is a light that is off, grey as it always was, while the
 // word beside it still asks for attention. Amber is for a watcher that runs and is not well.
-function lightFor(status, state) {
-  return (status && status.watcher_running === true) ? state : 'idle';
+// A row held for a watcher not running (engine_unavailable) outweighs a status that says it
+// runs, the two read a moment apart: no moving light beside "Watcher not running" (the popup's
+// watcher_known_running, the Dashboard's HeaderLight).
+function lightFor(status, state, rows) {
+  if (!status || status.watcher_running !== true) return 'idle';
+  var list = rows || [];
+  for (var i = 0; i < list.length; i++) {
+    if ((list[i].overlays || []).indexOf('engine_unavailable') >= 0) return 'idle';
+  }
+  return state;
 }
 
 // The colour a state chip carries. Always beside its word, never instead of it.
@@ -963,7 +971,7 @@ function renderHero(status) {
   // already attributed, and the question a reader arrives with is what it is doing.
   hero.appendChild(element('div', 'eyebrow', 'Codex Auto Resume · v' + (status.version || '?')));
   var line = element('div', 'hero-state');
-  var light = lightFor(status, state);
+  var light = lightFor(status, state, DATA.pending);
   var halo = element('span', 'halo ' + light);
   halo.setAttribute('aria-hidden', 'true');
   line.appendChild(halo);
