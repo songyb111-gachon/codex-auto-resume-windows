@@ -56,7 +56,7 @@
     "CI does not translate anything. A person decides what the Korean should say."
   ],
   "reviewed": {
-    "docs/CHANGELOG.md": "123dfdc43568eb75ce685e2ddac29d280947a3228ec9e8d30282a30dc754dab4",
+    "docs/CHANGELOG.md": "b8caf89ad1e947c4e6d7604f6c00ea6108b4003b69b8da6b1c5e4297f7915c29",
     "docs/CONTRIBUTING.md": "377a43a58d1adcf76734c200b64351774e271d9e982a85a8ccd1e8d63aeb65a2",
     "docs/CONTRIBUTORS.md": "6e6d903179a297f8124d1f0f70c6b2b65478a69e4413075ee2412c2668a53563",
     "docs/PRIVACY.md": "df8302117b90496837f7d595e318d43b81bc54cb8094fd2b87b024474a42f816",
@@ -66,11 +66,11 @@
     "docs/BRAND.md": "157c8cdf81dc4fb24b9b61d203a4dabe7018a81bd3247d35c4d22056e6550722",
     "docs/COMPARISON.md": "6e16cac43ed286434f100005c3d3ffcbae083088b2a5729d5459064ee8fd5385",
     "docs/DEVELOPMENT.md": "d7a114fdf11a5e8d1790b60425203b50f596c6f723037e4cbebe7048fa475463",
-    "docs/PLUGIN.md": "f0f1dbbb27eee5d0e4d4d44163686b6a068e3c2a3f9a85ceb789db540b7f6a7b",
+    "docs/PLUGIN.md": "6c24666e0fa15e2db6ad8e0a0513eeb0bc14beda9196f5263f3b182ddd3dee0b",
     "docs/VERIFY.md": "db2e314af8adf037e322ac521bcff57865c98cfb06dbccd0bdcc75d0fc46a235",
-    "docs/FEATURE_MATRIX.md": "80eb080139538dbdef52c64e2903891d078c6186906bc04415474b4930427748",
+    "docs/FEATURE_MATRIX.md": "6ede32addb6c580e81957a20b660f2f661076c336717984657a033295deab215",
     "docs/LIVE_ACCEPTANCE.md": "9e09353eefc136478a2f4d3cce1dffe916f82d1a7bd6deeafd567951838265f6",
     "docs/ROADMAP.md": "f2d9541129f7d19ed51e44a0ea05ef54d8b3064a773691ffdc2d76c0e5899b32",
-    "docs/GUIDE.md": "c348e266127c9c94f2f2f343d8ec3a193de3f53a82e2629002e16d750c6352ae"
+    "docs/GUIDE.md": "9020d25732a4c44a2469af644a8e0e300a7cc245a35ead5b80a1b0848b20f817"
   }
 }

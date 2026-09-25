@@ -201,13 +201,14 @@ class GateVectorTests(unittest.TestCase):
 
 
 # ------------------------------------------------------------------------ settings file
+# v0.6.10 writes no recover_ or custom_message_ key for auth_service_transient, which nothing
+# produces (failures.RESERVED); a file that still has them reads as it did (test_settings).
 DEFAULT_FILE = """{
   "codex_exe": null,
   "config_version": 2,
   "continuation_language": "follow",
   "continuation_style": "standard",
   "custom_message": null,
-  "custom_message_auth_service_transient": null,
   "custom_message_mode": "global",
   "custom_message_network_transient": null,
   "custom_message_rate_limit_transient": null,
@@ -228,7 +229,6 @@ DEFAULT_FILE = """{
   "notify_starting": true,
   "notify_stopped": true,
   "panel_theme": "same",
-  "recover_auth_service_transient": true,
   "recover_network_transient": true,
   "recover_rate_limit_transient": true,
   "recover_server_5xx": true,

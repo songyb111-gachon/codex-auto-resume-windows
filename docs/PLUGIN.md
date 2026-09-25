@@ -76,7 +76,9 @@ anything but its exact id, resends an uncertain submission or forces a send.
 ### The tools, and which ones Codex asks about
 
 The table describes the server from v0.6.5. The server runs from the installed release, not from
-the plugin you add. An installation on v0.6.4 has the same seventeen tools, but its `get_status`
+the plugin you add. Every installation from v0.6.3 through v0.6.9 also offers, in `update_settings`,
+a switch for `auth_service_transient` that v0.6.10 no longer has: nothing ever produced that kind, so
+the switch changed nothing. An installation on v0.6.4 has the same seventeen tools, but its `get_status`
 carries no compatibility summary. One on v0.6.3 has the same seventeen tools too, but its
 `update_settings` does not offer the theme. One on v0.6.0 through v0.6.2 has sixteen tools, without
 `preview_recovery_message`, and its `update_settings` offers only the recovery categories, the

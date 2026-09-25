@@ -4,6 +4,11 @@
 registry may never know a category the classifier cannot produce, and the classifier may
 never produce one the registry cannot name - v0.6.2 shipped `auth_service_transient` as
 recoverable, with no switch and no label, because nothing checked this.
+
+Nor may a category be recoverable that nothing produces. v0.6.3 gave `auth_service_transient` its
+switch and its Custom message, and no code, status or message had ever mapped to it: a switch that
+could never fire, and a changelog and a guide that said it had been recovered. v0.6.10 reserves it
+(failures.RESERVED), and ReachabilityTests fails if a name nothing produces is made recoverable again.
 """
 from __future__ import annotations
 
@@ -28,9 +33,10 @@ class RegistryAgreementTests(unittest.TestCase):
     def test_recoverable_means_what_the_classifier_means(self):
         recoverable = set(failures.TRANSIENT) | {failures.USAGE_LIMIT}
         self.assertEqual(set(reasons.RECOVERABLE), recoverable)
-        for category in set(failures.TERMINAL) | {failures.UNKNOWN}:
+        for category in set(failures.TERMINAL) | {failures.UNKNOWN} | set(failures.RESERVED):
             with self.subTest(category):
                 self.assertFalse(reasons.is_recoverable(category))
+                self.assertFalse(failures.is_recoverable(category))
 
     def test_every_recoverable_category_has_a_switch_and_every_switch_a_category(self):
         self.assertEqual(set(reasons.configurable()), set(settings.CONFIGURABLE_CATEGORIES))
@@ -67,6 +73,73 @@ class RegistryAgreementTests(unittest.TestCase):
         per_reason = {name[len("custom_message_"):] for name in settings.FIELDS
                       if name.startswith("custom_message_") and name != "custom_message_mode"}
         self.assertEqual(per_reason, set(reasons.RECOVERABLE))
+
+
+def produced() -> set:
+    """Every category the classifier can hand back, found by asking it and by reading its tables.
+
+    Asked: every variant it knows, bare; every HTTP status, alone and under every variant (so a
+    rule such as `responseTooManyFailedAttempts` with 429 is found); nothing at all. Read: the
+    category of each message pattern, since a sentence that matches one cannot be derived from it.
+    """
+    found = {failures.classify(tag) for tag in failures.CODES}
+    found |= {failures.classify({"httpStatusCode": status}) for status in range(1000)}
+    found |= {failures.classify({"type": tag, "httpStatusCode": status})
+              for tag in failures.CODES for status in range(1000)}
+    found |= {failures.classify(None, None), failures.classify("somethingNew")}
+    found |= {category for _pattern, category in failures._MESSAGE_PATTERNS}
+    return found
+
+
+def unproduced(transient) -> set:
+    return set(transient) - produced()
+
+
+class ReachabilityTests(unittest.TestCase):
+    """A recoverable category is one the classifier produces, or its switch is a switch for nothing."""
+
+    def test_every_transient_category_has_a_producer(self):
+        self.assertEqual(sorted(unproduced(failures.TRANSIENT)), [],
+                         "in TRANSIENT with no CODES entry, status rule or message pattern: reserve it "
+                         "(failures.RESERVED) until a real Codex error is seen to carry it")
+
+    def test_the_check_sees_a_reserved_name_put_back(self):
+        for category in failures.RESERVED:
+            with self.subTest(category):
+                self.assertEqual(unproduced(failures.TRANSIENT | {category}), {category})
+
+    def test_every_recoverable_and_every_switchable_category_is_produced(self):
+        found = produced()
+        self.assertLessEqual(set(reasons.RECOVERABLE), found)
+        self.assertLessEqual(set(settings.CONFIGURABLE_CATEGORIES), found)
+        self.assertLessEqual(found, set(failures.CATEGORIES))
+
+    def test_a_reserved_category_is_a_word_and_nothing_more(self):
+        """Its word and its label stay, so a row or a file that names it still reads; nothing else
+        does - no classification, no recovery, no switch, no Custom message, no continuation text,
+        no place in the schema every surface is drawn from, and no place in the Preview."""
+        english = l10n._read(l10n.DEFAULT)
+        described = settings.describe()
+        found = produced()
+        self.assertEqual(set(failures.RESERVED), {"auth_service_transient"})
+        for category in failures.RESERVED:
+            with self.subTest(category):
+                self.assertIn(category, failures.CATEGORIES)
+                self.assertNotIn(category, found)
+                self.assertNotIn(category, failures.TRANSIENT)
+                self.assertNotIn(category, settings.CONFIGURABLE_CATEGORIES)
+                self.assertNotIn(category, reasons.RECOVERABLE)
+                self.assertNotIn(category, reasons.configurable())
+                self.assertNotIn("recover_" + category, settings.FIELDS)
+                self.assertNotIn("custom_message_" + category, settings.FIELDS)
+                self.assertEqual([entry for entry in described
+                                  if category in (entry.get("category"), entry["name"])], [])
+                entry = reasons.get(category)
+                self.assertEqual(entry.category, category)
+                self.assertIn(entry.label_key, english)
+                self.assertIsNone(entry.standard_key)
+                self.assertIsNone(entry.detailed_key)
+                self.assertFalse(entry.configurable)
 
 
 class EntryTests(unittest.TestCase):

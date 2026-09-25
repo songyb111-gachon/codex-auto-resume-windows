@@ -711,9 +711,12 @@ The Settings page is split into five sections:
 | Appearance | The theme - Use system setting, Light or Dark - the panel's Theme in Codex, the Design - Soft, Soft without motion, Classic (v0.6.2) or Plain - and Reduce motion |
 | Advanced | Attempts per interruption, when to give up after recoveries that produce nothing, continuations per task, and retry timing |
 
-Every kind of interruption the watcher recovers has a check box, ticked by default. A sign-in service
-that is temporarily unavailable (`auth_service_transient`) was recovered with no way to turn it off up
-to v0.6.2; it now has one, **Sign-in service failures**.
+Every kind of interruption the watcher recovers has a check box, ticked by default. From v0.6.3 to
+v0.6.9 there was one more, **Sign-in service failures**, for a sign-in service that is temporarily
+unavailable (`auth_service_transient`), and this guide said that kind had been recovered with no way to
+turn it off up to v0.6.2. It never was: no error Codex records was ever classified as that kind, so the
+check box could change nothing. From v0.6.10 it is gone, with its Custom message; the kind comes back
+only when a real Codex error is seen to carry it.
 
 A switch turns on or off something that runs - notifications, the notification-area icon, Reduce
 motion, starting at sign-in, automatic recovery for one conversation - and a check box picks which

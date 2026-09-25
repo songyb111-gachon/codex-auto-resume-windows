@@ -20,17 +20,27 @@ from .domain.vocabulary import FailureCategory
 USAGE_LIMIT = "usage_limit"
 UNKNOWN = "unknown"
 
-# Recovered automatically, with a bounded backoff (never the usage-limit policy).
+# Recovered automatically, with a bounded backoff (never the usage-limit policy). Each one is
+# produced by a CODES entry, a status rule or a message pattern below; a name nothing produces
+# does not belong here (tests/test_reasons.py, ReachabilityTests).
 TRANSIENT = frozenset({
     "network_transient", "timeout", "rate_limit_transient",
-    "server_5xx", "stream_interrupted", "auth_service_transient",
+    "server_5xx", "stream_interrupted",
 })
+# Words the vocabulary keeps and nothing here produces. `auth_service_transient` was in TRANSIENT
+# from v0.4.0 to v0.6.9 - with a switch, a reason and a Custom message from v0.6.3 - yet no code,
+# status or message ever mapped to it, so the switch could never fire. v0.6.10 reserves it: it is
+# never classified and never recovered, it is offered nowhere, and the word stays so a row or a
+# settings file that names it still reads. It comes back through CODES only when a real,
+# structured Codex error is seen to carry it.
+RESERVED = frozenset({"auth_service_transient"})
 # Known, and known to need a person. Never retried, but not "unknown" either.
 TERMINAL = frozenset({
     "terminal_user", "terminal_permission", "terminal_policy",
     "terminal_invalid", "terminal_auth", "terminal_failure",
 })
 # Every category, each one of the above, the usage limit or unknown (tests/test_vocabulary.py).
+# RESERVED is among them: a stored row may name it, and it is read as the word it is.
 CATEGORIES = frozenset(FailureCategory)
 
 # The `CodexErrorInfo` variants this engine build actually defines. Verified against

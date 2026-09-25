@@ -141,7 +141,6 @@
                 "recover_rate_limit_transient": true,
                 "recover_server_5xx": true,
                 "recover_stream_interrupted": true,
-                "recover_auth_service_transient": true,
                 "notify_interruption": true,
                 "notify_starting": true,
                 "notify_result": true,
@@ -156,8 +155,7 @@
                 "custom_message_network_transient": null,
                 "custom_message_timeout": null,
                 "custom_message_server_5xx": null,
-                "custom_message_stream_interrupted": null,
-                "custom_message_auth_service_transient": null
+                "custom_message_stream_interrupted": null
               }
             },
             "schema": [
@@ -313,13 +311,6 @@
                 "category": "stream_interrupted"
               },
               {
-                "name": "recover_auth_service_transient",
-                "default": true,
-                "type": "boolean",
-                "group": "recovery",
-                "category": "auth_service_transient"
-              },
-              {
                 "name": "notify_interruption",
                 "default": true,
                 "type": "boolean",
@@ -466,15 +457,6 @@
                 "multiline": true,
                 "max_length": 2000,
                 "category": "stream_interrupted"
-              },
-              {
-                "name": "custom_message_auth_service_transient",
-                "default": null,
-                "type": "string",
-                "group": "continuation",
-                "multiline": true,
-                "max_length": 2000,
-                "category": "auth_service_transient"
               }
             ],
             "settings": {
@@ -498,7 +480,6 @@
               "recover_rate_limit_transient": true,
               "recover_server_5xx": true,
               "recover_stream_interrupted": true,
-              "recover_auth_service_transient": true,
               "notify_interruption": true,
               "notify_starting": true,
               "notify_result": true,
@@ -513,8 +494,7 @@
               "custom_message_network_transient": null,
               "custom_message_timeout": null,
               "custom_message_server_5xx": null,
-              "custom_message_stream_interrupted": null,
-              "custom_message_auth_service_transient": null
+              "custom_message_stream_interrupted": null
             },
             "pending": [
               {
@@ -696,8 +676,7 @@
               "network_transient",
               "timeout",
               "server_5xx",
-              "stream_interrupted",
-              "auth_service_transient"
+              "stream_interrupted"
             ],
             "endonyms": {
               "en": "English",
