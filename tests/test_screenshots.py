@@ -491,6 +491,23 @@ class PixelTests(unittest.TestCase):
                     self.assertEqual(clear[y][x], 0, "%s: the %s corner is not clear" % (name, where))
                 self.assertEqual(clear[height // 2][width // 2], 255, "and the window itself is opaque")
 
+    def test_the_capture_pins_what_the_window_would_take_from_the_moment(self):
+        """Three things a window draws depend on the machine at the moment it is photographed, not
+        on the source: the caption (light while active), the light's breath, and the keyboard cues -
+        the focus ring and the access-key underlines, whose state a new window takes from how the
+        last input reached the machine. The last is why v0.6.9-alpha's Settings picture had a ring
+        round the Overview tab and v0.6.9's had none. Each is set before PrintWindow runs."""
+        script = (ROOT / "build" / "capture_window.ps1").read_text(encoding="utf-8")
+        printed = script.index("::PrintWindow($handle")
+        for needle, what in (("$env:CODEX_AR_STILL_LIGHT = '0'", "the light held at one moment"),
+                             ("SendMessage($handle, 0x0086, [IntPtr]::Zero", "WM_NCACTIVATE(FALSE)"),
+                             # MAKEWPARAM(UIS_SET = 1, UISF_HIDEFOCUS | UISF_HIDEACCEL = 3)
+                             ("SendMessage($handle, 0x0127, [IntPtr](0x00030001)",
+                              "WM_CHANGEUISTATE: the keyboard cues hidden")):
+            with self.subTest(what):
+                self.assertIn(needle, script)
+                self.assertLess(script.index(needle), printed, "%s is set after the capture" % what)
+
 
 def apng_controls(data: bytes) -> list:
     """(x, y, width, height, delay as a Fraction of a second) of each APNG frame, in order."""
