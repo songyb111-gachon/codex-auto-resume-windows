@@ -66,10 +66,39 @@ class LedgerCase(PluggedCase):
         with contextlib.closing(sqlite3.connect(plug.runtime.state.path)) as connection:
             return connection.execute("SELECT capability, thread_id, interruption_id FROM spend").fetchall()
 
+    def in_flight(self, state, key, at):
+        """A record of this edition's in flight, claimed the one way one is: inside a claim of
+        core's, on its connection, with core's rows seen too (records.claim_record)."""
+        with self.h.store._transaction() as connection:
+            self.assertTrue(state.claim_record(connection, key, at))
+
     def core_tables_intact(self, h=None):
         h = h or self.h
         with Store(h.store.state_dir) as reopened:
             self.assertEqual(Store._tables(reopened._connection), _TABLES_V3)
+
+
+class RecordClaimTests(LedgerCase):
+    def test_a_record_of_this_editions_is_claimed_only_where_cores_rows_allow_one_more(self):
+        """The caps hold across both tables only if both are seen: on its own connection an
+        advanced record went in flight beside core's continuation still in Codex's queue."""
+        core = self.send_and_hold()
+        state = self.advanced().runtime.state
+        state.add_record(ac.KEY, "test_wake", core["thread_id"], at=self.h.now)
+        self.assertFalse(state.move_record(ac.KEY, RecordState.IN_FLIGHT, at=self.h.now + 1))
+        with self.h.store._transaction() as connection:
+            self.assertFalse(state.claim_record(connection, ac.KEY, self.h.now + 1), "core's is in flight")
+        self.h.home.dispatch(core["thread_id"])                 # Codex runs it, and it ends
+        self.follow()
+        self.assertEqual(self.h.record()["state"], "recovered")
+        with self.h.store._transaction() as connection:
+            self.assertFalse(state.claim_record(connection, ac.KEY, self.h.now + 1), "fifteen minutes apart")
+        claimed_at = core["last_claim_at"] or core["submitted_at"]
+        with self.h.store._transaction() as connection:
+            self.assertTrue(state.claim_record(connection, ac.KEY, claimed_at + 901))
+        (record,) = state.records_on(core["thread_id"])
+        self.assertEqual((record["state"], record["claims"]), ("in_flight", 1))
+        self.core_tables_intact()
 
 
 class NothingOnTests(LedgerCase):
@@ -114,7 +143,7 @@ class BothTablesTests(LedgerCase):
         plug = self.advanced()
         state = plug.runtime.state
         state.add_record(ac.KEY, "test_wake", self.h.record()["thread_id"], at=self.h.now)
-        state.move_record(ac.KEY, RecordState.IN_FLIGHT, at=self.h.now - 3 * 3600)
+        self.in_flight(state, ac.KEY, self.h.now - 3 * 3600)
         before = self.h.record()
         self.plugged(plug)
         self.h.tick()
@@ -133,7 +162,7 @@ class BothTablesTests(LedgerCase):
         thread = self.h.record()["thread_id"]
         state = plug.runtime.state
         state.add_record(ac.KEY, "test_wake", thread, at=self.h.now)
-        state.move_record(ac.KEY, RecordState.IN_FLIGHT, at=self.h.now - 600)
+        self.in_flight(state, ac.KEY, self.h.now - 600)
         state.move_record(ac.KEY, RecordState.FINISHED, at=self.h.now - 590)
         self.assertEqual(self.claim(plug), Alternative.HOLD)
         self.h.now += 301
@@ -147,7 +176,7 @@ class BothTablesTests(LedgerCase):
         for number in range(4):
             key = "%064x" % (number + 1)
             state.add_record(key, "test_wake", thread, at=self.h.now)
-            state.move_record(key, RecordState.IN_FLIGHT, at=self.h.now - 5 * 3600 + number * 1000)
+            self.in_flight(state, key, self.h.now - 5 * 3600 + number * 1000)
             state.move_record(key, RecordState.FINISHED, at=self.h.now - 3600)
         self.assertIs(self.claim(plug), DEFER, "four of its own and none of core's: the fifth")
         with self.h.store._transaction() as connection:

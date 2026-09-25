@@ -284,13 +284,21 @@ class RecordTests(StateCase):
         self.assertTrue(state.add_record(ac.KEY, "test_wake", ac.THREAD))
         self.assertFalse(state.add_record(ac.KEY, "test_wake", ac.THREAD))
         self.assertFalse(state.move_record(ac.KEY, RecordState.FINISHED))
-        self.assertTrue(state.move_record(ac.KEY, RecordState.IN_FLIGHT))
-        self.assertTrue(state.move_record(ac.KEY, RecordState.WAITING))
-        self.assertTrue(state.move_record(ac.KEY, RecordState.IN_FLIGHT))
+        # In flight is a claim, made inside core's, where core's rows are seen too - never a move.
+        self.assertFalse(state.move_record(ac.KEY, RecordState.IN_FLIGHT))
+        with Store(self.paths.state_dir) as core:
+            with core._transaction() as connection:
+                self.assertTrue(state.claim_record(connection, ac.KEY, self.now))
+            self.assertTrue(state.move_record(ac.KEY, RecordState.WAITING))
+            with core._transaction() as connection:
+                self.assertFalse(state.claim_record(connection, ac.KEY, self.now + 60), "fifteen minutes apart")
+            with core._transaction() as connection:
+                self.assertTrue(state.claim_record(connection, ac.KEY, self.now + 900))
         self.assertTrue(state.move_record(ac.KEY, RecordState.FINISHED))
         self.assertFalse(state.move_record(ac.KEY, RecordState.WAITING))
         (record,) = state.records_on(ac.THREAD)
-        self.assertEqual((record["state"], record["claims"], record["claimed_at"]), ("finished", 2, self.now))
+        self.assertEqual((record["state"], record["claims"], record["claimed_at"]),
+                         ("finished", 2, self.now + 900))
 
     def test_an_override_is_one_per_capability_and_record_and_is_used_once(self):
         state = self.state()
