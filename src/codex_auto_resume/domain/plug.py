@@ -31,6 +31,7 @@ beside the one interface that uses them, as the interface's own words.
 """
 from __future__ import annotations
 
+from contextlib import nullcontext
 import copy
 from enum import StrEnum
 import json
@@ -253,7 +254,8 @@ def consult(plug, point, *arguments, failed=None):
     A hook that raises gets NULL's answer in its place, so a broken capability costs its own
     answer and nothing more; `failed`, if given, is told the point it happened at. At a decision
     point, an answer outside the point's closed set is DEFER: an unknown word, another point's
-    word, or something that is not a word at all.
+    word, or something that is not a word at all - and one whose hashing or comparison raises is
+    a hook that failed, since that is the plug's own code running.
 
     Every record and every fact goes to the hook as a copy (`_handed`). The row whose thread and
     marker the send takes, the due list the tick goes on to try, the status a surface returns:
@@ -277,6 +279,10 @@ def consult(plug, point, *arguments, failed=None):
         accepted = answer in ALTERNATIVES[point]
     except TypeError:                                  # unhashable, so no word
         return DEFER
+    except Exception:                                  # a __hash__ or __eq__ of the plug's raised
+        if failed is not None:
+            failed(point)
+        return DEFER
     return Alternative(answer) if accepted else DEFER
 
 
@@ -286,13 +292,40 @@ def fields(answer):
     Words for keys, and nothing JSON cannot write strictly - no NaN, no infinity, no object of
     some other kind - so what a plug adds reaches a front end through the same writer as every
     reply (controlcli.encode) and cannot break it. It is copied through that writer's own form,
-    so nothing the plug keeps a reference to changes a reply after it was made."""
-    if not isinstance(answer, dict) or not all(isinstance(key, str) for key in answer):
-        return DEFER
+    so nothing the plug keeps a reference to changes a reply after it was made.
+
+    A dict with str keys exactly, not a subclass of either: a subclass brings its own iteration,
+    items and hashing, which are the plug's code running here, outside `consult`. Anything at all
+    that goes wrong while it is copied is DEFER - a surface is the status, get_status and the
+    Dashboard, which a strange answer must never break."""
     try:
+        if type(answer) is not dict or not all(type(key) is str for key in answer):
+            return DEFER
         return json.loads(json.dumps(answer, allow_nan=False))
-    except (TypeError, ValueError, RecursionError):
+    except Exception:
         return DEFER
+
+
+class _Channel:
+    """A channel a plug named at P5, held to the launch guard rather than asked to enter it.
+
+    Core's backend enters the guard it is handed around the one moment it launches the queue
+    process, so a Pause, a cancel or a conversation switched off that committed after the claim
+    stops the send there. A channel is the plug's code, and nothing made it enter the guard it
+    was handed, so this enters the guard for it: the channel is called only while consent holds,
+    and is handed a guard already held. The store's write lock stays taken for the whole of the
+    channel's send, not only a launch - a Pause waits for the channel rather than racing it,
+    which is the price of a transport core cannot see into."""
+    __slots__ = ("_send",)
+
+    def __init__(self, send):
+        self._send = send
+
+    def send(self, thread_id, prompt, *, launch_guard=None):
+        with launch_guard if launch_guard is not None else nullcontext(True) as permitted:
+            if permitted is not True:
+                return {"outcome": "not_started", "error_code": "queue_consent_refused"}
+            return self._send(thread_id, prompt, launch_guard=nullcontext(True))
 
 
 class Guarded:
@@ -303,9 +336,10 @@ class Guarded:
     answers DEFER or a member of its set; a value point answers DEFER or a value core can use,
     and anything else is DEFER - except at the sender, where it is core's own backend, because
     there is always a send to hand the one message to. Nothing a hook does reaches past this:
-    it is handed copies (`consult`). `failures` counts the hooks that raised, over every caller
-    of this plug on every thread; the claim asks through `claim_ledger_checked` instead, which
-    says whether that one call raised (store/claims.py).
+    it is handed copies (`consult`), and a channel it names is held to the launch guard.
+    `failures` counts the hooks that raised, over every caller of this plug on every thread; the
+    claim asks through `claim_ledger_checked` instead, which says whether that one call raised
+    (store/claims.py).
     """
     __slots__ = ("plug", "failures")
 
@@ -349,12 +383,15 @@ class Guarded:
         return answer if isinstance(answer, str) else DEFER
 
     def sender(self, record, backend):
-        """Something with a `send` to call, or `backend` itself."""
+        """`backend` itself, or the channel the plug named, held to the launch guard (`_Channel`)."""
         answer = self._ask(Point.SENDER, record, backend)
+        if answer is backend:
+            return backend
         try:
-            return answer if callable(getattr(answer, "send", None)) else backend
+            send = getattr(answer, "send", None)
         except Exception:                              # a `send` that raises when it is looked up
             return backend
+        return _Channel(send) if callable(send) else backend
 
     def outcome(self, record, outcome):
         return self._ask(Point.OUTCOME, record, outcome)

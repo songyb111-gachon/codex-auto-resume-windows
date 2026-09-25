@@ -273,10 +273,25 @@ class Channel:
         self.h, self.calls = h, []
 
     def send(self, thread_id, prompt, *, launch_guard=None):
-        state = self.h.record()["state"]              # the guard holds the store's write lock
+        # Read on a connection of its own: core holds a channel to the launch guard, so the
+        # store's own connection is inside the guard's transaction while this runs.
+        with contextlib.closing(sqlite3.connect(self.h.store.path)) as connection:
+            state = connection.execute("SELECT state FROM interruptions WHERE thread_id=?",
+                                       (thread_id,)).fetchone()[0]
         with launch_guard as permitted:
             self.calls.append((thread_id, prompt, permitted, state))
         return {"outcome": "unknown"}
+
+
+class Careless:
+    """A channel that sends without entering the launch guard it is handed."""
+
+    def __init__(self):
+        self.calls = []
+
+    def send(self, thread_id, prompt, *, launch_guard=None):
+        self.calls.append(thread_id)
+        return {"outcome": "accepted", "queue_id": None}
 
 
 class SenderTests(PluggedCase):
@@ -300,6 +315,29 @@ class SenderTests(PluggedCase):
         self.h.tick()
         self.assertEqual(channel.calls, [])
         self.assertEqual(self.h.record()["state"], "waiting_retry")
+
+    def test_a_channel_that_never_enters_the_guard_is_held_to_it_all_the_same(self):
+        """A Pause that commits after the claim stops core's backend at its launch guard. A
+        channel is only handed the guard; one that never entered it sent anyway. Core enters it
+        for the channel, so the Pause stops both alike."""
+        seen = {}
+        for label in ("backend", "careless channel"):
+            h = self.fresh()
+            self.due(h)
+            careless = Careless()
+            engine = self.plugged(Asked(sender=careless) if label != "backend" else None, h)
+            looked = engine.presend_problem
+
+            def presend(claim, _h=h, _looked=looked):
+                problem = _looked(claim)
+                _h.store.set_enabled(False, _h.now)            # the person pauses right here
+                return problem
+            engine.presend_problem = presend
+            h.tick()
+            seen[label] = (len(h.backend.send_calls) + len(careless.calls), h.record()["state"],
+                           h.record()["attempt_count"])
+        self.assertEqual(seen["careless channel"], seen["backend"])
+        self.assertEqual(seen["backend"][0], 0)
 
     def test_what_is_not_a_channel_leaves_the_backend(self):
         self.due()
@@ -582,7 +620,14 @@ class SurfaceTests(ControlTestCase):
         status = plugged.get_status()
         self.assertEqual(status[EXTRA], {"on": 0, "ids": []})
         self.assertEqual({key: value for key, value in status.items() if key != EXTRA}, standard)
-        for answer in (DEFER, ["x"], {"x": float("inf")}, RuntimeError("no")):
+        class Iterating(dict):
+            def __iter__(self):
+                raise RuntimeError("iteration broke")
+
+            def items(self):
+                raise RuntimeError("items broke")
+
+        for answer in (DEFER, ["x"], {"x": float("inf")}, RuntimeError("no"), Iterating(a=1)):
             with self.subTest(answer=answer):
                 self.assertNotIn(EXTRA, control.Control(self.paths, plug=Asked(surface=answer)).get_status())
 
