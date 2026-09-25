@@ -1143,9 +1143,13 @@ class GeneratedWindowTokenTests(unittest.TestCase):
             self.assertIn(text, self.source)
 
     def test_brand_cs_has_a_dark_twin_with_the_same_names(self):
-        """Every theme-dependent name in Brand is declared again, once, in Brand.Dark."""
-        head, _, dark = self.source.partition("        internal static class Dark\n")
+        """Every theme-dependent name in Brand is declared again, once, in Brand.Dark.
+
+        Brand.Dark is its own body, up to its closing brace: since v0.6.10 the designs' classes follow it, each with
+        a Dark of its own, and those are held to the same names by the next test."""
+        head, _, dark = self.source.partition("\n        internal static class Dark\n")
         self.assertTrue(dark, "Brand.cs declares no Brand.Dark")
+        dark = dark[:dark.index("\n        }\n")]
         twins = [name for name, _, _ in make_brand.FIELDS] + [name for name, _, _ in make_brand.DERIVED]
         for name in twins:
             pattern = r"internal static readonly Color %s\s*=" % name
@@ -1167,6 +1171,41 @@ class GeneratedWindowTokenTests(unittest.TestCase):
                      "StatusSystem(", "Glow(", "CheckMarkCornerX", "CheckSize", "RadiusCheck"):
             self.assertIn(name, head)
             self.assertNotIn(name, dark)
+
+    def test_each_design_with_colours_of_its_own_has_a_class_and_a_dark_twin_with_brands_names(self):
+        """v0.6.10. Classic and Plain have colours of their own, Still draws in Soft's: each of the two is a class beside
+        Brand.Dark with a Dark of its own, and each of the four declares every colour, the card's ground and the check
+        box under the names Brand gives Soft's - and nothing else. Its status light is Brand's, its elevation its theme's
+        or none, and what else a design decides is one of Brand's Design rules."""
+        own = [design for design in brand.DESIGNS if brand.palette("light", design) is not brand.LIGHT]
+        self.assertEqual(own, ["classic", "plain"])
+        twins = [name for name, _, _ in make_brand.FIELDS] + [name for name, _, _ in make_brand.DERIVED]
+        for design in own:
+            name = design.capitalize()
+            opening = "\n        internal static class %s\n        {\n" % name
+            self.assertEqual(self.source.count(opening), 1, name)
+            body = self.source[self.source.index(opening):]
+            body = body[:body.index("\n        }\n")]
+            light, _, dark = body.partition("\n            internal static class Dark\n")
+            self.assertTrue(dark, name + " has no Dark")
+            for part, text in (("light", light), ("dark", dark)):
+                with self.subTest(design=design, theme=part):
+                    for field in twins:
+                        self.assertEqual(len(re.findall(r"internal static readonly Color %s\s*=" % field, text)), 1, field)
+                    self.assertEqual(len(re.findall(r"internal static readonly Color ", text)), len(twins))
+                    for signature in ("internal static Color CheckFill(bool on, bool enabled)",
+                                      "internal static Color CheckEdge(bool on, bool enabled)",
+                                      "internal static bool CheckMark(bool on, bool enabled, out Color mark)"):
+                        self.assertEqual(text.count(signature), 1, signature)
+                    for absent in ("StatusFill(", "ElevationCount(", "ElevationShadow(", "internal const"):
+                        self.assertNotIn(absent, text)
+        # The rules take a design's name and live in Brand alone.
+        head = self.source[:self.source.index("\n        internal static class Dark\n")]
+        for rule in ("DesignOf(object value)", "DesignColours(string design)", "DesignDepth(string design)",
+                     "DesignGlow(string design)", "DesignBreathes(string design)", "DesignGlides(string design)",
+                     "DesignAccentBar(string design)", "DesignRadius(string design, string role)"):
+            self.assertEqual(self.source.count(rule), 1, rule)
+            self.assertIn(rule, head)
 
 
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
@@ -1256,6 +1295,43 @@ foreach ($on in @($false, $true)) {
         'checksystem|' + $on + '|' + $enabled + '|' + $fill.Name + '|' + $edge.Name + '|' + $marked + '|' + $(if ($marked) { $call[2].Name } else { '' }) + '|' + $well
     }
 }
+# v0.6.10: each design with colours of its own, light and dark, and the Design rules for every design and for names
+# that are none.
+foreach ($design in (ConvertFrom-Json $env:CAR_DESIGN_CLASSES)) {
+    $name = [string]$design[1]
+    foreach ($pair in @(@('light', ('CodexAutoResume.Brand+' + $name)), @('dark', ('CodexAutoResume.Brand+' + $name + '+Dark')))) {
+        $type = $assembly.GetType($pair[1], $true)
+        foreach ($field in $type.GetFields($flags)) {
+            if ($field.FieldType.FullName -eq 'System.Drawing.Color') { 'designcolour|' + $design[0] + '|' + $pair[0] + '|' + $field.Name + '|' + (Argb $field.GetValue($null)) }
+            else { 'designother|' + $design[0] + '|' + $pair[0] + '|' + $field.Name }
+        }
+        foreach ($on in @($false, $true)) {
+            foreach ($enabled in @($false, $true)) {
+                $fill = $type.GetMethod('CheckFill', $flags).Invoke($null, [object[]]@($on, $enabled))
+                $edge = $type.GetMethod('CheckEdge', $flags).Invoke($null, [object[]]@($on, $enabled))
+                $call = [object[]]@($on, $enabled, $null)
+                $marked = [bool]$type.GetMethod('CheckMark', $flags).Invoke($null, $call)
+                'designcheck|' + $design[0] + '|' + $pair[0] + '|' + $on + '|' + $enabled + '|' + (Argb $fill) + '|' + (Argb $edge) + '|' + $marked + '|' + (Argb $call[2])
+            }
+        }
+    }
+}
+$designNames = (ConvertFrom-Json $env:CAR_DESIGN_NAMES)
+$roles = (ConvertFrom-Json $env:CAR_DESIGN_ROLES)
+for ($i = 0; $i -lt $designNames.Count; $i++) {
+    $design = [string]$designNames[$i]
+    foreach ($rule in @('DesignDepth', 'DesignGlow', 'DesignBreathes', 'DesignGlides', 'DesignAccentBar')) {
+        'designrule|' + $i + '|' + $rule + '|' + [bool]$brand.GetMethod($rule, $flags).Invoke($null, [object[]]@($design))
+    }
+    'designcolours|' + $i + '|' + [string]$brand.GetMethod('DesignColours', $flags).Invoke($null, [object[]]@($design))
+    for ($r = 0; $r -lt $roles.Count; $r++) {
+        'designradius|' + $i + '|' + $r + '|' + [int]$brand.GetMethod('DesignRadius', $flags).Invoke($null, [object[]]@($design, [string]$roles[$r]))
+    }
+}
+$stored = (ConvertFrom-Json $env:CAR_DESIGN_STORED)
+for ($i = 0; $i -lt $stored.Count; $i++) {
+    'designof|' + $i + '|' + [string]$brand.GetMethod('DesignOf', $flags).Invoke($null, [object[]]@(,$stored[$i]))
+}
 """
 
 
@@ -1270,6 +1346,11 @@ class GeneratedStatusLightTests(unittest.TestCase):
     MOMENTS = (0, 250, 400, 500, 700, 800, 900, 1100, 1300, 1399, 1400, 1700, 1800, 1900, 2080, 2200,
                2400, 2700, 2720, 3000, 3199, 3600, 5000, 7777)
     SINCE = (-1, 0, 350, 700, 1000, 1190, 1300, 1399, 1400, 5000)       # read by neither side since v0.6.8
+    # v0.6.10: the designs by name, and names that are none, which every rule answers as the default design.
+    DESIGN_NAMES = brand.DESIGNS + ("", "Soft", "CLASSIC", "plain ", "bogus")
+    DESIGN_ROLES = tuple(brand.RADII) + ("", "Card", "bogus")
+    # Stored values, as settings.json may hold them.
+    DESIGN_STORED = list(brand.DESIGNS) + ["Soft", "Plain", "", " classic", None, 1, 0, True, False, 2.5]
 
     @classmethod
     def setUpClass(cls):
@@ -1289,7 +1370,12 @@ class GeneratedStatusLightTests(unittest.TestCase):
             [str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(probe)],
             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600,
             env=dict(os.environ, CAR_DLL=str(dll), CAR_STATES=json.dumps(list(cls.STATES)),
-                     CAR_MOMENTS=json.dumps(list(cls.MOMENTS)), CAR_SINCE=json.dumps(list(cls.SINCE))))
+                     CAR_MOMENTS=json.dumps(list(cls.MOMENTS)), CAR_SINCE=json.dumps(list(cls.SINCE)),
+                     CAR_DESIGN_CLASSES=json.dumps([[design, design.capitalize()] for design in brand.DESIGNS
+                                                    if brand.palette("light", design) is not brand.LIGHT]),
+                     CAR_DESIGN_NAMES=json.dumps(list(cls.DESIGN_NAMES)),
+                     CAR_DESIGN_ROLES=json.dumps(list(cls.DESIGN_ROLES)),
+                     CAR_DESIGN_STORED=json.dumps(cls.DESIGN_STORED)))
         if result.returncode != 0:
             cls.error = "the probe did not run: " + (result.stderr or result.stdout)[-2000:]
             return
@@ -1415,6 +1501,73 @@ class GeneratedStatusLightTests(unittest.TestCase):
                 self.assertEqual(mark or None, expected["mark"])
                 self.assertEqual(marked == "True", expected["mark"] is not None)
                 self.assertEqual(well == "True", brand.check_box(on == "True", enabled == "True")["well"])
+
+    # ------------------------------------------------------------------ v0.6.10: the designs
+
+    OWN_COLOURS = ("classic", "plain")
+
+    def test_each_designs_colours_read_back_as_its_palette(self):
+        """Brand.Classic, Brand.Plain and their Dark twins are brand.palette(theme, design) and brand.card_ground(theme,
+        design), name for name, and hold nothing else; Soft's and Still's are Brand's and Brand.Dark's."""
+        colours, other = {}, self.records.get("designother", [])
+        for design, theme, name, value in self.records.get("designcolour", []):
+            colours.setdefault((design, theme), {})[name] = value
+        self.assertEqual(other, [], "a design's class holds colours only")
+        self.assertEqual(sorted(colours), sorted((design, theme) for design in self.OWN_COLOURS for theme in brand.THEMES))
+        for (design, theme), found in colours.items():
+            tokens = brand.palette(theme, design)
+            expected = {name: tokens[token] for name, token, _ in make_brand.FIELDS}
+            expected.update({name: function(theme, design) for name, function, _ in make_brand.DERIVED})
+            with self.subTest(design=design, theme=theme):
+                self.assertEqual({name: "#" + value[-6:] for name, value in found.items()}, expected)
+                self.assertTrue(all(value.startswith("FF") for value in found.values()))
+
+    def test_each_designs_check_box_is_brand_check_box_in_that_design(self):
+        rows = self.records.get("designcheck", [])
+        self.assertEqual(len(rows), len(self.OWN_COLOURS) * 2 * 4)
+        for design, theme, on, enabled, fill, edge, marked, mark in rows:
+            expected = brand.check_box(on == "True", enabled == "True", theme, design)
+            with self.subTest(design=design, theme=theme, on=on, enabled=enabled):
+                self.assertEqual("#" + fill[-6:], expected["fill"])
+                self.assertEqual("#" + edge[-6:], expected["edge"])
+                self.assertEqual(marked == "True", expected["mark"] is not None)
+                if expected["mark"] is not None:
+                    self.assertEqual("#" + mark[-6:], expected["mark"])
+
+    def test_every_design_rule_is_brand_designs_and_a_name_that_is_none_is_the_default(self):
+        rules = {"DesignDepth": brand.design_depth, "DesignGlow": brand.design_glow,
+                 "DesignBreathes": brand.design_breathes, "DesignGlides": brand.design_glides,
+                 "DesignAccentBar": brand.design_accent_bar}
+        found = self.records.get("designrule", [])
+        self.assertEqual(len(found), len(self.DESIGN_NAMES) * len(rules))
+        for index, rule, answer in found:
+            name = self.DESIGN_NAMES[int(index)]
+            design = name if name in brand.DESIGNS else brand.DEFAULT_DESIGN
+            with self.subTest(design=name, rule=rule):
+                self.assertEqual(answer == "True", rules[rule](design))
+        for index, answer in self.records.get("designcolours", []):
+            name = self.DESIGN_NAMES[int(index)]
+            design = name if name in brand.DESIGNS else brand.DEFAULT_DESIGN
+            with self.subTest(design=name, rule="DesignColours"):
+                self.assertIs(brand.palette("light", answer), brand.palette("light", design))
+                self.assertIs(brand.palette("dark", answer), brand.palette("dark", design))
+                self.assertTrue(answer in self.OWN_COLOURS or answer == brand.DEFAULT_DESIGN, answer)
+        radii = self.records.get("designradius", [])
+        self.assertEqual(len(radii), len(self.DESIGN_NAMES) * len(self.DESIGN_ROLES))
+        for index, role, value in radii:
+            name, role = self.DESIGN_NAMES[int(index)], self.DESIGN_ROLES[int(role)]
+            design = name if name in brand.DESIGNS else brand.DEFAULT_DESIGN
+            with self.subTest(design=name, role=role):
+                self.assertEqual(int(value), brand.design_radii(design).get(role, 0))
+                self.assertLessEqual(int(value), brand.RADII.get(role, 0), "never rounder than Soft")
+
+    def test_a_stored_design_is_read_as_the_settings_layer_reads_it(self):
+        from codex_auto_resume import settings
+        found = dict(self.records.get("designof", []))
+        self.assertEqual(len(found), len(self.DESIGN_STORED))
+        for index, value in enumerate(self.DESIGN_STORED):
+            with self.subTest(value=value):
+                self.assertEqual(found[str(index)], settings.design_preference({"design": value}))
 
 
 class RetiredColourTests(unittest.TestCase):
