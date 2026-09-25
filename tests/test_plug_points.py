@@ -538,6 +538,35 @@ class TickTests(PluggedCase):
         self.assertEqual((outcome, record["state"]), ("recovered", "recovered"))
         self.assertEqual(self.h.record()["state"], "recovered")
 
+    def test_the_standard_edition_reads_no_consent_for_an_outcome_it_asks_nobody_about(self):
+        """P6 asks the plug only while consent holds, and reading consent is two transactions -
+        the settings and the conversation's switch - on every recovery turn that settles. NULL
+        is never asked, so the standard edition reads neither, as v0.6.10 did not: its trace
+        is the one there always was, and a read that failed there could not raise out of a
+        transition whose state had already been written."""
+        real = Engine.allowed
+        for plug, expected in ((None, 0), (Asked(), 1)):
+            with self.subTest(plugged=plug is not None):
+                h = self.fresh()
+                self.due(h)
+                self.plugged(plug, h)
+                h.tick()
+                asked = []
+
+                def allowed(engine, row, _asked=asked):
+                    _asked.append(row["interruption_id"])
+                    return real(engine, row)
+                statements = []
+                h.store._connection.set_trace_callback(statements.append)
+                with patch.object(Engine, "allowed", allowed):
+                    self.follow(h)
+                h.store._connection.set_trace_callback(None)
+                self.assertEqual(h.record()["state"], "recovered")
+                self.assertEqual(len(asked), expected)
+                reads = sum("FROM threads" in statement and "enabled" in statement
+                            for statement in statements)
+                self.assertEqual(reads, expected)
+
     def test_a_turn_that_ends_while_recovery_is_paused_is_not_put_to_the_plug(self):
         self.due()
         plug = Asked()
