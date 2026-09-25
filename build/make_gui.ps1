@@ -9,11 +9,18 @@
     mode PowerShell does not evaluate a parenthesised expression that is glued to a
     literal prefix - `/win32icon:(Join-Path ...)` is passed through verbatim, and csc
     then reports "Illegal characters in path".
+
+    -Edition advanced builds the advanced edition's settings window instead, into
+    build\advanced\ beside the standard one: the same sources, then the ones
+    advanced\gui\window.sources lists. The standard build never reads that file. The MCP
+    launcher is one file, the same in both editions, so only the standard run builds it.
 #>
 [CmdletBinding()]
 param(
     [string]$Root,
-    [string]$Out
+    [string]$Out,
+    [ValidateSet('standard', 'advanced')]
+    [string]$Edition = 'standard'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -25,7 +32,12 @@ $ErrorActionPreference = 'Stop'
 # work, and the release workflow invokes it as a command, so the only broken route was
 # the documented one.
 if (-not $Root) { $Root = Split-Path -Parent $PSScriptRoot }
-if (-not $Out)  { $Out  = Join-Path $Root 'build' }
+if (-not $Out) {
+    $Out = Join-Path $Root 'build'
+    # Each edition's window has a directory of its own, so building one never replaces the
+    # other (build/make_release.py takes each from its own).
+    if ($Edition -eq 'advanced') { $Out = Join-Path $Out 'advanced' }
+}
 
 $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 if (-not (Test-Path $csc)) { throw 'The in-box C# compiler was not found.' }
@@ -129,22 +141,42 @@ function Build {
 # The [group] lines in that file divide it for the tests - the window's own code, the controls
 # it is drawn with, the generated palette - and mean nothing to the compiler, which is handed
 # every source in the order they are written.
-$WindowSources = @(
-    Get-Content (Join-Path $Root 'gui\window.sources') |
-        ForEach-Object { ($_ -split '#', 2)[0].Trim() } |
-        Where-Object { $_ -and -not $_.StartsWith('[') } |
-        ForEach-Object { Join-Path $Root ($_ -replace '/', '\') }
-)
+function Read-SourceList([string]$List) {
+    @(
+        Get-Content (Join-Path $Root $List) |
+            ForEach-Object { ($_ -split '#', 2)[0].Trim() } |
+            Where-Object { $_ -and -not $_.StartsWith('[') } |
+            ForEach-Object { Join-Path $Root ($_ -replace '/', '\') }
+    )
+}
+$WindowSources = @(Read-SourceList 'gui\window.sources')
 if ($WindowSources.Count -lt 1) { throw 'gui/window.sources names no source' }
 
+# The advanced window is the standard one with the overlay's sources compiled after it. They
+# give bodies to the `partial void` methods the standard sources declare on SettingsForm
+# (gui/Dashboard.cs); a declaration with no body is removed by the compiler, calls and all, so
+# the standard window carries nothing of these - not even a call that does nothing. The overlay
+# may list no source at all, and then the two windows differ only in their version resource.
+if ($Edition -eq 'advanced') {
+    $WindowSources += @(Read-SourceList 'advanced\gui\window.sources')
+}
+
+# The window says which edition it is in its version resource, where Explorer's Properties and
+# the SmartScreen prompt read what a file is; the Dashboard says it where it shows the version.
+$EditionWord = @{ standard = 'Standard'; advanced = 'Advanced' }[$Edition]
 Build -Name 'CodexAutoResumeSettings.exe' -Target 'winexe' -WithManifest `
-      -Description 'Codex Auto Resume settings' `
+      -Description ('Codex Auto Resume settings (' + $EditionWord + ' edition)') `
       -Sources $WindowSources `
       -References @('System.dll', 'System.Drawing.dll', 'System.Windows.Forms.dll')
 
 # A console-subsystem executable on purpose: it inherits Codex's standard streams and
 # hands them straight to the MCP server, which is the whole reason it exists.
-Build -Name 'codex-auto-resume-mcp.exe' -Target 'exe' `
-      -Description 'Codex Auto Resume MCP launcher' `
-      -Sources @((Join-Path $Root 'gui\McpLauncher.cs')) `
-      -References @('System.dll')
+#
+# One file in both editions, byte for byte, so it names neither and only the standard run
+# builds it: the advanced archive takes it from build/ like the standard one does.
+if ($Edition -eq 'standard') {
+    Build -Name 'codex-auto-resume-mcp.exe' -Target 'exe' `
+          -Description 'Codex Auto Resume MCP launcher' `
+          -Sources @((Join-Path $Root 'gui\McpLauncher.cs')) `
+          -References @('System.dll')
+}

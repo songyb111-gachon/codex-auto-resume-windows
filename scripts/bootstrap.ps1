@@ -62,6 +62,21 @@
       the version inside the archive - is verified for an update too, and it goes through
       the same installer, which keeps the state and the decisions already on the machine.
 
+    Which edition it installs
+      There are two, and an installation is one or the other: the advanced edition is the
+      standard one plus one package in app\src. Nothing is stamped anywhere to say which; the
+      package being there is the fact, for the product and for this script alike. A run
+      installs the edition -Edition names; without it, the edition already installed, so a
+      repair or an update never leaves it; with nothing installed, this plugin tree's own -
+      the standard edition for a plugin added from GitHub, whose tree has no advanced package.
+      The edition only ever chooses between the two constant archive names in release.json.
+
+      Moving between editions is a reinstall, never an update. -Update refuses -Edition. A run
+      that would replace one edition with the other needs -Edition and -Force: without -Force
+      it downloads nothing and exits 14; with both, it says what the change keeps and changes
+      before it fetches anything, and tells the installer the change was asked for. An archive
+      of the other edition is refused like an archive of another version.
+
     Refreshing the Codex compatibility data
       Only on request, at exactly two moments: -Compatibility (the Diagnostics page's
       refresh button), and an update check that reached github.com (-CheckOnly or -Update).
@@ -92,6 +107,8 @@
          Add -CheckOnly to ask whether a newer release exists and install nothing.
          Add -Update to install one if there is.
          Add -Compatibility to refresh the Codex compatibility data and nothing else.
+         Add -Edition Standard or -Edition Advanced to choose the edition; over the other
+         edition, add -Force as well, which is what replacing it takes.
 #>
 [CmdletBinding()]
 param(
@@ -100,7 +117,11 @@ param(
     [string]$ArchivePath,
     [switch]$CheckOnly,
     [switch]$Update,
-    [switch]$Compatibility
+    [switch]$Compatibility,
+    # A closed word, not a value: it only chooses which of two constant archive names is
+    # fetched, and nothing of what was typed reaches a URL.
+    [ValidateSet('Standard', 'Advanced')]
+    [string]$Edition
 )
 
 # Started before anything else runs, so an update check can tell how much of its caller's
@@ -149,6 +170,10 @@ $ExitUnavailable = 12
 # `compatibility: refused <reason>` or `compatibility: unavailable`, and exits 0, 13 or 12.
 # Refused is its own answer: the data arrived and the validator would not have it.
 $ExitCompatibilityRefused = 13
+# The other edition is installed and nothing said to replace it: nothing was downloaded and
+# nothing changed. The installer refuses the same way with the same code, and Install.cmd
+# reads it as its cue to ask.
+$ExitOtherEdition = 14
 
 function Step { param([string]$Text) Write-Host ('  ' + $Text) }
 function Ok   { param([string]$Text) Write-Host ('  [ok] ' + $Text) }
@@ -214,6 +239,24 @@ function Get-PinnedDigest {
         throw ('scripts/release.json has a malformed digest for ' + $Version + '.')
     }
     return $digest.ToLower()
+}
+
+function Get-EditionRelease {
+    <#
+        The part of scripts/release.json that names and pins one edition's archive: an object
+        with `archive` and `sha256`, which is how Get-PinnedDigest reads it.
+
+        The top-level keys are the standard edition's and stay so, because every published
+        bootstrap reads them from its own copy and has to go on finding the standard archive
+        under the name it always built. The advanced edition's are a second constant under
+        `advanced`. So an edition only ever chooses between two fixed templates.
+    #>
+    param($Release, [string]$Edition)
+    if ($Edition -ne 'advanced') { return $Release }
+    if (-not $Release.PSObject.Properties.Match('advanced').Count -or $null -eq $Release.advanced) {
+        throw 'scripts/release.json names no advanced edition, so there is none to fetch.'
+    }
+    return $Release.advanced
 }
 
 function Get-FinalUri {
@@ -405,7 +448,9 @@ function Get-CompatibilityExit {
 }
 
 function Test-Archive {
-    param([string]$Zip, [string]$Version)
+    # An archive nothing asks an edition of is held to the standard one: what every archive
+    # was before there were two.
+    param([string]$Zip, [string]$Version, [string]$Edition = 'standard')
     # Everything the release is defined to contain. The same list the release workflow
     # checks before publishing, so "it built" and "it downloaded" mean the same thing.
     $required = @('payload/runtime/python.exe',
@@ -461,7 +506,39 @@ function Test-Archive {
         if ($manifest.version -ne $Version) {
             throw ('The archive is version ' + $manifest.version + ', not ' + $Version + '.')
         }
+        # And the edition this run asked for. The advanced package in app\src is what makes an
+        # installation advanced (Get-Edition below), so an advanced archive has to carry it, and a
+        # standard one may carry nothing of that edition: not the package, and not its skill,
+        # which Codex would read from the plugin tree. Names are compared without regard to case
+        # or separator, as the extraction will treat them. An archive named for one edition and
+        # holding the other is refused here, before anything of it is unpacked.
+        $package = 'payload/app/src/codex_auto_resume_advanced/'
+        $skill = 'payload/app/skills/codex-auto-resume-advanced/'
+        if ($Edition -eq 'advanced') {
+            if ($names -notcontains ($package + '__init__.py')) {
+                throw ('The archive is not the advanced edition: it has no ' + $package + '__init__.py.')
+            }
+        } else {
+            foreach ($name in $names) {
+                $path = $name.Replace('\', '/')
+                if ($path.StartsWith($package, [StringComparison]::OrdinalIgnoreCase) -or
+                    $path.StartsWith($skill, [StringComparison]::OrdinalIgnoreCase)) {
+                    throw ('The archive holds the advanced edition (' + $name + '), and the standard edition was asked for.')
+                }
+            }
+        }
     } finally { $archive.Dispose() }
+}
+
+# Which edition the tree whose `src` this is: the advanced one when the advanced package is in it,
+# the standard one otherwise. Nothing is stamped anywhere to say which. It is the fact the product
+# itself reads (src/codex_auto_resume/edition.py, name()) and the installer reads the same way, so
+# the three agree about an installation - even one whose advanced package would not load.
+function Get-Edition {
+    param([string]$Src)
+    $package = Join-Path (Join-Path $Src 'codex_auto_resume_advanced') '__init__.py'
+    if (Test-Path -LiteralPath $package -PathType Leaf) { return 'advanced' }
+    return 'standard'
 }
 
 function Get-InstalledVersion {
@@ -471,6 +548,59 @@ function Get-InstalledVersion {
     if (-not (Test-Path $manifest)) { return $null }
     try { return (Get-Content $manifest -Raw -Encoding UTF8 | ConvertFrom-Json).version }
     catch { return $null }
+}
+
+function Get-InstalledEdition {
+    # The edition installed at $Home_, or $null where nothing is - by the rule the installer
+    # applies before it replaces anything (build/install/install.ps1): an `app` folder there,
+    # and the edition of its `src`. So the two always agree about whether a run changes the
+    # edition, and the installer's own refusal is never where anyone first hears of it.
+    param([string]$Home_)
+    $app = Join-Path $Home_ 'app'
+    if (-not (Test-Path -LiteralPath $app)) { return $null }
+    return Get-Edition -Src (Join-Path $app 'src')
+}
+
+function Get-TreeEdition {
+    # The edition of the plugin tree this script came in. Main's tree on GitHub has no advanced
+    # package in `src`, so a plugin added from there is the standard edition; the copy inside
+    # an advanced installation, which its settings window runs, is the advanced one.
+    param([string]$Root)
+    return Get-Edition -Src (Join-Path $Root 'src')
+}
+
+function Resolve-Edition {
+    <#
+        The edition this run installs, and what that means for the installation already here.
+
+        The edition -Edition names, where it names one; otherwise the installed one, so that a
+        repair or an update stays in the edition a person chose; otherwise the plugin tree's own.
+        The answer carries one of three words: 'same' - nothing is installed, or this edition
+        is; 'change' - the other edition is installed and -Force says to replace it; 'refused' -
+        the other edition is installed and nothing said to replace it. Only a named edition can
+        differ from the installed one, so a change always takes -Edition and -Force together.
+    #>
+    param([string]$Asked, [string]$Installed, [string]$Tree, [switch]$Force)
+    $chosen = $Tree
+    if ($Installed) { $chosen = $Installed }
+    if ($Asked) { $chosen = $Asked.ToLowerInvariant() }
+    $verdict = 'same'
+    if ($Installed -and $Installed -ne $chosen) {
+        $verdict = 'refused'
+        if ($Force) { $verdict = 'change' }
+    }
+    return [pscustomobject]@{ Edition = $chosen; Verdict = $verdict }
+}
+
+function Get-EditionStatement {
+    # What moving from one edition to the other keeps and what it changes, in one line said
+    # before anything is done. The installer says the same line (build/install/install.ps1) as
+    # it replaces the program files; a test holds the two copies to each other.
+    param([string]$From, [string]$To)
+    $words = @{ standard = 'Standard edition'; advanced = 'Advanced edition' }
+    $line = $words[$From] + ' -> ' + $words[$To] + '; settings and pending recoveries are kept; '
+    if ($To -eq 'advanced') { return $line + 'every advanced feature starts off' }
+    return $line + 'the advanced features go, and their code with them'
 }
 
 # ---------------------------------------------------------------------------- run
@@ -490,7 +620,7 @@ $installed = Get-InstalledVersion -Home_ $installHome
 
 # ------------------------------------------------- the Codex compatibility data only
 if ($Compatibility) {
-    if ($CheckOnly -or $Update -or $ArchivePath -or $Force) {
+    if ($CheckOnly -or $Update -or $ArchivePath -or $Force -or $Edition) {
         Fail 'Use -Compatibility on its own: it refreshes data and installs nothing.'
         Write-Host 'compatibility: unavailable'
         exit $ExitUnavailable
@@ -512,6 +642,31 @@ if (($CheckOnly -or $Update) -and $ArchivePath) {
     Fail 'A file you already have is not an update: -ArchivePath and -Update ask different questions.'
     exit $ExitUnavailable
 }
+
+# ------------------------------------------------------ which edition this run installs
+# Settled before anything is asked or fetched, so a run that may not go ahead has touched
+# nothing. An update never crosses editions: it installs a newer release of the edition that
+# is installed, and a move to the other one is a reinstall a person asks for by name.
+if ($Edition -and ($CheckOnly -or $Update)) {
+    Fail 'An update stays in the edition that is installed, so -Edition does not go with -CheckOnly or -Update.'
+    Step ('Moving to the other edition is a reinstall: run this again with -Edition ' + $Edition + ' -Force.')
+    exit $ExitUnavailable
+}
+$installedEdition = Get-InstalledEdition -Home_ $installHome
+$plan = Resolve-Edition -Asked $Edition -Installed $installedEdition -Tree (Get-TreeEdition -Root $PluginRoot) -Force:$Force
+$targetEdition = $plan.Edition
+if ($plan.Verdict -eq 'refused') {
+    Write-Host ('edition: ' + $installedEdition)
+    Fail ('The ' + $installedEdition + ' edition is installed here, and this run asked for the ' + $targetEdition + ' edition.')
+    Step 'Moving between editions is a reinstall, never an update, so nothing was downloaded'
+    Step 'and nothing was changed.'
+    Step ('To replace it, run this again with -Edition ' + $Edition + ' -Force.')
+    exit $ExitOtherEdition
+}
+# A change says what it keeps and what it changes before anything is fetched. The installer says
+# it again as it replaces the program files, and is told the change was asked for.
+if ($plan.Verdict -eq 'change') { Write-Host (Get-EditionStatement -From $installedEdition -To $targetEdition) }
+Write-Host ('edition: ' + $targetEdition)
 
 # What gets installed. It is the plugin's own version for every ordinary run, and only
 # -Update ever moves it.
@@ -565,8 +720,12 @@ if ($CheckOnly -or $Update) {
 # is still whatever version it fetched. Without this, the next ordinary run of this script
 # would see a version it does not have and install it - over a newer one, silently. An
 # installation is only ever replaced by an older one on purpose, which is what -Force is.
+#
+# Only an installation of the edition this run installs can be "already installed". The other
+# edition at the same version is a different installation, and replacing it is what this run
+# was asked to do - so it is never checked over in its place.
 $standing = $null
-if ($installed) {
+if ($installed -and $plan.Verdict -eq 'same') {
     try { $standing = Compare-ProductVersion -Left $installed -Right $target }
     catch { $standing = $null }
 }
@@ -633,7 +792,9 @@ try {
 
 try {
     New-Item -ItemType Directory -Force -Path $work | Out-Null
-    $name = $release.archive.Replace('{version}', $target)
+    # The edition's own template, so an advanced installation updates to the advanced archive
+    # and a standard one to the name every published bootstrap has always built.
+    $name = (Get-EditionRelease -Release $release -Edition $targetEdition).archive.Replace('{version}', $target)
     $zip = Join-Path $work $name
 
     if ($ArchivePath) {
@@ -648,7 +809,7 @@ try {
     }
 
     $actual = Get-Sha256 -Path $zip
-    $pinned = Get-PinnedDigest -Release $release -Version $target
+    $pinned = Get-PinnedDigest -Release (Get-EditionRelease -Release $release -Edition $targetEdition) -Version $target
     if ($pinned) {
         if ($actual -ne $pinned) { throw 'The download does not match the digest pinned in this plugin.' }
         Ok 'SHA-256 matches the digest pinned in this plugin'
@@ -669,7 +830,7 @@ try {
         Ok 'SHA-256 matches the checksum published beside it (no pinned digest for this version)'
     }
 
-    Test-Archive -Zip $zip -Version $target
+    Test-Archive -Zip $zip -Version $target -Edition $targetEdition
     Ok ('Archive contents verified as Codex Auto Resume v' + $target)
 
     $unpacked = Join-Path $work 'unpacked'
@@ -678,8 +839,13 @@ try {
     Step 'Installing'
     Write-Host ''
     $installer = Join-Path $unpacked 'install\install.ps1'
-    $arguments = @()
-    if ($NoStartup) { $arguments += '-SkipStartup' }
+    # By name, never as a list. A list is bound by position, so '-SkipStartup' in one reached
+    # the installer as the plugin's name, and the switch it meant stayed off.
+    $arguments = @{}
+    if ($NoStartup) { $arguments['SkipStartup'] = $true }
+    # Only a change this run was asked for, with -Edition and -Force. The installer refuses an
+    # edition change nobody told it about.
+    if ($plan.Verdict -eq 'change') { $arguments['AllowEditionChange'] = $true }
     # From here on "nothing was installed" would be a lie: the installer moves the old
     # payload aside before it copies, so a failure inside it leaves a machine that has
     # been touched. It reports and rolls back its own work; this script must not claim
