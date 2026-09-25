@@ -1885,7 +1885,16 @@ function render() {
         var state = payload.state;
         if (state === 'running' || state === 'already-running') {
           status.watcher_running = true;
-          NOTICE = '';
+          // A watcher this panel started runs in the job Codex runs its server in (v0.6.10): where
+          // that job ends what it holds - Codex 26.915, measured - it stops when Codex closes, if
+          // not sooner, and the panel says so rather than showing a lasting start. Null is a job
+          // Windows would not describe; false, and a watcher already running, need no sentence.
+          var ends = payload.ends_with_codex;
+          NOTICE = ends === true
+            ? t('panel.start_ends_with_codex', 'Running until Codex closes, if not sooner: Codex ends what its plugins start. To keep it running, start it from the Dashboard, or turn on Run at Windows sign-in there.')
+            : ends === null
+              ? t('panel.start_may_end_with_codex', 'Running, but it may stop when Codex closes: Windows would not say whether Codex ends what its plugins start. To keep it running, start it from the Dashboard, or turn on Run at Windows sign-in there.')
+              : '';
         } else if (state === 'exited') {
           NOTICE = t('panel.start_exited', 'It started and stopped again; nothing is watching.');
         } else {

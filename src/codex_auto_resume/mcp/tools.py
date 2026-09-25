@@ -207,7 +207,11 @@ TOOLS = [
         "description": "Start the watcher if it is not running. Nothing is recovered "
                        "while it is stopped, so this is the fix when the status says "
                        "it is not running. It starts the same process the installer "
-                       "starts and decides nothing about any interruption.",
+                       "starts and decides nothing about any interruption. Started from "
+                       "here it runs inside Codex, and Codex 26.915 and later end what "
+                       "their plugins start: then it stops when Codex closes, if not "
+                       "sooner, and the reply says so. Starting it from the Dashboard, or "
+                       "at Windows sign-in, keeps it running.",
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
         # Destructive: a watcher the user stopped would start recovering again.
         "annotations": {"readOnlyHint": False, "destructiveHint": True,

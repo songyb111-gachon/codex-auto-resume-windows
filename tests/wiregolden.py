@@ -163,6 +163,41 @@ def _launch_that_exits(_workspace):
         yield
 
 
+def _launch_that_comes_up(context):
+    """The one start `start_watcher` makes, answered by a "process" that holds the scratch
+    installation's watcher mutex from the moment it is made - as a watcher that came up does - with
+    this process in the job `context` describes (windows.process_context), so the reply never
+    depends on what the machine making the golden runs it in. Nothing is started: the mutex is held
+    by the envelope's helper thread (`_watcher_mutex_held`), and let go when the case is done."""
+    @contextmanager
+    def using(workspace):
+        from codex_auto_resume import config, windows
+
+        paths = config.Paths(workspace / "home")
+        with ExitStack() as held:
+            class CameUp:
+                pid = 4242
+
+                def __init__(self, *_args, **_kwargs):
+                    held.enter_context(generator._watcher_mutex_held(paths))
+
+                def poll(self):
+                    return None
+
+            with patch.object(subprocess, "Popen", CameUp), \
+                    patch.object(windows, "process_context", return_value=dict(context)):
+                yield
+    return using
+
+
+# What `windows.process_context` said of the MCP server on Codex 26.915 (v0.6.9-alpha), and what it
+# says of a process in no job at all.
+KILL_ON_CLOSE_JOB = {"in_job": True, "kill_on_close": True, "breakaway_ok": False,
+                     "silent_breakaway_ok": False, "packaged": False}
+NO_JOB = {"in_job": False, "kill_on_close": False, "breakaway_ok": False,
+          "silent_breakaway_ok": False, "packaged": False}
+
+
 @contextmanager
 def _watcher_does_not_let_go(_workspace):
     """A stop asked of a watcher that holds the mutex through the whole wait, without the wait.
@@ -395,7 +430,13 @@ MCP_CASES = {
     "reset_recovery_budget": [
         Case("an exhausted recovery given its attempts back", {"interruption_id": EXHAUSTED}),
         Case("a recovery still waiting has not been exhausted", {"interruption_id": WAITING_RESET})],
-    "start_watcher": [Case("a watcher already holds the mutex", {})],
+    "start_watcher": [
+        Case("a watcher already holds the mutex", {}),
+        # v0.6.10: a start made from inside Codex says how long it lasts (`ends_with_codex`).
+        Case("started inside a job that ends what it holds, as Codex 26.915 runs this server", {},
+             watching=False, using=_launch_that_comes_up(KILL_ON_CLOSE_JOB)),
+        Case("started in no job, so it outlives Codex", {},
+             watching=False, using=_launch_that_comes_up(NO_JOB))],
     "retry_now": [
         Case("a usage limit whose reset is still ahead", {"interruption_id": WAITING_RESET}),
         Case("a recovered one has already finished", {"interruption_id": RECOVERED})],

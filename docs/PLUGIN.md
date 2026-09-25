@@ -64,7 +64,9 @@ sends a continuation; the watcher stays the only thing that recovers, and it kee
 the server is not. v0.6.9 tried to give it one more thing to do - starting the watcher when Codex
 starts, for a person who had asked for that - and measured, on a real machine, that Codex runs each
 MCP server in a job object that ends whatever that server starts. So it starts nothing, and writes
-one line to `logs/codex-start.log` saying what the job said. Two tools change *when* the watcher next looks at a record: `retry_now` moves
+one line to `logs/codex-start.log` saying what the job said. What `start_watcher` starts when asked
+runs in that same job, so from v0.6.10 its reply says the watcher stops when Codex closes, if not
+sooner. Two tools change *when* the watcher next looks at a record: `retry_now` moves
 a waiting record's next check to now, and `reset_recovery_budget` returns an exhausted record to
 waiting with its recovery attempts and its no-progress count reset to zero. It does not switch
 recovery for that conversation back on: where that conversation is off, the reply says so and
@@ -112,7 +114,7 @@ the installation directory. The last two are described below the table.
 | `cancel_recovery` | Stops the named interruption and every record that continues it. One that was never sent is cancelled outright; one that may already be in Codex is marked, and the watcher takes back whatever is still queued - a turn already running is not stopped. The conversation itself stays switched on. | yes |
 | `reset_recovery_budget` | Returns an exhausted record to waiting, as above. | yes |
 | `clear_recovery_history` | Hides finished recoveries from the history. Deletes nothing and cancels nothing; a recovery that may still change stays visible, and hidden rows still count for every safety check. | yes |
-| `start_watcher` | Starts the watcher the installer starts, if it is not running. | yes |
+| `start_watcher` | Starts the watcher the installer starts, if it is not running. Started this way it runs inside Codex, and Codex 26.915 and later end what their plugins start, so from v0.6.10 the reply says when it stops when Codex closes, if not sooner (`ends_with_codex`), and points to the Dashboard's Start watcher or the sign-in start, which keep it running. | yes |
 
 "Marked destructive" is MCP's `destructiveHint` annotation, which the server declares for
 each tool. It requests approval; Codex and your approval settings decide whether to ask.

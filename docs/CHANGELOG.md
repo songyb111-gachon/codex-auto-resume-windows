@@ -147,6 +147,16 @@ composition, its words and its places, and the popup's and the card's buttons an
   wire, every reply that carries the settings or their schema has the two fields fewer, the Preview's
   kinds one fewer, and the two continuation sentences for it left the nine catalogs; the wire goldens
   were regenerated on purpose.
+- **Start watcher, asked from Codex, says how long the watcher will run.** A watcher started with
+  the panel's Start watcher or the `start_watcher` tool runs in the job Codex runs this plugin's
+  server in, and Codex 26.915 ends everything in that job when it ends the server - measured for
+  v0.6.9-alpha. The reply said *The watcher is running.* as though it would stay. Now, where the job
+  ends what it holds, it adds that the watcher stops when Codex closes, if not sooner, and that
+  starting it from the Dashboard, or turning on Run at Windows sign-in there, keeps it running; where
+  Windows will not describe the job, that it may stop. The panel says the same in all nine languages,
+  and the tool's description says it too. The reply carries `ends_with_codex` - true, false or null -
+  whenever it started a watcher, and the MCP wire golden now holds a start in such a job and one in no
+  job. The job is read by the one function the start with Codex refuses by.
 
 ## v0.6.10-alpha — Where every file goes when the core is Rust
 

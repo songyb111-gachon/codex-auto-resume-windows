@@ -152,8 +152,11 @@ Report what the command actually printed. Useful fields from `status` and `pendi
 - `auto-resume` — whether it is on at all.
 - `watcher` — `running` means it is waiting in the background. `not running` means nothing
   will be resumed; offer the `start_watcher` tool, or `enable`, which also starts it but
-  switches auto resume back on if the user had paused it. `unknown` means the check itself
-  could not answer; do not report it as running, and offer `doctor`.
+  switches auto resume back on if the user had paused it. A watcher `start_watcher` starts runs
+  inside Codex, and Codex 26.915 and later end what their plugins start: when its reply says
+  it stops when Codex closes (`ends_with_codex`), pass that on, and say that starting it from
+  the Dashboard, or turning on Run at Windows sign-in there, keeps it running. `unknown` means
+  the check itself could not answer; do not report it as running, and offer `doctor`.
 - the `status` line on a pending entry — the stable public code, which is what `pending`
   prints there and what `list_pending` returns as `code`. It never depends on a setting, so
   prefer it to `state` when telling the user what is happening.

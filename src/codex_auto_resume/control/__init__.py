@@ -32,7 +32,7 @@ from .state import NEWER_STATE, _unavailable  # noqa: F401
 from .seen import SEEN_LIMIT, SEEN_SKEW, _replace_seen, unseen_failure  # noqa: F401
 from .records import _REASON_UNCHANGED, describe_record  # noqa: F401
 from .actions import CANCEL_RETRY_SECONDS  # noqa: F401
-from .codexstart import CODEX_START_LOG_LINES, _context_words, _note_line  # noqa: F401
+from .codexstart import CODEX_START_LOG_LINES, _context_words, _note_line, ends_with_job  # noqa: F401
 from .watcher import (TICK_STALE_SECONDS,
                       WATCHER_START_INTERVAL,
                       WATCHER_START_TIMEOUT,
