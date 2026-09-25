@@ -423,7 +423,8 @@ ownership information. It never acquires a lock on the app's file.
   times, no conversation text and no identifiers — which you read before you send it. It reaches
   GitHub only when you open the pull request yourself, and
   [CONTRIBUTING.md](CONTRIBUTING.md#sending-a-compatibility-report) says how that pull request is
-  checked. Reports from other people are kept apart from this project's own evidence and carry a
+  checked and filed: with no step by the maintainer, usually within minutes, after which the pull
+  request is closed with one comment that says where the report went, or why it waits. Reports from other people are kept apart from this project's own evidence and carry a
   grade of their own, *reported*, which stands beside those words and never becomes one of them.
   Nothing can prove that a report was not written by hand on the machine that sent it, so a report
   never moves a version up the ladder, and a version whose own evidence says nothing stays

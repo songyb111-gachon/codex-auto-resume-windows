@@ -59,6 +59,8 @@ Codex Auto Resume는 사용자의 PC에서 실행됩니다. 서버도, 계정도
   [codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter)를 실행하고, 그것이 쓴
   파일을 읽고, GitHub에서 직접 풀 리퀘스트를 열 때만 GitHub에 갑니다. 그 풀 리퀘스트가 무엇을 더할 수
   있는지와 어떻게 확인하는지는 [CONTRIBUTING.ko.md](CONTRIBUTING.ko.md#호환성-보고서-보내기)에 있습니다.
+  통과한 보고서는 저장소 자신의 워크플로가 접수하며, 그 커밋 메시지에는 작성자의 GitHub 로그인과 계정 번호가
+  적힙니다. 풀 리퀘스트와 그에 답한 댓글은 다른 모든 풀 리퀘스트처럼 GitHub에 공개로 남습니다.
 
 **자동 업데이트 확인도, 자동 호환성 데이터 새로 받기도 없습니다.** 주기적으로 묻는 것도, 일정에 따라
 확인하는 것도 없고, 창을 열 때나 워처가 시작할 때 확인하지도 않습니다. 아무도 묻지 않은 기계는 이

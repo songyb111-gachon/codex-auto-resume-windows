@@ -287,12 +287,41 @@ class CheckTests(unittest.TestCase):
                                       author="ExampleOwner", association="OWNER"), "recomputed reading")
         stray = {reader.COMMUNITY + "/notes.txt": b"x\n"}
         self.assertRefused(self.judge(self.owner_pr(stray), author="ExampleOwner", association="OWNER"),
-                           "reports, index.json and README.md only")
+                           "reports, index.json, README.md and withdrawn.json only")
 
     def test_the_owner_can_withdraw_a_report(self):
         self.repo.main({path_of(sample()): report_bytes(reader.filed_copy(sample()))})
         self.assertAccepted(self.judge(self.owner_pr({path_of(sample()): None}), author="ExampleOwner",
                                        association="OWNER"))
+
+    # ---------------------------------------------------------------- names every checkout can hold
+    def test_a_folder_windows_keeps_for_a_device_is_refused(self):
+        """git for Windows will not check out docs/evidence/community/nul/..., and one such file on main
+        would stop every Windows checkout of it. git for Windows will not make that commit either, so
+        the head's one change is handed to the check as git would list it."""
+        head = self.report_pr(sample(login="nul"), path=path_of(sample()))
+        blob = self.repo.git("rev-parse", "%s:%s" % (head, path_of(sample()))).strip()
+        for login in ("nul", "CON", "Aux", "prn", "com1", "LPT9"):
+            listed = [("A", "100644", blob, "docs/evidence/community/%s/codex-cli-0.155.0-alpha.9.2.json" % login)]
+            with self.subTest(login), mock.patch.object(check.Git, "changes", return_value=listed):
+                self.assertRefused(self.judge(head, author=login), "a name Windows keeps for a device")
+
+    def test_a_version_has_one_spelling(self):
+        for version in ("codex-cli 00.155.0", "codex-cli 0.155.0-alpha.09.2", "codex-cli 0.155.0-alpha.9.0"):
+            with self.subTest(version):
+                self.assertRefused(self.judge(self.report_pr(sample(version=version))), "no leading zero")
+
+    def test_every_refusal_carries_a_code_the_filer_can_answer(self):
+        import community_file as filer
+        self.assertLessEqual(set(check.CODES), set(filer.ACTIONS))
+        verdict, coded = check.judge_coded(self.git, base=self.repo.git("rev-parse", "main").strip(),
+                                           head=self.report_pr(more={"README.md": b"changed\n"}),
+                                           author="ExampleUser", association="CONTRIBUTOR", now=NOW)
+        self.assertEqual((verdict, [code for code, _text in coded]), (check.REFUSES, [check.PATHS]))
+        verdict, coded = check.judge_coded(self.git, base=self.repo.git("rev-parse", "main").strip(),
+                                           head=self.report_pr(), author="ExampleUser",
+                                           association="CONTRIBUTOR", now=NOW)
+        self.assertEqual((verdict, coded[0][0]), (check.ACCEPTED, check.ACCEPTED_LINE))
 
     # ---------------------------------------------------------------- what it prints and touches
     def run_main(self, head, **environ):

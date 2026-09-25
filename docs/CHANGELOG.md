@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased — Reports filed with no step by the maintainer
+
+**Not in a release yet.** This is the repository's own machinery, working from the day it is on
+`main`; what the next release carries of it is the counts file's new comment, and this entry moves
+into that release's when it is opened.
+
+- **A compatibility report that passes is filed with no step by the maintainer.**
+  `.github/workflows/community-file.yml` wakes when a report's check finishes, and once a day. It
+  judges each open report pull request again, against `main` as it is by then, and files this
+  project's own regeneration of the report - never the sender's bytes - in one commit that adds
+  exactly that report and writes the index, the folder's README and the counts again. The pull
+  request is closed, not merged, with one comment saying where the report went, or why it waits,
+  or what to do about a refusal. A report used to wait for the maintainer to run their tool.
+- **What the maintainer judged is written down as rules**, counted from `main`'s own history and
+  keyed by numeric account id: accounts at least 30 days old, one open report per account, at most
+  3 filings per account and 5 per Codex version in any 7 days, a budget of Codex versions the
+  project's data does not name, half the counts file's room kept free, and a failure on a version
+  this project verifies held for the maintainer. A report that meets a limit waits, with the date
+  it is looked at again. The repository variable `COMMUNITY_AUTOFILE` pauses filing on anything but
+  unset or `on`, `COMMUNITY_BLOCKED` refuses an account, and a withdrawn report's account is listed
+  in `docs/evidence/community/withdrawn.json` so it is not filed again.
+- **Nothing a stranger sends can reach the write access.** The job that reads their files holds no
+  write access and no token while Python runs; the job that writes starts on a fresh runner, runs
+  no Python and no repository code, re-derives every commit from git, and moves `main` only
+  forward, only from the commit the plan was made on and only onto the tree that was tested - hash
+  for hash. [SECURITY.md](SECURITY.md) has the whole list.
+- **Two holes the review found are closed for good.** A login Windows keeps for a device (`nul`,
+  `con`, `com1`...) is refused as a report's folder: one such file on `main` would have stopped
+  every Windows checkout of it. And a Codex version has one spelling: `0.1.0`, `00.1.0` and
+  `0.01.0` are one engine to the product, and a report now has to write it the product's way.
+- The folder's README is written by `build/community_report.py` from the index, and
+  `tests/test_reported_data.py` holds it to that; the maintainer's tool imports that code from
+  `main` instead of keeping a copy of its own, which had drifted.
+
 ## v0.6.10 — The design settled, and what others report
 
 [The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.10-alpha...v0.6.10)

@@ -12,7 +12,10 @@ passes only when:
 * it changes exactly one path, and adds it, as an ordinary file (mode 100644: no link, no
   submodule);
 * that path is docs/evidence/community/<the login that opened it>/codex-cli-<version>.json, where
-  <version> is the report's own `codex_version` and `reporter.github_login` is that login;
+  <version> is the report's own `codex_version`, in the one spelling the product writes it, and
+  `reporter.github_login` is that login;
+* the login is not a name Windows keeps for a device (con, nul, com1...): no Windows checkout
+  could hold that folder, and one such file on main would stop every one of them;
 * no folder already filed differs from that login only in letter case (the product and its CI
   run on Windows, where the two are one folder);
 * nothing is filed at that path yet, on the base or on main: reports are add-only, one per login
@@ -27,10 +30,13 @@ passes only when:
 
 What a report claims beyond its records is recomputed, not refused, and said.
 
-The owner's pull requests are the maintainer's tool filing reports, rewriting the index, or
-withdrawing one. For those every report the pull request adds or changes is read the same way,
-without the one-file and own-folder rules; the test suite then holds the index to the files
-(tests/test_reported_data.py).
+Passing this check files nothing. An accepted report is filed by .github/workflows/community-file.yml,
+which judges it again with this same function (`judge_coded`, whose codes say what the sender can do
+about each refusal) against main as it is by then, and writes main's own regeneration of it, never
+the sender's bytes. The owner's pull requests are the maintainer's tool filing a report the filer
+held back, rewriting the index, or withdrawing one. For those every report the pull request adds or
+changes is read the same way, without the one-file and own-folder rules; the test suite then holds
+the index to the files (tests/test_reported_data.py).
 
 What it prints is fixed text. A value from the pull request is printed only when it already
 matched the pattern it had to match; anything else prints as <refused>, so a file name cannot
@@ -59,8 +65,16 @@ ASSOCIATIONS = ("OWNER", "MEMBER", "COLLABORATOR", "CONTRIBUTOR", "FIRST_TIME_CO
 MAIN = "refs/remotes/origin/main"
 REFUSED = "<refused>"
 ACCEPTED, REFUSES, CANNOT = 0, 1, 2
-# What the owner's filing may touch in the folder, beside reports.
-OWNER_FILES = (PREFIX + "index.json", PREFIX + "README.md")
+# What the owner's filing may touch in the folder, beside reports: the index and README every filing
+# rewrites, and the list of withdrawn reports, which only the owner writes and the filer reads.
+OWNER_FILES = (PREFIX + "index.json", PREFIX + "README.md", PREFIX + "withdrawn.json")
+
+# What each line is, as a word the filer turns into what the sender can do about it
+# (build/community_file.py TEXTS). Every line judge_coded() gives carries one; CODES are refusals.
+NOT_A_REPORT, ACCEPTED_LINE, RECOMPUTED, OWNER_LINE = "not-a-report", "accepted", "recomputed", "owner"
+PATHS, CHANGED, MODE, FOLDER, RESERVED_NAME, CASE, FILED, SIZE, READER, NAME, COPY = (
+    "paths", "changed", "mode", "folder", "reserved", "case", "filed", "size", "reader", "name", "copy")
+CODES = (PATHS, CHANGED, MODE, FOLDER, RESERVED_NAME, CASE, FILED, SIZE, READER, NAME, COPY)
 # docs/evidence/community/<login>/codex-cli-<version>.json, and nothing else, is a report's path.
 REPORT_PATH = re.compile(r"%s(%s)/codex-cli-(\d[0-9A-Za-z.\-]{0,39})\.json"
                          % (re.escape(PREFIX), reader.LOGIN.pattern))
@@ -181,11 +195,18 @@ def sequence(report):
 
 def judge(git, *, base, head, author, association, now=None):
     """(verdict, lines): verdict is ACCEPTED, REFUSES or CANNOT; lines are what to print."""
+    verdict, coded = judge_coded(git, base=base, head=head, author=author, association=association, now=now)
+    return verdict, [text for _code, text in coded]
+
+
+def judge_coded(git, *, base, head, author, association, now=None):
+    """(verdict, [(code, line)]): judge(), with each line's code - one of CODES for a refusal."""
     now = time.time() if now is None else now
     changes = git.changes(base, head)
     ours = [change for change in changes if touches(change[3])]
     if not ours:
-        return ACCEPTED, ["not a report: this pull request changes nothing under %s/" % reader.COMMUNITY]
+        return ACCEPTED, [(NOT_A_REPORT, "not a report: this pull request changes nothing under %s/"
+                           % reader.COMMUNITY)]
     releases = git.releases()
     if not releases:
         raise CheckError("this repository's releases could not be read")
@@ -199,43 +220,51 @@ def judge(git, *, base, head, author, association, now=None):
     refused = []
     status, mode, blob, path = changes[0]
     if len(changes) != 1:
-        refused.append("a report adds exactly one file, and this pull request changes %d paths" % len(changes))
+        refused.append((PATHS, "a report adds exactly one file, and this pull request changes %d paths"
+                         % len(changes)))
     elif status != "A":
-        refused.append("a report adds a new file; this pull request changes or removes one (reports are add-only)")
+        refused.append((CHANGED, "a report adds a new file; this pull request changes or removes one "
+                                 "(reports are add-only)"))
     elif mode != "100644":
-        refused.append("a report is an ordinary file, not a link or a submodule")
+        refused.append((MODE, "a report is an ordinary file, not a link or a submodule"))
     else:
         expected = REPORT_PATH.fullmatch(path or "")
         if not expected or expected.group(1) != author:
-            refused.append("a report is added as %s/%s/codex-cli-<version>.json, under the login that opened "
-                           "the pull request" % (reader.COMMUNITY, shown(author, reader.LOGIN.pattern)))
+            refused.append((FOLDER, "a report is added as %s/%s/codex-cli-<version>.json, under the login "
+                                    "that opened the pull request"
+                            % (reader.COMMUNITY, shown(author, reader.LOGIN.pattern))))
+        elif not reader.login_name(author):
+            refused.append((RESERVED_NAME, "a report's folder cannot be a name Windows keeps for a device "
+                                           "(con, nul, aux, prn, com0-9, lpt0-9)"))
         folders = {name[len(PREFIX):].split("/", 1)[0] for name in filed}
         if any(folder != author and folder.casefold() == author.casefold() for folder in folders):
-            refused.append("a folder differing from this login only in letter case is already filed")
+            refused.append((CASE, "a folder differing from this login only in letter case is already filed"))
         if path is not None and any(git.has(ref, path) for ref in filed_on):
-            refused.append("a report for this login and version is already filed; reports are add-only")
+            refused.append((FILED, "a report for this login and version is already filed; reports are add-only"))
     if refused:
         return REFUSES, refused
 
     if git.size(blob) > reader.MAX_BYTES:
-        return REFUSES, ["the file is larger than 1 MB"]
+        return REFUSES, [(SIZE, "the file is larger than 1 MB")]
     report, problems, recomputed = reader.inspect(git.blob(blob), author=author, now=now, releases=releases)
-    refused.extend(problems)
+    refused.extend((READER, problem) for problem in problems)
     if not problems:
         if path != reader.canonical_path(author, report["codex_version"]):
-            refused.append("the file is not named for its own codex_version: codex-cli-<version>.json")
+            refused.append((NAME, "the file is not named for its own codex_version: codex-cli-<version>.json"))
         mine = sequence(report)
         for _path, raw in sorted(filed.items()):
             other = _readable(raw)
             if mine and other is not None and other.get("codex_version") == report["codex_version"] \
                     and sequence(other) == mine:
-                refused.append("its records are the same, in order, as a report already filed for this version")
+                refused.append((COPY, "its records are the same, in order, as a report already filed for "
+                                      "this version"))
                 break
     if refused:
         return REFUSES, refused
-    return ACCEPTED, ["a report for %s from %s" % (shown(report["codex_version"], reader.VERSION.pattern),
-                                                   shown(author, reader.LOGIN.pattern))] + [
-        "recomputed: " + said for said in recomputed]
+    return ACCEPTED, [(ACCEPTED_LINE, "a report for %s from %s" % (shown(report["codex_version"],
+                                                                         reader.VERSION.pattern),
+                                                                   shown(author, reader.LOGIN.pattern)))] + [
+        (RECOMPUTED, "recomputed: " + said) for said in recomputed]
 
 
 def _readable(raw):
@@ -248,27 +277,30 @@ def _readable(raw):
 
 def _owner(git, ours, releases, now):
     """The maintainer's tool: every report it adds or changes is read; the suite holds the index."""
-    refused, lines = [], ["the owner's filing"]
+    refused, lines = [], [(OWNER_LINE, "the owner's filing")]
     for status, mode, blob, path in ours:
         if status == "D":
             continue
         if mode != "100644":
-            refused.append("the folder holds ordinary files only")
+            refused.append((MODE, "the folder holds ordinary files only"))
             continue
         if path in OWNER_FILES:
             continue
         if not REPORT_PATH.fullmatch(path or ""):
-            refused.append("the folder holds reports, index.json and README.md only")
+            refused.append((FOLDER, "the folder holds reports, index.json, README.md and withdrawn.json only"))
+            continue
+        if not reader.login_name(REPORT_PATH.fullmatch(path).group(1)):
+            refused.append((RESERVED_NAME, "a report's folder cannot be a name Windows keeps for a device"))
             continue
         if git.size(blob) > reader.MAX_BYTES:
-            refused.append("a report is larger than 1 MB")
+            refused.append((SIZE, "a report is larger than 1 MB"))
             continue
         report, problems, _recomputed = reader.inspect(git.blob(blob), now=now, releases=releases)
-        refused.extend(problems)
+        refused.extend((READER, problem) for problem in problems)
         if not problems and path != reader.canonical_path(report["reporter"]["github_login"], report["codex_version"]):
-            refused.append("a report is not filed under its own login and version")
+            refused.append((NAME, "a report is not filed under its own login and version"))
         if not problems and report != reader.filed_copy(report):
-            refused.append("a filed report holds its recomputed reading and our sentences")
+            refused.append((READER, "a filed report holds its recomputed reading and our sentences"))
     return (REFUSES if refused else ACCEPTED), lines + refused
 
 

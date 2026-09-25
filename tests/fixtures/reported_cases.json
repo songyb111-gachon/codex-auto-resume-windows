@@ -2,9 +2,10 @@
   "_comment": [
     "How one report counts towards Reported: the truth table the roadmap states in words",
     "(docs/ROADMAP.md, \"Compatibility reports from others\"). tests/test_community_report.py runs",
-    "it against build/community_report.py graded(), and codex-compat-admin runs the same file, so",
-    "the two cannot drift. A record here is only whether it was delivered and the state it ended",
-    "in; the test gives it the rest of a real record. Worked: a delivered record ended in",
+    "it against build/community_report.py graded(), the one function that counts: the filer runs",
+    "it, and codex-compat-admin imports it from main. A record here is only whether it was",
+    "delivered and the state it ended in; the test gives it the rest of a real record. Worked: a",
+    "delivered record ended in",
     "recovered. Failed: a delivered record ended in recovery_turn_failed, failed or",
     "terminal_failure. Neither: neither of those, which includes nothing delivered. Both: worked",
     "and failed at once, counted in both columns and shown."
