@@ -1,5 +1,8 @@
 {
   "_edition": "ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.",
+  "edition.badge": "고급",
+  "edition.not_loaded": "고급 - 불러오지 못함",
+  "edition.summary": "고급 · {n}개 켜짐",
   "all_off": "모든 고급 기능 끄기",
   "field.departs": "벗어나는 기준",
   "field.does": "하는 일",

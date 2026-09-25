@@ -283,6 +283,34 @@ class GuardTests(unittest.TestCase):
         self.assertIs(type(seen[0]), Surface)
 
 
+class EditionBadgeTests(unittest.TestCase):
+    """The badge (decision C12): a word where the version already appears - the CLI status line
+    here. It says nothing in the standard edition, where nothing can be armed, so a standard
+    status is exactly what it was; an advanced installation shows its badge, and the count of
+    what is armed when its package loaded."""
+
+    def line(self, made):
+        from codex_auto_resume.commands.status import _edition_line
+        return _edition_line(guard(made))
+
+    def test_the_standard_edition_shows_no_edition_line(self):
+        self.assertIsNone(self.line(NULL))
+
+    def test_a_loaded_advanced_edition_shows_the_badge_and_the_armed_count(self):
+        class Loaded(Plug):
+            __slots__ = ()
+            edition = Edition.ADVANCED
+            badge = "Advanced"
+
+            def surface(self, name, facts):
+                return {"edition": "advanced", "on": 2} if name == Surface.STATUS else DEFER
+
+        self.assertEqual(self.line(Loaded()), "Advanced (2 armed)")
+
+    def test_an_advanced_edition_that_did_not_load_shows_only_its_badge(self):
+        self.assertEqual(self.line(DamagedPlug(PlugFailure.SHADOWED)), "Advanced - not loaded")
+
+
 # What a child Python reports about the edition it finds. Its home is its working directory,
 # a temporary one, and nothing is written there: loading a plug writes nothing.
 PROBE = r"""

@@ -83,7 +83,8 @@ def _word(answer, point):
 
 
 class Runtime:
-    def __init__(self, paths, *, registry=REGISTRY, clock=time.time, **arming):
+    def __init__(self, paths, *, registry=REGISTRY, clock=time.time,
+                 measure_session_factory=None, measure_launcher=None, evidence_dir=None, **arming):
         self.paths = paths
         self.registry = registry
         self.clock = clock
@@ -94,6 +95,13 @@ class Runtime:
         self._code = {}
         self._acted = {}
         self._noted = set()
+        # The measurement harness's seams (measure.py). A person runs a measurement; production
+        # opens a real one-turn session against the installed Codex and records to the source
+        # tree, and a test gives a fake session and a temporary directory, so no test opens a
+        # real Codex or writes into the repository.
+        self._measure_session_factory = measure_session_factory
+        self._measure_launcher = measure_launcher
+        self._evidence_dir = evidence_dir
 
     # ------------------------------------------------------------------ standing
     def states(self, *, fresh=False) -> dict:
@@ -201,3 +209,19 @@ class Runtime:
             if acted:
                 return Alternative.HOLD
             raise
+
+    # ------------------------------------------------------------------ the measurement harness
+    def run_measurement(self, measurement):
+        """Run one measurement the person asked for, and record what it found (measure.py).
+
+        The session and the launcher are the runtime's own seams: production opens a real
+        one-turn session against the installed Codex and writes to the source tree's evidence
+        directory, and a test gives fakes and a temporary directory. Nothing here runs unless a
+        surface was asked for it by a person."""
+        from . import measure
+        session_factory = self._measure_session_factory
+        if session_factory is None:
+            session_factory = measure.live_session_factory(self.paths)
+        return measure.run(measurement, session_factory=session_factory,
+                           launcher=self._measure_launcher, directory=self._evidence_dir,
+                           clock=self.clock)

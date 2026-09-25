@@ -61,6 +61,14 @@ sys.path.insert(0, str(ROOT / "src"))
 from codex_auto_resume import config, failures, machine      # noqa: E402
 
 FORMAT = "codex-auto-resume-live-acceptance/1"
+# The advanced edition's measurement harness writes its records here too, in this same envelope
+# but with its own format tag and its own step ids (the M-list, decided per Codex version, not
+# the release-acceptance steps below). Those files are the harness's, not this procedure's: this
+# validator does not count them towards acceptance and does not know their steps, but it still
+# holds them to the one rule every committed file here keeps - nothing in them that identifies a
+# person, a path or a conversation. The advanced package writes the same tag; the standard
+# edition never writes one, and tests/test_live_evidence.py keeps the two spellings identical.
+MEASUREMENT_FORMAT = "codex-auto-resume-measurement/1"
 EXIT_OK = 0
 EXIT_REFUSED = 1
 # Nothing was wrong, and nothing is accepted either. The two have to be told apart: a
@@ -380,7 +388,7 @@ def read(path: Path):
 def review(directory: Path, *, product_version: str) -> dict:
     """Read a directory of evidence. Refusals, what is covered, and what is not."""
     directory = Path(directory)
-    found, verdicts, examples, files = [], {}, [], []
+    found, verdicts, examples, files, measurements = [], {}, [], [], []
     observations = {}
     for entry in sorted(directory.iterdir()) if directory.is_dir() else []:
         name = entry.name
@@ -408,6 +416,14 @@ def review(directory: Path, *, product_version: str) -> dict:
         document, problem = read(entry)
         if problem:
             found.append("%s: %s" % (name, problem))
+            continue
+        if isinstance(document, dict) and document.get("format") == MEASUREMENT_FORMAT:
+            # The advanced measurement harness's own record. It is not a step of this
+            # procedure, so it is not validated against STEPS or counted towards acceptance;
+            # it is held only to the one rule every committed file here keeps.
+            for refusal in content_refusals(document):
+                found.append("%s: %s" % (name, refusal))
+            measurements.append(name)
             continue
         for refusal in refusals(name, document, product_version=product_version):
             found.append("%s: %s" % (name, refusal))
@@ -439,6 +455,7 @@ def review(directory: Path, *, product_version: str) -> dict:
     recorded = {step for step, claims in verdicts.items() if "pass" in claims
                 and len(claims) == 1}
     return {"refusals": found, "files": files, "examples": examples,
+            "measurements": sorted(measurements),
             "verdicts": {step: sorted(claims) for step, claims in verdicts.items()},
             "passed": sorted(recorded),
             "missing": sorted(set(STEPS) - set(verdicts)),

@@ -118,13 +118,41 @@ class Field(StrEnum):
 
 class BridgeCommand(StrEnum):
     """The bridge commands this edition answers (P10): the Dashboard's, and only in the bridge's
-    long-lived form, which is the one the Dashboard talks to."""
+    long-lived form, which is the one the Dashboard talks to.
+
+    `MEASURE` is the one a person runs by hand, on a throwaway conversation, to find whether a
+    capability can work on this Codex (measure.py). It is the Dashboard's like the rest; nothing
+    runs it unless the person asks, and no MCP tool exposes it."""
     ADVANCED_LIST = "advanced-list"
     ADVANCED_STATEMENT = "advanced-statement"
     ADVANCED_ARM = "advanced-arm"
     ADVANCED_DISARM = "advanced-disarm"
     ADVANCED_DISARM_ALL = "advanced-disarm-all"
     ADVANCED_CEILING = "advanced-ceiling"
+    MEASURE = "measure"
+
+
+class Measurement(StrEnum):
+    """What the owner measures on a real machine before a capability that depends on it may be
+    offered (measure.py, decision C7 and the roadmap's M-list). Each writes one content-free
+    record to docs/evidence/live/."""
+    M1 = "m1"                                # a notLoaded queue item is delivered on open
+    M2 = "m2"                                # thread/goal/set reaches a Desktop-loaded goal
+    M3 = "m3"                                # an empty thread/queue/add is dispatched, correlatable
+    M4 = "m4"                                # plugin Stop hooks run after a failed turn
+    M5 = "m5"                                # TUI and IDE servers dispatch codex queue items
+    M6 = "m6"                                # a headless turn with declined approvals
+    M7 = "m7"                                # queued '/compact' text stays plain text
+    MH = "mh"                                # the Desktop runs on a second CODEX_HOME
+    MA = "ma"                                # the running app picks up an account logout+login
+    MW = "mw"                                # re-proof of the WMI escape, with the job words
+
+
+class Verdict(StrEnum):
+    """What a measurement found, in the live-acceptance record's own words (scripts/live_evidence)."""
+    PASS = "pass"
+    FAIL = "fail"
+    BLOCKED = "blocked"                      # it could not be reached to be measured
 
 
 class McpTool(StrEnum):

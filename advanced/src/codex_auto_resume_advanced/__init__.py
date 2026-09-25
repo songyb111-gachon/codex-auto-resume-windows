@@ -16,7 +16,10 @@ edition's does.
     arming       who turns a capability on and off, and the tripwires
     policy       what an administrator's policy keys allow, read only
     ledger       the one claim, counted across both editions' records and paid for (P11)
-    surfaces     the Dashboard's bridge commands and a model's MCP tools (P10)
+    surfaces     the badge, the Dashboard's bridge commands and a model's MCP tools (P10)
+    measure      the harness a person runs by hand: what a capability needs a live machine to prove
+    evidence     one content-free record per measurement, in docs/evidence/live/
+    codex/       the App Server methods that live only here, and the one-turn session for them
     state/       config/advanced/advanced.sqlite, the edition's one file of state
     credentials  where a secret would go: Windows Credential Manager, and nowhere else
     vocabulary   every word the rest of it stores, journals or answers with

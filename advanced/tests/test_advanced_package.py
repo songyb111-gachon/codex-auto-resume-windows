@@ -79,16 +79,20 @@ class NeutralTests(unittest.TestCase):
                                   core.consult(core.NULL, point, *arguments))
             self.assertEqual(list(Path(home).iterdir()), [], "nothing was read into being")
 
-    def test_it_adds_nothing_to_a_surface_core_already_has(self):
+    def test_the_only_thing_it_shows_beside_the_version_is_the_edition(self):
+        """The badge (decision C12): the version-bearing surfaces gain the edition and how many
+        capabilities are armed - 0, and nothing on disk, while the registry is empty - and no
+        other surface core already has changes at all."""
         with tempfile.TemporaryDirectory() as home:
             made = advanced.create(config.Paths(home))
             for surface in (core.Surface.STATUS, core.Surface.DIAGNOSTICS, core.Surface.TRAY):
                 with self.subTest(surface):
-                    self.assertIs(made.surface(surface, {}), core.DEFER)
+                    self.assertEqual(made.surface(surface, {}), {"edition": "advanced", "on": 0})
             self.assertIs(made.surface(core.Surface.BRIDGE, {"command": "status", "argument": {}}),
                           core.DEFER)
             tools = made.surface(core.Surface.MCP, {"request": "tools"})["tools"]
             self.assertEqual(len(tools), 3)
+            self.assertEqual(list(Path(home).iterdir()), [], "the badge read nothing into being")
 
     def test_nothing_in_the_package_sends(self):
         """Only core acts. The one send is core's (engine/dispatch.py); a channel this package

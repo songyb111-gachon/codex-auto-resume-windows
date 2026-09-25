@@ -168,6 +168,7 @@ class ShippedCatalogTests(unittest.TestCase):
         tables = self.tables()
         english = set(tables["en"])
         self.assertEqual(english, {statement.SENTINEL_KEY, statement.ALL_OFF_KEY}
+                         | set(statement.EDITION_KEYS)
                          | {statement.title_key(field) for field in statement.FIELDS}
                          | {"state.off", "state.shadow", "state.armed"})
         for locale, table in tables.items():
@@ -190,6 +191,16 @@ class ShippedCatalogTests(unittest.TestCase):
             path.write_text('{"all_off": "a", "all_off": "b"}', encoding="utf-8")
             with self.assertRaises(l10n.CatalogError):
                 statement.Catalogs(where).own("en")
+
+    def test_the_badge_reads_the_count_in_each_locale_and_the_not_loaded_word(self):
+        """The badge (decision C12) is this package's own words, in every locale: the summary
+        takes the count of what is armed, and the not-loaded word is separate."""
+        catalogs = statement.CATALOGS
+        english = catalogs.badge(0, "en")
+        self.assertIn("0", english)
+        self.assertNotEqual(catalogs.badge(0, "ko"), english)      # each locale its own words
+        self.assertIn("2", catalogs.badge(2, "en"))
+        self.assertEqual(catalogs.badge(0, "en", loaded=False), "Advanced - not loaded")
 
 
 if __name__ == "__main__":

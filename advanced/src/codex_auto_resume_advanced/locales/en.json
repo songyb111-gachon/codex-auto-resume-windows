@@ -1,5 +1,8 @@
 {
   "_edition": "ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.",
+  "edition.badge": "Advanced",
+  "edition.not_loaded": "Advanced - not loaded",
+  "edition.summary": "Advanced · {n} on",
   "all_off": "All advanced features off",
   "field.departs": "Standards it departs from",
   "field.does": "What it does",
