@@ -96,7 +96,7 @@ ITEM = {_q(name): item for item, names in {
     "notifications": ("notice_card", "notice_presence", "notice_window", "notifier", "notify",
                       "ui.card", "ui.card.win32", "ui.card.surfaces", "ui.card.card", "ui.card.stack"),
     "words": ("l10n", "messages", "interface", "ui.words"),
-    "brand": ("brand", "brand.checkbox", "brand.colour", "brand.css", "brand.elevation",
+    "brand": ("brand", "brand.checkbox", "brand.colour", "brand.css", "brand.design", "brand.elevation",
               "brand.light", "brand.mark", "brand.motion", "brand.scale", "brand.tokens"),
     "platform": ("win", "win.dll", "win.homelock", "win.inventory", "win.kernel", "win.sync",
                  "pwsh", "shortcut", "startup"),

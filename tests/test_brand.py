@@ -97,41 +97,56 @@ class PaletteTests(unittest.TestCase):
 
 class ThemeTests(unittest.TestCase):
     """v0.6.4: the window and the popup draw dark too, on every ground the panel draws on, so the
-    dark palette is held to the same readability as the light one wherever the window puts text."""
+    dark palette is held to the same readability as the light one wherever the window puts text.
+    v0.6.10: and so is every design's, in both themes - each design is its own palette."""
 
-    def grounds(self, theme):
-        tokens = brand.palette(theme)
+    def grounds(self, theme, design="soft"):
+        tokens = brand.palette(theme, design)
         return {"surface": tokens["surface"], "canvas": tokens["canvas"], "raised": tokens["raised"],
-                "inset": tokens["inset"], "card": brand.card_ground(theme),
+                "inset": tokens["inset"], "card": brand.card_ground(theme, design),
                 "accent_soft": tokens["accent_soft"]}
 
+    def looks(self):
+        for design in brand.DESIGNS:
+            for theme in brand.THEMES:
+                yield design, theme
+
     def test_text_is_readable_on_every_ground_in_both_themes(self):
-        for theme in brand.THEMES:
-            tokens = brand.palette(theme)
-            for ground, value in self.grounds(theme).items():
-                with self.subTest(theme=theme, ground=ground):
+        for design, theme in self.looks():
+            tokens = brand.palette(theme, design)
+            for ground, value in self.grounds(theme, design).items():
+                with self.subTest(design=design, theme=theme, ground=ground):
                     self.assertGreaterEqual(brand.contrast(tokens["ink"], value), 7.0)
                     self.assertGreaterEqual(brand.contrast(tokens["muted"], value), 4.5)
                     self.assertGreaterEqual(brand.contrast(tokens["accent"], value), 4.5)
 
     def test_state_words_are_readable_on_a_card_in_both_themes(self):
-        for theme in brand.THEMES:
-            tokens = brand.palette(theme)
+        for design, theme in self.looks():
+            tokens = brand.palette(theme, design)
             for state in ("success", "waiting", "warning", "danger", "paused"):
                 for ground in ("surface", "raised", "card"):
-                    with self.subTest(theme=theme, state=state, ground=ground):
+                    with self.subTest(design=design, theme=theme, state=state, ground=ground):
                         self.assertGreaterEqual(
-                            brand.contrast(tokens[state], self.grounds(theme)[ground]), 4.5)
+                            brand.contrast(tokens[state], self.grounds(theme, design)[ground]), 4.5)
 
     def test_the_focus_ring_stands_off_every_ground_it_is_drawn_on(self):
         # A ring is not text: 3:1, the boundary of a control.
-        for theme in brand.THEMES:
-            tokens = brand.palette(theme)
-            for ground, value in self.grounds(theme).items():
+        for design, theme in self.looks():
+            tokens = brand.palette(theme, design)
+            for ground, value in self.grounds(theme, design).items():
                 if ground == "accent_soft":
                     continue
-                with self.subTest(theme=theme, ground=ground):
+                with self.subTest(design=design, theme=theme, ground=ground):
                     self.assertGreaterEqual(brand.contrast(tokens["focus"], value), 3.0)
+
+    def test_the_primary_button_and_the_readable_colours_hold_in_every_design(self):
+        for design, theme in self.looks():
+            tokens = brand.palette(theme, design)
+            with self.subTest(design=design, theme=theme):
+                self.assertGreaterEqual(brand.contrast(tokens["accent"], tokens["on_accent"]), 4.5)
+                self.assertEqual(set(tokens), set(brand.LIGHT))
+                for value in tokens.values():
+                    self.assertRegex(value, r"^#[0-9A-F]{6}$")
 
     def test_a_theme_is_named_light_or_dark_and_system_is_resolved_before(self):
         self.assertEqual(brand.THEMES, ("light", "dark"))
@@ -188,6 +203,205 @@ class ThemeTests(unittest.TestCase):
                          brand.elevation_colour("inset", "top", 0.25, "inset", inside=True))
 
 
+# What v0.6.2 shipped, the ten values of each theme, read from the tag:
+# `git show v0.6.2:src/codex_auto_resume/brand.py`, LIGHT and DARK. Classic is pinned to these, so no
+# later change to Soft - the design audit included - can move it.
+V062 = {
+    "light": {"ink": "#0F1B2D", "muted": "#5A6B7F", "line": "#DCE3EC", "surface": "#FFFFFF",
+              "canvas": "#F2F5F9", "accent": "#1257B8", "on_accent": "#FFFFFF", "active": "#06B6D4",
+              "idle": "#94A3B8", "attention": "#B45309"},
+    "dark": {"ink": "#E8EEF6", "muted": "#9AACBF", "line": "#2E3A4B", "surface": "#191F29",
+             "canvas": "#0C1118", "accent": "#5CA2EE", "on_accent": "#08111C", "active": "#35B5CC",
+             "idle": "#5F6E80", "attention": "#E09B57"},
+}
+
+
+def _has_tag(name) -> bool:
+    return subprocess.run(["git", "-C", str(ROOT), "rev-parse", "-q", "--verify", "refs/tags/" + name],
+                          capture_output=True).returncode == 0
+
+
+class DesignTests(unittest.TestCase):
+    """v0.6.10: the Design setting - Soft, Still, Classic, Plain - as data, one table the surfaces read."""
+
+    STATES = brand.GLOW_BREATHES + ("checking", "paused", "idle")
+
+    def test_the_designs_and_soft_the_default(self):
+        self.assertEqual(brand.DESIGNS, ("soft", "still", "classic", "plain"))
+        self.assertEqual(brand.DEFAULT_DESIGN, "soft")
+        for table in (brand.DESIGN, brand.DESIGN_RADII, brand.DESIGN_TOKENS):
+            self.assertEqual(tuple(table), brand.DESIGNS)
+
+    def test_each_design_is_its_row_of_the_table(self):
+        axes = ("depth", "glow", "breathes", "glides", "accent_bar")
+        self.assertEqual({design: tuple(brand.DESIGN[design][axis] for axis in axes) for design in brand.DESIGNS},
+                         {"soft": (True, True, True, True, False), "still": (True, False, False, False, False),
+                          "classic": (False, True, True, False, True), "plain": (False, False, True, False, False)})
+        for design in brand.DESIGNS:
+            with self.subTest(design):
+                self.assertEqual(brand.design_depth(design), brand.DESIGN[design]["depth"])
+                self.assertEqual(brand.design_glow(design), brand.DESIGN[design]["glow"])
+                self.assertEqual(brand.design_breathes(design), brand.DESIGN[design]["breathes"])
+                self.assertEqual(brand.design_glides(design), brand.DESIGN[design]["glides"])
+                self.assertEqual(brand.design_accent_bar(design), brand.DESIGN[design]["accent_bar"])
+
+    def test_a_design_is_named_and_anything_else_is_a_mistake(self):
+        for wrong in ("Soft", "", None, "classic ", 1, "system"):
+            with self.subTest(wrong=wrong):
+                with self.assertRaises(ValueError):
+                    brand.design_name(wrong)
+                with self.assertRaises(ValueError):
+                    brand.palette("light", wrong)
+                with self.assertRaises(ValueError):
+                    brand.design_depth(wrong)
+
+    def test_soft_and_still_draw_in_the_palette_every_surface_drew_before(self):
+        for theme in brand.THEMES:
+            self.assertIs(brand.palette(theme, "soft"), brand.palette(theme))
+            self.assertIs(brand.palette(theme, "still"), brand.palette(theme))
+        self.assertIs(brand.palette("light"), brand.LIGHT)
+        self.assertIs(brand.palette("dark", "soft"), brand.DARK)
+
+    def test_classic_is_what_v062_shipped(self):
+        for theme, values in V062.items():
+            tokens = brand.palette(theme, "classic")
+            with self.subTest(theme):
+                self.assertEqual({key: tokens[key] for key in values}, values)
+                # v0.6.2 filled a button with the surface and a field with the canvas, and ringed the
+                # keyboard's focus in the accent.
+                self.assertEqual((tokens["raised"], tokens["inset"], tokens["focus"]),
+                                 (values["surface"], values["canvas"], values["accent"]))
+        # What v0.6.2 had no token for is Soft's - but for the quiet accent ground, on which v0.6.2's muted
+        # would not read: Classic's is the accent a tenth of the way from white.
+        for key in ("accent_hover", "accent_pressed", "success", "waiting", "warning", "danger", "paused"):
+            self.assertEqual(brand.CLASSIC_LIGHT[key], brand.LIGHT[key])
+        self.assertEqual(brand.CLASSIC_LIGHT["accent_soft"], brand.mix("#FFFFFF", brand.BRAND, 0.10))
+        self.assertLess(brand.contrast(V062["light"]["muted"], brand.LIGHT["accent_soft"]), 4.5)
+        self.assertEqual(brand.CLASSIC_DARK["accent_soft"], brand.DARK["accent_soft"])
+
+    @unittest.skipUnless(_has_tag("v0.6.2"), "the v0.6.2 tag is not in this clone")
+    def test_the_pinned_values_are_the_tags_own(self):
+        source = subprocess.run(["git", "-C", str(ROOT), "show", "v0.6.2:src/codex_auto_resume/brand.py"],
+                                capture_output=True, text=True, encoding="utf-8", check=True).stdout
+        tagged = {"__name__": "v062_brand"}
+        exec(compile(source, "v0.6.2:brand.py", "exec"), tagged)
+        self.assertEqual(tagged["LIGHT"], V062["light"])
+        self.assertEqual(tagged["DARK"], V062["dark"])
+
+    def test_plain_is_neutral_grey_with_the_products_accent_and_states(self):
+        for theme in brand.THEMES:
+            tokens, soft = brand.palette(theme, "plain"), brand.palette(theme)
+            with self.subTest(theme):
+                for key in ("ink", "muted", "line", "surface", "canvas", "raised", "inset"):
+                    red, green, blue = brand.rgb(tokens[key])
+                    self.assertTrue(red == green == blue, key)
+                for key in ("accent", "accent_hover", "accent_pressed", "accent_soft", "on_accent", "active",
+                            "idle", "attention", "success", "waiting", "warning", "danger", "paused"):
+                    self.assertEqual(tokens[key], soft[key], key)
+                self.assertEqual(tokens["focus"], tokens["ink"])
+
+    def test_no_design_is_rounder_than_soft(self):
+        for design in brand.DESIGNS:
+            radii = brand.design_radii(design)
+            with self.subTest(design):
+                self.assertEqual(set(radii), set(brand.RADII))
+                for role, value in radii.items():
+                    self.assertLessEqual(value, brand.RADII[role], role)
+        self.assertEqual(brand.design_radii("soft"), brand.RADII)
+        self.assertEqual(brand.design_radii("still"), brand.RADII)
+        self.assertEqual(brand.design_radii("classic"), {"card": 8, "control": 7, "chip": 999, "small": 6, "check": 4})
+        self.assertEqual(brand.design_radii("plain"), {"card": 8, "control": 4, "chip": 999, "small": 4, "check": 4})
+
+    def test_a_design_without_depth_has_no_shadow_and_its_card_is_its_surface(self):
+        for theme in brand.THEMES:
+            for recipe in ("card", "control", "inset"):
+                self.assertIs(brand.shadows(recipe, theme), brand.SHADOWS[theme][recipe])
+                self.assertIs(brand.shadows(recipe, theme, "soft"), brand.SHADOWS[theme][recipe])
+                self.assertIs(brand.shadows(recipe, theme, "still"), brand.SHADOWS[theme][recipe])
+                for design in ("classic", "plain"):
+                    self.assertEqual(brand.shadows(recipe, theme, design), ())
+            self.assertEqual(brand.card_ground(theme, "still"), brand.card_ground(theme))
+            for design in ("classic", "plain"):
+                tokens = brand.palette(theme, design)
+                self.assertEqual(brand.card_ground(theme, design), tokens["surface"])
+                self.assertEqual(brand.elevation_colour("card", "right", 2.0, "canvas", theme, design=design),
+                                 tuple(float(part) for part in brand.rgb(tokens["canvas"])))
+
+    def test_soft_draws_exactly_what_it_drew_before(self):
+        for elapsed in range(0, 12000, 97):
+            for state in self.STATES:
+                self.assertEqual(brand.glow(state, elapsed, design="soft"), brand.glow(state, elapsed))
+                self.assertEqual(brand.glow(state, elapsed, reduced=True, design="soft"),
+                                 brand.glow(state, elapsed, reduced=True))
+        for state in self.STATES:
+            self.assertEqual(brand.glow_moves(state, design="soft"), brand.glow_moves(state))
+            self.assertEqual(brand.status_colour(state, "dark", "soft"), brand.status_colour(state, "dark"))
+
+    def test_still_holds_every_light_as_reduce_motion_does(self):
+        for elapsed in range(0, 12000, 97):
+            for state in self.STATES:
+                self.assertEqual(brand.glow(state, elapsed, design="still"), brand.glow(state, elapsed, reduced=True))
+        for state in self.STATES:
+            self.assertFalse(brand.glow_moves(state, design="still"))
+
+    def test_plain_dims_on_the_breath_with_no_glow_at_any_frame(self):
+        dims = set()
+        for elapsed in range(0, 12000, 97):
+            for state in brand.GLOW_BREATHES + ("checking",):
+                frame, soft = brand.glow(state, elapsed, design="plain"), brand.glow(state, elapsed)
+                self.assertEqual((frame["opacity"], frame["spread"]), (0.0, 0.0))
+                self.assertEqual((frame["dim"], frame["arc"]), (soft["dim"], soft["arc"]))
+                dims.add(round(frame["dim"], 4))
+        self.assertGreater(len(dims), 10)             # the light still moves
+        self.assertTrue(brand.glow_moves("monitoring", design="plain"))
+        self.assertIsNone(brand.glow("paused", 0, design="plain"))
+
+    def test_classic_breathes_with_its_glow(self):
+        for elapsed in range(0, 12000, 97):
+            for state in self.STATES:
+                self.assertEqual(brand.glow(state, elapsed, design="classic"), brand.glow(state, elapsed))
+
+    def test_reduce_motion_holds_every_design_still(self):
+        for design in brand.DESIGNS:
+            for state in brand.GLOW_BREATHES + ("checking",):
+                with self.subTest(design=design, state=state):
+                    self.assertFalse(brand.glow_moves(state, reduced=True, design=design))
+                    frame = brand.glow(state, 1100, reduced=True, design=design)
+                    self.assertEqual((frame["dim"], frame["opacity"]), (0.0, 0.0))
+
+    def test_the_two_gates_are_the_design_and_no_stopper(self):
+        for design in brand.DESIGNS:
+            for stopped in (False, True):
+                with self.subTest(design=design, stopped=stopped):
+                    self.assertEqual(brand.light_moves(design, stopped=stopped),
+                                     brand.DESIGN[design]["breathes"] and not stopped)
+                    self.assertEqual(brand.controls_move(design, stopped=stopped),
+                                     brand.DESIGN[design]["glides"] and not stopped)
+        self.assertEqual([design for design in brand.DESIGNS if brand.controls_move(design)], ["soft"])
+        self.assertEqual([design for design in brand.DESIGNS if brand.light_moves(design)],
+                         ["soft", "classic", "plain"])
+
+    def test_the_stylesheet_blocks_are_each_flat_designs_properties_in_four_places(self):
+        blocks = brand.css_design_blocks()
+        self.assertNotIn('data-design="soft"', blocks)
+        self.assertNotIn('data-design="still"', blocks)      # Soft's colours, depth and radii: motion only
+        for design in ("classic", "plain"):
+            root = ':root[data-design="%s"]' % design
+            for form in (root + " {", root + ':not([data-theme="light"]) {', root + '[data-theme="dark"] {',
+                         root + '[data-theme="light"] {'):
+                with self.subTest(design=design, form=form):
+                    self.assertEqual(blocks.count(form), 1)
+            light = re.search(re.escape(root) + r" \{([^}]*)\}", blocks).group(1)
+            for text in ("--elev-card: none;", "--elev-control: none;", "--elev-inset: none;",
+                         "--card-ground: var(--surface);", "--radius-card: 8px;",
+                         brand.css_variables(brand.palette("light", design))):
+                self.assertIn(text, light)
+            dark = re.search(re.escape(root) + r'\[data-theme="dark"\] \{([^}]*)\}', blocks).group(1)
+            self.assertIn(brand.css_variables(brand.palette("dark", design)), dark)
+        extra = brand.css_design_blocks(lambda theme, design: "--elev-own: none;")
+        self.assertEqual(extra.count("--elev-own: none;"), 8)
+
+
 class CheckBoxTests(unittest.TestCase):
     """v0.6.4's check box: the switch's material, sized to sit with the switch and the body text,
     and readable - unchecked included - in both themes and in High Contrast."""
@@ -235,20 +449,33 @@ class CheckBoxTests(unittest.TestCase):
         self.assertEqual(brand.css_system("WindowText"), "CanvasText")
 
     def test_every_state_can_be_seen_in_both_themes(self):
-        for theme in brand.THEMES:
-            tokens = brand.palette(theme)
-            grounds = (tokens["surface"], tokens["raised"], tokens["canvas"], brand.card_ground(theme))
-            off, on = brand.check_box(False, True, theme), brand.check_box(True, True, theme)
-            for ground in grounds:
-                with self.subTest(theme=theme, ground=ground):
-                    # An empty box is found by its edge, a checked one by its fill: 3:1 each.
-                    self.assertGreaterEqual(brand.contrast(off["edge"], ground), 3.0)
-                    self.assertGreaterEqual(brand.contrast(on["fill"], ground), 3.0)
-                    self.assertGreaterEqual(brand.contrast(tokens["focus"], ground), 3.0)
-            self.assertGreaterEqual(brand.contrast(off["edge"], off["fill"]), 3.0)
-            self.assertGreaterEqual(brand.contrast(on["mark"], on["fill"]), 4.5)
-            disabled = brand.check_box(True, False, theme)
-            self.assertGreaterEqual(brand.contrast(disabled["mark"], disabled["fill"]), 4.5)
+        for design in brand.DESIGNS:
+            for theme in brand.THEMES:
+                tokens = brand.palette(theme, design)
+                grounds = (tokens["surface"], tokens["raised"], tokens["canvas"], brand.card_ground(theme, design))
+                off, on = brand.check_box(False, True, theme, design), brand.check_box(True, True, theme, design)
+                for ground in grounds:
+                    with self.subTest(design=design, theme=theme, ground=ground):
+                        # An empty box is found by its edge, a checked one by its fill: 3:1 each.
+                        self.assertGreaterEqual(brand.contrast(off["edge"], ground), 3.0)
+                        self.assertGreaterEqual(brand.contrast(on["fill"], ground), 3.0)
+                        self.assertGreaterEqual(brand.contrast(tokens["focus"], ground), 3.0)
+                with self.subTest(design=design, theme=theme):
+                    self.assertGreaterEqual(brand.contrast(off["edge"], off["fill"]), 3.0)
+                    self.assertGreaterEqual(brand.contrast(on["mark"], on["fill"]), 4.5)
+                    disabled = brand.check_box(True, False, theme, design)
+                    self.assertGreaterEqual(brand.contrast(disabled["mark"], disabled["fill"]), 4.5)
+
+    def test_a_design_without_depth_draws_no_well_and_takes_its_own_colours(self):
+        for design in brand.DESIGNS:
+            for theme in brand.THEMES:
+                tokens = brand.palette(theme, design)
+                with self.subTest(design=design, theme=theme):
+                    self.assertEqual(brand.check_box(False, True, theme, design),
+                                     {"fill": tokens["inset"], "edge": tokens["muted"], "mark": None,
+                                      "well": brand.design_depth(design)})
+                    self.assertEqual(brand.check_box(True, True, theme, design)["mark"], tokens["on_accent"])
+        self.assertEqual(brand.check_box(False, True, "light"), brand.check_box(False, True, "light", "soft"))
 
     def test_the_mark_is_a_mitred_tick_centred_in_the_box(self):
         (x0, y0), (x1, y1), (x2, y2) = brand.CHECK_MARK
