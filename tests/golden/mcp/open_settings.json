@@ -250,7 +250,6 @@
                 "type": "string",
                 "choices": [
                   "soft",
-                  "still",
                   "classic",
                   "plain"
                 ],

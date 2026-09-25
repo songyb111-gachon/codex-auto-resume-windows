@@ -107,9 +107,9 @@ def theme_setting() -> str:
 
 
 # v0.6.10: the product's Design setting, adopted with the Theme: by the watcher when it reads its
-# settings, by the icon each time somebody opens the popup or its menu and on the tick that decides
-# whether it may move, and by the popup from every read. Anything that is not a design is Soft, as
-# the settings layer reads it.
+# settings, by the icon each time somebody opens the popup or its menu, and by the popup from every
+# read. Anything that is not a design is Soft, as the settings layer reads it. It chooses paint
+# only: what moves is Reduce motion's and Windows' to hold, in every design.
 _design_setting = brand.DEFAULT_DESIGN
 
 
@@ -161,19 +161,6 @@ def reduced_motion() -> bool:
         return not value.value
     except Exception:
         return False
-
-
-def light_still() -> bool:
-    """True when the status light holds still: the design's light does not breathe (Still), or Windows
-    or this product's Reduce motion asks for fewer animations. High Contrast, battery saver and the rest
-    are each surface's own to add; a design can only take motion away, never bring any back."""
-    return not brand.design_breathes(_design_setting) or reduced_motion()
-
-
-def controls_still() -> bool:
-    """True when the controls and the card change without moving: the design does not glide (Still;
-    Classic and Plain glide as Soft does), or motion is reduced - the same stoppers as light_still()."""
-    return not brand.design_glides(_design_setting) or reduced_motion()
 
 
 def high_contrast() -> bool:

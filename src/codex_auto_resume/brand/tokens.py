@@ -92,10 +92,10 @@ DARK = {
 
 
 # ------------------------------------------------------------------- v0.6.10: the designs
-# The Design setting draws the same product four ways (brand/design.py says what each draws and
-# what moves in it). Soft is LIGHT and DARK above, and Still is Soft held still, so it is Soft's
-# colours too. Classic and Plain have their own, with LIGHT's key set exactly, so a surface
-# swaps a design's colours the way it swaps a theme's. Nothing in them is read from Windows.
+# The Design setting draws the same product three ways (brand/design.py says what else each
+# draws). Soft is LIGHT and DARK above. Classic and Plain have their own, with LIGHT's key set
+# exactly, so a surface swaps a design's colours the way it swaps a theme's. Nothing in them is
+# read from Windows.
 #
 # Classic is what v0.6.2 shipped, read from the tag: `git show v0.6.2:src/codex_auto_resume/brand.py`
 # (LIGHT and DARK, ten keys each). tests/test_brand.py holds the ten to that release's values, so no
@@ -127,7 +127,7 @@ PLAIN_DARK = dict(DARK, **{
 # every set has the same keys.
 
 # Every design's colours, light first, by design name. The order is the setting's.
-DESIGN_TOKENS = {"soft": (LIGHT, DARK), "still": (LIGHT, DARK),
+DESIGN_TOKENS = {"soft": (LIGHT, DARK),
                  "classic": (CLASSIC_LIGHT, CLASSIC_DARK), "plain": (PLAIN_LIGHT, PLAIN_DARK)}
 DESIGNS = tuple(DESIGN_TOKENS)
 
@@ -161,6 +161,6 @@ def design_name(design) -> str:
 
 
 def palette(theme, design="soft") -> dict:
-    """A design's colours in a theme: LIGHT or DARK for Soft and Still, by theme name."""
+    """A design's colours in a theme: LIGHT or DARK for Soft, by theme name."""
     light, dark = DESIGN_TOKENS[design_name(design)]
     return dark if theme_name(theme) == "dark" else light

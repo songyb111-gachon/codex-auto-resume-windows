@@ -222,31 +222,46 @@ def _has_tag(name) -> bool:
 
 
 class DesignTests(unittest.TestCase):
-    """v0.6.10: the Design setting - Soft, Still, Classic, Plain - as data, one table the surfaces read."""
+    """v0.6.10: the Design setting - Soft, Classic, Plain - as data, one table the surfaces read. v0.6.10's Still is
+    Reduce motion since v0.6.11 (settings._migrate), and no design decides what moves."""
 
     STATES = brand.GLOW_BREATHES + ("checking", "paused", "idle")
 
     def test_the_designs_and_soft_the_default(self):
-        self.assertEqual(brand.DESIGNS, ("soft", "still", "classic", "plain"))
+        self.assertEqual(brand.DESIGNS, ("soft", "classic", "plain"))
         self.assertEqual(brand.DEFAULT_DESIGN, "soft")
         for table in (brand.DESIGN, brand.DESIGN_RADII, brand.DESIGN_TOKENS):
             self.assertEqual(tuple(table), brand.DESIGNS)
 
     def test_each_design_is_its_row_of_the_table(self):
-        axes = ("depth", "glow", "breathes", "glides", "accent_bar")
+        axes = ("depth", "glow", "accent_bar")
         self.assertEqual({design: tuple(brand.DESIGN[design][axis] for axis in axes) for design in brand.DESIGNS},
-                         {"soft": (True, True, True, True, False), "still": (True, False, False, False, False),
-                          "classic": (False, True, True, True, True), "plain": (False, False, True, True, False)})
+                         {"soft": (True, True, False), "classic": (False, True, True), "plain": (False, False, False)})
         for design in brand.DESIGNS:
             with self.subTest(design):
+                self.assertEqual(tuple(brand.DESIGN[design]), axes)
                 self.assertEqual(brand.design_depth(design), brand.DESIGN[design]["depth"])
                 self.assertEqual(brand.design_glow(design), brand.DESIGN[design]["glow"])
-                self.assertEqual(brand.design_breathes(design), brand.DESIGN[design]["breathes"])
-                self.assertEqual(brand.design_glides(design), brand.DESIGN[design]["glides"])
                 self.assertEqual(brand.design_accent_bar(design), brand.DESIGN[design]["accent_bar"])
 
+    def test_no_design_decides_what_moves(self):
+        """Since v0.6.11 every design moves alike and only the stoppers hold motion: the table has no axis for it,
+        brand no rule, and a light that moves in Soft moves in every design, on the same breath."""
+        for gone in ("design_breathes", "design_glides", "light_moves", "controls_move"):
+            self.assertFalse(hasattr(brand, gone), gone)
+        for design in brand.DESIGNS:
+            for state in brand.GLOW_BREATHES + ("checking",):
+                with self.subTest(design=design, state=state):
+                    self.assertTrue(brand.glow_moves(state))
+                    frames = {round(brand.glow(state, elapsed, design=design)["dim"], 4)
+                              for elapsed in range(0, 12000, 97)}
+                    arcs = {brand.glow(state, elapsed, design=design)["arc"] for elapsed in range(0, 12000, 97)}
+                    self.assertGreater(len(frames | arcs), 2, "the light moves in this design")
+
     def test_a_design_is_named_and_anything_else_is_a_mistake(self):
-        for wrong in ("Soft", "", None, "classic ", 1, "system"):
+        # "still" too: v0.6.10's fourth design is a stored value the settings layer folds (settings._migrate),
+        # never a name the drawing code is handed.
+        for wrong in ("Soft", "", None, "classic ", 1, "system", "still"):
             with self.subTest(wrong=wrong):
                 with self.assertRaises(ValueError):
                     brand.design_name(wrong)
@@ -255,10 +270,9 @@ class DesignTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     brand.design_depth(wrong)
 
-    def test_soft_and_still_draw_in_the_palette_every_surface_drew_before(self):
+    def test_soft_draws_in_the_palette_every_surface_drew_before(self):
         for theme in brand.THEMES:
             self.assertIs(brand.palette(theme, "soft"), brand.palette(theme))
-            self.assertIs(brand.palette(theme, "still"), brand.palette(theme))
         self.assertIs(brand.palette("light"), brand.LIGHT)
         self.assertIs(brand.palette("dark", "soft"), brand.DARK)
 
@@ -308,7 +322,6 @@ class DesignTests(unittest.TestCase):
                 for role, value in radii.items():
                     self.assertLessEqual(value, brand.RADII[role], role)
         self.assertEqual(brand.design_radii("soft"), brand.RADII)
-        self.assertEqual(brand.design_radii("still"), brand.RADII)
         self.assertEqual(brand.design_radii("classic"), {"card": 8, "control": 7, "chip": 999, "small": 6, "check": 4})
         self.assertEqual(brand.design_radii("plain"), {"card": 8, "control": 4, "chip": 999, "small": 4, "check": 4})
 
@@ -317,10 +330,9 @@ class DesignTests(unittest.TestCase):
             for recipe in ("card", "control", "inset"):
                 self.assertIs(brand.shadows(recipe, theme), brand.SHADOWS[theme][recipe])
                 self.assertIs(brand.shadows(recipe, theme, "soft"), brand.SHADOWS[theme][recipe])
-                self.assertIs(brand.shadows(recipe, theme, "still"), brand.SHADOWS[theme][recipe])
                 for design in ("classic", "plain"):
                     self.assertEqual(brand.shadows(recipe, theme, design), ())
-            self.assertEqual(brand.card_ground(theme, "still"), brand.card_ground(theme))
+            self.assertEqual(brand.card_ground(theme, "soft"), brand.card_ground(theme))
             for design in ("classic", "plain"):
                 tokens = brand.palette(theme, design)
                 self.assertEqual(brand.card_ground(theme, design), tokens["surface"])
@@ -334,15 +346,30 @@ class DesignTests(unittest.TestCase):
                 self.assertEqual(brand.glow(state, elapsed, reduced=True, design="soft"),
                                  brand.glow(state, elapsed, reduced=True))
         for state in self.STATES:
-            self.assertEqual(brand.glow_moves(state, design="soft"), brand.glow_moves(state))
             self.assertEqual(brand.status_colour(state, "dark", "soft"), brand.status_colour(state, "dark"))
 
-    def test_still_holds_every_light_as_reduce_motion_does(self):
+    def test_a_stored_still_draws_every_frame_v0610_still_drew(self):
+        """v0.6.10's Still held every light as Reduce motion does, in Soft's colours with no glow: glow(reduced=True).
+        A settings file that stored it now reads as Soft with Reduce motion on, and draws exactly those frames, and
+        its light's timer never runs - the picture its owner chose, with no design of its own to draw it."""
+        from codex_auto_resume import settings
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "settings.json"
+            path.write_text(json.dumps({"config_version": 2, "design": "still", "reduce_motion": False}),
+                            encoding="utf-8")
+            values = settings.load(path)
+        self.assertEqual((values["design"], values["reduce_motion"]), ("soft", True))
+        still = []
         for elapsed in range(0, 12000, 97):
             for state in self.STATES:
-                self.assertEqual(brand.glow(state, elapsed, design="still"), brand.glow(state, elapsed, reduced=True))
+                frame = brand.glow(state, elapsed, reduced=values["reduce_motion"], design=values["design"])
+                self.assertEqual(frame, brand.glow(state, elapsed, reduced=True))
+                if frame is not None:
+                    self.assertEqual((frame["opacity"], frame["spread"]), (0.0, 0.0), "no glow, as Still had none")
+                    still.append((state, frame["dim"], frame["arc"]))
+        self.assertEqual(len(set(still)), len(brand.GLOW_BREATHES) + 1, "one held frame a state")
         for state in self.STATES:
-            self.assertFalse(brand.glow_moves(state, design="still"))
+            self.assertFalse(brand.glow_moves(state, reduced=values["reduce_motion"]))
 
     def test_plain_dims_on_the_breath_with_no_glow_at_any_frame(self):
         dims = set()
@@ -353,7 +380,7 @@ class DesignTests(unittest.TestCase):
                 self.assertEqual((frame["dim"], frame["arc"]), (soft["dim"], soft["arc"]))
                 dims.add(round(frame["dim"], 4))
         self.assertGreater(len(dims), 10)             # the light still moves
-        self.assertTrue(brand.glow_moves("monitoring", design="plain"))
+        self.assertTrue(brand.glow_moves("monitoring"))
         self.assertIsNone(brand.glow("paused", 0, design="plain"))
 
     def test_classic_breathes_with_its_glow(self):
@@ -365,29 +392,14 @@ class DesignTests(unittest.TestCase):
         for design in brand.DESIGNS:
             for state in brand.GLOW_BREATHES + ("checking",):
                 with self.subTest(design=design, state=state):
-                    self.assertFalse(brand.glow_moves(state, reduced=True, design=design))
+                    self.assertFalse(brand.glow_moves(state, reduced=True))
                     frame = brand.glow(state, 1100, reduced=True, design=design)
                     self.assertEqual((frame["dim"], frame["opacity"]), (0.0, 0.0))
-
-    def test_the_two_gates_are_the_design_and_no_stopper(self):
-        for design in brand.DESIGNS:
-            for stopped in (False, True):
-                with self.subTest(design=design, stopped=stopped):
-                    self.assertEqual(brand.light_moves(design, stopped=stopped),
-                                     brand.DESIGN[design]["breathes"] and not stopped)
-                    self.assertEqual(brand.controls_move(design, stopped=stopped),
-                                     brand.DESIGN[design]["glides"] and not stopped)
-        # Only Still takes motion away: Classic and Plain move their controls as Soft does (the roadmap's v0.6.2 look
-        # with today's motion), where for a while in v0.6.10 only Soft did.
-        self.assertEqual([design for design in brand.DESIGNS if brand.controls_move(design)],
-                         ["soft", "classic", "plain"])
-        self.assertEqual([design for design in brand.DESIGNS if brand.light_moves(design)],
-                         ["soft", "classic", "plain"])
 
     def test_the_stylesheet_blocks_are_each_flat_designs_properties_in_four_places(self):
         blocks = brand.css_design_blocks()
         self.assertNotIn('data-design="soft"', blocks)
-        self.assertNotIn('data-design="still"', blocks)      # Soft's colours, depth and radii: motion only
+        self.assertEqual(sorted(set(re.findall(r'data-design="(\w+)"', blocks))), ["classic", "plain"])
         for design in ("classic", "plain"):
             root = ':root[data-design="%s"]' % design
             for form in (root + " {", root + ':not([data-theme="light"]) {', root + '[data-theme="dark"] {',
@@ -1205,8 +1217,8 @@ class GeneratedWindowTokenTests(unittest.TestCase):
         # The rules take a design's name and live in Brand alone.
         head = self.source[:self.source.index("\n        internal static class Dark\n")]
         for rule in ("DesignOf(object value)", "DesignColours(string design)", "DesignDepth(string design)",
-                     "DesignGlow(string design)", "DesignBreathes(string design)", "DesignGlides(string design)",
-                     "DesignAccentBar(string design)", "DesignRadius(string design, string role)"):
+                     "DesignGlow(string design)", "DesignAccentBar(string design)",
+                     "DesignRadius(string design, string role)"):
             self.assertEqual(self.source.count(rule), 1, rule)
             self.assertIn(rule, head)
 
@@ -1323,7 +1335,7 @@ $designNames = (ConvertFrom-Json $env:CAR_DESIGN_NAMES)
 $roles = (ConvertFrom-Json $env:CAR_DESIGN_ROLES)
 for ($i = 0; $i -lt $designNames.Count; $i++) {
     $design = [string]$designNames[$i]
-    foreach ($rule in @('DesignDepth', 'DesignGlow', 'DesignBreathes', 'DesignGlides', 'DesignAccentBar')) {
+    foreach ($rule in @('DesignDepth', 'DesignGlow', 'DesignAccentBar')) {
         'designrule|' + $i + '|' + $rule + '|' + [bool]$brand.GetMethod($rule, $flags).Invoke($null, [object[]]@($design))
     }
     'designcolours|' + $i + '|' + [string]$brand.GetMethod('DesignColours', $flags).Invoke($null, [object[]]@($design))
@@ -1373,10 +1385,12 @@ class GeneratedStatusLightTests(unittest.TestCase):
                2400, 2700, 2720, 3000, 3199, 3600, 5000, 7777)
     SINCE = (-1, 0, 350, 700, 1000, 1190, 1300, 1399, 1400, 5000)       # read by neither side since v0.6.8
     # v0.6.10: the designs by name, and names that are none, which every rule answers as the default design.
-    DESIGN_NAMES = brand.DESIGNS + ("", "Soft", "CLASSIC", "plain ", "bogus")
+    # "still", v0.6.10's fourth design, is a name that is none now: the window reads it as Soft, as the settings layer
+    # does, and the Reduce motion that keeps its picture comes from the bridge's first read.
+    DESIGN_NAMES = brand.DESIGNS + ("", "Soft", "CLASSIC", "plain ", "bogus", "still")
     DESIGN_ROLES = tuple(brand.RADII) + ("", "Card", "bogus")
     # Stored values, as settings.json may hold them.
-    DESIGN_STORED = list(brand.DESIGNS) + ["Soft", "Plain", "", " classic", None, 1, 0, True, False, 2.5]
+    DESIGN_STORED = list(brand.DESIGNS) + ["Soft", "Plain", "", " classic", None, 1, 0, True, False, 2.5, "still"]
 
     @classmethod
     def setUpClass(cls):
@@ -1562,7 +1576,6 @@ class GeneratedStatusLightTests(unittest.TestCase):
 
     def test_every_design_rule_is_brand_designs_and_a_name_that_is_none_is_the_default(self):
         rules = {"DesignDepth": brand.design_depth, "DesignGlow": brand.design_glow,
-                 "DesignBreathes": brand.design_breathes, "DesignGlides": brand.design_glides,
                  "DesignAccentBar": brand.design_accent_bar}
         found = self.records.get("designrule", [])
         self.assertEqual(len(found), len(self.DESIGN_NAMES) * len(rules))
@@ -1592,8 +1605,7 @@ class GeneratedStatusLightTests(unittest.TestCase):
         design in either theme, the colours, the card's ground and the check box of brand.palette(theme, design), brand.DESIGN's
         answers and brand.DESIGN_RADII's corners - and nothing else; a name that is none is the default design, as DesignOf
         reads it. Choosing them by the design's name is generated, so this is the whole of what the choice can say."""
-        rules = {"Depth": brand.design_depth, "Glow": brand.design_glow, "Breathes": brand.design_breathes,
-                 "Glides": brand.design_glides, "AccentBar": brand.design_accent_bar}
+        rules = {"Depth": brand.design_depth, "Glow": brand.design_glow, "AccentBar": brand.design_accent_bar}
         looks = {}
         for index, dark, field, value in self.records.get("look", []):
             looks.setdefault((int(index), dark), {})[field] = value

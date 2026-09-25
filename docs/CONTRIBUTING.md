@@ -390,8 +390,8 @@ colour. Forgetting the second step leaves the window's and the panel's pictures 
 suite says so.
 
 **Each design is pictured too.** Besides the set above, the Dashboard's Overview, the panel, the
-popup and the notification card are drawn in each Design other than Soft - Soft, without motion,
-Classic and Plain - in English and the light theme, as `docs/images/design-<design>-<surface>.png`.
+popup and the notification card are drawn in each Design other than Soft - Classic and Plain - in
+English and the light theme, as `docs/images/design-<design>-<surface>.png`.
 They are documentation only and never copied into `assets/`.
 
 It needs Windows, Microsoft Edge (it is what renders the panel), and

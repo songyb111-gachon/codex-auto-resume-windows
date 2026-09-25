@@ -17,7 +17,7 @@ from ...win.dll import WNDCLASSW, WNDPROC
 from .layout import WIDTH
 from .messages import PopupMessages, REFRESH_TICKS  # noqa: F401
 from .model import PopupModel, perform, select_action
-from .motion import MotionGates, animates, glide_amount, halo, next_glides
+from .motion import animates, glide_amount, halo, next_glides
 from .placement import focus_order, place
 from .renderer import Renderer
 from . import theme as look                # the three questions below are asked through it
@@ -57,9 +57,13 @@ FIRST_READ_WAIT_MS = 300     # the first opening waits this long for real number
 
 
 # ------------------------------------------------------------------------------ the window
-class Popup(MotionGates, PopupMessages):
+class Popup(PopupMessages):
     """The window itself. Created, shown, hidden and destroyed on the icon's thread only;
     `set_strings` is the one method another thread may call."""
+
+    # The design in effect, Soft until the window first reads one. On the class, as v0.6.10's motion gates had
+    # it, so a frame drawn before anything was read - or by a Popup made without __init__ - is Soft's.
+    _design = brand.DEFAULT_DESIGN
 
     def __init__(self, *, control=None, source=None, strings=None, on_dashboard=None, log=None,
                  anchor=None):
@@ -378,7 +382,7 @@ class Popup(MotionGates, PopupMessages):
         seen = {item["target"]: bool(item["checked"]) for item in plan["items"] if item["kind"] == "switch"}
         previous = self._switches if self.visible else None
         self._glides = next_glides(seen, previous, self._glides, time.monotonic() * 1000.0,
-                                   animate=self.visible and not self._controls_still)
+                                   animate=self.visible and not self._reduced)
         self._switches = seen if self.visible else None
 
     def _glide_amounts(self):
@@ -415,8 +419,7 @@ class Popup(MotionGates, PopupMessages):
         user32 = _dll("user32")
         wanted = (self.visible and self._vm is not None
                   and (bool(self._glides)
-                       or animates(self._vm["light"], self._since_state_ms(), reduced=self._light_still,
-                                   design=self._design)))
+                       or animates(self._vm["light"], self._since_state_ms(), reduced=self._reduced)))
         if wanted and not self._frame_running:
             user32.SetTimer(self.hwnd, TIMER_FRAME, FRAME_MS, None)
             self._frame_running = True
@@ -429,7 +432,7 @@ class Popup(MotionGates, PopupMessages):
         if self._vm is None:
             return None
         since = self._since_state_ms()
-        return halo(self._vm["light"], since, since, reduced=self._light_still, design=self._design)
+        return halo(self._vm["light"], since, since, reduced=self._reduced, design=self._design)
 
     def render(self):
         """Draw the current view into the canvas and return it (the tests read it back)."""

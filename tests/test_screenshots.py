@@ -638,7 +638,7 @@ class BreathingPictureTests(unittest.TestCase):
                                                    "failed", "paused", "idle"))
 
     def test_every_light_that_moves_moves_in_its_picture_and_nothing_else_does(self):
-        """For every committed picture: animated exactly when a light in it moves in its design; its frames' union
+        """For every committed picture: animated exactly when a light in it moves; its frames' union
         covers every light that moves; every frame draws within one of those lights and nowhere else; and the frames
         take exactly one cycle of their rhythm, one frame per light per moment."""
         from fractions import Fraction
@@ -669,7 +669,9 @@ class BreathingPictureTests(unittest.TestCase):
                 for x, y, w, h, _delay in drawn:
                     self.assertTrue(any(self.within(light, (x, y, w, h)) for light in lights),
                                     "%s draws (%d, %d, %d, %d), which is no light of it" % (name, x, y, w, h))
-        self.assertTrue(still, "Still's pictures are still")
+        # No picture is still today: every design moves its light (v0.6.10's Still, whose pictures were, is Reduce
+        # motion since v0.6.11 and not pictured). A picture whose lights are all off would be, and is checked above.
+        self.assertEqual(still, [])
         self.assertTrue(self.moving(), "no picture breathes any more; run build/make_screenshots.py --breathe")
 
     def within(self, light, box) -> bool:
@@ -692,7 +694,7 @@ class BreathingPictureTests(unittest.TestCase):
                     self.assertLess(record["lights"][0]["radius"], 13)
                     self.assertGreater(record["lights"][0]["radius"], record["lights"][1]["radius"],
                                        "the state's light, then the tile's smaller one")
-                    if record["design"] in ("soft", "still"):
+                    if record["design"] == "soft":
                         self.assertNotEqual(grounds[0], grounds[1], "the card's ground, then the tile's")
         self.assertEqual(counts, {"panel": {2}, "window": {1}, "popup": {1}, "card": {1}})
 
@@ -729,8 +731,10 @@ class BreathingPictureTests(unittest.TestCase):
         self.assertEqual(g.light_timeline(record("checking")).cycle, g.brand.GLOW["arc_ms"])
         self.assertEqual(g.light_timeline(record("recovering")).steps, 84)
         self.assertEqual(g.light_timeline(record("waiting", "idle")).moving, (0,), "a light that is off is not drawn")
-        for off in (record("idle"), record("paused"), record("waiting", design="still")):
+        for off in (record("idle"), record("paused")):
             self.assertIsNone(g.light_timeline(off))
+        for design in g.DESIGNS_PICTURED:                   # no design holds a light still
+            self.assertEqual(g.light_timeline(record("waiting", design=design)).cycle, 4400, design)
         with self.assertRaises(SystemExit):
             g.light_timeline(record("waiting", "recovering"))
 
