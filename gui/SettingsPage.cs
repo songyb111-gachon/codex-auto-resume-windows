@@ -1040,7 +1040,7 @@ namespace CodexAutoResume
         {
             if (heroHeld) return;
             string word = ActivityWord(status, pending, now);
-            stateDot.State = HeaderLight(status, word);
+            stateDot.State = HeaderLight(status, pending, word);
             string head = S("activity." + word, word);
             string facts = string.Join("   ·   ", HeroFacts(strings, status, pending, word).ToArray());
             if (head == heroHead && facts == heroDetail) return;

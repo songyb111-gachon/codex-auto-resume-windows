@@ -79,7 +79,7 @@ def panel_answers():
             facts[language] = heroFacts(c[0], word, c[1]);
           });
         }
-        return [word, lightFor(c[0], word), facts];
+        return [word, lightFor(c[0], word, c[1]), facts];
       });
       process.stdout.write(JSON.stringify(out));
     """ % (json.dumps(catalogs, ensure_ascii=False), json.dumps(cases)))
@@ -99,12 +99,20 @@ class TableTests(unittest.TestCase):
                 self.assertNotEqual(vector["light"], "failed", "red is the icon's, never a header's (J14)")
 
     def test_the_light_is_the_word_except_for_a_watcher_not_known_to_run(self):
+        """Not known to run: the status does not say it runs, or a row is held for a watcher that is not - the list
+        and the status read a moment apart, and a light that moves beside "Watcher not running" would claim both."""
+        held = []
         for vector in VECTORS:
             with self.subTest(vector["name"]):
-                running = (vector["status"] or {}).get("watcher_running") is True
+                stopped = any("engine_unavailable" in row["overlays"] for row in vector["rows"] or ())
+                said = (vector["status"] or {}).get("watcher_running") is True
+                running = said and not stopped
                 self.assertEqual(vector["light"], vector["word"] if running else "idle")
                 if not running:
                     self.assertEqual(vector["word"], "attention")
+                if said and stopped:
+                    held.append(vector["name"])
+        self.assertTrue(held, "the table holds a status that says the watcher runs beside a row held for it stopped")
 
     def test_every_word_and_light_the_rule_can_give_is_in_the_table(self):
         self.assertEqual({vector["word"] for vector in VECTORS}, set(popup.STATES))
@@ -159,7 +167,7 @@ class PopupTests(unittest.TestCase):
             with self.subTest(vector["name"]):
                 word = popup.activity(vector["status"], vector["rows"], NOW)
                 self.assertEqual(word, vector["word"])
-                self.assertEqual(popup.light_for(vector["status"], word), vector["light"])
+                self.assertEqual(popup.light_for(vector["status"], word, vector["rows"]), vector["light"])
 
     def test_the_view_it_draws_is_that_word_and_that_light(self):
         english = l10n.catalog("en")
@@ -218,7 +226,7 @@ foreach ($vector in $table['vectors']) {
     $status = $vector['status']
     $rows = $vector['rows']
     $word = [string]$methods['ActivityWord'].Invoke($null, [object[]]@($status, $rows, $now))
-    $light = [string]$methods['HeaderLight'].Invoke($null, [object[]]@($status, $word))
+    $light = [string]$methods['HeaderLight'].Invoke($null, [object[]]@($status, $rows, $word))
     $activity = [string]$methods['Activity'].Invoke($null, [object[]]@($status, $rows, $now))
     $tray = [string]$methods['TrayActivity'].Invoke($null, [object[]]@($status, $rows, $now))
     $facts = @{}

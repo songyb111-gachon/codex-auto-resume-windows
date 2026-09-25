@@ -245,10 +245,56 @@ class ActivityTests(unittest.TestCase):
         running = popup.view_model([], dict(STATUS, watcher={"running": True, "ticking": False}), EN, NOW)
         self.assertEqual((running["state"], running["light"]), ("attention", "attention"))
         self.assertTrue(popup.animates(running["light"], 0))
+        # The status says it runs, a row read a moment apart is held for it stopped ("watcher not running"): the row
+        # is believed, and the light is off rather than an amber light breathing beside a stopped watcher's row.
+        held = popup.view_model([row("a", eligible=NOW + 5, overlays=["engine_unavailable"])], STATUS, EN, NOW)
+        self.assertEqual((held["state"], held["light"]), ("attention", "idle"))
+        self.assertFalse(popup.animates(held["light"], 0))
         for word in popup.STATES:
             with self.subTest(word=word):
                 self.assertEqual(popup.light_for(STATUS, word), word)
+                self.assertEqual(popup.light_for(STATUS, word, [row("a", overlays=["watcher_not_ticking"])]), word)
                 self.assertEqual(popup.light_for(dict(STATUS, watcher_running=False), word), "idle")
+                self.assertEqual(popup.light_for(STATUS, word, [row("a", overlays=["engine_unavailable"])]), "idle")
+
+    def test_the_open_popup_tells_the_icon_the_icon_s_own_rule_not_the_header_s_word(self):
+        """v0.6.10 gave the headers one rule for their word, wider than the icon's: it asks for attention for a watcher
+        nothing has confirmed is running and for an older watcher still owning the state. The icon reads whether a
+        person must act from the open popup (PopupModel.attention, tray.popup_attention), and keeps the rule it had
+        (icon_attention) - the critic's F5 correction: the headers' rule is not the icon's."""
+        model = popup.PopupModel(EN)
+        cases = (
+            # (status, rows): (the header's word, what the open popup tells the icon)
+            (dict(STATUS, watcher_running=None), []),
+            ({"enabled": True}, []),
+            (dict(STATUS, upgrade_pending=True), []),
+        )
+        for status, rows in cases:
+            with self.subTest(status=status):
+                model.status, model.rows = copy.deepcopy(status), rows
+                self.assertEqual(popup.activity(status, rows, NOW), "attention")
+                self.assertFalse(model.attention())
+        needs = (
+            (dict(STATUS, watcher_running=False), []),
+            (dict(STATUS, watcher=dict(STATUS["watcher"], ticking=False)), []),
+            (dict(STATUS, watcher=dict(STATUS["watcher"], engine_state="incompatible")), []),
+            (dict(STATUS, watcher=dict(STATUS["watcher"], engine_state="failed_here")), []),
+        ) + tuple((STATUS, [row("a", overlays=[overlay])]) for overlay in sorted(popup.model.ATTENTION_OVERLAYS))
+        for status, rows in needs:
+            with self.subTest(status=status, rows=rows):
+                model.status, model.rows = copy.deepcopy(status), rows
+                self.assertTrue(model.attention())
+        model.status, model.rows = copy.deepcopy(STATUS), []
+        self.assertFalse(model.attention())
+        model.status = None
+        self.assertFalse(model.attention(), "nothing read tells the icon nothing")
+        snapshot = {"enabled": True, "waiting": 0, "running": 0, "next_at": None}
+        for status in (dict(STATUS, watcher_running=None), dict(STATUS, upgrade_pending=True)):
+            with self.subTest(icon=status):
+                model.status, model.rows = copy.deepcopy(status), []
+                opened = unittest.mock.Mock(visible=True, attention=model.attention)
+                self.assertEqual(tray.icon_state(snapshot, attention=tray.popup_attention(opened)),
+                                 tray.icon_state(snapshot))
 
     def test_the_icon_s_word_follows_the_ticks_snapshot(self):
         self.assertEqual(popup.snapshot_activity({}, NOW), "monitoring")

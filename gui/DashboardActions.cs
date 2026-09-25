@@ -303,7 +303,7 @@ namespace CodexAutoResume
         /// Pure, so the rule can be checked without a window.
         internal static string Activity(Dictionary<string, object> status, List<object> pending, double now)
         {
-            return HeaderLight(status, ActivityWord(status, pending, now));
+            return HeaderLight(status, pending, ActivityWord(status, pending, now));
         }
 
         /// The header's word, activity.<word> in the catalog, for what the window read (v0.6.10).
@@ -348,9 +348,18 @@ namespace CodexAutoResume
         /// The status light for a header's word: the word's own, except that a watcher not known to be running is a
         /// light that is off, grey and still, whatever the word beside it asks (tray_popup.light_for, panel.js
         /// lightFor). A light that moves says the product is running; amber is for a watcher that runs and is not well.
-        internal static string HeaderLight(Dictionary<string, object> status, string word)
+        /// A row held for a watcher not running (engine_unavailable) outweighs a status that says it runs, the two
+        /// read a moment apart, so the dot is not a moving light beside "Watcher not running" (HeroFacts).
+        internal static string HeaderLight(Dictionary<string, object> status, List<object> pending, string word)
         {
-            return Equals(Get(status, "watcher_running"), true) ? word : "idle";
+            if (!Equals(Get(status, "watcher_running"), true)) return "idle";
+            if (pending != null)
+                foreach (object entry in pending)
+                {
+                    var row = entry as Dictionary<string, object>;
+                    if (row != null && HasOverlay(row, "engine_unavailable")) return "idle";
+                }
+            return word;
         }
 
         /// Why a watcher that runs needs a person, or null when it does not: an older watcher still owns the state, it
@@ -451,8 +460,9 @@ namespace CodexAutoResume
         /// (standard J14), and a list that was read decides here without the status's counts. tray.icon_state is ICON_FOR_LIGHT of
         /// tray_popup.snapshot_activity: the tick's snapshot of the store (tray.snapshot_from) - a pause, then any
         /// record sent or being followed, then any waiting - with, while its popup is open, the popup's word that a
-        /// person must act (tray_popup.activity). The window reads what that popup reads, get_status and list_pending,
-        /// and reads it now, so this is the icon with its popup open. With no list the status's counts of the store's
+        /// person must act (tray_popup.icon_attention, the icon's own rule and not the header's word). The window
+        /// reads what that popup reads, get_status and list_pending, and reads it now, so this is the icon with its
+        /// popup open. With no list the status's counts of the store's
         /// records by public code say the same (status.codes). Where no icon of this version can be showing, it is the
         /// header light's word: grey with no watcher running or none known to be, and needing a person while an older
         /// watcher still owns the state. Pure, so tests/test_gui_v065_taskbar.py holds it to tray.py's own code.

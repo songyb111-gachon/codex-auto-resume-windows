@@ -835,8 +835,24 @@ class HeroLightTests(unittest.TestCase):
         observed = run_javascript(["lightFor"], "process.stdout.write(JSON.stringify(["
                                   "lightFor({watcher_running: true}, 'attention'),"
                                   "lightFor({watcher_running: false}, 'attention'),"
-                                  "lightFor(null, 'monitoring')]));")
-        self.assertEqual(observed, ["attention", "idle", "idle"])
+                                  "lightFor(null, 'monitoring'),"
+                                  "lightFor({watcher_running: true}, 'attention', [{overlays: ['watcher_not_ticking']}]),"
+                                  "lightFor({watcher_running: true}, 'attention', [{overlays: ['engine_unavailable']}])]));")
+        # A row held for a watcher not running outweighs a status that says it runs: no moving light beside
+        # "Watcher not running" (tests/data/light_states.json).
+        self.assertEqual(observed, ["attention", "idle", "idle", "attention", "idle"])
+
+    def test_the_hero_reads_the_rows_for_its_light(self):
+        observed = run_javascript(
+            ["t", "fill", "element", "activity", "attentionCause", "lightFor", "nextCheck", "heroFacts",
+             "soonestFact", "renderHero"], """
+          DATA = {pending: [{code: 'scheduled', eligible_at: null, overlays: ['engine_unavailable']}]};
+          var hero = renderHero({watcher_running: true, enabled: true, pending: 1}).node;
+          var line = hero.children[1];
+          process.stdout.write(JSON.stringify([hero.attributes['data-state'], line.children[0].className,
+                                               hero.children[2].children.map(function (f) { return f.textContent; })]));
+        """, prelude=self.PRELUDE)
+        self.assertEqual(observed, ["attention", "halo idle", [ENGLISH["status.not_running"], ENGLISH["status.pending_one"]]])
 
 
 if __name__ == "__main__":
