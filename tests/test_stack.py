@@ -94,7 +94,7 @@ ITEM = {_q(name): item for item, names in {
     "popup": ("ui.popup", "ui.popup.elevation", "ui.popup.fonts", "ui.popup.gdiplus",
               "ui.popup.layout", "ui.popup.model", "ui.popup.motion", "ui.popup.placement",
               "ui.popup.renderer", "ui.popup.theme", "ui.popup.win32", "ui.popup.window",
-              "ui.popup.words"),
+              "ui.popup.words", "ui.popup.messages"),
     "notifications": ("notice_card", "notice_presence", "notice_window", "notifier", "notify",
                       "ui.card", "ui.card.win32", "ui.card.surfaces", "ui.card.card", "ui.card.stack"),
     "words": ("l10n", "messages", "interface", "ui.words"),

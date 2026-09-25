@@ -1,7 +1,7 @@
 """The notification-area popup: what it shows, where it goes, and how it is drawn.
 
 `tray_popup.py` was 2,851 lines - the largest file in the package. It is the same popup in
-twelve files, and every `tray_popup.<name>` reads as it did.
+thirteen files, and every `tray_popup.<name>` reads as it did.
 
 The six that ask Windows nothing, which is why the documentation's pictures can be taken
 without a screen:
@@ -20,6 +20,7 @@ Then Windows, and what is drawn with it:
     theme       light or dark, motion or none, and High Contrast
     gdiplus     the surfaces drawn on, and the counting that proves nothing leaks
     renderer    drawing it into memory
+    messages    what Windows says to the window, and what each message decides
     window      the window itself, and the life of one popup
 
 That is the order they are imported in below, and it is their dependency order: each file
@@ -184,4 +185,5 @@ from .gdiplus import (PIXEL_FORMAT_32BPP_PARGB,
                       _gdiplus_release,
                       gdiplus_objects)  # noqa: F401
 from .renderer import CHIP_ALPHA, DOT_FILL, Renderer  # noqa: F401
-from .window import FIRST_READ_WAIT_MS, FRAME_MS, Popup, REFRESH_TICKS  # noqa: F401
+from .messages import REFRESH_TICKS  # noqa: F401
+from .window import FIRST_READ_WAIT_MS, FRAME_MS, Popup  # noqa: F401
