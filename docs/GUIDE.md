@@ -460,7 +460,8 @@ current language and style or under ones named for the preview alone, and it sav
 nothing. Codex can change the interface language, the continuation language, the message style,
 including switching it to Custom, and the theme, but it cannot write a Custom message: that text is sent into your
 conversations automatically, so it is written only in the Dashboard, under Settings >
-Continuation message.
+Continuation message. Nor can it change what moves: Reduce motion and, from v0.6.10, the Design
+are set in the Dashboard too. The panel in Codex draws in both.
 
 Nothing that turns automation down is marked as needing your confirmation: pausing recovery, turning
 it off for one conversation, asking for a re-check. Previewing the message is read-only. Turning it back on, changing a setting, starting
