@@ -158,6 +158,8 @@ rather than guessing it from the recipe's name.
 
 The state light says whether the watcher is alive, in the Dashboard's header, at the top of the
 popup and at the top of the panel, and since v0.6.5 it says what a notification card is about.
+Since v0.6.10 the panel's Automatic recovery tile carries it too, smaller, where a dot that never
+moved used to be: every light that says the product is running moves.
 It is a flat dot that breathes, with a glow that rides its brightness. `brand.glow()` defines it
 once - its numbers are `GLOW`, generated into the window's `gui/Brand.cs` and the panel's
 stylesheet - and every surface is tested against that one function. Since v0.6.6 the shape is the
@@ -173,17 +175,22 @@ ordinary one a status light of this size is built from, and nothing of ours:
    bunches at the top and rushes at the bottom; raised to 1/2.2 it is even to look at.
 5. **A glow that rides the brightness.** Out at the top of the breath at opacity 0.50, gone at the
    bottom, and reaching 0.6 of the dot's radius past its edge - a share of the dot, so the
-   window's 10-pixel light and the panel's 12-pixel one are the same light at two sizes.
+   window's 10-pixel light and the panel's 12-pixel one are the same light at two sizes, and so is
+   the panel tile's 8-pixel one. The dot dims toward the ground under it and the glow is drawn
+   apart from it, so the dot's dimming never dims the glow; until v0.6.10 the panel faded the two
+   together, and its glow was a fifth weaker than the window's halfway down a breath.
 6. **A dot whose size never changes.** A 10-pixel disc that scales reads as jitter.
 
 A cycle begins and ends at the top, where a still light also sits, so a light that starts moving
-does not jump in brightness; the glow is the one thing that arrives with the motion.
+does not jump in brightness; the glow is the one thing that arrives with the motion. A light keeps
+its place in the cycle for as long as its state holds: redrawing it does not send it back to the
+top - in the panel since v0.6.10, whose two lights share one cycle.
 
 | State | Colour | Light |
 | --- | --- | --- |
 | Monitoring | `active` | The cycle, every 4.4 s |
 | Waiting | `active` | The cycle, every 4.4 s, as monitoring (since v0.6.9; until then lit and still, while the notification-area icon kept moving) |
-| Checking a task that has come due | `active` | Lit, with no glow, and a thin arc turning once every 1.6 s (in the Dashboard and the popup) |
+| Checking a task that has come due | `active` | Lit, with no glow, and a thin arc turning once every 1.6 s (in the Dashboard and the popup, and since v0.6.10 in the panel) |
 | Recovering | `active` | The cycle, every 2.8 s |
 | Needs a person | `attention` | The cycle, every 5.6 s, the slowest there is (since v0.6.8; until then once, over 1.4 s, then still) |
 | Failed | `danger` | The cycle, every 1.2 s, the quickest there is, so a red light never sits still (since v0.6.8) |
@@ -198,9 +205,11 @@ apart said - asks for attention beside a grey `idle` light that does not move; o
 not well - an older watcher still owns the state, it has stopped ticking, or the engine is not
 supported or failed its checks here - is amber, and the line under the word says which; then
 paused; then recovering, for anything sent into Codex or being taken back out of it; then
-checking, once a task's time has come; then waiting; then monitoring. The panel is drawn once and
-has no clock, so where the other two say checking it says waiting, and the row says *due now*. The
-notification-area icon and the window's taskbar button keep their own rule, in which a failure
+checking, once a task's time has come; then waiting; then monitoring. The panel is drawn once, from
+one reading, and until v0.6.10 it had no clock: where the other two said checking it said waiting.
+It reads the page's clock by the same rule now, and wakes once when a time a row carries comes,
+which turns it to checking and the row to *due now*; what the watcher then did arrives with the
+next reading, as everything on the panel does. The notification-area icon and the window's taskbar button keep their own rule, in which a failure
 nobody has seen yet is red; no header shows red.
 
 Three cuts were wrong in three directions before this one, and the user named each: the first
