@@ -1,0 +1,13 @@
+{
+  "_comment": [
+    "Reported: other people's filed compatibility reports, counted per Codex version.",
+    "src/codex_auto_resume/compat/reported.py reads this file only to show the counts. Nothing",
+    "that decides reads it, and it is not the compatibility data: codex_compat.json carries",
+    "no counts. Written from docs/evidence/community/index.json by the maintainer's tool, and",
+    "tests/test_reported_data.py holds it equal to that index. Each report counts as worked,",
+    "failed, neither, or both at once, so worked + failed - both + neither = reports: one",
+    "report per GitHub login per Codex version, so these are reports, not machines."
+  ],
+  "format": "codex-auto-resume-reported/1",
+  "versions": []
+}

@@ -288,6 +288,7 @@ HOMES = {
     v.ViewStatus: ("list", "compat.VIEW_STATUSES"),
     v.CacheOrigin: ("list", "compat.CACHE_ORIGINS"),
     v.RefreshAnswer: ("list", "compatio.REFRESH_ANSWERS"),
+    v.ReportedState: ("list", "compat.reported.STATES"),
 }
 
 

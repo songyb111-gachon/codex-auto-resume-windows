@@ -60,6 +60,8 @@ LAYER = {_q(name): layer for layer, names in {
     "adapters": ("store", "openstate", "codex", "windows", "compat", "compatio", "startup", "shortcut",
                  # v0.6.10-alpha: compat.py and compatio.py became compat/.
                  "compat.model", "compat.standing", "compat.report", "compat.permits", "compat.files", "compat.cache", "compat.probes", "compat.views", "compat.evaluator",
+                 # v0.6.10: what others report, read beside the registry and never by it.
+                 "compat.reported",
                  "pwsh", "notify", "notice_presence", "tray_place",
                  # v0.6.10-alpha: store.py became store/. Every part of it is the same layer
                  # the one module was, and `STORE` below covers them by prefix.
