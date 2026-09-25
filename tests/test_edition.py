@@ -9,7 +9,8 @@ The advanced edition is the standard edition plus one package, found beside the 
   only as `Guarded`, takes nothing else from one;
 * the loader takes the package only from beside core and only as it should be - anything else
   is the standard edition, or an advanced one that says it is not loaded;
-* a run of this suite tests the edition it says it does (StandardRunGuard);
+* a run of this suite tests the edition it says it does (StandardRunGuard), and CI runs it once
+  for each edition (EditionLaneTests);
 * core names the package in one place, and nothing the standard build copies names it at all.
 
 The loader's cases run in a child Python on a copy of src/ with the package put beside it
@@ -24,6 +25,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -42,10 +44,15 @@ from codex_auto_resume.domain.plug import (DEFER, NULL, Alternative, DamagedPlug
                                            Guarded, Plug, PlugFailure, Point, Surface, guard)
 
 ROOT = srcscan.ROOT
+WORKFLOWS = ROOT / ".github" / "workflows"
 # Files the standard build copies that may spell the advanced package's name besides
-# src/codex_auto_resume/edition.py, each with why. None yet: the bootstrap and the installer will
-# have to spell its path to tell one edition's installation from the other's, and join here then.
-NAMED_BY: dict = {}
+# src/codex_auto_resume/edition.py, each with why. The installer spells it too, from build/install/,
+# which is no tree of the ones checked here; build/edition_audit.py's ALLOWED holds all three as
+# entries of the standard archive.
+NAMED_BY: dict = {
+    "scripts/bootstrap.ps1": "tells which edition a tree is by whether the package is in it, and "
+                             "which edition an archive is before it unpacks it",
+}
 
 
 def arguments(point) -> list:
@@ -427,8 +434,17 @@ class StandardRunGuard(unittest.TestCase):
 
     Unset, `CODEX_AR_EDITION` means the standard edition, and then the advanced package must
     not be importable at all - a run that could import it would pass for the standard edition
-    while testing something else. Set to `advanced`, the package has to be beside core and
-    load, or the advanced run would be the standard one under another name.
+    while testing something else. Set to `advanced` - CI's advanced lane, which puts the
+    repository's advanced/src on the path (EditionLaneTests) - the package has to be importable
+    from there and be one core would take, or the advanced run would be the standard one under
+    another name.
+
+    Importable is not installed. Core takes the package only from beside itself, in the same
+    `src` directory, and the advanced lane leaves `src/` as the repository has it: every test
+    that reads the working tree as what the standard build copies (tests/srcscan.py, the build
+    tests) goes on reading exactly that. So core in that lane is still the standard edition, now
+    with an advanced checkout on its path, which must change nothing - the whole core suite
+    passing there is what shows it. The package beside a copy of core is LoaderTests, in both.
     """
 
     def test_this_run_tests_the_edition_it_says_it_does(self):
@@ -441,10 +457,88 @@ class StandardRunGuard(unittest.TestCase):
             self.assertEqual(edition.name(), Edition.STANDARD)
             self.assertIs(edition.load(home), NULL)
         else:
-            self.assertEqual(edition.name(), Edition.ADVANCED)
-            loaded = edition.load(home)
-            self.assertNotIsInstance(loaded, DamagedPlug)
-            self.assertEqual(loaded.edition, Edition.ADVANCED)
+            found = importlib.util.find_spec(edition.ADVANCED_PACKAGE)
+            self.assertIsNotNone(found, "the advanced run cannot import the advanced package")
+            # This repository's copy and no other: a package from anywhere else would be testing
+            # code this repository does not ship.
+            self.assertEqual(Path(found.origin).resolve(),
+                             (editions.ADVANCED_SRC / editions.PACKAGE / "__init__.py").resolve())
+            self.assertEqual(edition.name(), Edition.STANDARD, "the package is beside core")
+            self.assertIs(edition.load(home), NULL)
+            # One core would take: written for this plug interface, making the advanced
+            # edition's plug, and with every capability off answering every point as NULL does.
+            module = importlib.import_module(edition.ADVANCED_PACKAGE + ".plug")
+            self.assertEqual(module.PLUG_API, plug.PLUG_API)
+            made = module.create(home)
+            self.assertIsInstance(made, Plug)
+            self.assertNotIsInstance(made, DamagedPlug)
+            self.assertEqual(made.edition, Edition.ADVANCED)
+            for point in Point:
+                with self.subTest(point):
+                    given = arguments(point)
+                    self.assertIs(plug.consult(made, point, *given), plug.consult(NULL, point, *given))
+
+
+class EditionLaneTests(unittest.TestCase):
+    """CI runs this suite once for each edition, on every Python, and tells each run which.
+
+    StandardRunGuard holds one run to the edition it names; this holds .github/workflows/test.yml
+    to naming both, with the path each needs, and the release job to running the advanced tests
+    before it builds. Read as text, as the other workflow tests read them: PyYAML is no
+    dependency of this suite, and a test that skipped without it would guard nothing in CI.
+    """
+
+    def setUp(self):
+        self.text = (WORKFLOWS / "test.yml").read_text(encoding="utf-8")
+        self.matrix = self.text[self.text.index("\n    strategy:"):self.text.index("\n    steps:")]
+        step = self.text[self.text.index("- name: Run the automated test suite"):]
+        self.step = step[:step.index("\n      - name:")]
+
+    def test_the_axis_is_the_editions_there_are(self):
+        axis = re.search(r"(?m)^        edition: \[([^\]]+)\]\s*$", self.matrix)
+        self.assertIsNotNone(axis, "test.yml has no edition axis")
+        self.assertEqual([part.strip() for part in axis.group(1).split(",")], list(Edition))
+
+    def test_the_future_python_runs_each_edition_too(self):
+        """An `include` entry that sets a Python the axis does not list makes a lane of its own
+        and joins no other, so an entry without an edition would test neither by name."""
+        include = self.matrix[self.matrix.index("include:"):]
+        entries = re.split(r"(?m)^          - ", include)[1:]
+        self.assertTrue(entries, "the future Python has no lane")
+        named = [re.search(r"(?m)^            edition: (\w+)\s*$", entry) for entry in entries]
+        self.assertNotIn(None, named, "an include entry names no edition")
+        self.assertEqual(sorted(found.group(1) for found in named), sorted(Edition))
+        pythons = {re.search(r'python-version: "([\d.]+)"', entry).group(1) for entry in entries}
+        self.assertEqual(len(pythons), 1, "each future lane is one Python in both editions")
+
+    def test_each_lane_says_which_edition_it_tests(self):
+        self.assertIn("%s: ${{ matrix.edition }}" % editions.LEG, self.step)
+
+    def test_only_the_advanced_lane_has_the_package_on_its_path_and_it_runs_its_tests(self):
+        advanced_src = editions.ADVANCED_SRC.relative_to(ROOT).as_posix()
+        advanced_tests = (editions.ADVANCED / "tests").relative_to(ROOT).as_posix()
+        self.assertTrue((ROOT / advanced_tests).is_dir())
+        self.assertIn("PYTHONPATH: ${{ matrix.edition == 'advanced' && 'src;%s' || 'src' }}"
+                      % advanced_src, self.step)
+        self.assertIn("$suites = @('tests')", self.step)
+        self.assertIn("if ($env:%s -eq 'advanced') { $suites += '%s' }" % (editions.LEG, advanced_tests),
+                      self.step)
+        self.assertIn("python -m unittest discover -s $suite -v", self.step)
+        # Every suite runs before the lane gives its verdict.
+        self.assertLess(self.step.index("foreach ($suite in $suites)"), self.step.index("if ($failed) { exit 1 }"))
+        self.assertEqual(self.step.count("exit 1"), 1, "a suite's failure ends the lane before the next")
+
+    def test_every_lane_compiles_the_advanced_tree(self):
+        self.assertIn("python -m compileall -q src tests scripts advanced", self.text)
+
+    def test_the_release_runs_the_advanced_tests_before_it_builds(self):
+        release = (WORKFLOWS / "release.yml").read_text(encoding="utf-8")
+        start = release.index("- name: Run the advanced edition's tests")
+        step = release[start:release.index("\n      - name:", start)]
+        self.assertIn("PYTHONPATH: src;%s" % editions.ADVANCED_SRC.relative_to(ROOT).as_posix(), step)
+        self.assertIn("%s: advanced" % editions.LEG, step)
+        self.assertIn("run: python -m unittest discover -s advanced/tests", step)
+        self.assertLess(start, release.index("- name: Build the release archive"))
 
 
 class SpellingTests(unittest.TestCase):

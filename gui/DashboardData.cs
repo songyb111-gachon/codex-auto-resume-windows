@@ -346,6 +346,7 @@ namespace CodexAutoResume
             UpdateCountdowns();
             UpdatePendingButtons();
             UpdateHistoryButtons();
+            SnapshotApplied(reply);
         }
 
         /// Whether one part of a snapshot came back as an error rather than as data.
@@ -418,6 +419,7 @@ namespace CodexAutoResume
             UpdatePendingButtons();
             UpdateHistoryButtons();
             UpdateToggle();
+            SnapshotApplied(null);
         }
 
         /// Why a part of a snapshot says nothing: an older watcher still owns the state, or the

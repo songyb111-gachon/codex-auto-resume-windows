@@ -25,11 +25,18 @@ jobs:
     # `tests/test_python_support.py` fails if this list and that file stop agreeing.
     # A matrix cannot read a file, so the list is repeated here and the test is what
     # keeps the repetition honest.
+    #
+    # Each Python is run once for each edition (v0.6.11). The standard lane is the suite as it
+    # always was, and it fails if the advanced package can be imported at all; the advanced lane
+    # is the same suite with the package importable, and the package's own tests after it.
+    # tests/test_edition.py (StandardRunGuard, EditionLaneTests) holds each lane to the edition
+    # it names and this list to the editions there are.
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.12", "3.13", "3.14"]
         experimental: [false]
+        edition: [standard, advanced]
         include:
           # The next Python, while it is still a release candidate. It is not decoration:
           # it compiles the sources and runs the same suite, and a failure is annotated
@@ -37,8 +44,15 @@ jobs:
           # appears. It does not block, because a defect in a pre-release interpreter is
           # not a defect in this product - and finding out about a real one in October,
           # from a user, is worse than finding out now from a lane nobody had to merge.
+          #
+          # Once per edition, like every other Python. An entry that sets a new Python makes
+          # a lane of its own rather than joining the ones above, so each edition is named.
           - python-version: "3.15"
             experimental: true
+            edition: standard
+          - python-version: "3.15"
+            experimental: true
+            edition: advanced
     # Only the pre-release lane is allowed to fail the job without failing the run.
     continue-on-error: ${{ matrix.experimental }}
 
@@ -69,7 +83,9 @@ jobs:
         run: python -c "import sys; print(sys.version)"
 
       - name: Compile all sources
-        run: python -m compileall -q src tests scripts
+        # advanced/ in every lane: it is source this repository ships, and a file that does not
+        # compile on a Python is worth knowing about whichever edition the lane tests.
+        run: python -m compileall -q src tests scripts advanced
 
       - name: Run the automated test suite
         # These tests use fakes and temp dirs. They never contact the ChatGPT app
@@ -80,31 +96,48 @@ jobs:
         # log. Reading a run's log needs repository admin rights; annotations are part
         # of the run's public status, so "which test failed" is answerable by anyone
         # looking at the failure - including from a machine that cannot reproduce it.
+        #
+        # The lane says which edition it tests in CODEX_AR_EDITION, and StandardRunGuard holds
+        # it to that. The standard lane imports core alone. The advanced lane puts the
+        # repository's advanced/src on the path too, so the package is importable - from there
+        # and nowhere else - and then runs the package's own tests. Core takes the package only
+        # from beside itself (src/codex_auto_resume/edition.py), so the core suite there is the
+        # standard edition with an advanced checkout on its path, which must change nothing; the
+        # package beside a copy of core is the loader's cases, run in both lanes.
         shell: pwsh
         env:
-          PYTHONPATH: src
+          CODEX_AR_EDITION: ${{ matrix.edition }}
+          PYTHONPATH: ${{ matrix.edition == 'advanced' && 'src;advanced/src' || 'src' }}
         run: |
-          $output = python -m unittest discover -s tests -v 2>&1 | Out-String
-          $failed = $LASTEXITCODE -ne 0
-          Write-Host $output
-          if ($failed) {
-            # Only the failures, not the roll-call of passing tests. An annotation is
-            # capped at 4096 characters, and a verbose run fills that with "ok" lines
-            # long before it reaches the part that says what went wrong.
-            $lines = $output -split "`r?`n"
-            $first = ($lines | Select-String -Pattern '^(FAIL|ERROR):' | Select-Object -First 1)
-            $detail = if ($first) {
-              ($lines | Select-Object -Skip ($first.LineNumber - 1) | Where-Object { $_.Trim() })
-            } else {
-              # No failure header at all means the process died rather than failed a
-              # test; the tail is then the only evidence there is.
-              ($lines | Where-Object { $_.Trim() } | Select-Object -Last 25)
+          $suites = @('tests')
+          if ($env:CODEX_AR_EDITION -eq 'advanced') { $suites += 'advanced/tests' }
+          # Every suite runs, and the lane fails after the last if any of them failed: a failure
+          # in the core suite is no reason not to learn about the advanced one's.
+          $failed = $false
+          foreach ($suite in $suites) {
+            $output = python -m unittest discover -s $suite -v 2>&1 | Out-String
+            $broke = $LASTEXITCODE -ne 0
+            Write-Host $output
+            if ($broke) {
+              $failed = $true
+              # Only the failures, not the roll-call of passing tests. An annotation is
+              # capped at 4096 characters, and a verbose run fills that with "ok" lines
+              # long before it reaches the part that says what went wrong.
+              $lines = $output -split "`r?`n"
+              $first = ($lines | Select-String -Pattern '^(FAIL|ERROR):' | Select-Object -First 1)
+              $detail = if ($first) {
+                ($lines | Select-Object -Skip ($first.LineNumber - 1) | Where-Object { $_.Trim() })
+              } else {
+                # No failure header at all means the process died rather than failed a
+                # test; the tail is then the only evidence there is.
+                ($lines | Where-Object { $_.Trim() } | Select-Object -Last 25)
+              }
+              $text = ($detail -join '%0A') -replace '::', ':'
+              if ($text.Length -gt 3800) { $text = $text.Substring(0, 3800) }
+              Write-Host "::error title=test suite failed ($suite)::$text"
             }
-            $text = ($detail -join '%0A') -replace '::', ':'
-            if ($text.Length -gt 3800) { $text = $text.Substring(0, 3800) }
-            Write-Host "::error title=test suite failed::$text"
-            exit 1
           }
+          if ($failed) { exit 1 }
 
       - name: CLI smoke test in an isolated home
         env:

@@ -34,6 +34,8 @@ build/dist/
 build/*.exe
 # Their version resources, generated from the manifest by the same script.
 build/*.VersionInfo.cs
+# The advanced edition's settings window and its version resource (make_gui.ps1 -Edition advanced).
+build/advanced/
 
 # Written by scripts/ko_sync.py into whatever tree it is pointed at. On the generated
 # `ko` branch the workflow force-adds it; anywhere else it is the residue of a local
