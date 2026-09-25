@@ -320,7 +320,7 @@
   "gate.no_newer_user_work": "ユーザーによる新しい作業がない",
   "gate.no_progress_budget": "進展が続いている",
   "gate.result.block": "ブロック",
-  "gate.result.pass": "通過",
+  "gate.result.pass": "OK",
   "gate.result.unknown": "不明",
   "gate.result.wait": "待機中",
   "gate.schedule": "予定時刻に到達",
