@@ -681,9 +681,17 @@ class ContentTests(unittest.TestCase):
         self.assertEqual({k: v for k, v in stored.items() if k != "theme"},
                          {k: v for k, v in policy.defaults().items() if k != "theme"},
                          "otherwise the pictures show the defaults")
-        self.assertIn("write_settings(home)", inspect.getsource(make_screenshots.scratch_installation))
+        # Since v0.6.10 the installation stores the theme it is given, which is THEME unless the
+        # audit sheets (`--audit`, never published) ask for the other: no published picture asks.
+        self.assertIn("write_settings(home, theme)", inspect.getsource(make_screenshots.scratch_installation))
         self.assertNotIn("policy.defaults()", inspect.getsource(make_screenshots.scratch_installation))
         self.assertNotIn("--theme", inspect.getsource(make_screenshots.render_window))
+        for published in (make_screenshots.scratch_installation, make_screenshots.render_window,
+                          make_screenshots.render_panel, make_screenshots.render_popup):
+            self.assertIsNone(inspect.signature(published).parameters["theme"].default, published.__name__)
+        for whole_run in (make_screenshots.main, make_screenshots.render_inputs):
+            self.assertNotIn("theme=", inspect.getsource(whole_run).replace("theme=THEME", ""),
+                             "a published picture is drawn in THEME")
         # The panel: served pinned, and its sample's own Theme control says the same.
         self.assertEqual(make_screenshots.sample_panel_data()["settings"]["theme"], theme)
         self.assertIn('data-theme="%s" data-theme-pinned=""' % theme, make_screenshots.panel_html(theme=theme))
@@ -818,6 +826,40 @@ class EnvelopeTests(unittest.TestCase):
         names = {row["name"] for row in self.reply("dashboard")["pending"]}
         self.assertEqual(names, {"example-project", "example-service"},
                          "the names come from the synthetic Codex home, never the user's")
+
+    def test_the_panel_the_popup_and_the_window_show_one_fixture_at_one_moment(self):
+        """Since v0.6.10 every surface is pictured from one set of records at one moment. Until then
+        the panel registered two rows of its own at times near 1970, so both read "due now" and its
+        network failure waited for a usage reset, and the popup was handed a third row, a server
+        error, that the window and the panel never showed - three pictures an audit cannot compare."""
+        import inspect
+        g = self.generator
+        fields = ("interruption_id", "thread_id", "name", "category", "state", "code",
+                  "eligible_at", "reset_at", "next_retry_at", "thread_enabled")
+
+        def shown(rows):
+            return sorted(tuple(row[field] for field in fields) for row in rows)
+
+        window = shown(self.reply("dashboard")["pending"])
+        self.assertEqual(len(window), 2)
+        self.assertEqual(shown(g.sample_panel_data()["pending"]), window, "the panel's rows")
+        self.assertEqual(g.sample_panel_data()["status"]["pending"], len(window), "the panel's count")
+        self.assertEqual(shown(g.popup_rows()), window, "the popup's rows")
+        # One moment: the envelope's, the popup's and the panel page's clock, and the card's reset is
+        # the usage limit's. The window is seeded by the same function at the moment it is told.
+        self.assertEqual(g.ENVELOPE_NOW, g.POPUP_NOW)
+        self.assertEqual({row[3]: row[6] - g.POPUP_NOW for row in window},
+                         {"usage_limit": g.USAGE_RESET_IN, "network_transient": g.RETRY_IN})
+        self.assertEqual(g.CARD_RESET_AT - g.POPUP_NOW, g.USAGE_RESET_IN)
+        self.assertIn("at=%d;" % int(g.POPUP_NOW * 1000), g.pinned_clock())
+        # Read in UTC, as the card's reset time is, so a machine's zone cannot set them apart.
+        self.assertIn("Real.prototype['get'+part]=Real.prototype['getUTC'+part]", g.pinned_clock())
+        page = g.panel_html()
+        self.assertLess(page.index(g.pinned_clock()), page.rindex("<script>"),
+                        "the page's clock is pinned before the panel's own script reads it")
+        capture = inspect.getsource(g.render_window)
+        self.assertIn("seed_window_state(home, codex, now)", capture)
+        self.assertIn("CODEX_AR_STILL_NOW=repr(now)", capture)
 
     def test_the_diagnostics_card_reads_the_report_the_watcher_writes(self):
         """Not "not checked yet", and no word the product cannot say. The Diagnostics card reads the
@@ -1613,6 +1655,128 @@ class IconMotionPictureTests(unittest.TestCase):
             with self.subTest(what), change():
                 self.assertNotEqual(g.icon_render_input(drawing), before, what + " did not move the entry")
         self.assertEqual(g.icon_render_input(drawing), before)
+
+
+class AuditSheetTests(unittest.TestCase):
+    """`make_screenshots.py --audit OUT` (v0.6.10): light and dark sheets of the four surfaces, for
+    developers. Every committed picture is light, so these are the only pictures of the dark half and
+    of a change before it is made - and they are written under OUT and nowhere else: never docs/,
+    never assets/, never the manifest.
+
+    Checked with the renderers stood in for, so it runs anywhere: each writes a small picture where it
+    is told to, and Edge's screenshot of a sheet is a small picture too. What is checked is where
+    things go, what each surface is asked for, and the sheet's own layout.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.generator = generator()
+
+    @staticmethod
+    def published():
+        """Every file under assets/ and docs/, with its size and time."""
+        return {path.relative_to(ROOT).as_posix(): (path.stat().st_size, path.stat().st_mtime_ns)
+                for folder in ("assets", "docs") for path in (ROOT / folder).rglob("*") if path.is_file()}
+
+    def run_audit(self, *arguments):
+        """`main(["--audit", *arguments])` with every renderer stood in for; (mocks, files written)."""
+        from contextlib import redirect_stdout
+        import io
+        from unittest.mock import MagicMock
+        g = self.generator
+        written = []
+
+        def picture(target, width=12, height=8):
+            target = Path(target)
+            written.append(target)
+            g.write_png(target, width, height, bytes(width * height * 4))
+
+        def window(targets, theme=None):
+            for target in targets.values():
+                picture(target, 30, 20)
+            return {page: g.dimensions(target) for page, target in targets.items()}
+
+        def edge(argv, **_options):
+            shot = next(part.split("=", 1)[1] for part in argv if part.startswith("--screenshot="))
+            size = next(part.split("=", 1)[1] for part in argv if part.startswith("--window-size="))
+            picture(Path(shot), *(int(value) for value in size.split(",")))
+
+        mocks = {"render_window": MagicMock(side_effect=window),
+                 "render_panel": MagicMock(side_effect=lambda target, **_options: picture(target, 20, 30)),
+                 "render_popup": MagicMock(side_effect=lambda target, _locale, **_options: picture(target, 10, 16)),
+                 "render_card": MagicMock(side_effect=lambda target, _locale, _theme, **_options: picture(target, 11, 7)),
+                 "system_dpi": MagicMock(return_value=144),
+                 "find_edge": MagicMock(return_value=Path("msedge.exe"))}
+        with ExitStack() as stack:
+            for name, mock in mocks.items():
+                stack.enter_context(patch.object(g, name, mock))
+            stack.enter_context(patch.object(g.subprocess, "run", side_effect=edge))
+            stack.enter_context(redirect_stdout(io.StringIO()))
+            self.assertEqual(g.main(["--audit"] + list(arguments)), 0)
+        return mocks, written
+
+    def test_it_writes_both_themes_under_out_and_nothing_else(self):
+        from codex_auto_resume import l10n
+        g = self.generator
+        manifest, published = MANIFEST.read_bytes(), self.published()
+        language = os.environ.get(l10n.ENV_LANG)
+        with tempfile.TemporaryDirectory() as scratch:
+            out = Path(scratch) / "before"
+            mocks, written = self.run_audit(str(out))
+            made = sorted(path.relative_to(out).as_posix() for path in out.rglob("*") if path.is_file())
+            # Every picture a renderer was told to write is under OUT; Edge's own shot of a sheet goes
+            # to a temporary folder of its own and is copied in.
+            for path in written:
+                if path.name != "sheet.png":
+                    self.assertIn(out.resolve(), path.resolve().parents, path)
+            surfaces = ("card", "panel", "popup", "window-overview", "window-pending")
+            self.assertEqual(made, sorted(["%s/%s.png" % (theme, stem) for theme in ("dark", "light") for stem in surfaces]
+                                          + ["sheet-%s.%s" % (theme, kind) for theme in ("dark", "light")
+                                             for kind in ("html", "png")]))
+            # Each surface in each theme, at the window's scale, from the one fixture.
+            self.assertEqual([call.kwargs["theme"] for call in mocks["render_window"].call_args_list], ["light", "dark"])
+            for name in ("render_panel", "render_popup"):
+                self.assertEqual([(call.kwargs["theme"], call.kwargs["scale"]) for call in mocks[name].call_args_list],
+                                 [("light", 1.5), ("dark", 1.5)], name)
+            self.assertEqual({call.kwargs["height"] for call in mocks["render_panel"].call_args_list},
+                             {g.AUDIT_PANEL_HEIGHT})
+            self.assertEqual([(call.args[2], call.kwargs["scale"], call.kwargs["themes"])
+                              for call in mocks["render_card"].call_args_list],
+                             [("light", 1.5, ("light", "dark")), ("dark", 1.5, ("light", "dark"))])
+            # The sheet: every picture at its own size, inside the page, none over another.
+            page = (out / "sheet-dark.html").read_text(encoding="utf-8")
+            width, height = (int(value) for value in re.search(r"width:(\d+)px;height:(\d+)px", page).groups())
+            boxes = [tuple(int(value) for value in found) for found in re.findall(
+                r'<img src="[^"]+" width="(\d+)" height="(\d+)" style="left:(\d+)px;top:(\d+)px"', page)]
+            self.assertEqual(len(boxes), len(surfaces))
+            sources = re.findall(r'<img src="([^"]+)"', page)
+            self.assertEqual(sorted(sources), sorted("dark/%s.png" % stem for stem in surfaces))
+            for (w, h, left, top), source in zip(boxes, sources):
+                self.assertEqual(g.png_size(out / source), (w, h), source)
+                self.assertLessEqual((left + w, top + h), (width, height))
+            for first, (w1, h1, x1, y1) in enumerate(boxes):
+                for w2, h2, x2, y2 in boxes[first + 1:]:
+                    self.assertTrue(x1 + w1 <= x2 or x2 + w2 <= x1 or y1 + h1 <= y2 or y2 + h2 <= y1)
+            self.assertIn(g.config.version(), page)
+            # A second run beside the first: one before-and-after sheet per theme, of the same surfaces.
+            after = Path(scratch) / "after"
+            self.run_audit(str(after), "--before", str(out))
+            pair = (after / "pair-light.html").read_text(encoding="utf-8")
+            self.assertEqual(len(re.findall(r'src="\.\./before/light/', pair)), len(surfaces))
+            self.assertEqual(len(re.findall(r'src="light/', pair)), len(surfaces))
+            self.assertTrue((after / "pair-dark.png").is_file())
+        self.assertEqual(MANIFEST.read_bytes(), manifest, "the audit never writes the manifest")
+        self.assertEqual(self.published(), published, "nor anything under assets/ or docs/")
+        self.assertEqual(os.environ.get(l10n.ENV_LANG), language, "and it puts the language back")
+
+    def test_it_refuses_to_write_where_published_pictures_live(self):
+        manifest, published = MANIFEST.read_bytes(), self.published()
+        for inside in (ROOT / "docs" / "images" / "audit", ROOT / "assets", ROOT / "docs"):
+            with self.subTest(inside.relative_to(ROOT).as_posix()), self.assertRaises(SystemExit):
+                self.run_audit(str(inside))
+        self.assertEqual(MANIFEST.read_bytes(), manifest)
+        self.assertEqual(self.published(), published)
+        self.assertFalse((ROOT / "docs" / "images" / "audit").exists())
 
 
 if __name__ == "__main__":

@@ -21,6 +21,7 @@ images did not. That is the part that could not be done by remembering.
     python build/make_screenshots.py
     python build/make_screenshots.py --cards     # only the notification card's pictures
     python build/make_screenshots.py --icon      # only the icon's motion, as a GIF
+    python build/make_screenshots.py --audit OUT # light and dark sheets of all four surfaces, into OUT only
 
 Run it from a checkout, on Windows, with the settings window built. It writes the
 canonical assets and copies them to `docs/images/`. The popup and the notification card are
@@ -163,7 +164,7 @@ def dimensions(path: Path) -> str:
 
 
 # --------------------------------------------------------------------- sample data
-def sample_settings() -> dict:
+def sample_settings(theme: str | None = None) -> dict:
     """The stored settings every picture is drawn from: the defaults, in the pinned THEME.
 
     Stored, because storing is the only way the window can be given a theme. It resolves the stored
@@ -171,28 +172,97 @@ def sample_settings() -> dict:
     scratch installation holding the plain defaults was photographed dark on a machine in dark mode,
     beside light panel and popup pictures and under a manifest that said light. `--theme` is no way
     round it either: the window's first settings read reopens it in the stored theme.
+
+    `theme` is only ever another theme for the audit sheets (`--audit`), which draw both; every
+    published picture is drawn in THEME.
     """
-    return dict(policy.defaults(), theme=THEME)
+    return dict(policy.defaults(), theme=theme or THEME)
 
 
-def write_settings(home: Path) -> Path:
+def write_settings(home: Path, theme: str | None = None) -> Path:
     """Write `sample_settings()` where the window, the bridge and the watcher all read them."""
     state = home / "config"
     state.mkdir(parents=True, exist_ok=True)
     target = state / "settings.json"
-    target.write_text(json.dumps(sample_settings(), indent=2), encoding="utf-8")
+    target.write_text(json.dumps(sample_settings(theme), indent=2), encoding="utf-8")
     return target
+
+
+# The one set of records every surface is pictured showing, at the one moment every surface is
+# pictured at (v0.6.10).
+#
+# Until then there were three. The panel registered two rows of its own in a store of its own, at
+# times near 1970, so both read "due now" and its network failure said it was waiting for a usage
+# reset; the popup was handed three hand-written rows, one a server error nobody else showed; and the
+# window, seeded by `seed_window_state`, said "2 recoveries pending". Three pictures of one product,
+# three datasets and three moments, cannot be laid side by side - which is what an audit of the
+# product's look does, and what a reader of the README does without being asked to.
+#
+# Now the window's own seed is written once, at POPUP_NOW, into a scratch store and read back the
+# way each surface reads it: the rows through `Control.list_pending` with the names the synthetic
+# Codex home gives them (the popup's own read, `ui/popup/model.perform`, and the window's), and the
+# status through the MCP server (the panel's). The window is seeded by the same function at the
+# moment it is photographed and told that moment (CODEX_AR_STILL_NOW); the panel's page is told
+# POPUP_NOW (`pinned_clock`); the card's reset is the usage limit's. So a countdown, a chip and a
+# count read the same on all four.
+_FIXTURE = {}
+
+
+def fixture() -> dict:
+    """{"pending": rows, "status": the MCP server's status}, read from the one seed at POPUP_NOW.
+
+    A fresh copy each time, of one reading per process: every locale's panel and popup read it,
+    and the answer is codes, numbers and the synthetic names, in no language.
+    """
+    key = (POPUP_NOW, WINDOW_THREADS, WINDOW_NAMES, USAGE_RESET_IN, RETRY_IN)
+    if key not in _FIXTURE:
+        _FIXTURE[key] = json.dumps(_read_fixture())
+    return json.loads(_FIXTURE[key])
+
+
+def _read_fixture() -> dict:
+    from unittest.mock import patch
+
+    from codex_auto_resume import control as control_module
+    from codex_auto_resume import mcpserver
+    from codex_auto_resume.codex import LocalSource
+
+    with tempfile.TemporaryDirectory() as name:
+        workspace = Path(name)
+        home, codex, local = workspace / "home", workspace / "codex", workspace / "LocalAppData"
+        paths = config.Paths(home)
+        # The clock pinned before anything is written, as `pinned_installation` pins it: a row the
+        # store is not given a time for is stamped with `time.time`.
+        with patch.object(time, "time", return_value=POPUP_NOW):
+            seed_window_state(home, codex, POPUP_NOW)
+            # What the window's Diagnostics page and the popup are shown too: the report the
+            # watcher's evaluator writes for the synthetic Codex home, and the heartbeat carrying
+            # the word it gave - so the panel's compatibility card is the same card.
+            word = seed_compatibility(home, codex, local, POPUP_NOW)
+            write_heartbeat(paths, POPUP_NOW, word)
+        surface = control_module.Control(paths)
+        # A watcher is running in the picture, so the rows are described as they are when one is -
+        # without "watcher not running" beside a headline that says it is. Read with the clock
+        # pinned, the stand-in engine where readers look for it, and the registry read as a scratch
+        # installation's, never written.
+        with patch.object(control_module.Control, "watcher_running", return_value=True), \
+                patch.object(time, "time", return_value=POPUP_NOW), \
+                patch.dict(os.environ, {"LOCALAPPDATA": str(local.resolve())}), \
+                _registry_stand_in():
+            os.environ.pop(config.ENV_CODEX_EXE, None)
+            pending = surface.list_pending(source=LocalSource(codex))
+            status = mcpserver.Server(surface, io.StringIO(), io.StringIO())._status()
+    return {"pending": pending, "status": status}
 
 
 def sample_panel_data() -> dict:
     """What the panel is showing in the picture, produced by the product itself.
 
-    Not a hand-written dictionary. Three synthetic interruptions are registered in a
-    throwaway store and read back through `Control.list_pending()` and
-    `Control.get_status()`, so the sample has exactly the shape the panel is given at
-    runtime. The first attempt at this file did hand-write it, got two field names wrong,
-    and rendered a table of "undefined" - which is the same class of drift the whole file
-    exists to end, in the file that ends it.
+    Not a hand-written dictionary: the fixture's rows and the MCP server's own status, read back
+    from the store `seed_window_state` writes (see `fixture`), so the sample has exactly the shape
+    the panel is given at runtime. The first attempt at this file did hand-write it, got two field
+    names wrong, and rendered a table of "undefined" - which is the same class of drift the whole
+    file exists to end, in the file that ends it.
 
     The values are synthetic throughout, and from the project's own fixture family: this
     image is published on a plugin card, so a real conversation id would be published
@@ -201,69 +271,17 @@ def sample_panel_data() -> dict:
     The version is not written here either. It arrives through `get_status()`, from the
     manifest, like every other current-facing surface.
     """
-    from unittest.mock import patch
+    from codex_auto_resume import l10n, reasons
 
-    from codex_auto_resume import control as control_module
-    from codex_auto_resume import l10n, mcpserver, reasons
-    from codex_auto_resume.store import Store
-
-    # The panel shows a conversation by its first segment, so three ids from the same
-    # fixture prefix would render as three identical rows. Repeated-nibble values are
-    # equally synthetic - `tests/test_repo_hygiene.py` accepts both - and tell the rows
-    # apart in the picture.
-    threads = ("11111111-1111-7111-8111-111111111111",
-               "22222222-2222-7222-8222-222222222222")
-    categories = ("usage_limit", "network_transient")
-    # Named, because the panel falls back to the first segment of the thread id and a
-    # column of `11111111` reads as debug output rather than as work waiting to resume.
-    # Synthetic throughout - `tests/test_repo_hygiene.py` requires the placeholder family
-    # - but shaped like something a person would recognise as their own task.
-    names = ("example-project", "example-service")
-    with tempfile.TemporaryDirectory() as name:
-        workspace = Path(name)
-        codex, local = workspace / "codex", workspace / "LocalAppData"
-        paths = config.Paths(workspace / "home")
-        paths.ensure()
-        with Store(paths.state_dir) as store:
-            # On, as in the picture's headline: a scratch store starts paused, and every row
-            # would otherwise carry a "paused" chip under a headline saying recovery is on.
-            store.set_enabled(True, 90.0)
-            for index, (thread, category) in enumerate(zip(threads, categories)):
-                store.register({
-                    "thread_id": thread,
-                    "turn_id": "0a1b2c3d-020%d-7000-8000-00000000020%d" % (index, index),
-                    "completed_at": 110.0 + index, "started_at": 105.0 + index,
-                    "ordinal": 2, "interruption_id": chr(ord("a") + index) * 64,
-                    "reset_at": 150.0 + index * 600, "limit_type": "codex.primary",
-                    "uncertain": False, "category": category}, 100.0 + index)
-        # What the window's Diagnostics page and the popup are shown too: the report the
-        # watcher's evaluator writes for the synthetic Codex home, and the heartbeat carrying
-        # the word it gave - so the panel's compatibility card is the same card, read at the
-        # same pinned moment.
-        synthetic_codex(codex)
-        word = seed_compatibility(paths.home, codex, local, POPUP_NOW)
-        write_heartbeat(paths, POPUP_NOW, word)
-        surface = control_module.Control(paths)
-        # A watcher is running in the picture, so the rows are described as they are when
-        # one is - without "watcher not running" beside a headline that says it is. The
-        # status is the MCP server's own, which adds the compatibility summary the panel's card
-        # is drawn from; read with the clock pinned, the stand-in engine where readers look for
-        # it, and the registry read as a scratch installation's, never written.
-        with patch.object(control_module.Control, "watcher_running", return_value=True), \
-                patch.object(time, "time", return_value=POPUP_NOW), \
-                patch.dict(os.environ, {"LOCALAPPDATA": str(local.resolve())}), \
-                _registry_stand_in():
-            os.environ.pop(config.ENV_CODEX_EXE, None)
-            waiting = surface.list_pending()
-            status = mcpserver.Server(surface, io.StringIO(), io.StringIO())._status()
-    # A name is what a person recognises the work by. It reaches a real row from the
-    # identity the watcher recorded, which a scratch store has no way to have; without it
-    # the panel falls back to the first segment of the thread id and the picture shows a
-    # column of `11111111`, which reads as debug output rather than as work waiting.
-    for row, name in zip(waiting, names):
-        row["name"] = name
-    # The two facts a picture of a working product should show, which a scratch store
-    # cannot know: it is on, and something is watching.
+    shown = fixture()
+    # The names are the synthetic Codex home's, read as the window and the popup read them. The
+    # panel is not given them at runtime - the MCP server lists no names - and falls back to the
+    # first segment of the thread id, which reads as debug output rather than as work waiting; the
+    # picture shows what a person recognises the work by.
+    waiting = shown["pending"]
+    status = shown["status"]
+    # The facts a picture of a working product should show, which a scratch store cannot know: it
+    # is on, and something is watching.
     status["enabled"] = True
     status["watcher_running"] = True
     status["startup_enabled"] = True
@@ -282,6 +300,11 @@ WINDOW_THREADS = ("11111111-1111-7111-8111-111111111111",
                   "33333333-3333-7333-8333-333333333333",
                   "44444444-4444-7444-8444-444444444444")
 WINDOW_NAMES = ("example-project", "example-service", "example-docs", "example-app")
+# How far off the two waiting recoveries are at the moment every surface is pictured at: the usage
+# limit resets in 42:20 and the network failure is retried in 1:35. The window's rows, the popup's,
+# the panel's and the card's reset time are all this, because they are all read from one seed.
+USAGE_RESET_IN = 42 * 60 + 20
+RETRY_IN = 95
 
 
 def seed_window_state(home: Path, codex: Path, now: float) -> None:
@@ -342,9 +365,9 @@ def seed_window_state(home: Path, codex: Path, now: float) -> None:
         finished(store, 5, WINDOW_THREADS[3], "network_transient", now - 9 * hour, "stopped_by_user")
         finished(store, 6, WINDOW_THREADS[2], "usage_limit", now - 3 * hour, "recovered")
         store.register(detection(7, WINDOW_THREADS[0], "usage_limit", now - 25 * 60,
-                                 reset_at=now + 42 * 60 + 20), now - 25 * 60)
+                                 reset_at=now + USAGE_RESET_IN), now - 25 * 60)
         store.register(detection(8, WINDOW_THREADS[1], "network_transient", now - 50),
-                       now - 50, state="waiting_backoff", next_retry_at=now + 95)
+                       now - 50, state="waiting_backoff", next_retry_at=now + RETRY_IN)
         # What the watcher last recorded for each of them, so "Why it is waiting" shows the
         # checklist it shows for a real one: everything it could check passed, the schedule
         # is what it is waiting on, and the checks that need Codex running were not reached.
@@ -566,22 +589,27 @@ def panel_height(page: Path, workspace: str) -> int:
     raise SystemExit("could not measure the panel; the renderer printed no height")
 
 
-def render_panel(target: Path) -> None:
+def render_panel(target: Path, *, theme: str | None = None, scale: float = PANEL_SCALE,
+                 height: int | None = None) -> None:
     """The panel, rendered from `mcpui` rather than photographed inside Codex.
 
     Codex draws this HTML in its own frame, so a picture taken here is a faithful
     rendering of the same document and not a picture of Codex. The README says so; do not
     let it start implying otherwise.
+
+    Published pictures are the whole page, in THEME, at PANEL_SCALE. The audit sheets (`--audit`)
+    ask for another theme, the window's scale and the top `height` CSS pixels.
     """
-    html = panel_html(theme=THEME)
+    html = panel_html(theme=theme or THEME)
     with tempfile.TemporaryDirectory() as workspace:
         page = Path(workspace) / "panel.html"
         page.write_text(html, encoding="utf-8")
         shot = Path(workspace) / "panel.png"
-        height = panel_height(page, workspace)
+        if height is None:
+            height = panel_height(page, workspace)
         subprocess.run(
             [str(find_edge()), "--headless=new", "--disable-gpu", "--hide-scrollbars",
-             "--force-device-scale-factor=%d" % PANEL_SCALE,
+             "--force-device-scale-factor=%g" % scale,
              "--window-size=%d,%d" % (PANEL_CSS_WIDTH, height),
              "--screenshot=%s" % shot, page.as_uri()],
             check=True, capture_output=True, timeout=180,
@@ -628,12 +656,38 @@ def preview_host() -> str:
             % json.dumps(previews, ensure_ascii=False).replace("<", "\\u003c"))
 
 
+def pinned_clock() -> str:
+    """The page's clock, stopped at POPUP_NOW - the moment the fixture is read at - and read in UTC.
+
+    The panel writes a waiting row's next check as a clock time, or "due now" once that time has
+    passed on the browser's own clock (panel.js `nextCheck`). Read against the machine's clock, the
+    fixture's rows were months in the future the day a picture was made and would all turn into
+    "due now" the day the machine's clock passed POPUP_NOW. The window is told its moment the same
+    way (CODEX_AR_STILL_NOW). A date given to `Date` is still that date.
+
+    And in UTC, as the card's reset time and every clock time in the window's envelope are: read in
+    the machine's zone, the panel said 17:42 on a machine in Seoul beside a card saying 08:42 for the
+    same reset. Edge takes its zone from Windows, not from TZ, so the page's local-time readings are
+    its UTC ones - the only readings panel.js makes.
+    """
+    return ("<script>(function(){var Real=Date,at=%d;"
+            "function Pinned(){var given=Array.prototype.slice.call(arguments);"
+            "if(!(this instanceof Pinned))return new Real(at).toString();"
+            "return given.length?new(Function.prototype.bind.apply(Real,[null].concat(given))):new Real(at);}"
+            "Pinned.prototype=Real.prototype;Pinned.now=function(){return at;};"
+            "Pinned.parse=Real.parse;Pinned.UTC=Real.UTC;window.Date=Pinned;"
+            "['FullYear','Month','Date','Day','Hours','Minutes','Seconds','Milliseconds'].forEach("
+            "function(part){Real.prototype['get'+part]=Real.prototype['getUTC'+part];});"
+            "Real.prototype.getTimezoneOffset=function(){return 0;};})();</script>"
+            % int(POPUP_NOW * 1000))
+
+
 def panel_html(theme=None) -> str:
     """The exact markup the panel screenshot is a picture of."""
     page = mcpui.settings_page(sample_panel_data(), theme=theme)
-    # Before the panel's own script, which reads the host as it starts.
+    # Before the panel's own script, which reads the host and the clock as it starts.
     head, _, tail = page.rpartition("<script>")
-    return head + preview_host() + "<script>" + tail
+    return head + pinned_clock() + preview_host() + "<script>" + tail
 
 
 # ------------------------------------------------------------------ tray popup
@@ -653,15 +707,13 @@ def popup_status() -> dict:
 
 
 def popup_rows() -> list:
-    def row(index, state, category, eligible, reset, enabled=True):
-        return {"interruption_id": ("%x" % index) * 64, "thread_id": WINDOW_THREADS[index - 1],
-                "state": state, "category": category, "eligible_at": eligible,
-                "reset_at": reset, "next_retry_at": eligible, "thread_enabled": enabled,
-                "name": WINDOW_NAMES[index - 1], "overlays": [],
-                "detected_at": POPUP_NOW - 600 + index}
-    return [row(1, "waiting_reset", "usage_limit", POPUP_NOW + 2540, POPUP_NOW + 2540),
-            row(2, "waiting_retry", "network_transient", POPUP_NOW + 95, None),
-            row(3, "waiting_backoff", "server_5xx", POPUP_NOW + 610, None, enabled=False)]
+    """The popup's rows: the fixture's, as the popup's own read (`ui/popup/model.perform`) lists them.
+
+    Until v0.6.10 these were written out here, three of them, with a disabled server error the
+    window and the panel never showed ("Waiting 3" beside "2 recoveries pending"). A row the other
+    surfaces do not have is a row an audit cannot compare.
+    """
+    return fixture()["pending"]
 
 
 def popup_view(locale: str):
@@ -887,13 +939,15 @@ def read_png(path: Path) -> tuple:
     return width, height, bytes(out), (bytes(clear) if channels == 4 and min(clear) < 255 else None)
 
 
-def render_popup(target: Path, locale: str) -> None:
+def render_popup(target: Path, locale: str, *, theme: str | None = None,
+                 scale: float = POPUP_SCALE) -> None:
+    """The popup in THEME at POPUP_SCALE; the audit sheets ask for another theme and scale."""
     from codex_auto_resume.ui import popup as tray_popup
     strings, view = popup_view(locale)
     renderer = tray_popup.Renderer()
-    renderer.theme = THEME                      # said, not left to the renderer's default
+    renderer.theme = theme or THEME             # said, not left to the renderer's default
     try:
-        plan = renderer.layout(view, POPUP_SCALE, tray_popup.locale_of(strings))
+        plan = renderer.layout(view, scale, tray_popup.locale_of(strings))
         canvas = renderer.draw(view, plan, frame=tray_popup.halo(view["state"], 600, 5000))
         width, height = plan["size"]
         write_png(target, width, height, canvas.pixels())
@@ -1224,7 +1278,7 @@ def popup_render_input(locale: str, drawing: str | None = None) -> str:
 # time is the one word a machine would change, since the toast writes it in local time, so it is
 # read here on a clock pinned to UTC.
 CARD_SCALE = POPUP_SCALE
-CARD_RESET_AT = POPUP_NOW + 2540            # popup_rows()'s usage limit, on the same conversation
+CARD_RESET_AT = POPUP_NOW + USAGE_RESET_IN  # the fixture's usage limit, on the same conversation
 CARD_INTERRUPTION = "1" * 64                # its interruption: in a button's URI, never drawn
 # Both themes for the two README languages; the popup's documentation languages in the pinned
 # theme, as the popup is drawn.
@@ -1346,11 +1400,14 @@ def _over(ground: bytearray, ground_width: int, layer: bytes, width: int, height
                                            + (ground[at + channel] * keep + 127) // 255)
 
 
-def card_pixels(locale: str, theme: str):
-    """(width, height, BGRA): the settled card and its floating shadow over the theme's canvas."""
+def card_pixels(locale: str, theme: str, *, scale: float = CARD_SCALE, themes: tuple | None = None):
+    """(width, height, BGRA): the settled card and its floating shadow over the theme's canvas.
+
+    At CARD_SCALE, on a ground as wide as the deepest shadow of CARD_THEMES; the audit sheets ask
+    for the window's scale and both themes."""
     from codex_auto_resume import brand, notice_card, notice_window
     from codex_auto_resume.ui import popup as tray_popup
-    where = {"dpi": int(round(96 * CARD_SCALE)), "work": (0, 0, 0, 0), "monitor": (0, 0, 0, 0),
+    where = {"dpi": int(round(96 * scale)), "work": (0, 0, 0, 0), "monitor": (0, 0, 0, 0),
              "anchor": None}
     drawn = {"theme": theme, "contrast": False, "reduced": False}
     tray_popup._gdiplus_acquire()
@@ -1369,8 +1426,8 @@ def card_pixels(locale: str, theme: str):
         tray_popup._gdiplus_release()
     # The ground reaches as far as the deeper theme's shadow in both, so a light and a dark
     # picture of the same card are the same size and can stand side by side.
-    pad = max(notice_card.shadow_margin(notice_card.float_shadows(each), CARD_SCALE)
-              for each in CARD_THEMES)
+    pad = max(notice_card.shadow_margin(notice_card.float_shadows(each), scale)
+              for each in (themes or CARD_THEMES))
     red, green, blue = brand.rgb(brand.palette(theme)["canvas"])
     full_width, full_height = width + 2 * pad, height + 2 * pad
     ground = bytearray(bytes((blue, green, red, 255)) * (full_width * full_height))
@@ -1381,8 +1438,8 @@ def card_pixels(locale: str, theme: str):
     return full_width, full_height, bytes(ground)
 
 
-def render_card(target: Path, locale: str, theme: str) -> None:
-    width, height, pixels = card_pixels(locale, theme)
+def render_card(target: Path, locale: str, theme: str, **options) -> None:
+    width, height, pixels = card_pixels(locale, theme, **options)
     write_png(target, width, height, pixels)
 
 
@@ -2113,8 +2170,11 @@ def render_icon_only() -> Path:
     return ICON_MOTION_APNG
 
 
-def scratch_installation(workspace: Path) -> Path:
-    """An installation made out of the working tree, so the picture is of this code."""
+def scratch_installation(workspace: Path, theme: str | None = None) -> Path:
+    """An installation made out of the working tree, so the picture is of this code.
+
+    It stores THEME, as every published picture is drawn; the audit sheets store the theme they draw.
+    """
     import make_release
     import zipfile
 
@@ -2141,7 +2201,7 @@ def scratch_installation(workspace: Path) -> Path:
     # The defaults in the pinned theme (see `sample_settings`); recovery itself is switched on
     # through the engine in `render_window`, so the window shows the state it is in when it is
     # doing its job.
-    write_settings(home)
+    write_settings(home, theme)
     return home
 
 
@@ -2176,7 +2236,7 @@ with App(paths, console=False, enable_logging=False).mutex(timeout=0):
 WINDOW_PAGES = ("overview", "pending", "history", "statistics", "diagnostics", "settings")
 
 
-def render_window(targets: dict) -> dict:
+def render_window(targets: dict, theme: str | None = None) -> dict:
     """Capture each page of the window, with the watcher's mutex held but no watcher running.
 
     The window reports "watching" when the single-instance mutex is taken, so taking it
@@ -2185,11 +2245,12 @@ def render_window(targets: dict) -> dict:
     documentation build, which is not a trade this makes.
 
     `targets` maps a page name to the image it is captured into. One installation serves
-    every page, so the pages show the same records at nearly the same moment.
+    every page, so the pages show the same records at nearly the same moment. `theme` is stored in
+    it, THEME unless the audit sheets ask for the other.
     """
     with tempfile.TemporaryDirectory() as name:
         workspace = Path(name)
-        home = scratch_installation(workspace)
+        home = scratch_installation(workspace, theme)
         codex, local = workspace / "codex", workspace / "LocalAppData"
         now = time.time()
         seed_window_state(home, codex, now)
@@ -2721,7 +2782,204 @@ def window_targets(locale: str) -> dict:
             for page in WINDOW_PAGES}
 
 
+# ------------------------------------------------------------------ the audit sheets
+# `python build/make_screenshots.py --audit OUT [--before DIR] [--locale L]`, since v0.6.10. For
+# developers; nothing it makes is published.
+#
+# Every committed picture is light, by the user's choice ("대부분의 이미지는 화이트모드만 해"), so
+# nothing in the repository shows the dark half of the product - and nothing shows a change to its
+# look before the change is made, which is what the user approves a design change from. An audit of
+# the look needs both: the four surfaces side by side in each theme, and the same sheet from before a
+# change beside the one from after it.
+#
+# So this draws, in each theme, the window's Overview and Pending pages, the top of the panel, the
+# popup and the notification card - from the one fixture at the one moment the published pictures
+# use (`fixture`), every surface at the scale the window is captured at, so one CSS pixel is the same
+# size in all four - and lays them out, each at its own pixel size, on one contact sheet per theme.
+# Given `--before`, a folder an earlier `--audit` wrote, it adds a sheet per theme of each surface
+# before and after.
+#
+# Everything is written under OUT, which may not be in docs/ or assets/, and the manifest is neither
+# read nor written: these are pictures to look at, not pictures to publish. The window is captured
+# from a scratch installation exactly as the published pictures are (`render_window`), so the real
+# installation, its registry entries and the user's Codex are never touched. It needs what a whole
+# run needs: Windows, Edge and the compiled window.
+AUDIT_THEMES = ("light", "dark")
+AUDIT_PANEL_HEIGHT = 1000             # CSS px of the panel's top: the hero and the first cards
+# (file stem, label) per picture, in rows, in the order a person meets the product.
+AUDIT_ROWS = ((("window-overview", "Window - Overview"), ("window-pending", "Window - Pending")),
+              (("panel", "Panel - top %d CSS px" % AUDIT_PANEL_HEIGHT), ("popup", "Popup"),
+               ("card", "Notification card")))
+AUDIT_SPACE = 40                      # device px round the sheet and between pictures
+AUDIT_LABEL = 44                      # device px of label above each picture
+AUDIT_TITLE = 56                      # device px of the sheet's title line
+
+
+def audit_folder(out) -> Path:
+    """OUT, resolved - or SystemExit when it is in docs/ or assets/, where published pictures live."""
+    out = Path(out).resolve()
+    for kept in (ROOT / "docs", ASSETS):
+        kept = kept.resolve()
+        if out == kept or kept in out.parents:
+            raise SystemExit("--audit writes outside docs/ and assets/, never into them: %s" % out)
+    return out
+
+
+def audit_scale() -> float:
+    """The scale the window is captured at, which every other surface is drawn at for the sheets."""
+    return (system_dpi() or 96) / 96.0
+
+
+def png_size(path) -> tuple:
+    width, height = struct.unpack(">II", Path(path).read_bytes()[16:24])
+    return width, height
+
+
+def render_audit_surfaces(folder: Path, theme: str, locale: str, scale: float) -> dict:
+    """Each surface in `theme`, at `scale`, into `folder`: file stem -> picture."""
+    folder.mkdir(parents=True, exist_ok=True)
+    files = {stem: folder / (stem + ".png") for row in AUDIT_ROWS for stem, _label in row}
+    render_window({"overview": files["window-overview"], "pending": files["window-pending"]},
+                  theme=theme)
+    render_panel(files["panel"], theme=theme, scale=scale, height=AUDIT_PANEL_HEIGHT)
+    render_popup(files["popup"], locale, theme=theme, scale=scale)
+    # On a ground as wide as the deeper theme's shadow, so the two sheets' cards are one size.
+    render_card(files["card"], locale, theme, scale=scale, themes=AUDIT_THEMES)
+    return files
+
+
+def sheet_layout(rows) -> tuple:
+    """((width, height), [(label, picture, left, top, width, height)]) for `rows` of (label, picture).
+
+    Every picture at its own pixel size - a sheet that scaled one would be auditing the scaling -
+    with its label above it; rows top to bottom, pictures left to right."""
+    placed, top, width = [], AUDIT_SPACE + AUDIT_TITLE, 0
+    for row in rows:
+        left, tallest = AUDIT_SPACE, 0
+        for label, picture in row:
+            w, h = png_size(picture)
+            placed.append((label, Path(picture), left, top + AUDIT_LABEL, w, h))
+            left += w + AUDIT_SPACE
+            tallest = max(tallest, h)
+        width = max(width, left)
+        top += AUDIT_LABEL + tallest + AUDIT_SPACE
+    return (max(width, 2 * AUDIT_SPACE), top), placed
+
+
+def sheet_html(title: str, rows, theme: str, folder: Path) -> tuple:
+    """(page, (width, height)): the sheet as HTML kept in `folder`, on the theme's own canvas."""
+    from html import escape
+    from urllib.parse import quote
+    from codex_auto_resume import brand
+    colours = brand.palette(theme)
+    (width, height), placed = sheet_layout(rows)
+
+    def source(picture: Path) -> str:
+        try:
+            return quote(os.path.relpath(picture, folder).replace(os.sep, "/"))
+        except ValueError:                              # on another drive
+            return picture.resolve().as_uri()
+
+    parts = ["<!doctype html><html><head><meta charset=\"utf-8\"><title>%s</title><style>"
+             "html,body{margin:0;background:%s}"
+             "body{position:relative;width:%dpx;height:%dpx;color:%s;"
+             "font:22px/1.25 'Segoe UI',system-ui,sans-serif}"
+             ".t{position:absolute;left:%dpx;top:%dpx;font-size:28px;font-weight:600;white-space:nowrap}"
+             ".l{position:absolute;color:%s;white-space:nowrap}img{position:absolute;display:block}"
+             "</style></head><body><div class=\"t\">%s</div>"
+             % (escape(title), colours["canvas"], width, height, colours["ink"], AUDIT_SPACE,
+                AUDIT_SPACE, colours["muted"], escape(title))]
+    for label, picture, left, top, w, h in placed:
+        parts.append("<div class=\"l\" style=\"left:%dpx;top:%dpx\">%s</div>"
+                     "<img src=\"%s\" width=\"%d\" height=\"%d\" style=\"left:%dpx;top:%dpx\" alt=\"%s\">"
+                     % (left, top - AUDIT_LABEL + 6, escape(label), source(picture), w, h, left, top,
+                        escape(label)))
+    parts.append("</body></html>\n")
+    return "".join(parts), (width, height)
+
+
+def render_sheet(target: Path, title: str, rows, theme: str) -> None:
+    """The sheet as `target` - a PNG, photographed by Edge at one device pixel per CSS pixel - and the
+    page it was photographed from beside it, to open in a browser."""
+    page, (width, height) = sheet_html(title, rows, theme, target.parent)
+    html = target.with_suffix(".html")
+    write_file(html, page.encode("utf-8"))
+    with tempfile.TemporaryDirectory() as workspace:
+        shot = Path(workspace) / "sheet.png"
+        subprocess.run(
+            [str(find_edge()), "--headless=new", "--disable-gpu", "--hide-scrollbars",
+             "--force-device-scale-factor=1", "--allow-file-access-from-files",
+             "--window-size=%d,%d" % (width, height), "--screenshot=%s" % shot, html.as_uri()],
+            check=True, capture_output=True, timeout=180, cwd=workspace)
+        if not shot.is_file():
+            raise SystemExit("the renderer produced no sheet")
+        copy_file(shot, target)
+
+
+def render_audit(out, before=None, locale: str = "en") -> list:
+    """The audit sheets under `out`: each surface per theme, a sheet per theme, and - given `before`,
+    a folder an earlier run wrote - a before-and-after sheet per theme. Returns what it wrote."""
+    out = audit_folder(out)
+    if before is not None:
+        before = Path(before).resolve()
+        if not before.is_dir():
+            raise SystemExit("--before is not a folder an earlier --audit wrote: %s" % before)
+    scale = audit_scale()
+    written = []
+    previous = os.environ.get(l10n.ENV_LANG)
+    # The language every surface resolves, as a whole run sets it.
+    os.environ[l10n.ENV_LANG] = locale
+    try:
+        for theme in AUDIT_THEMES:
+            files = render_audit_surfaces(out / theme, theme, locale, scale)
+            written.extend(files.values())
+            moment = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(POPUP_NOW))
+            title = ("Codex Auto Resume %s - %s - %s - every surface at %gx, the fixture at %s"
+                     % (config.version(), theme, locale, scale, moment))
+            sheet = out / ("sheet-%s.png" % theme)
+            render_sheet(sheet, title, [[(label, files[stem]) for stem, label in row]
+                                        for row in AUDIT_ROWS], theme)
+            written.append(sheet)
+            if before is None:
+                continue
+            pairs = [[("before - " + label, before / theme / (stem + ".png")),
+                      ("after - " + label, files[stem])]
+                     for row in AUDIT_ROWS for stem, label in row
+                     if (before / theme / (stem + ".png")).is_file()]
+            if pairs:
+                pair = out / ("pair-%s.png" % theme)
+                render_sheet(pair, "Before (%s) and after - %s - %s" % (before.name, theme, locale),
+                             pairs, theme)
+                written.append(pair)
+    finally:
+        if previous is None:
+            os.environ.pop(l10n.ENV_LANG, None)
+        else:
+            os.environ[l10n.ENV_LANG] = previous
+    for path in written:
+        print("  %s  %s" % (path, dimensions(path)))
+    return written
+
+
+def audit_main(argv) -> int:
+    import argparse
+    parser = argparse.ArgumentParser(
+        prog="make_screenshots.py --audit",
+        description="Light and dark contact sheets of the window, the panel, the popup and the card, "
+                    "for an audit of the look. Written under OUT only; never docs/, assets/ or the "
+                    "manifest.")
+    parser.add_argument("out", help="the folder to write into")
+    parser.add_argument("--before", help="a folder an earlier --audit wrote, to set beside this one")
+    parser.add_argument("--locale", default="en", choices=[str(each) for each in l10n.ENDONYMS])
+    options = parser.parse_args(argv)
+    render_audit(options.out, before=options.before, locale=options.locale)
+    return 0
+
+
 def main(argv=None) -> int:
+    # Before anything is made under docs/ or assets/: the audit writes nothing there.
+    if list(sys.argv[1:] if argv is None else argv)[:1] == ["--audit"]:
+        return audit_main(list(sys.argv[1:] if argv is None else argv)[1:])
     ASSETS.mkdir(parents=True, exist_ok=True)
     DOCS.mkdir(parents=True, exist_ok=True)
     if list(sys.argv[1:] if argv is None else argv) == ["--cards"]:
