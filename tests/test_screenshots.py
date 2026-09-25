@@ -828,9 +828,10 @@ class EnvelopeTests(unittest.TestCase):
                          "the names come from the synthetic Codex home, never the user's")
 
     def test_the_panel_the_popup_and_the_window_show_one_fixture_at_one_moment(self):
-        """Since v0.6.10 every surface is pictured from one set of records at one moment. Until then
-        the panel registered two rows of its own at times near 1970, so both read "due now" and its
-        network failure waited for a usage reset, and the popup was handed a third row, a server
+        """Since v0.6.10 every surface is pictured from one set of records at one set of offsets: the
+        panel, the popup and the card at POPUP_NOW, the window at the moment it is photographed. Until
+        then the panel registered two rows of its own at times near 1970, so both read "due now" and
+        its network failure waited for a usage reset, and the popup was handed a third row, a server
         error, that the window and the panel never showed - three pictures an audit cannot compare."""
         import inspect
         g = self.generator
@@ -846,7 +847,9 @@ class EnvelopeTests(unittest.TestCase):
         self.assertEqual(g.sample_panel_data()["status"]["pending"], len(window), "the panel's count")
         self.assertEqual(shown(g.popup_rows()), window, "the popup's rows")
         # One moment: the envelope's, the popup's and the panel page's clock, and the card's reset is
-        # the usage limit's. The window is seeded by the same function at the moment it is told.
+        # the usage limit's. The window is seeded by the same function, with the same offsets, at the
+        # moment it is photographed - the bridge behind it runs with the real clock - and is told that
+        # moment; so its countdowns agree with the others and its wall-clock times are the run's.
         self.assertEqual(g.ENVELOPE_NOW, g.POPUP_NOW)
         self.assertEqual({row[3]: row[6] - g.POPUP_NOW for row in window},
                          {"usage_limit": g.USAGE_RESET_IN, "network_transient": g.RETRY_IN})
@@ -1758,6 +1761,14 @@ class AuditSheetTests(unittest.TestCase):
                 for w2, h2, x2, y2 in boxes[first + 1:]:
                     self.assertTrue(x1 + w1 <= x2 or x2 + w2 <= x1 or y1 + h1 <= y2 or y2 + h2 <= y1)
             self.assertIn(g.config.version(), page)
+            # The heading puts POPUP_NOW over the three surfaces drawn at it, not over the window,
+            # which is seeded at its own capture's moment.
+            from html import escape
+            title = g.audit_title("dark", "en", 1.5)
+            self.assertIn(escape(title), page)
+            moment = g.time.strftime("%Y-%m-%d %H:%M UTC", g.time.gmtime(g.POPUP_NOW))
+            self.assertIn("the panel, popup and card at %s," % moment, title)
+            self.assertIn("the window at its capture's moment", title)
             # A second run beside the first: one before-and-after sheet per theme, of the same surfaces.
             after = Path(scratch) / "after"
             self.run_audit(str(after), "--before", str(out))

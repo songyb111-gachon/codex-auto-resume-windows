@@ -424,12 +424,15 @@ old identifier line — before anything noticed. If you photograph one for an is
 photograph a real conversation: it shows the conversation's identifier, and a screenshot of a
 real one publishes it permanently.
 
-**Every surface is pictured from one set of records at one moment.** The window's sample
-records (`seed_window_state`) are written once, at the moment the popup and the panel are drawn
-at, and read back the way each surface reads them: the popup's rows and the panel's rows are the
-window's two waiting recoveries, with the same names, states and times, and the panel's page is
-told that moment and reads clock times in UTC, as the card does. So a countdown, a chip and a count
-say the same on all four pictures.
+**Every surface is pictured from one set of records.** The window's sample records
+(`seed_window_state`) are written once, at the moment the popup and the panel are drawn at, and read
+back the way each surface reads them: the popup's rows and the panel's rows are the window's two
+waiting recoveries, with the same names, states and times, and the panel's page is told that moment
+and reads clock times in UTC, as the card does. The window itself is seeded again when it is
+photographed, with the same offsets, because the bridge behind it runs on the real clock. So a
+countdown, a chip and a count say the same on all four pictures, but a wall-clock time need not: the
+times the window prints, such as History's, are those of the day the pictures were drawn. Compare
+the four by their relative times only.
 
 **To audit the look, draw both themes side by side.** The committed pictures are the light theme's
 only. For a change to how the product looks, draw contact sheets of the window's Overview and

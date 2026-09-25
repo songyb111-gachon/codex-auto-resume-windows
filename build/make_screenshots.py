@@ -188,8 +188,8 @@ def write_settings(home: Path, theme: str | None = None) -> Path:
     return target
 
 
-# The one set of records every surface is pictured showing, at the one moment every surface is
-# pictured at (v0.6.10).
+# The one set of records every surface is pictured showing, and the one set of offsets it is read at
+# (v0.6.10).
 #
 # Until then there were three. The panel registered two rows of its own in a store of its own, at
 # times near 1970, so both read "due now" and its network failure said it was waiting for a usage
@@ -201,10 +201,13 @@ def write_settings(home: Path, theme: str | None = None) -> Path:
 # Now the window's own seed is written once, at POPUP_NOW, into a scratch store and read back the
 # way each surface reads it: the rows through `Control.list_pending` with the names the synthetic
 # Codex home gives them (the popup's own read, `ui/popup/model.perform`, and the window's), and the
-# status through the MCP server (the panel's). The window is seeded by the same function at the
-# moment it is photographed and told that moment (CODEX_AR_STILL_NOW); the panel's page is told
-# POPUP_NOW (`pinned_clock`); the card's reset is the usage limit's. So a countdown, a chip and a
-# count read the same on all four.
+# status through the MCP server (the panel's). The panel's page is told POPUP_NOW (`pinned_clock`)
+# and the card's reset is the usage limit's, so the panel, the popup and the card are one moment.
+# The window is not: the bridge behind it runs with the real clock, so `render_window` writes the
+# same seed, with the same offsets (USAGE_RESET_IN, RETRY_IN), at the moment it is photographed
+# and tells the window that moment (CODEX_AR_STILL_NOW). So a countdown, a chip and a count read the
+# same on all four, and only times relative to the moment are comparable across them: a wall-clock
+# time the window prints, such as History's, is the day of the run's, not POPUP_NOW's.
 _FIXTURE = {}
 
 
@@ -2793,9 +2796,11 @@ def window_targets(locale: str) -> dict:
 # change beside the one from after it.
 #
 # So this draws, in each theme, the window's Overview and Pending pages, the top of the panel, the
-# popup and the notification card - from the one fixture at the one moment the published pictures
-# use (`fixture`), every surface at the scale the window is captured at, so one CSS pixel is the same
-# size in all four - and lays them out, each at its own pixel size, on one contact sheet per theme.
+# popup and the notification card - from the one fixture the published pictures use (`fixture`: the
+# panel, the popup and the card at POPUP_NOW, the window at its capture's own moment with the same
+# offsets, so relative times agree and wall-clock times need not), every surface at the scale the
+# window is captured at, so one CSS pixel is the same size in all four - and lays them out, each at
+# its own pixel size, on one contact sheet per theme.
 # Given `--before`, a folder an earlier `--audit` wrote, it adds a sheet per theme of each surface
 # before and after.
 #
@@ -2916,6 +2921,19 @@ def render_sheet(target: Path, title: str, rows, theme: str) -> None:
         copy_file(shot, target)
 
 
+def audit_title(theme: str, locale: str, scale: float) -> str:
+    """The contact sheet's heading: what it shows, and at which moment each surface is.
+
+    The panel, the popup and the card are drawn at POPUP_NOW. The window is not: it is seeded at the
+    moment it is photographed, with the same offsets (`fixture`), so the heading says so rather than
+    putting one wall-clock moment over all four.
+    """
+    moment = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(POPUP_NOW))
+    return ("Codex Auto Resume %s - %s - %s - every surface at %gx - the panel, popup and card at %s,"
+            " the window at its capture's moment, same offsets" % (config.version(), theme, locale, scale,
+                                                                    moment))
+
+
 def render_audit(out, before=None, locale: str = "en") -> list:
     """The audit sheets under `out`: each surface per theme, a sheet per theme, and - given `before`,
     a folder an earlier run wrote - a before-and-after sheet per theme. Returns what it wrote."""
@@ -2933,9 +2951,7 @@ def render_audit(out, before=None, locale: str = "en") -> list:
         for theme in AUDIT_THEMES:
             files = render_audit_surfaces(out / theme, theme, locale, scale)
             written.extend(files.values())
-            moment = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(POPUP_NOW))
-            title = ("Codex Auto Resume %s - %s - %s - every surface at %gx, the fixture at %s"
-                     % (config.version(), theme, locale, scale, moment))
+            title = audit_title(theme, locale, scale)
             sheet = out / ("sheet-%s.png" % theme)
             render_sheet(sheet, title, [[(label, files[stem]) for stem, label in row]
                                         for row in AUDIT_ROWS], theme)
