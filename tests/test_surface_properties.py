@@ -327,7 +327,7 @@ class NoBrowserTests(unittest.TestCase):
 
     def test_nothing_that_ships_hosts_or_embeds_a_browser(self):
         offenders = []
-        for path in shipped("gui/*", "src/*", "scripts/*", "install/*"):
+        for path in shipped("gui/*", "src/*", "scripts/*", "build/install/*"):
             try:
                 text = path.read_text(encoding="utf-8")
             except (UnicodeDecodeError, OSError):
@@ -374,7 +374,7 @@ class NoGuiAutomationTests(unittest.TestCase):
 
     def test_nothing_that_ships_drives_a_keyboard_a_mouse_or_a_screen(self):
         offenders = []
-        for path in shipped("gui/*", "src/*", "scripts/*", "install/*", "skills/*"):
+        for path in shipped("gui/*", "src/*", "scripts/*", "build/install/*", "skills/*"):
             try:
                 text = path.read_text(encoding="utf-8")
             except (UnicodeDecodeError, OSError):

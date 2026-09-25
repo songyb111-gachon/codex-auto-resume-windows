@@ -26,8 +26,8 @@ import re
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-INSTALL = ROOT / "install" / "install.ps1"
-LAUNCHERS = [ROOT / "install" / "Install.cmd", ROOT / "install" / "Uninstall.cmd"]
+INSTALL = ROOT / "build" / "install" / "install.ps1"
+LAUNCHERS = [ROOT / "build" / "install" / "Install.cmd", ROOT / "build" / "install" / "Uninstall.cmd"]
 
 
 class LauncherPathTests(unittest.TestCase):

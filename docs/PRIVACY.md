@@ -596,4 +596,4 @@ on your machine.
 
 ## Questions
 
-Open an issue, or see [SECURITY.md](docs/SECURITY.md) for the security reporting process.
+Open an issue, or see [SECURITY.md](SECURITY.md) for the security reporting process.
