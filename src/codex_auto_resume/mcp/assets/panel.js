@@ -46,6 +46,17 @@ var PREVIEW = {reason: '', nodes: null, last: null, asking: ''};
 // The settings whose unsaved value changes the Preview.
 var PREVIEW_FIELDS = ['interface_language', 'continuation_language', 'continuation_style',
                       'custom_message_mode'];
+// The status light's phase: which light the page shows, and since when (performance.now()). Kept
+// across a redraw, so a light whose word has not changed goes on from where it was rather than
+// starting again at the top on every click, and the page's two lights share it (showLight).
+var LIGHT = {light: '', since: 0};
+// The page's one timer, set for the moment the soonest time a row carries comes (watchClock), and
+// the hero it says again what that changed in (retell).
+var CLOCK = null;
+var HERO = null;
+// A timer asked to wait longer than about 24.8 days fires at once, and would again and again, so it
+// is never asked to wait longer than a day: it wakes, finds the time still to come, and waits again.
+var CLOCK_LONGEST = 86400000;
 
 // Every word on this panel comes from Python, in the language Python resolved. The panel
 // does not consult the browser's language: the notifications, the setup output, the
@@ -281,12 +292,17 @@ function previewArguments(category, read) {
 
 // One word for the whole product, in the order that matters: nothing is recovered while
 // no watcher runs or while the one that runs is not well, nothing is sent while paused, and
-// a row already in Codex outranks a row that is still waiting. The rule every header keeps -
-// the popup's and the Dashboard's too; tests/data/light_states.json holds all three to it
-// (v0.6.10). One step of it is not here: a task whose time has come is "checking" in the
-// Dashboard and the popup, which redraw every second, and this page is drawn once, so it has
-// no clock to say a time has come by. It says waiting, and each row says "due now".
-function activity(status, rows) {
+// a row already in Codex outranks a row that is still waiting; then a task whose time has come
+// is checking. The rule every header keeps - the popup's and the Dashboard's too;
+// tests/data/light_states.json holds all three to it (v0.6.10).
+//
+// `now` is the clock, in seconds, that "a time has come" is read by - the page's own, as the
+// popup and the Dashboard read theirs. Until v0.6.10 this page took none: it is drawn once, so it
+// said waiting where the other two said checking, and each row said "due now". Now the one timer
+// the page keeps (watchClock) reads the rows again the moment a time they carry comes, so a task
+// that comes due while the panel is open turns it to checking as it does them. Without a clock
+// nothing has come due.
+function activity(status, rows, now) {
   var moving = ['submission_claimed', 'submitted', 'withdrawing', 'turn_running', 'turn_finishing'];
   var codes = (status && status.codes) || {};
   var list = rows || [];
@@ -300,7 +316,17 @@ function activity(status, rows) {
   for (var j = 0; j < list.length; j++) {
     if (moving.indexOf(list[j].code) >= 0) return 'recovering';
   }
+  for (var k = 0; k < list.length; k++) {
+    if (due(list[k], now)) return 'checking';
+  }
   return (status.pending > 0 || list.length > 0) ? 'waiting' : 'monitoring';
+}
+
+// Whether a row's time has come by `now`, in seconds: the popup's and the Dashboard's test. A row
+// with no time, or a caller with no clock, has not come due.
+function due(row, now) {
+  var at = row && row.eligible_at;
+  return typeof at === 'number' && typeof now === 'number' && at <= now;
 }
 
 // Why a watcher that runs needs a person, or null when it does not: an older watcher still
@@ -904,7 +930,8 @@ function segmented(entry, onChange) {
 // refreshed, so a number counting down here would be wrong within a minute and would go
 // on being wrong convincingly. A time is still true an hour later, and "due now" is what
 // a moment that has already passed actually means - the watcher looks at it on its next
-// pass, and nothing here can say when that is.
+// pass, and nothing here can say when that is. A time that comes while the page is open
+// turns to "due now" then (retell, v0.6.10), which is a change the page can know of.
 function nextCheck(row) {
   var at = row.eligible_at;
   if (at === null || at === undefined) return t('panel.next_unknown', 'not known yet');
@@ -963,8 +990,30 @@ function soonestFact(status, state, rows) {
   return fill('status.next_check', 'next check {time}', {time: nextCheck({eligible_at: soonest})});
 }
 
-function renderHero(status) {
-  var state = activity(status, DATA.pending);
+// The status light, at the size it is drawn: `mini` on the Automatic recovery tile.
+function lightNode(light, mini) {
+  var node = element('span', lightClass(light, mini));
+  node.setAttribute('aria-hidden', 'true');
+  return node;
+}
+
+function lightClass(light, mini) {
+  return 'halo ' + (mini ? 'mini ' : '') + light;
+}
+
+// The facts under the word, written into `facts` afresh: on a draw, and when the clock has moved
+// the word (retell).
+function showFacts(facts, status, state, rows) {
+  facts.textContent = '';
+  var shown = heroFacts(status, state, rows);
+  var soonest = soonestFact(status, state, rows);
+  if (soonest !== null) shown.push(soonest);
+  shown.forEach(function (fact) { facts.appendChild(element('span', null, fact)); });
+}
+
+// `now` is the clock the word is read by (activity); render() reads it once for the whole page.
+function renderHero(status, now) {
+  var state = activity(status, DATA.pending, now);
   var hero = element('section', 'card hero');
   hero.setAttribute('data-state', state);
   // The product name is an eyebrow rather than a heading: inside Codex the panel is
@@ -972,16 +1021,11 @@ function renderHero(status) {
   hero.appendChild(element('div', 'eyebrow', 'Codex Auto Resume · v' + (status.version || '?')));
   var line = element('div', 'hero-state');
   var light = lightFor(status, state, DATA.pending);
-  var halo = element('span', 'halo ' + light);
-  halo.setAttribute('aria-hidden', 'true');
-  line.appendChild(halo);
-  line.appendChild(element('h1', null, t('activity.' + state, state)));
+  line.appendChild(lightNode(light, false));
+  var word = line.appendChild(element('h1', null, t('activity.' + state, state)));
   hero.appendChild(line);
   var facts = element('p', 'facts');
-  var shown = heroFacts(status, state, DATA.pending);
-  var soonest = soonestFact(status, state, DATA.pending);
-  if (soonest !== null) shown.push(soonest);
-  shown.forEach(function (fact) { facts.appendChild(element('span', null, fact)); });
+  showFacts(facts, status, state, DATA.pending);
   hero.appendChild(facts);
   var actions = element('div', 'hero-actions');
   // Offered only when it is the thing that is wrong. Nothing is recovered while the
@@ -996,7 +1040,7 @@ function renderHero(status) {
   message.setAttribute('role', 'status');
   actions.appendChild(message);
   hero.appendChild(actions);
-  return {node: hero, message: message, start: start};
+  return {node: hero, message: message, start: start, word: word, facts: facts, state: state, light: light};
 }
 
 function renderPending(rows) {
@@ -1038,11 +1082,13 @@ function pendingRow(row) {
   if (row.category && S['reason.' + row.category]) {
     meta.appendChild(element('span', null, t('reason.' + row.category, row.category)));
   }
-  [[t('panel.col_next', 'Next check'), nextCheck(row)],
+  [[t('panel.col_next', 'Next check'), nextCheck(row), row.eligible_at],
    [t('panel.col_attempts', 'Attempts'), String(row.recovery_attempts === undefined ? 0 : row.recovery_attempts)]
   ].forEach(function (pair) {
     var fact = element('span', null, pair[0] + ' ');
-    fact.appendChild(element('b', null, pair[1]));
+    var said = fact.appendChild(element('b', null, pair[1]));
+    // A time that becomes "due now" while the page is open, which retell() says again when it comes.
+    if (typeof pair[2] === 'number') said.setAttribute('data-due', String(pair[2]));
     meta.appendChild(fact);
   });
   main.appendChild(meta);
@@ -1274,7 +1320,7 @@ function renderAppearance(byName) {
   return node;
 }
 
-function renderRecovery(status, schema) {
+function renderRecovery(status, schema, now) {
   var node = card(t('group.recovery', 'Automatic recovery'));
   // The control every check box on this card depends on, first. It acts at once -
   // pausing needs no Save and resuming asks for approval - so it is a button beside what
@@ -1285,7 +1331,10 @@ function renderRecovery(status, schema) {
   var body = element('div', 'master-body');
   var text = element('div', 'master-text');
   var running = status.watcher_running === true;
-  text.appendChild(element('span', 'dot' + (!running ? '' : status.enabled ? ' on' : ' paused')));
+  // The state's light, smaller, and never a light of its own (v0.6.10): until then a dot that
+  // never moved sat here, cyan while the light above it breathed - and every light that says the
+  // product is running moves. Read by the same rule at the same moment as the hero's.
+  text.appendChild(lightNode(lightFor(status, activity(status, DATA.pending, now), DATA.pending), true));
   text.appendChild(element('span', null, !running
     ? t('status.recovery_idle', 'Nothing will be recovered until it is running')
     : status.enabled ? t('status.recovery_on', 'Automatic recovery is on')
@@ -1556,6 +1605,93 @@ function glide() {
   moves.forEach(function (move) { move.input.checked = move.to; });
 }
 
+// How far into its cycle the light is at `at` (performance.now()), as the negative delay that starts
+// an animation there: 0 for a light that has just changed. The window keeps its light's phase for as
+// long as its state holds (HaloDot.State), and so does the popup; until v0.6.10 this page drew its
+// light anew on every click, and sent it back to the top of its breath each time.
+function lightDelay(light, at) {
+  if (light !== LIGHT.light) LIGHT = {light: light, since: at};
+  return Math.round(LIGHT.since - at);
+}
+
+// Every light on the page starts its cycle at that phase: set on the root, where each animation reads
+// it (panel.css --light-delay). Set only when the lights are new - drawn by render(), or changed by
+// retell() - because a new delay under an animation already running would move it.
+function showLight(light) {
+  var root = document.documentElement;
+  var delay = lightDelay(light, performance.now());
+  if (root && root.style && typeof root.style.setProperty === 'function') {
+    root.style.setProperty('--light-delay', delay + 'ms');
+  }
+}
+
+// How long until the soonest time a row carries comes, in milliseconds from `now` (seconds), or null
+// when no row carries one still to come.
+function untilDue(rows, now) {
+  var soonest = null;
+  (rows || []).forEach(function (row) {
+    var at = row && row.eligible_at;
+    if (typeof at !== 'number' || !isFinite(at) || due(row, now)) return;
+    if (soonest === null || at < soonest) soonest = at;
+  });
+  if (soonest === null || typeof now !== 'number' || !isFinite(now)) return null;
+  return Math.min(Math.max(1, Math.ceil((soonest - now) * 1000)), CLOCK_LONGEST);
+}
+
+// The page's one timer (v0.6.10). The page is drawn once, from one tool result, and nothing on it
+// counts down (nextCheck says why); but the one thing that result tells it about the future - when a
+// time a row carries will come - it keeps. It wakes once, when the soonest such time comes, says
+// again what that changes (retell), and waits for the next. A page whose rows carry no time still to
+// come keeps no timer at all.
+function watchClock() {
+  if (CLOCK !== null) clearTimeout(CLOCK);
+  CLOCK = null;
+  var wait = DATA ? untilDue(DATA.pending, Date.now() / 1000) : null;
+  if (wait !== null) CLOCK = setTimeout(retell, wait);
+}
+
+// What a time coming changes, said again in place: the word and the light - a waiting task whose
+// time has come is checking, here as in the popup and the Dashboard - the facts under the word, and
+// each row's next check, now "due now". Nothing is drawn anew, which would take the keyboard from
+// wherever it was, and nothing is asked: what the watcher did about the task arrives with the next
+// tool result, as everything else on this page does.
+function retell() {
+  CLOCK = null;
+  if (!DATA || !HERO) return;
+  var status = DATA.status || {};
+  var rows = DATA.pending;
+  var state = activity(status, rows, Date.now() / 1000);
+  var light = lightFor(status, state, rows);
+  eachNode(document.getElementById('root'), function (node) {
+    if (node.classList && node.classList.contains('halo')) {
+      var drawn = lightClass(light, node.classList.contains('mini'));
+      if (node.className !== drawn) node.className = drawn;
+    }
+    var at = typeof node.getAttribute === 'function' ? node.getAttribute('data-due') : null;
+    if (at !== null && at !== undefined) node.textContent = nextCheck({eligible_at: Number(at)});
+  });
+  if (state !== HERO.state) {
+    HERO.state = state;
+    HERO.node.setAttribute('data-state', state);
+    HERO.word.textContent = t('activity.' + state, state);
+  }
+  showFacts(HERO.facts, status, state, rows);
+  if (light !== HERO.light) {
+    HERO.light = light;
+    showLight(light);
+  }
+  watchClock();
+}
+
+// Every element under `node`, depth first.
+function eachNode(node, visit) {
+  var children = (node && node.children) || [];
+  for (var i = 0; i < children.length; i++) {
+    visit(children[i]);
+    eachNode(children[i], visit);
+  }
+}
+
 function render() {
   applyLanguage(document.documentElement, LOCALE);
   var root = document.getElementById('root');
@@ -1566,24 +1702,29 @@ function render() {
   WAS = SHOWN;
   SHOWN = {};
   GLIDES = [];
+  HERO = null;
   if (!DATA) {
     root.appendChild(element('p', 'note',
       t('panel.unavailable', 'Settings are not available in this view.')));
+    watchClock();
     return;
   }
   var status = DATA.status || {};
   var schema = DATA.schema || [];
   var byName = {};
   schema.forEach(function (entry) { byName[entry.name] = entry; });
+  // One reading of the clock for the whole page, so the state and the tile's light are one light.
+  var now = Date.now() / 1000;
 
   var page = element('main', 'page');
   root.appendChild(page);
   // State first; then what is waiting, because it is the part that changes; then whether this
   // Codex can be relied on, folded; then what is configured, general to particular; then what
   // the configuration will say; then how the panel looks, where the Windows Dashboard puts it too.
-  var hero = renderHero(status);
+  var hero = renderHero(status, now);
+  HERO = hero;
   page.appendChild(hero.node);
-  [renderPending(DATA.pending), renderCompatibility(status), renderGeneral(byName), renderRecovery(status, schema),
+  [renderPending(DATA.pending), renderCompatibility(status), renderGeneral(byName), renderRecovery(status, schema, now),
    renderNotifications(schema), renderContinuation(byName), renderPreviewCard(),
    renderAppearance(byName)
   ].forEach(function (section) { if (section) page.appendChild(section); });
@@ -1591,6 +1732,8 @@ function render() {
   page.appendChild(footer.node);
   var message = hero.message;
 
+  showLight(hero.light);
+  watchClock();
   glide();
 
   // A message left over from the click that caused this render. It is carried across

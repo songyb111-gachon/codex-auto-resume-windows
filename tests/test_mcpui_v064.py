@@ -121,6 +121,14 @@ var document = {
   createElement: function (tag) { return new El(tag); },
   getElementById: function (id) { return id === 'root' ? ROOT_NODE : null; }
 };
+// The light's phase is a custom property on the root (v0.6.10), which a test reads back.
+document.documentElement.style.setProperty = function (name, value) { this[name] = String(value); };
+// The page's one timer (v0.6.10), held rather than run: one left armed would keep Node alive until it
+// fired. A test runs what is armed, as the browser would when its time came, with runTimers().
+var TIMERS = [], TIMER_IDS = 0;
+function setTimeout(fn, ms) { TIMERS.push({id: ++TIMER_IDS, fn: fn, ms: ms}); return TIMER_IDS; }
+function clearTimeout(id) { TIMERS = TIMERS.filter(function (timer) { return timer.id !== id; }); }
+function runTimers() { var armed = TIMERS; TIMERS = []; armed.forEach(function (timer) { timer.fn(); }); }
 var window = {};
 async function settle() { for (var i = 0; i < 10; i++) await new Promise(function (r) { setImmediate(r); }); }
 function byId(id) { return ROOT_NODE.all(function (n) { return n.id === id; })[0]; }
@@ -161,11 +169,13 @@ def snapshot(**settings):
             "system_language": "en"}
 
 
-def run_page(body, data=None, locale="en", catalogs=None, root_attributes=None):
-    """Serve the whole panel script into the stand-in document, then run `body` against it."""
+def run_page(body, data=None, locale="en", catalogs=None, root_attributes=None, prelude=""):
+    """Serve the whole panel script into the stand-in document, then run `body` against it. `prelude` runs before the
+    script does - a clock of the test's own, say."""
     data = snapshot() if data is None else data
     script = "\n".join([
         FAKE_DOM,
+        prelude,
         "document.documentElement.attributes = %s;" % json.dumps(root_attributes or {}),
         "window.__CODEX_AUTO_RESUME_STRINGS__ = %s;" % json.dumps(l10n.catalog(locale)),
         "window.__CODEX_AUTO_RESUME_LOCALE__ = %s;" % json.dumps(locale),
@@ -945,6 +955,101 @@ class PinnedControlMarkupTests(unittest.TestCase):
         self.assertIn("pause_auto_recovery", observed["called"])
         self.assertEqual((observed["text"], observed["parent"], observed["last"], observed["enabled"]),
                          ("not now", "master-body", True, True))
+
+
+@unittest.skipUnless(NODE, "needs Node to run the panel's own code")
+class LightClockTests(unittest.TestCase):
+    """v0.6.10: the page's two lights share one phase that a redraw does not reset (F2), and a task that comes due
+    while the page is open turns it to checking, with its arc, as the popup and the Dashboard do - by the page's one
+    timer, which says it again in place (F3)."""
+
+    # The page's clocks, the test's own: the wall clock the rows' times are read by, and the one the light's phase
+    # is counted on. `Date` is shadowed for the whole script, so the global one is taken first.
+    CLOCK = """
+      var REAL_DATE = globalThis.Date, NOW_MS = %d, PERF_MS = 1000;
+      var Date = function (value) { return arguments.length ? new REAL_DATE(value) : new REAL_DATE(NOW_MS); };
+      Date.now = function () { return NOW_MS; };
+      var performance = {now: function () { return PERF_MS; }};
+    """ % int(1_800_000_000 * 1000)
+    LOOK = """
+      function look() {
+        var hero = ROOT_NODE.all(function (n) { return n.className === 'card hero'; })[0];
+        return {state: hero.getAttribute('data-state'),
+                word: ROOT_NODE.all(function (n) { return n.tagName === 'h1'; })[0].textContent,
+                lights: ROOT_NODE.all(function (n) { return n.classList.contains('halo'); })
+                                 .map(function (n) { return n.className; }),
+                due: ROOT_NODE.all(function (n) { return n.getAttribute('data-due') !== null; })
+                              .map(function (n) { return n.textContent; }),
+                facts: ROOT_NODE.all(function (n) { return n.className === 'facts'; })[0].children
+                                .map(function (n) { return n.textContent; }),
+                timers: TIMERS.map(function (timer) { return timer.ms; }),
+                delay: document.documentElement.style['--light-delay']};
+      }
+    """
+
+    def data(self, *later):
+        """A running watcher with recovery on and a waiting row for each of `later`, seconds from the clock."""
+        data = snapshot()
+        row = data["pending"][0]
+        data["pending"] = [dict(row, interruption_id=str(index) * 64, eligible_at=1_800_000_000 + seconds)
+                           for index, seconds in enumerate(later, 1)]
+        data["status"]["pending"] = len(later)
+        return data
+
+    def page(self, body, data):
+        return run_page(self.LOOK + body, data=data, prelude=self.CLOCK)
+
+    def test_a_task_that_comes_due_while_the_page_is_open_turns_it_to_checking(self):
+        observed = self.page("""
+          var steps = [look()];
+          NOW_MS += 60000; PERF_MS += 60000;
+          runTimers();
+          steps.push(look());
+          NOW_MS += 30000; PERF_MS += 30000;
+          runTimers();
+          steps.push(look());
+          """ + say("steps"), self.data(60, 90))
+        waiting, checking, later = observed
+        self.assertEqual((waiting["state"], waiting["word"]), ("waiting", ENGLISH["activity.waiting"]))
+        self.assertEqual(waiting["lights"], ["halo waiting", "halo mini waiting"])
+        self.assertNotIn(ENGLISH["panel.due"], waiting["due"])
+        # One timer, for the soonest time still to come, and nothing else ticking.
+        self.assertEqual(waiting["timers"], [60000])
+        # Its time comes: the word, both lights, the facts and the row say so, in place.
+        self.assertEqual((checking["state"], checking["word"]), ("checking", ENGLISH["activity.checking"]))
+        self.assertEqual(checking["lights"], ["halo checking", "halo mini checking"])
+        self.assertEqual(checking["due"][0], ENGLISH["panel.due"])
+        self.assertNotEqual(checking["due"][1], ENGLISH["panel.due"])
+        self.assertIn(ENGLISH["status.next_check"].replace("{time}", ENGLISH["panel.due"]), checking["facts"])
+        self.assertEqual(checking["delay"], "0ms", "a light that has just changed starts at the top of its cycle")
+        self.assertEqual(checking["timers"], [30000])
+        # The next one's time comes too: nothing about the light changed, so its phase is left alone, and nothing
+        # is left to wait for.
+        self.assertEqual(later["lights"], ["halo checking", "halo mini checking"])
+        self.assertEqual(later["due"], [ENGLISH["panel.due"]] * 2)
+        self.assertEqual(later["delay"], "0ms")
+        self.assertEqual(later["timers"], [])
+
+    def test_a_page_with_no_time_to_come_keeps_no_timer(self):
+        for data, state in ((snapshot(), "waiting"), (self.data(-5), "checking"), (self.data(-5, 60), "checking")):
+            with self.subTest(state=state, rows=len(data["pending"])):
+                observed = self.page(say("look()"), data)
+                self.assertEqual(observed["state"], state)
+                self.assertEqual(observed["lights"], ["halo " + state, "halo mini " + state])
+                self.assertEqual(observed["timers"], [60000] if len(data["pending"]) == 2 else [])
+
+    def test_a_redraw_keeps_the_light_s_phase_and_a_new_light_starts_its_own(self):
+        observed = self.page("""
+          var delays = [look().delay];
+          PERF_MS += 2500; render(); delays.push(look().delay);
+          PERF_MS += 1000; render(); delays.push(look().delay);
+          DATA.status.enabled = false;
+          PERF_MS += 500; render(); delays.push(look().delay, look().lights);
+          PERF_MS += 700; render(); delays.push(look().delay);
+          """ + say("delays"), self.data(60))
+        self.assertEqual(observed, ["0ms", "-2500ms", "-3500ms", "0ms", ["halo paused", "halo mini paused"], "-700ms"])
+        # A redraw arms the timer anew rather than a second one beside it.
+        self.assertEqual(self.page("render(); render();" + say("look().timers"), self.data(60)), [60000])
 
 
 if __name__ == "__main__":

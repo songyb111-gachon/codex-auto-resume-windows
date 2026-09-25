@@ -103,6 +103,8 @@ _STYLE = (_STYLE.replace("@LIGHT@", brand.css_variables(brand.LIGHT))
                 .replace("@TILE_DARK@", tile_elevation("dark"))
                 .replace("@SCALE@", brand.css_scale())
                 .replace("@GLOW_KEYFRAMES@", brand.css_glow_keyframes())
+                # The Automatic recovery tile's light: the same light, smaller (v0.6.10).
+                .replace("@GLOW_MINI@", brand.css_glow_geometry(brand.STATUS_DOT["mini"]))
                 # Where a drop-down's words start, in its field and in its list: the field's own padding.
                 .replace("@SELECT_PAD_LEFT@", "%gpx" % brand.padding("select_pad")[3]))
 

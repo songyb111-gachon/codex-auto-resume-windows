@@ -120,6 +120,7 @@ from .css import (GLOW_STOPS,
                   css_check_box,
                   css_ease,
                   css_elevation,
+                  css_glow_geometry,
                   css_glow_keyframes,
                   css_scale,
                   css_variables)  # noqa: F401
