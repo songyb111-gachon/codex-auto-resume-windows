@@ -196,7 +196,11 @@ def mcp_view(view) -> dict:
     Diagnostics card shows, so the settings panel can say the same: what the watcher acts on
     (`acting`, which after Codex changed in place can differ from `overall`), which data is in
     force by its sequence number, and the refreshed data's standing (`cache`: expired or dated
-    ahead, its restrictions apply and its trust does not)."""
+    ahead, its restrictions apply and its trust does not).
+
+    Not what other people report (a view's `reported`): that is for a person to read beside the
+    Codex version, on the Dashboard's Diagnostics page, and a model is never handed it. The keys
+    below are built one by one, so a key a view gains never reaches this summary by itself."""
     view = view if isinstance(view, dict) else unusable_view("invalid")
     data = view.get("data") if isinstance(view.get("data"), dict) else {}
     source = data.get("source") if data.get("source") in DATA_SOURCES else "none"

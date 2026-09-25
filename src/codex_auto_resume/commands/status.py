@@ -79,6 +79,8 @@ def cmd_doctor(args) -> int:
             ok = False
     report = compatio.reader_view(app.paths, settings=app.settings)
     _print("watcher's report : %s (%s)" % (report["overall"], _view_status(report)))
+    # Beside the version, and never a verdict: `ok` is not touched by it.
+    _print("reported         : %s" % _reported_words(live if live is not None else report))
     _print("codex home       : %s" % app.codex_home)
     identity = backend.app_identity()
     if identity:
@@ -169,6 +171,27 @@ def _view_status(view) -> str:
     return text
 
 
+def _reported_words(view) -> str:
+    """What other people's filed reports add up to for the Codex version a view names (v0.6.10), in
+    one line. Counts of reports, beside the version and never a verdict: nothing reads them to
+    decide, and the line says so."""
+    reported = view.get("reported") if isinstance(view, dict) else None
+    reported = reported if isinstance(reported, dict) else {}
+    state = reported.get("state")
+    if state == "reported":
+        counts = {name: reported.get(name) if isinstance(reported.get(name), int) else 0
+                  for name in ("worked", "failed", "neither", "both")}
+        text = "worked %(worked)d, failed %(failed)d, neither %(neither)d" % counts
+        if counts["both"] > 0:
+            text += ", counted in both %(both)d" % counts
+        return text + " (others' reports; changes nothing)"
+    if state == "none_yet":
+        return "none yet (others' reports; changes nothing)"
+    if state == "rejected":
+        return "the counts this version carries could not be read"
+    return "unavailable"
+
+
 def _capability_lines(view, *, only_problems=False) -> list:
     lines = []
     for name, entry in view["capabilities"].items():
@@ -207,6 +230,7 @@ def cmd_compat(args) -> int:
     _print("compatibility    : %s (%s)" % (view["overall"], "checked now" if view.get("live")
                                              else _view_status(view)))
     _print("engine version   : %s" % (view["engine"]["version"] or "not found"))
+    _print("reported         : %s" % _reported_words(view))
     data = view.get("data") or {}
     if data:
         _print("registry data    : %s (bundled %s #%s, cache %s%s)" % (

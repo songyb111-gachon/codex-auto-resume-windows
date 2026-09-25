@@ -179,7 +179,7 @@ class OneNameTests(unittest.TestCase):
     NAMING = ("menu.open", "popup.open_dashboard", "msg.toast_button_open", "popup.more",
               "custom.dashboard_only", "help.interface_language", "help.theme", "help.reduce_motion", "help.design",
               "msg.setup_unconfirmed", "panel.compat_acting_differs", "panel.compat_refresh",
-              "panel.readonly")
+              "panel.compat_reported", "panel.readonly")
     # The window's own words, where "this window" is the window reading them.
     WINDOW_ONLY = ("diag.update_reopen",)
     THIS_WINDOW = {"en": "this window", "ko": "이 창"}

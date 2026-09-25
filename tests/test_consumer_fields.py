@@ -92,6 +92,8 @@ _RECEIVERS = {
         "data": _under(COMPAT_VIEW, ".data"),
         "capabilities": _under(COMPAT_VIEW, ".capabilities"),
         "entry": _under(COMPAT_VIEW, ".capabilities.*"),
+        # v0.6.10: what others report, beside the version (the bridge's only; never the MCP summary).
+        "reported": _under(COMPAT_VIEW, ".reported"),
         "week": [("bridge:dashboard", "week")],
         "stats": [("bridge:statistics", "result"), ("bridge:dashboard", "week")],
         "outcomes": [("bridge:statistics", "result.outcomes"), ("bridge:dashboard", "week.outcomes")],
@@ -209,6 +211,7 @@ _TYPED = {
         "status": wire.StatusSnapshot, "watcher": wire.WatcherView,
         "view": _COMPAT, "live": _COMPAT, "report": _COMPAT, "compatLive": _COMPAT,
         "engine": wire.CompatEngine, "data": wire.CompatData, "entry": wire.CompatCapability,
+        "reported": wire.CompatReported,
         "week": wire.Statistics, "stats": wire.Statistics, "outcomes": wire.Outcomes,
     },
     "gui/SettingsApp.cs": {

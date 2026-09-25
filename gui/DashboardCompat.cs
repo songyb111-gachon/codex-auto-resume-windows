@@ -48,6 +48,12 @@ namespace CodexAutoResume
             TableLayoutPanel facts = Facts(card);
             compatOverall = Fact(facts, S("compat.overall", "Overall"));
             compatEngine = Fact(facts, S("compat.engine", "Codex version"));
+            // What others report of that version (v0.6.10), directly under it: one muted line, its words and its value both
+            // in the secondary text colour, as the fact names are. No chip, no light, never the success or danger colour:
+            // Reported stands beside the ladder and is never a step of it, so it is not one of CompatStates and never
+            // passes through CompatState (docs/BRAND.md, "Reported beside the version").
+            compatReported = Fact(facts, S("compat.reported", "Reported by others"));
+            compatReported.ForeColor = Secondary;
             compatChecked = Fact(facts, S("compat.checked", "Checked"));
             compatData = Fact(facts, S("compat.data", "Data in force"));
             // What the view cannot vouch for - no report, one too old, an engine that changed, a watcher still acting on
@@ -186,6 +192,7 @@ namespace CodexAutoResume
             {
                 string nothing = compatUnreadable ? S("pending.unavailable", "This cannot be read right now") : "-";
                 compatOverall.Text = compatEngine.Text = compatChecked.Text = compatData.Text = compatUnreadable ? S("diag.unknown", "unknown") : "-";
+                compatReported.Text = "-";
                 SetCallouts(compatNotice, compatUnreadable ? new List<string> { nothing } : notices);
                 ShowParts(shown);
                 SetLines(compatLegend, notices);
@@ -201,6 +208,8 @@ namespace CodexAutoResume
             // changed, nor the data then in force: "-" for both, as the panel has them, and never "not found". When it
             // was made is still said: it is what makes a report too old.
             compatEngine.Text = !usable ? "-" : !string.IsNullOrEmpty(version) ? version : S("compat.engine_none", "not found");
+            var reported = Map(view, "reported");
+            compatReported.Text = ReportedLine(usable, reported);
             compatChecked.Text = Ago(Number(view, "checked_at"));
             compatData.Text = usable ? CompatData(Map(view, "data")) : "-";
             // Why the view cannot be used - every part is unknown then, for that one reason, so the parts are not listed.
@@ -232,7 +241,37 @@ namespace CodexAutoResume
             var meanings = new List<string>();
             foreach (string state in CompatStates)
                 if (states.Contains(state)) meanings.Add(S("compat.meaning." + state, state));
+            // What the Reported line means, after the ladder's words and only while it shows counts: it is not one of them.
+            if (usable && Str(reported, "state") == "reported")
+                meanings.Add(S("compat.reported.meaning", "Reported by others: how many of the reports other people filed for this exact Codex version saw a recovery work, saw one fail, or saw neither; a report that saw both is counted in each. They are not checks made on this computer, and they change nothing here."));
             SetLines(compatLegend, meanings);
+        }
+
+        /// What others report of the Codex version a view names (the view's `reported`, v0.6.10), as the one line beside
+        /// it: the counts, words first so no language needs a plural form; "none yet"; the counts file unreadable; or "-"
+        /// for a view that cannot be used, as the version itself is then, and for no version to look up. Only ever words
+        /// and numbers - which colour it is drawn in is BuildCompatibility's, and it is never a state's.
+        internal string ReportedLine(bool usable, Dictionary<string, object> reported)
+        {
+            if (!usable || reported == null) return "-";
+            string state = Str(reported, "state");
+            if (state == "none_yet") return S("compat.reported.none_yet", "none yet");
+            if (state == "rejected") return S("compat.reported.rejected", "could not be read");
+            if (state != "reported") return "-";
+            string line = S("compat.reported.counts", "worked {worked} · failed {failed} · neither {neither}")
+                .Replace("{worked}", Count(Number(reported, "worked"))).Replace("{failed}", Count(Number(reported, "failed")))
+                .Replace("{neither}", Count(Number(reported, "neither")));
+            double both = Number(reported, "both");
+            if (both > 0)
+                line += " · " + S("compat.reported.both", "counted in both: {both}").Replace("{both}", Count(both));
+            return line;
+        }
+
+        /// A count as the view carries it (a JSON number is a double here), written in digits whatever the language.
+        private static string Count(double value)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value) || value < 0) value = 0;
+            return ((long)value).ToString(CultureInfo.InvariantCulture);
         }
 
         /// The parts in the two lists, the first half on the left - and no room taken while there are none.

@@ -58,7 +58,8 @@ if _HERE not in sys.path:
 import guiscan
 import srcscan  # noqa: E402
 from codex_auto_resume.domain import public as domain_public  # noqa: E402
-from codex_auto_resume.compat import files as compat_files, probes as compat_probes  # noqa: E402
+from codex_auto_resume.compat import (files as compat_files, probes as compat_probes,  # noqa: E402
+                                      reported as compat_reported)
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "assets" / "screenshots.json"
@@ -302,6 +303,9 @@ class ManifestTests(unittest.TestCase):
             "tests/fixtures/codex_compat_frozen.json - the registry data the pictures are made with": several(
                 lambda: patch.object(compatio, "load_bundled", return_value=(None, "missing")),
                 lambda: patch.object(compat_files, "load_bundled", return_value=(None, "missing"))),
+            # v0.6.10: what others report, shown beside the version on the Diagnostics card.
+            "tests/fixtures/reported_frozen.json - the counts beside the version":
+                lambda: changed(compat_reported, "lookup", lambda answer: dict(answer, worked=answer["worked"] + 1)),
         }
         if os.name == "nt":
             # Not acquired, so nothing holds it and the probe finds it free.
@@ -902,6 +906,14 @@ class EnvelopeTests(unittest.TestCase):
         panel = generator.sample_panel_data()["status"]["watcher"]
         self.assertEqual(panel["compatibility"], compat.mcp_view(view))
         self.assertEqual(panel["engine_state"], watcher["engine_state"])
+        # What others report, beside the version (v0.6.10): the frozen stand-in's sample counts for
+        # this build, so the card is photographed with its row filled in - and never in the panel's
+        # summary, which is codes only.
+        with generator.frozen_registry().frozen():
+            expected = compat_reported.lookup(generator.CODEX_VERSION)
+        self.assertEqual(view["reported"]["state"], "reported")
+        self.assertEqual(view["reported"], dict(expected, state="reported"))
+        self.assertNotIn("reported", panel["compatibility"])
 
     def test_the_reads_are_the_ones_the_window_makes(self):
         """Only questions the window's own code asks, and each photographed page's."""

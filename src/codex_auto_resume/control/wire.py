@@ -163,6 +163,22 @@ class CompatCapability(TypedDict):
     reason: str
 
 
+class CompatReported(TypedDict):
+    """What other people's filed reports add up to for the Codex version the view names
+    (`compat/views.py:reported_for`): shown beside that version, never a state of the ladder.
+
+    `state` is a ReportedState word - reported, none_yet, unavailable or rejected - and the counts
+    are 0 unless it is `reported`. They are counts of reports, one per GitHub login per version:
+    worked + failed - both + neither = reports. Only the bridge carries this; the summary a model
+    reads (`compat.mcp_view`) never does."""
+    state: str
+    reports: int
+    worked: int
+    failed: int
+    neither: int
+    both: int
+
+
 class CompatView(TypedDict):
     """The Compatibility card's view: what is claimed of the engine in force, and why."""
     status: str
@@ -174,6 +190,7 @@ class CompatView(TypedDict):
     data: CompatData | None
     capabilities: dict[str, CompatCapability]
     checks: dict[str, str]
+    reported: CompatReported
 
 
 class SchemaField(TypedDict):
@@ -195,4 +212,5 @@ class SchemaField(TypedDict):
 
 # Every contract, by name, for the test that holds each to the goldens.
 CONTRACTS = (RecordView, PendingRow, TimelineEvent, WatcherView, StatusSnapshot, Outcomes,
-             Statistics, CompatEngine, CompatData, CompatCapability, CompatView, SchemaField)
+             Statistics, CompatEngine, CompatData, CompatCapability, CompatReported, CompatView,
+             SchemaField)

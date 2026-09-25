@@ -2187,6 +2187,9 @@ def scratch_installation(workspace: Path, theme: str | None = None) -> Path:
     # Bundling the frozen registry data, so the window's own bridge answers as the envelope does.
     shutil.copyfile(frozen_registry().FROZEN,
                     home / "app" / "src" / "codex_auto_resume" / "data" / "codex_compat.json")
+    # And the sample counts of what others report, so the card's Reported row is the envelope's too.
+    shutil.copyfile(frozen_registry().REPORTED,
+                    home / "app" / "src" / "codex_auto_resume" / "data" / "reported.json")
     shutil.copytree(ROOT / ".codex-plugin", home / "app" / ".codex-plugin")
     # The same pinned, checksum-verified interpreter the release ships, from the same
     # cache, so the window in the picture runs on the interpreter users will have.
