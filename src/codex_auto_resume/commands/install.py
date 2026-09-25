@@ -10,8 +10,9 @@ import os
 from pathlib import Path
 import time
 
-from .. import config, notify, settings, shortcut, startup
+from .. import config, edition, notify, settings, shortcut, startup
 from ..app import EXIT_ERROR, EXIT_OK, App
+from ..domain.plug import DamagedPlug, Edition
 from ..store import LegacyStore, StoreError, downgrade_to_v2
 from ..windows import AdapterError
 from .base import CliError, _app, _open_state, _print
@@ -25,6 +26,8 @@ def cmd_install(args) -> int:
         enabled = store.settings()["enabled"]
     _print("owned state directory : %s" % app.paths.state_dir)
     _print("owned log directory   : %s" % app.paths.logs_dir)
+    if getattr(args, "edition_from", None):
+        _edition_changed(app, Edition(args.edition_from))
     if args.startup:
         # Always register the home actually in effect. Passing it only when it came from
         # --home would let CODEX_AUTO_RESUME_HOME silently drop out at login, pointing the
@@ -74,6 +77,29 @@ def cmd_install(args) -> int:
         _print("notification action   : notifications are disabled in settings")
     _print("auto-resume is %s; use `enable` then `run`." % ("enabled" if enabled else "disabled"))
     return EXIT_OK
+
+
+def _edition_changed(app, previous: Edition) -> None:
+    """The installer has replaced an installation of edition `previous` with this one.
+
+    Only the new edition knows what that means for it - entering the advanced edition turns
+    every capability off, whatever an earlier advanced installation had left on - so its plug
+    is told, once, here. The standard edition's plug has nothing to do. An advanced package
+    that cannot be loaded cannot be told, and the change is refused rather than left half made:
+    whatever it would have turned off would still be on the day it loads."""
+    plug = edition.plug(app.paths)
+    if isinstance(plug, DamagedPlug):
+        raise CliError("the advanced package could not be loaded (%s); the edition change "
+                       "was not completed" % plug.reason)
+    if plug.edition == previous:
+        _print("edition               : %s (unchanged)" % plug.edition)
+        return
+    try:
+        plug.edition_changed(previous)
+    except Exception:
+        raise CliError("the %s edition could not be set up after the change" % plug.edition) from None
+    app.logger.info("edition changed from %s to %s", previous, plug.edition)
+    _print("edition               : %s (was %s)" % (plug.edition, previous))
 
 
 def cmd_uninstall(args) -> int:

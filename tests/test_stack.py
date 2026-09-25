@@ -67,7 +67,10 @@ ITEM = {_q(name): item for item, names in {
                "engine.options", "engine.outcome"),
     "policy": ("failures", "reasons", "settings", "continuation", "openstate", "domain.gates",
                # what may be done at a tier, and with whose word: policy, not registry data
-               "compat.permits"),
+               "compat.permits",
+               # v0.6.11: what an edition may change about a decision, and which edition this
+               # is - the "under which edition" of HOMELESS below, in code
+               "domain.plug", "edition"),
     "machine": ("machine", "domain", "domain.errors", "domain.ids", "domain.public",
                 "domain.states", "domain.vocabulary"),
     "scheduler": ("engine.reconcile",),

@@ -15,7 +15,7 @@ from pathlib import Path
 import sys
 import time
 
-from . import compat, compatio, config, machine, notify, settings, shortcut, startup
+from . import compat, compatio, config, edition, machine, notify, settings, shortcut, startup
 from .app import EXIT_ERROR, EXIT_OK, App
 from .domain import ids
 from .logbook import format_local, tail
@@ -70,6 +70,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("install", help="create owned directories/state; optionally register login autostart")
     p.add_argument("--startup", action="store_true", help="register per-user autostart (HKCU Run, no admin)")
+    # The installer passes it only when it has just replaced one edition with the other.
+    p.add_argument("--edition-from", choices=edition.EDITIONS, metavar="EDITION",
+                   help="the edition the installer replaced (standard or advanced), so this one "
+                        "can set itself up for the change")
 
     p = sub.add_parser("uninstall", help="remove autostart, stop watcher, delete owned state and logs")
     p.add_argument("--keep-logs", action="store_true")
