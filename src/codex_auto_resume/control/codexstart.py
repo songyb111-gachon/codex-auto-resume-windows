@@ -34,6 +34,23 @@ def _context_words(context) -> str:
     return words
 
 
+def ends_with_job(context, *, leaving: bool = False):
+    """Whether a process this one starts is ended when the job holding this one closes, read from
+    windows.process_context: True, False, or None where Windows would not say.
+
+    `leaving` is whether the start asks to leave the job (CREATE_BREAKAWAY_FROM_JOB, which a job
+    grants only with BREAKAWAY_OK). A job with SILENT_BREAKAWAY_OK lets every child go anyway, and
+    one without KILL_ON_JOB_CLOSE ends none of them. One reading, shared by the start with Codex,
+    which refuses where it is True, and by the MCP server's Start watcher, which says so (v0.6.10).
+    """
+    if not context or context.get("in_job") is None:
+        return None
+    if not context["in_job"] or leaving or context.get("silent_breakaway_ok"):
+        return False
+    kill = context.get("kill_on_close")
+    return None if kill is None else bool(kill)
+
+
 def _note_line(path: Path, text: str) -> None:
     """Append one timestamped line to a trimmed log, keeping the last CODEX_START_LOG_LINES.
     Best effort: a log that cannot be written costs nothing but the line."""
@@ -51,6 +68,21 @@ def _note_line(path: Path, text: str) -> None:
 
 class CodexStartMixin:
     """The launch Codex asks for, and why it is refused."""
+
+    def launch_ends_with_job(self):
+        """Whether a watcher Start watcher launches from this process ends when this process's job
+        closes: True, False, or None where Windows would not say. Never raises.
+
+        Start watcher asks nothing of the job, so a job that ends what it holds ends that watcher.
+        The MCP server asks this after a start (v0.6.10): Codex 26.915 runs it in a job with
+        KILL_ON_JOB_CLOSE and no breakaway (measured, v0.6.9-alpha), so a watcher started from the
+        panel or the start_watcher tool stops when Codex ends that server - when Codex closes, if not
+        sooner - and its reply has to say so rather than report a lasting start.
+        """
+        try:
+            return ends_with_job(windows.process_context())
+        except Exception:        # noqa: BLE001 - a question Windows cannot answer is not an error here
+            return None
 
     def start_for_codex(self) -> str:
         """Start the watcher because Codex has just started this plugin's MCP server - if asked to.
@@ -100,8 +132,7 @@ class CodexStartMixin:
         # watchers, each dead within about six seconds - and a watcher killed mid-tick is exactly what
         # this product does not do. So where the job would end it and will not let it leave, nothing is
         # started: the line below is the whole answer for that Codex, and the switch is not offered.
-        leaves = breakaway or bool(context.get("silent_breakaway_ok"))
-        if context.get("kill_on_close") and not leaves:
+        if ends_with_job(context, leaving=breakaway) is True:
             return "not started: this Codex ends what its plugins start"
         # Looked at once more, as late as it can be: an installation may have begun meanwhile.
         if windows.install_in_progress() is not False:
