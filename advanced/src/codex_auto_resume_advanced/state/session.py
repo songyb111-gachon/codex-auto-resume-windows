@@ -12,12 +12,18 @@ connection per process opened the first time it is needed, BEGIN IMMEDIATE for e
 synchronous=FULL, and a file whose tables, columns or version are not exactly these is refused
 rather than repaired. Reading never creates the file: an installation where nothing was ever
 turned on has none, and every question about it has the answer "off".
+
+The one connection serves every thread of its process - the MCP server asks P9 on a thread of
+its own, the watcher's tray popup calls the plug its engine thread holds - so it is not bound to
+the thread that opened it, and a lock gives each transaction the connection whole. Bound, it was
+whichever thread's opened it first, and every other thread's disarm and badge failed.
 """
 from __future__ import annotations
 
 from contextlib import contextmanager
 from pathlib import Path
 import sqlite3
+import threading
 import time
 
 from codex_auto_resume import config, machine
@@ -70,6 +76,9 @@ class SessionMixin:
         self.path = self.directory / FILE_NAME
         self.clock = clock
         self._connection = None
+        # Held for the whole of a transaction, and while the connection is opened or closed.
+        # Re-entrant, since a transaction opens the connection it runs on.
+        self._lock = threading.RLock()
 
     # ------------------------------------------------------------------ the file
     def exists(self) -> bool:
@@ -100,14 +109,24 @@ class SessionMixin:
     def _open(self, *, create: bool):
         """The connection, opened and checked the first time. None when the file is not there
         and `create` is False."""
-        if self._connection is not None:
-            return self._connection
+        connection = self._connection
+        if connection is not None:
+            # Read without the lock: the claim attaches the file from core's transaction, which
+            # must not wait for a transaction of this connection's on another thread.
+            return connection
+        with self._lock:
+            if self._connection is not None:
+                return self._connection
+            return self._opened(create)
+
+    def _opened(self, create):
         if not create and not self.exists():
             return None
         try:
             self._directory()
             was_present = self.path.exists()
-            connection = sqlite3.connect(self.path, timeout=10, isolation_level=None)
+            connection = sqlite3.connect(self.path, timeout=10, isolation_level=None,
+                                         check_same_thread=False)
         except (OSError, sqlite3.Error) as exc:
             raise StateError("cannot open the advanced state") from exc
         try:
@@ -155,30 +174,33 @@ class SessionMixin:
             raise StateError("malformed advanced state")
 
     def close(self) -> None:
-        if self._connection is not None:
-            self._connection.close()
-            self._connection = None
+        with self._lock:
+            if self._connection is not None:
+                self._connection.close()
+                self._connection = None
 
     # ---------------------------------------------------------------- transactions
     @contextmanager
     def _transaction(self, *, create: bool = True):
         """A write transaction, or None when the file is not there and nothing asked to make it."""
-        connection = self._open(create=create)
-        if connection is None:
-            yield None
-            return
-        with self._begin(connection, "BEGIN IMMEDIATE"):
-            yield connection
+        with self._lock:
+            connection = self._open(create=create)
+            if connection is None:
+                yield None
+                return
+            with self._begin(connection, "BEGIN IMMEDIATE"):
+                yield connection
 
     @contextmanager
     def _read(self):
         """One consistent snapshot, or None when there is no file to read."""
-        connection = self._open(create=False)
-        if connection is None:
-            yield None
-            return
-        with self._begin(connection, "BEGIN"):
-            yield connection
+        with self._lock:
+            connection = self._open(create=False)
+            if connection is None:
+                yield None
+                return
+            with self._begin(connection, "BEGIN"):
+                yield connection
 
     @staticmethod
     @contextmanager
