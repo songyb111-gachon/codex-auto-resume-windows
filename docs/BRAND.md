@@ -242,8 +242,9 @@ for it at every scaling. Since v0.6.7 the notification card's light breathes on 
 too, and Reduce motion and High Contrast keep it still; v0.6.6 drew it once, lit and still, on
 purpose. Since v0.6.10 it is drawn as the popup draws its own: only the band of rows the light
 stands in is drawn again, at the popup's frame rate, where the whole card was drawn again at most
-every 80 ms - a third of the processor time for more than twice the frames. The light always has
-its word beside it.
+every 80 ms. Timed through the card's own frame path at the 15.6 ms tick Windows' timers fire on
+by default, that is about 21 frames a second where there were about 11, for between a quarter and
+a third of the processor time. The light always has its word beside it.
 
 All of it stops on request. The Dashboard and the popup stop every animation when **Reduce
 motion** is on (Settings > Appearance) or when Windows' own animation-effects switch is off, and
