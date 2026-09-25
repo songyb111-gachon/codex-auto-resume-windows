@@ -20,6 +20,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import advancedcase as ac  # noqa: E402
 from codex_auto_resume import control, controlcli  # noqa: E402
@@ -68,6 +69,13 @@ class FakeSession:
 
 def factory(replies=None, events=None):
     return lambda measurement: FakeSession(measurement, replies=replies, events=events)
+
+
+class FakeBackend:
+    """Core's Backend as a measurement reads it: the Codex version its check found, or none."""
+
+    def __init__(self, version="0.155.0"):
+        self.engine_version = version
 
 
 class AllowListTests(unittest.TestCase):
@@ -185,6 +193,7 @@ class InvocationTests(ac.AdvancedCase):
             return FakeSession(measurement)
 
         self.plug_obj = advanced.AdvancedPlug(self.paths, measure_session_factory=watching_factory,
+                                              measure_backend=FakeBackend(),
                                               evidence_dir=self.evidence_dir, **self.options())
         self.control = control.Control(self.paths, plug=self.plug_obj)
 
@@ -207,6 +216,44 @@ class InvocationTests(ac.AdvancedCase):
         self.assertEqual(reply["result"]["measurement"], "m3")
         self.assertEqual(self.opened, ["m3"])
         self.assertTrue((self.evidence_dir / "measurement-m3.json").is_file())
+
+    def test_a_record_says_which_codex_it_measured(self):
+        """The Dashboard's run opens the installed Codex and records the version it checked -
+        the one fact a measurement decides a capability by (C7). It recorded "unknown" always,
+        since the backend it opened was never handed to the record."""
+        opened = []
+
+        class Found:
+            def __init__(self, codex_home, codex_exe):
+                self.engine_version = None
+
+            def _compatible(self):
+                self.engine_version = "0.155.0"
+                return {}
+
+        def session(backend, measurement):
+            opened.append(backend.engine_version)
+            return FakeSession(measurement)
+
+        live = advanced.AdvancedPlug(self.paths, evidence_dir=self.evidence_dir, **self.options())
+        self.control = control.Control(self.paths, plug=live)
+        with patch("codex_auto_resume.codex.transport.Backend", Found), \
+                patch.object(measure.config, "discover_codex_exe", return_value=Path("codex.exe")), \
+                patch.object(measure, "Session", session):
+            reply = self.bridge("measure", {"measurement": "m3"})
+        self.assertTrue(reply["result"]["done"], reply)
+        record = json.loads((self.evidence_dir / "measurement-m3.json").read_text(encoding="utf-8"))
+        self.assertEqual(record["codex_version"], "0.155.0")
+        self.assertEqual(opened, ["0.155.0"])
+
+    def test_a_run_that_cannot_say_which_codex_records_nothing(self):
+        unknown = advanced.AdvancedPlug(self.paths, measure_session_factory=factory(),
+                                        measure_backend=FakeBackend(None),
+                                        evidence_dir=self.evidence_dir, **self.options())
+        self.control = control.Control(self.paths, plug=unknown)
+        reply = self.bridge("measure", {"measurement": "m3"})
+        self.assertFalse(reply["result"]["done"])
+        self.assertEqual(sorted(self.evidence_dir.iterdir()), [])
 
     def test_an_unknown_measurement_id_is_refused(self):
         reply = self.bridge("measure", {"measurement": "m99"})

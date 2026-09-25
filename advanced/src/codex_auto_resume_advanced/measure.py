@@ -252,9 +252,15 @@ def run(measurement, *, session_factory=None, launcher=None, backend=None, versi
     `versions` is the build, Codex and Windows the record belongs to; when it is not given they
     are read here (the product's manifest, the backend's engine version, this Windows). Every
     external effect is a factory the caller passes, so a test drives this with fakes.
+
+    A record that cannot say which Codex it measured is not written, and nothing is run for it:
+    a measurement decides, per Codex version, whether a capability ships (C7), and "unknown"
+    would decide it for every version at once.
     """
     measurement = Measurement(measurement)
     versions = dict(versions or _versions(backend))
+    if versions.get("codex_version") in (None, "", "unknown"):
+        raise EvidenceUnavailable("the Codex version this would measure could not be read")
     ctx = Context(measurement, session_factory=session_factory, launcher=launcher,
                   backend=backend, versions=versions)
     verdict, observed, note = probe(ctx)
@@ -288,16 +294,25 @@ def _versions(backend) -> dict:
             "windows_build": build or "10.0.0"}
 
 
-def live_session_factory(paths):
+def live_backend():
+    """The installed Codex, found as core finds it and checked, so its `engine_version` is the
+    version a record says it measured."""
+    from codex_auto_resume.codex.transport import Backend
+    exe = config.discover_codex_exe(None, lambda path: Backend(config.codex_home(), path)._compatible())
+    backend = Backend(config.codex_home(), exe)
+    backend._compatible()
+    return backend
+
+
+def live_session_factory(paths, backend=None):
     """A factory that opens a real one-turn session against the installed Codex, restricted to a
     measurement's own methods. Wired by the bridge; never reached by a test.
 
     Its correctness against a live engine is what the owner proves by running the measurements -
-    the alpha exists for that - so it is thin and does the discovery core already does."""
-    from codex_auto_resume.codex.transport import Backend
-
+    the alpha exists for that - so it is thin and does the discovery core already does. `backend`
+    is the one the run's record reads its Codex version from, so the session and the record are
+    of the same Codex."""
     def factory(measurement):
-        exe = config.discover_codex_exe(None, lambda path: Backend(config.codex_home(), path)._compatible())
-        return Session(Backend(config.codex_home(), exe), measurement)
+        return Session(backend if backend is not None else live_backend(), measurement)
 
     return factory

@@ -84,7 +84,8 @@ def _word(answer, point):
 
 class Runtime:
     def __init__(self, paths, *, registry=REGISTRY, clock=time.time,
-                 measure_session_factory=None, measure_launcher=None, evidence_dir=None, **arming):
+                 measure_session_factory=None, measure_launcher=None, measure_backend=None,
+                 evidence_dir=None, **arming):
         self.paths = paths
         self.registry = registry
         self.clock = clock
@@ -101,6 +102,7 @@ class Runtime:
         # real Codex or writes into the repository.
         self._measure_session_factory = measure_session_factory
         self._measure_launcher = measure_launcher
+        self._measure_backend = measure_backend
         self._evidence_dir = evidence_dir
 
     # ------------------------------------------------------------------ standing
@@ -217,11 +219,15 @@ class Runtime:
         The session and the launcher are the runtime's own seams: production opens a real
         one-turn session against the installed Codex and writes to the source tree's evidence
         directory, and a test gives fakes and a temporary directory. Nothing here runs unless a
-        surface was asked for it by a person."""
+        surface was asked for it by a person.
+
+        The backend is the one the session opens, so the record says which Codex it measured:
+        without it every record said "unknown", and a measurement decides per Codex version."""
         from . import measure
-        session_factory = self._measure_session_factory
+        session_factory, backend = self._measure_session_factory, self._measure_backend
         if session_factory is None:
-            session_factory = measure.live_session_factory(self.paths)
+            backend = backend if backend is not None else measure.live_backend()
+            session_factory = measure.live_session_factory(self.paths, backend)
         return measure.run(measurement, session_factory=session_factory,
-                           launcher=self._measure_launcher, directory=self._evidence_dir,
-                           clock=self.clock)
+                           launcher=self._measure_launcher, backend=backend,
+                           directory=self._evidence_dir, clock=self.clock)
