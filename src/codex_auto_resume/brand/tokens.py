@@ -1,4 +1,4 @@
-"""The palette: the identity ramp, the one brand colour, and the two themes.
+"""The palette: the identity ramp, the one brand colour, the two themes, and each design's colours.
 
 Every colour this product draws in either is one of these or is mixed from one. A surface that
 invents a colour of its own has left the product, which is what makes this file worth reading
@@ -91,6 +91,47 @@ DARK = {
 }
 
 
+# ------------------------------------------------------------------- v0.6.10: the designs
+# The Design setting draws the same product four ways (brand/design.py says what each draws and
+# what moves in it). Soft is LIGHT and DARK above, and Still is Soft held still, so it is Soft's
+# colours too. Classic and Plain have their own, with LIGHT's key set exactly, so a surface
+# swaps a design's colours the way it swaps a theme's. Nothing in them is read from Windows.
+#
+# Classic is what v0.6.2 shipped, read from the tag: `git show v0.6.2:src/codex_auto_resume/brand.py`
+# (LIGHT and DARK, ten keys each). tests/test_brand.py holds the ten to that release's values, so no
+# later change to Soft can move them. v0.6.2 filled a button with `surface` and a field with
+# `canvas` and ringed the keyboard's focus in the accent, so `raised`, `inset` and `focus` are those.
+# v0.6.2 had no quiet accent ground: Soft's carries v0.6.2's `muted` at 4.4:1, under the 4.5 every
+# ground is held to, so Classic's is the accent a tenth of the way from white. The hover and pressed
+# accents and the five state colours are Soft's. v0.6.2's dark was today's on the same ten keys.
+CLASSIC_LIGHT = dict(LIGHT, **{
+    "ink": "#0F1B2D", "muted": "#5A6B7F", "line": "#DCE3EC", "surface": "#FFFFFF", "canvas": "#F2F5F9",
+    "raised": "#FFFFFF", "inset": "#F2F5F9", "accent": "#1257B8", "accent_soft": "#E7EEF8",
+    "on_accent": "#FFFFFF", "focus": "#1257B8", "active": "#06B6D4", "idle": "#94A3B8",
+    "attention": "#B45309",
+})
+CLASSIC_DARK = dict(DARK, **{"raised": "#191F29", "inset": "#0C1118", "focus": "#5CA2EE"})
+
+# Plain: system-like neutral greys - fixed values, never Windows' own - with the product's accent,
+# its state colours and its words, which are what make it this product rather than any window.
+# The keyboard's focus is ringed in the ink.
+PLAIN_LIGHT = dict(LIGHT, **{
+    "ink": "#1B1B1B", "muted": "#5E5E5E", "line": "#E0E0E0", "surface": "#FFFFFF", "canvas": "#F3F3F3",
+    "raised": "#FFFFFF", "inset": "#F3F3F3", "focus": "#1B1B1B",
+})
+PLAIN_DARK = dict(DARK, **{
+    "ink": "#F3F3F3", "muted": "#ABABAB", "line": "#3D3D3D", "surface": "#2B2B2B", "canvas": "#202020",
+    "raised": "#2B2B2B", "inset": "#1C1C1C", "focus": "#F3F3F3",
+})
+# Nothing draws a shadow in Classic or Plain; shadow_dark and shadow_light keep Soft's values there so
+# every set has the same keys.
+
+# Every design's colours, light first, by design name. The order is the setting's.
+DESIGN_TOKENS = {"soft": (LIGHT, DARK), "still": (LIGHT, DARK),
+                 "classic": (CLASSIC_LIGHT, CLASSIC_DARK), "plain": (PLAIN_LIGHT, PLAIN_DARK)}
+DESIGNS = tuple(DESIGN_TOKENS)
+
+
 
 THEMES = ("light", "dark")
 
@@ -108,6 +149,18 @@ def theme_name(theme) -> str:
     raise ValueError("expected 'light' or 'dark', got %r" % (theme,))
 
 
-def palette(theme) -> dict:
-    """LIGHT or DARK, by theme name."""
-    return DARK if theme_name(theme) == "dark" else LIGHT
+def design_name(design) -> str:
+    """One of DESIGNS, as given; anything else raises.
+
+    A stored value that is not a design is the settings layer's to read as "soft" (settings.coerce)
+    and a surface's to normalise before it asks; here a wrong name is a mistake in the code.
+    """
+    if isinstance(design, str) and design in DESIGN_TOKENS:
+        return design
+    raise ValueError("expected one of %s, got %r" % (", ".join(DESIGNS), design))
+
+
+def palette(theme, design="soft") -> dict:
+    """A design's colours in a theme: LIGHT or DARK for Soft and Still, by theme name."""
+    light, dark = DESIGN_TOKENS[design_name(design)]
+    return dark if theme_name(theme) == "dark" else light

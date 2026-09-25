@@ -6,6 +6,7 @@ panel in Codex and the windows drawn in Python are working from one set of decis
 from __future__ import annotations
 
 from .checkbox import CHECKBOX, check_mark_outline
+from .design import DESIGN_RADII, design_depth
 from .elevation import SHADOWS, _CARD_GROUND
 from .light import (GLOW,
                     GLOW_BREATHES,
@@ -16,7 +17,7 @@ from .light import (GLOW,
                     glow_reach)
 from .motion import MOTION
 from .scale import LAYOUT, LINE_HEIGHT, RADII, SPACING, TYPE_SCALE
-from .tokens import theme_name
+from .tokens import DESIGNS, THEMES, palette, theme_name
 
 
 
@@ -187,3 +188,52 @@ def css_variables(theme: dict) -> str:
     """
     return " ".join("--%s: %s;" % (name.replace("_", "-"), value)
                     for name, value in theme.items())
+
+
+
+# The root, as a design block names it: a design is stamped on the root as `data-design` (the panel's
+# applyDesign), where the theme is stamped and the `--check-*` aliases are resolved.
+_DESIGN_ROOT = ':root[data-design="%s"]'
+
+
+def _design_declarations(theme, design, extra) -> str:
+    """Everything a design block declares for one theme: the design's colours, and - without depth - every
+    elevation `none` and the card its surface, then its radii and whatever `extra(theme, design)` adds."""
+    parts = [css_variables(palette(theme, design))]
+    if not design_depth(design):
+        parts.append(" ".join("--elev-%s: none;" % recipe for recipe in SHADOWS[theme_name(theme)]))
+        parts.append("--card-ground: var(--surface);")
+    parts.append(" ".join("--radius-%s: %spx;" % (name.replace("_", "-"), _number(value))
+                          for name, value in DESIGN_RADII[design].items()))
+    if extra is not None:
+        parts.append(extra(theme, design))
+    return " ".join(part for part in parts if part)
+
+
+def css_design_blocks(extra=None) -> str:
+    """The designs as the panel's stylesheet writes them (v0.6.10): for each design that draws differently
+    from Soft, its custom properties in the four places the base theme blocks stand - the root, the host's
+    dark scheme unless Light is stamped, and Dark and Light stamped - each also naming the design, so each
+    outranks the base block it stands for and a design is in light and dark by construction.
+
+    Only custom properties, on the root: the `--check-*-elev` aliases are resolved where they are declared,
+    which is the root, so they follow an `--elev-inset` of `none` only there. Without depth every `--elev-*`
+    is `none` - never a list that ends up `none, inset ...`, which is not CSS - and so is whatever
+    `extra(theme, design)` declares for the stylesheet's own elevations. Soft's own blocks are the base ones,
+    and a design that draws in Soft's colours with Soft's depth and radii (Still) needs none: what it changes
+    is motion, which is the stylesheet's rules, not its properties.
+    """
+    blocks = []
+    for design in DESIGNS:
+        if (all(palette(theme, design) is palette(theme) for theme in THEMES) and design_depth(design)
+                and DESIGN_RADII[design] == DESIGN_RADII["soft"]):
+            continue
+        root = _DESIGN_ROOT % design
+        light, dark = (_design_declarations(theme, design, extra) for theme in THEMES)
+        blocks.append("%s { %s }" % (root, light))
+        blocks.append('@media (prefers-color-scheme: dark) {\n  %s:not([data-theme="light"]) { %s }\n}'
+                      % (root, dark))
+        blocks.append('%s[data-theme="dark"] { %s }' % (root, dark))
+        blocks.append('%s[data-theme="light"] { %s }' % (root, light))
+    return "\n".join(blocks)
+

@@ -10,6 +10,7 @@ from collections import namedtuple
 import math
 
 from .colour import mix, rgb
+from .design import design_depth
 from .tokens import palette, theme_name
 
 
@@ -54,19 +55,24 @@ _CARD_GROUND = {name: ("var(--surface)" if not lift else
 
 
 
-def shadows(recipe: str, theme="light") -> tuple:
+def shadows(recipe: str, theme="light", design="soft") -> tuple:
     """A theme's elevation recipe - 'card', 'control' or 'inset' - front to back, as CSS lists it.
 
     Paint it back to front. Dark's card mixes outer shadows with an inset top light, so read each
-    Shadow's `inset` rather than the recipe's name.
+    Shadow's `inset` rather than the recipe's name. A design without depth (Classic, Plain) has none:
+    an empty recipe, so a surface that paints what it is given paints nothing. What a recipe reserves
+    round a box is `reach`, which is layout and the same in every design.
     """
-    return SHADOWS[theme_name(theme)][recipe]
+    listed = SHADOWS[theme_name(theme)][recipe]
+    return listed if design_depth(design) else ()
 
 
-def card_ground(theme="light") -> str:
-    """A card's own fill in a theme: `surface`, lifted CARD_LIFT of the way toward `raised`."""
-    tokens = palette(theme)
-    return mix(tokens["surface"], tokens["raised"], CARD_LIFT[theme_name(theme)])
+def card_ground(theme="light", design="soft") -> str:
+    """A card's own fill in a theme: `surface`, lifted CARD_LIFT of the way toward `raised` - in a design
+    with depth. Without it a card is its `surface`, as v0.6.2's were."""
+    tokens = palette(theme, design)
+    lift = CARD_LIFT[theme_name(theme)] if design_depth(design) else 0.0
+    return mix(tokens["surface"], tokens["raised"], lift)
 
 
 
@@ -102,18 +108,18 @@ def shadow_alpha(shadow: Shadow, d: float, side: str, scale: float = 1.0) -> flo
 
 
 def elevation_colour(recipe: str, side: str, d: float, ground: str, theme="light",
-                     scale: float = 1.0, inside=None) -> tuple:
+                     scale: float = 1.0, inside=None, design="soft") -> tuple:
     """The colour `d` device px from one edge of a box with `recipe`, as unrounded (r, g, b).
 
     `ground` is a token or `#RRGGBB`: outside the box, what the box stands on; inside it, the
     box's own fill. `inside` says which side of the edge `d` runs: None means inside for a recipe
     whose every shadow is inset (the well) and outside for any other. Only the shadows on that
     side are applied - dark's card has an inset top light that never reaches outside it. The list
-    is painted back to front, as CSS paints it.
+    is painted back to front, as CSS paints it. In a design without depth it is the ground itself.
     """
-    tokens, recipe_shadows = palette(theme), shadows(recipe, theme)
+    tokens, recipe_shadows = palette(theme, design), shadows(recipe, theme, design)
     if inside is None:
-        inside = all(shadow.inset for shadow in recipe_shadows)
+        inside = bool(recipe_shadows) and all(shadow.inset for shadow in recipe_shadows)
     colour = [float(part) for part in rgb(tokens.get(ground, ground))]
     for shadow in reversed(recipe_shadows):
         if shadow.inset != bool(inside):
