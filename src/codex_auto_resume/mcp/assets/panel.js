@@ -1510,7 +1510,7 @@ function renderContinuation(byName) {
   }
   custom.appendChild(stored);
   custom.appendChild(element('p', 'callout', t('custom.dashboard_only',
-    'Custom messages are written in the Dashboard.')));
+    'Custom messages are written in the Dashboard, so text sent into your conversations is never set from inside one.')));
   drawStored();
   showCustom();
   rows.appendChild(custom);

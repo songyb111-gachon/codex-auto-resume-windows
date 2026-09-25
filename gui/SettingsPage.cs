@@ -420,7 +420,7 @@ namespace CodexAutoResume
             interfaceCombo.Margin = Pad(0, 0, 0, 6);
             language.Controls.Add(interfaceCombo);
             language.Controls.Add(HelpText(S("help.interface_language",
-                "Used by this window, the notification-area popup, notifications and the panel in Codex.")));
+                "Used by the Dashboard, the notification-area popup, notifications and the panel in Codex.")));
             editors["interface_language"] = interfaceCombo;
             TableLayoutPanel windows = NewGroup(S("group.windows", "Windows"), sections["general"]);
             // First in its card, above the Windows preferences the schema adds.
@@ -487,7 +487,7 @@ namespace CodexAutoResume
                     editors[name] = check;
                     if (name == "reduce_motion")
                         host.Controls.Add(HelpText(S("help.reduce_motion",
-                            "Stops the breathing and pulsing status animations in this window and the notification-area popup. Windows' own Animation effects setting is always honored as well.")));
+                            "Stops the breathing and pulsing status animations in the Dashboard and the notification-area popup. Windows' own Animation effects setting is always honored as well.")));
                     // When the card gives way to Windows' own notification - Do not disturb, full screen, a screen
                     // reader, a locked or remote session - is said under its switch, never left to be found out.
                     if (name == "notification_card")
@@ -527,7 +527,7 @@ namespace CodexAutoResume
                     editors[name] = combo;
                     if (name == "theme")
                         host.Controls.Add(HelpText(S("help.theme",
-                            "Light or dark for this window, the notification-area popup and the notification card, and for the panel in Codex while Theme in Codex is Same as Theme. Use system setting follows Windows here and Codex's own theme in Codex.")));
+                            "Light or dark for the Dashboard, the notification-area popup and the notification card, and for the panel in Codex while Theme in Codex is Same as Theme. Use system setting follows Windows for the first three and Codex's own theme for the panel.")));
                     if (name == "panel_theme")
                         host.Controls.Add(HelpText(S("help.panel_theme",
                             "Light or dark for the panel in Codex alone. Same as Theme uses the choice above; Codex's theme follows Codex whatever the Theme is.")));
