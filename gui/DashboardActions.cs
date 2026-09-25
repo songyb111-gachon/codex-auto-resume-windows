@@ -348,18 +348,38 @@ namespace CodexAutoResume
         /// The status light for a header's word: the word's own, except that a watcher not known to be running is a
         /// light that is off, grey and still, whatever the word beside it asks (tray_popup.light_for, panel.js
         /// lightFor). A light that moves says the product is running; amber is for a watcher that runs and is not well.
-        /// A row held for a watcher not running (engine_unavailable) outweighs a status that says it runs, the two
-        /// read a moment apart, so the dot is not a moving light beside "Watcher not running" (HeroFacts).
         internal static string HeaderLight(Dictionary<string, object> status, List<object> pending, string word)
         {
-            if (!Equals(Get(status, "watcher_running"), true)) return "idle";
+            return KnownRunning(status, pending) ? word : "idle";
+        }
+
+        /// Whether what was read says the watcher runs: the status says so, and no row is held for a watcher that is
+        /// not running (engine_unavailable) - the two are read a moment apart, and the row is believed until the next
+        /// read settles it, so the dot is not a moving light beside "Watcher not running" (tray_popup.watcher_known_running).
+        internal static bool KnownRunning(Dictionary<string, object> status, List<object> pending)
+        {
+            if (!Equals(Get(status, "watcher_running"), true)) return false;
             if (pending != null)
                 foreach (object entry in pending)
                 {
                     var row = entry as Dictionary<string, object>;
-                    if (row != null && HasOverlay(row, "engine_unavailable")) return "idle";
+                    if (row != null && HasOverlay(row, "engine_unavailable")) return false;
                 }
-            return word;
+            return true;
+        }
+
+        /// The header's headline, in the window's own words as it has always said them: "Watcher status unknown" when
+        /// nothing says whether the watcher runs, "Watcher not running" when it does not - or a row is held for it not
+        /// running (KnownRunning) - and otherwise "Watching for interruptions" or "Automatic recovery paused". v0.6.10
+        /// put the panel's and the popup's activity word here for a while (Monitoring, Waiting, ...) and gave that back.
+        internal static string Headline(Dictionary<string, object> strings, Dictionary<string, object> status,
+                                        List<object> pending)
+        {
+            object running = Get(status, "watcher_running");
+            if (running == null) return Said(strings, "status.unknown", "Watcher status unknown");
+            if (!KnownRunning(status, pending)) return Said(strings, "status.not_running", "Watcher not running");
+            return Equals(Get(status, "enabled"), true) ? Said(strings, "status.watching", "Watching for interruptions")
+                                                        : Said(strings, "status.paused", "Automatic recovery paused");
         }
 
         /// Why a watcher that runs needs a person, or null when it does not: an older watcher still owns the state, it
@@ -398,48 +418,39 @@ namespace CodexAutoResume
                    code == "turn_finishing";
         }
 
-        /// The facts under the header's word, most consequential first: whether anything can be recovered, and what
-        /// is waiting on it - the Codex panel's (panel.js heroFacts), in `strings`, the catalog the window was served,
-        /// and held to them by tests/test_light_parity.py. The panel adds the soonest check as a clock time; this
-        /// window counts it down on the Dashboard instead.
+        /// The facts under the headline, in the window's own format as it has always had it - two facts, most
+        /// consequential first: whether anything can be recovered, then what is waiting on it ("Automatic recovery is
+        /// on · 2 recoveries pending", "Nothing will be recovered until it is running · Nothing pending"), in `strings`,
+        /// the catalog the window was served. One thing changed in v0.6.10 and stays: a watcher that runs but is not
+        /// well never shows "Automatic recovery is on" - the first fact names why instead, in the words the Codex panel
+        /// names it in (panel.js heroFacts; tests/test_light_parity.py): an older watcher still owning the state, a
+        /// Codex version not supported, checks that failed on this computer, or "Watcher not responding".
         internal static List<string> HeroFacts(Dictionary<string, object> strings, Dictionary<string, object> status,
-                                               List<object> pending, string word)
+                                               List<object> pending)
         {
             int count = (int)Number(status, "pending");
             string waiting = count == 0 ? Said(strings, "status.pending_none", "Nothing pending")
                            : count == 1 ? Said(strings, "status.pending_one", "1 recovery pending")
                            : Said(strings, "status.pending_many", "{n} recoveries pending")
                                  .Replace("{n}", count.ToString(CultureInfo.InvariantCulture));
-            var facts = new List<string>();
-            object running = Get(status, "watcher_running");
-            if (!Equals(running, true))
-            {
-                facts.Add(Equals(running, false) ? Said(strings, "status.not_running", "Watcher not running")
-                                                 : Said(strings, "status.unknown", "Watcher status unknown"));
-                facts.Add(Said(strings, "status.recovery_idle", "Nothing will be recovered until it is running"));
-                if (count != 0) facts.Add(waiting);
-                return facts;
-            }
-            if (word == "attention")
-            {
-                // A watcher that runs and is not well: what is wrong, not "recovery is on".
-                string cause = AttentionCause(status, pending);
-                facts.Add(cause == "upgrade_pending"
-                              ? Said(strings, "diag.upgrade_pending",
-                                     "An older watcher still owns the state; finish by restarting the watcher")
-                          : cause == "compatibility_blocked"
-                              ? Said(strings, "overlay.compatibility_blocked", "Codex version not supported")
-                          : cause == "compatibility_failed_here"
-                              ? Said(strings, "overlay.compatibility_failed_here", "Codex checks failed on this computer")
-                          : cause == "engine_unavailable" ? Said(strings, "status.not_running", "Watcher not running")
-                          : Said(strings, "status.not_responding", "Watcher not responding"));
-                facts.Add(waiting);
-                return facts;
-            }
-            facts.Add(word == "paused" ? Said(strings, "status.recovery_paused", "Automatic recovery is paused")
-                                       : Said(strings, "status.recovery_on", "Automatic recovery is on"));
-            facts.Add(waiting);
-            return facts;
+            string recovery;
+            string cause = KnownRunning(status, pending) ? AttentionCause(status, pending) : null;
+            if (!KnownRunning(status, pending))
+                recovery = Said(strings, "status.recovery_idle", "Nothing will be recovered until it is running");
+            else if (cause == "upgrade_pending")
+                recovery = Said(strings, "diag.upgrade_pending",
+                                "An older watcher still owns the state; finish by restarting the watcher");
+            else if (cause == "compatibility_blocked")
+                recovery = Said(strings, "overlay.compatibility_blocked", "Codex version not supported");
+            else if (cause == "compatibility_failed_here")
+                recovery = Said(strings, "overlay.compatibility_failed_here", "Codex checks failed on this computer");
+            else if (cause != null)
+                recovery = Said(strings, "status.not_responding", "Watcher not responding");
+            else
+                recovery = Equals(Get(status, "enabled"), true)
+                           ? Said(strings, "status.recovery_on", "Automatic recovery is on")
+                           : Said(strings, "status.recovery_paused", "Automatic recovery is paused");
+            return new List<string> { recovery, waiting };
         }
 
         /// A word from `strings`, as S says it, for the pure functions that are handed the catalog.

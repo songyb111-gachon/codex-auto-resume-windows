@@ -996,9 +996,10 @@ function nextCheck(row) {
 }
 
 // The facts under the word, most consequential first: whether anything can be recovered, and
-// what is waiting on it. The Dashboard's header says the same facts (SettingsForm.HeroFacts,
-// held to these by tests/test_light_parity.py); only the soonest check below is the panel's own,
-// a clock time where the window counts down.
+// what is waiting on it. The Dashboard's header keeps its own format for them, and names the
+// same cause first for a watcher that runs and is not well (SettingsForm.HeroFacts, held to
+// these by tests/test_light_parity.py); the soonest check below is the panel's own, a clock
+// time where the window counts down.
 function heroFacts(status, state, rows) {
   var count = status.pending || 0;
   var pending = count === 0 ? t('status.pending_none', 'Nothing pending')
