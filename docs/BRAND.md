@@ -42,6 +42,12 @@ Windows. A notification can appear as the popup's own card beside the notificati
 mark's geometry moved into `brand.py` (`ICON_SHAPE`), because the watcher now draws the icon's
 frames from it.
 
+v0.6.10 settled that look and then drew it four ways. The audit made the three headers one recipe -
+the panel's - with one light rule, one button and chip, one callout and one word for each thing; and
+the **Design** setting draws the whole product as Soft (all of the above), Soft without motion,
+Classic (v0.6.2's flat cards with their accent bar) or Plain. The designs are data, so the audit's
+decisions hold in all four (see [Four designs](#four-designs)).
+
 ## Where a colour comes from
 
 `src/codex_auto_resume/brand/` and nowhere else — and since v0.6.3, every size, radius and
@@ -50,8 +56,8 @@ duration as well.
 | Surface | How it gets the palette |
 | --- | --- |
 | The Codex panel | `mcpui.py` builds its `:root` block at import from `brand.LIGHT` and `brand.DARK`, `brand.css_scale()` - which also writes the check box's colours for each of its states - and `brand.css_elevation()`, which writes the shadow recipes of both themes as CSS. |
-| The Dashboard | `build/make_brand.py` generates `gui/Brand.cs`: every light token as a `Color`, and in the nested class `Brand.Dark` the dark twin of everything that changes with the theme, under the same name; the scale, the layout sizes, the shadow recipes and the state light's numbers as constants; and the per-state rules of the state light, the shadows and the check box as small generated methods. `gui/SoftTheme.cs` adopts one theme before the first control is made and reads the brand's colours through one `Tokens` class, the only place a light colour and its dark twin are read; its `Palette` class is also the one place High Contrast is honoured, and the other soft-control sources draw through both. The generated file is committed, so a contributor with no Python can still read what the window will look like. |
-| The notification-area popup | `tray_popup/` imports `brand` and draws with `brand.palette(theme)`, `brand.card_ground(theme)`, `brand.shadows(recipe, theme)`, the scale, `brand.glow()` and `brand.ease()` directly, in the theme it resolved when it opened. The notification card is the popup's card, drawn by the popup's own renderer. |
+| The Dashboard | `build/make_brand.py` generates `gui/Brand.cs`: every light token as a `Color`, and in the nested class `Brand.Dark` the dark twin of everything that changes with the theme, under the same name - and since v0.6.10 `Brand.Classic` and `Brand.Plain`, each with its own `Dark`, for the two designs with colours of their own, and the design's rules (`Brand.DesignDepth`, `DesignGlow`, `DesignBreathes`, `DesignGlides`, `DesignAccentBar`, `DesignRadius`); the scale, the layout sizes, the shadow recipes and the state light's numbers as constants; and the per-state rules of the state light, the shadows and the check box as small generated methods. `gui/SoftTheme.cs` adopts one theme before the first control is made and reads the brand's colours through one `Tokens` class, the only place a light colour and its dark twin are read; its `Palette` class is also the one place High Contrast is honoured, and the other soft-control sources draw through both. The generated file is committed, so a contributor with no Python can still read what the window will look like. |
+| The notification-area popup | `tray_popup/` imports `brand` and draws with `brand.palette(theme)`, `brand.card_ground(theme)`, `brand.shadows(recipe, theme)`, the scale, `brand.glow()` and `brand.ease()` directly, in the theme it resolved when it opened - and since v0.6.10 in the design it read with it, which every one of those takes as `design`. The notification card is the popup's card, drawn by the popup's own renderer. |
 | The icon | `assets/make_icon.py` imports the four icon colours and `brand.ICON_SHAPE`, and rasterises with `brand.icon_render()`; the notification-area icon's motion frames come from the same geometry and rasteriser inside the watcher (`tray.py`). |
 | The plugin card | `.codex-plugin/plugin.json` carries `brandColor`, checked against `brand.BRAND`. |
 
@@ -248,9 +254,12 @@ a third of the processor time. The light always has its word beside it.
 
 All of it stops on request. The Dashboard and the popup stop every animation when **Reduce
 motion** is on (Settings > Appearance) or when Windows' own animation-effects switch is off, and
-the Dashboard also stops it in High Contrast; a light that holds still is lit, with no glow. The panel follows the host's
-`prefers-reduced-motion` instead, which is why the setting is not offered there. The
-notification-area icon and the notification card stop under battery saver as well.
+the Dashboard also stops it in High Contrast; a light that holds still is lit, with no glow. The panel
+follows the host's `prefers-reduced-motion`, and since v0.6.10 the stored Reduce motion as well,
+which it reads and never offers. The notification-area icon and the notification card stop under
+battery saver as well. The **Design** Soft, without motion draws exactly what Reduce motion draws,
+as a look rather than an accessibility setting, and no design can move what any of these holds
+still (see [Four designs](#four-designs)).
 
 ### Controls move, briefly
 
@@ -350,6 +359,99 @@ motion and draws with system colours throughout; `Palette` in `gui/SoftTheme.cs`
 happens. The popup makes the same swap, with the same mapping, and the panel has a forced-colors
 style, so its lights, switch knobs, check boxes and drop-down arrows stay visible. In all three the
 state light becomes a solid dot in a system colour, with no glow.
+
+## Four designs
+
+Since v0.6.10 the **Design** setting draws the same product four ways: **Soft**, what every surface
+drew until then and the default; **Soft, without motion** (`still`); **Classic (v0.6.2)**; and
+**Plain**. It sits in the Dashboard's Settings > Appearance, after the two themes and before Reduce
+motion, and it is independent of the theme, so each design comes in light and dark. It is data in
+`brand/design.py` and `brand/tokens.py`, generated into `gui/Brand.cs` and into the panel's
+stylesheet (`brand.css_design_blocks`, the panel's `design_rules`), and every surface reads the
+difference from there rather than deciding it:
+
+| Design | Colours | Depth | Glow | The light breathes | Controls glide | v0.6.2's marks | Corners: card, control, small, check |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Soft | `LIGHT`, `DARK` | yes | yes | yes | yes | no | 16, 11, 7, 5 |
+| Soft, without motion | `LIGHT`, `DARK` | yes | no | no | no | no | 16, 11, 7, 5 |
+| Classic (v0.6.2) | `CLASSIC_LIGHT`, `CLASSIC_DARK` | no | yes | yes | no | yes | 8, 7, 6, 4 |
+| Plain | `PLAIN_LIGHT`, `PLAIN_DARK` | no | no | yes, dimming only | no | no | 8, 4, 4, 4 |
+
+- **Depth** is the shadows, the sunken wells and the dark card lifted a step off its surface. Without
+  it a surface is its fill and its hairline, as v0.6.2's were, and the notification card floats no
+  shadow.
+- **Glow** is the falloff round the status light while it breathes. Plain has none, because the glow
+  is the only gradient on any surface.
+- **The light breathes** is whether the status light moves at all: its breath, and checking's arc.
+  Every light that says the product is running moves in every design but Soft, without motion,
+  which is Soft held still - every frame Reduce motion draws, chosen as a look.
+- **Controls glide** is a switch or a check box moving as it changes, a list rising open, the
+  scroll glide, and the notification card's entrance, exit and slide. Only Soft glides; in the
+  others a control simply changes.
+- **v0.6.2's marks** are Classic's: a 3 px accent bar inside each card's left hairline - an inset
+  shadow in the panel, so nothing moves by its width - and the current tab underlined in the accent.
+- Chips are pills in every design.
+
+**The rules are one line each, on every surface.** The colours are the design's, or the system's in
+High Contrast, which replaces every design and draws one look whichever is chosen, with Soft's
+corners. Depth is the design's and never High Contrast's. The light moves when the design breathes
+and no stopper holds it; the controls move when the design glides and no stopper holds them; the
+stoppers are each surface's own and the same in every design - Reduce motion, Windows' animation
+effects and High Contrast everywhere, and battery saver, a locked session, the overflow area or a
+hidden surface where they apply. So a design can only ever have less motion than those allow, never
+more. Each design's light keeps its word beside it.
+
+**A design changes paint, never layout.** Every size, padding, dot and reserved shadow margin is the
+same in all four, and a corner is only ever smaller than Soft's, so nothing measured for Soft can
+overflow in another design; `tests/test_gui_v0610_designs.py` runs the window's layout audit in each
+and holds what it records to Soft's byte for byte. The window's Pending and History rows are flat
+hairline rows in every design.
+
+**Classic is v0.6.2, read from the tag.** v0.6.2 was light-only, with native controls and flat white
+cards on a blue-grey canvas, a hairline round each and a 3 px accent bar at its left, and its current
+tab underlined. There was no popup (it came in v0.6.3) and no notification card (v0.6.5), so Classic's
+popup and card are v0.6.2's card language laid on today's layout. Its ten colours in each theme are
+what `git show v0.6.2:src/codex_auto_resume/brand.py` holds, and `tests/test_brand.py` holds them to
+that release, so no later change to Soft can move them:
+
+| Token | Classic light (v0.6.2's `LIGHT`) | Classic dark (v0.6.2's `DARK`, today's on these keys) |
+| --- | --- | --- |
+| `ink` | `#0F1B2D` | `#E8EEF6` |
+| `muted` | `#5A6B7F` | `#9AACBF` |
+| `line` | `#DCE3EC` | `#2E3A4B` |
+| `surface` | `#FFFFFF` | `#191F29` |
+| `canvas` | `#F2F5F9` | `#0C1118` |
+| `accent` | `#1257B8` | `#5CA2EE` |
+| `on_accent` | `#FFFFFF` | `#08111C` |
+| `active` | `#06B6D4` | `#35B5CC` |
+| `idle` | `#94A3B8` | `#5F6E80` |
+| `attention` | `#B45309` | `#E09B57` |
+
+v0.6.2 filled a button with `surface` and a field with `canvas` and ringed the keyboard's focus in
+the accent, so Classic's `raised`, `inset` and `focus` are those. It had no quiet accent ground, and
+Soft's carries v0.6.2's `muted` at 4.4:1, under the 4.5:1 every ground is held to, so Classic's
+`accent_soft` is the accent a tenth of the way from white, `#E7EEF8`. The hover and pressed accents
+and the five state colours are Soft's. Its corners are v0.6.2's: an 8 px card, 7 px buttons and 6 px
+fields.
+
+**Plain is flat and grey, and still this product.** Its neutral greys are fixed values and never
+Windows' own - `#1B1B1B` ink, `#5E5E5E` muted, a `#E0E0E0` hairline, white cards on `#F3F3F3` in
+light; `#F3F3F3` ink on `#2B2B2B` cards and a `#202020` canvas in dark - with the product's accent,
+its state colours and its words, which are what make it this product rather than any window. The
+keyboard's focus is ringed in the ink, and its corners are Windows 11's: 8 px for what stands alone,
+4 px for a control.
+
+**Codex cannot change it.** The Design decides what moves on every surface, as Reduce motion does,
+so it is set in the Dashboard only: `update_settings` neither offers nor accepts it, the panel draws
+in it and never sends it, and `restore_default_settings` puts it back to Soft as it puts back every
+setting. The panel is stamped with it (`data-design`) as it is with a theme, and with the stored
+Reduce motion (`data-motion`). An older or newer watcher's value it does not know is drawn as Soft.
+
+Every design is pictured, in the light theme and in English: the Dashboard's Overview, the panel,
+the popup and the notification card, `docs/images/design-<design>-<surface>.png` beside Soft's own
+pictures (see [Redrawing anything](#redrawing-anything)). The dark half of each design is held by
+the property tests - each design's colours on every ground, and High Contrast identical in all four -
+rather than pictured.
 
 ## Switches and check boxes
 
@@ -585,6 +687,20 @@ python assets/make_icon.py     # icon, logos, vector master
 python build/make_brand.py     # gui/Brand.cs: the palette and the scale
 python build/icon_concepts.py  # the concept comparison sheet
 ```
+
+The documentation's pictures are made by `build/make_screenshots.py`, from PowerShell on Windows,
+in two steps: the whole set, then `--breathe`. A picture of a light that moves moves: every light
+a surface moves is animated as an APNG, whose first frame is what a viewer without animation shows.
+Since v0.6.10 (F15) each surface declares its lights - where each one is, its radius, its state and
+the ground it stands on, kept in `assets/screenshots.json` under `lights`: the popup and the card
+from their own layout, the panel from the page itself, the window from its capture. The popup and
+the card are drawn moving by their own renderers, their light alone drawn again frame by frame as
+they draw it; the panel and the window are captured still at the top of the breath and `--breathe`
+draws every light they declare, each on its own ground, at every moment of one cycle. A picture's
+lights move on one rhythm, and a frame lasts exactly its share of it - a 4.4-second breath is 132
+frames of 1/30 s, where 33 ms made it 4.356 s until v0.6.10. The panel's two lights are drawn a
+frame each in turn, so each frame stays a small rectangle. Soft, without motion's pictures are still,
+because its light is; Classic's move with their glow, and Plain's dim with none.
 
 Screenshots are captured with `build/capture_window.ps1`, which declares itself DPI aware
 before measuring. A DPI-unaware capture is told a scaled-down window rectangle, allocates a

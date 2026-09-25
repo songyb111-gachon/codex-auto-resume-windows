@@ -370,7 +370,29 @@ records that somebody did.
 `python build/make_screenshots.py` renders the whole set from the working tree: the Codex
 panel, and the window's Overview, Pending and Settings pages, in English and Korean, into
 `assets/` with copies in `docs/images/`. Nothing is captured by hand and nothing is edited
-afterwards.
+afterwards. A whole regeneration is two steps, in this order, both from PowerShell - launched
+from a POSIX shell such as Git Bash, headless Edge exits at once and prints nothing:
+
+```
+python build/make_screenshots.py
+python build/make_screenshots.py --breathe
+```
+
+**A picture of a light that moves, moves.** Every surface's status light is animated in its
+pictures as it moves in the product, as an APNG whose first frame is what a viewer without
+animation shows. Each surface declares its lights - where each is, its radius, its state and the
+ground it stands on - and the manifest keeps them under `lights`: the popup and the notification
+card are drawn moving by their own renderers in the first step, and the window and the panel are
+captured still, at the first moment of the breath, so the second step draws every light they
+declare over the capture, on its own ground, for exactly one cycle. It refuses a capture whose
+light does not stand where it says or on the ground it names, rather than paint a box of the wrong
+colour. Forgetting the second step leaves the window's and the panel's pictures still, and the
+suite says so.
+
+**Each design is pictured too.** Besides the set above, the Dashboard's Overview, the panel, the
+popup and the notification card are drawn in each Design other than Soft - Soft, without motion,
+Classic and Plain - in English and the light theme, as `docs/images/design-<design>-<surface>.png`.
+They are documentation only and never copied into `assets/`.
 
 It needs Windows, Microsoft Edge (it is what renders the panel), and
 `build/CodexAutoResumeSettings.exe` already built — run
@@ -379,9 +401,9 @@ downloads the pinned embeddable Python into `build/cache/`.
 
 They are pinned to light. The product follows the reader's Windows and Codex themes at
 runtime; the pictures do not, so that a gallery looks like one product and a build on a
-machine in dark mode produces the same bytes as a build on one in light mode. The notification
-card is the one exception: it floats over whatever desktop the reader has, so it is pictured in
-both themes, each picture named for its theme and drawn in it.
+machine in dark mode produces the same bytes as a build on one in light mode. Since v0.6.6 that
+holds for the notification card as well, which until then was pictured in both themes. The Design
+is pinned the same way: every picture is Soft's but the designs' own.
 
 `assets/screenshots.json` records a digest of every input each image was rendered from.
 The window is recorded in two halves. One is the files it is compiled from — its three
