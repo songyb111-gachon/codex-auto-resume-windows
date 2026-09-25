@@ -80,7 +80,15 @@ def skip_unless_korean_sources() -> None:
 
 
 def mapping() -> dict:
-    return json.loads(MAPPING.read_text(encoding="utf-8"))
+    """scripts/ko_branch.json, with the advanced tree's own English documents joined to its
+    `intentionally_english`. They are listed in advanced/ko_branch.json because scripts/ ships
+    in the standard archive, which names no path of the advanced tree (build/edition_audit.py)."""
+    found = json.loads(MAPPING.read_text(encoding="utf-8"))
+    advanced = ROOT / "advanced" / "ko_branch.json"
+    if advanced.is_file():
+        found["intentionally_english"].update(
+            json.loads(advanced.read_text(encoding="utf-8"))["intentionally_english"])
+    return found
 
 
 # Three numbers, and what follows them. A tag with a suffix - `v0.6.6-alpha`, the candidate this

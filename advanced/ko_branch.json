@@ -1,0 +1,14 @@
+{
+  "_comment": [
+    "The advanced tree's own part of scripts/ko_branch.json: its documents that stay English,",
+    "each with the reason. tests/test_korean.py reads both files as one classification.",
+    "",
+    "Kept here, not there, because scripts/ ships in the standard edition's archive, and the",
+    "standard archive spells no path of the advanced tree outside the edition machinery",
+    "(build/edition_audit.py, check (c)). This file is at the root of advanced/, which neither",
+    "archive ships."
+  ],
+  "intentionally_english": {
+    "advanced/skills/codex-auto-resume-advanced/SKILL.md": "The advanced edition's instructions to Codex, for the same reason as the standard skill's: what Codex reads is not translated, so the two branches behave alike."
+  }
+}
