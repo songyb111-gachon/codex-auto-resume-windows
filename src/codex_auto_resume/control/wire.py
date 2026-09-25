@@ -157,10 +157,14 @@ class CompatData(TypedDict):
 
 
 class CompatCapability(TypedDict):
+    """One capability's standing. `registry_reason` is there only when registry data in force
+    marks the capability for this version, and names why (compat/standing.py); the reply has
+    always carried it, and no golden held a view with an engine found until v0.6.10."""
     state: str
     tier: str
     source: str
     reason: str
+    registry_reason: NotRequired[str]
 
 
 class CompatReported(TypedDict):

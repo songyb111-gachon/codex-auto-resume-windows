@@ -282,6 +282,38 @@ class CommandLineTests(unittest.TestCase):
         self.assertEqual(rest["failed"], rest["none_yet"])
         self.assertEqual(rest["both"], rest["none_yet"])
 
+    def test_the_reported_line_says_the_dashboards_words_in_every_state(self):
+        """One wording (F13, R10): the command line says what the Dashboard's row says - "could not
+        be read" for counts that could not be read, with the same qualifier as the counts, and "-"
+        where there is nothing to say (no report, so no version) - never words of its own."""
+        from codex_auto_resume import startup
+        from codex_auto_resume.compat import reported
+        folder = Path(self.fixture.folder.name) / "counts"
+        folder.mkdir()
+        unreadable = folder / "reported-unreadable.json"
+        unreadable.write_text("{}", encoding="utf-8")
+
+        def reported_lines(out):
+            return [line for line in out.splitlines() if line.startswith("reported ")]
+
+        # No report yet: the view vouches for no version, so the row is a dash, as the window's is.
+        with patch.object(reported, "BUNDLED", counts_file(folder, ("codex-cli 0.155.0", 1, 0, 0, 0))):
+            code, out = self.cli("compat")
+        self.assertEqual(code, 0)
+        self.assertIn("compatibility    : unknown (no report yet", out)
+        self.assertEqual(reported_lines(out), ["reported         : -"])
+        # A counts file that cannot be read, beside an engine that was found.
+        self.fixture.backend()
+        with patch.object(reported, "BUNDLED", unreadable),              patch.object(windows.Backend, "app_identity", return_value=None),              patch.object(startup, "protocol_value", return_value=None):
+            said = (self.cli("doctor")[1], self.cli("compat")[1])
+        self.assertEqual([reported_lines(out) for out in said],
+                         [["reported         : could not be read (others' reports; changes nothing)"]] * 2)
+        # The words are the English catalog's, which the window draws.
+        english = json.loads((ROOT / "src" / "codex_auto_resume" / "locales" / "en.json")
+                             .read_text(encoding="utf-8"))
+        self.assertEqual((english["compat.reported.rejected"], english["compat.reported.none_yet"]),
+                         ("could not be read", "none yet"))
+
     def import_verified(self):
         claim = {"state": "VERIFIED", "evidence": ["docs/evidence/loaded-thread-delivery.json"]}
         download = Path(self.fixture.folder.name) / "verified.json"
