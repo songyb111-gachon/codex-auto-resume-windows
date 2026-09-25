@@ -140,6 +140,17 @@ class GoldenTests(unittest.TestCase):
         self.assertEqual(sorted(name for name in offered if name.startswith("custom_message")),
                          ["custom_message_mode"])
 
+    def test_the_design_and_reduce_motion_are_not_codexs_to_write(self):
+        """v0.6.10: the design decides what moves on every surface, as Reduce motion does, so the tool
+        list offers neither (standard H3) - while every reply that carries the settings carries it."""
+        import json
+        tools = json.loads(self.made["mcp/%s.json" % wiregolden.MCP_TOOL_LIST])["response"]["result"]["tools"]
+        update = next(tool for tool in tools if tool["name"] == "update_settings")
+        self.assertNotIn("design", update["inputSchema"]["properties"])
+        self.assertNotIn("reduce_motion", update["inputSchema"]["properties"])
+        self.assertIn('"design": "soft"', self.made["mcp/get_status.json"])
+        self.assertIn('"design": "soft"', self.made["bridge/settings.json"])
+
     def test_nothing_is_started_and_no_refresh_is_reachable_from_codex(self):
         from codex_auto_resume import compatio
 

@@ -369,6 +369,16 @@ class Theme(StrEnum):
     DARK = "dark"
 
 
+class Design(StrEnum):
+    """How the surfaces are drawn, in either theme (settings.DESIGNS, brand.DESIGN): `soft` is the
+    design every surface drew until v0.6.10, `still` is Soft with nothing moving, `classic` is
+    v0.6.2's flat cards and `plain` flat neutral grey."""
+    SOFT = "soft"
+    STILL = "still"
+    CLASSIC = "classic"
+    PLAIN = "plain"
+
+
 class RetryTiming(StrEnum):
     """The retry ladders a person may choose (the keys of settings.RETRY_TIMING)."""
     CONSERVATIVE = "conservative"

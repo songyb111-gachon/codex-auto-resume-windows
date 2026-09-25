@@ -103,6 +103,44 @@ class ShippedCatalogTests(unittest.TestCase):
                 self.assertIn(table["choice.theme.system"], table["help.theme"])
 
 
+class DesignWordsTests(unittest.TestCase):
+    """v0.6.10: the Design setting is drawn from the schema like the themes, so each choice needs a
+    label of its own in every language - and a name that is not the Theme's, which German already
+    calls Design."""
+
+    def test_the_design_has_its_name_its_choices_and_its_help_in_every_language(self):
+        from codex_auto_resume import settings
+        english = l10n._read(l10n.DEFAULT)
+        keys = ["field.design", "help.design"] + ["choice.design." + choice for choice in settings.DESIGNS]
+        for locale in l10n.available():
+            table = l10n._read(locale)
+            labels = [table["choice.design." + choice] for choice in settings.DESIGNS]
+            with self.subTest(locale):
+                for key in keys:
+                    self.assertTrue(table[key].strip(), key)
+                    if locale != l10n.DEFAULT and key != "choice.design.classic":
+                        self.assertNotEqual(table[key], english[key], "translated, not copied: " + key)
+                # Four different words, and a name for the setting that neither theme has.
+                self.assertEqual(len(set(labels)), len(labels), labels)
+                self.assertNotIn(table["field.design"], (table["field.theme"], table["field.panel_theme"]))
+                # The help names each choice as the picker spells it, and Reduce motion by its name.
+                for label in labels + [table["field.reduce_motion"]]:
+                    self.assertIn(label, table["help.design"])
+                # Classic says which release it is.
+                self.assertIn("v0.6.2", table["choice.design.classic"])
+
+    def test_reduce_motion_names_every_surface_it_stops_and_the_design_it_has_nothing_to_stop_in(self):
+        for locale in l10n.available():
+            table = l10n._read(locale)
+            with self.subTest(locale):
+                self.assertIn(table["choice.design.still"], table["help.reduce_motion"])
+                self.assertIn("Codex", table["help.reduce_motion"])
+                self.assertIn("Windows", table["help.reduce_motion"])
+        english = l10n._read(l10n.DEFAULT)["help.reduce_motion"]
+        for surface in ("Dashboard", "popup", "icon", "notification card", "taskbar button", "panel in Codex"):
+            self.assertIn(surface, english)
+
+
 class NotificationCardWordsTests(unittest.TestCase):
     def test_the_card_setting_has_its_label_and_help_in_every_language(self):
         english = l10n._read(l10n.DEFAULT)
@@ -139,7 +177,7 @@ class OneNameTests(unittest.TestCase):
                  "pt-BR": "Dashboard"}
     # Every sentence that names the window, on whichever surface shows it.
     NAMING = ("menu.open", "popup.open_dashboard", "msg.toast_button_open", "popup.more",
-              "custom.dashboard_only", "help.interface_language", "help.theme", "help.reduce_motion",
+              "custom.dashboard_only", "help.interface_language", "help.theme", "help.reduce_motion", "help.design",
               "msg.setup_unconfirmed", "panel.compat_acting_differs", "panel.compat_refresh",
               "panel.readonly")
     # The window's own words, where "this window" is the window reading them.

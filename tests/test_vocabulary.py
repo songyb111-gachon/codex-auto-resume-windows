@@ -261,6 +261,7 @@ HOMES = {
     v.ContinuationStyle: ("list", "continuation.STYLES"),
     v.CustomMode: ("list", "continuation.CUSTOM_MODES"),
     v.Theme: ("list", "settings.THEMES"),
+    v.Design: ("list", "settings.DESIGNS", "brand.DESIGNS"),
     v.RetryTiming: ("keys", "settings.RETRY_TIMING"),
     v.NotifyEvent: ("list", "settings.NOTIFICATION_EVENTS"),
     v.Locale: ("list", "l10n.LOCALES"),
@@ -361,7 +362,8 @@ class HomeTests(unittest.TestCase):
                         self.assertEqual(value, frozenset(cls), home)
 
     def test_the_words_spelled_beside_a_vocabulary_are_its_members(self):
-        from codex_auto_resume import (compat,
+        from codex_auto_resume import (brand,
+                                       compat,
                                        continuation,
                                        control,
                                        failures,
@@ -385,6 +387,7 @@ class HomeTests(unittest.TestCase):
                           (failures.UNKNOWN, v.FailureCategory), (control.FALLBACK_CODE, v.ErrorCode),
                           (continuation.DEFAULT_STYLE, v.ContinuationStyle),
                           (continuation.DEFAULT_CUSTOM_MODE, v.CustomMode), (settings.DEFAULT_THEME, v.Theme),
+                          (settings.DEFAULT_DESIGN, v.Design), (brand.DEFAULT_DESIGN, v.Design),
                           (settings.DEFAULT_TIMING, v.RetryTiming), (l10n.DEFAULT, v.Locale),
                           (compat.VERIFIED, v.CompatState), (compat.COMPATIBLE, v.CompatState),
                           (compat.INCOMPATIBLE, v.CompatState), (compat.UNKNOWN, v.CompatState),

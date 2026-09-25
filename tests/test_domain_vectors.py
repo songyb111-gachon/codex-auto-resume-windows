@@ -215,6 +215,7 @@ DEFAULT_FILE = """{
   "custom_message_stream_interrupted": null,
   "custom_message_timeout": null,
   "custom_message_usage_limit": null,
+  "design": "soft",
   "detection_lookback_hours": 6.0,
   "interface_language": "system",
   "max_chain_continuations": 6,

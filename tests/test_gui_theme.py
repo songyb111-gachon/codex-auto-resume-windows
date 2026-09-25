@@ -1572,7 +1572,8 @@ class ThemeSourceRuleTests(unittest.TestCase):
         self.assertNotIn('ChoiceCombo(field, current, "choice.");', window)
         # Each theme in its own words: the Theme's "Use system setting", the panel theme's "Same as
         # Theme" and "Codex's theme" (v0.6.6) - never the generic "choice." the other settings share.
-        self.assertIn('bool themed = name == "theme" || name == "panel_theme";', window)
+        # v0.6.10: and the Design in its own, Soft to Plain.
+        self.assertIn('bool themed = name == "theme" || name == "panel_theme" || name == "design";', window)
         self.assertIn('themed ? "choice." + name + "." : "choice."', window)
 
 
