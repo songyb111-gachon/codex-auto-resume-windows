@@ -190,7 +190,7 @@ top - in the panel since v0.6.10, whose two lights share one cycle.
 | --- | --- | --- |
 | Monitoring | `active` | The cycle, every 4.4 s |
 | Waiting | `active` | The cycle, every 4.4 s, as monitoring (since v0.6.9; until then lit and still, while the notification-area icon kept moving) |
-| Checking a task that has come due | `active` | Lit, with no glow, and a thin arc turning once every 1.6 s (in the Dashboard and the popup, and since v0.6.10 in the panel) |
+| Checking a task that has come due | `active` | Lit, with no glow, and a thin arc turning once every 1.6 s (in the Dashboard and the popup, and since v0.6.10 in the panel, for one watcher pass at most - below) |
 | Recovering | `active` | The cycle, every 2.8 s |
 | Needs a person | `attention` | The cycle, every 5.6 s, the slowest there is (since v0.6.8; until then once, over 1.4 s, then still) |
 | Failed | `danger` | The cycle, every 1.2 s, the quickest there is, so a red light never sits still (since v0.6.8) |
@@ -207,10 +207,17 @@ supported or failed its checks here - is amber, and the line under the word says
 paused; then recovering, for anything sent into Codex or being taken back out of it; then
 checking, once a task's time has come; then waiting; then monitoring. The panel is drawn once, from
 one reading, and until v0.6.10 it had no clock: where the other two said checking it said waiting.
-It reads the page's clock by the same rule now, and wakes once when a time a row carries comes,
-which turns it to checking and the row to *due now*; what the watcher then did arrives with the
-next reading, as everything on the panel does. The notification-area icon and the window's taskbar button keep their own rule, in which a failure
-nobody has seen yet is red; no header shows red.
+It reads the page's clock by the same rule now, and wakes when a time a row carries comes, which
+turns it to checking and the row to *due now*. It is not quite the other two's checking: they read
+the record every second and leave checking at the watcher's next pass, and the panel never sees that
+pass. So it says checking for one pass at most - 30 seconds, the watcher's own pace - after the
+later of the task's time and the panel's reading, and then waiting again, the row still *due now*;
+past that, what it read no longer says what the watcher is doing. A watcher run slower than its own
+pace is still checking when the panel stops saying so, which says less than is true and never more,
+and a reading Codex keeps and draws again later is known to be old by the watcher's last pass, and
+says waiting from the start. What the watcher did arrives with the next reading, as everything on
+the panel does. The notification-area icon and the window's taskbar button keep their own rule, in
+which a failure nobody has seen yet is red; no header shows red.
 
 Three cuts were wrong in three directions before this one, and the user named each: the first
 breathed a glow round a dot that never changed, 7 pixels of it ("너무 많이 커지는거 같아"); v0.6.5
