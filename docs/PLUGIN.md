@@ -95,7 +95,7 @@ the installation directory. The last two are described below the table.
 | Tool | What it does | Marked destructive |
 | --- | --- | --- |
 | `open_settings` | Shows the settings panel. Opening it changes nothing. | no |
-| `get_status` | Whether recovery is on, whether the watcher is running, counts by state, the version and the current settings, and the Codex compatibility summary the Dashboard's Diagnostics page shows, as codes only - no Codex version string, no path, no free text. | no |
+| `get_status` | Whether recovery is on, whether the watcher is running, counts by state, the version and the current settings, and the Codex compatibility summary the Dashboard's Diagnostics page shows, as codes only - no Codex version string, no path, no free text, and not what other people report about that version. | no |
 | `list_pending` | Pending recoveries with their interruption ids, conversation ids, stored state, public code, reason, overlays and attempt counts. With `include_finished: true`, the recoveries that have already finished as well. | no |
 | `get_recovery_statistics` | How many interruptions were detected, how many continuations were sent, how they ended, and the median waits, over the last `days` days or all of it. Counts only; no ids. | no |
 | `get_recovery_timeline` | One interruption and everything that continued it, as codes and times. | no |

@@ -210,6 +210,16 @@ exits. That is not a fault; the setup notes below say what to do.
 revalidates the interruption, still needs the conversation open, still waits for usage, and still
 refuses anything uncertain. Do not describe it as making a resume happen.
 
+`get_status` carries a Codex compatibility summary under `watcher.compatibility`, as codes. Its
+`overall` is one of `verified` (a real recovery on that exact Codex version confirmed it),
+`checked` (the maintainer's own checks passed on that exact version), `structurally_compatible`
+(this machine's checks pass and nothing more is claimed), `failed_here`, `incompatible` or
+`unknown`. Say what it says and add nothing to it. What other people report about a Codex version,
+shown as *Reported by others* on the Dashboard's Diagnostics page, is in nothing these tools
+return. If the user asks about it, send them to that page. Never describe other people's reports as verified,
+checked or compatible, or as a check made on this machine; if the user quotes the counts, speak
+of them only as other people's reports, which change nothing this product does.
+
 Do not restate the reset time the Codex usage-limit notice already shows.
 
 ## Looking further back
