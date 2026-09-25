@@ -24,6 +24,19 @@ param(
     [string]$MarketplaceName = 'codex-auto-resume-windows'
 )
 
+# Every published bootstrap from v0.5.2 to v0.6.10 passes its -NoStartup in an array splatted
+# into this script: `$arguments += '-SkipStartup'; & $installer @arguments`. An array binds by
+# position, so the word lands in the first positional parameter, $PluginName, and -SkipStartup
+# stays off. Those bootstraps are still installed, and `-Update -NoStartup` makes one of them
+# download this release and run this script that way: without this, the update registered the
+# sign-in start the person had asked it not to, and gave Codex a plugin named -SkipStartup.
+# The word is read back as the switch it meant. Not refused: a refusal here would fail every
+# such update outright, for a word whose meaning is not in doubt.
+if ($PluginName -ieq '-SkipStartup') {
+    $SkipStartup = [switch]$true
+    $PluginName = 'codex-auto-resume'
+}
+
 $ErrorActionPreference = 'Stop'
 $script:Failed = $false
 
