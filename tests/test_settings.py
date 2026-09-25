@@ -454,8 +454,8 @@ def released_settings_module(tag: str, scratch: Path) -> Path:
 class StillFoldTests(unittest.TestCase):
     """v0.6.10's fourth design, Still, drew exactly what Soft draws under Reduce motion; since v0.6.11 it is Reduce
     motion. A stored Still reads as Soft with Reduce motion on, so its owner keeps the picture they chose; a
-    request for it is refused like any choice there is not, naming those there are; and what this version
-    writes, v0.6.10 still reads as that picture.
+    request for it is refused, naming the designs there are, and every other refusal keeps v0.6.10's words; and
+    what this version writes, v0.6.10 still reads as that picture.
     """
 
     def setUp(self):
@@ -478,6 +478,11 @@ class StillFoldTests(unittest.TestCase):
         self.assertEqual((settings.load(self.path)["design"], settings.load(self.path)["reduce_motion"]),
                          ("soft", True))
         self.assertEqual(settings.design_preference({"design": "still"}), "soft")
+        # A file with no version marker (v0.4's flat file, or one written by hand) keeps the picture too.
+        self.path.write_text(json.dumps({"design": "still", "reduce_motion": False, "theme": "dark"}),
+                             encoding="utf-8")
+        loaded = settings.load(self.path)
+        self.assertEqual((loaded["design"], loaded["reduce_motion"], loaded["theme"]), ("soft", True, "dark"))
 
     def test_the_next_save_writes_the_fold_and_nothing_else_changes(self):
         self.write(design="still", theme="light", notify_result=False)
@@ -507,13 +512,15 @@ class StillFoldTests(unittest.TestCase):
         with self.assertRaises(settings.SettingsError):
             settings.update(self.path, {"design": "still", "theme": "dark"})
         self.assertEqual(self.path.read_bytes(), before, "a refused write writes nothing")
-        # Every choice field says its choices; a range says nothing more than it did.
-        with self.assertRaises(settings.SettingsError) as caught:
-            settings.validate_update({"theme": "sepia"})
-        self.assertEqual(str(caught.exception), "invalid value for theme: expected one of system, light, dark")
-        with self.assertRaises(settings.SettingsError) as caught:
-            settings.validate_update({"max_no_progress": 99})
-        self.assertEqual(str(caught.exception), "invalid value for max_no_progress")
+        # Only the retired choice names the ones there are: every other refusal says what it said in v0.6.10.
+        for change, said in (({"design": "neon"}, "invalid value for design"),
+                             ({"theme": "sepia"}, "invalid value for theme"),
+                             ({"retry_timing": "soon"}, "invalid value for retry_timing"),
+                             ({"max_no_progress": 99}, "invalid value for max_no_progress")):
+            with self.subTest(change):
+                with self.assertRaises(settings.SettingsError) as caught:
+                    settings.validate_update(change)
+                self.assertEqual(str(caught.exception), said)
 
     def test_what_this_version_writes_for_a_stored_still_loads_in_v0_6_10_as_that_picture(self):
         """Going back to v0.6.10 after the fold loses nothing: its own settings.load, from its tag, in a process of

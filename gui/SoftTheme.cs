@@ -34,6 +34,10 @@ namespace CodexAutoResume
         /// The most a settings file may hold and still be read: settings.MAX_SETTINGS_BYTES.
         internal const int MaxSettingsBytes = 256 * 1024;
 
+        /// v0.6.10's fourth design, which the settings layer reads as Soft with Reduce motion on
+        /// (settings.FOLDED_DESIGN, settings._fold_design) - a name the window reads in a stored file, never draws.
+        internal const string FoldedDesign = "still";
+
         private const int SPI_GETHIGHCONTRAST = 0x0042;
         private const int HCF_HIGHCONTRASTON = 0x0001;
 
@@ -132,11 +136,15 @@ namespace CodexAutoResume
         /// so it is "system" and "soft" here too, as is no file at all - a file the two read differently
         /// opened the window in one theme and had its first read reopen it in the other, every time it was
         /// opened. v0.6.10: the design is read in the same parse as the theme, never in a second read of its
-        /// own, so the two can never come from two versions of the file.
-        internal static void Stored(string root, out string theme, out string design)
+        /// own, so the two can never come from two versions of the file. v0.6.11: Reduce motion too, as
+        /// settings.load has it - true exactly, or a stored Still (FoldedDesign), whatever stands beside it - so a
+        /// window that opens on a Still, or on Reduce motion, holds its motion from its first frame and not only
+        /// once the bridge's settings read has come back (SettingsPage.AdoptSettings).
+        internal static void Stored(string root, out string theme, out string design, out bool reduceMotion)
         {
             theme = System;
             design = Brand.DesignDefault;
+            reduceMotion = false;
             try
             {
                 var file = new FileInfo(Path.Combine(Path.Combine(root, "config"), "settings.json"));
@@ -147,14 +155,22 @@ namespace CodexAutoResume
                 if (map == null) return;
                 object value;
                 string storedTheme = map.TryGetValue("theme", out value) ? Preference(value) : System;
-                string storedDesign = map.TryGetValue("design", out value) ? Design.Preference(value) : Brand.DesignDefault;
+                string storedDesign = Brand.DesignDefault;
+                bool storedMotion = map.TryGetValue("reduce_motion", out value) && Equals(value, true);
+                if (map.TryGetValue("design", out value))
+                {
+                    storedDesign = Design.Preference(value);
+                    if (Equals(value, FoldedDesign)) storedMotion = true;
+                }
                 theme = storedTheme;
                 design = storedDesign;
+                reduceMotion = storedMotion;
             }
             catch (Exception)
             {
                 theme = System;
                 design = Brand.DesignDefault;
+                reduceMotion = false;
             }
         }
     }
@@ -172,7 +188,7 @@ namespace CodexAutoResume
 
         /// A stored Design as the settings layer reads it: one of Brand's designs exactly, and "soft" for
         /// anything else (Brand.DesignOf) - v0.6.10's "still" too, whose Reduce motion the settings layer adds
-        /// (settings._migrate) and the bridge's first read brings (SettingsPage).
+        /// (settings._migrate) and the window reads beside it in the same parse (Theme.Stored).
         internal static string Preference(object value)
         {
             return Brand.DesignOf(value);
@@ -353,7 +369,8 @@ namespace CodexAutoResume
         private const int GWL_STYLE = -16;
         private const int WS_VISIBLE = 0x10000000;
 
-        /// This product's own "Reduce motion" setting, adopted when the settings are read.
+        /// This product's own "Reduce motion" setting: read from the settings file as the window opens
+        /// (Theme.Stored, Program.Main), and adopted again when the bridge's settings read comes back.
         internal static bool ReduceMotionSetting;
 
         /// The moment of its breath every status light is held at, in milliseconds, or -1 for the

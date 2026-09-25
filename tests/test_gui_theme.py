@@ -79,9 +79,16 @@ STORED = {
     # v0.6.10: the Design, read in the same parse as the theme, exactly as the settings layer reads it.
     "design": b'{"theme": "dark", "design": "classic"}',
     "design_only": b'{"design": "plain"}',
-    # v0.6.10's Still, which the window reads as Soft, as the settings layer does (settings._migrate adds its Reduce
-    # motion, which reaches the window through the bridge's first read).
+    # v0.6.10's Still, which the window reads as Soft with Reduce motion on, as the settings layer does
+    # (settings._migrate), in the same parse - whatever Reduce motion said beside it, and with or without a version.
     "design_still": b'{"theme": "light", "design": "still"}',
+    "design_still_motion_off": b'{"config_version": 2, "design": "still", "reduce_motion": false}',
+    # v0.6.11: Reduce motion, read in the same parse, as settings.load reads it - true exactly.
+    "motion": b'{"reduce_motion": true, "theme": "dark"}',
+    "motion_off": b'{"config_version": 2, "reduce_motion": false, "design": "plain"}',
+    "motion_not_a_bool": b'{"reduce_motion": "true", "design": "classic"}',
+    "motion_damaged": b'{"reduce_motion": true, "theme": "dark"',
+    "design_still_other_case": b'{"design": "Still"}',
     "design_other_case": b'{"theme": "dark", "design": "Classic"}',
     "design_not_a_string": b'{"design": 1}',
     "design_null": b'{"design": null, "theme": "light"}',
@@ -282,12 +289,14 @@ $out.apps = [int]$themeType.GetMethod('AppsUseLightTheme', $static).Invoke($null
 $stored = $themeType.GetMethod('Stored', $static)
 $out.stored = @{}
 $out.storedDesign = @{}
+$out.storedMotion = @{}
 foreach ($name in (ConvertFrom-Json $env:CAR_STORED)) {
     # Written by the test, as settings.load will read them: the theme and the design from one read (v0.6.10).
-    $call = [object[]]@([string](Join-Path $work ('stored-' + $name)), $null, $null)
+    $call = [object[]]@([string](Join-Path $work ('stored-' + $name)), $null, $null, $null)
     $null = $stored.Invoke($null, $call)
     $out.stored[[string]$name] = [string]$call[1]
     $out.storedDesign[[string]$name] = [string]$call[2]
+    $out.storedMotion[[string]$name] = [bool]$call[3]
 }
 $drawnOf = $assembly.GetType('CodexAutoResume.Design', $true).GetMethod('Drawn', $static)
 $out.drawn = @()
@@ -1011,6 +1020,7 @@ class WindowThemeTests(unittest.TestCase):
             with self.subTest(name):
                 self.assertEqual(self.answer["storedDesign"][name], settings.design_preference(loaded))
                 self.assertEqual(self.answer["stored"][name], settings.theme_preference(loaded))
+                self.assertIs(self.answer["storedMotion"][name], loaded["reduce_motion"])
         for name, theme, design in (("design", "dark", "classic"), ("design_only", "system", "plain"),
                                     ("design_still", "light", "soft"), ("design_other_case", "dark", "soft"),
                                     ("design_not_a_string", "system", "soft"), ("design_null", "light", "soft"),
@@ -1018,8 +1028,14 @@ class WindowThemeTests(unittest.TestCase):
                                     ("dark", "dark", "soft"), ("missing", "system", "soft")):
             with self.subTest(spelled=name):
                 self.assertEqual((self.answer["stored"][name], self.answer["storedDesign"][name]), (theme, design))
+        for name, motion in (("design_still", True), ("design_still_motion_off", True), ("motion", True),
+                             ("motion_off", False), ("motion_not_a_bool", False), ("motion_damaged", False),
+                             ("design_still_other_case", False), ("design", False), ("missing", False)):
+            with self.subTest(motion=name):
+                self.assertIs(self.answer["storedMotion"][name], motion)
+        self.assertIn('internal const string FoldedDesign = "%s";' % settings.FOLDED_DESIGN, guiscan.read("SoftTheme.cs"))
         main = guiscan.member_body("Program", "Main")
-        self.assertEqual(main.count("Theme.Stored("), 1, "one read of the file, for both")
+        self.assertEqual(main.count("Theme.Stored("), 1, "one read of the file, for all three")
         stored = guiscan.member_body("Theme", "Stored")
         self.assertEqual(stored.count("ReadAllBytes("), 1)
         self.assertEqual(stored.count("Json.ParseDocument("), 1)
@@ -1622,7 +1638,11 @@ class ThemeSourceRuleTests(unittest.TestCase):
         self.assertLess(adopt, main.index("new SettingsForm("))
         # v0.6.10: the theme and the design stored, from one read, each unless a reopen passed it on - and the design
         # adopted before the theme, so the palette is drawn in both before the first control.
-        read = main.index("Theme.Stored(root, out storedTheme, out storedDesign);")
+        read = main.index("Theme.Stored(root, out storedTheme, out storedDesign, out storedReduceMotion);")
+        # v0.6.11: and Reduce motion, from the same read, before the first control, so nothing moves before the
+        # bridge's first read confirms it (a stored Still, or Reduce motion, holds motion from the window's first frame).
+        self.assertLess(read, main.index("Soft.ReduceMotionSetting = storedReduceMotion;"))
+        self.assertLess(main.index("Soft.ReduceMotionSetting = storedReduceMotion;"), main.index("new SettingsForm("))
         self.assertLess(read, main.index("request.Theme ?? storedTheme"))
         self.assertLess(read, main.index("request.Design ?? storedDesign"))
         self.assertLess(main.index("Palette.AdoptDesign(Design.Opened);"), adopt)
