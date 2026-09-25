@@ -538,6 +538,7 @@
   "stats.period": "期間",
   "stats.retry_now": "「立即重試」要求次數",
   "status.next_check": "下次檢查：{time}",
+  "status.not_responding": "監看程式沒有回應",
   "status.not_running": "監看程式未執行",
   "status.paused": "自動復原已暫停",
   "status.pending_many": "{n} 個復原待處理",

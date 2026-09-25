@@ -54,23 +54,47 @@ def urgency(row):
             row.get("detected_at") or 0, str(row.get("interruption_id") or ""))
 
 
+# The public codes of a record already handed to Codex, or being followed or taken back out of it:
+# every pending record whose state is not machine.WAITING. What a status's `codes` counts by.
+MOVING_CODES = ("submission_claimed", "submitted", "withdrawing", "turn_running", "turn_finishing")
+
+
 def activity(status, rows, now) -> str:
-    """The one word the header says. A pure function of what the control layer returned."""
+    """The one word the header says. A pure function of what the control layer returned.
+
+    The rule every header keeps, the window's and the panel's too; tests/data/light_states.json holds
+    all three to it (v0.6.10). `status` is get_status, None when it could not be read; `rows` is
+    list_pending, None when it could not be read, and the status's own counts then say what the
+    list would have. A watcher not known to be running asks for attention - with a grey light
+    (light_for) - and so does one that runs but is not well; then a pause; then anything in Codex;
+    then a task whose time has come; then anything waiting.
+    """
     status = status or {}
-    rows = rows or []
+    known = rows or []
     watcher = status.get("watcher") or {}
-    if (status.get("watcher_running") is False or watcher.get("ticking") is False
-            or watcher.get("engine_state") in ("incompatible", "failed_here")
-            or any(ATTENTION_OVERLAYS & set(row.get("overlays") or ()) for row in rows)):
+    if status.get("watcher_running") is not True:
         return "attention"
-    if status and not status.get("enabled", True):
+    if (status.get("upgrade_pending") is True or watcher.get("ticking") is False
+            or watcher.get("engine_state") in ("incompatible", "failed_here")
+            or any(ATTENTION_OVERLAYS & set(row.get("overlays") or ()) for row in known)):
+        return "attention"
+    if status.get("enabled") is not True:
         return "paused"
-    if any(not is_waiting(row) for row in rows):
+    codes = status.get("codes") or {}
+    if (any(not is_waiting(row) for row in known)
+            or any((codes.get(code) or 0) > 0 for code in MOVING_CODES)):
         return "recovering"
-    waiting = [row for row in rows if is_waiting(row)]
-    if any(row.get("eligible_at") is not None and row["eligible_at"] <= now for row in waiting):
+    if any(row.get("eligible_at") is not None and row["eligible_at"] <= now for row in known):
         return "checking"
-    return "waiting" if waiting else "monitoring"
+    return "waiting" if known or (status.get("pending") or 0) > 0 else "monitoring"
+
+
+def light_for(status, word) -> str:
+    """The status light for a header's word. Not quite the word: a watcher that is not running, or
+    that nothing has confirmed is running, is a light that is off - grey and still, as in the window,
+    the panel and the taskbar - while the word beside it asks for attention. A light that moves says
+    the product is running; amber is for a watcher that runs and is not well."""
+    return word if (status or {}).get("watcher_running") is True else "idle"
 
 
 def snapshot_activity(snapshot, now, *, attention=False) -> str:
@@ -132,13 +156,16 @@ def view_model(rows, status, strings, now, *, notice=None, error=None) -> dict:
     waiting = [row for row in ordered if is_waiting(row)]
     due = [row["eligible_at"] for row in waiting if row.get("eligible_at") is not None]
     dash = "—"
-    state = activity(status, ordered, now)
+    state = activity(status, ordered if known else None, now)
     tasks = [task_item(row, strings, now) for row in ordered[:MAX_TASKS]]
     more = len(ordered) - len(tasks)
-    paused = None if status is None else not status.get("enabled", True)
+    # What the header says and what the toggle offers are one reading: recovery not known to be on is paused.
+    paused = None if status is None else status.get("enabled") is not True
     return {
         "title": say(strings, "tray.title"),
         "state": state,
+        # The dot: the word's light, grey and still for a watcher not known to be running (v0.6.10).
+        "light": light_for(status, state),
         "state_text": say(strings, "activity." + state),
         "counts": [
             (say(strings, "popup.count_waiting"), str(len(waiting)) if known else dash),

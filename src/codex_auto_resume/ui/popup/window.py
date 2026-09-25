@@ -388,8 +388,10 @@ class Popup:
             self.locale = locale_of(strings)
         self._follow_theme()
         vm = self.model.view(now)
-        if vm["state"] != self._state:
-            self._state = vm["state"]
+        # The light's cycle starts with the light, not the word: "attention" is a grey dot that does not
+        # move for a watcher not known to be running and an amber one that breathes for one that is.
+        if vm["light"] != self._state:
+            self._state = vm["light"]
             self._state_since = time.monotonic()
         plan = self._renderer.layout(vm, self.dpi / 96.0, self.locale)
         self._vm, self._plan = vm, plan
@@ -439,7 +441,7 @@ class Popup:
         user32 = _dll("user32")
         wanted = (self.visible and self._vm is not None
                   and (bool(self._glides)
-                       or animates(self._vm["state"], self._since_state_ms(), reduced=self._reduced)))
+                       or animates(self._vm["light"], self._since_state_ms(), reduced=self._reduced)))
         if wanted and not self._frame_running:
             user32.SetTimer(self.hwnd, TIMER_FRAME, FRAME_MS, None)
             self._frame_running = True
@@ -452,7 +454,7 @@ class Popup:
         if self._vm is None:
             return None
         since = self._since_state_ms()
-        return halo(self._vm["state"], since, since, reduced=self._reduced)
+        return halo(self._vm["light"], since, since, reduced=self._reduced)
 
     def render(self):
         """Draw the current view into the canvas and return it (the tests read it back)."""

@@ -951,7 +951,7 @@ def render_popup(target: Path, locale: str, *, theme: str | None = None,
     renderer.theme = theme or THEME             # said, not left to the renderer's default
     try:
         plan = renderer.layout(view, scale, tray_popup.locale_of(strings))
-        canvas = renderer.draw(view, plan, frame=tray_popup.halo(view["state"], 600, 5000))
+        canvas = renderer.draw(view, plan, frame=tray_popup.halo(view["light"], 600, 5000))
         width, height = plan["size"]
         write_png(target, width, height, canvas.pixels())
     finally:

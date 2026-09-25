@@ -83,7 +83,8 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
         items.append({"kind": "text", "rect": rect, "role": role, "text": value, "colour": colour,
                       "wrap": wrap, "align": align, "target": target})
 
-    # Header: the state dot, the product, the state in words.
+    # Header: the state dot, the product, the state in words. The dot is the word's light (vm["light"]):
+    # a watcher not known to be running is a grey dot beside the word that asks for attention.
     mark = px(MARK)
     text_left = left + mark + px(space["s"] + 2)
     text_width = right - text_left
@@ -92,7 +93,7 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
     stack = title_h + state_h
     header_h = max(mark, stack)
     top = y + (header_h - stack) // 2
-    items.append({"kind": "halo", "cx": left + mark / 2.0, "cy": y + header_h / 2.0, "state": vm["state"],
+    items.append({"kind": "halo", "cx": left + mark / 2.0, "cy": y + header_h / 2.0, "state": vm["light"],
                   "radius": brand.glow_extent(brand.STATUS_DOT["popup"]) * scale})
     text((text_left, top, right, top + title_h), "title", vm["title"], "ink")
     text((text_left, top + title_h, right, top + stack), "state", vm["state_text"],

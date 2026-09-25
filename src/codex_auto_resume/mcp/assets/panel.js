@@ -280,15 +280,20 @@ function previewArguments(category, read) {
 }
 
 // One word for the whole product, in the order that matters: nothing is recovered while
-// no watcher runs, nothing is sent while paused, and a row already in Codex outranks a row
-// that is still waiting.
+// no watcher runs or while the one that runs is not well, nothing is sent while paused, and
+// a row already in Codex outranks a row that is still waiting. The rule every header keeps -
+// the popup's and the Dashboard's too; tests/data/light_states.json holds all three to it
+// (v0.6.10). One step of it is not here: a task whose time has come is "checking" in the
+// Dashboard and the popup, which redraw every second, and this page is drawn once, so it has
+// no clock to say a time has come by. It says waiting, and each row says "due now".
 function activity(status, rows) {
   var moving = ['submission_claimed', 'submitted', 'withdrawing', 'turn_running', 'turn_finishing'];
   var codes = (status && status.codes) || {};
   var list = rows || [];
   status = status || {};
   if (status.watcher_running !== true) return 'attention';
-  if (!status.enabled) return 'paused';
+  if (attentionCause(status, list) !== null) return 'attention';
+  if (status.enabled !== true) return 'paused';
   for (var i = 0; i < moving.length; i++) {
     if (codes[moving[i]] > 0) return 'recovering';
   }
@@ -296,6 +301,28 @@ function activity(status, rows) {
     if (moving.indexOf(list[j].code) >= 0) return 'recovering';
   }
   return (status.pending > 0 || list.length > 0) ? 'waiting' : 'monitoring';
+}
+
+// Why a watcher that runs needs a person, or null when it does not: an older watcher still
+// owns the state, it has stopped ticking, the engine is not supported or failed its checks
+// here - or a row is held for one of those (an overlay), which the list, read a moment after
+// the status, can know first. In this order, and the rows in theirs; the Dashboard's
+// AttentionCause is the same.
+function attentionCause(status, rows) {
+  var watcher = (status && status.watcher) || {};
+  if (status && status.upgrade_pending === true) return 'upgrade_pending';
+  if (watcher.ticking === false) return 'watcher_not_ticking';
+  if (watcher.engine_state === 'incompatible') return 'compatibility_blocked';
+  if (watcher.engine_state === 'failed_here') return 'compatibility_failed_here';
+  var held = ['compatibility_blocked', 'compatibility_failed_here', 'engine_unavailable', 'watcher_not_ticking'];
+  var list = rows || [];
+  for (var i = 0; i < list.length; i++) {
+    var overlays = list[i].overlays || [];
+    for (var j = 0; j < held.length; j++) {
+      if (overlays.indexOf(held[j]) >= 0) return held[j];
+    }
+  }
+  return null;
 }
 
 // The status light for a state. Not quite the word: a watcher that is not running - or that
@@ -883,30 +910,49 @@ function nextCheck(row) {
   return pad(when.getHours()) + ':' + pad(when.getMinutes());
 }
 
-function heroFacts(status, state) {
+// The facts under the word, most consequential first: whether anything can be recovered, and
+// what is waiting on it. The Dashboard's header says the same facts (SettingsForm.HeroFacts,
+// held to these by tests/test_light_parity.py); only the soonest check below is the panel's own,
+// a clock time where the window counts down.
+function heroFacts(status, state, rows) {
   var count = status.pending || 0;
   var pending = count === 0 ? t('status.pending_none', 'Nothing pending')
               : count === 1 ? t('status.pending_one', '1 recovery pending')
               : fill('status.pending_many', '{n} recoveries pending', {n: count});
-  if (state === 'attention') {
+  if (status.watcher_running !== true) {
     var facts = [status.watcher_running === false ? t('status.not_running', 'Watcher not running')
                                                   : t('status.unknown', 'Watcher status unknown'),
                  t('status.recovery_idle', 'Nothing will be recovered until it is running')];
     if (count) facts.push(pending);
     return facts;
   }
+  if (state === 'attention') {
+    // A watcher that runs and is not well: what is wrong, not "recovery is on".
+    var cause = attentionCause(status, rows);
+    var why = cause === 'upgrade_pending'
+              ? t('diag.upgrade_pending', 'An older watcher still owns the state; finish by restarting the watcher')
+            : cause === 'compatibility_blocked' ? t('overlay.compatibility_blocked', 'Codex version not supported')
+            : cause === 'compatibility_failed_here'
+              ? t('overlay.compatibility_failed_here', 'Codex checks failed on this computer')
+            : cause === 'engine_unavailable' ? t('status.not_running', 'Watcher not running')
+            : t('status.not_responding', 'Watcher not responding');
+    return [why, pending];
+  }
   if (state === 'paused') return [t('status.recovery_paused', 'Automatic recovery is paused'), pending];
-  var shown = [t('status.recovery_on', 'Automatic recovery is on'), pending];
-  // The soonest check, which is the question a count raises rather than answers.
+  return [t('status.recovery_on', 'Automatic recovery is on'), pending];
+}
+
+// The soonest check, which is the question a count raises rather than answers - while recovery
+// can happen at all; null otherwise.
+function soonestFact(status, state, rows) {
+  if (!status.pending || status.watcher_running !== true || state === 'attention' || state === 'paused') return null;
   var soonest = null;
-  (DATA.pending || []).forEach(function (row) {
+  (rows || []).forEach(function (row) {
     if (row.eligible_at === null || row.eligible_at === undefined) return;
     if (soonest === null || row.eligible_at < soonest) soonest = row.eligible_at;
   });
-  if (count && soonest !== null) {
-    shown.push(fill('status.next_check', 'next check {time}', {time: nextCheck({eligible_at: soonest})}));
-  }
-  return shown;
+  if (soonest === null) return null;
+  return fill('status.next_check', 'next check {time}', {time: nextCheck({eligible_at: soonest})});
 }
 
 function renderHero(status) {
@@ -924,7 +970,10 @@ function renderHero(status) {
   line.appendChild(element('h1', null, t('activity.' + state, state)));
   hero.appendChild(line);
   var facts = element('p', 'facts');
-  heroFacts(status, state).forEach(function (fact) { facts.appendChild(element('span', null, fact)); });
+  var shown = heroFacts(status, state, DATA.pending);
+  var soonest = soonestFact(status, state, DATA.pending);
+  if (soonest !== null) shown.push(soonest);
+  shown.forEach(function (fact) { facts.appendChild(element('span', null, fact)); });
   hero.appendChild(facts);
   var actions = element('div', 'hero-actions');
   // Offered only when it is the thing that is wrong. Nothing is recovered while the

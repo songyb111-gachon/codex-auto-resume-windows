@@ -328,10 +328,20 @@ class ActivityTests(unittest.TestCase):
         ({"watcher_running": True, "enabled": True, "pending": 2}, [{"code": "waiting_reset"}, {"code": "submitted"}], "recovering"),
         ({"watcher_running": True, "enabled": True, "pending": 2}, [{"code": "waiting_reset"}], "waiting"),
         ({"watcher_running": True, "enabled": True, "pending": 0}, [], "monitoring"),
+        # v0.6.10: the one rule every header keeps (tests/data/light_states.json, tests/test_light_parity.py). A
+        # watcher that runs but is not well needs a person here too, as it did in the popup and the window; a record
+        # being withdrawn is recovering; recovery not known to be on is paused.
+        ({"watcher_running": True, "enabled": True, "watcher": {"ticking": False}}, [], "attention"),
+        ({"watcher_running": True, "enabled": True, "upgrade_pending": True, "pending": 1}, [], "attention"),
+        ({"watcher_running": True, "enabled": True, "watcher": {"engine_state": "incompatible"}}, [], "attention"),
+        ({"watcher_running": True, "enabled": False, "pending": 1},
+         [{"code": "scheduled", "overlays": ["paused", "watcher_not_ticking"]}], "attention"),
+        ({"watcher_running": True, "enabled": True, "pending": 1}, [{"code": "withdrawing"}], "recovering"),
+        ({"watcher_running": True, "pending": 0}, [], "paused"),
     )
 
     def test_one_word_for_the_whole_product(self):
-        observed = run_javascript(["activity"], "process.stdout.write(JSON.stringify(%s.map(function (c) "
+        observed = run_javascript(["activity", "attentionCause"], "process.stdout.write(JSON.stringify(%s.map(function (c) "
                                   "{return activity(c[0], c[1]);})));" % json.dumps(
                                       [[status, rows] for status, rows, _ in self.CASES]))
         self.assertEqual(observed, [expected for _, _, expected in self.CASES])
@@ -802,11 +812,15 @@ class HeroLightTests(unittest.TestCase):
         ({"watcher_running": True, "enabled": True, "pending": 1, "codes": {"turn_running": 1}},
          "recovering", "recovering"),
         ({"watcher_running": True, "enabled": True, "pending": 0}, "monitoring", "monitoring"),
+        # v0.6.10: amber, for a watcher that runs and is not well.
+        ({"watcher_running": True, "enabled": True, "pending": 1, "watcher": {"ticking": False}},
+         "attention", "attention"),
     )
 
     def test_the_hero_keeps_its_word_and_greys_the_light_of_a_stopped_watcher(self):
         observed = run_javascript(
-            ["t", "fill", "element", "activity", "lightFor", "nextCheck", "heroFacts", "renderHero"], """
+            ["t", "fill", "element", "activity", "attentionCause", "lightFor", "nextCheck", "heroFacts",
+             "soonestFact", "renderHero"], """
           DATA = {pending: []};
           process.stdout.write(JSON.stringify(%s.map(function (status) {
             var hero = renderHero(status).node;

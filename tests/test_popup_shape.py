@@ -51,7 +51,7 @@ ASKS_WINDOWS_NOTHING = MODULES[:6]
 
 # What `tray_popup.<name>` gave before the split, name for name. `countdown` is the one public
 # name not carried over: it was `from .ui.words import countdown`, re-exported by accident, and
-# nothing outside ever read it there.
+# nothing outside ever read it there. `light_for` since v0.6.10: the header's light apart from its word (F4).
 SURFACE = {
     "APP_MODE_VALUE", "ATTENTION_OVERLAYS", "BITMAP", "BITMAPINFO", "BITMAPINFOHEADER",
     "CHIP_ALPHA", "CLICK_AWAY_SECONDS", "CONTRAST_COLOURS", "CONTROL_CALLS", "CS_DROPSHADOW",
@@ -80,7 +80,7 @@ SURFACE = {
     "adopt_settings", "animates", "appearance", "apps_use_light_theme", "busy_key",
     "contrast_colour", "effective_theme", "focus_order", "font_candidates", "font_faces",
     "gdiplus_objects", "glide_amount", "gui_resources", "halo", "high_contrast", "hit_test",
-    "icon_rect", "is_waiting", "layout", "lift_coverage", "locale_of", "message_face",
+    "icon_rect", "is_waiting", "layout", "lift_coverage", "light_for", "locale_of", "message_face",
     "next_focus", "next_glides", "one_line", "perform", "place", "recipe_shadows",
     "reduced_motion", "role_size", "say", "select_action", "set_reduce_motion", "set_theme",
     "shadow_step", "share_columns", "snapshot_activity", "system_rgb", "task_item",

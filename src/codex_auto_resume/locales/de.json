@@ -538,6 +538,7 @@
   "stats.period": "Zeitraum",
   "stats.retry_now": "Anfragen „Jetzt wiederholen“",
   "status.next_check": "nächste Prüfung: {time}",
+  "status.not_responding": "Watcher reagiert nicht",
   "status.not_running": "Watcher läuft nicht",
   "status.paused": "Automatische Wiederherstellung pausiert",
   "status.pending_many": "{n} Wiederherstellungen ausstehend",

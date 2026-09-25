@@ -538,6 +538,7 @@
   "stats.period": "时间段",
   "stats.retry_now": "“立即重试”请求次数",
   "status.next_check": "下次检查：{time}",
+  "status.not_responding": "监视程序未响应",
   "status.not_running": "监视程序未运行",
   "status.paused": "自动恢复已暂停",
   "status.pending_many": "{n} 个恢复待处理",
