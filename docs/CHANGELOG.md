@@ -59,8 +59,7 @@ Pending page's check results still read *OK*, *Waiting*, *Blocked* and *Unknown*
 - **One button size, one chip size, one callout.** Buttons are 34 px high on every surface, where the
   popup's and the card's were 32 px, and chips have one height and one padding; the popup's and the
   card's keep their bold words. The Diagnostics page's compatibility notices are the panel's callouts,
-  where they were a block of accent-coloured text, and the Statistics chart draws each outcome in the
-  colour History writes that outcome's word in.
+  where they were a block of accent-coloured text.
 - **One name for the window.** The window is the Dashboard wherever it is named - the icon's menu
   says *Open Dashboard*, as the popup and the card do - the popup's switch is *Auto-resume*, as the
   Pending page's column is, and its rows count down to the *Next check*, in all nine languages. The

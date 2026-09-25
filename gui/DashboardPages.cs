@@ -556,7 +556,7 @@ namespace CodexAutoResume
             chart.Dock = DockStyle.Top;
             chart.Height = Px(220);
             chart.BackColor = Card;
-            // Each bar in its outcome's own colour, as History draws the outcome's word (OutcomeChart.Bar).
+            chart.BarColor = Accent;
             chart.TextColor = Ink;
             chart.EmptyText = S("stats.none", "Nothing yet");
             chart.AccessibleName = S("stats.outcomes", "How recoveries ended");
