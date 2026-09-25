@@ -21,9 +21,10 @@
   `gui/Dashboard.cs`(페이지 이동과 개요, 대기 중, 기록, 통계, 진단 페이지)이고, 두 파일이 그리는 데 쓰는
   부드러운 컨트롤은 `gui/SoftTheme.cs`(색과 크기와 모션), `gui/SoftDepth.cs`(그림자),
   `gui/SoftLayout.cs`(무엇이 무엇을 담는지), `gui/SoftFields.cs`(버튼, 체크박스, 선택, 텍스트),
-  `gui/SoftCombo.cs`(드롭다운), `gui/SoftList.cs`, `gui/Marks.cs`(상태 불빛)입니다. `gui/Brand.cs`는
-  생성된 팔레트입니다. 컴파일 목록은 `gui/window.sources` 한 곳에만 있습니다. 창 소스를 새로 만들면
-  그 파일 하나에만 추가하면 되고, `build/make_gui.ps1`과 모든 테스트가 그 파일을 읽습니다.
+  `gui/SoftCombo.cs`(드롭다운), `gui/SoftCallout.cs`(따로 짚어 둔 알림인 콜아웃), `gui/SoftList.cs`,
+  `gui/Marks.cs`(상태 불빛)입니다. `gui/Brand.cs`는 생성된 팔레트입니다. 컴파일 목록은
+  `gui/window.sources` 한 곳에만 있습니다. 창 소스를 새로 만들면 그 파일 하나에만 추가하면 되고,
+  `build/make_gui.ps1`과 모든 테스트가 그 파일을 읽습니다.
 
 여기 있는 어느 것도 관리자 권한이 필요하지 않습니다.
 

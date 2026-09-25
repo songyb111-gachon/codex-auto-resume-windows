@@ -50,8 +50,8 @@ CARD_WIDTH = WIDTH - 2 * brand.SPACING["m"]    # the card itself: exactly the po
 MAX_CARDS = 3
 FRAME_MS = 16                                  # frames only while something moves
 # The status light alone breathes at the popup's frame rate, and only its band is drawn (v0.6.10):
-# until then the whole card was drawn again for it at most every 80 ms, about 12 frames a second,
-# on a timer running at FRAME_MS for as long as the card was up.
+# until then the whole card was drawn again for it at most every 80 ms (about 11 frames a second on
+# Windows' default 15.6 ms timer tick), on a timer running at FRAME_MS for as long as the card was up.
 BREATH_FRAME_MS = popup.FRAME_MS
 # The entrance, as tuned on a real screen (2880x1800 at 200%, light and dark, over a busy dark
 # desktop): the card is solid within about a third of the entrance and then keeps rising softly

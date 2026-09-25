@@ -23,9 +23,10 @@ properties intact.
   controls both are drawn with are `gui/SoftTheme.cs` (the colours, sizes and motion),
   `gui/SoftDepth.cs` (the shadows), `gui/SoftLayout.cs` (what holds what), `gui/SoftFields.cs`
   (buttons, check boxes, choices and text), `gui/SoftCombo.cs` (the drop-down),
-  `gui/SoftList.cs` and `gui/Marks.cs` (the status light); and `gui/Brand.cs` is the palette,
-  generated. The compile list is `gui/window.sources` and only there — a new window source is
-  added to that one file, and `build/make_gui.ps1` and every test read it.
+  `gui/SoftCallout.cs` (the callout, a notice set apart), `gui/SoftList.cs` and `gui/Marks.cs`
+  (the status light); and `gui/Brand.cs` is the palette, generated. The compile list is
+  `gui/window.sources` and only there — a new window source is added to that one file, and
+  `build/make_gui.ps1` and every test read it.
 
 Nothing here needs administrator rights.
 
