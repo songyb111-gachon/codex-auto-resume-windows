@@ -567,8 +567,9 @@ namespace CodexAutoResume
 
         /// The header's light where every header stands it (v0.6.10): on the headline's line - in the headline's
         /// row alone, centred on its text within a pixel - Brand.LightInset from the card's content to the dot, and
-        /// Brand.LightGap from the dot to the words, which both lines start at. Until v0.6.10 the light spanned both
-        /// rows, between the two lines, and the words stood 15 px from it.
+        /// Brand.LightGap from the dot to the headline's first glyph, where the line under it starts its glyphs too
+        /// (TextInset: a label draws its glyphs a padding in from its edge). Until v0.6.10 the light spanned both
+        /// rows, between the two lines, and the headline's glyphs stood about 17 px from it.
         private void AuditHero(string where, List<string> findings)
         {
             AuditedHero++;
@@ -585,11 +586,13 @@ namespace CodexAutoResume
             float inset = cx - dot - hero.Padding.Left;
             if (Math.Abs(inset - Soft.PxF(Brand.LightInset)) > 1)
                 findings.Add(where + " :: the light is " + inset + " from the card's content, not " + Soft.PxF(Brand.LightInset));
-            float gap = headline.Left + headline.Padding.Left - (cx + dot);
+            int headlineGlyph = headline.Left + headline.Padding.Left + TextInset(headline.Font);
+            int detailGlyph = detail.Left + detail.Padding.Left + TextInset(detail.Font);
+            float gap = headlineGlyph - (cx + dot);
             if (Math.Abs(gap - Soft.PxF(Brand.LightGap)) > 1)
                 findings.Add(where + " :: the words are " + gap + " from the light, not " + Soft.PxF(Brand.LightGap));
-            if (detail.Left + detail.Padding.Left != headline.Left + headline.Padding.Left)
-                findings.Add(where + " :: the two lines start apart, at " + headline.Left + " and " + detail.Left);
+            if (Math.Abs(detailGlyph - headlineGlyph) > 1)
+                findings.Add(where + " :: the two lines start apart, at " + headlineGlyph + " and " + detailGlyph);
             if (2 * HaloDot.Extent > Math.Min(stateDot.Width, stateDot.Height))
                 findings.Add(where + " :: the light's box is " + stateDot.Size + ", too small for its glow");
         }

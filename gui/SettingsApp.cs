@@ -804,14 +804,8 @@ namespace CodexAutoResume
             hero.Padding = Pad(Brand.HeroPadLeft, Brand.HeroPadTop, Brand.HeroPadRight, Brand.HeroPadBottom);
             hero.ColumnCount = 3;
             hero.RowCount = 2;
-            // The light stands where every header stands it (v0.6.10): Brand.LightInset from the card's
-            // content to the dot, and Brand.LightGap from the dot to the words. The dot is centred in a box
-            // of its own, which keeps the glow's room on each side of it at any scaling - an absolute 22
-            // once held a 24-pixel dot at 200% and sliced a third of it off - and the rest of the gap is the
-            // box's right margin. Until v0.6.10 the column was 28 and the words 15 px from the dot.
-            int lightBox = 2 * (int)Math.Round(Soft.PxF(Brand.LightInset + Brand.StatusDotRadius));
-            int lightColumn = (int)Math.Round(Soft.PxF(Brand.LightInset + 2 * Brand.StatusDotRadius + Brand.LightGap));
-            hero.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, lightColumn));   // the state's light, and its gap
+            // The state's light, and the gap to its words: as wide as PlaceLight makes it.
+            hero.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, Px(28)));
             hero.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));   // what it is doing
             hero.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));        // the way out
             hero.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
@@ -827,7 +821,7 @@ namespace CodexAutoResume
             var dot = stateDot;
             dot.Dock = DockStyle.Fill;
             dot.BackColor = Card;
-            dot.Margin = new Padding(0, 0, lightColumn - lightBox, 0);
+            dot.Margin = new Padding(0);
 
             // The words start where the light's column ends, both lines alike.
             headline.Dock = DockStyle.Fill;
@@ -867,9 +861,10 @@ namespace CodexAutoResume
             // Measured, not a formula of the font: two lines of the taller of the two, each row
             // half the card, a line never less than the light's glow needs - the light stands in
             // the first - and the pair never less than the Start button needs. Again whenever the
-            // window's font changes.
+            // window's font changes, and the light placed again with it.
             EventHandler fit = delegate
             {
+                PlaceLight();
                 int line = Math.Max(headline.PreferredSize.Height, detail.PreferredSize.Height + detail.Margin.Vertical);
                 line = Math.Max(line, 2 * HaloDot.Extent + Px(2));
                 int body = Math.Max(2 * line, startButton.PreferredSize.Height + startButton.Margin.Vertical);
@@ -877,6 +872,36 @@ namespace CodexAutoResume
             };
             fit(this, EventArgs.Empty);
             FontChanged += fit;
+        }
+
+        /// The header's light where every header stands it (v0.6.10): Brand.LightInset from the card's content to
+        /// the dot, and Brand.LightGap from the dot to the first glyph of the headline. A label draws its glyphs a
+        /// padding in from its edge (TextInset), so the light's column is that much narrower than the gap, and the
+        /// line under the headline is moved in by the difference between the two fonts' paddings, so both lines'
+        /// glyphs start at one x. The dot is centred in a box of its own, which keeps the glow's room on each side of
+        /// it at any scaling - an absolute 22 once held a 24-pixel dot at 200% and sliced a third of it off - and the
+        /// rest of the column is the box's right margin. Until v0.6.10 the column was 28, the headline's glyphs about
+        /// 17 px from the dot, and the line under it started 3 px to its left.
+        private void PlaceLight()
+        {
+            int box = 2 * (int)Math.Round(Soft.PxF(Brand.LightInset + Brand.StatusDotRadius));
+            int headlineInset = TextInset(headline.Font), detailInset = TextInset(detail.Font);
+            int column = Math.Max(box, (int)Math.Round(Soft.PxF(Brand.LightInset + 2 * Brand.StatusDotRadius + Brand.LightGap))
+                                       - headlineInset);
+            if (hero.ColumnStyles.Count > 0 && hero.ColumnStyles[0].Width != column) hero.ColumnStyles[0].Width = column;
+            var beside = new Padding(0, 0, column - box, 0);
+            if (stateDot.Margin != beside) stateDot.Margin = beside;
+            var under = new Padding(Math.Max(0, headlineInset - detailInset), detail.Margin.Top, 0, detail.Margin.Bottom);
+            if (detail.Margin != under) detail.Margin = under;
+        }
+
+        /// How far in from its left edge a label draws its first glyph: the padding TextRenderer keeps on each side
+        /// of a line for glyphs that overhang it (GlyphOverhangPadding), a sixth of the font's height rounded up,
+        /// which Label's drawing asks for and MeasureText does not count. Measured: a label draws a W 4 px in at a
+        /// 21-pixel font and 6 px in at a 31-pixel one.
+        internal static int TextInset(Font font)
+        {
+            return (int)Math.Ceiling(font.Height / 6.0);
         }
 
         private void BuildFooter()
