@@ -147,8 +147,12 @@ ADVISORY_ID_RE = re.compile(r"CAR-\d{4}-\d{4}")
 # Evidence is the maintainer's own. docs/evidence/community/ holds other people's reports,
 # which count towards Reported beside the ladder and never towards a tier, so a claim may not
 # cite one: a document that does is refused whole (tests/test_compat.py). The folder is
-# refused in any letter case, as Windows would open it in any.
-EVIDENCE_RE = re.compile(r"docs/evidence/(?!(?i:community)(?:/|$))[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*\.json")
+# refused however Windows would still open it: in any letter case, and never behind a segment
+# that ends in a dot - "." and ".." are such segments, and Windows drops the dot from
+# "community." - so the first segment after docs/evidence/ is the folder a claim is read from.
+EVIDENCE_SEGMENT = r"[A-Za-z0-9._-]*[A-Za-z0-9_-]"
+EVIDENCE_RE = re.compile(r"docs/evidence/(?!(?i:community)(?:/|$))%s(?:/%s)*\.json"
+                         % (EVIDENCE_SEGMENT, EVIDENCE_SEGMENT))
 HEX64_RE = re.compile(r"[0-9a-f]{64}")
 
 

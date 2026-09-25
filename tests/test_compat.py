@@ -40,6 +40,21 @@ def verified(evidence="docs/evidence/loaded-thread-delivery.json"):
     return {"state": "VERIFIED", "evidence": [evidence], "verified_at": "2026-09-06"}
 
 
+def in_community_folder(path) -> bool:
+    """Whether Windows would open `path` inside docs/evidence/community/: "." and ".." are
+    walked, the dots and spaces Windows drops from a segment's end are dropped, and letter
+    case is not compared. Written apart from the validator's pattern, to check it."""
+    parts = []
+    for part in path.replace("\\", "/").split("/"):
+        if part in ("", "."):
+            continue
+        if part == "..":
+            parts = parts[:-1]
+            continue
+        parts.append(part.rstrip(". ").casefold())
+    return parts[:3] == ["docs", "evidence", "community"]
+
+
 def incompatible(reason="schema_changed"):
     return {"state": "INCOMPATIBLE", "reason": reason}
 
@@ -184,15 +199,27 @@ class DocumentTests(unittest.TestCase):
     def test_no_claim_may_cite_someone_elses_report(self):
         """docs/evidence/community/ holds other people's reports. They count towards Reported,
         beside the ladder, and never towards a tier - so a claim that cites one, VERIFIED or
-        CHECKED or INCOMPATIBLE, is refused whole, in any letter case of the folder."""
+        CHECKED or INCOMPATIBLE, is refused whole, however the path spells a way Windows would
+        still open the folder: in any letter case, through ".", or with the dot Windows drops
+        from "community."."""
         for path in ("docs/evidence/community/x/y.json", "docs/evidence/Community/x/y.json",
-                     "docs/evidence/COMMUNITY/ExampleUser/codex-cli-0.155.0.json"):
+                     "docs/evidence/COMMUNITY/ExampleUser/codex-cli-0.155.0.json",
+                     "docs/evidence/./community/x/y.json", "docs/evidence/community./x/y.json",
+                     "docs/evidence/Community../x/y.json", "docs/evidence/compat/../community/y.json"):
+            self.assertTrue(in_community_folder(path), path)
             for state in ("VERIFIED", "CHECKED", "INCOMPATIBLE"):
                 with self.subTest(path=path, state=state):
                     self.assertEqual(refused(document(engines=[engine("codex-cli 0.155.0", exact_thread_recovery={
                         "state": state, "evidence": [path]})])), "invalid_field")
+        # A segment that ends in a dot names another folder than the one it spells, wherever it is.
+        for path in ("docs/evidence/compat./x.json", "docs/evidence/./compat/x.json", "docs/evidence/compat/x./y.json"):
+            with self.subTest(path=path):
+                self.assertEqual(refused(document(engines=[engine("codex-cli 0.155.0", exact_thread_recovery={
+                    "state": "INCOMPATIBLE", "evidence": [path]})])), "invalid_field")
         # The pattern refuses the folder and nothing beside it.
-        for path in ("docs/evidence/communityish/y.json", "docs/evidence/compat/community.json"):
+        for path in ("docs/evidence/communityish/y.json", "docs/evidence/compat/community.json",
+                     "docs/evidence/community.json"):
+            self.assertFalse(in_community_folder(path), path)
             with self.subTest(path=path):
                 self.assertIsNone(refused(document(engines=[engine("codex-cli 0.155.0", exact_thread_recovery={
                     "state": "INCOMPATIBLE", "evidence": [path]})])))
@@ -682,7 +709,7 @@ class BundledBaselineTests(unittest.TestCase):
             for name, claim in engine_entry["capabilities"].items():
                 for path in claim.get("evidence", []):
                     with self.subTest(version=engine_entry["version"], capability=name, path=path):
-                        self.assertFalse(path.lower().startswith("docs/evidence/community/"))
+                        self.assertFalse(in_community_folder(path))
                         recorded = json.loads((ROOT / path).read_text(encoding="utf-8"))
                         self.assertNotIn("reporter", recorded)
 

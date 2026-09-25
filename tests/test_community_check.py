@@ -355,11 +355,17 @@ class ShownTests(unittest.TestCase):
         for value in (HOSTILE, "a\nb", None, 7, "x" * 40):
             self.assertEqual(check.shown(value, reader.LOGIN.pattern), check.REFUSED)
 
-    def test_the_folder_is_found_in_any_letter_case(self):
+    def test_the_folder_is_found_however_windows_would_open_it(self):
+        """In any letter case, through "." or "..", and with the trailing dots and spaces Windows
+        drops: a pull request adding docs/evidence/community./<login>/... from a machine that allows
+        the name would otherwise pass as not a report."""
         for path in ("docs/evidence/community/x.json", "Docs/Evidence/COMMUNITY/y/z.json", "docs/evidence/community",
-                     None):
+                     None, "docs/evidence/./community/x.json", "docs/evidence/community./x.json",
+                     "docs/evidence/Community ./x.json", "docs/evidence/community../y/z.json",
+                     "docs/evidence/compat/../community/x.json", "docs\\evidence\\community\\x.json"):
             self.assertTrue(check.touches(path), path)
-        for path in ("docs/evidence/communityish/x.json", "docs/evidence/compat/x.json", "README.md"):
+        for path in ("docs/evidence/communityish/x.json", "docs/evidence/compat/x.json", "README.md",
+                     "docs/evidence/community.json", "docs/evidence/compat/community/x.json"):
             self.assertFalse(check.touches(path), path)
 
 

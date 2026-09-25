@@ -158,11 +158,20 @@ def shown(value, pattern) -> str:
 
 
 def touches(path) -> bool:
-    """Whether a path is in the folder, in any letter case - Windows opens it in any."""
+    """Whether Windows would open a path inside the folder: in any letter case, through "." or
+    "..", or with the dots and spaces it drops from a segment's end ("community."). Reading more
+    paths as the folder's only makes more pull requests answer to the report rules."""
     if path is None:
         return True
-    folded = path.casefold()
-    return folded == reader.COMMUNITY.casefold() or folded.startswith(PREFIX.casefold())
+    parts = []
+    for part in path.replace("\\", "/").split("/"):
+        if part in ("", "."):
+            continue
+        if part == "..":
+            parts = parts[:-1]
+            continue
+        parts.append(part.rstrip(". ").casefold())
+    return parts[:3] == reader.COMMUNITY.casefold().split("/")
 
 
 def sequence(report):
