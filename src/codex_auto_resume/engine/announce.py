@@ -45,7 +45,11 @@ class AnnounceMixin:
         # `observe` (engine/outcome.py) moves it to when that turn ends. Asked only while its
         # consent holds - recovery on, its conversation on, no cancel - and nothing that follows
         # a turn is carried out yet, so nothing is taken from the answer (domain/plug.py).
-        if changed and row.get("state") in OBSERVING and state in OUTCOMES and self.allowed(row):
+        # NULL is never asked, so it is looked at first: the consent reads are two transactions
+        # on every recovery turn that settles, which the standard edition never made - and one
+        # that failed would raise out of a transition whose state is already written.
+        if (changed and not self.plug.null and row.get("state") in OBSERVING and state in OUTCOMES
+                and self.allowed(row)):
             self.plug.outcome(dict(row, state=state, last_error=reason), state)
 
     def announce(self, event, row, **detail):
