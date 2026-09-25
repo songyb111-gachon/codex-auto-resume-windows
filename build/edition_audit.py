@@ -86,8 +86,9 @@ ALLOWED = {
     ("install/install.ps1", PACKAGE):
         "tells which edition the payload it installs is, the same way",
 }
-# Shorter names and plain lowercase words - `create`, `record` - are English as often as they
-# are code, and would be found in any text; the checks look for the ones that can only be ours.
+# Shorter names and plain words - `create`, `Registry`, `VALUES` - are English (or SQL) as often
+# as they are code, and would be found in any text; the checks look for the ones that can only be
+# ours (`distinctive`).
 MIN_LENGTH = 6
 _WORD = rb"[A-Za-z0-9_]"
 
@@ -141,8 +142,17 @@ class Inventory:
 
 
 def distinctive(name: str) -> bool:
-    return len(name) >= MIN_LENGTH and (not name.islower() or "_" in name
-                                        or any(c.isdigit() for c in name))
+    """A name only code has: joined words - CamelCase, an underscore, a digit.
+
+    One word with a capital or in capitals is not one. `Registry`, `Runtime` and `Verdict`
+    begin sentences in the standard edition's documents and comments, and `VALUES` is in every
+    SQL insert its store makes; the advanced tree declaring a class or a constant by such a word
+    does not make every sentence that says it a leak. A file of the advanced tree carried across
+    whole is still found by the sentinel it begins with and the joined names it declares."""
+    if len(name) < MIN_LENGTH:
+        return False
+    joined = any(c.isupper() for c in name[1:]) and any(c.islower() for c in name)
+    return joined or "_" in name or any(c.isdigit() for c in name)
 
 
 def python_words(text: str) -> set:

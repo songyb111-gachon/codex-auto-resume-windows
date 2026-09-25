@@ -127,6 +127,19 @@ class InventoryTests(unittest.TestCase):
         for name in ("SettingsForm", "DashboardBuilt", "partial", "WordsInAComment"):
             self.assertNotIn(name, self.tree.window)
 
+    def test_an_english_word_in_a_capital_or_in_capitals_is_not_a_name(self):
+        """`Registry`, `Runtime`, `Verdict` and SQL's `VALUES` are words a standard file says
+        in a sentence or a statement; a name the advanced tree alone can have is joined -
+        CamelCase, an underscore, a digit - and still found."""
+        declared = ("# %s\nclass Registry:\n    pass\n\nclass Runtime:\n    pass\n\n"
+                    "VALUES = CATALOGS = Unreadable = 1\n\nclass CapabilityRegistry:\n"
+                    "    VALUE_WORDS = 2\n    Stage2 = 3\n" % SENTINEL).encode("utf-8")
+        tree = audit.Inventory.build({"advanced/src/%s/registry.py" % PACKAGE: declared}, CORE_PYTHON)
+        for word in ("Registry", "Runtime", "VALUES", "CATALOGS", "Unreadable"):
+            self.assertNotIn(word, tree.names)
+        for name in ("CapabilityRegistry", "VALUE_WORDS", "Stage2"):
+            self.assertIn(name, tree.names)
+
     def test_the_window_is_read_for_its_own_names_and_strings(self):
         self.assertEqual(self.tree.window, {PACKAGE, SKILL, SENTINEL, "ArmingPage"})
         self.assertEqual(self.tree.literals, {"Watch first, then turn on"})
