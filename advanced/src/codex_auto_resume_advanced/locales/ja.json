@@ -1,0 +1,12 @@
+{
+  "_edition": "ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.",
+  "all_off": "すべての高度な機能をオフ",
+  "field.departs": "外れる基準",
+  "field.does": "何をするか",
+  "field.instead": "標準エディションが代わりに行うこと",
+  "field.risks": "起こりうる問題",
+  "field.stop": "止め方",
+  "state.armed": "オン",
+  "state.off": "オフ",
+  "state.shadow": "様子見中"
+}

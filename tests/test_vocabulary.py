@@ -147,7 +147,7 @@ LISTS = {
     "edition.PLUG_FAILURES": ("tuple", 4, "4414d548d1f8f251"),
     "domain.plug.POINTS": ("tuple", 12, "da5e7ad28dca308c"),
     "domain.plug.ANSWERS": ("set", 1, "b4686ae67262ac33"),
-    "domain.plug.SURFACES": ("tuple", 4, "0a94ec20bd90bca3"),
+    "domain.plug.SURFACES": ("tuple", 5, "d41ac5a6d67be21b"),
     "domain.plug.EXTRA": "advanced",
 }
 

@@ -78,6 +78,10 @@ class Paths:
         self.compat_cache_file = self.state_dir / "compat-cache.json"
         # v0.6.8: when a person last saw a failure on the icon or the Dashboard (control.acknowledge_failure).
         self.failure_seen_file = self.state_dir / "failure-seen.json"
+        # v0.6.11: the advanced edition's own state, in one directory of its own under config/,
+        # carrying the same marker config/ does. Core never writes there and the standard edition
+        # never creates it; it is named here only so a purge can take it (owned_state_files).
+        self.advanced_dir = self.state_dir / "advanced"
         self.log_file = self.logs_dir / "auto-resume.log"
         self.error_log = self.logs_dir / "errors.log"
         # v0.6.9: one line each time Codex starts the MCP server and it considers starting the
@@ -194,7 +198,28 @@ class Paths:
         for pattern in ("settings.*.tmp", "compatibility.*.tmp", "compat-cache.*.tmp", "failure-seen.*.tmp"):
             files += [p for p in sorted(self.state_dir.glob(pattern))
                       if not p.is_symlink() and self.confined(p)]
-        return files + [self.state_dir / OWNER_MARKER]
+        return files + self.owned_advanced_files() + [self.state_dir / OWNER_MARKER]
+
+    def owned_advanced_files(self) -> list[Path]:
+        """What a purge takes from `advanced_dir`: every file directly in it, its marker last,
+        and only while that marker is there.
+
+        The one rule core has for the advanced edition's state, and a generic one. Core does
+        not know that edition's files and must not spell them, so it cannot delete by name, as
+        it does everywhere else; the marker is what vouches for them instead. It is written by
+        the advanced edition when it makes the directory, and it says the whole directory is
+        ours - so a directory without it, or one that is a link, or one whose files resolve
+        outside the home, is left exactly as it is. Nothing below it is followed."""
+        directory = self.advanced_dir
+        try:
+            if directory.is_symlink() or not self.owns(directory):
+                return []
+            found = [path for path in sorted(directory.iterdir())
+                     if path.name != OWNER_MARKER and path.is_file() and not path.is_symlink()
+                     and self.confined(path)]
+        except OSError:
+            return []
+        return found + [directory / OWNER_MARKER]
 
     def owned_log_files(self) -> list[Path]:
         if not self.owns(self.logs_dir):

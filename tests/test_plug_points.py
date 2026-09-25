@@ -13,7 +13,8 @@ and simulated backend the engine's scenarios use (tests/codexsim.py):
   send, after the one claim and the pre-send look, inside the launch guard;
 * its ledger is asked inside the claim, can refuse one and never grant one, and what it writes
   there commits with the claim or not at all - and the standard edition's is never asked;
-* a surface shows what it adds under one key, and nothing when it adds nothing; the start
+* a surface shows what it adds under one key, and nothing when it adds nothing; MCP offers its
+  well-declared tools after core's and hands it the calls to them, checked as core's are; the start
   route's refusal and the launcher's exit code are what they were, whatever it answers.
 """
 from __future__ import annotations
@@ -39,10 +40,11 @@ from codexsim import RESET  # noqa: E402
 from test_control import ControlTestCase  # noqa: E402
 from test_engine import T1, TURN_A, EngineCase  # noqa: E402
 from codex_auto_resume import (config, continuation, control, controlcli, diagnostics,  # noqa: E402
-                               edition, settings, windows)
+                               edition, mcpserver, settings, windows)
 from codex_auto_resume.domain.plug import (DEFER, EXTRA, Alternative, Plug, Surface,  # noqa: E402
                                            guard)
 from codex_auto_resume.engine import Engine  # noqa: E402
+from codex_auto_resume.mcp.tools import TOOLS as MCP_TOOLS  # noqa: E402
 from codex_auto_resume.runtime.app import App  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -484,6 +486,98 @@ class SurfaceTests(ControlTestCase):
         self.assertNotIn(EXTRA, drawn[0])
         self.assertEqual(drawn[1][EXTRA], {"on": 1})
         self.assertEqual(set(drawn[0]), set(expected))
+
+
+class McpSurfaceTests(ControlTestCase):
+    """P10 at the MCP server: a plug's tools after core's, each checked as a declaration, its
+    arguments checked as core's are, and a call to one answered by the plug and nothing else."""
+
+    TOOL = {"name": "measure_it", "title": "Measure", "description": "Reads one thing.",
+            "inputSchema": {"type": "object", "properties": {"id": {"type": "string"}},
+                            "required": ["id"], "additionalProperties": False},
+            "annotations": {"readOnlyHint": True, "destructiveHint": False}}
+
+    def converse(self, layer, *messages):
+        out = io.StringIO()
+        mcpserver.Server(layer, io.StringIO("".join(json.dumps(message) + "\n" for message in messages)),
+                         out).serve()
+        return [json.loads(line) for line in out.getvalue().splitlines()]
+
+    def call(self, layer, name, arguments):
+        (reply,) = self.converse(layer, {"jsonrpc": "2.0", "id": 7, "method": "tools/call",
+                                         "params": {"name": name, "arguments": arguments}})
+        return reply
+
+    def offering(self, *tools, answer=None):
+        def surface(name, facts):
+            if name != Surface.MCP:
+                return DEFER
+            if facts["request"] == "tools":
+                return {"tools": list(tools)}
+            return answer(facts) if callable(answer) else answer
+        return Asked(surface=surface)
+
+    def calls(self, plug):
+        return [arguments[1] for hook, arguments in plug.asked
+                if hook == "surface" and arguments[1].get("request") == "call"]
+
+    def test_the_standard_editions_list_and_refusals_are_what_they_always_were(self):
+        with patch.object(edition, "plug", return_value=edition.NULL):
+            layer = control.Control(self.paths)
+            (listed,) = self.converse(layer, {"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+            self.assertEqual(listed["result"]["tools"], json.loads(json.dumps(MCP_TOOLS)))
+            reply = self.call(layer, "measure_it", {"id": "m1"})
+        self.assertEqual(reply["error"], {"code": mcpserver.INVALID_PARAMS, "message": "unknown tool"})
+
+    def test_a_plugs_tools_come_after_cores_and_only_well_declared_ones(self):
+        loose = dict(self.TOOL, name="loose_tool",
+                     inputSchema=dict(self.TOOL["inputSchema"], additionalProperties=True))
+        unread = dict(self.TOOL, name="unread_tool", annotations={"readOnlyHint": True})
+        plug = self.offering(self.TOOL, dict(self.TOOL, name="get_status"), dict(self.TOOL, name="Bad Name"),
+                             loose, unread, dict(self.TOOL, extra="x", name="second_tool"),
+                             dict(self.TOOL), "junk")
+        (listed,) = self.converse(control.Control(self.paths, plug=plug),
+                                  {"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+        tools = listed["result"]["tools"]
+        self.assertEqual(tools[:len(MCP_TOOLS)], json.loads(json.dumps(MCP_TOOLS)))
+        self.assertEqual(tools[len(MCP_TOOLS):], [self.TOOL, dict(self.TOOL, name="second_tool")])
+
+    def test_a_call_to_a_plugs_tool_is_answered_by_the_plug(self):
+        plug = self.offering(self.TOOL, answer=lambda facts: {"summary": "measured", "data": {"echo": facts}})
+        reply = self.call(control.Control(self.paths, plug=plug), "measure_it", {"id": "m1"})["result"]
+        self.assertEqual(reply["content"], [{"type": "text", "text": "measured"}])
+        self.assertEqual(reply["structuredContent"],
+                         {"echo": {"request": "call", "tool": "measure_it", "arguments": {"id": "m1"}}})
+
+    def test_its_arguments_are_checked_before_the_plug_hears_of_the_call(self):
+        plug = self.offering(self.TOOL, answer={"summary": "measured", "data": {}})
+        layer = control.Control(self.paths, plug=plug)
+        for arguments in ({}, {"id": "m1", "arm": True}):
+            with self.subTest(arguments=arguments):
+                self.assertTrue(self.call(layer, "measure_it", arguments)["result"]["isError"])
+        self.assertEqual(self.calls(plug), [])
+
+    def test_a_plug_cannot_answer_for_a_tool_of_cores(self):
+        plug = self.offering(dict(self.TOOL, name="get_status"),
+                             answer={"summary": "not core", "data": {}})
+        reply = self.call(control.Control(self.paths, plug=plug), "get_status", {})["result"]
+        self.assertNotEqual(reply["content"][0]["text"], "not core")
+        self.assertEqual(self.calls(plug), [])
+
+    def test_a_refusal_or_an_answer_of_no_known_shape_is_a_refusal(self):
+        for answer, text in (({"refused": "no advanced capability has that id"}, "no advanced capability has that id"),
+                             (DEFER, controlcli.GENERIC_ERROR), ({"summary": 5, "data": {}}, controlcli.GENERIC_ERROR),
+                             (RuntimeError("broken"), controlcli.GENERIC_ERROR)):
+            with self.subTest(answer=answer):
+                def respond(facts, answer=answer):
+                    if isinstance(answer, Exception):
+                        raise answer
+                    return answer
+                reply = self.call(control.Control(self.paths, plug=self.offering(self.TOOL, answer=respond)),
+                                  "measure_it", {"id": "m1"})["result"]
+                self.assertTrue(reply["isError"])
+                self.assertEqual(reply["content"][0]["text"], text)
+                self.assertEqual(reply["structuredContent"], {"error_code": "request_failed"})
 
 
 class StartRouteTests(unittest.TestCase):

@@ -182,7 +182,12 @@ def cmd_uninstall(args) -> int:
     # uninstall/reinstall silently lose everything that was waiting to resume, while the
     # installer said in the same breath that they had been kept.
     keep_state = getattr(args, "keep_state", False)
-    considered = ([] if args.keep_logs else [paths.logs_dir]) + ([] if keep_state else [paths.state_dir])
+    # The advanced edition's directory goes before config/, which holds it, so each is empty
+    # when its turn comes. It is there only in an installation that has been advanced; a link
+    # in its place is not considered at all (config.owned_advanced_files).
+    edition_state = [] if paths.advanced_dir.is_symlink() else [paths.advanced_dir]
+    considered = (([] if args.keep_logs else [paths.logs_dir])
+                  + ([] if keep_state else edition_state + [paths.state_dir]))
     owned_dirs = [d for d in considered if paths.owns(d)]
     skipped = [d for d in considered if d.is_dir() and not paths.owns(d)]
     targets = ([] if keep_state else list(paths.owned_state_files()))

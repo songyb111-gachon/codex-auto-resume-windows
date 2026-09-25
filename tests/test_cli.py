@@ -6,6 +6,7 @@ import io
 import logging
 import os
 from pathlib import Path
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -414,6 +415,30 @@ class UninstallSafetyTests(unittest.TestCase):
         self.assertTrue(victim_state.exists(), "a file we never created must never be deleted")
         self.assertTrue(victim_log.exists())
         self.assertIn("no provenance marker", out)
+
+    def test_a_purge_takes_the_advanced_editions_directory_only_while_it_carries_the_marker(self):
+        """v0.6.11: config/advanced/ is the advanced edition's own, and core knows none of its
+        files, so the marker in it vouches for them all (config.owned_advanced_files). A purge
+        takes it whole; --keep-state keeps it; without the marker nothing in it is touched.
+        No advanced package is needed for any of it: a standard installation that was once
+        advanced purges it too."""
+        for marked, flags, kept in ((True, (), False), (True, ("--keep-state",), True),
+                                    (False, (), True)):
+            with self.subTest(marked=marked, flags=flags):
+                shutil.rmtree(self.home, ignore_errors=True)
+                self.cli("install")
+                paths = config.Paths(self.home)
+                paths.advanced_dir.mkdir()
+                left = paths.advanced_dir / "anything-it-wrote.sqlite"
+                left.write_bytes(b"x")
+                if marked:
+                    (paths.advanced_dir / config.OWNER_MARKER).write_text(config.OWNER_TEXT, encoding="utf-8")
+                code, out, _ = self.cli("uninstall", *flags)
+                self.assertEqual(code, 0)
+                self.assertEqual(left.exists(), kept)
+                self.assertEqual(paths.advanced_dir.exists(), kept)
+                if not marked:
+                    self.assertIn("skipped %s" % paths.advanced_dir, out)
 
     def test_uninstall_removes_only_marked_directories_contents(self):
         self.cli("install")
