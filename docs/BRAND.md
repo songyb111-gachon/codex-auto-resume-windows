@@ -621,10 +621,11 @@ the ring rather than floating beside it.
 
 ## Rules that are not about colour
 
-- **State leads.** In the Dashboard, the popup and the panel, what the watcher is doing is the
-  first thing and the largest type. It used to be a muted sentence along the bottom of the
-  window, under sixteen checkboxes — which put the one thing a person opens the window to check
-  below everything they did not come for.
+- **State leads.** In the Dashboard and the panel, what the watcher is doing is the first thing
+  and the largest type. In the popup it is the line directly under the product's name, at the
+  top of the card, in its state's own colour. It used to be a muted sentence along the bottom of
+  the window, under sixteen checkboxes — which put the one thing a person opens the window to
+  check below everything they did not come for.
 - **No colour without a word.** A state is a word on a chip tinted with its own colour, and the
   dot always has its word beside it. `active` never carries text, which is why the popup keeps
   separate tables for a dot's fill and its word's ink. An outcome is one colour wherever it is shown - its word's chip in History and, since
