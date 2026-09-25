@@ -25,7 +25,11 @@ write. Only what the envelope never needs is added here, and all of it is golden
 * one more record, a recovery that ran out of attempts, so "give attempts back" has something
   to give back (`_seed_exhausted`);
 * no Codex engine to discover: `LOCALAPPDATA` points into the scratch directory, so a live
-  compatibility check finds none on every machine instead of running this machine's `codex`;
+  compatibility check finds none on every machine instead of running this machine's `codex`.
+  The one exception is a case marked `engine=True`, which reads - never checks live - the
+  watcher's report the envelope writes for the pictures' Codex (`seed_compatibility`, with its
+  stand-in engine that answers two questions and starts nothing). It is there so the reply the
+  Dashboard draws Reported's counts from (v0.6.10) is held byte for byte, counts and all;
 * no process at all. `subprocess.Popen` refuses (`ProcessRefused`, a BaseException, so the bridge
   cannot turn it into a polite refusal) for the whole run; the two cases that need one get a
   stand-in instead - a watcher launch whose "process" has already exited, and a registry
@@ -110,13 +114,15 @@ class Case:
     """One request of a golden, in order after the ones before it in the same installation.
 
     `argument` may be a function of the scratch workspace (a path in it). `watching` says whether
-    the watcher's mutex is held, as it is in the pictures; a change of it starts a new
-    installation. `using` is a function of the workspace returning a context manager for the one
-    stand-in the case needs.
+    the watcher's mutex is held, as it is in the pictures; `engine` whether the installation has
+    the envelope's stand-in Codex and the watcher's report about it; a change of either starts a
+    new installation. `using` is a function of the workspace returning a context manager for the
+    one stand-in the case needs.
     """
 
-    def __init__(self, name, argument=None, *, watching=True, using=None):
+    def __init__(self, name, argument=None, *, watching=True, engine=False, using=None):
         self.name, self.argument, self.watching, self.using = name, argument, watching, using
+        self.engine = engine
 
     def value(self, workspace):
         return self.argument(workspace) if callable(self.argument) else self.argument
@@ -323,7 +329,9 @@ BRIDGE_CASES = {
     "compatibility": [
         Case("the watcher's report, before any watcher has written one", {}),
         Case("checked live, on a machine with no Codex engine", {"live": True}),
-        Case("live must be true or false", {"live": "yes"})],
+        Case("live must be true or false", {"live": "yes"}),
+        Case("the watcher's report on the pictures' Codex, with what others report of it", {},
+             engine=True)],
     "compat-import": [
         Case("a valid document becomes the cache",
              lambda workspace: {"path": _registry_document(workspace), "origin": "file"}),
@@ -473,8 +481,12 @@ def _seed_exhausted(paths) -> None:
 
 
 @contextmanager
-def installation(*, watching=True, mcp=False):
-    """A fresh golden installation: (workspace, the `Control` it answers for, the rewriting)."""
+def installation(*, watching=True, mcp=False, engine=False):
+    """A fresh golden installation: (workspace, the `Control` it answers for, the rewriting).
+
+    `engine=True` keeps the envelope's stand-in Codex and the watcher's report about it, for a
+    case that reads that report. The stand-in answers its two questions only while the report is
+    written; a live check afterwards would start a process, which `_no_process` refuses."""
     from codex_auto_resume import l10n
 
     with tempfile.TemporaryDirectory() as name, ExitStack() as stack:
@@ -482,15 +494,17 @@ def installation(*, watching=True, mcp=False):
         # Before anything is built, so the building cannot start a process either.
         stack.enter_context(_no_process())
         surface = stack.enter_context(
-            generator.pinned_installation(workspace, watching=watching, engine=False))
+            generator.pinned_installation(workspace, watching=watching, engine=engine))
         # Inside the pinned installation's environment, which is put back whole after it.
         os.environ[l10n.ENV_LANG] = "en"
-        # A LOCALAPPDATA of its own, with no engine in it, so a live compatibility check finds
-        # none on every machine. Named apart from the `LocalAppData` the envelope seeds an engine
-        # into (`pinned_installation`), because Windows would otherwise call them the same folder.
-        engines = workspace / "no-engines"
-        engines.mkdir(exist_ok=True)
-        os.environ["LOCALAPPDATA"] = str(engines)
+        if not engine:
+            # A LOCALAPPDATA of its own, with no engine in it, so a live compatibility check finds
+            # none on every machine. Named apart from the `LocalAppData` the envelope seeds an
+            # engine into (`pinned_installation`), because Windows would otherwise call them the
+            # same folder.
+            engines = workspace / "no-engines"
+            engines.mkdir(exist_ok=True)
+            os.environ["LOCALAPPDATA"] = str(engines)
         if mcp:
             from codex_auto_resume import compatio
 
@@ -535,7 +549,7 @@ def _groups(cases):
     """Consecutive cases that share an installation."""
     group = []
     for case in cases:
-        if group and case.watching != group[-1].watching:
+        if group and (case.watching, case.engine) != (group[-1].watching, group[-1].engine):
             yield group
             group = []
         group.append(case)
@@ -559,7 +573,8 @@ def _bridge_reply(surface, command, argument, what):
 def bridge_document(command: str) -> str:
     cases = []
     for group in _groups(BRIDGE_CASES[command]):
-        with installation(watching=group[0].watching) as (workspace, surface, rewriting):
+        with installation(watching=group[0].watching, engine=group[0].engine) as (
+                workspace, surface, rewriting):
             for case in group:
                 argument = case.value(workspace)
                 what = "%s: %s" % (command, case.name)
@@ -606,7 +621,8 @@ def _call(name, arguments) -> dict:
 def mcp_document(tool: str) -> str:
     cases = []
     for group in _groups(MCP_CASES[tool]):
-        with installation(watching=group[0].watching, mcp=True) as (workspace, surface, rewriting):
+        with installation(watching=group[0].watching, mcp=True, engine=group[0].engine) as (
+                workspace, surface, rewriting):
             for case in group:
                 arguments = case.value(workspace)
                 with (case.using(workspace) if case.using else ExitStack()):

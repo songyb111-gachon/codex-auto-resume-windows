@@ -171,10 +171,19 @@ def _view_status(view) -> str:
     return text
 
 
+# Said after every Reported line that says something, whichever state it is in.
+_REPORTED_QUALIFIER = " (others' reports; changes nothing)"
+
+
 def _reported_words(view) -> str:
     """What other people's filed reports add up to for the Codex version a view names (v0.6.10), in
     one line. Counts of reports, beside the version and never a verdict: nothing reads them to
-    decide, and the line says so."""
+    decide, and the line says so.
+
+    The words are the Dashboard's (gui/DashboardCompat.cs, ReportedLine; compat.reported.* in the
+    catalogs): the counts, "none yet", "could not be read", or "-" where there is nothing to say -
+    a view that cannot be used or found no engine - and the dash, saying nothing, needs no
+    qualifier."""
     reported = view.get("reported") if isinstance(view, dict) else None
     reported = reported if isinstance(reported, dict) else {}
     state = reported.get("state")
@@ -184,12 +193,12 @@ def _reported_words(view) -> str:
         text = "worked %(worked)d, failed %(failed)d, neither %(neither)d" % counts
         if counts["both"] > 0:
             text += ", counted in both %(both)d" % counts
-        return text + " (others' reports; changes nothing)"
+        return text + _REPORTED_QUALIFIER
     if state == "none_yet":
-        return "none yet (others' reports; changes nothing)"
+        return "none yet" + _REPORTED_QUALIFIER
     if state == "rejected":
-        return "the counts this version carries could not be read"
-    return "unavailable"
+        return "could not be read" + _REPORTED_QUALIFIER
+    return "-"
 
 
 def _capability_lines(view, *, only_problems=False) -> list:
