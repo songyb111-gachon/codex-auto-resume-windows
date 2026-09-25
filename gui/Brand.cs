@@ -498,7 +498,7 @@ namespace CodexAutoResume
         /// Whether a design moves a control when it changes - a switch, a check box, a list rising open, the scroll (brand.DESIGN's glides).
         internal static bool DesignGlides(string design)
         {
-            if (design == "still" || design == "classic" || design == "plain") return false;
+            if (design == "still") return false;
             return true;
         }
 

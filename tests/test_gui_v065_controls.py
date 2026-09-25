@@ -1194,7 +1194,7 @@ class SourceRuleTests(unittest.TestCase):
         motion = self.block("internal static class Motion", "\n    }\n")
         self.assertIn("return Brand.TransitionMs;", motion)
         # v0.6.10: through the controls' gate, which is every stopper Soft.ReduceMotion knows and a design that does not
-        # glide (Still, Classic, Plain).
+        # glide (Still).
         self.assertIn("Soft.ControlsStill", self.block("internal static bool Allowed(Control control)"))
         still = self.block("internal static bool ControlsStill")
         self.assertIn("ReduceMotion", still)

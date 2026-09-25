@@ -941,7 +941,7 @@ class SourceRuleTests(unittest.TestCase):
         page = page[:page.index("\n    }\n")]
         self.assertNotIn("AutoScroll", page, "the page scrolls itself; Windows' bar is never asked for")
         self.assertIn("public override Rectangle DisplayRectangle", page)
-        # v0.6.10: the controls' gate, which is Reduce motion's and the design's (Still, Classic and Plain do not glide).
+        # v0.6.10: the controls' gate, which is Reduce motion's and the design's (Still does not glide).
         self.assertIn("if (animate && !Soft.ControlsStill && IsHandleCreated && Soft.Shown(this))",
                       self.body("internal void ScrollTo(int target, bool animate)"), "no glide with motion reduced")
 

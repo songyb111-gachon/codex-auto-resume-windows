@@ -1973,9 +1973,10 @@ class CardDesignTests(unittest.TestCase):
         self.assertFalse(card.breathe(brand.GLOW["monitoring_ms"] // 2))
         self.assertTrue(card.shadows, "Still keeps Soft's depth")
 
-    def test_classic_comes_at_once_floats_no_shadow_and_breathes(self):
+    def test_classic_rises_in_floats_no_shadow_and_breathes(self):
+        """Classic comes in as Soft does - only Still takes the entrance away - with no shadow to float."""
         card = self.offscreen(self.breathing(), "classic")
-        self.assertEqual(card.motion.phase, "hold")
+        self.assertEqual(card.motion.phase, "enter")
         self.assertEqual((card.shadows, card.margin), ((), 0))
         self.assertTrue(card.breathe(100))
         halo = next(item for item in card.plan["items"] if item["kind"] == "halo")
@@ -1985,9 +1986,9 @@ class CardDesignTests(unittest.TestCase):
         self.assertEqual(((red, green, blue), alpha), (brand.rgb(brand.CLASSIC_LIGHT["accent"]), 255))
         self.assertIsNotNone(halo)
 
-    def test_plain_breathes_with_no_glow(self):
+    def test_plain_rises_in_and_breathes_with_no_glow(self):
         card = self.offscreen(self.breathing(), "plain")
-        self.assertEqual((card.shadows, card.motion.phase), ((), "hold"))
+        self.assertEqual((card.shadows, card.motion.phase), ((), "enter"))
         state = card.vm["status"]
         low, peak = brand.GLOW[state + "_ms"] // 2, brand.GLOW[state + "_ms"]
         self.assertTrue(card.breathe(low))

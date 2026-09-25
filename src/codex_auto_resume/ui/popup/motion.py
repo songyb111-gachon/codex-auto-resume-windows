@@ -25,8 +25,8 @@ def animates(state, since_entered_ms=0, *, reduced=False, design="soft") -> bool
 class MotionGates:
     """What may move in the window, as two gates since the design split motion (v0.6.10): the status light
     and the switches. Each is held by any stopper - `_reduced`: Reduce motion, Windows' animation setting,
-    High Contrast - and by a design that does not move it (brand.DESIGN): Still holds both, Classic and
-    Plain the switches. A design never moves what a stopper holds. `_design` is the design in effect,
+    High Contrast - and by a design that does not move it (brand.DESIGN): Still holds both, and Classic
+    and Plain hold neither. A design never moves what a stopper holds. `_design` is the design in effect,
     Soft until the window first reads one."""
 
     _design, _reduced = brand.DEFAULT_DESIGN, False
@@ -47,7 +47,7 @@ class MotionGates:
 # already drawn is drawn the other way - which, for a change somebody asked for here, is when the
 # control layer has confirmed it: the press only fades the switch while the answer is awaited, so
 # it never moves and snaps back. With motion reduced, in High Contrast, in a design that does not
-# glide (v0.6.10: Still, Classic, Plain), while the window is hidden and on the frame that opens it,
+# glide (v0.6.10: Still), while the window is hidden and on the frame that opens it,
 # a change is simply drawn in its new place.
 def glide_amount(glide, now_ms) -> tuple:
     """(how far on the switch is, whether the glide is over) at `now_ms`, eased."""

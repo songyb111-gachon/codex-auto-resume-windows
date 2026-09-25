@@ -24,9 +24,10 @@ from .tokens import design_name
 #
 # Soft is the design every surface drew until this existed, and the default. Still is Soft with
 # nothing moving - exactly what Reduce motion draws, as a look rather than an accessibility
-# setting. Classic is v0.6.2's flat cards with their accent bar, whose light still breathes. Plain is
-# flat and grey, and its light dims without a glow: the only gradient on any surface is the glow, so
-# Plain has none.
+# setting, and the only design that takes motion away. Classic is v0.6.2's flat cards with their
+# accent bar and today's status light, and Plain is flat and grey; both move as Soft does - the
+# light breathes, the switches and lists glide and the notification card rises in - except that
+# Plain's light dims without a glow: the only gradient on any surface is the glow, so Plain has none.
 #
 # A design changes paint and never layout: every size, padding, dot and reserved shadow margin is
 # the same in all four, and a radius is only ever smaller than Soft's, so nothing measured for Soft
@@ -36,8 +37,8 @@ from .tokens import design_name
 DESIGN = {
     "soft":    {"depth": True,  "glow": True,  "breathes": True,  "glides": True,  "accent_bar": False},
     "still":   {"depth": True,  "glow": False, "breathes": False, "glides": False, "accent_bar": False},
-    "classic": {"depth": False, "glow": True,  "breathes": True,  "glides": False, "accent_bar": True},
-    "plain":   {"depth": False, "glow": False, "breathes": True,  "glides": False, "accent_bar": False},
+    "classic": {"depth": False, "glow": True,  "breathes": True,  "glides": True,  "accent_bar": True},
+    "plain":   {"depth": False, "glow": False, "breathes": True,  "glides": True,  "accent_bar": False},
 }
 # Corner radii, by RADII's roles. Classic's are v0.6.2's: an 8 px card and 7 px buttons, the small
 # radius its 6 px fields' (v0.6.2:mcpui.py), and pills stay pills. Plain's are Windows 11's: 8 px for

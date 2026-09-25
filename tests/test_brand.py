@@ -236,7 +236,7 @@ class DesignTests(unittest.TestCase):
         axes = ("depth", "glow", "breathes", "glides", "accent_bar")
         self.assertEqual({design: tuple(brand.DESIGN[design][axis] for axis in axes) for design in brand.DESIGNS},
                          {"soft": (True, True, True, True, False), "still": (True, False, False, False, False),
-                          "classic": (False, True, True, False, True), "plain": (False, False, True, False, False)})
+                          "classic": (False, True, True, True, True), "plain": (False, False, True, True, False)})
         for design in brand.DESIGNS:
             with self.subTest(design):
                 self.assertEqual(brand.design_depth(design), brand.DESIGN[design]["depth"])
@@ -377,7 +377,10 @@ class DesignTests(unittest.TestCase):
                                      brand.DESIGN[design]["breathes"] and not stopped)
                     self.assertEqual(brand.controls_move(design, stopped=stopped),
                                      brand.DESIGN[design]["glides"] and not stopped)
-        self.assertEqual([design for design in brand.DESIGNS if brand.controls_move(design)], ["soft"])
+        # Only Still takes motion away: Classic and Plain move their controls as Soft does (the roadmap's v0.6.2 look
+        # with today's motion), where for a while in v0.6.10 only Soft did.
+        self.assertEqual([design for design in brand.DESIGNS if brand.controls_move(design)],
+                         ["soft", "classic", "plain"])
         self.assertEqual([design for design in brand.DESIGNS if brand.light_moves(design)],
                          ["soft", "classic", "plain"])
 

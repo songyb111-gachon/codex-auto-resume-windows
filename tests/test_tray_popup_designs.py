@@ -52,8 +52,10 @@ class AdoptedDesignTests(unittest.TestCase):
         self.assertEqual(popup.design_choice("classic"), "classic")
         self.assertEqual(popup.design_choice(["classic"]), "soft")
 
-    def test_still_holds_the_light_and_the_switches_and_classic_and_plain_only_the_switches(self):
-        expected = {"soft": (False, False), "still": (True, True), "classic": (False, True), "plain": (False, True)}
+    def test_still_holds_the_light_and_the_switches_and_classic_and_plain_hold_nothing(self):
+        """Only Still takes motion away; Classic and Plain move as Soft does (until a fix in v0.6.10 they held the
+        switches too)."""
+        expected = {"soft": (False, False), "still": (True, True), "classic": (False, False), "plain": (False, False)}
         for design, (light, controls) in expected.items():
             with self.subTest(design):
                 popup.adopt_settings({"design": design})
@@ -120,7 +122,8 @@ class WindowGateTests(unittest.TestCase):
                 self.assertGreater(len({round(frame["dim"], 4) for frame in plain}), 3)
                 self.assertEqual(classic, soft)
 
-    def test_a_switch_glides_only_in_soft(self):
+    def test_a_switch_glides_in_every_design_but_still(self):
+        """Only Still ("Soft, without motion") holds a switch: Classic and Plain glide it as Soft does."""
         plan = {"items": [{"kind": "switch", "target": ("switch", "a"), "checked": True}]}
         for design in brand.DESIGNS:
             shown = object.__new__(popup.Popup)
@@ -128,7 +131,7 @@ class WindowGateTests(unittest.TestCase):
             shown._switches, shown._glides = {("switch", "a"): False}, {}
             shown._follow_switches(plan)
             with self.subTest(design):
-                self.assertEqual(bool(shown._glides), design == "soft")
+                self.assertEqual(bool(shown._glides), design != "still")
 
 
 def rgb_at(pixel, x, y):
@@ -276,7 +279,7 @@ class PopupDesignTests(unittest.TestCase):
         canvas = window.render()
         self.assertEqual(window._renderer.design, "plain")
         self.assertEqual(pixel_reader(canvas, canvas.width)(1, 1), brand.rgb(brand.PLAIN_LIGHT["canvas"]))
-        self.assertTrue(window._controls_still)
+        self.assertFalse(window._controls_still, "Plain glides as Soft does")
         self.assertFalse(window._light_still)
         window.follow_settings(dict(theme="light", design="still"))
         window._update()
