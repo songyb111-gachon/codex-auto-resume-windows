@@ -384,8 +384,9 @@ beside a version. None of it can be made up without it showing:
   The fingerprint is the setup that measured: the product's own version, the reporting program's and
   Windows'. Each has to be one that could have written the report - a Codex version the product
   itself names engines by, a product version that is one of this repository's releases and was out
-  before the report was written, Windows 10 or later - and the times have to be ones the machine
-  could have recorded: none before the project existed, none after the report was written, and each
+  before the report was written, a plain release of the reporting program (three numbers, nothing
+  after them) from 1.0.0 on, Windows 10 or later - and the times have to be ones the machine could
+  have recorded: none before the project existed, none after the report was written, and each
   record's delivery and outcome after its detection. It names the setup, not the binary. A digest of
   codex.exe itself, the same on every machine with that build and naming nobody, would tie a report
   to the exact binary; the report format carries none yet, and adding one needs a new format in both
