@@ -480,6 +480,20 @@ class CatalogTests(unittest.TestCase):
 
 
 class StyleTests(unittest.TestCase):
+    def test_the_hero_s_light_and_word_stand_as_they_do_in_every_header(self):
+        """v0.6.10 (F7): the hero is the header every surface follows - the product as a muted eyebrow, then the
+        light and its word in ink - and the light stands LAYOUT's `light_inset` from the line's start and
+        `light_gap` from its word, as it does in the window, the popup and the card. Until then `.hero-state` had
+        its own 18px and 9px, and the word stood 18.5 px from the light where the others had 15 to 17.5."""
+        self.assertEqual(declared(".hero-state", "gap"), "var(--size-light-gap)")
+        self.assertEqual(declared(".hero-state", "padding").split()[-1], "var(--size-light-inset)")
+        self.assertEqual(number("var(--size-light-gap)", "px"), brand.LAYOUT["light_gap"])
+        self.assertEqual(number("var(--size-light-inset)", "px"), brand.LAYOUT["light_inset"])
+        self.assertEqual(number(declared(".halo", "width"), "px"), 2 * brand.STATUS_DOT["panel"],
+                         "the gap is from the dot's own edge: the light's box is the dot")
+        self.assertEqual(declared(".eyebrow", "color"), "var(--muted)")
+        self.assertIsNone(declared(".hero h1", "color"), "the word is the page's ink, never the state's colour")
+
     def test_reduced_motion_stops_every_animation_and_transition(self):
         block = css_block(mcpui._STYLE, "@media (prefers-reduced-motion: reduce)")
         self.assertRegex(block, r"\*,\s*\*::before,\s*\*::after\s*\{[^}]*animation:\s*none\s*!important")

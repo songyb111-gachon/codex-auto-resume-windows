@@ -805,13 +805,34 @@ class MotionTests(unittest.TestCase):
         solid = notice_card.entrance(notice_card.ENTRANCE_MS * notice_card.ALPHA_SHARE)
         self.assertGreater(solid.offset, 0.1 * notice_card.RISE, "the rise goes on once the card is solid")
 
-    def test_the_curve_is_the_brands_ease_out(self):
-        for step in range(11):
-            t = step / 10.0
-            self.assertAlmostEqual(notice_card.ease_out(t), 1 - (1 - t) ** 3)
-        if hasattr(brand, "ease"):                          # v0.6.5's transition curve, easeOutCubic
-            for step in range(11):
-                self.assertAlmostEqual(notice_card.ease_out(step / 10.0), brand.ease(step / 10.0), delta=0.02)
+    def test_the_card_moves_on_the_brands_one_curve(self):
+        """v0.6.10 (F17): the entrance, the way back from a fade and the slide are brand.ease, the curve every
+        surface's switches glide on - where the card had its own easeOutCubic, near it and not it."""
+        self.assertFalse(hasattr(notice_card, "ease_out"), "one curve, and it is brand's")
+        for elapsed in range(0, notice_card.ENTRANCE_MS + 1, 10):
+            t = elapsed / float(notice_card.ENTRANCE_MS)
+            frame = notice_card.entrance(elapsed)
+            with self.subTest(elapsed=elapsed):
+                self.assertAlmostEqual(frame.alpha, brand.ease(min(1.0, t / notice_card.ALPHA_SHARE)), places=9)
+                self.assertAlmostEqual(frame.offset, notice_card.RISE * (1.0 - brand.ease(t)), places=9)
+                self.assertAlmostEqual(frame.scale, notice_card.SCALE_FROM + (1.0 - notice_card.SCALE_FROM)
+                                       * brand.ease(t), places=9)
+                self.assertAlmostEqual(frame.depth, brand.ease(t), places=9)
+        back = notice_card.CardMotion(0, hold_ms=0)
+        fading_at = notice_card.ENTRANCE_MS + notice_card.EXIT_MS / 2
+        start = back.frame(fading_at).alpha
+        back.pause(fading_at, True)
+        for step in (0.25, 0.5, 0.75):
+            with self.subTest(back=step):
+                self.assertAlmostEqual(back.frame(fading_at + notice_card.EXIT_MS * step).alpha,
+                                       start + (1.0 - start) * brand.ease(step), places=9)
+        slide = notice_card.CardMotion(0)
+        slide.move_to(0, (0, 1000))
+        slide.move_to(1000, (0, 0))
+        for step in (0.25, 0.5, 0.75):
+            with self.subTest(slide=step):
+                self.assertEqual(slide.place(1000 + notice_card.SLIDE_MS * step),
+                                 (0, int(round(1000 * (1.0 - brand.ease(step))))))
 
     def test_reduced_motion_appears_holds_and_disappears_without_a_frame_between(self):
         motion = notice_card.CardMotion(0, hold_ms=1000, reduced=True)
@@ -1077,6 +1098,36 @@ class LayoutTests(unittest.TestCase):
                         vm = notice_card.view(notice)
                         self.check(notice_card.layout(vm, scale, fake_measure(scale)), scale)
 
+    def test_its_light_word_chip_and_buttons_stand_as_every_surface_s_do(self):
+        """v0.6.10 (F7, F8): the light stands LAYOUT's `light_inset` from the card's content and `light_gap` from
+        the product beside it, which is the popup's eyebrow - `label`, muted; a chip is `chip_height` high and
+        padded `chip_pad_x`, a button `button_height` high, both set at the window's and the panel's weight, under
+        600. Until then the product stood 14.5 px from the light, the chip was its text and 4 px high, the buttons
+        32, and both bold."""
+        self.assertLess(tray_popup.ROLES["chip"][1], 600)
+        self.assertLess(tray_popup.ROLES["button"][1], 600)
+        vm = notice_card.view(build("interruption", EVENTS[0][1]))
+        self.assertEqual(len(vm["actions"]), 2)
+        for scale in (1.0, 1.25, 1.5, 2.0):
+            with self.subTest(scale=scale):
+                plan = notice_card.layout(vm, scale, fake_measure(scale))
+                left = int(round(brand.SPACING["l"] * scale))
+                halo = next(item for item in plan["items"] if item["kind"] == "halo")
+                product = next(item for item in plan["items"] if item["kind"] == "text" and item["text"] == vm["product"])
+                self.assertEqual((product["role"], product["colour"]), ("label", "muted"))
+                dot = brand.STATUS_DOT["popup"] * scale
+                self.assertAlmostEqual(halo["cx"] - dot - left, brand.LAYOUT["light_inset"] * scale, delta=0.01)
+                self.assertAlmostEqual(product["rect"][0] - (halo["cx"] + dot), brand.LAYOUT["light_gap"] * scale,
+                                       delta=0.5)
+                chip = next(item["rect"] for item in plan["items"] if item["kind"] == "chip")
+                self.assertEqual(chip[3] - chip[1], round(brand.LAYOUT["chip_height"] * scale))
+                label = next(item for item in plan["items"] if item["kind"] == "text" and item["role"] == "chip")
+                self.assertEqual(label["rect"][0] - chip[0], round(brand.LAYOUT["chip_pad_x"] * scale))
+                buttons = [item["rect"] for item in plan["items"] if item["kind"] == "button"]
+                self.assertEqual(len(buttons), 2)
+                for rect in buttons:
+                    self.assertEqual(rect[3] - rect[1], round(brand.LAYOUT["button_height"] * scale))
+
     def test_the_card_is_the_popups_card(self):
         vm = notice_card.view(build("interruption", EVENTS[0][1]))
         plan = notice_card.layout(vm, 1.0, fake_measure(1.0))
@@ -1166,6 +1217,20 @@ class ShadowTests(unittest.TestCase):
         for x, y in ((0, 3), (3, 0), (2, 2), (5, 1)):
             self.assertEqual(corner(x, y), corner(width - 1 - x, y))
             self.assertEqual(corner(x, y), corner(x, height - 1 - y))
+
+    def test_a_band_of_rows_is_cut_as_the_whole_card_is_there(self):
+        """v0.6.10 (F17): a breath draws the light's band again, and the band is cut on its own - exactly as the
+        whole card is cut in those rows, across a corner, in the middle and at the bottom."""
+        width, height, radius = 60, 40, 12.0
+        pixels = bytes(range(256)) * ((width * height * 4) // 256 + 1)
+        pixels = pixels[:width * height * 4]
+        whole = notice_card.premultiply(pixels, width, height, radius)
+        row = width * 4
+        for top, bottom in ((0, 5), (5, 20), (10, 30), (30, 40), (0, 40), (39, 40)):
+            with self.subTest(top=top, bottom=bottom):
+                band = notice_card.premultiply(pixels[top * row:bottom * row], width, height, radius, top)
+                self.assertEqual(bytes(band), bytes(whole[top * row:bottom * row]))
+        self.assertIs(notice_card.corner_coverage(radius), notice_card.corner_coverage(radius), "worked out once")
 
 
 # ============================================================================ safety
@@ -1458,8 +1523,9 @@ class WindowsTests(unittest.TestCase):
 
     def test_the_cards_light_breathes_on_the_popups_table(self):
         """v0.6.7: the card's light is the popup's - one breath on brand.GLOW for a breathing state, drawn again
-        at most every 80 ms; since v0.6.8 attention and a failure breathe too, for as long as the card is up -
-        attention slowest, a failure quickest - where they used to pulse once; High Contrast never moves it."""
+        once a breath's frame has passed (since v0.6.10 the popup's, where it was 80 ms); since v0.6.8 attention and
+        a failure breathe too, for as long as the card is up - attention slowest, a failure quickest - where they
+        used to pulse once; High Contrast never moves it."""
         # A continuation being sent, or delivered and running again, breathes; since v0.6.9 so does an
         # interruption waiting for its reset, on the card as in the popup, on monitoring's rhythm.
         notices = [build(event, detail, identity) for event, detail, identity in EVENTS]
@@ -1488,6 +1554,85 @@ class WindowsTests(unittest.TestCase):
         self.assertTrue(unknown.breathe(brand.GLOW["attention_ms"] * 3 + 100), "amber keeps breathing, slowly")
         contrast = self.offscreen(build("interruption", EVENTS[0][1]), drawn=dict(self.LIGHT, contrast=True))
         self.assertFalse(contrast.breathe(low))
+
+    def test_a_breath_draws_the_light_s_band_and_nothing_else(self):
+        """v0.6.10 (F17): a breath draws only the light's band again, as the popup does (renderer.draw_halo) - the
+        card's image outside that band is byte for byte what it was, and so is its layer once it is settled - and
+        what it draws is what drawing the whole card at that moment draws. Until then every breath drew the whole
+        card again and cut all of it."""
+        for scale in (1.0, 1.5, 2.0):
+            with self.subTest(scale=scale):
+                card = self.offscreen(build("interruption", EVENTS[0][1]), scale=scale)
+                state = card.vm["status"]
+                self.assertIn(state, brand.GLOW_BREATHES)
+                settled = notice_card.ENTRANCE_MS + 10
+                card.paint(settled)
+                width, height = card.size
+                row = width * 4
+                image, layer = bytes(card.image._pixels), card.body.pixels()
+                low = brand.GLOW[state + "_ms"] // 2 + settled         # the bottom of a breath
+                self.assertTrue(card.breathe(low))
+                top, bottom = card.renderer.halo_rows
+                halo = next(item for item in card.plan["items"] if item["kind"] == "halo")
+                self.assertLess(top, halo["cy"] - halo["radius"])
+                self.assertGreater(bottom, halo["cy"] + halo["radius"])
+                self.assertLess(bottom - top, height // 2, "a band, not the card")
+                after = bytes(card.image._pixels)
+                self.assertNotEqual(after[top * row:bottom * row], image[top * row:bottom * row], "the light moved")
+                self.assertEqual(after[:top * row], image[:top * row])
+                self.assertEqual(after[bottom * row:], image[bottom * row:])
+                self.assertEqual(card.body.pixels(), after, "settled, the band went into the layer as well")
+                self.assertEqual(card.paint(low)["frame"], notice_card.SETTLED)
+                self.assertEqual(card.body.pixels(), after)
+                # The same moment drawn whole is the same picture.
+                card._draw_card(low)
+                self.assertEqual(bytes(card.image._pixels), after)
+
+    def test_a_breath_is_drawn_at_the_popups_rate_and_the_timer_runs_at_it(self):
+        """v0.6.10 (F17): with nothing but the light moving, the stack's frame timer runs at the popup's frame rate
+        (BREATH_FRAME_MS, popup.FRAME_MS) and a frame of the light is drawn on each of its ticks; while a card moves
+        the timer runs at FRAME_MS, and the light of a card standing still beside it is drawn on every other tick.
+        Until then the timer ran at FRAME_MS for as long as a card was up, for a light drawn every 80 ms."""
+        self.assertEqual(notice_card.BREATH_FRAME_MS, tray_popup.FRAME_MS)
+        self.assertGreater(notice_card.BREATH_FRAME_MS, notice_card.FRAME_MS)
+        card = self.offscreen(build("interruption", EVENTS[0][1]))
+        start = notice_card.ENTRANCE_MS + 10
+        drawn = []
+        original = card._draw_light
+        card._draw_light = lambda now: (drawn.append(now), original(now))
+        self.assertTrue(card.breathe(start))
+        self.assertTrue(card.breathe(start + notice_card.FRAME_MS))
+        self.assertTrue(card.breathe(start + notice_card.BREATH_FRAME_MS))
+        self.assertTrue(card.breathe(start + 2 * notice_card.BREATH_FRAME_MS))
+        self.assertEqual(drawn, [start, start + notice_card.BREATH_FRAME_MS, start + 2 * notice_card.BREATH_FRAME_MS],
+                         "one frame of the light per breath's frame, and none closer than a motion frame")
+        stack, _ = self.ending()
+        timers = []
+        from codex_auto_resume.ui.card import win32 as card_win32
+        real = card_win32._dll
+
+        class User32:
+            def __getattr__(self, name):
+                return getattr(real("user32"), name)
+
+            def SetTimer(self, hwnd, timer, ms, proc):
+                timers.append(ms)
+                return real("user32").SetTimer(hwnd, timer, ms, proc)
+
+        proxy = User32()
+        with patch.object(card_win32, "_dll", side_effect=lambda name: proxy if name == "user32" else real(name)):
+            self.now = 0.0
+            shown = stack.show(build("interruption", EVENTS[0][1]))
+            self.assertIsNotNone(shown)
+            self.assertEqual(timers[-1:], [notice_card.FRAME_MS], "entering, it moves")
+            for self.now in range(16, int(notice_card.ENTRANCE_MS) + 200, 16):
+                stack._tick()
+            self.assertEqual(timers[-1], notice_card.BREATH_FRAME_MS, "settled, only its light moves")
+            count = len(timers)
+            for step in range(10):
+                self.now += notice_card.BREATH_FRAME_MS
+                stack._tick()
+            self.assertEqual(len(timers), count, "the timer is set once for a rate, not every tick")
 
     def test_every_scale_and_theme_draws(self):
         for theme, scale in itertools.product(brand.THEMES, (1.0, 1.5, 2.0)):

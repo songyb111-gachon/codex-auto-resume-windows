@@ -54,15 +54,19 @@ class Card:
             raise
 
     # ---- drawing the card once
+    def _glow(self, now_ms):
+        """The light for `now_ms`: its own moment, counted from when the card came."""
+        age = 0.0 if now_ms is None else now_ms - self.born
+        return None if self.contrast else brand.glow(self.vm["status"], age, age, reduced=self.motion.reduced)
+
     def _draw_card(self, now_ms=None):
         if self.renderer is None:
             self.renderer = _CardRenderer()
             self.renderer.theme, self.renderer.contrast = self.theme, self.contrast
         self.renderer.use(self.vm["locale"], self.scale)
         self.plan = notice_card.layout(self.vm, self.scale, self.renderer.measure)
-        age = 0.0 if now_ms is None else now_ms - self.born  # the light's own moment, from when the card came
-        glow = None if self.contrast else brand.glow(self.vm["status"], age, age, reduced=self.motion.reduced)
-        canvas = self.renderer.draw(self.vm, self.plan, frame=glow, hover=self.hover, pressed=self.pressed)
+        canvas = self.renderer.draw(self.vm, self.plan, frame=self._glow(now_ms), hover=self.hover,
+                                    pressed=self.pressed)
         width, height = self.plan["size"]
         pixels = notice_card.premultiply(canvas.pixels(), width, height,
                                          brand.RADII["card"] * self.scale)
@@ -70,6 +74,26 @@ class Card:
             self.image.close()
         self.image = _Image(pixels, width, height)
         self._drawn_scale = None
+
+    def _draw_light(self, now_ms):
+        """Only the status light, for a breath (v0.6.10), as the popup draws its own: the renderer draws
+        the light's band again over the face as it was last drawn, and the band alone is cut and copied
+        into the card's image - and into its layer too, when the card is settled and the layer already
+        holds the rest. Until v0.6.10 every breath drew the whole card and cut all of it."""
+        canvas = self.renderer.draw_halo(self.plan, self._glow(now_ms))
+        top, bottom = self.renderer.halo_rows
+        width, height = self.plan["size"]
+        row = width * 4
+        win32._dll("gdi32").GdiFlush()
+        band = notice_card.premultiply(C.string_at(canvas.bits.value + top * row, (bottom - top) * row),
+                                       width, height, brand.RADII["card"] * self.scale, top)
+        self.image._pixels[top * row:bottom * row] = band
+        layer = self.body
+        if (self._drawn_scale is not None and self._drawn_scale >= 0.9999 and layer is not None
+                and layer.bits and (layer.width, layer.height) == (width, height)):
+            C.memmove(layer.bits.value + top * row, C.addressof(self.image._memory) + top * row, len(band))
+        else:
+            self._drawn_scale = None
 
     @property
     def size(self):
@@ -95,16 +119,21 @@ class Card:
             stack.windows[body] = self
 
     def redraw(self):
-        """The pointer moved onto or off a button, or pressed one: draw the face again."""
-        self._draw_card()
+        """The pointer moved onto or off a button, or pressed one: draw the face again, with the light
+        where its breath last was rather than back at the top of it."""
+        self._draw_card(self._breathed)
         self._pushed = None
 
     def breathe(self, now_ms) -> bool:
-        """Whether the status light moves now; its face is drawn again for it at most every 80 ms."""
+        """Whether the status light moves now. Its band alone is drawn again for it (_draw_light), once
+        a breath's frame has passed: on every tick of the stack's timer while only lights move, which
+        runs at the popup's rate then, and on every other one while another card moves. Less one motion
+        frame, so a tick that lands a little early is not left for the next. The stack asks only while
+        this card stands still."""
         if self.contrast or not brand.glow_moves(self.vm["status"], now_ms - self.born, reduced=self.motion.reduced):
             return False
-        if now_ms - self._breathed >= 80:
-            self._draw_card(now_ms)
+        if now_ms - self._breathed >= notice_card.BREATH_FRAME_MS - notice_card.FRAME_MS:
+            self._draw_light(now_ms)
             self._pushed, self._breathed = None, now_ms
         return True
 

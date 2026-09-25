@@ -38,7 +38,11 @@ def words(text):
 
 
 def count_labels(plan):
-    return [item for item in plan["items"] if item["kind"] == "text" and item["role"] == "label"]
+    """The counts' labels: the `label` text inside the counts' well. Since v0.6.10 the header's eyebrow - the
+    product's name - is set in `label` too (F7), above the well and no count's."""
+    well = next(item["rect"] for item in plan["items"] if item["kind"] == "well")
+    return [item for item in plan["items"] if item["kind"] == "text" and item["role"] == "label"
+            and well[1] <= item["rect"][1] and item["rect"][3] <= well[3]]
 
 
 def scaled(scale):
@@ -125,7 +129,12 @@ class LayoutTests(unittest.TestCase):
         wells = [item for item in plan["items"] if item["kind"] == "well"]
         self.assertEqual(len(wells), 1)
         well = wells[0]["rect"]
-        counted = [item for item in plan["items"] if item["kind"] == "text" and item["role"] in ("label", "value")]
+        # The counts' labels and values. Since v0.6.10 the header's eyebrow is a `label` too, above the well (F7).
+        eyebrow = next(item for item in plan["items"] if item["kind"] == "text")
+        self.assertEqual((eyebrow["text"], eyebrow["role"]), (vm["title"], "label"))
+        self.assertLessEqual(eyebrow["rect"][3], well[1])
+        counted = [item for item in plan["items"] if item["kind"] == "text" and item["role"] in ("label", "value")
+                   and item is not eyebrow]
         self.assertEqual(len(counted), 6)
         pad = brand.SPACING["m"]
         for item in counted:

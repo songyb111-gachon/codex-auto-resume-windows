@@ -1364,7 +1364,8 @@ class CardPictureTests(unittest.TestCase):
         self.assertEqual(before, self.generator.card_drawing(),
                          "these are everything the card's digest reads today")
         for what, (name, old, new) in {
-                "the card's layout": ("notice_card.py", "button_h = px(32)", "button_h = px(34)"),
+                "the card's layout": ("notice_card.py", 'button_h = px(brand.LAYOUT["button_height"])',
+                                      'button_h = px(brand.LAYOUT["button_height"] + 2)'),
                 "the card's own light": ("ui/card/card.py", "brand.glow(self.vm[\"status\"], age, age,",
                                          "brand.glow(self.vm[\"status\"], age + 1, age,"),
                 "its floating shadow": ("notice_card.py", "DARK_ENOUGH = 0.05", "DARK_ENOUGH = 0.06"),
@@ -1390,7 +1391,7 @@ class CardPictureTests(unittest.TestCase):
             "ui/card/layout.py": ("from __future__ import annotations\n"
                                   "from ... import brand, tray_popup\n"
                                   "from ...notice_card import SETTLED, HOLD_MS, EXIT_MS, ENTRANCE_MS, SWAP_MS, "
-                                  "SLIDE_MS, HOVER_GRACE_MS, entrance, leaving, ease_out\n\n" + moved),
+                                  "SLIDE_MS, HOVER_GRACE_MS, entrance, leaving\n\n" + moved),
         })
         self.assertEqual(self.drawing(moved_files), before)
 

@@ -58,10 +58,10 @@ from .elevation import (DEPTH,
                         well_coverage)  # noqa: F401
 from .layout import (MARK,
                      SHADOW_MARGIN,
-                     STATE_INK,
                      SWITCH_GAP,
                      WIDTH,
                      layout,
+                     light_row,
                      share_columns)  # noqa: F401
 from .win32 import (BITMAP,
                     BITMAPINFO,
