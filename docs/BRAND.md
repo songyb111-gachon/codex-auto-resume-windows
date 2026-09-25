@@ -528,6 +528,17 @@ the ring rather than floating beside it.
   meaning. An outcome is one colour wherever it is shown - its word's chip in History and, since
   v0.6.10, its bar on the Statistics page, beside the same word, where every bar was the accent's
   blue; High Contrast keeps one system colour for the bars.
+- **Reported beside the version, never a state.** Since v0.6.10 the Dashboard's Codex
+  compatibility card says what other people report about the Codex version in one line directly
+  under *Codex version*: *Reported by others*, then *worked 3 · failed 1 · neither 1*, the words
+  before the numbers so no language needs a plural. The line and its name are both in `muted`, the
+  secondary text colour a fact's name has, held to the same 4.5:1 - no chip, no light, no tile, and
+  never `success` or `danger`. On that card a chip is a state of the ladder - verified, checked,
+  compatible, failed here, incompatible, unknown - and a count of other people's reports is not
+  one, so drawn as one it would read as a tier. Its meaning is one legend line after the ladder's,
+  shown only while counts are. The panel is handed no counts and points to the row by the same
+  name; the popup, the notification card and the icon never show it, because it asks nothing of
+  anybody and must never draw attention.
 - **One thing, one word.** The window is the Dashboard wherever it is named: in the icon's menu,
   the popup, the card, the notifications, the panel in Codex and the help under a setting. A
   sentence shown in the Dashboard and in the panel names the surfaces it means rather than saying

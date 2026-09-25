@@ -492,6 +492,46 @@ fail without it:
 If you are unsure whether a change crosses one of those lines, open an issue first and say
 what you are trying to achieve — there is usually a way to get there that keeps the property.
 
+## Sending a compatibility report
+
+A report about a Codex version is written on your own machine by
+[codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter), from this
+installation's own records: counts, states and times, no conversation text and no identifiers. Read
+the file before you send it. It reaches GitHub only as a pull request you open, and that pull
+request adds exactly one new file, at
+
+    docs/evidence/community/<your GitHub login>/codex-cli-<version>.json
+
+where `<version>` is the report's own `codex_version` and the login is the one that opens the pull
+request (and the report's `reporter.github_login`). Reports are add-only: one per GitHub login per
+Codex version, and a filed report is never edited. A pull request that changes anything else, adds
+a second file, or adds one at a path already filed on the base or on `main` is refused, and so is a
+folder that differs from a filed one only in letter case, since Windows opens the two as one.
+
+The pull request is judged by `.github/workflows/community-report.yml`, which runs `main`'s own
+check (`build/community_check.py`) on `pull_request_target`, so no pull request can change the check
+it is judged by. It checks out the base commit under a read-only token and no secret, and reads your
+commits as data with git plumbing only: nothing in them is checked out, merged or run
+([SECURITY.md](SECURITY.md) has the whole list). The file must be at most 1 MB, UTF-8 JSON in the
+report format with exactly its keys, read by `build/community_report.py`, the one reader of a
+report. Its fingerprint has to be a setup that could have written it - the Codex version in the
+grammar the product names engines by, a product version that is one of this repository's releases
+and was out before the report was written, a plain reporter release from 1.0.0 on, Windows 10 or
+later - and its times ones the machine could have recorded. A report with at least one record must
+not repeat the records of a report already filed for the same version; a report with no records is
+never refused as a copy. The levels and verdict a report claims are recomputed from what it
+measured and only ever lowered, so a hand-edited conclusion does not survive. A maintainer still
+reviews and merges each one.
+
+Once filed, a report counts towards *Reported by others* beside its Codex version on the
+Dashboard's Diagnostics page ([GUIDE.md](GUIDE.md#requirements) says how it is counted), from the
+next release on: the maintainer's tool adds it to `docs/evidence/community/index.json` and writes
+the counts into `src/codex_auto_resume/data/reported.json`, and `tests/test_reported_data.py` holds
+the files, the index and the shipped counts to each other. A report file the index does not list
+counts nowhere, which is why your pull request stays green under the ordinary tests. A report
+found to be wrong is withdrawn in the open, by removing its file and its index entry together. No
+report enters the compatibility data, and none changes a tier.
+
 ## How the code is layered
 
 The Python package is built in layers, and its imports point one way: down or sideways,

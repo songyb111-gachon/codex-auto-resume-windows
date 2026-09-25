@@ -399,14 +399,29 @@ ownership information. It never acquires a lock on the app's file.
 - Your own machine can say something about a version too.
   [codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter) is a separate,
   public tool that turns this installation's own records into one report — counts, states and
-  times, no conversation text and no identifiers — which you read before you send it. Reports from
-  other people are kept apart from this project's own evidence and carry a grade of their own,
-  *reported*, which stands beside those words and never becomes one of them. Nothing can prove that
-  a report was not written by hand on the machine that sent it, so a report never moves a version up
-  the ladder. It is shown beside the version, as its own grade, with the number of machines that
-  said the same thing - N reported it working, M reported a failure, K reported nothing either way -
-  and a version whose own evidence says nothing stays *compatible* however many reports arrive.
-  Showing them beside a version is v0.6.10's work.
+  times, no conversation text and no identifiers — which you read before you send it. It reaches
+  GitHub only when you open the pull request yourself, and
+  [CONTRIBUTING.md](CONTRIBUTING.md#sending-a-compatibility-report) says how that pull request is
+  checked. Reports from other people are kept apart from this project's own evidence and carry a
+  grade of their own, *reported*, which stands beside those words and never becomes one of them.
+  Nothing can prove that a report was not written by hand on the machine that sent it, so a report
+  never moves a version up the ladder, and a version whose own evidence says nothing stays
+  *compatible* however many reports arrive.
+
+  From v0.6.10 the Dashboard's Diagnostics page shows them in one muted line directly under *Codex
+  version* - *Reported by others: worked 3 · failed 1 · neither 1* - and `doctor` and `compat`
+  print the same counts. They count reports, one per GitHub name per Codex version, not machines.
+  A report counts as *worked* when at least one record it delivered ended recovered, as *failed*
+  when at least one ended in a failed recovery, and as *neither* when no delivered record ended
+  either way, which includes a report that delivered nothing. A report whose records say both is
+  counted in each, and the line then adds *counted in both* and how many, so worked, failed and
+  neither, less those, add up to the reports. Only reports filed in this repository count, and
+  only for your exact version: *none yet* means none is filed for it, and a check that cannot
+  vouch for the version shows *-* there, as it does for the version itself. The counts arrive with
+  each release, in a file of their own beside the compatibility data - no request fetches them, so
+  a report filed later waits for the next release. They change nothing: no capability's state, no
+  check and nothing the watcher sends moves with them, and Codex is never handed them - the
+  compatibility card in the Codex panel points to the Dashboard instead.
 
 **Python is not required by either install route** — the installation brings its own runtime
 (Python 3.13.15), and the plugin's setup script is PowerShell. Python 3.12 or newer is needed only if
@@ -894,7 +909,9 @@ to wherever your other Git marketplaces are hosted:
   fetches the Codex compatibility data with one `GET` to one fixed address on
   raw.githubusercontent.com, with nothing about your machine in it; this installation's own
   validator keeps it only if it is valid, and it can only make the watcher more careful. Neither
-  happens unless you ask for it.
+  happens unless you ask for it. What other people report about a Codex version is not fetched at
+  all: its counts come with the release, and your own report reaches GitHub only as a pull request
+  you open with the separate reporter.
 - **Marketplace hosts, while an installer runs.** v0.6.0 names only
   `codex-auto-resume-windows`; if an earlier Git registration survives the local repoint,
   Codex fetches it from wherever it points. Installers through v0.5.7 instead ask Codex to

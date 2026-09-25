@@ -19,6 +19,40 @@
   the Korean said different things; each is fixed in the language that was wrong, and the Korean
   guide now has every section the English one has.
 
+### What others report
+
+- **Reported, beside the version.** The Dashboard's Diagnostics page says, in one muted line
+  directly under *Codex version*, what other people report about that exact version: *Reported by
+  others: worked 3 · failed 1 · neither 1*, with *counted in both* when a report saw both and *none
+  yet* when nobody has filed one. It is a grade of its own beside Verified, Checked, Compatible and
+  Failed here, and never one of them: no chip, never the success or danger colour, and a version
+  whose own evidence says nothing stays Compatible however many reports say it works. `doctor` and
+  `compat` print the same counts. The Codex panel points to the row, because the summary a model
+  reads stays codes only, and the popup, the notification card and the icon never show it.
+- **Counts of reports, not machines.** One report per GitHub login per Codex version. A report
+  counts as worked when a record it delivered ended recovered, as failed when one ended in a failed
+  recovery, as neither when none ended either way - a report that delivered nothing included - and
+  in both columns when its records say both, so worked + failed - both + neither = reports. Only
+  filed reports count.
+- **Shipped with the release, never fetched, and deciding nothing.** The counts are
+  `src/codex_auto_resume/data/reported.json`, a file of their own beside the compatibility data and
+  never inside it, read by a hardened reader of their own. No request fetches it: the refresh a
+  person asks for still fetches the compatibility data alone, so a report filed later waits for the
+  next release. Only the view a person reads imports it, and a test grid holds that no counts - a
+  thousand reports that worked, a thousand that failed, a broken file - move any state, permit or
+  anything the watcher writes. No compatibility claim may cite someone else's report.
+- **A report arrives as a pull request, and is read as data.** `build/community_report.py` is the
+  one reader of a report: capped, exact about its keys, its times and its fingerprint - the setup
+  that measured it - and recomputing the levels and verdict it claims, which can only go down.
+  `.github/workflows/community-report.yml` judges a report's pull request with `main`'s own check,
+  under a read-only token, reading the head with git plumbing only: one new file at
+  `docs/evidence/community/<login>/codex-cli-<version>.json`, add-only, at most 1 MB, and not a
+  copy of a filed report. Tests hold the filed reports, their index and the shipped counts to each
+  other. [CONTRIBUTING.md](CONTRIBUTING.md#sending-a-compatibility-report) says how to send one.
+- **On the wire.** The bridge's `compatibility` and `compat-refresh` views carry `reported` - its
+  state and five counts, every key always there - and `control/wire.py` names it
+  (`CompatReported`). The MCP replies do not change.
+
 ## v0.6.10-alpha — Where every file goes when the core is Rust
 
 [The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.9...v0.6.10-alpha)
