@@ -189,13 +189,22 @@ def _relaunch_once(here: Path, command) -> None:
         _note(here, "the state is newer than the installed engine; not starting again")
         return
     import subprocess
+    # pythonw.exe, not sys.executable. Every registered route runs this under pythonw.exe
+    # already; a launcher run by hand with python.exe would otherwise start a detached
+    # python.exe, which has no console to hand down, so anything it started plainly would
+    # open a window. There is no console interpreter to fall back to here, on purpose.
+    interpreter = Path(sys.executable).resolve().with_name("pythonw.exe")
+    if not interpreter.is_file():
+        _note(here, "the state is newer than this engine, and there is no pythonw.exe to start "
+                    "the installed copy under; not starting again")
+        return
     _note(here, "the state is newer than this engine; starting the installed copy once")
     flags = 0
     if os.name == "nt":
         flags = (getattr(subprocess, "DETACHED_PROCESS", 0)
                  | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
     try:
-        subprocess.Popen([sys.executable, str(Path(__file__).resolve())] + list(command),
+        subprocess.Popen([str(interpreter), str(Path(__file__).resolve())] + list(command),
                          env=dict(os.environ, **{RELAUNCH_MARK: "1"}), close_fds=True,
                          creationflags=flags, stdin=subprocess.DEVNULL,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
