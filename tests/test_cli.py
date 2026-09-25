@@ -440,6 +440,26 @@ class UninstallSafetyTests(unittest.TestCase):
                 if not marked:
                     self.assertIn("skipped %s" % paths.advanced_dir, out)
 
+    def test_a_junction_in_place_of_the_advanced_directory_is_not_followed_even_inside_the_home(self):
+        """A junction is no symbolic link to `is_symlink`, and one whose target is in the home
+        is confined: to the home root, which claim_home marks, a purge took every file there,
+        the root's own marker included. Any reparse point is a link here (config.is_link)."""
+        self.cli("install")
+        paths = config.Paths(self.home)
+        self.assertTrue(paths.claim_home())
+        notes = self.home / "users-notes.txt"
+        notes.write_text("the person's own", encoding="utf-8")
+        made = (subprocess.run(["cmd", "/c", "mklink", "/J", str(paths.advanced_dir), str(self.home)],
+                               capture_output=True, text=True) if sys.platform == "win32" else None)
+        if made is None or made.returncode != 0:
+            self.skipTest("could not create a junction here")
+        self.assertEqual(paths.owned_advanced_files(), [])
+        code, _, _ = self.cli("uninstall")
+        self.assertEqual(code, 0)
+        self.assertTrue(notes.exists(), "a file beside the home's marker is not the advanced state's")
+        self.assertTrue((self.home / config.OWNER_MARKER).exists())
+        self.assertTrue(config.is_link(paths.advanced_dir))
+
     def test_uninstall_removes_only_marked_directories_contents(self):
         self.cli("install")
         paths = config.Paths(self.home)

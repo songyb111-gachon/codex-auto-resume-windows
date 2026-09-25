@@ -6,6 +6,7 @@ import logging
 import os
 from pathlib import Path
 import re
+import stat
 
 # The plugin manifest, relative to the installation it describes. It is the one place the
 # product version is written, and the one file every layout has at its root: a checkout, the
@@ -53,6 +54,23 @@ OWNER_TEXT = "Created by codex-auto-resume. Deleting this file makes `uninstall`
 
 class ConfigError(RuntimeError):
     """Static reason only; never includes file contents."""
+
+
+def is_link(path: Path) -> bool:
+    """Whether `path` is a symbolic link or any other reparse point - an NTFS junction above all.
+
+    `Path.is_symlink()` is False for a junction on Windows, and `confined()` resolves one and
+    accepts it whenever its target is in the home. A junction at config/advanced to the home
+    root passed both, and a purge then deleted every plain file at the root, its marker too.
+    Where a directory is ours by its marker alone, a reparse point in its place is never ours.
+    False for a path that is not there."""
+    try:
+        if os.path.islink(path) or os.path.isjunction(path):
+            return True
+        attributes = getattr(os.lstat(path), "st_file_attributes", 0)
+    except (OSError, ValueError):
+        return False
+    return bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
 
 
 def installed_home() -> str | None:
@@ -208,14 +226,15 @@ class Paths:
         not know that edition's files and must not spell them, so it cannot delete by name, as
         it does everywhere else; the marker is what vouches for them instead. It is written by
         the advanced edition when it makes the directory, and it says the whole directory is
-        ours - so a directory without it, or one that is a link, or one whose files resolve
-        outside the home, is left exactly as it is. Nothing below it is followed."""
+        ours - so a directory without it, or one that is a link or a junction (`is_link`), or
+        one whose files resolve outside the home, is left exactly as it is. Nothing below it is
+        followed."""
         directory = self.advanced_dir
         try:
-            if directory.is_symlink() or not self.owns(directory):
+            if is_link(directory) or not self.owns(directory):
                 return []
             found = [path for path in sorted(directory.iterdir())
-                     if path.name != OWNER_MARKER and path.is_file() and not path.is_symlink()
+                     if path.name != OWNER_MARKER and path.is_file() and not is_link(path)
                      and self.confined(path)]
         except OSError:
             return []

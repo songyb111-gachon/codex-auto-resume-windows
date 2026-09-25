@@ -184,8 +184,8 @@ def cmd_uninstall(args) -> int:
     keep_state = getattr(args, "keep_state", False)
     # The advanced edition's directory goes before config/, which holds it, so each is empty
     # when its turn comes. It is there only in an installation that has been advanced; a link
-    # in its place is not considered at all (config.owned_advanced_files).
-    edition_state = [] if paths.advanced_dir.is_symlink() else [paths.advanced_dir]
+    # or a junction in its place is not considered at all (config.owned_advanced_files).
+    edition_state = [] if config.is_link(paths.advanced_dir) else [paths.advanced_dir]
     considered = (([] if args.keep_logs else [paths.logs_dir])
                   + ([] if keep_state else edition_state + [paths.state_dir]))
     owned_dirs = [d for d in considered if paths.owns(d)]
