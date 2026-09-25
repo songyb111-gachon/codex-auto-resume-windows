@@ -1,0 +1,147 @@
+{
+  "format": "codex-auto-resume-compat-evidence/1",
+  "codex_version": "codex-cli 0.155.0-alpha.9.2",
+  "verdict": "PASS",
+  "recorded_at": "2026-09-22T21:33:35Z",
+  "recorded_by": "codex-compat-reporter 1.1.0, on a contributor's Windows machine",
+  "reporter": {
+    "github_login": "ExampleUser",
+    "tool": "codex-compat-reporter",
+    "tool_version": "1.1.0",
+    "product_version": "0.6.9",
+    "windows": "10.0.26200"
+  },
+  "attribution": {
+    "rule": "a record counts for this version only when the product's engine reports before and after it - or the version installed now - name this version and no other",
+    "window": null,
+    "basis": null
+  },
+  "local_checks": {
+    "reports": 15,
+    "first": "2026-09-20T01:32:59Z",
+    "last": "2026-09-21T17:51:07Z",
+    "covers": [
+      "engine_present",
+      "exact_thread_recovery"
+    ]
+  },
+  "records": [
+    {
+      "detected_at": "2026-09-21T05:37:22Z",
+      "delivered_at": "2026-09-21T09:47:23Z",
+      "outcome_at": "2026-09-21T10:06:15Z",
+      "category": "usage_limit",
+      "state": "recovered",
+      "reason": "progress_observed",
+      "turn_status": "completed",
+      "gates_passed": 13,
+      "progress_items": {
+        "agentMessage": 6,
+        "commandExecution": 30,
+        "fileChange": 6,
+        "mcpToolCall": 1
+      }
+    },
+    {
+      "detected_at": "2026-09-21T13:55:44Z",
+      "delivered_at": "2026-09-21T14:49:04Z",
+      "outcome_at": "2026-09-21T14:58:00Z",
+      "category": "usage_limit",
+      "state": "recovered",
+      "reason": "progress_then_turn_failed",
+      "turn_status": "failed",
+      "gates_passed": 13,
+      "progress_items": {
+        "agentMessage": 3,
+        "commandExecution": 15,
+        "fileChange": 2,
+        "mcpToolCall": 0
+      }
+    },
+    {
+      "detected_at": "2026-09-21T14:57:30Z",
+      "delivered_at": null,
+      "outcome_at": "2026-09-22T08:03:46Z",
+      "category": "usage_limit",
+      "state": "superseded_by_user",
+      "reason": "owned_queue_removed",
+      "turn_status": null,
+      "gates_passed": 13,
+      "progress_items": null
+    },
+    {
+      "detected_at": "2026-09-22T17:27:30Z",
+      "delivered_at": null,
+      "outcome_at": null,
+      "category": "usage_limit",
+      "state": "waiting_for_usage",
+      "reason": "usage_unavailable",
+      "turn_status": null,
+      "gates_passed": 12,
+      "progress_items": null
+    }
+  ],
+  "capabilities": {
+    "engine_present": {
+      "confirmed": 4,
+      "missed": 0,
+      "last_confirmed": "2026-09-22T17:27:30Z",
+      "level": "VERIFIED"
+    },
+    "exact_thread_recovery": {
+      "confirmed": 2,
+      "missed": 0,
+      "last_confirmed": "2026-09-21T14:58:00Z",
+      "level": "VERIFIED"
+    },
+    "loaded_state_detection": {
+      "confirmed": 4,
+      "missed": 0,
+      "last_confirmed": "2026-09-22T17:27:30Z",
+      "level": "VERIFIED"
+    },
+    "outcome_observation": {
+      "confirmed": 2,
+      "missed": 0,
+      "last_confirmed": "2026-09-21T14:58:00Z",
+      "level": "VERIFIED"
+    },
+    "projection_freshness": {
+      "confirmed": 4,
+      "missed": 0,
+      "last_confirmed": "2026-09-22T17:27:30Z",
+      "level": "VERIFIED"
+    },
+    "recovery_turn_tracking": {
+      "confirmed": 2,
+      "missed": 0,
+      "last_confirmed": "2026-09-21T14:58:00Z",
+      "level": "VERIFIED"
+    },
+    "thread_eligibility": {
+      "confirmed": 3,
+      "missed": 0,
+      "last_confirmed": "2026-09-22T08:03:46Z",
+      "level": "VERIFIED"
+    },
+    "usage_limit_detection": {
+      "confirmed": 4,
+      "missed": 0,
+      "last_confirmed": "2026-09-22T17:27:30Z",
+      "level": "VERIFIED"
+    },
+    "usage_probe": {
+      "confirmed": 3,
+      "missed": 1,
+      "last_confirmed": "2026-09-22T08:03:46Z",
+      "level": null
+    },
+    "usage_reset_hint": {
+      "confirmed": 2,
+      "missed": 2,
+      "last_confirmed": "2026-09-22T08:03:46Z",
+      "level": null
+    }
+  },
+  "note": "Content-free: counts, states and times from this machine's own records, with no conversation text, identifiers or paths, counted only towards the Reported grade beside the version and never towards a version's tier."
+}
