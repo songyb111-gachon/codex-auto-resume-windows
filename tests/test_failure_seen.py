@@ -313,7 +313,7 @@ class IconTests(unittest.TestCase):
         icon.update({"enabled": True, "waiting": 0, "running": 0, "next_at": None, "failures": marks(200.0, 150.0)})
         icon._notify = lambda action: told.append(tray.tooltip(icon._shown(), icon.strings, 0))
         icon._sync_motion = lambda: None
-        icon._adopt_reduce_motion = lambda popup: None
+        icon._adopt_motion_settings = lambda popup: None
         icon._refresh()
         self.assertTrue(icon._failed)
         self.assertEqual(told, ["Codex Auto Resume\nA recovery failed"], "the shell's tip is the red one")
