@@ -1,0 +1,65 @@
+name: community report
+
+# Someone else's compatibility report arrives as a pull request that adds one file under
+# docs/evidence/community/<their login>/, written by codex-compat-reporter. This judges it as
+# data: build/community_check.py says which rules it holds to.
+#
+# pull_request_target, because under pull_request the workflow file would come from the pull
+# request itself, and a fork could rewrite the check it is judged by. Here the definition is
+# always main's. That trigger is safe only while this job never checks out, builds or runs the
+# pull request's head, holds no secret, writes nothing and keeps nothing: the head is fetched as
+# commits and read with git plumbing, and the script that reads it is the base's.
+# tests/test_workflow_privilege.py holds every one of those, not just today's shape.
+#
+# It comments nothing and labels nothing; the maintainer's tool does that, and still files each
+# report through a pull request of its own.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: community-report-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  judge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The base, never the head: this is the code that runs.
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+          # Every tag: a report's product version has to be one of this repository's releases.
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Fetch the pull request's commits, as data
+        # Fetched, never checked out: nothing from the head reaches the working tree.
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          case "$PR_NUMBER" in ''|*[!0-9]*) echo "not a pull request number"; exit 2;; esac
+          git fetch --no-tags --no-recurse-submodules origin "refs/pull/$PR_NUMBER/head"
+          test "$(git rev-parse FETCH_HEAD)" = "$HEAD_SHA"
+
+      - name: Judge the report
+        env:
+          PYTHONPATH: src
+          PYTHONDONTWRITEBYTECODE: "1"
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
+        run: python build/community_check.py

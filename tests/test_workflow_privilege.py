@@ -23,6 +23,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
+# Every workflow, named: a new one is looked at here before anything else.
+KNOWN = ["community-report.yml", "release.yml", "sync-ko.yml", "test.yml"]
 
 
 def text(name):
@@ -41,9 +43,20 @@ def job(source, name):
 
 class WorkflowPrivilegeTests(unittest.TestCase):
     def test_nothing_is_granted_at_the_top_level_where_jobs_write(self):
-        for name in ("release.yml",):
+        for name in ("release.yml", "community-report.yml"):
             with self.subTest(name):
                 self.assertRegex(text(name), r"(?m)^permissions: \{\}\s*$")
+
+    def test_every_workflow_is_known(self):
+        self.assertEqual(sorted(path.name for path in WORKFLOWS.glob("*.y*ml")), KNOWN)
+
+    def test_only_the_report_check_runs_on_a_strangers_pull_request_with_the_bases_token(self):
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            with self.subTest(path.name):
+                if path.name == "community-report.yml":
+                    self.assertIn("pull_request_target", path.read_text(encoding="utf-8"))
+                else:
+                    self.assertNotIn("pull_request_target", path.read_text(encoding="utf-8"))
 
     def test_no_checkout_leaves_its_token_behind(self):
         for path in sorted(WORKFLOWS.glob("*.yml")):
@@ -126,6 +139,90 @@ class KoSyncPrivilegeTests(unittest.TestCase):
         self.assertEqual(self.source.count("secrets.GITHUB_TOKEN"), 1)
         push = self.source[self.source.index("- name: Publish the branch"):]
         self.assertIn("secrets.GITHUB_TOKEN", push)
+
+
+class CommunityReportPrivilegeTests(unittest.TestCase):
+    """community-report.yml judges a stranger's pull request under pull_request_target.
+
+    That trigger runs main's definition of the workflow with the base repository's token, which
+    is what keeps a fork from rewriting the check it is judged by - and the classic way to be
+    taken over, the moment someone adds a checkout of the head, a cache, an artifact or a secret
+    to "just look at the file". So each of those is held here, not only today's shape, and the
+    script it runs is held to reading git as data."""
+
+    def setUp(self):
+        self.source = text("community-report.yml")
+        self.check = (ROOT / "build" / "community_check.py").read_text(encoding="utf-8")
+
+    def test_the_only_trigger_is_pull_request_target_on_main(self):
+        on = self.source[self.source.index("\non:"):self.source.index("\npermissions:")]
+        self.assertEqual(re.findall(r"(?m)^  ([a-z_]+):", on), ["pull_request_target"])
+        self.assertIn("branches: [main]", on)
+        for other in ("workflow_dispatch", "workflow_run", "issue_comment", "push:", "schedule"):
+            self.assertNotIn(other, self.source)
+
+    def test_nothing_at_the_top_level_and_only_read_in_the_job(self):
+        self.assertRegex(self.source, r"(?m)^permissions: \{\}\s*$")
+        grants = re.findall(r"(?m)^      ([a-z-]+): (read|write|none)\s*$", self.source)
+        self.assertEqual(grants, [("contents", "read")])
+        self.assertEqual(self.source.count("permissions:"), 2)
+
+    def test_every_checkout_is_the_base(self):
+        checkouts = re.findall(r"uses: actions/checkout@", self.source)
+        self.assertEqual(len(checkouts), 1)
+        refs = re.findall(r"(?m)^\s*ref: (.+)$", self.source)
+        self.assertEqual(refs, ["${{ github.event.pull_request.base.sha }}"])
+        for head in ("head.ref", "merge_commit_sha", "refs/pull/${{", "github.head_ref", "/merge"):
+            self.assertNotIn(head, self.source)
+        # The head's SHA reaches the job only through env:, to be compared and handed to the check.
+        uses_blocks = re.split(r"(?m)^      - ", self.source)
+        for block in uses_blocks:
+            if "uses:" in block:
+                self.assertNotIn("head.", block)
+
+    def test_no_secret_no_cache_no_artifact_no_install(self):
+        for forbidden in ("secrets.", "GITHUB_TOKEN", "actions/cache", "upload-artifact", "download-artifact",
+                          "cache:", "pip ", "pip3", "requirements", "npm ", "id-token", "attestations"):
+            self.assertNotIn(forbidden, self.source)
+
+    def test_it_runs_no_suite_and_only_the_bases_check(self):
+        self.assertNotIn("unittest", self.source)
+        runs = re.findall(r"(?m)^\s*run: (?!\|)(.+)$", self.source)
+        self.assertEqual(runs, ["python build/community_check.py"])
+        self.assertIn("PYTHONPATH: src", self.source)
+        self.assertNotIn("git checkout", self.source)
+        self.assertNotIn("git switch", self.source)
+        self.assertNotIn("git worktree", self.source)
+        self.assertNotIn("git merge ", self.source)
+
+    def test_it_is_bounded(self):
+        self.assertIn("runs-on: ubuntu-latest", self.source)
+        self.assertIn("timeout-minutes: 5", self.source)
+        self.assertIn("group: community-report-${{ github.event.pull_request.number }}", self.source)
+
+    def test_the_check_reads_git_as_data_and_nothing_else(self):
+        """No exec, eval, import machinery or shell; every process it starts is git."""
+        import ast
+        tree = ast.parse(self.check)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Name):
+                self.assertNotIn(node.id, ("exec", "eval", "compile", "__import__"))
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                names = [alias.name for alias in node.names] + [getattr(node, "module", None) or ""]
+                for name in names:
+                    self.assertNotIn(name.split(".")[0], ("importlib", "runpy", "pickle", "marshal", "shlex",
+                                                          "urllib", "http", "socket", "requests"))
+            if isinstance(node, ast.keyword) and node.arg == "shell":
+                self.assertIs(getattr(node.value, "value", None), False)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
+                    and isinstance(node.func.value, ast.Name) and node.func.value.id in ("subprocess", "os"):
+                self.assertIn(node.func.attr, ("run",), "only subprocess.run, and only for git")
+                argv = node.args[0]
+                self.assertIsInstance(argv, ast.List)
+                self.assertEqual(getattr(argv.elts[0], "value", None), "git")
+        self.assertEqual(self.check.count("subprocess.run("), 1)
+        for porcelain in ("checkout", "switch", "worktree", "reset", "merge", "apply", "am", "fetch", "pull"):
+            self.assertNotIn('"%s"' % porcelain, self.check, "the check reads; it never changes the checkout")
 
 
 class YamlShapeTests(unittest.TestCase):
