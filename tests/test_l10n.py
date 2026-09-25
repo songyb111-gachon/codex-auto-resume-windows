@@ -189,6 +189,48 @@ class OneNameTests(unittest.TestCase):
                 self.assertNotIn(key, panel)
                 self.assertNotIn(key, python)
 
+    # A string literal as the window, the panel and the Python package write these sentences.
+    LITERAL = r'"(?:[^"\\\r\n]|\\.)*"' + r"|'(?:[^'\\\r\n]|\\.)*'"
+
+    def test_every_fallback_written_for_them_is_the_english_sentence(self):
+        """A fallback is what a surface says when its catalog lacks the key, so it says what the
+        English catalog says. The first pass at the one name renamed the window in the catalogs and
+        the panel and left the window's own fallbacks for help.interface_language, help.theme and
+        help.reduce_motion saying "this window"; the panel's for custom.dashboard_only was half the
+        sentence. Every literal written after one of these keys - S("key", "...") in the window,
+        t('key', '...') in the panel, strings.get("key", "...") in Python - is the English
+        sentence, or empty where the surface says nothing; and every mention of the key in the
+        window is such a call, so a fallback written some other way cannot slip past this."""
+        import ast
+        import re
+        import guiscan
+        english = l10n._read(l10n.DEFAULT)
+        sources = {
+            "window": guiscan.whole(),
+            "panel": (ROOT / "src" / "codex_auto_resume" / "mcp" / "assets" / "panel.js").read_text(encoding="utf-8"),
+            "python": "\n".join(srcscan.read(path) for path in srcscan.package_files()),
+        }
+        found = set()
+        for key in self.NAMING + self.WINDOW_ONLY:
+            call = re.compile(r"""(["'])%s\1\s*,\s*((?:(?:%s)\s*\+?\s*)+)\)""" % (re.escape(key), self.LITERAL))
+            for surface, text in sources.items():
+                calls = list(call.finditer(text))
+                for match in calls:
+                    said = "".join(ast.literal_eval(literal) for literal in re.findall(self.LITERAL, match.group(2)))
+                    found.add((surface, key))
+                    if said:
+                        with self.subTest(surface=surface, key=key):
+                            self.assertEqual(said, english[key])
+                if surface == "window":
+                    with self.subTest(surface=surface, key=key, every_mention=True):
+                        self.assertEqual(len(calls), text.count('"%s"' % key))
+        # The scan found the fallbacks it was written for, so it cannot pass by matching nothing.
+        self.assertLessEqual({("window", "help.interface_language"), ("window", "help.theme"),
+                              ("window", "help.reduce_motion"), ("window", "diag.update_reopen"),
+                              ("panel", "help.interface_language"), ("panel", "custom.dashboard_only"),
+                              ("panel", "panel.readonly"), ("panel", "panel.compat_refresh"),
+                              ("python", "menu.open")}, found)
+
 
 class LoaderTests(unittest.TestCase):
     def setUp(self):
