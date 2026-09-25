@@ -3,9 +3,11 @@
     "What the committed screenshots were rendered from. Written by",
     "build/make_screenshots.py and checked by tests/test_screenshots.py, which",
     "fails when these inputs no longer match the working tree - that is, when",
-    "the screenshots are stale. Regenerate them rather than editing this file."
+    "the screenshots are stale. Regenerate them rather than editing this file.",
+    "\"lights\" is what each picture holds of the status light, which",
+    "`make_screenshots.py --breathe` draws moving and the suite holds it to."
   ],
-  "version": "0.6.10-alpha",
+  "version": "0.6.10",
   "theme": "light",
   "card_themes": [
     "light"
@@ -19,250 +21,1362 @@
     "zh-CN",
     "de"
   ],
+  "designs": [
+    "soft",
+    "still",
+    "classic",
+    "plain"
+  ],
   "system_dpi": 144,
   "inputs": {
-    ".codex-plugin/plugin.json": "79c5cf94eb1f226b4d4936b75a6fdcee97df896415d74583cd95f120987edf2c",
-    "<window sources>": "749cb05ab2a4dd157a724980e7aec879d53511eff694ca23bc18c5a149f1b27b",
+    ".codex-plugin/plugin.json": "3ad88569f09d12ce01a1392d8aa0e3f4877b9f70b966ae9dda65578ec953fe38",
+    "<window sources>": "d55401d3a2bc807a14a191114e5d00363bdff7b9d3d7e5107ac131f7966647ef",
     "gui/app.manifest": "db5f16dcf2448fdd7e3812dfdaa6d2da893b92c27a982721d3f04cdc05559870",
     "assets/codex-auto-resume.ico": "45c3f3a0d02d78f9be0b80532eedc2f524cd7ebe1056007dacdb286ca743bd52",
     "build/capture_window.ps1": "27bd4d1e0b16b4b7cc08247b8b4c69e8d027538f8760532776d80b072a7ecfa9",
     "build/make_gui.ps1": "8ba9e5d9083d5ae0f2fbd4854e68828338795d010a309901bd39c894aae30105",
-    "build/make_screenshots.py": "e077fc00908f65e7e79ac51c8d7c43e731a8c05d3a709928d4ffa819d9eabf0a",
-    "<bridge envelope:en>": "6e8b3e69b622b3b9d1e93aaedc414a2f757af0460186dd0fbb4784b8727ed91f",
-    "<panel render:en>": "b0453cf26894806aa3508cf5a856283d589865dcca77e1cbdfc0769bd66164bb",
-    "<popup render:en>": "9a52dba899a32c1b068e96abc6b0f3f613fa4934016c44450aac84d69e1f493a",
-    "<card render:en>": "2732f9c50f9f5f576ac312162bc27603c00bcc728e4da9844d28cc7cb9d61895",
-    "<bridge envelope:ko>": "66c4acecf3952069337c14cd8647e02e71d42f214d1caa9cc1a710e233afd362",
-    "<panel render:ko>": "0faea6c0838fa987746af932d9327d536654f783897dc88de2b40ffb61b9c448",
-    "<popup render:ko>": "d730d349be92a03374300e2e7ee08c9c1ca770f03aa59fa0844513ac818d18e2",
-    "<card render:ko>": "3cea44dbbfb4f4c03d2052c58ee6597ca11749004361861d0db445f5b6f4d7bf",
-    "<bridge envelope:ja>": "3350c61e0ecf8758ee2db3564d6fb44f1ae975114ba32b73e0aa693f9522438e",
-    "<panel render:ja>": "d8852a202fac3961c21d77e22fe5002cf14033d494eee5177bf8d1d6748cf79c",
-    "<popup render:ja>": "d61c63c904d97c9aa692ef9d4c969c754cd80c3cb664f882b2addfbd2e4d1647",
-    "<card render:ja>": "58493c9ce4eddf7ba0a5b17681814cdd6a86e6161ffaa9c9016051f566c92c0a",
-    "<bridge envelope:zh-CN>": "1c593d108246290c50b412179176c54a9e1bdb860310edede722c9ba2b30603a",
-    "<panel render:zh-CN>": "80ac149026cd0c59d0d173d5820510c451f340b09ad220f3d2bfae0197ddcfed",
-    "<popup render:zh-CN>": "33f3985c79bdadcbbbace6e609a3ea46b94795acb1d1e4399cc083992dc536a9",
-    "<card render:zh-CN>": "a9485d4d5a56e6438f7f1072fc611d41f8060565861d381d70b748d0bfd769be",
-    "<bridge envelope:de>": "1499f0e9240d5dc67ac3b39b5a40798e2ee7ce324329c99add013b93bb2cd674",
-    "<panel render:de>": "7cadc40b43aacb6601d508924114775dd7d929331947a06805a445ffb7754c0c",
-    "<popup render:de>": "2df33c6696a1d5e39ed97cef634810d92366aa1de7029528998fdd78b3c0bb48",
-    "<card render:de>": "4a3427b06244f8da07bef87caa5602b5904d40d8421521514a34cb9b0cc8710f",
-    "<icon motion>": "b93f03d2a615543d8a5bec2ca3108f80d5fa62ad3036621a5111d2a6c869dbd1",
-    "<light motion>": "80c99ec0e25319f80875a7e5538e8609927a8cf23984a83447a8e6c659924b24"
+    "build/make_screenshots.py": "04eacccd842e61192e5bcdb46244c93d6b62618df7a1fe88e97038a0a58b5211",
+    "<bridge envelope:en>": "894950df9cbac0dfc2edf52a581489692f7bd41851667ad94b8da32380f3fd18",
+    "<panel render:en>": "e2c51b8be3babd134b7f108c7a61f3c4cffe0b67686556d6388736489ddecf36",
+    "<popup render:en>": "1af1c28141cc0bc2c2fa90f08fa66311481d49dcfacfa80aabe68da3343c0bff",
+    "<card render:en>": "43746461ea30bd621429bfb7d316b3f20a05c9c3f5594dad076013167b3695c2",
+    "<bridge envelope:ko>": "64b33b6a7d5e385afad5ae50476a12529efb3c407258253388d4048e8ef02a76",
+    "<panel render:ko>": "1b05abb1655db20fd162e8d41e5afb5deb7efebdfea91d612fde27eaa258ab92",
+    "<popup render:ko>": "943654db262f3def18f3419f6f3ca9cca69cfa819e77802b3e40aae86057809d",
+    "<card render:ko>": "c2cb40e5ddd7117845e3583fea79ad86aebbd44217c21c5c04a4183ed45973e2",
+    "<bridge envelope:ja>": "28a28dc8030f5154fb9f75d4096c33be27ca9cdbed92ce57dbb2eca8e7ee018e",
+    "<panel render:ja>": "147e7cb81fde205744fa1efbaf98c2132c0f32d103c638476430814f285c5a7f",
+    "<popup render:ja>": "8c600be8672bb6fd16700626e4c3ef6e9400932ec57ba27abed0076b2c74efb3",
+    "<card render:ja>": "c74e8697d220ba6ed52c85511c286b58cd9647036a60480f847c1d9d9b5c7101",
+    "<bridge envelope:zh-CN>": "7d2d4cfd902981d627137e023331e92ecff20d5932b7d8c7cc2448e0b5bfef74",
+    "<panel render:zh-CN>": "030df64ca6c701770a57d596b96d2221fd20c0dbc8b260932f5ff84264ff780b",
+    "<popup render:zh-CN>": "7285b74ca9e74016ee2d1b0739724addf0e55ed847795c2735238afa50a23bc8",
+    "<card render:zh-CN>": "149f8ee9da9dfe61242a007af0b5b6e69e11232d052f323f9a8a032dc6e1f0aa",
+    "<bridge envelope:de>": "16e4f98786a6fc3d238a7e236922098e3eb052ef661e5f1732dbb2d8af8d373c",
+    "<panel render:de>": "beef537eed2b1d519cdaec01bae17b1be9264fe5a3e46180a416c224a56b1927",
+    "<popup render:de>": "131ca8c72e31f749c7fae281eb49dd38ba55d492422c20ce89379d90c475885f",
+    "<card render:de>": "3279c24dd639ce47ce8f76d06a25d5aea1101505b7707006c54f4245b45d9cd8",
+    "<bridge envelope:en:still>": "e99b5ff0e703b39b86b7d1b46b8fd75a9fe191be0ed6eb07cdd3abaffcfa5aa0",
+    "<panel render:en:still>": "8641555c81c95a4b88ce9fba673106edad68e1e259773527a8b5a277498d1026",
+    "<popup render:en:still>": "8020e2eca4a3e0b63a8c04a9324c9a305259b59972dea0e4f8449fcb573bba7e",
+    "<card render:en:still>": "b00f3fe1194d8707084cdcd7b123a08ea8430875f91c51c4c232e79e5112d8e8",
+    "<bridge envelope:en:classic>": "586c82fb44bc9355731c7fec9c8dcb94cd786576dec24cde915507b3c47c0fe1",
+    "<panel render:en:classic>": "59e3f9cdc57a6fda005c0a8726e22c1709964d2f0a28b50518e181899ab49168",
+    "<popup render:en:classic>": "dc3218f02bd89960afc69bdd3cbb87eb846441fd07a46abc23554b8ea9d934d7",
+    "<card render:en:classic>": "666cfa7487021427f22856a65734c7ce97bced344e6b0c868500522edc99a87d",
+    "<bridge envelope:en:plain>": "4700959bf018ccbf6d2062030d24fdf21a256c2bb094dcbfd4e86a04552b3982",
+    "<panel render:en:plain>": "d69c22f70f05348020b7eb973c1d08990e4fe7910fb93b48e36408993b930e8f",
+    "<popup render:en:plain>": "5bf956e0d68b71b9cf127c38e491c89c8195f3a0c13303988d2da2314cd8a932",
+    "<card render:en:plain>": "343e57d31232ba389793178d140fe7af6e9ee33394e96d796ce63ecc9b73f61c",
+    "<icon motion>": "56662d942724be70e2571fcd9b3b1c4232ddc50e8201ce4c75cd36c547213778",
+    "<light motion>": "eba548b1933a181902da690134de1101fb6367ab4c1f9dd681a72c26605ebb6e"
   },
   "images": {
     "assets/screenshot-panel.png": {
-      "sha256": "9d3999bb3e3b64e07fb093a884f74082c6994d83d1514cbc58c354468a5e4476",
-      "size": "1800x3626"
+      "sha256": "cd8cdb102515d89d58e49b9ef26fb0a4156660014ee05de0bd90ddea76f9c1e7",
+      "size": "1800x3662"
     },
     "assets/screenshot-dashboard.png": {
-      "sha256": "c4ce19f401abea03bf76701422f6bf04562d5ffb22c2a8bf6be17564f25c087a",
+      "sha256": "9126cb3db23a762979de4fe34bbec96d89beb143b59a24edeab2013bba3a19f1",
       "size": "1500x1041"
     },
     "assets/screenshot-pending.png": {
-      "sha256": "b86dfbf9baf334e7d135336c8990ee2d7d9b6712fed81a8b06c1acdb982c841b",
+      "sha256": "5fb26e3396ee74bf6fe2ae0eab14f0d801a8a7413435b17f65bf2f848669f9a0",
       "size": "1500x1041"
     },
     "assets/screenshot-history.png": {
-      "sha256": "ef0429508ea4da05a5f669fe249d9292ffcc815903899e550df3cd09cae23272",
+      "sha256": "d4d44807d1a6d5a194adba3bfbea7300d209cb2d25fd554ecc9dcb2c9a917051",
       "size": "1500x1041"
     },
     "assets/screenshot-statistics.png": {
-      "sha256": "d758628fe95e16e1427600dc8018b922ac5f0ca030f78b141fb1a36f8f19c3d7",
+      "sha256": "45c349f8538f6efcde3b54676fab193bb8fe4c9da4a507a2e12113c29579593d",
       "size": "1500x1041"
     },
     "assets/screenshot-diagnostics.png": {
-      "sha256": "3358ca477747eb6dd254677e52d9bc12d7b043339d5b05738b4ec764321c0d51",
+      "sha256": "da90502050ff4a4c9d48b00d7511ac3ac1e5fab2aa438949e2de6c85a18e4898",
       "size": "1500x1041"
     },
     "assets/screenshot-settings.png": {
-      "sha256": "ca74619348c77edd27584c308cbcbcebb71900598433cc4302df11ee4d1d4a61",
+      "sha256": "6c69180b389a3a97dfe69e7d29a9e1439cb69fdeb0de175e78d7f43b1782508f",
       "size": "1500x1041"
     },
     "assets/screenshot-panel-ko.png": {
-      "sha256": "e1c8b261ec63a3f413d9c5e69e9fa73fac7f0eae0cf2d53dc58fa6d5e055fbdb",
+      "sha256": "5ccc7a414b18450ee2f5259ddcbafe7702a0c84b2862bb56b934749e29b306a9",
       "size": "1800x3590"
     },
     "assets/screenshot-dashboard-ko.png": {
-      "sha256": "1da8be377aa41119248596804d8225c3eed4e0be767223a6a0c926d5c1e22066",
+      "sha256": "3ac294ad3082d13ce11dfcd76ce078e709c42e6e9413656e53bec0873a4e8bea",
       "size": "1500x1041"
     },
     "assets/screenshot-pending-ko.png": {
-      "sha256": "256a1bcc5957920a0ca54910868e6548cecfcd5ac0f70e84546628a98811bb1a",
+      "sha256": "f1cc47c57681c574653e3daca9398015bb2407e4b00560c57e6974b125d7a5cd",
       "size": "1500x1041"
     },
     "assets/screenshot-history-ko.png": {
-      "sha256": "6a22ece52c141592d55732f2d2e62b46c6c85dc21a3632e21bbe4c4bf305e14d",
+      "sha256": "ae9f57d1eaf100da7958f75cef0603694cf84b9599c832f0f72e0408606c7332",
       "size": "1500x1041"
     },
     "assets/screenshot-statistics-ko.png": {
-      "sha256": "00a87b518917d49928981f8faf9aa68f8b96ce0f9fe9f2e3f6075940210ec82e",
+      "sha256": "6c196020748f31e328f2c6291d5cfb4adce754be0511e279f5febb65d41edd31",
       "size": "1500x1041"
     },
     "assets/screenshot-diagnostics-ko.png": {
-      "sha256": "75f7113a1abcce5cee81ed6ee5cedbb41e8c940d09daf3ee182851cc8c476d5e",
+      "sha256": "30da397971d28bd9c5b1c47fbb441c6b074e0d02eee6cd91a17effd0571dce64",
       "size": "1500x1041"
     },
     "assets/screenshot-settings-ko.png": {
-      "sha256": "9d87e65e004d86b4911f6a19d16d8f94eedb220e18d5147cf049ac2f63ece09f",
+      "sha256": "7dfff846fcb669aad794a8add6e381c452b6c9f98848bb0c1e960bdb573c7e7e",
       "size": "1500x1041"
     },
     "assets/screenshot-notification.png": {
-      "sha256": "d3397a2eb1646a11eec28b0ff6dea42492f33783ab2e0f5b01aa83dea2bc5221",
-      "size": "776x536"
+      "sha256": "09321d802ed1730eaee246a4913c277b343f4a2c5d8287afa2148be01b5ae829",
+      "size": "776x540"
     },
     "assets/screenshot-notification-ko.png": {
-      "sha256": "8766fa00c55b234499d33d0847218c6c772e89bbd6c353405e92606157dd1e07",
-      "size": "776x520"
+      "sha256": "7dc95158861b432d109a0ce2dda0cedd989ac5ccbbabc17e9320073c6f1c9abe",
+      "size": "776x524"
     },
     "docs/images/settings-panel.png": {
-      "sha256": "9d3999bb3e3b64e07fb093a884f74082c6994d83d1514cbc58c354468a5e4476",
-      "size": "1800x3626"
+      "sha256": "cd8cdb102515d89d58e49b9ef26fb0a4156660014ee05de0bd90ddea76f9c1e7",
+      "size": "1800x3662"
     },
     "docs/images/dashboard-overview.png": {
-      "sha256": "c4ce19f401abea03bf76701422f6bf04562d5ffb22c2a8bf6be17564f25c087a",
+      "sha256": "9126cb3db23a762979de4fe34bbec96d89beb143b59a24edeab2013bba3a19f1",
       "size": "1500x1041"
     },
     "docs/images/dashboard-pending.png": {
-      "sha256": "b86dfbf9baf334e7d135336c8990ee2d7d9b6712fed81a8b06c1acdb982c841b",
+      "sha256": "5fb26e3396ee74bf6fe2ae0eab14f0d801a8a7413435b17f65bf2f848669f9a0",
       "size": "1500x1041"
     },
     "docs/images/dashboard-history.png": {
-      "sha256": "ef0429508ea4da05a5f669fe249d9292ffcc815903899e550df3cd09cae23272",
+      "sha256": "d4d44807d1a6d5a194adba3bfbea7300d209cb2d25fd554ecc9dcb2c9a917051",
       "size": "1500x1041"
     },
     "docs/images/dashboard-statistics.png": {
-      "sha256": "d758628fe95e16e1427600dc8018b922ac5f0ca030f78b141fb1a36f8f19c3d7",
+      "sha256": "45c349f8538f6efcde3b54676fab193bb8fe4c9da4a507a2e12113c29579593d",
       "size": "1500x1041"
     },
     "docs/images/dashboard-diagnostics.png": {
-      "sha256": "3358ca477747eb6dd254677e52d9bc12d7b043339d5b05738b4ec764321c0d51",
+      "sha256": "da90502050ff4a4c9d48b00d7511ac3ac1e5fab2aa438949e2de6c85a18e4898",
       "size": "1500x1041"
     },
     "docs/images/settings-window.png": {
-      "sha256": "ca74619348c77edd27584c308cbcbcebb71900598433cc4302df11ee4d1d4a61",
+      "sha256": "6c69180b389a3a97dfe69e7d29a9e1439cb69fdeb0de175e78d7f43b1782508f",
       "size": "1500x1041"
     },
     "docs/images/settings-panel-ko.png": {
-      "sha256": "e1c8b261ec63a3f413d9c5e69e9fa73fac7f0eae0cf2d53dc58fa6d5e055fbdb",
+      "sha256": "5ccc7a414b18450ee2f5259ddcbafe7702a0c84b2862bb56b934749e29b306a9",
       "size": "1800x3590"
     },
     "docs/images/dashboard-overview-ko.png": {
-      "sha256": "1da8be377aa41119248596804d8225c3eed4e0be767223a6a0c926d5c1e22066",
+      "sha256": "3ac294ad3082d13ce11dfcd76ce078e709c42e6e9413656e53bec0873a4e8bea",
       "size": "1500x1041"
     },
     "docs/images/dashboard-pending-ko.png": {
-      "sha256": "256a1bcc5957920a0ca54910868e6548cecfcd5ac0f70e84546628a98811bb1a",
+      "sha256": "f1cc47c57681c574653e3daca9398015bb2407e4b00560c57e6974b125d7a5cd",
       "size": "1500x1041"
     },
     "docs/images/dashboard-history-ko.png": {
-      "sha256": "6a22ece52c141592d55732f2d2e62b46c6c85dc21a3632e21bbe4c4bf305e14d",
+      "sha256": "ae9f57d1eaf100da7958f75cef0603694cf84b9599c832f0f72e0408606c7332",
       "size": "1500x1041"
     },
     "docs/images/dashboard-statistics-ko.png": {
-      "sha256": "00a87b518917d49928981f8faf9aa68f8b96ce0f9fe9f2e3f6075940210ec82e",
+      "sha256": "6c196020748f31e328f2c6291d5cfb4adce754be0511e279f5febb65d41edd31",
       "size": "1500x1041"
     },
     "docs/images/dashboard-diagnostics-ko.png": {
-      "sha256": "75f7113a1abcce5cee81ed6ee5cedbb41e8c940d09daf3ee182851cc8c476d5e",
+      "sha256": "30da397971d28bd9c5b1c47fbb441c6b074e0d02eee6cd91a17effd0571dce64",
       "size": "1500x1041"
     },
     "docs/images/settings-window-ko.png": {
-      "sha256": "9d87e65e004d86b4911f6a19d16d8f94eedb220e18d5147cf049ac2f63ece09f",
+      "sha256": "7dfff846fcb669aad794a8add6e381c452b6c9f98848bb0c1e960bdb573c7e7e",
       "size": "1500x1041"
     },
     "docs/images/notification-card.png": {
-      "sha256": "d3397a2eb1646a11eec28b0ff6dea42492f33783ab2e0f5b01aa83dea2bc5221",
-      "size": "776x536"
+      "sha256": "09321d802ed1730eaee246a4913c277b343f4a2c5d8287afa2148be01b5ae829",
+      "size": "776x540"
     },
     "docs/images/notification-card-ko.png": {
-      "sha256": "8766fa00c55b234499d33d0847218c6c772e89bbd6c353405e92606157dd1e07",
-      "size": "776x520"
+      "sha256": "7dc95158861b432d109a0ce2dda0cedd989ac5ccbbabc17e9320073c6f1c9abe",
+      "size": "776x524"
     },
     "docs/images/tray-popup.png": {
-      "sha256": "7096e75ffe51bb0e0f1181700efceb155ae6a5d49d385a3b2730d1c5d7d5f150",
-      "size": "752x1089"
+      "sha256": "3a3c893d036ee3ad94468037d2db4e06eda833a9b15515d1b7e11f6a78b0ee65",
+      "size": "752x882"
     },
     "docs/images/tray-popup-ko.png": {
-      "sha256": "f58834a6933b1b828940f378810c3465bfa2841d0b3dc271a2d3bfffab48f2ff",
-      "size": "752x1111"
+      "sha256": "fe869abc1781c0624c6398b0b3d8b59b330f101406e285ad4cff163ce8015042",
+      "size": "752x890"
     },
     "docs/images/tray-popup-ja.png": {
-      "sha256": "ea18e3e6067513913dba423c140c8a1b006e5443cf0feb7eab3a5adbddde25f1",
-      "size": "752x1111"
+      "sha256": "62aede1daa9aec639f6b6c24cf75fccb11b7ee3b4b33da42dd9476b19bdd0a88",
+      "size": "752x890"
     },
     "docs/images/notification-card-ja.png": {
-      "sha256": "43ed4efdb0ffd6f3374c3e89bba096327df9763cb5dc5a5b67cc48c088da9c6f",
-      "size": "776x520"
+      "sha256": "69f1ad867718bda358ea4e51f7995312ebd86bcb034878ea62721abbbef43fc4",
+      "size": "776x524"
     },
     "docs/images/settings-panel-ja.png": {
-      "sha256": "8ff007689fcd9f6b040b1bf54f4e5c9e64ed27ff855fa6ddba4a9c38dbe26de6",
+      "sha256": "f29552aa0193012be0a014953dd26cd601d1842b6b5aaccaf75543fc8bbd9893",
       "size": "1800x3662"
     },
     "docs/images/dashboard-overview-ja.png": {
-      "sha256": "7b638ef236057ef79db7496fc2ee7a8f5e79468f4eb3b9c501b0d26052f2f00b",
+      "sha256": "61e610dbdcf722f4a5b58d98f769e0feefbd106e1ef48f298bc282c8bf24e33d",
       "size": "1500x1041"
     },
     "docs/images/dashboard-pending-ja.png": {
-      "sha256": "ea351a6343539f8d6f8dbeae7347b213cd9af7635cfb6036098649a329a0516c",
+      "sha256": "fd4906d438dd14042b2dacfdbf5b511362496c9922df9c796ebf477b005cb3ff",
       "size": "1500x1041"
     },
     "docs/images/settings-window-ja.png": {
-      "sha256": "dbf6c6bdf75f7cd180e29eb67af5ba1f48be6f3c05534df1d22f88014efce31a",
+      "sha256": "7668535ab790faf2092dcad25866141f314dade5d8712a2e1d92c181e26592d1",
       "size": "1500x1041"
     },
     "docs/images/tray-popup-zh-CN.png": {
-      "sha256": "bc6621ff94ebe53deceb62b94c2d61599b832295f50bd5739e5ac7065dc0a45f",
-      "size": "752x1065"
+      "sha256": "205d4ba33cd2ba7fd666996dc861b3cb6788b741feadfd1e15baf88a6a6f679f",
+      "size": "752x885"
     },
     "docs/images/notification-card-zh-CN.png": {
-      "sha256": "209abc0b8cc9d91ec400475dfcc37c4f7e2c51b62057a7cc1673114f163516ee",
-      "size": "776x515"
+      "sha256": "fe334a512cb7aa524780df99efd06b1828760ab9f245c9466cc65ea55d88bea7",
+      "size": "776x519"
     },
     "docs/images/settings-panel-zh-CN.png": {
-      "sha256": "802774db1c646ead960db3a767286cdce6ee14f2bf511b4739f89a52aed1e674",
+      "sha256": "dd6cb0e19cc36feeb970518662f83d3636d90e087610c386617b83c3d4820803",
       "size": "1800x3590"
     },
     "docs/images/dashboard-overview-zh-CN.png": {
-      "sha256": "643bd77ffc86b1ba3dcfc04177f067bc816c862416ce244e63ee64f35f33beed",
+      "sha256": "3d1b6c106b5ec2a274fbd79eb2f7d55eabb53a20a2f5e0f189a4407e57327802",
       "size": "1500x1041"
     },
     "docs/images/dashboard-pending-zh-CN.png": {
-      "sha256": "bfe1d3f824910e1373b500e349ec9683bde29a9fc2a703994dc22a6d9ac65cbd",
+      "sha256": "6abb680a852b138917fb239b25b5e2310c3e56d364ff620861c7ced18afcfe16",
       "size": "1500x1041"
     },
     "docs/images/settings-window-zh-CN.png": {
-      "sha256": "ccda0d18d13c54e2acb7c6ce74a2fc2ffaae0a355d55a476ae794748253a4e54",
+      "sha256": "41219ca04215064c1b50a983c8ef7c2a7928d407e80459493344628e837b0c9c",
       "size": "1500x1041"
     },
     "docs/images/tray-popup-de.png": {
-      "sha256": "de33c86ed38c6ef5c3372a90b50c596c9c01d5494bd1b267c437322d66128e39",
-      "size": "752x1199"
+      "sha256": "dabf5106a6b1b0aa67262caa314683dda4b6a1a3e79a1cca227b71e801d49609",
+      "size": "752x996"
     },
     "docs/images/notification-card-de.png": {
-      "sha256": "5053346938bd178775c65d69fac962bf89e25c4800fcf20ce2a6786ccb509a34",
-      "size": "776x536"
+      "sha256": "3fd283d17fc725dd147366faf9e9d24218260fddc865d478eca8a337af0d2148",
+      "size": "776x540"
     },
     "docs/images/settings-panel-de.png": {
-      "sha256": "77cb830ec82606563cf9b43820bbdb03a405db3b70376bf449bbff1ad3bc4385",
+      "sha256": "e78a141ca469f67382bba456baffcb77203d23959b21feee20b1903a9ef7cdf8",
       "size": "1800x3704"
     },
     "docs/images/dashboard-overview-de.png": {
-      "sha256": "d04cb86cc87a5aee1aa677c20555670bb432e41df3f4159e3397151426ee6833",
+      "sha256": "43dc4c18def09f30b51c646437dc705357b0ede9fbbdbae733e713ad88a5d92f",
       "size": "1500x1041"
     },
     "docs/images/dashboard-pending-de.png": {
-      "sha256": "5949486c4d3b374b000461704eb1406578aea72eaece71ad42294fa2e5d18763",
+      "sha256": "9ca271c6e521fc45426dee8ac494be44e7bd5415da9459d9bcbc16be49f71466",
       "size": "1500x1041"
     },
     "docs/images/settings-window-de.png": {
-      "sha256": "764689797124ba7b62551ac0a87550c5d83510f7afb28e33b829e5941c484e41",
+      "sha256": "946e9ed4e69b5b18580c1bab39da600f42dc124e96ce22916506833f293f6126",
       "size": "1500x1041"
+    },
+    "docs/images/design-still-dashboard.png": {
+      "sha256": "75a278d84c920bb0f6f870ccb7b97c462c74350965743eef68ac890de50d84f8",
+      "size": "1500x1041"
+    },
+    "docs/images/design-still-panel.png": {
+      "sha256": "964da7bee11a9d2be1ff45ddf97adb3b4d4ad931b5ac189301079aec7bcd25ad",
+      "size": "1800x3662"
+    },
+    "docs/images/design-still-popup.png": {
+      "sha256": "ea87d513791df7e83c2522e11693b5f64279be20bfade77ab8365a9640fe897d",
+      "size": "752x882"
+    },
+    "docs/images/design-still-card.png": {
+      "sha256": "b69c89fe7224f8524499f2de0a30f84c98e0ff539e24fb03dfd64e5ae5e61a37",
+      "size": "776x540"
+    },
+    "docs/images/design-classic-dashboard.png": {
+      "sha256": "c48f6c95253bd64b59c84791ca9c38cc86bb4d21f5cb39e5eecc41226f5772c1",
+      "size": "1500x1041"
+    },
+    "docs/images/design-classic-panel.png": {
+      "sha256": "95542303a00df360fc40ab35d2d3cc26fad9f30814dfacb28c30e174bc91a317",
+      "size": "1800x3662"
+    },
+    "docs/images/design-classic-popup.png": {
+      "sha256": "a8f2299ba9a42cd04266bbee2f9227b5e58e8d7ab6e335b1d6f3f0cdbd7d5b97",
+      "size": "752x882"
+    },
+    "docs/images/design-classic-card.png": {
+      "sha256": "f07d0d53dad52a68a3255e403cf04716b0412e1f99238b1e0ca58aadbd46250a",
+      "size": "776x540"
+    },
+    "docs/images/design-plain-dashboard.png": {
+      "sha256": "3d6169727de8a654ccc0b586302fa7eea9ce31ffee9fd134efaecc927f5495ab",
+      "size": "1500x1041"
+    },
+    "docs/images/design-plain-panel.png": {
+      "sha256": "6b006c0ff9c44b832ca8ceaebf9349cd5f13932c947a31b81743e239722e2c8d",
+      "size": "1800x3662"
+    },
+    "docs/images/design-plain-popup.png": {
+      "sha256": "f7b8973b9adce61ca355e4dd618f4855431f611eee83e061b5448c9040551f57",
+      "size": "752x882"
+    },
+    "docs/images/design-plain-card.png": {
+      "sha256": "5de5e2128c7383ef376b60703287c7e45b6e2a981ad1138dfcbdc1923a4bee60",
+      "size": "776x540"
     },
     "docs/images/icon-motion.png": {
       "sha256": "affd6dcd418504867f85ba6f85703ef3e1fa9ba0d0254775a8785581de3e46e6",
       "size": "360x72"
+    },
+    "docs/images/status-light.png": {
+      "sha256": "b4d99e059789ac9b9bc6f9eaa9fbdc04f7ac493cc52a9d5f88c1e561669fe524",
+      "size": "168x168"
+    }
+  },
+  "lights": {
+    "assets/screenshot-dashboard-ko.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "assets/screenshot-dashboard.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "assets/screenshot-diagnostics-ko.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "assets/screenshot-diagnostics.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "assets/screenshot-history-ko.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "assets/screenshot-history.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "assets/screenshot-notification-ko.png": {
+      "surface": "card",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 111.0,
+          "y": 106.0,
+          "radius": 9.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "assets/screenshot-notification.png": {
+      "surface": "card",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 111.0,
+          "y": 106.0,
+          "radius": 9.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "assets/screenshot-panel-ko.png": {
+      "surface": "panel",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 152.0,
+          "y": 153.75,
+          "radius": 12.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        },
+        {
+          "x": 156.0,
+          "y": 1292.75,
+          "radius": 8.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#FBFCFE"
+        }
+      ]
+    },
+    "assets/screenshot-panel.png": {
+      "surface": "panel",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 152.0,
+          "y": 153.75,
+          "radius": 12.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        },
+        {
+          "x": 156.0,
+          "y": 1329.0,
+          "radius": 8.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#FBFCFE"
+        }
+      ]
+    },
+    "assets/screenshot-pending-ko.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "assets/screenshot-pending.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "assets/screenshot-settings-ko.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "assets/screenshot-settings.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "assets/screenshot-statistics-ko.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "assets/screenshot-statistics.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/dashboard-diagnostics-ko.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/dashboard-diagnostics.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/dashboard-history-ko.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/dashboard-history.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/dashboard-overview-de.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/dashboard-overview-ja.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/dashboard-overview-ko.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/dashboard-overview-zh-CN.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/dashboard-overview.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/dashboard-pending-de.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/dashboard-pending-ja.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/dashboard-pending-ko.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/dashboard-pending-zh-CN.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/dashboard-pending.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/dashboard-statistics-ko.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/dashboard-statistics.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/design-classic-card.png": {
+      "surface": "card",
+      "theme": "light",
+      "design": "classic",
+      "lights": [
+        {
+          "x": 111.0,
+          "y": 106.0,
+          "radius": 9.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#FFFFFF"
+        }
+      ]
+    },
+    "docs/images/design-classic-dashboard.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "classic",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#FFFFFF"
+        }
+      ]
+    },
+    "docs/images/design-classic-panel.png": {
+      "surface": "panel",
+      "theme": "light",
+      "design": "classic",
+      "lights": [
+        {
+          "x": 152.0,
+          "y": 153.75,
+          "radius": 12.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#FFFFFF"
+        },
+        {
+          "x": 156.0,
+          "y": 1329.0,
+          "radius": 8.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#FFFFFF"
+        }
+      ]
+    },
+    "docs/images/design-classic-popup.png": {
+      "surface": "popup",
+      "theme": "light",
+      "design": "classic",
+      "lights": [
+        {
+          "x": 99.0,
+          "y": 131.5,
+          "radius": 9.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#FFFFFF"
+        }
+      ]
+    },
+    "docs/images/design-plain-card.png": {
+      "surface": "card",
+      "theme": "light",
+      "design": "plain",
+      "lights": [
+        {
+          "x": 111.0,
+          "y": 106.0,
+          "radius": 9.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#FFFFFF"
+        }
+      ]
+    },
+    "docs/images/design-plain-dashboard.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "plain",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#FFFFFF"
+        }
+      ]
+    },
+    "docs/images/design-plain-panel.png": {
+      "surface": "panel",
+      "theme": "light",
+      "design": "plain",
+      "lights": [
+        {
+          "x": 152.0,
+          "y": 153.75,
+          "radius": 12.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#FFFFFF"
+        },
+        {
+          "x": 156.0,
+          "y": 1329.0,
+          "radius": 8.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#FFFFFF"
+        }
+      ]
+    },
+    "docs/images/design-plain-popup.png": {
+      "surface": "popup",
+      "theme": "light",
+      "design": "plain",
+      "lights": [
+        {
+          "x": 99.0,
+          "y": 131.5,
+          "radius": 9.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#FFFFFF"
+        }
+      ]
+    },
+    "docs/images/design-still-card.png": {
+      "surface": "card",
+      "theme": "light",
+      "design": "still",
+      "lights": [
+        {
+          "x": 111.0,
+          "y": 106.0,
+          "radius": 9.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/design-still-dashboard.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "still",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/design-still-panel.png": {
+      "surface": "panel",
+      "theme": "light",
+      "design": "still",
+      "lights": [
+        {
+          "x": 152.0,
+          "y": 153.75,
+          "radius": 12.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        },
+        {
+          "x": 156.0,
+          "y": 1329.0,
+          "radius": 8.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#FBFCFE"
+        }
+      ]
+    },
+    "docs/images/design-still-popup.png": {
+      "surface": "popup",
+      "theme": "light",
+      "design": "still",
+      "lights": [
+        {
+          "x": 99.0,
+          "y": 131.5,
+          "radius": 9.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/notification-card-de.png": {
+      "surface": "card",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 111.0,
+          "y": 106.0,
+          "radius": 9.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/notification-card-ja.png": {
+      "surface": "card",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 111.0,
+          "y": 106.0,
+          "radius": 9.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/notification-card-ko.png": {
+      "surface": "card",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 111.0,
+          "y": 106.0,
+          "radius": 9.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/notification-card-zh-CN.png": {
+      "surface": "card",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 111.0,
+          "y": 106.0,
+          "radius": 9.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/notification-card.png": {
+      "surface": "card",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 111.0,
+          "y": 106.0,
+          "radius": 9.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/settings-panel-de.png": {
+      "surface": "panel",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 152.0,
+          "y": 153.75,
+          "radius": 12.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        },
+        {
+          "x": 156.0,
+          "y": 1329.0,
+          "radius": 8.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#FBFCFE"
+        }
+      ]
+    },
+    "docs/images/settings-panel-ja.png": {
+      "surface": "panel",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 152.0,
+          "y": 153.75,
+          "radius": 12.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        },
+        {
+          "x": 156.0,
+          "y": 1292.75,
+          "radius": 8.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#FBFCFE"
+        }
+      ]
+    },
+    "docs/images/settings-panel-ko.png": {
+      "surface": "panel",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 152.0,
+          "y": 153.75,
+          "radius": 12.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        },
+        {
+          "x": 156.0,
+          "y": 1292.75,
+          "radius": 8.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#FBFCFE"
+        }
+      ]
+    },
+    "docs/images/settings-panel-zh-CN.png": {
+      "surface": "panel",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 152.0,
+          "y": 153.75,
+          "radius": 12.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        },
+        {
+          "x": 156.0,
+          "y": 1292.75,
+          "radius": 8.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#FBFCFE"
+        }
+      ]
+    },
+    "docs/images/settings-panel.png": {
+      "surface": "panel",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 152.0,
+          "y": 153.75,
+          "radius": 12.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        },
+        {
+          "x": 156.0,
+          "y": 1329.0,
+          "radius": 8.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#FBFCFE"
+        }
+      ]
+    },
+    "docs/images/settings-window-de.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/settings-window-ja.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/settings-window-ko.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/settings-window-zh-CN.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/settings-window.png": {
+      "surface": "window",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 72.0,
+          "y": 102.5,
+          "radius": 8.0,
+          "scale": 1.5,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/tray-popup-de.png": {
+      "surface": "popup",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 99.0,
+          "y": 131.5,
+          "radius": 9.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/tray-popup-ja.png": {
+      "surface": "popup",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 99.0,
+          "y": 133.5,
+          "radius": 9.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/tray-popup-ko.png": {
+      "surface": "popup",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 99.0,
+          "y": 133.5,
+          "radius": 9.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/tray-popup-zh-CN.png": {
+      "surface": "popup",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 99.0,
+          "y": 133.0,
+          "radius": 9.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
+    },
+    "docs/images/tray-popup.png": {
+      "surface": "popup",
+      "theme": "light",
+      "design": "soft",
+      "lights": [
+        {
+          "x": 99.0,
+          "y": 131.5,
+          "radius": 9.0,
+          "scale": 2.0,
+          "state": "waiting",
+          "ground": "#F6F8FB"
+        }
+      ]
     }
   }
 }
