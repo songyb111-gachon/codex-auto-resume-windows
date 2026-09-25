@@ -341,6 +341,7 @@ namespace CodexAutoResume
 
         private void ReloadFailed(Dictionary<string, object> reply)
         {
+            heroHeld = true;                // until the next read (ApplyStatus), not the next second (Hero)
             headline.Text = S("settings.load_failed", "Could not read the local settings");
             detail.Text = Convert.ToString(Get(reply, "error"), CultureInfo.InvariantCulture);
             header.Invalidate(true);
@@ -419,7 +420,7 @@ namespace CodexAutoResume
             interfaceCombo.Margin = Pad(0, 0, 0, 6);
             language.Controls.Add(interfaceCombo);
             language.Controls.Add(HelpText(S("help.interface_language",
-                "Used by this window, the notification-area popup, notifications and the panel in Codex.")));
+                "Used by the Dashboard, the notification-area popup, notifications and the panel in Codex.")));
             editors["interface_language"] = interfaceCombo;
             TableLayoutPanel windows = NewGroup(S("group.windows", "Windows"), sections["general"]);
             // First in its card, above the Windows preferences the schema adds.
@@ -486,7 +487,7 @@ namespace CodexAutoResume
                     editors[name] = check;
                     if (name == "reduce_motion")
                         host.Controls.Add(HelpText(S("help.reduce_motion",
-                            "Stops the breathing and pulsing status animations in this window and the notification-area popup. Windows' own Animation effects setting is always honored as well.")));
+                            "Stops every animation - the status light's breathing, controls that glide, a notification card sliding in - in the Dashboard, the notification-area popup and icon, the notification card, the taskbar button and the panel in Codex, in every design. Soft, without motion has none to stop. Windows' own Animation effects setting is always honored as well.")));
                     // When the card gives way to Windows' own notification - Do not disturb, full screen, a screen
                     // reader, a locked or remote session - is said under its switch, never left to be found out.
                     if (name == "notification_card")
@@ -519,17 +520,21 @@ namespace CodexAutoResume
                     // file that changes meaning with the display language would be a bug
                     // the user could not see until the watcher read it back.
                     // Each theme's labels are its own: the Theme's "Use system setting", the panel
-                    // theme's "Same as Theme" and "Codex's theme", and both themes' Light and Dark.
-                    bool themed = name == "theme" || name == "panel_theme";
+                    // theme's "Same as Theme" and "Codex's theme", and both themes' Light and Dark -
+                    // and the Design's (v0.6.10), whose Soft and Plain are no other setting's words.
+                    bool themed = name == "theme" || name == "panel_theme" || name == "design";
                     SoftCombo combo = ChoiceCombo(field, current, themed ? "choice." + name + "." : "choice.");
                     host.Controls.Add(NewRow(Humanise(name), combo));
                     editors[name] = combo;
                     if (name == "theme")
                         host.Controls.Add(HelpText(S("help.theme",
-                            "Light or dark for this window, the notification-area popup and the notification card, and for the panel in Codex while Theme in Codex is Same as Theme. Use system setting follows Windows here and Codex's own theme in Codex.")));
+                            "Light or dark for the Dashboard, the notification-area popup and the notification card, and for the panel in Codex while Theme in Codex is Same as Theme. Use system setting follows Windows for the first three and Codex's own theme for the panel.")));
                     if (name == "panel_theme")
                         host.Controls.Add(HelpText(S("help.panel_theme",
                             "Light or dark for the panel in Codex alone. Same as Theme uses the choice above; Codex's theme follows Codex whatever the Theme is.")));
+                    if (name == "design")
+                        host.Controls.Add(HelpText(S("help.design",
+                            "How the Dashboard, the notification-area popup, the notification card and the panel in Codex are drawn; light or dark is still the Theme's. Soft is raised and moves; Soft, without motion looks the same and holds still; Classic (v0.6.2) is flat, with that version's accent bars; Plain is flat and grey. High Contrast replaces every design, and Reduce motion stops the motion in each.")));
                 }
             }
             if (master != null)
@@ -957,6 +962,9 @@ namespace CodexAutoResume
 
         private void StatusUnavailable()
         {
+            // Held until the next read (ApplyStatus): the clock's Hero would otherwise put an older snapshot's
+            // word back within a second, beside words that say the state cannot be read.
+            heroHeld = true;
             stateDot.State = "idle";
             TellTaskbar(null, null, 0);
             headline.Text = S("status.unavailable", "Status unavailable");
@@ -992,8 +1000,6 @@ namespace CodexAutoResume
         private void ApplyStatus(Dictionary<string, object> status, CheckBox startup)
         {
             object running = status["watcher_running"];
-            bool enabled = Equals(status["enabled"], true);
-            double pending = status.ContainsKey("pending") ? (double)status["pending"] : 0;
             if (startup != null)
             {
                 startup.Checked = Equals(status["startup_enabled"], true);
@@ -1001,35 +1007,49 @@ namespace CodexAutoResume
                 startupBaseline = startup.Checked;
             }
 
-            // The coarse state, from the status alone, until the Dashboard has a snapshot. From
-            // then on UpdateCountdowns is the one place the dot is decided, from the pending list
-            // as well - recovering, due to be checked. Deciding it here too put the coarse state
-            // and then the refined one on the dot in the same refresh, and every change restarts
-            // the halo: an alarm pulsed again every five seconds, and an arc jumped to its start.
-            // A watcher that is not running, or not known to be, is a light that is off - grey, as
-            // it was until v0.6.3; the headline beside it says what is wrong (see Activity).
-            if (snapshot == null)
-                stateDot.State = !Equals(running, true) ? "idle"
-                               : !enabled ? "paused" : pending > 0 ? "waiting" : "monitoring";
+            // The header (Hero). A read rewrites it, as it always has, over a note or a hold written since the
+            // last one. From the status alone until the Dashboard has a snapshot, and from a status read after
+            // it (Start watcher, a save), which is newer, until the next one; otherwise UpdateCountdowns is the
+            // one place it is decided, from the pending list as well - recovering, due to be checked. Deciding it
+            // here too put the coarse state and then the refined one on the dot in the same refresh, and every
+            // change restarts the halo: an alarm pulsed again every five seconds, and an arc jumped to its start.
+            heroHeld = false;
+            heroHead = heroDetail = null;
+            heroStatus = snapshot != null && ReferenceEquals(status, Map(snapshot, "status")) ? null : status;
+            if (heroStatus != null) Hero(status, null, Now());
             // The taskbar button likewise, by the notification-area icon's rule (TrayActivity).
             if (snapshot == null) TellTaskbar(status, null, Now());
-            headline.Text = running == null ? S("status.unknown", "Watcher status unknown")
-                          : !Equals(running, true) ? S("status.not_running", "Watcher not running")
-                          : enabled ? S("status.watching", "Watching for interruptions")
-                          : S("status.paused", "Automatic recovery paused");
-            int count = (int)pending;
-            string tail = count == 0 ? S("status.pending_none", "Nothing pending")
-                        : count == 1 ? S("status.pending_one", "1 recovery pending")
-                        : S("status.pending_many", "{n} recoveries pending", "n", (int)count);
-            // Two facts, most consequential first: whether recovery can happen at
-            // all, and then what is waiting on it.
-            string recovery = !Equals(running, true)
-                              ? S("status.recovery_idle", "Nothing will be recovered until it is running")
-                            : enabled ? S("status.recovery_on", "Automatic recovery is on")
-                            : S("status.recovery_paused", "Automatic recovery is paused");
-            detail.Text = recovery + "   ·   " + tail;
             versionText.Text = "v" + status["version"];
             if (startButton != null) startButton.Visible = Equals(running, false);
+            header.Invalidate(true);
+        }
+
+        // The header as Hero last wrote it, and what decides it (ApplyStatus).
+        private string heroHead, heroDetail;
+        private Dictionary<string, object> heroStatus;
+        private bool heroHeld;
+
+        /// The header's light, headline and facts, set together from one reading (v0.6.10). Until v0.6.10 the dot came
+        /// from Activity and the headline from the status alone, set in two places, so the two could disagree. The light
+        /// is the one rule every header keeps (ActivityWord, HeaderLight: grey for a watcher not known to be running,
+        /// amber for one that runs and is not well); the headline and the facts under it are the window's own words, as
+        /// they always were - "Watching for interruptions", "Automatic recovery is on · 2 recoveries pending" - except
+        /// that the facts never say recovery is on for a watcher that is not well: they name why (Headline, HeroFacts).
+        ///
+        /// Called every second by UpdateCountdowns, so it writes only what changed: a note written under the
+        /// headline since the last read ("Saved.", "It started and stopped again") stays until the next read
+        /// rewrites it, as it always did, and a hold (heroHeld: status unavailable, starting the watcher, settings
+        /// that could not be read) keeps the whole header until then.
+        private void Hero(Dictionary<string, object> status, List<object> pending, double now)
+        {
+            if (heroHeld) return;
+            string word = ActivityWord(status, pending, now);
+            stateDot.State = HeaderLight(status, pending, word);
+            string head = Headline(strings, status, pending);
+            string facts = string.Join("   ·   ", HeroFacts(strings, status, pending).ToArray());
+            if (head == heroHead && facts == heroDetail) return;
+            if (head != heroHead) headline.Text = heroHead = head;
+            if (facts != heroDetail) detail.Text = heroDetail = facts;
             header.Invalidate(true);
         }
 
@@ -1049,6 +1069,7 @@ namespace CodexAutoResume
             // So the call goes to a worker and the answer comes back through BeginInvoke,
             // which is the only way to touch these controls from off the UI thread.
             startButton.Enabled = false;
+            heroHeld = true;                // until the answer is read (ApplyStatus)
             headline.Text = S("start.working", "Starting the watcher...");
             detail.Text = S("start.waiting", "Waiting for it to report in");
             header.Invalidate(true);

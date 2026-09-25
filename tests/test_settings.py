@@ -197,6 +197,27 @@ class PersistenceTests(unittest.TestCase):
                              encoding="utf-8")
         self.assertEqual(settings.load(self.path)["max_no_progress"], 5)
 
+    def test_a_file_with_the_reserved_category_s_switch_still_loads(self):
+        """v0.6.3 to v0.6.9 stored a switch and a Custom message for `auth_service_transient`, which
+        nothing ever produced; v0.6.10 has neither field (failures.RESERVED). Such a file loads as it
+        always did - every other value kept, the two keys dropped - and the next save leaves them out.
+        A write that names either is refused, as a write naming any field this build lacks is."""
+        old = dict(settings.defaults(), config_version=2, max_no_progress=5, recover_timeout=False,
+                   recover_auth_service_transient=False,
+                   custom_message_auth_service_transient="Please carry on.")
+        self.path.write_text(json.dumps(old), encoding="utf-8")
+        self.assertEqual(settings.load(self.path),
+                         dict(settings.defaults(), max_no_progress=5, recover_timeout=False))
+        settings.update(self.path, {"notifications": False})
+        stored = json.loads(self.path.read_text(encoding="utf-8"))
+        self.assertNotIn("recover_auth_service_transient", stored)
+        self.assertNotIn("custom_message_auth_service_transient", stored)
+        self.assertEqual((stored["max_no_progress"], stored["recover_timeout"], stored["notifications"]),
+                         (5, False, False))
+        for name in ("recover_auth_service_transient", "custom_message_auth_service_transient"):
+            with self.subTest(name), self.assertRaises(settings.SettingsError):
+                settings.update(self.path, {name: None if name.startswith("custom") else True})
+
 
 class DescribeTests(unittest.TestCase):
     def setUp(self):
@@ -292,7 +313,8 @@ class ThemeTests(unittest.TestCase):
         self.assertEqual(entry, {"name": "theme", "default": "system", "type": "string",
                                  "choices": ["system", "light", "dark"], "group": "appearance"})
         appearance = [entry["name"] for entry in described if entry["group"] == "appearance"]
-        self.assertEqual(appearance, ["theme", "panel_theme", "reduce_motion"])
+        # v0.6.10: the design between the themes and Reduce motion.
+        self.assertEqual(appearance, ["theme", "panel_theme", "design", "reduce_motion"])
 
     def test_it_round_trips_through_the_file_and_survives_an_unrelated_update(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -346,6 +368,66 @@ class PanelThemeTests(unittest.TestCase):
             settings.save(path, {"theme": "light", "panel_theme": "dark"})
             loaded = settings.load(path)
             self.assertEqual((loaded["theme"], loaded["panel_theme"]), ("light", "dark"))
+
+
+class DesignTests(unittest.TestCase):
+    """How every surface is drawn (v0.6.10): Soft, Soft without motion, Classic or Plain.
+
+    Soft is what every surface drew before the setting existed, so it is the default and a settings
+    file without the key reads as Soft: an upgrade changes nothing anybody can see, and the setting
+    is additive - CONFIG_VERSION stays where panel_theme left it.
+    """
+
+    def test_the_choices_the_default_and_the_vocabulary(self):
+        from codex_auto_resume import brand
+        from codex_auto_resume.domain.vocabulary import Design
+        self.assertEqual(settings.DESIGNS, ("soft", "still", "classic", "plain"))
+        self.assertEqual(settings.DESIGNS, tuple(Design))
+        self.assertEqual(settings.DESIGNS, brand.DESIGNS)
+        self.assertEqual(settings.DEFAULT_DESIGN, brand.DEFAULT_DESIGN)
+        self.assertEqual(settings.defaults()["design"], "soft")
+        self.assertEqual(settings.CONFIG_VERSION, 2)
+
+    def test_every_choice_is_accepted_and_anything_else_is_refused_or_soft(self):
+        for choice in settings.DESIGNS:
+            with self.subTest(choice):
+                self.assertEqual(settings.validate_update({"design": choice}), {"design": choice})
+                self.assertEqual(settings.coerce({"design": choice})["design"], choice)
+        for bad in ("Soft", "SOFT", " soft", "", "look", "system", 1, 0, None, True, False, ["soft"], {"soft": 1}):
+            with self.subTest(bad=bad):
+                with self.assertRaises(settings.SettingsError) as caught:
+                    settings.validate_update({"design": bad})
+                self.assertIn("design", str(caught.exception))
+                self.assertEqual(settings.coerce({"design": bad})["design"], "soft")
+                self.assertEqual(settings.design_preference({"design": bad}), "soft")
+        for values in (None, {}, "plain", ["plain"]):
+            with self.subTest(values=values):
+                self.assertEqual(settings.design_preference(values), "soft")
+        self.assertEqual(settings.design_preference({"design": "classic"}), "classic")
+
+    def test_it_is_described_in_appearance_after_the_themes(self):
+        entry = next(entry for entry in settings.describe() if entry["name"] == "design")
+        self.assertEqual(entry, {"name": "design", "default": "soft", "type": "string",
+                                 "choices": ["soft", "still", "classic", "plain"], "group": "appearance"})
+
+    def test_a_file_without_it_reads_as_soft_and_it_round_trips(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "settings.json"
+            # What v0.6.9 wrote: no design at all.
+            path.write_text(json.dumps({"config_version": 2, "theme": "dark", "reduce_motion": True}),
+                            encoding="utf-8")
+            loaded = settings.load(path)
+            self.assertEqual((loaded["design"], loaded["theme"], loaded["reduce_motion"]), ("soft", "dark", True))
+            settings.update(path, {"design": "classic"})
+            stored = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual((stored["design"], stored["config_version"]), ("classic", 2))
+            settings.update(path, {"theme": "light"})
+            self.assertEqual(settings.load(path)["design"], "classic")
+            # A hand-edited nonsense value is Soft, without losing its neighbours.
+            path.write_text(json.dumps({"config_version": 2, "design": "neon", "max_no_progress": 5}),
+                            encoding="utf-8")
+            loaded = settings.load(path)
+            self.assertEqual((loaded["design"], loaded["max_no_progress"]), ("soft", 5))
 
 
 class NotificationCardTests(unittest.TestCase):

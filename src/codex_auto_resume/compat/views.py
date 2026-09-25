@@ -9,7 +9,7 @@ import time
 from .. import config
 from .. import compat
 from .. import codex as codex_source
-from . import files, probes
+from . import files, probes, reported
 from .files import (_read_capped, _signature, path_digest, product_version)
 from .cache import (_sources_of, read_cache)
 from .probes import (_candidate_paths, discover, engine_from_backend, engine_from_discovery)
@@ -60,7 +60,26 @@ def live_report(paths, codex_home, *, backend=None, discovery=None, explicit=Non
 def live_view(*args, **kwargs) -> dict:
     view = compat.view_of(live_report(*args, **kwargs))
     view["live"] = True
+    view["reported"] = reported_for(view)
     return view
+
+
+def reported_for(view) -> dict:
+    """What other people's filed reports add up to for the Codex version a view names, for a
+    person to read beside that version (docs/ROADMAP.md, "Compatibility reports from others").
+
+    Always every key, so each reply carries the same shape. The counts are for the exact version
+    of a usable view that found an engine, and nothing else: a view that cannot be used vouches
+    for no version, so it is `unavailable`, as it is with no engine found. Attached here, to what
+    a reader is shown, and never to the watcher's report, which decides nothing about it either:
+    the watcher never computes Reported. Nor is it in `compat.mcp_view`, the summary a model
+    reads, which stays codes only."""
+    engine = view.get("engine") if isinstance(view.get("engine"), dict) else {}
+    if view.get("status") != "ok" or not engine.get("found"):
+        answer = reported.lookup(None)
+    else:
+        answer = reported.lookup(engine.get("version"))
+    return dict(answer, state=str(answer["state"]))
 
 
 def read_report(paths, *, now=None):
@@ -107,6 +126,7 @@ def read_view(paths, *, now=None, explicit=None) -> dict:
     else:
         view = compat.view_of(report)
     view["live"] = False
+    view["reported"] = reported_for(view)
     return view
 
 

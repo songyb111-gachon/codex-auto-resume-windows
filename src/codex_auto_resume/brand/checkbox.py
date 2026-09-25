@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import math
 
+from .design import design_depth
 from .scale import LAYOUT
 from .tokens import palette
 
@@ -57,12 +58,14 @@ def check_box_state(checked, enabled=True) -> str:
     return ("on" if checked else "off") + ("" if enabled else "_disabled")
 
 
-def check_box(checked, enabled=True, theme="light") -> dict:
-    """A check box's colours in a theme: `fill`, `edge` and `mark` as `#RRGGBB` (`mark` None when
-    there is none) and `well`, whether the inset elevation is drawn inside the border."""
-    entry, tokens = CHECKBOX[check_box_state(checked, enabled)], palette(theme)
+def check_box(checked, enabled=True, theme="light", design="soft") -> dict:
+    """A check box's colours in a theme and a design: `fill`, `edge` and `mark` as `#RRGGBB` (`mark`
+    None when there is none) and `well`, whether the inset elevation is drawn inside the border -
+    never in a design without depth, where an empty box is its fill and its edge."""
+    entry, tokens = CHECKBOX[check_box_state(checked, enabled)], palette(theme, design)
     return {"fill": tokens[entry["fill"]], "edge": tokens[entry["edge"]],
-            "mark": tokens[entry["mark"]] if entry["mark"] else None, "well": entry["well"]}
+            "mark": tokens[entry["mark"]] if entry["mark"] else None,
+            "well": entry["well"] and design_depth(design)}
 
 
 def check_box_system(checked, enabled=True) -> dict:

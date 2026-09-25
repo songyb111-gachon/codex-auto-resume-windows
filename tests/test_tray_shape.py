@@ -46,9 +46,11 @@ MIXINS = (menu.MenuMixin, stored.StoredMixin, cards.CardsMixin, clicks.ClicksMix
           animation.AnimationMixin)
 
 # What `Tray` has, as the one class had it. Thirty-nine methods, counted the day the file was
-# split; one added or taken away is a decision, and this is where it is made.
+# split; one added or taken away is a decision, and this is where it is made. v0.6.10 renamed one:
+# `_adopt_reduce_motion` became `_adopt_motion_settings`, because it takes up the Design with Reduce
+# motion now - Still holds the icon as Reduce motion does (D8).
 METHODS = {
-    "__init__", "_act", "_adopt_reduce_motion", "_adopt_settings", "_animate",
+    "__init__", "_act", "_adopt_motion_settings", "_adopt_settings", "_animate",
     "_build_frames_later", "_card_look", "_create", "_data", "_double_click", "_drop_cards",
     "_failure_seen", "_failure_unseen", "_frame_for", "_frames_built", "_hide_popup",
     "_host_cards", "_load_icon", "_menu", "_notify", "_notify_icon", "_observe", "_overflowed",
@@ -137,7 +139,7 @@ class CompositionTests(unittest.TestCase):
         for mixin, expected in ((menu.MenuMixin, {"_menu", "_act", "_theme_menu"}),
                                 (cards.CardsMixin, {"_host_cards", "_card_look", "_drop_cards"}),
                                 (stored.StoredMixin, {"_stored_settings", "_adopt_settings",
-                                                      "_adopt_reduce_motion"})):
+                                                      "_adopt_motion_settings"})):
             with self.subTest(mixin.__name__):
                 have = {name for name, value in vars(mixin).items() if inspect.isfunction(value)}
                 self.assertEqual(have, expected)

@@ -38,7 +38,11 @@ def words(text):
 
 
 def count_labels(plan):
-    return [item for item in plan["items"] if item["kind"] == "text" and item["role"] == "label"]
+    """The counts' labels: the `label` text inside the counts' well - nothing else on the card is set in `label`
+    (for a while in v0.6.10 the header's eyebrow was, above the well)."""
+    well = next(item["rect"] for item in plan["items"] if item["kind"] == "well")
+    return [item for item in plan["items"] if item["kind"] == "text" and item["role"] == "label"
+            and well[1] <= item["rect"][1] and item["rect"][3] <= well[3]]
 
 
 def scaled(scale):
@@ -125,6 +129,11 @@ class LayoutTests(unittest.TestCase):
         wells = [item for item in plan["items"] if item["kind"] == "well"]
         self.assertEqual(len(wells), 1)
         well = wells[0]["rect"]
+        # The counts' labels and values. The header above the well is the product's title and the state's line,
+        # neither of them a `label` (v0.6.10's eyebrow was one, and went back).
+        title = next(item for item in plan["items"] if item["kind"] == "text")
+        self.assertEqual((title["text"], title["role"]), (vm["title"], "title"))
+        self.assertLessEqual(title["rect"][3], well[1])
         counted = [item for item in plan["items"] if item["kind"] == "text" and item["role"] in ("label", "value")]
         self.assertEqual(len(counted), 6)
         pad = brand.SPACING["m"]

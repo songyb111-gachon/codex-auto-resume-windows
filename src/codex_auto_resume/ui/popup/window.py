@@ -1,7 +1,8 @@
-"""The window itself: its class, its messages, and the life of one popup.
+"""The window itself: its class and the life of one popup.
 
-Everything Windows says arrives here and leaves as a decision made in the modules beside this
-one. This is the only part of the popup that could be called stateful.
+Everything Windows says arrives here - through its messages, which messages.py handles for it -
+and leaves as a decision made in the modules beside this one. This is the only part of the popup
+that could be called stateful.
 """
 from __future__ import annotations
 
@@ -14,12 +15,13 @@ import time
 from ... import brand
 from ...win.dll import WNDCLASSW, WNDPROC
 from .layout import WIDTH
+from .messages import PopupMessages, REFRESH_TICKS  # noqa: F401
 from .model import PopupModel, perform, select_action
-from .motion import animates, glide_amount, halo, next_glides
-from .placement import focus_order, hit_test, next_focus, place
+from .motion import MotionGates, animates, glide_amount, halo, next_glides
+from .placement import focus_order, place
 from .renderer import Renderer
 from . import theme as look                # the three questions below are asked through it
-from .theme import adopt_settings, appearance, effective_theme, theme_setting
+from .theme import adopt_settings, appearance, design_setting, effective_theme, theme_setting
 from .win32 import (CS_DROPSHADOW,
                     DWMWA_USE_IMMERSIVE_DARK_MODE,
                     DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1,
@@ -27,10 +29,8 @@ from .win32 import (CS_DROPSHADOW,
                     DWMWCP_ROUND,
                     HWND_TOPMOST,
                     IDC_ARROW,
-                    KEY_WAS_DOWN,
                     MONITORINFO,
                     MONITOR_DEFAULTTONEAREST,
-                    PAINTSTRUCT,
                     SWP_NOACTIVATE,
                     SW_HIDE,
                     SW_SHOW,
@@ -38,31 +38,8 @@ from .win32 import (CS_DROPSHADOW,
                     TIMER_FIRST,
                     TIMER_FRAME,
                     TIMER_TICK,
-                    TME_LEAVE,
-                    TRACKMOUSEEVENT,
-                    VK_DOWN,
-                    VK_ESCAPE,
-                    VK_RETURN,
-                    VK_SHIFT,
-                    VK_SPACE,
-                    VK_TAB,
-                    VK_UP,
-                    WA_INACTIVE,
-                    WM_ACTIVATE,
-                    WM_CLOSE,
-                    WM_DPICHANGED,
-                    WM_ERASEBKGND,
-                    WM_KEYDOWN,
-                    WM_LBUTTONDOWN,
-                    WM_LBUTTONUP,
-                    WM_MOUSELEAVE,
-                    WM_MOUSEMOVE,
-                    WM_PAINT,
                     WM_POPUP_RESULT,
                     WM_POPUP_STRINGS,
-                    WM_SETTINGCHANGE,
-                    WM_SYSCOLORCHANGE,
-                    WM_TIMER,
                     WS_EX_TOOLWINDOW,
                     WS_EX_TOPMOST,
                     WS_POPUP,
@@ -73,9 +50,6 @@ from .win32 import (CS_DROPSHADOW,
 from .words import locale_of, say, vocabulary
 
 
-REFRESH_TICKS = 3            # re-read the list every third one-second tick while visible
-
-
 FRAME_MS = 33                # about thirty frames a second, and only while something moves
 
 
@@ -83,7 +57,7 @@ FIRST_READ_WAIT_MS = 300     # the first opening waits this long for real number
 
 
 # ------------------------------------------------------------------------------ the window
-class Popup:
+class Popup(MotionGates, PopupMessages):
     """The window itself. Created, shown, hidden and destroyed on the icon's thread only;
     `set_strings` is the one method another thread may call."""
 
@@ -122,7 +96,7 @@ class Popup:
         self._frame_running = False
         self._state = None
         self._state_since = time.monotonic()
-        self._reduced = False
+        self._reduced = False            # a stopper: Reduce motion, Windows' animation setting, High Contrast
         self._contrast = False
         self._apps_light = None          # Windows' app mode when last asked: True, False or None
         self._theme = "light"            # the theme in effect: the setting, resolved against that mode
@@ -248,10 +222,9 @@ class Popup:
 
     # ------------------------------------------------------------------- appearance
     def _read_look(self):
-        """Ask Windows again how to draw: High Contrast, its app mode and its motion setting.
-
-        On every opening and whenever Windows says a setting changed, never per frame. High
-        Contrast moves nothing either, and outranks the theme when drawing.
+        """Ask Windows again how to draw: High Contrast, its app mode and its motion setting - on every
+        opening and whenever Windows says a setting changed, never per frame. High Contrast moves nothing
+        either, and outranks the theme and the design (the product's own, adopted with the theme).
 
         These three are the only questions this window asks Windows about how to look, and they
         go through `look` rather than by name: a test that draws without a screen replaces them,
@@ -261,12 +234,13 @@ class Popup:
         self._apps_light = look.apps_use_light_theme()
         self._reduced = look.reduced_motion() or self._contrast
         self._theme = effective_theme(theme_setting(), self._apps_light)
+        self._design = design_setting()
 
     def _follow_theme(self):
-        """The theme for the setting as it is now and the app mode last read; a change redraws everything."""
-        theme = effective_theme(theme_setting(), self._apps_light)
-        if theme != self._theme:
-            self._theme = theme
+        """The theme (the setting, the app mode last read) and the stored design; a change redraws it all."""
+        theme, design = effective_theme(theme_setting(), self._apps_light), design_setting()
+        if (theme, design) != (self._theme, self._design):
+            self._theme, self._design = theme, design
             self._static_dirty = True
 
     def _frame_theme(self):
@@ -286,7 +260,7 @@ class Popup:
             pass                                   # a frame that stays light is not worth a failure
 
     def follow_settings(self, values):
-        """Take up what a read of the stored settings says: the language, the theme, Reduce motion.
+        """Take up what a read of the stored settings says: the language, the theme, the design, Reduce motion.
 
         The icon hands over the same things before each opening; this is for a change made while
         the popup is open, which then shows within one read.
@@ -388,8 +362,10 @@ class Popup:
             self.locale = locale_of(strings)
         self._follow_theme()
         vm = self.model.view(now)
-        if vm["state"] != self._state:
-            self._state = vm["state"]
+        # The light's cycle starts with the light, not the word: "attention" is a grey dot that does not
+        # move for a watcher not known to be running and an amber one that breathes for one that is.
+        if vm["light"] != self._state:
+            self._state = vm["light"]
             self._state_since = time.monotonic()
         plan = self._renderer.layout(vm, self.dpi / 96.0, self.locale)
         self._vm, self._plan = vm, plan
@@ -402,7 +378,7 @@ class Popup:
         seen = {item["target"]: bool(item["checked"]) for item in plan["items"] if item["kind"] == "switch"}
         previous = self._switches if self.visible else None
         self._glides = next_glides(seen, previous, self._glides, time.monotonic() * 1000.0,
-                                   animate=self.visible and not self._reduced)
+                                   animate=self.visible and not self._controls_still)
         self._switches = seen if self.visible else None
 
     def _glide_amounts(self):
@@ -439,7 +415,8 @@ class Popup:
         user32 = _dll("user32")
         wanted = (self.visible and self._vm is not None
                   and (bool(self._glides)
-                       or animates(self._vm["state"], self._since_state_ms(), reduced=self._reduced)))
+                       or animates(self._vm["light"], self._since_state_ms(), reduced=self._light_still,
+                                   design=self._design)))
         if wanted and not self._frame_running:
             user32.SetTimer(self.hwnd, TIMER_FRAME, FRAME_MS, None)
             self._frame_running = True
@@ -452,16 +429,16 @@ class Popup:
         if self._vm is None:
             return None
         since = self._since_state_ms()
-        return halo(self._vm["state"], since, since, reduced=self._reduced)
+        return halo(self._vm["light"], since, since, reduced=self._light_still, design=self._design)
 
     def render(self):
         """Draw the current view into the canvas and return it (the tests read it back)."""
         if self._plan is None:
             self._rebuild(time.time())
-        look = (self._theme, self._contrast)
-        if (self._renderer.theme, self._renderer.contrast) != look:
+        look = (self._theme, self._design, self._contrast)
+        if (self._renderer.theme, self._renderer.design, self._renderer.contrast) != look:
             # The halo band saved with the last whole frame is in the old colours.
-            self._renderer.theme, self._renderer.contrast = look
+            self._renderer.theme, self._renderer.design, self._renderer.contrast = look
             self._static_dirty = True
         if self._glides:
             # A switch on the move is drawn over the ground every frame, and the frame after its
@@ -543,155 +520,3 @@ class Popup:
             return
         self._run(action)
         self._update()
-
-    # --------------------------------------------------------------------- messages
-    def _wndproc(self, hwnd, message, wparam, lparam):
-        try:
-            handled = self._handle(hwnd, message, wparam, lparam)
-            if handled is not None:
-                return handled
-        except Exception as exc:              # the popup must never take the watcher down
-            self.log("tray popup message failed (%s)" % type(exc).__name__)
-        return _dll("user32").DefWindowProcW(hwnd, message, wparam, lparam)
-
-    def _handle(self, hwnd, message, wparam, lparam):
-        user32 = _dll("user32")
-        if message == WM_PAINT:
-            self._paint(hwnd)
-            return 0
-        if message == WM_ERASEBKGND:
-            return 1
-        if message == WM_TIMER:
-            if wparam == TIMER_FRAME:
-                # A glide redraws the frame whole (render() sees it); the halo alone is a band.
-                self._sync_frames()
-                user32.InvalidateRect(hwnd, None, False)
-            elif wparam == TIMER_TICK:
-                self._ticks += 1
-                if self._ticks % REFRESH_TICKS == 0:
-                    self._request_read()
-                self._update()
-            elif wparam == TIMER_FIRST and self._pending_show is not None:
-                self._present(*self._pending_show)
-            return 0
-        if message == WM_POPUP_RESULT:
-            self._finished(wparam)
-            return 0
-        if message == WM_POPUP_STRINGS:
-            if self.visible:
-                self._update()
-            return 0
-        if message == WM_ACTIVATE:
-            if (wparam & 0xFFFF) == WA_INACTIVE:
-                if self.visible:
-                    self.hide()                  # a click anywhere else closes it
-                return 0
-            return None                          # activated: let Windows give it the keyboard
-        if message == WM_CLOSE:
-            self.hide()
-            return 0
-        if message == WM_KEYDOWN:
-            return self._key(wparam, lparam)
-        if message == WM_MOUSEMOVE:
-            self._mouse_move(hwnd, lparam)
-            return 0
-        if message == WM_MOUSELEAVE:
-            self._tracking = False
-            if self.hover is not None:
-                self.hover = None
-                self._invalidate()
-            return 0
-        if message == WM_LBUTTONDOWN:
-            self.keyboard = False
-            self.pressed = self._hit(lparam)
-            self._invalidate()
-            return 0
-        if message == WM_LBUTTONUP:
-            target, pressed = self._hit(lparam), self.pressed
-            self.pressed = None
-            if target is not None and target == pressed:
-                self._activate(target)
-            self._invalidate()
-            return 0
-        if message == WM_DPICHANGED:
-            dpi = wparam & 0xFFFF
-            if dpi and dpi != self.dpi:
-                self.dpi = dpi
-                if self.visible:
-                    # The scale changed under an open window: measure the screen again and
-                    # put it back beside the icon at its new size, not where Windows guessed.
-                    self._screen = self._screen_now()
-                    self._screen["dpi"] = dpi
-                    self._move(self._rebuild(time.time()), self._origin)
-                    self._invalidate()
-            return 0
-        if message in (WM_SETTINGCHANGE, WM_SYSCOLORCHANGE):
-            # High Contrast, Windows' app mode ("ImmersiveColorSet") or its motion setting may have
-            # changed. The registry is read again whatever the setting's name, which is cheap and
-            # rare; an open window is repainted at once when what it draws with changed.
-            before = (self._contrast, self._theme)
-            self._read_look()
-            if (self._contrast, self._theme) != before or message == WM_SYSCOLORCHANGE:
-                self._invalidate()
-            if self.visible:
-                self._frame_theme()
-            self._sync_frames()
-            return None
-        return None
-
-    def _paint(self, hwnd):
-        user32 = _dll("user32")
-        paint = PAINTSTRUCT()
-        dc = user32.BeginPaint(hwnd, C.byref(paint))
-        try:
-            if dc and self._renderer is not None and (self._plan is not None or self.visible):
-                canvas = self.render()
-                _dll("gdi32").SetDIBitsToDevice(dc, 0, 0, canvas.width, canvas.height, 0, 0, 0,
-                                                canvas.height, canvas.bits, C.byref(canvas.info), 0)
-                self._painted_plan = self._plan
-        finally:
-            user32.EndPaint(hwnd, C.byref(paint))
-
-    def _hit(self, lparam):
-        # Against the layout on screen. A read or a tick replaces `_plan` before Windows
-        # gets round to painting it, and a click queued in between was aimed at the rows
-        # the person could see, not at where they are about to move.
-        plan = self._painted_plan
-        if plan is None:
-            return None
-        x = C.c_short(lparam & 0xFFFF).value
-        y = C.c_short((lparam >> 16) & 0xFFFF).value
-        return hit_test(plan["targets"], x, y)
-
-    def _mouse_move(self, hwnd, lparam):
-        user32 = _dll("user32")
-        target = self._hit(lparam)
-        if target != self.hover:
-            self.hover = target
-            self._invalidate()
-        if not self._tracking:
-            track = TRACKMOUSEEVENT()
-            track.cbSize = C.sizeof(TRACKMOUSEEVENT)
-            track.dwFlags = TME_LEAVE
-            track.hwndTrack = hwnd
-            self._tracking = bool(user32.TrackMouseEvent(C.byref(track)))
-
-    def _key(self, key, lparam=0):
-        user32 = _dll("user32")
-        if key in (VK_SPACE, VK_RETURN) and lparam & KEY_WAS_DOWN:
-            # Auto-repeat. A held key is one press: repeating it would flip a switch back
-            # and forth as each answer came in, and where it stopped would be chance.
-            return 0
-        if key == VK_ESCAPE:
-            self.hide()
-            return 0
-        if key in (VK_TAB, VK_UP, VK_DOWN) and self._plan is not None:
-            backwards = key == VK_UP or (key == VK_TAB and user32.GetKeyState(VK_SHIFT) < 0)
-            self.keyboard = True
-            self.focus = next_focus(focus_order(self._plan["targets"]), self.focus, backwards)
-            self._invalidate()
-            return 0
-        if key in (VK_SPACE, VK_RETURN) and self.focus is not None:
-            self._activate(self.focus)
-            return 0
-        return None

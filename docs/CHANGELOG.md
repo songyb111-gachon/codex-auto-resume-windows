@@ -1,5 +1,193 @@
 # Changelog
 
+## v0.6.10 — The design settled, and what others report
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.10-alpha...v0.6.10)
+
+### The repository's front page, in one language
+
+- `main` - the front page, the plugin's install route, where releases are tagged - is English only.
+  `dev` keeps every document in English and Korean, written and reviewed together, and a
+  promotion (`scripts/promote.py`) brings dev to main without the Korean files; the generated `ko`
+  branch is built from main's code and the Korean sources of the dev commit it came from.
+- The front page lists sixteen entries: `CHANGELOG`, `PRIVACY` and `CONTRIBUTORS` are in `docs/`,
+  the installer's source in `build/install/`, and the MCP declaration's in `build/plugin-mcp.json`.
+  In the release archive the installer and the MCP declaration stand where they stood, so no
+  published bootstrap sees a difference. The archive carries `CHANGELOG`, `PRIVACY` and
+  `CONTRIBUTORS` in `docs/`, where its README links them, and, built on English-only `main`, no
+  longer the Korean `README`, `SECURITY` and `CONTRIBUTORS`.
+- A section-by-section review of all sixteen document pairs found 62 places where the English and
+  the Korean said different things; each is fixed in the language that was wrong, and the Korean
+  guide now has every section the English one has.
+
+### The design settled
+
+The look was audited as one product, with the Codex panel as the reference, from light and dark
+contact sheets of all four surfaces side by side. What people know stays. Each header keeps its
+composition, its words and its places: the popup is titled *Codex Auto Resume* over its state, written
+in the state's colour; the Dashboard's light spans its headline and the line under it; and every light
+stands where it stood beside its words. The popup's and the card's buttons and chips stay bold, and the
+Pending page's check results still read *OK*, *Waiting*, *Blocked* and *Unknown*. What changed:
+
+- **One rule for a header's light.** The Dashboard, the popup and the panel light the same moment the
+  same way, and the popup and the panel say the same word beside it, by one rule written down as 40
+  test vectors that each surface's own code is run against. A watcher that is not running, or not
+  known to be, is a grey light that does not move - the popup used to breathe amber for a stopped
+  watcher - and a record held for a watcher that has stopped counts as one; a watcher that runs but is
+  not well is amber and breathing. The notification-area icon and the taskbar button keep their own
+  rule, in which a failure nobody has seen yet is red.
+- **Never "recovery is on" for a watcher that is not well.** Where the watcher runs but has stopped
+  responding, an older watcher still owns the state, or the Codex version is not supported or failed
+  its checks here, the Dashboard's line under its headline and the panel's facts name that cause -
+  *Watcher not responding* is new - where they said *Automatic recovery is on*. The Dashboard keeps its
+  own words around it: *Watching for interruptions* over *… · 2 recoveries pending*.
+- **A state nobody confirmed is not called fine.** The popup read a status it could not read, or one
+  that did not say the watcher runs, as *Monitoring* or *Waiting*; it says *Needs your attention*
+  now, beside the grey light. The panel asks for attention, ranked above a pause, for a watcher that
+  runs but is not well, where it said *Monitoring*, *Waiting*, *Recovering* or *Paused*, and both it
+  and the popup do for an older watcher still owning the state. Where the status did not say whether
+  recovery is on, the popup took it as on; it says *Paused* now, and its button offers to resume. And
+  it says *Recovering* when the status counts records in Codex, not only when its list shows one.
+- **Every light that says the product is running moves.** The panel's Automatic recovery tile carries
+  the state's light at a smaller size, where a dot that never moved used to be, and it breathes with the
+  one above it, on one cycle that a redraw no longer sends back to the top. The panel's light dims
+  toward the ground it stands on, so its glow is no longer a fifth weaker than the Dashboard's halfway
+  down a breath. While the panel is open, a clock of its own turns it to *Checking*, with its turning
+  arc, when a waiting task's time comes, and that task's row to *due now*; since the panel reads its
+  records once and never sees the watcher's next pass, it says so for one pass and then *Waiting*
+  again.
+- **One button size, one chip size, one callout.** Buttons are 34 px high on every surface, where the
+  popup's and the card's were 32 px, and chips have one height and one padding; the popup's and the
+  card's keep their bold words. The Diagnostics page's compatibility notices are the panel's callouts,
+  where they were a block of accent-coloured text.
+- **One name for the window.** The window is the Dashboard wherever it is named - the icon's menu
+  says *Open Dashboard*, as the popup and the card do - the popup's switch is *Auto-resume*, as the
+  Pending page's column is, and its rows count down to the *Next check*, in all nine languages. The
+  Settings help that the panel shows as well says *the Dashboard* where it said *this window* and
+  *here*, which in the panel meant the panel, and Reduce motion's help names everything it stops, the
+  panel in Codex included.
+- **The card's light costs less.** It is drawn as the popup draws its own, only the band of rows it
+  stands in, at about twice the frames for between a quarter and a third of the processor time.
+  Hovering over it no longer sends its breath back to the top, and it rises in, comes back from a fade
+  and slides on the popup's own easing curve.
+
+### Four designs
+
+- **Design**, under Settings > Appearance in the Dashboard, draws the Dashboard, the popup, the
+  notification card and the panel in Codex one of four ways, each in light or dark as the Theme says:
+  *Soft*, the default and everything above; *Soft, without motion*, the same look held still - what
+  Reduce motion draws, chosen as a look; *Classic (v0.6.2)*, v0.6.2's flat cards with a hairline and a
+  3 px accent bar down their left edge, its colours read from that release's tag, the current tab
+  underlined, and the light breathing with its glow; and *Plain*, flat and neutral grey with the
+  product's accent, whose light dims with no glow. Classic and Plain move as Soft does - switches
+  glide and the notification card rises in; only *Soft, without motion* takes motion away. [BRAND.md](BRAND.md#four-designs) sets them out and
+  the [guide](GUIDE.md) shows the popup in each.
+- **A design changes paint, never layout.** Sizes, paddings, the light and the room kept for shadows
+  are the same in all four, and corners are only ever smaller than Soft's; the Dashboard's layout
+  audit finds every control where Soft's is in every design. The Pending and History lists stay flat
+  rows in each.
+- **No design can loosen a stopper.** High Contrast replaces every design, and Reduce motion, Windows'
+  animation setting and every other reason something holds still hold it in every design: a design
+  can take motion away, never add it. The notification-area icon holds still within a second of
+  *Soft, without motion* being saved, as it does for Reduce motion, and the panel now follows the
+  product's own Reduce motion as well as Codex's reduced-motion preference.
+- **Set in the Dashboard only.** Like Reduce motion, the Design decides what moves, so Codex cannot
+  change it: `update_settings` neither offers nor accepts it, and the panel draws in it and never sends
+  it. `restore_default_settings` puts it back to Soft. An upgrade changes nothing anyone can see: a
+  settings file without it reads as Soft. It is in all nine languages; in German it is *Stil*, since
+  *Design* is German's word for the Theme.
+- **On the wire.** Every reply that carries the settings carries `design`, and the wire goldens were
+  regenerated on purpose for it. The tool list did not change.
+- **Kept in step from one table.** What a design draws in the Dashboard - its colours and check box
+  in each theme, its depth, glow, motion and corners - is generated from the same design table and
+  colours the panel and the popup read (`Brand.LookOf` in `gui/Brand.cs`), where the Dashboard's own
+  code chose them in ten branches by the design's name; a test now fails if any of its own code names
+  a design. It draws exactly what it drew.
+
+### The pictures
+
+- **One set of records, one moment.** The panel, the popup, the card and the Dashboard are pictured
+  from one set of records at one set of offsets, so a countdown, a chip and a count say the same on
+  all four; until now the panel's rows both said *due now* and the popup had a row the others did not.
+- **The same window, the same picture.** The Dashboard is photographed with Windows' keyboard cues
+  hidden, as it looks to a person using the mouse. A new window takes the focus ring's state from how
+  the last input reached the machine, so the Settings picture had a ring round the Overview tab in some
+  releases and none in others, with nothing in the source changed.
+- **Every light that moves, moving.** A picture's status lights move as the product moves them: the
+  popup and the card frame by frame by their own renderers, and the panel's two lights and the
+  Dashboard's drawn over the capture, each on the ground it stands on, for exactly one cycle - a
+  4.4-second breath takes 4.4 seconds, where it took 4.356. Until now one light a picture moved, and
+  in the panel's pictures not the one that moves in the product.
+- **Each design, pictured.** The Dashboard's Overview, the panel, the popup and the card in Soft,
+  without motion, Classic and Plain, in English and the light theme, beside Soft's own pictures.
+- **Before and after, light and dark.** `build/make_screenshots.py --audit` draws, for developers,
+  light and dark contact sheets of the four surfaces, and a before-and-after sheet of each, without
+  touching anything published.
+
+### What others report
+
+- **Reported, beside the version.** The Dashboard's Diagnostics page says, in one muted line
+  directly under *Codex version*, what other people report about that exact version: *Reported by
+  others: worked 3 · failed 1 · neither 1*, with *counted in both* when a report saw both and *none
+  yet* when nobody has filed one. It is a grade of its own beside Verified, Checked, Compatible and
+  Failed here, and never one of them: no chip, never the success or danger colour, and a version
+  whose own evidence says nothing stays Compatible however many reports say it works. `doctor` and
+  `compat` print the same counts. The Codex panel points to the row, because the summary a model
+  reads stays codes only, and the popup, the notification card and the icon never show it.
+- **Counts of reports, not machines.** One report per GitHub login per Codex version. A report
+  counts as worked when a record it delivered ended recovered, as failed when one ended in a failed
+  recovery, as neither when none ended either way - a report that delivered nothing included - and
+  in both columns when its records say both, so worked + failed - both + neither = reports. Only
+  filed reports count.
+- **Shipped with the release, never fetched, and deciding nothing.** The counts are
+  `src/codex_auto_resume/data/reported.json`, a file of their own beside the compatibility data and
+  never inside it, read by a hardened reader of their own. No request fetches it: the refresh a
+  person asks for still fetches the compatibility data alone, so a report filed later waits for the
+  next release. Only the view a person reads imports it, and a test grid holds that no counts - a
+  thousand reports that worked, a thousand that failed, a broken file - move any state, permit or
+  anything the watcher writes. No compatibility claim may cite someone else's report.
+- **A report arrives as a pull request, and is read as data.** `build/community_report.py` is the
+  one reader of a report: capped, exact about its keys, its times and its fingerprint - the setup
+  that measured it - and recomputing the levels and verdict it claims, which can only go down.
+  `.github/workflows/community-report.yml` judges a report's pull request with `main`'s own check,
+  under a read-only token, reading the head with git plumbing only: one new file at
+  `docs/evidence/community/<login>/codex-cli-<version>.json`, add-only, at most 1 MB, and not a
+  copy of a filed report. Tests hold the filed reports, their index and the shipped counts to each
+  other. [CONTRIBUTING.md](CONTRIBUTING.md#sending-a-compatibility-report) says how to send one.
+- **On the wire.** The bridge's `compatibility` and `compat-refresh` views carry `reported` - its
+  state and five counts, every key always there - and `control/wire.py` names it
+  (`CompatReported`). The MCP replies do not change.
+
+### Two claims corrected
+
+- **A check box that could never do anything is gone.** *Sign-in service failures*
+  (`auth_service_transient`) sat under Automatic recovery from v0.6.3, with a Custom message and a
+  place in the Preview, for a kind of interruption nothing produced: no error code, HTTP status or
+  message Codex records was ever classified as it. v0.6.3's entry below and the guide said it had been
+  recovered through v0.6.2 with no way to turn it off; it never was. The check box, its Custom message,
+  its place in the Preview and its switch in `update_settings` are gone from the Dashboard, the panel
+  and the MCP schema. The word stays, so a record that names it still reads, and a settings file that
+  carries `recover_auth_service_transient` or its Custom message loads as before, the two keys dropped;
+  a write that names either is refused. A test now fails if a kind nothing produces is made
+  recoverable again, and this one comes back only when a real Codex error is seen to carry it. On the
+  wire, every reply that carries the settings or their schema has the two fields fewer, the Preview's
+  kinds one fewer, and the two continuation sentences for it left the nine catalogs; the wire goldens
+  were regenerated on purpose.
+- **Start watcher, asked from Codex, says how long the watcher will run.** A watcher started with
+  the panel's Start watcher or the `start_watcher` tool runs in the job Codex runs this plugin's
+  server in, and Codex 26.915 ends everything in that job when it ends the server - measured for
+  v0.6.9-alpha. The reply said *The watcher is running.* as though it would stay. Now, where the job
+  ends what it holds, it adds that the watcher stops when Codex closes, if not sooner, and how to get
+  one that outlives Codex: once Codex has closed, open Codex Auto Resume from the Start menu and start
+  it there, or turn on Run at Windows sign-in in the Dashboard. (Not the Dashboard opened from that
+  watcher's own icon: it runs inside Codex's job too, and while the watcher runs it has nothing to
+  start.) Where Windows will not describe the job, it says the watcher may stop, with the same way
+  out. The panel says the same in all nine languages, after a start that is running or not yet
+  confirmed, and the tool's description says it too. The reply carries `ends_with_codex` - true,
+  false or null, read from the job each time - whenever it started a watcher, and the MCP wire golden
+  now holds a start in such a job and one in no job. The job is read by the one function the start
+  with Codex refuses by.
+
 ## v0.6.10-alpha — Where every file goes when the core is Rust
 
 [The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.9...v0.6.10-alpha)

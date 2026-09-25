@@ -730,7 +730,7 @@ namespace CodexAutoResume
         private void PaintFace(Graphics g)
         {
             Rectangle face = ClientRectangle;
-            float radius = Soft.PxF(Brand.RadiusControl);
+            float radius = Soft.PxF(Palette.RadiusControl);
             Ground.PaintBehind(this, g, face, radius);
             Soft.InsetWell(g, face, radius, Focused && ShowFocusCues);
             string text = SelectedIndex >= 0 ? GetItemText(SelectedItem) : "";
@@ -1204,7 +1204,7 @@ namespace CodexAutoResume
             var size = new Size(card.Width + margin.Horizontal, card.Height + margin.Vertical);
             var next = new Bitmap(size.Width, size.Height, PixelFormat.Format32bppPArgb);
             var body = new Rectangle(margin.Left, margin.Top, card.Width, card.Height);
-            float radius = Soft.PxF(Brand.RadiusCard);
+            float radius = Soft.PxF(Palette.RadiusCard);
             using (Graphics g = Graphics.FromImage(next))
             {
                 g.Clear(Color.Transparent);
@@ -1331,7 +1331,7 @@ namespace CodexAutoResume
             using (var brush = new SolidBrush(Palette.Card)) f.FillRectangle(brush, whole);
             int count = combo.Items.Count, chosen = combo.SelectedIndex, highlight = combo.Highlight;
             bool cues = combo.KeyboardCues;
-            float radius = Soft.PxF(Brand.RadiusSmall);
+            float radius = Soft.PxF(Palette.RadiusSmall);
             int words = Soft.Px(Brand.SelectPadLeft);
             for (int i = 0; i < count; i++)
             {

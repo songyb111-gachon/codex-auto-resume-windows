@@ -1,0 +1,189 @@
+{
+  "_comment": [
+    "How one report counts towards Reported: the truth table the roadmap states in words",
+    "(docs/ROADMAP.md, \"Compatibility reports from others\"). tests/test_community_report.py runs",
+    "it against build/community_report.py graded(), and codex-compat-admin runs the same file, so",
+    "the two cannot drift. A record here is only whether it was delivered and the state it ended",
+    "in; the test gives it the rest of a real record. Worked: a delivered record ended in",
+    "recovered. Failed: a delivered record ended in recovery_turn_failed, failed or",
+    "terminal_failure. Neither: neither of those, which includes nothing delivered. Both: worked",
+    "and failed at once, counted in both columns and shown."
+  ],
+  "cases": [
+    {
+      "name": "no records at all",
+      "records": [],
+      "worked": false,
+      "failed": false,
+      "neither": true,
+      "both": false
+    },
+    {
+      "name": "nothing delivered",
+      "records": [
+        {
+          "delivered": false,
+          "state": "waiting_for_usage"
+        },
+        {
+          "delivered": false,
+          "state": "superseded_by_user"
+        }
+      ],
+      "worked": false,
+      "failed": false,
+      "neither": true,
+      "both": false
+    },
+    {
+      "name": "delivered and recovered",
+      "records": [
+        {
+          "delivered": true,
+          "state": "recovered"
+        }
+      ],
+      "worked": true,
+      "failed": false,
+      "neither": false,
+      "both": false
+    },
+    {
+      "name": "delivered and recovery_turn_failed",
+      "records": [
+        {
+          "delivered": true,
+          "state": "recovery_turn_failed"
+        }
+      ],
+      "worked": false,
+      "failed": true,
+      "neither": false,
+      "both": false
+    },
+    {
+      "name": "delivered and failed",
+      "records": [
+        {
+          "delivered": true,
+          "state": "failed"
+        }
+      ],
+      "worked": false,
+      "failed": true,
+      "neither": false,
+      "both": false
+    },
+    {
+      "name": "delivered and terminal_failure",
+      "records": [
+        {
+          "delivered": true,
+          "state": "terminal_failure"
+        }
+      ],
+      "worked": false,
+      "failed": true,
+      "neither": false,
+      "both": false
+    },
+    {
+      "name": "recovered and failed in one report",
+      "records": [
+        {
+          "delivered": true,
+          "state": "recovered"
+        },
+        {
+          "delivered": true,
+          "state": "recovery_turn_failed"
+        }
+      ],
+      "worked": true,
+      "failed": true,
+      "neither": false,
+      "both": true
+    },
+    {
+      "name": "delivered, completed_no_progress only",
+      "records": [
+        {
+          "delivered": true,
+          "state": "completed_no_progress"
+        }
+      ],
+      "worked": false,
+      "failed": false,
+      "neither": true,
+      "both": false
+    },
+    {
+      "name": "delivered, every record ended some other way",
+      "records": [
+        {
+          "delivered": true,
+          "state": "stopped_by_user"
+        },
+        {
+          "delivered": true,
+          "state": "handed_over"
+        },
+        {
+          "delivered": true,
+          "state": "outcome_unverified"
+        },
+        {
+          "delivered": true,
+          "state": "turn_started"
+        }
+      ],
+      "worked": false,
+      "failed": false,
+      "neither": true,
+      "both": false
+    },
+    {
+      "name": "an undelivered record whose state is recovered",
+      "records": [
+        {
+          "delivered": false,
+          "state": "recovered"
+        }
+      ],
+      "worked": false,
+      "failed": false,
+      "neither": true,
+      "both": false
+    },
+    {
+      "name": "an undelivered failure beside a delivered recovery",
+      "records": [
+        {
+          "delivered": true,
+          "state": "recovered"
+        },
+        {
+          "delivered": false,
+          "state": "failed"
+        }
+      ],
+      "worked": true,
+      "failed": false,
+      "neither": false,
+      "both": false
+    },
+    {
+      "name": "a delivered record in a word the reporter did not know",
+      "records": [
+        {
+          "delivered": true,
+          "state": "other"
+        }
+      ],
+      "worked": false,
+      "failed": false,
+      "neither": true,
+      "both": false
+    }
+  ]
+}

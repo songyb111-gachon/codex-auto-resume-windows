@@ -34,7 +34,9 @@ namespace CodexAutoResume
     /// body (StampOuter); an inset one by the body itself, between its fill and its hairline
     /// (StampInner, through Soft.Body).
     ///
-    /// Nothing is drawn in High Contrast mode.
+    /// Nothing is drawn in High Contrast mode, nor in a design without depth (v0.6.10: Classic, Plain), where a
+    /// surface is its fill and its hairline (Palette.Depth). How far a recipe reaches is its theme's in every design
+    /// all the same: a ground keeps the room, so a design changes paint and never where anything is.
     internal static class Elevation
     {
         private sealed class Template
@@ -122,7 +124,7 @@ namespace CodexAutoResume
         /// of `g`), drawing only the pieces that meet `clip`. Its inset shadows are the body's own.
         internal static void StampOuter(Graphics g, Rectangle body, string recipe, float radius, Rectangle clip)
         {
-            if (Palette.Contrast || body.Width <= 0 || body.Height <= 0) return;
+            if (!Palette.Depth || body.Width <= 0 || body.Height <= 0) return;
             int count = Count(recipe);
             if (count == 0) return;
             Padding reach = Reach(recipe);
@@ -143,7 +145,7 @@ namespace CodexAutoResume
         /// The inset shadows of `recipe` inside `box`, the body inside its hairline.
         internal static void StampInner(Graphics g, Rectangle box, string recipe, float radius, Rectangle clip)
         {
-            if (Palette.Contrast || box.Width <= 0 || box.Height <= 0 || !box.IntersectsWith(clip)) return;
+            if (!Palette.Depth || box.Width <= 0 || box.Height <= 0 || !box.IntersectsWith(clip)) return;
             for (int index = Count(recipe) - 1; index >= 0; index--)
                 if (IsInset(recipe, index)) StampOne(g, recipe, index, SettingsForm.DpiScale, box, radius, clip);
         }

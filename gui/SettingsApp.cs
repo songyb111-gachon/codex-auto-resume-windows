@@ -99,6 +99,9 @@ namespace CodexAutoResume
         /// A Theme preference - "system", "light" or "dark" - that the window opens in instead of the
         /// stored one: `--theme=<name>`, which a window that reopens itself passes on (see Reopen).
         internal string Theme;
+        /// A Design - "soft", "still", "classic" or "plain" - that the window opens in instead of the stored
+        /// one: `--design=<name>` (v0.6.10), passed on by a reopen as the theme is.
+        internal string Design;
         /// Where the window goes, in device pixels: `--bounds=<x>,<y>,<width>,<height>`.
         internal bool HasBounds;
         internal Rectangle Bounds;
@@ -270,14 +273,14 @@ namespace CodexAutoResume
         private readonly OpenRequest request;
         private readonly string installRoot;
         // Reopening (see Reopen). What this window shows - the Interface language its words were
-        // resolved for, and the theme it draws - against what is stored: the Interface language and
-        // Theme preference as last read or saved.
-        private string openedLanguage, openedTheme, storedLanguage, storedTheme;
+        // resolved for, the theme it draws and, since v0.6.10, the design it draws (Design.Drawn) - against
+        // what is stored: the Interface language, Theme preference and Design as last read or saved.
+        private string openedLanguage, openedTheme, openedDesign, storedLanguage, storedTheme, storedDesign;
         private bool settingsRead, readingSettings, reopening, recheck;
         private long settingsStamp;
-        // The language and theme a reopen on its way is for; and the pair a new window was last started for
-        // that never showed, which this window does not try again (CheckReopen, FinishReopen).
-        private string reopenLanguage, reopenTheme, declinedLanguage, declinedTheme;
+        // The language, theme and design a reopen on its way is for; and the three a new window was last started
+        // for that never showed, which this window does not try again (CheckReopen, FinishReopen).
+        private string reopenLanguage, reopenTheme, reopenDesign, declinedLanguage, declinedTheme, declinedDesign;
         // What a read or a save leaves undone while the window reopens, done after all if it stays.
         private MethodInvoker heldForReopen;
         // Where the keyboard was as a save that may reopen the window began (Save); and where a window that
@@ -466,9 +469,11 @@ namespace CodexAutoResume
             this.bridge = bridge;
             // What it was asked to open with. A window LayoutAudit builds is asked for nothing.
             request = catalog != null ? new OpenRequest() : ParseArguments(Environment.GetCommandLineArgs());
-            // The theme it draws was adopted before this (Program.Main), from the same request.
+            // The theme and the design it draws were adopted before this (Program.Main), from the same request.
             openedTheme = Palette.Theme;
             storedTheme = Theme.Opened;
+            openedDesign = Design.Drawn(Palette.Theme, Palette.Design);
+            storedDesign = Design.Opened;
             invisibleFrame = request.Frame;
             // Before anything is built: every label below asks the catalog for its text.
             //
@@ -814,7 +819,8 @@ namespace CodexAutoResume
 
             // Drawn rather than a glyph so the dot stays round and vertically centred at
             // any scaling, and it carries the same state as the words beside it. It
-            // spans both rows because it describes the pair, not the first line. Its glow is
+            // spans both rows because it describes the pair, not the first line (v0.6.10
+            // stood it on the headline's line for a while, and gave that back). Its glow is
             // the one thing in the window that moves, and only while there is something to
             // show moving (see HaloDot); with motion reduced it holds still.
             var dot = stateDot;
@@ -1036,11 +1042,15 @@ namespace CodexAutoResume
                                 "Codex Auto Resume", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return 1;
             }
-            // The theme, decided before the first control is made: the one a reopening window passed on,
-            // or the one stored, as Windows and High Contrast have it now (Theme). Every colour below
-            // comes from it.
+            // The theme and the design, decided before the first control is made: the ones a reopening window
+            // passed on, or the ones stored - read from the settings file once, both in the same parse - with the
+            // theme as Windows and High Contrast have it now (Theme). Every colour below comes from them.
             OpenRequest request = SettingsForm.ParseArguments(argv);
-            Theme.Opened = request.Theme ?? Theme.Stored(root);
+            string storedTheme, storedDesign;
+            Theme.Stored(root, out storedTheme, out storedDesign);
+            Theme.Opened = request.Theme ?? storedTheme;
+            Design.Opened = request.Design ?? storedDesign;
+            Palette.AdoptDesign(Design.Opened);
             Palette.Adopt(Theme.Current(Theme.Opened));
             Application.Run(new SettingsForm(new PersistentBridge(root, bridge)));
             return 0;

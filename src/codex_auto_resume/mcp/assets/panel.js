@@ -22,6 +22,8 @@ var DATA = initialData();
 // A stamp the page was served with is a documentation capture's pinned theme, which the stored
 // setting must not undo. Codex is never served one.
 var THEME_PINNED = !!(document.documentElement && document.documentElement.hasAttribute('data-theme-pinned'));
+// And a design it was served with (v0.6.10), the same way.
+var DESIGN_PINNED = !!(document.documentElement && document.documentElement.hasAttribute('data-design-pinned'));
 // Survives a re-render: set before render(), shown by it, then cleared.
 var NOTICE = '';
 var EDITORS = {};
@@ -46,6 +48,27 @@ var PREVIEW = {reason: '', nodes: null, last: null, asking: ''};
 // The settings whose unsaved value changes the Preview.
 var PREVIEW_FIELDS = ['interface_language', 'continuation_language', 'continuation_style',
                       'custom_message_mode'];
+// The status light's phase: which light the page shows, and since when (performance.now()). Kept
+// across a redraw, so a light whose word has not changed goes on from where it was rather than
+// starting again at the top on every click, and the page's two lights share it (showLight).
+var LIGHT = {light: '', since: 0};
+// The page's one timer, set for the moment the soonest time a row carries comes (watchClock), and
+// the hero it says again what that changed in (retell).
+var CLOCK = null;
+var HERO = null;
+// A timer asked to wait longer than about 24.8 days fires at once, and would again and again, so it
+// is never asked to wait longer than a day: it wakes, finds the time still to come, and waits again.
+var CLOCK_LONGEST = 86400000;
+// How long, in seconds, the page goes on saying checking once a task's time has come - or once it
+// read a task whose time already had (checkingRow): one pass of the watcher at its own pace
+// (runtime/loop.py DEFAULT_POLL, which a test holds this to). The popup and the Dashboard read the
+// record every second and leave checking at the pass that acts on it; this page reads it once. A
+// watcher run slower than that (`run --poll`) is still checking when the page stops saying so, which
+// says less than is true and never more.
+var CHECKING_HOLD = 30;
+// When the rows the page shows were read, on its clock, in seconds (readAt): set when it is served
+// them, and again whenever it reads the list anew.
+var READ_AT = readAt(DATA, Date.now() / 1000);
 
 // Every word on this panel comes from Python, in the language Python resolved. The panel
 // does not consult the browser's language: the notifications, the setup output, the
@@ -114,6 +137,27 @@ function applyTheme(root, settings, pinned) {
   else root.removeAttribute('data-theme');
 }
 
+// The design the surfaces are drawn in (v0.6.10), stamped for Still, Classic and Plain; Soft is the
+// stylesheet's own blocks and stamps nothing, as does any other value - from a watcher older than the
+// setting, or newer than this page. And the product's own Reduce motion, which the panel follows from
+// this release as well as the host's reduced-motion preference: `data-motion="reduced"` holds everything
+// in every design. Both on the root, where the stylesheet's design blocks are declared (panel.css).
+function designStamp(preference) {
+  return (preference === 'still' || preference === 'classic' || preference === 'plain') ? preference : '';
+}
+
+function applyDesign(root, settings, pinned) {
+  if (!root) return;
+  settings = settings || {};
+  if (!pinned) {
+    var stamp = designStamp(settings.design);
+    if (stamp) root.setAttribute('data-design', stamp);
+    else root.removeAttribute('data-design');
+  }
+  if (settings.reduce_motion === true) root.setAttribute('data-motion', 'reduced');
+  else root.removeAttribute('data-motion');
+}
+
 // The language the words are in, on the root: the stylesheet breaks a line of Korean between words and
 // one of Japanese between phrases by it, and a screen reader reads each language in its own voice. Set on
 // every draw (render), because a saved Interface language draws the page again in that language; none
@@ -127,6 +171,7 @@ function applyLanguage(root, locale) {
 // The stored appearance and language, applied to the page in place. True when the words changed.
 function adopt(settings) {
   applyTheme(document.documentElement, settings, THEME_PINNED);
+  applyDesign(document.documentElement, settings, DESIGN_PINNED);
   return adoptLanguage(settings);
 }
 
@@ -230,12 +275,14 @@ function setThreadRecovery(threadId, enable) {
 
 // Which settings this panel may write. The same rule the server generates the
 // update_settings schema by - the groups a person edits, and never Custom message text,
-// which is written in the Windows Dashboard by the person it will speak for - kept here so
+// which is written in the Dashboard by the person it will speak for - kept here so
 // the Save button cannot even assemble a request that carries it.
 function editable(entry) {
   var groups = ['general', 'recovery', 'limits', 'notifications', 'continuation'];
   // Of the appearance settings only the two themes, which the panel is drawn in. Reduce motion
-  // and the notification-area icon are Windows' own and stay in the Windows Dashboard.
+  // and the notification-area icon are Windows' own and stay in the Dashboard, and so does the
+  // design (v0.6.10): it decides what moves, as Reduce motion does, and that is not Codex's to
+  // change (standard H3). The panel draws in both (applyDesign) and sends neither.
   var appearance = ['theme', 'panel_theme'];
   if (!entry || typeof entry.name !== 'string') return false;
   if (entry.group === 'appearance') return appearance.indexOf(entry.name) >= 0 && !entry.multiline;
@@ -280,29 +327,93 @@ function previewArguments(category, read) {
 }
 
 // One word for the whole product, in the order that matters: nothing is recovered while
-// no watcher runs, nothing is sent while paused, and a row already in Codex outranks a row
-// that is still waiting.
-function activity(status, rows) {
+// no watcher runs or while the one that runs is not well, nothing is sent while paused, and
+// a row already in Codex outranks a row that is still waiting; then a task whose time has come
+// is checking. The rule every header keeps - the popup's and the Dashboard's too;
+// tests/data/light_states.json holds all three to it (v0.6.10).
+//
+// `now` is the clock, in seconds, that "a time has come" is read by - the page's own, as the
+// popup and the Dashboard read theirs. `read` is when the rows were read, on that clock: the
+// others read theirs every second, so for them it is `now`, and it is when it is not given. Until
+// v0.6.10 this page took no clock: it is drawn once, so it said waiting where the other two said
+// checking, and each row said "due now". Now it says checking too, but only for as long as what
+// it read can still say so (checkingRow): the others leave checking at the watcher's next pass,
+// which they see and this page does not. The one timer the page keeps (watchClock) reads the rows
+// again when a time they carry comes, and when that stops. Without a clock nothing has come due.
+function activity(status, rows, now, read) {
   var moving = ['submission_claimed', 'submitted', 'withdrawing', 'turn_running', 'turn_finishing'];
   var codes = (status && status.codes) || {};
   var list = rows || [];
   status = status || {};
   if (status.watcher_running !== true) return 'attention';
-  if (!status.enabled) return 'paused';
+  if (attentionCause(status, list) !== null) return 'attention';
+  if (status.enabled !== true) return 'paused';
   for (var i = 0; i < moving.length; i++) {
     if (codes[moving[i]] > 0) return 'recovering';
   }
   for (var j = 0; j < list.length; j++) {
     if (moving.indexOf(list[j].code) >= 0) return 'recovering';
   }
+  for (var k = 0; k < list.length; k++) {
+    if (checkingRow(list[k], now, read)) return 'checking';
+  }
   return (status.pending > 0 || list.length > 0) ? 'waiting' : 'monitoring';
+}
+
+// Whether a row's time has come by `now`, in seconds: the popup's and the Dashboard's test. A row
+// with no time, or a caller with no clock, has not come due.
+function due(row, now) {
+  var at = row && row.eligible_at;
+  return typeof at === 'number' && typeof now === 'number' && at <= now;
+}
+
+// Whether a row makes the page say checking at `now`: its time has come (due), and no more than one
+// watcher pass (CHECKING_HOLD) has gone by since the later of that time and `read`, when the row was
+// read. After that, what the page read no longer says what the watcher is doing - it has had its
+// pass at the task, and what it did is in a reading the page has not had - so the page says waiting
+// again, and the row "due now", which is still true (standard J7: a state is never overstated).
+// With no `read` the row was read at `now`, as the popup and the Dashboard read theirs.
+function checkingRow(row, now, read) {
+  if (!due(row, now)) return false;
+  if (typeof read !== 'number' || !isFinite(read)) return true;
+  return now < Math.max(row.eligible_at, read) + CHECKING_HOLD;
+}
+
+// Why a watcher that runs needs a person, or null when it does not: an older watcher still
+// owns the state, it has stopped ticking, the engine is not supported or failed its checks
+// here - or a row is held for one of those (an overlay), which the list, read a moment after
+// the status, can know first. In this order, and the rows in theirs; the Dashboard's
+// AttentionCause is the same.
+function attentionCause(status, rows) {
+  var watcher = (status && status.watcher) || {};
+  if (status && status.upgrade_pending === true) return 'upgrade_pending';
+  if (watcher.ticking === false) return 'watcher_not_ticking';
+  if (watcher.engine_state === 'incompatible') return 'compatibility_blocked';
+  if (watcher.engine_state === 'failed_here') return 'compatibility_failed_here';
+  var held = ['compatibility_blocked', 'compatibility_failed_here', 'engine_unavailable', 'watcher_not_ticking'];
+  var list = rows || [];
+  for (var i = 0; i < list.length; i++) {
+    var overlays = list[i].overlays || [];
+    for (var j = 0; j < held.length; j++) {
+      if (overlays.indexOf(held[j]) >= 0) return held[j];
+    }
+  }
+  return null;
 }
 
 // The status light for a state. Not quite the word: a watcher that is not running - or that
 // nothing has confirmed is running - is a light that is off, grey as it always was, while the
 // word beside it still asks for attention. Amber is for a watcher that runs and is not well.
-function lightFor(status, state) {
-  return (status && status.watcher_running === true) ? state : 'idle';
+// A row held for a watcher not running (engine_unavailable) outweighs a status that says it
+// runs, the two read a moment apart: no moving light beside "Watcher not running" (the popup's
+// watcher_known_running, the Dashboard's HeaderLight).
+function lightFor(status, state, rows) {
+  if (!status || status.watcher_running !== true) return 'idle';
+  var list = rows || [];
+  for (var i = 0; i < list.length; i++) {
+    if ((list[i].overlays || []).indexOf('engine_unavailable') >= 0) return 'idle';
+  }
+  return state;
 }
 
 // The colour a state chip carries. Always beside its word, never instead of it.
@@ -869,7 +980,8 @@ function segmented(entry, onChange) {
 // refreshed, so a number counting down here would be wrong within a minute and would go
 // on being wrong convincingly. A time is still true an hour later, and "due now" is what
 // a moment that has already passed actually means - the watcher looks at it on its next
-// pass, and nothing here can say when that is.
+// pass, and nothing here can say when that is. A time that comes while the page is open
+// turns to "due now" then (retell, v0.6.10), which is a change the page can know of.
 function nextCheck(row) {
   var at = row.eligible_at;
   if (at === null || at === undefined) return t('panel.next_unknown', 'not known yet');
@@ -883,48 +995,88 @@ function nextCheck(row) {
   return pad(when.getHours()) + ':' + pad(when.getMinutes());
 }
 
-function heroFacts(status, state) {
+// The facts under the word, most consequential first: whether anything can be recovered, and
+// what is waiting on it. The Dashboard's header keeps its own format for them, and names the
+// same cause first for a watcher that runs and is not well (SettingsForm.HeroFacts, held to
+// these by tests/test_light_parity.py); the soonest check below is the panel's own, a clock
+// time where the window counts down.
+function heroFacts(status, state, rows) {
   var count = status.pending || 0;
   var pending = count === 0 ? t('status.pending_none', 'Nothing pending')
               : count === 1 ? t('status.pending_one', '1 recovery pending')
               : fill('status.pending_many', '{n} recoveries pending', {n: count});
-  if (state === 'attention') {
+  if (status.watcher_running !== true) {
     var facts = [status.watcher_running === false ? t('status.not_running', 'Watcher not running')
                                                   : t('status.unknown', 'Watcher status unknown'),
                  t('status.recovery_idle', 'Nothing will be recovered until it is running')];
     if (count) facts.push(pending);
     return facts;
   }
+  if (state === 'attention') {
+    // A watcher that runs and is not well: what is wrong, not "recovery is on".
+    var cause = attentionCause(status, rows);
+    var why = cause === 'upgrade_pending'
+              ? t('diag.upgrade_pending', 'An older watcher still owns the state; finish by restarting the watcher')
+            : cause === 'compatibility_blocked' ? t('overlay.compatibility_blocked', 'Codex version not supported')
+            : cause === 'compatibility_failed_here'
+              ? t('overlay.compatibility_failed_here', 'Codex checks failed on this computer')
+            : cause === 'engine_unavailable' ? t('status.not_running', 'Watcher not running')
+            : t('status.not_responding', 'Watcher not responding');
+    return [why, pending];
+  }
   if (state === 'paused') return [t('status.recovery_paused', 'Automatic recovery is paused'), pending];
-  var shown = [t('status.recovery_on', 'Automatic recovery is on'), pending];
-  // The soonest check, which is the question a count raises rather than answers.
+  return [t('status.recovery_on', 'Automatic recovery is on'), pending];
+}
+
+// The soonest check, which is the question a count raises rather than answers - while recovery
+// can happen at all; null otherwise.
+function soonestFact(status, state, rows) {
+  if (!status.pending || status.watcher_running !== true || state === 'attention' || state === 'paused') return null;
   var soonest = null;
-  (DATA.pending || []).forEach(function (row) {
+  (rows || []).forEach(function (row) {
     if (row.eligible_at === null || row.eligible_at === undefined) return;
     if (soonest === null || row.eligible_at < soonest) soonest = row.eligible_at;
   });
-  if (count && soonest !== null) {
-    shown.push(fill('status.next_check', 'next check {time}', {time: nextCheck({eligible_at: soonest})}));
-  }
-  return shown;
+  if (soonest === null) return null;
+  return fill('status.next_check', 'next check {time}', {time: nextCheck({eligible_at: soonest})});
 }
 
-function renderHero(status) {
-  var state = activity(status, DATA.pending);
+// The status light, at the size it is drawn: `mini` on the Automatic recovery tile.
+function lightNode(light, mini) {
+  var node = element('span', lightClass(light, mini));
+  node.setAttribute('aria-hidden', 'true');
+  return node;
+}
+
+function lightClass(light, mini) {
+  return 'halo ' + (mini ? 'mini ' : '') + light;
+}
+
+// The facts under the word, written into `facts` afresh: on a draw, and when the clock has moved
+// the word (retell).
+function showFacts(facts, status, state, rows) {
+  facts.textContent = '';
+  var shown = heroFacts(status, state, rows);
+  var soonest = soonestFact(status, state, rows);
+  if (soonest !== null) shown.push(soonest);
+  shown.forEach(function (fact) { facts.appendChild(element('span', null, fact)); });
+}
+
+// `now` is the clock the word is read by (activity); render() reads it once for the whole page.
+function renderHero(status, now) {
+  var state = activity(status, DATA.pending, now, READ_AT);
   var hero = element('section', 'card hero');
   hero.setAttribute('data-state', state);
   // The product name is an eyebrow rather than a heading: inside Codex the panel is
   // already attributed, and the question a reader arrives with is what it is doing.
   hero.appendChild(element('div', 'eyebrow', 'Codex Auto Resume · v' + (status.version || '?')));
   var line = element('div', 'hero-state');
-  var light = lightFor(status, state);
-  var halo = element('span', 'halo ' + light);
-  halo.setAttribute('aria-hidden', 'true');
-  line.appendChild(halo);
-  line.appendChild(element('h1', null, t('activity.' + state, state)));
+  var light = lightFor(status, state, DATA.pending);
+  line.appendChild(lightNode(light, false));
+  var word = line.appendChild(element('h1', null, t('activity.' + state, state)));
   hero.appendChild(line);
   var facts = element('p', 'facts');
-  heroFacts(status, state).forEach(function (fact) { facts.appendChild(element('span', null, fact)); });
+  showFacts(facts, status, state, DATA.pending);
   hero.appendChild(facts);
   var actions = element('div', 'hero-actions');
   // Offered only when it is the thing that is wrong. Nothing is recovered while the
@@ -939,7 +1091,7 @@ function renderHero(status) {
   message.setAttribute('role', 'status');
   actions.appendChild(message);
   hero.appendChild(actions);
-  return {node: hero, message: message, start: start};
+  return {node: hero, message: message, start: start, word: word, facts: facts, state: state, light: light};
 }
 
 function renderPending(rows) {
@@ -981,11 +1133,13 @@ function pendingRow(row) {
   if (row.category && S['reason.' + row.category]) {
     meta.appendChild(element('span', null, t('reason.' + row.category, row.category)));
   }
-  [[t('panel.col_next', 'Next check'), nextCheck(row)],
+  [[t('panel.col_next', 'Next check'), nextCheck(row), row.eligible_at],
    [t('panel.col_attempts', 'Attempts'), String(row.recovery_attempts === undefined ? 0 : row.recovery_attempts)]
   ].forEach(function (pair) {
     var fact = element('span', null, pair[0] + ' ');
-    fact.appendChild(element('b', null, pair[1]));
+    var said = fact.appendChild(element('b', null, pair[1]));
+    // A time that becomes "due now" while the page is open, which retell() says again when it comes.
+    if (typeof pair[2] === 'number') said.setAttribute('data-due', String(pair[2]));
     meta.appendChild(fact);
   });
   main.appendChild(meta);
@@ -1051,6 +1205,7 @@ function changeThread(row, shown, enable, controls) {
     return callTool('list_pending', {}).then(function (payload) {
       if (!Array.isArray(payload.pending)) return;
       DATA.pending = payload.pending;
+      READ_AT = Date.now() / 1000;
       if (DATA.status) DATA.status.pending = payload.pending.length;
     }, function () {});
   }, function (error) {
@@ -1061,7 +1216,7 @@ function changeThread(row, shown, enable, controls) {
   });
 }
 
-// The Codex Compatibility Registry (v0.6.5), read-only, as the Windows Dashboard's Diagnostics page shows
+// The Codex Compatibility Registry (v0.6.5), read-only, as the Dashboard's Diagnostics page shows
 // it: for the Codex engine on this machine, which of the things this product does can be relied on, in
 // the registry's four words - each with what it means - with when that was checked and which data was in
 // force. Folded until it is opened; folded, its chip says the headline.
@@ -1148,7 +1303,7 @@ function renderCompatibility(status) {
   }
   if (usable && typeof view.acting === 'string' && view.acting !== view.overall) {
     notices.push(t('panel.compat_acting_differs',
-      'The watcher is still acting on what it found when it started. Stop it and start it again on the Diagnostics page of the Codex Auto Resume window to check again.'));
+      "The watcher is still acting on what it found when it started. Stop it and start it again on the Dashboard's Diagnostics page to check again."));
   }
   if (usable && COMPAT_CAVEATS.indexOf(view.cache) >= 0) {
     notices.push(t('compat.cache.' + view.cache, view.cache.replace(/_/g, ' ')));
@@ -1178,8 +1333,13 @@ function renderCompatibility(status) {
     if (shown.indexOf(state) >= 0) legend.appendChild(element('p', 'help', t('compat.meaning.' + state, state)));
   });
   if (legend.children.length) body.appendChild(legend);
+  // What others report of this Codex version (v0.6.10) is the Dashboard's to show, beside the version: this page is
+  // handed codes only - no version string, and no count of anyone's reports - so it says where to look instead, by
+  // the name the row has there (compat.reported, which each language's sentence carries word for word).
+  body.appendChild(element('p', 'help compat-reported', t('panel.compat_reported',
+    "What other people report about this Codex version is shown under Reported by others, beside the version on the Dashboard's Diagnostics page. It changes nothing here.")));
   body.appendChild(element('p', 'help compat-refresh', t('panel.compat_refresh',
-    'This data changes only when you ask: with Refresh compatibility data on the Diagnostics page of the Codex Auto Resume window, or with Check for updates.')));
+    "This data changes only when you ask: with Refresh compatibility data on the Dashboard's Diagnostics page, or with Check for updates.")));
   return fold.node;
 }
 
@@ -1194,7 +1354,7 @@ function renderGeneral(byName) {
       : endonym(choice)};
   });
   rows.appendChild(choiceField(entry, options,
-    t('help.interface_language', 'Used by this window, the notification-area popup, notifications and the panel in Codex.'),
+    t('help.interface_language', 'Used by the Dashboard, the notification-area popup, notifications and the panel in Codex.'),
     function (chosen) { if (HOOKS.follow) HOOKS.follow(chosen); }).row);
   node.appendChild(rows);
   return node;
@@ -1217,7 +1377,7 @@ function renderAppearance(byName) {
   return node;
 }
 
-function renderRecovery(status, schema) {
+function renderRecovery(status, schema, now) {
   var node = card(t('group.recovery', 'Automatic recovery'));
   // The control every check box on this card depends on, first. It acts at once -
   // pausing needs no Save and resuming asks for approval - so it is a button beside what
@@ -1228,7 +1388,10 @@ function renderRecovery(status, schema) {
   var body = element('div', 'master-body');
   var text = element('div', 'master-text');
   var running = status.watcher_running === true;
-  text.appendChild(element('span', 'dot' + (!running ? '' : status.enabled ? ' on' : ' paused')));
+  // The state's light, smaller, and never a light of its own (v0.6.10): until then a dot that
+  // never moved sat here, cyan while the light above it breathed - and every light that says the
+  // product is running moves. Read by the same rule at the same moment as the hero's.
+  text.appendChild(lightNode(lightFor(status, activity(status, DATA.pending, now, READ_AT), DATA.pending), true));
   text.appendChild(element('span', null, !running
     ? t('status.recovery_idle', 'Nothing will be recovered until it is running')
     : status.enabled ? t('status.recovery_on', 'Automatic recovery is on')
@@ -1345,7 +1508,7 @@ function renderContinuation(byName) {
   }
 
   // Custom: which stored message is used, and what those messages say - shown, not
-  // editable. The text itself is written in the Windows Dashboard.
+  // editable. The text itself is written in the Dashboard.
   var stored = element('div', 'stored');
   var drawStored = function () {
     stored.textContent = '';
@@ -1379,7 +1542,7 @@ function renderContinuation(byName) {
   }
   custom.appendChild(stored);
   custom.appendChild(element('p', 'callout', t('custom.dashboard_only',
-    'Custom messages are written in the Windows Dashboard.')));
+    'Custom messages are written in the Dashboard, so text sent into your conversations is never set from inside one.')));
   drawStored();
   showCustom();
   rows.appendChild(custom);
@@ -1499,6 +1662,111 @@ function glide() {
   moves.forEach(function (move) { move.input.checked = move.to; });
 }
 
+// How far into its cycle the light is at `at` (performance.now()), as the negative delay that starts
+// an animation there: 0 for a light that has just changed. The window keeps its light's phase for as
+// long as its state holds (HaloDot.State), and so does the popup; until v0.6.10 this page drew its
+// light anew on every click, and sent it back to the top of its breath each time.
+function lightDelay(light, at) {
+  if (light !== LIGHT.light) LIGHT = {light: light, since: at};
+  return Math.round(LIGHT.since - at);
+}
+
+// Every light on the page starts its cycle at that phase: set on the root, where each animation reads
+// it (panel.css --light-delay). Set only when the lights are new - drawn by render(), or changed by
+// retell() - because a new delay under an animation already running would move it.
+function showLight(light) {
+  var root = document.documentElement;
+  var delay = lightDelay(light, performance.now());
+  if (root && root.style && typeof root.style.setProperty === 'function') {
+    root.style.setProperty('--light-delay', delay + 'ms');
+  }
+}
+
+// How long until what the page says of its rows can next change, in milliseconds from `now` (seconds):
+// the soonest time a row carries that is still to come, or the soonest moment a row whose time has come
+// stops making the page say checking (checkingRow, with the rows read at `read`). Null when neither is
+// still to come - and with no `read`, a row whose time has come has no such moment.
+function untilChange(rows, now, read) {
+  if (typeof now !== 'number' || !isFinite(now)) return null;
+  var known = typeof read === 'number' && isFinite(read);
+  var soonest = null;
+  (rows || []).forEach(function (row) {
+    var at = row && row.eligible_at;
+    if (typeof at !== 'number' || !isFinite(at)) return;
+    var next = !due(row, now) ? at : known ? Math.max(at, read) + CHECKING_HOLD : null;
+    if (next === null || next <= now) return;
+    if (soonest === null || next < soonest) soonest = next;
+  });
+  if (soonest === null) return null;
+  return Math.min(Math.max(1, Math.ceil((soonest - now) * 1000)), CLOCK_LONGEST);
+}
+
+// The page's one timer (v0.6.10). The page is drawn once, from one tool result, and nothing on it
+// counts down (nextCheck says why); but what that result tells it about the future it keeps: when a
+// time a row carries will come, and when, one watcher pass after that, what it read stops saying the
+// task is being checked. It wakes once, when the soonest of those comes, says again what that changes
+// (retell), and waits for the next. A page with neither still to come keeps no timer at all.
+function watchClock() {
+  if (CLOCK !== null) clearTimeout(CLOCK);
+  CLOCK = null;
+  var wait = DATA ? untilChange(DATA.pending, Date.now() / 1000, READ_AT) : null;
+  if (wait !== null) CLOCK = setTimeout(retell, wait);
+}
+
+// What a time coming changes, said again in place: the word and the light - a waiting task whose
+// time has come is checking, here as in the popup and the Dashboard, for one watcher pass, and then
+// waiting again - the facts under the word, and each row's next check, now "due now". Nothing is
+// drawn anew, which would take the keyboard from wherever it was, and nothing is asked: what the
+// watcher did about the task arrives with the next tool result, as everything else on this page does.
+function retell() {
+  CLOCK = null;
+  if (!DATA || !HERO) return;
+  var status = DATA.status || {};
+  var rows = DATA.pending;
+  var state = activity(status, rows, Date.now() / 1000, READ_AT);
+  var light = lightFor(status, state, rows);
+  eachNode(document.getElementById('root'), function (node) {
+    if (node.classList && node.classList.contains('halo')) {
+      var drawn = lightClass(light, node.classList.contains('mini'));
+      if (node.className !== drawn) node.className = drawn;
+    }
+    var at = typeof node.getAttribute === 'function' ? node.getAttribute('data-due') : null;
+    if (at !== null && at !== undefined) node.textContent = nextCheck({eligible_at: Number(at)});
+  });
+  if (state !== HERO.state) {
+    HERO.state = state;
+    HERO.node.setAttribute('data-state', state);
+    HERO.word.textContent = t('activity.' + state, state);
+  }
+  showFacts(HERO.facts, status, state, rows);
+  if (light !== HERO.light) {
+    HERO.light = light;
+    showLight(light);
+  }
+  watchClock();
+}
+
+// When the rows in `data` were read, as best the page can tell at `now` (seconds): no later than
+// now, and - when the status says when the watcher last had a pass - no later than one pass after
+// that, since the watcher passes that often and the status was read after its last one. A page
+// Codex draws again from a tool result it kept, a day after the reading, is served that day-old
+// reading: by this, it knows the reading is old and says nothing is being checked.
+function readAt(data, now) {
+  var watcher = (data && data.status && data.status.watcher) || {};
+  var tick = watcher.last_tick_at;
+  if (typeof tick !== 'number' || !isFinite(tick)) return now;
+  return Math.min(now, tick + CHECKING_HOLD);
+}
+
+// Every element under `node`, depth first.
+function eachNode(node, visit) {
+  var children = (node && node.children) || [];
+  for (var i = 0; i < children.length; i++) {
+    visit(children[i]);
+    eachNode(children[i], visit);
+  }
+}
+
 function render() {
   applyLanguage(document.documentElement, LOCALE);
   var root = document.getElementById('root');
@@ -1509,24 +1777,29 @@ function render() {
   WAS = SHOWN;
   SHOWN = {};
   GLIDES = [];
+  HERO = null;
   if (!DATA) {
     root.appendChild(element('p', 'note',
       t('panel.unavailable', 'Settings are not available in this view.')));
+    watchClock();
     return;
   }
   var status = DATA.status || {};
   var schema = DATA.schema || [];
   var byName = {};
   schema.forEach(function (entry) { byName[entry.name] = entry; });
+  // One reading of the clock for the whole page, so the state and the tile's light are one light.
+  var now = Date.now() / 1000;
 
   var page = element('main', 'page');
   root.appendChild(page);
   // State first; then what is waiting, because it is the part that changes; then whether this
   // Codex can be relied on, folded; then what is configured, general to particular; then what
-  // the configuration will say; then how the panel looks, where the Windows Dashboard puts it too.
-  var hero = renderHero(status);
+  // the configuration will say; then how the panel looks, where the Dashboard puts it too.
+  var hero = renderHero(status, now);
+  HERO = hero;
   page.appendChild(hero.node);
-  [renderPending(DATA.pending), renderCompatibility(status), renderGeneral(byName), renderRecovery(status, schema),
+  [renderPending(DATA.pending), renderCompatibility(status), renderGeneral(byName), renderRecovery(status, schema, now),
    renderNotifications(schema), renderContinuation(byName), renderPreviewCard(),
    renderAppearance(byName)
   ].forEach(function (section) { if (section) page.appendChild(section); });
@@ -1534,6 +1807,8 @@ function render() {
   page.appendChild(footer.node);
   var message = hero.message;
 
+  showLight(hero.light);
+  watchClock();
   glide();
 
   // A message left over from the click that caused this render. It is carried across
@@ -1553,7 +1828,7 @@ function render() {
 
   if (!HOST) {
     message.textContent = t('panel.readonly',
-      'Read-only here. Use the Codex Auto Resume settings window to change these.');
+      'Read-only here. Use the Dashboard to change these.');
     return;
   }
 
@@ -1608,14 +1883,28 @@ function render() {
         // structured half, so look in both rather than depending on one.
         var payload = (result && result.structuredContent) || result || {};
         var state = payload.state;
+        // A watcher this panel started runs in the job Codex runs its server in (v0.6.10): where
+        // that job ends what it holds - Codex 26.915, measured - it stops when Codex closes, if
+        // not sooner. The panel says so after every start that may have left one running - running
+        // or not yet confirmed - as the server's reply does, and names a start that outlives Codex:
+        // the Start menu's, once Codex has closed (a Dashboard opened from this watcher's own icon
+        // is in the same job), or the sign-in start. Null is a job Windows would not describe;
+        // false, a watcher already running and one that exited need no sentence.
+        var ends = payload.ends_with_codex;
+        var lasting = ends === true
+          ? t('panel.start_ends_with_codex', 'Codex ends what its plugins start, so this watcher stops when Codex closes, if not sooner. Once Codex has closed, open Codex Auto Resume from the Start menu and start it there, or turn on Run at Windows sign-in in the Dashboard so it starts with Windows.')
+          : ends === null
+            ? t('panel.start_may_end_with_codex', 'Windows would not say whether Codex ends what its plugins start, so this watcher may stop when Codex closes. If it does, open Codex Auto Resume from the Start menu and start it there, or turn on Run at Windows sign-in in the Dashboard so it starts with Windows.')
+            : '';
         if (state === 'running' || state === 'already-running') {
           status.watcher_running = true;
-          NOTICE = '';
+          NOTICE = lasting;
         } else if (state === 'exited') {
           NOTICE = t('panel.start_exited', 'It started and stopped again; nothing is watching.');
         } else {
           NOTICE = t('panel.start_unconfirmed',
-            'Started, but not confirmed running yet. Ask for the status again.');
+            'Started, but not confirmed running yet. Ask for the status again.')
+            + (lasting ? ' ' + lasting : '');
         }
         // Through NOTICE rather than onto `message`, because render() empties the panel
         // and builds a fresh span: text written here first would be on a node that is

@@ -336,14 +336,15 @@ namespace CodexAutoResume
         }
 
         /// Scrolls to `target` pixels down, as far as there is to scroll. With `animate` it glides
-        /// there, unless motion is reduced or it is not on screen; otherwise it is there at once.
+        /// there, unless motion is reduced, the design does not glide (Soft.ControlsStill) or it is not
+        /// on screen; otherwise it is there at once.
         internal void ScrollTo(int target, bool animate)
         {
             if (!scrolls) return;
             int range = overflow ? Math.Max(0, extent - ClientSize.Height) : 0;
             target = Math.Max(0, Math.Min(range, target));
             glideTarget = target;
-            if (animate && !Soft.ReduceMotion && IsHandleCreated && Soft.Shown(this))
+            if (animate && !Soft.ControlsStill && IsHandleCreated && Soft.Shown(this))
             {
                 if (!glide.Enabled) glide.Start();
                 return;
@@ -581,10 +582,11 @@ namespace CodexAutoResume
             if (track.Width <= 0 || track.Height <= 0) return;
             bool contrast = Palette.Contrast;
             float radius = Math.Min(track.Width, track.Height) / 2f;
-            Soft.Body(g, track, radius, TrackFill(contrast, ground), TrackEdge(contrast), !contrast);
+            // The well's inset shadow and the thumb's lift are depth: neither in High Contrast nor in a flat design.
+            Soft.Body(g, track, radius, TrackFill(contrast, ground), TrackEdge(contrast), Palette.Depth);
             if (thumb.Width <= 0 || thumb.Height <= 0) return;
             float knob = Math.Min(thumb.Width, thumb.Height) / 2f;
-            if (!contrast)
+            if (Palette.Depth)
             {
                 // The pill's lift, kept in the groove: it rests in the well rather than floating over
                 // the page, and its shadow never covers the well's own edge.
@@ -803,7 +805,7 @@ namespace CodexAutoResume
         internal static int Room { get { return 0; } }
 
         string ISoftLifted.Lift { get { return "card"; } }
-        float ISoftLifted.Radius { get { return Soft.PxF(Brand.RadiusCard); } }
+        float ISoftLifted.Radius { get { return Soft.PxF(Palette.RadiusCard); } }
         Rectangle ISoftLifted.Face { get { return ClientRectangle; } }
         bool ISoftLifted.Ring { get { return false; } }
 
@@ -825,11 +827,31 @@ namespace CodexAutoResume
 
         protected override void OnPaintBackground(PaintEventArgs e)
         {
-            float radius = Soft.PxF(Brand.RadiusCard);
+            float radius = Soft.PxF(Palette.RadiusCard);
             Ground.PaintBehind(this, e.Graphics, ClientRectangle, radius);
             // The card's own ground, and in dark its one-pixel top light inside the hairline.
             Soft.Body(e.Graphics, ClientRectangle, radius, Palette.Card, Palette.Line, "card");
+            if (Palette.AccentBar) Bar(e.Graphics, ClientRectangle, radius);
             Ground.Stamps(this, e.Graphics, e.ClipRectangle);
+        }
+
+        /// Classic's mark (v0.6.10, v0.6.2's card): an AccentBar-wide bar in the accent just inside the left
+        /// hairline of a body filling `face`, from its top to its bottom and following its corners. Paint only: it
+        /// lies over the card's own ground, in the card's padding, and nothing is laid out for it.
+        internal static void Bar(Graphics g, Rectangle face, float radius)
+        {
+            int hairline = Soft.Hairline;
+            Rectangle inner = Rectangle.Inflate(face, -hairline, -hairline);
+            if (inner.Width <= 0 || inner.Height <= 0) return;
+            GraphicsState state = g.Save();
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.PixelOffsetMode = PixelOffsetMode.Half;
+            // The body's inner shape, filled where the bar is: its corners drawn as smoothly as the card's own, and
+            // its right edge a whole pixel.
+            g.SetClip(new Rectangle(inner.X, inner.Y, Math.Min(inner.Width, Soft.Px(Brand.AccentBar)), inner.Height), CombineMode.Intersect);
+            using (GraphicsPath shape = Soft.Rounded(inner, Math.Max(0f, radius - hairline)))
+                g.FillPath(Soft.Fill(Palette.Accent), shape);
+            g.Restore(state);
         }
     }
 

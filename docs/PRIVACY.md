@@ -53,6 +53,18 @@ footnote. There are four kinds, and they are genuinely different:
   compatibility data, and that data can only make the watcher more careful. It happens only when
   you ask for it, with one of those buttons or those commands; the watcher never asks, and Codex
   cannot.
+- **Nothing more for what other people report.** From v0.6.10 the Diagnostics page shows, beside
+  the Codex version, how many of the reports other people filed for that exact version saw it
+  work, saw it fail, or saw neither. Those counts are not fetched: they come with each release, in
+  a file of their own (`src/codex_auto_resume/data/reported.json`) beside the compatibility data
+  and never inside it, and the refresh above still fetches the compatibility data and nothing
+  else. They are numbers per Codex version, naming nobody, and they are only shown - nothing that
+  decides reads them. This product sends no report of its own. A report reaches GitHub only when
+  its author runs the separate
+  [codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter), reads the
+  file it wrote, and opens the pull request on GitHub themselves;
+  [CONTRIBUTING.md](CONTRIBUTING.md#sending-a-compatibility-report) says what that pull request may
+  add and how it is checked.
 
 **There is no automatic update check, and no automatic compatibility refresh.** Nothing polls,
 nothing checks on a schedule, and nothing checks when the window opens or when the watcher starts.
@@ -69,7 +81,9 @@ compatibility data*, one or two more anonymous requests to public GitHub address
 telemetry, no analytics, no crash reporting, no opt-in reporting, no automatic update check and
 no automatic compatibility refresh — no endpoint of any kind exists to
 receive them, because no collection service is operated for this project. Local statistics
-in the window are read from your own database and never leave it.
+in the window are read from your own database and never leave it. A compatibility report you
+choose to send with the separate reporter is a pull request you open on GitHub yourself, not
+something this tool sends.
 
 Specifically, this tool itself sends none of the following to its developer or to anyone
 else; what reaches OpenAI through Codex is described next:
@@ -356,7 +370,8 @@ conversation to OpenAI like any tool output. That is:
   only: the overall result and the one the watcher acts on, whether the
   compatibility report could be used, where the compatibility data came from and its sequence
   number, the refreshed data's standing, when the check ran, and each capability's state and
-  reason — no Codex version string, no path and no free text. It no longer returns the installation
+  reason — no Codex version string, no path and no free text, and not what other people report
+  about that version, which is for you to read on the Dashboard. It no longer returns the installation
   directory's path, which normally includes your Windows user name; v0.5.0 through v0.5.7
   did, and a conversation held with one of them still carries it;
 - from `list_pending`: the pending recoveries, with their conversation ids, interruption ids,

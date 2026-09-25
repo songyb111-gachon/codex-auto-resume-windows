@@ -30,7 +30,11 @@ def _identifier_schema(title: str) -> dict:
 # a model and is refused if a client sends it anyway.
 USER_GROUPS = frozenset({"general", "recovery", "limits", "notifications", "continuation"})
 # The Appearance settings the panel offers: both themes, which colour it. Reduce motion and the
-# notification-area icon ("windows") stay out: the panel follows the host's reduced-motion setting.
+# notification-area icon ("windows") stay out. So does the design (v0.6.10): it decides what moves
+# on every surface, as Reduce motion does - Still stops motion and Soft starts it again - and what
+# moves is not Codex's to change (standard H3). The panel draws in both, and edits neither: they
+# are written in the Dashboard. restore_default_settings still puts both back, as it puts back
+# every setting.
 PANEL_APPEARANCE = frozenset({"theme", "panel_theme"})
 
 
@@ -203,7 +207,12 @@ TOOLS = [
         "description": "Start the watcher if it is not running. Nothing is recovered "
                        "while it is stopped, so this is the fix when the status says "
                        "it is not running. It starts the same process the installer "
-                       "starts and decides nothing about any interruption.",
+                       "starts and decides nothing about any interruption. Started from "
+                       "here it runs inside Codex. Where Codex ends what its plugins start, "
+                       "as Codex 26.915 was measured to, it stops when Codex closes, if not "
+                       "sooner; the reply reads that from the job each time and says so. A "
+                       "watcher that outlives Codex is one started from Codex Auto Resume in "
+                       "the Start menu once Codex has closed, or at Windows sign-in.",
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
         # Destructive: a watcher the user stopped would start recovering again.
         "annotations": {"readOnlyHint": False, "destructiveHint": True,

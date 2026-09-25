@@ -29,6 +29,9 @@ MARK = 22                    # the box the state dot sits in, beside the product
 SWITCH_GAP = 10
 
 
+# The state line's colour, by the header's word: the look the popup has always had. The dot beside it is
+# the word's light (vm["light"]), which since v0.6.10 is grey and still for a watcher not known to be
+# running, whatever the word asks.
 STATE_INK = {"monitoring": "accent", "waiting": "waiting", "checking": "accent",
              "recovering": "accent", "paused": "paused", "attention": "warning"}
 
@@ -83,7 +86,11 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
         items.append({"kind": "text", "rect": rect, "role": role, "text": value, "colour": colour,
                       "wrap": wrap, "align": align, "target": target})
 
-    # Header: the state dot, the product, the state in words.
+    # Header: the state dot, the product, the state in words - the product's name the title, the state a
+    # line under it in its colour (STATE_INK), and the dot centred on the pair, in its box. v0.6.10 tried
+    # the panel's hero here (the product a muted eyebrow over the state's word in ink) and gave it back:
+    # the look people know stays. The dot is the word's light (vm["light"]), grey and still for a watcher
+    # not known to be running, beside the words that ask for attention.
     mark = px(MARK)
     text_left = left + mark + px(space["s"] + 2)
     text_width = right - text_left
@@ -92,7 +99,7 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
     stack = title_h + state_h
     header_h = max(mark, stack)
     top = y + (header_h - stack) // 2
-    items.append({"kind": "halo", "cx": left + mark / 2.0, "cy": y + header_h / 2.0, "state": vm["state"],
+    items.append({"kind": "halo", "cx": left + mark / 2.0, "cy": y + header_h / 2.0, "state": vm["light"],
                   "radius": brand.glow_extent(brand.STATUS_DOT["popup"]) * scale})
     text((text_left, top, right, top + title_h), "title", vm["title"], "ink")
     text((text_left, top + title_h, right, top + stack), "state", vm["state_text"],
@@ -141,10 +148,11 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
         x0, x1 = left + row_pad, right - row_pad
         content = x1 - x0
         contents = []
+        # A chip as the window and the panel size one (v0.6.10): LAYOUT's height and padding.
         chip_text_w, chip_text_h = measure("chip", task["reason"], content, False)
-        chip_pad = px(space["s"])
+        chip_pad = px(brand.LAYOUT["chip_pad_x"])
         chip_w = min(chip_text_w + 2 * chip_pad, content // 2)
-        chip_h = chip_text_h + px(4)
+        chip_h = max(px(brand.LAYOUT["chip_height"]), chip_text_h)
         name_w = content - chip_w - px(space["s"])
         _, name_h = measure("name", task["name"], name_w, False)
         line_h = max(name_h, chip_h)
@@ -191,7 +199,8 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
         row_bottom = line + check_h + row_pad
         items.append({"kind": "panel", "rect": (left, row_top, right, row_bottom)})
         items.extend(contents)
-        items.append({"kind": "focusable", "rect": hit, "target": target, "radius": px(brand.RADII["small"])})
+        items.append({"kind": "focusable", "rect": hit, "target": target, "radius": px(brand.RADII["small"]),
+                      "corner": "small"})
         y = row_bottom + px(space["s"])
 
     if vm["more"]:
@@ -226,7 +235,7 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
     # Footer: Pause/Resume and Open Dashboard. Side by side when both fit on one line,
     # stacked when either would not - a German button label is not cut in half.
     y += px(space["xs"])
-    button_h = px(32)
+    button_h = px(brand.LAYOUT["button_height"])         # the window's and the panel's, since v0.6.10
     button_pad = px(space["m"])
     buttons = (("toggle", vm["toggle_text"], False, vm["toggle_busy"]),
                ("dashboard", vm["dashboard_text"], True, False))
@@ -255,8 +264,11 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
                       "colour": "on_accent" if primary else "ink", "wrap": wrapped, "align": "center",
                       "target": target})
         targets.append((target, rect))
-        items.append({"kind": "focusable", "rect": rect, "target": target, "radius": px(brand.RADII["control"])})
+        items.append({"kind": "focusable", "rect": rect, "target": target, "radius": px(brand.RADII["control"]),
+                      "corner": "control"})
     y += pad
     card = (margin, margin, total - margin, y)
-    items.insert(0, {"kind": "card", "rect": card, "radius": px(brand.RADII["card"])})
+    # `radius` is Soft's, and `corner` the role a design rounds it by (v0.6.10: the renderer asks
+    # brand.design_radii; the layout, and so every rectangle, is the same in every design).
+    items.insert(0, {"kind": "card", "rect": card, "radius": px(brand.RADII["card"]), "corner": "card"})
     return {"size": (total, y + margin), "card": card, "items": items, "targets": targets, "scale": scale}

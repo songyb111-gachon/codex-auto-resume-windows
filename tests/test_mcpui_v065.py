@@ -33,7 +33,7 @@ from codex_auto_resume import brand, l10n                          # noqa: E402
 from codex_auto_resume.mcp import panel as mcpui
 from codex_auto_resume import settings as policy                          # noqa: E402
 from test_mcpui_v063 import (FORCED, REDUCED, RULES, ROOT_TOKENS, SUPPORTS_MIX,  # noqa: E402
-                             cubic_bezier, declared)
+                             cubic_bezier, declared, javascript_function)
 from test_mcpui_v064 import run_page, say, snapshot                       # noqa: E402
 
 NODE = shutil.which("node")
@@ -611,9 +611,19 @@ class ComboPlacementTests(unittest.TestCase):
 
 # -------------------------------------------------------------------------------- the stylesheet
 def transitions():
-    """Every rule outside an at-rule that declares a transition, with its timing function."""
+    """Every rule outside an at-rule that declares a transition, with its timing function.
+
+    Not the rules that stop every transition: since v0.6.10 a design that does not glide, and the product's
+    own Reduce motion, say `transition: none !important` from the root's stamp, as the reduced-motion and
+    High Contrast blocks do from inside theirs - they time nothing (stopping_rules, held below)."""
     return [(selectors, declarations) for where, selectors, declarations in RULES
-            if where == "" and "transition" in declarations]
+            if where == "" and "transition" in declarations and declarations["transition"] != "none !important"]
+
+
+def stopping_rules():
+    """The rules outside an at-rule that stop every transition: each only under a design's or Reduce motion's stamp."""
+    return [(selectors, declarations) for where, selectors, declarations in RULES
+            if where == "" and declarations.get("transition") == "none !important"]
 
 
 class ComboStyleTests(unittest.TestCase):
@@ -704,7 +714,8 @@ class OneListTests(unittest.TestCase):
         for source in (r"pad = Soft\.Px\(Brand\.SpaceS\);", r"rowGap = Soft\.Px\(Brand\.SpaceXs\);",
                        r"pill = TextRenderer\.MeasureText\(\"Ag\", font, unbounded, Flags\)\.Height"
                        r" \+ 2 \* Soft\.Px\(Brand\.SpaceS\);",
-                       r"float radius = Soft\.PxF\(Brand\.RadiusSmall\);\s+int words = Soft\.Px\(Brand\.SelectPadLeft\);",
+                       # v0.6.10: the design's small radius (Palette), as the panel's list takes its design's.
+                       r"float radius = Soft\.PxF\(Palette\.RadiusSmall\);\s+int words = Soft\.Px\(Brand\.SelectPadLeft\);",
                        r"field\.X - pad", r"MaxDropDownItems = %d;" % ROWS, r"const int TypeAhead = %d;" % TYPING_MS):
             with self.subTest(source):
                 self.assertRegex(CONTROLS, source)
@@ -879,13 +890,16 @@ class MotionStyleTests(unittest.TestCase):
                     self.assertEqual(declarations.get("transition-timing-function"), "var(--transition-ease)")
         # No other curve anywhere a transition or an animation is timed - except the status light's, whose
         # curve is in its keyframes since v0.6.6 (sampled from brand.glow_phase every 2.5% of the cycle), so
-        # what lies between two of them is walked straight rather than eased a second time.
+        # what lies between two of them is walked straight rather than eased a second time; and the checking
+        # arc's turn, which is even all the way round, as the window and the popup turn it (v0.6.10). Each starts
+        # where the script puts the page's one phase (--light-delay, v0.6.10).
         for where, selectors, declarations in RULES:
             for prop in ("transition", "transition-timing-function", "animation", "animation-timing-function"):
                 value = declarations.get(prop, "")
-                if value.startswith("glow-dot ") or value.startswith("glow-spread "):
+                if value.startswith(("glow-dot ", "glow-spread ", "glow-arc ")):
                     with self.subTest(selectors=selectors, prop=prop):
-                        self.assertRegex(value, r"^glow-(dot|spread) var\(--glow-[a-z]+-ms\) linear (infinite|1)$")
+                        self.assertRegex(value, r"^glow-(dot|spread|arc) var\(--glow-[a-z]+-ms\) linear "
+                                                r"var\(--light-delay\) (infinite|1)$")
                     continue
                 with self.subTest(selectors=selectors, prop=prop):
                     self.assertNotRegex(value, r"(?<![-\w])(ease|ease-in|ease-out|ease-in-out|linear|step-start"
@@ -936,6 +950,16 @@ class MotionStyleTests(unittest.TestCase):
                 with self.subTest(selectors=selectors, prop=prop):
                     self.assertIn(prop, {"transform", "opacity", "visibility", "background-color", "border-color",
                                          "box-shadow", "color"})
+
+    def test_a_rule_that_stops_every_transition_stands_only_under_a_designs_or_reduce_motions_stamp(self):
+        """v0.6.10: outside the reduced-motion and High Contrast blocks, `transition: none` is said only for a
+        design that does not glide and for the product's own Reduce motion - never for the page as a whole."""
+        found = stopping_rules()
+        self.assertEqual(len(found), 2)
+        for selectors, _ in found:
+            for selector in selectors:
+                with self.subTest(selector):
+                    self.assertRegex(selector, r'^:root\[data-(design="(still|classic|plain)"|motion="reduced")\] ')
 
 
 # ----------------------------------------------------------------------- a switch that asks first
@@ -1042,16 +1066,24 @@ class ScriptTests(unittest.TestCase):
         self.assertIn("var COMBO_ROWS = %d;" % ROWS, script)
         self.assertIn("var COMBO_TYPING_MS = %d;" % TYPING_MS, script)
         self.assertNotIn("COMBO_PAGE", script)
-        for forbidden in ("setInterval", "setTimeout", "requestAnimationFrame"):
+        for forbidden in ("setInterval", "requestAnimationFrame"):
             self.assertNotIn(forbidden, script)
+        # The page's one timeout is the clock's (watchClock, v0.6.10), never the list's: typing times its search by
+        # the moment each key comes, and nothing waits.
+        self.assertEqual(script.count("setTimeout("), 1)
+        self.assertIn("setTimeout(", javascript_function("watchClock"))
         # A pick is a select's own change, heard by whatever listens to the select.
         self.assertEqual(script.count("select.dispatchEvent(new Event('change', {bubbles: true}));"), 1)
 
     def test_the_status_light_is_still_brands(self):
-        # The light's numbers are brand's; this release's panel work redefines none of them.
+        # The light's numbers are brand's; this release's panel work redefines none of them. The one place a
+        # `--glow-*` is declared outside brand's scale is the tile's smaller light (v0.6.10), and that is brand's
+        # too: the glow's reach and stops for its radius, as brand.css_glow_geometry writes them.
         scale = brand.css_scale()
+        mini = brand.css_glow_geometry(brand.STATUS_DOT["mini"])
+        self.assertEqual(mcpui._STYLE.count(mini), 1)
         for name in re.findall(r"(--glow-[a-z-]+):", scale):
-            self.assertNotRegex(mcpui._STYLE.replace(scale, ""), re.escape(name) + r"\s*:")
+            self.assertNotRegex(mcpui._STYLE.replace(scale, "").replace(mini, ""), re.escape(name) + r"\s*:")
 
 
 # ------------------------------------------------------------------------------------ tiles

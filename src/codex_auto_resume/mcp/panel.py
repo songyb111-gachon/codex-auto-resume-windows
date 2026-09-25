@@ -44,6 +44,11 @@ It also shows the Codex Compatibility Registry as the Dashboard's Diagnostics pa
 read-only (`renderCompatibility`): codes in, words out, and no way to refresh the data from here.
 Its tiles - a waiting task, the master switch - stand on their cards as the popup's task tiles do
 (`tile_elevation`), and a line of Korean breaks between words and one of Japanese between phrases.
+
+v0.6.10 draws it in the stored Design - Soft, Still, Classic or Plain - stamped on the root as the theme
+is, with every design's properties in the stylesheet (`brand.css_design_blocks`) and what each moves
+beside them (`design_rules`); and it follows the product's own Reduce motion as well as the host's. It
+draws in both and edits neither: what moves is the Dashboard's to change, not Codex's.
 """
 from __future__ import annotations
 
@@ -83,13 +88,46 @@ def css_shadow(shadow) -> str:
         brand._css_length(shadow.blur), shadow.token.replace("_", "-"), int(round(shadow.alpha * 100)))
 
 
-def tile_elevation(theme) -> str:
+def tile_elevation(theme, design="soft") -> str:
     """`--elev-tile` for one theme: how a tile - a waiting task's row, the master switch's - stands on
     its card. It is the popup's raised task tile (popup.DEPTH), made of brand's recipes the same
     way: brand's control lift and, where brand's card has one (dark), the card's inset top light, the
-    one-pixel edge a drop alone cannot give a tile on a dark card at this size."""
+    one-pixel edge a drop alone cannot give a tile on a dark card at this size. `none` in a design
+    without depth, said outright: a list that began with an `--elev-control` of `none` is not CSS."""
+    if not brand.design_depth(design):
+        return "--elev-tile: none;"
     top_light = [shadow for shadow in brand.shadows("card", theme) if shadow.inset]
     return "--elev-tile: %s;" % ", ".join(["var(--elev-control)"] + [css_shadow(shadow) for shadow in top_light])
+
+
+def design_rules() -> str:
+    """The stylesheet's rules for what each design moves and for Classic's mark, from brand.DESIGN (v0.6.10).
+
+    Written from the table rather than per design, so a design whose row changes carries its rules with
+    it. Every selector starts from the root's stamp - `data-design`, or `data-motion="reduced"` for the
+    product's own Reduce motion, which holds everything as a design that does not breathe does - so none
+    of them matches a page that is stamped with neither: Soft, and a watcher older than the setting.
+    """
+    def roots(designs):
+        return [':root[data-design="%s"]' % design for design in designs]
+
+    def every(selected):
+        return ", ".join("%s %s" % (root, part) for root in selected for part in ("*", "*::before", "*::after"))
+
+    held = roots(design for design in brand.DESIGNS if not brand.design_breathes(design))
+    held.append(':root[data-motion="reduced"]')
+    unglided = roots(design for design in brand.DESIGNS if not brand.design_glides(design))
+    glowless = held + [root for root in roots(design for design in brand.DESIGNS if not brand.design_glow(design))
+                       if root not in held]
+    barred = roots(design for design in brand.DESIGNS if brand.design_accent_bar(design))
+    return "\n".join([
+        "%s { animation: none !important; transition: none !important; }" % every(held),
+        "%s { transition: none !important; }" % every(unglided),
+        "%s { animation: none !important; }" % ", ".join(root + " .combo-list" for root in unglided),
+        "%s { display: none; }" % ", ".join(root + " .halo::before" for root in glowless),
+        "%s { box-shadow: inset %s 0 0 var(--accent); }" % (", ".join(root + " .card" for root in barred),
+                                                            brand._css_length(brand.ACCENT_BAR)),
+    ])
 
 
 # Resolved once, at import: the palette is a build-time fact, not a per-request one. The lift
@@ -101,8 +139,13 @@ _STYLE = (_STYLE.replace("@LIGHT@", brand.css_variables(brand.LIGHT))
                 .replace("@ELEVATION_DARK@", brand.css_elevation("dark"))
                 .replace("@TILE_LIGHT@", tile_elevation("light"))
                 .replace("@TILE_DARK@", tile_elevation("dark"))
+                # v0.6.10: the designs, and what each moves.
+                .replace("@DESIGNS@", brand.css_design_blocks(tile_elevation))
+                .replace("@DESIGN_MOTION@", design_rules())
                 .replace("@SCALE@", brand.css_scale())
                 .replace("@GLOW_KEYFRAMES@", brand.css_glow_keyframes())
+                # The Automatic recovery tile's light: the same light, smaller (v0.6.10).
+                .replace("@GLOW_MINI@", brand.css_glow_geometry(brand.STATUS_DOT["mini"]))
                 # Where a drop-down's words start, in its field and in its list: the field's own padding.
                 .replace("@SELECT_PAD_LEFT@", "%gpx" % brand.padding("select_pad")[3]))
 
@@ -142,7 +185,7 @@ def _script_json(value) -> str:
     return json.dumps(value, ensure_ascii=False, allow_nan=False).replace("<", "\\u003c")
 
 
-def settings_page(data=None, theme=None) -> str:
+def settings_page(data=None, theme=None, design=None) -> str:
     """The panel as one HTML document.
 
     ``data`` is only ever used for a preview: in Codex the values arrive from the tool
@@ -171,6 +214,11 @@ def settings_page(data=None, theme=None) -> str:
     # deterministic artefact. `data-theme-pinned` tells the script to leave it alone.
     root = ("<html>" if theme not in ("light", "dark")
             else '<html data-theme="%s" data-theme-pinned="">' % theme)
+    # `design` pins the design the same way (v0.6.10): Soft is no stamp, as it is when the script
+    # stamps from the stored design, and `data-design-pinned` tells the script to leave it alone.
+    if design in brand.DESIGNS:
+        stamp = "" if design == brand.DEFAULT_DESIGN else ' data-design="%s"' % design
+        root = root[:-1] + stamp + ' data-design-pinned="">'
     return (
         "<!doctype html>" + root + "<head><meta charset=\"utf-8\">"
         "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"

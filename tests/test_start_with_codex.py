@@ -8,6 +8,8 @@ real watcher or touches the installer's real lock.
 """
 from __future__ import annotations
 
+import io
+import json
 import os
 from pathlib import Path
 import sys
@@ -16,7 +18,7 @@ import threading
 import unittest
 from unittest.mock import patch
 
-from codex_auto_resume import config, control, mcpserver, settings, windows
+from codex_auto_resume import config, control, l10n, mcpserver, settings, windows
 
 
 class FakeProcess:
@@ -168,6 +170,174 @@ class StartForCodexTests(unittest.TestCase):
         self.paths.logs_dir.rmdir()
         self.control.start_for_codex()
         self.assertFalse(self.paths.logs_dir.exists())
+
+
+class StartWatcherFromCodexTests(unittest.TestCase):
+    """v0.6.10: Start watcher, asked of the MCP server, says how long the watcher it starts lasts.
+
+    The server runs in the job Codex puts it in, and Start watcher asks nothing of that job. Codex
+    26.915 (measured, v0.6.9-alpha) gives it KILL_ON_JOB_CLOSE and no breakaway, so a watcher started
+    from the panel or the tool stops when Codex ends that server; the reply may not report that as a
+    lasting start. It reads the job as the start with Codex does (control.ends_with_job)."""
+
+    KILL = {"in_job": True, "kill_on_close": True, "breakaway_ok": False, "silent_breakaway_ok": False}
+    STARTS = {"running": {"started": True, "confirmed": True, "state": "running", "reason": None},
+              "unconfirmed": {"started": True, "confirmed": False, "state": "unconfirmed",
+                              "reason": "unconfirmed"},
+              "exited": {"started": True, "confirmed": False, "state": "exited", "reason": "exited"},
+              "already-running": {"started": False, "confirmed": True, "state": "already-running",
+                                  "reason": "already running"}}
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.control = control.Control(config.Paths(Path(self.temporary.name)))
+        self.server = mcpserver.Server(self.control, io.StringIO(), io.StringIO())
+
+    def call(self, context, state="running"):
+        """(the reply's text, its structured half, how often the job was asked about), with the start
+        itself patched out: what is pinned here is the reply, not the launch."""
+        asked = []
+
+        def context_of_this_process():
+            asked.append(1)
+            if isinstance(context, BaseException):
+                raise context
+            return dict(context)
+
+        with patch.object(control.Control, "start_watcher", return_value=dict(self.STARTS[state])),                 patch.object(windows, "process_context", side_effect=context_of_this_process):
+            reply = self.server._tool_start_watcher({})
+        return reply["content"][0]["text"], reply["structuredContent"], len(asked)
+
+    def test_a_start_inside_a_job_that_ends_it_is_not_a_lasting_start(self):
+        text, data, _asked = self.call(self.KILL)
+        self.assertTrue(text.startswith(mcpserver.Server.START_WORDING["running"] + " "), text)
+        self.assertIn("it stops when Codex closes, if not sooner", text)
+        # The way out has to be one a person can take. "Start it from the Dashboard" was not: the
+        # Dashboard starts a watcher in its own job, and one opened from this watcher's icon is in
+        # Codex's; while this watcher runs it has nothing to start. The Start menu's entry, once Codex
+        # has closed, and the sign-in start are launched by Windows.
+        self.assertIn("Once Codex has closed, open Codex Auto Resume from the Start menu and start it "
+                      "there", text)
+        self.assertIn("Run at Windows sign-in", text)
+        self.assertNotIn("start it from the Dashboard", text)
+        self.assertEqual((data["state"], data["ends_with_codex"]), ("running", True))
+
+    def test_the_job_is_read_as_the_start_with_codex_reads_it(self):
+        """Start watcher asks nothing of the job, so a job that ends what it holds ends it even where
+        the job would have let it leave on request; only a job whose children leave anyway, one
+        that ends nobody, or no job at all lets it outlive Codex."""
+        cases = ((self.KILL, True),
+                 (dict(self.KILL, breakaway_ok=True), True),
+                 (dict(self.KILL, silent_breakaway_ok=True), False),
+                 (dict(self.KILL, kill_on_close=False), False),
+                 ({"in_job": False}, False),
+                 (dict(self.KILL, kill_on_close=None), None),
+                 ({"in_job": None}, None),
+                 ({}, None))
+        for context, ends in cases:
+            with self.subTest(context=context):
+                self.assertIs(control.ends_with_job(context), ends)
+                self.assertIs(self.call(context)[1]["ends_with_codex"], ends)
+        # The refusal of the start with Codex is the same reading, asked for a start that does ask
+        # to leave where the job lets it.
+        self.assertIs(control.ends_with_job(dict(self.KILL, breakaway_ok=True), leaving=True), False)
+
+    def test_a_start_that_outlives_codex_is_reported_as_it_always_was(self):
+        text, data, _asked = self.call({"in_job": False})
+        self.assertEqual(text, mcpserver.Server.START_WORDING["running"])
+        self.assertIs(data["ends_with_codex"], False)
+
+    def test_where_windows_would_not_say_it_may_stop(self):
+        for context in ({"in_job": None}, RuntimeError("no")):
+            with self.subTest(context=repr(context)):
+                text, data, _asked = self.call(context)
+                self.assertIn("it may stop when Codex closes", text)
+                self.assertNotIn("it stops when Codex closes", text)
+                self.assertIsNone(data["ends_with_codex"])
+
+    def test_an_unconfirmed_start_says_it_too_and_still_does_not_say_running(self):
+        text, data, _asked = self.call(self.KILL, "unconfirmed")
+        self.assertEqual(text, mcpserver.Server.START_WORDING["unconfirmed"] + " "
+                         + mcpserver.Server.ENDS_WITH_CODEX[True])
+        self.assertNotIn("is running", text)
+        self.assertIs(data["ends_with_codex"], True)
+
+    def test_nothing_is_said_of_a_watcher_this_start_did_not_leave_running(self):
+        # Already running: started elsewhere, and the job is not even asked about.
+        text, data, asked = self.call(self.KILL, "already-running")
+        self.assertEqual(text, mcpserver.Server.START_WORDING["already-running"])
+        self.assertNotIn("ends_with_codex", data)
+        self.assertEqual(asked, 0)
+        # Exited: nothing is running to stop with Codex; the fact is still carried.
+        text, data, _asked = self.call(self.KILL, "exited")
+        self.assertEqual(text, mcpserver.Server.START_WORDING["exited"])
+        self.assertIs(data["ends_with_codex"], True)
+
+    def test_the_sentences_never_claim_a_running_watcher_and_the_panel_says_them_in_every_language(self):
+        english = l10n._read("en")
+        sentences = {("server", ends): sentence for ends, sentence in mcpserver.Server.ENDS_WITH_CODEX.items()}
+        sentences.update({("panel", key): english[key]
+                          for key in ("panel.start_ends_with_codex", "panel.start_may_end_with_codex")})
+        for where, sentence in sentences.items():
+            with self.subTest(where=where):
+                self.assertNotIn("is running", sentence)
+                # Nor a start that would not last: every one names the Start menu's entry.
+                self.assertIn("Codex Auto Resume from the Start menu", sentence)
+                self.assertNotIn("keep it running", sentence)
+        script = (Path(__file__).resolve().parents[1] / "src" / "codex_auto_resume" / "mcp" / "assets"
+                  / "panel.js").read_text(encoding="utf-8")
+        self.assertIn("payload.ends_with_codex", script)
+        for key in ("panel.start_ends_with_codex", "panel.start_may_end_with_codex"):
+            self.assertIn("'%s'" % key, script)
+            for locale in l10n.LOCALES:
+                with self.subTest(key=key, locale=locale):
+                    self.assertTrue(l10n._read(locale).get(key, "").strip())
+                    # The entry keeps its name in every language: it is what the Start menu shows.
+                    self.assertIn("Codex Auto Resume", l10n._read(locale)[key])
+
+    def test_the_panel_says_it_after_a_start_running_or_not_yet_confirmed(self):
+        """The panel's Start watcher says what the server's reply says, driven through the panel's
+        own code: after a start that is running or not yet confirmed, where the job ends it or
+        Windows would not say - an unconfirmed start used to say nothing of it - and after nothing
+        else."""
+        import shutil
+        if not shutil.which("node"):
+            self.skipTest("needs Node to run the panel's own code")
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from test_mcpui_v064 import run_page, say, snapshot
+
+        def notice(state, ends, locale="en"):
+            reply = {"state": state, "started": state != "already-running"}
+            if ends != "absent":
+                reply["ends_with_codex"] = ends
+            # The panel speaks the chosen language, which the snapshot's settings carry.
+            data = snapshot(interface_language=locale)
+            data["status"]["watcher_running"] = False
+            return run_page("""
+              window.openai.callTool = HOST.callTool = function (name) {
+                if (name === 'start_watcher') return Promise.resolve({structuredContent: %s});
+                return new Promise(function () {});
+              };
+              HERO.start.onclick();
+              await settle();
+              """ % json.dumps(reply) + say("HERO.message.textContent"), data=data, locale=locale)
+
+        ends, may = "panel.start_ends_with_codex", "panel.start_may_end_with_codex"
+        unconfirmed, exited = "panel.start_unconfirmed", "panel.start_exited"
+        for locale in ("en", "ko"):
+            words = l10n.catalog(locale)
+            cases = ((("running", True), words[ends]),
+                     (("running", None), words[may]),
+                     (("running", False), ""),
+                     (("unconfirmed", True), words[unconfirmed] + " " + words[ends]),
+                     (("unconfirmed", None), words[unconfirmed] + " " + words[may]),
+                     (("unconfirmed", False), words[unconfirmed]),
+                     (("exited", True), words[exited]),
+                     (("already-running", "absent"), ""))
+            for (state, told), expected in cases:
+                with self.subTest(locale=locale, state=state, ends=told):
+                    self.assertEqual(notice(state, told, locale), expected)
 
 
 class ContextWordsTests(unittest.TestCase):

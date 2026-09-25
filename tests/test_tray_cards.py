@@ -248,10 +248,24 @@ class IconHostTests(unittest.TestCase):
                 patch.object(tray_popup, "reduced_motion", lambda: bool(tray_popup.theme._reduce_motion_setting)), \
                 patch.object(notice_presence, "battery_saver", lambda: False):
             look = icon._card_look()
-            self.assertEqual(look, {"theme": "dark", "contrast": False, "reduced": True})
+            # v0.6.10: the design too, and the two gates it splits motion into - both held by Reduce motion.
+            self.assertEqual(look, {"theme": "dark", "design": "soft", "contrast": False, "reduced": True,
+                                    "light_still": True, "controls_still": True})
             settings.update(stored, {"theme": "light", "reduce_motion": False})
             os.utime(stored, ns=(time.time_ns(), time.time_ns() + 10_000_000))
-            self.assertEqual(icon._card_look(), {"theme": "light", "contrast": False, "reduced": False})
+            self.assertEqual(icon._card_look(), {"theme": "light", "design": "soft", "contrast": False,
+                                                 "reduced": False, "light_still": False, "controls_still": False})
+            # Classic: the light breathes and the card comes and goes as Soft's does - only Still holds them.
+            settings.update(stored, {"design": "classic"})
+            os.utime(stored, ns=(time.time_ns(), time.time_ns() + 20_000_000))
+            self.assertEqual(icon._card_look(), {"theme": "light", "design": "classic", "contrast": False,
+                                                 "reduced": False, "light_still": False, "controls_still": False})
+            # Still: nothing moves, as with Reduce motion.
+            settings.update(stored, {"design": "still"})
+            os.utime(stored, ns=(time.time_ns(), time.time_ns() + 30_000_000))
+            self.assertEqual(icon._card_look(), {"theme": "light", "design": "still", "contrast": False,
+                                                 "reduced": False, "light_still": True, "controls_still": True})
+        self.addCleanup(tray_popup.set_design, "soft")
 
 
 # ------------------------------------------------------------------------- the entrance

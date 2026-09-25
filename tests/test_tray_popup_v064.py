@@ -211,7 +211,10 @@ class DarkElevationTests(unittest.TestCase):
 class SwitchPlacementTests(unittest.TestCase):
     """The label on the left, wrapping; the switch at the row's bottom right, level with its last line."""
 
-    LENGTHS = (1, 3)        # each language's own labels, and each said three times over
+    # Each language's own label, and each said three and eight times over. Since v0.6.10 the label is
+    # the switch's short name (Auto-resume), where it was a sentence that wrapped by itself, so it is
+    # said over and over to find the rows a longer one would make.
+    LENGTHS = (1, 3, 8)
 
     def plans(self):
         rows = task_rows()
@@ -761,7 +764,8 @@ class DarkRendererTests(unittest.TestCase):
             for locale in ("en", "ko", "de"):
                 for scale in (1.0, 2.0):
                     self.renderer.theme, self.renderer.contrast = theme, False
-                    vm = lengthen(popup.view_model(rows, STATUS, interface.STRINGS[locale], NOW), 3)
+                    # Said eight times: the short name alone is one line (v0.6.10), and this is about many.
+                    vm = lengthen(popup.view_model(rows, STATUS, interface.STRINGS[locale], NOW), 8)
                     plan = self.renderer.layout(vm, scale, locale)
                     canvas = self.renderer.draw(vm, plan, frame=popup.halo(vm["state"], 0))
                     pixels, width = canvas.pixels(), plan["size"][0]

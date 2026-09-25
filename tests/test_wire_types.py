@@ -48,6 +48,9 @@ WHERE = {
     wire.CompatEngine: [(source, path + ".engine") for source, path in COMPAT],
     wire.CompatData: [(source, path + ".data") for source, path in COMPAT],
     wire.CompatCapability: [(source, path + ".capabilities.*") for source, path in COMPAT],
+    # v0.6.10: what others report, beside the version. On the bridge only - the MCP summary
+    # never carries it (tests/test_compat_surfaces.py).
+    wire.CompatReported: [(source, path + ".reported") for source, path in COMPAT],
     wire.SchemaField: [("bridge:describe", "schema[]")],
 }
 
@@ -170,6 +173,29 @@ class ContractTests(unittest.TestCase):
         tree = ast.parse(inspect.getsource(records.describe_record))
         built = next(node for node in ast.walk(tree) if isinstance(node, ast.Return)).value
         self.assertEqual({key.value for key in built.keys}, set(typing.get_type_hints(wire.RecordView)))
+
+    def test_reported_for_builds_exactly_a_compat_reported(self):
+        """The producer of `reported`, in every state it can be in, not only the one the goldens
+        happen to hold (no engine is found there, so each golden says `unavailable`)."""
+        import tempfile
+        from unittest.mock import patch
+        from codex_auto_resume import compat
+        from codex_auto_resume.compat import reported, views
+        self.assertEqual(set(typing.get_type_hints(wire.CompatReported)), {"state", *reported.COUNTS})
+        usable = {"status": "ok", "engine": {"found": True, "version": "codex-cli 0.153.4"}}
+        entry = {"version": "codex-cli 0.153.4", "reports": 2, "worked": 1, "failed": 1, "neither": 0, "both": 0}
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "reported.json"
+            for raw in (None, b"{", json.dumps({"format": reported.FORMAT, "versions": []}),
+                        json.dumps({"format": reported.FORMAT, "versions": [entry]})):
+                if raw is not None:
+                    (path.write_bytes if isinstance(raw, bytes) else path.write_text)(raw)
+                with patch.object(reported, "BUNDLED", path):
+                    for view in (usable, compat.unusable_view("absent")):
+                        answer = views.reported_for(view)
+                        with self.subTest(raw=raw, status=view["status"], state=answer["state"]):
+                            self.assertEqual(problems(wire.CompatReported, answer), [])
+                            self.assertIs(type(answer["state"]), str, "the word, not the enum")
 
     def test_the_checker_refuses_what_it_should(self):
         """Not vacuous: each rule, broken on purpose, is caught."""

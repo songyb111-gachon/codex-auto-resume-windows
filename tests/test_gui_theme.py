@@ -7,7 +7,9 @@ r"""The window's theme, its reopening, and its two kinds of true-or-false contro
   draws in dark.
 * REOPEN. A window speaks one language and draws one theme, so a change of either - saved here,
   made elsewhere, or Windows' app mode flipping under "system" - closes it and opens it again where
-  it was, never under unsaved edits and never in a loop.
+  it was, never under unsaved edits and never in a loop. v0.6.10: and one design, which is read in the
+  same parse of the settings file as the theme, passed on as the theme is, and reopens the window as
+  the theme does.
 * KINDS. A switch turns something that runs on or off; a check box picks which items of a list apply
   (recover_<category>, notify_<event>). The check box is the neumorphic one brand.CHECKBOX defines.
 
@@ -74,6 +76,15 @@ STORED = {
     "not_utf8": b'{"theme": "dark", "custom_message": "\xb0\xe8\xbc\xd3"}',
     "trailing": b'{"theme": "dark"} {"theme": "light"}',
     "too_large": b'{"theme": "dark", "custom_message": "' + b"a" * (256 * 1024) + b'"}',
+    # v0.6.10: the Design, read in the same parse as the theme, exactly as the settings layer reads it.
+    "design": b'{"theme": "dark", "design": "classic"}',
+    "design_only": b'{"design": "plain"}',
+    "design_still": b'{"theme": "light", "design": "still"}',
+    "design_other_case": b'{"theme": "dark", "design": "Classic"}',
+    "design_not_a_string": b'{"design": 1}',
+    "design_null": b'{"design": null, "theme": "light"}',
+    "design_damaged": b'{"theme": "dark", "design": "plain"',
+    "design_bom": b'\xef\xbb\xbf{"theme": "dark", "design": "plain"}',
 }
 # The widths, in logical pixels of client area, the reopen note is measured at: the opening width, and the
 # narrowest the window goes - 800 wide, less a sizable frame's 8 px on each side.
@@ -122,29 +133,73 @@ ARGUMENTS = [
     (["--focus=start", "--focus=close"], {"focus": "close"}),
     (["--focus=Save", "--focus=page.nowhere", "--focus=section.", "--focus=setting.", "--focus=setting.Theme",
       "--focus=setting.a-b", "--focus=setting." + "a" * 65, "--focus=", "--focus=save "], {}),
+    # v0.6.10: a Design by its own name exactly.
+    (["--design=classic"], {"design": "classic"}),
+    (["--design=plain", "--design=still"], {"design": "still"}),
+    (["--design=soft", "--theme=dark"], {"design": "soft", "theme": "dark"}),
+    (["--design=Classic", "--design=", "--design=bogus", "--design=soft ", "--design= plain", "--Design=plain"], {}),
 ]
 
-# (openedLanguage, openedTheme, language, theme, dirty, firstRead, generation) -> decision
+# (openedLanguage, openedTheme, openedDesign, language, theme, design, dirty, firstRead, generation) -> decision.
+# v0.6.10 added the design on each side: the design a window draws (Design.Drawn), which a change of reopens it as a
+# change of theme does - and every rule about the theme holds for it.
 KEEP, REOPEN, ONCE_SAVED, ADOPT = 0, 1, 2, 3
 DECISIONS = [
-    (("en", "light", "en", "light", False, False, 0), KEEP),
-    (("en", "light", "en", "light", True, True, 5), KEEP),
-    (("en", "light", "ko", "light", False, False, 0), REOPEN),
-    (("en", "light", "en", "dark", False, False, 0), REOPEN),
-    (("en", "light", "en", "contrast", False, False, 0), REOPEN),
-    (("en", "contrast", "en", "light", False, False, 0), REOPEN),
-    (("system", "dark", "en", "dark", False, False, 0), REOPEN),
-    (("en", "light", "ko", "dark", True, False, 0), ONCE_SAVED),
-    (("en", "light", "en", "dark", True, True, 0), ONCE_SAVED),
-    (("en", "light", "en", "dark", False, True, 0), REOPEN),
-    (("en", "light", "en", "dark", False, True, 1), REOPEN),
-    (("en", "light", "en", "dark", False, True, 2), ADOPT),
-    (("en", "light", "en", "dark", False, True, 9), ADOPT),
-    (("en", "light", "en", "dark", False, False, 9), REOPEN),
-    ((None, "light", "ko", "light", False, False, 0), KEEP),
-    (("en", None, "en", "dark", False, False, 0), KEEP),
-    (("en", "light", None, None, False, False, 0), KEEP),
+    (("en", "light", "soft", "en", "light", "soft", False, False, 0), KEEP),
+    (("en", "light", "soft", "en", "light", "soft", True, True, 5), KEEP),
+    (("en", "light", "soft", "ko", "light", "soft", False, False, 0), REOPEN),
+    (("en", "light", "soft", "en", "dark", "soft", False, False, 0), REOPEN),
+    (("en", "light", "soft", "en", "contrast", "soft", False, False, 0), REOPEN),
+    (("en", "contrast", "soft", "en", "light", "soft", False, False, 0), REOPEN),
+    (("system", "dark", "soft", "en", "dark", "soft", False, False, 0), REOPEN),
+    (("en", "light", "soft", "ko", "dark", "soft", True, False, 0), ONCE_SAVED),
+    (("en", "light", "soft", "en", "dark", "soft", True, True, 0), ONCE_SAVED),
+    (("en", "light", "soft", "en", "dark", "soft", False, True, 0), REOPEN),
+    (("en", "light", "soft", "en", "dark", "soft", False, True, 1), REOPEN),
+    (("en", "light", "soft", "en", "dark", "soft", False, True, 2), ADOPT),
+    (("en", "light", "soft", "en", "dark", "soft", False, True, 9), ADOPT),
+    (("en", "light", "soft", "en", "dark", "soft", False, False, 9), REOPEN),
+    ((None, "light", "soft", "ko", "light", "soft", False, False, 0), KEEP),
+    (("en", None, "soft", "en", "dark", "soft", False, False, 0), KEEP),
+    (("en", "light", "soft", None, None, "soft", False, False, 0), KEEP),
+    # The design alone.
+    (("en", "light", "soft", "en", "light", "classic", False, False, 0), REOPEN),
+    (("en", "dark", "plain", "en", "dark", "soft", False, False, 0), REOPEN),
+    (("en", "light", "still", "en", "light", "still", True, True, 5), KEEP),
+    (("en", "light", "soft", "en", "light", "plain", True, False, 0), ONCE_SAVED),
+    (("en", "light", "soft", "en", "light", "classic", False, True, 0), REOPEN),
+    (("en", "light", "soft", "en", "light", "classic", False, True, 1), REOPEN),
+    (("en", "light", "soft", "en", "light", "classic", False, True, 2), ADOPT),
+    (("en", "light", "soft", "en", "light", "classic", False, True, 9), ADOPT),
+    (("en", "light", "soft", "en", "light", None, False, False, 0), KEEP),
+    (("en", "light", None, "en", "light", "plain", False, False, 0), KEEP),
 ]
+# (theme, design) -> what Design.Drawn makes of them: the choice, and Soft's under High Contrast, which replaces it.
+DRAWN = [("light", "classic"), ("dark", "plain"), ("light", "still"), ("contrast", "classic"), ("contrast", "plain"),
+         ("light", "Classic"), ("dark", None), ("contrast", "soft")]
+
+
+# C#'s comments, verbatim strings, strings and characters, in the order a reader meets them, so a quote inside a
+# comment or a comment marker inside a string is never taken for the other.
+CSHARP_TOKENS = re.compile(r'''(?P<comment>//[^\n]*|/\*.*?\*/)|(?P<verbatim>@"(?:[^"]|"")*")'''
+                           r'''|(?P<string>"(?:[^"\\\n]|\\.)*")|(?P<char>'(?:[^'\\\n]|\\.)')''', re.S)
+
+
+def string_literals(code: str) -> list:
+    """Every string literal in C# source, as its contents, comments skipped."""
+    found = []
+    for token in CSHARP_TOKENS.finditer(code):
+        if token.group("verbatim"):
+            found.append(token.group("verbatim")[2:-1].replace('""', '"'))
+        elif token.group("string"):
+            found.append(token.group("string")[1:-1])
+    return found
+
+
+def design_names_written(code: str) -> list:
+    """The string literals in C# source that are a design's name, in any case."""
+    names = {design.lower() for design in brand.DESIGNS}
+    return [text for text in string_literals(code) if text.strip().lower() in names]
 
 
 def argb(value: str) -> int:
@@ -224,10 +279,17 @@ foreach ($case in (ConvertFrom-Json $env:CAR_RESOLVE)) {
 $out.apps = [int]$themeType.GetMethod('AppsUseLightTheme', $static).Invoke($null, $null)
 $stored = $themeType.GetMethod('Stored', $static)
 $out.stored = @{}
+$out.storedDesign = @{}
 foreach ($name in (ConvertFrom-Json $env:CAR_STORED)) {
-    # Written by the test, as settings.load will read them.
-    $out.stored[[string]$name] = [string]$stored.Invoke($null, [object[]]@([string](Join-Path $work ('stored-' + $name))))
+    # Written by the test, as settings.load will read them: the theme and the design from one read (v0.6.10).
+    $call = [object[]]@([string](Join-Path $work ('stored-' + $name)), $null, $null)
+    $null = $stored.Invoke($null, $call)
+    $out.stored[[string]$name] = [string]$call[1]
+    $out.storedDesign[[string]$name] = [string]$call[2]
 }
+$drawnOf = $assembly.GetType('CodexAutoResume.Design', $true).GetMethod('Drawn', $static)
+$out.drawn = @()
+foreach ($case in (ConvertFrom-Json $env:CAR_DRAWN)) { $out.drawn += [string]$drawnOf.Invoke($null, [object[]]@($case[0], $case[1])) }
 
 # ------------------------------------------------------------------ the palette in each theme
 $names = ConvertFrom-Json $env:CAR_NAMES
@@ -316,7 +378,7 @@ $dpi.SetValue($null, $systemScale)
 $decide = $formType.GetMethod('ReopenDecision', $static)
 $out.decisions = @()
 foreach ($case in (ConvertFrom-Json $env:CAR_DECISIONS)) {
-    $out.decisions += [int]$decide.Invoke($null, [object[]]@($case[0], $case[1], $case[2], $case[3], [bool]$case[4], [bool]$case[5], [int]$case[6]))
+    $out.decisions += [int]$decide.Invoke($null, [object[]]@($case[0], $case[1], $case[2], $case[3], $case[4], $case[5], [bool]$case[6], [bool]$case[7], [int]$case[8]))
 }
 $next = $formType.GetMethod('NextGeneration', $static)
 $out.next = @()
@@ -330,6 +392,7 @@ function Request-Of($request) {
     if ($null -ne $request.GetType().GetField('Page', $instance).GetValue($request)) { $result.page = [string]$request.GetType().GetField('Page', $instance).GetValue($request) }
     if ($null -ne $request.GetType().GetField('Section', $instance).GetValue($request)) { $result.section = [string]$request.GetType().GetField('Section', $instance).GetValue($request) }
     if ($null -ne $request.GetType().GetField('Theme', $instance).GetValue($request)) { $result.theme = [string]$request.GetType().GetField('Theme', $instance).GetValue($request) }
+    if ($null -ne $request.GetType().GetField('Design', $instance).GetValue($request)) { $result.design = [string]$request.GetType().GetField('Design', $instance).GetValue($request) }
     if ([bool]$request.GetType().GetField('HasBounds', $instance).GetValue($request)) {
         $bounds = $request.GetType().GetField('Bounds', $instance).GetValue($request)
         $result.bounds = @($bounds.X, $bounds.Y, $bounds.Width, $bounds.Height)
@@ -356,8 +419,8 @@ $out.roundTrip = @()
 try {
     foreach ($case in (ConvertFrom-Json $env:CAR_ROUND_TRIPS)) {
         $bounds = [Drawing.Rectangle]::new([int]$case[2], [int]$case[3], [int]$case[4], [int]$case[5])
-        $frame = [Windows.Forms.Padding]::new([int]$case[9][0], [int]$case[9][1], [int]$case[9][2], [int]$case[9][3])
-        $line = [string]$reopenArguments.Invoke($null, [object[]]@($case[0], $case[1], $bounds, [bool]$case[6], $case[7], [int]$case[8], $frame, $case[10]))
+        $frame = [Windows.Forms.Padding]::new([int]$case[10][0], [int]$case[10][1], [int]$case[10][2], [int]$case[10][3])
+        $line = [string]$reopenArguments.Invoke($null, [object[]]@($case[0], $case[1], $bounds, [bool]$case[6], $case[7], $case[8], [int]$case[9], $frame, $case[11]))
         $split = [string[]]@($line.Split(' '))
         $out.roundTrip += ,@{ line = $line; parsed = (Request-Of ($parseArguments.Invoke($null, [object[]]@(,$split)))) }
     }
@@ -464,6 +527,14 @@ foreach ($theme in @('light', 'dark')) {
     $entry.dirty += [bool](Invoke-Window $window 'Dirty' @())
     $values = Invoke-Window $window 'EditorValues' @()
     $entry.touched = [string](Invoke-Window $window 'ChangesJson' @($values))
+    # The Design (v0.6.10): sent when chosen here, and left out when put back, as the theme is.
+    $designCombo = $editors['design']
+    $designIndex = $designCombo.SelectedIndex
+    $designCombo.SelectedIndex = ($designIndex + 1) % $designCombo.Items.Count
+    $entry.designTouched = [string](Invoke-Window $window 'ChangesJson' @((Invoke-Window $window 'EditorValues' @())))
+    $designCombo.SelectedIndex = $designIndex
+    $entry.designPutBack = [string](Invoke-Window $window 'ChangesJson' @((Invoke-Window $window 'EditorValues' @())))
+    $entry.openedDesign = [string](Get-Field $window 'openedDesign')
     # The panel's own theme (v0.6.6): sent when changed here, left out when put back, followed in place
     # when it changes elsewhere, and left alone while it holds an edit of its own not saved yet.
     $panelCombo = $editors['panel_theme']
@@ -489,6 +560,17 @@ foreach ($theme in @('light', 'dark')) {
     $versionText = Get-Field $window 'versionText'
     $entry.version = @{ fore = [int]$versionText.ForeColor.ToArgb()
                         card = [int]$paletteType.GetField('Card', $static).GetValue($null).ToArgb() }
+    # The Statistics page's outcomes: a bar each, most first, every one in the one colour the chart fills its bars
+    # with - [word, count] for each bar, that colour, and the palette's accent.
+    $null = Invoke-Window $window 'ApplyStatistics' @($parse.Invoke($null, [object[]]@([IO.File]::ReadAllText((Join-Path $work 'statistics.json'), $utf8))))
+    $chart = Get-Field $window 'chart'
+    $chartType = $assembly.GetType('CodexAutoResume.OutcomeChart', $true)
+    $entry.outcomes = @()
+    foreach ($bar in $chartType.GetField('Bars', $instance).GetValue($chart)) {
+        $entry.outcomes += ,@([string]$bar.Key, [int]$bar.Value)
+    }
+    $entry.bars = @{ fill = [int]$chartType.GetField('BarColor', $instance).GetValue($chart).ToArgb()
+                     accent = [int]$paletteType.GetField('Accent', $static).GetValue($null).ToArgb() }
     $out.window[$theme] = $entry
     $window.Dispose()
 }
@@ -522,10 +604,14 @@ function Step([string]$what) {
     if ([int](Get-Field $window 'busy') -ne 1) { throw 'nothing is on its way; a reopen would start a process' }
     return @{ step = $what; recheck = [bool](Get-Field $window 'recheck'); reopening = [bool](Get-Field $window 'reopening')
               note = [bool]$ownState.Invoke($note, [object[]]@(2)); text = [string]$note.Text
-              openedTheme = [string](Get-Field $window 'openedTheme'); openedLanguage = [string](Get-Field $window 'openedLanguage') }
+              openedTheme = [string](Get-Field $window 'openedTheme'); openedLanguage = [string](Get-Field $window 'openedLanguage')
+              openedDesign = [string](Get-Field $window 'openedDesign') }
 }
 function Stored([string]$language, [string]$theme) {
     return $parse.Invoke($null, [object[]]@('{"interface_language": "' + $language + '", "theme": "' + $theme + '"}'))
+}
+function StoredDesign([string]$language, [string]$theme, [string]$design) {
+    return $parse.Invoke($null, [object[]]@('{"interface_language": "' + $language + '", "theme": "' + $theme + '", "design": "' + $design + '"}'))
 }
 $steps = @()
 $steps += ,(Step 'opened')
@@ -549,6 +635,15 @@ $steps += ,(Step 'language changed under an edit')
 $box.Checked = -not $box.Checked
 $null = Invoke-Window $window 'Observe' @((Stored 'en' 'light'), $false)
 $steps += ,(Step 'all back')
+# v0.6.10: a Design saved elsewhere, as a Theme is.
+$null = Invoke-Window $window 'Observe' @((StoredDesign 'en' 'light' 'classic'), $false)
+$steps += ,(Step 'design changed, nothing unsaved')
+$box.Checked = -not $box.Checked
+$null = Invoke-Window $window 'CheckReopen' @($false)
+$steps += ,(Step 'design changed under an edit')
+$box.Checked = -not $box.Checked
+$null = Invoke-Window $window 'Observe' @((StoredDesign 'en' 'light' 'soft'), $false)
+$steps += ,(Step 'design changed back')
 $request = Get-Field $window 'request'
 $request.GetType().GetField('Generation', $instance).SetValue($request, 2)
 $null = Invoke-Window $window 'Observe' @((Stored 'en' 'dark'), $true)
@@ -589,10 +684,11 @@ try {
     $work1 = [Windows.Forms.MethodInvoker]({ $held.runs++ }.GetNewClosure())
     $null = Invoke-Window $stay 'HoldForReopen' @($work1)
     $out.handover.heldWhileStaying = [int]$held.runs
-    # As Reopen leaves it once the new process has started: for English and dark.
+    # As Reopen leaves it once the new process has started: for English, dark and (v0.6.10) Soft.
     $formType.GetField('reopening', $instance).SetValue($stay, $true)
     $formType.GetField('reopenLanguage', $instance).SetValue($stay, 'en')
     $formType.GetField('reopenTheme', $instance).SetValue($stay, 'dark')
+    $formType.GetField('reopenDesign', $instance).SetValue($stay, 'soft')
     $null = Invoke-Window $stay 'HoldForReopen' @($work1)
     $null = Invoke-Window $stay 'HoldForReopen' @($work1)
     $out.handover.heldWhileReopening = [int]$held.runs
@@ -603,9 +699,10 @@ try {
                             held = [int]$held.runs; heldLeft = ($null -ne (Get-Field $stay 'heldForReopen'))
                             clock = (($null -ne $clock) -and [bool]$clock.Enabled) }
     $after = @()
-    foreach ($case in @(@('what it could not reopen in', 'en', 'dark'), @('something else', 'ko', 'dark'),
-                        @('what it shows', 'en', 'light'), @('what it could not reopen in, again', 'en', 'dark'))) {
-        $null = Invoke-Window $stay 'Observe' @((Stored $case[1] $case[2]), $false)
+    foreach ($case in @(@('what it could not reopen in', 'en', 'dark', 'soft'), @('something else', 'ko', 'dark', 'soft'),
+                        @('what it shows', 'en', 'light', 'soft'), @('what it could not reopen in, again', 'en', 'dark', 'soft'),
+                        @('what it could not reopen in, in another design', 'en', 'dark', 'plain'))) {
+        $null = Invoke-Window $stay 'Observe' @((StoredDesign $case[1] $case[2] $case[3]), $false)
         $after += ,@{ step = [string]$case[0]; recheck = [bool](Get-Field $stay 'recheck'); reopening = [bool](Get-Field $stay 'reopening')
                       note = [bool]$ownState.Invoke((Get-Field $stay 'reopenNote'), [object[]]@(2)) }
     }
@@ -757,12 +854,12 @@ BOX_POINTS = {
     "mark": (31, 27),         # on the long arm of the mark, fully covered by its 4 px stroke
     "outside": (5, 5),        # the ground around the box
 }
-# (page, section, x, y, width, height, maximized, theme, generation, invisible frame, focus)
+# (page, section, x, y, width, height, maximized, theme, design, generation, invisible frame, focus)
 ROUND_TRIPS = [
-    ("settings", "appearance", 120, 80, 1500, 900, False, "dark", 1, (7, 0, 7, 7), "save"),
-    ("pending", "general", -1920, -8, 1000, 600, True, "system", 2, (11, 0, 11, 11), "page.pending"),
-    ("overview", "nowhere", 0, 0, 1000, 600, False, "Dark", 0, (0, 0, 0, 0), "setting.theme"),
-    ("nowhere", "continuation", 99999, 0, 1000, 600, False, "light", 12, (100, 0, 7, 7), "Save"),
+    ("settings", "appearance", 120, 80, 1500, 900, False, "dark", "classic", 1, (7, 0, 7, 7), "save"),
+    ("pending", "general", -1920, -8, 1000, 600, True, "system", "plain", 2, (11, 0, 11, 11), "page.pending"),
+    ("overview", "nowhere", 0, 0, 1000, 600, False, "Dark", "Plain", 0, (0, 0, 0, 0), "setting.theme"),
+    ("nowhere", "continuation", 99999, 0, 1000, 600, False, "light", None, 12, (100, 0, 7, 7), "Save"),
 ]
 # (wanted x, y, w, h, area x, y, w, h, minimum w, h, invisible frame left, top, right, bottom) -> placed
 PLACES = [
@@ -790,6 +887,11 @@ PLACES = [
 ]
 
 
+# The outcomes the Statistics page counts, in the store's own words (store.statistics()["outcomes"]).
+OUTCOMES = ("cancelled", "delivered_legacy", "exhausted", "failed_terminal", "handed_over", "no_progress",
+            "outcome_unverified", "recovered", "recovery_failed", "stopped_by_user", "submission_unknown", "superseded")
+
+
 @unittest.skipUnless(CSC.is_file() and POWERSHELL.is_file(), "needs the in-box compiler and PowerShell")
 class WindowThemeTests(unittest.TestCase):
     @classmethod
@@ -814,6 +916,11 @@ class WindowThemeTests(unittest.TestCase):
         (work / "schema.json").write_text(json.dumps(settings.describe(), ensure_ascii=False), encoding="utf-8")
         (work / "settings.json").write_text(json.dumps(settings.defaults(), ensure_ascii=False), encoding="utf-8")
         (work / "snapshot.json").write_text(json.dumps(fullest_snapshot(time.time()), ensure_ascii=False), encoding="utf-8")
+        # Every outcome the Statistics page counts, each a different number, as the store's statistics() gives them.
+        (work / "statistics.json").write_text(json.dumps(
+            {"interruptions_detected": 99, "continuations_submitted": 90, "success_rate": 0.5, "success_denominator": 20,
+             "outcomes": {code: index + 1 for index, code in enumerate(OUTCOMES)}, "by_category": {"usage_limit": 99},
+             "retry_now_requests": 0}), encoding="utf-8")
         probe = work / "probe.ps1"
         probe.write_text(PROBE, encoding="utf-8")
         cls.booleans = [entry["name"] for entry in settings.describe() if entry["type"] == "boolean"] + ["__startup"]
@@ -829,6 +936,7 @@ class WindowThemeTests(unittest.TestCase):
                      CAR_NAMES=json.dumps(list(TOKENS)), CAR_SCALES=json.dumps(SCALES), CAR_BODIES=json.dumps(BODIES),
                      CAR_BOX_POINTS=json.dumps(BOX_POINTS),
                      CAR_DECISIONS=json.dumps([list(case) for case, _ in DECISIONS]),
+                     CAR_DRAWN=json.dumps([list(case) for case in DRAWN]),
                      CAR_ARGUMENTS=json.dumps([case for case, _ in ARGUMENTS]),
                      CAR_ROUND_TRIPS=json.dumps([list(case) for case in ROUND_TRIPS]),
                      CAR_PLACES=json.dumps([list(case) for case, _ in PLACES]),
@@ -890,6 +998,33 @@ class WindowThemeTests(unittest.TestCase):
         for name, theme in (("dark", "dark"), ("light", "light"), ("whitespace", "light"), ("versioned", "dark")):
             with self.subTest(read=name):
                 self.assertEqual(self.answer["stored"][name], theme)
+
+    def test_the_stored_design_is_read_as_the_settings_layer_reads_it_in_the_same_parse_as_the_theme(self):
+        """v0.6.10. Both come out of one read of the file: a file the settings layer does not read is its defaults for
+        both, and a design that is not one of the four, exactly, is Soft - as settings.design_preference has it."""
+        for name in STORED:
+            path = self.work / ("stored-" + name) / "config" / "settings.json"
+            loaded = settings.load(path)
+            with self.subTest(name):
+                self.assertEqual(self.answer["storedDesign"][name], settings.design_preference(loaded))
+                self.assertEqual(self.answer["stored"][name], settings.theme_preference(loaded))
+        for name, theme, design in (("design", "dark", "classic"), ("design_only", "system", "plain"),
+                                    ("design_still", "light", "still"), ("design_other_case", "dark", "soft"),
+                                    ("design_not_a_string", "system", "soft"), ("design_null", "light", "soft"),
+                                    ("design_damaged", "system", "soft"), ("design_bom", "system", "soft"),
+                                    ("dark", "dark", "soft"), ("missing", "system", "soft")):
+            with self.subTest(spelled=name):
+                self.assertEqual((self.answer["stored"][name], self.answer["storedDesign"][name]), (theme, design))
+        main = guiscan.member_body("Program", "Main")
+        self.assertEqual(main.count("Theme.Stored("), 1, "one read of the file, for both")
+        stored = guiscan.member_body("Theme", "Stored")
+        self.assertEqual(stored.count("ReadAllBytes("), 1)
+        self.assertEqual(stored.count("Json.ParseDocument("), 1)
+
+    def test_under_high_contrast_no_design_is_drawn_so_none_reopens_the_window(self):
+        expected = ["classic", "plain", "still", "soft", "soft", "soft", "soft", "soft"]
+        self.assertEqual(len(DRAWN), len(expected))
+        self.assertEqual(self.answer["drawn"], expected)
 
     def test_high_contrast_as_the_window_reads_it_wins_over_every_preference(self):
         """What Theme.HighContrastOn answers - Windows' own answer as the window ships (ThemeSourceRuleTests), the
@@ -1084,16 +1219,36 @@ class WindowThemeTests(unittest.TestCase):
                 self.assertEqual(entry["openedTheme"], theme)
 
     def test_a_save_sends_the_language_and_theme_only_when_they_were_changed_here(self):
-        """So a save of something else never puts back a language or theme chosen elsewhere meanwhile."""
+        """So a save of something else never puts back a language or theme chosen elsewhere meanwhile - nor, since
+        v0.6.10, a design."""
         for theme in ("light", "dark"):
             entry = self.answer["window"][theme]
             untouched, touched = json.loads(entry["untouched"]), json.loads(entry["touched"])
             with self.subTest(theme):
                 self.assertNotIn("theme", untouched)
                 self.assertNotIn("interface_language", untouched)
+                self.assertNotIn("design", untouched)
                 self.assertIn("recover_timeout", untouched, "everything else is still sent")
                 self.assertIn(touched["theme"], settings.THEMES)
                 self.assertNotIn("interface_language", touched)
+                self.assertNotIn("design", touched)
+                self.assertIn(json.loads(entry["designTouched"]).get("design"), settings.DESIGNS[1:],
+                              "chosen here, it is sent")
+                self.assertNotIn("design", json.loads(entry["designPutBack"]), "put back, it is not")
+
+    def test_the_design_is_a_drop_down_of_its_four_choices_in_their_own_words(self):
+        english = l10n.catalog("en")
+        for theme in ("light", "dark"):
+            entry = self.answer["window"][theme]
+            combo = entry["editors"]["design"]
+            with self.subTest(theme):
+                self.assertEqual(combo["type"], "SoftCombo")
+                self.assertEqual([value for value, _ in combo["items"]], list(settings.DESIGNS))
+                self.assertEqual([label for _, label in combo["items"]],
+                                 [english["choice.design." + value] for value in settings.DESIGNS])
+                self.assertEqual(entry["appearanceLabels"].count(english["field.design"]), 1)
+                self.assertIn(english["help.design"], entry["appearanceLabels"])
+                self.assertEqual(entry["openedDesign"], "soft", "the design the palette was given")
 
     def test_the_panels_own_theme_is_sent_only_when_changed_and_follows_a_change_made_elsewhere(self):
         """v0.6.6. The window is not drawn in the panel's theme, so a change of it in the panel or by Codex
@@ -1131,6 +1286,26 @@ class WindowThemeTests(unittest.TestCase):
                 self.assertEqual(card, brand.card_ground(theme).upper())
                 self.assertEqual(fore, tokens["muted"].upper())
                 self.assertGreaterEqual(brand.contrast(fore, card), 4.5, "%s on %s" % (fore, card))
+
+    def test_every_outcome_s_bar_is_the_one_accent_colour(self):
+        """The Statistics page draws every outcome's bar in one colour, the accent, and the word beside each bar tells
+        the outcomes apart. v0.6.10 tried the colour History draws each outcome's word in, and the owner put the one
+        colour back, as the chart was before (86292a30); History's chips keep their colours. The accent reads at 3:1
+        or better on the card, as a graphic must, in light and in dark."""
+        from codex_auto_resume.store import Store
+        with tempfile.TemporaryDirectory() as temp, Store(Path(temp) / "state") as store:
+            self.assertEqual(sorted(store.statistics()["outcomes"]), sorted(OUTCOMES), "every outcome the store counts")
+        words = l10n.catalog("en")
+        most_first = sorted(OUTCOMES, key=lambda code: -(OUTCOMES.index(code) + 1))
+        for theme, tokens in (("light", brand.LIGHT), ("dark", brand.DARK)):
+            entry = self.answer["window"][theme]
+            with self.subTest(theme):
+                self.assertEqual([word for word, _ in entry["outcomes"]], [words["code." + code] for code in most_first],
+                                 "a bar for every outcome, beside its word, most first")
+                self.assertEqual([count for _, count in entry["outcomes"]], [OUTCOMES.index(code) + 1 for code in most_first])
+                self.assertEqual(entry["bars"]["fill"], entry["bars"]["accent"], "every bar in the accent")
+                self.assertEqual(entry["bars"]["fill"], argb(tokens["accent"]))
+                self.assertGreaterEqual(brand.contrast(tokens["accent"], brand.card_ground(theme)), 3.0)
 
     def test_nothing_in_the_dark_window_keeps_a_light_colour(self):
         """Every opaque colour on every control of every page, built and filled, is one of the dark
@@ -1171,6 +1346,10 @@ class WindowThemeTests(unittest.TestCase):
             ("theme changed back", False, False, "light"),
             ("language changed under an edit", True, True, "light"),
             ("all back", False, False, "light"),
+            # v0.6.10: a Design saved elsewhere reopens it as a Theme does, and waits for an edit as a Theme does.
+            ("design changed, nothing unsaved", True, False, "light"),
+            ("design changed under an edit", True, True, "light"),
+            ("design changed back", False, False, "light"),
             # A second reopen in a row that reads something else again stays, and takes what it read.
             ("first read of a second reopen in a row", False, False, "dark"),
             ("read again", False, False, "dark"),
@@ -1185,6 +1364,7 @@ class WindowThemeTests(unittest.TestCase):
                 self.assertEqual(step["text"], note if shown else "")
                 self.assertEqual(step["openedTheme"], opened)
                 self.assertEqual(step["openedLanguage"], "en")
+                self.assertEqual(step["openedDesign"], "soft")
 
     def test_a_disagreement_that_never_goes_away_reopens_at_most_twice(self):
         """A window that reads something other than what it was started with - every time - is opened
@@ -1195,15 +1375,19 @@ class WindowThemeTests(unittest.TestCase):
         # (False, 0), (False, 2), (False, 9): a change seen later starts a new count.
         self.assertEqual(self.answer["next"], [1, 2, 3, 9, 1, 1, 1])
         following = {0: 1, 1: 2, 2: 3, 9: 9}
-        decided = {case[6]: got for (case, _), got in zip(DECISIONS, self.answer["decisions"])
-                   if case[:6] == ("en", "light", "en", "dark", False, True)}
-        generation, windows = 0, 1
-        while decided[generation] == REOPEN:
-            generation = following[generation]
-            windows += 1
-            self.assertLessEqual(windows, 5, "the chain did not end")
-        self.assertEqual(windows, 3, "the person's window and two reopens")
-        self.assertEqual(decided[generation], ADOPT)
+        # A theme that disagrees, and (v0.6.10) a design that does: neither reopens more than twice.
+        for disagreement in (("en", "light", "soft", "en", "dark", "soft", False, True),
+                             ("en", "light", "soft", "en", "light", "classic", False, True)):
+            decided = {case[8]: got for (case, _), got in zip(DECISIONS, self.answer["decisions"])
+                       if case[:8] == disagreement}
+            generation, windows = 0, 1
+            with self.subTest(disagreement=disagreement):
+                while decided[generation] == REOPEN:
+                    generation = following[generation]
+                    windows += 1
+                    self.assertLessEqual(windows, 5, "the chain did not end")
+                self.assertEqual(windows, 3, "the person's window and two reopens")
+                self.assertEqual(decided[generation], ADOPT)
 
     def test_a_window_whose_new_one_never_showed_stays_and_goes_on_working(self):
         """It closes only once the new window is up. When the new process ends first, this window takes input
@@ -1222,7 +1406,9 @@ class WindowThemeTests(unittest.TestCase):
         self.assertFalse(gone["heldLeft"])
         self.assertTrue(gone["clock"])
         expected = [("what it could not reopen in", False), ("something else", True), ("what it shows", False),
-                    ("what it could not reopen in, again", False)]
+                    ("what it could not reopen in, again", False),
+                    # v0.6.10: the same language and theme in another design is a different change.
+                    ("what it could not reopen in, in another design", True)]
         self.assertEqual([(step["step"], step["recheck"]) for step in handover["after"]], expected)
         for step in handover["after"]:
             with self.subTest(step["step"]):
@@ -1293,12 +1479,13 @@ class WindowThemeTests(unittest.TestCase):
     def test_a_reopen_passes_on_exactly_what_the_new_window_accepts(self):
         self.assertNotIn("roundTripError", self.answer)
         expected = [
-            {"page": "settings", "section": "appearance", "bounds": [120, 80, 1500, 900], "theme": "dark", "generation": 1,
-             "frame": [7, 0, 7, 7], "focus": "save"},
+            {"page": "settings", "section": "appearance", "bounds": [120, 80, 1500, 900], "theme": "dark", "design": "classic",
+             "generation": 1, "frame": [7, 0, 7, 7], "focus": "save"},
             {"page": "pending", "section": "general", "bounds": [-1920, -8, 1000, 600], "maximized": True,
-             "theme": "system", "generation": 2, "frame": [11, 0, 11, 11], "focus": "page.pending"},
-            {"page": "overview", "bounds": [0, 0, 1000, 600], "theme": "system", "generation": 1, "focus": "setting.theme"},
-            {"section": "continuation", "theme": "light", "generation": 9},
+             "theme": "system", "design": "plain", "generation": 2, "frame": [11, 0, 11, 11], "focus": "page.pending"},
+            {"page": "overview", "bounds": [0, 0, 1000, 600], "theme": "system", "design": "soft", "generation": 1,
+             "focus": "setting.theme"},
+            {"section": "continuation", "theme": "light", "design": "soft", "generation": 9},
         ]
         self.assertEqual(len(self.answer["roundTrip"]), len(ROUND_TRIPS))
         for case, want, got in zip(ROUND_TRIPS, expected, self.answer["roundTrip"]):
@@ -1306,7 +1493,7 @@ class WindowThemeTests(unittest.TestCase):
                 self.assertEqual(got["parsed"], want)
                 self.assertNotIn('"', got["line"])
                 for token in got["line"].split(" "):
-                    self.assertRegex(token, r"^--(page|section|bounds|maximized|theme|reopened|frame|focus)\b")
+                    self.assertRegex(token, r"^--(page|section|bounds|maximized|theme|design|reopened|frame|focus)\b")
 
     def test_a_reopened_window_is_placed_wholly_on_its_screen(self):
         """By the frame one sees, not the bounds: those reach past it by the resize border Windows keeps invisible,
@@ -1345,17 +1532,39 @@ class ThemeSourceRuleTests(unittest.TestCase):
         return text[start:text.index(end, start)]
 
     def test_no_light_colour_is_drawn_outside_the_theme_it_was_adopted_from(self):
-        """Brand's light colours are read in one place - Tokens.Adopt, beside their dark twins - and
-        everything else draws from Palette or Tokens. A `Brand.Surface` left in a paint method is a light
-        patch in a dark window."""
-        pattern = re.compile(r"\bBrand\.(%s)\b" % "|".join(self.COLOURS))
-        adopt = guiscan.member_body("Tokens", "Adopt")
+        """Brand's colours, light or dark, are read in one place - Tokens.Adopt, from the Brand.Look that Brand.LookOf
+        answers for the design and the theme in effect - and everything else draws from Palette or Tokens. A
+        `Brand.Surface` left in a paint method is a light patch in a dark window. Until v0.6.10's final Adopt named
+        every colour of Brand, Brand.Dark and each design's classes itself; the choosing is generated now (Brand.Look)."""
+        pattern = re.compile(r"\bBrand\.(?:Dark\.)?(%s)\b" % "|".join(self.COLOURS))
         for name, text in self.sources.items():
-            code = self.code(text.replace(adopt, ""))
             with self.subTest(name):
-                self.assertEqual(pattern.findall(code), [], "a light brand colour drawn directly")
-        self.assertEqual(len(re.findall(r"= Brand\.Dark\.\w+;", adopt)), len(self.COLOURS))
-        self.assertEqual(len(re.findall(r"= Brand\.(?!Dark\.)\w+;", adopt)), len(self.COLOURS))
+                self.assertEqual(pattern.findall(self.code(text)), [], "a brand colour drawn directly")
+        adopt = guiscan.member_body("Tokens", "Adopt")
+        self.assertIn("Look = Brand.LookOf(Design, dark);", adopt)
+        self.assertEqual(sorted(field for field in re.findall(r"= Look\.(\w+);", adopt) if field != "Colours"),
+                         sorted(self.COLOURS), "every colour from the look, once")
+
+    def test_no_drawing_code_names_a_designs_colours_outside_tokens(self):
+        """v0.6.10. A design's classes (Brand.Classic, Brand.Plain and their Dark twins) are read by Brand.Look alone, in
+        generated code, and the window adopts what Brand.LookOf answers (Tokens, Palette), so no line of its own - no
+        paint method, and not Tokens either - can reach past the design in effect to another one's colours."""
+        for name, text in self.sources.items():
+            with self.subTest(name):
+                self.assertEqual(re.findall(r"\bBrand\.(?:Classic|Plain)\b", self.code(text)), [])
+        self.assertIn("Tokens.Design = Design;", guiscan.member_body("Palette", "Adopt"))
+
+    def test_no_hand_written_source_names_a_design(self):
+        """v0.6.10. Which colours, check box, depth, glow, motion and corners a design has reaches the window from
+        brand/design.py and brand/tokens.py, generated into gui/Brand.cs (Brand.LookOf) by build/make_brand.py, so the
+        four designs stay in step in the window as on every other surface. A design's name written as a string in the
+        window's own code is a choice made by hand beside the generated one - gui/SoftTheme.cs made it in ten branches
+        until v0.6.10's final - and fails here, in any case. Comments may name a design; code may not."""
+        canary = '// "plain" in a comment\nif (Design == "classic" && dark) Say("Plain words", @"Still");'
+        self.assertEqual(design_names_written(canary), ["classic", "Still"], "the scan reports what it is for")
+        for name in guiscan.handwritten():
+            with self.subTest(name):
+                self.assertEqual(design_names_written(guiscan.read(name)), [], "a design named by hand")
 
     def test_every_theme_dependent_brand_rule_is_read_with_its_dark_twin(self):
         """A status colour, a check box's colours and an elevation recipe differ by theme, so each is
@@ -1408,7 +1617,12 @@ class ThemeSourceRuleTests(unittest.TestCase):
         adopt = main.index("Palette.Adopt(Theme.Current(Theme.Opened));")
         self.assertLess(main.index("SettingsForm.ParseArguments(argv)"), adopt)
         self.assertLess(adopt, main.index("new SettingsForm("))
-        self.assertIn("request.Theme ?? Theme.Stored(root)", main)
+        # v0.6.10: the theme and the design stored, from one read, each unless a reopen passed it on - and the design
+        # adopted before the theme, so the palette is drawn in both before the first control.
+        read = main.index("Theme.Stored(root, out storedTheme, out storedDesign);")
+        self.assertLess(read, main.index("request.Theme ?? storedTheme"))
+        self.assertLess(read, main.index("request.Design ?? storedDesign"))
+        self.assertLess(main.index("Palette.AdoptDesign(Design.Opened);"), adopt)
         controls = guiscan.read("SoftTheme.cs")
         resolve = guiscan.member_body("Theme", "Resolve")
         self.assertLess(resolve.index("if (highContrast) return Contrast;"), resolve.index("Preference(preference)"),
@@ -1508,7 +1722,11 @@ class ThemeSourceRuleTests(unittest.TestCase):
         self.assertIn("AccessibleRole = AccessibleRole.CheckButton;", check)
         self.assertIn("if (Focused && ShowFocusCues)", check)
         draw = guiscan.member_body("SoftCheck", "DrawBox")
-        self.assertLess(draw.index("if (Palette.Contrast)"), draw.index("Tokens.Dark ? Brand.Dark.CheckFill("))
+        # v0.6.10: the colours are the design's (Tokens.CheckFill, which asks the Brand.Look of the design and theme in
+        # effect), and the well is drawn only where the design has depth.
+        self.assertLess(draw.index("if (Palette.Contrast)"), draw.index("Tokens.CheckFill("))
+        self.assertIn("return Look.CheckFill(on, enabled);", guiscan.member_body("Tokens", "CheckFill"))
+        self.assertIn("well = Palette.Depth && Brand.CheckWell(on, enabled);", draw)
         self.assertIn("well = false;", draw[:draw.index("else")], "no shadow in High Contrast")
         self.assertIn("pen.LineJoin = LineJoin.Miter;", draw)
         self.assertIn("LineCap.Flat", draw)
@@ -1518,7 +1736,8 @@ class ThemeSourceRuleTests(unittest.TestCase):
         self.assertNotIn('ChoiceCombo(field, current, "choice.");', window)
         # Each theme in its own words: the Theme's "Use system setting", the panel theme's "Same as
         # Theme" and "Codex's theme" (v0.6.6) - never the generic "choice." the other settings share.
-        self.assertIn('bool themed = name == "theme" || name == "panel_theme";', window)
+        # v0.6.10: and the Design in its own, Soft to Plain.
+        self.assertIn('bool themed = name == "theme" || name == "panel_theme" || name == "design";', window)
         self.assertIn('themed ? "choice." + name + "." : "choice."', window)
 
 

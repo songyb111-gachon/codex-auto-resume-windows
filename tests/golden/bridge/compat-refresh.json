@@ -142,7 +142,15 @@
                 "tier": "unsupported"
               }
             },
-            "live": true
+            "live": true,
+            "reported": {
+              "state": "unavailable",
+              "reports": 0,
+              "worked": 0,
+              "failed": 0,
+              "neither": 0,
+              "both": 0
+            }
           }
         }
       }
@@ -288,7 +296,15 @@
                 "tier": "unsupported"
               }
             },
-            "live": true
+            "live": true,
+            "reported": {
+              "state": "unavailable",
+              "reports": 0,
+              "worked": 0,
+              "failed": 0,
+              "neither": 0,
+              "both": 0
+            }
           }
         }
       }

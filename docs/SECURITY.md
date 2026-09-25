@@ -130,7 +130,7 @@ this product's plugin and marketplace).
     engine path (`codex_exe`) if you have set one, and in v0.5.7 the install path, which contains
     your Windows user name; from v0.6.0, it no longer includes the install path. From v0.6.5 it
     also carries the Codex compatibility summary, as codes only - no version string, no path, no
-    free text.
+    free text, and not what other people report about that version.
 
   There is no telemetry, and no update check runs unless you press the button for it: from
   v0.6.0 *Check for updates* makes one HEAD request to this repository's `releases/latest`
@@ -238,7 +238,7 @@ this product's plugin and marketplace).
 - **The Custom message is written in the Dashboard, and nowhere else.** New in v0.6.3. It is
   the one piece of text a person writes that this product then sends by itself, into that
   person's conversations, at every interruption it covers, while nobody is watching. So it is
-  written only through the local control layer the Windows Dashboard uses, and never through
+  written only through the local control layer the Dashboard uses, and never through
   the plugin's MCP tools: `update_settings` leaves the text fields out of its schema and
   refuses them by name when a client sends them anyway. A prompt-injected model that could
   write it would turn one injected instruction into a standing one, delivered at every future
@@ -309,6 +309,36 @@ this product's plugin and marketplace).
   binary that has since changed. The MCP server can read a summary of it, as codes only, and cannot
   refresh or import anything. And a failing evaluation fails closed: the gate reads unknown, and
   nothing is sent on the strength of a check that did not run.
+- **What others report decides nothing.** New in v0.6.10. The Diagnostics page shows, beside the
+  Codex version, how many of the reports other people filed for that exact version saw it work,
+  fail or neither. Nothing can prove such a report was not written by hand, so it is built to
+  inform and never to decide. Its counts are a file of their own that ships with each release,
+  `src/codex_auto_resume/data/reported.json`, beside the compatibility data and never inside it,
+  and no request fetches it. One module reads it (`compat/reported.py`), with a reader of its own:
+  a size cap checked before parsing, the registry's decoder (a duplicate key, a number that is not
+  finite or too deep a structure refused), exact keys, and counts that must add up. Only the view
+  a person reads imports that module; the engine, the watcher's loop, the gates, the registry's
+  standing, permits, evaluator and cache, the popup and the tray never do, and
+  `tests/test_reported_isolation.py` holds that by structure and by behaviour - a thousand reports
+  that a version worked leave one with no evidence of its own *compatible*, a thousand that it
+  failed leave a verified one verified, and neither moves a permit or what the watcher writes. A
+  damaged file reads as *could not be read* and can never refuse the registry. The MCP summary
+  never carries the counts. And the compatibility data cannot rest on someone else's report: the
+  validator refuses a claim whose evidence is under `docs/evidence/community/`, in any spelling
+  Windows would still open as that folder.
+- **A report's pull request is judged by `main`'s check, as data.** New in v0.6.10.
+  `.github/workflows/community-report.yml` runs on `pull_request_target`, so its definition is
+  always `main`'s and a fork cannot rewrite the check it is judged by. It never runs the head: it
+  checks out the base commit with no token left on disk, holds `contents: read` and no secret,
+  installs nothing, keeps no cache or artifact, runs for at most five minutes, and reads the
+  head's commits with git plumbing only (`build/community_check.py`) - nothing in them is checked
+  out, merged or run. A contributor's pull request may add one new file, at
+  `docs/evidence/community/<their GitHub login>/codex-cli-<its own version>.json`, of at most 1 MB
+  known before it is read, that the report reader (`build/community_report.py`) accepts, and that
+  is not a copy of a filed report; anything else is refused. The report's own levels and verdict
+  are recomputed from what it measured, and only ever lowered. `tests/test_workflow_privilege.py`
+  and `tests/test_community_check.py` hold each rule, and a maintainer still reviews and merges
+  every report.
 
 ## Destructive-operation safety
 
@@ -660,4 +690,9 @@ only restrict*: at worst it marks a Codex build incompatible and recovery stops 
 until the data changes again - unfinished work left unresumed, never a message sent that the
 local checks would refuse. A document that requires a signature is refused whole until something
 verifies one. Any program running under your Windows account can also write
-`config/compat-cache.json`; it is validated on every read, and the same rules apply to it.
+`config/compat-cache.json`; it is validated on every read, and the same rules apply to it. - What
+other people report can be made up. The check a report's pull request runs refuses one that could
+not have been measured - a setup that could not have written it, times the machine could not have
+recorded, a copy of a filed report - but nothing proves that a plausible report was measured, so
+the counts beside a version are only as honest as the people who sent them. They are shown as
+other people's reports and change nothing: no state, no check and nothing sent moves with them.

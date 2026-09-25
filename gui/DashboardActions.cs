@@ -296,56 +296,184 @@ namespace CodexAutoResume
             });
         }
 
-        /// What the watcher is doing, as the header's status light shows it.
+        /// What the watcher is doing, as the header's status light shows it: the light of the header's word
+        /// (ActivityWord), and a light that is off - grey, as it was until v0.6.3 - for a watcher that is not
+        /// running or not known to be, beside the word that asks for attention (HeaderLight).
         ///
-        /// Pure, so the rule can be checked without a window. A watcher that is not running, or
-        /// not known to be, is a light that is off - grey, as it was until v0.6.3, with the
-        /// headline beside it saying what is wrong. One that runs but is not responding, or that
-        /// an unfinished upgrade still shares the state with, needs a person; a pause is still; a
-        /// continuation in Codex is recovering; a task that has come due is being checked; anything
-        /// else waiting is waiting; and a running watcher with nothing to do is monitoring. With no
-        /// pending list - it could not be read - the status's own count says whether anything is
-        /// waiting, so a list that cannot be read is never shown as nothing to do.
+        /// Pure, so the rule can be checked without a window.
         internal static string Activity(Dictionary<string, object> status, List<object> pending, double now)
         {
-            if (status == null) return "idle";
-            if (!Equals(Get(status, "watcher_running"), true)) return "idle";
-            var watcher = Map(status, "watcher");
-            if (Equals(Get(status, "upgrade_pending"), true) || Equals(Get(watcher, "ticking"), false))
-                return "attention";
+            return HeaderLight(status, pending, ActivityWord(status, pending, now));
+        }
+
+        /// The header's word, activity.<word> in the catalog, for what the window read (v0.6.10).
+        ///
+        /// The rule every header keeps - the popup's (ui/popup/model.activity) and the Codex panel's (panel.js
+        /// activity) too - and tests/data/light_states.json holds all three to it: until v0.6.10 three hand-written
+        /// copies told one moment three ways. A watcher that is not running, or not known to be, asks for
+        /// attention; so does one that runs but is not well (AttentionCause); then a pause; then a continuation
+        /// sent into Codex, or being followed or taken back out of it; then a task that has come due, which this
+        /// window, redrawn every second, is checking; then anything else waiting; and a running watcher with
+        /// nothing to do is monitoring. With no pending list - it could not be read - the status's own counts say
+        /// what it would have, so a list that cannot be read is never shown as nothing to do.
+        internal static string ActivityWord(Dictionary<string, object> status, List<object> pending, double now)
+        {
+            if (status == null || !Equals(Get(status, "watcher_running"), true)) return "attention";
+            if (AttentionCause(status, pending) != null) return "attention";
             if (!Equals(Get(status, "enabled"), true)) return "paused";
-            if (pending == null) return Number(status, "pending") > 0 ? "waiting" : "monitoring";
-            bool waiting = false, due = false, recovering = false;
-            foreach (object entry in pending)
-            {
-                var row = entry as Dictionary<string, object>;
-                if (row == null) continue;
-                string code = Str(row, "code") ?? "";
-                if (code == "submission_claimed" || code == "submitted" || code == "turn_running" ||
-                    code == "turn_finishing")
-                    recovering = true;
-                double eligible = Number(row, "eligible_at");
-                if (eligible > 0)
+            bool waiting = Number(status, "pending") > 0, due = false, recovering = false;
+            var codes = Map(status, "codes");
+            if (codes != null)
+                foreach (KeyValuePair<string, object> code in codes)
+                    if (Moving(code.Key) && code.Value is double && (double)code.Value > 0) recovering = true;
+            if (pending != null)
+                foreach (object entry in pending)
                 {
+                    var row = entry as Dictionary<string, object>;
+                    if (row == null) continue;
                     waiting = true;
-                    if (eligible <= now) due = true;
+                    if (Moving(Str(row, "code")))
+                    {
+                        recovering = true;
+                        continue;
+                    }
+                    object eligible = Get(row, "eligible_at");
+                    if (eligible is double && (double)eligible <= now) due = true;
                 }
-            }
             if (recovering) return "recovering";
             if (due) return "checking";
             return waiting ? "waiting" : "monitoring";
+        }
+
+        /// The status light for a header's word: the word's own, except that a watcher not known to be running is a
+        /// light that is off, grey and still, whatever the word beside it asks (tray_popup.light_for, panel.js
+        /// lightFor). A light that moves says the product is running; amber is for a watcher that runs and is not well.
+        internal static string HeaderLight(Dictionary<string, object> status, List<object> pending, string word)
+        {
+            return KnownRunning(status, pending) ? word : "idle";
+        }
+
+        /// Whether what was read says the watcher runs: the status says so, and no row is held for a watcher that is
+        /// not running (engine_unavailable) - the two are read a moment apart, and the row is believed until the next
+        /// read settles it, so the dot is not a moving light beside "Watcher not running" (tray_popup.watcher_known_running).
+        internal static bool KnownRunning(Dictionary<string, object> status, List<object> pending)
+        {
+            if (!Equals(Get(status, "watcher_running"), true)) return false;
+            if (pending != null)
+                foreach (object entry in pending)
+                {
+                    var row = entry as Dictionary<string, object>;
+                    if (row != null && HasOverlay(row, "engine_unavailable")) return false;
+                }
+            return true;
+        }
+
+        /// The header's headline, in the window's own words as it has always said them: "Watcher status unknown" when
+        /// nothing says whether the watcher runs, "Watcher not running" when it does not - or a row is held for it not
+        /// running (KnownRunning) - and otherwise "Watching for interruptions" or "Automatic recovery paused". v0.6.10
+        /// put the panel's and the popup's activity word here for a while (Monitoring, Waiting, ...) and gave that back.
+        internal static string Headline(Dictionary<string, object> strings, Dictionary<string, object> status,
+                                        List<object> pending)
+        {
+            object running = Get(status, "watcher_running");
+            if (running == null) return Said(strings, "status.unknown", "Watcher status unknown");
+            if (!KnownRunning(status, pending)) return Said(strings, "status.not_running", "Watcher not running");
+            return Equals(Get(status, "enabled"), true) ? Said(strings, "status.watching", "Watching for interruptions")
+                                                        : Said(strings, "status.paused", "Automatic recovery paused");
+        }
+
+        /// Why a watcher that runs needs a person, or null when it does not: an older watcher still owns the state, it
+        /// has stopped ticking, the engine is not supported or failed its checks here - or a row is held for one of
+        /// those (tray_popup.ATTENTION_OVERLAYS), which the list, read a moment after the status, can know first. In
+        /// this order, and the rows in theirs, as panel.js attentionCause.
+        internal static string AttentionCause(Dictionary<string, object> status, List<object> pending)
+        {
+            var watcher = Map(status, "watcher");
+            if (Equals(Get(status, "upgrade_pending"), true)) return "upgrade_pending";
+            if (Equals(Get(watcher, "ticking"), false)) return "watcher_not_ticking";
+            string engine = Str(watcher, "engine_state");
+            if (engine == "incompatible") return "compatibility_blocked";
+            if (engine == "failed_here") return "compatibility_failed_here";
+            if (pending != null)
+                foreach (object entry in pending)
+                {
+                    var row = entry as Dictionary<string, object>;
+                    if (row == null) continue;
+                    foreach (string held in HeldFor)
+                        if (HasOverlay(row, held)) return held;
+                }
+            return null;
+        }
+
+        /// The overlays that hold a record for something only a person can put right, in the order AttentionCause
+        /// names them (tray_popup.ATTENTION_OVERLAYS).
+        private static readonly string[] HeldFor =
+            { "compatibility_blocked", "compatibility_failed_here", "engine_unavailable", "watcher_not_ticking" };
+
+        /// A public code of a record already handed to Codex, or being followed or taken back out of it
+        /// (tray_popup.MOVING_CODES): every pending record that is not waiting.
+        private static bool Moving(string code)
+        {
+            return code == "submission_claimed" || code == "submitted" || code == "withdrawing" || code == "turn_running" ||
+                   code == "turn_finishing";
+        }
+
+        /// The facts under the headline, in the window's own format as it has always had it - two facts, most
+        /// consequential first: whether anything can be recovered, then what is waiting on it ("Automatic recovery is
+        /// on · 2 recoveries pending", "Nothing will be recovered until it is running · Nothing pending"), in `strings`,
+        /// the catalog the window was served. One thing changed in v0.6.10 and stays: a watcher that runs but is not
+        /// well never shows "Automatic recovery is on" - the first fact names why instead, in the words the Codex panel
+        /// names it in (panel.js heroFacts; tests/test_light_parity.py): an older watcher still owning the state, a
+        /// Codex version not supported, checks that failed on this computer, or "Watcher not responding".
+        internal static List<string> HeroFacts(Dictionary<string, object> strings, Dictionary<string, object> status,
+                                               List<object> pending)
+        {
+            int count = (int)Number(status, "pending");
+            string waiting = count == 0 ? Said(strings, "status.pending_none", "Nothing pending")
+                           : count == 1 ? Said(strings, "status.pending_one", "1 recovery pending")
+                           : Said(strings, "status.pending_many", "{n} recoveries pending")
+                                 .Replace("{n}", count.ToString(CultureInfo.InvariantCulture));
+            string recovery;
+            string cause = KnownRunning(status, pending) ? AttentionCause(status, pending) : null;
+            if (!KnownRunning(status, pending))
+                recovery = Said(strings, "status.recovery_idle", "Nothing will be recovered until it is running");
+            else if (cause == "upgrade_pending")
+                recovery = Said(strings, "diag.upgrade_pending",
+                                "An older watcher still owns the state; finish by restarting the watcher");
+            else if (cause == "compatibility_blocked")
+                recovery = Said(strings, "overlay.compatibility_blocked", "Codex version not supported");
+            else if (cause == "compatibility_failed_here")
+                recovery = Said(strings, "overlay.compatibility_failed_here", "Codex checks failed on this computer");
+            else if (cause != null)
+                recovery = Said(strings, "status.not_responding", "Watcher not responding");
+            else
+                recovery = Equals(Get(status, "enabled"), true)
+                           ? Said(strings, "status.recovery_on", "Automatic recovery is on")
+                           : Said(strings, "status.recovery_paused", "Automatic recovery is paused");
+            return new List<string> { recovery, waiting };
+        }
+
+        /// A word from `strings`, as S says it, for the pure functions that are handed the catalog.
+        private static string Said(Dictionary<string, object> strings, string key, string fallback)
+        {
+            object value;
+            if (strings != null && strings.TryGetValue(key, out value) && value is string && ((string)value).Length > 0)
+                return (string)value;
+            return fallback;
         }
 
         /// What the notification-area icon shows for the watcher the window read, as the status-light word its state
         /// is made from (v0.6.5): the taskbar button's, which TaskbarMark maps as the icon does (Brand.Mark.IconState,
         /// tray.ICON_FOR_LIGHT).
         ///
-        /// The icon's own rule, not the header light's (Activity), which parts from it for a record being withdrawn,
-        /// an incompatible engine and a list that cannot be read. tray.icon_state is ICON_FOR_LIGHT of
+        /// The icon's own rule, not the header light's (Activity), and kept apart from the one rule the headers share
+        /// (tests/data/light_states.json, v0.6.10) on purpose: a failure nobody has seen is red here and in no header
+        /// (standard J14), and a list that was read decides here without the status's counts. tray.icon_state is ICON_FOR_LIGHT of
         /// tray_popup.snapshot_activity: the tick's snapshot of the store (tray.snapshot_from) - a pause, then any
         /// record sent or being followed, then any waiting - with, while its popup is open, the popup's word that a
-        /// person must act (tray_popup.activity). The window reads what that popup reads, get_status and list_pending,
-        /// and reads it now, so this is the icon with its popup open. With no list the status's counts of the store's
+        /// person must act (tray_popup.icon_attention, the icon's own rule and not the header's word). The window
+        /// reads what that popup reads, get_status and list_pending, and reads it now, so this is the icon with its
+        /// popup open. With no list the status's counts of the store's
         /// records by public code say the same (status.codes). Where no icon of this version can be showing, it is the
         /// header light's word: grey with no watcher running or none known to be, and needing a person while an older
         /// watcher still owns the state. Pure, so tests/test_gui_v065_taskbar.py holds it to tray.py's own code.

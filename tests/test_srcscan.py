@@ -58,9 +58,10 @@ class ListingTests(unittest.TestCase):
         self.assertEqual(srcscan.module_name(srcscan.SRC / "codex_auto_resume" / "cli.py"), "codex_auto_resume.cli")
         self.assertEqual(srcscan.files_of("codex_auto_resume.machine"),
                          [srcscan.modules()["codex_auto_resume.machine"]])
-        # A package gives every file in it: since v0.6.10-alpha the popup is thirteen, and a
-        # rule written about `tray_popup` covers all of them without naming one.
-        self.assertEqual(len(srcscan.files_of("codex_auto_resume.ui.popup")), 13)
+        # A package gives every file in it: since v0.6.10-alpha the popup is thirteen - fourteen
+        # since v0.6.10 took the window's messages out of window.py - and a rule written about
+        # `tray_popup` covers all of them without naming one.
+        self.assertEqual(len(srcscan.files_of("codex_auto_resume.ui.popup")), 14)
         self.assertIn(srcscan.modules()["codex_auto_resume.ui.popup.window"],
                       srcscan.files_of("codex_auto_resume.ui.popup"))
 

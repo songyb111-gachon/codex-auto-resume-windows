@@ -675,10 +675,13 @@ $form.GetField('taskbar', $instance).SetValue($settings, $told)
 $dot = $form.GetField('stateDot', $instance).GetValue($settings)
 $dotState = $assembly.GetType('CodexAutoResume.HaloDot', $true).GetProperty('State', $instance)
 $method = @($form.GetMethods($instance) | Where-Object { $_.Name -eq 'ApplySnapshot' -and $_.GetParameters().Count -eq 1 })[0]
+$headline = $form.GetField('headline', $instance).GetValue($settings)
+$detail = $form.GetField('detail', $instance).GetValue($settings)
 $out.wired = @()
 foreach ($name in (ConvertFrom-Json $env:CAR_SNAPSHOTS)) {
     $null = $method.Invoke($settings, [object[]]@((Read-Json ($name + '.json')).PSObject.BaseObject))
-    $out.wired += ,@([string]$name, [string]$dotState.GetValue($dot, $null), (StateOf $told), [int64][Icons]::Big($second))
+    $out.wired += ,@([string]$name, [string]$dotState.GetValue($dot, $null), (StateOf $told), [int64][Icons]::Big($second),
+                     [string]$headline.Text, [string]$detail.Text)
 }
 $second.Close()
 $second.Dispose()
@@ -1114,7 +1117,7 @@ class TaskbarMarkTests(unittest.TestCase):
     # ---------------------------------------------------------------- the window
     def test_what_the_window_reads_tells_the_mark_the_tray_icon_s_state_for_that_watcher(self):
         self.assertTrue(self.answer["audited"], "a window LayoutAudit builds has no mark of its own")
-        rows = {name: (dot, state, big) for name, dot, state, big in self.answer["wired"]}
+        rows = {name: (dot, state, big) for name, dot, state, big, _, _ in self.answer["wired"]}
         self.assertEqual(list(rows), list(self.snapshots))
         for name, case in self.snapshot_cases.items():
             with self.subTest(snapshot=name):
@@ -1123,13 +1126,44 @@ class TaskbarMarkTests(unittest.TestCase):
                                                            "incompatible", "unlisted, one sent", "stopped")},
                          {"withdrawing": "recovering", "an older watcher": "attention", "not ticking": "attention",
                           "incompatible": "attention", "unlisted, one sent": "recovering", "stopped": "idle"})
-        # The header light is the window's own rule, as it was.
+        # The header light is the headers' one rule (tests/data/light_states.json), and since v0.6.10 it no longer parts
+        # from the button for a record being withdrawn, an incompatible engine or a list that cannot be read.
         lights = {"monitoring": "monitoring", "waiting": "waiting", "checking": "checking", "recovering": "recovering",
                   "paused": "paused", "stopped": "idle", "an older watcher": "attention", "not ticking": "attention",
-                  "again": "waiting"}
+                  "again": "waiting", "withdrawing": "recovering", "incompatible": "attention",
+                  "unlisted, one sent": "recovering"}
         for name, light in lights.items():
             with self.subTest(light=name):
                 self.assertEqual(rows[name][0], light)
+
+    def test_the_header_s_light_headline_and_facts_are_set_together(self):
+        """v0.6.10 (F6): one method (Hero) sets the dot, the headline and the line under it, from one reading, where
+        the dot and the headline were set in two places. The headline and the facts are the window's own words, as
+        they always were - "Watching for interruptions" over "Automatic recovery is on · N pending" - except that a
+        watcher that runs and is not well never has "Automatic recovery is on" under it: the first fact names why."""
+        english = l10n.catalog("en")
+        lights = {"monitoring": "monitoring", "waiting": "waiting", "checking": "checking", "recovering": "recovering",
+                  "withdrawing": "recovering", "paused": "paused", "stopped": "idle", "an older watcher": "attention",
+                  "not ticking": "attention", "incompatible": "attention", "unlisted, one sent": "recovering",
+                  "again": "waiting"}
+        headlines = dict({name: "status.watching" for name in lights}, paused="status.paused",
+                         stopped="status.not_running")
+        first = {"monitoring": "status.recovery_on", "waiting": "status.recovery_on", "checking": "status.recovery_on",
+                 "recovering": "status.recovery_on", "withdrawing": "status.recovery_on", "paused": "status.recovery_paused",
+                 "stopped": "status.recovery_idle", "an older watcher": "diag.upgrade_pending",
+                 "not ticking": "status.not_responding", "incompatible": "overlay.compatibility_blocked",
+                 "unlisted, one sent": "status.recovery_on", "again": "status.recovery_on"}
+        rows = {name: (dot, headline, detail) for name, dot, _, _, headline, detail in self.answer["wired"]}
+        self.assertEqual(set(lights), set(rows))
+        for name, light in lights.items():
+            with self.subTest(snapshot=name):
+                dot, headline, detail = rows[name]
+                self.assertEqual(headline, english[headlines[name]])
+                self.assertEqual(dot, light)
+                facts = detail.split("   ·   ")
+                self.assertEqual(facts[0], english[first[name]])
+                self.assertEqual(len(facts), 2, "the pending count is always the second fact")
+        self.assertNotIn(english["activity.monitoring"], {headline for _, headline, _ in rows.values()})
 
     def test_the_window_makes_its_mark_only_with_its_own_icon_and_asks_it_again_every_second(self):
         settings = guiscan.settings()
@@ -1144,23 +1178,29 @@ class TaskbarMarkTests(unittest.TestCase):
         tick = tick[:tick.index("clock.Start();")]
         self.assertIn("if (taskbar != null) taskbar.Sync();", tick)
         # Told what the window read wherever its header light is told, and as seldom: the light itself tells the
-        # button nothing, and with a snapshot on screen ApplyStatus decides neither (tests/test_gui_v063.py).
+        # button nothing, and with a snapshot on screen ApplyStatus decides neither (tests/test_gui_v063.py). Since
+        # v0.6.10 the light is told in one place with the words beside it (Hero), which ApplyStatus and
+        # UpdateCountdowns call where they told it before, and which tells the button nothing itself.
         self.assertNotIn("StateSet", settings + dashboard + controls)
-        self.assertEqual((settings + dashboard).count("stateDot.State ="), 4)
+        self.assertEqual((settings + dashboard).count("stateDot.State ="), 3)
 
         def method(source, signature):
             start = source.index(signature)
             return source[start:source.index("\n        }\n", start)]
 
-        for source, signature in ((settings, "private void StatusUnavailable("),
-                                  (settings, "private void ApplyStatus("),
-                                  (dashboard, "private void MarkUnavailable("),
-                                  (dashboard, "private void UpdateCountdowns(")):
+        hero = method(settings, "private void Hero(")
+        self.assertEqual(hero.count("stateDot.State ="), 1)
+        self.assertNotIn("TellTaskbar(", hero)
+        for source, signature, told in ((settings, "private void StatusUnavailable(", "stateDot.State ="),
+                                        (settings, "private void ApplyStatus(", "Hero("),
+                                        (dashboard, "private void MarkUnavailable(", "stateDot.State ="),
+                                        (dashboard, "private void UpdateCountdowns(", "Hero(")):
             with self.subTest(method=signature):
                 body = method(source, signature)
-                self.assertEqual(body.count("stateDot.State ="), 1)
+                self.assertEqual(body.count("stateDot.State ="), 1 if told == "stateDot.State =" else 0)
+                self.assertGreaterEqual(body.count(told), 1)
                 self.assertEqual(body.count("TellTaskbar("), 1)
-                self.assertLess(body.index("stateDot.State ="), body.index("TellTaskbar("))
+                self.assertLess(body.index(told), body.index("TellTaskbar("))
         self.assertIn("if (snapshot == null) TellTaskbar(status, null, Now());",
                       method(settings, "private void ApplyStatus("))
 

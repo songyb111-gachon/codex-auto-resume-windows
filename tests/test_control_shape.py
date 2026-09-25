@@ -51,12 +51,14 @@ MIXINS = (state.StateMixin, seen.SeenMixin, policy.SettingsMixin, records.Record
           watcher.WatcherMixin)
 
 # What `Control` has, as the one class had it. Thirty-eight methods, counted the day the file
-# was split; one added or taken away is a decision, and this is where it is made.
+# was split; one added or taken away is a decision, and this is where it is made. v0.6.10 adds
+# `launch_ends_with_job`: the MCP server's Start watcher asks it, to say how long its start lasts.
 METHODS = {
     "__init__", "_confirm_watcher", "_described", "_launch_watcher", "_newest_failure", "_open",
     "_seen_file", "_start_for_codex", "_watcher", "acknowledge_failure", "cancel_all_pending",
     "cancel_interruption", "cancel_thread", "clear_history", "describe_settings",
     "failure_seen_at", "failure_unseen", "get_settings", "get_status", "history",
+    "launch_ends_with_job",
     "list_pending", "preview_continuation", "request_retry_now", "reset_recovery_budget",
     "restore_defaults", "set_enabled", "set_interruption_recovery", "set_startup_enabled",
     "set_thread_enabled", "settings_path", "start_for_codex", "start_watcher",

@@ -20,6 +20,7 @@
           "start_with_codex": false,
           "theme": "light",
           "panel_theme": "same",
+          "design": "soft",
           "reduce_motion": false,
           "codex_exe": null,
           "recover_usage_limit": true,
@@ -28,7 +29,6 @@
           "recover_rate_limit_transient": true,
           "recover_server_5xx": true,
           "recover_stream_interrupted": true,
-          "recover_auth_service_transient": true,
           "notify_interruption": true,
           "notify_starting": true,
           "notify_result": true,
@@ -43,8 +43,7 @@
           "custom_message_network_transient": null,
           "custom_message_timeout": null,
           "custom_message_server_5xx": null,
-          "custom_message_stream_interrupted": null,
-          "custom_message_auth_service_transient": null
+          "custom_message_stream_interrupted": null
         }
       }
     },
@@ -69,6 +68,7 @@
           "start_with_codex": false,
           "theme": "light",
           "panel_theme": "same",
+          "design": "soft",
           "reduce_motion": false,
           "codex_exe": null,
           "recover_usage_limit": true,
@@ -77,7 +77,6 @@
           "recover_rate_limit_transient": true,
           "recover_server_5xx": true,
           "recover_stream_interrupted": true,
-          "recover_auth_service_transient": true,
           "notify_interruption": true,
           "notify_starting": true,
           "notify_result": true,
@@ -92,8 +91,7 @@
           "custom_message_network_transient": null,
           "custom_message_timeout": null,
           "custom_message_server_5xx": null,
-          "custom_message_stream_interrupted": null,
-          "custom_message_auth_service_transient": null
+          "custom_message_stream_interrupted": null
         }
       }
     },

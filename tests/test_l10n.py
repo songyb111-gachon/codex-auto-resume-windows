@@ -103,6 +103,44 @@ class ShippedCatalogTests(unittest.TestCase):
                 self.assertIn(table["choice.theme.system"], table["help.theme"])
 
 
+class DesignWordsTests(unittest.TestCase):
+    """v0.6.10: the Design setting is drawn from the schema like the themes, so each choice needs a
+    label of its own in every language - and a name that is not the Theme's, which German already
+    calls Design."""
+
+    def test_the_design_has_its_name_its_choices_and_its_help_in_every_language(self):
+        from codex_auto_resume import settings
+        english = l10n._read(l10n.DEFAULT)
+        keys = ["field.design", "help.design"] + ["choice.design." + choice for choice in settings.DESIGNS]
+        for locale in l10n.available():
+            table = l10n._read(locale)
+            labels = [table["choice.design." + choice] for choice in settings.DESIGNS]
+            with self.subTest(locale):
+                for key in keys:
+                    self.assertTrue(table[key].strip(), key)
+                    if locale != l10n.DEFAULT and key != "choice.design.classic":
+                        self.assertNotEqual(table[key], english[key], "translated, not copied: " + key)
+                # Four different words, and a name for the setting that neither theme has.
+                self.assertEqual(len(set(labels)), len(labels), labels)
+                self.assertNotIn(table["field.design"], (table["field.theme"], table["field.panel_theme"]))
+                # The help names each choice as the picker spells it, and Reduce motion by its name.
+                for label in labels + [table["field.reduce_motion"]]:
+                    self.assertIn(label, table["help.design"])
+                # Classic says which release it is.
+                self.assertIn("v0.6.2", table["choice.design.classic"])
+
+    def test_reduce_motion_names_every_surface_it_stops_and_the_design_it_has_nothing_to_stop_in(self):
+        for locale in l10n.available():
+            table = l10n._read(locale)
+            with self.subTest(locale):
+                self.assertIn(table["choice.design.still"], table["help.reduce_motion"])
+                self.assertIn("Codex", table["help.reduce_motion"])
+                self.assertIn("Windows", table["help.reduce_motion"])
+        english = l10n._read(l10n.DEFAULT)["help.reduce_motion"]
+        for surface in ("Dashboard", "popup", "icon", "notification card", "taskbar button", "panel in Codex"):
+            self.assertIn(surface, english)
+
+
 class NotificationCardWordsTests(unittest.TestCase):
     def test_the_card_setting_has_its_label_and_help_in_every_language(self):
         english = l10n._read(l10n.DEFAULT)
@@ -120,6 +158,116 @@ class NotificationCardWordsTests(unittest.TestCase):
             table = l10n._read(locale)
             with self.subTest(locale=locale):
                 self.assertIn("Windows", table["help.notification_card"])
+
+
+class OneNameTests(unittest.TestCase):
+    """The window has one name, the Dashboard (v0.6.10).
+
+    It had four: the Dashboard, the Windows Dashboard, the Codex Auto Resume window and the Codex
+    Auto Resume settings window; the icon's menu said Open Codex Auto Resume beside a popup and a
+    card that said Open Dashboard. And help written from inside the window - "Used by this window"
+    - was shown in the panel in Codex too, where it is not that window. Only the window's title
+    bar and its Start Menu entry keep the product's name.
+    """
+
+    # Each language's one word for it. Spanish says Panel, capitalised as a name, beside "el panel de
+    # Codex": the notification's Abrir Panel is pinned byte for byte to what v0.6.4 raised.
+    DASHBOARD = {"en": "Dashboard", "ko": "대시보드", "ja": "ダッシュボード", "zh-CN": "仪表板",
+                 "zh-TW": "儀表板", "es": "Panel", "de": "Dashboard", "fr": "Tableau de bord",
+                 "pt-BR": "Dashboard"}
+    # Every sentence that names the window, on whichever surface shows it.
+    NAMING = ("menu.open", "popup.open_dashboard", "msg.toast_button_open", "popup.more",
+              "custom.dashboard_only", "help.interface_language", "help.theme", "help.reduce_motion", "help.design",
+              "msg.setup_unconfirmed", "panel.compat_acting_differs", "panel.compat_refresh",
+              "panel.compat_reported", "panel.readonly")
+    # The window's own words, where "this window" is the window reading them.
+    WINDOW_ONLY = ("diag.update_reopen",)
+    THIS_WINDOW = {"en": "this window", "ko": "이 창"}
+
+    def test_every_language_has_its_word(self):
+        self.assertEqual(set(self.DASHBOARD), set(l10n.LOCALES))
+
+    def test_every_sentence_that_names_the_window_calls_it_the_dashboard(self):
+        for locale in l10n.available():
+            table = l10n._read(locale)
+            for key in self.NAMING:
+                with self.subTest(locale=locale, key=key):
+                    self.assertIn(self.DASHBOARD[locale], table[key])
+
+    def test_the_menu_the_popup_and_the_notifications_open_it_in_the_same_words(self):
+        for locale in l10n.available():
+            table = l10n._read(locale)
+            with self.subTest(locale):
+                self.assertEqual(table["menu.open"], table["popup.open_dashboard"])
+                self.assertEqual(table["msg.toast_button_open"], table["popup.open_dashboard"])
+
+    def test_no_other_name_is_left_in_the_words_or_the_panel(self):
+        english = l10n._read(l10n.DEFAULT)
+        panel = (ROOT / "src" / "codex_auto_resume" / "mcp" / "assets" / "panel.js").read_text(encoding="utf-8")
+        for name in ("settings window", "Codex Auto Resume window", "Windows Dashboard", "Open Codex Auto Resume"):
+            with self.subTest(name):
+                self.assertEqual([key for key, value in english.items() if name in value], [])
+                self.assertNotIn(name, panel)
+
+    def test_only_the_windows_own_words_say_this_window(self):
+        """A sentence the panel, the popup or a notification shows names the surfaces it means;
+        "this window" is right only where the window is the one saying it."""
+        for locale, phrase in self.THIS_WINDOW.items():
+            table = l10n._read(locale)
+            with self.subTest(locale):
+                self.assertEqual(sorted(key for key, value in table.items() if phrase in value),
+                                 sorted(self.WINDOW_ONLY))
+        import guiscan
+        window = guiscan.whole()
+        panel = (ROOT / "src" / "codex_auto_resume" / "mcp" / "assets" / "panel.js").read_text(encoding="utf-8")
+        python = "\n".join(srcscan.read(path) for path in srcscan.package_files())
+        for key in self.WINDOW_ONLY:
+            with self.subTest(key):
+                self.assertIn('"%s"' % key, window)
+                self.assertNotIn(key, panel)
+                self.assertNotIn(key, python)
+
+    # A string literal as the window, the panel and the Python package write these sentences.
+    LITERAL = r'"(?:[^"\\\r\n]|\\.)*"' + r"|'(?:[^'\\\r\n]|\\.)*'"
+
+    def test_every_fallback_written_for_them_is_the_english_sentence(self):
+        """A fallback is what a surface says when its catalog lacks the key, so it says what the
+        English catalog says. The first pass at the one name renamed the window in the catalogs and
+        the panel and left the window's own fallbacks for help.interface_language, help.theme and
+        help.reduce_motion saying "this window"; the panel's for custom.dashboard_only was half the
+        sentence. Every literal written after one of these keys - S("key", "...") in the window,
+        t('key', '...') in the panel, strings.get("key", "...") in Python - is the English
+        sentence, or empty where the surface says nothing; and every mention of the key in the
+        window is such a call, so a fallback written some other way cannot slip past this."""
+        import ast
+        import re
+        import guiscan
+        english = l10n._read(l10n.DEFAULT)
+        sources = {
+            "window": guiscan.whole(),
+            "panel": (ROOT / "src" / "codex_auto_resume" / "mcp" / "assets" / "panel.js").read_text(encoding="utf-8"),
+            "python": "\n".join(srcscan.read(path) for path in srcscan.package_files()),
+        }
+        found = set()
+        for key in self.NAMING + self.WINDOW_ONLY:
+            call = re.compile(r"""(["'])%s\1\s*,\s*((?:(?:%s)\s*\+?\s*)+)\)""" % (re.escape(key), self.LITERAL))
+            for surface, text in sources.items():
+                calls = list(call.finditer(text))
+                for match in calls:
+                    said = "".join(ast.literal_eval(literal) for literal in re.findall(self.LITERAL, match.group(2)))
+                    found.add((surface, key))
+                    if said:
+                        with self.subTest(surface=surface, key=key):
+                            self.assertEqual(said, english[key])
+                if surface == "window":
+                    with self.subTest(surface=surface, key=key, every_mention=True):
+                        self.assertEqual(len(calls), text.count('"%s"' % key))
+        # The scan found the fallbacks it was written for, so it cannot pass by matching nothing.
+        self.assertLessEqual({("window", "help.interface_language"), ("window", "help.theme"),
+                              ("window", "help.reduce_motion"), ("window", "diag.update_reopen"),
+                              ("panel", "help.interface_language"), ("panel", "custom.dashboard_only"),
+                              ("panel", "panel.readonly"), ("panel", "panel.compat_refresh"),
+                              ("python", "menu.open")}, found)
 
 
 class LoaderTests(unittest.TestCase):

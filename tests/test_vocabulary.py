@@ -74,7 +74,9 @@ LISTS = {
     "machine.UNKNOWN": "UNKNOWN",
     "machine.NOT_CHECKED": "not_checked",
     "failures.CATEGORIES": ("set", 14, "05e7b8e16f528bde"),
-    "failures.TRANSIENT": ("set", 6, "263ab064e954fe3c"),
+    # v0.6.10: auth_service_transient, which nothing produces, left TRANSIENT for RESERVED.
+    "failures.TRANSIENT": ("set", 5, "7c4f1306a8dcfc48"),
+    "failures.RESERVED": ("set", 1, "4adafa358990cf26"),
     "failures.TERMINAL": ("set", 6, "7e746dc3d4241dd2"),
     "failures.USAGE_LIMIT": "usage_limit",
     "failures.UNKNOWN": "unknown",
@@ -261,6 +263,7 @@ HOMES = {
     v.ContinuationStyle: ("list", "continuation.STYLES"),
     v.CustomMode: ("list", "continuation.CUSTOM_MODES"),
     v.Theme: ("list", "settings.THEMES"),
+    v.Design: ("list", "settings.DESIGNS", "brand.DESIGNS"),
     v.RetryTiming: ("keys", "settings.RETRY_TIMING"),
     v.NotifyEvent: ("list", "settings.NOTIFICATION_EVENTS"),
     v.Locale: ("list", "l10n.LOCALES"),
@@ -287,6 +290,7 @@ HOMES = {
     v.ViewStatus: ("list", "compat.VIEW_STATUSES"),
     v.CacheOrigin: ("list", "compat.CACHE_ORIGINS"),
     v.RefreshAnswer: ("list", "compatio.REFRESH_ANSWERS"),
+    v.ReportedState: ("list", "compat.reported.STATES"),
 }
 
 
@@ -361,7 +365,8 @@ class HomeTests(unittest.TestCase):
                         self.assertEqual(value, frozenset(cls), home)
 
     def test_the_words_spelled_beside_a_vocabulary_are_its_members(self):
-        from codex_auto_resume import (compat,
+        from codex_auto_resume import (brand,
+                                       compat,
                                        continuation,
                                        control,
                                        failures,
@@ -385,6 +390,7 @@ class HomeTests(unittest.TestCase):
                           (failures.UNKNOWN, v.FailureCategory), (control.FALLBACK_CODE, v.ErrorCode),
                           (continuation.DEFAULT_STYLE, v.ContinuationStyle),
                           (continuation.DEFAULT_CUSTOM_MODE, v.CustomMode), (settings.DEFAULT_THEME, v.Theme),
+                          (settings.DEFAULT_DESIGN, v.Design), (brand.DEFAULT_DESIGN, v.Design),
                           (settings.DEFAULT_TIMING, v.RetryTiming), (l10n.DEFAULT, v.Locale),
                           (compat.VERIFIED, v.CompatState), (compat.COMPATIBLE, v.CompatState),
                           (compat.INCOMPATIBLE, v.CompatState), (compat.UNKNOWN, v.CompatState),
@@ -413,7 +419,7 @@ class HomeTests(unittest.TestCase):
         from codex_auto_resume import failures, machine
         groups = (machine.WAITING, machine.CLAIMED, machine.IN_FLIGHT, machine.OBSERVING, machine.TERMINAL)
         self.assertEqual(sorted(state for group in groups for state in group), sorted(machine.STATES))
-        groups = (failures.TRANSIENT, failures.TERMINAL, {failures.USAGE_LIMIT, failures.UNKNOWN})
+        groups = (failures.TRANSIENT, failures.TERMINAL, failures.RESERVED, {failures.USAGE_LIMIT, failures.UNKNOWN})
         self.assertEqual(sorted(category for group in groups for category in group), sorted(failures.CATEGORIES))
 
     def test_a_members_name_is_its_value_in_capitals(self):

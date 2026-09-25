@@ -81,6 +81,13 @@ try {
     # frame as the window looks when somebody is working elsewhere, which is also how a
     # screenshot in a document is read.
     [void][CaptureNative.Win]::SendMessage($handle, 0x0086, [IntPtr]::Zero, [IntPtr]::Zero)
+    # The focus ring and the access-key underlines are Windows' keyboard cues, and a new window
+    # takes their state from how the last input reached the machine - so the Settings picture
+    # carried a ring round the Overview tab in some releases and not in others, with nothing in
+    # the source moved. Every picture is taken with the cues hidden, as a window looks to a person
+    # using the mouse: WM_CHANGEUISTATE(UIS_SET, UISF_HIDEFOCUS | UISF_HIDEACCEL) on the top-level
+    # window, which passes it to every child as WM_UPDATEUISTATE, and the redraw below paints it.
+    [void][CaptureNative.Win]::SendMessage($handle, 0x0127, [IntPtr](0x00030001), [IntPtr]::Zero)
     [void][CaptureNative.Win]::RedrawWindow($handle, [IntPtr]::Zero, [IntPtr]::Zero, 0x0001 -bor 0x0004 -bor 0x0080 -bor 0x0100 -bor 0x0400)
     Start-Sleep -Milliseconds 300
 

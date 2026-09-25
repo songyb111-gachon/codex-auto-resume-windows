@@ -58,7 +58,8 @@ if _HERE not in sys.path:
 import guiscan
 import srcscan  # noqa: E402
 from codex_auto_resume.domain import public as domain_public  # noqa: E402
-from codex_auto_resume.compat import files as compat_files, probes as compat_probes  # noqa: E402
+from codex_auto_resume.compat import (files as compat_files, probes as compat_probes,  # noqa: E402
+                                      reported as compat_reported)
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "assets" / "screenshots.json"
@@ -302,6 +303,9 @@ class ManifestTests(unittest.TestCase):
             "tests/fixtures/codex_compat_frozen.json - the registry data the pictures are made with": several(
                 lambda: patch.object(compatio, "load_bundled", return_value=(None, "missing")),
                 lambda: patch.object(compat_files, "load_bundled", return_value=(None, "missing"))),
+            # v0.6.10: what others report, shown beside the version on the Diagnostics card.
+            "tests/fixtures/reported_frozen.json - the counts beside the version":
+                lambda: changed(compat_reported, "lookup", lambda answer: dict(answer, worked=answer["worked"] + 1)),
         }
         if os.name == "nt":
             # Not acquired, so nothing holds it and the probe finds it free.
@@ -487,76 +491,476 @@ class PixelTests(unittest.TestCase):
                     self.assertEqual(clear[y][x], 0, "%s: the %s corner is not clear" % (name, where))
                 self.assertEqual(clear[height // 2][width // 2], 255, "and the window itself is opaque")
 
+    def test_the_capture_pins_what_the_window_would_take_from_the_moment(self):
+        """Three things a window draws depend on the machine at the moment it is photographed, not
+        on the source: the caption (light while active), the light's breath, and the keyboard cues -
+        the focus ring and the access-key underlines, whose state a new window takes from how the
+        last input reached the machine. The last is why v0.6.9-alpha's Settings picture had a ring
+        round the Overview tab and v0.6.9's had none. Each is set before PrintWindow runs."""
+        script = (ROOT / "build" / "capture_window.ps1").read_text(encoding="utf-8")
+        printed = script.index("::PrintWindow($handle")
+        for needle, what in (("$env:CODEX_AR_STILL_LIGHT = '0'", "the light held at one moment"),
+                             ("SendMessage($handle, 0x0086, [IntPtr]::Zero", "WM_NCACTIVATE(FALSE)"),
+                             # MAKEWPARAM(UIS_SET = 1, UISF_HIDEFOCUS | UISF_HIDEACCEL = 3)
+                             ("SendMessage($handle, 0x0127, [IntPtr](0x00030001)",
+                              "WM_CHANGEUISTATE: the keyboard cues hidden")):
+            with self.subTest(what):
+                self.assertIn(needle, script)
+                self.assertLess(script.index(needle), printed, "%s is set after the capture" % what)
+
+
+def apng_controls(data: bytes) -> list:
+    """(x, y, width, height, delay as a Fraction of a second) of each APNG frame, in order."""
+    from fractions import Fraction
+    found, at = [], 8
+    while at + 8 <= len(data):
+        length, kind = struct.unpack(">I4s", data[at:at + 8])
+        if kind == b"fcTL":
+            width, height, x, y, numerator, denominator = struct.unpack(">IIIIHH", data[at + 12:at + 32])
+            found.append((x, y, width, height, Fraction(numerator, denominator or 100)))
+        at += 12 + length
+    return found
+
+
+def apng_frames(path) -> tuple:
+    """(width, height, [whole RGB picture after each frame]) of an RGB APNG this generator writes: its first
+    picture, then each later frame's rectangle drawn over the picture before it."""
+    import zlib
+    raw = Path(path).read_bytes()
+    at, chunks = 8, []
+    while at < len(raw):
+        length, kind = struct.unpack(">I4s", raw[at:at + 8])
+        chunks.append((kind, raw[at + 8:at + 8 + length]))
+        at += 12 + length
+    width, height, _depth, colour = struct.unpack(">IIBB", next(body for kind, body in chunks if kind == b"IHDR")[:10])
+    if colour != 2:
+        raise ValueError("only an RGB APNG is read here")
+
+    def rows(data, wide, tall):
+        stride, out, previous = wide * 3, bytearray(), bytearray(wide * 3)
+        for y in range(tall):
+            start = y * (stride + 1)
+            mode, line = data[start], bytearray(data[start + 1:start + 1 + stride])
+            if mode:
+                for i in range(stride):
+                    left = line[i - 3] if i >= 3 else 0
+                    up, corner = previous[i], (previous[i - 3] if i >= 3 else 0)
+                    if mode == 1:
+                        line[i] = (line[i] + left) & 0xFF
+                    elif mode == 2:
+                        line[i] = (line[i] + up) & 0xFF
+                    elif mode == 3:
+                        line[i] = (line[i] + (left + up) // 2) & 0xFF
+                    else:
+                        guess = left + up - corner
+                        pa, pb, pc = abs(guess - left), abs(guess - up), abs(guess - corner)
+                        line[i] = (line[i] + (left if pa <= pb and pa <= pc else up if pb <= pc else corner)) & 0xFF
+            out += line
+            previous = line
+        return out
+
+    pictures, canvas, control, data = [], None, None, bytearray()
+
+    def flush():
+        nonlocal canvas
+        if control is None:
+            return
+        wide, tall, x, y = control
+        pixels = rows(zlib.decompress(bytes(data)), wide, tall)
+        if canvas is None:
+            canvas = bytearray(pixels)
+        else:
+            for row in range(tall):
+                start = ((y + row) * width + x) * 3
+                canvas[start:start + wide * 3] = pixels[row * wide * 3:(row + 1) * wide * 3]
+        pictures.append(bytes(canvas))
+
+    for kind, body in chunks:
+        if kind == b"fcTL":
+            flush()
+            data = bytearray()
+            control = struct.unpack(">IIII", body[4:20])
+        elif kind == b"IDAT":
+            data += body
+        elif kind == b"fdAT":
+            data += body[4:]
+    flush()
+    return width, height, pictures
+
 
 class BreathingPictureTests(unittest.TestCase):
-    """The light a picture moves must be the light the product moves.
+    """Every light a surface moves, moving in its picture, on its own ground, for exactly one cycle (F15, v0.6.10).
 
-    Every animated picture is the capture with one disc painted again (`breathe_picture`), and which
-    disc that is was decided by whichever round run of the colour scored roundest. In the panel's
-    pictures that was the 8 px dot in the Automatic recovery tile - a dot that never moves in the
-    product - while the status light at the top, the one that breathes, stayed still. The user saw
-    it: "상태등이 맨위에 있는건 안 깜빡이네?". The finder takes the topmost disc now, and this holds
-    every picture to it by reading where its frames actually draw.
+    Until v0.6.10 every animated picture was its capture with one disc painted again: the topmost disc of the
+    monitoring colour, on the light theme's `surface`, in 132 frames of 33 ms. Which disc that was had gone wrong
+    once - the panel's pictures breathed the dot in the Automatic recovery tile, which then never moved in the
+    product, while the status light above it held still ("상태등이 맨위에 있는건 안 깜빡이네?") - and once the tile's
+    light moved in the product (F1) the picture held it still instead; a light on a tile or in the dark theme would
+    have been painted in a box of the wrong ground; and the loop took 4356 ms where the product takes 4400.
+
+    Now each picture's surface declares its lights, and the manifest keeps them ("lights"): the popup and the card
+    from their own layout, the panel from the page, the window from its capture. These hold every committed picture
+    to its record, and the generator's frames to the product's own drawing.
     """
 
     @classmethod
     def setUpClass(cls):
         cls.generator = generator()
+        cls.manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        cls.records = cls.manifest.get("lights", {})
 
-    @staticmethod
-    def frame_boxes(data: bytes) -> list:
-        """(x, y, width, height) of each APNG frame's rectangle, in order."""
-        found, at = [], 8
-        while at + 8 <= len(data):
-            length, kind = struct.unpack(">I4s", data[at:at + 8])
-            if kind == b"fcTL":
-                width, height, x, y = struct.unpack(">IIII", data[at + 12:at + 28])
-                found.append((x, y, width, height))
-            at += 12 + length
+    def moving(self):
+        """(name, record, timeline) of every committed picture whose lights move."""
+        found = []
+        for name, record in sorted(self.records.items()):
+            timeline = self.generator.light_timeline(record)
+            if timeline is not None:
+                found.append((name, record, timeline))
         return found
 
-    def animated(self) -> list:
-        names = sorted(json.loads(MANIFEST.read_text(encoding="utf-8"))["images"])
-        return [name for name in names
-                if name.endswith(".png") and b"acTL" in (ROOT / name).read_bytes()
-                and self.generator.breathes(ROOT / name)]
-
-    def test_every_breathing_picture_moves_its_topmost_status_light(self):
-        from codex_auto_resume import brand
-        palette = brand.palette("light")
-        colour = brand.rgb(palette[brand.status_fill(self.generator.BREATHE_STATE)])
-        ground = brand.rgb(palette["surface"])
-        names = self.animated()
-        self.assertTrue(names, "no picture breathes any more")
-        for name in names:
-            raw = (ROOT / name).read_bytes()
-            width, height, rgb, _alpha = self.generator.read_png(ROOT / name)
-            light = self.generator.find_light(rgb, width, height, colour, ground)
-            boxes = self.frame_boxes(raw)[1:]
+    def test_every_picture_of_a_surface_says_what_it_holds_of_the_light(self):
+        """The icon's and the light's own pictures are drawn from their frames; every other picture is of a surface
+        with a status light, and says where each of its lights is, in which state and on which ground."""
+        g = self.generator
+        pictured = set(self.manifest["images"]) - {"docs/images/icon-motion.png", "docs/images/status-light.png"}
+        self.assertEqual(sorted(pictured - set(self.records)), [], "a picture of a surface with no record")
+        self.assertEqual(sorted(set(self.records) - set(self.manifest["images"])), [], "a record of no picture")
+        for name, record in self.records.items():
             with self.subTest(name):
-                self.assertIsNotNone(light, "%s has no status light to move" % name)
-                self.assertTrue(boxes, "%s carries no frame after the first" % name)
-                x, y, radius = light
-                # A frame carries only the strip that differs from the one before it, and a frame that
-                # changes nothing carries a 1x1 placeholder, so the region that moves is their union.
-                moving = [box for box in boxes if box[2:] != (1, 1)]
-                self.assertTrue(moving, "%s has frames but none of them changes a pixel" % name)
-                left = min(box[0] for box in moving)
-                top = min(box[1] for box in moving)
-                right = max(box[0] + box[2] for box in moving)
-                bottom = max(box[1] + box[3] for box in moving)
-                self.assertTrue(left <= x <= right and top <= y <= bottom,
-                                "%s moves (%d, %d)-(%d, %d), which does not hold the light at (%d, %d)"
-                                % (name, left, top, right, bottom, x, y))
-                # And it moves the light, not the page: the glow reaches a little past the dot, never far.
-                self.assertLess(max(right - left, bottom - top), 12 * radius,
-                                "%s redraws far more than its light" % name)
+                self.assertIn(record["surface"], ("window", "panel", "popup", "card"))
+                self.assertEqual(record["theme"], g.THEME)
+                self.assertIn(record["design"], g.DESIGNS_PICTURED)
+                self.assertTrue(record["lights"], "every surface pictured has its status light")
+                for light in record["lights"]:
+                    self.assertRegex(light["ground"], r"^#[0-9A-F]{6}$")
+                    self.assertGreater(light["radius"], 0)
+                    self.assertIn(light["state"], ("monitoring", "waiting", "checking", "recovering", "attention",
+                                                   "failed", "paused", "idle"))
+
+    def test_every_light_that_moves_moves_in_its_picture_and_nothing_else_does(self):
+        """For every committed picture: animated exactly when a light in it moves in its design; its frames' union
+        covers every light that moves; every frame draws within one of those lights and nowhere else; and the frames
+        take exactly one cycle of their rhythm, one frame per light per moment."""
+        from fractions import Fraction
+        g = self.generator
+        still = []
+        for name, record in sorted(self.records.items()):
+            raw = (ROOT / name).read_bytes()
+            timeline = g.light_timeline(record)
+            if timeline is None:
+                still.append(name)
+                with self.subTest(name):
+                    self.assertNotIn(b"acTL", raw, "%s moves, and nothing in it does in the product" % name)
+                continue
+            with self.subTest(name):
+                self.assertIn(b"acTL", raw, "%s holds still, and its light moves in the product" % name)
+                controls = apng_controls(raw)
+                self.assertEqual(controls[0][:4], (0, 0) + tuple(int(v) for v in record_size(self.manifest, name)))
+                self.assertEqual(sum(control[4] for control in controls), Fraction(timeline.cycle, 1000),
+                                 "one cycle of the rhythm, exactly")
+                self.assertEqual(len(controls), timeline.steps * len(timeline.moving))
+                self.assertEqual({control[4] for control in controls}, {timeline.delay})
+                drawn = [control for control in controls[1:] if control[2:4] != (1, 1)]
+                lights = [record["lights"][index] for index in timeline.moving]
+                for light in lights:
+                    self.assertTrue(any(x <= light["x"] <= x + w and y <= light["y"] <= y + h
+                                        for x, y, w, h, _delay in drawn),
+                                    "%s never draws its light at (%g, %g)" % (name, light["x"], light["y"]))
+                for x, y, w, h, _delay in drawn:
+                    self.assertTrue(any(self.within(light, (x, y, w, h)) for light in lights),
+                                    "%s draws (%d, %d, %d, %d), which is no light of it" % (name, x, y, w, h))
+        self.assertTrue(still, "Still's pictures are still")
+        self.assertTrue(self.moving(), "no picture breathes any more; run build/make_screenshots.py --breathe")
+
+    def within(self, light, box) -> bool:
+        """Whether a frame's rectangle lies inside what a light owns: its reach and the margin drawn with it."""
+        g = self.generator
+        reach = g.light_reach(light) + g.LIGHT_MARGIN + 1
+        x, y, w, h = box
+        return (light["x"] - reach <= x and x + w <= light["x"] + reach
+                and light["y"] - reach <= y and y + h <= light["y"] + reach)
+
+    def test_the_panel_moves_both_its_lights_and_every_other_surface_its_one(self):
+        """Since v0.6.10 the panel has two lights that breathe together - the state's, and the Automatic recovery
+        tile's mini one (F1) - on two grounds; the window, the popup and the card have one each."""
+        counts = {}
+        for name, record, timeline in self.moving():
+            counts.setdefault(record["surface"], set()).add(len(timeline.moving))
+            if record["surface"] == "panel":
+                grounds = [record["lights"][index]["ground"] for index in timeline.moving]
+                with self.subTest(name):
+                    self.assertLess(record["lights"][0]["radius"], 13)
+                    self.assertGreater(record["lights"][0]["radius"], record["lights"][1]["radius"],
+                                       "the state's light, then the tile's smaller one")
+                    if record["design"] in ("soft", "still"):
+                        self.assertNotEqual(grounds[0], grounds[1], "the card's ground, then the tile's")
+        self.assertEqual(counts, {"panel": {2}, "window": {1}, "popup": {1}, "card": {1}})
 
     def test_the_card_breathes_with_the_rest(self):
         """Until v0.6.9 an interruption card held still, so its picture did too. Waiting breathes now."""
-        self.assertNotIn("notification-card", self.generator.BREATHE_SKIP)
-        self.assertNotIn("screenshot-notification", self.generator.BREATHE_SKIP)
-        self.assertIn("docs/images/notification-card.png", self.animated())
+        self.assertIn(b"acTL", (ROOT / "docs/images/notification-card.png").read_bytes())
+        self.assertEqual(self.records["docs/images/notification-card.png"]["lights"][0]["state"], "waiting")
+
+    def test_the_window_has_as_many_lights_as_its_pictures_declare(self):
+        """The window is the one surface that cannot say where its lights are, so its captures are searched for them
+        and must hold as many as the window draws: HaloDot instances in its compiled source."""
+        self.assertEqual(len(re.findall(r"\bnew HaloDot\(", guiscan.window())), self.generator.WINDOW_LIGHTS)
+        for name, record in self.records.items():
+            if record["surface"] == "window":
+                with self.subTest(name):
+                    self.assertEqual(len(record["lights"]), self.generator.WINDOW_LIGHTS)
+
+    def test_one_picture_loops_on_one_rhythm_exactly(self):
+        from fractions import Fraction
+        g = self.generator
+
+        def record(*states, design="soft"):
+            return g.picture_record("panel", "light", design, [
+                {"x": 10.0, "y": 10.0 + 40 * index, "radius": 6.0, "scale": 1.0, "state": state, "ground": "#F6F8FB"}
+                for index, state in enumerate(states)])
+
+        one = g.light_timeline(record("waiting"))
+        self.assertEqual((one.cycle, one.steps, one.delay), (4400, 132, Fraction(1, 30)))
+        self.assertEqual(one.steps * one.delay, Fraction(22, 5), "132 frames take 4400 ms, not 4356")
+        self.assertAlmostEqual(one.moments[1], 4400 / 132.0)
+        two = g.light_timeline(record("waiting", "waiting"))
+        self.assertEqual((two.delay, two.moving), (Fraction(1, 60), (0, 1)))
+        self.assertEqual(two.steps * len(two.moving) * two.delay, Fraction(22, 5))
+        self.assertEqual(g.light_timeline(record("checking")).cycle, g.brand.GLOW["arc_ms"])
+        self.assertEqual(g.light_timeline(record("recovering")).steps, 84)
+        self.assertEqual(g.light_timeline(record("waiting", "idle")).moving, (0,), "a light that is off is not drawn")
+        for off in (record("idle"), record("paused"), record("waiting", design="still")):
+            self.assertIsNone(g.light_timeline(off))
+        with self.assertRaises(SystemExit):
+            g.light_timeline(record("waiting", "recovering"))
+
+    def synthetic(self, dark_ground, tile_ground):
+        """A dark card with a tile on its right half, a light standing on each - the card's and the tile's - drawn at
+        the first moment of the breath, as a capture holds them: (width, height, RGB, record)."""
+        g = self.generator
+        width, height = 90, 50
+        card, tile = g.brand.rgb(dark_ground), g.brand.rgb(tile_ground)
+        rgb = bytearray()
+        for y in range(height):
+            for x in range(width):
+                rgb += bytes(tile if x >= 45 else card)
+        lights = [{"x": 20.0, "y": 25.0, "radius": 6.0, "scale": 1.0, "state": "waiting", "ground": dark_ground},
+                  {"x": 68.5, "y": 25.5, "radius": 4.0, "scale": 1.0, "state": "waiting", "ground": tile_ground}]
+        record = g.picture_record("panel", "dark", "soft", lights)
+        colour = g.brand.rgb(g.brand.palette("dark")["active"])
+        for light in record["lights"]:
+            g.paint_light(rgb, width, light, g.brand.glow("waiting", 0, 0), colour)
+        return width, height, bytes(rgb), record
+
+    def test_each_light_is_drawn_on_its_own_ground_and_never_a_box_of_another(self):
+        """A synthetic dark picture with a light on the card and one on a tile of another ground: in every frame the
+        ring just outside each light's reach is exactly its own ground, and nothing outside what the lights own
+        changes. And a light declared on a ground it does not stand on is refused before anything is drawn."""
+        g = self.generator
+        dark, tile = g.brand.card_ground("dark"), g.brand.palette("dark")["raised"]
+        self.assertNotEqual(dark, tile)
+        width, height, rgb, record = self.synthetic(dark, tile)
+        delay, first, later = g.breathe_frames(rgb, width, height, record)
+        self.assertEqual(len(later) + 1, 264)
+        owned = {(x, y) for light in record["lights"] for x, y, _samples in g.light_pixels(light)}
+        picture = bytearray(first)
+        pictures = [bytes(picture)]
+        for _delay, (left, top, wide, tall), patch in later:
+            for row in range(tall):
+                start = ((top + row) * width + left) * 3
+                picture[start:start + wide * 3] = patch[row * wide * 3:(row + 1) * wide * 3]
+            pictures.append(bytes(picture))
+        dimmest = pictures[132]                         # both lights near the bottom of the breath
+        for index, frame in enumerate((pictures[0], dimmest, pictures[-1])):
+            for x in range(width):
+                for y in range(height):
+                    at = (y * width + x) * 3
+                    if (x, y) not in owned:
+                        self.assertEqual(frame[at:at + 3], rgb[at:at + 3], "(%d, %d) is no light's" % (x, y))
+            for light in record["lights"]:
+                ground = bytes(g.brand.rgb(light["ground"]))
+                for x, y, samples in g.light_pixels(light):
+                    if min(sample[2] for sample in samples) > g.light_reach(light) + 0.5:
+                        at = (y * width + x) * 3
+                        self.assertEqual(frame[at:at + 3], ground, "frame %d: (%d, %d) round the light at "
+                                                                   "(%g, %g)" % (index, x, y, light["x"], light["y"]))
+        # Dimmed, each dot is drawn toward its own ground: the tile's light is not the card's colour mixed in.
+        for light in record["lights"]:
+            at = (int(light["y"]) * width + int(light["x"])) * 3
+            ground, colour = g.brand.rgb(light["ground"]), g.brand.rgb(g.brand.palette("dark")["active"])
+            frame = g.brand.glow("waiting", 2200, 2200)
+            expected = [one + (two - one) * (1.0 - frame["dim"]) for one, two in zip(ground, colour)]
+            for channel in range(3):
+                self.assertLessEqual(abs(dimmest[at + channel] - expected[channel]), 12)
+        # Declared on the card's ground, the tile's light is refused: a frame would draw a box of the card on the tile.
+        wrong = json.loads(json.dumps(record))
+        wrong["lights"][1]["ground"] = dark
+        with self.assertRaises(SystemExit):
+            g.breathe_frames(rgb, width, height, wrong)
+        # And one declared where it is not.
+        moved = json.loads(json.dumps(record))
+        moved["lights"][0]["x"] += 9
+        with self.assertRaises(SystemExit):
+            g.breathe_frames(rgb, width, height, moved)
+
+    def test_checking_turns_its_arc_in_the_picture(self):
+        """A light that is checking holds lit and turns its arc (brand.GLOW arc_*): its frames draw the arc going
+        round, once a cycle of arc_ms."""
+        g = self.generator
+        width = height = 40
+        rgb = bytearray(bytes(g.brand.rgb("#F6F8FB")) * (width * height))
+        light = {"x": 20.0, "y": 20.0, "radius": 5.0, "scale": 1.5, "state": "checking", "ground": "#F6F8FB"}
+        colour = g.brand.rgb(g.brand.palette("light")["active"])
+        g.paint_light(rgb, width, light, g.brand.glow("checking", 0, 0), colour)
+        record = g.picture_record("window", "light", "soft", [light])
+        delay, first, later = g.breathe_frames(bytes(rgb), width, height, record)
+        self.assertEqual(len(later) + 1, g.brand.GLOW["arc_ms"] * g.BREATHE_FPS // 1000)
+        middle = 5.0 + g.brand.GLOW["arc_gap"] * 1.5
+        right = (20 * width + int(20 + middle)) * 3            # three o'clock, where the arc starts at 0
+        left = (20 * width + int(20 - middle)) * 3             # nine o'clock, half a turn on
+        self.assertNotEqual(first[right:right + 3], bytes(g.brand.rgb("#F6F8FB")))
+        self.assertEqual(first[left:left + 3], bytes(g.brand.rgb("#F6F8FB")))
+
+    @unittest.skipUnless(os.name == "nt", "the popup is drawn by GDI+")
+    def test_the_popup_s_frames_are_the_popup_s_own_drawing(self):
+        """Frame k of the popup's picture is the popup drawn whole with its light at moment k - byte for byte - so
+        the picture moves exactly as the popup's own renderer moves it: `draw_halo`, the popup's call for a frame of
+        its light, over the band it keeps, is what the generator writes."""
+        from codex_auto_resume.ui import popup as tray_popup
+        g = self.generator
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "popup.png"
+            with patch.dict(os.environ, {"CODEX_AUTO_RESUME_LANG": "en"}):
+                record = g.render_popup(target, "en")
+                width, height, pictures = apng_frames(target)
+                timeline = g.light_timeline(record)
+                strings, view = g.popup_view("en")
+                renderer = tray_popup.Renderer()
+                renderer.theme, renderer.design = g.THEME, "soft"
+                try:
+                    plan = renderer.layout(view, g.POPUP_SCALE, tray_popup.locale_of(strings))
+                    self.assertEqual(len(pictures), timeline.steps)
+                    for step in (0, 1, 33, 66, 99, timeline.steps - 1):
+                        moment = timeline.moments[step]
+                        whole = renderer.draw(view, plan, frame=tray_popup.halo(view["light"], moment, moment))
+                        with self.subTest(step=step):
+                            self.assertEqual(pictures[step], g.bgra_rgb(whole.pixels()))
+                finally:
+                    renderer.close()
+        self.assertEqual(record["lights"][0]["state"], view["light"])
+
+
+def record_size(manifest, name) -> tuple:
+    """(width, height) a manifest records for a picture."""
+    return tuple(int(value) for value in manifest["images"][name]["size"].split("x"))
+
+
+class DesignPictureTests(unittest.TestCase):
+    """The four designs pictured (D16, v0.6.10): the Dashboard's Overview, the panel, the popup and the card, in
+    each - Soft's the pictures the set always had, every other design's `docs/images/design-<design>-<surface>.png` -
+    in English and the light theme only, each keyed by what it is drawn from in its design."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.generator = generator()
+        cls.manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+
+    def test_every_design_is_pictured_on_its_four_surfaces(self):
+        g = self.generator
+        from codex_auto_resume import brand
+        self.assertEqual(list(g.DESIGNS_PICTURED), list(brand.DESIGNS))
+        self.assertEqual(g.DESIGNS_PICTURED[0], brand.DEFAULT_DESIGN)
+        self.assertEqual(self.manifest["designs"], list(g.DESIGNS_PICTURED))
+        records = self.manifest["lights"]
+        for design in g.DESIGNS_PICTURED:
+            for surface in g.DESIGN_SURFACES:
+                name = g.design_picture(design, surface).relative_to(ROOT).as_posix()
+                with self.subTest(design=design, surface=surface):
+                    self.assertIn(name, self.manifest["images"])
+                    self.assertEqual(records[name]["design"], design)
+                    self.assertEqual(records[name]["surface"], "window" if surface == "dashboard" else surface)
+                    if design != brand.DEFAULT_DESIGN:
+                        self.assertEqual(name, "docs/images/design-%s-%s.png" % (design, surface))
+        # Soft's are the pictures the set always had, under the names they always had.
+        self.assertEqual(g.design_picture("soft", "popup").name, "tray-popup.png")
+        self.assertEqual(g.design_picture("soft", "panel").name, "settings-panel.png")
+        # Documentation only: nothing of another design is shipped in assets/.
+        self.assertEqual(sorted(path.name for path in (ROOT / "assets").glob("*design*")), [])
+
+    def test_each_design_is_keyed_under_its_own_name_and_soft_under_the_old_ones(self):
+        g = self.generator
+        inputs = self.manifest["inputs"]
+        for design in g.DESIGNS_PICTURED[1:]:
+            for kind in ("bridge envelope", "panel render", "popup render", "card render"):
+                with self.subTest(design=design, kind=kind):
+                    self.assertIn("<%s:en:%s>" % (kind, design), inputs)
+        self.assertEqual([name for name in inputs if name.endswith(":soft>")], [])
+        for kind in ("bridge envelope", "panel render", "popup render", "card render"):
+            self.assertIn("<%s:en>" % kind, inputs)
+
+    def test_a_design_s_entries_move_with_the_design_and_soft_s_are_what_they_were(self):
+        """Soft's popup and card entries are what they were before designs were pictured - Soft is named in
+        nothing hashed - and each other design's differs from Soft's and from every other's."""
+        g = self.generator
+        popup, card = g.popup_drawing(), g.card_drawing()
+        self.assertEqual(g.popup_render_input("en", popup), g.popup_render_input("en", popup, "soft"))
+        self.assertEqual(g.card_render_input("en", card), g.card_render_input("en", card, "soft"))
+        entries = {design: (g.popup_render_input("en", popup, design), g.card_render_input("en", card, design))
+                   for design in g.DESIGNS_PICTURED}
+        self.assertEqual(len({popup_entry for popup_entry, _card in entries.values()}), len(g.DESIGNS_PICTURED))
+        self.assertEqual(len({card_entry for _popup, card_entry in entries.values()}), len(g.DESIGNS_PICTURED))
+
+    def test_a_design_s_tokens_move_its_popup_and_card(self):
+        """Every design's colours are among the definitions both digests pool (brand/tokens.py), so a change to one
+        of Classic's or Plain's tokens moves the pictures drawn in it."""
+        g = self.generator
+        files = real_modules("notice_card.py", "notice_window.py", "brand", "ui/tray", "ui/card", "ui/words.py",
+                             "win/dll.py")
+
+        def digests(files):
+            with tempfile.TemporaryDirectory() as root:
+                for name, text in files.items():
+                    path = Path(root) / name
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text(text, encoding="utf-8")
+                return g.popup_drawing(root), g.card_drawing(root)
+
+        before = digests(files)
+        tokens = files["brand/tokens.py"]
+        for design, (old, new) in {"classic": ('"canvas": "#F2F5F9"', '"canvas": "#F2F5FA"'),
+                                   "plain": ('"ink": "#1B1B1B"', '"ink": "#1B1B1C"')}.items():
+            self.assertIn(old, tokens, design)
+            changed = digests(dict(files, **{"brand/tokens.py": tokens.replace(old, new, 1)}))
+            with self.subTest(design):
+                self.assertNotEqual(changed[0], before[0], "the popup's")
+                self.assertNotEqual(changed[1], before[1], "the card's")
+
+    def test_the_panel_is_pinned_to_its_design(self):
+        from codex_auto_resume import brand
+        g = self.generator
+        soft = g.panel_html()
+        # Soft is no stamp, as the script stamps a stored Soft, and the page is told to keep it.
+        self.assertEqual(re.search(r"<html[^>]*>", soft).group(0), '<html data-design-pinned="">')
+        for design in g.DESIGNS_PICTURED[1:]:
+            page = g.panel_html(design=design)
+            with self.subTest(design):
+                self.assertEqual(re.search(r"<html[^>]*>", page).group(0),
+                                 '<html data-design="%s" data-design-pinned="">' % design)
+                self.assertEqual(g.sample_panel_data(design)["settings"]["design"], design)
+        self.assertIn(brand.CLASSIC_LIGHT["canvas"], g.panel_html(design="classic"))
+        # Every light the page draws is held at the first moment of its breath, which the picture is of.
+        self.assertIn(g.held_lights(), soft)
+        self.assertLess(soft.index(g.held_lights()), soft.rindex("<script>"))
+
+    def test_a_design_s_window_is_what_the_bridge_answers_an_installation_storing_it(self):
+        """The window's picture in a design is keyed by the bridge's answers to an installation that stores the
+        design, and they differ from Soft's in the stored design and nothing else."""
+        g = self.generator
+        soft = g.bridge_envelope("en")
+        classic = g.window_envelopes(("en",), "classic")["en"]
+        self.assertNotEqual(classic, soft)
+        self.assertIn('"design":"classic"', classic)
+        self.assertEqual(classic.replace('"design":"classic"', '"design":"soft"'), soft)
 
 
 class ContentTests(unittest.TestCase):
@@ -649,12 +1053,16 @@ class ContentTests(unittest.TestCase):
         for name in make_screenshots.WINDOW_NAMES:
             self.assertTrue(name.startswith("example-"), name)
 
-    def test_every_surface_is_drawn_in_the_pinned_theme(self):
+    def test_every_surface_is_drawn_in_the_pinned_theme_and_design(self):
         """The window resolves the stored Theme when it starts, and the default - Use system
         setting - follows Windows' app mode. A scratch installation that stored the defaults was
         photographed dark on a machine in dark mode, beside light panel and popup pictures, under a
         manifest that said light. Passing `--theme` is no way round it: the window's first settings
-        read reopens it in the stored theme. So the theme is stored, for every surface alike."""
+        read reopens it in the stored theme. So the theme is stored, for every surface alike.
+
+        Since v0.6.10 the Design is pinned the same way, in the same file: every picture is drawn in
+        Soft but the designs' own (DESIGNS_PICTURED), each in the design it pictures, and the stored
+        settings are the defaults but for the theme and the design."""
         import inspect
         import sys
         import tempfile
@@ -678,24 +1086,44 @@ class ContentTests(unittest.TestCase):
             stored = policy.load(home / "config" / "settings.json")
             raw = json.loads((home / "config" / "settings.json").read_text(encoding="utf-8"))
         self.assertEqual((stored["theme"], raw["theme"]), (theme, theme))
-        self.assertEqual({k: v for k, v in stored.items() if k != "theme"},
-                         {k: v for k, v in policy.defaults().items() if k != "theme"},
+        self.assertEqual((stored["design"], raw["design"]), ("soft", "soft"))
+        self.assertEqual({k: v for k, v in stored.items() if k not in ("theme", "design")},
+                         {k: v for k, v in policy.defaults().items() if k not in ("theme", "design")},
                          "otherwise the pictures show the defaults")
-        self.assertIn("write_settings(home)", inspect.getsource(make_screenshots.scratch_installation))
+        # A design's own pictures store that design, and nothing else apart from the theme.
+        with tempfile.TemporaryDirectory() as scratch:
+            make_screenshots.write_settings(Path(scratch), design="classic")
+            classic = policy.load(Path(scratch) / "config" / "settings.json")
+        self.assertEqual(classic, dict(stored, design="classic"))
+        # Since v0.6.10 the installation stores the theme it is given, which is THEME unless the
+        # audit sheets (`--audit`, never published) ask for the other: no published picture asks.
+        # And the design it is given, which is Soft unless the picture is of another design.
+        self.assertIn("write_settings(home, theme, design)", inspect.getsource(make_screenshots.scratch_installation))
         self.assertNotIn("policy.defaults()", inspect.getsource(make_screenshots.scratch_installation))
         self.assertNotIn("--theme", inspect.getsource(make_screenshots.render_window))
+        for published in (make_screenshots.scratch_installation, make_screenshots.render_window,
+                          make_screenshots.render_panel, make_screenshots.render_popup):
+            self.assertIsNone(inspect.signature(published).parameters["theme"].default, published.__name__)
+            self.assertIsNone(inspect.signature(published).parameters["design"].default, published.__name__)
+        for whole_run in (make_screenshots.main, make_screenshots.render_inputs):
+            self.assertNotIn("theme=", inspect.getsource(whole_run).replace("theme=THEME", ""),
+                             "a published picture is drawn in THEME")
+            self.assertNotIn("design=\"", inspect.getsource(whole_run),
+                             "a published picture is drawn in Soft or in the design it pictures")
         # The panel: served pinned, and its sample's own Theme control says the same.
         self.assertEqual(make_screenshots.sample_panel_data()["settings"]["theme"], theme)
+        self.assertEqual(make_screenshots.sample_panel_data()["settings"]["design"], "soft")
         self.assertIn('data-theme="%s" data-theme-pinned=""' % theme, make_screenshots.panel_html(theme=theme))
-        # The popup: its renderer is told, rather than trusted to default to it.
+        # The popup: its renderer is told the theme and the design, rather than trusted to default to them.
         seen = []
 
         class Renderer:
-            theme = "unset"
+            theme = design = "unset"
 
             def layout(self, view, scale, locale):
-                seen.append(self.theme)
-                return {"size": (1, 1)}
+                seen.append((self.theme, self.design))
+                return {"size": (1, 1), "scale": scale,
+                        "items": [{"kind": "halo", "cx": 0.5, "cy": 0.5, "state": "idle"}]}
 
             def draw(self, view, plan, frame=None):
                 return type("Canvas", (), {"pixels": lambda canvas: bytes(4)})()
@@ -705,7 +1133,8 @@ class ContentTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as scratch, patch.object(tray_popup, "Renderer", Renderer):
             make_screenshots.render_popup(Path(scratch) / "popup.png", "en")
-        self.assertEqual(seen, [theme])
+            make_screenshots.render_popup(Path(scratch) / "popup.png", "en", design="plain")
+        self.assertEqual(seen, [(theme, "soft"), (theme, "plain")])
 
     def test_the_sample_version_comes_from_the_manifest(self):
         """The whole point: change plugin.json and the picture's version follows."""
@@ -819,6 +1248,43 @@ class EnvelopeTests(unittest.TestCase):
         self.assertEqual(names, {"example-project", "example-service"},
                          "the names come from the synthetic Codex home, never the user's")
 
+    def test_the_panel_the_popup_and_the_window_show_one_fixture_at_one_moment(self):
+        """Since v0.6.10 every surface is pictured from one set of records at one set of offsets: the
+        panel, the popup and the card at POPUP_NOW, the window at the moment it is photographed. Until
+        then the panel registered two rows of its own at times near 1970, so both read "due now" and
+        its network failure waited for a usage reset, and the popup was handed a third row, a server
+        error, that the window and the panel never showed - three pictures an audit cannot compare."""
+        import inspect
+        g = self.generator
+        fields = ("interruption_id", "thread_id", "name", "category", "state", "code",
+                  "eligible_at", "reset_at", "next_retry_at", "thread_enabled")
+
+        def shown(rows):
+            return sorted(tuple(row[field] for field in fields) for row in rows)
+
+        window = shown(self.reply("dashboard")["pending"])
+        self.assertEqual(len(window), 2)
+        self.assertEqual(shown(g.sample_panel_data()["pending"]), window, "the panel's rows")
+        self.assertEqual(g.sample_panel_data()["status"]["pending"], len(window), "the panel's count")
+        self.assertEqual(shown(g.popup_rows()), window, "the popup's rows")
+        # One moment: the envelope's, the popup's and the panel page's clock, and the card's reset is
+        # the usage limit's. The window is seeded by the same function, with the same offsets, at the
+        # moment it is photographed - the bridge behind it runs with the real clock - and is told that
+        # moment; so its countdowns agree with the others and its wall-clock times are the run's.
+        self.assertEqual(g.ENVELOPE_NOW, g.POPUP_NOW)
+        self.assertEqual({row[3]: row[6] - g.POPUP_NOW for row in window},
+                         {"usage_limit": g.USAGE_RESET_IN, "network_transient": g.RETRY_IN})
+        self.assertEqual(g.CARD_RESET_AT - g.POPUP_NOW, g.USAGE_RESET_IN)
+        self.assertIn("at=%d;" % int(g.POPUP_NOW * 1000), g.pinned_clock())
+        # Read in UTC, as the card's reset time is, so a machine's zone cannot set them apart.
+        self.assertIn("Real.prototype['get'+part]=Real.prototype['getUTC'+part]", g.pinned_clock())
+        page = g.panel_html()
+        self.assertLess(page.index(g.pinned_clock()), page.rindex("<script>"),
+                        "the page's clock is pinned before the panel's own script reads it")
+        capture = inspect.getsource(g.render_window)
+        self.assertIn("seed_window_state(home, codex, now)", capture)
+        self.assertIn("CODEX_AR_STILL_NOW=repr(now)", capture)
+
     def test_the_diagnostics_card_reads_the_report_the_watcher_writes(self):
         """Not "not checked yet", and no word the product cannot say. The Diagnostics card reads the
         report the watcher's own evaluator writes for the synthetic Codex home, still bound to the
@@ -857,6 +1323,14 @@ class EnvelopeTests(unittest.TestCase):
         panel = generator.sample_panel_data()["status"]["watcher"]
         self.assertEqual(panel["compatibility"], compat.mcp_view(view))
         self.assertEqual(panel["engine_state"], watcher["engine_state"])
+        # What others report, beside the version (v0.6.10): the frozen stand-in's sample counts for
+        # this build, so the card is photographed with its row filled in - and never in the panel's
+        # summary, which is codes only.
+        with generator.frozen_registry().frozen():
+            expected = compat_reported.lookup(generator.CODEX_VERSION)
+        self.assertEqual(view["reported"]["state"], "reported")
+        self.assertEqual(view["reported"], dict(expected, state="reported"))
+        self.assertNotIn("reported", panel["compatibility"])
 
     def test_the_reads_are_the_ones_the_window_makes(self):
         """Only questions the window's own code asks, and each photographed page's."""
@@ -985,9 +1459,12 @@ class PopupDrawingTests(unittest.TestCase):
                                          srcscan.relative(path)))
         self.assertEqual(found, tracked)
         # Every file of each, not the one file each used to be: since v0.6.10-alpha the popup
-        # is thirteen and the palette is ten.
-        self.assertEqual(len([name for name in found if name.startswith("ui/popup/")]), 13)
-        self.assertEqual(len([name for name in found if name.startswith("brand/")]), 10)
+        # is thirteen - fourteen since v0.6.10, with the window's messages out of window.py - and
+        # the palette is ten - eleven since v0.6.10, with brand/design.py, which decides how
+        # every design draws the popup and the card, so it is in their key too.
+        self.assertEqual(len([name for name in found if name.startswith("ui/popup/")]), 14)
+        self.assertEqual(len([name for name in found if name.startswith("brand/")]), 11)
+        self.assertIn("brand/design.py", found)
         self.assertIn("ui/popup/renderer.py", found)
         self.assertIn("brand/tokens.py", found)
 
@@ -1319,7 +1796,8 @@ class CardPictureTests(unittest.TestCase):
         self.assertEqual(before, self.generator.card_drawing(),
                          "these are everything the card's digest reads today")
         for what, (name, old, new) in {
-                "the card's layout": ("notice_card.py", "button_h = px(32)", "button_h = px(34)"),
+                "the card's layout": ("notice_card.py", 'button_h = px(brand.LAYOUT["button_height"])',
+                                      'button_h = px(brand.LAYOUT["button_height"] + 2)'),
                 "the card's own light": ("ui/card/card.py", "brand.glow(self.vm[\"status\"], age, age,",
                                          "brand.glow(self.vm[\"status\"], age + 1, age,"),
                 "its floating shadow": ("notice_card.py", "DARK_ENOUGH = 0.05", "DARK_ENOUGH = 0.06"),
@@ -1345,7 +1823,7 @@ class CardPictureTests(unittest.TestCase):
             "ui/card/layout.py": ("from __future__ import annotations\n"
                                   "from ... import brand, tray_popup\n"
                                   "from ...notice_card import SETTLED, HOLD_MS, EXIT_MS, ENTRANCE_MS, SWAP_MS, "
-                                  "SLIDE_MS, HOVER_GRACE_MS, entrance, leaving, ease_out\n\n" + moved),
+                                  "SLIDE_MS, HOVER_GRACE_MS, entrance, leaving\n\n" + moved),
         })
         self.assertEqual(self.drawing(moved_files), before)
 
@@ -1613,6 +2091,140 @@ class IconMotionPictureTests(unittest.TestCase):
             with self.subTest(what), change():
                 self.assertNotEqual(g.icon_render_input(drawing), before, what + " did not move the entry")
         self.assertEqual(g.icon_render_input(drawing), before)
+
+
+class AuditSheetTests(unittest.TestCase):
+    """`make_screenshots.py --audit OUT` (v0.6.10): light and dark sheets of the four surfaces, for
+    developers. Every committed picture is light, so these are the only pictures of the dark half and
+    of a change before it is made - and they are written under OUT and nowhere else: never docs/,
+    never assets/, never the manifest.
+
+    Checked with the renderers stood in for, so it runs anywhere: each writes a small picture where it
+    is told to, and Edge's screenshot of a sheet is a small picture too. What is checked is where
+    things go, what each surface is asked for, and the sheet's own layout.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.generator = generator()
+
+    @staticmethod
+    def published():
+        """Every file under assets/ and docs/, with its size and time."""
+        return {path.relative_to(ROOT).as_posix(): (path.stat().st_size, path.stat().st_mtime_ns)
+                for folder in ("assets", "docs") for path in (ROOT / folder).rglob("*") if path.is_file()}
+
+    def run_audit(self, *arguments):
+        """`main(["--audit", *arguments])` with every renderer stood in for; (mocks, files written)."""
+        from contextlib import redirect_stdout
+        import io
+        from unittest.mock import MagicMock
+        g = self.generator
+        written = []
+
+        def picture(target, width=12, height=8):
+            target = Path(target)
+            written.append(target)
+            g.write_png(target, width, height, bytes(width * height * 4))
+
+        def window(targets, theme=None):
+            for target in targets.values():
+                picture(target, 30, 20)
+            return {page: g.dimensions(target) for page, target in targets.items()}
+
+        def edge(argv, **_options):
+            shot = next(part.split("=", 1)[1] for part in argv if part.startswith("--screenshot="))
+            size = next(part.split("=", 1)[1] for part in argv if part.startswith("--window-size="))
+            picture(Path(shot), *(int(value) for value in size.split(",")))
+
+        mocks = {"render_window": MagicMock(side_effect=window),
+                 "render_panel": MagicMock(side_effect=lambda target, **_options: picture(target, 20, 30)),
+                 "render_popup": MagicMock(side_effect=lambda target, _locale, **_options: picture(target, 10, 16)),
+                 "render_card": MagicMock(side_effect=lambda target, _locale, _theme, **_options: picture(target, 11, 7)),
+                 "system_dpi": MagicMock(return_value=144),
+                 "find_edge": MagicMock(return_value=Path("msedge.exe"))}
+        with ExitStack() as stack:
+            for name, mock in mocks.items():
+                stack.enter_context(patch.object(g, name, mock))
+            stack.enter_context(patch.object(g.subprocess, "run", side_effect=edge))
+            stack.enter_context(redirect_stdout(io.StringIO()))
+            self.assertEqual(g.main(["--audit"] + list(arguments)), 0)
+        return mocks, written
+
+    def test_it_writes_both_themes_under_out_and_nothing_else(self):
+        from codex_auto_resume import l10n
+        g = self.generator
+        manifest, published = MANIFEST.read_bytes(), self.published()
+        language = os.environ.get(l10n.ENV_LANG)
+        with tempfile.TemporaryDirectory() as scratch:
+            out = Path(scratch) / "before"
+            mocks, written = self.run_audit(str(out))
+            made = sorted(path.relative_to(out).as_posix() for path in out.rglob("*") if path.is_file())
+            # Every picture a renderer was told to write is under OUT; Edge's own shot of a sheet goes
+            # to a temporary folder of its own and is copied in.
+            for path in written:
+                if path.name != "sheet.png":
+                    self.assertIn(out.resolve(), path.resolve().parents, path)
+            surfaces = ("card", "panel", "popup", "window-overview", "window-pending")
+            self.assertEqual(made, sorted(["%s/%s.png" % (theme, stem) for theme in ("dark", "light") for stem in surfaces]
+                                          + ["sheet-%s.%s" % (theme, kind) for theme in ("dark", "light")
+                                             for kind in ("html", "png")]))
+            # Each surface in each theme, at the window's scale, from the one fixture.
+            self.assertEqual([call.kwargs["theme"] for call in mocks["render_window"].call_args_list], ["light", "dark"])
+            for name in ("render_panel", "render_popup"):
+                self.assertEqual([(call.kwargs["theme"], call.kwargs["scale"]) for call in mocks[name].call_args_list],
+                                 [("light", 1.5), ("dark", 1.5)], name)
+            self.assertEqual({call.kwargs["height"] for call in mocks["render_panel"].call_args_list},
+                             {g.AUDIT_PANEL_HEIGHT})
+            self.assertEqual([(call.args[2], call.kwargs["scale"], call.kwargs["themes"])
+                              for call in mocks["render_card"].call_args_list],
+                             [("light", 1.5, ("light", "dark")), ("dark", 1.5, ("light", "dark"))])
+            # Still pictures, since the popup's and the card's move where they are made (v0.6.10): a sheet is
+            # a photograph of a page, and a light moving on it would be caught wherever it happened to be.
+            for name in ("render_popup", "render_card"):
+                self.assertEqual([call.kwargs["moving"] for call in mocks[name].call_args_list], [False, False], name)
+            # The sheet: every picture at its own size, inside the page, none over another.
+            page = (out / "sheet-dark.html").read_text(encoding="utf-8")
+            width, height = (int(value) for value in re.search(r"width:(\d+)px;height:(\d+)px", page).groups())
+            boxes = [tuple(int(value) for value in found) for found in re.findall(
+                r'<img src="[^"]+" width="(\d+)" height="(\d+)" style="left:(\d+)px;top:(\d+)px"', page)]
+            self.assertEqual(len(boxes), len(surfaces))
+            sources = re.findall(r'<img src="([^"]+)"', page)
+            self.assertEqual(sorted(sources), sorted("dark/%s.png" % stem for stem in surfaces))
+            for (w, h, left, top), source in zip(boxes, sources):
+                self.assertEqual(g.png_size(out / source), (w, h), source)
+                self.assertLessEqual((left + w, top + h), (width, height))
+            for first, (w1, h1, x1, y1) in enumerate(boxes):
+                for w2, h2, x2, y2 in boxes[first + 1:]:
+                    self.assertTrue(x1 + w1 <= x2 or x2 + w2 <= x1 or y1 + h1 <= y2 or y2 + h2 <= y1)
+            self.assertIn(g.config.version(), page)
+            # The heading puts POPUP_NOW over the three surfaces drawn at it, not over the window,
+            # which is seeded at its own capture's moment.
+            from html import escape
+            title = g.audit_title("dark", "en", 1.5)
+            self.assertIn(escape(title), page)
+            moment = g.time.strftime("%Y-%m-%d %H:%M UTC", g.time.gmtime(g.POPUP_NOW))
+            self.assertIn("the panel, popup and card at %s," % moment, title)
+            self.assertIn("the window at its capture's moment", title)
+            # A second run beside the first: one before-and-after sheet per theme, of the same surfaces.
+            after = Path(scratch) / "after"
+            self.run_audit(str(after), "--before", str(out))
+            pair = (after / "pair-light.html").read_text(encoding="utf-8")
+            self.assertEqual(len(re.findall(r'src="\.\./before/light/', pair)), len(surfaces))
+            self.assertEqual(len(re.findall(r'src="light/', pair)), len(surfaces))
+            self.assertTrue((after / "pair-dark.png").is_file())
+        self.assertEqual(MANIFEST.read_bytes(), manifest, "the audit never writes the manifest")
+        self.assertEqual(self.published(), published, "nor anything under assets/ or docs/")
+        self.assertEqual(os.environ.get(l10n.ENV_LANG), language, "and it puts the language back")
+
+    def test_it_refuses_to_write_where_published_pictures_live(self):
+        manifest, published = MANIFEST.read_bytes(), self.published()
+        for inside in (ROOT / "docs" / "images" / "audit", ROOT / "assets", ROOT / "docs"):
+            with self.subTest(inside.relative_to(ROOT).as_posix()), self.assertRaises(SystemExit):
+                self.run_audit(str(inside))
+        self.assertEqual(MANIFEST.read_bytes(), manifest)
+        self.assertEqual(self.published(), published)
+        self.assertFalse((ROOT / "docs" / "images" / "audit").exists())
 
 
 if __name__ == "__main__":
