@@ -60,6 +60,11 @@ namespace CodexAutoResume
         ///   * the header's light off the headline's line, or not where every header stands it (AuditHero), with the
         ///     Start button shown and without it.
         /// tests/test_gui_layout.py runs it in every language at five scalings.
+        ///
+        /// v0.6.10: it also writes down where everything is on every page and Settings section it lays out
+        /// (AuditedGeometry), in the design the palette was given (Palette.AdoptDesign). A design changes paint and
+        /// never layout, so that record is the same in every design: tests/test_gui_v0610_designs.py holds it to that,
+        /// and so the audit of one design is the audit of all four.
         internal static string LayoutAudit(string schemaJson, string settingsJson, string stringsJson, string snapshotJson, double scale)
         {
             var findings = new List<string>();
@@ -70,6 +75,8 @@ namespace CodexAutoResume
             AuditedHero = 0;
             AuditedAlike = 0;
             AuditedWraps = 0;
+            var geometry = new StringBuilder();
+            AuditedGeometry = "";
             System.Reflection.FieldInfo fallback = typeof(Control).GetField("defaultFont",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
             Font defaultBefore = Control.DefaultFont;
@@ -118,6 +125,7 @@ namespace CodexAutoResume
                         form.ShowPage(page);
                         if (page != "settings")
                         {
+                            Geometry(page, form, geometry);
                             form.Audit(page, findings);
                             form.AuditScrolling(page, findings);
                             if (page == "overview")
@@ -133,6 +141,7 @@ namespace CodexAutoResume
                         foreach (string section in SectionOrder)
                         {
                             form.ShowSection(section);
+                            Geometry("settings/" + section, form, geometry);
                             form.Audit("settings/" + section, findings);
                             form.AuditPins("settings/" + section, findings);
                         }
@@ -167,6 +176,7 @@ namespace CodexAutoResume
                     // each in both orders a window comes to a width in (AuditReopenNote).
                     form.AuditReopenNote(form.Px(OpeningWidth), findings);
                     form.AuditReopenNote(form.Px(800) - form.Px(16), findings);
+                    AuditedGeometry = geometry.ToString();
                 }
             }
             finally
@@ -176,6 +186,39 @@ namespace CodexAutoResume
                 Soft.BaseFont = baseBefore;
             }
             return string.Join("\n", findings.ToArray());
+        }
+
+        /// Where everything was, page by page, as the last LayoutAudit laid it out (v0.6.10): one line per control
+        /// that takes room - its place among its parent's controls, its type, its bounds, its margin and its padding -
+        /// under a line naming the page or section. Empty before the first audit.
+        internal static string AuditedGeometry = "";
+
+        /// The layout of everything `form` has made room for, into `into`, under `where`: what a design may never
+        /// change. Colours, radii and shadows are not in it - they are the design's to change.
+        private static void Geometry(string where, Control form, StringBuilder into)
+        {
+            into.Append("== ").Append(where).Append('\n');
+            GeometryOf(form, "", into);
+        }
+
+        private static void GeometryOf(Control parent, string path, StringBuilder into)
+        {
+            for (int index = 0; index < parent.Controls.Count; index++)
+            {
+                Control child = parent.Controls[index];
+                if (!OwnVisible(child)) continue;
+                string here = path + "/" + index.ToString(CultureInfo.InvariantCulture) + ":" + child.GetType().Name;
+                Rectangle bounds = child.Bounds;
+                into.Append(here).Append(' ')
+                    .Append(string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}", bounds.X, bounds.Y, bounds.Width, bounds.Height))
+                    .Append(" m").Append(Sides(child.Margin)).Append(" p").Append(Sides(child.Padding)).Append('\n');
+                GeometryOf(child, here, into);
+            }
+        }
+
+        private static string Sides(Padding sides)
+        {
+            return string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}", sides.Left, sides.Top, sides.Right, sides.Bottom);
         }
 
         /// Every way the Overview gives way as the watcher's state changes under it, at `scale` and in the

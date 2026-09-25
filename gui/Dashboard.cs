@@ -262,7 +262,9 @@ namespace CodexAutoResume
         // are muted words straight on the canvas, which come up as a raised body with a hairline
         // under the pointer; the chosen page is pressed into a well, its name in the accent. The
         // state is also in the weight of the text and in what a screen reader is told, never in
-        // colour alone.
+        // colour alone. v0.6.10: in Classic the chosen page is underlined in the accent, as v0.6.2's
+        // tabs were (a section of Settings, whose tabs stand in a column, has the bar at its left), and
+        // in Plain it is a flat quiet-accent ground - neither design has a well to press it into.
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = e.Graphics;
@@ -270,11 +272,13 @@ namespace CodexAutoResume
             // the tabs rather than stopping at the edge of each one.
             Ground.PaintArea(this, g, ClientRectangle);
             Rectangle face = Face;
-            float radius = Soft.PxF(Brand.RadiusControl);
+            float radius = Soft.PxF(Palette.RadiusControl);
             if (current)
             {
                 // High Contrast keeps what it had: Highlight, with HighlightText on it.
                 if (Palette.Contrast) Soft.Body(g, face, radius, Palette.AccentSoft, Palette.AccentSoft, false);
+                else if (Palette.AccentBar) Underline(g, face);
+                else if (!Palette.Depth) Soft.Body(g, face, radius, Palette.AccentSoft, Palette.AccentSoft, false);
                 else Soft.Body(g, face, radius, Palette.Inset, Palette.Inset, true);
             }
             else if (hover) Soft.Body(g, face, radius, Palette.Raised, Palette.Line, false);
@@ -283,6 +287,18 @@ namespace CodexAutoResume
                                   TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis |
                                   (Vertical ? TextFormatFlags.Left : TextFormatFlags.HorizontalCenter));
             if (Focused && ShowFocusCues) Soft.Ring(g, face, radius);
+        }
+
+        /// Classic's current tab (v0.6.2's): an AccentBar-high line in the accent along the bottom of `face`, in from
+        /// its ends as that release's was - or, for a section of Settings in its column, as high as the name and at
+        /// the left. Paint only, inside the body the tab always had.
+        internal void Underline(Graphics g, Rectangle face)
+        {
+            int bar = Soft.Px(Brand.AccentBar), inset = Soft.Px(Brand.SpaceXs);
+            Rectangle line = Vertical
+                ? new Rectangle(face.X, face.Y + inset, bar, face.Height - 2 * inset)
+                : new Rectangle(face.X + inset, face.Bottom - bar, face.Width - 2 * inset, bar);
+            if (line.Width > 0 && line.Height > 0) g.FillRectangle(Soft.Fill(Palette.Accent), line);
         }
 
         protected override AccessibleObject CreateAccessibilityInstance()

@@ -714,7 +714,8 @@ class OneListTests(unittest.TestCase):
         for source in (r"pad = Soft\.Px\(Brand\.SpaceS\);", r"rowGap = Soft\.Px\(Brand\.SpaceXs\);",
                        r"pill = TextRenderer\.MeasureText\(\"Ag\", font, unbounded, Flags\)\.Height"
                        r" \+ 2 \* Soft\.Px\(Brand\.SpaceS\);",
-                       r"float radius = Soft\.PxF\(Brand\.RadiusSmall\);\s+int words = Soft\.Px\(Brand\.SelectPadLeft\);",
+                       # v0.6.10: the design's small radius (Palette), as the panel's list takes its design's.
+                       r"float radius = Soft\.PxF\(Palette\.RadiusSmall\);\s+int words = Soft\.Px\(Brand\.SelectPadLeft\);",
                        r"field\.X - pad", r"MaxDropDownItems = %d;" % ROWS, r"const int TypeAhead = %d;" % TYPING_MS):
             with self.subTest(source):
                 self.assertRegex(CONTROLS, source)

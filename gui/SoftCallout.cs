@@ -103,7 +103,7 @@ namespace CodexAutoResume
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = e.Graphics;
-            float radius = Soft.PxF(Brand.RadiusControl);
+            float radius = Soft.PxF(Palette.RadiusControl);
             Ground.PaintBehind(this, g, ClientRectangle, radius);
             GraphicsState state = g.Save();
             g.SmoothingMode = SmoothingMode.AntiAlias;
