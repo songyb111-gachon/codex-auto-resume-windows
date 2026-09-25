@@ -19,7 +19,7 @@ Codex or starts a real process.
 """
 from __future__ import annotations
 
-import platform
+import sys
 import time
 
 from codex_auto_resume import config
@@ -276,8 +276,16 @@ def _versions(backend) -> dict:
             codex_version = str(backend.engine_version)
     except Exception:
         pass
+    # The build Windows reports to this process, as diagnostics reads it: platform.version() would
+    # ask WMI and, if that failed, run `cmd /c ver` - a program started to answer a question this
+    # process already knows (tests/test_no_console_windows.py).
+    getter = getattr(sys, "getwindowsversion", None)
+    build = None
+    if getter is not None:
+        running = getter()
+        build = "%d.%d.%d" % (running.major, running.minor, running.build)
     return {"product_version": config.version(), "codex_version": codex_version,
-            "windows_build": platform.version() or "10.0.0"}
+            "windows_build": build or "10.0.0"}
 
 
 def live_session_factory(paths):

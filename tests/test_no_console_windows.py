@@ -86,14 +86,27 @@ def _tracked(*paths) -> tuple:
     return tuple(sorted(name for name in listing.stdout.decode("utf-8").split("\0") if name))
 
 
+def _advanced_trees() -> tuple:
+    """What `make_release.py --edition advanced` adds (ADVANCED_TREES): the package and its skill,
+    under advanced/. The rule is the same in both editions, so the scan is too; the names are read
+    from the build script, which spells each of them as "advanced/<kind>/" + a constant."""
+    source = (ROOT / "build" / "make_release.py").read_text(encoding="utf-8")
+    trees = tuple(sorted(set(re.findall(r'"(advanced/(?:src|skills|gui))/"', source))))
+    if "advanced/src" not in trees:
+        raise AssertionError("build/make_release.py no longer adds advanced/src to the advanced edition")
+    return trees
+
+
 # Listed once, at collection, before any test patches subprocess (srcscan does the same).
 APP_TREES = _app_trees()
-SHIPPED = _tracked(*APP_TREES)
+ADVANCED_TREES = _advanced_trees()
+SHIPPED = _tracked(*APP_TREES) + _tracked(*ADVANCED_TREES)
 SHIPPED_PY = tuple(name for name in SHIPPED if name.endswith(".py"))
 # The installer ships beside the payload (make_release.LAUNCHER_FILES), and bootstrap.ps1 in it.
 POWERSHELL = tuple(name for name in SHIPPED + _tracked("build/install") if name.endswith(".ps1"))
 CMD = tuple(name for name in _tracked("build/install") if name.endswith((".cmd", ".bat")))
-WINDOW_CS = tuple(name for name in guiscan.tracked() if name.endswith(".cs"))
+WINDOW_CS = tuple(name for name in guiscan.tracked() if name.endswith(".cs")) + tuple(
+    name for name in _tracked("advanced/gui") if name.endswith(".cs"))
 
 
 def _read(name: str) -> str:
