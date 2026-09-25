@@ -441,17 +441,25 @@ class BootstrapTests(unittest.TestCase):
         it from a redirect under this repository and rebuilds it out of three integers,
         which `tests/test_update_check.py` exercises against the shipped function.
         -Compatibility (v0.6.5) is a switch too: the compatibility data's address is one
-        constant, and nothing a caller passes reaches it.
+        constant, and nothing a caller passes reaches it. -Edition (v0.6.11) carries a value,
+        but one of two words the parameter itself closes, and the word only chooses which of
+        two constant templates in release.json names the archive; it is never spliced.
         """
         parameters = re.search(r"param\((.*?)\n\)", self.text, re.S).group(1)
         self.assertEqual(set(re.findall(r"\$(\w+)", parameters)),
                          {"Force", "NoStartup", "ArchivePath", "CheckOnly", "Update",
-                          "Compatibility"})
+                          "Compatibility", "Edition"})
         values = [name for name in re.findall(r"\[(\w+)\]\$(\w+)", parameters)]
-        self.assertEqual([name for kind, name in values if kind != "switch"], ["ArchivePath"])
-        # And the one value never reaches the URL the archive is fetched from.
+        self.assertEqual([name for kind, name in values if kind != "switch"], ["ArchivePath", "Edition"])
+        self.assertIn("[ValidateSet('Standard', 'Advanced')]\n    [string]$Edition", parameters)
+        # And neither value reaches the URL the archive is fetched from.
         fetch = self.text[self.text.index("$base = $release.download"):]
         self.assertNotIn("$ArchivePath", fetch[:fetch.index("Get-Remote")])
+        self.assertNotIn("$Edition", fetch[:fetch.index("Get-Remote")])
+        named = self.text[self.text.index("    $name = "):]
+        named = named[:named.index("\n")]
+        self.assertNotIn("$Edition", named, "the typed word, rather than the settled one")
+        self.assertIn(".archive.Replace('{version}', $target)", named)
 
     def test_the_update_check_never_parses_what_the_server_sends(self):
         """The answer is the URL the request ended at. Nothing reads the page."""
@@ -482,6 +490,10 @@ class BootstrapTests(unittest.TestCase):
         # and has one answer of its own - the data arrived and was refused - on its own code.
         refused = codes.pop("ExitCompatibilityRefused")
         self.assertNotIn(refused, codes.values(), "the refresh's own answer shares a code")
+        # v0.6.11: an install refused because the other edition is there, which is no answer
+        # to the update question and must never read as one - nor as the refresh's refusal.
+        other = codes.pop("ExitOtherEdition")
+        self.assertNotIn(other, list(codes.values()) + [refused], "the edition refusal shares a code")
         self.assertEqual(set(codes), {"ExitCurrent", "ExitAvailable", "ExitLocalNewer",
                                       "ExitUnavailable"})
         self.assertEqual(len(set(codes.values())), 4, "two answers share a code")

@@ -78,7 +78,11 @@ ALLOWED = {
     ("payload/app/src/codex_auto_resume/edition.py", PACKAGE):
         "the one module of core that looks for the package, by its name (tests/test_edition.py)",
     ("payload/app/scripts/bootstrap.ps1", PACKAGE):
-        "tells which edition a tree is by whether the package is in it, as edition.py does",
+        "tells which edition a tree is by whether the package is in it, as edition.py does, and "
+        "which edition an archive is before it unpacks it (Test-Archive)",
+    ("payload/app/scripts/bootstrap.ps1", SKILL):
+        "refuses a standard archive that carries the advanced skill, which Codex would load from "
+        "the plugin tree (Test-Archive)",
     ("install/install.ps1", PACKAGE):
         "tells which edition the payload it installs is, the same way",
 }

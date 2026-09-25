@@ -46,7 +46,8 @@ ROOT = srcscan.ROOT
 # which is no tree of the ones checked here; build/edition_audit.py's ALLOWED holds all three as
 # entries of the standard archive.
 NAMED_BY: dict = {
-    "scripts/bootstrap.ps1": "tells which edition a tree is by whether the package is in it",
+    "scripts/bootstrap.ps1": "tells which edition a tree is by whether the package is in it, and "
+                             "which edition an archive is before it unpacks it",
 }
 
 
