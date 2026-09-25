@@ -9,6 +9,7 @@ real watcher or touches the installer's real lock.
 from __future__ import annotations
 
 import io
+import json
 import os
 from pathlib import Path
 import sys
@@ -212,8 +213,14 @@ class StartWatcherFromCodexTests(unittest.TestCase):
         text, data, _asked = self.call(self.KILL)
         self.assertTrue(text.startswith(mcpserver.Server.START_WORDING["running"] + " "), text)
         self.assertIn("it stops when Codex closes, if not sooner", text)
-        self.assertIn("start it from the Dashboard", text)
+        # The way out has to be one a person can take. "Start it from the Dashboard" was not: the
+        # Dashboard starts a watcher in its own job, and one opened from this watcher's icon is in
+        # Codex's; while this watcher runs it has nothing to start. The Start menu's entry, once Codex
+        # has closed, and the sign-in start are launched by Windows.
+        self.assertIn("Once Codex has closed, open Codex Auto Resume from the Start menu and start it "
+                      "there", text)
         self.assertIn("Run at Windows sign-in", text)
+        self.assertNotIn("start it from the Dashboard", text)
         self.assertEqual((data["state"], data["ends_with_codex"]), ("running", True))
 
     def test_the_job_is_read_as_the_start_with_codex_reads_it(self):
@@ -268,9 +275,16 @@ class StartWatcherFromCodexTests(unittest.TestCase):
         self.assertIs(data["ends_with_codex"], True)
 
     def test_the_sentences_never_claim_a_running_watcher_and_the_panel_says_them_in_every_language(self):
-        for ends, sentence in mcpserver.Server.ENDS_WITH_CODEX.items():
-            with self.subTest(ends=ends):
+        english = l10n._read("en")
+        sentences = {("server", ends): sentence for ends, sentence in mcpserver.Server.ENDS_WITH_CODEX.items()}
+        sentences.update({("panel", key): english[key]
+                          for key in ("panel.start_ends_with_codex", "panel.start_may_end_with_codex")})
+        for where, sentence in sentences.items():
+            with self.subTest(where=where):
                 self.assertNotIn("is running", sentence)
+                # Nor a start that would not last: every one names the Start menu's entry.
+                self.assertIn("Codex Auto Resume from the Start menu", sentence)
+                self.assertNotIn("keep it running", sentence)
         script = (Path(__file__).resolve().parents[1] / "src" / "codex_auto_resume" / "mcp" / "assets"
                   / "panel.js").read_text(encoding="utf-8")
         self.assertIn("payload.ends_with_codex", script)
@@ -279,6 +293,51 @@ class StartWatcherFromCodexTests(unittest.TestCase):
             for locale in l10n.LOCALES:
                 with self.subTest(key=key, locale=locale):
                     self.assertTrue(l10n._read(locale).get(key, "").strip())
+                    # The entry keeps its name in every language: it is what the Start menu shows.
+                    self.assertIn("Codex Auto Resume", l10n._read(locale)[key])
+
+    def test_the_panel_says_it_after_a_start_running_or_not_yet_confirmed(self):
+        """The panel's Start watcher says what the server's reply says, driven through the panel's
+        own code: after a start that is running or not yet confirmed, where the job ends it or
+        Windows would not say - an unconfirmed start used to say nothing of it - and after nothing
+        else."""
+        import shutil
+        if not shutil.which("node"):
+            self.skipTest("needs Node to run the panel's own code")
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from test_mcpui_v064 import run_page, say, snapshot
+
+        def notice(state, ends, locale="en"):
+            reply = {"state": state, "started": state != "already-running"}
+            if ends != "absent":
+                reply["ends_with_codex"] = ends
+            # The panel speaks the chosen language, which the snapshot's settings carry.
+            data = snapshot(interface_language=locale)
+            data["status"]["watcher_running"] = False
+            return run_page("""
+              window.openai.callTool = HOST.callTool = function (name) {
+                if (name === 'start_watcher') return Promise.resolve({structuredContent: %s});
+                return new Promise(function () {});
+              };
+              HERO.start.onclick();
+              await settle();
+              """ % json.dumps(reply) + say("HERO.message.textContent"), data=data, locale=locale)
+
+        ends, may = "panel.start_ends_with_codex", "panel.start_may_end_with_codex"
+        unconfirmed, exited = "panel.start_unconfirmed", "panel.start_exited"
+        for locale in ("en", "ko"):
+            words = l10n.catalog(locale)
+            cases = ((("running", True), words[ends]),
+                     (("running", None), words[may]),
+                     (("running", False), ""),
+                     (("unconfirmed", True), words[unconfirmed] + " " + words[ends]),
+                     (("unconfirmed", None), words[unconfirmed] + " " + words[may]),
+                     (("unconfirmed", False), words[unconfirmed]),
+                     (("exited", True), words[exited]),
+                     (("already-running", "absent"), ""))
+            for (state, told), expected in cases:
+                with self.subTest(locale=locale, state=state, ends=told):
+                    self.assertEqual(notice(state, told, locale), expected)
 
 
 class ContextWordsTests(unittest.TestCase):

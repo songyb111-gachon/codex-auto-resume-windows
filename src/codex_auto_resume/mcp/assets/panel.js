@@ -1883,23 +1883,28 @@ function render() {
         // structured half, so look in both rather than depending on one.
         var payload = (result && result.structuredContent) || result || {};
         var state = payload.state;
+        // A watcher this panel started runs in the job Codex runs its server in (v0.6.10): where
+        // that job ends what it holds - Codex 26.915, measured - it stops when Codex closes, if
+        // not sooner. The panel says so after every start that may have left one running - running
+        // or not yet confirmed - as the server's reply does, and names a start that outlives Codex:
+        // the Start menu's, once Codex has closed (a Dashboard opened from this watcher's own icon
+        // is in the same job), or the sign-in start. Null is a job Windows would not describe;
+        // false, a watcher already running and one that exited need no sentence.
+        var ends = payload.ends_with_codex;
+        var lasting = ends === true
+          ? t('panel.start_ends_with_codex', 'Codex ends what its plugins start, so this watcher stops when Codex closes, if not sooner. Once Codex has closed, open Codex Auto Resume from the Start menu and start it there, or turn on Run at Windows sign-in in the Dashboard so it starts with Windows.')
+          : ends === null
+            ? t('panel.start_may_end_with_codex', 'Windows would not say whether Codex ends what its plugins start, so this watcher may stop when Codex closes. If it does, open Codex Auto Resume from the Start menu and start it there, or turn on Run at Windows sign-in in the Dashboard so it starts with Windows.')
+            : '';
         if (state === 'running' || state === 'already-running') {
           status.watcher_running = true;
-          // A watcher this panel started runs in the job Codex runs its server in (v0.6.10): where
-          // that job ends what it holds - Codex 26.915, measured - it stops when Codex closes, if
-          // not sooner, and the panel says so rather than showing a lasting start. Null is a job
-          // Windows would not describe; false, and a watcher already running, need no sentence.
-          var ends = payload.ends_with_codex;
-          NOTICE = ends === true
-            ? t('panel.start_ends_with_codex', 'Running until Codex closes, if not sooner: Codex ends what its plugins start. To keep it running, start it from the Dashboard, or turn on Run at Windows sign-in there.')
-            : ends === null
-              ? t('panel.start_may_end_with_codex', 'Running, but it may stop when Codex closes: Windows would not say whether Codex ends what its plugins start. To keep it running, start it from the Dashboard, or turn on Run at Windows sign-in there.')
-              : '';
+          NOTICE = lasting;
         } else if (state === 'exited') {
           NOTICE = t('panel.start_exited', 'It started and stopped again; nothing is watching.');
         } else {
           NOTICE = t('panel.start_unconfirmed',
-            'Started, but not confirmed running yet. Ask for the status again.');
+            'Started, but not confirmed running yet. Ask for the status again.')
+            + (lasting ? ' ' + lasting : '');
         }
         // Through NOTICE rather than onto `message`, because render() empties the panel
         // and builds a fresh span: text written here first would be on a node that is

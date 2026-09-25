@@ -208,10 +208,11 @@ TOOLS = [
                        "while it is stopped, so this is the fix when the status says "
                        "it is not running. It starts the same process the installer "
                        "starts and decides nothing about any interruption. Started from "
-                       "here it runs inside Codex, and Codex 26.915 and later end what "
-                       "their plugins start: then it stops when Codex closes, if not "
-                       "sooner, and the reply says so. Starting it from the Dashboard, or "
-                       "at Windows sign-in, keeps it running.",
+                       "here it runs inside Codex. Where Codex ends what its plugins start, "
+                       "as Codex 26.915 was measured to, it stops when Codex closes, if not "
+                       "sooner; the reply reads that from the job each time and says so. A "
+                       "watcher that outlives Codex is one started from Codex Auto Resume in "
+                       "the Start menu once Codex has closed, or at Windows sign-in.",
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
         # Destructive: a watcher the user stopped would start recovering again.
         "annotations": {"readOnlyHint": False, "destructiveHint": True,

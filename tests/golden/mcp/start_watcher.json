@@ -33,7 +33,7 @@
           "content": [
             {
               "type": "text",
-              "text": "The watcher is running. It was started from inside Codex, which ends what its plugins start, so it stops when Codex closes, if not sooner. To keep it running, start it from the Dashboard, or turn on Run at Windows sign-in there."
+              "text": "The watcher is running. It was started from inside Codex, which ends what its plugins start, so it stops when Codex closes, if not sooner. Once Codex has closed, open Codex Auto Resume from the Start menu and start it there, or turn on Run at Windows sign-in in the Dashboard so it starts with Windows."
             }
           ],
           "structuredContent": {
