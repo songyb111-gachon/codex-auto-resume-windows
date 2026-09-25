@@ -9,6 +9,7 @@ from __future__ import annotations
 from contextlib import nullcontext
 import time
 from .. import settings as policy
+from ..domain.plug import guard
 
 
 # Bounded exponential backoff for proven "queue process never started" failures.
@@ -32,11 +33,39 @@ def transient_delay(attempt: int) -> int:
     return TRANSIENT_BACKOFF[index]
 
 
+# What a plug is shown of the store, at P2 and P8: the reads the engine itself makes, and none
+# of its writes.
+VIEW_READS = frozenset({"get", "records_in", "settings", "thread_enabled", "others_in_flight",
+                        "recent_claims", "recent_claim_count", "claimed_on_thread"})
+
+
+class StoreView:
+    """The engine's store as a plug sees it, and the moment it was shown.
+
+    The reads, and nothing that writes: a plug is told what core holds and decides nothing by
+    changing it. Each read is the store's own, looked up when it is used, so a view costs
+    nothing until a plug reads through it.
+    """
+    __slots__ = ("_store", "now")
+
+    def __init__(self, store, now):
+        self._store, self.now = store, now
+
+    def __getattr__(self, name):
+        if name in VIEW_READS:
+            return getattr(self._store, name)
+        raise AttributeError(name)
+
+
 class OptionsMixin:
     def __init__(self, store, source, backend, *, dispatch_lock=nullcontext,
                  clock=time.time, log=None, options=None, notify=None, language=None,
-                 home_lock=None, engine_state=None):
+                 home_lock=None, engine_state=None, plug=None):
         self.store, self.source, self.backend = store, source, backend
+        # The edition's plug, as core holds one (domain/plug.py): NULL, the standard edition's,
+        # unless the watcher was given another. Every point is asked through this and nothing
+        # else, and it is fixed for the engine's life, so no edition changes under a tick.
+        self.plug = guard(plug)
         self.dispatch_lock, self.clock = dispatch_lock, clock
         self.log = log or (lambda *args: None)
         self.notify = notify or (lambda *args: None)

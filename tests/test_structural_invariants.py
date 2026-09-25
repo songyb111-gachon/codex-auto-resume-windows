@@ -108,17 +108,49 @@ def starts_a_process(node):
     return isinstance(node, ast.Call) and getattr(node.func, "attr", getattr(node.func, "id", None)) in PROCESS_STARTERS
 
 
+# The one binding of what the one send is handed to (P5): core's backend, unless the edition's
+# plug names a channel - asked through the plug core holds, so NULL hands back the backend itself.
+SENDER_BINDING = "sender = self.plug.sender(current, self.backend)"
+
+
 class OneSenderTests(unittest.TestCase):
     """The watcher is the only sender, and inside it one function sends."""
 
     def test_only_the_dispatch_hands_a_message_to_the_backend(self):
-        # Any call of a method named `send`, on anything: the backend's is the only one the
-        # package makes, so an alias (`b = self.backend; b.send(...)`) is caught as well.
+        """One call of a method named `send`, on anything, in the whole package - so an alias
+        (`b = self.backend; b.send(...)`) is caught as well - and it is made on `sender`, which
+        that function binds exactly once, to what the plug hands back for core's own backend.
+        v0.6.11 moved the call from `self.backend` to that one name (P5): the edition's plug may
+        name a channel there and nowhere else, and the send is still this call, after the one
+        claim and the pre-send look, inside the launch guard."""
         sends = calls(lambda node: isinstance(node.func, ast.Attribute) and node.func.attr == "send")
         self.assertEqual([(where, name) for where, name, _ in sends],
                          [("codex_auto_resume/engine/dispatch.py", "DispatchMixin.dispatch")])
         receiver = sends[0][2].func.value
-        self.assertEqual(getattr(receiver, "attr", getattr(receiver, "id", None)), "backend")
+        self.assertIsInstance(receiver, ast.Name)
+        self.assertEqual(receiver.id, "sender")
+        path = srcscan.modules()["codex_auto_resume.engine.dispatch"]
+        dispatch = scopes(srcscan.package_asts()[path])["DispatchMixin.dispatch"]
+        bindings = [node for node in ast.walk(dispatch)
+                    if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.NamedExpr))
+                    and any(isinstance(target, ast.Name) and target.id == "sender"
+                            for target in (node.targets if isinstance(node, ast.Assign) else [node.target]))]
+        self.assertEqual([ast.unparse(node) for node in bindings], [SENDER_BINDING])
+        # Nor is `sender` bound any other way there: a loop, a `with ... as`, an argument.
+        other = [node for node in ast.walk(dispatch)
+                 if (isinstance(node, (ast.For, ast.comprehension)) and "sender" in ast.unparse(node.target))
+                 or (isinstance(node, ast.withitem) and node.optional_vars is not None
+                     and "sender" in ast.unparse(node.optional_vars))
+                 or (isinstance(node, ast.arg) and node.arg == "sender")]
+        self.assertEqual(other, [])
+
+    def test_the_plugs_sender_is_asked_once_in_the_whole_package(self):
+        """A second question to the plug about the sender would be a second way for a channel to
+        reach a send. The one there is, is the binding above."""
+        asked = calls(lambda node: isinstance(node.func, ast.Attribute) and node.func.attr == "sender")
+        self.assertEqual([(where, name, ast.unparse(node)) for where, name, node in asked],
+                         [("codex_auto_resume/engine/dispatch.py", "DispatchMixin.dispatch",
+                           SENDER_BINDING.split(" = ", 1)[1])])
 
     def test_exactly_one_place_spawns_the_queue_process(self):
         """`codex queue` is started with a message in one function. The only other process

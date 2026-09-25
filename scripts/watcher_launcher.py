@@ -14,6 +14,10 @@ application directory to prefer.
 
 This file only locates and starts the existing watcher. It contains no detection,
 no scheduling and no submission logic.
+
+When the watcher it ran has ended, the installed edition's plug is asked what the launcher
+should do about it (P13, `_supervise`). The standard edition has nothing to say, and nothing
+a plug says is carried out yet, so the launcher returns what the watcher returned, as ever.
 """
 from __future__ import annotations
 
@@ -176,7 +180,28 @@ def main(argv=None) -> int:
     code = cli_main(["--home", str(home), "--quiet"] + command)
     if code == EXIT_SCHEMA_NEWER and command == ["run"]:
         _relaunch_once(here, command)
+    elif command == ["run"]:
+        _supervise(home, code)
     return code
+
+
+def _supervise(home: Path, code: int) -> None:
+    """P13: ask the installed edition's plug about a watcher that has ended with `code`.
+
+    Asked after the watcher's own run, in this process, and never about the relaunch above,
+    which is the one restart the launcher makes of itself. The launcher carries out nothing a
+    plug answers yet - a restart relaxes what it does today - so the answer is not read. An
+    engine from before editions has no plug to ask, and is the standard edition anyway.
+    """
+    try:
+        from codex_auto_resume import config, edition
+        from codex_auto_resume.domain.plug import guard
+    except ImportError:
+        return
+    try:
+        guard(edition.plug(config.Paths(home))).supervise({"exit_code": code})
+    except Exception:                               # noqa: BLE001 - supervision never fails a launch
+        pass
 
 
 def _relaunch_once(here: Path, command) -> None:

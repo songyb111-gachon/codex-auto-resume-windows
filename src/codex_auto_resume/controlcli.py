@@ -22,6 +22,10 @@ own `scripts/bootstrap.ps1 -Compatibility`. The one file it reads by name is a C
 Registry document handed to `compat-import`, which is size-capped, parsed by the hardened
 validator and never echoed: the answer is a code.
 
+A command the bridge has none of its own for is put to the edition's plug (P10), in the long-lived
+form only: the one-shot form's parser knows the bridge's own commands and nothing else. The
+standard edition's plug answers none, so such a command is refused as it always was.
+
 A rejected request always answers `{"ok": false, "error": "...", "error_code": "..."}`:
 the English sentence, which the command line prints and a bug report quotes, and beside it
 the stable code from `control.ERROR_CODES` that a front end turns into its own language.
@@ -55,6 +59,7 @@ from . import config, l10n
 # was deferred when the two were apart and it was a cost.
 from .codex import LocalSource
 from .control import FALLBACK_CODE, Control, ControlError
+from .domain.plug import DEFER, Surface
 from .windows import WakeEvent
 
 # Commands with no argument, and commands that take one JSON object.
@@ -427,6 +432,25 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
     return _rejected("unknown command")
 
 
+def _plugged(control: Control, command, argument) -> dict:
+    """A command the bridge has none of its own for, put to the edition's plug (P10).
+
+    Refused, as every unknown command always was, unless the plug answers it with a JSON object,
+    which is then the reply's `result`. The standard edition's plug is not even asked. What such
+    a command does is the plug's own affair and stays in its own state: nothing here sends,
+    claims or starts anything for it."""
+    if not control.plug.null and isinstance(command, str):
+        try:
+            payload = _payload(argument)
+        except Exception:
+            payload = None
+        if payload is not None:
+            added = control.plug.surface(Surface.BRIDGE, {"command": command, "argument": payload})
+            if added is not DEFER:
+                return {"ok": True, "result": added}
+    raise ControlError("unknown command")
+
+
 def serve(control: Control, stream_in, stream_out) -> int:
     """Answer requests, one line each, until the input closes.
 
@@ -449,8 +473,9 @@ def serve(control: Control, stream_in, stream_out) -> int:
                 raise ControlError("id must be an integer")
             command = request.get("command")
             if command not in PLAIN + WITH_ARGUMENT:
-                raise ControlError("unknown command")
-            reply = dispatch(control, command, _payload(request.get("argument")))
+                reply = _plugged(control, command, request.get("argument"))
+            else:
+                reply = dispatch(control, command, _payload(request.get("argument")))
         except ControlError as exc:
             reply = _rejected(str(exc), exc.code)
         except (ValueError, RecursionError):

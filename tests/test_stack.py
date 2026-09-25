@@ -186,6 +186,9 @@ EDGES = {
     ("watcher", "codex"), ("watcher", "config"), ("watcher", "control"), ("watcher", "engine"),
     ("watcher", "notifications"), ("watcher", "policy"), ("watcher", "popup"),
     ("watcher", "store"), ("watcher", "tray"), ("watcher", "words"),
+    # v0.6.11: runtime/app.py holds the edition's plug, and domain/plug.py - policy's - is reached
+    # through the domain package, which is the machine's.
+    ("watcher", "machine"),
 
     ("engine", "codex"), ("engine", "machine"), ("engine", "policy"), ("engine", "scheduler"),
     ("engine", "words"),

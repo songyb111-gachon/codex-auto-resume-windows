@@ -16,15 +16,20 @@ Three rules make an answer safe to take:
 * A hook that fails costs its own answer and nothing else: `consult` puts NULL's answer in its
   place.
 
+Core holds a plug only as `Guarded`, which asks every hook through `consult` and checks every
+value a hook hands back before core takes it. The engine, the store's claim, the control layer
+and every surface hold one; none of them calls a hook of a plug itself.
+
 `edition.py` finds the package and makes a plug of it. This module is pure: the interface and
-its version, NULL, the plug of an advanced installation whose package could not be loaded, and
-the four closed vocabularies they speak in. Those are `StrEnum`s held to every rule
-`domain/vocabulary.py`'s are (tests/test_vocabulary.py), and they live here, beside the one
-interface that uses them, as the interface's own words.
+its version, NULL, the plug of an advanced installation whose package could not be loaded, the
+guard core holds a plug in, and the five closed vocabularies they speak in. Those are `StrEnum`s
+held to every rule `domain/vocabulary.py`'s are (tests/test_vocabulary.py), and they live here,
+beside the one interface that uses them, as the interface's own words.
 """
 from __future__ import annotations
 
 from enum import StrEnum
+import json
 
 # The interface's version. The advanced package writes out the number it was written for, and
 # edition.py takes its plug only when the two agree: otherwise a hook renamed, or given another
@@ -74,7 +79,20 @@ class Alternative(StrEnum):
     HOLD = "hold"                            # not now: the record keeps waiting, as on a WAIT
 
 
+class Surface(StrEnum):
+    """What a plug may add to at P10 (SURFACES). What it adds sits under the one key EXTRA,
+    beside everything core shows there and never in place of any of it."""
+    STATUS = "status"                        # the status the Dashboard, the panel and get_status show
+    BRIDGE = "bridge"                        # a bridge command core has none of its own for
+    DIAGNOSTICS = "diagnostics"              # the diagnostics export
+    TRAY = "tray"                            # what the icon draws from
+
+
 POINTS = tuple(Point)
+SURFACES = tuple(Surface)
+# The key a surface puts a plug's fields under. NULL never adds any, so no standard surface
+# carries it.
+EXTRA = "advanced"
 
 
 class _Defer:
@@ -102,15 +120,17 @@ class Plug:
     badge = "Standard"
 
     def records(self, view):                          # P2
-        """Records of the advanced store that are due now, to be tried like core's own."""
+        """Records of the advanced store that are due now, to be tried like core's own. Asked
+        once a tick, after core's own due records, with the engine's view of its store."""
         return DEFER
 
     def gate(self, name, record, facts):              # P3
-        """A gate's answer for one record, after the consent gate has passed."""
+        """A gate's answer for one record, asked once core's own evaluation of that gate has
+        passed - which is always after the consent gate. `facts` is the gate vector so far."""
         return DEFER
 
     def text(self, record, text):                     # P4
-        """What the continuation says, decided before the claim."""
+        """What the continuation says, decided before the claim. `text` is core's own."""
         return DEFER
 
     def sender(self, record, backend):                # P5
@@ -118,11 +138,13 @@ class Plug:
         return backend
 
     def outcome(self, record, outcome):               # P6
-        """What follows a turn that has ended."""
+        """What follows a turn that has ended: asked as a record moves from following its
+        recovery turn to `outcome`, one of the outcome states."""
         return DEFER
 
     def schedule(self, record, due):                  # P7
-        """When a record is looked at next."""
+        """When a record is looked at next, asked when core's schedule says it is due; `due` is
+        the moment core's schedule made it so."""
         return DEFER
 
     def tick(self, view):                             # P8
@@ -134,11 +156,13 @@ class Plug:
         return DEFER
 
     def surface(self, name, facts):                   # P10
-        """What one surface shows beyond core's own fields."""
+        """What one surface shows beyond core's own fields: a JSON object, or DEFER."""
         return DEFER
 
-    def claim_ledger(self, record):                   # P11
-        """What the one claim counts beside core's own rows."""
+    def claim_ledger(self, connection, record, now):  # P11
+        """What the one claim counts beside core's own rows. Asked inside the claim's own
+        transaction, on its connection, once every check core makes there has passed; what the
+        hook writes on that connection is committed with the claim and with nothing else."""
         return DEFER
 
     def partition(self, records):                     # P12
@@ -170,12 +194,22 @@ HOOKS = {
 RESTRICTIONS = frozenset({Alternative.HOLD})
 
 # The decision points, and what each accepts besides DEFER; anything else a hook answers at one
-# of them is DEFER. At every other point a hook answers with a value - records, text, a sender,
-# fields - and core checks it where it takes it, as it checks its own.
+# of them is DEFER. At every other point a hook answers with a value - text, a sender, fields -
+# and core checks it where it takes it, as it checks its own.
+#
+# An empty set is a point core asks and carries nothing out at yet. An advanced record tried
+# like core's own, something that follows a finished turn, another way to start the watcher, a
+# division of the due records and a restart each relax what core does alone, so each waits for
+# the commit that teaches core to carry it out - and then joins its point's set, or leaves this
+# table for a value core checks.
 ALTERNATIVES = {
+    Point.RECORDS: frozenset(),
     Point.GATES: RESTRICTIONS,
+    Point.OUTCOME: frozenset(),
     Point.SCHEDULE: RESTRICTIONS,
     Point.START_ROUTE: frozenset(),
+    Point.CLAIM_LEDGER: RESTRICTIONS,
+    Point.CONCURRENCY: frozenset(),
     Point.SUPERVISION: frozenset(),
 }
 
@@ -200,18 +234,21 @@ class DamagedPlug(Plug):
         self.reason = PlugFailure(reason)
 
 
-def consult(plug, point, *arguments):
+def consult(plug, point, *arguments, failed=None):
     """Ask `plug` at `point`, the one way core asks.
 
     A hook that raises gets NULL's answer in its place, so a broken capability costs its own
-    answer and nothing more. At a decision point, an answer outside the point's closed set is
-    DEFER: an unknown word, another point's word, or something that is not a word at all.
+    answer and nothing more; `failed`, if given, is told the point it happened at. At a decision
+    point, an answer outside the point's closed set is DEFER: an unknown word, another point's
+    word, or something that is not a word at all.
     """
     point = Point(point)
     hook = HOOKS[point]
     try:
         answer = getattr(plug, hook)(*arguments)
     except Exception:
+        if failed is not None:
+            failed(point)
         return getattr(NULL, hook)(*arguments)
     if point not in ALTERNATIVES or answer is DEFER:
         return answer
@@ -220,3 +257,106 @@ def consult(plug, point, *arguments):
     except TypeError:                                  # unhashable, so no word
         return DEFER
     return Alternative(answer) if accepted else DEFER
+
+
+def fields(answer):
+    """What a surface takes from a plug: a JSON object, copied, or DEFER.
+
+    Words for keys, and nothing JSON cannot write strictly - no NaN, no infinity, no object of
+    some other kind - so what a plug adds reaches a front end through the same writer as every
+    reply (controlcli.encode) and cannot break it. It is copied through that writer's own form,
+    so nothing the plug keeps a reference to changes a reply after it was made."""
+    if not isinstance(answer, dict) or not all(isinstance(key, str) for key in answer):
+        return DEFER
+    try:
+        return json.loads(json.dumps(answer, allow_nan=False))
+    except (TypeError, ValueError, RecursionError):
+        return DEFER
+
+
+class Guarded:
+    """A plug as core holds it: every hook asked through `consult`, every value checked before
+    core takes it.
+
+    It has a method for each of the plug's hooks, with the same arguments. A decision point
+    answers DEFER or a member of its set; a value point answers DEFER or a value core can use,
+    and anything else is DEFER - except at the sender, where it is core's own backend, because
+    there is always a send to hand the one message to. Nothing a hook does reaches past this.
+    `failures` counts the hooks that raised, which is how the claim tells a ledger that broke
+    from one that deferred (store/claims.py).
+    """
+    __slots__ = ("plug", "failures")
+
+    def __init__(self, plug):
+        self.plug = plug if isinstance(plug, Plug) else NULL
+        self.failures = 0
+
+    @property
+    def null(self) -> bool:
+        """Whether this is the standard edition's plug, where core does exactly what it does
+        with no plug at all - down to the statements it runs."""
+        return self.plug is NULL
+
+    @property
+    def edition(self) -> Edition:
+        return self.plug.edition
+
+    @property
+    def badge(self) -> str:
+        return self.plug.badge
+
+    def _failed(self, _point):
+        self.failures += 1
+
+    def _ask(self, point, *arguments):
+        return consult(self.plug, point, *arguments, failed=self._failed)
+
+    def records(self, view):
+        return self._ask(Point.RECORDS, view)
+
+    def gate(self, name, record, facts):
+        return self._ask(Point.GATES, name, record, facts)
+
+    def text(self, record, text):
+        """Words, or DEFER. Core still checks them as it checks a person's Custom message."""
+        answer = self._ask(Point.TEXT, record, text)
+        return answer if isinstance(answer, str) else DEFER
+
+    def sender(self, record, backend):
+        """Something with a `send` to call, or `backend` itself."""
+        answer = self._ask(Point.SENDER, record, backend)
+        try:
+            return answer if callable(getattr(answer, "send", None)) else backend
+        except Exception:                              # a `send` that raises when it is looked up
+            return backend
+
+    def outcome(self, record, outcome):
+        return self._ask(Point.OUTCOME, record, outcome)
+
+    def schedule(self, record, due):
+        return self._ask(Point.SCHEDULE, record, due)
+
+    def tick(self, view):
+        self._ask(Point.TICK, view)
+
+    def start_route(self, request):
+        return self._ask(Point.START_ROUTE, request)
+
+    def surface(self, name, facts):
+        """Fields for surface `name` (a Surface), or DEFER."""
+        return fields(self._ask(Point.SURFACES, Surface(name), facts))
+
+    def claim_ledger(self, connection, record, now):
+        return self._ask(Point.CLAIM_LEDGER, connection, record, now)
+
+    def partition(self, records):
+        return self._ask(Point.CONCURRENCY, records)
+
+    def supervise(self, facts):
+        return self._ask(Point.SUPERVISION, facts)
+
+
+def guard(plug) -> Guarded:
+    """`plug` as core holds it. NULL for None or for anything that is not a plug, and a plug
+    already guarded as it is."""
+    return plug if isinstance(plug, Guarded) else Guarded(plug)

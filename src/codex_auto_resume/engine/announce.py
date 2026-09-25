@@ -1,12 +1,14 @@
 """Moving a record, and saying so.
 
 One place writes a transition and decides whether it is worth telling somebody about: a
-notification is a state a person would want to know they are in, not every step between.
+notification is a state a person would want to know they are in, not every step between. The
+same place is where a recovery turn is seen to end, so it is where the edition's plug is asked
+what follows one (P6).
 """
 from __future__ import annotations
 
 from .. import machine
-from ..machine import OBSERVING, TERMINAL, WAITING, WATCHED
+from ..machine import OBSERVING, OUTCOMES, TERMINAL, WAITING, WATCHED
 
 
 # States worth telling a person about, and which notification setting governs each.
@@ -39,6 +41,12 @@ class AnnounceMixin:
         # re-entering the same state says nothing new.
         if changed and state in NOTIFY_ON_STATE:
             self.announce(NOTIFY_ON_STATE[state], row, state=state, reason=reason)
+        # P6: a record that was following its recovery turn has an outcome, which is what
+        # `observe` (engine/outcome.py) moves it to when that turn ends. Asked only while its
+        # consent holds - recovery on, its conversation on, no cancel - and nothing that follows
+        # a turn is carried out yet, so nothing is taken from the answer (domain/plug.py).
+        if changed and row.get("state") in OBSERVING and state in OUTCOMES and self.allowed(row):
+            self.plug.outcome(dict(row, state=state, last_error=reason), state)
 
     def announce(self, event, row, **detail):
         """Tell the user something happened. Never affects what happens.

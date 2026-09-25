@@ -5,7 +5,8 @@ The advanced edition is the standard edition plus one package, found beside the 
 (src/codex_auto_resume/domain/plug.py). Four things are held here:
 
 * NULL, the standard edition's plug, answers every point exactly as core would alone, and a
-  hook's answer is only ever taken from its point's closed set;
+  hook's answer is only ever taken from its point's closed set - and core, which holds a plug
+  only as `Guarded`, takes nothing else from one;
 * the loader takes the package only from beside core and only as it should be - anything else
   is the standard edition, or an advanced one that says it is not loaded;
 * a run of this suite tests the edition it says it does (StandardRunGuard);
@@ -38,7 +39,7 @@ import srcscan  # noqa: E402
 from codex_auto_resume import cli, config, edition, logbook, shortcut, startup  # noqa: E402
 from codex_auto_resume.domain import plug  # noqa: E402
 from codex_auto_resume.domain.plug import (DEFER, NULL, Alternative, DamagedPlug, Edition,  # noqa: E402
-                                           Plug, PlugFailure, Point)
+                                           Guarded, Plug, PlugFailure, Point, Surface, guard)
 
 ROOT = srcscan.ROOT
 # Files the standard build copies that may spell the advanced package's name besides
@@ -132,7 +133,9 @@ class ClosedAlternativeTests(unittest.TestCase):
     def test_every_decision_point_accepts_a_restriction_or_nothing(self):
         """A hook may always restrict and may relax only as core has learned to carry out, which
         is not at all yet. A relaxation joins its point's set in the commit that teaches core to
-        carry it out, and this test changes with it."""
+        carry it out, and this test changes with it. v0.6.11-alpha: the claim ledger holds a
+        claim as a gate holds a record; a record served, a follow-up, a route, a division of the
+        due records and a restart are asked for, and none is carried out."""
         self.assertEqual(plug.ANSWERS, plug.RESTRICTIONS)
         self.assertEqual(plug.ANSWERS, frozenset(Alternative))
         for point, accepted in plug.ALTERNATIVES.items():
@@ -140,7 +143,17 @@ class ClosedAlternativeTests(unittest.TestCase):
                 self.assertIn(point, Point)
                 self.assertLessEqual(accepted, plug.RESTRICTIONS)
         self.assertEqual({point for point, accepted in plug.ALTERNATIVES.items() if accepted},
-                         {Point.GATES, Point.SCHEDULE})
+                         {Point.GATES, Point.SCHEDULE, Point.CLAIM_LEDGER})
+        self.assertEqual({point for point, accepted in plug.ALTERNATIVES.items() if not accepted},
+                         {Point.RECORDS, Point.OUTCOME, Point.START_ROUTE, Point.CONCURRENCY,
+                          Point.SUPERVISION})
+        for point, accepted in plug.ALTERNATIVES.items():
+            for answer in ([object()], {"records": []}, "go", Alternative.HOLD):
+                if answer is Alternative.HOLD and answer in accepted:
+                    continue
+                with self.subTest(point=point, answer=answer):
+                    asked = RecordingPlug(**{plug.HOOKS[point]: answer})
+                    self.assertIs(plug.consult(asked, point, *arguments(point)), DEFER)
 
     def test_a_hook_that_raises_gets_nulls_answer(self):
         backend = object()
@@ -156,6 +169,118 @@ class ClosedAlternativeTests(unittest.TestCase):
     def test_an_unknown_point_is_a_mistake_not_a_deferral(self):
         with self.assertRaises(ValueError):
             plug.consult(NULL, "classify", 1)
+
+    def test_a_failing_hook_is_reported_with_its_point(self):
+        told = []
+        self.assertIs(plug.consult(RecordingPlug(gate=ValueError("y")), Point.GATES, 1, 2, 3,
+                                   failed=told.append), DEFER)
+        self.assertEqual(told, [Point.GATES])
+        plug.consult(NULL, Point.GATES, 1, 2, 3, failed=told.append)
+        self.assertEqual(told, [Point.GATES], "a hook that answered is no failure")
+
+
+class GuardTests(unittest.TestCase):
+    """How core holds a plug: `Guarded`, which asks every hook through `consult` and takes only
+    values core can use."""
+
+    def test_the_guard_asks_every_hook_the_plug_has_with_the_same_arguments(self):
+        for point, hook in plug.HOOKS.items():
+            with self.subTest(point):
+                ours = inspect.signature(getattr(Guarded, hook))
+                theirs = inspect.signature(getattr(Plug, hook))
+                self.assertEqual(list(ours.parameters), list(theirs.parameters))
+
+    def test_guarded_null_answers_as_null_everywhere(self):
+        guarded = guard(None)
+        self.assertIs(guarded.plug, NULL)
+        self.assertTrue(guarded.null)
+        self.assertEqual((guarded.edition, guarded.badge), (Edition.STANDARD, "Standard"))
+        for point in Point:
+            with self.subTest(point):
+                given = arguments(point)
+                if point is Point.SURFACES:
+                    given[0] = Surface.STATUS
+                answer = getattr(guarded, plug.HOOKS[point])(*given)
+                if point is Point.SENDER:
+                    self.assertIs(answer, given[-1])
+                elif point is Point.TICK:
+                    self.assertIsNone(answer, "a tick's answer is not read")
+                else:
+                    self.assertIs(answer, DEFER)
+        self.assertEqual(guarded.failures, 0)
+
+    def test_a_guard_is_made_once_and_holds_only_plugs(self):
+        guarded = guard(NULL)
+        self.assertIs(guard(guarded), guarded)
+        self.assertIs(guard(object()).plug, NULL, "something that is not a plug is no plug")
+        damaged = guard(DamagedPlug(PlugFailure.SHADOWED))
+        self.assertFalse(damaged.null, "a damaged plug is asked, and answers as NULL")
+        self.assertEqual(damaged.badge, "Advanced - not loaded")
+
+    def test_a_hook_that_raises_is_counted_and_costs_only_its_answer(self):
+        backend = object()
+        failing = guard(RecordingPlug(**{hook: RuntimeError("x") for hook in plug.HOOKS.values()}))
+        self.assertIs(failing.sender(object(), backend), backend)
+        self.assertIs(failing.gate("usage", {}, {}), DEFER)
+        self.assertIs(failing.claim_ledger(object(), {}, 1.0), DEFER)
+        self.assertIsNone(failing.tick(object()))
+        self.assertIs(failing.surface(Surface.STATUS, {}), DEFER)
+        self.assertEqual(failing.failures, 5)
+
+    def test_a_sender_is_something_with_a_send_or_it_is_the_backend(self):
+        backend = object()
+
+        class Channel:
+            def send(self, *_args, **_kwargs):
+                return {"outcome": "unknown"}
+
+        class Lookup:
+            @property
+            def send(self):
+                raise RuntimeError("no")
+
+        channel = Channel()
+        self.assertIs(guard(RecordingPlug(sender=channel)).sender({}, backend), channel)
+        for answer in (None, "backend", object(), Lookup(), type("NotCallable", (), {"send": 1})()):
+            with self.subTest(answer=answer):
+                self.assertIs(guard(RecordingPlug(sender=answer)).sender({}, backend), backend)
+
+    def test_words_are_words(self):
+        self.assertEqual(guard(RecordingPlug(text="go on")).text({}, "core's"), "go on")
+        for answer in (None, 1, ["go on"], b"go on"):
+            with self.subTest(answer=answer):
+                self.assertIs(guard(RecordingPlug(text=answer)).text({}, "core's"), DEFER)
+
+    def test_a_surface_takes_a_json_object_and_nothing_else(self):
+        """Copied through strict JSON, so a plug can neither break a reply's writer nor change a
+        reply after it was made."""
+        kept = {"on": 1, "names": ["a"], "nested": {"x": None}}
+        taken = guard(RecordingPlug(surface=kept)).surface(Surface.STATUS, {})
+        self.assertEqual(taken, kept)
+        self.assertIsNot(taken, kept)
+        kept["names"].append("b")
+        self.assertEqual(taken["names"], ["a"])
+        self.assertEqual(guard(RecordingPlug(surface={"mode": Edition.ADVANCED})).surface("status", {}),
+                         {"mode": "advanced"})
+        for answer in ([1], "on", {1: "x"}, {"x": float("nan")}, {"x": object()}, {"x": {1, 2}}):
+            with self.subTest(answer=answer):
+                self.assertIs(guard(RecordingPlug(surface=answer)).surface(Surface.STATUS, {}), DEFER)
+        with self.assertRaises(ValueError):
+            guard(NULL).surface("popup", {})
+
+    def test_the_guard_names_the_surface_in_its_own_word(self):
+        seen = []
+
+        class Seeing(Plug):
+            __slots__ = ()
+
+            def surface(self, name, facts):
+                seen.append(name)
+                return DEFER
+
+        guard(Seeing()).surface("bridge", {})
+        self.assertEqual(seen, [Surface.BRIDGE])
+        self.assertIs(type(seen[0]), Surface)
 
 
 # What a child Python reports about the edition it finds. Its home is its working directory,

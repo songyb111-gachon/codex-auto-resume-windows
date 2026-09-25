@@ -77,6 +77,15 @@ class NeutralTests(unittest.TestCase):
                     self.assertIs(core.consult(made, point, *arguments),
                                   core.consult(core.NULL, point, *arguments))
 
+    def test_nothing_in_the_package_sends(self):
+        """Only core acts. The one send is core's (engine/dispatch.py); a channel this package
+        names at P5 is handed it, and nothing here calls a method named `send` of anything."""
+        sends = ["%s:%d" % (path.name, node.lineno) for path in sorted(PACKAGE_DIR.rglob("*.py"))
+                 for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+                 if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                 and node.func.attr == "send"]
+        self.assertEqual(sends, [])
+
     def test_entering_the_edition_writes_nothing_yet(self):
         with tempfile.TemporaryDirectory() as home:
             made = advanced.create(config.Paths(home))

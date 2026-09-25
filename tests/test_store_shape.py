@@ -42,6 +42,8 @@ METHODS = {
     "restore_budget", "restore_budget_detailed", "schema_version", "set_enabled",
     "set_thread_enabled", "settings", "status_counts", "statistics", "submission_guard",
     "thread_enabled", "update", "watcher_status",
+    # v0.6.11: the edition's claim ledger, asked inside the claim (P11).
+    "_ledger_holds",
 }
 
 # Reachable as `store.<name>` before the split, and still.
