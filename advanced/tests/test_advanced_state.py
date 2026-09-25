@@ -111,8 +111,9 @@ class FileTests(StateCase):
                     self.state().arming()
 
     def test_a_junction_out_of_the_home_is_never_opened_or_purged(self):
-        """A junction is not a symbolic link to `is_symlink`, so it is caught where core catches
-        one: its target resolves outside the home (config.Paths.confined)."""
+        """A junction is not a symbolic link to `is_symlink`, but it is one to `config.is_link`,
+        so it is read as a link is - as no file of ours, which is every capability off - and
+        writing through it is refused."""
         outside = self.home.parent / "outside"
         outside.mkdir()
         (outside / FILE_NAME).write_bytes(b"someone else's")
@@ -123,13 +124,31 @@ class FileTests(StateCase):
         if made is None or made.returncode != 0:
             self.skipTest("could not create a junction here")
         state = self.state()
-        with self.assertRaises(StateError):
-            state.arming()
+        self.assertFalse(state.exists())
+        self.assertEqual(state.arming(), {})
         with self.assertRaises(StateError):
             state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1)
         self.assertEqual(self.paths.owned_advanced_files(), [])
         self.assertEqual(sorted(path.name for path in outside.iterdir()),
                          sorted([FILE_NAME, config.OWNER_MARKER]))
+
+
+    def test_a_junction_inside_the_home_is_a_link_all_the_same(self):
+        """Confined is not enough: a junction to the home's own logs/ resolves inside the home,
+        and `is_symlink` is False for it, so the state was opened, marked and written there."""
+        self.paths.ensure()
+        target = self.paths.logs_dir
+        before = sorted(path.name for path in target.iterdir())
+        made = subprocess.run(["cmd", "/c", "mklink", "/J", str(self.paths.advanced_dir), str(target)],
+                              capture_output=True, text=True) if sys.platform == "win32" else None
+        if made is None or made.returncode != 0:
+            self.skipTest("could not create a junction here")
+        state = self.state()
+        with self.assertRaises(StateError):
+            state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1)
+        self.assertFalse(state.exists())
+        self.assertEqual(state.arming(), {})
+        self.assertEqual(sorted(path.name for path in target.iterdir()), before)
 
 
 class ClosedWordTests(StateCase):

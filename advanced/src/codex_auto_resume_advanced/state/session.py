@@ -73,9 +73,11 @@ class SessionMixin:
 
     # ------------------------------------------------------------------ the file
     def exists(self) -> bool:
-        """Whether the file is there. False for a link: that is never ours to open."""
+        """Whether the file is there. False for a link or a junction - `is_symlink` is False for a
+        junction (config.is_link) - since that is never ours to open."""
         try:
-            return self.path.is_file() and not self.path.is_symlink() and not self.directory.is_symlink()
+            return (self.path.is_file() and not config.is_link(self.path)
+                    and not config.is_link(self.directory))
         except OSError:
             return False
 
@@ -84,7 +86,7 @@ class SessionMixin:
         anything else is, so the directory is never ours without saying so."""
         self.paths.ensure()
         directory = self.directory
-        if directory.is_symlink() or (directory.exists() and not self.paths.confined(directory)):
+        if config.is_link(directory) or (directory.exists() and not self.paths.confined(directory)):
             raise StateError("the advanced state directory is a link or escapes the home")
         directory.mkdir(exist_ok=True)
         if not self.paths.confined(directory):
@@ -92,7 +94,7 @@ class SessionMixin:
         marker = directory / config.OWNER_MARKER
         if not marker.exists():
             marker.write_text(config.OWNER_TEXT, encoding="utf-8")
-        if self.path.is_symlink():
+        if config.is_link(self.path):
             raise StateError("the advanced state is a link")
 
     def _open(self, *, create: bool):
