@@ -1,5 +1,23 @@
 # 변경 이력
 
+## v0.6.10 — 매듭지은 디자인, 그리고 남들이 보고하는 것
+
+[이 릴리스의 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.10-alpha...v0.6.10)
+
+**개발 중입니다.** 이 항목은 릴리스와 함께 늘어나며, 태그를 붙일 때 확정됩니다.
+
+### 저장소 첫 화면은 한 언어로
+
+- `main`(저장소 첫 화면이자 플러그인이 설치해 가는 곳이고, 릴리스 태그가 붙는 곳)은 영어만 담습니다.
+  `dev`는 모든 문서를 영어와 한국어로 함께 쓰고 검토하며 담고, 승격(`scripts/promote.py`)은 한국어
+  파일을 뺀 채로 dev를 main에 들여보냅니다. 생성되는 `ko` 브랜치는 main의 코드와, main이 올라온 dev
+  커밋의 한국어 원본으로 만들어집니다.
+- 첫 화면에는 열여섯 항목만 보입니다. `CHANGELOG`, `PRIVACY`, `CONTRIBUTORS`는 `docs/`에, 설치기의 원본은
+  `build/install/`에, MCP 선언의 원본은 `build/plugin-mcp.json`에 있습니다. 릴리스 압축 파일의 구성은 바뀌지
+  않습니다.
+- 문서 열여섯 쌍을 절마다 맞춰 본 검토에서 영어와 한국어가 서로 다른 말을 하던 곳 62군데를 찾아, 틀린
+  쪽 언어에서 모두 고쳤습니다. 한국어 안내서에는 이제 영어 안내서에 있는 절이 모두 있습니다.
+
 ## v0.6.10-alpha — 코어가 Rust가 될 때 모든 파일이 갈 자리
 
 [이 사전 릴리스의 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.9...v0.6.10-alpha)

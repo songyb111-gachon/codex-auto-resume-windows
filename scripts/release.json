@@ -59,7 +59,5 @@
     "0.6.8": "33a11dbd64426f64494ba03cd59b5ad019a1623bd0ef01b9c95d683148cfd5bb",
     "0.6.9": "cf9c7d72114c0c423a383ce658f05ea7d35be2c1e74b69e5a974de28efc7adab"
   },
-  "prerelease": [
-    "0.6.10-alpha"
-  ]
+  "prerelease": []
 }

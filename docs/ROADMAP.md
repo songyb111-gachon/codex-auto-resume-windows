@@ -297,7 +297,7 @@ its own, and the modularization is that: it changes nothing anybody could see, s
 release by itself, and it has to be finished and published before what is built on it. The design is
 the opposite - it changes what everything looks like - so it is a release.
 
-### v0.6.10-alpha 🚧 — Python modularization (a pre-release)
+### v0.6.10-alpha ✅ — Python modularization (a pre-release)
 
 The alpha is the major structural cleanup of the Python implementation. It was the main part of
 v0.6.5 in the earlier plan, and then of v0.6.8 and v0.6.9; v0.6.5 shipped its groundwork, and the
@@ -338,7 +338,7 @@ both ways. The window's three hand-written C# files are eighteen, grouped by hal
 the Rust part every module becomes, and fails when a placement stops being true.
 
 
-### v0.6.10 — The design audit, and a choice of appearance
+### v0.6.10 🚧 — The design audit, and a choice of appearance
 
 The final v0.6.10 is the design, settled, and the one new word that comes with it - Reported, below.
 It is a release of its own because it is worth one: it changes what every surface looks like, which is exactly what a person sees. It sits

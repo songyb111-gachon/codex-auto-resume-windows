@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.6.10 — The design settled, and what others report
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.10-alpha...v0.6.10)
+
+**In development.** This entry grows with the release and is final when v0.6.10 is tagged.
+
+### The repository's front page, in one language
+
+- `main` - the front page, the plugin's install route, where releases are tagged - is English only.
+  `dev` keeps every document in English and Korean, written and reviewed together, and a
+  promotion (`scripts/promote.py`) brings dev to main without the Korean files; the generated `ko`
+  branch is built from main's code and the Korean sources of the dev commit it came from.
+- The front page lists sixteen entries: `CHANGELOG`, `PRIVACY` and `CONTRIBUTORS` are in `docs/`,
+  the installer's source in `build/install/`, and the MCP declaration's in `build/plugin-mcp.json`.
+  The release archive's layout does not change.
+- A section-by-section review of all sixteen document pairs found 62 places where the English and
+  the Korean said different things; each is fixed in the language that was wrong, and the Korean
+  guide now has every section the English one has.
+
 ## v0.6.10-alpha — Where every file goes when the core is Rust
 
 [The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.9...v0.6.10-alpha)
