@@ -19,7 +19,8 @@ interruption; every other notice has none, as its toast has none).
 
 **The moment it appears** is part of the design (requirement 6): it rises out of the corner the
 notification area is in, fading in and growing from 98% to full size while its shadow deepens,
-on the brand's ease-out, so it settles rather than lands. It holds for a few seconds - longer if
+on the brand's one curve (`brand.ease`, the ease-out every surface moves on), so it settles rather
+than lands. It holds for a few seconds - longer if
 Windows is set to keep notifications longer - pauses while the pointer is over any card, and
 fades out. Up to three stack, the newest nearest the corner; a fourth retires the oldest early,
 and so does any card the work area has no room for (a short screen holds two, or one).
@@ -48,6 +49,10 @@ WIDTH = popup.WIDTH                       # the popup's width, so the two are on
 CARD_WIDTH = WIDTH - 2 * brand.SPACING["m"]    # the card itself: exactly the popup's card
 MAX_CARDS = 3
 FRAME_MS = 16                                  # frames only while something moves
+# The status light alone breathes at the popup's frame rate, and only its band is drawn (v0.6.10):
+# until then the whole card was drawn again for it at most every 80 ms (about 11 frames a second on
+# Windows' default 15.6 ms timer tick), on a timer running at FRAME_MS for as long as the card was up.
+BREATH_FRAME_MS = popup.FRAME_MS
 # The entrance, as tuned on a real screen (2880x1800 at 200%, light and dark, over a busy dark
 # desktop): the card is solid within about a third of the entrance and then keeps rising softly
 # to rest. With the fade spread over most of it (280 ms, 16 dip, fade done at 60%), a light card
@@ -135,19 +140,21 @@ def layout(vm, scale, measure) -> dict:
         items.append({"kind": "text", "rect": tuple(int(v) for v in rect), "role": role, "text": value,
                       "colour": colour, "wrap": wrap, "align": align, "target": target})
 
-    # The header: the status light in the popup's mark box, the product, and the reason's chip.
+    # The header: the status light in the popup's mark box, the product, and the reason's chip - where
+    # they have always stood (v0.6.10 moved the light and the product about 2 px right for a while).
     mark = px(popup.MARK)
     text_left = left + mark + px(space["s"])
     _, product_h = measure("label", vm["product"], inner, False)
     chip_rect = None
     chip_w = chip_h = 0
+    # A chip as the window and the panel size one (v0.6.10): LAYOUT's height and padding.
+    chip_pad = px(brand.LAYOUT["chip_pad_x"])
     if vm["chip"]:
-        chip_pad = px(space["s"])
         chip_text_w, chip_text_h = measure("chip", vm["chip"], inner, False)
         product_w, _ = measure("label", vm["product"], inner, False)
         room = right - (text_left + product_w + px(space["m"]))
         chip_w = max(min(chip_text_w + 2 * chip_pad, room), min(chip_text_w + 2 * chip_pad, inner // 3))
-        chip_h = chip_text_h + px(space["xs"])
+        chip_h = max(px(brand.LAYOUT["chip_height"]), chip_text_h)
     header_h = max(mark, product_h, chip_h)
     items.append({"kind": "halo", "cx": left + mark / 2.0, "cy": y + header_h / 2.0, "state": vm["status"],
                   "radius": brand.glow_extent(brand.STATUS_DOT["popup"]) * scale})
@@ -158,7 +165,6 @@ def layout(vm, scale, measure) -> dict:
         chip_top = y + (header_h - chip_h) // 2
         chip_rect = (right - chip_w, chip_top, right, chip_top + chip_h)
         items.append({"kind": "chip", "rect": chip_rect, "tone": vm["chip_tone"]})
-        chip_pad = px(space["s"])
         text((chip_rect[0] + chip_pad, chip_rect[1], chip_rect[2] - chip_pad, chip_rect[3]), "chip",
              vm["chip"], vm["chip_tone"], align="center")
     y += header_h + px(space["s"])
@@ -189,7 +195,7 @@ def layout(vm, scale, measure) -> dict:
     # one line, stacked when either would not - a German label is never cut in half.
     if vm["actions"]:
         y += px(space["m"])
-        button_h = px(32)
+        button_h = px(brand.LAYOUT["button_height"])     # the window's and the panel's, since v0.6.10
         button_pad = px(space["m"])
         half = (inner - px(space["s"])) // 2
         widths = [measure("button", action["label"], inner, False)[0] for action in vm["actions"]]
@@ -222,17 +228,14 @@ def layout(vm, scale, measure) -> dict:
             targets.append((target, rect))
     y += pad
     card = (0, 0, width, y)
-    items.insert(0, {"kind": "card", "rect": card, "radius": px(brand.RADII["card"])})
+    items.insert(0, {"kind": "card", "rect": card, "radius": px(brand.RADII["card"]), "corner": "card"})
     return {"size": (width, y), "card": card, "items": items, "targets": targets, "scale": scale}
 
 
 # ------------------------------------------------------------------------------- motion
-def ease_out(progress: float) -> float:
-    """easeOutCubic: leaves at once and settles, the curve of brand.MOTION's transitions."""
-    t = min(1.0, max(0.0, progress))
-    return 1.0 - (1.0 - t) ** 3
-
-
+# The card rises, comes back and slides on brand.ease, the one curve a switch glides on in every
+# surface (brand.MOTION). Until v0.6.10 it had its own easeOutCubic, the curve brand.ease is written
+# as a CSS cubic-bezier of - near it, and not it.
 def ease_in(progress: float) -> float:
     """easeInQuad, for leaving: it lingers a moment, then goes."""
     t = min(1.0, max(0.0, progress))
@@ -249,8 +252,8 @@ def entrance(elapsed_ms, *, reduced=False) -> Frame:
     if reduced or elapsed_ms >= ENTRANCE_MS:
         return SETTLED
     t = max(0.0, elapsed_ms) / float(ENTRANCE_MS)
-    settle = ease_out(t)
-    return Frame(alpha=ease_out(t / ALPHA_SHARE), offset=RISE * (1.0 - settle),
+    settle = brand.ease(t)
+    return Frame(alpha=brand.ease(t / ALPHA_SHARE), offset=RISE * (1.0 - settle),
                  scale=SCALE_FROM + (1.0 - SCALE_FROM) * settle, depth=settle)
 
 
@@ -322,7 +325,7 @@ class CardMotion:
         if self.phase == "enter":
             return entrance(elapsed, reduced=self.reduced)
         if self.phase == "return":
-            t = ease_out(elapsed / float(EXIT_MS))
+            t = brand.ease(elapsed / float(EXIT_MS))
             return SETTLED._replace(alpha=self.from_alpha + (1.0 - self.from_alpha) * t)
         if self.phase == "exit":
             return SETTLED._replace(alpha=leaving(elapsed, self.from_alpha, reduced=self.reduced,
@@ -398,7 +401,7 @@ class CardMotion:
         if t >= 1.0:
             self._slide = None
             return target
-        settle = ease_out(t)
+        settle = brand.ease(t)
         return tuple(int(round(a + (b - a) * settle)) for a, b in zip(start, target))
 
     def moving(self, now_ms) -> bool:
@@ -477,19 +480,20 @@ def _luminance_of(colour) -> float:
     return brand.luminance(colour)
 
 
-def float_shadows(theme) -> tuple:
+def float_shadows(theme, design="soft") -> tuple:
     """The card recipe's outer shadows as they may be drawn over a wallpaper (see the docstring).
 
     A shadow in a light colour is redrawn in FLOAT_SHADOW_TOKEN at the alpha that darkens a white
     ground by as much; a shadow lighter than the ground it was designed for (light's highlight)
     has nothing to be lighter than here and is dropped. Inset shadows belong to the card and are
-    drawn by the renderer inside it.
+    drawn by the renderer inside it. A design without depth (v0.6.10: Classic, Plain) floats none:
+    its card is its fill and its hairline, and its margin is none, as in High Contrast.
     """
-    tokens = brand.palette(theme)
+    tokens = brand.palette(theme, design)
     ink = brand.palette(FLOAT_SHADOW_THEME)[FLOAT_SHADOW_TOKEN]
     ground = tokens["canvas"]
     found = []
-    for shadow in brand.shadows("card", theme):
+    for shadow in brand.shadows("card", theme, design):
         if shadow.inset:
             continue
         colour = tokens[shadow.token]
@@ -529,12 +533,18 @@ def shadow_margin(shadows, scale) -> int:
 
 
 # ---------------------------------------------------------------------- the card's edge
-def corner_coverage(radius) -> list:
+_CORNERS = {}                                  # radius -> corner_coverage(radius), a few at most
+
+
+def corner_coverage(radius) -> tuple:
     """How much of each pixel of a card's top-left corner square the card covers, 0-255.
 
     The rounded rectangle's own antialiasing, done once per radius: rows of `radius` bytes.
-    The other three corners are this square turned round.
+    The other three corners are this square turned round. Kept for the next call, since the
+    status light's band is cut by it with every breath.
     """
+    if radius in _CORNERS:
+        return _CORNERS[radius]
     size = int(math.ceil(radius))
     rows = []
     for j in range(size):
@@ -545,17 +555,23 @@ def corner_coverage(radius) -> list:
                 distance = -1.0
             row[i] = int(round(min(1.0, max(0.0, 0.5 - distance)) * 255))
         rows.append(bytes(row))
-    return rows
+    if len(_CORNERS) >= 8:                     # a card per scale; nothing grows without end
+        _CORNERS.clear()
+    _CORNERS[radius] = tuple(rows)
+    return _CORNERS[radius]
 
 
-def premultiply(pixels, width, height, radius) -> bytearray:
+def premultiply(pixels, width, height, radius, top=0) -> bytearray:
     """A card's opaque BGRX pixels as premultiplied BGRA with its rounded corners cut out.
 
     Every pixel is opaque but those in the four corner squares, which take the rounded
-    rectangle's coverage; those are scaled by it, as `UpdateLayeredWindow` requires.
+    rectangle's coverage; those are scaled by it, as `UpdateLayeredWindow` requires. `pixels`
+    may be a band of whole rows starting at row `top` of a card `height` high - the status
+    light's, drawn again for a breath - and the band is cut exactly as the whole card is there.
     """
     data = bytearray(pixels)
-    data[3::4] = b"\xff" * (width * height)
+    band = len(data) // (4 * width) if width else 0
+    data[3::4] = b"\xff" * (width * band)
     rows = corner_coverage(radius)
     size = len(rows)
     for j in range(min(size, height)):
@@ -564,6 +580,9 @@ def premultiply(pixels, width, height, radius) -> bytearray:
             if cover == 255:
                 continue
             for x, y in ((i, j), (width - 1 - i, j), (i, height - 1 - j), (width - 1 - i, height - 1 - j)):
+                y -= top
+                if not 0 <= y < band:
+                    continue
                 index = (y * width + x) * 4
                 if cover == 0:
                     data[index:index + 4] = b"\x00\x00\x00\x00"

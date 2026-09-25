@@ -22,6 +22,52 @@
           }
         }
       }
+    },
+    {
+      "case": "started inside a job that ends what it holds, as Codex 26.915 runs this server",
+      "arguments": {},
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "The watcher is running. It was started from inside Codex, which ends what its plugins start, so it stops when Codex closes, if not sooner. Once Codex has closed, open Codex Auto Resume from the Start menu and start it there, or turn on Run at Windows sign-in in the Dashboard so it starts with Windows."
+            }
+          ],
+          "structuredContent": {
+            "confirmed": true,
+            "state": "running",
+            "reason": null,
+            "started": true,
+            "ends_with_codex": true
+          }
+        }
+      }
+    },
+    {
+      "case": "started in no job, so it outlives Codex",
+      "arguments": {},
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "The watcher is running."
+            }
+          ],
+          "structuredContent": {
+            "confirmed": true,
+            "state": "running",
+            "reason": null,
+            "started": true,
+            "ends_with_codex": false
+          }
+        }
+      }
     }
   ]
 }

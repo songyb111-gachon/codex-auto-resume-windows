@@ -126,8 +126,8 @@ class WorkflowAgreementTests(unittest.TestCase):
         self.assertIn("allow-prereleases: true", workflow("test.yml"))
 
     def test_the_workflows_that_pin_one_version_pin_a_supported_one(self):
-        """release.yml and sync-ko.yml each choose a single interpreter."""
-        for name in ("release.yml", "sync-ko.yml"):
+        """release.yml, sync-ko.yml and community-report.yml each choose a single interpreter."""
+        for name in ("release.yml", "sync-ko.yml", "community-report.yml"):
             with self.subTest(name):
                 pinned = re.findall(r'python-version:\s*"(3\.\d+)"', workflow(name))
                 self.assertTrue(pinned, "%s pins no Python" % name)

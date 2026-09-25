@@ -1,10 +1,10 @@
 // Codex Auto Resume - reopening: what the window is told to come back as.
 //
-// A window speaks one language and draws one theme. Its words are resolved and its colours
-// decided as it opens, into hundreds of controls, and changing either in place would mean
-// building every page again under a person looking at it. So when the Interface language or
-// the theme it draws changes, the window closes and opens again in the new one, where it was:
-// the same page and Settings section, the same bounds, maximized or not.
+// A window speaks one language and draws one theme in one design. Its words are resolved and its
+// colours decided as it opens, into hundreds of controls, and changing any of them in place would
+// mean building every page again under a person looking at it. So when the Interface language,
+// the theme it draws or (v0.6.10) the design it draws changes, the window closes and opens again
+// in the new one, where it was: the same page and Settings section, the same bounds, maximized or not.
 //
 // It notices a change in three ways: a Save here; the settings changing anywhere else while it
 // is open - the panel in Codex, Codex itself through MCP, another window - which it finds by
@@ -67,9 +67,10 @@ namespace CodexAutoResume
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern bool IsWindowEnabled(IntPtr window);
 
-        /// What a window that shows `openedLanguage` and `openedTheme` does once it knows the stored
-        /// Interface language is `language` and the theme it would now draw is `theme` ("light", "dark"
-        /// or "contrast"). Pure, so the rule can be checked without a window.
+        /// What a window that shows `openedLanguage`, `openedTheme` and `openedDesign` does once it knows the
+        /// stored Interface language is `language`, the theme it would now draw is `theme` ("light", "dark"
+        /// or "contrast") and the design it would now draw is `design` (Design.Drawn: none but Soft's under High
+        /// Contrast). Pure, so the rule can be checked without a window.
         ///   * Nothing differs, or either side is not known: KeepWindow.
         ///   * Something differs and there are unsaved edits: ReopenOnceSaved.
         ///   * Something differs in the first read since it opened, and it was itself opened by
@@ -77,11 +78,13 @@ namespace CodexAutoResume
         ///     read from then on. Two windows in a row that each read something other than what they
         ///     were started with is a disagreement a third would only repeat.
         ///   * Otherwise: ReopenWindow.
-        internal static int ReopenDecision(string openedLanguage, string openedTheme, string language, string theme,
+        internal static int ReopenDecision(string openedLanguage, string openedTheme, string openedDesign,
+                                           string language, string theme, string design,
                                            bool dirty, bool firstRead, int generation)
         {
             bool changed = (openedLanguage != null && language != null && openedLanguage != language) ||
-                           (openedTheme != null && theme != null && openedTheme != theme);
+                           (openedTheme != null && theme != null && openedTheme != theme) ||
+                           (openedDesign != null && design != null && openedDesign != design);
             if (!changed) return KeepWindow;
             if (dirty) return ReopenOnceSaved;
             if (firstRead && generation >= MaxGeneration) return AdoptWhatWasRead;
@@ -106,8 +109,8 @@ namespace CodexAutoResume
                                     name.StartsWith("notify_", StringComparison.Ordinal));
         }
 
-        /// The window's command line, checked. `--page=`, `--section=` and `--theme=` must name a page,
-        /// a section or a Theme there is; `--bounds=` is four whole numbers, a position in the virtual
+        /// The window's command line, checked. `--page=`, `--section=`, `--theme=` and `--design=` must name
+        /// a page, a section, a Theme or a Design there is; `--bounds=` is four whole numbers, a position in the virtual
         /// screen's range and a size from 1 to 32767; `--frame=` is four whole numbers from 0 to MaxFrame;
         /// `--focus=` is a name IsFocusName accepts; `--reopened=` is one digit from 1 to 9;
         /// `--maximized` and `--settings` are flags. Anything else, including a value that fails its
@@ -134,6 +137,11 @@ namespace CodexAutoResume
                 else if ((value = After(argument, "--theme=")) != null)
                 {
                     if (value == Theme.System || value == Theme.Light || value == Theme.Dark) request.Theme = value;
+                }
+                else if ((value = After(argument, "--design=")) != null)
+                {
+                    // A design by its own name exactly: DesignOf answers anything else as Soft, and so differently.
+                    if (Design.Preference(value) == value) request.Design = value;
                 }
                 else if ((value = After(argument, "--bounds=")) != null)
                 {
@@ -225,11 +233,11 @@ namespace CodexAutoResume
         }
 
         /// The command line a window that reopens itself starts the new one with: where it is - with the
-        /// invisible border around its bounds, `frame` - the Theme preference stored, the generation
-        /// (NextGeneration) and where the keyboard is (`focus`). Only what ParseArguments accepts is written,
-        /// so every value reaches the new window as it was meant.
+        /// invisible border around its bounds, `frame` - the Theme preference and the Design stored, the
+        /// generation (NextGeneration) and where the keyboard is (`focus`). Only what ParseArguments accepts is
+        /// written, so every value reaches the new window as it was meant.
         internal static string ReopenArguments(string page, string section, Rectangle bounds, bool maximized,
-                                               string theme, int generation, Padding frame, string focus)
+                                               string theme, string design, int generation, Padding frame, string focus)
         {
             var arguments = new List<string>();
             if (page != null && Array.IndexOf(PageOrder, page) >= 0) arguments.Add("--page=" + page);
@@ -242,6 +250,7 @@ namespace CodexAutoResume
             Padding checkedFrame;
             if (frame != Padding.Empty && ParseFrame(inset, out checkedFrame)) arguments.Add("--frame=" + inset);
             arguments.Add("--theme=" + Theme.Preference(theme));
+            arguments.Add("--design=" + Design.Preference(design));
             arguments.Add("--reopened=" + Math.Max(1, Math.Min(9, generation)).ToString(CultureInfo.InvariantCulture));
             if (IsFocusName(focus)) arguments.Add("--focus=" + focus);
             return string.Join(" ", arguments.ToArray());
@@ -325,23 +334,28 @@ namespace CodexAutoResume
         {
             storedLanguage = Str(current, "interface_language") ?? "system";
             storedTheme = Theme.Preference(Get(current, "theme"));
+            storedDesign = Design.Preference(Get(current, "design"));
         }
 
-        /// Decides, and does, what a change of language or theme asks of the window (ReopenDecision).
+        /// Decides, and does, what a change of language, theme or design asks of the window (ReopenDecision).
         private void CheckReopen(bool firstRead)
         {
             if (auditing || reopening || IsDisposed || !settingsRead) return;
             string theme = Theme.Current(storedTheme);
-            int decision = ReopenDecision(openedLanguage, openedTheme, storedLanguage, theme, Dirty(), firstRead,
-                                          request.Generation);
-            // Not again for the language and theme a new window was started for and never showed (FinishReopen).
-            if (decision != KeepWindow && storedLanguage == declinedLanguage && theme == declinedTheme)
+            string design = Design.Drawn(theme, storedDesign);
+            int decision = ReopenDecision(openedLanguage, openedTheme, openedDesign, storedLanguage, theme, design,
+                                          Dirty(), firstRead, request.Generation);
+            // Not again for the language, theme and design a new window was started for and never showed
+            // (FinishReopen).
+            if (decision != KeepWindow && storedLanguage == declinedLanguage && theme == declinedTheme &&
+                design == declinedDesign)
                 decision = KeepWindow;
             recheck = false;
             if (decision == AdoptWhatWasRead)
             {
                 openedLanguage = storedLanguage;
                 openedTheme = theme;
+                openedDesign = design;
                 decision = KeepWindow;
             }
             ShowReopenNote(decision == ReopenOnceSaved);
@@ -407,10 +421,11 @@ namespace CodexAutoResume
             return values;
         }
 
-        /// The changes a Save sends: every value on the page, except the Interface language and the two
-        /// themes while they are still what the page was built with - so saving something else never puts
-        /// back a language or theme chosen somewhere else meanwhile. The window reopens in a new language
-        /// or Theme; the panel's own theme it follows in place (FollowPanelTheme).
+        /// The changes a Save sends: every value on the page, except the Interface language, the two
+        /// themes and the Design while they are still what the page was built with - so saving something
+        /// else never puts back a language, theme or design chosen somewhere else meanwhile. The window
+        /// reopens in a new language, Theme or Design; the panel's own theme it follows in place
+        /// (FollowPanelTheme).
         private string ChangesJson(Dictionary<string, string> values)
         {
             var changes = new StringBuilder("{");
@@ -418,7 +433,8 @@ namespace CodexAutoResume
             foreach (KeyValuePair<string, string> pair in values)
             {
                 string was;
-                if ((pair.Key == "interface_language" || pair.Key == "theme" || pair.Key == "panel_theme") &&
+                if ((pair.Key == "interface_language" || pair.Key == "theme" || pair.Key == "panel_theme" ||
+                     pair.Key == "design") &&
                     baseline != null &&
                     baseline.TryGetValue(pair.Key, out was) && was == pair.Value) continue;
                 if (!first) changes.Append(',');
@@ -495,7 +511,7 @@ namespace CodexAutoResume
             Padding measured = normal ? InvisibleFrame() : Padding.Empty;
             if (measured != Padding.Empty) invisibleFrame = measured;
             string arguments = ReopenArguments(currentPage ?? firstPage, currentSection, bounds,
-                                               WindowState == FormWindowState.Maximized, storedTheme,
+                                               WindowState == FormWindowState.Maximized, storedTheme, storedDesign,
                                                NextGeneration(firstRead, request.Generation), invisibleFrame,
                                                reopenFocus ?? FocusName());
             Process started;
@@ -514,6 +530,7 @@ namespace CodexAutoResume
             reopening = true;
             reopenLanguage = storedLanguage;
             reopenTheme = Theme.Current(storedTheme);
+            reopenDesign = Design.Drawn(reopenTheme, storedDesign);
             recheck = false;
             ShowReopenNote(false);
             StopClock();
@@ -565,6 +582,7 @@ namespace CodexAutoResume
             reopening = false;
             declinedLanguage = reopenLanguage;
             declinedTheme = reopenTheme;
+            declinedDesign = reopenDesign;
             try { if (IsHandleCreated) EnableWindow(Handle, true); }
             catch (Exception) { }
             StartClock();

@@ -160,7 +160,9 @@ def _compatibility(control) -> dict:
     """The Compatibility Registry's view, as the watcher last wrote it and a reader checks it.
 
     Content-free by construction: states, reasons and check results from closed sets, a
-    version string the log already carries, and a timestamp. The report's binding to the
+    version string the log already carries, a timestamp, and since v0.6.10 what others report
+    of that version - a word from a closed set and five counts that ship with the release, so
+    nothing of this machine. The report's binding to the
     engine - a digest of its path and its size and time - stays out, because a digest of a
     path that holds the user name is a guessable one.
     """

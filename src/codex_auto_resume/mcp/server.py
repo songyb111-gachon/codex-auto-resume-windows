@@ -16,7 +16,9 @@ What this is deliberately not:
 This server starts nothing. v0.6.9 measured whether it could start the watcher when Codex starts
 it - Codex runs each MCP server in a job object with KILL_ON_JOB_CLOSE and no breakaway, and every
 watcher started there died with the server seconds later - so `Control.start_for_codex` refuses and
-records what the job said. No surface offers the setting it would have read.
+records what the job said. No surface offers the setting it would have read. What a person or a
+model asks for with `start_watcher` is started, in that same job, and since v0.6.10 the reply says
+it lasts only until Codex ends this server rather than reporting a lasting start.
 
 The safety consequence matters more than the architecture: a model driving these tools
 cannot make recovery less careful. It cannot retry an unclassified failure, resolve a
@@ -240,7 +242,9 @@ class Server:
         closed sets - what the window's Diagnostics card shows, so the settings panel's card can
         say the same. No version string, no path and no free text - this reply is part of what
         Codex sends on - and there is deliberately no tool that refreshes or imports registry
-        data, so nothing a model reads can make this machine talk to GitHub.
+        data, so nothing a model reads can make this machine talk to GitHub. Nor what others
+        report of the version (v0.6.10): that is for a person, beside the version on the
+        Dashboard, and `compat.mcp_view` leaves it out.
         """
         status = self.control.get_status()
         try:
@@ -381,10 +385,42 @@ class Server:
                        "confirmed. Ask for the status again in a moment.",
     }
 
+    # How long a watcher started from here lasts, said after the state's own sentence whenever it
+    # may be running. This server runs in the job Codex puts it in, and Start watcher asks nothing
+    # of that job: measured on Codex 26.915 (v0.6.9-alpha), the job has KILL_ON_JOB_CLOSE and no
+    # breakaway, so the watcher ends when Codex ends this server - when Codex closes, if not sooner.
+    # Keyed by Control.launch_ends_with_job, read from the job each time: True, or None where
+    # Windows would not say. False - a watcher that outlives Codex - needs no sentence. The reply
+    # carries it as `ends_with_codex`.
+    #
+    # The way out it names must be one a person can take. Not "start it from the Dashboard": the
+    # Dashboard starts a watcher through the bridge with no breakaway, so the watcher joins the
+    # Dashboard's own job, and a Dashboard opened from this watcher's icon, card or notification
+    # is this watcher's child, in Codex's job too - and while this watcher runs there is nothing
+    # for it to start. The Start menu's entry is opened by Windows, not by Codex or a watcher, so
+    # a watcher started there once Codex has closed is in no job of Codex's; the sign-in start is
+    # launched by Windows as well.
+    ENDS_WITH_CODEX = {
+        True: "It was started from inside Codex, which ends what its plugins start, so it stops "
+              "when Codex closes, if not sooner. Once Codex has closed, open Codex Auto Resume "
+              "from the Start menu and start it there, or turn on Run at Windows sign-in in the "
+              "Dashboard so it starts with Windows.",
+        None: "It was started from inside Codex, and Windows would not say whether Codex ends what "
+              "its plugins start, so it may stop when Codex closes. If it does, open Codex Auto "
+              "Resume from the Start menu and start it there, or turn on Run at Windows sign-in in "
+              "the Dashboard so it starts with Windows.",
+    }
+
     def _tool_start_watcher(self, _arguments) -> dict:
         result = self.control.start_watcher()
-        return self._reply(self.START_WORDING.get(result.get("state"),
-                                                  self.START_WORDING["unconfirmed"]), result)
+        summary = self.START_WORDING.get(result.get("state"), self.START_WORDING["unconfirmed"])
+        if result.get("started"):
+            # Only a start made here: a watcher that was already running was started elsewhere.
+            ends = self.control.launch_ends_with_job()
+            result["ends_with_codex"] = ends
+            if ends is not False and result.get("state") != "exited":
+                summary += " " + self.ENDS_WITH_CODEX[ends]
+        return self._reply(summary, result)
 
     def _tool_retry_now(self, arguments) -> dict:
         result = self.control.request_retry_now(arguments.get("interruption_id"), actor="mcp")

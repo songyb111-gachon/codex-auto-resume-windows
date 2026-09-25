@@ -6,7 +6,7 @@ shape; a module has no class, so its shape is held here.
 
 Two ways a split module goes wrong, both silent:
 
-*A name stops being there.* Twelve files re-exported through one `__init__` is twelve chances
+*A name stops being there.* Thirteen files re-exported through one `__init__` is thirteen chances
 to leave one out, and `tray_popup._icon_from_pixels` - which the notification-area icon calls
 for every frame it draws - was left out exactly that way. The icon caught it and drew itself
 the old way for the rest of its life, logging one line nobody reads.
@@ -42,16 +42,22 @@ from codex_auto_resume.ui import popup as tray_popup  # noqa: E402
 ROOT = Path(_HERE).parent
 PACKAGE = "codex_auto_resume.ui.popup"
 
-# The twelve files, in the order `__init__` re-exports them: the six that ask Windows nothing,
+# The thirteen files, in the order `__init__` re-exports them: the six that ask Windows nothing,
 # then Windows and what is drawn with it. It is a dependency order, and the test below holds it
-# that way - so the list reads as the layering it is, rather than as twelve names.
+# that way - so the list reads as the layering it is, rather than as thirteen names. `messages` came
+# out of `window` in v0.6.10, the window's messages as a mixin it is made of, to give window.py room
+# under the line budget.
 MODULES = ("words", "model", "placement", "motion", "elevation", "layout",
-           "win32", "fonts", "theme", "gdiplus", "renderer", "window")
+           "win32", "fonts", "theme", "gdiplus", "renderer", "messages", "window")
 ASKS_WINDOWS_NOTHING = MODULES[:6]
 
 # What `tray_popup.<name>` gave before the split, name for name. `countdown` is the one public
 # name not carried over: it was `from .ui.words import countdown`, re-exported by accident, and
-# nothing outside ever read it there.
+# nothing outside ever read it there. `light_for` since v0.6.10: the header's light apart from its word (F4).
+# `STATE_INK` went for a while in v0.6.10, when the state's word became ink (F7), and came back with the
+# popup's own header; so did `light_row`, which stood a light and its word alike on every surface.
+# The design came in v0.6.10 too (D5, D8): `set_design`, `design_setting` and `design_choice` beside the
+# theme's, and the two gates the design splits motion into, `light_still` and `controls_still`.
 SURFACE = {
     "APP_MODE_VALUE", "ATTENTION_OVERLAYS", "BITMAP", "BITMAPINFO", "BITMAPINFOHEADER",
     "CHIP_ALPHA", "CLICK_AWAY_SECONDS", "CONTRAST_COLOURS", "CONTROL_CALLS", "CS_DROPSHADOW",
@@ -78,11 +84,12 @@ SURFACE = {
     "WS_POPUP", "_Canvas", "_Fonts", "_Painter", "_PerMonitorDpi", "_ShadowImage", "_declare",
     "_dll", "_gdiplus_acquire", "_gdiplus_release", "_icon_from_pixels", "_pack", "activity",
     "adopt_settings", "animates", "appearance", "apps_use_light_theme", "busy_key",
-    "contrast_colour", "effective_theme", "focus_order", "font_candidates", "font_faces",
+    "contrast_colour", "controls_still", "design_choice", "design_setting", "effective_theme", "focus_order", "font_candidates", "font_faces",
     "gdiplus_objects", "glide_amount", "gui_resources", "halo", "high_contrast", "hit_test",
-    "icon_rect", "is_waiting", "layout", "lift_coverage", "locale_of", "message_face",
+    "icon_rect", "is_waiting", "layout", "lift_coverage", "light_for", "light_still", "locale_of",
+    "message_face",
     "next_focus", "next_glides", "one_line", "perform", "place", "recipe_shadows",
-    "reduced_motion", "role_size", "say", "select_action", "set_reduce_motion", "set_theme",
+    "reduced_motion", "role_size", "say", "select_action", "set_design", "set_reduce_motion", "set_theme",
     "shadow_step", "share_columns", "snapshot_activity", "system_rgb", "task_item",
     "taskbar_edge", "theme_choice", "theme_setting", "tile_ground", "unbroken", "urgency",
     "view_model", "vocabulary", "well_coverage",
@@ -102,7 +109,7 @@ class SurfaceTests(unittest.TestCase):
                   and name != "annotations"}          # `from __future__ import`
         self.assertEqual(public - SURFACE, set(), "a new name on the popup is a decision: add it above")
 
-    def test_the_twelve_modules_are_all_there_and_nothing_else_is(self):
+    def test_the_thirteen_modules_are_all_there_and_nothing_else_is(self):
         listed = {srcscan.module_name(path).split(".")[-1] for path in srcscan.files_of(PACKAGE)}
         self.assertEqual(listed, set(MODULES) | {"popup"})
 
@@ -146,7 +153,7 @@ class SurfaceTests(unittest.TestCase):
                     srcscan.modules()[PACKAGE + "." + module]))
 
     def test_no_two_modules_define_the_same_name(self):
-        """`__init__` re-exports twelve files in order, so a name in two of them would resolve
+        """`__init__` re-exports thirteen files in order, so a name in two of them would resolve
         to whichever is imported last - and moving a line between files would change it."""
         owners: dict[str, list[str]] = {}
         for path in srcscan.files_of(PACKAGE):

@@ -23,9 +23,10 @@ properties intact.
   controls both are drawn with are `gui/SoftTheme.cs` (the colours, sizes and motion),
   `gui/SoftDepth.cs` (the shadows), `gui/SoftLayout.cs` (what holds what), `gui/SoftFields.cs`
   (buttons, check boxes, choices and text), `gui/SoftCombo.cs` (the drop-down),
-  `gui/SoftList.cs` and `gui/Marks.cs` (the status light); and `gui/Brand.cs` is the palette,
-  generated. The compile list is `gui/window.sources` and only there — a new window source is
-  added to that one file, and `build/make_gui.ps1` and every test read it.
+  `gui/SoftCallout.cs` (the callout, a notice set apart), `gui/SoftList.cs` and `gui/Marks.cs`
+  (the status light); and `gui/Brand.cs` is the palette, generated. The compile list is
+  `gui/window.sources` and only there — a new window source is added to that one file, and
+  `build/make_gui.ps1` and every test read it.
 
 Nothing here needs administrator rights.
 
@@ -369,7 +370,29 @@ records that somebody did.
 `python build/make_screenshots.py` renders the whole set from the working tree: the Codex
 panel, and the window's Overview, Pending and Settings pages, in English and Korean, into
 `assets/` with copies in `docs/images/`. Nothing is captured by hand and nothing is edited
-afterwards.
+afterwards. A whole regeneration is two steps, in this order, both from PowerShell - launched
+from a POSIX shell such as Git Bash, headless Edge exits at once and prints nothing:
+
+```
+python build/make_screenshots.py
+python build/make_screenshots.py --breathe
+```
+
+**A picture of a light that moves, moves.** Every surface's status light is animated in its
+pictures as it moves in the product, as an APNG whose first frame is what a viewer without
+animation shows. Each surface declares its lights - where each is, its radius, its state and the
+ground it stands on - and the manifest keeps them under `lights`: the popup and the notification
+card are drawn moving by their own renderers in the first step, and the window and the panel are
+captured still, at the first moment of the breath, so the second step draws every light they
+declare over the capture, on its own ground, for exactly one cycle. It refuses a capture whose
+light does not stand where it says or on the ground it names, rather than paint a box of the wrong
+colour. Forgetting the second step leaves the window's and the panel's pictures still, and the
+suite says so.
+
+**Each design is pictured too.** Besides the set above, the Dashboard's Overview, the panel, the
+popup and the notification card are drawn in each Design other than Soft - Soft, without motion,
+Classic and Plain - in English and the light theme, as `docs/images/design-<design>-<surface>.png`.
+They are documentation only and never copied into `assets/`.
 
 It needs Windows, Microsoft Edge (it is what renders the panel), and
 `build/CodexAutoResumeSettings.exe` already built — run
@@ -378,9 +401,9 @@ downloads the pinned embeddable Python into `build/cache/`.
 
 They are pinned to light. The product follows the reader's Windows and Codex themes at
 runtime; the pictures do not, so that a gallery looks like one product and a build on a
-machine in dark mode produces the same bytes as a build on one in light mode. The notification
-card is the one exception: it floats over whatever desktop the reader has, so it is pictured in
-both themes, each picture named for its theme and drawn in it.
+machine in dark mode produces the same bytes as a build on one in light mode. Since v0.6.6 that
+holds for the notification card as well, which until then was pictured in both themes. The Design
+is pinned the same way: every picture is Soft's but the designs' own.
 
 `assets/screenshots.json` records a digest of every input each image was rendered from.
 The window is recorded in two halves. One is the files it is compiled from — its three
@@ -424,6 +447,31 @@ old identifier line — before anything noticed. If you photograph one for an is
 photograph a real conversation: it shows the conversation's identifier, and a screenshot of a
 real one publishes it permanently.
 
+**Every surface is pictured from one set of records.** The window's sample records
+(`seed_window_state`) are written once, at the moment the popup and the panel are drawn at, and read
+back the way each surface reads them: the popup's rows and the panel's rows are the window's two
+waiting recoveries, with the same names, states and times, and the panel's page is told that moment
+and reads clock times in UTC, as the card does. The window itself is seeded again when it is
+photographed, with the same offsets, because the bridge behind it runs on the real clock. So a
+countdown, a chip and a count say the same on all four pictures, but a wall-clock time need not: the
+times the window prints, such as History's, are those of the day the pictures were drawn. Compare
+the four by their relative times only.
+
+**To audit the look, draw both themes side by side.** The committed pictures are the light theme's
+only. For a change to how the product looks, draw contact sheets of the window's Overview and
+Pending pages, the top of the panel, the popup and the card, in the light and the dark theme, every
+surface at the scale the window is captured at:
+
+```
+python build/make_screenshots.py --audit <folder>
+python build/make_screenshots.py --audit <another folder> --before <folder>
+```
+
+The second form adds a before-and-after sheet per theme. It needs what a whole run needs - Windows,
+Edge and the compiled window, run from PowerShell - and writes only into the folder it is given: it
+refuses a folder in `docs/` or `assets/` and never touches the manifest. The window is captured from
+a scratch installation, as for the published pictures, so your own installation is never touched.
+
 ## Fixtures and privacy
 
 Everything committed here is public, including test fixtures and documentation examples. They
@@ -465,6 +513,46 @@ fail without it:
 
 If you are unsure whether a change crosses one of those lines, open an issue first and say
 what you are trying to achieve — there is usually a way to get there that keeps the property.
+
+## Sending a compatibility report
+
+A report about a Codex version is written on your own machine by
+[codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter), from this
+installation's own records: counts, states and times, no conversation text and no identifiers. Read
+the file before you send it. It reaches GitHub only as a pull request you open, and that pull
+request adds exactly one new file, at
+
+    docs/evidence/community/<your GitHub login>/codex-cli-<version>.json
+
+where `<version>` is the report's own `codex_version` and the login is the one that opens the pull
+request (and the report's `reporter.github_login`). Reports are add-only: one per GitHub login per
+Codex version, and a filed report is never edited. A pull request that changes anything else, adds
+a second file, or adds one at a path already filed on the base or on `main` is refused, and so is a
+folder that differs from a filed one only in letter case, since Windows opens the two as one.
+
+The pull request is judged by `.github/workflows/community-report.yml`, which runs `main`'s own
+check (`build/community_check.py`) on `pull_request_target`, so no pull request can change the check
+it is judged by. It checks out the base commit under a read-only token and no secret, and reads your
+commits as data with git plumbing only: nothing in them is checked out, merged or run
+([SECURITY.md](SECURITY.md) has the whole list). The file must be at most 1 MB, UTF-8 JSON in the
+report format with exactly its keys, read by `build/community_report.py`, the one reader of a
+report. Its fingerprint has to be a setup that could have written it - the Codex version in the
+grammar the product names engines by, a product version that is one of this repository's releases
+and was out before the report was written, a plain reporter release from 1.0.0 on, Windows 10 or
+later - and its times ones the machine could have recorded. A report with at least one record must
+not repeat the records of a report already filed for the same version; a report with no records is
+never refused as a copy. The levels and verdict a report claims are recomputed from what it
+measured and only ever lowered, so a hand-edited conclusion does not survive. A maintainer still
+reviews and merges each one.
+
+Once filed, a report counts towards *Reported by others* beside its Codex version on the
+Dashboard's Diagnostics page ([GUIDE.md](GUIDE.md#requirements) says how it is counted), from the
+next release on: the maintainer's tool adds it to `docs/evidence/community/index.json` and writes
+the counts into `src/codex_auto_resume/data/reported.json`, and `tests/test_reported_data.py` holds
+the files, the index and the shipped counts to each other. A report file the index does not list
+counts nowhere, which is why your pull request stays green under the ordinary tests. A report
+found to be wrong is withdrawn in the open, by removing its file and its index entry together. No
+report enters the compatibility data, and none changes a tier.
 
 ## How the code is layered
 

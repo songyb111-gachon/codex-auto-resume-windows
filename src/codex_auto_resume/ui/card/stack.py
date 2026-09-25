@@ -45,6 +45,7 @@ class CardStack:
         self.windows = {}               # hwnd -> Card
         self._proc = None
         self._frame_running = False
+        self._frame_ms = None           # what the frame timer runs at, while it runs
         self._hovered = False
         self._gdiplus = False
 
@@ -94,6 +95,7 @@ class CardStack:
                 user32.KillTimer(hwnd, timer)
             user32.DestroyWindow(hwnd)
         self._frame_running = False
+        self._frame_ms = None
         if self.class_name:
             user32.UnregisterClassW(self.class_name, self.instance)
             self.class_name = None
@@ -266,13 +268,22 @@ class CardStack:
         if not self.hwnd:
             return
         user32 = win32._dll("user32")
-        moving = any([card.motion.moving(now) or card.breathe(now) for card in self.cards])
-        if moving and not self._frame_running:
-            user32.SetTimer(self.hwnd, TIMER_FRAME, notice_card.FRAME_MS, None)
-            self._frame_running = True
+        # A card that moves is drawn at FRAME_MS, its light held where it was until it stands still. A
+        # light that breathes and nothing else is drawn at the popup's rate (notice_card.BREATH_FRAME_MS)
+        # since v0.6.10: until then the timer ran at FRAME_MS for as long as a card was up, to draw its
+        # light at most every 80 ms. Every card that stands still is asked whether it breathes, and
+        # draws its light if a frame of it is due.
+        moved = [card.motion.moving(now) for card in self.cards]
+        motion = any(moved)
+        breathing = any([not moving and card.breathe(now) for card, moving in zip(self.cards, moved)])
+        moving = motion or breathing
+        interval = notice_card.FRAME_MS if motion else notice_card.BREATH_FRAME_MS
+        if moving and (not self._frame_running or self._frame_ms != interval):
+            user32.SetTimer(self.hwnd, TIMER_FRAME, interval, None)       # the same timer, at its new rate
+            self._frame_running, self._frame_ms = True, interval
         elif not moving and self._frame_running:
             user32.KillTimer(self.hwnd, TIMER_FRAME)
-            self._frame_running = False
+            self._frame_running, self._frame_ms = False, None
         user32.KillTimer(self.hwnd, TIMER_WAIT)
         if not moving:
             waits = [wait for wait in (card.motion.wait_ms(now) for card in self.cards) if wait is not None]

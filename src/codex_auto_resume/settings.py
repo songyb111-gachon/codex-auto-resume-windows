@@ -21,7 +21,7 @@ from pathlib import Path
 import tempfile
 
 from . import continuation, failures, l10n, reasons
-from .domain.vocabulary import NotifyEvent, Theme
+from .domain.vocabulary import Design, NotifyEvent, Theme
 
 CONFIG_VERSION = 2
 MAX_SETTINGS_BYTES = 256 * 1024
@@ -36,14 +36,12 @@ CONFIGURABLE_CATEGORIES = (
     "rate_limit_transient",
     "server_5xx",
     "stream_interrupted",
-    # Added late, and for a while it was the one recoverable category with no switch.
-    # The engine recovers a category that has no switch - deliberately, because the
-    # classifier has already decided it is safe and a missing toggle is not an
-    # instruction to stop - so the effect was not that this went unrecovered. It was
-    # that the settings surface under-reported what the product does, and a user who
-    # turned everything off still had this one on with nowhere to see it. Adding the
-    # switch changes no default: it is on, exactly as it has been.
-    "auth_service_transient",
+    # Not `auth_service_transient`, from v0.6.10. v0.6.3 gave it a switch here, believing it
+    # the one recoverable category without one; but nothing in the classifier ever produced it,
+    # so the switch - and its Custom message - changed nothing and never could. It is reserved
+    # now (failures.RESERVED): no field, so describe() offers it on no surface, and a settings
+    # file that still carries `recover_auth_service_transient` or its Custom message loads as
+    # it always did, the two keys dropped on read like any key this build does not have.
 )
 
 # Notification events, each independently suppressible.
@@ -76,6 +74,14 @@ DEFAULT_THEME = THEME_SYSTEM
 PANEL_THEME_SAME = "same"
 PANEL_THEMES = (PANEL_THEME_SAME, THEME_SYSTEM, "light", "dark")
 DEFAULT_PANEL_THEME = PANEL_THEME_SAME
+
+# v0.6.10: how every surface is drawn, in whichever theme is in effect - Soft (the design they all
+# drew until then, so the default, and an upgrade changes nothing anybody can see), Soft without
+# motion, Classic (v0.6.2's flat cards) or Plain. brand.DESIGN says what each draws. It is not
+# called `look`: the drawing code already uses that name for what a surface resolved. High Contrast
+# outranks every design, and Reduce motion stops the motion in each.
+DESIGNS = tuple(Design)
+DEFAULT_DESIGN = "soft"
 
 
 class SettingsError(ValueError):
@@ -134,8 +140,12 @@ FIELDS = {
     "theme": (DEFAULT_THEME, lambda v, d: _choice(v, d, THEMES)),
     # The panel in Codex's own light or dark, or "same" as the Theme above (the default).
     "panel_theme": (DEFAULT_PANEL_THEME, lambda v, d: _choice(v, d, PANEL_THEMES)),
-    # Stops every looping and pulsing animation in the Dashboard and the notification-area
-    # popup, on top of Windows' own "Animation effects" switch, which is honoured anyway.
+    # v0.6.10: the design every surface is drawn in, after the themes and before Reduce motion.
+    # Added without raising CONFIG_VERSION, as panel_theme was: a file without it reads as Soft.
+    "design": (DEFAULT_DESIGN, lambda v, d: _choice(v, d, DESIGNS)),
+    # Stops every animation - the status light, the controls, the card - on every surface, the
+    # panel in Codex included since v0.6.10, in every design, on top of Windows' own "Animation
+    # effects" switch, which is honoured anyway. It can only stop motion, never start it.
     "reduce_motion": (False, _boolean),
     "codex_exe": (None, _optional_text),
 }
@@ -220,6 +230,7 @@ RANGES = {
     "retry_timing": {"choices": list(RETRY_TIMING)},
     "theme": {"choices": list(THEMES)},
     "panel_theme": {"choices": list(PANEL_THEMES)},
+    "design": {"choices": list(DESIGNS)},
     "interface_language": {"choices": list(l10n.CHOICES)},
     "continuation_language": {"choices": list(CONTINUATION_LANGUAGES)},
     "continuation_style": {"choices": list(continuation.STYLES)},
@@ -337,6 +348,16 @@ def theme_preference(values) -> str:
     return _choice(raw, DEFAULT_THEME, THEMES)
 
 
+def design_preference(values) -> str:
+    """The stored design - "soft", "still", "classic" or "plain" - never anything else.
+
+    Read as the settings layer reads it, so a surface drawing from a settings dict it was handed
+    draws the design the watcher would: anything unreadable is Soft.
+    """
+    raw = values.get("design") if isinstance(values, dict) else None
+    return _choice(raw, DEFAULT_DESIGN, DESIGNS)
+
+
 def category_enabled(values, category: str) -> bool:
     """Whether automatic recovery is allowed for one failure category.
 
@@ -451,10 +472,11 @@ def describe() -> list:
         elif name.startswith("notify_") or name == "notifications":
             entry["group"] = "notifications"
             entry["master"] = name == "notifications"
-        elif name in ("theme", "panel_theme", "reduce_motion"):
-            # How the surfaces look. Both themes are offered in the window and in the panel.
-            # Reduce motion is only offered in the window: the panel in Codex follows the host's
-            # own reduced-motion preference.
+        elif name in ("theme", "panel_theme", "design", "reduce_motion"):
+            # How the surfaces look. Both themes are offered in the window and in the panel. The
+            # design and Reduce motion are offered only in the window: both decide what moves, and
+            # what moves is not Codex's to change (mcp.tools.PANEL_APPEARANCE). The panel draws in
+            # both since v0.6.10, as well as following the host's own reduced-motion preference.
             entry["group"] = "appearance"
         elif name in ("show_tray", "notification_card", "start_with_codex"):
             # A desktop preference, beside "run at sign-in" - not a notification, and

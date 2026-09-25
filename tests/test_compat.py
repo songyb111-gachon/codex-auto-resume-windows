@@ -40,6 +40,21 @@ def verified(evidence="docs/evidence/loaded-thread-delivery.json"):
     return {"state": "VERIFIED", "evidence": [evidence], "verified_at": "2026-09-06"}
 
 
+def in_community_folder(path) -> bool:
+    """Whether Windows would open `path` inside docs/evidence/community/: "." and ".." are
+    walked, the dots and spaces Windows drops from a segment's end are dropped, and letter
+    case is not compared. Written apart from the validator's pattern, to check it."""
+    parts = []
+    for part in path.replace("\\", "/").split("/"):
+        if part in ("", "."):
+            continue
+        if part == "..":
+            parts = parts[:-1]
+            continue
+        parts.append(part.rstrip(". ").casefold())
+    return parts[:3] == ["docs", "evidence", "community"]
+
+
 def incompatible(reason="schema_changed"):
     return {"state": "INCOMPATIBLE", "reason": reason}
 
@@ -180,6 +195,34 @@ class DocumentTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(refused(document(engines=[engine("codex-cli 0.155.0", exact_thread_recovery={
                     "state": "VERIFIED", "evidence": [path]})])), "invalid_field")
+
+    def test_no_claim_may_cite_someone_elses_report(self):
+        """docs/evidence/community/ holds other people's reports. They count towards Reported,
+        beside the ladder, and never towards a tier - so a claim that cites one, VERIFIED or
+        CHECKED or INCOMPATIBLE, is refused whole, however the path spells a way Windows would
+        still open the folder: in any letter case, through ".", or with the dot Windows drops
+        from "community."."""
+        for path in ("docs/evidence/community/x/y.json", "docs/evidence/Community/x/y.json",
+                     "docs/evidence/COMMUNITY/ExampleUser/codex-cli-0.155.0.json",
+                     "docs/evidence/./community/x/y.json", "docs/evidence/community./x/y.json",
+                     "docs/evidence/Community../x/y.json", "docs/evidence/compat/../community/y.json"):
+            self.assertTrue(in_community_folder(path), path)
+            for state in ("VERIFIED", "CHECKED", "INCOMPATIBLE"):
+                with self.subTest(path=path, state=state):
+                    self.assertEqual(refused(document(engines=[engine("codex-cli 0.155.0", exact_thread_recovery={
+                        "state": state, "evidence": [path]})])), "invalid_field")
+        # A segment that ends in a dot names another folder than the one it spells, wherever it is.
+        for path in ("docs/evidence/compat./x.json", "docs/evidence/./compat/x.json", "docs/evidence/compat/x./y.json"):
+            with self.subTest(path=path):
+                self.assertEqual(refused(document(engines=[engine("codex-cli 0.155.0", exact_thread_recovery={
+                    "state": "INCOMPATIBLE", "evidence": [path]})])), "invalid_field")
+        # The pattern refuses the folder and nothing beside it.
+        for path in ("docs/evidence/communityish/y.json", "docs/evidence/compat/community.json",
+                     "docs/evidence/community.json"):
+            self.assertFalse(in_community_folder(path), path)
+            with self.subTest(path=path):
+                self.assertIsNone(refused(document(engines=[engine("codex-cli 0.155.0", exact_thread_recovery={
+                    "state": "INCOMPATIBLE", "evidence": [path]})])))
 
     def test_the_signature_slot_is_reserved(self):
         # Requiring a signature is refused whole: nothing verifies one yet, and reading the
@@ -656,6 +699,20 @@ class BundledBaselineTests(unittest.TestCase):
                 for path in claim["evidence"]:
                     self.assertTrue((ROOT / path).is_file(), path)
 
+    def test_no_claim_cites_a_community_report(self):
+        """Reported can never raise a tier, and this is the path it would take: a report someone
+        else sent uses the maintainer's own evidence format, says PASS and VERIFIED, and would pass
+        every citation rule above. So no claim cites a path under docs/evidence/community/, and no
+        file a claim cites has the top-level `reporter` key every community report has and the
+        maintainer's own recordings never do."""
+        for engine_entry in json.loads(self.raw)["engines"]:
+            for name, claim in engine_entry["capabilities"].items():
+                for path in claim.get("evidence", []):
+                    with self.subTest(version=engine_entry["version"], capability=name, path=path):
+                        self.assertFalse(in_community_folder(path))
+                        recorded = json.loads((ROOT / path).read_text(encoding="utf-8"))
+                        self.assertNotIn("reporter", recorded)
+
     def test_it_names_no_host(self):
         self.assertIsNone(re.search(rb"https?://", self.raw))
 
@@ -665,59 +722,182 @@ class BundledBaselineTests(unittest.TestCase):
 
 
 
-def released_compat(tag):
-    """That release's own compat.py, from its tag - what an installation of it runs on fetched data - or None
-    where this checkout has no tags. It is standard library only, so it loads on its own."""
+# What one installed release makes of documents, run in a process of its own. A release before
+# v0.6.10-alpha has compat.py as one standard-library file; from v0.6.10-alpha it is a package
+# inside its own copy of the product, which must not meet this checkout's.
+PROBE = r"""
+import json, sys, types
+payload = json.loads(sys.stdin.read())
+if payload["kind"] == "file":
+    compat = types.ModuleType("released_compat")
+    with open(payload["path"], encoding="utf-8") as source:
+        exec(compile(source.read(), payload["path"], "exec"), compat.__dict__)
+else:
+    sys.path.insert(0, payload["path"])
+    from codex_auto_resume import compat
+
+
+def read(text):
+    try:
+        return compat.parse_document(text.encode("utf-8")), None
+    except compat.DocumentError as error:
+        return None, error.code
+
+
+documents = {name: read(text) for name, text in payload["documents"].items()}
+main, bundled = documents["main"][0], read(payload["bundled"])[0]
+print(json.dumps({
+    "knows_checked": hasattr(compat, "CHECKED"),
+    "standing": compat.document_standing(main, product=payload["product"], bundled=bundled, now=payload["now"]),
+    "engines": {version: sorted(claims) for version, claims in main["engines"].items()},
+    "refused": {name: code for name, (_parsed, code) in documents.items()},
+    "words": {name: {version: compat.accepted_word(version, [("main", parsed, True)])
+                     for version in payload["versions"]}
+              for name, (parsed, code) in documents.items() if code is None},
+}))
+"""
+UNNAMED = "codex-cli 0.999.0"
+
+
+def installed_releases():
+    """Every release tag from v0.6.5 - the first release that carries the registry - in this
+    checkout, oldest first: each is an installation somewhere that fetches the data on main."""
     import subprocess
-    import types
-    shown = subprocess.run(["git", "-C", str(ROOT), "show", "%s:src/codex_auto_resume/compat.py" % tag],
-                           capture_output=True, text=True, encoding="utf-8")
-    if shown.returncode:
-        return None
-    module = types.ModuleType("compat_" + tag.replace(".", "_"))
-    exec(compile(shown.stdout, "%s:compat.py" % tag, "exec"), module.__dict__)
-    return module
+    listed = subprocess.run(["git", "-C", str(ROOT), "tag", "-l", "v*"], capture_output=True, text=True,
+                            encoding="utf-8").stdout.split()
+    found = []
+    for tag in listed:
+        match = re.fullmatch(r"v(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta))?", tag)
+        if match:
+            key = tuple(int(part) for part in match.groups()[:3]) + ({"alpha": 0, "beta": 1}.get(match.group(4), 2),)
+            if key[:3] >= (0, 6, 5):
+                found.append((key, tag))
+    return [tag for _key, tag in sorted(found)]
+
+
+def probe_release(tag, documents, versions):
+    """PROBE's answer for one tag, from that tag's own code - the file, or the package from
+    `git archive` - with every home the product could read pointed at an empty folder."""
+    import io
+    import os
+    import subprocess
+    import sys
+    import tarfile
+    import tempfile
+    import time
+
+    def shown(path):
+        done = subprocess.run(["git", "-C", str(ROOT), "show", "%s:%s" % (tag, path)], capture_output=True)
+        return done.stdout.decode("utf-8") if done.returncode == 0 else None
+
+    with tempfile.TemporaryDirectory() as scratch:
+        single = shown("src/codex_auto_resume/compat.py")
+        if single is not None:
+            kind, path = "file", Path(scratch) / "compat.py"
+            path.write_text(single, encoding="utf-8")
+        else:
+            archive = subprocess.run(["git", "-C", str(ROOT), "archive", "--format=tar", tag, "src/codex_auto_resume"],
+                                     capture_output=True, check=True).stdout
+            with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
+                tar.extractall(scratch, filter="data")
+            kind, path = "package", Path(scratch) / "src"
+        home = Path(scratch) / "home"
+        home.mkdir()
+        payload = {"kind": kind, "path": str(path), "product": tag[1:].split("-")[0], "now": time.time(),
+                   "bundled": shown("src/codex_auto_resume/data/codex_compat.json"),
+                   "documents": documents, "versions": versions}
+        environment = dict(os.environ, **{name: str(home) for name in (
+            "USERPROFILE", "HOME", "LOCALAPPDATA", "APPDATA", "CODEX_HOME", "CODEX_AUTO_RESUME_HOME")})
+        done = subprocess.run([sys.executable, "-I", "-c", PROBE], input=json.dumps(payload), capture_output=True,
+                              text=True, encoding="utf-8", env=environment, cwd=scratch)
+        if done.returncode:
+            raise AssertionError("%s could not be asked: %s" % (tag, done.stderr[-2000:]))
+        return json.loads(done.stdout)
 
 
 class OlderReleasesTests(unittest.TestCase):
     """The data on main is fetched by every installation, whichever release it runs, so each installed release
     must take the newest data whole - its own validator, from its own tag - and read in it only what it knew:
     v0.6.5 and v0.6.6 skip CHECKED, a state they do not know, and nothing they decide moves because of it.
-    Skipped where the checkout has no tags; CI checks out with every tag."""
-    RELEASES = ("v0.6.5", "v0.6.6")
 
-    def older(self):
-        found = {tag: released_compat(tag) for tag in self.RELEASES}
-        if not all(found.values()):
+    Every release from v0.6.5 is asked, each in a process of its own and from its own tag, the package-layout
+    ones (v0.6.10-alpha on) included. What others report is not in that data: its counts are a file of their
+    own, which every release refuses as a registry document, so Reported cannot reach a release through the
+    one file they all fetch. Skipped where the checkout has no tags; CI checks out with every tag."""
+    FIRST = ("v0.6.5", "v0.6.6", "v0.6.7", "v0.6.8", "v0.6.9", "v0.6.10-alpha")
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tags = installed_releases()
+        cls.answers = None
+        if not set(cls.FIRST) <= set(cls.tags):
+            return
+        raw = BUNDLED.read_text(encoding="utf-8")
+        cls.versions = [entry["version"] for entry in json.loads(raw)["engines"]] + [UNNAMED, "codex-cli 0.160.0"]
+        claim = {"state": "CHECKED", "evidence": ["docs/evidence/loaded-thread-delivery.json"]}
+        cls.documents = {
+            "main": raw,
+            "claims": json.dumps(document(engines=[engine("codex-cli 0.160.0", engine_present=claim,
+                                                          exact_thread_recovery=claim)])),
+            "plain": json.dumps(document()),
+            "counts": (ROOT / "src" / "codex_auto_resume" / "data" / "reported.json").read_text(encoding="utf-8"),
+        }
+        cls.answers = {tag: probe_release(tag, cls.documents, cls.versions) for tag in cls.tags}
+
+    def setUp(self):
+        if self.answers is None:
             self.skipTest("the release tags are not in this checkout")
-        return found
+
+    def current_word(self, name, version):
+        return compat.accepted_word(version, [("main", compat.parse_document(self.documents[name].encode("utf-8")),
+                                                True)])
+
+    def test_every_release_from_the_first_with_a_registry_is_asked(self):
+        self.assertEqual(self.tags[0], "v0.6.5")
+        self.assertLessEqual(set(self.FIRST), set(self.answers))
 
     def test_every_installed_release_takes_the_data_on_main(self):
-        import subprocess
-        import time
-        raw = BUNDLED.read_bytes()
-        for tag, old in self.older().items():
+        raw = json.loads(self.documents["main"])
+        for tag, answer in self.answers.items():
             with self.subTest(tag):
-                shown = subprocess.run(["git", "-C", str(ROOT), "show", "%s:src/codex_auto_resume/data/codex_compat.json"
-                                        % tag], capture_output=True, text=True, encoding="utf-8").stdout
-                parsed = old.parse_document(raw)
-                self.assertEqual(old.document_standing(parsed, product=tag[1:], bundled=old.parse_document(shown.encode()),
-                                                       now=time.time()), "ok")
-                for engine_entry in json.loads(raw)["engines"]:
+                self.assertEqual(answer["standing"], "ok")
+                self.assertIsNone(answer["refused"]["main"])
+                if answer["knows_checked"]:
+                    continue
+                for engine_entry in raw["engines"]:
                     for name, claim in engine_entry["capabilities"].items():
                         if claim["state"] == compat.CHECKED:
-                            self.assertNotIn(name, parsed["engines"].get(engine_entry["version"], {}))
+                            self.assertNotIn(name, answer["engines"].get(engine_entry["version"], []))
+
+    def test_every_release_that_knows_checked_reads_main_as_this_one_does(self):
+        """Not only taken whole: the same word for every version main names and for one it does not."""
+        for tag, answer in self.answers.items():
+            if not answer["knows_checked"]:
+                continue
+            for version in self.versions:
+                with self.subTest(tag=tag, version=version):
+                    self.assertEqual(answer["words"]["main"][version], self.current_word("main", version))
 
     def test_checked_claims_move_no_older_word(self):
         version = "codex-cli 0.160.0"
-        claim = {"state": "CHECKED", "evidence": ["docs/evidence/loaded-thread-delivery.json"]}
-        with_claims = document(engines=[engine(version, engine_present=claim, exact_thread_recovery=claim)])
-        for tag, old in self.older().items():
+        for tag, answer in self.answers.items():
             with self.subTest(tag):
-                self.assertEqual(old.accepted_word(version, [("main", old.validate_document(with_claims), True)]),
-                                 old.accepted_word(version, [("main", old.validate_document(document()), True)]))
-        self.assertEqual(compat.accepted_word(version, [("main", compat.validate_document(with_claims), True)]),
-                         "checked")
+                if answer["knows_checked"]:
+                    self.assertEqual(answer["words"]["claims"][version], "checked")
+                else:
+                    self.assertEqual(answer["words"]["claims"][version], answer["words"]["plain"][version])
+        self.assertEqual(self.current_word("claims", version), "checked")
+
+    def test_the_reported_counts_are_no_registry_to_any_release(self):
+        """Served in place of the registry, the counts file is refused whole by every release and by
+        this one, so no word any of them decides can come from it."""
+        for tag, answer in self.answers.items():
+            with self.subTest(tag):
+                self.assertIsNotNone(answer["refused"]["counts"])
+                self.assertNotIn("counts", answer["words"])
+        with self.assertRaises(compat.DocumentError):
+            compat.parse_document(self.documents["counts"].encode("utf-8"))
+        self.assertNotIn("reported", json.loads(self.documents["main"]))
 
 
 if __name__ == "__main__":

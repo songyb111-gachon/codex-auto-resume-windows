@@ -6,7 +6,6 @@ the documentation's pictures be taken without a running watcher.
 """
 from __future__ import annotations
 
-import time
 from ... import machine
 from ... import reasons
 from ..words import countdown
@@ -54,23 +53,70 @@ def urgency(row):
             row.get("detected_at") or 0, str(row.get("interruption_id") or ""))
 
 
+# The public codes of a record already handed to Codex, or being followed or taken back out of it:
+# every pending record whose state is not machine.WAITING. What a status's `codes` counts by.
+MOVING_CODES = ("submission_claimed", "submitted", "withdrawing", "turn_running", "turn_finishing")
+
+
 def activity(status, rows, now) -> str:
-    """The one word the header says. A pure function of what the control layer returned."""
+    """The one word the header says. A pure function of what the control layer returned.
+
+    The rule every header keeps, the window's and the panel's too; tests/data/light_states.json holds
+    all three to it (v0.6.10). `status` is get_status, None when it could not be read; `rows` is
+    list_pending, None when it could not be read, and the status's own counts then say what the
+    list would have. A watcher not known to be running (watcher_known_running) asks for attention -
+    with a grey light (light_for) - and so does one that runs but is not well; then a pause; then
+    anything in Codex; then a task whose time has come; then anything waiting.
+    """
     status = status or {}
-    rows = rows or []
+    known = rows or []
     watcher = status.get("watcher") or {}
-    if (status.get("watcher_running") is False or watcher.get("ticking") is False
-            or watcher.get("engine_state") in ("incompatible", "failed_here")
-            or any(ATTENTION_OVERLAYS & set(row.get("overlays") or ()) for row in rows)):
+    if not watcher_known_running(status, known):
         return "attention"
-    if status and not status.get("enabled", True):
+    if (status.get("upgrade_pending") is True or watcher.get("ticking") is False
+            or watcher.get("engine_state") in ("incompatible", "failed_here")
+            or any(ATTENTION_OVERLAYS & set(row.get("overlays") or ()) for row in known)):
+        return "attention"
+    if status.get("enabled") is not True:
         return "paused"
-    if any(not is_waiting(row) for row in rows):
+    codes = status.get("codes") or {}
+    if (any(not is_waiting(row) for row in known)
+            or any((codes.get(code) or 0) > 0 for code in MOVING_CODES)):
         return "recovering"
-    waiting = [row for row in rows if is_waiting(row)]
-    if any(row.get("eligible_at") is not None and row["eligible_at"] <= now for row in waiting):
+    if any(row.get("eligible_at") is not None and row["eligible_at"] <= now for row in known):
         return "checking"
-    return "waiting" if waiting else "monitoring"
+    return "waiting" if known or (status.get("pending") or 0) > 0 else "monitoring"
+
+
+def watcher_known_running(status, rows) -> bool:
+    """Whether what was read says the watcher runs: the status says so, and no row is held for a
+    watcher that is not running. The list and the status are read a moment apart, so the one can
+    say the watcher runs while a row of the other is held for it having stopped (engine_unavailable,
+    "watcher not running"); until the next read settles it, the header takes the row's word for it
+    rather than draw a light that moves beside a watcher it calls stopped."""
+    return ((status or {}).get("watcher_running") is True
+            and not any("engine_unavailable" in (row.get("overlays") or ()) for row in rows or ()))
+
+
+def light_for(status, word, rows=None) -> str:
+    """The status light for a header's word. Not quite the word: a watcher that is not running, or
+    that nothing has confirmed is running (watcher_known_running), is a light that is off - grey and
+    still, as in the window, the panel and the taskbar - while the word beside it asks for attention.
+    A light that moves says the product is running; amber is for a watcher that runs and is not well."""
+    return word if watcher_known_running(status, rows) else "idle"
+
+
+def icon_attention(status, rows) -> bool:
+    """Whether the open popup tells the notification-area icon that a person must act (PopupModel.attention,
+    tray.popup_attention). The icon's own rule, kept as it was when v0.6.10 gave the headers theirs: a
+    watcher that says it is not running, or runs and has stopped ticking, an engine that is not supported
+    or failed here, or a row held for one of those. Unlike the header's word it is not raised for a
+    watcher nothing has confirmed is running, or for an older watcher still owning the state."""
+    status = status or {}
+    watcher = status.get("watcher") or {}
+    return (status.get("watcher_running") is False or watcher.get("ticking") is False
+            or watcher.get("engine_state") in ("incompatible", "failed_here")
+            or any(ATTENTION_OVERLAYS & set(row.get("overlays") or ()) for row in rows or ()))
 
 
 def snapshot_activity(snapshot, now, *, attention=False) -> str:
@@ -100,6 +146,8 @@ def task_item(row, strings, now) -> dict:
         status = say(strings, "activity.waiting")
     else:
         seconds = max(0.0, at - now)
+        # A reset is waited for; anything else is looked at again at the next check, the word the
+        # popup's own summary, the window and the panel use (popup.until_retry: "Next check · …").
         key = "popup.until_reset" if usage and row.get("reset_at") else "popup.until_retry"
         status = say(strings, key, time=countdown(seconds))
     overlays = set(row.get("overlays") or ())
@@ -119,7 +167,9 @@ def task_item(row, strings, now) -> dict:
         "tone": tone,
         "status": status,
         "at_zero": seconds is not None and seconds <= 0,
-        "check_label": say(strings, "popup.resume_usage" if usage else "popup.resume_transient"),
+        # The switch's own name, as the window's Pending column and the panel's row call it; the
+        # status line above it already says whether the task waits for a reset or a retry.
+        "check_label": say(strings, "pending.col_resume"),
         "checked": enabled,
         "busy": False,
     }
@@ -132,13 +182,16 @@ def view_model(rows, status, strings, now, *, notice=None, error=None) -> dict:
     waiting = [row for row in ordered if is_waiting(row)]
     due = [row["eligible_at"] for row in waiting if row.get("eligible_at") is not None]
     dash = "—"
-    state = activity(status, ordered, now)
+    state = activity(status, ordered if known else None, now)
     tasks = [task_item(row, strings, now) for row in ordered[:MAX_TASKS]]
     more = len(ordered) - len(tasks)
-    paused = None if status is None else not status.get("enabled", True)
+    # What the header says and what the toggle offers are one reading: recovery not known to be on is paused.
+    paused = None if status is None else status.get("enabled") is not True
     return {
         "title": say(strings, "tray.title"),
         "state": state,
+        # The dot: the word's light, grey and still for a watcher not known to be running (v0.6.10).
+        "light": light_for(status, state, ordered if known else None),
         "state_text": say(strings, "activity." + state),
         "counts": [
             (say(strings, "popup.count_waiting"), str(len(waiting)) if known else dash),
@@ -278,7 +331,8 @@ class PopupModel:
         self.wants_read = True
 
     def attention(self) -> bool:
-        return self.status is not None and activity(self.status, self.rows, time.time()) == "attention"
+        """What the icon reads while this popup is open: its own rule (icon_attention), not the header's word."""
+        return self.status is not None and icon_attention(self.status, self.rows)
 
 
 def select_action(visible, now, *, hidden_at=None, double_click_at=None, previous_key_at=None,

@@ -7,6 +7,11 @@ publication that verified one more Codex version would otherwise turn the suite 
 picture stale. So those tests and `build/make_screenshots.py` read `fixtures/codex_compat_frozen.json`
 instead: v0.6.6's bundled document, byte for byte. The live file is held to its own rules by
 `tests/test_compat.py:BundledBaselineTests`, which still reads it.
+
+The same goes for what others report (v0.6.10): `data/reported.json` changes whenever a report is
+filed, so the same readers get `fixtures/reported_frozen.json` - sample counts for the Codex version
+the pictures describe, so the Diagnostics card is photographed with its Reported row filled in. The
+live file is held to the filed reports by `tests/test_reported_data.py`, which still reads it.
 """
 from __future__ import annotations
 
@@ -15,6 +20,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 FROZEN = Path(__file__).resolve().parent / "fixtures" / "codex_compat_frozen.json"
+REPORTED = Path(__file__).resolve().parent / "fixtures" / "reported_frozen.json"
 
 
 @contextmanager
@@ -28,7 +34,7 @@ def frozen():
     # Two places look `load_bundled` up since v0.6.10-alpha: compat/files.py, through which
     # every part of the registry calls it, and the compatio front, through which the pictures
     # and the tests read it. Both are replaced, or half the product reads the live data.
-    from codex_auto_resume.compat import files
+    from codex_auto_resume.compat import files, reported
     real = compatio.load_bundled
 
     def load_bundled(path=None, **options):
@@ -37,8 +43,10 @@ def frozen():
     cached = transport._VERIFIED
     transport._VERIFIED = None
     try:
+        # Reported's counts are read through `reported.BUNDLED` by their one reader, and nowhere else.
         with patch.object(compatio, "load_bundled", load_bundled), \
-                patch.object(files, "load_bundled", load_bundled):
+                patch.object(files, "load_bundled", load_bundled), \
+                patch.object(reported, "BUNDLED", REPORTED):
             yield FROZEN
     finally:
         transport._VERIFIED = cached

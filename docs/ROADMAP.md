@@ -297,7 +297,7 @@ its own, and the modularization is that: it changes nothing anybody could see, s
 release by itself, and it has to be finished and published before what is built on it. The design is
 the opposite - it changes what everything looks like - so it is a release.
 
-### v0.6.10-alpha 🚧 — Python modularization (a pre-release)
+### v0.6.10-alpha ✅ — Python modularization (a pre-release)
 
 The alpha is the major structural cleanup of the Python implementation. It was the main part of
 v0.6.5 in the earlier plan, and then of v0.6.8 and v0.6.9; v0.6.5 shipped its groundwork, and the
@@ -338,7 +338,7 @@ both ways. The window's three hand-written C# files are eighteen, grouped by hal
 the Rust part every module becomes, and fails when a placement stops being true.
 
 
-### v0.6.10 — The design audit, and a choice of appearance
+### v0.6.10 🚧 — The design audit, and a choice of appearance
 
 The final v0.6.10 is the design, settled, and the one new word that comes with it - Reported, below.
 It is a release of its own because it is worth one: it changes what every surface looks like, which is exactly what a person sees. It sits
@@ -370,27 +370,53 @@ repository's side of it - the check that reads such a pull request as data, and 
 beside a version. None of it can be made up without it showing:
 
 - **A report is what the program measured, not what a person typed.** The program runs the checks on
-  the contributor's own machine and writes the report itself: the Codex version and the engine's
-  fingerprint it read, each check it ran and its result. The fields a person might be tempted to
-  choose - which tier a version earns, whether a check counts as exercised - are derived from the
-  measurements, and the repository derives them again when the report arrives, so a hand-edited
-  conclusion does not survive.
+  the contributor's own machine and writes the report itself: the Codex version the product read from
+  the engine, the fingerprint of the setup that measured it, each check it ran and its result. The
+  fields a person might be tempted to choose - which tier a version earns, whether a check counts as
+  exercised - are derived from the measurements, and the repository derives them again when the
+  report arrives, so a hand-edited conclusion does not survive.
 - **A report arrives as a pull request, and is checked as data.** A check that runs on every such pull
   request reads the files without running anything in them, accepts only new files under the
   contributor's own GitHub name (the one who opened it), rejects a report whose version, fingerprint
   or dates are not plausible, and refuses a duplicate. A maintainer still reviews and merges each one,
   and a report found to be wrong can be withdrawn, in the open.
+
+  The fingerprint is the setup that measured: the product's own version, the reporting program's and
+  Windows'. Each has to be one that could have written the report - a Codex version the product
+  itself names engines by, a product version that is one of this repository's releases and was out
+  before the report was written, a plain release of the reporting program (three numbers, nothing
+  after them) from 1.0.0 on, Windows 10 or later - and the times have to be ones the machine could
+  have recorded: none before the project existed, none after the report was written, and each
+  record's delivery and outcome after its detection. It names the setup, not the binary. A digest of
+  codex.exe itself, the same on every machine with that build and naming nobody, would tie a report
+  to the exact binary; the report format carries none yet, and adding one needs a new format in both
+  programs, which is this check's next step. The product's own digest is of codex.exe's path, which
+  holds the Windows user name, so it never leaves the machine. A duplicate is a second report for the
+  same GitHub name and Codex version, or a copy: a report with at least one record whose records -
+  their times and states, in order - are those of a report already filed for the same version. A
+  report with no records has nothing to copy and is never refused as one.
 - **What others report is shown, and changes nothing.** It has a grade of its own, *Reported*, which
   stands beside the ladder of Verified, Checked, Compatible and Failed here and never becomes one of
-  them. It is listed beside the version, with the number of machines that said the same thing: N
-  reported it working, M reported a failure, K reported nothing either way. A report is counted as
-  worked when at least one of its records was delivered and ended in the state `recovered`; as failed
-  when at least one delivered record ended in `recovery_turn_failed`, `failed` or `terminal_failure`;
-  and as neither when nothing was delivered. One report can be counted in both columns when different
-  records say different things, and that is shown rather than resolved. Reported never raises a
+  them. It is listed beside the version, with the number of reports that said the same thing - one
+  per GitHub name per Codex version, so a number of reports and not of machines: N reported it
+  working, M reported a failure, K reported nothing either way. A report is counted as worked when at
+  least one of its records was delivered and ended in the state `recovered`; as failed when at least
+  one delivered record ended in `recovery_turn_failed`, `failed` or `terminal_failure`; and as
+  neither when no delivered record ended in either, which includes a report with nothing delivered at
+  all. One report can be counted in both columns when different records say different things, and
+  that is shown rather than resolved, so worked, failed and neither, less the reports counted twice,
+  add up to the reports. Only a filed report counts - one still waiting in a pull request counts
+  nowhere - and a report's own levels and verdict never do. Reported never raises a
   version to Verified or Checked - a version whose own evidence says nothing stays Compatible however
   many reports arrive - and it never changes what the product lets itself do: those tiers stay the
   maintainer's own, earned the way they are today.
+
+The reports stay in their own folder, `docs/evidence/community/`, and never enter the compatibility
+data. Only their counts travel, in a file of their own that each release carries beside the
+compatibility data and never inside it: the product reads it to show the counts, and nothing that
+decides reads it at all. No request fetches it - the refresh a person asks for still fetches the
+compatibility data and nothing else - so a count newer than the installed release waits for the next
+one.
 
 This is honest about its limit: nothing can prove a report was not fabricated on the contributor's
 own machine. So what others report informs, and only the maintainer's own evidence decides.

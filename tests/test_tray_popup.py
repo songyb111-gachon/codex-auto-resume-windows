@@ -123,18 +123,37 @@ class ViewModelTests(unittest.TestCase):
                               STATUS, EN, NOW)
         task = vm["tasks"][0]
         self.assertEqual(task["status"], EN["popup.until_reset"].replace("{time}", "1:02:05"))
-        self.assertEqual(task["check_label"], EN["popup.resume_usage"])
+        self.assertEqual(task["check_label"], EN["pending.col_resume"])
         self.assertEqual(task["reason"], EN["reason.usage_limit"])
         self.assertEqual(task["tone"], "waiting")
 
-    def test_every_other_interruption_counts_down_to_its_retry(self):
+    def test_every_other_interruption_counts_down_to_its_next_check(self):
         for category in ("network_transient", "rate_limit_transient", "timeout", "server_5xx",
                          "stream_interrupted", "auth_service_transient"):
             with self.subTest(category):
                 task = popup.view_model([row("a", category=category, eligible=NOW + 65)], STATUS, EN, NOW)["tasks"][0]
                 self.assertEqual(task["status"], EN["popup.until_retry"].replace("{time}", "1:05"))
-                self.assertEqual(task["check_label"], EN["popup.resume_transient"])
+                self.assertEqual(task["status"], "Next check · 1:05")
+                self.assertEqual(task["check_label"], EN["pending.col_resume"])
                 self.assertEqual(task["reason"], EN["reason." + category])
+
+    def test_the_popup_says_what_the_window_and_the_panel_say(self):
+        """v0.6.10: one word for one thing. A task's switch is Auto-resume, as the window's Pending
+        column and the panel's row call it, where the popup alone offered two sentences of its own
+        ("Automatically retry this task", "... resume this task when the limit resets"); and a row
+        counts down to the Next check its own summary names, where it said Next try."""
+        for locale in l10n.LOCALES:
+            strings = interface.STRINGS[locale]
+            with self.subTest(locale):
+                self.assertEqual(strings["popup.until_retry"], strings["popup.next_check"] + " · {time}")
+                self.assertEqual(strings["popup.next_check"], strings["pending.col_next"])
+                self.assertEqual(strings["popup.next_check"], strings["panel.col_next"])
+                rows = [row("a", "waiting_reset", "usage_limit", eligible=NOW + 60, reset=NOW + 60),
+                        row("b", eligible=NOW + 120, thread=OTHER_THREAD)]
+                for task in popup.view_model(rows, STATUS, strings, NOW)["tasks"]:
+                    self.assertEqual(task["check_label"], strings["pending.col_resume"])
+        for gone in ("popup.resume_transient", "popup.resume_usage"):
+            self.assertNotIn(gone, EN)
 
     def test_reaching_zero_only_says_the_watcher_looks_again(self):
         vm = popup.view_model([row("a", eligible=NOW - 5)], STATUS, EN, NOW)
@@ -189,10 +208,10 @@ class ViewModelTests(unittest.TestCase):
                                   strings["popup.next_check"]])
                 usage, transient = vm["tasks"]
                 self.assertEqual(usage["status"], strings["popup.until_reset"].replace("{time}", "1:00"))
-                self.assertEqual(usage["check_label"], strings["popup.resume_usage"])
+                self.assertEqual(usage["check_label"], strings["pending.col_resume"])
                 self.assertEqual(usage["reason"], strings["reason.usage_limit"])
                 self.assertEqual(transient["status"], strings["popup.until_retry"].replace("{time}", "2:00"))
-                self.assertEqual(transient["check_label"], strings["popup.resume_transient"])
+                self.assertEqual(transient["check_label"], strings["pending.col_resume"])
                 self.assertEqual(vm["toggle_text"], strings["action.pause"])
                 self.assertEqual(vm["dashboard_text"], strings["popup.open_dashboard"])
                 self.assertEqual(popup.view_model([], STATUS, strings, NOW)["empty"], strings["popup.nothing"])
@@ -200,7 +219,7 @@ class ViewModelTests(unittest.TestCase):
     def test_an_empty_vocabulary_still_speaks_english(self):
         vm = popup.view_model([row("a", eligible=NOW + 5)], STATUS, {}, NOW)
         self.assertEqual(vm["dashboard_text"], EN["popup.open_dashboard"])
-        self.assertEqual(vm["tasks"][0]["check_label"], EN["popup.resume_transient"])
+        self.assertEqual(vm["tasks"][0]["check_label"], EN["pending.col_resume"])
 
 
 class ActivityTests(unittest.TestCase):
@@ -224,6 +243,77 @@ class ActivityTests(unittest.TestCase):
         self.assertEqual(popup.activity(dict(STATUS, watcher_running=False), [], NOW), "attention")
         self.assertEqual(popup.activity(dict(STATUS, watcher={"engine_state": "incompatible"}), [], NOW),
                          "attention")
+        # v0.6.10 (F5): an older watcher still owning the state needs a person here too, as in the window.
+        self.assertEqual(popup.activity(dict(STATUS, upgrade_pending=True), [], NOW), "attention")
+
+    def test_a_stopped_watcher_asks_for_attention_beside_a_light_that_is_off(self):
+        """v0.6.10 (F4): the word and the light are two things, as in the panel. A watcher that is not running, or
+        that nothing has confirmed is running, keeps the word that asks for a person, and its light is idle grey:
+        the window, the panel and the taskbar button drew it so, and only the popup drew an amber light that
+        breathed - a moving light claiming the product runs. Amber is for a watcher that runs and is not well."""
+        for status in (dict(STATUS, watcher_running=False), dict(STATUS, watcher_running=None),
+                       {"enabled": True}, None):
+            with self.subTest(status=status):
+                vm = popup.view_model([row("a", eligible=NOW + 5)], status, EN, NOW)
+                self.assertEqual(vm["state"], "attention")
+                self.assertEqual(vm["state_text"], EN["activity.attention"])
+                self.assertEqual(vm["light"], "idle")
+                self.assertFalse(popup.animates(vm["light"], 0))
+                self.assertIsNone(popup.halo(vm["light"], 1234, 1234))
+                self.assertEqual(popup.DOT_FILL[vm["light"]], "idle")
+        running = popup.view_model([], dict(STATUS, watcher={"running": True, "ticking": False}), EN, NOW)
+        self.assertEqual((running["state"], running["light"]), ("attention", "attention"))
+        self.assertTrue(popup.animates(running["light"], 0))
+        # The status says it runs, a row read a moment apart is held for it stopped ("watcher not running"): the row
+        # is believed, and the light is off rather than an amber light breathing beside a stopped watcher's row.
+        held = popup.view_model([row("a", eligible=NOW + 5, overlays=["engine_unavailable"])], STATUS, EN, NOW)
+        self.assertEqual((held["state"], held["light"]), ("attention", "idle"))
+        self.assertFalse(popup.animates(held["light"], 0))
+        for word in popup.STATES:
+            with self.subTest(word=word):
+                self.assertEqual(popup.light_for(STATUS, word), word)
+                self.assertEqual(popup.light_for(STATUS, word, [row("a", overlays=["watcher_not_ticking"])]), word)
+                self.assertEqual(popup.light_for(dict(STATUS, watcher_running=False), word), "idle")
+                self.assertEqual(popup.light_for(STATUS, word, [row("a", overlays=["engine_unavailable"])]), "idle")
+
+    def test_the_open_popup_tells_the_icon_the_icon_s_own_rule_not_the_header_s_word(self):
+        """v0.6.10 gave the headers one rule for their word, wider than the icon's: it asks for attention for a watcher
+        nothing has confirmed is running and for an older watcher still owning the state. The icon reads whether a
+        person must act from the open popup (PopupModel.attention, tray.popup_attention), and keeps the rule it had
+        (icon_attention) - the critic's F5 correction: the headers' rule is not the icon's."""
+        model = popup.PopupModel(EN)
+        cases = (
+            # (status, rows): (the header's word, what the open popup tells the icon)
+            (dict(STATUS, watcher_running=None), []),
+            ({"enabled": True}, []),
+            (dict(STATUS, upgrade_pending=True), []),
+        )
+        for status, rows in cases:
+            with self.subTest(status=status):
+                model.status, model.rows = copy.deepcopy(status), rows
+                self.assertEqual(popup.activity(status, rows, NOW), "attention")
+                self.assertFalse(model.attention())
+        needs = (
+            (dict(STATUS, watcher_running=False), []),
+            (dict(STATUS, watcher=dict(STATUS["watcher"], ticking=False)), []),
+            (dict(STATUS, watcher=dict(STATUS["watcher"], engine_state="incompatible")), []),
+            (dict(STATUS, watcher=dict(STATUS["watcher"], engine_state="failed_here")), []),
+        ) + tuple((STATUS, [row("a", overlays=[overlay])]) for overlay in sorted(popup.model.ATTENTION_OVERLAYS))
+        for status, rows in needs:
+            with self.subTest(status=status, rows=rows):
+                model.status, model.rows = copy.deepcopy(status), rows
+                self.assertTrue(model.attention())
+        model.status, model.rows = copy.deepcopy(STATUS), []
+        self.assertFalse(model.attention())
+        model.status = None
+        self.assertFalse(model.attention(), "nothing read tells the icon nothing")
+        snapshot = {"enabled": True, "waiting": 0, "running": 0, "next_at": None}
+        for status in (dict(STATUS, watcher_running=None), dict(STATUS, upgrade_pending=True)):
+            with self.subTest(icon=status):
+                model.status, model.rows = copy.deepcopy(status), []
+                opened = unittest.mock.Mock(visible=True, attention=model.attention)
+                self.assertEqual(tray.icon_state(snapshot, attention=tray.popup_attention(opened)),
+                                 tray.icon_state(snapshot))
 
     def test_the_icon_s_word_follows_the_ticks_snapshot(self):
         self.assertEqual(popup.snapshot_activity({}, NOW), "monitoring")
@@ -411,9 +501,14 @@ class LayoutTests(unittest.TestCase):
         label's last line (the geometry in every language, at every scale and with labels far longer
         than any translation is tests/test_tray_popup_v064.py)."""
         line_h = measure("body", "Ag", 100, False)[1]
-        wrapped = 0
+        wrapped = single = 0
         for scale in (1.0, 1.25, 1.5, 1.75, 2.0):
-            _, plan = self.plan(scale=scale)
+            vm, _ = self.plan(scale=scale)
+            # Since v0.6.10 the label is the switch's short name, Auto-resume, one line in English where
+            # the popup's own sentence wrapped; the second row's is said six times over so that one label
+            # wraps and its last line can be told from its first.
+            vm["tasks"][1]["check_label"] = " ".join([vm["tasks"][1]["check_label"]] * 6)
+            plan = popup.layout(vm, scale, measure)
             switches = [item for item in plan["items"] if item["kind"] == "switch"]
             self.assertEqual(len(switches), 2)
             for switch in switches:
@@ -429,23 +524,66 @@ class LayoutTests(unittest.TestCase):
                     # Centred on the label's last line, however many lines it wraps to...
                     self.assertLessEqual(abs(label["rect"][3] - line_h / 2.0 - (top + bottom) / 2.0), 0.5)
                     wrapped += label["rect"][3] - label["rect"][1] > line_h
+                    single += label["rect"][3] - label["rect"][1] <= line_h
                     # ...and the lowest thing on its line: the line's hit rectangle ends its margin below it.
                     hit = dict(plan["targets"])[switch["target"]]
                     self.assertEqual(hit[3], bottom + round(4 * scale))
                     self.assertTrue(hit[0] <= label["rect"][0] and hit[1] <= label["rect"][1] and right <= hit[2])
         self.assertGreater(wrapped, 0, "no label wrapped, so nothing here tells the last line from the first")
+        self.assertGreater(single, 0, "the switch's own name is one line beside it")
 
     def test_the_header_keeps_its_place_and_the_glow_stays_on_the_card(self):
+        """The popup's own header, as it has always been: the product's name is the title - `title`, in ink - and the
+        state is a line under it in the `state` role, coloured by its word (STATE_INK); the dot is centred on the
+        pair in its MARK box at the card's content, and both lines start MARK and a small step and 2 px from there.
+        v0.6.10 (F7) tried the panel's hero here - the product a muted eyebrow over the state's word in ink, the dot
+        on the word's line - and gave it back. The dot is the word's light (vm["light"])."""
+        for scale in (1.0, 1.25, 1.5, 1.75, 2.0):
+            for locale in ("en", "de", "ja"):
+                with self.subTest(scale=scale, locale=locale):
+                    vm, plan = self.plan(interface.STRINGS[locale], scale=scale)
+                    card = plan["card"]
+                    left = card[0] + round(brand.SPACING["l"] * scale)
+                    mark = round(popup.MARK * scale)
+                    halo = next(item for item in plan["items"] if item["kind"] == "halo")
+                    self.assertAlmostEqual(halo["radius"], brand.glow_extent(brand.STATUS_DOT["popup"]) * scale)
+                    self.assertGreaterEqual(halo["cx"] - halo["radius"], card[0])
+                    self.assertEqual(halo["state"], vm["light"])
+                    title, state = [item for item in plan["items"] if item["kind"] == "text"][:2]
+                    self.assertEqual((title["text"], title["role"], title["colour"]), (vm["title"], "title", "ink"))
+                    self.assertEqual((state["text"], state["role"], state["colour"]),
+                                     (vm["state_text"], "state", popup.STATE_INK[vm["state"]]))
+                    text_left = left + mark + round((brand.SPACING["s"] + 2) * scale)
+                    self.assertEqual(title["rect"][0], text_left)
+                    self.assertEqual(state["rect"][0], text_left)
+                    self.assertEqual(title["rect"][3], state["rect"][1], "the state line stands under the title")
+                    self.assertAlmostEqual(halo["cx"], left + mark / 2.0)
+                    self.assertLessEqual(abs(halo["cy"] - (title["rect"][1] + state["rect"][3]) / 2.0), 0.5,
+                                         "the dot is centred on the pair")
+
+    def test_buttons_and_chips_are_the_window_s_size_and_stay_bold(self):
+        """v0.6.10 (F8): a button is LAYOUT's `button_height` high and a chip `chip_height`, padded `chip_pad_x`, as the
+        window's and the panel's are; until then the popup's buttons were 32 high and its chips shorter and tighter.
+        Both stay bold (600), the popup's own look: v0.6.10 set them at brand.TYPE_ROLES' 500, which is drawn Regular
+        here, and the owner gave that back."""
+        self.assertEqual(popup.ROLES["button"][1], 600)
+        self.assertEqual(popup.ROLES["chip"][1], 600)
+        self.assertEqual(popup.font_candidates("en", popup.ROLES["button"][1], "Segoe UI"),
+                         (("Segoe UI Semibold", 400), ("Segoe UI", 600)))
         for scale in (1.0, 1.25, 1.5, 1.75, 2.0):
             with self.subTest(scale=scale):
                 _, plan = self.plan(scale=scale)
-                card = plan["card"]
-                halo = next(item for item in plan["items"] if item["kind"] == "halo")
-                self.assertAlmostEqual(halo["radius"], brand.glow_extent(brand.STATUS_DOT["popup"]) * scale)
-                self.assertGreaterEqual(halo["cx"] - halo["radius"], card[0])
-                title = next(item for item in plan["items"] if item["kind"] == "text" and item["role"] == "title")
-                self.assertEqual(title["rect"][0], card[0] + round(brand.SPACING["l"] * scale)
-                                 + round(popup.MARK * scale) + round((brand.SPACING["s"] + 2) * scale))
+                buttons = [item["rect"] for item in plan["items"] if item["kind"] == "button"]
+                self.assertEqual(len(buttons), 2)
+                for rect in buttons:
+                    self.assertEqual(rect[3] - rect[1], round(brand.LAYOUT["button_height"] * scale))
+                chips = [item["rect"] for item in plan["items"] if item["kind"] == "chip"]
+                self.assertTrue(chips)
+                for rect in chips:
+                    self.assertEqual(rect[3] - rect[1], round(brand.LAYOUT["chip_height"] * scale))
+                labels = [item for item in plan["items"] if item["kind"] == "text" and item["role"] == "chip"]
+                for chip, label in zip(chips, labels):
+                    self.assertEqual(label["rect"][0] - chip[0], round(brand.LAYOUT["chip_pad_x"] * scale))
 
 
 # ------------------------------------------------------------------------------- motion
@@ -538,7 +676,7 @@ class MotionTests(unittest.TestCase):
     def test_the_cycle_starts_with_the_state(self):
         """As the window's does: a light that starts moving leaves the still light, with no jump."""
         shown = object.__new__(popup.Popup)
-        shown._vm, shown._reduced, shown._state_since = {"state": "monitoring"}, False, 100.0
+        shown._vm, shown._reduced, shown._state_since = {"state": "monitoring", "light": "monitoring"}, False, 100.0
         # The two moments the cycle is read at, from the table rather than as seconds, so a
         # change of rhythm moves them with it: the fall's end (darkest) and the bloom's (widest).
         cycle = self.GLOW["monitoring_ms"] / 1000.0
@@ -550,6 +688,20 @@ class MotionTests(unittest.TestCase):
             self.assertAlmostEqual(shown.frame()["dim"], 1.0 - brand.glow_floor())
         with unittest.mock.patch.object(popup.window.time, "monotonic", return_value=widest):
             self.assertAlmostEqual(shown.frame()["opacity"], self.GLOW["peak"])
+
+    def test_the_frame_is_the_light_s_and_a_stopped_watcher_s_light_is_off(self):
+        """v0.6.10 (F4): the dot follows the light, not the word. A watcher not known to be running says
+        "Needs your attention" beside a grey dot that neither breathes nor glows, as in the window and the panel;
+        a moving light would say the product is running."""
+        shown = object.__new__(popup.Popup)
+        shown._vm, shown._reduced, shown._state_since = {"state": "attention", "light": "idle"}, False, 100.0
+        for moment in (100.0, 100.0 + self.GLOW["attention_ms"] / 2000.0, 100.0 + self.GLOW["attention_ms"] / 1000.0):
+            with unittest.mock.patch.object(popup.window.time, "monotonic", return_value=moment):
+                self.assertIsNone(shown.frame())
+        self.assertFalse(popup.animates("idle", 0))
+        shown._vm = {"state": "attention", "light": "attention"}
+        with unittest.mock.patch.object(popup.window.time, "monotonic", return_value=100.0):
+            self.assertIsNotNone(shown.frame())
 
 
 class SwitchGlideTests(unittest.TestCase):
@@ -602,6 +754,9 @@ class StatusLightTests(unittest.TestCase):
             self.assertEqual(popup.DOT_FILL[state], "active", state)      # the colour it had before v0.6.3
         self.assertEqual(popup.DOT_FILL["paused"], "paused")
         self.assertEqual(popup.DOT_FILL["attention"], "attention")
+        # v0.6.10 (F4): keyed by light, brand's table whole, so the grey of a watcher not known to be running is in it.
+        self.assertEqual(popup.DOT_FILL, brand.STATUS_FILL)
+        self.assertEqual(popup.DOT_FILL["idle"], "idle")
 
 
 # ---------------------------------------------------------------------------- elevation
@@ -1272,6 +1427,35 @@ class WindowsTests(unittest.TestCase):
         finally:
             renderer.close()
 
+    def test_a_stopped_watcher_s_dot_is_idle_grey_with_no_glow_beside_its_amber_word(self):
+        """v0.6.10 (F4): drawn, not only decided. The halo item carries the light, and the dot is `idle` with
+        nothing round it at any moment of what would have been attention's breath; the word keeps its warning ink,
+        the state line's colour (STATE_INK) as it has always been."""
+        renderer = popup.Renderer()
+        try:
+            vm = popup.view_model(self.ROWS, dict(STATUS, watcher_running=False), EN, NOW)
+            self.assertEqual((vm["state"], vm["light"]), ("attention", "idle"))
+            plan = renderer.layout(vm, 1.5, "en")
+            halo = next(item for item in plan["items"] if item["kind"] == "halo")
+            self.assertEqual(halo["state"], "idle")
+            word = next(item for item in plan["items"] if item["kind"] == "text" and item["text"] == vm["state_text"])
+            self.assertEqual(word["colour"], popup.STATE_INK["attention"])
+            cx, cy, width = int(halo["cx"]), int(halo["cy"]), plan["size"][0]
+            for moment in (0, brand.GLOW["attention_ms"] * 0.5, brand.GLOW["attention_ms"]):
+                canvas = renderer.draw(vm, plan, frame=popup.halo(vm["light"], moment, moment))
+                pixels = canvas.pixels()
+
+                def pixel(x, y):
+                    index = (y * width + x) * 4
+                    return pixels[index + 2], pixels[index + 1], pixels[index]
+
+                with self.subTest(moment=moment):
+                    self.assertEqual(pixel(cx, cy), brand.rgb(brand.LIGHT["idle"]))
+                    for distance in (9, 12, 15):
+                        self.assertEqual(pixel(cx + distance, cy), brand.rgb(brand.LIGHT["surface"]))
+        finally:
+            renderer.close()
+
     def test_high_contrast_is_system_colours_with_no_shadow_and_no_glow(self):
         renderer = popup.Renderer()
         try:
@@ -1390,8 +1574,9 @@ class WindowsTests(unittest.TestCase):
         try:
             strings = interface.STRINGS["ko"]
             renderer.use("ko", 1.0)
-            self.assertIn("\n", renderer.lines("body", strings["popup.resume_usage"], 140))
-            for key in ("popup.resume_usage", "popup.stale", "popup.zero_note", "action.pause"):
+            # The popup's longest line of its own; its switch's two long sentences went in v0.6.10.
+            self.assertIn("\n", renderer.lines("body", strings["popup.zero_note"], 140))
+            for key in ("popup.nothing", "popup.stale", "popup.zero_note", "action.pause"):
                 for width in (90, 140, 200, 260):
                     with self.subTest(key=key, width=width):
                         wrapped = renderer.lines("body", strings[key], width)

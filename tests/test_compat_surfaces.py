@@ -252,6 +252,68 @@ class CommandLineTests(unittest.TestCase):
         self.assertIn("watcher's report :", out)
         self.assertIn("compatible: its local checks pass", out)
 
+    def test_doctor_and_compat_say_what_others_report_and_decide_nothing_by_it(self):
+        """One line beside the version (v0.6.10), saying it is others' reports and changes nothing - and
+        it does not: doctor's answer and every other line are the same whatever the counts claim."""
+        from codex_auto_resume import startup
+        from codex_auto_resume.compat import reported
+        version = "codex-cli 0.155.0"
+        folder = Path(self.fixture.folder.name) / "counts"
+        folder.mkdir()
+        self.fixture.backend()
+        said = {}
+        for name, entries in (("none_yet", ()), ("worked", ((version, 1000, 0, 0, 0),)),
+                              ("failed", ((version, 0, 1000, 0, 0),)), ("both", ((version, 3, 2, 1, 1),))):
+            with patch.object(reported, "BUNDLED", counts_file(folder, *entries)), \
+                 patch.object(windows.Backend, "app_identity", return_value=None), \
+                 patch.object(startup, "protocol_value", return_value=None):
+                said[name] = (self.cli("doctor"), self.cli("compat"))
+        lines = {name: [line for line in doctor[1].splitlines() + compat_[1].splitlines()
+                        if line.startswith("reported ")] for name, (doctor, compat_) in said.items()}
+        self.assertEqual(lines["none_yet"], ["reported         : none yet (others' reports; changes nothing)"] * 2)
+        self.assertEqual(lines["failed"], ["reported         : worked 0, failed 1000, neither 0 "
+                                           "(others' reports; changes nothing)"] * 2)
+        self.assertEqual(lines["both"], ["reported         : worked 3, failed 2, neither 1, counted in both 1 "
+                                         "(others' reports; changes nothing)"] * 2)
+        rest = {name: ([line for line in doctor[1].splitlines() if not line.startswith("reported ")], doctor[0],
+                       [line for line in compat_[1].splitlines() if not line.startswith("reported ")], compat_[0])
+                for name, (doctor, compat_) in said.items()}
+        self.assertEqual(rest["worked"], rest["none_yet"])
+        self.assertEqual(rest["failed"], rest["none_yet"])
+        self.assertEqual(rest["both"], rest["none_yet"])
+
+    def test_the_reported_line_says_the_dashboards_words_in_every_state(self):
+        """One wording (F13, R10): the command line says what the Dashboard's row says - "could not
+        be read" for counts that could not be read, with the same qualifier as the counts, and "-"
+        where there is nothing to say (no report, so no version) - never words of its own."""
+        from codex_auto_resume import startup
+        from codex_auto_resume.compat import reported
+        folder = Path(self.fixture.folder.name) / "counts"
+        folder.mkdir()
+        unreadable = folder / "reported-unreadable.json"
+        unreadable.write_text("{}", encoding="utf-8")
+
+        def reported_lines(out):
+            return [line for line in out.splitlines() if line.startswith("reported ")]
+
+        # No report yet: the view vouches for no version, so the row is a dash, as the window's is.
+        with patch.object(reported, "BUNDLED", counts_file(folder, ("codex-cli 0.155.0", 1, 0, 0, 0))):
+            code, out = self.cli("compat")
+        self.assertEqual(code, 0)
+        self.assertIn("compatibility    : unknown (no report yet", out)
+        self.assertEqual(reported_lines(out), ["reported         : -"])
+        # A counts file that cannot be read, beside an engine that was found.
+        self.fixture.backend()
+        with patch.object(reported, "BUNDLED", unreadable),              patch.object(windows.Backend, "app_identity", return_value=None),              patch.object(startup, "protocol_value", return_value=None):
+            said = (self.cli("doctor")[1], self.cli("compat")[1])
+        self.assertEqual([reported_lines(out) for out in said],
+                         [["reported         : could not be read (others' reports; changes nothing)"]] * 2)
+        # The words are the English catalog's, which the window draws.
+        english = json.loads((ROOT / "src" / "codex_auto_resume" / "locales" / "en.json")
+                             .read_text(encoding="utf-8"))
+        self.assertEqual((english["compat.reported.rejected"], english["compat.reported.none_yet"]),
+                         ("could not be read", "none yet"))
+
     def import_verified(self):
         claim = {"state": "VERIFIED", "evidence": ["docs/evidence/loaded-thread-delivery.json"]}
         download = Path(self.fixture.folder.name) / "verified.json"
@@ -402,6 +464,174 @@ class McpTests(unittest.TestCase):
             properties = mcpserver.settings_schema()["properties"]
         self.assertIn("experimental_not_loaded_recovery", properties,
                       "the schema is generated, so the guard has to be the test above")
+
+
+def counts_file(folder, *entries) -> Path:
+    """A counts file of Reported's own format, in `folder`, holding `entries` (version, worked,
+    failed, neither, both); the reports each adds up to follow from the counting rule."""
+    from codex_auto_resume.compat import reported
+    versions = [{"version": version, "reports": worked + failed - both + neither, "worked": worked,
+                 "failed": failed, "neither": neither, "both": both}
+                for version, worked, failed, neither, both in entries]
+    path = Path(folder) / ("reported-%d.json" % len(list(Path(folder).glob("reported-*.json"))))
+    path.write_text(json.dumps({"format": reported.FORMAT, "versions": versions}), encoding="utf-8")
+    return path
+
+
+def keys_anywhere(value) -> set:
+    """Every key of every object in a parsed JSON value."""
+    if isinstance(value, dict):
+        return set(value).union(*(keys_anywhere(item) for item in value.values()))
+    if isinstance(value, list):
+        return set().union(*(keys_anywhere(item) for item in value))
+    return set()
+
+
+def leaves_anywhere(value) -> list:
+    """Every value in a parsed JSON value that is neither an object nor a list."""
+    if isinstance(value, dict):
+        return [leaf for item in value.values() for leaf in leaves_anywhere(item)]
+    if isinstance(value, list):
+        return [leaf for item in value for leaf in leaves_anywhere(item)]
+    return [value]
+
+
+class ReportedTests(unittest.TestCase):
+    """What others report, beside the version (v0.6.10): on every view a person reads - the bridge's,
+    the command line's, the diagnostics bundle's - and never in what a model reads."""
+
+    VERSION = "codex-cli 0.155.0"
+
+    def setUp(self):
+        from codex_auto_resume.compat import reported
+        self.reported = reported
+        self.fixture = Fixture(self, codex=FakeCodex(version=self.VERSION))
+        self.control = control.Control(self.fixture.paths)
+        for name, value in (("watcher_running", True), ("startup_enabled", False)):
+            guard = patch.object(control.Control, name, return_value=value)
+            guard.start()
+            self.addCleanup(guard.stop)
+        self.folder = Path(self.fixture.folder.name) / "counts"
+        self.folder.mkdir()
+
+    def counts(self, *entries):
+        """Reported's counts are `entries` for as long as the test runs."""
+        guard = patch.object(self.reported, "BUNDLED", counts_file(self.folder, *entries))
+        guard.start()
+        self.addCleanup(guard.stop)
+
+    def view(self, **payload):
+        return controlcli.dispatch(self.control, "compatibility", payload)["compatibility"]
+
+    def test_a_usable_view_carries_the_counts_of_its_exact_version(self):
+        self.counts((self.VERSION, 2, 1, 0, 1), ("codex-cli 0.153.4", 9, 9, 9, 0))
+        self.fixture.backend()
+        view = self.view()
+        self.assertEqual(view["status"], "ok")
+        self.assertEqual(view["reported"], {"state": "reported", "reports": 2, "worked": 2, "failed": 1,
+                                            "neither": 0, "both": 1})
+        self.assertEqual(self.view(live=True)["reported"], view["reported"], "a live check says the same")
+
+    def test_each_state_it_can_be_in(self):
+        self.fixture.backend()
+        self.counts(("codex-cli 0.153.4", 1, 0, 0, 0))
+        self.assertEqual(self.view()["reported"]["state"], "none_yet", "counts, but none for this version")
+        broken = self.folder / "broken.json"
+        broken.write_bytes(b'{"format": "codex-auto-resume-reported/1", "versions": [{"version": 7}]}')
+        with patch.object(self.reported, "BUNDLED", broken):
+            self.assertEqual(self.view()["reported"]["state"], "rejected")
+        with patch.object(self.reported, "BUNDLED", self.folder / "absent.json"):
+            self.assertEqual(self.view()["reported"]["state"], "unavailable")
+
+    def test_a_view_that_cannot_be_used_vouches_for_no_version(self):
+        """No report, one too old, or Codex changed under it: `unavailable`, with no counts - as the
+        window says "-" for the version then - however many reports name the version it was about."""
+        self.counts((self.VERSION, 5, 5, 0, 5))
+        before = self.view()
+        self.assertEqual((before["status"], before["reported"]["state"]), ("absent", "unavailable"))
+        self.fixture.backend()
+        stale = compatio.read_view(self.fixture.paths, now=10 ** 10)
+        self.assertEqual(stale["status"], "stale")
+        self.assertEqual(stale["engine"]["version"], self.VERSION, "the version it was about is still named")
+        self.assertEqual(stale["reported"], dict.fromkeys(stale["reported"], 0) | {"state": "unavailable"})
+
+    def test_no_engine_found_is_unavailable(self):
+        self.counts((self.VERSION, 1, 0, 0, 0))
+        from codex_auto_resume.compat import views
+        view = {"status": "ok", "engine": {"found": False, "version": self.VERSION}}
+        self.assertEqual(views.reported_for(view)["state"], "unavailable")
+
+    def test_a_model_is_never_handed_it(self):
+        """get_status and open_settings carry the summary, codes only, with the same keys as before;
+        no key anywhere in either reply is `reported`, and no count of anyone's reports is in it.
+
+        The counts are looked for as values, and inside every string, never as digits of the whole
+        reply: the summary carries `checked_at`, the clock at the check, and a clock reading such as
+        1790333390.63 holds "333" by chance, and a run of the whole suite failed on exactly that."""
+        self.counts((self.VERSION, 777, 555, 333, 111))
+        counts = (777, 555, 333, 111, 777 + 555 - 111 + 333)
+        self.fixture.backend()
+        self.assertEqual(self.view()["reported"]["worked"], 777, "the counts are there to leave out")
+        for tool in ("get_status", "open_settings"):
+            line = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                               "params": {"name": tool, "arguments": {}}}) + "\n"
+            out = io.StringIO()
+            mcpserver.Server(self.control, io.StringIO(line), out).serve()
+            result = json.loads(out.getvalue())["result"]
+            with self.subTest(tool):
+                self.assertNotIn("reported", keys_anywhere(result))
+                content = result["structuredContent"]
+                status = content["status"] if tool == "open_settings" else content
+                summary = status["watcher"]["compatibility"]
+                self.assertEqual(set(summary), {"status", "overall", "acting", "source", "sequence", "cache",
+                                                "checked_at", "capabilities"})
+                leaves = leaves_anywhere(summary)
+                numbers = [leaf for leaf in leaves if isinstance(leaf, (int, float)) and not isinstance(leaf, bool)]
+                words = [leaf for leaf in leaves if isinstance(leaf, str)] + sorted(keys_anywhere(summary))
+                for count in counts:
+                    self.assertNotIn(count, numbers, "a count of reports is a value in the summary")
+                for leak in ("codex-cli",) + tuple(str(count) for count in counts):
+                    for word in words:
+                        self.assertNotIn(leak, word)
+
+    def test_the_popup_and_the_tray_are_given_the_same_whatever_others_report(self):
+        """R10: the popup, the notification card and the tray get nothing - Reported has no action and must never
+        draw attention. What they are drawn from, and the popup's model and the icon's attention made of it, are
+        the same with no counts, with a thousand reports that failed and with a thousand that worked."""
+        from codex_auto_resume import l10n
+        from codex_auto_resume.ui.popup import model
+        self.fixture.backend()
+        strings = l10n.catalog("en")
+        seen = []
+        for entries in ((), ((self.VERSION, 0, 1000, 0, 0),), ((self.VERSION, 1000, 0, 0, 0),)):
+            with patch.object(self.reported, "BUNDLED", counts_file(self.folder, *entries)):
+                status = self.control.get_status()
+                rows = self.control.list_pending()
+                seen.append((status, rows, model.view_model(rows, status, strings, 1000.0),
+                             model.icon_attention(status, rows), model.light_for(status, status["watcher"]["engine_state"], rows)))
+        self.assertNotIn("reported", keys_anywhere(seen[0][:2]))
+        self.assertEqual(seen[1], seen[0])
+        self.assertEqual(seen[2], seen[0])
+
+    def test_the_diagnostics_bundle_carries_it(self):
+        self.counts((self.VERSION, 1, 0, 2, 0))
+        self.fixture.backend()
+        with patch.object(diagnostics, "_installation", return_value={}):
+            bundle = diagnostics.collect(self.control)
+        self.assertEqual(bundle["compatibility"]["reported"]["neither"], 2)
+
+    def test_reading_the_view_again_costs_a_stat_not_a_parse(self):
+        """The Diagnostics page reads the view on every poll (the v0.6.9 lag work): a thousand reads
+        parse the counts once, and a changed file once more."""
+        self.counts((self.VERSION, 1, 0, 0, 0))
+        self.fixture.backend()
+        with patch.object(self.reported, "parse", wraps=self.reported.parse) as parse:
+            for _ in range(1000):
+                answer = compatio.read_view(self.fixture.paths)["reported"]
+            self.assertEqual((answer["worked"], parse.call_count), (1, 1))
+            self.counts((self.VERSION, 2, 0, 0, 0))
+            self.assertEqual(compatio.read_view(self.fixture.paths)["reported"]["worked"], 2)
+            self.assertEqual(parse.call_count, 2)
 
 
 class DiagnosticsTests(unittest.TestCase):

@@ -19,13 +19,19 @@ recorded input hashes against the working tree and fails when the sources moved 
 images did not. That is the part that could not be done by remembering.
 
     python build/make_screenshots.py
+    python build/make_screenshots.py --breathe   # then: every captured light that moves, moving
     python build/make_screenshots.py --cards     # only the notification card's pictures
     python build/make_screenshots.py --icon      # only the icon's motion, as a GIF
+    python build/make_screenshots.py --light     # only the status light's own picture
+    python build/make_screenshots.py --audit OUT # light and dark sheets of all four surfaces, into OUT only
 
-Run it from a checkout, on Windows, with the settings window built. It writes the
-canonical assets and copies them to `docs/images/`. The popup and the notification card are
-drawn off-screen by their own renderers and need neither the window nor Edge; the icon's
-motion is drawn from the icon's own frames and needs nothing of Windows at all.
+Run it from a checkout, on Windows, with the settings window built, from PowerShell: launched
+from a POSIX shell, headless Edge exits at once and prints nothing. A whole regeneration is the
+first two lines, in that order. It writes the canonical assets and copies them to `docs/images/`.
+The popup and the notification card are drawn off-screen by their own renderers, moving, and need
+neither the window nor Edge; the icon's motion is drawn from the icon's own frames and needs nothing
+of Windows at all. The window and the panel are captured still, and `--breathe` then draws their
+lights moving over the capture (see "pictures that breathe").
 
 Two things it deliberately does NOT do:
 
@@ -47,9 +53,12 @@ from __future__ import annotations
 
 import ast
 from contextlib import ExitStack, contextmanager
+from fractions import Fraction
 import hashlib
+import html as html_text
 import io
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -60,12 +69,13 @@ import sys
 import tempfile
 import threading
 import time
+from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "build"))
 
-from codex_auto_resume import config, l10n                   # noqa: E402
+from codex_auto_resume import brand, config, l10n            # noqa: E402
 from codex_auto_resume.mcp import panel as mcpui
 from codex_auto_resume import settings as policy                    # noqa: E402
 
@@ -163,36 +173,111 @@ def dimensions(path: Path) -> str:
 
 
 # --------------------------------------------------------------------- sample data
-def sample_settings() -> dict:
-    """The stored settings every picture is drawn from: the defaults, in the pinned THEME.
+def sample_settings(theme: str | None = None, design: str | None = None) -> dict:
+    """The stored settings every picture is drawn from: the defaults, in the pinned THEME and design.
 
     Stored, because storing is the only way the window can be given a theme. It resolves the stored
     Theme when it starts, and the default, Use system setting, follows Windows' app mode - so a
     scratch installation holding the plain defaults was photographed dark on a machine in dark mode,
     beside light panel and popup pictures and under a manifest that said light. `--theme` is no way
     round it either: the window's first settings read reopens it in the stored theme.
+
+    `theme` is only ever another theme for the audit sheets (`--audit`), which draw both; every
+    published picture is drawn in THEME. `design` is the Design (v0.6.10), stored the same way and for
+    the same reason - the window reads it in the same parse as the theme - and it is only ever another
+    design for the pictures of the designs themselves (DESIGNS_PICTURED); every other picture is drawn
+    in the default, Soft.
     """
-    return dict(policy.defaults(), theme=THEME)
+    return dict(policy.defaults(), theme=theme or THEME, design=design or brand.DEFAULT_DESIGN)
 
 
-def write_settings(home: Path) -> Path:
+def write_settings(home: Path, theme: str | None = None, design: str | None = None) -> Path:
     """Write `sample_settings()` where the window, the bridge and the watcher all read them."""
     state = home / "config"
     state.mkdir(parents=True, exist_ok=True)
     target = state / "settings.json"
-    target.write_text(json.dumps(sample_settings(), indent=2), encoding="utf-8")
+    target.write_text(json.dumps(sample_settings(theme, design), indent=2), encoding="utf-8")
     return target
 
 
-def sample_panel_data() -> dict:
-    """What the panel is showing in the picture, produced by the product itself.
+# The one set of records every surface is pictured showing, and the one set of offsets it is read at
+# (v0.6.10).
+#
+# Until then there were three. The panel registered two rows of its own in a store of its own, at
+# times near 1970, so both read "due now" and its network failure said it was waiting for a usage
+# reset; the popup was handed three hand-written rows, one a server error nobody else showed; and the
+# window, seeded by `seed_window_state`, said "2 recoveries pending". Three pictures of one product,
+# three datasets and three moments, cannot be laid side by side - which is what an audit of the
+# product's look does, and what a reader of the README does without being asked to.
+#
+# Now the window's own seed is written once, at POPUP_NOW, into a scratch store and read back the
+# way each surface reads it: the rows through `Control.list_pending` with the names the synthetic
+# Codex home gives them (the popup's own read, `ui/popup/model.perform`, and the window's), and the
+# status through the MCP server (the panel's). The panel's page is told POPUP_NOW (`pinned_clock`)
+# and the card's reset is the usage limit's, so the panel, the popup and the card are one moment.
+# The window is not: the bridge behind it runs with the real clock, so `render_window` writes the
+# same seed, with the same offsets (USAGE_RESET_IN, RETRY_IN), at the moment it is photographed
+# and tells the window that moment (CODEX_AR_STILL_NOW). So a countdown, a chip and a count read the
+# same on all four, and only times relative to the moment are comparable across them: a wall-clock
+# time the window prints, such as History's, is the day of the run's, not POPUP_NOW's.
+_FIXTURE = {}
 
-    Not a hand-written dictionary. Three synthetic interruptions are registered in a
-    throwaway store and read back through `Control.list_pending()` and
-    `Control.get_status()`, so the sample has exactly the shape the panel is given at
-    runtime. The first attempt at this file did hand-write it, got two field names wrong,
-    and rendered a table of "undefined" - which is the same class of drift the whole file
-    exists to end, in the file that ends it.
+
+def fixture() -> dict:
+    """{"pending": rows, "status": the MCP server's status}, read from the one seed at POPUP_NOW.
+
+    A fresh copy each time, of one reading per process: every locale's panel and popup read it,
+    and the answer is codes, numbers and the synthetic names, in no language.
+    """
+    key = (POPUP_NOW, WINDOW_THREADS, WINDOW_NAMES, USAGE_RESET_IN, RETRY_IN)
+    if key not in _FIXTURE:
+        _FIXTURE[key] = json.dumps(_read_fixture())
+    return json.loads(_FIXTURE[key])
+
+
+def _read_fixture() -> dict:
+    from unittest.mock import patch
+
+    from codex_auto_resume import control as control_module
+    from codex_auto_resume import mcpserver
+    from codex_auto_resume.codex import LocalSource
+
+    with tempfile.TemporaryDirectory() as name:
+        workspace = Path(name)
+        home, codex, local = workspace / "home", workspace / "codex", workspace / "LocalAppData"
+        paths = config.Paths(home)
+        # The clock pinned before anything is written, as `pinned_installation` pins it: a row the
+        # store is not given a time for is stamped with `time.time`.
+        with patch.object(time, "time", return_value=POPUP_NOW):
+            seed_window_state(home, codex, POPUP_NOW)
+            # What the window's Diagnostics page and the popup are shown too: the report the
+            # watcher's evaluator writes for the synthetic Codex home, and the heartbeat carrying
+            # the word it gave - so the panel's compatibility card is the same card.
+            word = seed_compatibility(home, codex, local, POPUP_NOW)
+            write_heartbeat(paths, POPUP_NOW, word)
+        surface = control_module.Control(paths)
+        # A watcher is running in the picture, so the rows are described as they are when one is -
+        # without "watcher not running" beside a headline that says it is. Read with the clock
+        # pinned, the stand-in engine where readers look for it, and the registry read as a scratch
+        # installation's, never written.
+        with patch.object(control_module.Control, "watcher_running", return_value=True), \
+                patch.object(time, "time", return_value=POPUP_NOW), \
+                patch.dict(os.environ, {"LOCALAPPDATA": str(local.resolve())}), \
+                _registry_stand_in():
+            os.environ.pop(config.ENV_CODEX_EXE, None)
+            pending = surface.list_pending(source=LocalSource(codex))
+            status = mcpserver.Server(surface, io.StringIO(), io.StringIO())._status()
+    return {"pending": pending, "status": status}
+
+
+def sample_panel_data(design: str | None = None) -> dict:
+    """What the panel is showing in the picture, produced by the product itself, its settings in `design`.
+
+    Not a hand-written dictionary: the fixture's rows and the MCP server's own status, read back
+    from the store `seed_window_state` writes (see `fixture`), so the sample has exactly the shape
+    the panel is given at runtime. The first attempt at this file did hand-write it, got two field
+    names wrong, and rendered a table of "undefined" - which is the same class of drift the whole
+    file exists to end, in the file that ends it.
 
     The values are synthetic throughout, and from the project's own fixture family: this
     image is published on a plugin card, so a real conversation id would be published
@@ -201,69 +286,17 @@ def sample_panel_data() -> dict:
     The version is not written here either. It arrives through `get_status()`, from the
     manifest, like every other current-facing surface.
     """
-    from unittest.mock import patch
+    from codex_auto_resume import l10n, reasons
 
-    from codex_auto_resume import control as control_module
-    from codex_auto_resume import l10n, mcpserver, reasons
-    from codex_auto_resume.store import Store
-
-    # The panel shows a conversation by its first segment, so three ids from the same
-    # fixture prefix would render as three identical rows. Repeated-nibble values are
-    # equally synthetic - `tests/test_repo_hygiene.py` accepts both - and tell the rows
-    # apart in the picture.
-    threads = ("11111111-1111-7111-8111-111111111111",
-               "22222222-2222-7222-8222-222222222222")
-    categories = ("usage_limit", "network_transient")
-    # Named, because the panel falls back to the first segment of the thread id and a
-    # column of `11111111` reads as debug output rather than as work waiting to resume.
-    # Synthetic throughout - `tests/test_repo_hygiene.py` requires the placeholder family
-    # - but shaped like something a person would recognise as their own task.
-    names = ("example-project", "example-service")
-    with tempfile.TemporaryDirectory() as name:
-        workspace = Path(name)
-        codex, local = workspace / "codex", workspace / "LocalAppData"
-        paths = config.Paths(workspace / "home")
-        paths.ensure()
-        with Store(paths.state_dir) as store:
-            # On, as in the picture's headline: a scratch store starts paused, and every row
-            # would otherwise carry a "paused" chip under a headline saying recovery is on.
-            store.set_enabled(True, 90.0)
-            for index, (thread, category) in enumerate(zip(threads, categories)):
-                store.register({
-                    "thread_id": thread,
-                    "turn_id": "0a1b2c3d-020%d-7000-8000-00000000020%d" % (index, index),
-                    "completed_at": 110.0 + index, "started_at": 105.0 + index,
-                    "ordinal": 2, "interruption_id": chr(ord("a") + index) * 64,
-                    "reset_at": 150.0 + index * 600, "limit_type": "codex.primary",
-                    "uncertain": False, "category": category}, 100.0 + index)
-        # What the window's Diagnostics page and the popup are shown too: the report the
-        # watcher's evaluator writes for the synthetic Codex home, and the heartbeat carrying
-        # the word it gave - so the panel's compatibility card is the same card, read at the
-        # same pinned moment.
-        synthetic_codex(codex)
-        word = seed_compatibility(paths.home, codex, local, POPUP_NOW)
-        write_heartbeat(paths, POPUP_NOW, word)
-        surface = control_module.Control(paths)
-        # A watcher is running in the picture, so the rows are described as they are when
-        # one is - without "watcher not running" beside a headline that says it is. The
-        # status is the MCP server's own, which adds the compatibility summary the panel's card
-        # is drawn from; read with the clock pinned, the stand-in engine where readers look for
-        # it, and the registry read as a scratch installation's, never written.
-        with patch.object(control_module.Control, "watcher_running", return_value=True), \
-                patch.object(time, "time", return_value=POPUP_NOW), \
-                patch.dict(os.environ, {"LOCALAPPDATA": str(local.resolve())}), \
-                _registry_stand_in():
-            os.environ.pop(config.ENV_CODEX_EXE, None)
-            waiting = surface.list_pending()
-            status = mcpserver.Server(surface, io.StringIO(), io.StringIO())._status()
-    # A name is what a person recognises the work by. It reaches a real row from the
-    # identity the watcher recorded, which a scratch store has no way to have; without it
-    # the panel falls back to the first segment of the thread id and the picture shows a
-    # column of `11111111`, which reads as debug output rather than as work waiting.
-    for row, name in zip(waiting, names):
-        row["name"] = name
-    # The two facts a picture of a working product should show, which a scratch store
-    # cannot know: it is on, and something is watching.
+    shown = fixture()
+    # The names are the synthetic Codex home's, read as the window and the popup read them. The
+    # panel is not given them at runtime - the MCP server lists no names - and falls back to the
+    # first segment of the thread id, which reads as debug output rather than as work waiting; the
+    # picture shows what a person recognises the work by.
+    waiting = shown["pending"]
+    status = shown["status"]
+    # The facts a picture of a working product should show, which a scratch store cannot know: it
+    # is on, and something is watching.
     status["enabled"] = True
     status["watcher_running"] = True
     status["startup_enabled"] = True
@@ -271,7 +304,7 @@ def sample_panel_data() -> dict:
     # The rest of what `open_settings` returns, so the language choices and the Preview are
     # drawn the way Codex draws them. The system language is pinned to the page's own.
     return {"status": status, "schema": policy.describe(),
-            "settings": sample_settings(), "pending": waiting,
+            "settings": sample_settings(design=design), "pending": waiting,
             "reasons": list(reasons.RECOVERABLE), "endonyms": dict(l10n.ENDONYMS),
             "system_language": l10n.current()}
 
@@ -282,6 +315,11 @@ WINDOW_THREADS = ("11111111-1111-7111-8111-111111111111",
                   "33333333-3333-7333-8333-333333333333",
                   "44444444-4444-7444-8444-444444444444")
 WINDOW_NAMES = ("example-project", "example-service", "example-docs", "example-app")
+# How far off the two waiting recoveries are at the moment every surface is pictured at: the usage
+# limit resets in 42:20 and the network failure is retried in 1:35. The window's rows, the popup's,
+# the panel's and the card's reset time are all this, because they are all read from one seed.
+USAGE_RESET_IN = 42 * 60 + 20
+RETRY_IN = 95
 
 
 def seed_window_state(home: Path, codex: Path, now: float) -> None:
@@ -342,9 +380,9 @@ def seed_window_state(home: Path, codex: Path, now: float) -> None:
         finished(store, 5, WINDOW_THREADS[3], "network_transient", now - 9 * hour, "stopped_by_user")
         finished(store, 6, WINDOW_THREADS[2], "usage_limit", now - 3 * hour, "recovered")
         store.register(detection(7, WINDOW_THREADS[0], "usage_limit", now - 25 * 60,
-                                 reset_at=now + 42 * 60 + 20), now - 25 * 60)
+                                 reset_at=now + USAGE_RESET_IN), now - 25 * 60)
         store.register(detection(8, WINDOW_THREADS[1], "network_transient", now - 50),
-                       now - 50, state="waiting_backoff", next_retry_at=now + 95)
+                       now - 50, state="waiting_backoff", next_retry_at=now + RETRY_IN)
         # What the watcher last recorded for each of them, so "Why it is waiting" shows the
         # checklist it shows for a real one: everything it could check passed, the schedule
         # is what it is waiting on, and the checks that need Codex running were not reached.
@@ -528,60 +566,122 @@ def find_edge() -> Path:
     raise SystemExit("Microsoft Edge was not found; it is the renderer for the panel.")
 
 
-def panel_height(page: Path, workspace: str) -> int:
-    """How tall the rendered panel actually is, asked of the renderer.
+PANEL_PROBE = "CAR-PANEL-PROBE:"
+
+
+def panel_probe(page: Path, workspace: str) -> dict:
+    """How tall the rendered panel is, and where its lights are, asked of the renderer.
 
     A constant here is a constant that goes stale the first time a setting is added, and
     the way it goes stale is that the bottom of the picture disappears. Chromium prints
     the DOM after layout, so the page can be asked instead: render it once at the target
     width, read the height off the root element, and shoot at that.
+
+    Since v0.6.10 the page is asked for its status lights too - every `.halo`, the state's at the top
+    and the Automatic recovery tile's mini one (F15) - each as its centre and radius in CSS px, its
+    state (the class the page gave it) and the ground it dims toward, resolved by the page itself: a
+    probe element coloured `var(--halo-ground)` where the light stands. So the lights `--breathe`
+    draws are the page's, wherever the page puts them, rather than whichever disc of a colour a search
+    of the picture found first.
+
+    And at the width the picture is taken at. Edge prints the DOM of a window whose page is 30 px narrower
+    than the window it is told to be, where it screenshots one exactly as wide: measured at 870 CSS px, the
+    page's centred column stood 15 px left of where the picture has it, and every height this measured was a
+    narrower page's. So the page says how wide it was laid out, and the probe is taken again in a window
+    widened by what was missing until it is PANEL_CSS_WIDTH.
+
+    Returns {"height": CSS px, with a margin, "lights": [{"x", "y", "radius", "state", "ground"}]}.
     """
-    marker = "CAR-PANEL-HEIGHT:"
+    window = PANEL_CSS_WIDTH
+    for _attempt in range(3):
+        found = _panel_probe_once(page, workspace, window)
+        if found["width"] == PANEL_CSS_WIDTH:
+            break
+        window += PANEL_CSS_WIDTH - found["width"]
+    else:
+        raise SystemExit("the panel could not be laid out %d CSS px wide to be measured" % PANEL_CSS_WIDTH)
+    lights = []
+    for light in found["lights"]:
+        states = [name for name in light["classes"].split() if name not in ("halo", "mini")]
+        lights.append({"x": light["x"], "y": light["y"], "radius": light["radius"],
+                       "state": states[-1] if states else "idle", "ground": css_colour(light["ground"])})
+    # The page's own padding is already in the measurement; a little more keeps
+    # the bottom card from sitting flush against the edge of the image.
+    return {"height": int(found["height"]) + 16, "lights": lights}
+
+
+def _panel_probe_once(page: Path, workspace: str, window: int) -> dict:
+    """One probe of `page` in a window `window` px wide: what the page said, with the width it was laid out at."""
     probe = Path(workspace) / "probe.html"
     probe.write_text(
         page.read_text(encoding="utf-8").replace(
             "</body>",
-            "<script>document.title='%s'+"
-            "Math.ceil(document.documentElement.getBoundingClientRect().height);"
-            "</script></body>" % marker),
+            "<script>(function(){var lights=[];"
+            "Array.prototype.forEach.call(document.querySelectorAll('.halo'),function(node){"
+            "var box=node.getBoundingClientRect(),swatch=document.createElement('span');"
+            "swatch.style.cssText='position:absolute;width:0;height:0;background-color:var(--halo-ground)';"
+            "node.parentNode.appendChild(swatch);"
+            "var ground=getComputedStyle(swatch).backgroundColor;swatch.remove();"
+            "lights.push({x:box.left+box.width/2+window.scrollX,y:box.top+box.height/2+window.scrollY,"
+            "radius:box.width/2,classes:String(node.className),ground:ground});});"
+            "document.title='%s'+JSON.stringify({width:window.innerWidth,height:Math.ceil("
+            "document.documentElement.getBoundingClientRect().height),lights:lights});})();"
+            "</script></body>" % PANEL_PROBE),
         encoding="utf-8")
     dumped = subprocess.run(
         [str(find_edge()), "--headless=new", "--disable-gpu", "--hide-scrollbars",
          "--virtual-time-budget=2000",
-         "--window-size=%d,%d" % (PANEL_CSS_WIDTH, 2000),
+         "--window-size=%d,%d" % (window, 2000),
          "--dump-dom", probe.as_uri()],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
         timeout=180, cwd=workspace)
-    for piece in dumped.stdout.split(marker)[1:]:
-        digits = ""
-        for character in piece:
-            if character.isdigit():
-                digits += character
-            else:
-                break
-        if digits:
-            # The page's own padding is already in the measurement; a little more keeps
-            # the bottom card from sitting flush against the edge of the image.
-            return int(digits) + 16
+    for piece in dumped.stdout.split(PANEL_PROBE)[1:]:
+        try:
+            return json.loads(html_text.unescape(piece.split("</title>", 1)[0]))
+        except ValueError:
+            continue
     raise SystemExit("could not measure the panel; the renderer printed no height")
 
 
-def render_panel(target: Path) -> None:
-    """The panel, rendered from `mcpui` rather than photographed inside Codex.
+def css_colour(text: str) -> str:
+    """#RRGGBB for a colour as Chromium computes one: rgb()/rgba(), or color(srgb ...) for a mix."""
+    text = text.strip()
+    found = re.fullmatch(r"rgba?\(\s*(\d+),\s*(\d+),\s*(\d+)(?:,\s*[\d.]+)?\s*\)", text)
+    if found:
+        return "#%02X%02X%02X" % tuple(int(value) for value in found.groups())
+    found = re.fullmatch(r"color\(srgb\s+([-\d.e]+)\s+([-\d.e]+)\s+([-\d.e]+)(?:\s*/\s*[\d.]+)?\s*\)", text)
+    if found:
+        return "#%02X%02X%02X" % tuple(max(0, min(255, int(round(float(value) * 255))))
+                                       for value in found.groups())
+    raise SystemExit("the panel named a ground this cannot read: %r" % text)
+
+
+def render_panel(target: Path, *, theme: str | None = None, design: str | None = None,
+                 scale: float = PANEL_SCALE, height: int | None = None) -> dict:
+    """The panel, rendered from `mcpui` rather than photographed inside Codex; returns its lights.
 
     Codex draws this HTML in its own frame, so a picture taken here is a faithful
     rendering of the same document and not a picture of Codex. The README says so; do not
     let it start implying otherwise.
+
+    Published pictures are the whole page, in THEME, at PANEL_SCALE, in `design` - Soft but for the
+    designs' own pictures. The audit sheets (`--audit`) ask for another theme, the window's scale and
+    the top `height` CSS pixels. Every light on the page is held at the first moment of its breath
+    (`held_lights`), and the page's lights are returned as the picture's record (`picture_record`), in
+    device px, for `--breathe` to draw moving.
     """
-    html = panel_html(theme=THEME)
+    theme, design = theme or THEME, design or brand.DEFAULT_DESIGN
+    html = panel_html(theme=theme, design=design)
     with tempfile.TemporaryDirectory() as workspace:
         page = Path(workspace) / "panel.html"
         page.write_text(html, encoding="utf-8")
         shot = Path(workspace) / "panel.png"
-        height = panel_height(page, workspace)
+        probed = panel_probe(page, workspace)
+        if height is None:
+            height = probed["height"]
         subprocess.run(
             [str(find_edge()), "--headless=new", "--disable-gpu", "--hide-scrollbars",
-             "--force-device-scale-factor=%d" % PANEL_SCALE,
+             "--force-device-scale-factor=%g" % scale,
              "--window-size=%d,%d" % (PANEL_CSS_WIDTH, height),
              "--screenshot=%s" % shot, page.as_uri()],
             check=True, capture_output=True, timeout=180,
@@ -589,6 +689,10 @@ def render_panel(target: Path) -> None:
         if not shot.is_file():
             raise SystemExit("the renderer produced no image")
         copy_file(shot, target)
+    lights = [{"x": light["x"] * scale, "y": light["y"] * scale, "radius": light["radius"] * scale,
+               "scale": scale, "state": light["state"], "ground": light["ground"]}
+              for light in probed["lights"] if light["y"] + light["radius"] <= height]
+    return picture_record("panel", theme, design, lights)
 
 
 # ---------------------------------------------------------------- settings window
@@ -628,12 +732,53 @@ def preview_host() -> str:
             % json.dumps(previews, ensure_ascii=False).replace("<", "\\u003c"))
 
 
-def panel_html(theme=None) -> str:
-    """The exact markup the panel screenshot is a picture of."""
-    page = mcpui.settings_page(sample_panel_data(), theme=theme)
-    # Before the panel's own script, which reads the host as it starts.
+def pinned_clock() -> str:
+    """The page's clock, stopped at POPUP_NOW - the moment the fixture is read at - and read in UTC.
+
+    The panel writes a waiting row's next check as a clock time, or "due now" once that time has
+    passed on the browser's own clock (panel.js `nextCheck`). Read against the machine's clock, the
+    fixture's rows were months in the future the day a picture was made and would all turn into
+    "due now" the day the machine's clock passed POPUP_NOW. The window is told its moment the same
+    way (CODEX_AR_STILL_NOW). A date given to `Date` is still that date.
+
+    And in UTC, as the card's reset time and every clock time in the window's envelope are: read in
+    the machine's zone, the panel said 17:42 on a machine in Seoul beside a card saying 08:42 for the
+    same reset. Edge takes its zone from Windows, not from TZ, so the page's local-time readings are
+    its UTC ones - the only readings panel.js makes.
+    """
+    return ("<script>(function(){var Real=Date,at=%d;"
+            "function Pinned(){var given=Array.prototype.slice.call(arguments);"
+            "if(!(this instanceof Pinned))return new Real(at).toString();"
+            "return given.length?new(Function.prototype.bind.apply(Real,[null].concat(given))):new Real(at);}"
+            "Pinned.prototype=Real.prototype;Pinned.now=function(){return at;};"
+            "Pinned.parse=Real.parse;Pinned.UTC=Real.UTC;window.Date=Pinned;"
+            "['FullYear','Month','Date','Day','Hours','Minutes','Seconds','Milliseconds'].forEach("
+            "function(part){Real.prototype['get'+part]=Real.prototype['getUTC'+part];});"
+            "Real.prototype.getTimezoneOffset=function(){return 0;};})();</script>"
+            % int(POPUP_NOW * 1000))
+
+
+def held_lights() -> str:
+    """Every animation on the page held at its first moment, which is the top of a light's breath.
+
+    The panel starts its lights' cycle where its script says (`--light-delay`, from the page's own
+    `performance.now()`), so a capture caught each light wherever the renderer happened to be - the
+    four pixels that differed between two runs of this generator. Held at 0, the picture is the
+    lights' first frame, and `--breathe` draws the rest from there (F15), as it does the window's,
+    which is held at the same moment (CODEX_AR_STILL_LIGHT=0, build/capture_window.ps1).
+    """
+    return ("<style>*,*::before,*::after{animation-play-state:paused!important;"
+            "animation-delay:0s!important}</style>")
+
+
+def panel_html(theme=None, design=None) -> str:
+    """The exact markup the panel screenshot is a picture of, pinned to `theme` and `design` (Soft when
+    none is given: the page is stamped as the script stamps a stored Soft, and told to keep it)."""
+    page = mcpui.settings_page(sample_panel_data(design), theme=theme,
+                               design=design or brand.DEFAULT_DESIGN)
+    # Before the panel's own script, which reads the host and the clock as it starts.
     head, _, tail = page.rpartition("<script>")
-    return head + preview_host() + "<script>" + tail
+    return head + held_lights() + pinned_clock() + preview_host() + "<script>" + tail
 
 
 # ------------------------------------------------------------------ tray popup
@@ -653,15 +798,13 @@ def popup_status() -> dict:
 
 
 def popup_rows() -> list:
-    def row(index, state, category, eligible, reset, enabled=True):
-        return {"interruption_id": ("%x" % index) * 64, "thread_id": WINDOW_THREADS[index - 1],
-                "state": state, "category": category, "eligible_at": eligible,
-                "reset_at": reset, "next_retry_at": eligible, "thread_enabled": enabled,
-                "name": WINDOW_NAMES[index - 1], "overlays": [],
-                "detected_at": POPUP_NOW - 600 + index}
-    return [row(1, "waiting_reset", "usage_limit", POPUP_NOW + 2540, POPUP_NOW + 2540),
-            row(2, "waiting_retry", "network_transient", POPUP_NOW + 95, None),
-            row(3, "waiting_backoff", "server_5xx", POPUP_NOW + 610, None, enabled=False)]
+    """The popup's rows: the fixture's, as the popup's own read (`ui/popup/model.perform`) lists them.
+
+    Until v0.6.10 these were written out here, three of them, with a disabled server error the
+    window and the panel never showed ("Waiting 3" beside "2 recoveries pending"). A row the other
+    surfaces do not have is a row an audit cannot compare.
+    """
+    return fixture()["pending"]
 
 
 def popup_view(locale: str):
@@ -785,42 +928,70 @@ def _apng_changed(before: bytes, after: bytes, width: int, height: int) -> tuple
     return left, top, right - left + 1, bottom - top + 1
 
 
-def write_apng(path: Path, width: int, height: int, frames: list, alpha=None) -> None:
+def _delay_parts(delay) -> tuple:
+    """A frame's delay as an APNG writes it, (numerator, denominator) seconds: an int is milliseconds, and a
+    Fraction a second's exact share - which is how a breath of 4400 ms in 132 frames is written, 1/30 s each,
+    where 33 ms each made it 4356 (v0.6.10)."""
+    parts = (delay.numerator, delay.denominator) if isinstance(delay, Fraction) else (int(delay), 1000)
+    if not all(0 <= part <= 0xFFFF for part in parts) or not parts[1]:
+        raise ValueError("an APNG cannot hold a delay of %r" % (delay,))
+    return parts
+
+
+def write_apng(path: Path, width: int, height: int, frames, alpha=None) -> None:
     """An animated PNG that loops forever, from RGB pictures all `width` by `height`.
 
-    `frames` is [(delay in ms, RGB bytes)], each picture the whole size. The first is what a viewer without APNG
-    shows; each later one is written as the rectangle that differs from the frame before it, over it - so a picture
-    where only a light moves costs a few hundred bytes a frame, and can be shown at the rate the real thing moves
-    at. Nothing here depends on the machine: the same pictures make the same bytes.
+    `frames` is [(delay, RGB bytes)] - any iterable of them, taken one at a time - each picture the whole size, each
+    delay in ms or as a Fraction of a second (`_delay_parts`). The first is what a viewer without APNG shows; each
+    later one is written as the rectangle that differs from the frame before it, over it - so a picture where only a
+    light moves costs a few hundred bytes a frame, and can be shown at the rate the real thing moves at. Nothing
+    here depends on the machine: the same pictures make the same bytes.
 
     `alpha` is the picture's transparency, one byte a pixel, kept for every frame: only the light moves, and the
     light is never at a corner, so what is transparent stays transparent throughout.
     """
-    import zlib
-    if not frames:
+    frames = iter(frames)
+    first = next(frames, None)
+    if first is None:
         raise ValueError("an APNG needs at least one picture")
-    denominator = 1000
+
+    def later():
+        previous = first[1]
+        for delay, picture in frames:
+            box = _apng_changed(previous, picture, width, height)
+            if box is None:
+                box = (0, 0, 1, 1)                   # a frame that changes nothing still takes its time
+            yield delay, box, _region(picture, width, box)
+            previous = picture
+    write_apng_patches(path, width, height, first, later(), alpha)
+
+
+def write_apng_patches(path: Path, width: int, height: int, first: tuple, later, alpha=None) -> None:
+    """An animated PNG that loops forever, from its first picture whole - (delay, RGB bytes) - and each later frame
+    as the one rectangle it draws over the frame before: (delay, (left, top, width, height), that rectangle's RGB).
+    `alpha`, one byte a pixel of the whole picture, is kept for every frame, as `write_apng` keeps it."""
+    import zlib
+    body, sequence, count = bytearray(), 1, 1
+    for delay, (left, top, wide, tall), patch in later:
+        numerator, denominator = _delay_parts(delay)
+        body += _png_chunk(b"fcTL", struct.pack(">IIIIIHHBB", sequence, wide, tall, left, top,
+                                                numerator, denominator, APNG_KEEP, APNG_OVER))
+        sequence += 1
+        clear = None if alpha is None else b"".join(
+            alpha[(top + row) * width + left:(top + row) * width + left + wide] for row in range(tall))
+        rows = _png_rows(patch, wide, tall, wide, 0, 0, clear)
+        body += _png_chunk(b"fdAT", struct.pack(">I", sequence) + zlib.compress(rows, 9))
+        sequence += 1
+        count += 1
+    delay, picture = first
+    numerator, denominator = _delay_parts(delay)
     out = bytearray(b"\x89PNG\r\n\x1a\n")
     out += _png_chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6 if alpha else 2, 0, 0, 0))
-    out += _png_chunk(b"acTL", struct.pack(">II", len(frames), 0))
-    sequence = 0
-    out += _png_chunk(b"fcTL", struct.pack(">IIIIIHHBB", sequence, width, height, 0, 0,
-                                           frames[0][0], denominator, APNG_KEEP, APNG_OVER))
-    sequence += 1
-    out += _png_chunk(b"IDAT", zlib.compress(_png_rows(frames[0][1], width, height, width, 0, 0, alpha), 9))
-    previous = frames[0][1]
-    for delay_ms, picture in frames[1:]:
-        box = _apng_changed(previous, picture, width, height)
-        if box is None:
-            box = (0, 0, 1, 1)                       # a frame that changes nothing still takes its time
-        left, top, wide, tall = box
-        out += _png_chunk(b"fcTL", struct.pack(">IIIIIHHBB", sequence, wide, tall, left, top,
-                                               delay_ms, denominator, APNG_KEEP, APNG_OVER))
-        sequence += 1
-        rows = _png_rows(picture, wide, tall, width, left, top, alpha)
-        out += _png_chunk(b"fdAT", struct.pack(">I", sequence) + zlib.compress(rows, 9))
-        sequence += 1
-        previous = picture
+    out += _png_chunk(b"acTL", struct.pack(">II", count, 0))
+    out += _png_chunk(b"fcTL", struct.pack(">IIIIIHHBB", 0, width, height, 0, 0,
+                                           numerator, denominator, APNG_KEEP, APNG_OVER))
+    out += _png_chunk(b"IDAT", zlib.compress(_png_rows(picture, width, height, width, 0, 0, alpha), 9))
+    out += body
     out += _png_chunk(b"IEND", b"")
     write_file(path, bytes(out))
 
@@ -887,18 +1058,62 @@ def read_png(path: Path) -> tuple:
     return width, height, bytes(out), (bytes(clear) if channels == 4 and min(clear) < 255 else None)
 
 
-def render_popup(target: Path, locale: str) -> None:
+def render_popup(target: Path, locale: str, *, theme: str | None = None, design: str | None = None,
+                 scale: float = POPUP_SCALE, moving: bool = True) -> dict:
+    """The popup in THEME at POPUP_SCALE, in `design`; returns the picture's record (`picture_record`).
+
+    Its light moves as the popup's own moves (F15): the whole popup drawn by its renderer at the first
+    moment of the light's breath, and then, frame by frame, only the light, drawn again by the same
+    renderer's `draw_halo` - the call the popup makes for a frame of its light - at each moment of one
+    cycle (`light_timeline`). A design whose light does not move (Still) is one still picture, as is
+    every picture the audit sheets ask for (`moving=False`), with another theme and scale.
+    """
     from codex_auto_resume.ui import popup as tray_popup
     strings, view = popup_view(locale)
+    theme, design = theme or THEME, design or brand.DEFAULT_DESIGN
     renderer = tray_popup.Renderer()
-    renderer.theme = THEME                      # said, not left to the renderer's default
+    renderer.theme = theme                      # said, not left to the renderer's default
+    renderer.design = design                    # and the design, likewise
     try:
-        plan = renderer.layout(view, POPUP_SCALE, tray_popup.locale_of(strings))
-        canvas = renderer.draw(view, plan, frame=tray_popup.halo(view["state"], 600, 5000))
+        plan = renderer.layout(view, scale, tray_popup.locale_of(strings))
         width, height = plan["size"]
-        write_png(target, width, height, canvas.pixels())
+        record = picture_record("popup", theme, design, popup_lights(plan, theme, design))
+
+        def at(moment):
+            return tray_popup.halo(view["light"], moment, moment, design=design)
+
+        canvas = renderer.draw(view, plan, frame=at(0))
+        timeline = light_timeline(record) if moving else None
+        if timeline is None:
+            write_png(target, width, height, canvas.pixels())
+            return record
+
+        def frames():
+            yield timeline.delay, bgra_rgb(canvas.pixels())
+            for moment in timeline.moments[1:]:
+                yield timeline.delay, bgra_rgb(renderer.draw_halo(plan, at(moment)).pixels())
+        write_apng(target, width, height, frames())
+        return record
     finally:
         renderer.close()
+
+
+def popup_lights(plan, theme: str, design: str) -> list:
+    """The popup's one light, the plan's halo item, on the popup's card: a record's lights, in device px."""
+    scale = plan.get("scale", 1.0)
+    return [{"x": item["cx"], "y": item["cy"], "radius": brand.STATUS_DOT["popup"] * scale, "scale": scale,
+             "state": item["state"], "ground": brand.card_ground(theme, design)}
+            for item in plan["items"] if item["kind"] == "halo"]
+
+
+def bgra_rgb(bgra: bytes) -> bytes:
+    """A canvas's BGRA bytes as the RGB an APNG frame is written from."""
+    count = len(bgra) // 4
+    rgb = bytearray(count * 3)
+    rgb[0::3] = bgra[2::4]
+    rgb[1::3] = bgra[1::4]
+    rgb[2::3] = bgra[0::4]
+    return bytes(rgb)
 
 
 # What draws the popup, whichever file it is in.
@@ -1195,15 +1410,21 @@ def popup_drawing(package=None) -> str:
     return code_digest(files, imported_definitions(package, files))
 
 
-def popup_render_input(locale: str, drawing: str | None = None) -> str:
+def popup_render_input(locale: str, drawing: str | None = None, design: str | None = None) -> str:
     """The popup's manifest entry for one locale: what it is shown, and what draws it.
 
-    `drawing` is `popup_drawing()`, passed in when it is already known.
+    `drawing` is `popup_drawing()`, passed in when it is already known. `design` is the design it is
+    drawn in (v0.6.10), named in what is hashed for any design but Soft - so Soft's entries are keyed
+    as they always were, and each other design's picture has an entry of its own, which moves when
+    the design's tokens or its drawing do, since both are in `drawing`.
     """
     _strings, view = popup_view(locale)
     if drawing is None:
         drawing = popup_drawing()
-    return sha256((json.dumps(view, sort_keys=True, default=str) + drawing).encode("utf-8"))
+    shown = json.dumps(view, sort_keys=True, default=str)
+    if design not in (None, brand.DEFAULT_DESIGN):
+        shown += "\0design:" + design
+    return sha256((shown + drawing).encode("utf-8"))
 
 
 # ------------------------------------------------------------ the notification card
@@ -1224,7 +1445,7 @@ def popup_render_input(locale: str, drawing: str | None = None) -> str:
 # time is the one word a machine would change, since the toast writes it in local time, so it is
 # read here on a clock pinned to UTC.
 CARD_SCALE = POPUP_SCALE
-CARD_RESET_AT = POPUP_NOW + 2540            # popup_rows()'s usage limit, on the same conversation
+CARD_RESET_AT = POPUP_NOW + USAGE_RESET_IN  # the fixture's usage limit, on the same conversation
 CARD_INTERRUPTION = "1" * 64                # its interruption: in a button's URI, never drawn
 # Both themes for the two README languages; the popup's documentation languages in the pinned
 # theme, as the popup is drawn.
@@ -1305,10 +1526,13 @@ def card_drawing(package=None) -> str:
     return code_digest(files, imported_definitions(package, files))
 
 
-def card_render_input(locale: str, drawing: str | None = None) -> str:
+def card_render_input(locale: str, drawing: str | None = None, design: str | None = None) -> str:
     """The card's manifest entry for one locale: what it says, the themes and scale it is
-    pictured at, and what draws it. `drawing` is `card_drawing()` when already known."""
+    pictured at, and what draws it. `drawing` is `card_drawing()` when already known; `design`, as for
+    the popup (`popup_render_input`), is named only for a design other than Soft."""
     shown = {"view": card_view(locale), "themes": list(card_themes(locale)), "scale": CARD_SCALE}
+    if design not in (None, brand.DEFAULT_DESIGN):
+        shown["design"] = design
     if drawing is None:
         drawing = card_drawing()
     return sha256((json.dumps(shown, sort_keys=True, default=str) + drawing).encode("utf-8"))
@@ -1346,44 +1570,113 @@ def _over(ground: bytearray, ground_width: int, layer: bytes, width: int, height
                                            + (ground[at + channel] * keep + 127) // 255)
 
 
-def card_pixels(locale: str, theme: str):
-    """(width, height, BGRA): the settled card and its floating shadow over the theme's canvas."""
-    from codex_auto_resume import brand, notice_card, notice_window
-    from codex_auto_resume.ui import popup as tray_popup
-    where = {"dpi": int(round(96 * CARD_SCALE)), "work": (0, 0, 0, 0), "monitor": (0, 0, 0, 0),
-             "anchor": None}
-    drawn = {"theme": theme, "contrast": False, "reduced": False}
-    tray_popup._gdiplus_acquire()
-    try:
-        card = notice_window.Card(_NoStack(), card_notice(locale), now_ms=0, where=where, drawn=drawn,
-                                  windows=False)
+class _SettledCard:
+    """The card at rest, off-screen, and its light at any moment of its breath: `at(ms)` is the whole
+    picture - the card and its floating shadow over the theme's canvas - as BGRA.
+
+    The first picture is the card drawn whole (`Card._draw_card`) and settled; every later one is the
+    card's own breath (`Card._draw_light`, the call a card makes for a frame of its light), which draws
+    the light's band again and cuts it as the whole card is cut - so only the rows of that band are
+    laid over the ground again, and every other pixel is the first picture's.
+    """
+
+    def __init__(self, locale, theme, design, scale, themes):
+        from codex_auto_resume import notice_card, notice_window
+        from codex_auto_resume.ui import popup as tray_popup
+        self._release = tray_popup._gdiplus_release
+        where = {"dpi": int(round(96 * scale)), "work": (0, 0, 0, 0), "monitor": (0, 0, 0, 0),
+                 "anchor": None}
+        drawn = {"theme": theme, "design": design, "contrast": False, "reduced": False}
+        tray_popup._gdiplus_acquire()
+        self.card = None
         try:
+            self.card = card = notice_window.Card(_NoStack(), card_notice(locale), now_ms=0, where=where,
+                                                  drawn=drawn, windows=False)
             frame = card.paint(notice_card.ENTRANCE_MS)["frame"]     # at rest: whole, full depth
             if frame != notice_card.SETTLED:
                 raise RuntimeError("the card is not at rest: %r" % (frame,))
             (width, height), margin = card.size, card.margin
             body, shadow = card.body.pixels(), card.shadow.pixels()
-        finally:
-            card.close()
+        except BaseException:
+            self.close()
+            raise
+        # The ground reaches as far as the deeper theme's shadow in both, so a light and a dark
+        # picture of the same card are the same size and can stand side by side - and as far as
+        # Soft's in every design, so a design that floats no shadow (Classic, Plain) is pictured at
+        # the same size, and on the same margin of canvas, as Soft's.
+        self.pad = pad = max(notice_card.shadow_margin(notice_card.float_shadows(each), scale)
+                             for each in (themes or CARD_THEMES))
+        red, green, blue = brand.rgb(brand.palette(theme, design)["canvas"])
+        self.card_width, self.card_height = width, height
+        self.width, self.height = width + 2 * pad, height + 2 * pad
+        ground = bytearray(bytes((blue, green, red, 255)) * (self.width * self.height))
+        if margin:
+            _over(ground, self.width, shadow, width + 2 * margin, height + 2 * margin,
+                  pad - margin, pad - margin)
+        self._ground = bytes(ground)                   # the canvas and the shadow, under the card
+        _over(ground, self.width, body, width, height, pad, pad)
+        self._first = bytes(ground)
+        self.lights = [{"x": item["cx"] + pad, "y": item["cy"] + pad,
+                        "radius": brand.STATUS_DOT["popup"] * scale, "scale": scale, "state": item["state"],
+                        "ground": brand.card_ground(theme, design)}
+                       for item in card.plan["items"] if item["kind"] == "halo"]
+
+    def at(self, moment) -> bytes:
+        if not moment:
+            return self._first
+        card = self.card
+        card._draw_light(card.born + moment)
+        top, bottom = card.renderer.halo_rows
+        row = self.card_width * 4
+        band = bytes(card.image._pixels[top * row:bottom * row])
+        whole = bytearray(self._first)
+        start, stop = (self.pad + top) * self.width * 4, (self.pad + bottom) * self.width * 4
+        rows = bytearray(self._ground[start:stop])
+        _over(rows, self.width, band, self.card_width, bottom - top, self.pad, 0)
+        whole[start:stop] = rows
+        return bytes(whole)
+
+    def close(self):
+        if self.card is not None:
+            self.card.close()
+            self.card = None
+        if self._release is not None:
+            self._release()
+            self._release = None
+
+
+def card_pixels(locale: str, theme: str, *, design: str | None = None, scale: float = CARD_SCALE,
+                themes: tuple | None = None):
+    """(width, height, BGRA): the settled card and its floating shadow over the theme's canvas, its
+    light at the first moment of its breath.
+
+    At CARD_SCALE, on a ground as wide as the deepest shadow of CARD_THEMES; the audit sheets ask
+    for the window's scale and both themes."""
+    settled = _SettledCard(locale, theme, design or brand.DEFAULT_DESIGN, scale, themes)
+    try:
+        return settled.width, settled.height, settled.at(0)
     finally:
-        tray_popup._gdiplus_release()
-    # The ground reaches as far as the deeper theme's shadow in both, so a light and a dark
-    # picture of the same card are the same size and can stand side by side.
-    pad = max(notice_card.shadow_margin(notice_card.float_shadows(each), CARD_SCALE)
-              for each in CARD_THEMES)
-    red, green, blue = brand.rgb(brand.palette(theme)["canvas"])
-    full_width, full_height = width + 2 * pad, height + 2 * pad
-    ground = bytearray(bytes((blue, green, red, 255)) * (full_width * full_height))
-    if margin:
-        _over(ground, full_width, shadow, width + 2 * margin, height + 2 * margin,
-              pad - margin, pad - margin)
-    _over(ground, full_width, body, width, height, pad, pad)
-    return full_width, full_height, bytes(ground)
+        settled.close()
 
 
-def render_card(target: Path, locale: str, theme: str) -> None:
-    width, height, pixels = card_pixels(locale, theme)
-    write_png(target, width, height, pixels)
+def render_card(target: Path, locale: str, theme: str, *, design: str | None = None, moving: bool = True,
+                scale: float = CARD_SCALE, themes: tuple | None = None) -> dict:
+    """The card in `theme` and `design`, its light moving as the card's own does (F15); returns the
+    picture's record. Still when its light does not move in the design, or when the audit sheets ask
+    for a still picture (`moving=False`)."""
+    design = design or brand.DEFAULT_DESIGN
+    settled = _SettledCard(locale, theme, design, scale, themes)
+    try:
+        record = picture_record("card", theme, design, settled.lights)
+        timeline = light_timeline(record) if moving else None
+        if timeline is None:
+            write_png(target, settled.width, settled.height, settled.at(0))
+            return record
+        write_apng(target, settled.width, settled.height,
+                   ((timeline.delay, bgra_rgb(settled.at(moment))) for moment in timeline.moments))
+        return record
+    finally:
+        settled.close()
 
 
 def _card_files() -> list:
@@ -1401,16 +1694,24 @@ def render_cards() -> list:
 
         python build/make_screenshots.py --cards
     """
+    records = {}
     for locale in LOCALES + EXTRA_LOCALES:
         for theme, (asset, copy) in card_paths(locale).items():
-            render_card(asset or copy, locale, theme)
+            records[asset or copy] = render_card(asset or copy, locale, theme)
             if asset is not None:
                 copy_file(asset, copy)
+                records[copy] = records[asset]
             print("  %s  %s" % ((asset or copy).relative_to(ROOT), dimensions(asset or copy)))
+    for design in DESIGNS_PICTURED[1:]:
+        target = design_picture(design, "card")
+        records[target] = render_card(target, "en", THEME, design=design)
+        print("  %s  %s" % (target.relative_to(ROOT), dimensions(target)))
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     drawing = card_drawing()
     for locale in LOCALES + EXTRA_LOCALES:
         manifest["inputs"]["<card render:%s>" % locale] = card_render_input(locale, drawing)
+    for design in DESIGNS_PICTURED[1:]:
+        manifest["inputs"]["<card render:en:%s>" % design] = card_render_input("en", drawing, design)
     ordered = {}
     for key, value in manifest.items():                 # where a whole run writes it
         if key != "card_themes":
@@ -1418,10 +1719,12 @@ def render_cards() -> list:
         if key == "theme":
             ordered["card_themes"] = list(CARD_THEMES)
     manifest = ordered
-    files = _card_files()
+    files = _card_files() + [design_picture(design, "card") for design in DESIGNS_PICTURED[1:]]
+    manifest.setdefault("lights", {})
     for path in files:
-        manifest["images"][str(path.relative_to(ROOT)).replace("\\", "/")] = {
-            "sha256": sha256(path.read_bytes()), "size": dimensions(path)}
+        key = str(path.relative_to(ROOT)).replace("\\", "/")
+        manifest["images"][key] = {"sha256": sha256(path.read_bytes()), "size": dimensions(path)}
+        manifest["lights"][key] = records[path]
     MANIFEST.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print("manifest       : %s (the card's entries only)" % MANIFEST.relative_to(ROOT))
     return files
@@ -1462,17 +1765,95 @@ ICON_ROOTS = (("ui.tray", "IconFrames"), ("ui.tray", "icon_frame"), ("ui.tray", 
 
 
 # --------------------------------------------------------- pictures that breathe
-# A still picture of a light says nothing about a light that moves, so the pictures a reader meets first are
-# animated: the same capture, with its status light redrawn frame by frame from brand.glow - the function the
-# window, the popup and the panel all draw it with - at the rate the window itself repaints (BREATHE_FPS).
+# A still picture of a light says nothing about a light that moves, so every picture of a surface whose light moves
+# is animated (v0.6.9), and since v0.6.10 every light in it moves as the product moves it (F15). Until then one disc
+# a picture was found by its colour and painted again, on the light theme's `surface` whatever it stood on, in
+# monitoring's rhythm, 132 frames of 33 ms - 4356 ms against the product's 4400: the panel's tile light held still
+# beside the one above it, a light on a tile or in the dark theme would have been painted in a box of the wrong
+# ground, and every picture ran 1% fast.
 #
-# Nothing else in the picture moves. The light is found by its own colour (`find_light`), the ground under it is
-# the card it sits on, and every frame is the capture with that one disc painted again; what a viewer without APNG
-# sees is the first frame, which is the still picture that was always there.
+# Now each surface declares its lights (`picture_record`): where each one is, its radius, its state and the ground
+# it stands on. The popup and the card declare the halo their own layout places, and are drawn moving by their own
+# renderers where they are made (`render_popup`, `render_card`). The panel is asked where its lights are
+# (`panel_probe`) and the window, which cannot be asked, is searched for discs of its light's colour
+# (`find_lights`), as many as it has (WINDOW_LIGHTS); both are captured still at the first moment of the breath, and
+# `--breathe` draws each light they declare again over the capture at every moment of one cycle, with its own
+# radius, ground and state (`paint_light`), the checking arc included - after holding the capture to what was
+# declared (`check_capture`). A viewer that ignores the animation sees the first frame.
+#
+# One cycle exactly (`light_timeline`): the lights that move in a picture move on one rhythm - a picture whose lights
+# have two is refused - at BREATHE_FPS, and a frame's delay is written as the exact fraction of a second it is, so a
+# 4400 ms breath takes 4400 ms. A picture with two lights (the panel) draws one of them a frame, each in its turn:
+# an APNG frame is one rectangle, and one rectangle round two lights 1170 px apart is most of the page, every frame.
 BREATHE_FPS = 30
-# Monitoring's rhythm, which is also waiting's (brand.GLOW waiting_ms) - and waiting is the state most of
-# these pictures are in, since their sample data has interruptions waiting. One rhythm covers both.
-BREATHE_STATE = "monitoring"
+# The surfaces `--breathe` draws over a capture. The popup and the card are drawn moving where they are made.
+CAPTURED = ("window", "panel")
+# The window's lights: its one HaloDot, the header's (gui/Marks.cs), which tests/test_screenshots.py counts.
+WINDOW_LIGHTS = 1
+# How much larger than its geometry GDI+ draws an antialiased disc, in device px: the window's 7.5 px dot at 144 DPI
+# is fully covered 16 px across in a capture, and a light drawn 8 px in radius over it matches the capture to a mean
+# of under two levels a channel, where one drawn at 7.5 is off by 13 (measured on the v0.6.10 captures).
+GDI_PLUS_SPREAD = 0.5
+# How far, per channel, a capture's pixel just outside a light's reach may be from the ground the light declares;
+# and how far its pixel at the light's centre may be from the light's colour at the first moment of the breath.
+GROUND_TOLERANCE = 2
+CENTRE_TOLERANCE = 8
+# A light owns every pixel within its reach and LIGHT_MARGIN device px more, which it draws again at every moment;
+# the capture is held to its ground past its reach and LIGHT_FRINGE, where a renderer's antialiasing of the glow's
+# edge - GDI+'s path gradient reaches most of a pixel past it - has faded to nothing.
+LIGHT_MARGIN = 2.0
+LIGHT_FRINGE = 1.0
+
+
+def picture_record(surface: str, theme: str, design: str, lights: list) -> dict:
+    """What a picture holds of the status light, as the manifest keeps it (its "lights"): the surface, the theme and
+    the design it is drawn in, and each light, top to bottom, as {"x", "y": its centre in device px from the
+    picture's corner - the pixel (i, j) spans i to i + 1 - "radius": the dot's, in device px, "scale": device px a
+    CSS px, "state": the light's state, "ground": the #RRGGBB it stands on}."""
+    def kept(light):
+        return {key: (round(float(value), 3) if isinstance(value, (int, float)) and not isinstance(value, bool)
+                      else value) for key, value in light.items()}
+    return {"surface": surface, "theme": theme, "design": design,
+            "lights": [kept(light) for light in sorted(lights, key=lambda light: (light["y"], light["x"]))]}
+
+
+def light_cycle(state: str):
+    """One cycle of a state's light in ms: its breath (brand.GLOW), or checking's turn of the arc; None when off."""
+    if state in brand.GLOW_BREATHES:
+        return brand.GLOW[state + "_ms"]
+    if state == "checking":
+        return brand.GLOW["arc_ms"]
+    return None
+
+
+class Timeline(NamedTuple):
+    """When a picture's lights are drawn: `steps` moments of one `cycle` (ms), at `moments` (ms from the start), each
+    frame shown for `delay` (a Fraction of a second), and which of the record's lights move (`moving`)."""
+    cycle: int
+    steps: int
+    moments: tuple
+    delay: Fraction
+    moving: tuple
+
+
+def light_timeline(record: dict):
+    """The one cycle a picture's lights move on, or None when none of them moves in its design (Still, or lights that
+    are off). Refuses a picture whose moving lights have different rhythms: it could not loop for both."""
+    design = record["design"]
+    moving = tuple(index for index, light in enumerate(record["lights"])
+                   if brand.glow_moves(light["state"], design=design))
+    if not moving:
+        return None
+    cycles = sorted({light_cycle(record["lights"][index]["state"]) for index in moving})
+    if len(cycles) != 1:
+        raise SystemExit("a %s picture's lights move on %s ms: one picture loops on one rhythm"
+                         % (record["surface"], cycles))
+    cycle = cycles[0]
+    steps = max(1, int(round(cycle * BREATHE_FPS / 1000.0)))
+    delay = Fraction(cycle, 1000 * steps * len(moving))
+    if delay.numerator > 0xFFFF or delay.denominator > 0xFFFF:
+        raise SystemExit("a frame of %s s cannot be written in an APNG" % delay)
+    return Timeline(cycle, steps, tuple(cycle * step / float(steps) for step in range(steps)), delay, moving)
 
 
 # How far toward the card a dot may be dimmed and still be the dot. brand.glow dims to `glow_floor` - about 0.38
@@ -1481,18 +1862,21 @@ BREATHE_STATE = "monitoring"
 LIGHT_DIM = 0.45
 
 
-def find_light(rgb: bytes, width: int, height: int, colour: tuple, ground: tuple) -> tuple | None:
-    """(x, y, radius) of the status light in a captured picture, or None where it is not there.
+def find_lights(rgb: bytes, width: int, height: int, colour: tuple, ground: tuple) -> list:
+    """[(x, y, radius)] of every status light in a captured picture, top to bottom: each round disc of its colour.
 
-    The light is the topmost round disc of its own colour, at any point of its breath: a captured window or panel
-    is caught at whatever moment it was in, and since v0.6.9 waiting breathes too, so the dot in a picture is
-    rarely at full brightness. Pixels are taken as the light's when they lie on the line from its colour toward
-    the card under it, no further than LIGHT_DIM - which the glow never reaches - and gathered into clusters; a
-    chip or a button is a rectangle and loses the roundness check, a glyph is neither round nor wide enough.
+    How the window declares its lights (`window_record`): it is the one surface that cannot be asked where they are.
+    x and y are pixel indexes - the disc's centre is at (x + 0.5, y + 0.5) - and the radius is half the disc's width
+    in pixels. A capture is held at the first moment of the breath, the brightest, but a disc is found at any
+    point of it: pixels are the light's when they lie on the line from its colour toward the ground under it, no
+    further than LIGHT_DIM - which the glow never reaches - and are gathered into clusters; a chip or a button is a
+    rectangle and fails the roundness check, and a glyph is neither round nor wide enough.
 
-    Topmost, not roundest: every surface carries its status light at the top, and the panel's pictures used to
-    breathe an 8 px dot in the Automatic recovery tile far below it - a dot that never moves in the product -
-    because it scored as the rounder disc.
+    Every disc, not the topmost or the roundest (v0.6.10). Until then the one found was the one light a picture
+    moved, and which it was had gone wrong once already: the panel's pictures breathed the dot in the Automatic
+    recovery tile, which did not move in the product, and held the status light above it still. What a picture
+    moves now is what its surface declares; this finds the window's, and `window_record` refuses a capture where it
+    finds more or fewer than the window has.
     """
     def lit(at):
         """Whether the pixel at byte offset `at` is the light's colour, dimmed no further than LIGHT_DIM."""
@@ -1523,7 +1907,7 @@ def find_light(rgb: bytes, width: int, height: int, colour: tuple, ground: tuple
                         seen.add((nx, ny))
                         stack.append((nx, ny))
             clusters.append(found)
-    best = None
+    discs = []
     for found in clusters:
         xs = [x for x, _ in found]
         ys = [y for _, y in found]
@@ -1533,117 +1917,250 @@ def find_light(rgb: bytes, width: int, height: int, colour: tuple, ground: tuple
         area = 3.14159 * (wide / 2.0) ** 2
         if abs(len(found) - area) > 0.35 * area:
             continue                                        # filled like a disc, not a ring or a letter
-        top = min(ys)
-        if best is None or top < best[0]:
-            best = (top, (sum(xs) / len(xs), sum(ys) / len(ys)), wide / 2.0)
-    return None if best is None else (best[1][0], best[1][1], best[2])
+        discs.append((sum(xs) / len(xs), sum(ys) / len(ys), wide / 2.0))
+    return sorted(discs, key=lambda disc: (disc[1], disc[0]))
 
 
-def breathe_over(rgb: bytes, width: int, height: int, where: tuple, ground: tuple, colour: tuple) -> list:
-    """One cycle of the light, as whole pictures: the capture with its light redrawn at each moment.
+def find_light(rgb: bytes, width: int, height: int, colour: tuple, ground: tuple) -> tuple | None:
+    """The topmost of `find_lights`, or None: (x, y, radius) in pixel indexes."""
+    found = find_lights(rgb, width, height, colour, ground)
+    return found[0] if found else None
 
-    `where` is (x, y, drawn radius) from find_light, `ground` the card's colour under it and `colour` the light's.
-    Every pixel of the disc is sampled nine times across, as the window's own antialiasing does.
+
+def fixture_light() -> str:
+    """The header light the fixture shows at its moment: the popup's word for it, which the window's is held to by
+    tests/test_light_parity.py - and so the state of the window's light in every capture."""
+    return popup_view("en")[1]["light"]
+
+
+def window_record(path: Path, theme: str | None = None, design: str | None = None) -> dict:
+    """A window capture's record: its lights, found in the picture (`find_lights`) - as many as the window has, each
+    at the size the window draws it at the scale it was captured at (and GDI_PLUS_SPREAD), in the fixture's state,
+    on the header card's ground - or SystemExit."""
+    theme, design = theme or THEME, design or brand.DEFAULT_DESIGN
+    state = fixture_light()
+    colour = brand.rgb(brand.palette(theme, design)[brand.status_fill(state)])
+    ground = brand.card_ground(theme, design)
+    width, height, rgb, _alpha = read_png(path)
+    found = find_lights(rgb, width, height, colour, brand.rgb(ground))
+    if len(found) != WINDOW_LIGHTS:
+        raise SystemExit("%s: %d lights of the colour %s, where the window has %d"
+                         % (path.name, len(found), brand.status_fill(state), WINDOW_LIGHTS))
+    scale = (system_dpi() or 96) / 96.0
+    radius = brand.STATUS_DOT["window"] * scale + GDI_PLUS_SPREAD
+    lights = []
+    for x, y, measured in found:
+        if abs(measured - radius) > 1.0:
+            raise SystemExit("%s: a light %.1f px across where the window draws %.1f" % (path.name, 2 * measured,
+                                                                                         2 * radius))
+        # The window centres its light in a box a whole number of pixels wide, so the centre is on the
+        # half-pixel grid; the disc's mean is a little off it where the antialiasing is not symmetric.
+        lights.append({"x": round(2 * (x + 0.5)) / 2.0, "y": round(2 * (y + 0.5)) / 2.0, "radius": radius,
+                       "scale": scale, "state": state, "ground": ground})
+    return picture_record("window", theme, design, lights)
+
+
+def light_reach(light: dict) -> float:
+    """How far from its centre any moment of a light draws, in device px: its glow's widest, or checking's arc."""
+    drawn, scale = light["radius"], light.get("scale", 1.0)
+    reach = drawn + brand.glow_reach(drawn)
+    if light["state"] == "checking":
+        reach = max(reach, drawn + (brand.GLOW["arc_gap"] + brand.GLOW["arc_width"] / 2.0) * scale)
+    return reach
+
+
+def light_pixels(light: dict) -> list:
+    """[(x, y, samples)] of every pixel a light owns - within its reach and LIGHT_MARGIN more - each with its nine
+    samples as (dx, dy, distance, angle) from the centre, the angle in degrees clockwise from three o'clock."""
+    cx, cy = light["x"], light["y"]
+    edge = light_reach(light) + LIGHT_MARGIN
+    owned = []
+    for y in range(int(math.floor(cy - edge)), int(math.ceil(cy + edge)) + 1):
+        for x in range(int(math.floor(cx - edge)), int(math.ceil(cx + edge)) + 1):
+            if math.hypot(x + 0.5 - cx, y + 0.5 - cy) > edge:
+                continue
+            samples = []
+            for sub_y in range(3):
+                for sub_x in range(3):
+                    dx, dy = x + (sub_x + 0.5) / 3.0 - cx, y + (sub_y + 0.5) / 3.0 - cy
+                    samples.append((dx, dy, math.hypot(dx, dy), math.degrees(math.atan2(dy, dx)) % 360.0))
+            owned.append((x, y, samples))
+    return owned
+
+
+def paint_light(picture: bytearray, width: int, light: dict, frame, colour: tuple, owned=None) -> tuple:
+    """Draw one light at one moment into the RGB `picture` (`width` px wide), over its declared ground; returns the
+    (left, top, width, height) it drew.
+
+    `frame` is brand.glow's for the moment. The light is drawn as every surface draws it: its ground, the glow's
+    falloff at that spread (brand.glow_stops, a share of the dot, so one table serves every radius), the dot drawn
+    toward its ground by the breath's dim - which is the same pixel whether the glow is under the dot (the window,
+    the popup) or over it (the panel) - and checking's arc, `arc_sweep` degrees of a ring `arc_gap` past the dot,
+    round-capped. Every pixel the light owns (`light_pixels`) is drawn again, nine samples a pixel, and no other.
     """
-    from codex_auto_resume import brand
-    cycle = brand.GLOW[BREATHE_STATE + "_ms"]
-    steps = int(round(cycle / 1000.0 * BREATHE_FPS))
-    delay = int(round(cycle / steps))
-    centre_x, centre_y, drawn = where
-    dot = brand.STATUS_DOT["window"]
-    reach = brand.glow_reach(dot) * (drawn / dot)
-    stops = brand.glow_stops(dot)
-    box = int(drawn + reach) + 2
-    frames = []
-    for step in range(steps):
-        frame = brand.glow(BREATHE_STATE, step / float(steps) * cycle)
-        outer = drawn + reach * frame["spread"]
-        picture = bytearray(rgb)
-        for y in range(max(0, int(centre_y - box)), min(height, int(centre_y + box) + 1)):
-            for x in range(max(0, int(centre_x - box)), min(width, int(centre_x + box) + 1)):
-                red = green = blue = 0.0
-                for sub_y in range(3):
-                    for sub_x in range(3):
-                        away = (((x + (sub_x + 0.5) / 3.0 - 0.5) - centre_x) ** 2
-                                + ((y + (sub_y + 0.5) / 3.0 - 0.5) - centre_y) ** 2) ** 0.5
-                        parts = list(ground)
-                        if frame["opacity"] > 0 and outer > 0 and away < outer:
-                            alpha = frame["opacity"] * _falloff(stops, away / outer)
-                            parts = [part + (one - part) * alpha for part, one in zip(parts, colour)]
-                        if away < drawn:
-                            parts = [part + (one - part) * (1.0 - frame["dim"])
-                                     for part, one in zip(parts, colour)]
-                        red += parts[0]; green += parts[1]; blue += parts[2]
-                at = (y * width + x) * 3
-                picture[at] = int(round(red / 9.0))
-                picture[at + 1] = int(round(green / 9.0))
-                picture[at + 2] = int(round(blue / 9.0))
-        frames.append((delay, bytes(picture)))
-    return frames
+    owned = light_pixels(light) if owned is None else owned
+    ground = brand.rgb(light["ground"])
+    drawn, scale = light["radius"], light.get("scale", 1.0)
+    stops = brand.glow_stops(drawn)
+    dim, opacity = (frame["dim"], frame["opacity"]) if frame else (0.0, 0.0)
+    outer = brand.glow_radius(drawn, frame["spread"]) if frame else drawn
+    arc = frame.get("arc") if frame else None
+    middle = drawn + brand.GLOW["arc_gap"] * scale
+    half = brand.GLOW["arc_width"] * scale / 2.0
+    sweep = brand.GLOW["arc_sweep"]
+    ends = ()
+    if arc is not None:
+        ends = tuple((middle * math.cos(math.radians(angle)), middle * math.sin(math.radians(angle)))
+                     for angle in (arc, arc + sweep))
+    left = top = None
+    right = bottom = None
+    for x, y, samples in owned:
+        red = green = blue = 0.0
+        for dx, dy, away, angle in samples:
+            parts = list(ground)
+            if opacity > 0 and outer > 0 and away < outer:
+                alpha = opacity * _falloff(stops, away / outer)
+                parts = [part + (one - part) * alpha for part, one in zip(parts, colour)]
+            if away < drawn:
+                parts = [part + (one - part) * (1.0 - dim) for part, one in zip(parts, colour)]
+            if arc is not None and (
+                    (abs(away - middle) <= half and (angle - arc) % 360.0 <= sweep)
+                    or any(math.hypot(dx - ex, dy - ey) <= half for ex, ey in ends)):
+                alpha = brand.GLOW["arc_alpha"]
+                parts = [part + (one - part) * alpha for part, one in zip(parts, colour)]
+            red += parts[0]
+            green += parts[1]
+            blue += parts[2]
+        at = (y * width + x) * 3
+        picture[at:at + 3] = bytes((int(round(red / 9.0)), int(round(green / 9.0)), int(round(blue / 9.0))))
+        left = x if left is None else min(left, x)
+        right = x if right is None else max(right, x)
+        top = y if top is None else min(top, y)
+        bottom = y if bottom is None else max(bottom, y)
+    return left, top, right - left + 1, bottom - top + 1
 
 
-# The pictures that hold a light that moves. The icon's and the light's own pictures are animated already, and the
-# social preview is a poster. The notification card was here too while it held still: since v0.6.9 an interruption
-# waiting for its reset breathes, on the card as everywhere, so its picture breathes with it.
-BREATHE_SKIP = ("icon-motion", "status-light", "social-preview")
+def check_capture(rgb: bytes, width: int, height: int, light: dict, colour: tuple, owned: list, where: str) -> None:
+    """Hold a capture to a light it declares before anything is drawn over it, or SystemExit.
+
+    Every pixel the light owns lies inside the picture; each one no sample of which is within the light's reach and
+    its fringe - the ring round it, which every frame draws as the ground - is the declared ground, so a frame can
+    never paint a box of a ground the light does not stand on; and the pixel at the centre is the light's colour, as it is at the
+    first moment of a breath, so the light is where it was declared.
+    """
+    reach = light_reach(light) + LIGHT_FRINGE
+    ground = brand.rgb(light["ground"])
+    for x, y, samples in owned:
+        if not (0 <= x < width and 0 <= y < height):
+            raise SystemExit("%s: the light at (%g, %g) reaches past the picture" % (where, light["x"], light["y"]))
+        if min(sample[2] for sample in samples) <= reach:
+            continue
+        at = (y * width + x) * 3
+        if any(abs(rgb[at + channel] - ground[channel]) > GROUND_TOLERANCE for channel in range(3)):
+            raise SystemExit("%s: the light at (%g, %g) stands on #%02X%02X%02X at (%d, %d), not on its ground %s"
+                             % ((where, light["x"], light["y"]) + tuple(rgb[at:at + 3]) + (x, y, light["ground"])))
+    at = (int(light["y"]) * width + int(light["x"])) * 3
+    if any(abs(rgb[at + channel] - colour[channel]) > CENTRE_TOLERANCE for channel in range(3)):
+        raise SystemExit("%s: no light of its colour at (%g, %g)" % (where, light["x"], light["y"]))
 
 
-def breathes(path: Path) -> bool:
-    """Whether a picture is one whose light moves in the product."""
-    return not any(part in path.name for part in BREATHE_SKIP)
+def _region(picture: bytes, width: int, box: tuple) -> bytes:
+    """The RGB bytes of a (left, top, width, height) rectangle of a picture `width` px wide."""
+    left, top, wide, tall = box
+    return b"".join(bytes(picture[((top + row) * width + left) * 3:((top + row) * width + left + wide) * 3])
+                    for row in range(tall))
+
+
+def breathe_frames(rgb: bytes, width: int, height: int, record: dict, where: str = "a picture"):
+    """One cycle of a captured picture's lights, as (delay, first picture, [(delay, box, RGB of the box)]): the first
+    picture whole and each later frame the one light it moves; None when no light in it moves.
+
+    Frame k * n + i, of n lights that move, draws light i at moment k (`light_timeline`), so every light is drawn
+    at every moment for the same time and the loop is exactly one cycle. The first picture has the first light at
+    the first moment and each other where it was one frame before the loop began, so the loop has no seam.
+    """
+    timeline = light_timeline(record)
+    if timeline is None:
+        return None
+    palette = brand.palette(record["theme"], record["design"])
+    picture = bytearray(rgb)
+    lights = []
+    for index in timeline.moving:
+        light = record["lights"][index]
+        colour = brand.rgb(palette[brand.status_fill(light["state"])])
+        owned = light_pixels(light)
+        check_capture(rgb, width, height, light, colour, owned, where)
+        lights.append((light, colour, owned))
+
+    def draw(entry, step):
+        light, colour, owned = entry
+        moment = timeline.moments[step]
+        frame = brand.glow(light["state"], moment, moment, design=record["design"])
+        return paint_light(picture, width, light, frame, colour, owned)
+
+    last = timeline.steps - 1
+    for position, entry in enumerate(lights):
+        draw(entry, 0 if position == 0 else last)
+    first = bytes(picture)
+    later = []
+    for step in range(timeline.steps):
+        for position, entry in enumerate(lights):
+            if step == 0 and position == 0:
+                continue
+            box = draw(entry, step)
+            later.append((timeline.delay, box, _region(picture, width, box)))
+    return timeline.delay, first, later
 
 
 def breathe_pictures(paths=None) -> list:
-    """Make every captured picture with a status light breathe, and say which ones did.
+    """Draw every captured light that moves, moving, and say which pictures now move.
 
-    A documentation copy is copied rather than drawn again: two encodings of one picture are two
-    files, and the suite holds each copy to be its canonical asset byte for byte.
+    The second step of a whole regeneration, after `python build/make_screenshots.py`:
 
         python build/make_screenshots.py --breathe
+
+    It reads each picture's record from the manifest (its "lights"), where the first step wrote it, and draws the
+    window's and the panel's pictures (CAPTURED); the popup's and the card's move already. A documentation copy is
+    copied rather than drawn again: two encodings of one picture are two files, and the suite holds each copy to be
+    its canonical asset byte for byte. A picture that already moves is drawn again from its first frame, which is
+    the same picture: running this twice changes nothing.
     """
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    records = manifest.get("lights", {})
     copies = {}
     for locale in LOCALES:
         copies.update(paths_for(locale))
-    if paths is None:
-        paths = sorted(list(ASSETS.glob("*.png")) + [path for path in DOCS.glob("*.png")
-                                                     if path not in set(copies.values())])
+    copied = set(copies.values())
     done = []
-    for path in paths:
-        if not breathes(path):
+    for key in sorted(records):
+        path, record = ROOT / key, records[key]
+        if record["surface"] not in CAPTURED or path in copied:
             continue
-        if breathe_picture(path):
+        if paths is not None and path not in paths:
+            continue
+        if breathe_picture(path, record):
             done.append(path)
             print("  %s  %s" % (path.relative_to(ROOT), dimensions(path)))
             copy = copies.get(path)
             if copy is not None:
                 copy_file(path, copy)
                 done.append(copy)
-    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     for path in done:
         key = str(path.relative_to(ROOT)).replace("\\", "/")
-        if key in manifest["images"]:
-            entry = manifest["images"][key]
-            if isinstance(entry, dict):
-                manifest["images"][key] = {"sha256": sha256(path.read_bytes()), "size": dimensions(path)}
-            else:
-                manifest["images"][key] = sha256(path.read_bytes())
+        manifest["images"][key] = {"sha256": sha256(path.read_bytes()), "size": dimensions(path)}
     MANIFEST.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print("manifest       : %s (the pictures that breathe)" % MANIFEST.relative_to(ROOT))
     return done
 
 
-def breathe_picture(path: Path, theme: str = "light") -> bool:
-    """Rewrite a captured picture as an APNG whose status light breathes. False when it has no light to find."""
-    from codex_auto_resume import brand
-    palette = brand.palette(theme)
+def breathe_picture(path: Path, record: dict) -> bool:
+    """Rewrite a captured picture as an APNG in which every light it declares moves. False when none moves."""
     width, height, rgb, alpha = read_png(path)
-    colour = brand.rgb(palette[brand.status_fill(BREATHE_STATE)])
-    ground = brand.rgb(palette["surface"])
-    where = find_light(rgb, width, height, colour, ground)
-    if where is None:
+    made = breathe_frames(rgb, width, height, record, where=path.name)
+    if made is None:
         return False
-    frames = breathe_over(rgb, width, height, where, ground, colour)
-    write_apng(path, width, height, frames, alpha)
+    delay, first, later = made
+    write_apng_patches(path, width, height, (delay, first), later, alpha)
     return True
 
 
@@ -1715,11 +2232,13 @@ def _falloff(stops, fraction: float) -> float:
 
 
 def render_light_motion(target: Path = LIGHT_MOTION_APNG) -> None:
-    """One breath of the light, as an APNG: the pictures keep their colours, and only the light changes."""
-    from codex_auto_resume import brand
+    """One breath of the light, as an APNG: the pictures keep their colours, and only the light changes.
+
+    Each picture is held for exactly its share of the breath, a Fraction of a second: 33 ms each made the 4400 ms
+    breath 4356 until v0.6.10, as it did every picture that breathes (`light_timeline`)."""
     cycle = brand.GLOW[LIGHT_MOTION_STATE + "_ms"]
     steps = int(round(cycle / 1000.0 * LIGHT_MOTION_FPS))
-    delay = int(round(cycle / steps))
+    delay = Fraction(cycle, 1000 * steps)
     cells = [light_motion_cell(step / float(steps)) for step in range(steps)]
     size = cells[0][0]
     write_apng(target, size, size, [(delay, picture) for _size, picture in cells])
@@ -2092,7 +2611,8 @@ def render_light_only() -> Path:
     manifest["inputs"]["<light motion>"] = light_render_input()
     manifest["images"][str(LIGHT_MOTION_APNG.relative_to(ROOT)).replace("\\", "/")] = {
         "sha256": sha256(LIGHT_MOTION_APNG.read_bytes()), "size": dimensions(LIGHT_MOTION_APNG)}
-    MANIFEST.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    # In the order a whole run writes it, which since v0.6.10 renders this picture too.
+    MANIFEST.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print("manifest       : %s (the light's entries only)" % MANIFEST.relative_to(ROOT))
     return LIGHT_MOTION_APNG
 
@@ -2113,8 +2633,12 @@ def render_icon_only() -> Path:
     return ICON_MOTION_APNG
 
 
-def scratch_installation(workspace: Path) -> Path:
-    """An installation made out of the working tree, so the picture is of this code."""
+def scratch_installation(workspace: Path, theme: str | None = None, design: str | None = None) -> Path:
+    """An installation made out of the working tree, so the picture is of this code.
+
+    It stores THEME, as every published picture is drawn; the audit sheets store the theme they draw.
+    It stores Soft, but for the designs' own pictures, which store the design they picture.
+    """
     import make_release
     import zipfile
 
@@ -2124,6 +2648,9 @@ def scratch_installation(workspace: Path) -> Path:
     # Bundling the frozen registry data, so the window's own bridge answers as the envelope does.
     shutil.copyfile(frozen_registry().FROZEN,
                     home / "app" / "src" / "codex_auto_resume" / "data" / "codex_compat.json")
+    # And the sample counts of what others report, so the card's Reported row is the envelope's too.
+    shutil.copyfile(frozen_registry().REPORTED,
+                    home / "app" / "src" / "codex_auto_resume" / "data" / "reported.json")
     shutil.copytree(ROOT / ".codex-plugin", home / "app" / ".codex-plugin")
     # The same pinned, checksum-verified interpreter the release ships, from the same
     # cache, so the window in the picture runs on the interpreter users will have.
@@ -2141,7 +2668,7 @@ def scratch_installation(workspace: Path) -> Path:
     # The defaults in the pinned theme (see `sample_settings`); recovery itself is switched on
     # through the engine in `render_window`, so the window shows the state it is in when it is
     # doing its job.
-    write_settings(home)
+    write_settings(home, theme, design)
     return home
 
 
@@ -2176,7 +2703,7 @@ with App(paths, console=False, enable_logging=False).mutex(timeout=0):
 WINDOW_PAGES = ("overview", "pending", "history", "statistics", "diagnostics", "settings")
 
 
-def render_window(targets: dict) -> dict:
+def render_window(targets: dict, theme: str | None = None, design: str | None = None) -> dict:
     """Capture each page of the window, with the watcher's mutex held but no watcher running.
 
     The window reports "watching" when the single-instance mutex is taken, so taking it
@@ -2185,11 +2712,13 @@ def render_window(targets: dict) -> dict:
     documentation build, which is not a trade this makes.
 
     `targets` maps a page name to the image it is captured into. One installation serves
-    every page, so the pages show the same records at nearly the same moment.
+    every page, so the pages show the same records at nearly the same moment. `theme` is stored in
+    it, THEME unless the audit sheets ask for the other, and `design`, Soft unless the picture is of
+    another design (DESIGNS_PICTURED): the window reads both in one parse before its first control.
     """
     with tempfile.TemporaryDirectory() as name:
         workspace = Path(name)
-        home = scratch_installation(workspace)
+        home = scratch_installation(workspace, theme, design)
         codex, local = workspace / "codex", workspace / "LocalAppData"
         now = time.time()
         seed_window_state(home, codex, now)
@@ -2463,14 +2992,16 @@ def ask(surface, command, argument=None) -> dict:
 
 
 @contextmanager
-def pinned_installation(workspace: Path, *, watching: bool = True, engine: bool = True):
+def pinned_installation(workspace: Path, *, watching: bool = True, engine: bool = True,
+                        design: str | None = None):
     """The installation the envelope asks, built in `workspace`, with the machine pinned.
 
     Yields the `Control` the bridge answers for, with recovery switched on through the bridge.
     Everything listed above is pinned for as long as it is open, and put back whole after it,
     the l10n language preference included. `tests/wiregolden.py` asks its questions of the same
     installation under the same pins, so the wire goldens and the envelope cannot disagree about
-    what a scratch installation says; `watching=False` leaves the watcher's mutex free.
+    what a scratch installation says; `watching=False` leaves the watcher's mutex free. `design` is the
+    Design it stores, Soft unless a design's own picture is keyed (`window_envelopes`).
     """
     from unittest.mock import patch
 
@@ -2490,7 +3021,7 @@ def pinned_installation(workspace: Path, *, watching: bool = True, engine: bool 
                 ENVELOPE_NOW if seconds is None else seconds)))
         # The part of `scratch_installation` the bridge reads: the settings it stores. The
         # interpreter and the compiled window are not read by any answer.
-        write_settings(home)
+        write_settings(home, design=design)
         seed_window_state(home, codex, ENVELOPE_NOW)
         # `engine=False` is the wire goldens': no engine to discover and no report about one, so
         # a live check finds none on every machine and the answers are the same everywhere.
@@ -2515,8 +3046,9 @@ def pinned_installation(workspace: Path, *, watching: bool = True, engine: bool 
             l10n.set_preference(previous)
 
 
-def window_envelopes(locales) -> dict:
-    """Locale -> the canonical text of what the bridge tells the window, one line per read.
+def window_envelopes(locales, design: str | None = None) -> dict:
+    """Locale -> the canonical text of what the bridge tells the window, one line per read, with the
+    installation's Design stored as `design` (Soft when none is given).
 
     Each line is the request and its reply as the reply crossed the wire: keys in the order
     the bridge wrote them, because the window lists some objects in that order (the
@@ -2525,7 +3057,7 @@ def window_envelopes(locales) -> dict:
     envelopes = {}
     with tempfile.TemporaryDirectory() as name:
         workspace = Path(name)
-        with pinned_installation(workspace) as surface:
+        with pinned_installation(workspace, design=design) as surface:
             spellings = workspace_spellings(workspace)
             for locale in locales:
                 os.environ[l10n.ENV_LANG] = locale
@@ -2609,6 +3141,27 @@ def render_inputs() -> dict:
                 os.environ.pop(l10n.ENV_LANG, None)
             else:
                 os.environ[l10n.ENV_LANG] = previous
+    # The designs' own pictures (v0.6.10), in English: each keyed the way Soft's are, with the design it is
+    # drawn in - the window by what the bridge answers an installation storing it, the panel by its markup
+    # stamped with it, the popup and the card by their view and drawing with the design named. Soft's are
+    # the entries above, under the names they always had.
+    previous = os.environ.get(l10n.ENV_LANG)
+    os.environ[l10n.ENV_LANG] = DESIGN_LOCALE
+    try:
+        for design in DESIGNS_PICTURED[1:]:
+            inputs["<bridge envelope:%s:%s>" % (DESIGN_LOCALE, design)] = sha256(
+                window_envelopes((DESIGN_LOCALE,), design)[DESIGN_LOCALE].encode("utf-8"))
+            inputs["<panel render:%s:%s>" % (DESIGN_LOCALE, design)] = sha256(
+                panel_html(theme=THEME, design=design).encode("utf-8"))
+            inputs["<popup render:%s:%s>" % (DESIGN_LOCALE, design)] = popup_render_input(
+                DESIGN_LOCALE, drawing, design)
+            inputs["<card render:%s:%s>" % (DESIGN_LOCALE, design)] = card_render_input(
+                DESIGN_LOCALE, card, design)
+    finally:
+        if previous is None:
+            os.environ.pop(l10n.ENV_LANG, None)
+        else:
+            os.environ[l10n.ENV_LANG] = previous
     inputs["<icon motion>"] = icon_render_input()
     inputs["<light motion>"] = light_render_input()
     return inputs
@@ -2690,6 +3243,26 @@ LOCALES = ("en", "ko")
 EXTRA_LOCALES = ("ja", "zh-CN", "de")
 EXTRA_PAGES = ("overview", "pending", "settings")
 
+# The four designs (v0.6.10), each pictured on the four surfaces a person meets first - the Dashboard's
+# Overview, the panel, the popup and the notification card - in English and the light theme only, as
+# the user asked of every picture ("대부분의 이미지는 화이트모드만 해"); the dark half of each design is held
+# by the property tests instead. Soft's pictures are the set above, under the names they always had;
+# every other design's are `docs/images/design-<design>-<surface>.png`, documentation only and never in
+# assets/, which ships. A design whose light moves in the product moves in its pictures too - Classic's
+# with its glow, Plain's dimming only - and Still's, whose light never moves, are still.
+DESIGNS_PICTURED = ("soft", "still", "classic", "plain")
+DESIGN_SURFACES = ("dashboard", "panel", "popup", "card")
+DESIGN_LOCALE = "en"
+
+
+def design_picture(design: str, surface: str) -> Path:
+    """Where one design's picture of one surface lives: Soft's is the picture of that surface in the set
+    above, and every other design's is docs/images/design-<design>-<surface>.png."""
+    if design == brand.DEFAULT_DESIGN:
+        return {"dashboard": DOCS / "dashboard-overview.png", "panel": DOCS / "settings-panel.png",
+                "popup": DOCS / "tray-popup.png", "card": DOCS / "notification-card.png"}[surface]
+    return DOCS / ("design-%s-%s.png" % (design, surface))
+
 
 # Canonical asset name and documentation copy name, per picture. The settings page keeps
 # the names it has always had, so links to it from outside the repository keep working.
@@ -2721,7 +3294,219 @@ def window_targets(locale: str) -> dict:
             for page in WINDOW_PAGES}
 
 
+# ------------------------------------------------------------------ the audit sheets
+# `python build/make_screenshots.py --audit OUT [--before DIR] [--locale L]`, since v0.6.10. For
+# developers; nothing it makes is published.
+#
+# Every committed picture is light, by the user's choice ("대부분의 이미지는 화이트모드만 해"), so
+# nothing in the repository shows the dark half of the product - and nothing shows a change to its
+# look before the change is made, which is what the user approves a design change from. An audit of
+# the look needs both: the four surfaces side by side in each theme, and the same sheet from before a
+# change beside the one from after it.
+#
+# So this draws, in each theme, the window's Overview and Pending pages, the top of the panel, the
+# popup and the notification card - from the one fixture the published pictures use (`fixture`: the
+# panel, the popup and the card at POPUP_NOW, the window at its capture's own moment with the same
+# offsets, so relative times agree and wall-clock times need not), every surface at the scale the
+# window is captured at, so one CSS pixel is the same size in all four - and lays them out, each at
+# its own pixel size, on one contact sheet per theme.
+# Given `--before`, a folder an earlier `--audit` wrote, it adds a sheet per theme of each surface
+# before and after.
+#
+# Everything is written under OUT, which may not be in docs/ or assets/, and the manifest is neither
+# read nor written: these are pictures to look at, not pictures to publish. The window is captured
+# from a scratch installation exactly as the published pictures are (`render_window`), so the real
+# installation, its registry entries and the user's Codex are never touched. It needs what a whole
+# run needs: Windows, Edge and the compiled window.
+AUDIT_THEMES = ("light", "dark")
+AUDIT_PANEL_HEIGHT = 1000             # CSS px of the panel's top: the hero and the first cards
+# (file stem, label) per picture, in rows, in the order a person meets the product.
+AUDIT_ROWS = ((("window-overview", "Window - Overview"), ("window-pending", "Window - Pending")),
+              (("panel", "Panel - top %d CSS px" % AUDIT_PANEL_HEIGHT), ("popup", "Popup"),
+               ("card", "Notification card")))
+AUDIT_SPACE = 40                      # device px round the sheet and between pictures
+AUDIT_LABEL = 44                      # device px of label above each picture
+AUDIT_TITLE = 56                      # device px of the sheet's title line
+
+
+def audit_folder(out) -> Path:
+    """OUT, resolved - or SystemExit when it is in docs/ or assets/, where published pictures live."""
+    out = Path(out).resolve()
+    for kept in (ROOT / "docs", ASSETS):
+        kept = kept.resolve()
+        if out == kept or kept in out.parents:
+            raise SystemExit("--audit writes outside docs/ and assets/, never into them: %s" % out)
+    return out
+
+
+def audit_scale() -> float:
+    """The scale the window is captured at, which every other surface is drawn at for the sheets."""
+    return (system_dpi() or 96) / 96.0
+
+
+def png_size(path) -> tuple:
+    width, height = struct.unpack(">II", Path(path).read_bytes()[16:24])
+    return width, height
+
+
+def render_audit_surfaces(folder: Path, theme: str, locale: str, scale: float) -> dict:
+    """Each surface in `theme`, at `scale`, into `folder`: file stem -> picture."""
+    folder.mkdir(parents=True, exist_ok=True)
+    files = {stem: folder / (stem + ".png") for row in AUDIT_ROWS for stem, _label in row}
+    render_window({"overview": files["window-overview"], "pending": files["window-pending"]},
+                  theme=theme)
+    render_panel(files["panel"], theme=theme, scale=scale, height=AUDIT_PANEL_HEIGHT)
+    # Still pictures: a sheet is a photograph of a page, and an animated picture on it would be caught
+    # wherever it happened to be.
+    render_popup(files["popup"], locale, theme=theme, scale=scale, moving=False)
+    # On a ground as wide as the deeper theme's shadow, so the two sheets' cards are one size.
+    render_card(files["card"], locale, theme, scale=scale, themes=AUDIT_THEMES, moving=False)
+    return files
+
+
+def sheet_layout(rows) -> tuple:
+    """((width, height), [(label, picture, left, top, width, height)]) for `rows` of (label, picture).
+
+    Every picture at its own pixel size - a sheet that scaled one would be auditing the scaling -
+    with its label above it; rows top to bottom, pictures left to right."""
+    placed, top, width = [], AUDIT_SPACE + AUDIT_TITLE, 0
+    for row in rows:
+        left, tallest = AUDIT_SPACE, 0
+        for label, picture in row:
+            w, h = png_size(picture)
+            placed.append((label, Path(picture), left, top + AUDIT_LABEL, w, h))
+            left += w + AUDIT_SPACE
+            tallest = max(tallest, h)
+        width = max(width, left)
+        top += AUDIT_LABEL + tallest + AUDIT_SPACE
+    return (max(width, 2 * AUDIT_SPACE), top), placed
+
+
+def sheet_html(title: str, rows, theme: str, folder: Path) -> tuple:
+    """(page, (width, height)): the sheet as HTML kept in `folder`, on the theme's own canvas."""
+    from html import escape
+    from urllib.parse import quote
+    from codex_auto_resume import brand
+    colours = brand.palette(theme)
+    (width, height), placed = sheet_layout(rows)
+
+    def source(picture: Path) -> str:
+        try:
+            return quote(os.path.relpath(picture, folder).replace(os.sep, "/"))
+        except ValueError:                              # on another drive
+            return picture.resolve().as_uri()
+
+    parts = ["<!doctype html><html><head><meta charset=\"utf-8\"><title>%s</title><style>"
+             "html,body{margin:0;background:%s}"
+             "body{position:relative;width:%dpx;height:%dpx;color:%s;"
+             "font:22px/1.25 'Segoe UI',system-ui,sans-serif}"
+             ".t{position:absolute;left:%dpx;top:%dpx;font-size:28px;font-weight:600;white-space:nowrap}"
+             ".l{position:absolute;color:%s;white-space:nowrap}img{position:absolute;display:block}"
+             "</style></head><body><div class=\"t\">%s</div>"
+             % (escape(title), colours["canvas"], width, height, colours["ink"], AUDIT_SPACE,
+                AUDIT_SPACE, colours["muted"], escape(title))]
+    for label, picture, left, top, w, h in placed:
+        parts.append("<div class=\"l\" style=\"left:%dpx;top:%dpx\">%s</div>"
+                     "<img src=\"%s\" width=\"%d\" height=\"%d\" style=\"left:%dpx;top:%dpx\" alt=\"%s\">"
+                     % (left, top - AUDIT_LABEL + 6, escape(label), source(picture), w, h, left, top,
+                        escape(label)))
+    parts.append("</body></html>\n")
+    return "".join(parts), (width, height)
+
+
+def render_sheet(target: Path, title: str, rows, theme: str) -> None:
+    """The sheet as `target` - a PNG, photographed by Edge at one device pixel per CSS pixel - and the
+    page it was photographed from beside it, to open in a browser."""
+    page, (width, height) = sheet_html(title, rows, theme, target.parent)
+    html = target.with_suffix(".html")
+    write_file(html, page.encode("utf-8"))
+    with tempfile.TemporaryDirectory() as workspace:
+        shot = Path(workspace) / "sheet.png"
+        subprocess.run(
+            [str(find_edge()), "--headless=new", "--disable-gpu", "--hide-scrollbars",
+             "--force-device-scale-factor=1", "--allow-file-access-from-files",
+             "--window-size=%d,%d" % (width, height), "--screenshot=%s" % shot, html.as_uri()],
+            check=True, capture_output=True, timeout=180, cwd=workspace)
+        if not shot.is_file():
+            raise SystemExit("the renderer produced no sheet")
+        copy_file(shot, target)
+
+
+def audit_title(theme: str, locale: str, scale: float) -> str:
+    """The contact sheet's heading: what it shows, and at which moment each surface is.
+
+    The panel, the popup and the card are drawn at POPUP_NOW. The window is not: it is seeded at the
+    moment it is photographed, with the same offsets (`fixture`), so the heading says so rather than
+    putting one wall-clock moment over all four.
+    """
+    moment = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(POPUP_NOW))
+    return ("Codex Auto Resume %s - %s - %s - every surface at %gx - the panel, popup and card at %s,"
+            " the window at its capture's moment, same offsets" % (config.version(), theme, locale, scale,
+                                                                    moment))
+
+
+def render_audit(out, before=None, locale: str = "en") -> list:
+    """The audit sheets under `out`: each surface per theme, a sheet per theme, and - given `before`,
+    a folder an earlier run wrote - a before-and-after sheet per theme. Returns what it wrote."""
+    out = audit_folder(out)
+    if before is not None:
+        before = Path(before).resolve()
+        if not before.is_dir():
+            raise SystemExit("--before is not a folder an earlier --audit wrote: %s" % before)
+    scale = audit_scale()
+    written = []
+    previous = os.environ.get(l10n.ENV_LANG)
+    # The language every surface resolves, as a whole run sets it.
+    os.environ[l10n.ENV_LANG] = locale
+    try:
+        for theme in AUDIT_THEMES:
+            files = render_audit_surfaces(out / theme, theme, locale, scale)
+            written.extend(files.values())
+            title = audit_title(theme, locale, scale)
+            sheet = out / ("sheet-%s.png" % theme)
+            render_sheet(sheet, title, [[(label, files[stem]) for stem, label in row]
+                                        for row in AUDIT_ROWS], theme)
+            written.append(sheet)
+            if before is None:
+                continue
+            pairs = [[("before - " + label, before / theme / (stem + ".png")),
+                      ("after - " + label, files[stem])]
+                     for row in AUDIT_ROWS for stem, label in row
+                     if (before / theme / (stem + ".png")).is_file()]
+            if pairs:
+                pair = out / ("pair-%s.png" % theme)
+                render_sheet(pair, "Before (%s) and after - %s - %s" % (before.name, theme, locale),
+                             pairs, theme)
+                written.append(pair)
+    finally:
+        if previous is None:
+            os.environ.pop(l10n.ENV_LANG, None)
+        else:
+            os.environ[l10n.ENV_LANG] = previous
+    for path in written:
+        print("  %s  %s" % (path, dimensions(path)))
+    return written
+
+
+def audit_main(argv) -> int:
+    import argparse
+    parser = argparse.ArgumentParser(
+        prog="make_screenshots.py --audit",
+        description="Light and dark contact sheets of the window, the panel, the popup and the card, "
+                    "for an audit of the look. Written under OUT only; never docs/, assets/ or the "
+                    "manifest.")
+    parser.add_argument("out", help="the folder to write into")
+    parser.add_argument("--before", help="a folder an earlier --audit wrote, to set beside this one")
+    parser.add_argument("--locale", default="en", choices=[str(each) for each in l10n.ENDONYMS])
+    options = parser.parse_args(argv)
+    render_audit(options.out, before=options.before, locale=options.locale)
+    return 0
+
+
 def main(argv=None) -> int:
+    # Before anything is made under docs/ or assets/: the audit writes nothing there.
+    if list(sys.argv[1:] if argv is None else argv)[:1] == ["--audit"]:
+        return audit_main(list(sys.argv[1:] if argv is None else argv)[1:])
     ASSETS.mkdir(parents=True, exist_ok=True)
     DOCS.mkdir(parents=True, exist_ok=True)
     if list(sys.argv[1:] if argv is None else argv) == ["--cards"]:
@@ -2740,6 +3525,14 @@ def main(argv=None) -> int:
     print("version        : %s" % config.version())
     print("theme          : %s" % THEME)
     copies = {}
+    # What each picture holds of the status light (`picture_record`), for `--breathe` and the suite.
+    lights = {}
+
+    def windowed(targets):
+        for page, size in render_window(targets).items():
+            lights[targets[page]] = window_record(targets[page])
+            print("  %s  %s" % (targets[page].relative_to(ROOT), size))
+
     for locale in LOCALES:
         print("locale         : %s" % locale)
         # The engine resolves the language from the environment, so the environment is
@@ -2748,22 +3541,20 @@ def main(argv=None) -> int:
         os.environ[l10n.ENV_LANG] = locale
         pairs = paths_for(locale)
         panel = next(iter(pairs))
-        render_panel(panel)
+        lights[panel] = render_panel(panel)
         print("  %s  %s" % (panel.relative_to(ROOT), dimensions(panel)))
-        targets = window_targets(locale)
-        for page, size in render_window(targets).items():
-            print("  %s  %s" % (targets[page].relative_to(ROOT), size))
+        windowed(window_targets(locale))
         copies.update(pairs)
     extras = []
     for locale in LOCALES + EXTRA_LOCALES:
         os.environ[l10n.ENV_LANG] = locale
         tag = "" if locale == "en" else "-" + locale
         popup = DOCS / ("tray-popup%s.png" % tag)
-        render_popup(popup, locale)
+        lights[popup] = render_popup(popup, locale)
         extras.append(popup)
         print("  %s  %s" % (popup.relative_to(ROOT), dimensions(popup)))
         for theme, (asset, copy) in card_paths(locale).items():
-            render_card(asset or copy, locale, theme)
+            lights[asset or copy] = render_card(asset or copy, locale, theme)
             if asset is not None:
                 copies[asset] = copy
             else:
@@ -2771,21 +3562,47 @@ def main(argv=None) -> int:
             print("  %s  %s" % ((asset or copy).relative_to(ROOT), dimensions(asset or copy)))
         if locale in EXTRA_LOCALES:
             panel = DOCS / ("settings-panel%s.png" % tag)
-            render_panel(panel)
+            lights[panel] = render_panel(panel)
             extras.append(panel)
+            print("  %s  %s" % (panel.relative_to(ROOT), dimensions(panel)))
             targets = {page: DOCS / ("%s%s.png" % (WINDOW_NAMES_BY_PAGE[page][1], tag))
                        for page in EXTRA_PAGES}
-            for page, size in render_window(targets).items():
-                print("  %s  %s" % (targets[page].relative_to(ROOT), size))
+            windowed(targets)
             extras.extend(targets.values())
+    # The designs (v0.6.10): the four surfaces a person meets first, in each design but Soft, whose
+    # pictures are the ones above.
+    os.environ[l10n.ENV_LANG] = DESIGN_LOCALE
+    for design in DESIGNS_PICTURED[1:]:
+        print("design         : %s" % design)
+        target = design_picture(design, "dashboard")
+        render_window({"overview": target}, design=design)
+        lights[target] = window_record(target, design=design)
+        target = design_picture(design, "panel")
+        lights[target] = render_panel(target, design=design)
+        target = design_picture(design, "popup")
+        lights[target] = render_popup(target, DESIGN_LOCALE, design=design)
+        target = design_picture(design, "card")
+        lights[target] = render_card(target, DESIGN_LOCALE, THEME, design=design)
+        for surface in DESIGN_SURFACES:
+            extras.append(design_picture(design, surface))
+            print("  %s  %s" % (design_picture(design, surface).relative_to(ROOT),
+                                dimensions(design_picture(design, surface))))
     os.environ.pop(l10n.ENV_LANG, None)
     render_icon_motion(ICON_MOTION_APNG)
     extras.append(ICON_MOTION_APNG)
     print("  %s  %s" % (ICON_MOTION_APNG.relative_to(ROOT), dimensions(ICON_MOTION_APNG)))
+    render_light_motion(LIGHT_MOTION_APNG)
+    extras.append(LIGHT_MOTION_APNG)
+    print("  %s  %s" % (LIGHT_MOTION_APNG.relative_to(ROOT), dimensions(LIGHT_MOTION_APNG)))
 
     for source, copy in copies.items():
         copy_file(source, copy)
+        if source in lights:
+            lights[copy] = lights[source]
         print("copied         : %s -> %s" % (source.relative_to(ROOT), copy.relative_to(ROOT)))
+
+    def named(path):
+        return str(path.relative_to(ROOT)).replace("\\", "/")
 
     MANIFEST.write_text(json.dumps({
         "_comment": [
@@ -2793,19 +3610,23 @@ def main(argv=None) -> int:
             "build/make_screenshots.py and checked by tests/test_screenshots.py, which",
             "fails when these inputs no longer match the working tree - that is, when",
             "the screenshots are stale. Regenerate them rather than editing this file.",
+            "\"lights\" is what each picture holds of the status light, which",
+            "`make_screenshots.py --breathe` draws moving and the suite holds it to.",
         ],
         "version": config.version(),
         "theme": THEME,
         "card_themes": list(CARD_THEMES),
         "locales": list(LOCALES),
         "documentation_locales": list(EXTRA_LOCALES),
+        "designs": list(DESIGNS_PICTURED),
         "system_dpi": system_dpi(),
         "inputs": render_inputs(),
-        "images": {str(path.relative_to(ROOT)).replace("\\", "/"):
-                   {"sha256": sha256(path.read_bytes()), "size": dimensions(path)}
+        "images": {named(path): {"sha256": sha256(path.read_bytes()), "size": dimensions(path)}
                    for path in list(copies) + list(copies.values()) + extras},
+        "lights": {named(path): record for path, record in sorted(lights.items(), key=lambda item: named(item[0]))},
     }, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print("manifest       : %s" % MANIFEST.relative_to(ROOT))
+    print("then           : python build/make_screenshots.py --breathe")
     return 0
 
 

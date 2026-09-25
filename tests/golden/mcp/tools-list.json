@@ -150,10 +150,6 @@
                 "type": "boolean",
                 "description": "Recover interruptions classified as stream interrupted. Turning this on can never widen what counts as recoverable; the classifier decides that."
               },
-              "recover_auth_service_transient": {
-                "type": "boolean",
-                "description": "Recover interruptions classified as auth service transient. Turning this on can never widen what counts as recoverable; the classifier decides that."
-              },
               "notify_interruption": {
                 "type": "boolean",
                 "description": "See the settings documentation."
@@ -333,7 +329,7 @@
         {
           "name": "start_watcher",
           "title": "Start the background watcher",
-          "description": "Start the watcher if it is not running. Nothing is recovered while it is stopped, so this is the fix when the status says it is not running. It starts the same process the installer starts and decides nothing about any interruption.",
+          "description": "Start the watcher if it is not running. Nothing is recovered while it is stopped, so this is the fix when the status says it is not running. It starts the same process the installer starts and decides nothing about any interruption. Started from here it runs inside Codex. Where Codex ends what its plugins start, as Codex 26.915 was measured to, it stops when Codex closes, if not sooner; the reply reads that from the job each time and says so. A watcher that outlives Codex is one started from Codex Auto Resume in the Start menu once Codex has closed, or at Windows sign-in.",
           "inputSchema": {
             "type": "object",
             "properties": {},
@@ -501,8 +497,7 @@
                   "network_transient",
                   "timeout",
                   "server_5xx",
-                  "stream_interrupted",
-                  "auth_service_transient"
+                  "stream_interrupted"
                 ],
                 "description": "The kind of interruption to preview."
               },

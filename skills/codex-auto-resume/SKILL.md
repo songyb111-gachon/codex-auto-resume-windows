@@ -26,7 +26,7 @@ change directly.
 interruption, under the current language and style. It saves nothing and sends nothing.
 The user's own Custom message text cannot be written from Codex - not through
 `update_settings` and not through the preview. If the user wants to change it, tell them it
-is edited in the Windows Dashboard, under Settings > Continuation message.
+is edited in the Dashboard, under Settings > Continuation message.
 
 `resume_auto_recovery`, `enable_conversation_recovery`, `update_settings`,
 `restore_default_settings`, `cancel_recovery`, `reset_recovery_budget`, `start_watcher` and
@@ -152,8 +152,14 @@ Report what the command actually printed. Useful fields from `status` and `pendi
 - `auto-resume` — whether it is on at all.
 - `watcher` — `running` means it is waiting in the background. `not running` means nothing
   will be resumed; offer the `start_watcher` tool, or `enable`, which also starts it but
-  switches auto resume back on if the user had paused it. `unknown` means the check itself
-  could not answer; do not report it as running, and offer `doctor`.
+  switches auto resume back on if the user had paused it. A watcher `start_watcher` starts runs
+  inside Codex; where Codex ends what its plugins start, as Codex 26.915 was measured to, it
+  stops when Codex closes, if not sooner, and the reply reads that from the job each time. When
+  the reply says so (`ends_with_codex`), pass it on with the way out it names: once Codex has
+  closed, open Codex Auto Resume from the Start menu and start it there, or turn on Run at
+  Windows sign-in in the Dashboard. Not a Dashboard opened from that watcher's own icon: it is
+  inside Codex's job too. `unknown` means the check itself could not answer; do not report it
+  as running, and offer `doctor`.
 - the `status` line on a pending entry — the stable public code, which is what `pending`
   prints there and what `list_pending` returns as `code`. It never depends on a setting, so
   prefer it to `state` when telling the user what is happening.
@@ -210,6 +216,16 @@ exits. That is not a fault; the setup notes below say what to do.
 revalidates the interruption, still needs the conversation open, still waits for usage, and still
 refuses anything uncertain. Do not describe it as making a resume happen.
 
+`get_status` carries a Codex compatibility summary under `watcher.compatibility`, as codes. Its
+`overall` is one of `verified` (a real recovery on that exact Codex version confirmed it),
+`checked` (the maintainer's own checks passed on that exact version), `structurally_compatible`
+(this machine's checks pass and nothing more is claimed), `failed_here`, `incompatible` or
+`unknown`. Say what it says and add nothing to it. What other people report about a Codex version,
+shown as *Reported by others* on the Dashboard's Diagnostics page, is in nothing these tools
+return. If the user asks about it, send them to that page. Never describe other people's reports as verified,
+checked or compatible, or as a check made on this machine; if the user quotes the counts, speak
+of them only as other people's reports, which change nothing this product does.
+
 Do not restate the reset time the Codex usage-limit notice already shows.
 
 ## Looking further back
@@ -252,8 +268,10 @@ notifications appear, the interface language, the theme (light, dark, or followi
 panel's own theme in Codex (`panel_theme`: the same as the theme, Codex's, light or dark), the
 continuation language, the message style
 (Minimal, Standard, Detailed or Custom), and whether a Custom message is one message for every
-interruption or one per kind. The window has four things `update_settings` does not offer: the
-notification-area icon, Reduce motion, the notification card, and the Custom message text itself. If the user wants to
+interruption or one per kind. The window has five things `update_settings` does not offer: the
+notification-area icon, Reduce motion, the Design (Soft, Soft without motion, Classic or Plain: it
+decides what moves, as Reduce motion does), the notification card, and the Custom message text itself.
+If the user asks for any of them, say it is changed in the Dashboard, under Settings. If the user wants to
 change what a Custom message says, tell them it is written in the Dashboard, under Settings >
 Continuation message.
 
@@ -279,9 +297,9 @@ until the next check - which is when the watcher looks again, not when anything 
 single click opens a small popup beside it with the same state, the next check, up to three
 waiting tasks - each with a switch that turns automatic recovery off or on for that
 task's conversation, refused if the task has since finished or changed - Pause or Resume, and
-Open Dashboard. Its right-click menu opens the window, pauses or resumes recovery, and stops
+Open Dashboard. Its right-click menu opens the Dashboard, pauses or resumes recovery, and stops
 the watcher. Nothing in the popup or the menu sends a continuation. It is on by default and can
-be switched off in that window's Settings page.
+be switched off on the Dashboard's Settings page.
 
 Do not offer to build any other interface. There is no checkbox inside the Codex usage-limit
 notice and none can be added through the Codex plugin API; see
@@ -360,7 +378,7 @@ To remove everything, in this order:
    leave it and tell the user where it points.
 4. Tell the user to delete `%USERPROFILE%\.codex-auto-resume`, which still holds the
    application, the bundled Python and the settings window. If Windows reports a file in use,
-   Codex or the settings window still has it open: close both and try again. Do not delete it
+   Codex or the Dashboard still has it open: close both and try again. Do not delete it
    for them without asking - if they skipped `--purge` it also holds their pending recoveries.
 
 Say which of the four you did. "Removed completely" is only true after all four.

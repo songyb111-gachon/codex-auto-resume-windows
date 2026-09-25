@@ -262,15 +262,28 @@ class ReviewedRulesTests(unittest.TestCase):
 
     def test_a_refresh_decides_the_header_dot_once(self):
         """Each change of state restarts the halo, so a coarse state and then the refined one
-        in the same refresh made an alarm pulse again every five seconds."""
+        in the same refresh made an alarm pulse again every five seconds.
+
+        Since v0.6.10 the dot is decided with the words beside it, in one method (Hero), so the
+        rule is held there: ApplyStatus decides it only from a status that is not the snapshot's
+        on screen - none yet, or a newer one read on its own - and UpdateCountdowns otherwise."""
+        hero = self.method(self.window, "private void Hero(")
+        self.assertEqual(hero.count("stateDot.State ="), 1)
         status = self.method(self.window, "private void ApplyStatus(")
-        self.assertEqual(status.count("stateDot.State ="), 1)
-        self.assertRegex(status, r"if \(snapshot == null\)\s+stateDot\.State =",
+        self.assertNotIn("stateDot.State =", status)
+        self.assertEqual(status.count("Hero("), 1)
+        self.assertRegex(status, r"if \(heroStatus != null\) Hero\(",
                          "with a snapshot on screen, UpdateCountdowns decides the dot")
-        self.assertNotIn("stateDot.State", self.method(self.dashboard, "private void ApplySnapshot("))
+        self.assertIn('ReferenceEquals(status, Map(snapshot, "status")) ? null : status', status)
+        applied = self.method(self.dashboard, "private void ApplySnapshot(")
+        self.assertNotIn("stateDot.State", applied)
+        self.assertNotIn("Hero(", applied)
         countdowns = self.method(self.dashboard, "private void UpdateCountdowns(")
-        self.assertEqual(countdowns.count("stateDot.State ="), 1)
-        self.assertLess(countdowns.index("stateDot.State ="), countdowns.index("if (unreadable)"),
+        self.assertNotIn("stateDot.State =", countdowns)
+        self.assertRegex(countdowns, r"if \(heroStatus != null\) Hero\(heroStatus, null, now\);\s+"
+                                     r"else Hero\(status, pending, now\);",
+                         "one Hero a tick, whichever reading decides it")
+        self.assertLess(countdowns.index("Hero("), countdowns.index("if (unreadable)"),
                         "an unreadable pending list must still leave the dot decided")
 
     def test_a_restored_window_starts_the_halo_again(self):
@@ -301,6 +314,30 @@ class KeptInStepTests(unittest.TestCase):
             self.assertIn("gate." + name, english)
         for result in ("pass", "wait", "block", "unknown"):
             self.assertIn("gate.result." + result, english)
+
+    def test_a_checks_result_reads_as_it_always_has(self):
+        """Why it is waiting's result chips read OK, Waiting, Blocked and Unknown, as they always have: the
+        look people know stays. v0.6.10 made them lowercase value words for a while (passed, waiting, ...;
+        Japanese 通過 for OK) and gave that back. OK is OK where the language kept it (German, French,
+        Japanese, Brazilian Portuguese). The window's own fallback is the English word."""
+        from codex_auto_resume import l10n
+        results = ("pass", "wait", "block", "unknown")
+        english = l10n.catalog(l10n.DEFAULT)
+        self.assertEqual([english["gate.result." + result] for result in results],
+                         ["OK", "Waiting", "Blocked", "Unknown"])
+        for locale in ("de", "fr", "ja", "pt-BR"):
+            with self.subTest(locale=locale):
+                self.assertEqual(l10n.catalog(locale)["gate.result.pass"], "OK")
+        for locale in l10n.LOCALES:
+            table = l10n.catalog(locale)
+            for result in results:
+                word = table["gate.result." + result]
+                with self.subTest(locale=locale, result=result):
+                    self.assertEqual(word[:1], word[:1].upper(), "a chip's first letter is a capital where there is one")
+        for result in results:
+            with self.subTest(fallback=result):
+                self.assertIn('S("gate.result.%s", %s)' % (result, json.dumps(english["gate.result." + result])),
+                              self.dashboard)
 
     def test_every_settings_group_the_window_shows_has_a_section(self):
         shown = {entry["group"] for entry in settings.describe()} - {"advanced"}

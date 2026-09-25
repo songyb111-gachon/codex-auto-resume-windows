@@ -56,8 +56,15 @@ namespace CodexAutoResume
         ///     its columns share its width;
         ///   * a drop-down that is not one field high;
         ///   * text, a list's columns or other content that needs more room than it is drawn in,
-        ///     and a status light too small for its glow.
+        ///     and a status light too small for its glow;
+        ///   * the header's light not spanning its two lines, not centred on the pair, or not where it has always
+        ///     stood (AuditHero), with the Start button shown and without it.
         /// tests/test_gui_layout.py runs it in every language at five scalings.
+        ///
+        /// v0.6.10: it also writes down where everything is on every page and Settings section it lays out
+        /// (AuditedGeometry), in the design the palette was given (Palette.AdoptDesign). A design changes paint and
+        /// never layout, so that record is the same in every design: tests/test_gui_v0610_designs.py holds it to that,
+        /// and so the audit of one design is the audit of all four.
         internal static string LayoutAudit(string schemaJson, string settingsJson, string stringsJson, string snapshotJson, double scale)
         {
             var findings = new List<string>();
@@ -65,8 +72,11 @@ namespace CodexAutoResume
             AuditedLists = 0;
             AuditedNotes = 0;
             AuditedShortest = 0;
+            AuditedHero = 0;
             AuditedAlike = 0;
             AuditedWraps = 0;
+            var geometry = new StringBuilder();
+            AuditedGeometry = "";
             System.Reflection.FieldInfo fallback = typeof(Control).GetField("defaultFont",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
             Font defaultBefore = Control.DefaultFont;
@@ -115,6 +125,7 @@ namespace CodexAutoResume
                         form.ShowPage(page);
                         if (page != "settings")
                         {
+                            Geometry(page, form, geometry);
                             form.Audit(page, findings);
                             form.AuditScrolling(page, findings);
                             if (page == "overview")
@@ -130,6 +141,7 @@ namespace CodexAutoResume
                         foreach (string section in SectionOrder)
                         {
                             form.ShowSection(section);
+                            Geometry("settings/" + section, form, geometry);
                             form.Audit("settings/" + section, findings);
                             form.AuditPins("settings/" + section, findings);
                         }
@@ -155,12 +167,16 @@ namespace CodexAutoResume
                     Materialise(form);
                     form.PerformLayout();
                     form.AuditPins("header", findings);
+                    form.AuditHero("header with Start", findings);
                     form.startButton.Visible = false;
+                    form.PerformLayout();
+                    form.AuditHero("header", findings);
                     // The reopen note, beside every button of the Settings page's save card, at the opening width
                     // and at the narrowest the window goes: 800 wide, less a sizable frame's 8 px on each side -
                     // each in both orders a window comes to a width in (AuditReopenNote).
                     form.AuditReopenNote(form.Px(OpeningWidth), findings);
                     form.AuditReopenNote(form.Px(800) - form.Px(16), findings);
+                    AuditedGeometry = geometry.ToString();
                 }
             }
             finally
@@ -170,6 +186,39 @@ namespace CodexAutoResume
                 Soft.BaseFont = baseBefore;
             }
             return string.Join("\n", findings.ToArray());
+        }
+
+        /// Where everything was, page by page, as the last LayoutAudit laid it out (v0.6.10): one line per control
+        /// that takes room - its place among its parent's controls, its type, its bounds, its margin and its padding -
+        /// under a line naming the page or section. Empty before the first audit.
+        internal static string AuditedGeometry = "";
+
+        /// The layout of everything `form` has made room for, into `into`, under `where`: what a design may never
+        /// change. Colours, radii and shadows are not in it - they are the design's to change.
+        private static void Geometry(string where, Control form, StringBuilder into)
+        {
+            into.Append("== ").Append(where).Append('\n');
+            GeometryOf(form, "", into);
+        }
+
+        private static void GeometryOf(Control parent, string path, StringBuilder into)
+        {
+            for (int index = 0; index < parent.Controls.Count; index++)
+            {
+                Control child = parent.Controls[index];
+                if (!OwnVisible(child)) continue;
+                string here = path + "/" + index.ToString(CultureInfo.InvariantCulture) + ":" + child.GetType().Name;
+                Rectangle bounds = child.Bounds;
+                into.Append(here).Append(' ')
+                    .Append(string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}", bounds.X, bounds.Y, bounds.Width, bounds.Height))
+                    .Append(" m").Append(Sides(child.Margin)).Append(" p").Append(Sides(child.Padding)).Append('\n');
+                GeometryOf(child, here, into);
+            }
+        }
+
+        private static string Sides(Padding sides)
+        {
+            return string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}", sides.Left, sides.Top, sides.Right, sides.Bottom);
         }
 
         /// Every way the Overview gives way as the watcher's state changes under it, at `scale` and in the
@@ -555,6 +604,35 @@ namespace CodexAutoResume
         /// known to have looked at them.
         internal static int AuditedPins;
 
+        /// How many times the last LayoutAudit held the header's light to its place (AuditHero), so that a quiet
+        /// report is known to have looked.
+        internal static int AuditedHero;
+
+        /// The header's light where it has always stood: spanning both rows, centred between the headline and the line
+        /// under it within a pixel, in its own 28 px column at the card's content, with the headline and that line
+        /// starting where the column ends. v0.6.10 stood it on the headline's line alone, 14 px from the words, for a
+        /// while, and gave that back: nothing a person knows moves by a few pixels.
+        private void AuditHero(string where, List<string> findings)
+        {
+            AuditedHero++;
+            TableLayoutPanelCellPosition at = hero.GetPositionFromControl(stateDot);
+            if (at.Row != hero.GetPositionFromControl(headline).Row || hero.GetRowSpan(stateDot) != 2)
+                findings.Add(where + " :: the light does not span the headline and the line under it");
+            float cx = stateDot.Left + stateDot.Width / 2f, cy = stateDot.Top + stateDot.Height / 2f;
+            float pair = (headline.Top + detail.Bottom) / 2f;
+            if (Math.Abs(cy - pair) > 1)
+                findings.Add(where + " :: the light's centre is at " + cy + ", the pair's at " + pair);
+            if (hero.ColumnStyles.Count == 0 || (int)hero.ColumnStyles[0].Width != Px(28))
+                findings.Add(where + " :: the light's column is not 28 px wide");
+            if (Math.Abs(cx - (hero.Padding.Left + Px(28) / 2f)) > 1)
+                findings.Add(where + " :: the light's centre is " + (cx - hero.Padding.Left) + " from the card's content, not " +
+                             Px(28) / 2f);
+            if (headline.Left < stateDot.Right || detail.Left < stateDot.Right)
+                findings.Add(where + " :: the words start inside the light's column");
+            if (2 * HaloDot.Extent > Math.Min(stateDot.Width, stateDot.Height))
+                findings.Add(where + " :: the light's box is " + stateDot.Size + ", too small for its glow");
+        }
+
         private readonly HashSet<Control> auditedPins = new HashSet<Control>();
 
         /// Every pinned control on screen that is not in its corner or covers text (AuditPin), and every button an
@@ -740,6 +818,9 @@ namespace CodexAutoResume
             if (card != null) return Needs(card.HeightFor(c.Width), c.Height);
             var quote = c as SoftQuote;
             if (quote != null) return Needs(quote.GetPreferredSize(new Size(c.Width, 0)).Height, c.Height);
+            // A callout (v0.6.10): as tall as its notice wraps to at its width, with room for its longest word.
+            var callout = c as SoftCallout;
+            if (callout != null) return callout.Fits();
             var gates = c as GateList;
             if (gates != null) return inScroller ? null : Needs(gates.GetPreferredSize(new Size(c.Width, 0)).Height, c.Height);
             var list = c as ListView;
@@ -877,8 +958,8 @@ namespace CodexAutoResume
         private static string AuditName(Control control)
         {
             string text = (control.Text ?? "").Replace("\r", " ").Replace("\n", " ");
-            if (text.Length > 32) text = text.Substring(0, 32);
             if (text.Length == 0 && !string.IsNullOrEmpty(control.AccessibleName)) text = control.AccessibleName;
+            if (text.Length > 32) text = text.Substring(0, 32);
             return control.GetType().Name + (text.Length > 0 ? "'" + text + "'" : "");
         }
     }

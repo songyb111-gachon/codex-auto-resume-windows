@@ -589,10 +589,12 @@ namespace CodexAutoResume
             var status = Map(snapshot, "status");
             bool unreadable = snapshot.ContainsKey("pending_error");
             var pending = unreadable ? null : Items(snapshot, "pending");
-            // The one place a snapshot decides the header dot (ApplyStatus leaves it alone once
-            // there is one), and every second, so a task that has just come due shows the watcher
-            // checking. Before an unreadable list returns, which leaves Activity the status alone.
-            stateDot.State = Activity(status, pending, now);
+            // The one place a snapshot decides the header - its light, its word and the facts under it (Hero;
+            // ApplyStatus leaves it alone once there is one) - and every second, so a task that has just come due
+            // shows the watcher checking. A status read since the snapshot is newer and decides it alone until the
+            // next one (ApplyStatus). Before an unreadable list returns, which leaves Hero the status alone.
+            if (heroStatus != null) Hero(heroStatus, null, now);
+            else Hero(status, pending, now);
             TellTaskbar(status, pending, now);
             if (unreadable)
             {

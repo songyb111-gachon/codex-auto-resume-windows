@@ -64,7 +64,9 @@ sends a continuation; the watcher stays the only thing that recovers, and it kee
 the server is not. v0.6.9 tried to give it one more thing to do - starting the watcher when Codex
 starts, for a person who had asked for that - and measured, on a real machine, that Codex runs each
 MCP server in a job object that ends whatever that server starts. So it starts nothing, and writes
-one line to `logs/codex-start.log` saying what the job said. Two tools change *when* the watcher next looks at a record: `retry_now` moves
+one line to `logs/codex-start.log` saying what the job said. What `start_watcher` starts when asked
+runs in that same job, so from v0.6.10 its reply says the watcher stops when Codex closes, if not
+sooner. Two tools change *when* the watcher next looks at a record: `retry_now` moves
 a waiting record's next check to now, and `reset_recovery_budget` returns an exhausted record to
 waiting with its recovery attempts and its no-progress count reset to zero. It does not switch
 recovery for that conversation back on: where that conversation is off, the reply says so and
@@ -76,7 +78,9 @@ anything but its exact id, resends an uncertain submission or forces a send.
 ### The tools, and which ones Codex asks about
 
 The table describes the server from v0.6.5. The server runs from the installed release, not from
-the plugin you add. An installation on v0.6.4 has the same seventeen tools, but its `get_status`
+the plugin you add. Every installation from v0.6.3 through v0.6.9 also offers, in `update_settings`,
+a switch for `auth_service_transient` that v0.6.10 no longer has: nothing ever produced that kind, so
+the switch changed nothing. An installation on v0.6.4 has the same seventeen tools, but its `get_status`
 carries no compatibility summary. One on v0.6.3 has the same seventeen tools too, but its
 `update_settings` does not offer the theme. One on v0.6.0 through v0.6.2 has sixteen tools, without
 `preview_recovery_message`, and its `update_settings` offers only the recovery categories, the
@@ -95,7 +99,7 @@ the installation directory. The last two are described below the table.
 | Tool | What it does | Marked destructive |
 | --- | --- | --- |
 | `open_settings` | Shows the settings panel. Opening it changes nothing. | no |
-| `get_status` | Whether recovery is on, whether the watcher is running, counts by state, the version and the current settings, and the Codex compatibility summary the Dashboard's Diagnostics page shows, as codes only - no Codex version string, no path, no free text. | no |
+| `get_status` | Whether recovery is on, whether the watcher is running, counts by state, the version and the current settings, and the Codex compatibility summary the Dashboard's Diagnostics page shows, as codes only - no Codex version string, no path, no free text, and not what other people report about that version. | no |
 | `list_pending` | Pending recoveries with their interruption ids, conversation ids, stored state, public code, reason, overlays and attempt counts. With `include_finished: true`, the recoveries that have already finished as well. | no |
 | `get_recovery_statistics` | How many interruptions were detected, how many continuations were sent, how they ended, and the median waits, over the last `days` days or all of it. Counts only; no ids. | no |
 | `get_recovery_timeline` | One interruption and everything that continued it, as codes and times. | no |
@@ -106,11 +110,11 @@ the installation directory. The last two are described below the table.
 | `resume_auto_recovery` | Undoes a global pause. | yes |
 | `enable_conversation_recovery` | Switches recovery back on for one exact conversation. Nothing is sent; every check still applies. | yes |
 | `update_settings` | Changes user-facing settings: the Interface language, the recovery categories, the limits, the notifications, the continuation message's language, style and Custom mode, and the theme. Not the Custom message text itself (below). | yes |
-| `restore_default_settings` | Puts every setting back to its recommended value. | yes |
+| `restore_default_settings` | Puts every setting back to its recommended value - the Design to Soft and Reduce motion off among them, though Codex can set neither. | yes |
 | `cancel_recovery` | Stops the named interruption and every record that continues it. One that was never sent is cancelled outright; one that may already be in Codex is marked, and the watcher takes back whatever is still queued - a turn already running is not stopped. The conversation itself stays switched on. | yes |
 | `reset_recovery_budget` | Returns an exhausted record to waiting, as above. | yes |
 | `clear_recovery_history` | Hides finished recoveries from the history. Deletes nothing and cancels nothing; a recovery that may still change stays visible, and hidden rows still count for every safety check. | yes |
-| `start_watcher` | Starts the watcher the installer starts, if it is not running. | yes |
+| `start_watcher` | Starts the watcher the installer starts, if it is not running. Started this way it runs inside Codex. Where Codex ends what its plugins start, as Codex 26.915 was measured to, the reply from v0.6.10 says it stops when Codex closes, if not sooner (`ends_with_codex`, read from the job each time), and names a start that outlives Codex: once Codex has closed, Codex Auto Resume in the Start menu, or Run at Windows sign-in in the Dashboard. A Dashboard opened from that watcher's own icon runs inside Codex too. | yes |
 
 "Marked destructive" is MCP's `destructiveHint` annotation, which the server declares for
 each tool. It requests approval; Codex and your approval settings decide whether to ask.
@@ -147,7 +151,11 @@ destructive, so it does not request approval through that annotation, and `get_s
 reports the installation directory as `home`. Nor does `update_settings` offer the preferences
 that belong to Windows - the notification-area icon (`show_tray`), Reduce motion
 (`reduce_motion`) and, from v0.6.5, the notification card (`notification_card`) - which the
-panel does not show either. From v0.6.4 it does offer the theme, and from v0.6.6 the panel's own
+panel does not show either. From v0.6.10 it does not offer the Design (`design`) either, and
+refuses it from a client that sends it anyway, alone or beside a setting it does offer: the
+Design decides what moves on every surface - Soft without motion stops it and Soft starts it
+again - so it is the Dashboard's, as Reduce motion is. The panel draws in both and changes
+neither. From v0.6.4 it does offer the theme, and from v0.6.6 the panel's own
 theme beside it (`panel_theme`): the two appearance settings the panel shows. No tool refreshes or imports the Codex compatibility data: that happens only from
 the window's Diagnostics page, its update check, or the command line.
 
@@ -158,7 +166,7 @@ refused; `preview_recovery_message` accepts only the four choices named in its r
 is what the text is for. The watcher later sends it into your conversations, on your behalf,
 when nobody is watching, so a model that had been talked into changing it by a page it read
 would turn one injected instruction into a standing one, delivered at every later interruption.
-The text is therefore written in the Windows Dashboard, by the person it will speak for. What
+The text is therefore written in the Dashboard, by the person it will speak for. What
 Codex can change - the language and the style - only chooses among texts this product ships or
 you wrote.
 
@@ -200,7 +208,7 @@ Dashboard and the popup share ([BRAND.md](BRAND.md)). Top to bottom:
 * **Notifications**, folded away: the switch for notifications, and a check box for each event.
 * **Continuation message**: the continuation language and the message style. Under *Custom* it
   shows which stored message is used and what it says, read-only, with a note that Custom
-  messages are written in the Windows Dashboard. The page has no text field for them, and
+  messages are written in the Dashboard. The page has no text field for them, and
   neither its Save request nor its Preview request can carry one.
 * **Preview**: the exact text for a chosen kind of interruption, from
   `preview_recovery_message`, following the language and style chosen but not yet saved. The
@@ -580,9 +588,8 @@ drawn as the product's own card beside the notification area wherever a card may
 the same words and the same two buttons, and as Windows' own notification everywhere else.
 
 **D — the notification-area popup.** A single click on the watcher's icon opens a compact popup
-listing what is waiting; each task has its own switch, *Automatically resume this task when the
-limit resets* (or *Automatically retry this task*), bound to that task's interruption and
-conversation ids.
+listing what is waiting; each task has its own switch, **Auto-resume** as on the Dashboard's
+Pending page, bound to that task's interruption and conversation ids.
 
 **E — the Dashboard's Pending page.** The **Auto-resume** column carries the same switch for every
 waiting task, beside **Why it is waiting** and the rest of the task's record.

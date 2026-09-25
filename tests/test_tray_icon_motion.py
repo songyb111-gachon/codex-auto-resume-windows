@@ -882,6 +882,56 @@ class StoredReduceMotionTests(unittest.TestCase):
         self.assertEqual(len(self.logged), 1)
 
 
+class StoredDesignTests(StoredReduceMotionTests):
+    """v0.6.10: the Design saved from the window reaches the icon on the same tick as Reduce motion.
+
+    Still's light does not breathe, so storing Still holds the icon within a second, as storing Reduce
+    motion does; Classic and Plain breathe, so the icon keeps moving in them - and Reduce motion holds it
+    in any design. The icon's own pixels are the same in every design. (Every test of Reduce motion above
+    runs here again, with the design's own below it.)
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.addCleanup(popup.set_design, popup.design_setting())
+        popup.set_design("soft")
+        self.control.update_settings({"design": "soft"})
+
+    def test_storing_still_holds_the_icon_at_the_next_tick(self):
+        self.assertTrue(self.tick())
+        self.store(design="still")
+        self.assertFalse(self.tick(), "Still's light does not breathe")
+        self.assertEqual(popup.design_setting(), "still")
+        self.store(design="soft")
+        self.assertTrue(self.tick())
+        self.assertEqual(self.logged, [])
+
+    def test_classic_and_plain_keep_it_moving_and_reduce_motion_holds_them(self):
+        for design in ("classic", "plain"):
+            with self.subTest(design):
+                self.store(design=design, reduce_motion=False)
+                self.assertTrue(self.tick())
+                self.store(reduce_motion=True)
+                self.assertFalse(self.tick())
+
+    def test_a_read_that_fails_keeps_the_design_already_taken_up(self):
+        self.store(design="still")
+        self.assertFalse(self.tick())
+        with unittest.mock.patch.object(self.control, "get_settings", side_effect=OSError("locked")):
+            self.store(design="soft")
+            self.assertFalse(self.tick(), "an unreadable file does not undo the design it had")
+        self.assertEqual(popup.design_setting(), "still")
+        self.assertEqual(self.logged, ["tray settings read failed (OSError)"])
+
+    def test_nothing_that_draws_the_icon_reads_the_design(self):
+        """The mark is not a theme token: the icon's frames are the brand's in every design, and only whether
+        they move follows it."""
+        root = Path(__file__).resolve().parents[1] / "src" / "codex_auto_resume"
+        for path in (root / "ui" / "tray" / "motion.py", root / "brand" / "mark.py"):
+            with self.subTest(path.name):
+                self.assertNotIn("design", path.read_text(encoding="utf-8"))
+
+
 class FakeRegistry:
     """HKEY_CURRENT_USER as `IconPlacement` reads it: {key path: {value name: value}}, and what was read."""
 

@@ -283,6 +283,7 @@ class FailureCategory(StrEnum):
     RATE_LIMIT_TRANSIENT = "rate_limit_transient"
     SERVER_5XX = "server_5xx"
     STREAM_INTERRUPTED = "stream_interrupted"
+    # Reserved since v0.6.10 (failures.RESERVED): nothing produces it; kept so a row naming it reads.
     AUTH_SERVICE_TRANSIENT = "auth_service_transient"
     TERMINAL_USER = "terminal_user"
     TERMINAL_PERMISSION = "terminal_permission"
@@ -367,6 +368,16 @@ class Theme(StrEnum):
     SYSTEM = "system"
     LIGHT = "light"
     DARK = "dark"
+
+
+class Design(StrEnum):
+    """How the surfaces are drawn, in either theme (settings.DESIGNS, brand.DESIGN): `soft` is the
+    design every surface drew until v0.6.10, `still` is Soft with nothing moving, `classic` is
+    v0.6.2's flat cards and `plain` flat neutral grey."""
+    SOFT = "soft"
+    STILL = "still"
+    CLASSIC = "classic"
+    PLAIN = "plain"
 
 
 class RetryTiming(StrEnum):
@@ -645,6 +656,17 @@ class CacheOrigin(StrEnum):
     """Where refreshed registry data came from (compat.CACHE_ORIGINS)."""
     MAIN = "main"
     FILE = "file"
+
+
+class ReportedState(StrEnum):
+    """What other people's filed reports say of one Codex version (compat.reported.STATES).
+
+    Reported is a grade beside the ladder of CompatState and never on it: nothing that decides
+    reads it, and no member here is a state a capability can have."""
+    REPORTED = "reported"                    # at least one filed report names this version
+    NONE_YET = "none_yet"                    # the counts are readable and name it nowhere
+    UNAVAILABLE = "unavailable"              # no counts to read, or no version to look up
+    REJECTED = "rejected"                    # the counts file failed its own validation
 
 
 class RefreshAnswer(StrEnum):

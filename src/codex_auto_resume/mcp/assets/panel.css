@@ -14,6 +14,10 @@
   /* The light's easing: half a raised cosine, to within 0.002 of each phase, so the cycle the
      stylesheet draws is the same curve brand.glow() gives the window and the popup. */
   --glow-ease: cubic-bezier(.37, 0, .63, 1);
+  /* How far into its cycle a light is when it is drawn, which the script sets on the root each time
+     it draws the page (panel.js showLight): a light that has not changed goes on from where it was,
+     and the page's lights share one phase. Nothing before the script has run. */
+  --light-delay: 0ms;
   /* Every transition on the page takes brand's time and brand's one curve, --transition and
      --transition-ease (MOTION, in the scale above): an ease-out, so a switch's knob, a check box's
      mark and a list that opens leave at once and settle softly, as they do in the window and the
@@ -27,6 +31,12 @@
 }
 :root[data-theme="dark"] { color-scheme: dark; @DARK@ @ELEVATION_DARK@ @TILE_DARK@ }
 :root[data-theme="light"] { color-scheme: light; @LIGHT@ @ELEVATION_LIGHT@ @TILE_LIGHT@ }
+/* v0.6.10: the designs. Soft is the blocks above. A design that draws in other colours, without depth
+   or with other corners (Classic, Plain) redeclares them in the same four places, each also naming the
+   design, so each outranks the block it stands for and every design is in light and dark. Only on the
+   root, where the theme is stamped and the --check-* aliases are resolved (brand.css_design_blocks);
+   the script stamps `data-design` from the stored design (applyDesign). */
+@DESIGNS@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -88,15 +98,29 @@ button, select, input { font: inherit; }
    and amber is for a watcher that runs and is not well.
 
    The motion is brand's GLOW, the breath the window and the popup draw: one symmetric cosine a
-   cycle, the dot dimming toward the card and back (glow-dot) with the glow riding its brightness
-   (glow-spread) - a falloff, never a disc with an edge. The curve is in the keyframes themselves,
-   sampled from brand.glow_phase, so what lies between two stops is walked straight (`linear`)
-   rather than eased again. Monitoring runs it slowly, recovering faster and attention slowest of
-   all, each for as long as it lasts - until v0.6.8 attention ran it once and then held lit.
-   Waiting breathes on monitoring's rhythm, as the notification-area icon draws it (until v0.6.9
-   it held lit and still); checking holds lit with no glow. */
+   cycle, the dot's colour drawn toward the ground it stands on and back (glow-dot) with the glow
+   riding its brightness (glow-spread) - a falloff, never a disc with an edge. The curve is in the
+   keyframes themselves, sampled from brand.glow_phase, so what lies between two stops is walked
+   straight (`linear`) rather than eased again. Monitoring runs it slowly, recovering faster and
+   attention slowest of all, each for as long as it lasts - until v0.6.8 attention ran it once and
+   then held lit. Waiting breathes on monitoring's rhythm, as the notification-area icon draws it
+   (until v0.6.9 it held lit and still); checking holds lit with no glow and turns its arc.
+
+   The dot dims by its colour, mixed with --halo-ground, and never by its opacity: the glow is drawn
+   inside the dot's element, and until v0.6.10 an opacity on the dot dimmed the glow with it, so
+   halfway through a breath the panel's glow was a fifth weaker than the window's and the popup's.
+
+   There are two lights, one light word (v0.6.10): the state's at the top, and the same light at
+   the mini size on the Automatic recovery tile (.halo.mini), which until then was a dot that never
+   moved beside a light that breathed. Both start their cycle where the script says (--light-delay,
+   panel.js showLight), so they breathe together and a redraw does not send them back to the top. */
 .halo { --halo-color: var(--idle); position: relative; flex: none; width: 12px; height: 12px;
         border-radius: 50%; background: var(--halo-color); }
+.halo.mini { width: 8px; height: 8px; @GLOW_MINI@ }
+/* The ground each light stands on, which its dot is drawn toward as it dims: the card's under the
+   state, the tile's under the tile's light. */
+.hero { --halo-ground: var(--card-ground); }
+.master { --halo-ground: var(--raised); }
 .halo::before { content: none; position: absolute; inset: calc(-1 * var(--glow-reach));
                 border-radius: 50%; pointer-events: none; opacity: 0; transform: scale(var(--glow-from));
                 background: radial-gradient(circle closest-side,
@@ -108,14 +132,35 @@ button, select, input { font: inherit; }
 .halo.attention { --halo-color: var(--attention); }
 .halo.paused { --halo-color: var(--paused); }
 .halo.monitoring::before, .halo.waiting::before, .halo.recovering::before, .halo.attention::before { content: ""; }
-.halo.monitoring { animation: glow-dot var(--glow-monitoring-ms) linear infinite; }
-.halo.monitoring::before { animation: glow-spread var(--glow-monitoring-ms) linear infinite; }
-.halo.waiting { animation: glow-dot var(--glow-waiting-ms) linear infinite; }
-.halo.waiting::before { animation: glow-spread var(--glow-waiting-ms) linear infinite; }
-.halo.recovering { animation: glow-dot var(--glow-recovering-ms) linear infinite; }
-.halo.recovering::before { animation: glow-spread var(--glow-recovering-ms) linear infinite; }
-.halo.attention { animation: glow-dot var(--glow-attention-ms) linear infinite; }
-.halo.attention::before { animation: glow-spread var(--glow-attention-ms) linear infinite; }
+.halo.monitoring { animation: glow-dot var(--glow-monitoring-ms) linear var(--light-delay) infinite; }
+.halo.monitoring::before { animation: glow-spread var(--glow-monitoring-ms) linear var(--light-delay) infinite; }
+.halo.waiting { animation: glow-dot var(--glow-waiting-ms) linear var(--light-delay) infinite; }
+.halo.waiting::before { animation: glow-spread var(--glow-waiting-ms) linear var(--light-delay) infinite; }
+.halo.recovering { animation: glow-dot var(--glow-recovering-ms) linear var(--light-delay) infinite; }
+.halo.recovering::before { animation: glow-spread var(--glow-recovering-ms) linear var(--light-delay) infinite; }
+.halo.attention { animation: glow-dot var(--glow-attention-ms) linear var(--light-delay) infinite; }
+.halo.attention::before { animation: glow-spread var(--glow-attention-ms) linear var(--light-delay) infinite; }
+/* Checking's arc, as the window and the popup stroke it: a ring whose middle is --glow-arc-gap past
+   the dot's edge, --glow-arc-width wide, --glow-arc-sweep of it drawn in the light's colour at
+   --glow-arc-mix, turning once every --glow-arc-ms. Its angle is theirs, clockwise from three
+   o'clock - where a conic gradient begins once it is turned from twelve - and held still it rests
+   where theirs does (--glow-arc-still). The ring is cut from the gradient by a mask whose edges are
+   each softened across a pixel, centred on the edge: the box is a pixel wider than the ring for it. */
+.halo.checking::after { --halo-arc: color-mix(in srgb, var(--halo-color) var(--glow-arc-mix), transparent);
+                        content: ""; position: absolute; border-radius: 50%; pointer-events: none;
+                        inset: calc(-1 * (var(--glow-arc-gap) + var(--glow-arc-width) / 2 + 1px));
+                        background: conic-gradient(from 90deg, var(--halo-arc) 0deg var(--glow-arc-sweep),
+                                                   transparent 0deg);
+                        -webkit-mask: radial-gradient(circle closest-side,
+                          transparent calc(100% - 1.5px - var(--glow-arc-width)),
+                          #000 calc(100% - .5px - var(--glow-arc-width)), #000 calc(100% - 1.5px),
+                          transparent calc(100% - .5px));
+                        mask: radial-gradient(circle closest-side,
+                          transparent calc(100% - 1.5px - var(--glow-arc-width)),
+                          #000 calc(100% - .5px - var(--glow-arc-width)), #000 calc(100% - 1.5px),
+                          transparent calc(100% - .5px));
+                        transform: rotate(var(--glow-arc-still));
+                        animation: glow-arc var(--glow-arc-ms) linear var(--light-delay) infinite; }
 @GLOW_KEYFRAMES@
 
 /* Controls rest on the card; values sit in wells. */
@@ -329,10 +374,8 @@ label.setting { cursor: pointer; }
 .master-body { flex: 1 1 200px; display: grid; gap: 4px; min-width: 0; }
 .master-text { display: flex; align-items: center; gap: 10px; min-width: 0; font-weight: 500; }
 .master > button { align-self: flex-end; margin-left: auto; }
-/* The same light, small and still: the state card above is the one that breathes. */
-.dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--idle); }
-.dot.on { background: var(--active); }
-.dot.paused { background: var(--paused); }
+/* The tile's light is the state's light, smaller (.halo.mini, with the status light above): it says
+   and does what the one at the top of the page says and does. */
 
 .segmented { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--size-segment-gap); }
 .segment { position: relative; display: flex; min-width: 0; }
@@ -384,6 +427,8 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
 .compat-state { flex: none; }
 .compat-legend { display: grid; gap: var(--space-xs); margin-top: var(--space-m); }
 .compat .callout { margin: var(--space-m) 0 0; }
+/* Where what others report is shown (v0.6.10): muted help text like the refresh's, never a chip. */
+.compat-reported { margin-top: var(--space-m); }
 .compat-refresh { margin-top: var(--space-m); }
 
 /* What is waiting, as soft rows rather than a table. Wide content wraps inside its row;
@@ -478,12 +523,22 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
   .segmented { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* A person who asked Windows for less motion gets none: every light holds lit with no glow,
-   nothing slides, a switch or a check box simply changes, and a list simply appears. */
+/* A person who asked Windows for less motion gets none: every light holds lit with no glow - the
+   checking arc held where it rests - nothing slides, a switch or a check box simply changes, and a
+   list simply appears. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
   .halo::before { display: none; }
 }
+
+/* v0.6.10: what each design moves, and Classic's mark, from brand.DESIGN (panel.design_rules). A design
+   whose light does not breathe (Still), and the product's own Reduce motion (`data-motion`, which until
+   then only the Dashboard, the popup, the card and the icon read), hold everything as the rule above
+   does; a design that does not glide (Still alone) changes a control and shows a list without
+   moving them; one with no glow (Plain) dims its light with nothing round it; and Classic draws v0.6.2's
+   accent bar inside each card's left hairline - a shadow, so nothing moves by its width. A design only
+   ever takes motion away: nothing here can start what the rule above or High Contrast stops. */
+@DESIGN_MOTION@
 
 /* Windows High Contrast. The browser puts the person's system colours in place of the palette
    and takes every shadow away - and it would paint the light over with the page's ground,
@@ -498,10 +553,12 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
   *, *::before, *::after { animation: none !important; transition: none !important; }
   .card, .savebar, button, select, input, .segment span, .bubble,
   .combo-box, .combo-list, .combo-option, .master, .prow { box-shadow: none; }
-  .halo, .dot, .halo.paused, .dot.paused { forced-color-adjust: none; background: GrayText; }
-  .halo.monitoring, .halo.waiting, .halo.checking, .halo.recovering, .dot.on { background: Highlight; }
+  .halo, .halo.paused { forced-color-adjust: none; background: GrayText; }
+  .halo.monitoring, .halo.waiting, .halo.checking, .halo.recovering { background: Highlight; }
   .halo.attention { background: CanvasText; }
   .halo::before { display: none; }
+  /* The checking arc, still, in the light's own system colour - as the popup and the window draw it. */
+  .halo.checking::after { --halo-arc: Highlight; }
   /* The wedge is a clipped fill, which forced colours would paint the page's ground: it keeps the
      text colour. */
   .combo-box::after { forced-color-adjust: none; background: CanvasText; }
