@@ -639,7 +639,7 @@ the ring rather than floating beside it.
   shown only while counts are. The panel is handed no counts and points to the row by the same
   name; the popup, the notification card and the icon never show it, because it asks nothing of
   anybody and must never draw attention.
-- **One thing, one word.** The window is the Dashboard wherever it is named: in the icon's menu,
+- **One name for the window.** The window is the Dashboard wherever it is named: in the icon's menu,
   the popup, the card, the notifications, the panel in Codex and the help under a setting. A
   sentence shown in the Dashboard and in the panel names the surfaces it means rather than saying
   "this window", which is right only where the window is the one saying it; the title bar and the
@@ -647,9 +647,10 @@ the ring rather than floating beside it.
   Codex Auto Resume window and the settings window, and the icon's menu said Open Codex Auto
   Resume. A task's switch is **Auto-resume** in the Dashboard, the panel and the popup, which
   offered it as two longer sentences of its own; the popup's rows count down to the Next check
-  its summary names, where they said Next try. A chip's word is a value word, lowercase where the
-  language has case, as a state's is: **Why it is waiting** says passed, waiting, blocked and
-  unknown, where it said OK, Waiting, Blocked and Unknown.
+  its summary names, where they said Next try. That is as far as the words were made one: each
+  surface keeps its own words for what the watcher is doing - the Dashboard's headline says
+  *Watching for interruptions* where the popup and the panel say *Monitoring* - and **Why it is
+  waiting** reads OK, Waiting, Blocked and Unknown, as it always has.
 - **Nothing depends on seeing a shadow.** Every card and control keeps a hairline edge, and the
   keyboard focus ring has its own token, `focus`.
 - **Order is an argument.** The panel runs: the state; then what is waiting, because it is the

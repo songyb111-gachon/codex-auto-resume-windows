@@ -315,22 +315,25 @@ class KeptInStepTests(unittest.TestCase):
         for result in ("pass", "wait", "block", "unknown"):
             self.assertIn("gate.result." + result, english)
 
-    def test_a_checks_result_is_a_lowercase_value_word(self):
-        """Since v0.6.10 a check's result is a value word, as every state chip beside it is, and
-        lowercase where the language has case: Why it is waiting said OK, Waiting, Blocked and
-        Unknown beside lowercase state chips. The window's own fallback is the English word."""
+    def test_a_checks_result_reads_as_it_always_has(self):
+        """Why it is waiting's result chips read OK, Waiting, Blocked and Unknown, as they always have: the
+        look people know stays. v0.6.10 made them lowercase value words for a while (passed, waiting, ...;
+        Japanese 通過 for OK) and gave that back. OK is OK where the language kept it (German, French,
+        Japanese, Brazilian Portuguese). The window's own fallback is the English word."""
         from codex_auto_resume import l10n
         results = ("pass", "wait", "block", "unknown")
+        english = l10n.catalog(l10n.DEFAULT)
+        self.assertEqual([english["gate.result." + result] for result in results],
+                         ["OK", "Waiting", "Blocked", "Unknown"])
+        for locale in ("de", "fr", "ja", "pt-BR"):
+            with self.subTest(locale=locale):
+                self.assertEqual(l10n.catalog(locale)["gate.result.pass"], "OK")
         for locale in l10n.LOCALES:
             table = l10n.catalog(locale)
             for result in results:
                 word = table["gate.result." + result]
                 with self.subTest(locale=locale, result=result):
-                    self.assertEqual(word[:1], word[:1].lower(), word)
-                    self.assertNotEqual(word.upper(), "OK", "a value word, not an acknowledgement")
-        english = l10n.catalog(l10n.DEFAULT)
-        self.assertEqual([english["gate.result." + result] for result in results],
-                         ["passed", "waiting", "blocked", "unknown"])
+                    self.assertEqual(word[:1], word[:1].upper(), "a chip's first letter is a capital where there is one")
         for result in results:
             with self.subTest(fallback=result):
                 self.assertIn('S("gate.result.%s", %s)' % (result, json.dumps(english["gate.result." + result])),
