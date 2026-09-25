@@ -30,7 +30,11 @@ def _identifier_schema(title: str) -> dict:
 # a model and is refused if a client sends it anyway.
 USER_GROUPS = frozenset({"general", "recovery", "limits", "notifications", "continuation"})
 # The Appearance settings the panel offers: both themes, which colour it. Reduce motion and the
-# notification-area icon ("windows") stay out: the panel follows the host's reduced-motion setting.
+# notification-area icon ("windows") stay out. So does the design (v0.6.10): it decides what moves
+# on every surface, as Reduce motion does - Still stops motion and Soft starts it again - and what
+# moves is not Codex's to change (standard H3). The panel draws in both, and edits neither: they
+# are written in the Dashboard. restore_default_settings still puts both back, as it puts back
+# every setting.
 PANEL_APPEARANCE = frozenset({"theme", "panel_theme"})
 
 

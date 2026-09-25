@@ -18,6 +18,7 @@
           "start_with_codex": false,
           "theme": "system",
           "panel_theme": "same",
+          "design": "soft",
           "reduce_motion": false,
           "codex_exe": null,
           "recover_usage_limit": true,

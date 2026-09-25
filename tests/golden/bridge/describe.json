@@ -93,6 +93,18 @@
             "group": "appearance"
           },
           {
+            "name": "design",
+            "default": "soft",
+            "type": "string",
+            "choices": [
+              "soft",
+              "still",
+              "classic",
+              "plain"
+            ],
+            "group": "appearance"
+          },
+          {
             "name": "reduce_motion",
             "default": false,
             "type": "boolean",

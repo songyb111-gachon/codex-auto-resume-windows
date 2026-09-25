@@ -251,7 +251,8 @@ class ToolSurfaceTests(McpTestCase):
         # A model reading the Theme's description has to learn it no longer colours the panel on its
         # own, or it will answer "make Codex dark" by darkening the window as well.
         self.assertIn("panel_theme", properties["theme"]["description"])
-        for name in ("reduce_motion", "show_tray", "start_with_codex"):
+        # v0.6.10: the design carries motion, as Reduce motion does, so it stays out with it (H3).
+        for name in ("reduce_motion", "design", "show_tray", "start_with_codex"):
             self.assertNotIn(name, properties)
 
     def test_a_model_cannot_write_the_text_sent_into_conversations(self):
@@ -346,6 +347,17 @@ class ToolBehaviourTests(McpTestCase):
                 response = self.call("update_settings", {name: not settings.DEFAULTS[name]})
                 self.assertIs(response["result"]["isError"], True)
                 self.assertEqual(self.control.get_settings()[name], settings.DEFAULTS[name])
+        # v0.6.10: the design, every one of its values - Still would stop motion, Soft start it again.
+        for value in settings.DESIGNS:
+            with self.subTest(design=value):
+                response = self.call("update_settings", {"design": value})
+                self.assertIs(response["result"]["isError"], True)
+                self.assertEqual(self.control.get_settings()["design"], settings.DEFAULTS["design"])
+        # And never alongside a change Codex may make: the whole request is refused.
+        response = self.call("update_settings", {"theme": "dark", "design": "plain"})
+        self.assertIs(response["result"]["isError"], True)
+        self.assertEqual((self.control.get_settings()["theme"], self.control.get_settings()["design"]),
+                         (settings.DEFAULTS["theme"], "soft"))
 
     def test_a_refused_setting_is_a_tool_error_not_a_protocol_error(self):
         # The model should read the reason and correct itself, not lose the connection.
