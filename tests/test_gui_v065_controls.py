@@ -1193,7 +1193,12 @@ class SourceRuleTests(unittest.TestCase):
     def test_motion_is_brands_one_transition_and_stops_when_it_is_reduced(self):
         motion = self.block("internal static class Motion", "\n    }\n")
         self.assertIn("return Brand.TransitionMs;", motion)
-        self.assertIn("Soft.ReduceMotion", self.block("internal static bool Allowed(Control control)"))
+        # v0.6.10: through the controls' gate, which is every stopper Soft.ReduceMotion knows and a design that does not
+        # glide (Still, Classic, Plain).
+        self.assertIn("Soft.ControlsStill", self.block("internal static bool Allowed(Control control)"))
+        still = self.block("internal static bool ControlsStill")
+        self.assertIn("ReduceMotion", still)
+        self.assertIn("Brand.DesignGlides(Palette.Design)", still)
         transition = self.block("internal sealed class Transition ", "\n    }\n")
         self.assertIn("timer.Stop();", self.block("private void Tick()"), "the timer stops when it arrives")
         self.assertNotIn("PerformLayout", transition, "paint only")

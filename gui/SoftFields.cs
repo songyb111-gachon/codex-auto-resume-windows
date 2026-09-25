@@ -50,7 +50,7 @@ namespace CodexAutoResume
         }
 
         string ISoftLifted.Lift { get { return Enabled && !pressed ? "control" : null; } }
-        float ISoftLifted.Radius { get { return Soft.PxF(Brand.RadiusControl); } }
+        float ISoftLifted.Radius { get { return Soft.PxF(Palette.RadiusControl); } }
         Rectangle ISoftLifted.Face { get { return ClientRectangle; } }
         bool ISoftLifted.Ring { get { return Focused && ShowFocusCues; } }
 
@@ -74,7 +74,7 @@ namespace CodexAutoResume
         {
             Graphics g = e.Graphics;
             Rectangle face = ClientRectangle;
-            float radius = Soft.PxF(Brand.RadiusControl);
+            float radius = Soft.PxF(Palette.RadiusControl);
             Ground.PaintBehind(this, g, face, radius);
             Color fill, edge, text;
             if (!Enabled)
@@ -176,7 +176,7 @@ namespace CodexAutoResume
         // No lift - a switch and a box are wells - but the focus ring runs outside the control on
         // the left, so the ground draws that part of it.
         string ISoftLifted.Lift { get { return null; } }
-        float ISoftLifted.Radius { get { return box ? Soft.PxF(Brand.RadiusCheck) : Soft.Px(Brand.SwitchHeight) / 2f; } }
+        float ISoftLifted.Radius { get { return box ? Soft.PxF(Palette.RadiusCheck) : Soft.Px(Brand.SwitchHeight) / 2f; } }
         Rectangle ISoftLifted.Face { get { return Glyph; } }
         bool ISoftLifted.Ring { get { return Focused && ShowFocusCues; } }
 
@@ -222,7 +222,7 @@ namespace CodexAutoResume
                                   TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
                                   TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
             if (Focused && ShowFocusCues)
-                Soft.Ring(g, glyph, box ? Soft.PxF(Brand.RadiusCheck) : glyph.Height / 2f);
+                Soft.Ring(g, glyph, box ? Soft.PxF(Palette.RadiusCheck) : glyph.Height / 2f);
         }
 
         /// The check box in `face`, a CheckSize square at the window's scale: its fill, the inset well
@@ -241,12 +241,14 @@ namespace CodexAutoResume
             }
             else
             {
-                fill = Tokens.Dark ? Brand.Dark.CheckFill(on, enabled) : Brand.CheckFill(on, enabled);
-                edge = Tokens.Dark ? Brand.Dark.CheckEdge(on, enabled) : Brand.CheckEdge(on, enabled);
-                marked = Tokens.Dark ? Brand.Dark.CheckMark(on, enabled, out mark) : Brand.CheckMark(on, enabled, out mark);
-                well = Brand.CheckWell(on, enabled);
+                // The design's own colours in the theme in effect (Tokens: Soft's, Classic's or Plain's), and the well
+                // only where the design has depth: in Classic and Plain an empty box is its fill and its hairline.
+                fill = Tokens.CheckFill(on, enabled);
+                edge = Tokens.CheckEdge(on, enabled);
+                marked = Tokens.CheckMark(on, enabled, out mark);
+                well = Palette.Depth && Brand.CheckWell(on, enabled);
             }
-            Soft.Body(g, face, Soft.PxF(Brand.RadiusCheck), fill, edge, well ? "inset" : null);
+            Soft.Body(g, face, Soft.PxF(Palette.RadiusCheck), fill, edge, well ? "inset" : null);
             if (!marked) return;
             float scale = (float)SettingsForm.DpiScale;
             GraphicsState state = g.Save();
@@ -344,7 +346,7 @@ namespace CodexAutoResume
 
         protected override void OnPaint(PaintEventArgs e)
         {
-            float radius = Soft.PxF(Brand.RadiusControl);
+            float radius = Soft.PxF(Palette.RadiusControl);
             Ground.PaintBehind(this, e.Graphics, ClientRectangle, radius);
             Soft.InsetWell(e.Graphics, ClientRectangle, radius, Spin.ContainsFocus);
         }
@@ -430,7 +432,7 @@ namespace CodexAutoResume
         }
 
         string ISoftLifted.Lift { get { return Checked ? null : "control"; } }
-        float ISoftLifted.Radius { get { return Soft.PxF(Brand.RadiusControl); } }
+        float ISoftLifted.Radius { get { return Soft.PxF(Palette.RadiusControl); } }
         Rectangle ISoftLifted.Face { get { return ClientRectangle; } }
         bool ISoftLifted.Ring { get { return Focused && ShowFocusCues; } }
 
@@ -481,7 +483,7 @@ namespace CodexAutoResume
         {
             Graphics g = e.Graphics;
             var body = Body(Width, Height);
-            float radius = Soft.PxF(Brand.RadiusControl);
+            float radius = Soft.PxF(Palette.RadiusControl);
             Ground.PaintBehind(this, g, ClientRectangle, radius);
             // In High Contrast the chosen card is filled with Highlight, so everything drawn on
             // it takes HighlightText, the colour every contrast theme pairs with Highlight - as
@@ -491,7 +493,7 @@ namespace CodexAutoResume
             Color fill = onHighlight ? Palette.AccentSoft : Checked ? Palette.Inset : hover ? Palette.Surface : Palette.Raised;
             // Resting, raised as a button and as the panel's segment for the same setting are - no top light in
             // dark. Chosen, a well.
-            Soft.Body(g, ClientRectangle, radius, fill, Checked ? Palette.Accent : Palette.Line, Checked && !Palette.Contrast);
+            Soft.Body(g, ClientRectangle, radius, fill, Checked ? Palette.Accent : Palette.Line, Checked && Palette.Depth);
             // The radio mark, so the card still says "one of these" without its colour.
             float mark = Soft.PxF(16);
             var ring = new RectangleF(body.X + Soft.PxF(14), body.Y + Soft.PxF(12), mark, mark);
@@ -764,7 +766,7 @@ namespace CodexAutoResume
 
         protected override void OnPaintBackground(PaintEventArgs e)
         {
-            float radius = Soft.PxF(Brand.RadiusControl);
+            float radius = Soft.PxF(Palette.RadiusControl);
             Ground.PaintBehind(this, e.Graphics, ClientRectangle, radius);
             Soft.InsetWell(e.Graphics, ClientRectangle, radius, Box.Focused);
         }
@@ -819,7 +821,7 @@ namespace CodexAutoResume
 
         protected override void OnPaint(PaintEventArgs e)
         {
-            float radius = Soft.PxF(Brand.RadiusControl);
+            float radius = Soft.PxF(Palette.RadiusControl);
             Ground.PaintBehind(this, e.Graphics, ClientRectangle, radius);
             Soft.InsetWell(e.Graphics, ClientRectangle, radius, false);
             int room = Math.Max(0, Width - Soft.Px(Brand.WellPadLeft + Brand.WellPadRight));

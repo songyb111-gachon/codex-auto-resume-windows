@@ -884,16 +884,23 @@ class SourceRuleTests(unittest.TestCase):
         self.assertNotRegex(self.code, r"(?:byte|short|int|long|float|double|char|bool)\s*\[\s*\]\s+\w+\s*=\s*\{")
 
     def test_high_contrast_draws_no_shadow(self):
+        """Nor does a design without depth (v0.6.10: Classic, Plain): both stamps open on Palette.Depth, which High
+        Contrast clears whatever the design."""
         for signature in ("internal static void StampOuter(", "internal static void StampInner("):
             with self.subTest(signature):
                 body = self.body(signature)
-                self.assertRegex(body.split("{", 1)[1].lstrip(), r"^if \(Palette\.Contrast\b")
+                self.assertRegex(body.split("{", 1)[1].lstrip(), r"^if \(!Palette\.Depth\b")
+        adopt = guiscan.member_body("Palette", "Adopt")
+        self.assertIn("Depth = !Contrast && Brand.DesignDepth(Design);", adopt)
 
     def test_the_status_light_is_a_flat_dot_and_its_glow_is_off_in_high_contrast(self):
         paint = self.body("protected override void OnPaint(PaintEventArgs e)\n        {\n            Graphics g = e.Graphics;\n            g.Clear(")
         self.assertIn("using (var brush = new SolidBrush(fill)) g.FillEllipse(", paint,
                       "the dot is one solid colour")
-        self.assertIn("!Palette.Contrast", paint[:paint.index("Glow(g")], "no glow in High Contrast")
+        # v0.6.10: the glow is Palette.Halo's - a design that has one, never High Contrast - and the dimming stays
+        # High Contrast's alone, because it is the breath itself, which Plain keeps without a glow.
+        self.assertIn("Palette.Halo", paint[:paint.index("Glow(g")], "no glow in High Contrast, nor in Still or Plain")
+        self.assertIn("Halo = !Contrast && Brand.DesignGlow(Design);", guiscan.member_body("Palette", "Adopt"))
         self.assertIn("Color fill = lit && dim > 0 && !Palette.Contrast ? Soft.WithAlpha(colour, 1 - dim) : colour;",
                       paint, "the dot dims toward the card it was cleared to, and never in High Contrast")
         halo = self.controls[self.controls.index("internal sealed class HaloDot"):]
@@ -926,14 +933,16 @@ class SourceRuleTests(unittest.TestCase):
     def test_the_soft_bar_has_no_shadow_in_high_contrast_and_no_native_bar_behind_it(self):
         draw = self.body("internal static void Draw(Graphics g, Rectangle track, Rectangle thumb, int state, Color ground)")
         self.assertIn("bool contrast = Palette.Contrast;", draw)
-        self.assertIn("Soft.Body(g, track, radius, TrackFill(contrast, ground), TrackEdge(contrast), !contrast);", draw,
+        # v0.6.10: the well's shadow and the thumb's lift are depth, off in High Contrast and in a flat design alike.
+        self.assertIn("Soft.Body(g, track, radius, TrackFill(contrast, ground), TrackEdge(contrast), Palette.Depth);", draw,
                       "the well's inset shadow is off in High Contrast")
-        self.assertIn("if (!contrast)", draw[:draw.index("Elevation.StampOuter(")], "and so is the thumb's lift")
+        self.assertIn("if (Palette.Depth)", draw[:draw.index("Elevation.StampOuter(")], "and so is the thumb's lift")
         page = self.controls[self.controls.index("internal sealed class SoftPage "):]
         page = page[:page.index("\n    }\n")]
         self.assertNotIn("AutoScroll", page, "the page scrolls itself; Windows' bar is never asked for")
         self.assertIn("public override Rectangle DisplayRectangle", page)
-        self.assertIn("if (animate && !Soft.ReduceMotion && IsHandleCreated && Soft.Shown(this))",
+        # v0.6.10: the controls' gate, which is Reduce motion's and the design's (Still, Classic and Plain do not glide).
+        self.assertIn("if (animate && !Soft.ControlsStill && IsHandleCreated && Soft.Shown(this))",
                       self.body("internal void ScrollTo(int target, bool animate)"), "no glide with motion reduced")
 
 

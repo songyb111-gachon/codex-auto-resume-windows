@@ -123,39 +123,79 @@ namespace CodexAutoResume
             return SystemInformation.HighContrast;
         }
 
-        /// The Theme preference an installation's settings store, read from its settings file before
-        /// anything is drawn: the bridge that reads it properly takes a Python start, and every colour
+        /// The Theme and Design preferences an installation's settings store, read from its settings file
+        /// before anything is drawn: the bridge that reads it properly takes a Python start, and every colour
         /// is decided before the first control exists. The first settings read through the bridge
         /// confirms it (SettingsForm.Observe), so the file is read exactly as settings.load reads it for
         /// the bridge: no more than MaxSettingsBytes, UTF-8 with no byte order mark and no invalid byte,
         /// and one JSON value with nothing after it. Any other file is the defaults to the settings layer,
-        /// so it is "system" here too, as is no file at all - a file the two read differently opened the
-        /// window in one theme and had its first read reopen it in the other, every time it was opened.
-        internal static string Stored(string root)
+        /// so it is "system" and "soft" here too, as is no file at all - a file the two read differently
+        /// opened the window in one theme and had its first read reopen it in the other, every time it was
+        /// opened. v0.6.10: the design is read in the same parse as the theme, never in a second read of its
+        /// own, so the two can never come from two versions of the file.
+        internal static void Stored(string root, out string theme, out string design)
         {
+            theme = System;
+            design = Brand.DesignDefault;
             try
             {
                 var file = new FileInfo(Path.Combine(Path.Combine(root, "config"), "settings.json"));
-                if (!file.Exists || file.Length > MaxSettingsBytes) return System;
+                if (!file.Exists || file.Length > MaxSettingsBytes) return;
                 string text = new UTF8Encoding(false, true).GetString(File.ReadAllBytes(file.FullName));
-                if (text.Length > 0 && text[0] == '\uFEFF') return System;
+                if (text.Length > 0 && text[0] == '\uFEFF') return;
                 var map = Json.ParseDocument(text) as Dictionary<string, object>;
+                if (map == null) return;
                 object value;
-                return map != null && map.TryGetValue("theme", out value) ? Preference(value) : System;
+                string storedTheme = map.TryGetValue("theme", out value) ? Preference(value) : System;
+                string storedDesign = map.TryGetValue("design", out value) ? Design.Preference(value) : Brand.DesignDefault;
+                theme = storedTheme;
+                design = storedDesign;
             }
             catch (Exception)
             {
-                return System;
+                theme = System;
+                design = Brand.DesignDefault;
             }
         }
     }
 
-    /// The brand colours of the theme in effect - Brand's or Brand.Dark's, never a system colour.
-    /// What High Contrast replaces is Palette's business; a few rules that name the High Contrast
-    /// colour themselves (the scroll bar's) read the brand half here.
+    /// Which design the window is drawn in (v0.6.10): the Design setting - "soft", "still", "classic" or
+    /// "plain" - which says what is drawn and what moves (brand/design.py, read through Brand's Design rules).
+    /// It is independent of the theme, so each design is drawn light or dark, and High Contrast replaces every
+    /// design: its system colours, with no depth, glow or accent bar and Soft's corners. It is decided once, as
+    /// the window opens, from the same read of the settings file as the theme (Theme.Stored), and a change of
+    /// it reopens the window as a change of theme does.
+    internal static class Design
+    {
+        /// The Design preference the window opened with; set once, by Program.Main.
+        internal static string Opened = Brand.DesignDefault;
+
+        /// A stored Design as the settings layer reads it: one of the four exactly, and "soft" for anything
+        /// else (Brand.DesignOf).
+        internal static string Preference(object value)
+        {
+            return Brand.DesignOf(value);
+        }
+
+        /// The design a window draws in `theme` ("light", "dark" or "contrast") when `design` is chosen: the
+        /// choice, and in High Contrast none but Soft's, which High Contrast has replaced. What a reopen compares,
+        /// so a change of design under High Contrast, which draws nothing differently, reopens nothing. Pure.
+        internal static string Drawn(string theme, string design)
+        {
+            return theme == Theme.Contrast ? Brand.DesignDefault : Preference(design);
+        }
+    }
+
+    /// The brand colours of the theme and design in effect - Brand's or Brand.Dark's, or since v0.6.10 a
+    /// design's own (Brand.Classic, Brand.Plain and their Dark twins) - never a system colour. What High
+    /// Contrast replaces is Palette's business; a few rules that name the High Contrast colour themselves
+    /// (the scroll bar's) read the brand half here. This is the one place a design's classes are named.
     internal static class Tokens
     {
         internal static bool Dark;
+        /// The design whose colours these are (Brand.DesignColours): "classic", "plain", or "soft" for Soft's
+        /// and Still's. Palette sets it before it adopts a theme.
+        internal static string Design = Brand.DesignDefault;
         internal static Color Ink, Muted, Line, Surface, Canvas, Raised, Inset, Accent, AccentHover, AccentPressed,
                               OnAccent, AccentSoft, Focus, Active, Idle, Attention, Success, Waiting, Warning, Danger,
                               Paused, Card, ShadowDark, ShadowLight;
@@ -168,7 +208,54 @@ namespace CodexAutoResume
         internal static void Adopt(bool dark)
         {
             Dark = dark;
-            if (dark)
+            Design = Brand.DesignColours(Design);
+            if (Design == "classic" && dark)
+            {
+                Ink = Brand.Classic.Dark.Ink; Muted = Brand.Classic.Dark.Muted; Line = Brand.Classic.Dark.Line;
+                Surface = Brand.Classic.Dark.Surface; Canvas = Brand.Classic.Dark.Canvas; Raised = Brand.Classic.Dark.Raised;
+                Inset = Brand.Classic.Dark.Inset; Accent = Brand.Classic.Dark.Accent; AccentHover = Brand.Classic.Dark.AccentHover;
+                AccentPressed = Brand.Classic.Dark.AccentPressed; OnAccent = Brand.Classic.Dark.OnAccent;
+                AccentSoft = Brand.Classic.Dark.AccentSoft; Focus = Brand.Classic.Dark.Focus; Active = Brand.Classic.Dark.Active;
+                Idle = Brand.Classic.Dark.Idle; Attention = Brand.Classic.Dark.Attention; Success = Brand.Classic.Dark.Success;
+                Waiting = Brand.Classic.Dark.Waiting; Warning = Brand.Classic.Dark.Warning; Danger = Brand.Classic.Dark.Danger;
+                Paused = Brand.Classic.Dark.Paused; Card = Brand.Classic.Dark.CardGround;
+                ShadowDark = Brand.Classic.Dark.ShadowDark; ShadowLight = Brand.Classic.Dark.ShadowLight;
+            }
+            else if (Design == "classic")
+            {
+                Ink = Brand.Classic.Ink; Muted = Brand.Classic.Muted; Line = Brand.Classic.Line; Surface = Brand.Classic.Surface;
+                Canvas = Brand.Classic.Canvas; Raised = Brand.Classic.Raised; Inset = Brand.Classic.Inset;
+                Accent = Brand.Classic.Accent; AccentHover = Brand.Classic.AccentHover; AccentPressed = Brand.Classic.AccentPressed;
+                OnAccent = Brand.Classic.OnAccent; AccentSoft = Brand.Classic.AccentSoft; Focus = Brand.Classic.Focus;
+                Active = Brand.Classic.Active; Idle = Brand.Classic.Idle; Attention = Brand.Classic.Attention;
+                Success = Brand.Classic.Success; Waiting = Brand.Classic.Waiting; Warning = Brand.Classic.Warning;
+                Danger = Brand.Classic.Danger; Paused = Brand.Classic.Paused; Card = Brand.Classic.CardGround;
+                ShadowDark = Brand.Classic.ShadowDark; ShadowLight = Brand.Classic.ShadowLight;
+            }
+            else if (Design == "plain" && dark)
+            {
+                Ink = Brand.Plain.Dark.Ink; Muted = Brand.Plain.Dark.Muted; Line = Brand.Plain.Dark.Line;
+                Surface = Brand.Plain.Dark.Surface; Canvas = Brand.Plain.Dark.Canvas; Raised = Brand.Plain.Dark.Raised;
+                Inset = Brand.Plain.Dark.Inset; Accent = Brand.Plain.Dark.Accent; AccentHover = Brand.Plain.Dark.AccentHover;
+                AccentPressed = Brand.Plain.Dark.AccentPressed; OnAccent = Brand.Plain.Dark.OnAccent;
+                AccentSoft = Brand.Plain.Dark.AccentSoft; Focus = Brand.Plain.Dark.Focus; Active = Brand.Plain.Dark.Active;
+                Idle = Brand.Plain.Dark.Idle; Attention = Brand.Plain.Dark.Attention; Success = Brand.Plain.Dark.Success;
+                Waiting = Brand.Plain.Dark.Waiting; Warning = Brand.Plain.Dark.Warning; Danger = Brand.Plain.Dark.Danger;
+                Paused = Brand.Plain.Dark.Paused; Card = Brand.Plain.Dark.CardGround;
+                ShadowDark = Brand.Plain.Dark.ShadowDark; ShadowLight = Brand.Plain.Dark.ShadowLight;
+            }
+            else if (Design == "plain")
+            {
+                Ink = Brand.Plain.Ink; Muted = Brand.Plain.Muted; Line = Brand.Plain.Line; Surface = Brand.Plain.Surface;
+                Canvas = Brand.Plain.Canvas; Raised = Brand.Plain.Raised; Inset = Brand.Plain.Inset;
+                Accent = Brand.Plain.Accent; AccentHover = Brand.Plain.AccentHover; AccentPressed = Brand.Plain.AccentPressed;
+                OnAccent = Brand.Plain.OnAccent; AccentSoft = Brand.Plain.AccentSoft; Focus = Brand.Plain.Focus;
+                Active = Brand.Plain.Active; Idle = Brand.Plain.Idle; Attention = Brand.Plain.Attention;
+                Success = Brand.Plain.Success; Waiting = Brand.Plain.Waiting; Warning = Brand.Plain.Warning;
+                Danger = Brand.Plain.Danger; Paused = Brand.Plain.Paused; Card = Brand.Plain.CardGround;
+                ShadowDark = Brand.Plain.ShadowDark; ShadowLight = Brand.Plain.ShadowLight;
+            }
+            else if (dark)
             {
                 Ink = Brand.Dark.Ink; Muted = Brand.Dark.Muted; Line = Brand.Dark.Line; Surface = Brand.Dark.Surface;
                 Canvas = Brand.Dark.Canvas; Raised = Brand.Dark.Raised; Inset = Brand.Dark.Inset; Accent = Brand.Dark.Accent;
@@ -189,15 +276,61 @@ namespace CodexAutoResume
                 Card = Brand.CardGround; ShadowDark = Brand.ShadowDark; ShadowLight = Brand.ShadowLight;
             }
         }
+
+        /// The check box's fill in the design and theme in effect (brand.check_box): its own class's rule, so an
+        /// unchecked box is the design's well colour and a disabled one its surface.
+        internal static Color CheckFill(bool on, bool enabled)
+        {
+            if (Design == "classic") return Dark ? Brand.Classic.Dark.CheckFill(on, enabled) : Brand.Classic.CheckFill(on, enabled);
+            if (Design == "plain") return Dark ? Brand.Plain.Dark.CheckFill(on, enabled) : Brand.Plain.CheckFill(on, enabled);
+            return Tokens.Dark ? Brand.Dark.CheckFill(on, enabled) : Brand.CheckFill(on, enabled);
+        }
+
+        /// The check box's hairline edge in the design and theme in effect.
+        internal static Color CheckEdge(bool on, bool enabled)
+        {
+            if (Design == "classic") return Dark ? Brand.Classic.Dark.CheckEdge(on, enabled) : Brand.Classic.CheckEdge(on, enabled);
+            if (Design == "plain") return Dark ? Brand.Plain.Dark.CheckEdge(on, enabled) : Brand.Plain.CheckEdge(on, enabled);
+            return Tokens.Dark ? Brand.Dark.CheckEdge(on, enabled) : Brand.CheckEdge(on, enabled);
+        }
+
+        /// The check mark's colour in the design and theme in effect, or false when the box has no mark.
+        internal static bool CheckMark(bool on, bool enabled, out Color mark)
+        {
+            if (Design == "classic")
+                return Dark ? Brand.Classic.Dark.CheckMark(on, enabled, out mark) : Brand.Classic.CheckMark(on, enabled, out mark);
+            if (Design == "plain")
+                return Dark ? Brand.Plain.Dark.CheckMark(on, enabled, out mark) : Brand.Plain.CheckMark(on, enabled, out mark);
+            return Tokens.Dark ? Brand.Dark.CheckMark(on, enabled, out mark) : Brand.CheckMark(on, enabled, out mark);
+        }
     }
 
-    /// The palette as the window uses it, with High Contrast honoured in one place. Light until the
-    /// window adopts its theme (Adopt), which Program.Main does before the first control is made.
+    /// The palette as the window uses it, with High Contrast honoured in one place. Light and Soft until the
+    /// window adopts its design and theme (AdoptDesign, Adopt), which Program.Main does before the first control
+    /// is made.
+    ///
+    /// v0.6.10: Contrast meant two things until the designs came - draw in system colours, and draw no depth,
+    /// glow or tint - and Classic and Plain need the second without the first. So Contrast now means the system
+    /// colours alone, and what a design may take away has a flag of its own that High Contrast also clears:
+    /// Depth (shadows, wells, a lifted card), Halo (the status light's glow) and AccentBar (Classic's bar and
+    /// underlined tab), with the corners' radii beside them. None of them changes a size, a margin or where
+    /// anything is: a design changes paint, never layout.
     internal static class Palette
     {
         /// "light", "dark" or "contrast".
         internal static string Theme = CodexAutoResume.Theme.Light;
         internal static bool Contrast;
+        /// The design the window is drawn in: "soft", "still", "classic" or "plain" (AdoptDesign).
+        internal static string Design = Brand.DesignDefault;
+        /// Whether shadows, wells and a card's lift are drawn: the design has depth, and not High Contrast.
+        internal static bool Depth;
+        /// Whether the status light's glow is drawn: the design has one, and not High Contrast.
+        internal static bool Halo;
+        /// Whether Classic's accent bar and underlined tab are drawn: the design has them, and not High Contrast.
+        internal static bool AccentBar;
+        /// The corners, in CSS px: the design's (Brand.DesignRadius), never rounder than Soft's, and Soft's in High
+        /// Contrast. Paint only.
+        internal static int RadiusCard, RadiusControl, RadiusSmall, RadiusCheck;
         internal static Color Ink, Muted, Secondary, Line, Surface, Canvas, Raised, Inset, Accent, AccentHover,
                               AccentPressed, OnAccent, AccentSoft, Focus, Active, Idle, Attention, Success, Waiting,
                               Warning, Danger, Paused;
@@ -209,14 +342,32 @@ namespace CodexAutoResume
             Adopt(CodexAutoResume.Theme.ContrastOn() ? CodexAutoResume.Theme.Contrast : CodexAutoResume.Theme.Light);
         }
 
-        /// Draws everything from here on in `theme`: "light", "dark" or "contrast". Anything else is light.
+        /// Draws everything from here on in `design` ("soft", "still", "classic" or "plain"; anything else is
+        /// Soft, as the settings layer reads it) and in the theme in effect again.
+        internal static void AdoptDesign(string design)
+        {
+            Design = Brand.DesignOf(design);
+            Adopt(Theme);
+        }
+
+        /// Draws everything from here on in `theme`: "light", "dark" or "contrast". Anything else is light. In
+        /// the design in effect (AdoptDesign).
         internal static void Adopt(string theme)
         {
             Contrast = theme == CodexAutoResume.Theme.Contrast;
             bool dark = theme == CodexAutoResume.Theme.Dark;
             Theme = Contrast ? CodexAutoResume.Theme.Contrast : dark ? CodexAutoResume.Theme.Dark : CodexAutoResume.Theme.Light;
+            Tokens.Design = Design;
             Tokens.Adopt(dark);
             Elevation.Forget();
+            Depth = !Contrast && Brand.DesignDepth(Design);
+            Halo = !Contrast && Brand.DesignGlow(Design);
+            AccentBar = !Contrast && Brand.DesignAccentBar(Design);
+            string corners = CodexAutoResume.Design.Drawn(Theme, Design);
+            RadiusCard = Brand.DesignRadius(corners, "card");
+            RadiusControl = Brand.DesignRadius(corners, "control");
+            RadiusSmall = Brand.DesignRadius(corners, "small");
+            RadiusCheck = Brand.DesignRadius(corners, "check");
             Ink           = Contrast ? SystemColors.WindowText : Tokens.Ink;
             Muted         = Contrast ? SystemColors.GrayText : Tokens.Muted;
             Secondary     = Contrast ? SystemColors.WindowText : Tokens.Muted;
@@ -351,6 +502,25 @@ namespace CodexAutoResume
                 catch (Exception) { }
                 return false;
             }
+        }
+
+        // v0.6.10: motion is two gates, as on every surface (brand.light_moves, brand.controls_move). Each is held
+        // by every stopper ReduceMotion knows and by a design that does not move it; a design only ever takes
+        // motion away, so under Reduce motion no design moves anything, and Still holds exactly what Reduce
+        // motion holds.
+
+        /// Whether the status light holds still - its breath and checking's arc, in the window and on its taskbar
+        /// button: motion is reduced, or the design's light does not breathe (Still). Classic and Plain breathe.
+        internal static bool LightStill
+        {
+            get { return !Brand.DesignBreathes(Palette.Design) || ReduceMotion; }
+        }
+
+        /// Whether the controls change without moving - a switch or a check box, a list rising open, the scroll
+        /// glide: motion is reduced, or the design does not glide (Still, Classic, Plain).
+        internal static bool ControlsStill
+        {
+            get { return !Brand.DesignGlides(Palette.Design) || ReduceMotion; }
         }
 
         internal static int Px(int atNinetySix)
@@ -543,7 +713,7 @@ namespace CodexAutoResume
         /// focus outline outside the field; a child window cannot, so it goes inside.
         internal static void InsetWell(Graphics g, Rectangle face, float radius, bool focused)
         {
-            Body(g, face, radius, Palette.Inset, Palette.Line, !Palette.Contrast);
+            Body(g, face, radius, Palette.Inset, Palette.Line, Palette.Depth);
             if (focused) Edge(g, face, radius, Palette.Focus, PxF(Brand.FocusWidth));
         }
 
@@ -557,7 +727,8 @@ namespace CodexAutoResume
         /// The switch every true-or-false setting is drawn as: a 40 by 22 pill, a well with a
         /// grey knob at the left when off, the accent with a white knob at the right when on.
         /// Disabled, the track and knob fade halfway into `ground`; the words beside it say
-        /// the rest.
+        /// the rest. In a design without depth (Classic, Plain) the well is flat: its fill and its
+        /// hairline, with the same flat knob.
         internal static void Switch(Graphics g, Rectangle track, bool on, bool enabled, Color ground)
         {
             SwitchAt(g, track, on ? 1.0 : 0.0, enabled, ground);
@@ -585,7 +756,7 @@ namespace CodexAutoResume
             if (on >= 1.0) Body(g, track, radius, onFill, onEdge, false);
             else
             {
-                Body(g, track, radius, offFill, offEdge, enabled && !Palette.Contrast);
+                Body(g, track, radius, offFill, offEdge, enabled && Palette.Depth);
                 if (on > 0.0)
                 {
                     GraphicsState faded = g.Save();
@@ -916,7 +1087,8 @@ namespace CodexAutoResume
     /// a switch leaves at once and settles softly.
     ///
     /// Nothing moves when motion is reduced (Soft.ReduceMotion: this product's setting, Windows'
-    /// animation effects, High Contrast), nor where it cannot be seen; the change is then immediate.
+    /// animation effects, High Contrast), in a design whose controls do not glide (Soft.ControlsStill,
+    /// v0.6.10: Still, Classic, Plain), nor where it cannot be seen; the change is then immediate.
     internal static class Motion
     {
         /// A frame, in milliseconds: the soft scroll bar's glide rate.
@@ -933,12 +1105,13 @@ namespace CodexAutoResume
             return Brand.Ease(t);
         }
 
-        /// Whether `control` may animate a change now: motion is not reduced, and it is on screen - its own window
-        /// visible (Soft.Shown) and every control it is in (Visible): a switch on a page or section not shown is not
-        /// seen, and its change is immediate.
+        /// Whether `control` may animate a change now: the controls may move (Soft.ControlsStill: motion is not
+        /// reduced, and the design glides), and it is on screen - its own window visible (Soft.Shown) and every
+        /// control it is in (Visible): a switch on a page or section not shown is not seen, and its change is
+        /// immediate.
         internal static bool Allowed(Control control)
         {
-            if (control == null || Soft.ReduceMotion || !control.IsHandleCreated || !Soft.Shown(control) || !control.Visible) return false;
+            if (control == null || Soft.ControlsStill || !control.IsHandleCreated || !Soft.Shown(control) || !control.Visible) return false;
             Form form = control.FindForm();
             return form == null || (form.Visible && form.WindowState != FormWindowState.Minimized);
         }

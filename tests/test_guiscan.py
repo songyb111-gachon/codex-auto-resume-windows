@@ -142,8 +142,9 @@ class SliceTests(unittest.TestCase):
         """What a split works from: the types a file declares directly, which is what moves."""
         counts = {source: len(guiscan.top_level(source)) for source in guiscan.manifest()}
         declared = [name for source in guiscan.manifest() for name in guiscan.top_level(source)]
-        # 55 since v0.6.10: SoftCallout, the panel's callout, in a file of its own.
-        self.assertEqual(len(set(declared)), 55, "the window's types")
+        # 55 since v0.6.10: SoftCallout, the panel's callout, in a file of its own. 56 since the designs came in
+        # the same release: Design, beside Theme, which says which one the window is drawn in.
+        self.assertEqual(len(set(declared)), 56, "the window's types")
         self.assertEqual(len(declared) - len(set(declared)), 9,
                          "`partial class SettingsForm` written once per file that holds part "
                          "of it, which is ten of the window's eleven sources")
