@@ -193,7 +193,8 @@ Which word and which light a header shows is one rule, the same in the Dashboard
 panel. Since v0.6.10 it is written down as test vectors, `tests/data/light_states.json`, and
 `tests/test_light_parity.py` runs each surface's own code against them; until then three copies
 told one moment three ways. In order: a watcher that is not running, or that nothing has confirmed
-is running, asks for attention beside a grey `idle` light that does not move; one that runs but is
+is running - a record held for a watcher not running counts, whatever the status read a moment
+apart said - asks for attention beside a grey `idle` light that does not move; one that runs but is
 not well - an older watcher still owns the state, it has stopped ticking, or the engine is not
 supported or failed its checks here - is amber, and the line under the word says which; then
 paused; then recovering, for anything sent into Codex or being taken back out of it; then
