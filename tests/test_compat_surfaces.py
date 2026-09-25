@@ -487,6 +487,15 @@ def keys_anywhere(value) -> set:
     return set()
 
 
+def leaves_anywhere(value) -> list:
+    """Every value in a parsed JSON value that is neither an object nor a list."""
+    if isinstance(value, dict):
+        return [leaf for item in value.values() for leaf in leaves_anywhere(item)]
+    if isinstance(value, list):
+        return [leaf for item in value for leaf in leaves_anywhere(item)]
+    return [value]
+
+
 class ReportedTests(unittest.TestCase):
     """What others report, beside the version (v0.6.10): on every view a person reads - the bridge's,
     the command line's, the diagnostics bundle's - and never in what a model reads."""
@@ -554,8 +563,13 @@ class ReportedTests(unittest.TestCase):
 
     def test_a_model_is_never_handed_it(self):
         """get_status and open_settings carry the summary, codes only, with the same keys as before;
-        no key anywhere in either reply is `reported`, and no count of anyone's reports is in it."""
+        no key anywhere in either reply is `reported`, and no count of anyone's reports is in it.
+
+        The counts are looked for as values, and inside every string, never as digits of the whole
+        reply: the summary carries `checked_at`, the clock at the check, and a clock reading such as
+        1790333390.63 holds "333" by chance, and a run of the whole suite failed on exactly that."""
         self.counts((self.VERSION, 777, 555, 333, 111))
+        counts = (777, 555, 333, 111, 777 + 555 - 111 + 333)
         self.fixture.backend()
         self.assertEqual(self.view()["reported"]["worked"], 777, "the counts are there to leave out")
         for tool in ("get_status", "open_settings"):
@@ -571,9 +585,14 @@ class ReportedTests(unittest.TestCase):
                 summary = status["watcher"]["compatibility"]
                 self.assertEqual(set(summary), {"status", "overall", "acting", "source", "sequence", "cache",
                                                 "checked_at", "capabilities"})
-                text = json.dumps(summary)
-                for leak in ("codex-cli", "777", "555", "333", "111"):
-                    self.assertNotIn(leak, text)
+                leaves = leaves_anywhere(summary)
+                numbers = [leaf for leaf in leaves if isinstance(leaf, (int, float)) and not isinstance(leaf, bool)]
+                words = [leaf for leaf in leaves if isinstance(leaf, str)] + sorted(keys_anywhere(summary))
+                for count in counts:
+                    self.assertNotIn(count, numbers, "a count of reports is a value in the summary")
+                for leak in ("codex-cli",) + tuple(str(count) for count in counts):
+                    for word in words:
+                        self.assertNotIn(leak, word)
 
     def test_the_popup_and_the_tray_are_given_the_same_whatever_others_report(self):
         """R10: the popup, the notification card and the tray get nothing - Reported has no action and must never
