@@ -691,7 +691,7 @@ python build/icon_concepts.py  # the concept comparison sheet
 The documentation's pictures are made by `build/make_screenshots.py`, from PowerShell on Windows,
 in two steps: the whole set, then `--breathe`. A picture of a light that moves moves: every light
 a surface moves is animated as an APNG, whose first frame is what a viewer without animation shows.
-Since v0.6.10 (F15) each surface declares its lights - where each one is, its radius, its state and
+Since v0.6.10 each surface declares its lights - where each one is, its radius, its state and
 the ground it stands on, kept in `assets/screenshots.json` under `lights`: the popup and the card
 from their own layout, the panel from the page itself, the window from its capture. The popup and
 the card are drawn moving by their own renderers, their light alone drawn again frame by frame as
