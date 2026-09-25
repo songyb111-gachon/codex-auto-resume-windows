@@ -611,9 +611,19 @@ class ComboPlacementTests(unittest.TestCase):
 
 # -------------------------------------------------------------------------------- the stylesheet
 def transitions():
-    """Every rule outside an at-rule that declares a transition, with its timing function."""
+    """Every rule outside an at-rule that declares a transition, with its timing function.
+
+    Not the rules that stop every transition: since v0.6.10 a design that does not glide, and the product's
+    own Reduce motion, say `transition: none !important` from the root's stamp, as the reduced-motion and
+    High Contrast blocks do from inside theirs - they time nothing (stopping_rules, held below)."""
     return [(selectors, declarations) for where, selectors, declarations in RULES
-            if where == "" and "transition" in declarations]
+            if where == "" and "transition" in declarations and declarations["transition"] != "none !important"]
+
+
+def stopping_rules():
+    """The rules outside an at-rule that stop every transition: each only under a design's or Reduce motion's stamp."""
+    return [(selectors, declarations) for where, selectors, declarations in RULES
+            if where == "" and declarations.get("transition") == "none !important"]
 
 
 class ComboStyleTests(unittest.TestCase):
@@ -939,6 +949,16 @@ class MotionStyleTests(unittest.TestCase):
                 with self.subTest(selectors=selectors, prop=prop):
                     self.assertIn(prop, {"transform", "opacity", "visibility", "background-color", "border-color",
                                          "box-shadow", "color"})
+
+    def test_a_rule_that_stops_every_transition_stands_only_under_a_designs_or_reduce_motions_stamp(self):
+        """v0.6.10: outside the reduced-motion and High Contrast blocks, `transition: none` is said only for a
+        design that does not glide and for the product's own Reduce motion - never for the page as a whole."""
+        found = stopping_rules()
+        self.assertEqual(len(found), 2)
+        for selectors, _ in found:
+            for selector in selectors:
+                with self.subTest(selector):
+                    self.assertRegex(selector, r'^:root\[data-(design="(still|classic|plain)"|motion="reduced")\] ')
 
 
 # ----------------------------------------------------------------------- a switch that asks first

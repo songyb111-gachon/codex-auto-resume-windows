@@ -22,6 +22,8 @@ var DATA = initialData();
 // A stamp the page was served with is a documentation capture's pinned theme, which the stored
 // setting must not undo. Codex is never served one.
 var THEME_PINNED = !!(document.documentElement && document.documentElement.hasAttribute('data-theme-pinned'));
+// And a design it was served with (v0.6.10), the same way.
+var DESIGN_PINNED = !!(document.documentElement && document.documentElement.hasAttribute('data-design-pinned'));
 // Survives a re-render: set before render(), shown by it, then cleared.
 var NOTICE = '';
 var EDITORS = {};
@@ -135,6 +137,27 @@ function applyTheme(root, settings, pinned) {
   else root.removeAttribute('data-theme');
 }
 
+// The design the surfaces are drawn in (v0.6.10), stamped for Still, Classic and Plain; Soft is the
+// stylesheet's own blocks and stamps nothing, as does any other value - from a watcher older than the
+// setting, or newer than this page. And the product's own Reduce motion, which the panel follows from
+// this release as well as the host's reduced-motion preference: `data-motion="reduced"` holds everything
+// in every design. Both on the root, where the stylesheet's design blocks are declared (panel.css).
+function designStamp(preference) {
+  return (preference === 'still' || preference === 'classic' || preference === 'plain') ? preference : '';
+}
+
+function applyDesign(root, settings, pinned) {
+  if (!root) return;
+  settings = settings || {};
+  if (!pinned) {
+    var stamp = designStamp(settings.design);
+    if (stamp) root.setAttribute('data-design', stamp);
+    else root.removeAttribute('data-design');
+  }
+  if (settings.reduce_motion === true) root.setAttribute('data-motion', 'reduced');
+  else root.removeAttribute('data-motion');
+}
+
 // The language the words are in, on the root: the stylesheet breaks a line of Korean between words and
 // one of Japanese between phrases by it, and a screen reader reads each language in its own voice. Set on
 // every draw (render), because a saved Interface language draws the page again in that language; none
@@ -148,6 +171,7 @@ function applyLanguage(root, locale) {
 // The stored appearance and language, applied to the page in place. True when the words changed.
 function adopt(settings) {
   applyTheme(document.documentElement, settings, THEME_PINNED);
+  applyDesign(document.documentElement, settings, DESIGN_PINNED);
   return adoptLanguage(settings);
 }
 
@@ -256,7 +280,9 @@ function setThreadRecovery(threadId, enable) {
 function editable(entry) {
   var groups = ['general', 'recovery', 'limits', 'notifications', 'continuation'];
   // Of the appearance settings only the two themes, which the panel is drawn in. Reduce motion
-  // and the notification-area icon are Windows' own and stay in the Dashboard.
+  // and the notification-area icon are Windows' own and stay in the Dashboard, and so does the
+  // design (v0.6.10): it decides what moves, as Reduce motion does, and that is not Codex's to
+  // change (standard H3). The panel draws in both (applyDesign) and sends neither.
   var appearance = ['theme', 'panel_theme'];
   if (!entry || typeof entry.name !== 'string') return false;
   if (entry.group === 'appearance') return appearance.indexOf(entry.name) >= 0 && !entry.multiline;
