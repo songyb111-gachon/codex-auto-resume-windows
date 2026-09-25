@@ -229,7 +229,7 @@ def layout(vm, scale, measure) -> dict:
             targets.append((target, rect))
     y += pad
     card = (0, 0, width, y)
-    items.insert(0, {"kind": "card", "rect": card, "radius": px(brand.RADII["card"])})
+    items.insert(0, {"kind": "card", "rect": card, "radius": px(brand.RADII["card"]), "corner": "card"})
     return {"size": (width, y), "card": card, "items": items, "targets": targets, "scale": scale}
 
 
@@ -481,19 +481,20 @@ def _luminance_of(colour) -> float:
     return brand.luminance(colour)
 
 
-def float_shadows(theme) -> tuple:
+def float_shadows(theme, design="soft") -> tuple:
     """The card recipe's outer shadows as they may be drawn over a wallpaper (see the docstring).
 
     A shadow in a light colour is redrawn in FLOAT_SHADOW_TOKEN at the alpha that darkens a white
     ground by as much; a shadow lighter than the ground it was designed for (light's highlight)
     has nothing to be lighter than here and is dropped. Inset shadows belong to the card and are
-    drawn by the renderer inside it.
+    drawn by the renderer inside it. A design without depth (v0.6.10: Classic, Plain) floats none:
+    its card is its fill and its hairline, and its margin is none, as in High Contrast.
     """
-    tokens = brand.palette(theme)
+    tokens = brand.palette(theme, design)
     ink = brand.palette(FLOAT_SHADOW_THEME)[FLOAT_SHADOW_TOKEN]
     ground = tokens["canvas"]
     found = []
-    for shadow in brand.shadows("card", theme):
+    for shadow in brand.shadows("card", theme, design):
         if shadow.inset:
             continue
         colour = tokens[shadow.token]
