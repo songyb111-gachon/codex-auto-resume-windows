@@ -337,21 +337,42 @@ class EditionWordTests(unittest.TestCase):
 
     def test_the_installer_says_it_before_anything_is_moved(self):
         text = INSTALLER.read_text(encoding="utf-8")
-        said = text.index("Write-Host ('edition: ' + (Get-Edition -Src (Join-Path $Payload 'app\\src')))")
-        self.assertLess(text.index("if (-not (Test-Path $Payload))"), said)
+        read = text.index("$edition = Get-Edition -Src (Join-Path $Payload 'app\\src')")
+        said = text.index("Write-Host ('edition: ' + $edition)")
+        self.assertLess(text.index("if (-not (Test-Path $Payload))"), read)
+        self.assertLess(read, said)
         self.assertLess(said, text.index("$upgrade = Test-Path $AppDir"))
         self.assertEqual(text.count(editions.PACKAGE), 1, "the package is spelled once, in Get-Edition")
 
-    def test_the_bootstraps_repair_says_it_and_an_install_leaves_it_to_the_installer(self):
+    def test_the_bootstrap_says_it_before_it_asks_or_fetches_anything(self):
+        """Once, as soon as the edition is settled - the one the run installs, checks over or
+        asks about - and before github.com is asked, the repair branch is reached or anything
+        is downloaded. A run refused for the other edition names the installed one instead."""
         text = BOOTSTRAP.read_text(encoding="utf-8")
-        said = text.index("Write-Host ('edition: ' + (Get-Edition -Src (Join-Path $installHome 'app\\src')))")
-        self.assertLess(text.index("Step 'Add -Force to install this version over it.'"), said)
-        self.assertLess(said, text.index("$arguments = @($setup, 'setup', '--keep-state')"))
-        self.assertEqual(text.count("Get-Edition -Src"), 1)
-        self.assertEqual(text.count(editions.PACKAGE), 1, "the package is spelled once, in Get-Edition")
+        said = text.index("Write-Host ('edition: ' + $targetEdition)")
+        self.assertLess(text.index("$plan = Resolve-Edition"), said)
+        for later in ("Step 'Asking github.com", "$standing = $null", "Downloading v"):
+            with self.subTest(later):
+                self.assertLess(said, text.index(later))
+        refused = text.index("Write-Host ('edition: ' + $installedEdition)")
+        self.assertLess(refused, text.index("exit $ExitOtherEdition"))
+        self.assertEqual(text.count("Write-Host ('edition: '"), 2)
         # Only the `update:` line is read by the window (gui/DashboardMaintenance.cs); this one is
         # a line of its own and changes none that is read.
         self.assertNotIn("update: edition", text)
+
+    def test_the_bootstrap_spells_the_package_only_where_it_reads_an_edition(self):
+        """In Get-Edition, for an installed tree, and in Test-Archive, for an archive not yet
+        unpacked: the two places that tell one edition from the other."""
+        text = BOOTSTRAP.read_text(encoding="utf-8")
+        spans = []
+        for name in ("Get-Edition", "Test-Archive"):
+            first = text.index("function %s {" % name)
+            spans.append((first, text.index("\n}\n", first)))
+        places = [match.start() for match in re.finditer(re.escape(editions.PACKAGE), text)]
+        self.assertEqual(len(places), 2)
+        for place in places:
+            self.assertTrue(any(first < place < last for first, last in spans), text[place - 80:place])
 
 
 if __name__ == "__main__":

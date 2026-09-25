@@ -404,6 +404,11 @@ class AllowanceTests(unittest.TestCase):
         for (entry, name), reason in audit.ALLOWED.items():
             with self.subTest(entry):
                 self.assertTrue(reason.strip())
+                if name == SKILL:
+                    # One more name, in one file: what the bootstrap refuses to find in a
+                    # standard archive. Nothing reads it to decide which edition anything is.
+                    self.assertEqual(entry, "payload/app/scripts/bootstrap.ps1")
+                    continue
                 self.assertEqual(name, PACKAGE, "only the package's name tells one edition from the other")
 
     def test_nothing_shipped_lies_where_the_advanced_files_go_or_is_one_of_them(self):

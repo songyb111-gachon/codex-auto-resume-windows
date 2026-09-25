@@ -183,6 +183,14 @@ jobs:
           }
           Write-Host "archive verified: $actual"
 
+      # An installed copy updates with the bootstrap it was installed with, never with this one:
+      # that copy names the archive from its own release.json and checks what arrives with its
+      # own Test-Archive. Each published bootstrap from v0.5.2 on is taken out of git - the tags
+      # are here, fetch-depth: 0 above - and run on the archive just built. One that would not
+      # take it is a release installed copies silently stop updating to, so it stops here.
+      - name: Check every published bootstrap takes the archive
+        run: python build/legacy_bootstraps.py
+
       - name: Keep the archive even when nothing is published
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
