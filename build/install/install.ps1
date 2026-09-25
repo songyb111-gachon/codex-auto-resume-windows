@@ -983,7 +983,17 @@ if ($upgrade) { $setupArgs += '--keep-state' }
 # An edition change is the new edition's to act on, and only it knows what that means for it:
 # entering the advanced edition starts every advanced feature off, whatever an earlier advanced
 # installation left on. Setup carries the edition it replaced across to `install --edition-from`.
+#
+# A home with no program in it but advanced state in config\advanced is the other way in. An
+# uninstall keeps config\ unless it purges, so the state of an advanced installation that was
+# armed, moved to the standard edition and then uninstalled is still there, and nothing says
+# which edition ran here last. The advanced archive installed over it enters from standard as
+# far as setup is told, so every advanced feature starts off rather than coming back on.
+$advancedLeft = Test-Path -LiteralPath (Join-Path (Join-Path $InstallHome 'config') 'advanced')
 if ($editionChange) { $setupArgs += @('--edition-from', $previousEdition) }
+elseif (-not $upgrade -and $edition -eq 'advanced' -and $advancedLeft) {
+    $setupArgs += @('--edition-from', 'standard')
+}
 if ($SkipStartup) { $setupArgs += '--no-startup' }
 # 2 means everything was done but the watcher was not seen running - a real outcome that
 # is neither success nor failure. Treating it as failure would roll back a good install;

@@ -196,6 +196,26 @@ class EditionChangeTests(unittest.TestCase):
         self.assertNotIn(" -> ", output)
         self.assertEqual(setup, ["setup"])
 
+    def test_advanced_state_left_without_a_program_is_entered_from_standard(self):
+        """Advanced and armed, then standard, then uninstalled with its state kept: the advanced
+        state outlives the program, and nothing says which edition ran last. A first install of
+        the advanced archive over it tells setup it came from standard, so every advanced
+        feature starts off, as on any entry from standard. Nothing is said to setup where there
+        is no advanced state, or where the archive is the standard one."""
+        for payload, left, expected in (("advanced", True, ["setup", "--edition-from", "standard"]),
+                                        ("advanced", False, ["setup"]),
+                                        ("standard", True, ["setup"])):
+            with self.subTest(payload=payload, left=left):
+                shutil.rmtree(self.home, ignore_errors=True)
+                shutil.rmtree(self.payload, ignore_errors=True)
+                self.given(None, payload)
+                if left:
+                    (self.home / "config" / "advanced").mkdir(parents=True)
+                    (self.home / "config" / "advanced" / "advanced.sqlite").write_bytes(b"armed")
+                code, output, setup = self.run_region()
+                self.assertEqual(code, 0, output[-1500:])
+                self.assertEqual(setup, expected)
+
 
 class EditionChangeTextTests(unittest.TestCase):
     def setUp(self):
