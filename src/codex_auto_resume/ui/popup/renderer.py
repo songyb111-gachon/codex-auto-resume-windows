@@ -179,6 +179,16 @@ class Renderer:
     def halo_plan(self):
         return self._halo_plan
 
+    @property
+    def halo_rows(self):
+        """(first row, row after the last) of the band draw_halo draws into, or None: all a frame of the
+        light changes, which the notification card copies out and nothing else (v0.6.10)."""
+        if self._halo_band is None:
+            return None
+        offset, band = self._halo_band
+        row = self.canvas.width * 4
+        return offset // row, (offset + len(band)) // row
+
     # ------------------------------------------------------------------ colours
     def _theme(self):
         """The theme the colours come from: brand's name for it, and light for anything unknown."""

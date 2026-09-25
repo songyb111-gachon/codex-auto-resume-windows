@@ -21,7 +21,7 @@ WIDTH = 360                  # device-independent pixels at 96 DPI: the card and
 SHADOW_MARGIN = 20
 
 
-MARK = 22                    # the box the state dot sits in, beside the product's name
+MARK = 22                    # the least height of the line the state's light and word stand on
 
 
 # v0.6.4: a task's switch is at the bottom right of its row, as the panel's is, level with its
@@ -29,8 +29,12 @@ MARK = 22                    # the box the state dot sits in, beside the product
 SWITCH_GAP = 10
 
 
-STATE_INK = {"monitoring": "accent", "waiting": "waiting", "checking": "accent",
-             "recovering": "accent", "paused": "paused", "attention": "warning"}
+def light_row(left, radius, scale) -> tuple:
+    """(the light's centre x, where its word begins) for a light of `radius` CSS px whose line starts at
+    `left`: brand.LAYOUT's `light_inset` from the line's start to the dot, and `light_gap` from the dot to
+    the word - on every surface that puts a word beside a light (v0.6.10). Device pixels."""
+    cx = left + (brand.LAYOUT["light_inset"] + radius) * scale
+    return cx, int(round(cx + (radius + brand.LAYOUT["light_gap"]) * scale))
 
 
 def share_columns(available, needs) -> list:
@@ -83,22 +87,25 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
         items.append({"kind": "text", "rect": rect, "role": role, "text": value, "colour": colour,
                       "wrap": wrap, "align": align, "target": target})
 
-    # Header: the state dot, the product, the state in words. The dot is the word's light (vm["light"]):
-    # a watcher not known to be running is a grey dot beside the word that asks for attention.
-    mark = px(MARK)
-    text_left = left + mark + px(space["s"] + 2)
+    # Header, the panel's hero since v0.6.10: the product as a muted eyebrow, then the state's light and
+    # its word, in ink, the largest text on the card. The light carries the colour and the word the
+    # meaning, so the word is never coloured; until v0.6.10 the product's name was the title, the state
+    # a small coloured line under it, and the light was centred on the pair. The dot is the word's light
+    # (vm["light"]): a watcher not known to be running is a grey dot beside the word that asks for
+    # attention. It stands on the word's first line, however far the word wraps.
+    _, eyebrow_h = measure("label", vm["title"], inner, False)
+    text((left, y, right, y + eyebrow_h), "label", vm["title"], "muted")
+    y += eyebrow_h + px(space["xs"])
+    cx, text_left = light_row(left, brand.STATUS_DOT["popup"], scale)
     text_width = right - text_left
-    _, title_h = measure("title", vm["title"], text_width, False)
-    _, state_h = measure("state", vm["state_text"], text_width, True)
-    stack = title_h + state_h
-    header_h = max(mark, stack)
-    top = y + (header_h - stack) // 2
-    items.append({"kind": "halo", "cx": left + mark / 2.0, "cy": y + header_h / 2.0, "state": vm["light"],
+    _, line_h = measure("title", "Ag", text_width, False)
+    _, word_h = measure("title", vm["state_text"], text_width, True)
+    row_h = max(px(MARK), line_h)
+    top = y + (row_h - line_h) // 2
+    items.append({"kind": "halo", "cx": cx, "cy": top + line_h / 2.0, "state": vm["light"],
                   "radius": brand.glow_extent(brand.STATUS_DOT["popup"]) * scale})
-    text((text_left, top, right, top + title_h), "title", vm["title"], "ink")
-    text((text_left, top + title_h, right, top + stack), "state", vm["state_text"],
-         STATE_INK.get(vm["state"], "ink"), wrap=True)
-    y += header_h + px(space["m"])
+    text((text_left, top, right, top + word_h), "title", vm["state_text"], "ink", wrap=True)
+    y = max(y + row_h, top + word_h) + px(space["m"])
 
     # Summary: waiting, recovering, next check - three values read off a field, so since v0.6.5
     # they sit in one sunken well, as the panel's fields do, with a hairline between them. The
@@ -142,10 +149,11 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
         x0, x1 = left + row_pad, right - row_pad
         content = x1 - x0
         contents = []
+        # A chip as the window and the panel size one (v0.6.10): LAYOUT's height and padding.
         chip_text_w, chip_text_h = measure("chip", task["reason"], content, False)
-        chip_pad = px(space["s"])
+        chip_pad = px(brand.LAYOUT["chip_pad_x"])
         chip_w = min(chip_text_w + 2 * chip_pad, content // 2)
-        chip_h = chip_text_h + px(4)
+        chip_h = max(px(brand.LAYOUT["chip_height"]), chip_text_h)
         name_w = content - chip_w - px(space["s"])
         _, name_h = measure("name", task["name"], name_w, False)
         line_h = max(name_h, chip_h)
@@ -227,7 +235,7 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
     # Footer: Pause/Resume and Open Dashboard. Side by side when both fit on one line,
     # stacked when either would not - a German button label is not cut in half.
     y += px(space["xs"])
-    button_h = px(32)
+    button_h = px(brand.LAYOUT["button_height"])         # the window's and the panel's, since v0.6.10
     button_pad = px(space["m"])
     buttons = (("toggle", vm["toggle_text"], False, vm["toggle_busy"]),
                ("dashboard", vm["dashboard_text"], True, False))

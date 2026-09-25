@@ -506,17 +506,57 @@ class LayoutTests(unittest.TestCase):
                     self.assertTrue(hit[0] <= label["rect"][0] and hit[1] <= label["rect"][1] and right <= hit[2])
         self.assertGreater(wrapped, 0, "no label wrapped, so nothing here tells the last line from the first")
 
-    def test_the_header_keeps_its_place_and_the_glow_stays_on_the_card(self):
+    def test_the_header_is_the_panel_s_hero_and_the_glow_stays_on_the_card(self):
+        """v0.6.10 (F7): the product is a muted eyebrow (`label`), and the state's word is the title - `title`, in
+        ink - on the light's line: the light is centred on the word's first line, LAYOUT's `light_inset` from the
+        card's content and `light_gap` from the word, as it stands in every header. Until then the product's name was
+        the title, the state a small coloured line under it and the light centred on the pair."""
+        for scale in (1.0, 1.25, 1.5, 1.75, 2.0):
+            for locale in ("en", "de", "ja"):
+                with self.subTest(scale=scale, locale=locale):
+                    vm, plan = self.plan(interface.STRINGS[locale], scale=scale)
+                    card = plan["card"]
+                    left = card[0] + round(brand.SPACING["l"] * scale)
+                    halo = next(item for item in plan["items"] if item["kind"] == "halo")
+                    self.assertAlmostEqual(halo["radius"], brand.glow_extent(brand.STATUS_DOT["popup"]) * scale)
+                    self.assertGreaterEqual(halo["cx"] - halo["radius"], card[0])
+                    eyebrow, word = [item for item in plan["items"] if item["kind"] == "text"][:2]
+                    self.assertEqual((eyebrow["text"], eyebrow["role"], eyebrow["colour"]),
+                                     (vm["title"], "label", "muted"))
+                    self.assertEqual((word["text"], word["role"], word["colour"]), (vm["state_text"], "title", "ink"))
+                    self.assertEqual(eyebrow["rect"][0], left, "the eyebrow starts where the card's content does")
+                    self.assertLessEqual(eyebrow["rect"][3], word["rect"][1], "and stands above the light's line")
+                    dot = brand.STATUS_DOT["popup"] * scale
+                    self.assertAlmostEqual(halo["cx"] - dot - left, brand.LAYOUT["light_inset"] * scale, delta=0.01)
+                    self.assertAlmostEqual(word["rect"][0] - (halo["cx"] + dot), brand.LAYOUT["light_gap"] * scale,
+                                           delta=0.5)
+                    line = measure("title", "Ag", word["rect"][2] - word["rect"][0], False)[1]
+                    self.assertAlmostEqual(halo["cy"], word["rect"][1] + line / 2.0, delta=0.5,
+                                           msg="the light stands on the word's first line")
+
+    def test_buttons_and_chips_are_the_window_s_and_the_panel_s(self):
+        """v0.6.10 (F8): a button is LAYOUT's `button_height` high and a chip `chip_height`, padded `chip_pad_x`, and
+        both are set at a weight under 600 - drawn Regular, as the window's and the panel's are. Until then the popup's
+        buttons were 32 high and bold and its chips bold, shorter and tighter."""
+        self.assertLess(popup.ROLES["button"][1], 600)
+        self.assertLess(popup.ROLES["chip"][1], 600)
+        self.assertEqual(popup.ROLES["button"][1], brand.TYPE_ROLES["button"][1])
+        self.assertEqual(popup.ROLES["chip"][1], brand.TYPE_ROLES["chip"][1])
+        self.assertEqual(popup.font_candidates("en", popup.ROLES["button"][1], "Segoe UI"), (("Segoe UI", 400),))
         for scale in (1.0, 1.25, 1.5, 1.75, 2.0):
             with self.subTest(scale=scale):
                 _, plan = self.plan(scale=scale)
-                card = plan["card"]
-                halo = next(item for item in plan["items"] if item["kind"] == "halo")
-                self.assertAlmostEqual(halo["radius"], brand.glow_extent(brand.STATUS_DOT["popup"]) * scale)
-                self.assertGreaterEqual(halo["cx"] - halo["radius"], card[0])
-                title = next(item for item in plan["items"] if item["kind"] == "text" and item["role"] == "title")
-                self.assertEqual(title["rect"][0], card[0] + round(brand.SPACING["l"] * scale)
-                                 + round(popup.MARK * scale) + round((brand.SPACING["s"] + 2) * scale))
+                buttons = [item["rect"] for item in plan["items"] if item["kind"] == "button"]
+                self.assertEqual(len(buttons), 2)
+                for rect in buttons:
+                    self.assertEqual(rect[3] - rect[1], round(brand.LAYOUT["button_height"] * scale))
+                chips = [item["rect"] for item in plan["items"] if item["kind"] == "chip"]
+                self.assertTrue(chips)
+                for rect in chips:
+                    self.assertEqual(rect[3] - rect[1], round(brand.LAYOUT["chip_height"] * scale))
+                labels = [item for item in plan["items"] if item["kind"] == "text" and item["role"] == "chip"]
+                for chip, label in zip(chips, labels):
+                    self.assertEqual(label["rect"][0] - chip[0], round(brand.LAYOUT["chip_pad_x"] * scale))
 
 
 # ------------------------------------------------------------------------------- motion
@@ -1192,7 +1232,7 @@ class SafetyTests(unittest.TestCase):
             with self.subTest(srcscan.relative(path)):
                 self.assertEqual(re.findall(r"#[0-9A-Fa-f]{6}\b", text), [])
             used |= set(re.findall(r"(?:argb|colorref)\(\"([a-z_]+)\"", text))
-        tables = set(popup.DOT_FILL.values()) | set(popup.STATE_INK.values())
+        tables = set(popup.DOT_FILL.values())
         for token in used | tables | {"waiting", "warning", "paused"}:
             self.assertIn(token, brand.LIGHT, token)
 
@@ -1360,9 +1400,10 @@ class WindowsTests(unittest.TestCase):
         finally:
             renderer.close()
 
-    def test_a_stopped_watcher_s_dot_is_idle_grey_with_no_glow_beside_its_amber_word(self):
+    def test_a_stopped_watcher_s_dot_is_idle_grey_with_no_glow_beside_its_word(self):
         """v0.6.10 (F4): drawn, not only decided. The halo item carries the light, and the dot is `idle` with
-        nothing round it at any moment of what would have been attention's breath; the word keeps its warning ink."""
+        nothing round it at any moment of what would have been attention's breath. The word beside it is in ink, as
+        every state's word is since F7: the light carries the colour, the word the meaning."""
         renderer = popup.Renderer()
         try:
             vm = popup.view_model(self.ROWS, dict(STATUS, watcher_running=False), EN, NOW)
@@ -1371,7 +1412,7 @@ class WindowsTests(unittest.TestCase):
             halo = next(item for item in plan["items"] if item["kind"] == "halo")
             self.assertEqual(halo["state"], "idle")
             word = next(item for item in plan["items"] if item["kind"] == "text" and item["text"] == vm["state_text"])
-            self.assertEqual(word["colour"], popup.STATE_INK["attention"])
+            self.assertEqual(word["colour"], "ink")
             cx, cy, width = int(halo["cx"]), int(halo["cy"]), plan["size"][0]
             for moment in (0, brand.GLOW["attention_ms"] * 0.5, brand.GLOW["attention_ms"]):
                 canvas = renderer.draw(vm, plan, frame=popup.halo(vm["light"], moment, moment))
