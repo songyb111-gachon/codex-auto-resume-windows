@@ -15,7 +15,7 @@ from ... import brand
 from ...win.dll import WNDCLASSW, WNDPROC
 from .layout import WIDTH
 from .model import PopupModel, perform, select_action
-from .motion import animates, glide_amount, halo, next_glides
+from .motion import MotionGates, animates, glide_amount, halo, next_glides
 from .placement import focus_order, hit_test, next_focus, place
 from .renderer import Renderer
 from . import theme as look                # the three questions below are asked through it
@@ -83,11 +83,9 @@ FIRST_READ_WAIT_MS = 300     # the first opening waits this long for real number
 
 
 # ------------------------------------------------------------------------------ the window
-class Popup:
+class Popup(MotionGates):
     """The window itself. Created, shown, hidden and destroyed on the icon's thread only;
     `set_strings` is the one method another thread may call."""
-
-    _design = "soft"                     # until the first reading: Soft, as the settings read without one
 
     def __init__(self, *, control=None, source=None, strings=None, on_dashboard=None, log=None,
                  anchor=None):
@@ -128,7 +126,6 @@ class Popup:
         self._contrast = False
         self._apps_light = None          # Windows' app mode when last asked: True, False or None
         self._theme = "light"            # the theme in effect: the setting, resolved against that mode
-        self._design = "soft"            # the design in effect, as the stored setting says (v0.6.10)
         self._framed_dark = None         # what DWM was last told about the window's frame
         self._tracking = False
         self._strings = None
@@ -251,15 +248,13 @@ class Popup:
 
     # ------------------------------------------------------------------- appearance
     def _read_look(self):
-        """Ask Windows again how to draw: High Contrast, its app mode and its motion setting.
-
-        On every opening and whenever Windows says a setting changed, never per frame. High
-        Contrast moves nothing either, and outranks the theme when drawing.
+        """Ask Windows again how to draw: High Contrast, its app mode and its motion setting - on every
+        opening and whenever Windows says a setting changed, never per frame. High Contrast moves nothing
+        either, and outranks the theme and the design (the product's own, adopted with the theme).
 
         These three are the only questions this window asks Windows about how to look, and they
         go through `look` rather than by name: a test that draws without a screen replaces them,
-        and through the module there is one place to do it whichever file is asking. The design is
-        not one of them: it is the product's own setting, adopted with the theme.
+        and through the module there is one place to do it whichever file is asking.
         """
         self._contrast = look.high_contrast()
         self._apps_light = look.apps_use_light_theme()
@@ -267,20 +262,8 @@ class Popup:
         self._theme = effective_theme(theme_setting(), self._apps_light)
         self._design = design_setting()
 
-    # v0.6.10: what may move is two gates since the design split them - the status light, and the
-    # switches. Each is held by any stopper (`_reduced`), and each by a design that does not move it:
-    # Still holds both, Classic and Plain only the switches. A design never moves what a stopper holds.
-    @property
-    def _light_still(self) -> bool:
-        return not brand.light_moves(self._design, stopped=self._reduced)
-
-    @property
-    def _controls_still(self) -> bool:
-        return not brand.controls_move(self._design, stopped=self._reduced)
-
     def _follow_theme(self):
-        """The theme for the setting as it is now and the app mode last read, and the design as it is stored
-        now; a change of either redraws everything."""
+        """The theme (the setting, the app mode last read) and the stored design; a change redraws it all."""
         theme, design = effective_theme(theme_setting(), self._apps_light), design_setting()
         if (theme, design) != (self._theme, self._design):
             self._theme, self._design = theme, design
