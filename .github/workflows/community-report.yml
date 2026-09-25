@@ -11,8 +11,9 @@ name: community report
 # commits and read with git plumbing, and the script that reads it is the base's.
 # tests/test_workflow_privilege.py holds every one of those, not just today's shape.
 #
-# It comments nothing and labels nothing; the maintainer's tool does that, and still files each
-# report through a pull request of its own.
+# It comments nothing, labels nothing and files nothing. community-file.yml wakes when this
+# finishes, judges the report again against main as it is by then, and files what passes - main's
+# own regeneration of it, never these bytes - with no step by the maintainer.
 on:
   pull_request_target:
     types: [opened, synchronize, reopened]

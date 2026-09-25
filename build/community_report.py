@@ -1,11 +1,13 @@
 """A compatibility report from someone else, read as the untrusted document it is.
 
-Three readers share this file: the pull-request check that judges a report as it arrives
+Four readers share this file: the pull-request check that judges a report as it arrives
 (build/community_check.py, which .github/workflows/community-report.yml runs from main's own
-copy), the tests that hold the reports already filed (tests/test_reported_data.py), and the
-truth table the maintainer's tool runs too (tests/fixtures/reported_cases.json). It is not
-shipped: build/ never enters a release (build/make_release.py), so nothing here runs on anyone's
-machine, and it has no network code.
+copy), the filer that files an accepted one with no step by the maintainer
+(build/community_file.py, run by .github/workflows/community-file.yml), the tests that hold the
+reports already filed (tests/test_reported_data.py), and the maintainer's tool, which imports this
+file from main rather than keeping a copy, so the index, the README and the counts are written by
+one implementation whoever files. It is not shipped: build/ never enters a release
+(build/make_release.py), so nothing here runs on anyone's machine, and it has no network code.
 
 The format is `codex-auto-resume-compat-evidence/1`, the maintainer's own evidence format, as
 codex-compat-reporter writes it. A report is refused whole for anything outside it: a missing or
@@ -14,6 +16,14 @@ that cannot be, or a fingerprint that is not plausible. What it concludes - each
 level and the verdict - is not refused but worked out again from its records (`recompute`), and
 the filed copy holds that recomputation with our own sentences in place of the sender's
 (`filed_copy`), so a hand-edited conclusion does not survive and no sentence is shown as written.
+
+A report's path is its login and its version, so both have to be names every checkout can hold.
+A login Windows reserves as a device (con, nul, aux, prn, com0-9, lpt0-9, in any letter case) is
+refused: git for Windows will not check out `docs/evidence/community/nul/...`, and one such file on
+main would stop every Windows checkout of it - the tests, the ko sync, the release and the filer
+itself. And a version has one spelling: the product orders `0.1.0`, `00.1.0` and `0.01.0` as one
+engine, so only the spelling it would write back (`canonical_version`) is accepted, and one login
+cannot file the same version three times under three names.
 
 The fingerprint. A report names the setup that measured: the Codex version the product read from
 the engine (`codex_version`), and the product's, the reporter's and Windows' own versions
@@ -92,6 +102,10 @@ RECORD_KEYS = frozenset({"detected_at", "delivered_at", "outcome_at", "category"
 CAPABILITY_KEYS = frozenset({"confirmed", "missed", "last_confirmed", "level"})
 
 LOGIN = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}")
+# Names Windows gives to devices, which no folder can have there (LOGIN already keeps out the dots,
+# spaces and `$` of the rest of the list, such as conin$). Compared casefolded.
+RESERVED = frozenset({"con", "prn", "aux", "nul"} | {"com%d" % n for n in range(10)}
+                     | {"lpt%d" % n for n in range(10)})
 VERSION = re.compile(r"codex-cli \d[0-9A-Za-z.\-]{0,39}")
 TOOL = "codex-compat-reporter"
 TOOL_VERSION = re.compile(r"(\d{1,4})\.(\d{1,4})\.(\d{1,4})")
@@ -101,7 +115,8 @@ WINDOWS = re.compile(r"10\.0\.(\d{5})")
 FIRST_WINDOWS_BUILD = 10240                      # Windows 10's first build
 TIME = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ")
 
-# The sentences a filed report carries: ours, never the sender's (codex-compat-admin's OURS).
+# The sentences a filed report carries: ours, never the sender's. The filer and the maintainer's
+# tool both write them from here, through filed_copy().
 OURS = {
     "recorded_by": "a contributor's Windows machine, through %s %s",
     "rule": "a record counts for this version only when the product's engine reports before and "
@@ -115,7 +130,8 @@ COUNTS_COMMENT = [
     "Reported: other people's filed compatibility reports, counted per Codex version.",
     "src/codex_auto_resume/compat/reported.py reads this file only to show the counts. Nothing",
     "that decides reads it, and it is not the compatibility data: codex_compat.json carries",
-    "no counts. Written from docs/evidence/community/index.json by the maintainer's tool, and",
+    "no counts. Written from docs/evidence/community/index.json by build/community_report.py",
+    "project(), whether the filer or the maintainer's tool files, and",
     "tests/test_reported_data.py holds it equal to that index. Each report counts as worked,",
     "failed, neither, or both at once, so worked + failed - both + neither = reports: one",
     "report per GitHub login per Codex version, so these are reports, not machines.",
@@ -150,11 +166,32 @@ def canonical_path(login: str, version: str) -> str:
     return "%s/%s/%s" % (COMMUNITY, login, file_name(version))
 
 
+def canonical_version(value):
+    """`codex-cli <version>` as the product would write it back from the order it gives it, or None.
+
+    The product reads `0.1.0`, `00.1.0` and `0.01.0` as one engine, and an alpha's `.0` sub-number
+    as none, so each of those is one version with several spellings; this is the one spelling."""
+    key = compat.parse_version(value) if isinstance(value, str) else None
+    if key is None:
+        return None
+    major, minor, patch, final, alpha, sub = key
+    text = "codex-cli %d.%d.%d" % (major, minor, patch)
+    if not final:
+        text += "-alpha.%d" % alpha + (".%d" % sub if sub else "")
+    return text
+
+
 def engine_version(value) -> bool:
-    """A Codex version the product itself names engines by, and safe as a file and branch name."""
+    """A Codex version the product itself names engines by, in its one spelling, and safe as a file
+    and branch name."""
     return (isinstance(value, str) and bool(VERSION.fullmatch(value))
-            and compat.parse_version(value) is not None and ".." not in value
-            and not value.endswith((".", ".lock")))
+            and compat.parse_version(value) is not None and canonical_version(value) == value
+            and ".." not in value and not value.endswith((".", ".lock")))
+
+
+def login_name(value) -> bool:
+    """A GitHub login that can also be a folder on every checkout of this repository."""
+    return isinstance(value, str) and bool(LOGIN.fullmatch(value)) and value.casefold() not in RESERVED
 
 
 def product_key(value):
@@ -241,7 +278,8 @@ def _envelope(reading, author, releases):
     if report["format"] != FORMAT:
         refuse("format is not %s" % FORMAT)
     if not engine_version(report["codex_version"]):
-        refuse("codex_version is not a Codex version the product names engines by")
+        refuse("codex_version is not a Codex version the product names engines by, written as the "
+               "product writes it (no leading zero, no alpha .0)")
     if report["verdict"] not in VERDICTS:
         refuse("verdict is not PASS, CHECKED or NONE")
     reading.written = None
@@ -265,6 +303,8 @@ def _envelope(reading, author, releases):
     login = sender["github_login"]
     if not isinstance(login, str) or not LOGIN.fullmatch(login):
         refuse("reporter.github_login is not a GitHub login")
+    elif not login_name(login):
+        refuse("reporter.github_login is a name Windows keeps for a device, which no folder can have")
     elif author is not None and login != author:
         refuse("reporter.github_login is not the login that opened the pull request")
     # The fingerprint: the setup that measured, each part one that could have written this file.
@@ -483,3 +523,58 @@ def project(index) -> dict:
             "versions": [dict(version=version, **{name: held["reported"][name]
                                                   for name in product_reported.COUNTS})
                          for version, held in sorted((index or {}).get("versions", {}).items())]}
+
+
+REPORTER_URL = "https://github.com/songyb111-gachon/codex-compat-reporter"
+
+
+def build_readme(index) -> str:
+    """docs/evidence/community/README.md for an index: what the folder is, and what it adds up to.
+
+    Written from the index alone, so it says nothing the index does not, and
+    tests/test_reported_data.py holds the file equal to this. ASCII, one newline at the end."""
+    versions = (index or {}).get("versions", {})
+    lines = ["# Reported: what other people's machines say", "",
+             "Written by [codex-compat-reporter](%s), the tool anyone can run on their own Windows"
+             " machine. Each file holds counts, states and times from that machine - no conversation"
+             " text, no identifiers, no paths." % REPORTER_URL, "",
+             "**Reported is a grade of its own.** What is known about a Codex version is said with four"
+             " words, and they are a ladder: *verified*, *checked*, *compatible*, and *failed here*."
+             " Reported is not one of them and never becomes one. Nothing can prove that a report was"
+             " not written by hand on the machine that sent it, so a report never moves a version up"
+             " the ladder. It is shown beside the version, with the number of reports that said the"
+             " same thing. A version whose own evidence says nothing stays *compatible* however many"
+             " reports arrive.", "",
+             "A report is counted as **worked** when at least one of its records was delivered and"
+             " ended in the state `recovered`; as **failed** when at least one delivered record ended"
+             " in `recovery_turn_failed`, `failed` or `terminal_failure`; and as **neither** when no"
+             " delivered record ended in either, which includes a report that delivered nothing. One"
+             " report can be counted as both, and that is shown rather than resolved. There is one"
+             " report per GitHub login per Codex version, so these are reports, not machines.", "",
+             "Every conclusion in a report is recomputed from the records it carries when it is filed,"
+             " and every sentence in it is replaced by one of ours, so nothing here is displayed as its"
+             " sender wrote it.", "",
+             "| Codex version | Reports | Worked | Failed | Neither | Both |",
+             "| --- | --- | --- | --- | --- | --- |"]
+    for version, held in sorted(versions.items()):
+        said = held["reported"]
+        lines.append("| `%s` | %d | %d | %d | %d | %d |" % (version, said["reports"], said["worked"],
+                                                           said["failed"], said["neither"], said["both"]))
+    if not versions:
+        lines.append("| - | none yet | - | - | - | - |")
+    lines += ["", "### Every report", "",
+              "| Codex version | Reported by | Says | Records | Delivered | Recorded |",
+              "| --- | --- | --- | --- | --- | --- |"]
+    for version, held in sorted(versions.items()):
+        for entry in held["reports"]:
+            says = ", ".join(word for word in ("worked", "failed") if entry[word]) or "neither"
+            lines.append("| `%s` | [%s](%s/) | %s | %d | %d | %s |"
+                         % (version, entry["reported_by"], entry["reported_by"], says,
+                            entry["records"], entry["delivered"], entry["recorded_at"][:10]))
+    if not versions:
+        lines.append("| - | - | - | - | - | - |")
+    lines += ["", "Written by build/community_report.py whenever a report is filed or withdrawn - by"
+              " .github/workflows/community-file.yml, or by the maintainer's tool - from index.json."
+              " Do not edit it by hand: tests/test_reported_data.py holds it equal to what that code"
+              " writes.", ""]
+    return "\n".join(lines)
