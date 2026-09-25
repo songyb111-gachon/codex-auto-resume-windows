@@ -151,12 +151,16 @@ composition, its words and its places, and the popup's and the card's buttons an
   the panel's Start watcher or the `start_watcher` tool runs in the job Codex runs this plugin's
   server in, and Codex 26.915 ends everything in that job when it ends the server - measured for
   v0.6.9-alpha. The reply said *The watcher is running.* as though it would stay. Now, where the job
-  ends what it holds, it adds that the watcher stops when Codex closes, if not sooner, and that
-  starting it from the Dashboard, or turning on Run at Windows sign-in there, keeps it running; where
-  Windows will not describe the job, that it may stop. The panel says the same in all nine languages,
-  and the tool's description says it too. The reply carries `ends_with_codex` - true, false or null -
-  whenever it started a watcher, and the MCP wire golden now holds a start in such a job and one in no
-  job. The job is read by the one function the start with Codex refuses by.
+  ends what it holds, it adds that the watcher stops when Codex closes, if not sooner, and how to get
+  one that outlives Codex: once Codex has closed, open Codex Auto Resume from the Start menu and start
+  it there, or turn on Run at Windows sign-in in the Dashboard. (Not the Dashboard opened from that
+  watcher's own icon: it runs inside Codex's job too, and while the watcher runs it has nothing to
+  start.) Where Windows will not describe the job, it says the watcher may stop, with the same way
+  out. The panel says the same in all nine languages, after a start that is running or not yet
+  confirmed, and the tool's description says it too. The reply carries `ends_with_codex` - true,
+  false or null, read from the job each time - whenever it started a watcher, and the MCP wire golden
+  now holds a start in such a job and one in no job. The job is read by the one function the start
+  with Codex refuses by.
 
 ## v0.6.10-alpha — Where every file goes when the core is Rust
 

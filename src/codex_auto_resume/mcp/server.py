@@ -389,15 +389,26 @@ class Server:
     # may be running. This server runs in the job Codex puts it in, and Start watcher asks nothing
     # of that job: measured on Codex 26.915 (v0.6.9-alpha), the job has KILL_ON_JOB_CLOSE and no
     # breakaway, so the watcher ends when Codex ends this server - when Codex closes, if not sooner.
-    # Keyed by Control.launch_ends_with_job: True, or None where Windows would not say. False - a
-    # watcher that outlives Codex - needs no sentence. The reply carries it as `ends_with_codex`.
+    # Keyed by Control.launch_ends_with_job, read from the job each time: True, or None where
+    # Windows would not say. False - a watcher that outlives Codex - needs no sentence. The reply
+    # carries it as `ends_with_codex`.
+    #
+    # The way out it names must be one a person can take. Not "start it from the Dashboard": the
+    # Dashboard starts a watcher through the bridge with no breakaway, so the watcher joins the
+    # Dashboard's own job, and a Dashboard opened from this watcher's icon, card or notification
+    # is this watcher's child, in Codex's job too - and while this watcher runs there is nothing
+    # for it to start. The Start menu's entry is opened by Windows, not by Codex or a watcher, so
+    # a watcher started there once Codex has closed is in no job of Codex's; the sign-in start is
+    # launched by Windows as well.
     ENDS_WITH_CODEX = {
         True: "It was started from inside Codex, which ends what its plugins start, so it stops "
-              "when Codex closes, if not sooner. To keep it running, start it from the Dashboard, "
-              "or turn on Run at Windows sign-in there.",
+              "when Codex closes, if not sooner. Once Codex has closed, open Codex Auto Resume "
+              "from the Start menu and start it there, or turn on Run at Windows sign-in in the "
+              "Dashboard so it starts with Windows.",
         None: "It was started from inside Codex, and Windows would not say whether Codex ends what "
-              "its plugins start, so it may stop when Codex closes. To keep it running, start it "
-              "from the Dashboard, or turn on Run at Windows sign-in there.",
+              "its plugins start, so it may stop when Codex closes. If it does, open Codex Auto "
+              "Resume from the Start menu and start it there, or turn on Run at Windows sign-in in "
+              "the Dashboard so it starts with Windows.",
     }
 
     def _tool_start_watcher(self, _arguments) -> dict:
