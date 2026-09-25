@@ -178,11 +178,14 @@ foreach ($design in (ConvertFrom-Json $env:CAR_DESIGNS)) {
         }
     }
 }
-# A Still stored by v0.6.10, as the window takes it: the file's design as Design.Preference reads it, and the Reduce
-# motion the bridge's first read brings (settings._migrate).
-$reduce.SetValue($null, $true)
-Look 'still' 'light'
-$out.storedStill = @{ design = [string](Field 'Palette' 'Design'); frames = @{} }
+# A Still stored by v0.6.10, beside a Reduce motion that is off, as the window opens on it (Program.Main): the design
+# and Reduce motion out of one read of the file (Theme.Stored), before the bridge has answered anything.
+$call = [object[]]@([string](Join-Path $work 'stored-still'), $null, $null, $null)
+$null = $t.Theme.GetMethod('Stored', $static).Invoke($null, $call)
+$reduce.SetValue($null, [bool]$call[3])
+Look ([string]$call[2]) 'light'
+$out.storedStill = @{ design = [string](Field 'Palette' 'Design'); reduceMotion = [bool](Property 'Soft' 'ReduceMotion')
+                      frames = @{} }
 foreach ($state in (ConvertFrom-Json $env:CAR_LIGHT_STATES)) { $out.storedStill.frames[$state] = Frames $state }
 $reduce.SetValue($null, $false)
 
@@ -317,6 +320,9 @@ class WindowDesignTests(unittest.TestCase):
         current = dict(settings.defaults(), continuation_style="custom", custom_message_mode="per_reason")
         (work / "schema.json").write_text(json.dumps(settings.describe(), ensure_ascii=False), encoding="utf-8")
         (work / "settings.json").write_text(json.dumps(current, ensure_ascii=False), encoding="utf-8")
+        (work / "stored-still" / "config").mkdir(parents=True)
+        (work / "stored-still" / "config" / "settings.json").write_text(
+            json.dumps({"config_version": 2, "design": "still", "reduce_motion": False}), encoding="utf-8")
         now = time.time()
         (work / "snapshot.json").write_text(json.dumps(fullest_snapshot(now), ensure_ascii=False), encoding="utf-8")
         probe = work / "probe.ps1"
@@ -416,9 +422,11 @@ class WindowDesignTests(unittest.TestCase):
 
     def test_a_stored_still_draws_every_frame_v0610_still_drew(self):
         """v0.6.10's Still held the light as Reduce motion does, in Soft's colours with no glow. A stored Still reaches
-        the window as Soft (Brand.DesignOf) with Reduce motion on, and the light is Soft's under Reduce motion, held."""
+        the window as Soft (Brand.DesignOf) with Reduce motion on from the window's first frame - out of the one read of
+        the file the window opens with (Theme.Stored), not the bridge's read that follows - and the light is Soft's
+        under Reduce motion, held."""
         stored = self.answer["storedStill"]
-        self.assertEqual(stored["design"], "soft")
+        self.assertEqual((stored["design"], stored["reduceMotion"]), ("soft", True))
         for state in LIGHT_STATES:
             frames = stored["frames"][state]
             with self.subTest(state):

@@ -214,9 +214,9 @@ def is_custom_text(name) -> bool:
 # A refusal a person can act on. `validate_update` reports "invalid value for X" for
 # most fields, which is enough when the field is a number with a published range and
 # useless when it is free text: "invalid value for custom_message" does not say that
-# the problem is a placeholder that would have leaked the conversation. A field with
-# published choices names them (`_refuse`), so a choice this version no longer has -
-# v0.6.10's design "still" - is answered with the ones it has.
+# the problem is a placeholder that would have leaked the conversation. The one choice
+# this version no longer has - v0.6.10's design "still" (FOLDED_DESIGN) - is answered with
+# the designs it has (`_refuse`); every other refusal says what it said in v0.6.10.
 EXPLAIN = {name: lambda value: continuation.validate_custom(value)
            for name in FIELDS if is_custom_text(name)}
 
@@ -283,9 +283,8 @@ def _refuse(name: str, value):
             explain(value)
         except ValueError as exc:
             raise SettingsError(str(exc)) from None
-    choices = RANGES.get(name, {}).get("choices")
-    if choices:
-        raise SettingsError("invalid value for %s: expected one of %s" % (name, ", ".join(choices)))
+    if name == "design" and value == FOLDED_DESIGN:
+        raise SettingsError("invalid value for design: expected one of %s" % ", ".join(DESIGNS))
     raise SettingsError("invalid value for %s" % name)
 
 
@@ -409,8 +408,9 @@ def _migrate(raw) -> dict:
     version = raw.get("config_version")
     if not isinstance(version, int) or version < 1:
         # v0.4.x wrote a flat file with no version marker. Its field names that still
-        # exist keep their values; everything else takes the new default.
-        return {name: raw[name] for name in FIELDS if name in raw}
+        # exist keep their values; everything else takes the new default. A hand-written
+        # file with no marker may hold a Still too, and keeps its picture like any other.
+        return _fold_design({name: raw[name] for name in FIELDS if name in raw})
     return _fold_design(raw)
 
 

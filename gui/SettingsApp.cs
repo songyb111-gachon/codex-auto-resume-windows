@@ -1044,10 +1044,13 @@ namespace CodexAutoResume
             }
             // The theme and the design, decided before the first control is made: the ones a reopening window
             // passed on, or the ones stored - read from the settings file once, both in the same parse - with the
-            // theme as Windows and High Contrast have it now (Theme). Every colour below comes from them.
+            // theme as Windows and High Contrast have it now (Theme). Every colour below comes from them. Reduce
+            // motion comes out of the same parse, so nothing moves before the bridge's first read confirms it.
             OpenRequest request = SettingsForm.ParseArguments(argv);
             string storedTheme, storedDesign;
-            Theme.Stored(root, out storedTheme, out storedDesign);
+            bool storedReduceMotion;
+            Theme.Stored(root, out storedTheme, out storedDesign, out storedReduceMotion);
+            Soft.ReduceMotionSetting = storedReduceMotion;
             Theme.Opened = request.Theme ?? storedTheme;
             Design.Opened = request.Design ?? storedDesign;
             Palette.AdoptDesign(Design.Opened);
