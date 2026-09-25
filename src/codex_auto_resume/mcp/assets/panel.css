@@ -31,6 +31,12 @@
 }
 :root[data-theme="dark"] { color-scheme: dark; @DARK@ @ELEVATION_DARK@ @TILE_DARK@ }
 :root[data-theme="light"] { color-scheme: light; @LIGHT@ @ELEVATION_LIGHT@ @TILE_LIGHT@ }
+/* v0.6.10: the designs. Soft is the blocks above. A design that draws in other colours, without depth
+   or with other corners (Classic, Plain) redeclares them in the same four places, each also naming the
+   design, so each outranks the block it stands for and every design is in light and dark. Only on the
+   root, where the theme is stamped and the --check-* aliases are resolved (brand.css_design_blocks);
+   the script stamps `data-design` from the stored design (applyDesign). */
+@DESIGNS@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -526,6 +532,15 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
   *, *::before, *::after { animation: none !important; transition: none !important; }
   .halo::before { display: none; }
 }
+
+/* v0.6.10: what each design moves, and Classic's mark, from brand.DESIGN (panel.design_rules). A design
+   whose light does not breathe (Still), and the product's own Reduce motion (`data-motion`, which until
+   then only the Dashboard, the popup, the card and the icon read), hold everything as the rule above
+   does; a design that does not glide (Still, Classic, Plain) changes a control and shows a list without
+   moving them; one with no glow (Plain) dims its light with nothing round it; and Classic draws v0.6.2's
+   accent bar inside each card's left hairline - a shadow, so nothing moves by its width. A design only
+   ever takes motion away: nothing here can start what the rule above or High Contrast stops. */
+@DESIGN_MOTION@
 
 /* Windows High Contrast. The browser puts the person's system colours in place of the palette
    and takes every shadow away - and it would paint the light over with the page's ground,
