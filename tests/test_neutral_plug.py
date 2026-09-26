@@ -61,6 +61,16 @@ class NeutralPlugTests(unittest.TestCase):
                          "a scenario that passes as the standard edition fails with the plug")
         self.assertEqual(sorted(key for key, result in results.items() if not result["standard_ok"]), [],
                          "a scenario fails as the standard edition: the comparison is of nothing")
+        # The advanced lane runs each scenario with the package's own plug as well, nothing on:
+        # the core suite there is the standard edition, so this is where the real plug is held.
+        real = [result for result in results.values() if "real_difference" in result]
+        self.assertEqual(len(real), len(results) if neutral.advanced_lane() else 0)
+        self.assertEqual({result["id"]: result["real_difference"] for result in real
+                          if result["real_difference"]}, {},
+                         "the advanced plug with nothing on changed what a scenario did")
+        self.assertEqual(sorted(result["id"] for result in real
+                                if result["standard_ok"] and not result["real_ok"]), [],
+                         "a scenario that passes as the standard edition fails with the advanced plug")
         driven = [key for key, result in results.items() if result["engines"]]
         self.assertGreater(len(driven), 200, "the scenarios that build an engine are most of them")
         modules = {key.split(".", 1)[0] for key in driven}
