@@ -74,10 +74,15 @@ class Point(StrEnum):
     not describe it, so an advanced record stays in the advanced store and reaches core through
     RECORDS instead.
 
-    P14 is not a question: core tells the plug a record it holds has moved, as it writes the
-    move. A plug that read the moves back instead - out of the journal - would decide by a second
-    source of truth, which a pruned entry or a retention bound changes; and the record's state
-    alone, read at P8, has already moved on when the watch that runs before P8 settled it."""
+    P14 is not a question: the engine tells the plug a record core holds has moved, as it writes
+    the move. A person's own moves - a cancel, or the attempts given back (store/actions.py,
+    and an older watcher's cancel, store/legacy.py) - are not told: they are written by what the
+    person acted through, the Dashboard, MCP, the CLI or a toast, most often in a process that
+    holds no engine. None of them moves a record into or out of submission_unknown, and a plug
+    finds where they left a record at its next P2 or P8. A plug that read the moves back instead
+    - out of the journal - would decide by a second source of truth, which a pruned entry or a
+    retention bound changes; and the record's state alone, read at P8, has already moved on when
+    the watch that runs before P8 settled it."""
     RECORDS = "records"                      # P2  records of the advanced store, due now
     GATES = "gates"                          # P3  the gates a record passes before it is sent
     TEXT = "text"                            # P4  what the continuation says
@@ -217,8 +222,9 @@ class Plug:
     def moved(self, record, state):                   # P14
         """A record core holds has just moved to `state`: told once the move is written, with
         the record as core held it before - so its `state` is the one it left. Every move the
-        engine makes is told, a Pause's included, because this decides nothing: it is how a
-        plug learns what core did, as it happened. Its answer is not read."""
+        engine writes is told, a Pause's included, because this decides nothing: it is how a
+        plug learns what the engine did, as it happened. A person's own moves - a cancel, the
+        attempts given back - are not told (Point, P14). Its answer is not read."""
         return DEFER
 
     def edition_changed(self, previous):
